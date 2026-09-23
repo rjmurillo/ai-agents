@@ -53,9 +53,9 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 TRACKED_DOCS = (
     "docs/SKILL-AUTHORING.md",
     ".agents/steering/claude-skills.md",
-    ".agents/architecture/ADR-040-skill-frontmatter-standardization.md",
-    ".agents/architecture/SKILL-STANDARDS-RECONCILED.md",
-    ".agents/architecture/DESIGN-REVIEW-context-optimizer-refactoring.md",
+    ".project-toolkit/architecture/ADR-040-skill-frontmatter-standardization.md",
+    ".project-toolkit/architecture/SKILL-STANDARDS-RECONCILED.md",
+    ".project-toolkit/architecture/DESIGN-REVIEW-context-optimizer-refactoring.md",
 )
 
 # Same shape as check_model_pins._VERSIONED_RE, applied to one frontmatter line

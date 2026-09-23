@@ -149,7 +149,7 @@ Patterns identified from Phase 3 consistency validation implementation.
 ## Session Reference
 
 - Date: 2025-12-16
-- Retrospective: `.agents/retrospective/2025-12-16-phase3-consistency-validation.md`
+- Retrospective: `.project-toolkit/retrospective/2025-12-16-phase3-consistency-validation.md`
 - Skills Memory: `phase3-consistency-skills.md`
 - Issue: #44 Phase 3 (P3-1, P3-2)
 

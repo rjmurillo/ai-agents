@@ -1,7 +1,7 @@
 # Critique Skills
 
 **Extracted**: 2025-12-16
-**Source**: `.agents/critique/` directory
+**Source**: `.project-toolkit/critique/` directory
 
 ## Skill-Critique-001: Conflict Escalation Protocol (90%)
 
@@ -31,11 +31,11 @@
 - Overriding specialist without escalation
 - Endless debate without resolution
 
-**Source**: `.agents/critique/001-agent-templating-critique.md`
+**Source**: `.project-toolkit/critique/001-agent-templating-critique.md`
 
 ---
 
 ## Related Documents
 
-- Source: `.agents/critique/001-agent-templating-critique.md`
+- Source: `.project-toolkit/critique/001-agent-templating-critique.md`
 - Related: skills-workflow (handoff patterns)

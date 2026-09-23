@@ -520,7 +520,7 @@ def _report_findings(findings: list[str]) -> None:
     print(
         "\nFix: declare the capability under `metadata.capability` in the owning "
         "artifact under templates/, and reference it with `depends-on` instead of "
-        "restating its policy. Contract: .agents/architecture/ADR-110-capability-ownership-dag.md",
+        "restating its policy. Contract: .project-toolkit/architecture/ADR-110-capability-ownership-dag.md",
         file=sys.stderr,
     )
 

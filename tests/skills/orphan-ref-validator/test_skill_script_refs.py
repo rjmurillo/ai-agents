@@ -116,11 +116,11 @@ class TestSkillRelativeResolution:
         assert _script_ref_resolves("scripts/bar.py", rel, tmp_path) is True
 
     def test_non_skill_target_keeps_repo_relative_only(self, tmp_path):
-        # A spec at .agents/specs/X.md does NOT get skill-relative resolution.
-        spec_dir = tmp_path / ".agents" / "specs"
+        # A spec at .project-toolkit/specs/X.md does NOT get skill-relative resolution.
+        spec_dir = tmp_path / ".project-toolkit" / "specs"
         (spec_dir / "scripts").mkdir(parents=True)
         (spec_dir / "scripts" / "baz.py").write_text("# real\n")
-        rel = ".agents/specs/X.md"
+        rel = ".project-toolkit/specs/X.md"
         assert _script_ref_resolves("scripts/baz.py", rel, tmp_path) is False
 
     def test_truly_missing_still_flagged(self, tmp_path):

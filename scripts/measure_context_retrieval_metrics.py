@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Measure context-retrieval auto-invocation metrics from session logs.
 
-Parses session logs in .agents/sessions/ to extract metrics about
+Parses session logs in .project-toolkit/sessions/ to extract metrics about
 context-retrieval agent invocations during orchestration.
 
 EXIT CODES:
@@ -205,7 +205,7 @@ def main() -> int:
         "--sessions-dir",
         type=Path,
         default=None,
-        help="Path to sessions directory (default: .agents/sessions/)",
+        help="Path to sessions directory (default: .project-toolkit/sessions/)",
     )
     parser.add_argument(
         "--limit",
@@ -234,7 +234,7 @@ def main() -> int:
             )
             return 1
     else:
-        sessions_dir = project_root / ".agents" / "sessions"
+        sessions_dir = project_root / ".project-toolkit" / "sessions"
 
     if not sessions_dir.is_dir():
         print(

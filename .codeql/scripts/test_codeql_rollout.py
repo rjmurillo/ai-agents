@@ -277,7 +277,7 @@ def check_documentation(tracker: ValidationTracker) -> None:
     docs = [
         ("docs/codeql-integration.md", "User docs exist"),
         ("docs/codeql-architecture.md", "Developer docs exist"),
-        (".agents/architecture/ADR-041-codeql-integration.md", "ADR exists"),
+        (".project-toolkit/architecture/ADR-041-codeql-integration.md", "ADR exists"),
     ]
 
     for filepath, label in docs:

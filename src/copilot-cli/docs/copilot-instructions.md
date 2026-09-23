@@ -14,7 +14,7 @@ Help me implement a new feature for user authentication
 Investigate why the API is returning 500 errors
 
 /agent implementer
-Implement the login form per the plan in .agents/planning/
+Implement the login form per the plan in .project-toolkit/planning/
 ```
 
 ### Workflow Paths

@@ -272,7 +272,7 @@ not pool artifacts from before that fix with newer artifacts.
 
 Model attribution rests on the filenames above and nothing else. The artifacts
 are committed at
-`.agents/analysis/eval-artifacts/2026-07-29-unified-software-engineering/`.
+`.project-toolkit/analysis/eval-artifacts/2026-07-29-unified-software-engineering/`.
 
 Other limits, all real:
 

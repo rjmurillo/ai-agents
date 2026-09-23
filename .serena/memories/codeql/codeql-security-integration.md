@@ -62,6 +62,6 @@
 
 ## Related
 
-- `.agents/analysis/756-codeql-vs-custom-detection-analysis.md`
+- `.project-toolkit/analysis/756-codeql-vs-custom-detection-analysis.md`
 - `scripts/security/invoke_precommit_security.py`
-- `.agents/security/benchmarks/README.md` (clarifies benchmark purpose)
+- `.project-toolkit/security/benchmarks/README.md` (clarifies benchmark purpose)

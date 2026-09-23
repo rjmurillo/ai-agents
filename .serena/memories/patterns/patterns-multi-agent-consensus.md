@@ -59,4 +59,4 @@ A consensus mechanism where agents can express disagreement while still committi
 ## Related
 
 - [[learnings-2026-01]] - Learning L4: DISAGREE AND COMMIT Consensus
-- `.agents/critique/ADR-040-amendment-2026-01-13-debate-log.md`
+- `.project-toolkit/critique/ADR-040-amendment-2026-01-13-debate-log.md`

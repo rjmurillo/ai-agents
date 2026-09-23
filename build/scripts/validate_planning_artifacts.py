@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Validate consistency across planning artifacts.
 
-Scans planning artifacts in .agents/planning/ for cross-document consistency:
+Scans planning artifacts in .project-toolkit/planning/ for cross-document consistency:
   - Effort estimate divergence between epic/PRD and task breakdowns
   - Orphan conditions (specialist conditions without task assignments)
 
@@ -153,8 +153,8 @@ def check_estimate_consistency(
 
 
 def find_planning_documents(root: Path, feature: str) -> PlanningDocs | None:
-    """Find planning documents for a feature under .agents/planning/."""
-    planning_path = root / ".agents" / "planning"
+    """Find planning documents for a feature under .project-toolkit/planning/."""
+    planning_path = root / ".project-toolkit" / "planning"
     if not planning_path.is_dir():
         return None
 
@@ -335,7 +335,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--path",
         default=".",
-        help="Root path containing .agents/planning/ (default: current directory)",
+        help="Root path containing .project-toolkit/planning/ (default: current directory)",
     )
     parser.add_argument(
         "--estimate-threshold",
@@ -374,7 +374,7 @@ def main(argv: list[str] | None = None) -> int:
     docs = find_planning_documents(root, args.feature_name)
 
     if docs is None or not docs.all_docs:
-        print("No planning documents found in .agents/planning/")
+        print("No planning documents found in .project-toolkit/planning/")
         return 0
 
     print(f"Found {len(docs.all_docs)} planning document(s)")

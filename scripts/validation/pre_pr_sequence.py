@@ -315,7 +315,7 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # disagreed and one sat a major below the declared floor; a review then
     # proposed aligning the correct one down.
     _Gate("CI Dependency Pins", _root_only(validate_ci_dependency_pins)),
-    # Ratcheted lifecycle gate over .agents/architecture/ADR-NNN-*.md (issue
+    # Ratcheted lifecycle gate over .project-toolkit/architecture/ADR-NNN-*.md (issue
     # #5191). Sits beside the DESIGN-REVIEW gate because both read frontmatter
     # in the same directory. Read-only: ADR-073 forbids rewriting prose.
     _Gate("ADR Lifecycle Frontmatter (ratchet)", _root_only(validate_adr_lifecycle)),
@@ -327,7 +327,7 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # (issue #5665). Sits with the other two ADR gates because it reads the same
     # frontmatter, but its subject is the consumer rather than the record: this
     # is the only one of the three that can fail on a file outside
-    # `.agents/architecture/`. Ratcheted, because 16 skills already declare a
+    # `.project-toolkit/architecture/`. Ratcheted, because 16 skills already declare a
     # retired record and a hard gate would red every push until they are
     # repointed.
     _Gate("Skill ADR Bindings (ratchet)", _root_only(validate_skill_adr_bindings)),
@@ -452,7 +452,7 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # config error (exit 2) still fails.
     _Gate("Model Pin Governance (warn)", _root_only(validate_model_pins)),
     # Advisory warning when every tracking issue on an active execution plan is
-    # closed, so stale plans do not silently refill .agents/plans/active/.
+    # closed, so stale plans do not silently refill .project-toolkit/plans/active/.
     # Issue #3426.
     _Gate("Active Plan Closeout Advisory", _root_only(validate_active_plan_closeout)),
     _Gate("YAML Style Validation", _root_only(validate_yaml_style), skip_when_quick=True),

@@ -1,6 +1,6 @@
 # Skill-Architecture-016: ADR Number Check
 
-**Statement:** Before creating new ADR, run `ls .agents/architecture/ADR-*.md | sort -t- -k2 -n | tail -5` to check last 5 numbers, choose next available
+**Statement:** Before creating new ADR, run `ls .project-toolkit/architecture/ADR-*.md | sort -t- -k2 -n | tail -5` to check last 5 numbers, choose next available
 
 **Context:** When architect agent prepares to create ADR file
 
@@ -16,7 +16,7 @@
 
 ```bash
 # Before creating ADR-NNN-title.md
-ls .agents/architecture/ADR-*.md | sort -t- -k2 -n | tail -5
+ls .project-toolkit/architecture/ADR-*.md | sort -t- -k2 -n | tail -5
 
 # Output shows:
 # ADR-019-model-routing-strategy.md
@@ -60,8 +60,8 @@ Add to architect agent handoff protocol:
 ```markdown
 ### Before Creating ADR
 
-1. Check existing ADR numbers: `ls .agents/architecture/ADR-*.md | sort -t- -k2 -n | tail -5`
-2. If in feature branch, check main branch: `git fetch origin main && git ls-tree -r --name-only origin/main .agents/architecture/ | grep ADR`
+1. Check existing ADR numbers: `ls .project-toolkit/architecture/ADR-*.md | sort -t- -k2 -n | tail -5`
+2. If in feature branch, check main branch: `git fetch origin main && git ls-tree -r --name-only origin/main .project-toolkit/architecture/ | grep ADR`
 3. Choose next available number (highest + 1)
 4. Verify uniqueness before committing
 ```

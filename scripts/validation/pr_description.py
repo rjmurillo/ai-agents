@@ -176,7 +176,7 @@ FILE_MENTION_PATTERNS: list[re.Pattern[str]] = [
 # these citation cue words/phrases is a REFERENCE, not a change claim. Examples:
 #
 #   see `.claude/skills/spec/SKILL.md`
-#   per `.agents/architecture/ADR-035-exit-code-standardization.md`
+#   per `.project-toolkit/architecture/ADR-035-exit-code-standardization.md`
 #   e.g. `.claude/skills/security-scan/scripts/scan_vulnerabilities.py`
 #   for example `scripts/validate_session_json.py`
 #   as documented in `scripts/ai_review_common/cache_guard.py`

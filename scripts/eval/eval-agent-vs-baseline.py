@@ -93,7 +93,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 # brief-explanation cap) is in OUTPUT_SHAPE_SUFFIX below and applied to
 # the user message identically for BOTH variants, so specialization (the
 # system prompt) is the only free variable. See
-# .agents/critique/SPIKE-1854-methodology-diagnosis.md for the rationale.
+# .project-toolkit/critique/SPIKE-1854-methodology-diagnosis.md for the rationale.
 BASELINE_PROMPT = "Review the following input."
 BASELINE_PROMPT_REF = "<baseline>"
 

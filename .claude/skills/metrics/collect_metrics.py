@@ -41,6 +41,7 @@ INFRASTRUCTURE_PATTERNS = [
     r"\.tfvars$",
     r"\.env",
     r"\.agents/",
+    r"\.project-toolkit/",
 ]
 
 COMMIT_TYPE_PATTERNS = {

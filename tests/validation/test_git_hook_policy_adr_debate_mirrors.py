@@ -395,7 +395,7 @@ def test_the_normalization_does_not_reject_any_committed_log() -> None:
     the whole-corpus pin in the boundaries module would notice, one signal
     later and with a less specific message.
     """
-    critique = _ROOT / ".agents" / "critique"
+    critique = _ROOT / ".project-toolkit" / "critique"
     logs = sorted(path for path in critique.glob("*.md") if "debate" in path.name)
     assert len(logs) >= 70, "expected the calibration corpus to be present"
 

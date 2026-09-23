@@ -84,7 +84,7 @@ def write_skillbook(tmp_path: Path) -> Callable[..., Path]:
         workflows: list[dict[str, Any]] | None = None,
         meta: dict[str, Any] | None = None,
     ) -> Path:
-        skillbook_dir = tmp_path / ".agents" / "skillbook"
+        skillbook_dir = tmp_path / ".project-toolkit" / "skillbook"
         skillbook_dir.mkdir(parents=True, exist_ok=True)
         (skillbook_dir / "policies.json").write_text(
             json.dumps(

@@ -55,7 +55,7 @@ _DEFAULT_DOCS: list[str] = [
     "CONTRIBUTING.md",
     ".github/copilot-instructions.md",
     "README.md",
-    ".agents/prototypes/agents/implementer.compressed.md",
+    ".project-toolkit/prototypes/agents/implementer.compressed.md",
     ".claude/agents/retrospective.md",
     ".github/agents/retrospective.agent.md",
     "src/claude/agents/retrospective.md",

@@ -20,7 +20,7 @@ from tests.skillbook.conftest import make_evidence, make_policy
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 _SCHEMA_DIR = _PROJECT_ROOT / ".agents" / "schemas"
-_SKILLBOOK_DIR = _PROJECT_ROOT / ".agents" / "skillbook"
+_SKILLBOOK_DIR = _PROJECT_ROOT / ".project-toolkit" / "skillbook"
 
 
 class TestSchemaChecker:

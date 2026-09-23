@@ -1,0 +1,19 @@
+{
+  "id": "episode-2025-12-23-session-87-issue-325-shift-left-validation-runner",
+  "session": "2025-12-23-session-87-issue-325-shift-left-validation-runner",
+  "timestamp": "2025-12-23T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Implement Issue",
+  "decisions": [],
+  "events": [],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 5307
+  },
+  "lessons": []
+}

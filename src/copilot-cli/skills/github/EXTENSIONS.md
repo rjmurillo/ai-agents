@@ -364,7 +364,7 @@ If you identify issues or enhancements while using extensions:
 1. Open issue in extension repository
 2. Submit PR with fix
 3. Reference our use case
-4. Document in `.agents/sessions/YYYY-MM-DD-session-NN.json`
+4. Document in `.project-toolkit/sessions/YYYY-MM-DD-session-NN.json`
 
 ---
 
@@ -390,4 +390,4 @@ Review checklist:
 - [ ] Remove stale extensions
 - [ ] Update installation instructions
 
-<!-- vendor-portability: declared. This doc tells the agent to record extension notes in a session log under .agents/sessions/. In a vendored install without that dir the session skill creates it; the path is a write target for the consumer's own session logs. Issue #2050. -->
+<!-- vendor-portability: declared. This doc tells the agent to record extension notes in a session log under .project-toolkit/sessions/. In a vendored install without that dir the session skill creates it; the path is a write target for the consumer's own session logs. Issue #2050. -->

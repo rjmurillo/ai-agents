@@ -54,7 +54,7 @@ $validPattern = '^[a-zA-Z0-9][a-zA-Z0-9 _\-\\.]{0,48}[a-zA-Z0-9]?$'
 
 **Anti-Pattern**: Using bash `xargs`, `tr`, or unquoted variables for AI output parsing
 
-**Source**: `.agents/retrospective/2025-12-20-pr-211-security-miss.md`
+**Source**: `.project-toolkit/retrospective/2025-12-20-pr-211-security-miss.md`
 
 **Validation**: 1 (Session 44 remediation)
 

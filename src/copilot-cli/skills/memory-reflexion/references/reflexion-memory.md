@@ -4,7 +4,7 @@
 documents a real entry point verified by test_reference_docs_resolve.py,
 and splitting the reference breaks lookup by single file. -->
 
-<!-- vendor-portability: declared. This reference documents upstream memory artifact paths under .agents/memory/ for the episodic memory schema. It is reference material only; runtime writes stay in the canonical memory scripts and their path helpers. Issue #2050. -->
+<!-- vendor-portability: declared. This reference documents upstream memory artifact paths under .project-toolkit/memory/ for the episodic memory schema. It is reference material only; runtime writes stay in the canonical memory scripts and their path helpers. Issue #2050. -->
 
 ## Overview
 
@@ -26,7 +26,7 @@ ADR-089 removed the Tier 3 derived causal graph this module once maintained: not
 ┌───────────────────────────────────────────────────────────────┐
 │                   Episodic Memory (Tier 2)                    │
 │      Session transcripts, decision sequences, outcomes        │
-│                    (.agents/memory/episodes/)                        │
+│                    (.project-toolkit/memory/episodes/)                        │
 └───────────────────────────┬───────────────────────────────────┘
                             │
                             ▼
@@ -55,7 +55,7 @@ Episodes are structured extracts from session logs, optimized for replay and ana
 
 ### Episode Schema
 
-**Location**: `.agents/memory/episodes/episode-{session-id}.json`
+**Location**: `.project-toolkit/memory/episodes/episode-{session-id}.json`
 
 ```json
 {
@@ -252,7 +252,7 @@ def new_episode(
 | `metrics` | `dict \| None` | No | `None` | Metrics dict |
 | `skip_validation` | `bool` | No | `False` | Skip schema validation. Tests only. |
 
-**Returns**: the episode dict. Also writes `.agents/memory/episodes/episode-{session_id}.json`.
+**Returns**: the episode dict. Also writes `.project-toolkit/memory/episodes/episode-{session_id}.json`.
 
 **Raises**: `ValueError` on an invalid outcome or a schema validation failure, `OSError` on a write failure.
 
@@ -320,8 +320,8 @@ def get_reflexion_memory_status() -> dict[str, Any]
 
 ```python
 {
-    "Episodes": {"Path": "/abs/path/.agents/memory/episodes", "Count": 322},
-    "Configuration": {"EpisodesPath": "/abs/path/.agents/memory/episodes"},
+    "Episodes": {"Path": "/abs/path/.project-toolkit/memory/episodes", "Count": 322},
+    "Configuration": {"EpisodesPath": "/abs/path/.project-toolkit/memory/episodes"},
 }
 ```
 
@@ -369,7 +369,7 @@ uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/mem
 
 ```bash
 uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/extract_session_episode.py" \
-    .agents/sessions/2026-01-01-session-126.json
+    .project-toolkit/sessions/2026-01-01-session-126.json
 
 # Output:
 # Episode extracted:
@@ -389,7 +389,7 @@ uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/mem
 The retrospective agent auto-extracts episodes at session end:
 
 ```bash
-SESSION_LOG=".agents/sessions/${SESSION_ID}.json"
+SESSION_LOG=".project-toolkit/sessions/${SESSION_ID}.json"
 
 uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/extract_session_episode.py" "$SESSION_LOG"
 ```
@@ -406,7 +406,7 @@ before the discontinuation, or cherry-picked from an older one):
 - [ ] Update the per-issue handoff
 - [ ] Extract episode if a session log exists: `.claude/skills/memory/scripts/extract_session_episode.py`
 - [ ] Update Serena memory
-- [ ] Commit all changes (including .agents/memory/episodes/)
+- [ ] Commit all changes (including .project-toolkit/memory/episodes/)
 ```
 
 ### With Memory Router
@@ -499,7 +499,7 @@ for outcome, episodes in by_outcome.items():
 
 **Solutions**:
 
-1. Verify the episode file exists: `ls .agents/memory/episodes/episode-<session-id>.json`
+1. Verify the episode file exists: `ls .project-toolkit/memory/episodes/episode-<session-id>.json`
 2. Check the session id format. It must match the file naming convention.
 3. Re-extract from the session log with `extract_session_episode.py`.
 

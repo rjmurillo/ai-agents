@@ -10,7 +10,7 @@ metadata:
 
 Proactive vulnerability detection for command injection (CWE-78) before PR submission.
 
-<!-- vendor-portability: declared. This skill cites .agents/analysis/closed-pr-reviewer-patterns-2026-02-08.md as the source for its detection patterns. It is a documentation citation only; scan_vulnerabilities.py scans the consumer's staged or specified files at runtime and does not read the .agents/ file. A vendored install without .agents/ loses the citation link, not the scan. Issue #2050. -->
+<!-- vendor-portability: declared. This skill cites .project-toolkit/analysis/closed-pr-reviewer-patterns-2026-02-08.md as the source for its detection patterns. It is a documentation citation only; scan_vulnerabilities.py scans the consumer's staged or specified files at runtime and does not read the .agents/ file. A vendored install without .agents/ loses the citation link, not the scan. Issue #2050. -->
 
 ## Scope
 
@@ -277,7 +277,7 @@ After running security scan:
 - [CWE-22: Path Traversal](https://cwe.mitre.org/data/definitions/22.html) (delegated to CodeQL; see Scope above)
 - [OWASP Command Injection](https://owasp.org/www-community/attacks/Command_Injection)
 - [Path Traversal Research (2025)](https://arxiv.org/abs/2505.20186)
-- Analysis: `.agents/analysis/closed-pr-reviewer-patterns-2026-02-08.md`
+- Analysis: `.project-toolkit/analysis/closed-pr-reviewer-patterns-2026-02-08.md`
 
 ---
 

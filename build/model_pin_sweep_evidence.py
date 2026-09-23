@@ -17,7 +17,7 @@ satisfy ``is_file()`` while carrying none of rule 2's actual evidence bar:
 ``delta >= 0.05`` mean recall and a positive paired-bootstrap CI lower
 bound, from a single-candidate-versus-default sweep, over at least 8
 shared fixtures
-(``.agents/architecture/ADR-080-model-pin-justification-policy.md:86-90``).
+(``.project-toolkit/architecture/ADR-080-model-pin-justification-policy.md:86-90``).
 
 Canonical report schema: ``scripts/eval/_model_sweep_core.py:build_report``
 (lines 460-511).
@@ -31,7 +31,7 @@ from pathlib import Path
 from typing import TypeGuard
 
 # ADR-080 rule 2: a KEEP_PIN sweep must cover "at least 8 shared fixtures"
-# (.agents/architecture/ADR-080-model-pin-justification-policy.md:90).
+# (.project-toolkit/architecture/ADR-080-model-pin-justification-policy.md:90).
 MIN_SHARED_FIXTURES = 8
 
 # Mirrors scripts/eval/_model_sweep_core.py:62 (DEFAULT_MIN_EFFECT = 0.05)
@@ -119,7 +119,7 @@ def _is_finite_number(value: object) -> TypeGuard[int | float]:
 def _report_models_are_single_candidate(report: dict[str, object]) -> bool:
     """ADR-080 rule 2 requires "a single-candidate-versus-default sweep (so
     the CI is a plain 95 percent interval, not Bonferroni-widened)"
-    (``.agents/architecture/ADR-080-model-pin-justification-policy.md:89-90``).
+    (``.project-toolkit/architecture/ADR-080-model-pin-justification-policy.md:89-90``).
 
     ``eval-model-sweep.py --models`` can evaluate several candidates in one
     run, and the multi-candidate path reports its family-wise-adjusted
@@ -166,7 +166,7 @@ def _report_measurements_qualify(report: dict[str, object]) -> bool:
 
     At least 8 shared fixtures, ``delta >= 0.05`` mean recall, and a
     positive paired-bootstrap CI lower bound
-    (``.agents/architecture/ADR-080-model-pin-justification-policy.md:86-90``).
+    (``.project-toolkit/architecture/ADR-080-model-pin-justification-policy.md:86-90``).
     Split out of ``_sweep_report_satisfies_rule2`` for the same
     complexity-ceiling reason as ``_report_model_id_matches``.
     """

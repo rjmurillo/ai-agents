@@ -720,7 +720,7 @@ mcp__cloudmcp-manager__memory-add_observations
 
 ## Output Location
 
-`.agents/qa/`
+`.project-toolkit/qa/`
 
 - `NNN-[feature]-test-strategy.md` - Before implementation
 - `NNN-[feature]-test-report.md` - After implementation

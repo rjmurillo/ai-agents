@@ -76,7 +76,7 @@ _ISSUE_REF_PATTERN = re.compile(
 # treats a closing keyword in a code span as not-a-link, for the same reason.
 #
 # Deliberately not applied to `_extract_spec_refs`: `.github/PULL_REQUEST_TEMPLATE.md`
-# writes spec paths in backticks (`| **Spec** | `.agents/planning/...` |`), so
+# writes spec paths in backticks (`| **Spec** | `.project-toolkit/planning/...` |`), so
 # masking there would disarm the gate on the template's own convention. The
 # asymmetry is real, because a code span suppresses GitHub's issue linking and
 # says nothing about a file path.
@@ -223,7 +223,7 @@ def _extract_spec_refs(combined: str) -> str:
     if req_ids:
         parts.extend(sorted(set(req_ids)))
 
-    spec_paths = re.findall(r"\.agents/(?:specs|planning)/\S+\.md", combined)
+    spec_paths = re.findall(r"\.project-toolkit/(?:specs|planning)/\S+\.md", combined)
     if spec_paths:
         parts.extend(sorted(set(spec_paths)))
 

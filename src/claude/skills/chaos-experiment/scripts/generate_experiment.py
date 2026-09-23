@@ -177,7 +177,7 @@ Examples:
         default=None,
         help=(
             "Output directory (default: the artifact root's chaos/ subdir, "
-            "<cwd>/.agents/chaos unless AI_AGENTS_ARTIFACT_ROOT is set)"
+            "<cwd>/.project-toolkit/chaos unless AI_AGENTS_ARTIFACT_ROOT is set)"
         ),
     )
     parser.add_argument(

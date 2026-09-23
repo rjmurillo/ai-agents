@@ -15,7 +15,7 @@ from scripts.validation.active_plan_closeout import (
 
 def write_active_plan(repo_root: Path, name: str, body: str) -> Path:
     """Create an active plan fixture."""
-    path = repo_root / ".agents" / "plans" / "active" / name
+    path = repo_root / ".project-toolkit" / "plans" / "active" / name
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(body, encoding="utf-8")
     return path
@@ -34,7 +34,7 @@ def test_warns_when_every_tracking_issue_is_closed(tmp_path: Path) -> None:
     )
 
     assert [warning.format() for warning in warnings] == [
-        ".agents/plans/active/closed.md: #101, #102 closed. Move the plan to "
+        ".project-toolkit/plans/active/closed.md: #101, #102 closed. Move the plan to "
         "completed/ or abandoned/."
     ]
 
@@ -83,7 +83,7 @@ def test_validator_is_advisory_when_warning_exists(
 
     captured = capsys.readouterr()
     assert "[WARNING] Active execution plans have closed tracking issues:" in captured.out
-    assert ".agents/plans/active/closed.md: #101 closed." in captured.out
+    assert ".project-toolkit/plans/active/closed.md: #101 closed." in captured.out
 
 
 def test_evaluates_issue_and_pr_terminal_states_in_one_run(tmp_path: Path, capsys) -> None:
@@ -106,8 +106,8 @@ def test_evaluates_issue_and_pr_terminal_states_in_one_run(tmp_path: Path, capsy
     )
 
     assert [warning.plan_path for warning in warnings] == [
-        ".agents/plans/active/closed-issue.md",
-        ".agents/plans/active/merged-pr.md",
+        ".project-toolkit/plans/active/closed-issue.md",
+        ".project-toolkit/plans/active/merged-pr.md",
     ]
     captured = capsys.readouterr()
     assert "unrecognized state UNRECOGNIZED for #105" in captured.out

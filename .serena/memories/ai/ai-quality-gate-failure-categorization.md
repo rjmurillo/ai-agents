@@ -2,7 +2,7 @@
 
 **Date**: 2025-12-23
 **Issue**: #329 - Categorize failures as INFRASTRUCTURE vs CODE_QUALITY
-**Analysis**: `.agents/analysis/002-ai-quality-gate-failure-patterns.md`
+**Analysis**: `.project-toolkit/analysis/002-ai-quality-gate-failure-patterns.md`
 
 ## Purpose
 
@@ -145,11 +145,11 @@ function Get-FailureCategory {
 - Any CODE_QUALITY failure → CRITICAL_FAIL (PR blocked)
 - Mixed failures → CODE_QUALITY wins (PR blocked)
 
-**Session Log**: `.agents/sessions/2025-12-24-session-01-failure-categorization.md`
+**Session Log**: `.project-toolkit/sessions/2025-12-24-session-01-failure-categorization.md`
 
 ## Related
 
 - Issue #328: Retry logic for infrastructure failures (COMPLETED)
 - Issue #329: Failure categorization (COMPLETED - this implementation)
 - Memory [ai-quality-gate-efficiency-analysis](ai-quality-gate-efficiency-analysis.md): Cost analysis
-- Analysis document: `.agents/analysis/002-ai-quality-gate-failure-patterns.md`
+- Analysis document: `.project-toolkit/analysis/002-ai-quality-gate-failure-patterns.md`

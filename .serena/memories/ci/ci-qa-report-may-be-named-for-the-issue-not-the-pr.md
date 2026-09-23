@@ -18,14 +18,14 @@ artifact_dir("qa", base=Path.cwd()).glob(f"*pr-{pr_number}*.md")
 A PR number does not exist until the PR is opened. So the first push of every
 code PR could not satisfy the gate, and clearing it cost a rename commit plus a
 second full push cycle at 10 to 20 minutes of pre-push hooks. Session log
-`.agents/sessions/2026-08-14-session-14707-4940-model-pin-doc-examples.json`
+`.project-toolkit/sessions/2026-08-14-session-14707-4940-model-pin-doc-examples.json`
 records that trip verbatim: "Renamed the QA report to carry the PR number".
 
 ## The contract now
 
 Resolution order, in `_resolve_qa_report`:
 
-1. `.agents/qa/*pr-{pr_number}*.md`, first match in sorted order. Still
+1. `.project-toolkit/qa/*pr-{pr_number}*.md`, first match in sorted order. Still
    preferred, so an existing PR-named report keeps winning and no PR-numbered
    report is ever bypassed.
 2. Otherwise, fetch the PR body (`gh api repos/{repo}/pulls/{n} --jq .body`),
@@ -39,7 +39,7 @@ Resolution order, in `_resolve_qa_report`:
    `Fixes`, `Resolves`) before any bare `Refs`, body-appearance order within
    each tier, deduplicated across both (`check_pr_qa_report.py:_linked_issues`,
    `_CLOSING_KEYWORD` and `LINKED_ISSUE`). For each candidate issue number, in
-   that order, glob `.agents/qa/*issue-{n}*.md` and skip any match whose
+   that order, glob `.project-toolkit/qa/*issue-{n}*.md` and skip any match whose
    filename carries a `pr-<digits>` token for a *different* PR
    (`PR_TOKEN`, `_find_issue_qa_report`): that report belongs to another pull
    request, and resolving it here would validate this PR against another

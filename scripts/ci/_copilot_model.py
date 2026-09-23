@@ -12,7 +12,7 @@ running long after Copilot stopped serving that id.
 
 Resolution behavior measured on Copilot CLI 1.0.79 and 1.0.81-0 for the agent
 frontmatter resolver; see
-`.agents/analysis/2026-08-12-adr-080-copilot-model-resolution.md`. The `--model`
+`.project-toolkit/analysis/2026-08-12-adr-080-copilot-model-resolution.md`. The `--model`
 flag namespace was not probed there, so a miss means undetected drift, not
 proof the pin resolved.
 """

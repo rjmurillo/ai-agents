@@ -2,7 +2,7 @@
 """DESIGN-REVIEW frontmatter validation for the pre-PR runner.
 
 Extracted from ``scripts/validation/pre_pr.py`` (issue #2223). Validates the
-YAML frontmatter of ``.agents/architecture/DESIGN-REVIEW-*.md`` files: required
+YAML frontmatter of ``.project-toolkit/architecture/DESIGN-REVIEW-*.md`` files: required
 fields, valid status and priority values, and blocking consistency. Re-exported
 through ``pre_pr`` so callers and tests keep importing it from there.
 """
@@ -27,7 +27,7 @@ _BLOCKING_STATUSES = {"NEEDS_ADR", "BLOCKED", "REJECTED"}
 def validate_design_review_frontmatter(repo_root: Path) -> bool:
     """Validate YAML frontmatter in DESIGN-REVIEW documents.
 
-    Checks all .agents/architecture/DESIGN-REVIEW-*.md files for:
+    Checks all .project-toolkit/architecture/DESIGN-REVIEW-*.md files for:
     - Presence of YAML frontmatter
     - Required fields (status, priority, blocking, reviewer, date)
     - Valid status and priority values
@@ -35,9 +35,9 @@ def validate_design_review_frontmatter(repo_root: Path) -> bool:
 
     Returns True if all files pass or no files exist.
     """
-    review_dir = repo_root / ".agents" / "architecture"
+    review_dir = repo_root / ".project-toolkit" / "architecture"
     if not review_dir.is_dir():
-        print("[WARNING] No .agents/architecture/ directory found")
+        print("[WARNING] No .project-toolkit/architecture/ directory found")
         return True
 
     review_files = sorted(review_dir.glob("DESIGN-REVIEW-*.md"))

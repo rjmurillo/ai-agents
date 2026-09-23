@@ -71,7 +71,7 @@ Return to orchestrator with structured recommendations:
 
 Check these locations for existing ADRs and patterns:
 
-- `.agents/architecture/ADR-*.md`
+- `.project-toolkit/architecture/ADR-*.md`
 - `docs/adr/ADR-*.md`
 - `docs/architecture/ADR-*.md`
 - `docs/decisions/ADR-*.md`
@@ -102,7 +102,7 @@ Every ADR must include reversibility assessment per architect.md:
 **User triggers:**
 
 ```text
-Review this ADR: .agents/architecture/ADR-005-api-versioning.md
+Review this ADR: .project-toolkit/architecture/ADR-005-api-versioning.md
 ```
 
 **Orchestrator triggers:**
@@ -110,10 +110,10 @@ Review this ADR: .agents/architecture/ADR-005-api-versioning.md
 ```python
 # When architect creates/updates ADR
 Task(subagent_type="orchestrator", prompt="""
-Trigger adr-review skill for: .agents/architecture/ADR-005-api-versioning.md
+Trigger adr-review skill for: .project-toolkit/architecture/ADR-005-api-versioning.md
 
 Follow debate protocol in .claude/skills/adr-review/SKILL.md
 """)
 ```
 
-<!-- vendor-portability: declared. This doc directs debate artifacts to .agents/critique/ and accepted ADRs to .agents/architecture/. In a vendored install without those dirs the agent creates them (or writes to the consumer's chosen artifact root); the paths are write targets, not preconditions. Issue #2050. -->
+<!-- vendor-portability: declared. This doc directs debate artifacts to .project-toolkit/critique/ and accepted ADRs to .project-toolkit/architecture/. In a vendored install without those dirs the agent creates them (or writes to the consumer's chosen artifact root); the paths are write targets, not preconditions. Issue #2050. -->

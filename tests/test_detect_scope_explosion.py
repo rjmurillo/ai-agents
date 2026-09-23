@@ -1645,7 +1645,7 @@ class TestGeneratedFileExclusion:
         _init_scope_repo(repo)
         _check_git(repo, "checkout", "-qb", "feature")
 
-        _write_file(repo, ".agents/memory/episodes/episode-2026-01-01-session-1.json", "{}")
+        _write_file(repo, ".project-toolkit/memory/episodes/episode-2026-01-01-session-1.json", "{}")
         _write_file(repo, "scripts/real.py", "x = 1\n")
         _commit_all(repo, "episode + authored")
 
@@ -1695,10 +1695,10 @@ class TestProcessRecordExclusion:
     @pytest.mark.parametrize(
         "path",
         [
-            ".agents/sessions/2026-09-11-session-1-example.json",
-            ".agents/qa/session-1-example-qa-report.md",
-            ".agents/memory/episodes/episode-2026-09-11-session-1.json",
-            ".agents/memory/episodes/subdir/nested.json",
+            ".project-toolkit/sessions/2026-09-11-session-1-example.json",
+            ".project-toolkit/qa/session-1-example-qa-report.md",
+            ".project-toolkit/memory/episodes/episode-2026-09-11-session-1.json",
+            ".project-toolkit/memory/episodes/subdir/nested.json",
         ],
     )
     def test_process_record_paths_are_excluded(self, path: str) -> None:
@@ -1708,9 +1708,9 @@ class TestProcessRecordExclusion:
         "path",
         [
             "scripts/real.py",
-            ".agents/architecture/ADR-100-retire-pr-size-ceilings.md",
-            ".agents/session-notes.md",  # not under .agents/sessions/
-            ".agents/qa.md",  # not under .agents/qa/
+            ".project-toolkit/architecture/ADR-100-retire-pr-size-ceilings.md",
+            ".agents/session-notes.md",  # not under .project-toolkit/sessions/
+            ".project-toolkit/qa.md",  # not under .project-toolkit/qa/
         ],
     )
     def test_ordinary_and_near_miss_paths_still_count(self, path: str) -> None:
@@ -1723,7 +1723,7 @@ class TestProcessRecordExclusion:
         _init_scope_repo(repo)
         _check_git(repo, "checkout", "-qb", "feature")
 
-        _write_file(repo, ".agents/sessions/2026-09-11-session-1.json", "{}")
+        _write_file(repo, ".project-toolkit/sessions/2026-09-11-session-1.json", "{}")
         _write_file(repo, "scripts/real.py", "x = 1\n")
         _commit_all(repo, "session log + authored")
 
@@ -1740,7 +1740,7 @@ class TestProcessRecordExclusion:
         _init_scope_repo(repo)
         _check_git(repo, "checkout", "-qb", "feature")
 
-        _write_file(repo, ".agents/qa/session-1-qa-report.md", "# QA\n")
+        _write_file(repo, ".project-toolkit/qa/session-1-qa-report.md", "# QA\n")
         _write_file(repo, "scripts/real.py", "x = 1\n")
         _commit_all(repo, "qa report + authored")
 
@@ -1758,7 +1758,7 @@ class TestProcessRecordExclusion:
         _init_scope_repo(repo)
         _check_git(repo, "checkout", "-qb", "feature")
 
-        _write_file(repo, ".agents/memory/episodes/not-episode-shaped.txt", "note\n")
+        _write_file(repo, ".project-toolkit/memory/episodes/not-episode-shaped.txt", "note\n")
         _write_file(repo, "scripts/real.py", "x = 1\n")
         _commit_all(repo, "episode-adjacent file + authored")
 
@@ -1777,7 +1777,7 @@ class TestProcessRecordExclusion:
         _check_git(repo, "checkout", "-qb", "feature")
 
         for i in range(60):
-            _write_file(repo, f".agents/sessions/session-{i}.json", "{}")
+            _write_file(repo, f".project-toolkit/sessions/session-{i}.json", "{}")
         _commit_all(repo, "session churn only")
 
         monkeypatch.chdir(repo)

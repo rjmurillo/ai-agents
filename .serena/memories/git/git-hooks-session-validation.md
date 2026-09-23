@@ -16,7 +16,7 @@
 #!/bin/bash
 # .git/hooks/pre-commit
 
-SESSION_LOG=$(find .agents/sessions -name "$(date +%Y-%m-%d)-session-*.md" \
+SESSION_LOG=$(find .project-toolkit/sessions -name "$(date +%Y-%m-%d)-session-*.md" \
     -type f -printf '%T@ %p\n' | sort -rn | head -1 | cut -d' ' -f2)
 
 if [ -n "$SESSION_LOG" ]; then

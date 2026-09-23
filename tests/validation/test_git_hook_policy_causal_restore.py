@@ -1087,7 +1087,7 @@ class TestAdrReviewPolicyMergeScope:
         )
 
         result = policy.check_adr_review_policy(
-            [".agents/architecture/ADR-999-test.md"],
+            [".project-toolkit/architecture/ADR-999-test.md"],
             tmp_path,
         )
 
@@ -1095,7 +1095,7 @@ class TestAdrReviewPolicyMergeScope:
         assert "ADR changes require a debate log" in capsys.readouterr().err
 
     def test_merge_in_progress_with_staged_adr_from_main_is_allowed(self, tmp_path, monkeypatch):
-        path = ".agents/architecture/ADR-120-reviewed-on-main.md"
+        path = ".project-toolkit/architecture/ADR-120-reviewed-on-main.md"
         monkeypatch.setattr(policy, "_gated_adr_review_paths", lambda paths, root: list(paths))
         monkeypatch.setattr(policy, "_merge_in_progress", lambda root: True)
         monkeypatch.setattr(policy, "_read_index_blob", lambda root, relative_path: b"main adr")
@@ -1126,7 +1126,7 @@ class TestAdrReviewPolicyMergeScope:
         monkeypatch,
         capsys,
     ):
-        path = ".agents/architecture/ADR-999-branch-authored-during-merge.md"
+        path = ".project-toolkit/architecture/ADR-999-branch-authored-during-merge.md"
         monkeypatch.setattr(policy, "_gated_adr_review_paths", lambda paths, root: list(paths))
         # tmp_path is not a git repository, so the staged-log query fails here
         # rather than returning nothing. That distinction is now reported
@@ -1167,7 +1167,7 @@ class TestAdrReviewPolicyMergeScope:
         monkeypatch,
         capsys,
     ):
-        path = ".agents/architecture/ADR-998-conflicted.md"
+        path = ".project-toolkit/architecture/ADR-998-conflicted.md"
         monkeypatch.setattr(policy, "_gated_adr_review_paths", lambda paths, root: list(paths))
         # tmp_path is not a git repository, so the staged-log query fails here
         # rather than returning nothing. That distinction is now reported
@@ -1201,7 +1201,7 @@ class TestAdrReviewPolicyMergeScope:
         # during `git add`, so the assertion fails on the environment rather
         # than on the reader under test.
         (repo / ".gitattributes").write_text("* -text\n", encoding="utf-8")
-        relative = ".agents/architecture/ADR-006-raw-bytes.md"
+        relative = ".project-toolkit/architecture/ADR-006-raw-bytes.md"
         adr = repo / relative
         adr.parent.mkdir(parents=True)
         raw = b"# ADR 006\r\n\xffraw byte and lone carriage\rreturn\n"
@@ -1219,10 +1219,10 @@ class TestAdrReviewPolicyMergeScope:
         _git(repo, "init", "-b", "main")
         _git(repo, "config", "user.email", "test@example.invalid")
         _git(repo, "config", "user.name", "Test User")
-        adr_dir = repo / ".agents" / "architecture"
+        adr_dir = repo / ".project-toolkit" / "architecture"
         adr_dir.mkdir(parents=True)
-        old_relative = ".agents/architecture/ADR-007-old-name.md"
-        new_relative = ".agents/architecture/ADR-007-new-name.md"
+        old_relative = ".project-toolkit/architecture/ADR-007-old-name.md"
+        new_relative = ".project-toolkit/architecture/ADR-007-new-name.md"
         old_adr = repo / old_relative
         new_adr = repo / new_relative
         old_body = "# ADR 007\n\nold reviewed position.\nstable line.\n"
@@ -1258,7 +1258,7 @@ class TestAdrReviewPolicyMergeScope:
         widening the gate, because content that already sits on main already
         cleared this policy on the pull request that put it there.
         """
-        path = ".agents/architecture/ADR-089-arrived-through-the-branch.md"
+        path = ".project-toolkit/architecture/ADR-089-arrived-through-the-branch.md"
         monkeypatch.setattr(policy, "_gated_adr_review_paths", lambda paths, root: list(paths))
         monkeypatch.setattr(policy, "_merge_in_progress", lambda root: True)
         monkeypatch.setattr(policy, "_read_index_blob", lambda root, relative_path: b"main adr")
@@ -1305,7 +1305,7 @@ class TestAdrReviewPolicyMergeScope:
         _git(repo, "init", "-b", "main")
         _git(repo, "config", "user.email", "test@example.invalid")
         _git(repo, "config", "user.name", "Test User")
-        adr_dir = repo / ".agents" / "architecture"
+        adr_dir = repo / ".project-toolkit" / "architecture"
         adr_dir.mkdir(parents=True)
         adr = adr_dir / "ADR-001-superseded.md"
         adr.write_text("# ADR 001\n\nthe old position.\n", encoding="utf-8")
@@ -1327,7 +1327,7 @@ class TestAdrReviewPolicyMergeScope:
         merge = _run(["git", "merge", "--no-edit", "--no-commit", "sibling"], repo)
         assert merge.returncode == 0, merge.stderr
 
-        relative = ".agents/architecture/ADR-001-superseded.md"
+        relative = ".project-toolkit/architecture/ADR-001-superseded.md"
         adr.write_text("# ADR 001\n\nthe old position.\n", encoding="utf-8")
         _git(repo, "add", relative)
 
@@ -1359,7 +1359,7 @@ class TestAdrReviewPolicyMergeScope:
         _git(repo, "init", "-b", "main")
         _git(repo, "config", "user.email", "test@example.invalid")
         _git(repo, "config", "user.name", "Test User")
-        adr_dir = repo / ".agents" / "architecture"
+        adr_dir = repo / ".project-toolkit" / "architecture"
         adr_dir.mkdir(parents=True)
         adr = adr_dir / "ADR-003-collaborator.md"
         adr.write_text("# ADR 003\n\nthe reviewed position.\n", encoding="utf-8")
@@ -1378,7 +1378,7 @@ class TestAdrReviewPolicyMergeScope:
         merge = _run(["git", "merge", "--no-edit", "--no-commit", "shared"], repo)
         assert merge.returncode == 0, merge.stderr
 
-        relative = ".agents/architecture/ADR-003-collaborator.md"
+        relative = ".project-toolkit/architecture/ADR-003-collaborator.md"
         assert policy._merge_authored_adr_paths([relative], repo) == [relative]
 
         monkeypatch.setattr(policy, "_gated_adr_review_paths", lambda paths, root: list(paths))
@@ -1401,7 +1401,7 @@ class TestAdrReviewPolicyMergeScope:
         this the ancestry rule could be deleted outright and every other test
         here would stay green.
         """
-        path = ".agents/architecture/ADR-002-an-earlier-main.md"
+        path = ".project-toolkit/architecture/ADR-002-an-earlier-main.md"
         blobs = {"an-approved-parent": b"earlier main", "origin/main": b"later main"}
         monkeypatch.setattr(policy, "_gated_adr_review_paths", lambda paths, root: list(paths))
         monkeypatch.setattr(policy, "_merge_in_progress", lambda root: True)
@@ -1458,7 +1458,7 @@ class TestAdrReviewPolicyMergeScope:
         _git(repo, "init", "-b", "main")
         _git(repo, "config", "user.email", "test@example.invalid")
         _git(repo, "config", "user.name", "Test User")
-        adr_dir = repo / ".agents" / "architecture"
+        adr_dir = repo / ".project-toolkit" / "architecture"
         adr_dir.mkdir(parents=True)
         adr = adr_dir / "ADR-004-carrier.md"
         adr.write_text("# ADR 004\n\nold reviewed position.\n", encoding="utf-8")
@@ -1477,7 +1477,7 @@ class TestAdrReviewPolicyMergeScope:
         merge = _run(["git", "merge", "--no-edit", "--no-commit", "--no-ff", "carrier"], repo)
         assert merge.returncode == 0, merge.stderr
 
-        relative = ".agents/architecture/ADR-004-carrier.md"
+        relative = ".project-toolkit/architecture/ADR-004-carrier.md"
         assert policy._merge_authored_adr_paths([relative], repo) == [relative]
 
         monkeypatch.setattr(policy, "_gated_adr_review_paths", lambda paths, root: list(paths))
@@ -1514,7 +1514,7 @@ class TestAdrReviewPolicyMergeScope:
         _git(repo, "init", "-b", "main")
         _git(repo, "config", "user.email", "test@example.invalid")
         _git(repo, "config", "user.name", "Test User")
-        adr_dir = repo / ".agents" / "architecture"
+        adr_dir = repo / ".project-toolkit" / "architecture"
         adr_dir.mkdir(parents=True)
         adr = adr_dir / "ADR-005-synthetic.md"
         adr.write_text("# ADR 005\n\nold reviewed position.\n", encoding="utf-8")
@@ -1528,7 +1528,7 @@ class TestAdrReviewPolicyMergeScope:
         _git(repo, "add", ".")
         (repo / ".git" / "MERGE_HEAD").write_text(f"{old}\n", encoding="utf-8")
 
-        relative = ".agents/architecture/ADR-005-synthetic.md"
+        relative = ".project-toolkit/architecture/ADR-005-synthetic.md"
         assert policy._merge_authored_adr_paths([relative], repo) == [relative]
 
         monkeypatch.setattr(policy, "_gated_adr_review_paths", lambda paths, root: list(paths))
@@ -1568,7 +1568,7 @@ class TestAdrReviewPolicyMergeScope:
         _commit(repo, "branch work")
 
         _git(repo, "checkout", "main")
-        adr_dir = repo / ".agents" / "architecture"
+        adr_dir = repo / ".project-toolkit" / "architecture"
         adr_dir.mkdir(parents=True)
         adr = adr_dir / "ADR-089-from-main.md"
         adr.write_text("# ADR 089\n\nmain wrote this.\n", encoding="utf-8")
@@ -1587,7 +1587,7 @@ class TestAdrReviewPolicyMergeScope:
         merge = _run(["git", "merge", "--no-edit", "--no-commit", "shared"], repo)
         assert merge.returncode == 0, merge.stderr
 
-        relative = ".agents/architecture/ADR-089-from-main.md"
+        relative = ".project-toolkit/architecture/ADR-089-from-main.md"
         assert policy._merge_in_progress(repo) is True
         assert policy._merge_authored_adr_paths([relative], repo) == []
 
@@ -1626,7 +1626,7 @@ class TestAdrReviewPolicyMergeScope:
         _commit(repo, "branch work")
 
         _git(repo, "checkout", "main")
-        adr_dir = repo / ".agents" / "architecture"
+        adr_dir = repo / ".project-toolkit" / "architecture"
         adr_dir.mkdir(parents=True)
         adr = adr_dir / "ADR-089-from-main.md"
         adr.write_text("# ADR 089\n\nmain wrote this.\n", encoding="utf-8")
@@ -1643,7 +1643,7 @@ class TestAdrReviewPolicyMergeScope:
         merge = _run(["git", "merge", "--no-edit", "--no-commit", "shared"], repo)
         assert merge.returncode == 0, merge.stderr
 
-        relative = ".agents/architecture/ADR-089-from-main.md"
+        relative = ".project-toolkit/architecture/ADR-089-from-main.md"
         (repo / relative).write_text("# ADR 089\n\nthe author rewrote this.\n", encoding="utf-8")
         _git(repo, "add", relative)
 
@@ -1669,7 +1669,7 @@ class TestAdrReviewPolicyMergeScope:
         exempt it. Without this the previous test would pass just as well
         against a check that exempted every path once a merge was underway.
         """
-        path = ".agents/architecture/ADR-999-written-during-the-merge.md"
+        path = ".project-toolkit/architecture/ADR-999-written-during-the-merge.md"
         monkeypatch.setattr(policy, "_gated_adr_review_paths", lambda paths, root: list(paths))
         # tmp_path is not a git repository, so the staged-log query fails here
         # rather than returning nothing. That distinction is now reported
@@ -1725,7 +1725,7 @@ class TestAdrReviewPolicyMergeScope:
         repo = _merge_carrying_main_adr(
             tmp_path, b"# ADR 090\n\nmain wrote this.\n", "ADR-090-endings.md"
         )
-        relative = ".agents/architecture/ADR-090-endings.md"
+        relative = ".project-toolkit/architecture/ADR-090-endings.md"
         (repo / relative).write_bytes(b"# ADR 090\r\n\r\nmain wrote this.\r\n")
         _git(repo, "add", relative)
 
@@ -1757,7 +1757,7 @@ class TestAdrReviewPolicyMergeScope:
         repo = _merge_carrying_main_adr(
             tmp_path, b"# ADR 091\n\nmain \xff\xfe wrote this.\n", "ADR-092-endings.md"
         )
-        relative = ".agents/architecture/ADR-092-endings.md"
+        relative = ".project-toolkit/architecture/ADR-092-endings.md"
         (repo / relative).write_bytes(b"# ADR 091\n\nmain \x80\x81 wrote this.\n")
         _git(repo, "add", relative)
 
@@ -1787,7 +1787,7 @@ class TestAdrReviewPolicyMergeScope:
 
         Found by adversarial review round 51.
         """
-        relative = ".agents/architecture/ADR-094-carried.md"
+        relative = ".project-toolkit/architecture/ADR-094-carried.md"
         carried = b"# ADR 094\r\n\r\nmain wrote this.\r\n"
         repo = _merge_carrying_main_adr(tmp_path, carried, "ADR-094-carried.md")
 
@@ -1824,7 +1824,7 @@ class TestAdrReviewPolicyMergeScope:
         _point_origin_main_at_head(repo)
 
         _git(repo, "checkout", "local")
-        relative = ".agents/architecture/ADR-095-branch.md"
+        relative = ".project-toolkit/architecture/ADR-095-branch.md"
         (repo / relative).parent.mkdir(parents=True)
         (repo / relative).write_bytes(b"# ADR 095\r\n\r\nthe branch wrote this.\r\n")
         _commit(repo, "branch adr")
@@ -1861,7 +1861,7 @@ class TestAdrReviewPolicyMergeScope:
         _git(repo, "init", "-b", "main")
         _git(repo, "config", "user.email", "test@example.invalid")
         _git(repo, "config", "user.name", "Test User")
-        adr_dir = repo / ".agents" / "architecture"
+        adr_dir = repo / ".project-toolkit" / "architecture"
         adr_dir.mkdir(parents=True)
         adr = adr_dir / "ADR-092-typed.md"
         adr.write_text("# ADR 092\n\nfirst position.\n", encoding="utf-8")
@@ -1881,7 +1881,7 @@ class TestAdrReviewPolicyMergeScope:
         merge = _run(["git", "merge", "--no-edit", "--no-commit", "--no-ff", "side"], repo)
         assert merge.returncode == 0, merge.stderr
 
-        relative = ".agents/architecture/ADR-092-typed.md"
+        relative = ".project-toolkit/architecture/ADR-092-typed.md"
         adr.write_text("# ADR 092\n\nsecond position.\n", encoding="utf-8")
         _git(repo, "add", relative)
 
@@ -1919,10 +1919,10 @@ class TestAdrReviewPolicyMergeScope:
         _git(repo, "init", "-b", "main")
         _git(repo, "config", "user.email", "test@example.invalid")
         _git(repo, "config", "user.name", "Test User")
-        adr_dir = repo / ".agents" / "architecture"
+        adr_dir = repo / ".project-toolkit" / "architecture"
         adr_dir.mkdir(parents=True)
-        old_name = ".agents/architecture/ADR-093-old.md"
-        new_name = ".agents/architecture/ADR-093-new.md"
+        old_name = ".project-toolkit/architecture/ADR-093-old.md"
+        new_name = ".project-toolkit/architecture/ADR-093-new.md"
         # Long enough that a one-line revision still scores as a rename. Git
         # pairs paths at 50% similarity by default, and a three-line fixture
         # would need the threshold lowered to pass, which would be tuning the
@@ -2089,8 +2089,8 @@ class TestAdrReviewPolicyMergeScope:
         # On by default. Named so the test states what it exercises rather
         # than inheriting it from whoever runs it.
         _git(repo, "config", "core.quotePath", "true")
-        name = ".agents/architecture/ADR-100-caf\u00e9.md"
-        (repo / ".agents" / "architecture").mkdir(parents=True)
+        name = ".project-toolkit/architecture/ADR-100-caf\u00e9.md"
+        (repo / ".project-toolkit" / "architecture").mkdir(parents=True)
         (repo / name).write_text("decision\n", encoding="utf-8")
         _git(repo, "add", "-A")
         _git(repo, "commit", "-m", "add")
@@ -2145,9 +2145,9 @@ class TestAdrReviewPolicyMergeScope:
         _git(repo, "init", "-b", "main")
         _git(repo, "config", "user.email", "t@example.com")
         _git(repo, "config", "user.name", "T")
-        directory = repo / ".agents" / "architecture"
+        directory = repo / ".project-toolkit" / "architecture"
         directory.mkdir(parents=True)
-        governed = ".agents/architecture/ADR-101-real.md"
+        governed = ".project-toolkit/architecture/ADR-101-real.md"
         ungoverned = governed + "\r"
         (repo / ungoverned).write_text("never reviewed\n" + "a\n" * 40, encoding="utf-8")
         _git(repo, "add", "-A")
@@ -2224,7 +2224,7 @@ class TestAdrReviewPolicyMergeScope:
         """
         repo = tmp_path / "repo"
         repo.mkdir()
-        adr = ".agents/architecture/ADR-095-synthetic.md"
+        adr = ".project-toolkit/architecture/ADR-095-synthetic.md"
         combined = (
             "::100644 100644 100644 "
             "1111111111111111111111111111111111111111 "
@@ -2270,7 +2270,7 @@ class TestAdrReviewPolicyMergeScope:
         """
         repo = tmp_path / "repo"
         repo.mkdir()
-        adr = ".agents/architecture/ADR-098-deleted.md"
+        adr = ".project-toolkit/architecture/ADR-098-deleted.md"
         records = (
             ":100644 000000 "
             "1111111111111111111111111111111111111111 " + "0" * 40 + " D\0" + adr + "\0"
@@ -2514,8 +2514,8 @@ def _repo_where_a_merge_linked_a_non_adr_file(
     _git(repo, "config", "user.name", "Test User")
     _git(repo, "config", "diff.renames", "true")
 
-    adr = ".agents/architecture/ADR-096-linked.md"
-    (repo / ".agents" / "architecture").mkdir(parents=True)
+    adr = ".project-toolkit/architecture/ADR-096-linked.md"
+    (repo / ".project-toolkit" / "architecture").mkdir(parents=True)
     (repo / ordinary).parent.mkdir(parents=True, exist_ok=True)
     (repo / ordinary).write_bytes(b"the state that was never an adr\n")
     _git(repo, "add", "--", ordinary)
@@ -2551,8 +2551,8 @@ class TestGovernedDocumentIdentity:
     def test_one_record_keeps_its_identity_when_it_is_renamed(self):
         """The name after the number is free to change; the number is not."""
         assert policy._governed_document_identity(
-            ".agents/architecture/ADR-201-old-name.md"
-        ) == policy._governed_document_identity(".agents/architecture/ADR-201-new-name.md")
+            ".project-toolkit/architecture/ADR-201-old-name.md"
+        ) == policy._governed_document_identity(".project-toolkit/architecture/ADR-201-new-name.md")
 
     def test_a_number_written_in_either_case_is_one_record(self):
         """The path test ignores case, so the identity read out of it must too.
@@ -2563,13 +2563,13 @@ class TestGovernedDocumentIdentity:
         to remove.
         """
         assert policy._governed_document_identity(
-            ".agents/architecture/adr-201-old-name.md"
-        ) == policy._governed_document_identity(".agents/architecture/ADR-201-new-name.md")
+            ".project-toolkit/architecture/adr-201-old-name.md"
+        ) == policy._governed_document_identity(".project-toolkit/architecture/ADR-201-new-name.md")
 
     def test_two_numbers_are_two_records(self):
         assert policy._governed_document_identity(
-            ".agents/architecture/ADR-201-first.md"
-        ) != policy._governed_document_identity(".agents/architecture/ADR-202-second.md")
+            ".project-toolkit/architecture/ADR-201-first.md"
+        ) != policy._governed_document_identity(".project-toolkit/architecture/ADR-202-second.md")
 
     def test_a_directory_named_for_a_record_does_not_shadow_the_file(self):
         """The number is read where the path test anchors: the last segment.
@@ -2582,17 +2582,17 @@ class TestGovernedDocumentIdentity:
         nested = ".agents/ADR-201-old/ADR-202-new.md"
 
         assert policy._governed_document_identity(nested) == policy._governed_document_identity(
-            ".agents/architecture/ADR-202-second.md"
+            ".project-toolkit/architecture/ADR-202-second.md"
         )
         assert policy._governed_document_identity(nested) != policy._governed_document_identity(
-            ".agents/architecture/ADR-201-first.md"
+            ".project-toolkit/architecture/ADR-201-first.md"
         )
 
     def test_a_windows_separator_still_names_the_last_segment(self):
         """The path test accepts a backslash, so reading the number must too."""
         assert policy._governed_document_identity(
             r".agents\ADR-201-old\ADR-202-new.md"
-        ) == policy._governed_document_identity(".agents/architecture/ADR-202-second.md")
+        ) == policy._governed_document_identity(".project-toolkit/architecture/ADR-202-second.md")
 
     @pytest.mark.parametrize(
         "path",
@@ -2626,9 +2626,9 @@ def _repo_where_a_merge_linked_two_adrs(tmp_path: Path) -> tuple[Path, str, str]
     _git(repo, "config", "diff.renames", "true")
     shared = "".join(f"a line every record from the template carries {i}\n" for i in range(60))
 
-    first = ".agents/architecture/ADR-201-first.md"
-    second = ".agents/architecture/ADR-202-second.md"
-    (repo / ".agents" / "architecture").mkdir(parents=True)
+    first = ".project-toolkit/architecture/ADR-201-first.md"
+    second = ".project-toolkit/architecture/ADR-202-second.md"
+    (repo / ".project-toolkit" / "architecture").mkdir(parents=True)
     (repo / first).write_text("# ADR-201\n" + shared + "decision alpha\n", encoding="utf-8")
     _git(repo, "add", "-A")
     _git(repo, "commit", "-qm", "the first record")
@@ -2639,13 +2639,13 @@ def _repo_where_a_merge_linked_two_adrs(tmp_path: Path) -> tuple[Path, str, str]
 
     _git(repo, "checkout", "-qb", "side", "HEAD~1")
     _git(repo, "rm", "-q", "--", first)
-    (repo / ".agents" / "architecture").mkdir(parents=True, exist_ok=True)
+    (repo / ".project-toolkit" / "architecture").mkdir(parents=True, exist_ok=True)
     (repo / second).write_text("# ADR-202\n" + shared + "decision beta\n", encoding="utf-8")
     _git(repo, "add", "-A")
     _git(repo, "commit", "-qm", "side replaces it with a second record")
 
     _git(repo, "checkout", "-q", "main")
-    (repo / ".agents" / "architecture").mkdir(parents=True, exist_ok=True)
+    (repo / ".project-toolkit" / "architecture").mkdir(parents=True, exist_ok=True)
     _run(["git", "merge", "--no-edit", "side"], repo)
     (repo / first).unlink(missing_ok=True)
     _git(repo, "add", "-A")
@@ -2677,9 +2677,9 @@ def _repo_where_a_rename_crossed_a_merge(tmp_path: Path) -> tuple[Path, str, str
     _git(repo, "config", "diff.renames", "true")
     body = "header\n" + "same line\n" * 30
 
-    old_name = ".agents/architecture/ADR-097-moved.md"
-    new_name = ".agents/architecture/ADR-097-renamed.md"
-    (repo / ".agents" / "architecture").mkdir(parents=True)
+    old_name = ".project-toolkit/architecture/ADR-097-moved.md"
+    new_name = ".project-toolkit/architecture/ADR-097-renamed.md"
+    (repo / ".project-toolkit" / "architecture").mkdir(parents=True)
     (repo / old_name).write_bytes((body + "base\n").encode("utf-8"))
     _git(repo, "add", "--", old_name)
     _git(repo, "commit", "-qm", "base")
@@ -2729,9 +2729,9 @@ def _repo_where_main_resolved_an_adr_in_a_merge(
     _git(repo, "config", "user.name", "Test User")
     if diff_merges is not None:
         _git(repo, "config", "log.diffMerges", diff_merges)
-    adr_dir = repo / ".agents" / "architecture"
+    adr_dir = repo / ".project-toolkit" / "architecture"
     adr_dir.mkdir(parents=True)
-    name = ".agents/architecture/ADR-096-contested.md"
+    name = ".project-toolkit/architecture/ADR-096-contested.md"
     (repo / name).write_text("# ADR 096\n\nbase.\n", encoding="utf-8")
     _commit(repo, "base")
 
@@ -2777,7 +2777,7 @@ def _merge_carrying_main_adr(tmp_path: Path, adr_bytes: bytes, name: str) -> Pat
     _commit(repo, "base")
     _git(repo, "branch", "local")
 
-    adr_dir = repo / ".agents" / "architecture"
+    adr_dir = repo / ".project-toolkit" / "architecture"
     adr_dir.mkdir(parents=True)
     (adr_dir / name).write_bytes(adr_bytes)
     _commit(repo, "adr on main")
@@ -2826,7 +2826,7 @@ def _repo_where_the_history_is_signed(
     # Passing the setting on the command line outranks the injection in turn.
     signing = ("-c", "commit.gpgsign=true") if sign else ()
 
-    adr = ".agents/architecture/ADR-099-signed.md"
+    adr = ".project-toolkit/architecture/ADR-099-signed.md"
     document = repo / adr
     document.parent.mkdir(parents=True, exist_ok=True)
     document.write_text("first\n", encoding="utf-8")
@@ -2858,8 +2858,8 @@ def _repo_where_a_rename_repadded_the_number(
     repo.mkdir()
     _init_push_repo(repo)
 
-    before_name = ".agents/architecture/ADR-0003-tool-selection.md"
-    after_name = f".agents/architecture/{renamed_to}-tool-selection.md"
+    before_name = ".project-toolkit/architecture/ADR-0003-tool-selection.md"
+    after_name = f".project-toolkit/architecture/{renamed_to}-tool-selection.md"
     # Git reads a rename by similarity, so the revision has to leave most of
     # the body alone or there is no rename for the walk to cross.
     body = ["# Tool selection", "", "## Context", "", "One line per criterion.", ""]
@@ -2935,7 +2935,7 @@ class TestBlobIdentityAndRenameLookup:
         _git(repo, "init", "-b", "main")
         _git(repo, "config", "user.email", "test@example.invalid")
         _git(repo, "config", "user.name", "Test User")
-        adr_dir = repo / ".agents" / "architecture"
+        adr_dir = repo / ".project-toolkit" / "architecture"
         adr_dir.mkdir(parents=True)
         original = adr_dir / "ADR-100-former-name.md"
         first_text = "# ADR 100\n\n" + "".join(f"line {n}\n" for n in range(40))
@@ -2943,8 +2943,8 @@ class TestBlobIdentityAndRenameLookup:
         _commit(repo, "adr under its first name")
         _git(repo, "branch", "local")
 
-        renamed = ".agents/architecture/ADR-100-current-name.md"
-        _git(repo, "mv", ".agents/architecture/ADR-100-former-name.md", renamed)
+        renamed = ".project-toolkit/architecture/ADR-100-current-name.md"
+        _git(repo, "mv", ".project-toolkit/architecture/ADR-100-former-name.md", renamed)
         (repo / renamed).write_text(first_text + "one revision line\n", encoding="utf-8")
         _commit(repo, "rename and revise in one commit")
         tip = _git(repo, "rev-parse", "HEAD").stdout.strip()
@@ -2954,7 +2954,7 @@ class TestBlobIdentityAndRenameLookup:
         _git(repo, "checkout", "local")
         (repo / renamed).parent.mkdir(parents=True, exist_ok=True)
         (repo / renamed).write_text(first_text, encoding="utf-8")
-        (repo / ".agents" / "architecture" / "ADR-100-former-name.md").unlink()
+        (repo / ".project-toolkit" / "architecture" / "ADR-100-former-name.md").unlink()
         _git(repo, "add", "-A")
         _commit(repo, "carry main's earlier text under the current name")
 
@@ -2975,9 +2975,9 @@ class TestBlobIdentityAndRenameLookup:
         _git(repo, "init", "-b", "main")
         _git(repo, "config", "user.email", "test@example.invalid")
         _git(repo, "config", "user.name", "Test User")
-        adr_dir = repo / ".agents" / "architecture"
+        adr_dir = repo / ".project-toolkit" / "architecture"
         adr_dir.mkdir(parents=True)
-        relative = ".agents/architecture/ADR-101-only-on-main.md"
+        relative = ".project-toolkit/architecture/ADR-101-only-on-main.md"
         (repo / relative).write_text("# ADR 101\n\nmain wrote this.\n", encoding="utf-8")
         _commit(repo, "adr on main")
         tip = _git(repo, "rev-parse", "HEAD").stdout.strip()
@@ -3007,9 +3007,9 @@ class TestBlobIdentityAndRenameLookup:
         _commit(repo, "base")
         _git(repo, "branch", "local")
 
-        adr_dir = repo / ".agents" / "architecture"
+        adr_dir = repo / ".project-toolkit" / "architecture"
         adr_dir.mkdir(parents=True)
-        relative = ".agents/architecture/ADR-102-revised-on-main.md"
+        relative = ".project-toolkit/architecture/ADR-102-revised-on-main.md"
         (repo / relative).write_text("# ADR 102\n\nfirst state.\n", encoding="utf-8")
         _commit(repo, "adr first state")
         _git(repo, "branch", "main-first-state")

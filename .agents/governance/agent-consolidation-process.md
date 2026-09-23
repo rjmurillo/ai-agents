@@ -303,7 +303,7 @@ Merge `code-reviewer` into `qa` because:
 
 - [Agent Design Principles](./agent-design-principles.md)
 - [Steering Committee Charter](./steering-committee-charter.md)
-- [ADR Template](../architecture/ADR-TEMPLATE.md)
+- [ADR Template](../../.project-toolkit/architecture/ADR-TEMPLATE.md)
 - [Agent Interview Protocol](./agent-interview-protocol.md)
 
 ---

@@ -87,7 +87,7 @@ def main(argv: list[str] | None = None) -> int:
         metavar=("OLD", "NEW"),
         help="Replace OLD reference with NEW",
     )
-    parser.add_argument("--specs-path", default=".agents/specs", help="Path to specs directory")
+    parser.add_argument("--specs-path", default=".project-toolkit/specs", help="Path to specs directory")
     parser.add_argument("--dry-run", action="store_true", help="Show plan without changes")
     parser.add_argument("--force", action="store_true", help="Skip confirmation prompts")
     args = parser.parse_args(argv)

@@ -274,7 +274,7 @@ def format_json_output(result: ScanResult) -> str:
     the absence of `schema_version` as v1 (pre-CWE-22-delegation, no
     `summary.delegated_cwes` field). v2 added `summary.delegated_cwes` when
     CWE-22 detection moved to CodeQL (PR #1851, see
-    `.agents/architecture/ADR-054-local-security-scanning.md` amendment).
+    `.project-toolkit/architecture/ADR-054-local-security-scanning.md` amendment).
     """
     by_cwe: dict[str, int] = {}
     by_severity: dict[str, int] = {}
@@ -345,7 +345,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "  1  scan error (invalid args, file not found, path traversal)\n"
             "  10 vulnerabilities detected (CI-blocking)\n"
             "\n"
-            "See .agents/architecture/ADR-054-local-security-scanning.md."
+            "See .project-toolkit/architecture/ADR-054-local-security-scanning.md."
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )

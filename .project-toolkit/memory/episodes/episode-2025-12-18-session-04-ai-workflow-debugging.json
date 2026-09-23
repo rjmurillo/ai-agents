@@ -1,0 +1,28 @@
+{
+  "id": "episode-2025-12-18-session-04-ai-workflow-debugging",
+  "session": "2025-12-18-session-04-ai-workflow-debugging",
+  "timestamp": "2025-12-18T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "partial",
+  "task": "Debug and fix failures in AI PR Quality Gate workflow (GitHub Actions run 20331947252).",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2025-12-18T00:00:00+00:00",
+      "type": "milestone",
+      "content": "[x] PR comment posted successfully",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 5156
+  },
+  "lessons": []
+}

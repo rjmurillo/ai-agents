@@ -7,7 +7,7 @@ question and will not catch a violation.
 ## The incident
 
 Issue #2026 removed `merge-resolver` from the Copilot shipping set. The skill
-is hard-wired to this repository (`gh`, `.agents/sessions`, `.serena`,
+is hard-wired to this repository (`gh`, `.project-toolkit/sessions`, `.serena`,
 session-protocol scripts) and fails on first use in a consumer repo. The
 exclusion lives in `templates/platforms/copilot-cli.yaml`:
 

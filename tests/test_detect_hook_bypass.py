@@ -99,7 +99,7 @@ class TestCheckAgentsWithoutSession:
             "session work",
             [
                 ".agents/governance/PROJECT-CONSTRAINTS.md",
-                ".agents/sessions/2026-01-01-session-01.json",
+                ".project-toolkit/sessions/2026-01-01-session-01.json",
             ],
         )
         assert result is None
@@ -108,7 +108,7 @@ class TestCheckAgentsWithoutSession:
         result = check_agents_without_session(
             "sha1",
             "modify agents",
-            [".agents/planning/plan.md"],
+            [".project-toolkit/planning/plan.md"],
         )
         assert result is not None
         assert result.indicator_type == "agents-without-session"
@@ -118,8 +118,8 @@ class TestCheckAgentsWithoutSession:
             "sha1",
             "old format",
             [
-                ".agents/planning/plan.md",
-                ".agents/sessions/2026-01-01-session-01.md",
+                ".project-toolkit/planning/plan.md",
+                ".project-toolkit/sessions/2026-01-01-session-01.md",
             ],
         )
         assert result is not None

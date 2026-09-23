@@ -4,7 +4,7 @@
 episode store has usable event ids (issue #3633). That pin only protects the
 store if the job carrying it actually runs, and ``pytest.yml`` gates its test
 job behind a ``dorny/paths-filter`` entry. A hand edit or merge-conflict
-resolution touching only ``.agents/memory/episodes/*.json`` matches no
+resolution touching only ``.project-toolkit/memory/episodes/*.json`` matches no
 ``**/*.py`` pattern, so without an explicit entry the gate skips and the pin
 never fires against the one population the issue names.
 
@@ -36,7 +36,7 @@ from scripts.test_selection import path_policy
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW = REPO_ROOT / ".github/workflows/pytest.yml"
-EPISODE_STORE = REPO_ROOT / ".agents/memory/episodes"
+EPISODE_STORE = REPO_ROOT / ".project-toolkit/memory/episodes"
 GITHUB_DIR = REPO_ROOT / ".github"
 RULE_INPUT_ROOTS = (
     ".claude/rules",
@@ -81,7 +81,7 @@ def _python_filter() -> list[str]:
 
 
 def test_the_filter_covers_the_episode_store():
-    assert ".agents/memory/episodes/**" in _python_filter()
+    assert ".project-toolkit/memory/episodes/**" in _python_filter()
 
 
 def test_the_entry_matches_the_directory_the_pin_reads():
@@ -208,8 +208,8 @@ def test_the_filter_now_selects_tracked_session_markdown():
     audit disproved the premise: parse every string literal in all test
     modules, keep the ones resolving to a tracked file, and check each against
     the filter. Session content was in the unmatched set, including
-    `.agents/sessions/2026-08-06-session-10004-memory-index-duplicate.json` and
-    `.agents/sessions/2026-02-11-session-1198-pr-review-1146-security-fixes.json`,
+    `.project-toolkit/sessions/2026-08-06-session-10004-memory-index-duplicate.json` and
+    `.project-toolkit/sessions/2026-02-11-session-1198-pr-review-1146-security-fixes.json`,
     both opened by exact path in `tests/test_validate_session_json.py`. So the
     tree this test protected as inert was carrying real inputs, and the
     allowlist could not be finished by naming roots.
@@ -225,7 +225,7 @@ def test_the_filter_now_selects_tracked_session_markdown():
     an audit to find.
     """
     patterns = _python_filter()
-    inputs = [path for path in _tracked_files(".agents/sessions") if path.endswith(".md")]
+    inputs = [path for path in _tracked_files(".project-toolkit/sessions") if path.endswith(".md")]
     assert inputs, "no tracked Markdown session logs, so this control is vacuous"
 
     unselected = [path for path in inputs if not _selected(path, patterns)]
@@ -291,13 +291,13 @@ class TestSelected:
         assert _selected("lefthook.yml", ["**/*.yml"])
 
     def test_a_directory_entry_selects_a_file_beneath_it(self):
-        assert _selected(".agents/memory/episodes/e.json", [".agents/memory/episodes/**"])
+        assert _selected(".project-toolkit/memory/episodes/e.json", [".project-toolkit/memory/episodes/**"])
 
     def test_an_extension_mismatch_is_not_selected(self):
         assert not _selected(".github/workflows/a.yaml", ["**/*.yml"])
 
     def test_a_sibling_dot_directory_is_not_selected(self):
-        assert not _selected(".github/workflows/a.yml", [".agents/memory/episodes/**"])
+        assert not _selected(".github/workflows/a.yml", [".project-toolkit/memory/episodes/**"])
 
     def test_no_entries_select_nothing(self):
         assert not _selected("scripts/ci/ruff_ratchet.py", [])

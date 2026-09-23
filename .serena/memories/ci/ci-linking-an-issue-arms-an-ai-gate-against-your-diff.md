@@ -34,8 +34,8 @@ spec_paths = re.findall(r"\.agents/(?:specs|planning)/\S+\.md", combined)
 ```
 
 So a body carrying `Refs #N` still arms the gate if it also names a
-`REQ`/`DESIGN`/`TASK` id or a path under `.agents/specs/` or
-`.agents/planning/`. The skip needs `Refs` AND none of those.
+`REQ`/`DESIGN`/`TASK` id or a path under `.project-toolkit/specs/` or
+`.project-toolkit/planning/`. The skip needs `Refs` AND none of those.
 
 That still matters, because `Refs #N` is the form `.claude/rules/universal.md`
 offers for a PR that should not close its issue, and a PR body that links an

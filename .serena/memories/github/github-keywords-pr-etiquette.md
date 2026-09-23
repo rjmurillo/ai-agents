@@ -38,7 +38,7 @@ GitHub supports 9 keywords for auto-closing issues when PRs merge:
 
 | Type | Required? |
 |------|-----------|
-| `feat:` | Required (link issue or `.agents/planning/`) |
+| `feat:` | Required (link issue or `.project-toolkit/planning/`) |
 | `fix:` | Optional (link issue if exists) |
 | `refactor:` | Optional |
 | `docs:` | Not required |
@@ -55,7 +55,7 @@ GitHub supports 9 keywords for auto-closing issues when PRs merge:
 
 ## Reference
 
-- Analysis: `.agents/analysis/github-keywords-pr-etiquette.md`
+- Analysis: `.project-toolkit/analysis/github-keywords-pr-etiquette.md`
 - PR Template: `.github/PULL_REQUEST_TEMPLATE.md`
 - GitHub Docs: https://docs.github.com/en/get-started/writing-on-github/working-with-advanced-formatting/using-keywords-in-issues-and-pull-requests
 

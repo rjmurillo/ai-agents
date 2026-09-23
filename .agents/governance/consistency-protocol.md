@@ -197,7 +197,7 @@ related:
 
 ### Validation Script
 
-The retired cross-document validator was removed after `.agents/planning`
+The retired cross-document validator was removed after `.project-toolkit/planning`
 stopped carrying feature PRD and task pairs. Current planning validation lives
 in `build/scripts/validate_planning_artifacts.py`.
 

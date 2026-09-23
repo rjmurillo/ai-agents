@@ -96,7 +96,7 @@ whatever Step 2.2 rendered for the life of the artifact and disagree with the
 detail entry it summarizes. One representation, in the detail entry.
 
 ```bash
-COMMENT_MAP=".agents/pr-comments/PR-[number]/comments.md"
+COMMENT_MAP=".project-toolkit/pr-comments/PR-[number]/comments.md"
 if [ ! -f "$COMMENT_MAP" ]; then
   echo "[BLOCKED] Comment map missing: $COMMENT_MAP"
   exit 1
@@ -110,7 +110,7 @@ PENDING=$((TOTAL - TERMINAL))
 # read $TOTAL_COMMENTS directly saw an empty string, `[ -ne ]` raised `integer
 # expression expected`, and that nonzero exit from `[` reads as false to `if`,
 # so the BLOCKED body never ran. Read the artifact and fail closed instead.
-COUNT_FILE=".agents/pr-comments/PR-[number]/total_comments.txt"
+COUNT_FILE=".project-toolkit/pr-comments/PR-[number]/total_comments.txt"
 if [ ! -f "$COUNT_FILE" ]; then
   echo "[BLOCKED] API comment count not recorded: $COUNT_FILE"
   exit 1
@@ -314,7 +314,7 @@ creation is discontinued.
 
 ```bash
 # Create the PR comment run log consumed by later gates.
-PR_COMMENT_LOG=".agents/pr-comments/PR-[number]/session.log"
+PR_COMMENT_LOG=".project-toolkit/pr-comments/PR-[number]/session.log"
 mkdir -p "$(dirname "$PR_COMMENT_LOG")"
 : > "$PR_COMMENT_LOG"
 ```
@@ -328,7 +328,7 @@ loaded handoff.
 
 ```bash
 # Count reactions added vs comments
-PR_COMMENT_LOG=".agents/pr-comments/PR-[number]/session.log"
+PR_COMMENT_LOG=".project-toolkit/pr-comments/PR-[number]/session.log"
 if [ ! -f "$PR_COMMENT_LOG" ]; then
   echo "[BLOCKED] PR comment log missing: $PR_COMMENT_LOG"
   exit 1
@@ -339,7 +339,7 @@ REACTIONS_ADDED=$(grep -c "reaction.*eyes" "$PR_COMMENT_LOG" || true)
 # read $TOTAL_COMMENTS directly saw an empty string, `[ -ne ]` raised `integer
 # expression expected`, and that nonzero exit from `[` reads as false to `if`,
 # so the BLOCKED body never ran. Read the artifact and fail closed instead.
-COUNT_FILE=".agents/pr-comments/PR-[number]/total_comments.txt"
+COUNT_FILE=".project-toolkit/pr-comments/PR-[number]/total_comments.txt"
 if [ ! -f "$COUNT_FILE" ]; then
   echo "[BLOCKED] API comment count not recorded: $COUNT_FILE"
   exit 1
@@ -364,8 +364,8 @@ fi
 
 ```bash
 # Verify artifacts exist
-test -f ".agents/pr-comments/PR-[number]/comments.md" || exit 1
-test -f ".agents/pr-comments/PR-[number]/tasks.md" || exit 1
+test -f ".project-toolkit/pr-comments/PR-[number]/comments.md" || exit 1
+test -f ".project-toolkit/pr-comments/PR-[number]/tasks.md" || exit 1
 
 # Verify comment count matches
 # Phase 1 recorded the API count in this artifact. Shell variables do not
@@ -373,7 +373,7 @@ test -f ".agents/pr-comments/PR-[number]/tasks.md" || exit 1
 # read $TOTAL_COMMENTS directly saw an empty string, `[ -ne ]` raised `integer
 # expression expected`, and that nonzero exit from `[` reads as false to `if`,
 # so the BLOCKED body never ran. Read the artifact and fail closed instead.
-COUNT_FILE=".agents/pr-comments/PR-[number]/total_comments.txt"
+COUNT_FILE=".project-toolkit/pr-comments/PR-[number]/total_comments.txt"
 if [ ! -f "$COUNT_FILE" ]; then
   echo "[BLOCKED] API comment count not recorded: $COUNT_FILE"
   exit 1
@@ -382,7 +382,7 @@ TOTAL_COMMENTS=$(cat "$COUNT_FILE")
 case "$TOTAL_COMMENTS" in
   ''|*[!0-9]*) echo "[BLOCKED] Recorded comment count is not numeric: $TOTAL_COMMENTS"; exit 1 ;;
 esac
-ARTIFACT_COUNT=$(grep -c "^| [0-9]" .agents/pr-comments/PR-[number]/comments.md)
+ARTIFACT_COUNT=$(grep -c "^| [0-9]" .project-toolkit/pr-comments/PR-[number]/comments.md)
 if [ "$ARTIFACT_COUNT" -ne "$TOTAL_COMMENTS" ]; then
   echo "[BLOCKED] Artifact count: $ARTIFACT_COUNT != API count: $TOTAL_COMMENTS"
   exit 1
@@ -421,8 +421,8 @@ map did not is exactly the split state Gate 4 reads as finished work still
 pending.
 
 ```bash
-COMMENT_MAP=".agents/pr-comments/PR-[number]/comments.md"
-TASK_LIST=".agents/pr-comments/PR-[number]/tasks.md"
+COMMENT_MAP=".project-toolkit/pr-comments/PR-[number]/comments.md"
+TASK_LIST=".project-toolkit/pr-comments/PR-[number]/tasks.md"
 TERMINAL_STATUS="[COMPLETE]"
 
 # The id reaches a sed address, so refuse anything but digits (CWE-78).
@@ -485,7 +485,7 @@ sed -n "/^### Comment $COMMENT_ID /,/^---$/p" "$COMMENT_MAP" \
 
 ```bash
 # Count unresolved comments in the comment map
-COMMENT_MAP=".agents/pr-comments/PR-[number]/comments.md"
+COMMENT_MAP=".project-toolkit/pr-comments/PR-[number]/comments.md"
 if [ ! -f "$COMMENT_MAP" ]; then
   echo "[BLOCKED] Comment map missing: $COMMENT_MAP"
   exit 1
@@ -499,7 +499,7 @@ PENDING=$((TOTAL - TERMINAL))
 # read $TOTAL_COMMENTS directly saw an empty string, `[ -ne ]` raised `integer
 # expression expected`, and that nonzero exit from `[` reads as false to `if`,
 # so the BLOCKED body never ran. Read the artifact and fail closed instead.
-COUNT_FILE=".agents/pr-comments/PR-[number]/total_comments.txt"
+COUNT_FILE=".project-toolkit/pr-comments/PR-[number]/total_comments.txt"
 if [ ! -f "$COUNT_FILE" ]; then
   echo "[BLOCKED] API comment count not recorded: $COUNT_FILE"
   exit 1
@@ -537,7 +537,7 @@ echo "Unresolved API threads: $UNRESOLVED_API"
 REMAINING=$(gh api graphql -f query='...' --jq '.data...unresolved.length')
 
 # Artifact state
-COMMENT_MAP=".agents/pr-comments/PR-[number]/comments.md"
+COMMENT_MAP=".project-toolkit/pr-comments/PR-[number]/comments.md"
 if [ ! -f "$COMMENT_MAP" ]; then
   echo "[BLOCKED] Comment map missing: $COMMENT_MAP"
   exit 1
@@ -551,7 +551,7 @@ PENDING=$((TOTAL - TERMINAL))
 # read $TOTAL_COMMENTS directly saw an empty string, `[ -ne ]` raised `integer
 # expression expected`, and that nonzero exit from `[` reads as false to `if`,
 # so the BLOCKED body never ran. Read the artifact and fail closed instead.
-COUNT_FILE=".agents/pr-comments/PR-[number]/total_comments.txt"
+COUNT_FILE=".project-toolkit/pr-comments/PR-[number]/total_comments.txt"
 if [ ! -f "$COUNT_FILE" ]; then
   echo "[BLOCKED] API comment count not recorded: $COUNT_FILE"
   exit 1
@@ -627,7 +627,7 @@ Reviewer-specific memories (e.g., `pr-review/cursor-bot-review-patterns`) are lo
 Before fetching new data, check if this is a continuation of a previous session:
 
 ```bash
-SESSION_DIR=".agents/pr-comments/PR-[number]"
+SESSION_DIR=".project-toolkit/pr-comments/PR-[number]"
 
 if [ -d "$SESSION_DIR" ]; then
   echo "[CONTINUATION] Previous session found"
@@ -653,7 +653,7 @@ else
 fi
 ```
 
-**Session state directory**: `.agents/pr-comments/PR-[number]/`
+**Session state directory**: `.project-toolkit/pr-comments/PR-[number]/`
 
 | File | Purpose |
 |------|---------|
@@ -766,7 +766,7 @@ echo "Total comments: $TOTAL_COMMENTS"
 
 # Record the API count where every later gate reads it. Shell variables do not
 # survive between fenced blocks, so the count has to reach them as an artifact.
-COUNT_FILE=".agents/pr-comments/PR-[number]/total_comments.txt"
+COUNT_FILE=".project-toolkit/pr-comments/PR-[number]/total_comments.txt"
 mkdir -p "$(dirname "$COUNT_FILE")"
 printf '%s\n' "$TOTAL_COMMENTS" > "$COUNT_FILE"
 
@@ -807,7 +807,7 @@ echo "Total comments: $TOTAL_COMMENTS (Review: $REVIEW_COMMENT_COUNT, Issue: $IS
 
 # Record the API count where every later gate reads it. Shell variables do not
 # survive between fenced blocks, so the count has to reach them as an artifact.
-COUNT_FILE=".agents/pr-comments/PR-[number]/total_comments.txt"
+COUNT_FILE=".project-toolkit/pr-comments/PR-[number]/total_comments.txt"
 mkdir -p "$(dirname "$COUNT_FILE")"
 printf '%s\n' "$TOTAL_COMMENTS" > "$COUNT_FILE"
 ```
@@ -880,7 +880,7 @@ React with eyes emoji to acknowledge all comments. Use batch mode for 88% faster
 # Get all comment IDs from the comments retrieved in Phase 1
 PLUGIN_ROOT="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
 SCRIPTS_DIR="$PLUGIN_ROOT/skills/github/scripts"
-PR_COMMENT_LOG=".agents/pr-comments/PR-[number]/session.log"
+PR_COMMENT_LOG=".project-toolkit/pr-comments/PR-[number]/session.log"
 COMMENTS=$(python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" --pull-request [number] --include-issue-comments)
 REVIEW_IDS=$(echo "$COMMENTS" | jq -r '.Comments[] | select(.CommentType == "Review") | .Id')
 ISSUE_IDS=$(echo "$COMMENTS" | jq -r '.Comments[] | select(.CommentType == "Issue") | .Id')
@@ -1066,7 +1066,7 @@ These comments require immediate response before implementation:
 - [ ] **TASK-[id]**: [description]
   - Comment: [comment_id] by @[author]
   - File: [path]
-  - Plan: `.agents/pr-comments/PR-[number]/[comment_id]-plan.md`
+  - Plan: `.project-toolkit/pr-comments/PR-[number]/[comment_id]-plan.md`
 
 ### Major Priority
 
@@ -1393,7 +1393,7 @@ gh pr edit [number] --body "[updated body]"
 
 ```bash
 # Derive pending exactly as Gate 4 and Gate 5 do: total minus terminal.
-COMMENT_MAP=".agents/pr-comments/PR-[number]/comments.md"
+COMMENT_MAP=".project-toolkit/pr-comments/PR-[number]/comments.md"
 if [ ! -f "$COMMENT_MAP" ]; then
   echo "[BLOCKED] Comment map missing: $COMMENT_MAP"
   exit 1
@@ -1407,7 +1407,7 @@ PENDING=$((TOTAL - TERMINAL))
 # read $TOTAL_COMMENTS directly saw an empty string, `[ -ne ]` raised `integer
 # expression expected`, and that nonzero exit from `[` reads as false to `if`,
 # so the BLOCKED body never ran. Read the artifact and fail closed instead.
-COUNT_FILE=".agents/pr-comments/PR-[number]/total_comments.txt"
+COUNT_FILE=".project-toolkit/pr-comments/PR-[number]/total_comments.txt"
 if [ ! -f "$COUNT_FILE" ]; then
   echo "[BLOCKED] API comment count not recorded: $COUNT_FILE"
   exit 1
@@ -1502,7 +1502,7 @@ esac
 # read $TOTAL_COMMENTS directly saw an empty string, `[ -ne ]` raised `integer
 # expression expected`, and that nonzero exit from `[` reads as false to `if`,
 # so the BLOCKED body never ran. Read the artifact and fail closed instead.
-COUNT_FILE=".agents/pr-comments/PR-[number]/total_comments.txt"
+COUNT_FILE=".project-toolkit/pr-comments/PR-[number]/total_comments.txt"
 if [ ! -f "$COUNT_FILE" ]; then
   echo "[BLOCKED] API comment count not recorded: $COUNT_FILE"
   exit 1
@@ -1518,7 +1518,7 @@ if [ "$NEW_COMMENTS" -gt "$TOTAL_COMMENTS" ]; then
   # counts `**Status**:` fields out of the map, so a comment that arrives here
   # and never lands in the map is invisible to every completion check: the pass
   # can reach Gate 4 reporting zero pending work on a comment nobody read.
-  COMMENT_MAP=".agents/pr-comments/PR-[number]/comments.md"
+  COMMENT_MAP=".project-toolkit/pr-comments/PR-[number]/comments.md"
   if [ ! -f "$COMMENT_MAP" ]; then
     echo "[BLOCKED] Comment map not found: $COMMENT_MAP"
     exit 1
@@ -1671,7 +1671,7 @@ SCRIPTS_DIR="$PLUGIN_ROOT/skills/github/scripts"
 # Re-derive the counts. This fence is a separate shell from Phase 8.1, so
 # $TOTAL and $TERMINAL do not survive into it and the summary would otherwise
 # report an empty numerator over an empty denominator.
-COMMENT_MAP=".agents/pr-comments/PR-[number]/comments.md"
+COMMENT_MAP=".project-toolkit/pr-comments/PR-[number]/comments.md"
 if [ ! -f "$COMMENT_MAP" ]; then
   echo "[BLOCKED] Comment map missing: $COMMENT_MAP"
   exit 1
@@ -1685,7 +1685,7 @@ PENDING=$((TOTAL - TERMINAL))
 # read $TOTAL_COMMENTS directly saw an empty string, `[ -ne ]` raised `integer
 # expression expected`, and that nonzero exit from `[` reads as false to `if`,
 # so the BLOCKED body never ran. Read the artifact and fail closed instead.
-COUNT_FILE=".agents/pr-comments/PR-[number]/total_comments.txt"
+COUNT_FILE=".project-toolkit/pr-comments/PR-[number]/total_comments.txt"
 if [ ! -f "$COUNT_FILE" ]; then
   echo "[BLOCKED] API comment count not recorded: $COUNT_FILE"
   exit 1

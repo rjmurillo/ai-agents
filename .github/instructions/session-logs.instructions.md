@@ -1,13 +1,13 @@
 ---
-applyTo: .agents/**
+applyTo: .agents/**,.project-toolkit/**
 ---
 
 # Session Log Mechanics
 
 `.agents/schemas/session-log.schema.json` describes what a session log
 contains. **Session log creation is discontinued: do not create a new
-`.agents/sessions/*.json` file.** Nothing ever required one to commit, push, or
-open a PR. The existing logs under `.agents/sessions/` stay in the repository
+`.project-toolkit/sessions/*.json` file.** Nothing ever required one to commit, push, or
+open a PR. The existing logs under `.project-toolkit/sessions/` stay in the repository
 as history and remain readable by the `retrospective` skill, memory
 extraction, and the PreCompact hook. This rule covers the mechanics that still
 apply to a log that already exists on your branch (carried over from before
@@ -22,7 +22,7 @@ destination-dependent behavior.
 
 1. **Do not create a new session log.** Session log creation is discontinued;
    no start, end, commit, push, or PR gate ever required one, and none does
-   now. If a log named `.agents/sessions/YYYY-MM-DD-session-NN<slug>.json`
+   now. If a log named `.project-toolkit/sessions/YYYY-MM-DD-session-NN<slug>.json`
    ends up staged anyway (for example, cherry-picked from an older branch),
    the `session-policy` pre-commit hook still validates it
    (`scripts/validation/git_hook_policy.py session`, a validate-if-present gate):

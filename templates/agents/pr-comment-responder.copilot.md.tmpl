@@ -136,7 +136,7 @@ The `get_pr_review_comments.py --include-issue-comments` command returns full co
 # Get all comment IDs from the comments retrieved in Phase 1
 PLUGIN_ROOT="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
 SCRIPTS_DIR="$PLUGIN_ROOT/skills/github/scripts"
-PR_COMMENT_LOG=".agents/pr-comments/PR-[number]/session.log"
+PR_COMMENT_LOG=".project-toolkit/pr-comments/PR-[number]/session.log"
 COMMENTS=$(python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" --pull-request [number] --include-issue-comments)
 REVIEW_IDS=$(echo "$COMMENTS" | jq -r '.Comments[] | select(.CommentType == "Review") | .Id')
 ISSUE_IDS=$(echo "$COMMENTS" | jq -r '.Comments[] | select(.CommentType == "Issue") | .Id')

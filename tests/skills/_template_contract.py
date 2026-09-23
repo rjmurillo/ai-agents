@@ -1,7 +1,7 @@
 """Shared contract for a template-owned pilot skill's ``SKILL.md`` (ADR-108).
 
 DESIGN-024 "Tests"
-(``.agents/specs/design/DESIGN-024-skill-guidance-excerpt-sync.md``):
+(``.project-toolkit/specs/design/DESIGN-024-skill-guidance-excerpt-sync.md``):
 
     ``tests/skills/_template_contract.py`` helper plus one
     ``tests/skills/<pilot>/test_skill_md_contract.py`` per pilot: the

@@ -1,6 +1,6 @@
 # Feedback: runtime-verify customer-facing generated artifacts
 
-**Origin:** PR #2205 customer-wedge incident. See `.agents/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md` and `.claude/rules/generated-artifacts.md`.
+**Origin:** PR #2205 customer-wedge incident. See `.project-toolkit/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md` and `.claude/rules/generated-artifacts.md`.
 
 ## What happened
 

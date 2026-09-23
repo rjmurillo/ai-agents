@@ -47,5 +47,5 @@ Add to ADR checklist:
 ## Source
 
 - Session: 826 (2026-01-13)
-- Retrospective: `.agents/retrospective/2026-01-13-fix-tools-frontmatter-retrospective.md`
+- Retrospective: `.project-toolkit/retrospective/2026-01-13-fix-tools-frontmatter-retrospective.md`
 - Learning: L1 (Phase 4, Lines 498-506)

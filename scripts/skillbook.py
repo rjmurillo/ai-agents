@@ -9,11 +9,11 @@
 # mypy: disable-error-code=union-attr
 """Skillbook CLI: evidence-tiered agent policy registry.
 
-Manages .agents/skillbook/policies.json, tensions.json, and workflows.json.
+Manages .project-toolkit/skillbook/policies.json, tensions.json, and workflows.json.
 Policies carry an evidence tier (hypothesis -> observed -> validated) that is
 grounded in eval pass/fail outcomes rather than regex-detected sentiment.
 
-Core invariants (see .agents/skillbook/README.md):
+Core invariants (see .project-toolkit/skillbook/README.md):
   - Tiers NEVER decrease. A validated policy whose contradict rate rises does
     not demote; it flips status to 'questioning' (still active, surfaced as
     "re-examine before relying").
@@ -599,7 +599,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--skillbook-dir",
         type=Path,
-        default=repo_root() / ".agents" / "skillbook",
+        default=repo_root() / ".project-toolkit" / "skillbook",
         help="Directory holding policies.json/tensions.json/workflows.json.",
     )
     sub = parser.add_subparsers(dest="command", required=True)

@@ -66,7 +66,7 @@ def _bulk_cancel_default_manifest_path(
     """Redirect the guard's default manifest path into tmp_path.
 
     ``scripts/bulk_cancel_guard.py:_DEFAULT_MANIFEST_PATH`` resolves under this
-    repo's own ``.agents/scratch/`` so a real ``--confirm`` run always leaves a
+    repo's own ``.project-toolkit/scratch/`` so a real ``--confirm`` run always leaves a
     manifest. Left unpatched, any test exercising ``--confirm`` without
     ``--manifest`` writes into the actual working tree (testing.md MUST 4).
     Autouse and package-wide for the same reason the scrub fixture above is:

@@ -43,7 +43,7 @@ Copilot repo surface `.github/hooks/require-subagent-model.json` (native
 - Reject unsafe agent and namespace path segments, including glob characters,
   separators, control characters, extra colons, and `.` or `..`.
 - Committing ADR metric edits requires: session log staged in the same commit
-  (session-policy) plus a debate log in `.agents/critique/*debate*.md`
+  (session-policy) plus a debate log in `.project-toolkit/critique/*debate*.md`
   referencing the staged ADR IDs (adr-review-policy in
   `scripts/validation/git_hook_policy.py`).
 - `test_hook_contract_knowledge.py` pins hook registration counts in THREE

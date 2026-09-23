@@ -92,7 +92,7 @@ _DEFAULT_WORKFLOWS_DIR = Path(__file__).resolve().parents[1] / ".github" / "work
 # scratch convention documented in .claude/rules/ci-scripts.md and used by
 # scripts/ci/artifact_collect.py.
 _DEFAULT_MANIFEST_PATH = (
-    Path(__file__).resolve().parents[1] / ".agents" / "scratch" / "bulk-cancel-recovery.json"
+    Path(__file__).resolve().parents[1] / ".project-toolkit" / "scratch" / "bulk-cancel-recovery.json"
 )
 
 

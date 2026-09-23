@@ -3,7 +3,7 @@
 
 ADR-109 (Template-First Plugin Distribution) generalizes ADR-108's
 compile-and-drift-gate shape from one artifact class (skills) to agents.
-Per ``.agents/specs/design/DESIGN-025-template-first-compiler-and-binplace.md``,
+Per ``.project-toolkit/specs/design/DESIGN-025-template-first-compiler-and-binplace.md``,
 "Per-class compile modules" section, this module is agents' half of the
 same split ADR-108 already established for skills: ``skill_templates.py``
 (discovery, allowlist, compile orchestration) plus the sibling

@@ -60,7 +60,7 @@ This document describes the unified memory management workflow across three memo
 2. `mcp__serena__initial_instructions`
 
 ### Phase 2: Context Retrieval (BLOCKING)
-1. Read the current per-issue handoff under `.agents/sessions/handoffs/`, when one exists
+1. Read the current per-issue handoff under `.project-toolkit/sessions/handoffs/`, when one exists
 2. Read `memory-index` from Serena
 3. Load task-relevant Serena memories
 
@@ -666,7 +666,7 @@ Before exporting, verify:
 ## Related Documents
 
 - [`.claude/rules/session-logs.md`](../../.claude/rules/session-logs.md) - Session log mechanics
-- [ADR-007: Memory-First Architecture](../architecture/ADR-007-memory-first-architecture.md)
+- [ADR-007: Memory-First Architecture](../../.project-toolkit/architecture/ADR-007-memory-first-architecture.md)
 - [.claude-mem/memories/README.md](../../.claude-mem/memories/README.md) - Export/import detailed workflow
 - [Claude-Mem Export/Import Docs](https://docs.claude-mem.ai/usage/export-import)
 

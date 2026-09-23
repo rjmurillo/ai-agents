@@ -1,0 +1,19 @@
+{
+  "id": "episode-2025-12-23-session-86-adr-017-independent-thinker-review",
+  "session": "2025-12-23-session-86-adr-017-independent-thinker-review",
+  "timestamp": "2025-12-23T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "partial",
+  "task": "[Migrated from markdown]",
+  "decisions": [],
+  "events": [],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 5299
+  },
+  "lessons": []
+}

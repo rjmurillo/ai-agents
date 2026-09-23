@@ -36,7 +36,7 @@ def _write_session(sessions: Path, name: str, work: str) -> Path:
 
 
 def test_session_selector_default_uses_host_local_date(tmp_path, monkeypatch):
-    sessions = tmp_path / ".agents" / "sessions"
+    sessions = tmp_path / ".project-toolkit" / "sessions"
     selected = _write_session(sessions, "2026-06-04-session-1-host-ahead.json", "ahead")
     _write_session(sessions, "2026-06-03-session-1-utc.json", "utc")
     monkeypatch.setattr(_EXTRACT_EVIDENCE, "host_session_date", lambda: "2026-06-04")
@@ -47,7 +47,7 @@ def test_session_selector_default_uses_host_local_date(tmp_path, monkeypatch):
 def test_session_selector_finds_pre_migration_utc_tomorrow_log(
     tmp_path, monkeypatch
 ):
-    sessions = tmp_path / ".agents" / "sessions"
+    sessions = tmp_path / ".project-toolkit" / "sessions"
     selected = _write_session(sessions, "2026-06-04-session-1-utc.json", "utc work")
     _write_session(sessions, "2026-06-02-session-1-stale.json", "stale work")
     monkeypatch.setattr(_EXTRACT_EVIDENCE, "host_session_date", lambda: "2026-06-03")
@@ -63,7 +63,7 @@ def test_session_selector_finds_pre_migration_utc_tomorrow_log(
 
 
 def test_extract_evidence_cli_default_uses_host_local_date(tmp_path, capsys, monkeypatch):
-    sessions = tmp_path / ".agents" / "sessions"
+    sessions = tmp_path / ".project-toolkit" / "sessions"
     selected = _write_session(sessions, "2026-06-04-session-1-local.json", "host-local work")
     monkeypatch.setattr(_EXTRACT_EVIDENCE, "host_session_date", lambda: "2026-06-04")
 
@@ -77,13 +77,13 @@ def test_extract_evidence_cli_default_uses_host_local_date(tmp_path, capsys, mon
 
 
 def test_run_retrospective_default_uses_host_local_date(tmp_path, monkeypatch):
-    sessions = tmp_path / ".agents" / "sessions"
+    sessions = tmp_path / ".project-toolkit" / "sessions"
     _write_session(sessions, "2026-06-03-session-1-local.json", "host-local work")
     monkeypatch.setattr(_RUN_RETROSPECTIVE, "host_session_date", lambda: "2026-06-03")
 
     rc = _RUN_RETROSPECTIVE.main(["--project-dir", str(tmp_path)])
 
     assert rc == 0
-    artifact = tmp_path / ".agents" / "retrospective" / "2026-06-03-2026-06-03.md"
+    artifact = tmp_path / ".project-toolkit" / "retrospective" / "2026-06-03-2026-06-03.md"
     assert artifact.is_file()
     assert "host-local work" in artifact.read_text(encoding="utf-8")

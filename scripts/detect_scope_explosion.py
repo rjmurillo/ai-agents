@@ -247,14 +247,14 @@ def is_ancestor(commit: str, ref: str) -> bool:
 # Process record, not reviewable change (ADR-100 item 3, issue #5241):
 # session logs, QA reports, and memory episodes narrate what an agent did
 # rather than what changed, so counting them inflates scope with no
-# corresponding review surface. `.agents/memory/episodes/` is broader than
+# corresponding review surface. `.project-toolkit/memory/episodes/` is broader than
 # the `episode-*.json` glob `_is_generated` already exempts for the
 # atomic-commit check, because a scope diff can also touch episode-adjacent
 # files that glob does not match.
 _PROCESS_RECORD_PREFIXES = (
-    ".agents/sessions/",
-    ".agents/qa/",
-    ".agents/memory/episodes/",
+    ".project-toolkit/sessions/",
+    ".project-toolkit/qa/",
+    ".project-toolkit/memory/episodes/",
 )
 
 

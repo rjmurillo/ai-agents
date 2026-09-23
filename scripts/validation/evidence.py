@@ -598,7 +598,7 @@ def default_pre_pr_policy() -> GatePolicy:
 
     The first predates issue #5635: a gate that does not apply to this checkout
     has never blocked the push, so ``SKIP`` is licensed for every validator and
-    ``.agents/devops/SHIFT-LEFT.md`` documents that.
+    ``.project-toolkit/devops/SHIFT-LEFT.md`` documents that.
 
     The other two are narrower and were added with the typed states. Each
     licenses ``BLOCKED`` for exactly one validator on exactly one reason code,
@@ -628,7 +628,7 @@ def default_pre_pr_policy() -> GatePolicy:
                     "--quick plus the pre-push fast stage skip rows on purpose. Every "
                     "SKIP names a reason code, so a reader can tell which."
                 ),
-                reference=".agents/devops/SHIFT-LEFT.md",
+                reference=".project-toolkit/devops/SHIFT-LEFT.md",
             ),
             PolicyException(
                 validator="validate_workflow_yaml",

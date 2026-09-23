@@ -113,28 +113,28 @@ class TestFileMatchesAllowlist:
     """Tests for file_matches_allowlist function."""
 
     def test_agents_sessions_allowed(self):
-        assert file_matches_allowlist(".agents/sessions/2026-01-01.json")
+        assert file_matches_allowlist(".project-toolkit/sessions/2026-01-01.json")
 
     def test_agents_analysis_allowed(self):
-        assert file_matches_allowlist(".agents/analysis/report.md")
+        assert file_matches_allowlist(".project-toolkit/analysis/report.md")
 
     def test_agents_retrospective_allowed(self):
-        assert file_matches_allowlist(".agents/retrospective/retro.md")
+        assert file_matches_allowlist(".project-toolkit/retrospective/retro.md")
 
     def test_serena_memories_allowed(self):
         assert file_matches_allowlist(".serena/memories/test.md")
 
     def test_agents_security_allowed(self):
-        assert file_matches_allowlist(".agents/security/scan.md")
+        assert file_matches_allowlist(".project-toolkit/security/scan.md")
 
     def test_agents_memory_allowed(self):
-        assert file_matches_allowlist(".agents/memory/graph.json")
+        assert file_matches_allowlist(".project-toolkit/memory/graph.json")
 
     def test_review_docs_allowed(self):
-        assert file_matches_allowlist(".agents/architecture/REVIEW-ADR-034.md")
+        assert file_matches_allowlist(".project-toolkit/architecture/REVIEW-ADR-034.md")
 
     def test_critique_allowed(self):
-        assert file_matches_allowlist(".agents/critique/debate.md")
+        assert file_matches_allowlist(".project-toolkit/critique/debate.md")
 
     def test_code_file_rejected(self):
         assert not file_matches_allowlist("scripts/main.py")
@@ -149,10 +149,10 @@ class TestFileMatchesAllowlist:
         assert not file_matches_allowlist(".claude/agents/analyst.md")
 
     def test_planning_rejected(self):
-        assert not file_matches_allowlist(".agents/planning/PRD.md")
+        assert not file_matches_allowlist(".project-toolkit/planning/PRD.md")
 
     def test_architecture_adr_rejected(self):
-        assert not file_matches_allowlist(".agents/architecture/ADR-001.md")
+        assert not file_matches_allowlist(".project-toolkit/architecture/ADR-001.md")
 
 
 # ---------------------------------------------------------------------------
@@ -254,7 +254,7 @@ class TestValidateInvestigationClaims:
                 _mod,
                 "get_files_in_commit",
                 return_value=[
-                    ".agents/sessions/log.json",
+                    ".project-toolkit/sessions/log.json",
                     ".serena/memories/m.md",
                 ],
             ):
@@ -282,7 +282,7 @@ class TestValidateInvestigationClaims:
             with patch.object(
                 _mod,
                 "get_files_in_commit",
-                return_value=[".agents/sessions/log.json", "src/bad.py"],
+                return_value=[".project-toolkit/sessions/log.json", "src/bad.py"],
             ):
                 result = validate_investigation_claims(tmp_path, [full_sha])
 
@@ -333,7 +333,7 @@ class TestValidateInvestigationClaims:
                 _mod,
                 "get_files_in_commit",
                 return_value=[
-                    ".agents/sessions/log.json",
+                    ".project-toolkit/sessions/log.json",
                     "scripts/main.py",
                 ],
             ):
@@ -353,18 +353,18 @@ class TestValidateInvestigationClaims:
 class TestValidateClaims:
     def test_all_allowed_files(self):
         files = [
-            ".agents/sessions/2026-01-01-session-01.json",
-            ".agents/analysis/report.md",
-            ".agents/retrospective/retro.md",
+            ".project-toolkit/sessions/2026-01-01-session-01.json",
+            ".project-toolkit/analysis/report.md",
+            ".project-toolkit/retrospective/retro.md",
             ".serena/memories/test.md",
-            ".agents/security/scan.md",
-            ".agents/critique/review.md",
+            ".project-toolkit/security/scan.md",
+            ".project-toolkit/critique/review.md",
         ]
         assert validate_claims(files) == []
 
     def test_violation_detected(self):
         files = [
-            ".agents/sessions/2026-01-01-session-01.json",
+            ".project-toolkit/sessions/2026-01-01-session-01.json",
             "src/main.py",
         ]
         violations = validate_claims(files)
@@ -374,7 +374,7 @@ class TestValidateClaims:
         files = [
             "README.md",
             ".github/workflows/test.yml",
-            ".agents/sessions/log.json",
+            ".project-toolkit/sessions/log.json",
         ]
         violations = validate_claims(files)
         assert len(violations) == 2
@@ -402,8 +402,8 @@ class TestMain:
     def test_all_compliant(self, tmp_path, monkeypatch):
         output_file = _setup_output(tmp_path, monkeypatch)
         compliant_files = [
-            ".agents/sessions/2026-01-01-session-01.json",
-            ".agents/analysis/report.md",
+            ".project-toolkit/sessions/2026-01-01-session-01.json",
+            ".project-toolkit/analysis/report.md",
         ]
         with patch.object(_mod, "get_changed_files", return_value=compliant_files):
             exit_code = main([])
@@ -415,7 +415,7 @@ class TestMain:
         """Advisory mode: violations produce exit 0."""
         output_file = _setup_output(tmp_path, monkeypatch)
         mixed_files = [
-            ".agents/sessions/2026-01-01-session-01.json",
+            ".project-toolkit/sessions/2026-01-01-session-01.json",
             "src/main.py",
             "README.md",
         ]
@@ -429,7 +429,7 @@ class TestMain:
         """Multiline violation_details must use heredoc format (#1386)."""
         output_file = _setup_output(tmp_path, monkeypatch)
         mixed_files = [
-            ".agents/sessions/2026-01-01-session-01.json",
+            ".project-toolkit/sessions/2026-01-01-session-01.json",
             "src/main.py",
             "README.md",
         ]

@@ -409,7 +409,7 @@ git merge origin/main --no-edit
 
 # If conflicts exist:
 # 1. Resolve conflicts in affected files
-# 2. For per-issue handoff conflicts under .agents/sessions/handoffs/, use --theirs
+# 2. For per-issue handoff conflicts under .project-toolkit/sessions/handoffs/, use --theirs
 
 # Complete merge and push
 git add .
@@ -434,7 +434,7 @@ git push
 
 **Resolution**:
 
-1. Run `uv run python scripts/validate_session_json.py .agents/sessions/[log].json`
+1. Run `uv run python scripts/validate_session_json.py .project-toolkit/sessions/[log].json`
 2. Address each validation error (QA report, evidence, etc.)
 3. For documentation-only changes, ensure no code file patterns detected
 4. If it is a false positive, fix the validator rather than the symptom, and say so in the

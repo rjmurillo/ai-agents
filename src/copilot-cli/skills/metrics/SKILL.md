@@ -148,7 +148,7 @@ Human-readable console output with key metrics highlighted.
 
 ### Markdown
 
-Formatted markdown suitable for dashboards and reports. Can be saved directly to `.agents/metrics/` for archival.
+Formatted markdown suitable for dashboards and reports. Can be saved directly to `.project-toolkit/metrics/` for archival.
 
 ### JSON
 
@@ -174,10 +174,10 @@ To generate a monthly dashboard report:
 python .claude/skills/metrics/collect_metrics.py \
     --since 30 \
     --output markdown \
-    > .agents/metrics/report-$(date +%Y-%m).md
+    > .project-toolkit/metrics/report-$(date +%Y-%m).md
 
 # Review and commit
-git add .agents/metrics/
+git add .project-toolkit/metrics/
 git commit -m "docs(metrics): add monthly metrics report"
 ```
 
@@ -217,8 +217,8 @@ Update the `INFRASTRUCTURE_PATTERNS` list for new infrastructure file types.
 Backticked paths below are in the `rjmurillo/ai-agents` repository. They do not ship with this skill; a consumer install cannot resolve them.
 
 - `docs/agent-metrics.md`. Agent metrics definitions.
-- `.agents/metrics/dashboard-template.md`. Dashboard template.
-- `.agents/metrics/baseline-report.md`. Baseline report.
+- `.project-toolkit/metrics/dashboard-template.md`. Dashboard template.
+- `.project-toolkit/metrics/baseline-report.md`. Baseline report.
 - `.github/workflows/agent-metrics.yml`. CI workflow.
 
 <!-- vendor-portability: declared. This skill reads the consumer's .agents/* artifacts as metric inputs and can archive formatted output to .project-toolkit/metrics/. Inputs are whatever the consumer repo contains; the archive path is an optional write target created on demand. It also cites docs/agent-metrics.md, .project-toolkit/metrics/dashboard-template.md, .project-toolkit/metrics/baseline-report.md, and .github/workflows/agent-metrics.yml as background reading. Issue #2050. -->

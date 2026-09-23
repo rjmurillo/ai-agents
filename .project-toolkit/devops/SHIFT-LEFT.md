@@ -1,0 +1,443 @@
+# Shift-Left Validation Strategy
+
+**Status**: Active
+**Version**: 2.0
+**Last Updated**: 2026-08-19
+
+## Overview
+
+Shift-left validation catches defects on the developer's machine instead of in
+CI review cycles. This document describes the local runner, the git hooks that
+invoke it, and which checks CI repeats.
+
+ADR-042 replaced the PowerShell validation runner with Python. Every command
+below is the current one; the PowerShell entry points named in version 1.0 of
+this document (`Validate-PrePR.ps1`, `Validate-Session.ps1`,
+`Invoke-PesterTests.ps1`, `Validate-PathNormalization.ps1`,
+`Validate-PlanningArtifacts.ps1`, `Detect-AgentDrift.ps1`) no longer exist.
+
+## Unified Validation Runner
+
+`scripts/validation/pre_pr.py` runs the full local gate sequence.
+
+```bash
+# Full validation
+uv run --frozen python scripts/validation/pre_pr.py
+
+# Skip the four quick-skippable gates
+uv run --frozen python scripts/validation/pre_pr.py --quick
+```
+
+`--quick` and `--markdown-lint-only` are the only flags. The runner reads every
+argument it declares.
+
+`--quick` skips YAML Style Validation, Path Normalization, Planning Artifacts,
+and Agent Drift Detection. Measured 2026-08-19, those four gates cost 1.89s of
+a 103.25s run, so `--quick` now saves under 2 percent. It was worth 50 to 90
+seconds when the sequence had six gates; it is not a meaningful lever today.
+Run the full sequence.
+
+`--skip-tests`, its `SKIP_TESTS` environment default, and `--verbose` are gone.
+All three were parsed and never read: no gate in `_SEQUENCE` set `skip_flag`,
+and nothing read `verbose`. `--skip-tests` also described a Pester stage in a
+repository tracking zero `.ps1` files. Passing any of them now fails with
+argparse exit code 2 rather than being silently accepted.
+
+## Validation Sequence
+
+The ordered gate list is `_SEQUENCE` in `scripts/validation/pre_pr_sequence.py`.
+Read it there. This document deliberately keeps no second copy: version 1.0
+carried a six-row table that drifted from the real sequence for months without
+anything detecting it.
+
+To list the current gates:
+
+```bash
+uv run --frozen python -c "
+import sys; sys.path.insert(0, 'scripts/validation')
+from pre_pr_sequence import _SEQUENCE
+for gate in _SEQUENCE: print(gate.name)
+"
+```
+
+57 gates as of 2026-08-19.
+
+### Cost distribution
+
+Measured 2026-08-19 on a 4-CPU container against a tree with no changes
+against `origin/main`. Most gates scale with the diff, so treat these as the
+floor, not a forecast:
+
+| Gate | Wall |
+|------|-----:|
+| Count Ratchets | 38.37s |
+| Skill Markdown Portability | 16.07s |
+| Subprocess Encoding Convention | 7.06s |
+| Unreachable Code Detection | 5.83s |
+| Documented Interpreter Portability | 4.53s |
+| Python Syntax (compile gate) | 3.71s |
+| Remaining 51 gates | 27.68s |
+| **Total** | **103.25s** |
+
+Thirty-five of the 57 gates finish in under 0.5s each.
+
+YAML Style Validation reported 0.00s because `yamllint` was absent from the
+measuring container and the gate returns early with a warning when the binary
+is missing. Its real cost is unmeasured here.
+
+Re-measure with:
+
+```bash
+SKIP_AUTOFIX=1 uv run --frozen python scripts/validation/pre_pr.py
+```
+
+The per-gate durations print in the Detailed Results block at the end.
+
+## Evidence States
+
+Since issue #5635 a gate reports one of five typed states rather than a boolean,
+defined in `scripts/validation/evidence.py`. The distinction the boolean could
+not carry is between a check that ran and one that only appeared to.
+
+| State | Meaning | Blocks the push |
+|-------|---------|-----------------|
+| PASS | Ran against the named revision and scope, and proved the contract | No |
+| FAIL | Ran, and found a violation | Yes |
+| SKIP | Intentionally did not apply | No, by the exception below |
+| BLOCKED | Could not run: a dependency or service was unavailable | Yes |
+| UNKNOWN | Evidence incomplete, malformed, stale, or truncated | Yes |
+
+Every non-PASS state carries a machine-readable reason code (`base_ref.unresolved`,
+`diff.failed`, `script.absent`, `tool.absent`, `timeout`, `output.malformed`,
+`aggregate.no_outcomes`, and the rest are constants in `evidence.py`), and the runner prints it next to
+the gate name. A PASS must name the revision and the scope it ran against, so
+the state cannot be reached without the proof it claims.
+
+The gate accepts PASS and nothing else, with three declared exceptions in
+`default_pre_pr_policy()`.
+
+The first licenses SKIP for every gate. That is not new policy, it is this
+document's prior sentence made executable: ADR-042 expunged the PowerShell
+validators, so a downstream install legitimately lacks scripts this repository
+ships, and `--quick` plus the pre-push fast stage skip gates on purpose.
+
+The other two license BLOCKED, each for one named validator on the single
+reason code `tool.absent`: `validate_workflow_yaml` when actionlint is not on
+PATH, and `validate_yaml_style` when yamllint is not. Both tools are optional
+developer-machine installs rather than repository dependencies, and neither
+gate blocked on their absence before the typed states existed; the licences
+make that prior behavior reviewable instead of implicit. The BLOCKED state is
+still recorded and still printed, and since issue #5646 the RESULT line names
+the licensed rows too, so a degraded run and a clean one are distinguishable.
+
+UNKNOWN gets no exception at all, and BLOCKED gets none outside those two named
+pairs. Correction, 2026-09-07: the paragraph this replaces claimed one exception
+and that BLOCKED got none. Both halves were false when they shipped in PR #5641,
+against the same function they described (issue #5646 item 4).
+
+Add an exception only through `PolicyException`, which requires a written
+justification so a reviewer can evaluate it.
+
+### Boundary cases the states must not smooth over
+
+Three cases sit where a plausible reading collapses two states into one. Each
+is pinned by a test rather than left to the reader, because each one was wrong
+in the first draft of this contract and was caught in review of PR #5641.
+
+- **A run with no outcomes blocks.** `aggregate` reports UNKNOWN with
+  `aggregate.no_outcomes`. A sequence that executed no gate examined nothing
+  and so proved nothing. Before the reason was wired, the empty rejected list
+  left `blocking` False and the runner exited 0, reporting a clean run of zero
+  gates: the contract's own fail-open, reached through the aggregate instead of
+  through a validator.
+- **Applicability outranks tool absence.** A checkout with no
+  `.github/workflows` reports SKIP `tree.absent` whether or not actionlint is
+  installed. Probing the tool first told a downstream install holding neither
+  to go install actionlint for a gate that did not apply to it.
+- **An advisory gate still separates a finding from a failure.**
+  `validate_yaml_style` tolerates yamllint findings and returns PASS, but a
+  timeout returns UNKNOWN `timeout` and a failed exec returns BLOCKED
+  `tool.absent`. A tool that never finished produced no findings, which is not
+  the same as having found nothing.
+
+## Exit Codes
+
+The worst state that blocked the gate picks the code
+(`evidence.py:exit_code_for`).
+
+| Code | Meaning | Action |
+|------|---------|--------|
+| 0 | Nothing blocked | All gates passed or were licensed by the policy |
+| 1 | FAIL or UNKNOWN | Fix the violation, or read the gate's output |
+| 2 | Config error | Bad repository root, or a SKIP the policy refused |
+| 3 | BLOCKED | Install or authenticate the dependency the reason names |
+
+## Machine-readable summary
+
+`--summary-json PATH` (or `PRE_PR_SUMMARY_JSON`) writes the run as JSON: the
+parent state, the counts per state, the declared policy, one row per gate with
+its state, reason code, scope, revision, and counts, and the subset that
+blocked.
+
+```bash
+uv run --frozen python scripts/validation/pre_pr.py --summary-json /tmp/pre-pr.json
+```
+
+## Unmigrated validators
+
+The migration is deliberately partial. A gate that still returns `bool` is
+adapted by `evidence.coerce_outcome`, which tags its failing side with the
+reason code `legacy.boolean_contract` and its passing side with the scope
+`whole validator (unmigrated boolean contract)`. Both are greppable in the JSON
+summary, so the remaining work is countable rather than invisible.
+
+Migrated so far: `checks_tooling.validate_session_end`,
+`checks_tooling.validate_workflow_yaml`, `checks_tooling.validate_yaml_style`,
+and `checks_mypy.validate_mypy_changed_files`.
+
+Known unmigrated, verified on this tree:
+
+- `checks_plugin.validate_workflow_local_run` returns `True` on four
+  not-checked conditions: an unresolved base ref, a failed `git diff`, and the
+  child script's exit 3 (tools unavailable) and exit 4 (auth unavailable).
+- Three `checks_spec` gates return `True` when their child script is absent,
+  printing a warning instead of raising `MissingScriptSkip`, so the skip is
+  invisible to the runner.
+- `checks_coverage.validate_review_marker` returns `True` on an advisory
+  failure and rewrites the child's `[FAIL]` tokens to `[WARN]` to match. That
+  one is a deliberate advisory (issue #1938), not a fail-open, but it still
+  reports PASS for a check that found something.
+
+All four are tracked in #5635.
+
+The capability probes under `scripts/eval/` are a deliberate exception rather
+than unmigrated work. `_harness_capability.py` already carries its own typed
+contract from #5630 (`CapabilityStatus` with `VERIFIED`/`UNSUPPORTED`/
+`UNVERIFIED`, a separate `EvidenceKind`, and worst-wins aggregation over an
+explicit precedence tuple), and its vocabulary answers a different question:
+whether a harness supports a capability, not whether a gate proved a contract.
+`evidence.py` borrowed its shape. Collapsing the two would lose the
+evidence-kind distinction that makes only backend evidence able to support
+`VERIFIED`.
+
+## Integration with Workflows
+
+### Pre-commit hook
+
+Lefthook filters staged files and runs the pre-commit jobs declared in
+`lefthook.yml` (46 jobs as of 2026-08-19). Consult that file for the current
+list rather than maintaining a second checklist here.
+
+### Pre-push hook
+
+`lefthook.yml` declares 34 pre-push jobs, staged so cheap gates fail before
+expensive ones start (issue #5066). The hook is `piped: true`, so a failing
+job or group skips everything after it. Stage order:
+
+1. Singleton guards: `repair-packed-refs`, `mutation-safety`,
+   `push-ref-staleness`.
+2. Fast stage, stdin half: a piped group of cheap ref-payload policies.
+3. Fast stage, parallel half: ratchets and policy gates. Measured maximum
+   21.05s (`merge-tree-ratchet`) on 2026-08-19.
+4. `security-scan` (semgrep), a serialized stdin consumer. Measured 6.7s for a
+   7-file push.
+5. Expensive stage: `python-tests`, `pre-pr-validation`, mypy,
+   `workflow-local-run`, the CLI e2e smokes, and the advisory reporters.
+
+`python-tests` dominates: 475s across four serial partitions on a 4-CPU
+container (bulk 257.9s, mutation 166.6s, safe-push 36.9s, pr-autofix 8.8s).
+Reducing pre-push wall clock means reducing that job; the rest of the hook is
+about 30s combined.
+
+A job's standalone wall clock does not predict its wall clock inside the hook.
+See `.claude/rules/ci-scripts.md` MUST-16 for the measured gap and why timeouts
+must be sized against a real push.
+
+### CI pipeline
+
+No workflow runs `pre_pr.py`. CI repeats individual validators through
+dedicated workflows instead:
+
+| Local gate | CI workflow |
+|------------|-------------|
+| Count Ratchets | `pr-validation.yml` |
+| `python-tests` | `pytest.yml` (5 parallel matrix partitions) |
+| Path Normalization | `validate-paths.yml` |
+| Planning Artifacts | `validate-planning-artifacts.yml` |
+| Agent Drift Detection | `drift-detection.yml` |
+| Generated Artifact Staleness | `validate-generated-agents.yml` |
+| Rule Activation Coverage | `validate-rule-activation-coverage.yml` |
+| Spec ID Uniqueness | `validate-spec-id-uniqueness.yml` |
+| Vendor Portability | `validate-vendor-portability.yml` |
+| Plugin Version Bump | `validate-plugin-version-bump.yml` |
+| Hook Anchoring | `hook-contract-check.yml` |
+| Memory index count ratchet | `pr-validation.yml` |
+
+Four pre-push gates have no CI equivalent, so a local bypass is the only place
+they are enforced: `security-scan` (semgrep), `python-type-check` (mypy), and,
+since issue #5626 deleted `memory-validation.yml`, `memory-index`
+(`scripts/validation/memory_index.py`) and `memory-tier`
+(`scripts/validate_memory_tier.py`). CI runs the type-ignore count ratchet, not
+mypy itself, and the unindexed-memory count ratchet, not those two validators.
+
+### Developer workflow
+
+```text
+1. Make changes
+2. Commit (pre-commit hook runs per-file checks)
+3. Push (pre-push hook runs branch-wide validation)
+4. Open the PR (CI runs the workflows above)
+```
+
+Running `pre_pr.py` by hand before pushing is optional; the pre-push hook runs
+the same sequence. Run it by hand when you want the failure in seconds rather
+than after the test suite.
+
+## Workflow Validation
+
+### actionlint
+
+Scope actionlint to the workflow files, not the repository. A bare `actionlint`
+with no path argument recursively scans every `.yml` and `.yaml` file,
+including composite action definitions under `.github/actions/*/action.yml`.
+actionlint validates workflow files only; it parses a composite `action.yml` as
+if it were a workflow and emits false errors (missing `on:` and `jobs:` keys,
+unexpected `runs:` and `inputs:`). Composite actions cannot be validated with
+actionlint. Pass an explicit glob:
+
+```bash
+actionlint .github/workflows/*.yml
+```
+
+Do not pass the bare directory `.github/workflows/`: actionlint rejects a
+directory argument with "is a directory". The automated toolchain
+(`scripts/validation/pre_pr.py`, `scripts/validation/run_workflow_local_test.py`)
+already globs correctly; this note keeps manual invocations aligned.
+
+Installation:
+
+```bash
+brew install actionlint                                    # macOS
+go install github.com/rhysd/actionlint/cmd/actionlint@latest  # Go
+```
+
+### validate_workflows.py
+
+`scripts/validate_workflows.py` checks structure, SHA pinning, ADR-006 size
+limits, and permissions. See [docs/WORKFLOW-VALIDATION.md](../../docs/WORKFLOW-VALIDATION.md)
+for its full contract, exit codes, and error table.
+
+### run_workflow_local_test.py
+
+`scripts/validation/run_workflow_local_test.py` is the pre-push gate for
+changed workflows. It runs three ordered stages and short-circuits on the
+first failure:
+
+1. `actionlint`: static analysis.
+2. `gh act -n`: dry run of the job graph and step wiring.
+3. `gh act`: real execution in Docker.
+
+```bash
+uv run --frozen python scripts/validation/run_workflow_local_test.py \
+  --files .github/workflows/pytest.yml
+
+# Lint plus dry-run tier only
+uv run --frozen python scripts/validation/run_workflow_local_test.py \
+  --files .github/workflows/pytest.yml --no-full
+```
+
+Missing tools yield exit 3 on a developer machine and in CI. Inside a managed
+remote container the gap degrades to exit 0 with a logged warning, because the
+tools cannot be provisioned there (issues #2548 and #3064).
+
+## YAML Style
+
+`yamllint` checks line length, indentation, trailing spaces, comment spacing,
+and end-of-file newlines against `.yamllint.yml`. Findings warn; they never
+fail a commit or a push. The gate returns early with a warning when `yamllint`
+is not installed.
+
+```bash
+pip install yamllint
+yamllint .
+```
+
+## Local Workflow Testing with act
+
+`act` (nektos/act) runs GitHub Actions workflows locally in Docker, which
+shortens the push-check-tweak cycle.
+
+### Prerequisites
+
+```bash
+# Install act, either standalone or as the gh extension
+gh extension install https://github.com/nektos/gh-act
+brew install act
+
+# Docker is required
+docker info
+```
+
+`.actrc` in the repository root sets `catthehacker/ubuntu:full-latest` images
+for production parity (about 18GB), artifact storage in `.artifacts/`, caching
+in `.cache/`, linux/amd64 architecture, and maps `windows-latest` to
+`-self-hosted` so it runs on the host.
+
+### Usage
+
+```bash
+# Through the repository wrapper
+uv run --frozen python .claude/skills/github/scripts/test_workflow_locally.py \
+  --workflow validate-paths --dry-run
+
+# Direct act invocation
+act pull_request -W .github/workflows/validate-paths.yml -n
+act -l
+```
+
+Workflows requiring Copilot CLI or `BOT_PAT` cannot run locally and must rely
+on CI feedback.
+
+### Troubleshooting act
+
+| Problem | Cause | Solution |
+|---------|-------|----------|
+| `act: command not found` | act not installed | Install via brew or the gh extension |
+| `Cannot connect to Docker daemon` | Docker not running | Start Docker |
+| `Error: image not found` | Missing image | `docker pull catthehacker/ubuntu:act-latest` |
+| `Permission denied` | Docker socket permissions | Add the user to the docker group |
+| `Workflow validation failed` | Workflow syntax error | Run actionlint first |
+| `Unknown runner label` | Invalid `runs-on` | Use official runner labels |
+
+act uses Linux containers, so Windows-specific path, line-ending, and
+case-sensitivity behavior differs. Use `-P windows-latest=-self-hosted` to run
+on the host.
+
+## Troubleshooting
+
+**Runner exits 2**: an environment fault. Confirm Python 3.14 through `uv`,
+Node.js for markdownlint, and that the working directory is inside the
+repository.
+
+**Runner exits 1**: a gate failed. The Detailed Results block names the gate;
+run that gate's script directly for the full output.
+
+**A count ratchet fails right after `origin/main` moved**: merge or rebase onto
+a freshly fetched `main` and re-measure before hunting the violation. See
+`.claude/rules/ci-scripts.md` item 14.
+
+## Related Documentation
+
+- **Session log mechanics**: `.claude/rules/session-logs.md`
+- **Git hook configuration**: `lefthook.yml`
+- **Workflow validation**: [docs/WORKFLOW-VALIDATION.md](../../docs/WORKFLOW-VALIDATION.md)
+- **CI script rules**: `.claude/rules/ci-scripts.md`
+- **DevOps patterns**: `.project-toolkit/devops/validation-runner-pattern.md`
+
+## References
+
+- **Issue #325**: Unified shift-left validation runner
+- **Issue #5066**: Pre-push fast-fail staging
+- **ADR-006**: Thin workflows, testable modules
+- **ADR-035**: Exit code standardization
+- **ADR-042**: Python migration strategy (supersedes ADR-005)

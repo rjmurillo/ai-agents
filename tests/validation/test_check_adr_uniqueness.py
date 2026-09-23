@@ -41,7 +41,7 @@ def _make_adr(adr_dir: Path, number: int, slug: str = "thing") -> Path:
 
 
 def _scaffold(tmp_path: Path) -> Path:
-    adr_dir = tmp_path / ".agents" / "architecture"
+    adr_dir = tmp_path / ".project-toolkit" / "architecture"
     adr_dir.mkdir(parents=True)
     return adr_dir
 
@@ -147,7 +147,7 @@ def test_readme_and_non_adr_files_are_ignored(tmp_path: Path) -> None:
 
 
 def test_missing_architecture_dir_is_config_error(tmp_path: Path) -> None:
-    # No .agents/architecture created.
+    # No .project-toolkit/architecture created.
     result = _run(tmp_path)
     assert result.returncode == 2
     assert "[CONFIG]" in result.stderr

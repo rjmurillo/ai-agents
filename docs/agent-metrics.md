@@ -276,11 +276,11 @@ gh pr list --json title,body | jq '.[] | select(.body | contains("Security agent
 
 ## Dashboard Template
 
-See: `.agents/metrics/dashboard-template.md`
+See: `.project-toolkit/metrics/dashboard-template.md`
 
 ## Baseline Report
 
-See: `.agents/metrics/baseline-report.md`
+See: `.project-toolkit/metrics/baseline-report.md`
 
 ## CI Integration
 
@@ -290,9 +290,9 @@ See: `.github/workflows/agent-metrics.yml`
 
 ## Related Documents
 
-- [Dashboard Template](../.agents/metrics/dashboard-template.md)
+- [Dashboard Template](../.project-toolkit/metrics/dashboard-template.md)
 - [Baseline Report](../.project-toolkit/metrics/baseline-report.md)
-- [Workflow Coalescing Metrics](../.agents/metrics/workflow-coalescing.md)
+- [Workflow Coalescing Metrics](../.project-toolkit/metrics/workflow-coalescing.md)
 - [Orchestrator Routing Algorithm](./orchestrator-routing-algorithm.md)
 - [Agent Governance](./agent-governance.md)
 
@@ -331,7 +331,7 @@ Coalescing Effectiveness = (Cancelled Runs / (Cancelled Runs + Parallel Runs)) *
 - Script: `.github/scripts/Measure-WorkflowCoalescing.ps1`
 - Report: `.project-toolkit/metrics/workflow-coalescing.md`
 - Workflow: `.github/workflows/workflow-coalescing-metrics.yml`
-- ADR: [ADR-026](../.agents/architecture/ADR-026-pr-automation-concurrency-and-safety.md)
+- ADR: [ADR-026](../.project-toolkit/architecture/ADR-026-pr-automation-concurrency-and-safety.md)
 
 ---
 

@@ -156,5 +156,5 @@ Describe "Remote Execution" {
 ## Related Patterns
 
 - `.serena/memories/testing-coverage-requirements.md` - Coverage protocol
-- `.agents/retrospective/2026-01-13-pr894-test-coverage-failure.md` - Full incident analysis
+- `.project-toolkit/retrospective/2026-01-13-pr894-test-coverage-failure.md` - Full incident analysis
 - Issue #892, PR #894 - Source incidents

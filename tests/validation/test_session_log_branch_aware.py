@@ -52,7 +52,7 @@ def _write_session_log(
 ) -> Path:
     if date is None:
         date = datetime.now(tz=UTC).strftime("%Y-%m-%d")
-    sessions = repo / ".agents" / "sessions"
+    sessions = repo / ".project-toolkit" / "sessions"
     sessions.mkdir(parents=True, exist_ok=True)
     path = sessions / f"{date}-{name}.json"
     path.write_text(json.dumps({"session": {"branch": branch}}), encoding="utf-8")

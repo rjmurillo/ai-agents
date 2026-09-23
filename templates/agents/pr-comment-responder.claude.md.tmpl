@@ -188,7 +188,7 @@ The `get_pr_review_comments.py` script returns full comment details including:
 {{> pr-comment-responder-step-1-4-extract-comment-details}}
 PLUGIN_ROOT="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
 SCRIPTS_DIR="$PLUGIN_ROOT/skills/github/scripts"
-PR_COMMENT_LOG=".agents/pr-comments/PR-[number]/session.log"
+PR_COMMENT_LOG=".project-toolkit/pr-comments/PR-[number]/session.log"
 
 # PREFERRED: Batch acknowledge all comments (88% faster than individual calls)
 # Get all comment IDs from the comments retrieved in Phase 1

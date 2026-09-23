@@ -1,7 +1,7 @@
 # Validate Spec ID Uniqueness (Issue #2068)
 #
 # Ensures REQ/DESIGN/TASK IDs are unique within each spec category.
-# Duplicate `id:` values in `.agents/specs/{requirements,design,tasks}/`
+# Duplicate `id:` values in `.project-toolkit/specs/{requirements,design,tasks}/`
 # break traceability and any spec-graph tooling that joins by ID.
 #
 # Uses dorny/paths-filter (Issue #103): fires on all PRs to satisfy the
@@ -41,9 +41,9 @@ jobs:
         with:
           filters: |
             specs:
-              - '.agents/specs/requirements/**'
-              - '.agents/specs/design/**'
-              - '.agents/specs/tasks/**'
+              - '.project-toolkit/specs/requirements/**'
+              - '.project-toolkit/specs/design/**'
+              - '.project-toolkit/specs/tasks/**'
               - 'scripts/validation/check_spec_id_uniqueness.py'
               - '.github/workflows/validate-spec-id-uniqueness.yml'
 
@@ -69,7 +69,7 @@ jobs:
           echo ""
           echo "=== Spec ID Uniqueness Validation Failed ==="
           echo ""
-          echo "One or more files under .agents/specs/{requirements,design,tasks}/"
+          echo "One or more files under .project-toolkit/specs/{requirements,design,tasks}/"
           echo "share the same \`id:\` frontmatter value."
           echo ""
           echo "To fix:"

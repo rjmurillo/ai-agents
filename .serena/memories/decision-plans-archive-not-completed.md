@@ -1,12 +1,12 @@
-# Decision: retired plans go to .agents/archive/plans/, not .agents/plans/completed/
+# Decision: retired plans go to .agents/archive/plans/, not .project-toolkit/plans/completed/
 
 ## Question
 
-Where does a finished execution plan go when it leaves `.agents/plans/active/`?
+Where does a finished execution plan go when it leaves `.project-toolkit/plans/active/`?
 
 ## Conventional answer
 
-`.agents/plans/README.md` and `.claude/skills/execution-plans/SKILL.md` both
+`.project-toolkit/plans/README.md` and `.claude/skills/execution-plans/SKILL.md` both
 say `completed/` (successfully finished) or `abandoned/` (stopped with
 rationale). The skill exposes `complete plan` and `abandon plan` triggers that
 move the file there.
@@ -36,7 +36,7 @@ retired plans for its whole history. The user confirmed it directly:
 ## The 2026-07-27 round trip
 
 A pass on 2026-07-27 moved all 13 out of the archive and into
-`.agents/plans/completed/` and `.agents/plans/abandoned/`, leaving the archive
+`.project-toolkit/plans/completed/` and `.project-toolkit/plans/abandoned/`, leaving the archive
 holding only its own README while this memory still asserted it held the plans.
 The user reverted it on 2026-07-29: "send to .agents/archive/plans/".
 
@@ -45,7 +45,7 @@ The cause is not a bad move, it is two disagreeing sources of truth. The
 to the staging directories, so any agent that follows the skill puts a retired
 plan there, while this memory and the archive README name the archive. Until
 the skill retargets (tracked in #3426), expect the drift to keep pulling plans
-back into staging. `.agents/plans/README.md` now labels those two directories
+back into staging. `.project-toolkit/plans/README.md` now labels those two directories
 as staging that should be empty at rest, which is the cheap guard against a
 third round trip.
 

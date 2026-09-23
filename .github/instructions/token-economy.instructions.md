@@ -1,5 +1,5 @@
 ---
-applyTo: .claude/**,.agents/**,.github/**,tests/**
+applyTo: .claude/**,.agents/**,.project-toolkit/**,.github/**,tests/**
 ---
 
 # Token Economy

@@ -500,8 +500,8 @@ The retired hook was not registered in active hook surfaces and did not run. The
 
 - [CodeQL architecture](./codeql-architecture.md)
 - [CodeQL rollout checklist](./codeql-rollout-checklist.md)
-- [ADR-041: CodeQL Integration Multi-Tier Strategy](../.agents/architecture/ADR-041-codeql-integration.md), amended 2026-07-21 to two tiers.
-- [ADR-042: Python Migration Strategy](../.agents/architecture/ADR-042-python-migration-strategy.md)
+- [ADR-041: CodeQL Integration Multi-Tier Strategy](../.project-toolkit/architecture/ADR-041-codeql-integration.md), amended 2026-07-21 to two tiers.
+- [ADR-042: Python Migration Strategy](../.project-toolkit/architecture/ADR-042-python-migration-strategy.md)
 - [CodeQL documentation](https://codeql.github.com/docs/)
 - [GitHub CodeQL action](https://github.com/github/codeql-action)
 

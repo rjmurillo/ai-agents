@@ -1,0 +1,19 @@
+{
+  "id": "episode-2025-12-23-session-87-issue-328-retry-logic",
+  "session": "2025-12-23-session-87-issue-328-retry-logic",
+  "timestamp": "2025-12-23T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Implement retry logic for infrastructure failures in AI Quality Gate to reduce false CRITICAL_FAIL verdicts and wasted premium API requests.",
+  "decisions": [],
+  "events": [],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 5308
+  },
+  "lessons": []
+}

@@ -81,7 +81,7 @@ Multi-agent debates can deadlock when one agent raises a valid concern that does
 ## Source
 
 - Session: 826 (2026-01-13)
-- Retrospective: `.agents/retrospective/2026-01-13-fix-tools-frontmatter-retrospective.md`
+- Retrospective: `.project-toolkit/retrospective/2026-01-13-fix-tools-frontmatter-retrospective.md`
 - Learning: L4 (Phase 4, Lines 548-557)
-- Debate log: `.agents/critique/ADR-040-amendment-2026-01-13-debate-log.md`
+- Debate log: `.project-toolkit/critique/ADR-040-amendment-2026-01-13-debate-log.md`
 - Follow-up: Issue #896 (CRLF investigation)

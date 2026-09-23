@@ -9,7 +9,7 @@ This docstring deliberately keeps no second copy: the 12-row list it used to
 carry had drifted to describe a 63-gate sequence, and named a Pester stage and
 three "requires PS1" gates that are Python ports run through
 ``_run_python_validator`` in a repository tracking zero ``.ps1`` files.
-``.agents/devops/SHIFT-LEFT.md`` documents the same rule and the
+``.project-toolkit/devops/SHIFT-LEFT.md`` documents the same rule and the
 command that prints the live sequence.
 
 Exit codes follow ADR-035, chosen by the worst state that blocked the gate
@@ -200,7 +200,7 @@ from scripts.validation.pre_pr_report import (
 )
 
 #: The gate this runner enforces. PASS always passes; the one exception is
-#: SKIP, which .agents/devops/SHIFT-LEFT.md already documented as
+#: SKIP, which .project-toolkit/devops/SHIFT-LEFT.md already documented as
 #: non-blocking before issue #5635. BLOCKED and UNKNOWN block.
 _POLICY = default_pre_pr_policy()
 

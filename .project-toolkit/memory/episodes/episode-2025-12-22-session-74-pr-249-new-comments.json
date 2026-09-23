@@ -1,0 +1,52 @@
+{
+  "id": "episode-2025-12-22-session-74-pr-249-new-comments",
+  "session": "2025-12-22-session-74-pr-249-new-comments",
+  "timestamp": "2025-12-22T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "[Migrated from markdown]",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2025-12-22T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 52ce873",
+      "caused_by": [],
+      "leads_to": [
+        "e003"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2025-12-22T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 2465e58",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2025-12-22T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 52ce873",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e002"
+      ]
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 5266
+  },
+  "lessons": []
+}

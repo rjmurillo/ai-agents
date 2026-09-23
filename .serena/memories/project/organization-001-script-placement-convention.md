@@ -7,7 +7,7 @@
 **Context**: When creating new validation or utility scripts for the project
 
 **Evidence**: Validate-Consistency.ps1 (migrated to Python per ADR-042, then retired
-in #3557 once `.agents/planning` stopped carrying feature PRD and task pairs)
+in #3557 once `.project-toolkit/planning` stopped carrying feature PRD and task pairs)
 placed in scripts/ following the PowerShell conventions of the time; duplicate in
 .agents/utilities/ removed to maintain single source of truth. Corrected 2026-07-28: the
 statement previously said `scripts/` only, which was false. Six validators live under

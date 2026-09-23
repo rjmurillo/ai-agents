@@ -201,7 +201,7 @@ def write_audit_log(
     reason: str,
 ) -> None:
     """Write audit log entry for skipped validation."""
-    audit_dir = os.path.join(repo_root, ".agents/audit")
+    audit_dir = os.path.join(repo_root, ".project-toolkit/audit")
     os.makedirs(audit_dir, exist_ok=True)
 
     username = os.environ.get("USERNAME") or os.environ.get("USER", "unknown")
@@ -238,7 +238,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--prepare-body-file",
         action="store_true",
-        help="Create a private .agents/scratch/pr-body-*.md path and exit",
+        help="Create a private .project-toolkit/scratch/pr-body-*.md path and exit",
     )
     parser.add_argument(
         "--base",

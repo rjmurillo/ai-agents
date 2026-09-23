@@ -16,7 +16,7 @@ This steering file provides Pester 5.x testing conventions and patterns used in 
 
 ## Related: Prompt Behavioral Evals
 
-Pester covers PowerShell scripts. Prompt changes (agent prompts, skill prompts, quality gate prompts) need a complementary approach. See [.agents/testing/prompt-eval-methodology.md](../../.agents/testing/prompt-eval-methodology.md) for scenario-based LLM evals and [ADR-023](../../.agents/architecture/ADR-023-quality-gate-prompt-testing.md) for structural prompt validation.
+Pester covers PowerShell scripts. Prompt changes (agent prompts, skill prompts, quality gate prompts) need a complementary approach. See [.project-toolkit/testing/prompt-eval-methodology.md](../../.project-toolkit/testing/prompt-eval-methodology.md) for scenario-based LLM evals and [ADR-023](../../.project-toolkit/architecture/ADR-023-quality-gate-prompt-testing.md) for structural prompt validation.
 
 ## Guidelines
 
@@ -398,7 +398,7 @@ Place test files according to [`.agents/governance/test-location-standards.md`](
 |----------|----------|
 | Python tests | `tests/` (primary) |
 | Skill tests | `tests/skills/<name>/` |
-| Security benchmarks | `.agents/security/benchmarks/` |
+| Security benchmarks | `.project-toolkit/security/benchmarks/` |
 
 New tests default to `tests/`. Existing colocated skill suites are legacy and
 remain until migrated.

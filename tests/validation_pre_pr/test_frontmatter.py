@@ -91,7 +91,7 @@ class TestValidateDesignReviewFrontmatter:
 
     def _write_review(self, tmp_path: Path, name: str, content: str) -> Path:
         """Helper to create a DESIGN-REVIEW file."""
-        review_dir = tmp_path / ".agents" / "architecture"
+        review_dir = tmp_path / ".project-toolkit" / "architecture"
         review_dir.mkdir(parents=True, exist_ok=True)
         filepath = review_dir / name
         filepath.write_text(content, encoding="utf-8")
@@ -101,7 +101,7 @@ class TestValidateDesignReviewFrontmatter:
         assert validate_design_review_frontmatter(tmp_path) is True
 
     def test_no_review_files_returns_true(self, tmp_path: Path) -> None:
-        (tmp_path / ".agents" / "architecture").mkdir(parents=True)
+        (tmp_path / ".project-toolkit" / "architecture").mkdir(parents=True)
         assert validate_design_review_frontmatter(tmp_path) is True
 
     def test_valid_frontmatter_passes(self, tmp_path: Path) -> None:

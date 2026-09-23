@@ -32,7 +32,7 @@ Stricter/looser/different than canonical (``hook_dispatch.py``):
   SINGLE JSON document, so this module must merge (see
   ``_emit_merged_output``). This is the exact hazard that sank the earlier ad
   hoc Claude-side dispatcher (see
-  ``.agents/analysis/2026-07-14-hook-batching-determination.md``,
+  ``.project-toolkit/analysis/2026-07-14-hook-batching-determination.md``,
   "Rejected code path").
 - gate mode treats only a validated *blocking decision document* on stdout as
   terminal. Malformed, allow-shaped, or unsupported structured output fails

@@ -36,7 +36,7 @@ EXIT CODES (ADR-035):
   1  - Logic error: malformed run records
   2  - Config error: run or fixtures path missing
 
-See: .agents/skillbook/README.md and ADR-035.
+See: .project-toolkit/skillbook/README.md and ADR-035.
 """
 
 from __future__ import annotations
@@ -188,7 +188,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--skillbook-dir",
         type=Path,
-        default=_PROJECT_ROOT / ".agents" / "skillbook",
+        default=_PROJECT_ROOT / ".project-toolkit" / "skillbook",
         help="Directory holding the skillbook JSON files.",
     )
     parser.add_argument(

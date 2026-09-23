@@ -1,0 +1,28 @@
+{
+  "id": "episode-2025-12-22-session-70-pr-256-review",
+  "session": "2025-12-22-session-70-pr-256-review",
+  "timestamp": "2025-12-22T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "[Migrated from markdown]",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2025-12-22T00:00:00+00:00",
+      "type": "error",
+      "content": "- Impact: Prevents exit code 3 failures in workflow alert/notification steps",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 5262
+  },
+  "lessons": []
+}

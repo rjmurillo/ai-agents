@@ -243,7 +243,7 @@ class TestScopeBoundaries:
     ) -> None:
         root = _repo(tmp_path)
         doc = f"See `{TARGET}:2` (`magic_token`).\n"
-        _add_doc(root, ".agents/retrospective/2020-01-01-note.md", doc)
+        _add_doc(root, ".project-toolkit/retrospective/2020-01-01-note.md", doc)
 
         code, out = _run(root, capsys)
 
@@ -254,11 +254,11 @@ class TestScopeBoundaries:
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
         # Regression (Copilot round 4, PR #5338): stale_script_refs's
-        # HISTORICAL_ROOTS has no .agents/memory/ entry, so new episode
+        # HISTORICAL_ROOTS has no .project-toolkit/memory/ entry, so new episode
         # records under that 750-file historical tree could block a push.
         root = _repo(tmp_path)
         doc = f'{{"note": "See `{TARGET}:2` (`magic_token`)."}}\n'
-        _add_doc(root, ".agents/memory/episodes/episode-1.json", doc)
+        _add_doc(root, ".project-toolkit/memory/episodes/episode-1.json", doc)
 
         code, out = _run(root, capsys)
 

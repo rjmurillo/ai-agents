@@ -43,7 +43,7 @@ fi
 
 **Anti-Pattern**: Trusting manual review to catch ADR violations
 
-**Source**: `.agents/retrospective/2025-12-20-pr-211-security-miss.md`
+**Source**: `.project-toolkit/retrospective/2025-12-20-pr-211-security-miss.md`
 
 ## Related
 

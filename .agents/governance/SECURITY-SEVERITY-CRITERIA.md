@@ -190,5 +190,5 @@ For AI/ML-specific vulnerabilities (OWASP Agentic Top 10), apply AIVSS modifiers
 - [CVSS v3.1 Specification](https://www.first.org/cvss/specification-document)
 - [CWE-699 Software Development View](https://cwe.mitre.org/data/definitions/699.html)
 - [OWASP Top 10 for Agentic Applications](https://genai.owasp.org/)
-- [PR #752 Security RCA](/.agents/analysis/security-agent-failure-rca.md)
+- [PR #752 Security RCA](/.project-toolkit/analysis/security-agent-failure-rca.md)
 - [Issue #755 Security Agent Failure Tracking](https://github.com/rjmurillo/ai-agents/issues/755)

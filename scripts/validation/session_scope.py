@@ -348,7 +348,7 @@ def _added_paths_from_name_status(
         index += 1
         if status == "A":
             added.add(path)
-        elif status == "D" and path.startswith(".agents/sessions/") and path.endswith(".json"):
+        elif status == "D" and path.startswith(".project-toolkit/sessions/") and path.endswith(".json"):
             deleted_session = True
     return added, deleted_session
 

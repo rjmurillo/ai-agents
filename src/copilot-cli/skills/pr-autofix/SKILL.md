@@ -636,7 +636,7 @@ auto-merge only when all four conditions hold:
 python3 "$SCRIPTS_DIR/run_completion_gate.py" \
     --pull-request "$PR" \
     --json \
-    --evidence-path ".agents/pr-comments/PR-$PR/gate-evidence.json"
+    --evidence-path ".project-toolkit/pr-comments/PR-$PR/gate-evidence.json"
 
 ```
 

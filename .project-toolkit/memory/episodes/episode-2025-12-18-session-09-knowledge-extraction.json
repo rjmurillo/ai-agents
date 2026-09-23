@@ -1,0 +1,28 @@
+{
+  "id": "episode-2025-12-18-session-09-knowledge-extraction",
+  "session": "2025-12-18-session-09-knowledge-extraction",
+  "timestamp": "2025-12-18T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "partial",
+  "task": "[Migrated from markdown]",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2025-12-18T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 98d29eea",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 5161
+  },
+  "lessons": []
+}

@@ -12,7 +12,7 @@ Files that can be auto-resolved by accepting main branch version:
 $script:AutoResolvableFiles = @(
     # Session artifacts - constantly changing, main is authoritative
     '.agents/HANDOFF.md',
-    '.agents/sessions/*',
+    '.project-toolkit/sessions/*',
     '.agents/*',
     
     # Serena memories - auto-generated, main is authoritative
@@ -83,7 +83,7 @@ Evidence from PR #246:
 
 | Req | Step |
 |-----|------|
-| MUST | Session log exists at `.agents/sessions/YYYY-MM-DD-session-NN.json` |
+| MUST | Session log exists at `.project-toolkit/sessions/YYYY-MM-DD-session-NN.json` |
 | MUST | Session End checklist completed (all rows checked) |
 | MUST | Serena memory updated |
 | MUST | Markdown lint passed |
@@ -93,7 +93,7 @@ Evidence from PR #246:
 ### Validation Command
 
 ```bash
-pwsh scripts/Validate-SessionEnd.ps1 -SessionLogPath ".agents/sessions/[session-log].md"
+pwsh scripts/Validate-SessionEnd.ps1 -SessionLogPath ".project-toolkit/sessions/[session-log].md"
 ```
 
 ### Common Failures
@@ -107,7 +107,7 @@ pwsh scripts/Validate-SessionEnd.ps1 -SessionLogPath ".agents/sessions/[session-
 ### Cross-Reference
 
 - Skill: `.claude/skills/merge-resolver/SKILL.md` Step 7
-- Analysis: `.agents/analysis/001-merge-resolver-session-protocol-gap.md`
+- Analysis: `.project-toolkit/analysis/001-merge-resolver-session-protocol-gap.md`
 - Memory: [merge-resolver-session-protocol-gap](merge-resolver-session-protocol-gap.md)
 
 ## Related

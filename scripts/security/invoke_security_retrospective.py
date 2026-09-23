@@ -389,7 +389,7 @@ class SecurityRetrospective:
         the try block below logged an intent and the real write was always
         the local JSON fallback, which is why the rename loses no behaviour.
         The record it writes is unchanged, including the fields the backend
-        would have consumed, because `.agents/security/false-negatives.json`
+        would have consumed, because `.project-toolkit/security/false-negatives.json`
         is the audit trail the security retrospective reads back.
         """
         if not self.false_negatives:

@@ -5,7 +5,7 @@ ADR-109 (Template-First Plugin Distribution) adds a second output hop no
 other template class needed before it: templates render into a PLUGIN tree
 (``src/claude/``, ``src/copilot-cli/``), and a separate binplace step then
 copies each plugin tree into its INSTALL tree (``.claude/``, ``.github/``).
-Per ``.agents/specs/design/DESIGN-025-template-first-compiler-and-binplace.md``,
+Per ``.project-toolkit/specs/design/DESIGN-025-template-first-compiler-and-binplace.md``,
 "Binplace manifest schema" section, the mapping from one hop to the other is
 data, not code: one YAML file, ``templates/platforms/binplace.yaml``, read
 by this module and by ``build/scripts/build_all.py``'s ``_binplace`` step.

@@ -233,7 +233,7 @@ passed the description validator cleanly.
 
 Reconfirmed 2026-08-27 across five more PRs in one triage session (#5342, #5343,
 #5344, #5350, #5356), same shape every time: a tool script or a scope-description
-path (`.agents/planning/impact-analysis-security-*.md`, `count_ratchet.py`, a
+path (`.project-toolkit/planning/impact-analysis-security-*.md`, `count_ratchet.py`, a
 sibling skill's script) named in backticks under `## Changes` to explain context,
 not to claim a diff entry. Each was fixed the slow way, by rewriting the sentence to
 drop the backticks, because the citation-cue trick above (`see`, `per`, `e.g.`) was

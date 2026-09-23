@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://github.com/rjmurillo/ai-agents/schemas/tension.schema.json",
   "title": "Skillbook Tension Table",
-  "description": "Validates .agents/skillbook/tensions.json: pairs of policies that contradict, with a per-context preferred resolution. See .agents/skillbook/README.md.",
+  "description": "Validates .project-toolkit/skillbook/tensions.json: pairs of policies that contradict, with a per-context preferred resolution. See .project-toolkit/skillbook/README.md.",
   "type": "object",
   "additionalProperties": false,
   "required": ["schema_version", "tensions"],

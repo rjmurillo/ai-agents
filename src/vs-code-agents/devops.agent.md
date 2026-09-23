@@ -58,7 +58,7 @@ DevOps-specific requirements:
 2. **Configure** build systems (MSBuild, NuGet, dotnet CLI)
 3. **Implement** deployment automation
 4. **Monitor** pipeline health and performance
-5. **Document** infrastructure in `.agents/devops/`
+5. **Document** infrastructure in `.project-toolkit/devops/`
 6. **Conduct** impact analysis when requested by milestone-planner during planning phase
 
 ## Impact Analysis Mode

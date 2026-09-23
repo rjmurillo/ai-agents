@@ -31,7 +31,7 @@ if [[ "$CURRENT_BRANCH" =~ ^(main|master)$ ]]; then
 fi
 
 # Optional: Check against session log if exists
-SESSION_LOG=$(find .agents/sessions -name "*.md" -type f -printf '%T@ %p\n' 2>/dev/null | sort -n | tail -1 | cut -d' ' -f2-)
+SESSION_LOG=$(find .project-toolkit/sessions -name "*.md" -type f -printf '%T@ %p\n' 2>/dev/null | sort -n | tail -1 | cut -d' ' -f2-)
 if [[ -f "$SESSION_LOG" ]]; then
   DECLARED_BRANCH=$(grep -m1 "^\*\*Current\*\*:" "$SESSION_LOG" | sed 's/\*\*Current\*\*: //')
   if [[ -n "$DECLARED_BRANCH" && "$CURRENT_BRANCH" != "$DECLARED_BRANCH" ]]; then

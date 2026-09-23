@@ -1,0 +1,19 @@
+{
+  "id": "episode-2025-12-28-session-97-fix-470-verdict-parsing",
+  "session": "2025-12-28-session-97-fix-470-verdict-parsing",
+  "timestamp": "2025-12-28T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "partial",
+  "task": "Fix verdict parsing in `.github/actions/ai-review/action.yml` to prevent context contamination. Current logic matches verdict keywords in context content (issue descriptions, PR bodies) instead of only in AI agent's actual verdict.",
+  "decisions": [],
+  "events": [],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 5347
+  },
+  "lessons": []
+}

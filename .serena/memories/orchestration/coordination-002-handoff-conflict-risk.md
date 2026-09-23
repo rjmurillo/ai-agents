@@ -3,7 +3,7 @@
 # Coordination: What HANDOFF.md Conflicts Cost One Branch
 
 `.agents/HANDOFF.md` no longer exists.
-`.agents/architecture/ADR-014-distributed-handoff-architecture.md` decided its
+`.project-toolkit/architecture/ADR-014-distributed-handoff-architecture.md` decided its
 retirement and records the repository-wide rate. This file keeps the
 branch-level numbers ADR-014 does not carry.
 

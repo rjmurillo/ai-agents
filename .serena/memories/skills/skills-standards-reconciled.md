@@ -1,7 +1,7 @@
 # Skill Standards: Reconciled Authority
 
 **Date**: 2026-01-09
-**Document**: `.agents/architecture/SKILL-STANDARDS-RECONCILED.md`
+**Document**: `.project-toolkit/architecture/SKILL-STANDARDS-RECONCILED.md`
 **Status**: CANONICAL REFERENCE
 
 ## Summary
@@ -71,8 +71,8 @@ The ai-agents project is 90% aligned with official standard but has project-spec
 
 - Official spec: https://agentskills.io/specification
 - Claude docs: https://code.claude.com/docs/en/skills
-- ADR-040: `.agents/architecture/ADR-040-skill-frontmatter-standardization.md`
-- Complete reconciliation: `.agents/architecture/SKILL-STANDARDS-RECONCILED.md`
+- ADR-040: `.project-toolkit/architecture/ADR-040-skill-frontmatter-standardization.md`
+- Complete reconciliation: `.project-toolkit/architecture/SKILL-STANDARDS-RECONCILED.md`
 
 ## Related Memories
 

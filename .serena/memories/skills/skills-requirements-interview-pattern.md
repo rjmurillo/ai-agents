@@ -34,7 +34,7 @@ The skill is the alignment forcing function.
    criteria, Out of scope, Deferred, Open questions)
 3-5. PRD carries through complexity classification, codebase search, CVA
 6. **spec-generator agent formalizes** PRD into REQ-NNN/DESIGN-NNN/TASK-NNN
-   files in `.agents/specs/`
+   files in `.project-toolkit/specs/`
 7-9. analyst, decision-critic, critic pre-mortem run against the durable artifacts
 
 ## Files

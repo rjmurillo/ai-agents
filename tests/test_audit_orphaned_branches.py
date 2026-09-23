@@ -27,7 +27,7 @@ class TestBranchArtifacts:
     def test_total_counts_both_types(self):
         artifacts = BranchArtifacts(
             branch="feat/test",
-            session_files=[".agents/sessions/s1.json"],
+            session_files=[".project-toolkit/sessions/s1.json"],
             memory_files=[".serena/memories/m1.md", ".serena/memories/m2.md"],
         )
         assert artifacts.total == 3
@@ -39,7 +39,7 @@ class TestBranchArtifacts:
     def test_serializable_to_json(self):
         artifacts = BranchArtifacts(
             branch="feat/test",
-            session_files=[".agents/sessions/s1.json"],
+            session_files=[".project-toolkit/sessions/s1.json"],
         )
         result = json.dumps(asdict(artifacts))
         assert '"branch": "feat/test"' in result
@@ -63,7 +63,7 @@ class TestAuditReport:
             orphans=[
                 BranchArtifacts(
                     branch="feat/stale",
-                    session_files=[".agents/sessions/s1.json"],
+                    session_files=[".project-toolkit/sessions/s1.json"],
                 ),
             ],
         )
@@ -85,7 +85,7 @@ class TestFindOrphanedArtifacts:
 
     def test_detects_session_files(self):
         files = [
-            ".agents/sessions/2026-01-01-session-01.json",
+            ".project-toolkit/sessions/2026-01-01-session-01.json",
             "scripts/some_script.py",
         ]
         result = find_orphaned_artifacts("feat/test", files)
@@ -103,7 +103,7 @@ class TestFindOrphanedArtifacts:
 
     def test_detects_both_types(self):
         files = [
-            ".agents/sessions/s1.json",
+            ".project-toolkit/sessions/s1.json",
             ".serena/memories/m1.md",
             "README.md",
         ]
@@ -170,7 +170,7 @@ class TestAuditBranches:
     def test_counts_orphans(self, mock_list, mock_diff):
         mock_list.return_value = ["feat/stale", "feat/clean"]
         mock_diff.side_effect = [
-            [".agents/sessions/s1.json", "README.md"],
+            [".project-toolkit/sessions/s1.json", "README.md"],
             ["scripts/clean.py"],
         ]
         report = audit_branches()
@@ -232,7 +232,7 @@ class TestFormatReport:
             orphans=[
                 BranchArtifacts(
                     branch="feat/stale",
-                    session_files=[".agents/sessions/s1.json"],
+                    session_files=[".project-toolkit/sessions/s1.json"],
                     memory_files=[".serena/memories/m1.md"],
                 ),
             ],

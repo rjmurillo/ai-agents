@@ -10,7 +10,7 @@ Supported algorithms:
 - unanimous: All specialists must agree
 
 Reference: claude-flow's Consensus and Decision Making (wiki 8.4)
-See: .agents/analysis/claude-flow-architecture-analysis.md
+See: .project-toolkit/analysis/claude-flow-architecture-analysis.md
 """
 
 from __future__ import annotations

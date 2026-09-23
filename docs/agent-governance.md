@@ -8,7 +8,7 @@ This document provides an overview of the governance framework for the multi-age
 
 | Artifact | Location | Purpose |
 |----------|----------|---------|
-| ADR Template | `.agents/architecture/ADR-TEMPLATE.md` | Template for agent decisions |
+| ADR Template | `.project-toolkit/architecture/ADR-TEMPLATE.md` | Template for agent decisions |
 | Steering Committee Charter | `.agents/governance/steering-committee-charter.md` | Committee roles and processes |
 | Agent Design Principles | `.agents/governance/agent-design-principles.md` | 6 principles all agents must follow |
 | Consolidation Process | `.agents/governance/agent-consolidation-process.md` | How to merge overlapping agents |

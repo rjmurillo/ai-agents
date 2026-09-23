@@ -37,7 +37,7 @@ path_instructions:
 
 ### Configuration File
 
-Full analysis at: `.agents/analysis/001-coderabbit-noise-reduction-analysis.md`
+Full analysis at: `.project-toolkit/analysis/001-coderabbit-noise-reduction-analysis.md`
 
 ## Related
 

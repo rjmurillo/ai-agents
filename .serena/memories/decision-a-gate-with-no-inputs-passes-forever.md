@@ -3,7 +3,7 @@
 **Atomicity**: 92%
 **Category**: CI design, first-principles contradiction
 **Source**: 2026-09-06 session. Issue #5626, PR #5627, analysis at
-`.agents/analysis/memory-validation-workflow-cost-analysis.md`. Subject:
+`.project-toolkit/analysis/memory-validation-workflow-cost-analysis.md`. Subject:
 `.github/workflows/memory-validation.yml`, added 2025-12-24 in `0dadc6994`
 (PR #342), deleted 2026-09 after this measurement.
 

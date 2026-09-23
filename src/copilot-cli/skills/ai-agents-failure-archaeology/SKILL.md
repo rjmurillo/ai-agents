@@ -10,7 +10,7 @@ license: MIT
 <!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself; intentionally references upstream paths (.agents/, .claude/, scripts/, build/) because its audience is repo contributors, not plugin consumers (issue #2050) -->
 This repo's rules are fossils of incidents. Before you challenge a gate, weaken
 a guard, or propose a "simpler" approach, check whether that battle was already
-fought and what it cost. The canon lives in `.agents/retrospective/` and
+fought and what it cost. The canon lives in `.project-toolkit/retrospective/` and
 `.serena/memories/`; the provenance table below carries the commands that count
 both. Full local history is
 present (`git rev-list --count HEAD` = ~1471 as of 2026-07-03), but retro-cited
@@ -36,7 +36,7 @@ If your question touches hooks, generators, drift, review iteration, escape
 hatches, or silent defaults, it is probably one of these eight. Read the
 matching subsection in `references/incidents.md` before doing anything else.
 
-| Incident | One-line summary | Primary retro (in `.agents/retrospective/`) | Status |
+| Incident | One-line summary | Primary retro (in `.project-toolkit/retrospective/`) | Status |
 |----------|------------------|--------------------------------------------|--------|
 | #2205 customer wedge | Bare `./hooks/...` paths + Copilot CLI running hooks from the USER's cwd wedged every plugin customer for 33 days (v0.3.0 to v0.5.6); recovery was uninstall. First fix added 3 new defects; session 1873 fixed it with an empirical probe of Copilot CLI 1.0.57 | `2026-06-02-pr-2205-customer-wedge-incident.md` | Settled; gated by `scripts/validation/validate_hook_anchoring.py` + `tests/build_scripts/test_generate_hooks_runtime_contract.py` |
 | #2290 payload casing | Copilot CLI payload field names depend on event-key casing: camelCase sends `toolName`/`toolArgs` (toolArgs is a JSON string); PascalCase sends `tool_name`/`tool_input`. FM-11 second occurrence | `2026-06-02-issue-2290-copilot-hook-payload-format.md` | Settled (PascalCase + dual-format shim); exit-143 timeout flagged P0, unresolved in that retro |
@@ -101,8 +101,8 @@ FM-10 is a mechanism that produces FM-4 symptoms; fix at the FM-10 layer
 When the tables above do not answer the question:
 
 1. **Search retros by keyword**, not the index:
-   `grep -rli "<term>" .agents/retrospective/`. Do NOT trust
-   `.agents/retrospective/INDEX.md`: it indexes a small fraction of the retro
+   `grep -rli "<term>" .project-toolkit/retrospective/`. Do NOT trust
+   `.project-toolkit/retrospective/INDEX.md`: it indexes a small fraction of the retro
    files. The provenance table's coverage command prints both numbers.
 2. **Search memories**: `grep -rli "<term>" .serena/memories/` or the
    `memory-search` skill. Decision memories (`decision-*.md`) record settled
@@ -113,7 +113,7 @@ When the tables above do not answer the question:
    later moved: the #2205/#2290 retros say "ADR-063" for the runtime contract,
    but the shipped ADR is `ADR-071-plugin-hook-runtime-contract-verification.md`;
    the real ADR-063 is memory-skill decomposition. Use
-   `grep -rl "<topic>" .agents/architecture/`.
+   `grep -rl "<topic>" .project-toolkit/architecture/`.
 4. **Do not lean on `git log` for incident history.** Full local history is
    present (~1471 commits as of 2026-07-03), but SHAs cited in retros (e.g.
    `01e76615a`, `ddb76e0`) do not resolve locally; look them up on GitHub and
@@ -162,13 +162,13 @@ working tree on that date. Volatile facts and their re-verification commands:
 
 | Fact | Source | Re-verify |
 |------|--------|-----------|
-| Retro file count and INDEX.md coverage | `.agents/retrospective/` and `.agents/retrospective/INDEX.md` | `python3 -c "import pathlib;d=pathlib.Path('.agents/retrospective');f={p.name for p in d.glob('*.md')}-{'INDEX.md'};t=(d/'INDEX.md').read_text();print(len(f),'retro files,',sum(n in t for n in f),'indexed')"` |
+| Retro file count and INDEX.md coverage | `.project-toolkit/retrospective/` and `.project-toolkit/retrospective/INDEX.md` | `python3 -c "import pathlib;d=pathlib.Path('.project-toolkit/retrospective');f={p.name for p in d.glob('*.md')}-{'INDEX.md'};t=(d/'INDEX.md').read_text();print(len(f),'retro files,',sum(n in t for n in f),'indexed')"` |
 | Memory file count | `.serena/memories/` | `python3 -c "import pathlib;print(len(list(pathlib.Path('.serena/memories').rglob('*.md'))))"` |
 | Full history present (~1471 commits) but retro-cited SHAs unresolvable | local clone | `git rev-list --count HEAD; git cat-file -t ddb76e0` (expect a count near 1471 and "Not a valid object name") |
 | 12 failure modes | `.agents/governance/FAILURE-MODES.md:17-30` (`Post-completion continuation`) | `python3 -c "print(sum(1 for l in open('.agents/governance/FAILURE-MODES.md') if l[:2]=='\x7c ' and l[2].isdigit()))"` |
 | Historical SKIP_PREPUSH removal | Session 1187 retrospective | Confirm current Git hook jobs in `lefthook.yml`; do not reintroduce a global bypass |
 | Anchoring gate + runtime-contract test + e2e exist | repo tree | `ls scripts/validation/validate_hook_anchoring.py tests/build_scripts/test_generate_hooks_runtime_contract.py tests/e2e/test_cli_hook_e2e.py` |
-| ADR-071 is the runtime-contract ADR; ADR-063 is memory decomposition | `.agents/architecture/` | `head -1 .agents/architecture/ADR-071*.md .agents/architecture/ADR-063*.md` |
+| ADR-071 is the runtime-contract ADR; ADR-063 is memory decomposition | `.project-toolkit/architecture/` | `head -1 .project-toolkit/architecture/ADR-071*.md .project-toolkit/architecture/ADR-063*.md` |
 | Plugin-root env contract (CLI 1.0.57) | `.serena/memories/decision-copilot-cli-hook-plugin-root-contract.md` | open the memory; re-probe per `ai-agents-empirical-probe-toolkit` if the CLI version moved |
 | Exit-143 timeout status "unresolved" | `2026-06-02-issue-2290-copilot-hook-payload-format.md:59` | check open issues before assuming; `ai-agents-portability-campaign` Phase 3 owns verification |
 

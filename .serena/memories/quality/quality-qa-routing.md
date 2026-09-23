@@ -19,7 +19,7 @@ You MUST route to qa agent after feature implementation:
 
 Task(subagent_type="qa", prompt="Validate [feature]")
 
-**Verification**: QA report exists in `.agents/qa/`
+**Verification**: QA report exists in `.project-toolkit/qa/`
 
 **If skipped**: Untested code may contain bugs or vulnerabilities
 ```

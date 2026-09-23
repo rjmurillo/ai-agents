@@ -146,7 +146,7 @@ Save to: `.project-toolkit/planning/TASKS-[feature-name].md`
 # Task Breakdown: [Feature Name]
 
 ## Source
-- PRD: `.agents/planning/PRD-[name].md`
+- PRD: `.project-toolkit/planning/PRD-[name].md`
 
 ## Summary
 | Complexity | Count |
@@ -277,7 +277,7 @@ Before handing off, validate ALL items in the applicable checklist:
 ### Task Breakdown Complete (to critic)
 
 ```markdown
-- [ ] Tasks document saved to `.agents/planning/TASKS-[feature].md`
+- [ ] Tasks document saved to `.project-toolkit/planning/TASKS-[feature].md`
 - [ ] All tasks have unique IDs (TASK-NNN format)
 - [ ] All tasks have acceptance criteria
 - [ ] All tasks have complexity estimates (XS/S/M/L/XL)

@@ -98,7 +98,7 @@ The broader discipline that encompasses:
 
 **Hybrid approach**:
 
-- **`.agents/architecture/`** - Architectural Decision Records (strict ADR definition)
+- **`.project-toolkit/architecture/`** - Architectural Decision Records (strict ADR definition)
 - **`.agents/governance/`** - Governance policies and operational decisions
 
 **Example**:
@@ -130,7 +130,7 @@ AKM (Architectural Knowledge Management)
 
 ## Practical Application in This Codebase
 
-**Current ADR catalog**: `.agents/architecture/ADR-*.md`
+**Current ADR catalog**: `.project-toolkit/architecture/ADR-*.md`
 
 **Examples**:
 
@@ -159,7 +159,7 @@ An ADR is NOT just documentation: it's a **decision artifact** that:
 
 - Wikipedia: [Architectural Decision](https://en.wikipedia.org/wiki/Architectural_decision)
 - Wikipedia: [Architecturally Significant Requirements](https://en.wikipedia.org/wiki/Architecturally_significant_requirements)
-- This codebase: `.agents/architecture/` directory
+- This codebase: `.project-toolkit/architecture/` directory
 
 ## Related
 

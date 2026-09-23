@@ -139,7 +139,7 @@ Use this pattern when:
 ## Related
 
 - ADR-006: No logic in workflow YAML
-- `.agents/architecture/claude-workflow-authorization-pattern.md`: Full documentation
+- `.project-toolkit/architecture/claude-workflow-authorization-pattern.md`: Full documentation
 - Security guide: https://github.blog/security/vulnerability-research/how-to-catch-github-actions-workflow-injections-before-attackers-do/
 - `security-012-workflow-author-association.md`: Previous pattern (replaced)
 

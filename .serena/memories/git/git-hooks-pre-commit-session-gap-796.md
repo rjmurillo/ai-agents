@@ -86,14 +86,14 @@ done
 # Require session log for substantive work
 if [ "$REQUIRES_SESSION_LOG" = "true" ]; then
     # Check for staged session log
-    STAGED_SESSION_LOG=$(echo "$STAGED_FILES" | grep -E '^\.agents/sessions/[0-9]{4}-[0-9]{2}-[0-9]{2}-session-[0-9]+.*\.json$' | tail -n 1)
+    STAGED_SESSION_LOG=$(echo "$STAGED_FILES" | grep -E '^\.project-toolkit/sessions/[0-9]{4}-[0-9]{2}-[0-9]{2}-session-[0-9]+.*\.json$' | tail -n 1)
     
     if [ -z "$STAGED_SESSION_LOG" ]; then
         echo_error "BLOCKED: Session log required"
         echo_info "Before committing scripts/src/build/.github/.factory files:"
         echo_info "  1. Initialize Serena: mcp__serena__activate_project"
         echo_info "  2. Read context: Read HANDOFF.md"
-        echo_info "  3. Create session log: .agents/sessions/YYYY-MM-DD-session-NN.json"
+        echo_info "  3. Create session log: .project-toolkit/sessions/YYYY-MM-DD-session-NN.json"
         echo_info "  4. Complete protocol requirements in session log"
         echo_info "  5. Re-run git add to include the log"
         echo_info ""
@@ -133,8 +133,8 @@ fi
 4. **Team onboarding**: New members see "how we do things here"
 5. **Process reinforcement**: Repeating the protocol prevents regression
 
-**Evidence**: From `.agents/analysis/001-merge-resolver-session-protocol-gap.md`:
-> Session logs (.agents/sessions/), analysis artifacts (.agents/analysis/), and memory updates (.serena/memories/) are **audit trail, not implementation**.
+**Evidence**: From `.project-toolkit/analysis/001-merge-resolver-session-protocol-gap.md`:
+> Session logs (.project-toolkit/sessions/), analysis artifacts (.project-toolkit/analysis/), and memory updates (.serena/memories/) are **audit trail, not implementation**.
 
 By design, the audit trail has value even for small tasks.
 
@@ -161,7 +161,7 @@ By design, the audit trail has value even for small tasks.
 
 - Issue #796 (full documentation)
 - SESSION-PROTOCOL.md
-- `.agents/analysis/001-merge-resolver-session-protocol-gap.md`
+- `.project-toolkit/analysis/001-merge-resolver-session-protocol-gap.md`
 - PR #795 (case study that exposed gap)
 
 ## Related

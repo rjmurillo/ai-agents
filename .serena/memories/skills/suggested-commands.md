@@ -96,7 +96,7 @@ python .claude/skills/fix-markdown-fences/fix_fences.py
 ```python
 Task(subagent_type="analyst", prompt="Investigate why X fails")
 Task(subagent_type="implementer", prompt="Implement feature X")
-Task(subagent_type="critic", prompt="Validate plan at .agents/planning/...")
+Task(subagent_type="critic", prompt="Validate plan at .project-toolkit/planning/...")
 ```
 
 ### GitHub Copilot CLI

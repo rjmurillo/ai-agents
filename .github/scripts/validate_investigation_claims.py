@@ -56,15 +56,15 @@ from scripts.modules.investigation_allowlist import (  # noqa: E402
 # This is the sole copy; the session skill's parity twin was removed with
 # the session skill cluster.
 _ALLOWLIST_PATTERNS = [
-    r"^\.agents/sessions/",
-    r"^\.agents/analysis/",
-    r"^\.agents/retrospective/",
+    r"^\.project-toolkit/sessions/",
+    r"^\.project-toolkit/analysis/",
+    r"^\.project-toolkit/retrospective/",
     r"^\.serena/memories($|/)",
-    r"^\.agents/security/",
-    r"^\.agents/memory/",  # Added in PR #926
-    r"^\.agents/architecture/REVIEW-",  # Review documents
-    r"^\.agents/critique/",  # Critic debate logs
-    r"^\.agents/memory/episodes/",  # Memory episodes
+    r"^\.project-toolkit/security/",
+    r"^\.project-toolkit/memory/",  # Added in PR #926
+    r"^\.project-toolkit/architecture/REVIEW-",  # Review documents
+    r"^\.project-toolkit/critique/",  # Critic debate logs
+    r"^\.project-toolkit/memory/episodes/",  # Memory episodes
 ]
 
 # Pattern to detect investigation-only claims in session logs
@@ -239,7 +239,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--session-dir",
         type=Path,
-        default=Path(".agents/sessions"),
+        default=Path(".project-toolkit/sessions"),
         help="Directory containing session log JSON files",
     )
     parser.add_argument(

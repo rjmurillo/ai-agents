@@ -52,7 +52,7 @@ prefixes wide, and `.agents/` still falls outside all of them.
 carried three em dashes, on lines 1, 13 and 23. It is markdown, so axis 1 did not
 save it; it was never in a diff, so axis 2 did not either; it is under `.agents/`,
 so the pin did not cover it. Meanwhile
-`.agents/sessions/handoffs/README.md` instructs every author to copy that template,
+`.project-toolkit/sessions/handoffs/README.md` instructs every author to copy that template,
 which means the documented convention produced a file the pre-commit hook rejects,
 with no hint of why: the author never typed the character.
 

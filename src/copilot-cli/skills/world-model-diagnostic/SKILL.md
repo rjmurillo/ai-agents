@@ -223,7 +223,7 @@ Save exactly three artifacts via the repo's memory tooling, unless the user decl
 - Entry name: `diagnostic-{company-slug}-assessment`
 - Body: paradigm; boundary status; top three exposures; build sequence (first, second, third); open questions; date.
 
-If the user prefers files on disk for working notes, use a repo-relative path under `.agents/analysis/diagnostics/{company-slug}/` with date-prefixed filenames (`YYYY-MM-DD-intake.md`, `YYYY-MM-DD-boundary-audit.md`, `YYYY-MM-DD-assessment.md`, `YYYY-MM-DD-full-diagnostic.md`). Do not write outside the repo.
+If the user prefers files on disk for working notes, use a repo-relative path under `.project-toolkit/analysis/diagnostics/{company-slug}/` with date-prefixed filenames (`YYYY-MM-DD-intake.md`, `YYYY-MM-DD-boundary-audit.md`, `YYYY-MM-DD-assessment.md`, `YYYY-MM-DD-full-diagnostic.md`). Do not write outside the repo.
 
 ## Interview Style
 
@@ -301,4 +301,4 @@ If a companion is not yet ported, return the diagnostic output and let the opera
 - [ ] Boundary audit covers at least the top three highest-exposure flows.
 - [ ] No numeric readiness score appears anywhere in the output.
 
-<!-- vendor-portability: declared. This skill offers an optional on-disk note path under .agents/analysis/diagnostics/{company-slug}/ when the user prefers files. The path is an opt-in write target created on demand; the diagnostic runs in-conversation without it. Issue #2050. -->
+<!-- vendor-portability: declared. This skill offers an optional on-disk note path under .project-toolkit/analysis/diagnostics/{company-slug}/ when the user prefers files. The path is an opt-in write target created on demand; the diagnostic runs in-conversation without it. Issue #2050. -->

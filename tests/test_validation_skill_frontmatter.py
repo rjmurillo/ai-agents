@@ -282,7 +282,7 @@ class TestValidateAllowedTools:
         assert validate_allowed_tools("bash,mcp*") == []
 
     def test_command_prefix_wildcard_allowed(self) -> None:
-        # `Bash(pwsh:*)` pattern from .agents/analysis/claude-code-skill-frontmatter-2026.md.
+        # `Bash(pwsh:*)` pattern from .project-toolkit/analysis/claude-code-skill-frontmatter-2026.md.
         assert validate_allowed_tools("Bash(pwsh:*),Bash(git:*),Read") == []
 
     def test_unknown_tool_rejected(self) -> None:

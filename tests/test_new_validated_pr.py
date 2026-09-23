@@ -293,7 +293,7 @@ class TestDispatch:
         assert command[command.index("--head") + 1] == "topic"
         assert "--body" not in command
         prepared = command[command.index("--body-file") + 1]
-        assert prepared.startswith(".agents/scratch/pr-body-")
+        assert prepared.startswith(".project-toolkit/scratch/pr-body-")
         assert command[command.index("--audit-reason") + 1] == "hotfix"
         assert "--draft" in command
         assert "--skip-validation" in command

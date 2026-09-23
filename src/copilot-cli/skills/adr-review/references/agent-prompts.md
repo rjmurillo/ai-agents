@@ -33,7 +33,7 @@ ADR Review Request (Phase 1: Independent Review)
 
 Check alignment with existing decisions in:
 
-- .agents/architecture/ADR-*.md
+- .project-toolkit/architecture/ADR-*.md
 - docs/adr/ADR-*.md
 - docs/architecture/ADR-*.md
 - docs/decisions/ADR-*.md
@@ -554,4 +554,4 @@ This ADR conflates {N} distinct decisions:
 4. Update cross-references in dependent ADRs
 ```
 
-<!-- vendor-portability: declared. These prompts reference .agents/architecture/ADR-*.md as the corpus reviewers read. In a vendored install without that tree the reviewers read the ADR supplied in the PR diff instead; the prompt text does not require the path to exist. Issue #2050. -->
+<!-- vendor-portability: declared. These prompts reference .project-toolkit/architecture/ADR-*.md as the corpus reviewers read. In a vendored install without that tree the reviewers read the ADR supplied in the PR diff instead; the prompt text does not require the path to exist. Issue #2050. -->

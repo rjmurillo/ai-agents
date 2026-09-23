@@ -27,7 +27,7 @@ esac
 # read $TOTAL_COMMENTS directly saw an empty string, `[ -ne ]` raised `integer
 # expression expected`, and that nonzero exit from `[` reads as false to `if`,
 # so the BLOCKED body never ran. Read the artifact and fail closed instead.
-COUNT_FILE=".agents/pr-comments/PR-[number]/total_comments.txt"
+COUNT_FILE=".project-toolkit/pr-comments/PR-[number]/total_comments.txt"
 if [ ! -f "$COUNT_FILE" ]; then
   echo "[BLOCKED] API comment count not recorded: $COUNT_FILE"
   exit 1
@@ -43,7 +43,7 @@ if [ "$NEW_COMMENTS" -gt "$TOTAL_COMMENTS" ]; then
   # counts `**Status**:` fields out of the map, so a comment that arrives here
   # and never lands in the map is invisible to every completion check: the pass
   # can reach Gate 4 reporting zero pending work on a comment nobody read.
-  COMMENT_MAP=".agents/pr-comments/PR-[number]/comments.md"
+  COMMENT_MAP=".project-toolkit/pr-comments/PR-[number]/comments.md"
   if [ ! -f "$COMMENT_MAP" ]; then
     echo "[BLOCKED] Comment map not found: $COMMENT_MAP"
     exit 1

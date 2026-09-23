@@ -6,7 +6,7 @@
 
 **Date**: 2026-01-03
 **Session**: 129
-**Analysis**: `.agents/analysis/130-adr037-sync-evidence-review.md`
+**Analysis**: `.project-toolkit/analysis/130-adr037-sync-evidence-review.md`
 
 ## Verified Facts
 
@@ -82,7 +82,7 @@
 ## Related
 
 - **ADR-037**: Lines 286-437 (Synchronization Strategy)
-- **Analysis**: `.agents/analysis/130-adr037-sync-evidence-review.md`
+- **Analysis**: `.project-toolkit/analysis/130-adr037-sync-evidence-review.md`
 - **Planning**: `.agents/archive/planning/phase2b-memory-sync-strategy.md`
 - **Issue**: #747
 - **PR**: #746

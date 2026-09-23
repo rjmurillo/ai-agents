@@ -2,7 +2,7 @@
 
 A required status context is matched by name. Nothing today ties a context to
 the app that may publish it: ADR-101 item 7
-(`.agents/architecture/ADR-101-enforcement-planes.md`) exists precisely to add
+(`.project-toolkit/architecture/ADR-101-enforcement-planes.md`) exists precisely to add
 that binding, an `integration_id` pinned in the ruleset, and it has not landed.
 Until it does, `checks: write` or `statuses: write` on a `pull_request` or
 `pull_request_target` trigger is the permission to publish a check run or commit

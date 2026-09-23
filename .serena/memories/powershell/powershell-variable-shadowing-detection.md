@@ -69,6 +69,6 @@ Add to PowerShell code review checklist:
 ## Source
 
 - Session: 826 (2026-01-13)
-- Retrospective: `.agents/retrospective/2026-01-13-fix-tools-frontmatter-retrospective.md`
+- Retrospective: `.project-toolkit/retrospective/2026-01-13-fix-tools-frontmatter-retrospective.md`
 - Learning: L2 (Phase 4, Lines 532-540)
 - Commit: 96d88ac (variable renamed before merge)

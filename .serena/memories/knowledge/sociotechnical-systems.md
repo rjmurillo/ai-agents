@@ -1,7 +1,7 @@
 # Sociotechnical Systems
 
 **Category**: Engineering Culture, Organization Design
-**Source**: `.agents/analysis/advanced-engineering-knowledge.md`
+**Source**: `.project-toolkit/analysis/advanced-engineering-knowledge.md`
 **Origin**: Tavistock Institute, 1950s
 
 ## Core Principle

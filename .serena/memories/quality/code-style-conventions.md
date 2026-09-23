@@ -128,7 +128,7 @@ De-facto authoritative sources (scope-specific, widely referenced):
 | Document | Scope | Location |
 |----------|-------|----------|
 | AGENT-SYSTEM.md | Agent catalog, routing heuristics | `.agents/AGENT-SYSTEM.md` |
-| ADR-* | Architecture decisions for specific topics | `.agents/architecture/ADR-*.md` |
+| ADR-* | Architecture decisions for specific topics | `.project-toolkit/architecture/ADR-*.md` |
 | usage-mandatory.md | Skill usage requirements | `.serena/memories/usage-mandatory.md` |
 
 ### Creating New Canonical Sources

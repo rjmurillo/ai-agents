@@ -84,11 +84,11 @@ Discover the ADR destination, naming convention, numbering, and template by expl
 Explore the codebase to find where ADRs live. Do not assume a fixed location.
 
 1. **Search broadly**: Use glob/grep to find files matching ADR patterns (`ADR-*.md`, `adr-*.md`, `0*-*.md` in directories named `decisions`, `adr`, `architecture`)
-2. **Check common locations**: `.agents/architecture/`, `docs/adr/`, `docs/architecture/`, `docs/decisions/`, `architecture/decisions/`
+2. **Check common locations**: `.project-toolkit/architecture/`, `docs/adr/`, `docs/architecture/`, `docs/decisions/`, `architecture/decisions/`
 3. **Check for ADR tooling config**: Look for `.adr-dir` files (used by `adr-tools`) or ADR references in README, CONTRIBUTING, or project documentation
 4. **If user specifies a location**: Use that, regardless of what exists elsewhere
 
-Note: `.agents/architecture/`, `docs/adr/`, `docs/architecture/`, `docs/decisions/`, and `architecture/decisions/` are monitored by `adr-review` for auto-triggered review when the platform honors file triggers. Invoke `adr-review` manually if automatic review does not fire.
+Note: `.project-toolkit/architecture/`, `docs/adr/`, `docs/architecture/`, `docs/decisions/`, and `architecture/decisions/` are monitored by `adr-review` for auto-triggered review when the platform honors file triggers. Invoke `adr-review` manually if automatic review does not fire.
 
 #### Step 2: Detect template from existing ADRs
 
@@ -105,7 +105,7 @@ If the directory contains existing ADRs:
 If no ADRs or template files exist anywhere in the codebase:
 
 - Prompt the user to choose a template from the [catalog](references/adr-templates-catalog.md)
-- Suggest the **Project Canonical** template as the default (if `.agents/architecture/ADR-TEMPLATE.md` exists) or **MADR** as a widely-adopted alternative
+- Suggest the **Project Canonical** template as the default (if `.project-toolkit/architecture/ADR-TEMPLATE.md` exists) or **MADR** as a widely-adopted alternative
 - Ask the user to confirm or specify the target directory
 
 #### Step 4: Determine next number
@@ -114,7 +114,7 @@ If no ADRs or template files exist anywhere in the codebase:
 - Determine the next sequential number (zero-padded to match existing convention)
 - Verify no collision with existing files in that directory
 
-For this repo's canonical `.agents/architecture/` location, use the
+For this repo's canonical `.project-toolkit/architecture/` location, use the
 deterministic helper instead of eyeballing the directory (it also accounts
 for the #2228 allowlist of pre-existing duplicates):
 
@@ -141,8 +141,8 @@ Populate the detected template with gathered content:
 - Match the style and conventions of existing ADRs at the destination
 
 **Lifecycle frontmatter (ADR-073, Phase 1)**: when the destination uses this
-repo's canonical template (`.agents/architecture/ADR-TEMPLATE.md`), emit the
-<!-- vendor-portability: declared. adr-generator reads the canonical ADR template under .agents/architecture/; a consumer repo without it falls back to the bundled references/adr-template.md. Issue #2050. -->
+repo's canonical template (`.project-toolkit/architecture/ADR-TEMPLATE.md`), emit the
+<!-- vendor-portability: declared. adr-generator reads the canonical ADR template under .project-toolkit/architecture/; a consumer repo without it falls back to the bundled references/adr-template.md. Issue #2050. -->
 machine-readable YAML frontmatter block above the `# ADR-NNN:` heading with
 these safe defaults:
 

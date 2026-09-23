@@ -89,7 +89,7 @@ The shared checkout drifts, and its dirty state is not yours to reset.
 ## Related
 
 - `.claude/rules/plugin-version-bump.md`, the current and correct rule.
-- `.agents/architecture/ADR-092-omit-plugin-manifest-version.md`, which supersedes
-  `.agents/architecture/ADR-079-merge-time-plugin-version-bump.md`.
+- `.project-toolkit/architecture/ADR-092-omit-plugin-manifest-version.md`, which supersedes
+  `.project-toolkit/architecture/ADR-079-merge-time-plugin-version-bump.md`.
 - `git/git-stash-is-shared-across-every-worktree.md`, the sibling case where
   shared checkout state silently crosses between agents.

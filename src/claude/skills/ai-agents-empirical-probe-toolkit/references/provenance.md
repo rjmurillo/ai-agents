@@ -8,11 +8,11 @@ Verified 2026-07-03 against the working tree.
 
 | Fact | Source | Re-verify |
 |------|--------|-----------|
-| #2205 probe story, first-fix defects | `.agents/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md:49-50` | `grep -n "session 1873" .agents/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md` |
+| #2205 probe story, first-fix defects | `.project-toolkit/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md:49-50` | `grep -n "session 1873" .project-toolkit/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md` |
 | Plugin-root env contract, Copilot CLI 1.0.57 | `.serena/memories/decision-copilot-cli-hook-plugin-root-contract.md` | `cat .serena/memories/decision-copilot-cli-hook-plugin-root-contract.md` |
-| Payload casing contract, CLI 1.0.58 | `.agents/retrospective/2026-06-02-issue-2290-copilot-hook-payload-format.md:33,47,71` | `grep -n "toolArgs" .agents/retrospective/2026-06-02-issue-2290-copilot-hook-payload-format.md` |
-| M4 threshold 6 vs max 4; last-5-PRs rule | `.agents/retrospective/2026-05-10-pr-1989-recursive-failure.md:70-73,153` | `grep -n "Threshold = 6" .agents/retrospective/2026-05-10-pr-1989-recursive-failure.md` |
-| #1887 Phase-6 audit 0/35 | `.agents/retrospective/2026-05-05-pr-1887-iteration-paradox.md:199,230` | `grep -n "Total preventable" .agents/retrospective/2026-05-05-pr-1887-iteration-paradox.md` |
+| Payload casing contract, CLI 1.0.58 | `.project-toolkit/retrospective/2026-06-02-issue-2290-copilot-hook-payload-format.md:33,47,71` | `grep -n "toolArgs" .project-toolkit/retrospective/2026-06-02-issue-2290-copilot-hook-payload-format.md` |
+| M4 threshold 6 vs max 4; last-5-PRs rule | `.project-toolkit/retrospective/2026-05-10-pr-1989-recursive-failure.md:70-73,153` | `grep -n "Threshold = 6" .project-toolkit/retrospective/2026-05-10-pr-1989-recursive-failure.md` |
+| #1887 Phase-6 audit 0/35 | `.project-toolkit/retrospective/2026-05-05-pr-1887-iteration-paradox.md:199,230` | `grep -n "Total preventable" .project-toolkit/retrospective/2026-05-05-pr-1887-iteration-paradox.md` |
 | Eval commands and flags | `scripts/eval/eval-prompt-change.py:1-60`, `scripts/eval/eval-agent-vs-baseline.py:447-475` | `uv run python scripts/eval/eval-prompt-change.py --help` |
 | Scenario/fixture locations | `tests/evals/`, `evals/` | `ls tests/evals/ evals/` |
 | Verbatim-quote rule (7 fix commits) | `.claude/rules/canonical-source-mirror.md` | `sed -n '1,30p' .claude/rules/canonical-source-mirror.md` |

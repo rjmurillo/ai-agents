@@ -1,0 +1,19 @@
+{
+  "id": "episode-2025-12-23-session-86-adr-017-debate",
+  "session": "2025-12-23-session-86-adr-017-debate",
+  "timestamp": "2025-12-23T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "partial",
+  "task": "Conduct up to 10 rounds of agent debate on ADR-017 until consensus reached (all agents Accept or Disagree-and-Commit).",
+  "decisions": [],
+  "events": [],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 5298
+  },
+  "lessons": []
+}

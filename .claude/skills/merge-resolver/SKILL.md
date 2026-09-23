@@ -117,7 +117,7 @@ Priority is a strict priority hierarchy: Security (1) > Bugfix (2) > Feature/Ref
 | Session file conflict | Accept `--theirs`, rename ours with a distinguishing suffix | Accept `--ours` (alters main's record) |
 | Same-numbered session (add/add) | Keep both; rename ours with a suffix, keep the number | Merge both contents into one file |
 
-**Rename, never content-merge.** An add/add conflict on an append-only evidence artifact (session logs `.agents/sessions/*`, QA reports `.agents/qa/*`, retrospectives `.agents/retrospective/*`) means two branches wrote different records to the same filename. Keep both files: accept the base branch version at the original name, rename the head branch version with a distinguishing suffix (keep the session number, append an issue or topic slug), and update any index or report that references the renamed file. Never merge the two contents into one file. PR #4856 proved the anti-pattern: merging both sessions' prose into one file would have destroyed two accurate records to produce one false one (`.project-toolkit/retrospective/2026-08-10-pr-4856-session-log-collision.md`). Issue #4751 tracks preventing the collision at allocation time.
+**Rename, never content-merge.** An add/add conflict on an append-only evidence artifact (session logs `.project-toolkit/sessions/*`, QA reports `.project-toolkit/qa/*`, retrospectives `.project-toolkit/retrospective/*`) means two branches wrote different records to the same filename. Keep both files: accept the base branch version at the original name, rename the head branch version with a distinguishing suffix (keep the session number, append an issue or topic slug), and update any index or report that references the renamed file. Never merge the two contents into one file. PR #4856 proved the anti-pattern: merging both sessions' prose into one file would have destroyed two accurate records to produce one false one (`.project-toolkit/retrospective/2026-08-10-pr-4856-session-log-collision.md`). Issue #4751 tracks preventing the collision at allocation time.
 
 See `references/strategies.md` for the full session file resolution workflow.
 
@@ -125,12 +125,13 @@ See `references/strategies.md` for the full session file resolution workflow.
 
 The script auto-resolves these by accepting the target branch version.
 
-**Add/add caveat**: accept-theirs alone is wrong for an add/add conflict on an append-only evidence artifact (`.agents/sessions/*`, `.agents/qa/*`, `.agents/retrospective/*`), because it silently discards the head branch's own record. `resolve_pr_conflicts.py` detects this case (no common-ancestor stage on the conflicted path) and refuses to auto-resolve it: the file lands in `files_blocked` and the run exits 1 instead of pushing. Resolve it manually: accept the base branch version at the original name, then restore the head branch version under a renamed path per the Session File Rules above.
+**Add/add caveat**: accept-theirs alone is wrong for an add/add conflict on an append-only evidence artifact (`.project-toolkit/sessions/*`, `.project-toolkit/qa/*`, `.project-toolkit/retrospective/*`), because it silently discards the head branch's own record. `resolve_pr_conflicts.py` detects this case (no common-ancestor stage on the conflicted path) and refuses to auto-resolve it: the file lands in `files_blocked` and the run exits 1 instead of pushing. Resolve it manually: accept the base branch version at the original name, then restore the head branch version under a renamed path per the Session File Rules above.
 
 | Pattern | Rationale |
 |---------|-----------|
-| `.agents/sessions/*.json` | Session files from main are immutable audit records |
-| `.agents/*` | Session artifacts, constantly changing |
+| `.project-toolkit/sessions/*.json` | Session files from main are immutable audit records |
+| `.agents/*` | Agent inputs, main is authoritative |
+| `.project-toolkit/*` | Session artifacts, constantly changing |
 | `.serena/*` | Serena memories, auto-generated |
 | `.claude/skills/*/*.md` | Skill definitions, main is authoritative |
 | `.claude/commands/*` | Command definitions, main is authoritative |
@@ -295,7 +296,7 @@ explicitly supplied log still fails validation.
 
 ```bash
 # Validate an existing log only when one is part of the merge.
-uv run python scripts/validate_session_json.py ".agents/sessions/<log>.json"
+uv run python scripts/validate_session_json.py ".project-toolkit/sessions/<log>.json"
 ```
 
 ### Session End Checklist
@@ -317,4 +318,4 @@ uv run python scripts/validate_session_json.py ".agents/sessions/<log>.json"
 
 </details>
 
-<!-- vendor-portability: declared. This skill reasons about consumer git state under .agents/ (sessions/*.json immutability, QA reports under .agents/qa/, retrospectives under .agents/retrospective/, HANDOFF.md, staging the .agents/ tree). The references describe how to treat whatever .agents/ content the consumer repo has; an install without that tree simply has nothing to stage there. The PR #4856 citation (.agents/retrospective/2026-08-10-pr-4856-session-log-collision.md) is upstream evidence in the rjmurillo/ai-agents repository. Issue #2050. -->
+<!-- vendor-portability: declared. This skill reasons about consumer git state under .agents/ (sessions/*.json immutability, QA reports under .project-toolkit/qa/, retrospectives under .project-toolkit/retrospective/, HANDOFF.md, staging the .agents/ tree). The references describe how to treat whatever .agents/ content the consumer repo has; an install without that tree simply has nothing to stage there. The PR #4856 citation (.project-toolkit/retrospective/2026-08-10-pr-4856-session-log-collision.md) is upstream evidence in the rjmurillo/ai-agents repository. Issue #2050. -->

@@ -126,7 +126,7 @@ class TestDetectAdrChanges:
         (tmp_path / ".git").mkdir()
         mock_results = [
             # First pattern returns a created file
-            MagicMock(returncode=0, stdout="A\t.agents/architecture/ADR-001.md"),
+            MagicMock(returncode=0, stdout="A\t.project-toolkit/architecture/ADR-001.md"),
         ]
         mock_results.extend(
             MagicMock(returncode=0, stdout="")

@@ -80,7 +80,7 @@ def validate_traceability(repo_root: Path) -> bool:
             "scripts/validation/traceability.py not present"
         )
     exit_code, stdout, stderr = _run_subprocess(
-        [sys.executable, str(script), "--specs-path", str(repo_root / ".agents" / "specs"), "--ci"]
+        [sys.executable, str(script), "--specs-path", str(repo_root / ".project-toolkit" / "specs"), "--ci"]
     )
     output = (stdout or "") + (stderr or "")
     if output.strip():
@@ -395,7 +395,7 @@ def validate_spec_contradiction(repo_root: Path) -> bool:
     after each push. Always returns True; the WARN output is the signal.
 
     See Issue #1920 and the retrospective at
-    ``.agents/retrospective/2026-05-08-pr-1897-confident-incorrectness-recurrence.md``.
+    ``.project-toolkit/retrospective/2026-05-08-pr-1897-confident-incorrectness-recurrence.md``.
     """
     script = repo_root / "scripts" / "validation" / "spec_contradiction.py"
     if not script.exists():

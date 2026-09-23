@@ -5,7 +5,7 @@ Claude Code SessionStart hook that injects the most recent retrospective
 into the session so prior-session findings (recurring bug patterns, gotchas)
 are available without a manual read.
 
-Loads the latest retrospective from .agents/retrospective/ (learnings from
+Loads the latest retrospective from .project-toolkit/retrospective/ (learnings from
 prior sessions), truncated to prevent context bloat. Output is printed to
 stdout so Claude Code injects it into the session context.
 
@@ -131,7 +131,7 @@ def _has_symlink_component(root: Path, target: Path) -> bool:
     a symlink to an external directory, ``resolve()`` follows it and every
     file that is genuinely inside the redirected target then reads as
     "contained" relative to that redirected root. A project-recognized
-    checkout whose ``.agents`` or ``.agents/retrospective`` is a symlink
+    checkout whose ``.agents`` or ``.project-toolkit/retrospective`` is a symlink
     would leak an external directory's newest Markdown file into
     SessionStart context. Walking each unresolved component between
     ``root`` (the project directory, trusted) and ``target`` (``retro_dir``)
@@ -298,7 +298,7 @@ def _pending_skeleton_summary(filenames: list[str]) -> str:
 def _write_audit_log(project_dir: str, loaded_files: list[str]) -> None:
     """Write a brief audit entry for session start context loading."""
     try:
-        audit_dir = Path(project_dir) / ".agents" / ".hook-state"
+        audit_dir = Path(project_dir) / ".project-toolkit" / ".hook-state"
         audit_dir.mkdir(parents=True, exist_ok=True)
 
         today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
@@ -369,7 +369,7 @@ def main() -> None:
     output_parts: list[str] = []
 
     # Load latest retrospective
-    retro_dir = project_path / ".agents" / "retrospective"
+    retro_dir = project_path / ".project-toolkit" / "retrospective"
     latest_retro = _find_latest_retrospective(retro_dir, project_path)
     if latest_retro:
         retro_content = _read_file_truncated(latest_retro, MAX_RETRO_CHARS)

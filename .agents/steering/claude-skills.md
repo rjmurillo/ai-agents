@@ -74,7 +74,7 @@ model: haiku
 model-rationale: cost. The 'haiku' rolling alias resolves via the platform model_tiers map to a tier priced below the sonnet-tier harness default; this unit is routing/mechanical work where the cheaper tier suffices (ADR-080 rule 3).
 ```
 
-See `.agents/architecture/ADR-080-model-pin-justification-policy.md` and
+See `.project-toolkit/architecture/ADR-080-model-pin-justification-policy.md` and
 `docs/SKILL-AUTHORING.md`.
 
 ### Language Policy
@@ -189,8 +189,8 @@ Before submitting a skill PR, verify:
 
 ## References
 
-- [ADR-005](../../.agents/architecture/ADR-005-powershell-only-scripting.md): Original PowerShell-only decision (superseded for new development)
-- [ADR-042](../../.agents/architecture/ADR-042-python-migration-strategy.md): Python migration strategy (current)
+- [ADR-005](../../.project-toolkit/architecture/ADR-005-powershell-only-scripting.md): Original PowerShell-only decision (superseded for new development)
+- [ADR-042](../../.project-toolkit/architecture/ADR-042-python-migration-strategy.md): Python migration strategy (current)
 - [SKILL-AUTHORING.md](../../docs/SKILL-AUTHORING.md): Skill authoring guide
 - [Steering README](.agents/steering/README.md): Steering system overview
 - Memory: `skills-index`

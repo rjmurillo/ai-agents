@@ -38,14 +38,14 @@ rebases and pure refactors into their own commits or PRs.
 | Type | Reference | Description |
 |------|-----------|-------------|
 | **Issue** | Closes #<!-- issue number --> | <!-- Issue title --> |
-| **Spec** | `.agents/planning/...` | <!-- Planning document --> |
-| **Spec** | `.agents/specs/...` | <!-- Spec document (if applicable) --> |
+| **Spec** | `.project-toolkit/planning/...` | <!-- Planning document --> |
+| **Spec** | `.project-toolkit/specs/...` | <!-- Spec document (if applicable) --> |
 
 ### Spec Requirement Guidelines
 
 | PR Type | Spec Required? | Guidance |
 |---------|----------------|----------|
-| **Feature** (`feat:`, `feat(scope):`) | Required | Link issue, REQ-*, or spec file in `.agents/planning/` |
+| **Feature** (`feat:`, `feat(scope):`) | Required | Link issue, REQ-*, or spec file in `.project-toolkit/planning/` |
 | **Bug fix** (`fix:`, `fix(scope):`) | Optional | Link issue if exists; explain root cause if complex |
 | **Refactor** (`refactor:`, `refactor(scope):`) | Optional | Explain rationale and scope in PR description |
 | **Documentation** (`docs:`) | Not required | N/A |
@@ -55,7 +55,7 @@ rebases and pure refactors into their own commits or PRs.
 Supported reference formats:
 - Issues: "Closes #123", "Fixes #456", "Implements #789"
 - Requirements: "REQ-001", "DESIGN-002", "TASK-003"
-- Spec files: ".agents/specs/requirements/...", ".agents/planning/..."
+- Spec files: ".project-toolkit/specs/requirements/...", ".project-toolkit/planning/..."
 
 For feature PRs: Create spec in .project-toolkit/planning/ before submitting if none exists.
 For other PRs: Add references when traceability adds value.
@@ -128,7 +128,7 @@ Deliverables in this PR:
 - [ ] No security-critical changes in this PR
 - [ ] Security agent reviewed infrastructure changes
 - [ ] Security agent reviewed authentication/authorization changes
-- [ ] Security patterns applied (see `.agents/security/`)
+- [ ] Security patterns applied (see `.project-toolkit/security/`)
 
 **Files requiring security review:**
 

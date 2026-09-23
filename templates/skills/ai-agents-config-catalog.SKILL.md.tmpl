@@ -48,7 +48,7 @@ using or documenting an environment variable.
 
 | Name | Status as of 2026-07-03 | Story |
 |---|---|---|
-| `SKIP_PREPUSH` | REMOVED | Historical: abused 3x within hours of creation (session 1187, retro `.agents/retrospective/2026-02-08-session-1187-skip-prepush-abuse.md`) |
+| `SKIP_PREPUSH` | REMOVED | Historical: abused 3x within hours of creation (session 1187, retro `.project-toolkit/retrospective/2026-02-08-session-1187-skip-prepush-abuse.md`) |
 | `SKIP_TESTS` | REMOVED | Removed from the pre-push hook during the Lefthook migration, but it outlived that as the env default for `pre_pr.py --skip-tests`, which was parsed and never read; flag, env default, and the `--verbose` beside it were deleted once no gate set `skip_flag` |
 
 Lesson encoded: a global bypass with no teeth (no telemetry, no approval step) will be reached for under pressure. New escape hatches must be narrow, announced in output, and observable.
@@ -97,7 +97,7 @@ Session-end QA can be skipped only with one of these exact verdict strings in th
 
 | Verdict | When legitimate | Enforcement |
 |---|---|---|
-| `SKIPPED: investigation-only` | Every staged file matches the allowlist: `.agents/sessions/`, `.agents/analysis/`, `.agents/retrospective/`, `.serena/memories/`, `.agents/security/`, `.agents/memory/` (incl. `episodes/`), `.agents/architecture/REVIEW-*`, `.agents/critique/` | Single source of truth `scripts/modules/investigation_allowlist.py`; pre-check via `scripts/validation/test_investigation_eligibility.py`; CI backstop `.github/scripts/validate_investigation_claims.py` (advisory, confirmed: exits 0 unconditionally per its own docstring and `main()`) |
+| `SKIPPED: investigation-only` | Every staged file matches the allowlist: `.project-toolkit/sessions/`, `.project-toolkit/analysis/`, `.project-toolkit/retrospective/`, `.serena/memories/`, `.project-toolkit/security/`, `.project-toolkit/memory/` (incl. `episodes/`), `.project-toolkit/architecture/REVIEW-*`, `.project-toolkit/critique/` | Single source of truth `scripts/modules/investigation_allowlist.py`; pre-check via `scripts/validation/test_investigation_eligibility.py`; CI backstop `.github/scripts/validate_investigation_claims.py` (advisory, confirmed: exits 0 unconditionally per its own docstring and `main()`) |
 | `SKIPPED: docs-only` | All changes are markdown and strictly editorial: spelling, grammar, formatting; no code, config, tests, workflows, or code-block changes | The enforcing source is `scripts/validate_session_json.py` (`validate_qa_skip_scope`, dispatch table at lines 166-169) plus `CONTRIBUTING.md:735-741`. Pre-check via `scripts/validation/test_docs_only_eligibility.py` |
 
 Mixed sessions do not qualify; split the commit. Claiming investigation-only with a code file staged is exactly what the CI backstop exists to catch.

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Check design review files for blocking verdicts that should prevent merge.
 
-Parses DESIGN-REVIEW-*.md files in .agents/architecture/ for blocking
+Parses DESIGN-REVIEW-*.md files in .project-toolkit/architecture/ for blocking
 verdicts. Supports both YAML frontmatter and markdown header formats.
 
 Exit codes (ADR-035):
@@ -115,7 +115,7 @@ def check_review_file(file_path: str) -> ReviewResult:
 
 def find_design_reviews(base_dir: str) -> list[str]:
     """Find all DESIGN-REVIEW-*.md files in the architecture directory."""
-    pattern = os.path.join(base_dir, ".agents", "architecture", "DESIGN-REVIEW-*.md")
+    pattern = os.path.join(base_dir, ".project-toolkit", "architecture", "DESIGN-REVIEW-*.md")
     return sorted(glob(pattern))
 
 

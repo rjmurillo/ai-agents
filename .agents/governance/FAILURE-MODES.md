@@ -208,7 +208,7 @@ Each reviewer defers to the others or restates the prompt rather than inspecting
 
 - Review rationales share boilerplate and lack file or line citations.
 - Unanimous approval on changes that touch security, data paths, or public APIs.
-- No dissent recorded in `.agents/decisions/`.
+- No dissent recorded in `.project-toolkit/decisions/`.
 
 ### Enforcement Pattern
 
@@ -355,7 +355,7 @@ return verdict.group(1) if verdict else "PASS"   # no verdict line -> claim PASS
 
 ### Evidence
 
-- **PR #1965 round 9-11 fixes** (2026-05-10): commits `5bbf355` ("UNKNOWN as blocking verdict"), `c1d8209` ("admit UNKNOWN as a valid verdict token"), `6cb5370` ("block on UNKNOWN in exit_code case statement"). The root issue: the CI parser was treating absence-of-VERDICT as a non-blocking outcome. The fix took three rounds because each layer (parser → exit-code translator → workflow gate) had its own silent-default. See `.agents/retrospective/2026-05-10-pr-1965-review-axes-convergence.md`.
+- **PR #1965 round 9-11 fixes** (2026-05-10): commits `5bbf355` ("UNKNOWN as blocking verdict"), `c1d8209` ("admit UNKNOWN as a valid verdict token"), `6cb5370` ("block on UNKNOWN in exit_code case statement"). The root issue: the CI parser was treating absence-of-VERDICT as a non-blocking outcome. The fix took three rounds because each layer (parser → exit-code translator → workflow gate) had its own silent-default. See `.project-toolkit/retrospective/2026-05-10-pr-1965-review-axes-convergence.md`.
 - **Issue #2006** (security agent NEEDS_REVIEW false positives): security agent output truncated mid-sentence, parser fell through to `NEEDS_REVIEW`, blocked PR #2004 twice despite a substantive PASS review. Same shape: missing signal silently became blocking signal.
 - **Issue #1991** (M5 bot-cascade hook): the original PR #1989 implementation failed open on `gh api || true` and parsed paginated output as complete when it wasn't. Re-spec explicitly bans `gh api || true` and requires `fetched_pages_complete == true && success == true` before trusting any value.
 - **External corroboration**: daniel.haxx.se 2026-05-11 ("Mythos finds a curl vulnerability") names "comments contradicting code behavior" as a *primary* differentiator of AI code analyzers vs traditional SAST. Comment-vs-code drift is the human-facing variant of this failure mode; the comment promises behavior the code silently doesn't deliver. AI analyzers catch this because they read intent, not just structure.
@@ -394,7 +394,7 @@ FM-4 (False Completion Markers) describes the *output*: an agent claims a task i
 
 ### References
 
-- `.agents/retrospective/2026-05-10-pr-1965-review-axes-convergence.md` (round 9-11 fixes)
+- `.project-toolkit/retrospective/2026-05-10-pr-1965-review-axes-convergence.md` (round 9-11 fixes)
 - Issue #2006 (security agent output truncation produces false NEEDS_REVIEW blocks)
 - Issue #1991 (re-spec M5 with strict parsing, `|| true` ban)
 - Issue #1992 (re-spec M1 stable-zero wrapper, `len(threads)` ad-hoc parsing pattern)
@@ -473,7 +473,7 @@ smoke MUST be loud.
 
 ### References
 
-- `.agents/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md`
+- `.project-toolkit/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md`
 - ADR-071 (plugin hook runtime-contract verification)
 - `.claude/rules/generated-artifacts.md`
 - `.claude/rules/canonical-source-mirror.md` (self-referential test anti-pattern)

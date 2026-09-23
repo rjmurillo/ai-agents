@@ -37,7 +37,7 @@ These are corrections that MUST be followed:
 - Null comparison syntax in Pester assertions - use PowerShell operator placement `$null -eq $value` (not `$value -eq $null`) for consistent null checking (Session 2, 2026-01-15)
   - Evidence: Batch 37 - Updated null comparison syntax in multiple Pester test files for consistency
 - Tests using -SessionPath (or similar path parameters) must place files inside the script's expected directory structure, not /tmp/. Path containment validation (CWE-22) will reject paths outside the allowed directory. Use isolated repo helpers (e.g., New-TestRepo) for proper test isolation (Session 1183, 2026-02-07)
-  - Evidence: 2 tests failed after adding CWE-22 path traversal fix because they created temp files in /tmp/ outside .agents/sessions/. Fixed by using New-TestRepo helper.
+  - Evidence: 2 tests failed after adding CWE-22 path traversal fix because they created temp files in /tmp/ outside .project-toolkit/sessions/. Fixed by using New-TestRepo helper.
 - Skill tests belong in top-level tests/, not inside .claude/skills/{name}/tests/. The skill tests/ dir is a CI concern, not a skill concern (Session 1183, 2026-02-07)
   - Evidence: User correction - "is a CI concern, not a concern with the skill. Move to tests/"
 

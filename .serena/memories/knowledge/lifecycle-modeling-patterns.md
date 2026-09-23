@@ -34,7 +34,7 @@ The state classifier is at lines 103-123 and `get_unaddressed_comments` at line 
 Originally `scripts/Invoke-PRMaintenance.ps1` lines 588-753; the ADR-042 migration
 removed that script and consolidated the two PowerShell helpers into this file.
 
-**Documentation**: `.agents/architecture/bot-author-feedback-protocol.md`
+**Documentation**: `.project-toolkit/architecture/bot-author-feedback-protocol.md`
 
 ## Pattern Benefits
 

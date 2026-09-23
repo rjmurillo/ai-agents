@@ -18,6 +18,6 @@ Components:
 
 ## Apply when
 
-Touching LSP guards, adding a navigation tool that should route through Serena, or debugging a gate misfire (use the escape hatches above, not a hook edit). See ADR-062 (`.agents/architecture/ADR-062-conditional-lsp-first-enforcement.md`, ACCEPTED-WITH-DC) and `.claude/rules/lsp-first.md`.
+Touching LSP guards, adding a navigation tool that should route through Serena, or debugging a gate misfire (use the escape hatches above, not a hook edit). See ADR-062 (`.project-toolkit/architecture/ADR-062-conditional-lsp-first-enforcement.md`, ACCEPTED-WITH-DC) and `.claude/rules/lsp-first.md`.
 
 Source: issue #2165 / PR #2168 (MERGED); ADR-062.

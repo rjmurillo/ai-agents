@@ -31,8 +31,8 @@ Read:
 1. `.claude/skills/agent-harness-reference/SKILL.md`
 2. `.claude/skills/agent-harness-reference/references/official-hook-contracts.md`
 3. `.claude/skills/agent-harness-reference/references/probe-evidence.md`
-4. `.agents/architecture/ADR-068-consolidated-hook-dispatcher.md`
-5. `.agents/architecture/ADR-071-plugin-hook-runtime-contract-verification.md`
+4. `.project-toolkit/architecture/ADR-068-consolidated-hook-dispatcher.md`
+5. `.project-toolkit/architecture/ADR-071-plugin-hook-runtime-contract-verification.md`
 6. `.claude/rules/generated-artifacts.md`
 
 Do not run open-ended documentation research. Re-search or re-probe only when

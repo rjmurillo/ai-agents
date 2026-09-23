@@ -41,7 +41,7 @@ Status: {last_known_status}
 | [path] | [code/adr/doc] | [high/medium/low] |
 
 ### Recommendation
-- **Archive**: Keep copy in `.agents/architecture/archive/`
+- **Archive**: Keep copy in `.project-toolkit/architecture/archive/`
 - **Delete**: No dependencies, safe to remove
 - **Block**: Active dependencies require resolution first
 """)
@@ -102,4 +102,4 @@ Save to: `.project-toolkit/architecture/archive/ADR-NNN-title.md`
 - **Required Actions**: [What must happen first]
 ```
 
-<!-- vendor-portability: declared. This workflow archives superseded ADRs to .agents/architecture/archive/. In a vendored install without that tree the archive dir is created on first use; the path is a write target, not a read dependency. Issue #2050. -->
+<!-- vendor-portability: declared. This workflow archives superseded ADRs to .project-toolkit/architecture/archive/. In a vendored install without that tree the archive dir is created on first use; the path is a write target, not a read dependency. Issue #2050. -->

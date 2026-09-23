@@ -53,7 +53,7 @@ The third one directly contradicts the carve-out.
 
 Source: Vercel, "AGENTS.md outperforms skills in our agent evals", published
 January 27, 2026 by Jude Gao. Local analysis at
-`.agents/analysis/vercel-passive-context-vs-skills-research.md`, whose own
+`.project-toolkit/analysis/vercel-passive-context-vs-skills-research.md`, whose own
 `Date: 2026-02-08` header is when this repo wrote the analysis, not when
 Vercel published. Cite the January date when citing the finding.
 
@@ -338,12 +338,12 @@ lands.
 | OpenAI, GPT-6 Astra migration guide | 2026-09-03 | Vendor, first party |
 | OpenAI, GPT-5.6 Sol/Terra/Luna tier naming | 2026-07-09 | Vendor, first party |
 | PR #1022, commit `77edc827` | 2026-01-31 | This repo |
-| ADR-088 | see `.agents/architecture/` | This repo |
+| ADR-088 | see `.project-toolkit/architecture/` | This repo |
 
 <!-- vendor-portability: declared. The cited repository paths provide provenance
 for the activation and generation claims above:
-.agents/analysis/vercel-passive-context-vs-skills-research.md,
-.agents/architecture, build/scripts/generate_rules.py,
+.project-toolkit/analysis/vercel-passive-context-vs-skills-research.md,
+.project-toolkit/architecture, build/scripts/generate_rules.py,
 docs/eval/scripts/evalkit.py, scripts/eval/_providers.py,
 scripts/validation/check_rule_scope_keys.py, and
 templates/platforms/copilot-cli.yaml. The routing trigger remains

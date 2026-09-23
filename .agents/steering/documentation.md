@@ -149,7 +149,7 @@ Use a horizontal rule followed by italicized metadata:
 
 ### ADR Structure
 
-ADRs follow the template at `.agents/architecture/ADR-TEMPLATE.md`. Required sections:
+ADRs follow the template at `.project-toolkit/architecture/ADR-TEMPLATE.md`. Required sections:
 
 | Section | Purpose |
 |---------|---------|
@@ -272,7 +272,7 @@ Related memory: `engineering-knowledge-index`
 
 - Markdownlint config: `.markdownlint-cli2.yaml`
 - ADR-043: Scoped tool execution for markdown linting
-- ADR template: `.agents/architecture/ADR-TEMPLATE.md`
+- ADR template: `.project-toolkit/architecture/ADR-TEMPLATE.md`
 - Agent prompts steering: `.agents/steering/agent-prompts.md`
 
 ---

@@ -346,11 +346,11 @@ skill behavior.
 
 ## Related
 
-- ADR-071 `.agents/architecture/ADR-071-plugin-hook-runtime-contract-verification.md` (Verified Runtime Contract: Copilot 1.0.57, Claude Code 2.1.159, env dump quote); status Accepted 2026-06-02
-- ADR-068 `.agents/architecture/ADR-068-consolidated-hook-dispatcher.md` (historical matcher incident, process kill, and cold-start evidence); status Accepted
+- ADR-071 `.project-toolkit/architecture/ADR-071-plugin-hook-runtime-contract-verification.md` (Verified Runtime Contract: Copilot 1.0.57, Claude Code 2.1.159, env dump quote); status Accepted 2026-06-02
+- ADR-068 `.project-toolkit/architecture/ADR-068-consolidated-hook-dispatcher.md` (historical matcher incident, process kill, and cold-start evidence); status Accepted
 - `.serena/memories/decision-copilot-cli-hook-plugin-root-contract.md` (probe evidence, docs wrong by omission)
 - `.serena/memories/copilot-hooks-observations.md` (payload casing, exit 143, toolArgs JSON string)
-- `.agents/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md` and `2026-06-02-issue-2290-copilot-hook-payload-format.md`
+- `.project-toolkit/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md` and `2026-06-02-issue-2290-copilot-hook-payload-format.md`
 - `build/scripts/generate_hooks_emit.py:335-421`; `build/scripts/generate_hooks_events.py:381-385`; `templates/platforms/copilot-cli.yaml:52-62`
 - `.claude/rules/generated-artifacts.md`; `.claude/rules/lsp-first.md`; `.claude/rules/claude-agents.md` (MUST 2)
 - `.claude/lib/claude_hook_protocol.py`; `.claude/lib/hook_dispatch_protocol.py`

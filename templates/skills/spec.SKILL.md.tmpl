@@ -11,7 +11,7 @@ user-invocable: true
 # Spec
 
 <!-- vendor-portability: contributor-scoped citation. The retrospective at
-     .agents/retrospective/2026-05-05-pr-1887-iteration-paradox.md is the evidence for
+     .project-toolkit/retrospective/2026-05-05-pr-1887-iteration-paradox.md is the evidence for
      why the Step 0 gate exists and lives upstream in the rjmurillo/ai-agents
      repo; it is cited, not resolved at runtime (ADR-083, issue #5632). -->
 
@@ -38,7 +38,7 @@ without a problem statement.
 
 ### Step 0: First Principles Gate (blocking, runs before Step 1)
 
-Before any clarification work, answer six forcing questions. The gate exists because every retro citing wasted spec work in the last six months traces to a question this gate forces upfront. The strongest single citation is `.agents/retrospective/2026-05-05-pr-1887-iteration-paradox.md` Phase 6, where the retro itself names the question this gate asks ("is the framework worth building at all if its design space misses the dominant failure modes?") and explicitly defers it as out of scope. That deferral landed after 69 commits.
+Before any clarification work, answer six forcing questions. The gate exists because every retro citing wasted spec work in the last six months traces to a question this gate forces upfront. The strongest single citation is `.project-toolkit/retrospective/2026-05-05-pr-1887-iteration-paradox.md` Phase 6, where the retro itself names the question this gate asks ("is the framework worth building at all if its design space misses the dominant failure modes?") and explicitly defers it as out of scope. That deferral landed after 69 commits.
 
 The six questions, asked in order:
 

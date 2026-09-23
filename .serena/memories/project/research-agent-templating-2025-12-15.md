@@ -29,7 +29,7 @@ CVA analysis of 18 agents across 3 platforms (Claude Code, VS Code, Copilot CLI)
 
 ## Output Document
 
-`.agents/analysis/ideation-agent-templating.md`
+`.project-toolkit/analysis/ideation-agent-templating.md`
 
 ## Next Steps
 

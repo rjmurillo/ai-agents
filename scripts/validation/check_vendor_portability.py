@@ -3,7 +3,7 @@
 """Fail CI when a vendor-shipped script hard-codes an upstream-only path.
 
 Issue #2050: skills in a vendored plugin install hard-code paths
-(`.agents/`, `.claude/lib/`) that exist only in the upstream
+(`.agents/`, `.project-toolkit/`, `.claude/lib/`) that exist only in the upstream
 `rjmurillo/ai-agents` checkout. In a consumer repo those paths do not
 exist, so the skill fails or degrades silently. The fix (Phase 1) ships a
 `.claude/lib/paths.py` helper with `resolve_artifact_root` (write path),
@@ -14,7 +14,8 @@ hard-coding those paths instead of routing through the helper.
 What it flags:
   A Python file under a scanned skill-scripts root that contains a non-docstring
   string literal or f-string text with `.agents`, `.agents/`, `.agents\\`,
-  `.claude/lib`, or `.claude\\lib` AND does not import and use the
+  `.project-toolkit`, `.project-toolkit/`, `.project-toolkit\\`, `.claude/lib`,
+  or `.claude\\lib` AND does not import and use the
   portability helper (`paths`, exposing `artifact_dir` /
   `resolve_artifact_root` / `resolve_skill_resource`). A file that imports the
   helper is assumed to
@@ -113,6 +114,10 @@ from portability_baseline import (  # noqa: E402
 # name a skill-internal sibling directory rather than the upstream tree.
 _BANNED_PATH = re.compile(
     r"\.agents(?:[\\/]+|['\"]|$)"
+    # Issue #5420 moved the agent write targets out of `.agents/` into
+    # `.project-toolkit/`, the repo-root artifact tree. A script hard-coding
+    # that path is the same upstream-only assumption `.agents/` already caught.
+    r"|\.project-toolkit(?:[\\/]+|['\"]|$)"
     r"|\.claude[\\/]+lib(?:[\\/]+|['\"]|$)"
     r"|(?<![/\\\w.])(?:\.[\\/])?scripts[\\/]"
 )

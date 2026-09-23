@@ -5,7 +5,7 @@ ADR-109 (Template-First Plugin Distribution) step B4 generalizes ADR-108's
 compile-and-drift-gate shape, already applied to skills, agents
 (``build/scripts/agent_templates.py``, B1), and rules
 (``build/scripts/rule_templates.py``, B2), to the hooks-and-settings class.
-Per ``.agents/specs/design/DESIGN-025-template-first-compiler-and-binplace.md``,
+Per ``.project-toolkit/specs/design/DESIGN-025-template-first-compiler-and-binplace.md``,
 "Per-class compile modules" section, hooks has no grammar step: "the compile
 is a byte copy for scripts and a render for ``settings.json`` and
 ``hooks.json``, ... ADR-108's mustache grammar applies to the markdown

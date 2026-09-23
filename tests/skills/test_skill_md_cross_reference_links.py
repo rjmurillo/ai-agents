@@ -23,7 +23,7 @@ of scope here. This module pins the two it repairs:
   repo-root-relative. Resolved from the file's own directory
   (`.claude/skills/golden-principles/`), none of the three existed.
 - `.claude/skills/memory-enhancement/SKILL.md:319-320` linked
-  `../../.agents/architecture/ADR-007-...` and `ADR-038-...`, one `../`
+  `../../.project-toolkit/architecture/ADR-007-...` and `ADR-038-...`, one `../`
   short of the depth needed to reach the repo root from
   `.claude/skills/memory-enhancement/` (three levels, not two).
 

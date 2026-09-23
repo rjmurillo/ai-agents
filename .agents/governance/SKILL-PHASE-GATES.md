@@ -242,7 +242,7 @@ Track gate effectiveness:
 
 ## Related Documents
 
-- [ADR-033](../architecture/ADR-033-routing-level-enforcement-gates.md): Routing-level enforcement gates
+- [ADR-033](../../.project-toolkit/architecture/ADR-033-routing-level-enforcement-gates.md): Routing-level enforcement gates
 - [SKILL-CREATION-CRITERIA.md](./SKILL-CREATION-CRITERIA.md): When to create skills
 - [Agent Design Principles](./agent-design-principles.md): Composability requirement
 

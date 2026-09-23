@@ -10,7 +10,7 @@ the four writers drift apart (one of the exact failure modes REQ-008
 tracks).
 
 Kill criteria (see
-``.agents/specs/requirements/REQ-008-review-axes-convergence.md`` Kill
+``.project-toolkit/specs/requirements/REQ-008-review-axes-convergence.md`` Kill
 Criteria section, REQ-008-09):
 
     K1: drift hook false positive (axis edit the maintainer intended that
@@ -90,7 +90,7 @@ EVENTS_RELPATH: Final[str] = ".project-toolkit/metrics/drift-events.jsonl"
 WINDOW_DAYS: Final[int] = 30
 
 # Per-criterion rollback thresholds, copied verbatim from REQ-008-09 in
-# .agents/specs/requirements/REQ-008-review-axes-convergence.md (Kill Criteria):
+# .project-toolkit/specs/requirements/REQ-008-review-axes-convergence.md (Kill Criteria):
 #   K1: drift hook 3+ false positives in 30 days.
 #   K2: generator-induced CI regressions, 3+ instances.
 #   K3: vendored install breakage, 1+ report (hard fail).

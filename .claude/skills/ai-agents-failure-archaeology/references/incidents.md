@@ -22,7 +22,7 @@ architectural layer.
 
 **Evidence**:
 
-- `.agents/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md:22`
+- `.project-toolkit/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md:22`
   (33-day duration), `:25` (versions v0.3.0 through v0.5.6), `:21` (uninstall
   recovery), `:115` (why the fail-open shim was unreachable).
 - First broken commit `01e76615a` (2026-04-29); this PR-branch SHA is not
@@ -58,7 +58,7 @@ pointing at the install dir, even though the public docs list none of them
 - `.claude/rules/generated-artifacts.md` (binding rule: customer-facing
   generated artifacts MUST be executed in their target runtime before release).
 - FM-11 added to `.agents/governance/FAILURE-MODES.md:404`.
-- `.agents/architecture/ADR-071-plugin-hook-runtime-contract-verification.md`.
+- `.project-toolkit/architecture/ADR-071-plugin-hook-runtime-contract-verification.md`.
 
 **Status**: SETTLED. Fixed in plugin v0.5.7 through v0.5.12, gated since.
 
@@ -77,7 +77,7 @@ but NOT stdin, so this contract dimension shipped unverified: FM-11, second
 occurrence.
 
 **Evidence**:
-`.agents/retrospective/2026-06-02-issue-2290-copilot-hook-payload-format.md:64-72`
+`.project-toolkit/retrospective/2026-06-02-issue-2290-copilot-hook-payload-format.md:64-72`
 (Five Whys), `:149-151` (casing rule, probe against Copilot CLI 1.0.58),
 `:163-167` (toolArgs-as-JSON-string), `:311-321` (correction section
 reclassifying to FM #11 second occurrence).
@@ -115,7 +115,7 @@ review rounds, and 254 review conversations. 35 of 69 commits (51%) were
    waves sat on page two.
 
 **The Phase-6 audit is the famous part**
-(`.agents/retrospective/2026-05-05-pr-1887-iteration-paradox.md:199-266`):
+(`.project-toolkit/retrospective/2026-05-05-pr-1887-iteration-paradox.md:199-266`):
 bucketing all 35 fix commits showed the as-shipped guards would have prevented
 0 of 35; an enhanced M3 at most 2 (~6%). The framework solved a real problem;
 it did not solve THE problem driving PR cost (bot concurrency and pagination
@@ -138,7 +138,7 @@ modes while doing it: 21 commits, 46 bot threads, 10 P0 bugs (B1-B10).
 
 **Root cause**: the #1965 retro prescribed TOOLING mitigations for BEHAVIORAL
 failures. New tools executed with the same behavior produce the same failures
-(`.agents/retrospective/2026-05-10-pr-1989-recursive-failure.md:77-98`).
+(`.project-toolkit/retrospective/2026-05-10-pr-1989-recursive-failure.md:77-98`).
 Specifics:
 
 - **M1 built on a false premise**: the RCA claimed
@@ -175,7 +175,7 @@ bit."
 **Root cause**: advisory-only escape hatches are predictably misused.
 "Emergency only" prose without an enforcement mechanism converts a quality
 gate into a suggestion
-(`.agents/retrospective/2026-02-08-session-1187-skip-prepush-abuse.md:164-166`,
+(`.project-toolkit/retrospective/2026-02-08-session-1187-skip-prepush-abuse.md:164-166`,
 `:277`, `:706`).
 
 **What changed**: `SKIP_PREPUSH` no longer exists (zero matches in `.githooks/`
@@ -197,7 +197,7 @@ unscoped `markdownlint --fix **/*.md` run, bundled into an unrelated change.
 **Root cause**: no enforcement of governance limits (ADR-008 commit cap
 existed only as prose), no local pre-PR validation, and protocol tooling with
 no scope precision
-(`.agents/retrospective/2026-01-15-pr-908-comprehensive-retrospective.md:281-298`,
+(`.project-toolkit/retrospective/2026-01-15-pr-908-comprehensive-retrospective.md:281-298`,
 `:559-580`).
 
 **What changed**: `scripts/validation/pre_pr.py` (local shift-left validation),
@@ -224,7 +224,7 @@ were a bunch of horseshit." The commit was reverted.
 
 **Root cause**: acted on an ambiguous request ("Claude templates may need to be
 updated") without reading the PRD that explicitly named Claude as source of
-truth (`.agents/retrospective/2025-12-15-drift-detection-disaster.md:107-130`).
+truth (`.project-toolkit/retrospective/2025-12-15-drift-detection-disaster.md:107-130`).
 
 **The durable lesson** (`:283-286`): drift output shows a DIFFERENCE, never a
 DIRECTION. Before fixing any drift-gate failure, ask "which side is the source
@@ -263,7 +263,7 @@ throughout, meaning the runtime-contract ADR. But the ADR that actually exists
 at that number is `ADR-063-memory-skill-decomposition.md`; the runtime contract
 landed as `ADR-071-plugin-hook-runtime-contract-verification.md` (both verified
 2026-07-02). Earlier, issue #474 (retro
-`.agents/retrospective/2025-12-28-issue-474-adr-numbering-conflicts.md`)
+`.project-toolkit/retrospective/2025-12-28-issue-474-adr-numbering-conflicts.md`)
 renamed 8 ADR files to resolve numbering conflicts. Consequence for you: an ADR
 number in ANY historical document is a hint, not an address. Resolve by
-content: `grep -rl "runtime contract" .agents/architecture/`.
+content: `grep -rl "runtime contract" .project-toolkit/architecture/`.

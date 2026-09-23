@@ -1,6 +1,6 @@
 # ADR Templates Catalog
 
-Reference catalog of well-known ADR template formats. Choose a template based on the decision's complexity and team needs. This project's canonical template (`.agents/architecture/ADR-TEMPLATE.md`) is the default.
+Reference catalog of well-known ADR template formats. Choose a template based on the decision's complexity and team needs. This project's canonical template (`.project-toolkit/architecture/ADR-TEMPLATE.md`) is the default.
 
 ## Template Comparison
 
@@ -22,7 +22,7 @@ Reference catalog of well-known ADR template formats. Choose a template based on
 
 ## Project Canonical Template (Default)
 
-The project's standard template at `.agents/architecture/ADR-TEMPLATE.md`. Use this unless the user requests a different format.
+The project's standard template at `.project-toolkit/architecture/ADR-TEMPLATE.md`. Use this unless the user requests a different format.
 
 **Sections**: Status, Date, Context, Decision, Prior Art Investigation (conditional), Rationale (with Alternatives table and Trade-offs), Consequences (Positive/Negative/Neutral), Impact on Dependent Components (conditional), Implementation Notes, Related Decisions, References, Agent-Specific Fields (conditional).
 
@@ -206,4 +206,4 @@ Source: [Planguage specification by Tom Gilb](https://www.iaria.org/conferences2
 - [Joel Parker Henderson ADR Collection](https://github.com/joelparkerhenderson/architecture-decision-record)
 - [ISO/IEC/IEEE 42010:2011](https://en.wikipedia.org/wiki/ISO/IEC_42010): international standard for architecture descriptions
 
-<!-- vendor-portability: declared. This catalog points at .agents/architecture/ADR-TEMPLATE.md as the project's standard template. The reference is advisory; a vendored install falls back to the bundled adr-template.md sibling and loses only the upstream-specific default. Issue #2050. -->
+<!-- vendor-portability: declared. This catalog points at .project-toolkit/architecture/ADR-TEMPLATE.md as the project's standard template. The reference is advisory; a vendored install falls back to the bundled adr-template.md sibling and loses only the upstream-specific default. Issue #2050. -->

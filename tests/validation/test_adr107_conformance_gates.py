@@ -34,7 +34,7 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ADR_PATH = (
     REPO_ROOT
-    / ".agents"
+    / ".project-toolkit"
     / "architecture"
     / "ADR-107-canonical-skill-contracts-and-harness-projections.md"
 )

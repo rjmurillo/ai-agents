@@ -24,7 +24,7 @@ MCP servers are configured in `.mcp.json`:
 
 ## Planned MCP Expansion
 
-Per [ADR-048](../.agents/architecture/ADR-048-mcp-tool-ecosystem-expansion.md), the ecosystem will expand in four phases.
+Per [ADR-048](../.project-toolkit/architecture/ADR-048-mcp-tool-ecosystem-expansion.md), the ecosystem will expand in four phases.
 
 ### Phase 1: Foundation
 
@@ -32,9 +32,9 @@ Build on existing ADRs for core infrastructure MCPs.
 
 | MCP | Tools | ADR | Issue |
 |-----|-------|-----|-------|
-| Session State | `session_start`, `validate_gate`, `advance_phase`, `session_end` | [ADR-011](../.agents/architecture/ADR-011-session-state-mcp.md) | #219 |
-| Skill Catalog | `search_skills`, `get_skill`, `check_skill_exists`, `cite_skill` | [ADR-012](../.agents/architecture/ADR-012-skill-catalog-mcp.md) | #220 |
-| Agent Orchestration | `invoke_agent`, `track_handoff`, `get_routing_recommendation` | [ADR-013](../.agents/architecture/ADR-013-agent-orchestration-mcp.md) | #221 |
+| Session State | `session_start`, `validate_gate`, `advance_phase`, `session_end` | [ADR-011](../.project-toolkit/architecture/ADR-011-session-state-mcp.md) | #219 |
+| Skill Catalog | `search_skills`, `get_skill`, `check_skill_exists`, `cite_skill` | [ADR-012](../.project-toolkit/architecture/ADR-012-skill-catalog-mcp.md) | #220 |
+| Agent Orchestration | `invoke_agent`, `track_handoff`, `get_routing_recommendation` | [ADR-013](../.project-toolkit/architecture/ADR-013-agent-orchestration-mcp.md) | #221 |
 
 ### Phase 2: GitHub Integration
 
@@ -103,8 +103,8 @@ ToolSearch("select:mcp__serena__read_memory")
 
 ## Related Documents
 
-- [ADR-048: MCP Tool Ecosystem Expansion](../.agents/architecture/ADR-048-mcp-tool-ecosystem-expansion.md)
-- [ADR-011: Session State MCP](../.agents/architecture/ADR-011-session-state-mcp.md)
-- [ADR-012: Skill Catalog MCP](../.agents/architecture/ADR-012-skill-catalog-mcp.md)
-- [ADR-013: Agent Orchestration MCP](../.agents/architecture/ADR-013-agent-orchestration-mcp.md)
-- [Claude-flow Architecture Analysis](../.agents/analysis/claude-flow-architecture-analysis.md)
+- [ADR-048: MCP Tool Ecosystem Expansion](../.project-toolkit/architecture/ADR-048-mcp-tool-ecosystem-expansion.md)
+- [ADR-011: Session State MCP](../.project-toolkit/architecture/ADR-011-session-state-mcp.md)
+- [ADR-012: Skill Catalog MCP](../.project-toolkit/architecture/ADR-012-skill-catalog-mcp.md)
+- [ADR-013: Agent Orchestration MCP](../.project-toolkit/architecture/ADR-013-agent-orchestration-mcp.md)
+- [Claude-flow Architecture Analysis](../.project-toolkit/analysis/claude-flow-architecture-analysis.md)

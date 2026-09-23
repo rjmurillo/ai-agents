@@ -23,7 +23,7 @@ import sys
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 
-_SESSION_GLOB = ".agents/sessions/"
+_SESSION_GLOB = ".project-toolkit/sessions/"
 _MEMORY_GLOB = ".serena/memories/"
 
 

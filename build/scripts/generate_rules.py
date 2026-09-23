@@ -90,7 +90,7 @@ _SCOPE_SKIPPED: dict[str, str | None] = {}
 # `.agents/`, `.claude/`, or `.serena/`). Filtering them out at emit time
 # prevents dead `applyTo` entries that would never match a vendor-side
 # file path.
-_INTERNAL_PATH_PREFIXES = (".agents/", ".claude/", ".serena/")
+_INTERNAL_PATH_PREFIXES = (".agents/", ".project-toolkit/", ".claude/", ".serena/")
 
 
 class GenerateRulesError(Exception):
@@ -222,7 +222,7 @@ def _filter_internal_globs(value: str) -> tuple[str, list[str]]:
     """Drop comma-separated glob entries pointing at internal-only paths.
 
     Source rules under `.claude/rules/` declare ``applyTo``/``paths`` with
-    repo-local globs like ``.agents/security/**,**/Auth/**,*.env*,.claude/rules/security.md``.
+    repo-local globs like ``.project-toolkit/security/**,**/Auth/**,*.env*,.claude/rules/security.md``.
     Some of those entries (`.agents/`, `.claude/`, `.serena/` prefixes) only
     exist in the source repository; for any downstream consumer they are
     dead references that match nothing and add noise. Drop them and keep

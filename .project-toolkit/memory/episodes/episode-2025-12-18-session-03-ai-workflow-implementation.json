@@ -1,0 +1,60 @@
+{
+  "id": "episode-2025-12-18-session-03-ai-workflow-implementation",
+  "session": "2025-12-18-session-03-ai-workflow-implementation",
+  "timestamp": "2025-12-18T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "partial",
+  "task": "Implement AI-powered GitHub Actions workflows using GitHub Copilot CLI to create",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2025-12-18T00:00:00+00:00",
+      "type": "milestone",
+      "content": "[x] Result: Serena initialized successfully",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2025-12-18T00:00:00+00:00",
+      "type": "test",
+      "content": "- PowerShell + Pester testing patterns documented",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2025-12-18T00:00:00+00:00",
+      "type": "test",
+      "content": "[Pester execution results will be documented here...]",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2025-12-18T00:00:00+00:00",
+      "type": "test",
+      "content": "- \u2705 All 170 automated tests PASS (exit code 0)",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2025-12-18T00:00:00+00:00",
+      "type": "milestone",
+      "content": "\u26a0\ufe0f Workflow integration incomplete (PowerShell functions not used)",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 5155
+  },
+  "lessons": []
+}

@@ -110,4 +110,4 @@ These patterns are caught by the code-simplifier agent. Avoid them during implem
 - [refactoring-001-delete-over-extract](refactoring-001-delete-over-extract.md)
 - [law-of-demeter](../knowledge/law-of-demeter.md)
 - [design-by-contract](../design/design-by-contract.md)
-- Full analysis: `.agents/analysis/code-smells-comprehensive-catalog.md`
+- Full analysis: `.project-toolkit/analysis/code-smells-comprehensive-catalog.md`

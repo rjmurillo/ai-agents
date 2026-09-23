@@ -38,7 +38,7 @@ by two orders of magnitude:
 | stale `a65181a264` | 1515 |
 | refreshed `da88c2e923` | 14 |
 
-Every `.agents/sessions/*.json` that landed on `main` since the drift began is
+Every `.project-toolkit/sessions/*.json` that landed on `main` since the drift began is
 swept into the set. The Session End check then picks the newest of those
 hundreds of unrelated logs and validates it instead of the branch's own log.
 
@@ -89,13 +89,13 @@ Measured in this worktree on 2026-08-02 the command printed `0` then `2`
 
 Do **not** use changed-file counts as the test. `new_pr.py` validates exactly
 one log, the newest by `(date, session number)` among the changed
-`.agents/sessions/` logs (`new_pr.py:300-317`), so the outcome turns on which
+`.project-toolkit/sessions/` logs (`new_pr.py:300-317`), so the outcome turns on which
 paths are in that subset and which one sorts last. Compare memberships, not
 cardinalities:
 
 ```bash
-diff <(git diff --name-only main...HEAD | grep '^\.agents/sessions/' | sort) \
-     <(git diff --name-only origin/main...HEAD | grep '^\.agents/sessions/' | sort)
+diff <(git diff --name-only main...HEAD | grep '^\.project-toolkit/sessions/' | sort) \
+     <(git diff --name-only origin/main...HEAD | grep '^\.project-toolkit/sessions/' | sort)
 ```
 
 A `wc -l` comparison is not evidence in either direction. On 2026-08-02 in this

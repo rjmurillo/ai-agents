@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "E002",
   "policy_id": "pol-memory-tier-1-retrieval-first",
-  "input": "About to research how this repo handles ARM runners. First action: search the web, query Forgetful, ask the user, or read .agents/architecture?",
+  "input": "About to research how this repo handles ARM runners. First action: search the web, query Forgetful, ask the user, or read .project-toolkit/architecture?",
   "provenance": "paraphrased-from-public",
   "assertions": [
     {

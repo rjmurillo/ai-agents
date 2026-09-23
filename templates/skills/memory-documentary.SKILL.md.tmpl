@@ -85,11 +85,11 @@ The skill searches ALL available data sources systematically:
 
 **Project Artifacts**:
 
-- `.agents/retrospective/` - Learning extractions
-- `.agents/sessions/` - Session logs
-- `.agents/analysis/` - Research reports
-- `.agents/architecture/` - ADRs
-- `.agents/planning/` - Plans and PRDs
+- `.project-toolkit/retrospective/` - Learning extractions
+- `.project-toolkit/sessions/` - Session logs
+- `.project-toolkit/analysis/` - Research reports
+- `.project-toolkit/architecture/` - ADRs
+- `.project-toolkit/planning/` - Plans and PRDs
 
 **GitHub Issues**:
 
@@ -191,7 +191,7 @@ After execution:
 
 ## Output Location
 
-Reports saved to: `.agents/analysis/[topic]-documentary-[date].md`
+Reports saved to: `.project-toolkit/analysis/[topic]-documentary-[date].md`
 
 ---
 

@@ -9,7 +9,7 @@ license: MIT
 
 Turn raw, unstructured capture into an evaluated, actionable inventory of threads. Four phases: Front-gate, Extract, Evaluate, Synthesize.
 
-<!-- vendor-portability: declared. During synthesis this skill cross-references the consumer's existing artifacts to wire each High-Signal thread to a prior entity: .claude/skills/ SKILL.md files, .agents/architecture/ADR-*.md, .serena/memories/**, open GitHub issues, and .agents/sessions/*.json. These are best-effort read targets for the elaboration gate; a vendored install without .agents/ or .serena/ simply has fewer connection candidates, not a broken run. Issue #2050. -->
+<!-- vendor-portability: declared. During synthesis this skill cross-references the consumer's existing artifacts to wire each High-Signal thread to a prior entity: .claude/skills/ SKILL.md files, .project-toolkit/architecture/ADR-*.md, .serena/memories/**, open GitHub issues, and .project-toolkit/sessions/*.json. These are best-effort read targets for the elaboration gate; a vendored install without .agents/ or .serena/ simply has fewer connection candidates, not a broken run. Issue #2050. -->
 
 ## Triggers
 
@@ -95,10 +95,10 @@ Combine the final inventory and the evaluation files into a gold-found markdown 
 For each High-Signal thread, write one explicit connection to an existing artifact. Search these paths:
 
 - Skills: `.claude/skills/<name>/SKILL.md`
-- ADRs: `.agents/architecture/ADR-*.md`
+- ADRs: `.project-toolkit/architecture/ADR-*.md`
 - Serena memories: walk `.serena/memories/**` (topic subdirectories under `.serena/memories/<topic>/<memory-name>.md`) and load via `mcp__serena__read_memory("<topic>/<memory-name>.md")`. `mcp__serena__list_memories` returns top-level indexes only and does not enumerate atomic memories; see `.serena/memories/README.md`.
 - Open issues: GitHub issues in the current repo
-- Prior session logs: `.agents/sessions/YYYY-MM-DD-session-*.json`
+- Prior session logs: `.project-toolkit/sessions/YYYY-MM-DD-session-*.json`
 
 Write the connection as a one-liner under the thread in the evaluation file (consumed by `synth`) or add it manually to the gold-found file after synthesis: `Connects to: <artifact name> (<one-line why>).`
 

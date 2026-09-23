@@ -124,7 +124,7 @@ def check_session_log_gate(repo_root: Path) -> bool:
     MUST 1 (lines 27-35) describes a validate-if-present pre-commit gate,
     quoted verbatim:
 
-        If a log named `.agents/sessions/YYYY-MM-DD-session-NN<slug>.json`
+        If a log named `.project-toolkit/sessions/YYYY-MM-DD-session-NN<slug>.json`
         ends up staged anyway (for example, cherry-picked from an older branch),
         the `session-policy` pre-commit hook still validates it
         (`scripts/validation/git_hook_policy.py session`, a validate-if-present gate):
@@ -138,7 +138,7 @@ def check_session_log_gate(repo_root: Path) -> bool:
     still shows Gate 3 ran rather than vanishing.
     """
     print("\n=== Gate 3: Session Log Verification ===")
-    sessions_dir = repo_root / ".agents" / "sessions"
+    sessions_dir = repo_root / ".project-toolkit" / "sessions"
 
     if not sessions_dir.exists():
         print("[PASS] No session log for today (creation discontinued; optional)")

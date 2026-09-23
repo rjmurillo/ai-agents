@@ -136,6 +136,7 @@ ignores:
   - ".scratch/**"
   # Internal tooling outputs and provider caches: not authored .md.
   - ".agents/**"
+  - ".project-toolkit/**"
   - ".serena/**"
   - ".claude-mem/**"
   - ".flowbaby/**"

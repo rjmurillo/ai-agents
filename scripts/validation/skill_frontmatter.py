@@ -18,7 +18,7 @@ Exit codes follow ADR-035:
     2 - Config error (path not found)
 
 Related: ADR-040 (Skill Frontmatter Standardization), Issue #4
-Reference: .agents/analysis/claude-code-skill-frontmatter-2026.md
+Reference: .project-toolkit/analysis/claude-code-skill-frontmatter-2026.md
 """
 
 from __future__ import annotations
@@ -41,7 +41,7 @@ import yaml
 from scripts.validation.models import ValidationResult
 
 # Valid model identifiers.
-# Source: .agents/analysis/claude-code-skill-frontmatter-2026.md
+# Source: .project-toolkit/analysis/claude-code-skill-frontmatter-2026.md
 # Opus and Sonnet are pinned to the 4.6 family; the 4.5 aliases are no longer
 # accepted. Haiku stays at 4.5 because no 4.6 Haiku has shipped. Older
 # back-compat (4.0, 3.7) is retained until those skills are migrated.
@@ -71,7 +71,7 @@ DATED_SNAPSHOT_PATTERN: re.Pattern[str] = re.compile(
 # Skills under .claude/skills/ are Claude Code skills, which use canonical
 # PascalCase names (Read, Write, Bash, ...). The lowercase entries are kept
 # for Copilot CLI compatibility (gh copilot uses bash, view, edit, create).
-# Source: .agents/analysis/claude-code-skill-frontmatter-2026.md (section 5.4).
+# Source: .project-toolkit/analysis/claude-code-skill-frontmatter-2026.md (section 5.4).
 # Parenthesized command-prefix forms like "Bash(pwsh:*)" pass via the
 # wildcard branch in validate_allowed_tools.
 VALID_TOOLS: frozenset[str] = frozenset(
@@ -623,7 +623,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if fail_count > 0:
         print("Fix SKILL.md frontmatter and retry commit.")
-        print("See: .agents/analysis/claude-code-skill-frontmatter-2026.md")
+        print("See: .project-toolkit/analysis/claude-code-skill-frontmatter-2026.md")
 
         if args.ci:
             return 1

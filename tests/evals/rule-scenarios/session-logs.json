@@ -8,7 +8,7 @@
       "expected_signals": [
         "session log",
         "optional",
-        ".agents/sessions",
+        ".project-toolkit/sessions",
         "endingCommit",
         "JSON"
       ],

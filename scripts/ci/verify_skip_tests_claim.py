@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Independently verify the `python-changed == false` claim the skip-tests job acts on.
 
-ADR-101 (`.agents/architecture/ADR-101-enforcement-planes.md`, "The same
+ADR-101 (`.project-toolkit/architecture/ADR-101-enforcement-planes.md`, "The same
 pattern is live on a context that IS required") names the fail-open this
 script closes: `test-result` and `skip-tests` in `pytest.yml` both publish
 `name: Run Python Tests`, a required status context, and are mutually

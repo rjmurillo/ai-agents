@@ -117,7 +117,7 @@ tree holding only agent definitions and no routing table is a valid state, so
 that rule would fire on correct repositories.
 
 EXIT CODES. This script uses the 0-2 subset of the 0-4 contract in
-.agents/architecture/ADR-035-exit-code-standardization.md. Codes 3 (external
+.project-toolkit/architecture/ADR-035-exit-code-standardization.md. Codes 3 (external
 service error) and 4 (authentication error) are unreachable here, not
 redefined: the scan reads local files only and makes no network or
 authenticated call.

@@ -367,7 +367,7 @@
 # ============================================================================
 #
 # This file used to declare `.agents/HANDOFF.md merge=ours` and
-# `.agents/handoffs/*.md merge=handoff-aggregate`. Neither line did anything.
+# `.project-toolkit/handoffs/*.md merge=handoff-aggregate`. Neither line did anything.
 #
 # Git resolves a `merge=<name>` attribute through `git config merge.<name>.driver`,
 # which lives in a per-clone config that is never committed. No script in this
@@ -422,7 +422,7 @@
 #
 # - Documentation: docs/**/*.md, README.md, CONTRIBUTING.md
 # - Agent definitions: src/**/*.md, .claude/**/*.md
-# - Session logs: .agents/sessions/*.json (not affected - JSON)
+# - Session logs: .project-toolkit/sessions/*.json (not affected - JSON)
 # - Serena memories: .serena/memories/*.md
 # - Skill files: *.skill
 #

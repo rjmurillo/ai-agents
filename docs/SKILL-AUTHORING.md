@@ -2,7 +2,7 @@
 
 This guide covers how to create Claude Code skills with correct YAML frontmatter, model selection, and file structure.
 
-Based on the analysis in `.agents/analysis/claude-code-skill-frontmatter-2026.md`.
+Based on the analysis in `.project-toolkit/analysis/claude-code-skill-frontmatter-2026.md`.
 
 ## Frontmatter Schema
 
@@ -20,7 +20,7 @@ Every skill lives in a `SKILL.md` file inside a directory under `.claude/skills/
 | Field | Type | Constraints | Purpose |
 |-------|------|-------------|---------|
 | `model` | string | Bare rolling alias only (`haiku`), never a versioned id. Requires `model-rationale`. See [Model Selection](#model-selection). | Overrides the harness-inherited model. |
-| `model-rationale` | string | Required whenever `model` is set | One line justifying the cheaper tier ([ADR-080](../.agents/architecture/ADR-080-model-pin-justification-policy.md) rule 3). |
+| `model-rationale` | string | Required whenever `model` is set | One line justifying the cheaper tier ([ADR-080](../.project-toolkit/architecture/ADR-080-model-pin-justification-policy.md) rule 3). |
 | `allowed-tools` | string | Comma-separated tool names | Restricts which tools Claude can use during execution. |
 | `version` | string | Semantic versioning (e.g., `1.0.0`) | Tracks skill evolution. Not validated by Claude Code. |
 | `license` | string | SPDX identifier (e.g., `MIT`) | Legal licensing. Not validated by Claude Code. |
@@ -53,7 +53,7 @@ metadata:
 
 No `model:` line appears above on purpose: the skill inherits the harness
 model, which is the correct default under
-[ADR-080](../.agents/architecture/ADR-080-model-pin-justification-policy.md).
+[ADR-080](../.project-toolkit/architecture/ADR-080-model-pin-justification-policy.md).
 
 ## Validation Rules
 
@@ -81,7 +81,7 @@ model, which is the correct default under
 
 Omit `model:`. A skill inherits the model the harness is running, and that is
 the correct default that needs no justification
-([ADR-080](../.agents/architecture/ADR-080-model-pin-justification-policy.md)).
+([ADR-080](../.project-toolkit/architecture/ADR-080-model-pin-justification-policy.md)).
 Most skills in `.claude/skills/` carry no `model:` line; the few that do all
 use the `haiku` cost alias described below.
 
@@ -132,7 +132,7 @@ runs rather than freezing a guess.
 
 ### Agents Are Different
 
-[ADR-080](../.agents/architecture/ADR-080-model-pin-justification-policy.md)
+[ADR-080](../.project-toolkit/architecture/ADR-080-model-pin-justification-policy.md)
 rule 2 lets an **agent** carry a versioned pin when a committed KEEP_PIN sweep
 justifies it in `.agents/governance/model-pin-evidence.json`. That path does
 not exist for skills or commands. Do not copy an agent's frontmatter into a
@@ -379,4 +379,4 @@ model-rationale: cost. The 'haiku' rolling alias resolves via the platform model
 - [Agent Skills, Claude Code Docs](https://code.claude.com/docs/en/skills)
 - [Models overview, Claude Docs](https://platform.claude.com/docs/en/about-claude/models/overview)
 - [Skill authoring best practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices)
-- Source analysis: `.agents/analysis/claude-code-skill-frontmatter-2026.md`
+- Source analysis: `.project-toolkit/analysis/claude-code-skill-frontmatter-2026.md`

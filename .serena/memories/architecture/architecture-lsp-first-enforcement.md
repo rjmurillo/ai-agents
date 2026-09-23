@@ -59,6 +59,6 @@ steering rule: rule states the preference, ADR-062 hooks enforce it.
 
 - PR #2168 (merge 96aafb4fa707), closes #2165. Architect-reviewed
   ACCEPTED-WITH-DC.
-- ADR: `.agents/architecture/ADR-062-conditional-lsp-first-enforcement.md`;
-  debate: `.agents/critique/ADR-062-debate-log.md` (6-agent review).
+- ADR: `.project-toolkit/architecture/ADR-062-conditional-lsp-first-enforcement.md`;
+  debate: `.project-toolkit/critique/ADR-062-debate-log.md` (6-agent review).
 - Steering: `.claude/rules/lsp-first.md`.

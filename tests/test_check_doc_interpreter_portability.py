@@ -423,9 +423,9 @@ def test_same_directory_import_wins_over_repo_wide_match(tmp_path: Path) -> None
 @pytest.mark.parametrize(
     "path",
     [
-        ".agents/sessions/2026-01-01-session-01.md",
-        ".agents/retrospective/postmortem.md",
-        ".agents/architecture/ADR-029-line-endings.md",
+        ".project-toolkit/sessions/2026-01-01-session-01.md",
+        ".project-toolkit/retrospective/postmortem.md",
+        ".project-toolkit/architecture/ADR-029-line-endings.md",
         ".serena/memories/note.md",
         "evals/reports/run.md",
     ],

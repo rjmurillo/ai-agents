@@ -67,7 +67,7 @@ class TestUndecodableRecords:
         would have left the dependent scan crashing on the same input, which is
         the partial-guard failure the mirror obligation exists to prevent.
         """
-        adr_dir = tmp_path / ".agents" / "architecture"
+        adr_dir = tmp_path / ".project-toolkit" / "architecture"
         adr_dir.mkdir(parents=True)
         (adr_dir / "ADR-002-bad.md").write_bytes(b"\xff\xfe not utf-8")
         (adr_dir / "ADR-003-refs.md").write_text(
@@ -82,7 +82,7 @@ class TestUndecodableRecords:
         self, tmp_path: Path
     ) -> None:
         """Negative control for the scan: absence is reported as absence."""
-        adr_dir = tmp_path / ".agents" / "architecture"
+        adr_dir = tmp_path / ".project-toolkit" / "architecture"
         adr_dir.mkdir(parents=True)
         (adr_dir / "ADR-002-bad.md").write_bytes(b"\xff\xfe not utf-8")
         (adr_dir / "ADR-003-quiet.md").write_text(

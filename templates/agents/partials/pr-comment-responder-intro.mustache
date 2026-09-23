@@ -83,7 +83,7 @@ whatever Step 2.2 rendered for the life of the artifact and disagree with the
 detail entry it summarizes. One representation, in the detail entry.
 
 ```bash
-COMMENT_MAP=".agents/pr-comments/PR-[number]/comments.md"
+COMMENT_MAP=".project-toolkit/pr-comments/PR-[number]/comments.md"
 if [ ! -f "$COMMENT_MAP" ]; then
   echo "[BLOCKED] Comment map missing: $COMMENT_MAP"
   exit 1
@@ -97,7 +97,7 @@ PENDING=$((TOTAL - TERMINAL))
 # read $TOTAL_COMMENTS directly saw an empty string, `[ -ne ]` raised `integer
 # expression expected`, and that nonzero exit from `[` reads as false to `if`,
 # so the BLOCKED body never ran. Read the artifact and fail closed instead.
-COUNT_FILE=".agents/pr-comments/PR-[number]/total_comments.txt"
+COUNT_FILE=".project-toolkit/pr-comments/PR-[number]/total_comments.txt"
 if [ ! -f "$COUNT_FILE" ]; then
   echo "[BLOCKED] API comment count not recorded: $COUNT_FILE"
   exit 1

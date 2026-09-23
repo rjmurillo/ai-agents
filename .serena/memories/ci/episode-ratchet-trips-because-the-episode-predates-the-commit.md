@@ -38,9 +38,9 @@ commit that actually happened, then re-extract:
 ```bash
 SHA=$(git rev-parse <the commit>)
 # set session.endingCommit to the full 40-char SHA in
-# .agents/sessions/YYYY-MM-DD-session-NN.json
+# .project-toolkit/sessions/YYYY-MM-DD-session-NN.json
 uv run --frozen python .claude/skills/memory/scripts/extract_session_episode.py \
-  .agents/sessions/YYYY-MM-DD-session-NN.json --preserve
+  .project-toolkit/sessions/YYYY-MM-DD-session-NN.json --preserve
 ```
 
 Then commit the session log and the episode together. The episode records a
@@ -55,7 +55,7 @@ Two traps worth naming:
   session log returns `events must be a list, got NoneType`, which reads like a
   real violation and is not.
 
-Verify with `--validate` against `.agents/memory/episodes` and compare the
+Verify with `--validate` against `.project-toolkit/memory/episodes` and compare the
 violation count to the ratchet baseline, rather than trusting the push.
 
 Related: issue #3972 covers `duration_minutes` and `tool_calls` being zero for

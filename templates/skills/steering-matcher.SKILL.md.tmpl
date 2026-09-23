@@ -48,7 +48,7 @@ The script in `.claude/skills/steering-matcher/scripts/get_applicable_steering.p
 ```bash
 # Match files against steering patterns
 python3 .claude/skills/steering-matcher/scripts/get_applicable_steering.py \
-    --files "src/claude/analyst.md" ".agents/security/TM-001-auth-flow.md" \
+    --files "src/claude/analyst.md" ".project-toolkit/security/TM-001-auth-flow.md" \
     --steering-path ".agents/steering"
 
 # Output: JSON array of objects with name, path, apply_to, priority
@@ -69,7 +69,7 @@ This skill integrates with the orchestrator workflow:
 # 1. Identify files from task
 # 2. Get applicable steering
 python3 .claude/skills/steering-matcher/scripts/get_applicable_steering.py \
-    --files "src/claude/security.md" ".agents/security/SR-001-oauth-review.md"
+    --files "src/claude/security.md" ".project-toolkit/security/SR-001-oauth-review.md"
 
 # 3. Inject into agent context
 # Output: JSON with name, path, apply_to, priority sorted by priority descending

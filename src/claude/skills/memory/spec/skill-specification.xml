@@ -207,7 +207,7 @@
 
     <criterion id="SC2">
       <measure>Agent can extract episode from session</measure>
-      <verification>JSON file created in .agents/memory/episodes/</verification>
+      <verification>JSON file created in .project-toolkit/memory/episodes/</verification>
     </criterion>
 
     <criterion id="SC4">

@@ -17,4 +17,4 @@
 - The false-completion gate matches completion words ANYWHERE in a Bash command (heredocs included) - split file-edit commands from `git commit` commands (issue #3089). LSP pre-delegation guard needs literal "LSP CONTEXT" or "defined at path:line" phrasing (issue #3091).
 - Scope-explosion pre-commit gate counts files vs origin/main, so stacked branches false-positive at 50; documented escape SKIP_SCOPE_CHECK=1 requires user authorization under the auto-mode classifier.
 
-**Related**: `agent-harness-reference`, `mem:copilot-disable-all-hooks-windows`, ADR-068, ADR-082, `.agents/analysis/2026-07-16-adr-082-architect-review.md`.
+**Related**: `agent-harness-reference`, `mem:copilot-disable-all-hooks-windows`, ADR-068, ADR-082, `.project-toolkit/analysis/2026-07-16-adr-082-architect-review.md`.

@@ -50,7 +50,7 @@ Error paths not tested (require test fixtures):
 - Orphaned requirement warning
 - Orphaned design warning
 
-**Recommendation**: Create `.agents/specs/test-fixtures/` with intentional violations.
+**Recommendation**: Create `.project-toolkit/specs/test-fixtures/` with intentional violations.
 
 ## Key Learnings
 
@@ -77,5 +77,5 @@ Error paths not tested (require test fixtures):
 
 ## Artifact Locations
 
-- Test report: `.agents/qa/120-phase2-traceability-test-report.md`
-- Session log: `.agents/sessions/2025-12-31-session-120-phase2-traceability-qa.md`
+- Test report: `.project-toolkit/qa/120-phase2-traceability-test-report.md`
+- Session log: `.project-toolkit/sessions/2025-12-31-session-120-phase2-traceability-qa.md`

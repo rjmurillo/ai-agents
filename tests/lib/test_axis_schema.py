@@ -5,7 +5,7 @@ required frontmatter keys, exact level-2 section headings, and Output
 Schema field names. A maintainer renaming any required heading or
 removing any required frontmatter key fails CI.
 
-Spec: .agents/specs/requirements/REQ-008-review-axes-convergence.md
+Spec: .project-toolkit/specs/requirements/REQ-008-review-axes-convergence.md
 """
 
 from __future__ import annotations

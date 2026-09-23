@@ -1,0 +1,44 @@
+{
+  "id": "episode-2025-12-24-session-93-no-verify-protocol-skill",
+  "session": "2025-12-24-session-93-no-verify-protocol-skill",
+  "timestamp": "2025-12-24T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "[Migrated from markdown]",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2025-12-24T00:00:00+00:00",
+      "type": "milestone",
+      "content": "[x] Deduplication check completed",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2025-12-24T00:00:00+00:00",
+      "type": "milestone",
+      "content": "[x] Session log completed",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2025-12-24T00:00:00+00:00",
+      "type": "milestone",
+      "content": "[x] Deduplication check completed (40% similarity with Skill-Logging-002, orthogonal concepts)",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 5325
+  },
+  "lessons": []
+}

@@ -195,7 +195,7 @@ def test_pin_change_mixed_with_other_field_is_not_exempt(monkeypatch, tmp_path):
     assert ghp._is_skill_frontmatter_only_change(_SKILL, tmp_path) is False
 
 
-_ADR = ".agents/architecture/ADR-042-example.md"
+_ADR = ".project-toolkit/architecture/ADR-042-example.md"
 
 
 def test_a_body_that_differs_only_in_undecodable_bytes_is_not_unchanged(

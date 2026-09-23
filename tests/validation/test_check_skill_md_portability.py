@@ -67,6 +67,20 @@ class TestCountUpstreamRefs:
         text = "The word prefix.agents/architecture and .agentship are not paths.\n"
         assert cmp.count_upstream_refs(text) == 0
 
+    def test_counts_project_toolkit_prefix(self) -> None:
+        # Issue #5420 moved agent write targets from .agents/ to
+        # .project-toolkit/; a skill instruction pointing there is the same
+        # upstream-only dependency the .agents/ pattern already caught.
+        text = "Write results to .project-toolkit/planning/plan.md.\n"
+        assert cmp.count_upstream_refs(text) == 1
+
+    def test_ignores_project_toolkit_glued_names(self) -> None:
+        text = (
+            "The word my.project-toolkit/planning and project-toolkit/planning "
+            "(no leading dot) are not paths.\n"
+        )
+        assert cmp.count_upstream_refs(text) == 0
+
     def test_counts_multiple_occurrences(self) -> None:
         text = "Files: .agents/a, .agents/b, .claude/review-axes/c.\n"
         assert cmp.count_upstream_refs(text) == 3
@@ -244,14 +258,14 @@ class TestDotPrefixedUpstreamBoundary:
     @pytest.mark.parametrize(
         "text",
         [
-            ".agents/specs/x.md",
-            "/.agents/specs/x.md",
-            "./.agents/specs/x.md",
+            ".project-toolkit/specs/x.md",
+            "/.project-toolkit/specs/x.md",
+            "./.project-toolkit/specs/x.md",
             ".claude/lib/foo.py",
             "/.claude/lib/foo.py",
             ".claude/review-axes/x.md",
             "/.claude/review-axes/x.md",
-            r"\.agents\specs\x.md",
+            r"\.project-toolkit\specs\x.md",
             r"\.claude\lib\foo.py",
             r"\.claude\review-axes\x.md",
         ],
@@ -260,7 +274,7 @@ class TestDotPrefixedUpstreamBoundary:
         """A repository-root-relative link is still an upstream reference.
 
         GitHub renders a leading-slash link relative to the repository root,
-        so ``/.agents/specs/x.md`` names the same directory as ``.agents/``.
+        so ``/.project-toolkit/specs/x.md`` names the same directory as ``.agents/``.
         """
         assert cmp.count_upstream_refs(text + "\n") == 1
 
@@ -578,16 +592,16 @@ class TestCodeBlockAndInlineHandling:
         text = (
             "Prose before.\n\n"
             "```bash\n"
-            "cat .agents/sessions/log.json\n"
+            "cat .project-toolkit/sessions/log.json\n"
             "ls .claude/lib/\n"
             "```\n\n"
-            "Prose after with a real path .agents/analysis/x.md.\n"
+            "Prose after with a real path .project-toolkit/analysis/x.md.\n"
         )
         # Only the prose-level path counts; fenced example commands are skipped.
         assert cmp.count_upstream_refs(text) == 1
 
     def test_counts_inline_code_spans(self) -> None:
-        text = "See `.agents/sessions/` for examples; write to .project-toolkit/analysis/y.md.\n"
+        text = "See `.project-toolkit/sessions/` for examples; write to .project-toolkit/analysis/y.md.\n"
         assert cmp.count_upstream_refs(text) == 2
 
     def test_tilde_fences_are_stripped(self) -> None:
@@ -605,7 +619,7 @@ class TestCodeBlockAndInlineHandling:
             "   ```\n"
             "   <!-- vendor-portability: example -->\n"
             "   ```\n"
-            "This prose references .agents/sessions/.\n"
+            "This prose references .project-toolkit/sessions/.\n"
         )
         assert cmp.has_portability_marker(text) is False
         assert cmp.count_file_refs(text) == 1
@@ -615,7 +629,7 @@ class TestVendorPortabilityMarker:
     def test_marker_suppresses_all_refs_in_file(self) -> None:
         text = (
             "<!-- vendor-portability: declared -->\n"
-            "This skill writes to .agents/analysis/foo.md and reads "
+            "This skill writes to .project-toolkit/analysis/foo.md and reads "
             ".claude/lib/paths.py; both documented above.\n"
         )
         assert cmp.has_portability_marker(text) is True
@@ -636,7 +650,7 @@ class TestVendorPortabilityMarker:
             "```\n"
             "<!-- vendor-portability: example -->\n"
             "```\n"
-            "This prose references .agents/sessions/ which must still be counted.\n"
+            "This prose references .project-toolkit/sessions/ which must still be counted.\n"
         )
         assert cmp.has_portability_marker(text) is False
         assert cmp.count_file_refs(text) == 1
@@ -645,7 +659,7 @@ class TestVendorPortabilityMarker:
         # Same rule for inline code spans.
         text = (
             "Use `<!-- vendor-portability: ok -->` in your file header.\n"
-            "But this prose still references .agents/sessions/ without declaring.\n"
+            "But this prose still references .project-toolkit/sessions/ without declaring.\n"
         )
         assert cmp.has_portability_marker(text) is False
         assert cmp.count_file_refs(text) == 1
@@ -669,7 +683,7 @@ class TestScan:
         path.write_text(body, encoding="utf-8")
 
     def test_scan_collects_md_with_refs(self, tmp_path: Path) -> None:
-        self._skill_md(tmp_path, "alpha/SKILL.md", "Writes .agents/analysis/a.md\n")
+        self._skill_md(tmp_path, "alpha/SKILL.md", "Writes .project-toolkit/analysis/a.md\n")
         self._skill_md(tmp_path, "beta/references/b.md", "Clean prose only.\n")
         self._skill_md(tmp_path, "gamma/SKILL.md", "Reads .claude/lib/x and .agents/y\n")
         skills_dir = tmp_path / ".claude" / "skills"
@@ -908,7 +922,7 @@ class TestExtraScanDirs:
         self._write_md(
             tmp_path,
             "templates/agents/spec.shared.md",
-            "Read the spec at .agents/planning/spec.md\n",
+            "Read the spec at .project-toolkit/planning/spec.md\n",
         )
         counts = cmp.scan_plugin_roots(tmp_path)
         assert "templates/agents/spec.shared.md" in counts
@@ -919,7 +933,7 @@ class TestExtraScanDirs:
         self._write_md(
             tmp_path,
             "templates/agents/orchestrator.shared.md",
-            "Session logs go under .agents/sessions/\n",
+            "Session logs go under .project-toolkit/sessions/\n",
         )
         counts = cmp.scan_plugin_roots(tmp_path)
         assert "templates/agents/orchestrator.shared.md" in counts
@@ -952,7 +966,7 @@ class TestExtraScanDirs:
             tmp_path,
             ".claude/commands/annotated.md",
             "<!-- vendor-portability: upstream refs only -->\n"
-            "Read .agents/sessions/ for context.\n",
+            "Read .project-toolkit/sessions/ for context.\n",
         )
         counts = cmp.scan_plugin_roots(tmp_path)
         assert ".claude/commands/annotated.md" not in counts
@@ -1054,7 +1068,7 @@ class TestInstructionsScanRoot:
             tmp_path,
             "src/copilot-cli/instructions/annotated.instructions.md",
             "<!-- vendor-portability: upstream refs only -->\n"
-            "Read .agents/sessions/ for context.\n",
+            "Read .project-toolkit/sessions/ for context.\n",
         )
         counts = cmp.scan_plugin_roots(tmp_path)
         assert "src/copilot-cli/instructions/annotated.instructions.md" not in counts
@@ -2547,7 +2561,7 @@ class TestNestingExhaustionGate:
             + "<!-- vendor-portability: example -->\n"
             + quote
             + "```\n"
-            + "Ref .agents/analysis/foo.md.\n"
+            + "Ref .project-toolkit/analysis/foo.md.\n"
         )
 
     def _write_skill(self, tmp_path: Path, body: str) -> Path:

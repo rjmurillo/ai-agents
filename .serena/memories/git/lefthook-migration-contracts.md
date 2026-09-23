@@ -47,4 +47,4 @@ suite, `build/scripts/build_all.py --check`, and
 - Function-scoped autouse fixture cost must be multiplied by the collected test count. The root HEAD guard paid two Git subprocesses per test across more than 23000 tests. Direct loose-ref reads preserve per-test attribution and use Git fallback for packed refs or unproven state.
 - Main-suite statement coverage measured 438.91 seconds. Branch coverage measured 465.93 seconds and failed on mixed child-process coverage data. Keep the main partition statement-only; collect branch coverage only in the small pin partitions and project their lines before combining.
 
-Evidence: issue #4710 and `.agents/sessions/2026-08-06-session-10003-profile-optimize-pre-submit-pre-commit-pre-push.json`.
+Evidence: issue #4710 and `.project-toolkit/sessions/2026-08-06-session-10003-profile-optimize-pre-submit-pre-commit-pre-push.json`.

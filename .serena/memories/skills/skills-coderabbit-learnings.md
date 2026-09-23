@@ -66,7 +66,7 @@ Import Method: Bulk import from CSV with atomicity validation
 
 ### Skill-CodeRabbit-007: Analyst vs Impact Analysis Architecture (95%)
 
-- **Statement**: The analyst agent performs background research and saves to `.agents/analysis/`, while impact analysis consultations are orchestrated by the planner agent and involve five specialists (implementer, architect, security, devops, qa) who save to `.agents/planning/impact-analysis-[domain]-[feature].md`.
+- **Statement**: The analyst agent performs background research and saves to `.project-toolkit/analysis/`, while impact analysis consultations are orchestrated by the planner agent and involve five specialists (implementer, architect, security, devops, qa) who save to `.project-toolkit/planning/impact-analysis-[domain]-[feature].md`.
 - **Context**: Code review on agent planner documentation
 - **Evidence**: PR #46 (ai-agents), CodeRabbit review on `src/claude/planner.md`
 - **Impact**: Prevents confusion between analyst research and impact analysis workflows

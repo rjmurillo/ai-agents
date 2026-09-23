@@ -31,7 +31,7 @@
 
 **Use Case**: After PR failures to systematically identify missing capabilities
 
-**Source**: `.agents/analysis/pr43-agent-capability-gap-analysis.md`
+**Source**: `.project-toolkit/analysis/pr43-agent-capability-gap-analysis.md`
 
 ---
 

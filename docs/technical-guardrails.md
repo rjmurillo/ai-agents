@@ -4,7 +4,7 @@
 
 This document describes the technical guardrails implemented to prevent autonomous agent execution failures. These guardrails enforce protocol compliance through automation rather than trust.
 
-**Related**: Issue #230, Retrospective `.agents/retrospective/2025-12-22-pr-226-premature-merge-failure.md`
+**Related**: Issue #230, Retrospective `.project-toolkit/retrospective/2025-12-22-pr-226-premature-merge-failure.md`
 
 ## Problem Statement
 
@@ -72,7 +72,7 @@ uv run python .claude/skills/github/scripts/pr/new_pr.py --title "WIP: Feature" 
 3. Test coverage detection (WARNING)
 4. Note about post-creation PR description validation
 
-**Force Mode**: Creates audit trail in `.agents/audit/pr-creation-force-*.txt`
+**Force Mode**: Creates audit trail in `.project-toolkit/audit/pr-creation-force-*.txt`
 
 ### Unattended Execution Requirements
 
@@ -275,6 +275,6 @@ python3 scripts/validate_memory_tier.py --path .serena/memories
 ## Related Documents
 
 - [`.claude/rules/session-logs.md`](../.claude/rules/session-logs.md) - Session log mechanics
-- [Retrospective: PR #226](../.agents/retrospective/2025-12-22-pr-226-premature-merge-failure.md) - Failure analysis
+- [Retrospective: PR #226](../.project-toolkit/retrospective/2025-12-22-pr-226-premature-merge-failure.md) - Failure analysis
 - [Issue #230](https://github.com/rjmurillo/ai-agents/issues/230) - Implementation tracking
 - [usage-mandatory.md](../.serena/memories/usage-mandatory.md) - Skill usage policy

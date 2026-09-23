@@ -789,7 +789,7 @@ If a tool or service is unavailable, do not halt on first failure or retry indef
 
 ## Output Location
 
-`.agents/qa/`
+`.project-toolkit/qa/`
 
 - `NNN-[feature]-test-strategy.md` - Before implementation
 - `NNN-[feature]-test-report.md` - After implementation

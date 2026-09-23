@@ -21,7 +21,7 @@
 # carries the same suppression for the same reason, "one CLI owns scan,
 # ratchet, and atomic update invariants". Issue #3779 documents this escape;
 # issue #5191 is the work.
-"""Ratcheted lifecycle gate over `.agents/architecture/ADR-NNN-*.md` (issue #5191).
+"""Ratcheted lifecycle gate over `.project-toolkit/architecture/ADR-NNN-*.md` (issue #5191).
 
 `check_adr_uniqueness.py` is the only other deterministic ADR gate and it reads
 filenames alone, so nothing reads what an ADR says about its own lifecycle state.
@@ -714,7 +714,7 @@ def _edge_targets(
             detail = f"`{field}` names itself (ADR-{number:03d}); a record cannot supersede itself"
         elif number not in known:
             detail = (
-                f"`{field}` names ADR-{number:03d}, which has no file under .agents/architecture/"
+                f"`{field}` names ADR-{number:03d}, which has no file under .project-toolkit/architecture/"
             )
         else:
             targets.append(number)
@@ -1261,7 +1261,7 @@ def main(argv: list[str] | None = None) -> int:
     repo_root = (
         args.repo_root if args.repo_root is not None else Path(__file__).resolve().parents[2]
     )
-    adr_dir = repo_root / ".agents" / "architecture"
+    adr_dir = repo_root / ".project-toolkit" / "architecture"
     if not adr_dir.is_dir():
         print(f"[CONFIG] ADR directory not found: {adr_dir}", file=sys.stderr)
         return EXIT_CONFIG

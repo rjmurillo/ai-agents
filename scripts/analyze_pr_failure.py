@@ -250,8 +250,8 @@ def build_review_timeline(reviews: list[dict]) -> list[dict]:
 def find_synthesis_panels(owner: str, repo: str, pr_number: int) -> list[str]:
     """Search for synthesis panel documents related to this PR."""
     patterns = [
-        f".agents/retrospective/*pr-{pr_number}*",
-        f".agents/retrospective/*PR-{pr_number}*",
+        f".project-toolkit/retrospective/*pr-{pr_number}*",
+        f".project-toolkit/retrospective/*PR-{pr_number}*",
     ]
 
     matches = []

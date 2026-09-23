@@ -294,7 +294,7 @@ None - these are novel skills for actions/labeler specifically
 - [actions/labeler Documentation](https://github.com/actions/labeler)
 - PR #226: feat(workflows): add static PR and issue labeling workflows
 - PR #229: fix(labeler): use all: block for negation patterns
-- `.agents/retrospective/2025-12-22-pr-226-premature-merge-failure.md`
+- `.project-toolkit/retrospective/2025-12-22-pr-226-premature-merge-failure.md`
 - `.github/labeler.yml` (current working configuration)
 
 ---

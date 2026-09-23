@@ -391,7 +391,7 @@ def test_s11_metrics_file_path_and_format(spec_prior_art_text: str):
         spec_prior_art_text,
         "### Step 0.5 metrics tally",
     )
-    assert ".agents/sessions/STEP-0.5-METRICS.md" in body
+    assert ".project-toolkit/sessions/STEP-0.5-METRICS.md" in body
     assert "<YYYY-MM-DDTHH:MM:SSZ> | <pass|fail>" in body
     assert "canonical `YYYY-MM-DDTHH:MM:SSZ`" in body
     assert "100 entries" in body

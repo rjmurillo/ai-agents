@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://github.com/rjmurillo/ai-agents/schemas/policy.schema.json",
   "title": "Skillbook Policy Registry",
-  "description": "Validates .agents/skillbook/policies.json: the evidence-tiered registry of agent behavioral policies. See .agents/skillbook/README.md for the tier and status model.",
+  "description": "Validates .project-toolkit/skillbook/policies.json: the evidence-tiered registry of agent behavioral policies. See .project-toolkit/skillbook/README.md for the tier and status model.",
   "type": "object",
   "additionalProperties": false,
   "required": ["schema_version", "policies", "meta"],

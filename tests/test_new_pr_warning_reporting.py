@@ -137,7 +137,7 @@ def test_legacy_markdown_session_log_warning_is_tracked(tmp_path, capsys) -> Non
         argv = [str(part) for part in cmd]
         if argv[:3] == ["git", "diff", "--name-only"]:
             return _completed(
-                stdout=".agents/sessions/2026-08-21-session-1.md\n", rc=0
+                stdout=".project-toolkit/sessions/2026-08-21-session-1.md\n", rc=0
             )
         if any(part.endswith("validate_pr_description.py") for part in argv):
             return _completed(rc=0)
@@ -211,7 +211,7 @@ def test_legacy_md_session_log_is_tracked_as_a_warning(tmp_path, capsys) -> None
     def run(cmd, **_kwargs) -> subprocess.CompletedProcess[str]:
         argv = [str(part) for part in cmd]
         if argv[:3] == ["git", "diff", "--name-only"]:
-            return _completed(stdout=".agents/sessions/2026-01-01-session-01.md\n", rc=0)
+            return _completed(stdout=".project-toolkit/sessions/2026-01-01-session-01.md\n", rc=0)
         return _completed(rc=0)
 
     with patch("subprocess.run", side_effect=run):
@@ -234,7 +234,7 @@ def test_validated_json_session_log_keeps_the_pass_summary(tmp_path, capsys) -> 
     def run(cmd, **_kwargs) -> subprocess.CompletedProcess[str]:
         argv = [str(part) for part in cmd]
         if argv[:3] == ["git", "diff", "--name-only"]:
-            return _completed(stdout=".agents/sessions/2026-01-01-session-01.json\n", rc=0)
+            return _completed(stdout=".project-toolkit/sessions/2026-01-01-session-01.json\n", rc=0)
         return _completed(rc=0)
 
     with patch("subprocess.run", side_effect=run):

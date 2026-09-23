@@ -11,12 +11,12 @@ trap below still applies to a log carried over from an older branch.
 
 Two branches, `docs/botpat-identity-git-transport-memory` and
 `fix/4519-4520-coupling-diffbase`, each filed
-`.agents/sessions/2026-08-05-session-9999.json`. The number `9999` appeared
+`.project-toolkit/sessions/2026-08-05-session-9999.json`. The number `9999` appeared
 nowhere in `scripts/` or the session-init skill; both agents invented it
 independently as an "unknown" placeholder rather than running the allocator.
 
 The merge surfaced as add/add on two files: the session log, and its episode
-under `.agents/memory/episodes/`.
+under `.project-toolkit/memory/episodes/`.
 
 ## Why merging the two logs is the wrong resolution
 

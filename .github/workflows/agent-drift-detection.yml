@@ -4,7 +4,7 @@
 # have drifted from their source templates. Runs on PRs that modify agent files.
 #
 # This workflow is part of Phase 2 of the agent consolidation epic.
-# See: .agents/roadmap/epic-agent-consolidation.md
+# See: .project-toolkit/roadmap/epic-agent-consolidation.md
 #
 # How it works:
 #   1. Regenerates all platform-specific files from source templates

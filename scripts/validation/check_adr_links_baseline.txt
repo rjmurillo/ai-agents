@@ -34,39 +34,39 @@
 # Owner decision. ADR-021 cites ../critique/ADR-019-debate-log.md for its own
 # debate history. No such file exists and none ever did: `git log --all` over
 # both *ADR-019-debate-log* and *ADR-021-debate-log* returns no commits, and no
-# artifact under .agents/critique/ (193 files) or .agents/archive/ matches the
+# artifact under .project-toolkit/critique/ (193 files) or .agents/archive/ matches the
 # described debate (sessions 86 to 90, "5 Accept + 1 Disagree-and-Commit").
 # Sessions 86 to 90 in .agents/archive/sessions/ are the ADR-017 debate. The
 # reference is left in place rather than deleted or invented; the owner decides
 # whether to locate the artifact or replace the citation with prose.
-unresolved:.agents/architecture/ADR-021-model-routing-strategy.md:../critique/ADR-019-debate-log.md
+unresolved:.project-toolkit/architecture/ADR-021-model-routing-strategy.md:../critique/ADR-019-debate-log.md
 
-# .agents/architecture/reviews/ is a review archive, not one of the roots
+# .project-toolkit/architecture/reviews/ is a review archive, not one of the roots
 # stale_script_refs.py exempts. Every target is written repo-root-relative with
-# a leading ./, which resolves under .agents/architecture/reviews/ instead.
-unresolved:.agents/architecture/reviews/ADR-041-codeql-integration-REVIEW.md:./.agents/architecture/ADR-005-powershell-only-scripting.md
-unresolved:.agents/architecture/reviews/ADR-041-codeql-integration-REVIEW.md:./.agents/architecture/ADR-006-thin-workflows-testable-modules.md
-unresolved:.agents/architecture/reviews/ADR-041-codeql-integration-REVIEW.md:./.agents/architecture/ADR-035-exit-code-standardization.md
-unresolved:.agents/architecture/reviews/ADR-041-codeql-integration-REVIEW.md:./.agents/architecture/ADR-041-codeql-integration.md
+# a leading ./, which resolves under .project-toolkit/architecture/reviews/ instead.
+unresolved:.project-toolkit/architecture/reviews/ADR-041-codeql-integration-REVIEW.md:./.project-toolkit/architecture/ADR-005-powershell-only-scripting.md
+unresolved:.project-toolkit/architecture/reviews/ADR-041-codeql-integration-REVIEW.md:./.project-toolkit/architecture/ADR-006-thin-workflows-testable-modules.md
+unresolved:.project-toolkit/architecture/reviews/ADR-041-codeql-integration-REVIEW.md:./.project-toolkit/architecture/ADR-035-exit-code-standardization.md
+unresolved:.project-toolkit/architecture/reviews/ADR-041-codeql-integration-REVIEW.md:./.project-toolkit/architecture/ADR-041-codeql-integration.md
 
 # Repo-root-relative targets written without the leading ../ hops needed from
 # the containing directory.
-unresolved:.agents/audit/pr-req003-body.md:.agents/architecture/ADR-006-thin-workflows-testable-modules.md
-unresolved:.agents/audit/pr-req003-body.md:.agents/critique/ADR-006-amendment-2026-04-28-debate-log.md
-unresolved:.agents/metrics/workflow-coalescing.md:.agents/architecture/ADR-026-pr-automation-concurrency-and-safety.md
-unresolved:scripts/eval/README.md:.agents/architecture/ADR-023-quality-gate-prompt-testing.md
-unresolved:scripts/eval/README.md:.agents/architecture/ADR-057-prompt-behavioral-evaluation.md
+unresolved:.project-toolkit/audit/pr-req003-body.md:.project-toolkit/architecture/ADR-006-thin-workflows-testable-modules.md
+unresolved:.project-toolkit/audit/pr-req003-body.md:.project-toolkit/critique/ADR-006-amendment-2026-04-28-debate-log.md
+unresolved:.project-toolkit/metrics/workflow-coalescing.md:.project-toolkit/architecture/ADR-026-pr-automation-concurrency-and-safety.md
+unresolved:scripts/eval/README.md:.project-toolkit/architecture/ADR-023-quality-gate-prompt-testing.md
+unresolved:scripts/eval/README.md:.project-toolkit/architecture/ADR-057-prompt-behavioral-evaluation.md
 
 # Stale slugs. ADR-006 is ADR-006-thin-workflows-testable-modules.md and
 # ADR-042 is ADR-042-python-migration-strategy.md.
 unresolved:.agents/guides/python-cicd-patterns.md:../architecture/ADR-006-thin-workflows.md
-unresolved:.agents/security/benchmarks/README.md:../../architecture/ADR-042-python-first.md
+unresolved:.project-toolkit/security/benchmarks/README.md:../../architecture/ADR-042-python-first.md
 
 # Leading-slash targets. GitHub resolves a leading slash against the site root,
 # not the blob tree, so these render broken. ADR-037 is also a stale slug:
 # the file is ADR-037-memory-router-implementation.md.
-absolute:.agents/specs/PRD-memory-enhancement-layer-for-serena-forgetful.md:/.agents/architecture/ADR-007-memory-first-architecture.md
-absolute:.agents/specs/PRD-memory-enhancement-layer-for-serena-forgetful.md:/.agents/architecture/ADR-037-memory-router-architecture.md
+absolute:.project-toolkit/specs/PRD-memory-enhancement-layer-for-serena-forgetful.md:/.project-toolkit/architecture/ADR-007-memory-first-architecture.md
+absolute:.project-toolkit/specs/PRD-memory-enhancement-layer-for-serena-forgetful.md:/.project-toolkit/architecture/ADR-037-memory-router-architecture.md
 
 # Issue #2796: the four `unresolved` entries formerly here for
 # memory-enhancement/SKILL.md are gone, not just re-pathed. The comment they

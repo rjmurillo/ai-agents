@@ -111,7 +111,7 @@ def _gh_issue_body(issue_ref: str, default_repo: str) -> tuple[int, str]:
 
 def _find_spec_by_id(ref: str) -> Path | None:
     """Find a spec ID in the recursive specs tree."""
-    specs_root = Path(".agents/specs")
+    specs_root = Path(".project-toolkit/specs")
     if not specs_root.is_dir():
         return None
     return next(

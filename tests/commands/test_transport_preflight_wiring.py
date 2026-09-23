@@ -132,7 +132,7 @@ def _granted(path):
 class TestMcpGrantsAreEnumerated:
     """MCP mode is inert without a grant, and unsafe with a blanket one.
 
-    `.agents/architecture/ADR-003-agent-tool-selection-criteria.md:318` reads
+    `.project-toolkit/architecture/ADR-003-agent-tool-selection-criteria.md:318` reads
     "DO NOT: Use blanket `github/*` allocation" and puts the server at roughly
     59 operations. Both commands consume untrusted PR content, so the grant is
     the operations each one actually uses and nothing that mutates a

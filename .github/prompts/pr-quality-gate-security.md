@@ -200,7 +200,7 @@ Use `PASS` if:
 
 ## Structured JSON Output
 
-After your human-readable analysis, emit a fenced JSON block matching the inline schema below (a JSON Schema for this output also lives at `.project-toolkit/schemas/pr-quality-gate-output.schema.json` in projects that ship it; vendored installs do not):
+After your human-readable analysis, emit a fenced JSON block matching the inline schema below (a JSON Schema for this output also lives at `.agents/schemas/pr-quality-gate-output.schema.json` in projects that ship it; vendored installs do not):
 
 ```json
 {
@@ -253,4 +253,4 @@ line to avoid ambiguity between the leading verdict and any later occurrences.
 
 Refs REQ-008-01, REQ-008-05 (issue #1934).
 
-<!-- vendor-portability: declared. This review axis cites the model policy under .agents/governance/ and the output schema under .project-toolkit/schemas/ (both upstream-only; the file states inline that vendored installs do not ship the schema, so the JSON contract is documented inline). The verdict parser at .claude/lib/ai_review_common/verdict.py ships in the vendor install and works. None of these block the axis. Issue #2050. -->
+<!-- vendor-portability: declared. This review axis cites the model policy under .agents/governance/ and the output schema under .agents/schemas/ (both upstream-only; the file states inline that vendored installs do not ship the schema, so the JSON contract is documented inline). The verdict parser at .claude/lib/ai_review_common/verdict.py ships in the vendor install and works. None of these block the axis. Issue #2050. -->

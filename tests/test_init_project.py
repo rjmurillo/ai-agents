@@ -60,18 +60,18 @@ class TestScaffoldAgentsDirs:
         assert init.scaffold_agents_dirs() is True
 
         for dir_name in _AGENTS_DIRS:
-            assert (tmp_path / ".agents" / dir_name).is_dir()
+            assert (tmp_path / dir_name).is_dir()
 
     def test_creates_minimal_directory_structure(self, tmp_path: Path) -> None:
         init = ProjectInitializer(target_dir=tmp_path, minimal=True)
         assert init.scaffold_agents_dirs() is True
 
         for dir_name in _AGENTS_DIRS_MINIMAL:
-            assert (tmp_path / ".agents" / dir_name).is_dir()
+            assert (tmp_path / dir_name).is_dir()
 
         extra_dirs = set(_AGENTS_DIRS) - set(_AGENTS_DIRS_MINIMAL)
         for dir_name in extra_dirs:
-            assert not (tmp_path / ".agents" / dir_name).exists()
+            assert not (tmp_path / dir_name).exists()
 
     def test_idempotent_directory_creation(self, tmp_path: Path) -> None:
         init = ProjectInitializer(target_dir=tmp_path)
@@ -226,8 +226,8 @@ class TestFullRun:
         assert result == 0
         assert (tmp_path / "CLAUDE.md").exists()
         assert (tmp_path / "AGENTS.md").exists()
-        assert (tmp_path / ".agents" / "architecture").is_dir()
-        assert (tmp_path / ".agents" / "sessions").is_dir()
+        assert (tmp_path / ".project-toolkit" / "architecture").is_dir()
+        assert (tmp_path / ".project-toolkit" / "sessions").is_dir()
         assert (tmp_path / ".agents" / "team.yaml").exists()
         assert (tmp_path / ".github" / "copilot-instructions.md").exists()
 
@@ -238,7 +238,7 @@ class TestFullRun:
         assert result == 0
         assert (tmp_path / "CLAUDE.md").exists()
         assert (tmp_path / "AGENTS.md").exists()
-        assert (tmp_path / ".agents" / "architecture").is_dir()
+        assert (tmp_path / ".project-toolkit" / "architecture").is_dir()
         assert not (tmp_path / ".agents" / "governance").exists()
         assert not (tmp_path / ".agents" / "team.yaml").exists()
         assert not (tmp_path / ".github" / "copilot-instructions.md").exists()

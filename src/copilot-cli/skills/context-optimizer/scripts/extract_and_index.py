@@ -16,7 +16,7 @@ Exit Codes:
 See: ADR-035 Exit Code Standardization
 
 References:
-    - Vercel Research: .agents/analysis/vercel-passive-context-vs-skills-research.md
+    - Vercel Research: .project-toolkit/analysis/vercel-passive-context-vs-skills-research.md
     - Issue: #1109
 """
 

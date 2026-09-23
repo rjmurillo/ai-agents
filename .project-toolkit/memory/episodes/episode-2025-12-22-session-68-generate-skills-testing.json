@@ -1,0 +1,100 @@
+{
+  "id": "episode-2025-12-22-session-68-generate-skills-testing",
+  "session": "2025-12-22-session-68-generate-skills-testing",
+  "timestamp": "2025-12-22T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "partial",
+  "task": "Create comprehensive Pester tests for [build/Generate-Skills.ps1](../../build/Generate-Skills.ps1) to achieve high code coverage (target: 100%).",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2025-12-22T00:00:00+00:00",
+      "type": "test",
+      "content": "Create comprehensive Pester tests for [build/Generate-Skills.ps1](../../build/Generate-Skills.ps1) to achieve high code coverage (target: 100%).",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2025-12-22T00:00:00+00:00",
+      "type": "milestone",
+      "content": "[x] `mcp__serena__initial_instructions` (Completed after session compaction)",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2025-12-22T00:00:00+00:00",
+      "type": "test",
+      "content": "User request: \"Generate Pester tests for @build/Generate-Skills.ps1 ; 100% code coverage\"",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2025-12-22T00:00:00+00:00",
+      "type": "test",
+      "content": "Tests Passed: 60",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2025-12-22T00:00:00+00:00",
+      "type": "test",
+      "content": "Tests Failed: 0",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2025-12-22T00:00:00+00:00",
+      "type": "test",
+      "content": "1. **a526626**: test(generate-skills): add comprehensive Pester tests with 69.72% coverage",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e007",
+      "timestamp": "2025-12-22T00:00:00+00:00",
+      "type": "test",
+      "content": "**User Request**: \"Update @build/scripts/Invoke-PesterTests.ps1 so that it outputs coverage information to artifacts/TestResults/. Either one file for all tests, or individual files, one for each test it runs with an appropriate name.\"",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e008",
+      "timestamp": "2025-12-22T00:00:00+00:00",
+      "type": "test",
+      "content": "1. **Code Coverage Output** (Added to Invoke-PesterTests.ps1)",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e009",
+      "timestamp": "2025-12-22T00:00:00+00:00",
+      "type": "test",
+      "content": "- `build/scripts/Invoke-PesterTests.ps1` (added coverage and threshold checking)",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e010",
+      "timestamp": "2025-12-22T00:00:00+00:00",
+      "type": "test",
+      "content": "1. **a526626**: test(generate-skills): add comprehensive Pester tests with 69.72% coverage",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 5258
+  },
+  "lessons": []
+}

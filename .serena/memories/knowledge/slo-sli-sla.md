@@ -1,7 +1,7 @@
 # SLO/SLI/SLA Framework
 
 **Category**: Operability
-**Source**: `.agents/analysis/senior-engineering-knowledge.md`
+**Source**: `.project-toolkit/analysis/senior-engineering-knowledge.md`
 **Origin**: Google SRE Book
 
 ## Definitions

@@ -24,6 +24,7 @@ from scripts.validation import check_index_line_endings as checker
 from scripts.validation import index_line_endings_git as gitmod
 from tests.validation.index_line_endings_helpers import (
     INCIDENT_PATHS,
+    INCIDENT_PATHS_AT_INCIDENT,
     REPO_ROOT,
     _commit,
     _git,
@@ -181,7 +182,7 @@ def test_the_gate_fails_on_the_commit_the_incident_shipped() -> None:
 
     violations = _violations_at(PRE_FIX_COMMIT)
 
-    assert sorted(v.path for v in violations) == sorted(INCIDENT_PATHS)
+    assert sorted(v.path for v in violations) == sorted(INCIDENT_PATHS_AT_INCIDENT)
     assert {v.index_state for v in violations} == {"i/crlf"}
 
 

@@ -112,7 +112,7 @@ pre-commit:
           - name: session-policy
             timeout: 2m
             run: uv run --frozen python scripts/validation/git_hook_policy.py session {staged_files}
-            glob: ".agents/**"
+            glob: "{.agents,.project-toolkit}/**"
             skip:
               - merge
 
@@ -212,10 +212,19 @@ pre-commit:
             run: uv run --frozen python scripts/validation/check_colocated_skill_tests.py --staged-only
             glob: "{.claude/skills,src/copilot-cli/skills,src/claude/skills}/**/tests/**test*.py"
 
+          # Issue #5420: .agents/ now holds only read-only canonical inputs;
+          # writes moved to .project-toolkit/<sub>. Scans the full tracked
+          # index (see the module docstring), not just the staged diff, so
+          # the glob below only gates whether this job runs this commit.
+          - name: agents-write-targets
+            timeout: 2m
+            run: uv run --frozen python scripts/validation/check_agents_write_targets.py
+            glob: "**/*.{md,py,ps1,psm1,sh,yml,yaml,json,toml,txt}"
+
           - name: planning-advisory
             timeout: 5m
             run: uv run --frozen python scripts/validation/git_hook_policy.py planning
-            glob: ".agents/planning/**/*.md"
+            glob: ".project-toolkit/planning/**/*.md"
 
           - name: infrastructure-advisory
             timeout: 60s
@@ -229,7 +238,7 @@ pre-commit:
             timeout: 2m
             run: uv run --frozen python scripts/validation/git_hook_policy.py adr-review {staged_files}
             glob:
-              - ".agents/architecture/ADR-*.md"
+              - ".project-toolkit/architecture/ADR-*.md"
             skip:
               - merge
 
@@ -392,7 +401,7 @@ pre-commit:
     - name: extract-session-episodes
       timeout: 10m
       run: uv run --frozen python scripts/validation/git_hook_policy.py extract-episodes {staged_files}
-      glob: ".agents/sessions/*.json"
+      glob: ".project-toolkit/sessions/*.json"
       skip:
         - merge
         - run: test "$SKIP_AUTOFIX" = "1"

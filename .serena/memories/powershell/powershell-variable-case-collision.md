@@ -56,8 +56,8 @@ Get-IssueContext.ps1 has zero Pester tests. Identified coverage gaps:
 
 ## Reference
 
-- QA Report: `.agents/qa/500-get-issue-context-fix-test-report.md`
-- Session: `.agents/sessions/2025-12-29-session-qa-issue-500.md`
+- QA Report: `.project-toolkit/qa/500-get-issue-context-fix-test-report.md`
+- Session: `.project-toolkit/sessions/2025-12-29-session-qa-issue-500.md`
 
 ## Related
 

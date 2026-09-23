@@ -264,7 +264,7 @@ def new_episode(
 ) -> dict[str, Any]
 ```
 
-**Side effect**: writes `.agents/memory/episodes/episode-{session_id}.json`.
+**Side effect**: writes `.project-toolkit/memory/episodes/episode-{session_id}.json`.
 
 **Raises**: `ValueError` on an invalid outcome or a schema validation failure, `OSError` on a write failure.
 
@@ -320,8 +320,8 @@ def get_reflexion_memory_status() -> dict[str, Any]
 
 ```python
 {
-    "Episodes": {"Path": "/abs/path/.agents/memory/episodes", "Count": 322},
-    "Configuration": {"EpisodesPath": "/abs/path/.agents/memory/episodes"},
+    "Episodes": {"Path": "/abs/path/.project-toolkit/memory/episodes", "Count": 322},
+    "Configuration": {"EpisodesPath": "/abs/path/.project-toolkit/memory/episodes"},
 }
 ```
 
@@ -372,7 +372,7 @@ uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/mem
 
 ```bash
 uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/extract_session_episode.py" \
-    .agents/sessions/2026-01-01-session-126.json
+    .project-toolkit/sessions/2026-01-01-session-126.json
 ```
 
 ---

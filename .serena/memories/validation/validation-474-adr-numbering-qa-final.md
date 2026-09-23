@@ -30,7 +30,7 @@ QA verification of ADR numbering conflict resolution. Implementation successfull
 
 ## Critical Finding
 
-**File**: `.agents/architecture/ADR-022-architecture-governance-split-criteria.md`
+**File**: `.project-toolkit/architecture/ADR-022-architecture-governance-split-criteria.md`
 **Line**: 264
 **Current**: `- ADR-014 (runner selection) and COST-GOVERNANCE are inseparable`
 **Should Be**: `- ADR-024 (runner selection) and COST-GOVERNANCE are inseparable`
@@ -57,9 +57,9 @@ QA verification of ADR numbering conflict resolution. Implementation successfull
 
 ## Related
 
-- Analysis: `.agents/analysis/403-adr-numbering-conflicts-analysis.md`
-- Previous QA: `.agents/qa/474-adr-numbering-test-report.md`
-- Session 100: `.agents/sessions/2025-12-28-session-100-adr-cross-reference-fixes.md`
+- Analysis: `.project-toolkit/analysis/403-adr-numbering-conflicts-analysis.md`
+- Previous QA: `.project-toolkit/qa/474-adr-numbering-test-report.md`
+- Session 100: `.project-toolkit/sessions/2025-12-28-session-100-adr-cross-reference-fixes.md`
 
 ## Related
 

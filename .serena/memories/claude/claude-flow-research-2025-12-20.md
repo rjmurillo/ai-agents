@@ -64,7 +64,7 @@
 - #183: Claude-Flow Inspired Enhancements
 
 ## Analysis Document
-`.agents/analysis/claude-flow-architecture-analysis.md`
+`.project-toolkit/analysis/claude-flow-architecture-analysis.md`
 
 ## Key Takeaways for Implementation
 1. Start with vector memory as foundation for other features

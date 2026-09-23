@@ -1501,7 +1501,7 @@ Optional: `expected_reason_contains`, `rationale`.
 
 | Prompt Type | Scenario Location |
 |-------------|-------------------|
-| Security benchmarks | `.agents/security/benchmarks/` |
+| Security benchmarks | `.project-toolkit/security/benchmarks/` |
 | Other prompt evals | `tests/evals/` |
 
 Convention: for a prompt at `path/to/name.md`, name the scenario file `name-scenarios.json`.
@@ -1551,6 +1551,6 @@ the correct input for optimization decisions.
 
 ## References
 
-- [ADR-057](.agents/architecture/ADR-057-prompt-behavioral-evaluation.md)
-- [ADR-023](.agents/architecture/ADR-023-quality-gate-prompt-testing.md)
-- [Methodology](.agents/testing/prompt-eval-methodology.md)
+- [ADR-057](.project-toolkit/architecture/ADR-057-prompt-behavioral-evaluation.md)
+- [ADR-023](.project-toolkit/architecture/ADR-023-quality-gate-prompt-testing.md)
+- [Methodology](.project-toolkit/testing/prompt-eval-methodology.md)

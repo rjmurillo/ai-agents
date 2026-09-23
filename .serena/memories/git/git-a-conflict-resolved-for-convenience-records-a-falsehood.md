@@ -61,7 +61,7 @@ tie is broken by evidence outside the conflict, usually in the same file:
 
 ```bash
 set -euo pipefail
-FILE=".agents/sessions/2026-08-05-session-10005.json"
+FILE=".project-toolkit/sessions/2026-08-05-session-10005.json"
 # Every SHA the log itself mentions, newest last.
 git show "HEAD:$FILE" | grep -oE '\b[0-9a-f]{9}\b' | sort -u | while read -r sha; do
   git cat-file -e "${sha}^{commit}" 2>/dev/null || continue
@@ -85,7 +85,7 @@ leaves the bad value queued behind it.
 
 ```bash
 set -euo pipefail
-FILE=".agents/sessions/2026-08-05-session-10005.json"
+FILE=".project-toolkit/sessions/2026-08-05-session-10005.json"
 for BRANCH in branch-a branch-b branch-c; do
   printf '%-40s ' "$BRANCH"
   git show "$BRANCH:$FILE" 2>/dev/null | grep -o '"endingCommit": "[a-f0-9]*"' || echo "(absent)"

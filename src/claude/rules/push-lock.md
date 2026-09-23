@@ -63,8 +63,8 @@ is evidence, not a recipe, and must not be rewritten to match this rule. Mark
 such a fenced block, or such a paragraph of prose, with the token
 `push-lock-historical` on a line inside it so
 `scripts/validation/check_push_lock_paths.py` skips it. The checker
-scans prescriptive surfaces only and leaves `.agents/retrospective/`,
-`.agents/audits/`, and `.agents/archive/` alone.
+scans prescriptive surfaces only and leaves `.project-toolkit/retrospective/`,
+`.project-toolkit/audits/`, and `.agents/archive/` alone.
 
 ## Commit guard
 

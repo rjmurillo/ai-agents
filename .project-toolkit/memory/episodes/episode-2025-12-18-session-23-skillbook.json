@@ -1,0 +1,119 @@
+{
+  "id": "episode-2025-12-18-session-23-skillbook",
+  "session": "2025-12-18-session-23-skillbook",
+  "timestamp": "2025-12-18T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "partial",
+  "task": "Persist 5 extracted skills from Session 22 parallel implementation retrospective to Serena skillbook memories.",
+  "decisions": [
+    {
+      "id": "d001",
+      "timestamp": "2025-12-18T00:00:00+00:00",
+      "type": "implementation",
+      "context": "",
+      "chosen": "\u2705 **ADD** - Distinct concepts (exploration vs implementation phase)",
+      "rationale": "",
+      "outcome": "partial",
+      "effects": []
+    },
+    {
+      "id": "d002",
+      "timestamp": "2025-12-18T00:00:00+00:00",
+      "type": "implementation",
+      "context": "",
+      "chosen": "\u2705 **ADD** - Novel skill",
+      "rationale": "",
+      "outcome": "partial",
+      "effects": []
+    },
+    {
+      "id": "d003",
+      "timestamp": "2025-12-18T00:00:00+00:00",
+      "type": "implementation",
+      "context": "",
+      "chosen": "\u2705 **ADD as Skill-Analysis-002** - Name collision resolved. Existing is gap analysis template, new is comprehensive analysis standard.",
+      "rationale": "",
+      "outcome": "partial",
+      "effects": []
+    },
+    {
+      "id": "d004",
+      "timestamp": "2025-12-18T00:00:00+00:00",
+      "type": "test",
+      "context": "",
+      "chosen": "\u2705 **ADD as Skill-Test-Pester-005** - Novel skill focusing on test creation timing",
+      "rationale": "",
+      "outcome": "partial",
+      "effects": []
+    },
+    {
+      "id": "d005",
+      "timestamp": "2025-12-18T00:00:00+00:00",
+      "type": "implementation",
+      "context": "",
+      "chosen": "\u26a0\ufe0f **UPDATE Skill-Protocol-001** - Same concept, add new evidence from Sessions 19-21",
+      "rationale": "",
+      "outcome": "partial",
+      "effects": []
+    }
+  ],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2025-12-18T00:00:00+00:00",
+      "type": "test",
+      "content": "**Proposed**: \"Create Pester tests during implementation (not after)\"",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2025-12-18T00:00:00+00:00",
+      "type": "test",
+      "content": "**Most Similar**: Skill-Test-Pester-004 in `skills-pester-testing.md` - \"Every Context block needs BeforeEach cleanup\"",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2025-12-18T00:00:00+00:00",
+      "type": "test",
+      "content": "**Decision**: \u2705 **ADD as Skill-Test-Pester-005** - Novel skill focusing on test creation timing",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2025-12-18T00:00:00+00:00",
+      "type": "test",
+      "content": "| Skill-Test-Pester-005 | 95% | \u2705 |",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2025-12-18T00:00:00+00:00",
+      "type": "test",
+      "content": "- **Skill-Test-Pester-005**: Test-first development (95% atomicity)",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2025-12-18T00:00:00+00:00",
+      "type": "test",
+      "content": "| Testing | skills-pester-testing.md | 1 (Skill-Test-Pester-005) |",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 5175
+  },
+  "lessons": []
+}

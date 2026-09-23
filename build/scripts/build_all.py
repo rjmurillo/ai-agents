@@ -310,14 +310,14 @@ def _build_agent_catalog(repo_root: Path, _config_path: Path, _platform: str) ->
 
 
 def _build_adr_index(repo_root: Path, _config_path: Path, _platform: str) -> GeneratorResult:
-    """Regenerate .agents/architecture/README.md from the ADR corpus.
+    """Regenerate .project-toolkit/architecture/README.md from the ADR corpus.
 
     Repo-level like ``_build_agent_catalog``, not per-platform: there is one ADR
     corpus and one index, and running it once per platform config would write the
     same bytes N times. ``_run_generators`` calls it in the run-once block for
     that reason.
 
-    ``.agents/architecture/README.md`` is registered in :data:`OWNED_PREFIXES` so
+    ``.project-toolkit/architecture/README.md`` is registered in :data:`OWNED_PREFIXES` so
     both ``--check`` consumers cover it: the staleness diff reports an ADR change
     that landed without a regeneration, and the snapshot/restore guard keeps
     ``--check`` read-only for this file the way it already does for
@@ -334,7 +334,7 @@ def _build_adr_index(repo_root: Path, _config_path: Path, _platform: str) -> Gen
     preserves its own contract instead of shadowing it with a second,
     looser one.
     """
-    adr_dir = repo_root / ".agents" / "architecture"
+    adr_dir = repo_root / ".project-toolkit" / "architecture"
     output_path = adr_dir / "README.md"
     rc = generate_adr_index.main(
         [
@@ -1110,7 +1110,7 @@ OWNED_PREFIXES: tuple[str, ...] = (
     ".claude/settings.json",
     ".github/hooks/",
     "docs/agent-catalog.md",
-    ".agents/architecture/README.md",
+    ".project-toolkit/architecture/README.md",
 )
 
 
@@ -1658,7 +1658,7 @@ def _read_into_snapshot(snapshot: dict[Path, bytes], path: Path, *, strict: bool
 
     Extracted so the single-file prefix branch and the directory walk in
     :func:`_snapshot_owned_prefixes` cannot drift apart. ``docs/agent-catalog.md``
-    and ``.agents/architecture/README.md`` are single-file owned prefixes, so
+    and ``.project-toolkit/architecture/README.md`` are single-file owned prefixes, so
     the branch that handles them is exactly as exposed to the delete-on-
     unreadable bug as the walk is.
 

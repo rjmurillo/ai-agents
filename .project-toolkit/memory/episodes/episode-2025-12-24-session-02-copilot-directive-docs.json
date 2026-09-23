@@ -1,0 +1,19 @@
+{
+  "id": "episode-2025-12-24-session-02-copilot-directive-docs",
+  "session": "2025-12-24-session-02-copilot-directive-docs",
+  "timestamp": "2025-12-24T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Document best practice of using issue comments (not review comments) for @copilot directives to reduce noise in PR review threads.",
+  "decisions": [],
+  "events": [],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 5314
+  },
+  "lessons": []
+}

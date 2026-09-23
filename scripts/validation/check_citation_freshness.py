@@ -76,7 +76,7 @@ _FIXTURE_FRAGMENTS = ("/fixtures/",)
 # episode records are point-in-time captures, exactly like sessions and
 # retrospectives, and that tuple is another gate's contract to widen.
 _EXTRA_HISTORICAL_ROOTS = (
-    ".agents/memory/",
+    ".project-toolkit/memory/",
     ".project-toolkit/planning/",
     ".project-toolkit/pr-comments/",
     ".project-toolkit/qa/",

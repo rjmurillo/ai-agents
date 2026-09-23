@@ -52,11 +52,11 @@ This axis always runs first. Its outcome depends on whether a spec is linked:
 
 ## Reference Material
 
-Ground findings in the project's spec artifacts. In the source repo these live under `.agents/specs/`; vendored installs without that tree should read the spec content from the PR body or the staged diff instead, and emit `UNKNOWN` (INCONCLUSIVE) when neither is present.
+Ground findings in the project's spec artifacts. In the source repo these live under `.project-toolkit/specs/`; vendored installs without that tree should read the spec content from the PR body or the staged diff instead, and emit `UNKNOWN` (INCONCLUSIVE) when neither is present.
 
-- `.agents/specs/requirements/REQ-*.md`: requirement documents. Each contains numbered acceptance criteria in `Acceptance Criteria` sections. These are the contract.
-- `.agents/specs/design/DESIGN-*.md`: design documents. Use them to confirm the diff follows the agreed approach, not just that it produces an output.
-- `.agents/specs/tasks/TASK-*.md`: task breakdowns. Use them to confirm the bounded slice the PR claims to deliver is the slice it actually delivers.
+- `.project-toolkit/specs/requirements/REQ-*.md`: requirement documents. Each contains numbered acceptance criteria in `Acceptance Criteria` sections. These are the contract.
+- `.project-toolkit/specs/design/DESIGN-*.md`: design documents. Use them to confirm the diff follows the agreed approach, not just that it produces an output.
+- `.project-toolkit/specs/tasks/TASK-*.md`: task breakdowns. Use them to confirm the bounded slice the PR claims to deliver is the slice it actually delivers.
 
 ## Analysis Focus Areas
 
@@ -144,7 +144,7 @@ Automatically use `CRITICAL_FAIL` if you find:
 
 ## Structured JSON Output
 
-After your human-readable analysis, emit a fenced JSON block matching the inline schema below (a JSON Schema for this output also lives at `.project-toolkit/schemas/pr-quality-gate-output.schema.json` in projects that ship it; vendored installs do not):
+After your human-readable analysis, emit a fenced JSON block matching the inline schema below (a JSON Schema for this output also lives at `.agents/schemas/pr-quality-gate-output.schema.json` in projects that ship it; vendored installs do not):
 
 ```json
 {
@@ -195,4 +195,4 @@ when `/review` aggregates across all axes.
 
 Refs REQ-008-01, REQ-008-05 (issue #1934), issue #1905 (Stage-1 spec-compliance gate).
 
-<!-- vendor-portability: declared. This axis grounds findings in .agents/specs/ and states inline that vendored installs without that tree read spec content from the PR body or staged diff. It cites .agents/governance/AI-REVIEW-MODEL-POLICY.md, the .agents/schemas/ output schema (documented inline), and the verdict parser at .claude/lib/ai_review_common/verdict.py which ships in the vendor install. Issue #2050. -->
+<!-- vendor-portability: declared. This axis grounds findings in .project-toolkit/specs/ and states inline that vendored installs without that tree read spec content from the PR body or staged diff. It cites .agents/governance/AI-REVIEW-MODEL-POLICY.md, the .agents/schemas/ output schema (documented inline), and the verdict parser at .claude/lib/ai_review_common/verdict.py which ships in the vendor install. Issue #2050. -->

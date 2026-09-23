@@ -1288,7 +1288,7 @@ class TestValidatePRDescription:
         description = (
             "## Testing\n"
             "- Ran the new exit-code check; behavior matches "
-            "`.agents/architecture/ADR-035-exit-code-standardization.md`.\n"
+            "`.project-toolkit/architecture/ADR-035-exit-code-standardization.md`.\n"
         )
         mentioned = extract_mentioned_files(description)
         issues = validate_pr_description(
@@ -1296,7 +1296,7 @@ class TestValidatePRDescription:
             mentioned_files=mentioned,
         )
         offenders = [i.file for i in issues if i.severity == "CRITICAL"]
-        assert ".agents/architecture/ADR-035-exit-code-standardization.md" not in offenders
+        assert ".project-toolkit/architecture/ADR-035-exit-code-standardization.md" not in offenders
 
     def test_issue_2252_pr_1873_author_preflight_shape_not_flagged(self) -> None:
         description = (

@@ -214,7 +214,7 @@ def write_skill_error(
         raise ValueError(f"message must be a string, got: {type(message).__name__}")
     # Scope note before the guard below: it checks TYPE only (int, not
     # bool), not the VALUE RANGE the "Exit code per ADR-035" docstring
-    # above names. ADR-035's own table (.agents/architecture/ADR-035-
+    # above names. ADR-035's own table (.project-toolkit/architecture/ADR-035-
     # exit-code-standardization.md:52-60) reserves 5-99 ("do not use
     # until standardized") and requires 100+ codes to be documented in
     # the calling script's header. At least one existing caller already

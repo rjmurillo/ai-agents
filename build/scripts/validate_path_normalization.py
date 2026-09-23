@@ -291,7 +291,7 @@ def print_report(result: ScanResult, root: Path, use_color: bool) -> None:
     print("3. Examples of correct relative paths:")
     print("   - docs/guide.md")
     print("   - ../architecture/design.md")
-    print("   - .agents/planning/PRD-feature.md")
+    print("   - .project-toolkit/planning/PRD-feature.md")
     print()
 
 
@@ -312,7 +312,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--exclude-paths",
-        default=".git,node_modules,.vs,bin,obj,.agents/sessions",
+        default=".git,node_modules,.vs,bin,obj,.project-toolkit/sessions",
         help="Comma-separated paths to exclude (default: .git,node_modules,...)",
     )
     parser.add_argument(

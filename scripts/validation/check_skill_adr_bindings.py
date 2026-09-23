@@ -30,7 +30,7 @@ A skill names the decision records it depends on in nested frontmatter::
 Nothing validated those names against the ADRs' own lifecycle state. When a
 record is superseded, every skill that declares it keeps pointing at a decision
 the generated index marks Do Not Cite, and no gate notices: the supersession PR
-touches only `.agents/architecture/`, and every later PR leaves the stale
+touches only `.project-toolkit/architecture/`, and every later PR leaves the stale
 declaration outside its diff. An agent loading the skill then reads a retired
 record as current, which is the failure `.claude/rules/canonical-source-mirror.md`
 describes as a wrong citation weaponizing the next reader's trust.
@@ -47,7 +47,7 @@ that the surface does not exist.
 
 ## The status vocabulary, quoted from canonical
 
-`.agents/architecture/ADR-073-adr-lifecycle-frontmatter.md:48` declares the
+`.project-toolkit/architecture/ADR-073-adr-lifecycle-frontmatter.md:48` declares the
 enum verbatim::
 
     status: proposed | accepted | rejected | deprecated | superseded   # enum, no prose
@@ -138,7 +138,7 @@ the tree while its own final component is an ordinary file. Testing
 `SKILL.md` is a symlink today.
 
 A declared id with no record is reported too. Without that, an
-`.agents/architecture` holding unrelated records passes the presence check, no
+`.project-toolkit/architecture` holding unrelated records passes the presence check, no
 declared id resolves, every violating skill scores clean, and the gate prints
 ``improved`` and invites lowering the ceiling. Measured on this tree: 106 records
 resolve and no skill declares an id without one, so this cannot move today's
@@ -403,7 +403,7 @@ def _declaration_finding(
     if unknown:
         # A declared id with no record is drift too, and reporting it is what
         # keeps the count honest when the corpus itself is wrong. Without this,
-        # an `.agents/architecture` holding unrelated records passes the presence
+        # an `.project-toolkit/architecture` holding unrelated records passes the presence
         # check, no declared id resolves, every violating skill scores clean, and
         # the gate prints `improved` and invites lowering the ceiling. Measured
         # on this tree: 106 records resolve and no skill declares an id without
@@ -660,7 +660,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     repo_root = Path(args.repo_root).resolve()
-    adr_dir = repo_root / ".agents" / "architecture"
+    adr_dir = repo_root / ".project-toolkit" / "architecture"
     if not adr_dir.is_dir():
         print(
             f"[{CHECK}] config: ADR directory {adr_dir} does not exist, so no "

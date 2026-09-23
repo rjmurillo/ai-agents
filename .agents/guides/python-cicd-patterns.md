@@ -358,6 +358,6 @@ When migrating a PowerShell workflow script to Python:
 
 ## References
 
-- [ADR-042: Python Migration Strategy](../architecture/ADR-042-python-migration-strategy.md)
+- [ADR-042: Python Migration Strategy](../../.project-toolkit/architecture/ADR-042-python-migration-strategy.md)
 - [ADR-006: Thin Workflows](../architecture/ADR-006-thin-workflows.md)
-- [ADR-035: Exit Code Standardization](../architecture/ADR-035-exit-code-standardization.md)
+- [ADR-035: Exit Code Standardization](../../.project-toolkit/architecture/ADR-035-exit-code-standardization.md)

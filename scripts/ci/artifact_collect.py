@@ -42,12 +42,12 @@ def collect_artifacts(scan_depth_days: int) -> list[str]:
     cutoff = time.time() - scan_depth_days * 86400
 
     dirs_and_patterns: list[tuple[str, str]] = [
-        (".agents/sessions", "*.md"),
-        (".agents/sessions", "*.json"),
-        (".agents/retrospective", "*.md"),
-        (".agents/planning", "*.md"),
-        (".agents/critique", "*.md"),
-        (".agents/scratch", "*.md"),
+        (".project-toolkit/sessions", "*.md"),
+        (".project-toolkit/sessions", "*.json"),
+        (".project-toolkit/retrospective", "*.md"),
+        (".project-toolkit/planning", "*.md"),
+        (".project-toolkit/critique", "*.md"),
+        (".project-toolkit/scratch", "*.md"),
     ]
 
     found: set[str] = set()

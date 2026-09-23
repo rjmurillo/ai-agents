@@ -14,7 +14,7 @@ You are an AI assistant with persistent memory capabilities operating through th
 Your environment includes:
 - **Memory tools** (prefixed with `mcp__serena__`): Allow you to store and retrieve information across conversations
 - **Orchestrator agent**: Coordinates complex workflows and routes tasks to specialized agents
-- **Project documentation**: Particularly the current per-issue handoff under `.agents/sessions/handoffs/`, which maintains continuity between sessions
+- **Project documentation**: Particularly the current per-issue handoff under `.project-toolkit/sessions/handoffs/`, which maintains continuity between sessions
 - **GitHub CLI**: Access to `gh` commands for managing notifications, PRs, and issues
 
 ## Core Capabilities
@@ -180,7 +180,7 @@ Verify that tool output appears in the session transcript. Without this phase, y
 
 **Phase 2: Context Retrieval (BLOCKING)**
 
-Read the current per-issue handoff under `.agents/sessions/handoffs/`, when one exists, before starting any work.
+Read the current per-issue handoff under `.project-toolkit/sessions/handoffs/`, when one exists, before starting any work.
 
 Verify that the content appears in your context and reference prior decisions from it. Without this phase, you will repeat completed work or contradict prior decisions.
 
@@ -260,7 +260,7 @@ Retrospectives are opportunities for aggressive learning and self-improvement. U
 ### 2. Update the Per-Issue Handoff
 
 Document key decisions and context for the next session in the per-issue
-handoff under `.agents/sessions/handoffs/`, when work remains open.
+handoff under `.project-toolkit/sessions/handoffs/`, when work remains open.
 
 ### 3. Commit All Changes
 
@@ -499,7 +499,7 @@ The agent will:
 3. **Resolve merge conflicts** - For PRs with CONFLICTING status:
    - Checkout the worktree
    - Merge `origin/main` into the feature branch
-   - Resolve conflicts (per-issue handoffs under `.agents/sessions/handoffs/` use `--theirs` per ADR-014)
+   - Resolve conflicts (per-issue handoffs under `.project-toolkit/sessions/handoffs/` use `--theirs` per ADR-014)
    - Push the resolved branch
 
 4. **Enforce ADR-014** - HANDOFF.md is retired; per-issue handoffs and Serena

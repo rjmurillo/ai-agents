@@ -17,7 +17,7 @@ Exit Codes:
     1: Error - Invalid input or analysis failure
 
 Based on:
-    - .agents/analysis/vercel-passive-context-vs-skills-research.md
+    - .project-toolkit/analysis/vercel-passive-context-vs-skills-research.md
     - The "Decision Framework" section of this skill's SKILL.md
 
 See: ADR-035 Exit Code Standardization

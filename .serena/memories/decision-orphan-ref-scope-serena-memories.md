@@ -9,7 +9,7 @@ scan be added to CI?
 ## Conventional answer
 
 A `CRITICAL_FAIL` verdict means the target is broken and should be repaired until it
-passes, then gated so it cannot regress. That is how `.agents/specs` and `tests/evals`
+passes, then gated so it cannot regress. That is how `.project-toolkit/specs` and `tests/evals`
 are treated, and both are in `DEFAULT_TARGETS` in
 `.claude/skills/orphan-ref-validator/scripts/scan.py`.
 
@@ -61,7 +61,7 @@ its own; the tool appends a `VERDICT:` line after the object, so split on
 `VERDICT:` before parsing. Counts are at `Data.counts`, findings at
 `Data.findings`, and each finding carries `kind` and `target_file`.
 
-`.serena/memories` is not in `DEFAULT_TARGETS`, which covers `.agents/specs`,
+`.serena/memories` is not in `DEFAULT_TARGETS`, which covers `.project-toolkit/specs`,
 `tests/evals`, `.claude/.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`,
 and `.github/plugin/marketplace.json`. The default scan passes. Nothing in CI points
 the validator at the memory corpus, which is how the `script_path` rot accumulated

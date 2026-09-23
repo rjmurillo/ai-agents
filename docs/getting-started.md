@@ -71,7 +71,7 @@ The agents follow a 7-phase pipeline. Each phase has a defined input, a command 
 | # | Phase | Command | What it does | Artifact produced | When to use |
 |---|-------|---------|--------------|-------------------|-------------|
 | 1 | Grill Me | `/spec` (requirements-interview) | Adversarial interview that walks the design tree before any code; proposes answers from the codebase | Structured PRD (Problem, User stories, Data model, Acceptance criteria) | Start here for every non-trivial feature |
-| 2 | PRD to Spec | `/spec` (completion) | Formalizes the PRD into durable REQ/DESIGN/TASK files; runs analyst gap-check and critic pre-mortem | `.agents/specs/requirements/REQ-NNN-*.md`, `DESIGN-NNN-*.md`, `TASK-NNN-*.md` | After the interview resolves all open questions |
+| 2 | PRD to Spec | `/spec` (completion) | Formalizes the PRD into durable REQ/DESIGN/TASK files; runs analyst gap-check and critic pre-mortem | `.project-toolkit/specs/requirements/REQ-NNN-*.md`, `DESIGN-NNN-*.md`, `TASK-NNN-*.md` | After the interview resolves all open questions |
 | 3 | Kanban | `/plan` | Decomposes specs into milestones with dependency ordering, risk register, and S/M/L sizing | Versioned execution plan artifact | After `/spec` output exists |
 | 4 | Implement | `/build` | TDD vertical slices, atomic commits, code-quality self-check | Committed code plus passing tests | After `/plan` output exists |
 | 5 | QA | `/test` | Six quality gates: functional, non-functional, security, DevOps, DX, observability | Gate verdicts table with PASS/WARN/CRITICAL_FAIL per gate | After `/build` completes a slice |

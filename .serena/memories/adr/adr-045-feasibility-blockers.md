@@ -16,8 +16,8 @@
 1. **v0.3.1 Prerequisite Blocker**: ADR-045 lists v0.3.1 as prerequisite but does not acknowledge 11-month timeline. Starting v0.4.0 now means extracting PowerShell code only to re-extract it as Python in 2027 (double effort).
 
 2. **False "Zero Coupling" Claim**: Agent templates (Phase 1, claimed cleanest extraction) contain hard-coded `.agents/` paths:
-   - analyst.shared.md line 383: `Save to: .agents/analysis/NNN-[topic]-analysis.md`
-   - architect.shared.md line 224: `Save to: .agents/architecture/ADR-NNNN-[decision-name].md`
+   - analyst.shared.md line 383: `Save to: .project-toolkit/analysis/NNN-[topic]-analysis.md`
+   - architect.shared.md line 224: `Save to: .project-toolkit/architecture/ADR-NNNN-[decision-name].md`
    - 14 of 18 templates affected
 
 3. **Missing Inventory Rigor**: 65% framework claim based on plan table estimates (100%, 68%, 75% round numbers), not file-by-file classification. No inventory document exists to validate claim.
@@ -43,7 +43,7 @@ Required revisions:
 
 ### Cross-Session Context
 
-- Analysis document: `.agents/analysis/adr-045-feasibility-analysis.md`
+- Analysis document: `.project-toolkit/analysis/adr-045-feasibility-analysis.md`
 - Related: adr-042-python-first-enforcement.md (v0.3.1 prerequisite)
 - Related: v0.3.1 PowerShell migration plan (12-month timeline, 16 open issues)
 - Related: claude-code-plugin-marketplaces.md (plugin architecture research)

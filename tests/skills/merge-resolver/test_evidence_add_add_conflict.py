@@ -6,8 +6,8 @@ file-size taste-lint ratchet (issue #2785 precedent); same import pattern.
 
 CodeRabbit PRRT_kwDOQoWRls6ibh7v: accept-theirs alone silently discarded the
 head branch's own record on an add/add conflict under an append-only
-evidence directory (.agents/sessions/*, .agents/qa/*,
-.agents/retrospective/*; PR #4856). These tests prove the fix: such a
+evidence directory (.project-toolkit/sessions/*, .project-toolkit/qa/*,
+.project-toolkit/retrospective/*; PR #4856). These tests prove the fix: such a
 conflict is now reported "blocked" instead of auto-resolved, while an
 ordinary modify/modify conflict on the same path pattern still auto-resolves.
 """
@@ -47,9 +47,9 @@ class TestIsEvidencePattern:
     """Detection of append-only evidence directories (PR #4856)."""
 
     def test_session_qa_retrospective_match(self) -> None:
-        assert _is_evidence_pattern(".agents/sessions/2026-01-01.json")
-        assert _is_evidence_pattern(".agents/qa/2026-01-01-report.md")
-        assert _is_evidence_pattern(".agents/retrospective/2026-01-01-notes.md")
+        assert _is_evidence_pattern(".project-toolkit/sessions/2026-01-01.json")
+        assert _is_evidence_pattern(".project-toolkit/qa/2026-01-01-report.md")
+        assert _is_evidence_pattern(".project-toolkit/retrospective/2026-01-01-notes.md")
 
     def test_other_agents_paths_do_not_match(self) -> None:
         assert not _is_evidence_pattern(".agents/governance/PROJECT-CONSTRAINTS.md")
@@ -105,18 +105,18 @@ class TestIsAddAddConflict:
         assert merge.returncode != 0, "expected a modify/modify conflict"
 
     def test_add_add_has_no_stage_1(self, tmp_path: Path) -> None:
-        rel = ".agents/sessions/2026-01-01.json"
+        rel = ".project-toolkit/sessions/2026-01-01.json"
         self._make_add_add(tmp_path, rel, '{"ours": true}\n', '{"theirs": true}\n')
         assert _is_add_add_conflict(rel, cwd=str(tmp_path)) is True
 
     def test_modify_modify_has_stage_1(self, tmp_path: Path) -> None:
-        rel = ".agents/sessions/2026-01-01.json"
+        rel = ".project-toolkit/sessions/2026-01-01.json"
         self._make_modify_modify(tmp_path, rel)
         assert _is_add_add_conflict(rel, cwd=str(tmp_path)) is False
 
     def test_no_conflict_returns_false(self, tmp_path: Path) -> None:
         _git(tmp_path, "init", "-b", "main")
-        assert _is_add_add_conflict(".agents/sessions/missing.json", cwd=str(tmp_path)) is False
+        assert _is_add_add_conflict(".project-toolkit/sessions/missing.json", cwd=str(tmp_path)) is False
 
     def test_inspection_failure_returns_none(self, tmp_path: Path) -> None:
         """CodeRabbit PRRT_kwDOQoWRls6icJzj: fail closed, not "not add/add".
@@ -125,14 +125,14 @@ class TestIsAddAddConflict:
         nonzero. The old code returned False here, which let the evidence
         conflict fall through to accept-theirs.
         """
-        assert _is_add_add_conflict(".agents/sessions/x.json", cwd=str(tmp_path)) is None
+        assert _is_add_add_conflict(".project-toolkit/sessions/x.json", cwd=str(tmp_path)) is None
 
 
 class TestResolveConflictedFileEvidenceAddAdd:
     """_resolve_conflicted_file blocks add/add evidence conflicts (PR #4856)."""
 
     def test_add_add_evidence_conflict_blocks(self, tmp_path: Path) -> None:
-        rel = ".agents/sessions/2026-01-01.json"
+        rel = ".project-toolkit/sessions/2026-01-01.json"
         helper = TestIsAddAddConflict()
         helper._make_add_add(tmp_path, rel, '{"ours": true}\n', '{"theirs": true}\n')
         result: dict[str, Any] = {
@@ -150,7 +150,7 @@ class TestResolveConflictedFileEvidenceAddAdd:
         assert '"ours": true' in (tmp_path / rel).read_text(encoding="utf-8")
 
     def test_modify_modify_evidence_conflict_still_auto_resolves(self, tmp_path: Path) -> None:
-        rel = ".agents/sessions/2026-01-01.json"
+        rel = ".project-toolkit/sessions/2026-01-01.json"
         helper = TestIsAddAddConflict()
         helper._make_modify_modify(tmp_path, rel)
         result: dict[str, Any] = {
@@ -172,7 +172,7 @@ class TestResolveConflictedFileEvidenceAddAdd:
         ``is_auto_resolvable`` and accept-theirs, discarding the evidence
         record without ever inspecting it.
         """
-        rel = ".agents/sessions/2026-01-01.json"
+        rel = ".project-toolkit/sessions/2026-01-01.json"
         result: dict[str, Any] = {
             "success": False,
             "message": "",

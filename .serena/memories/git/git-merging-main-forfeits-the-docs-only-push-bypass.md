@@ -117,7 +117,7 @@ you are relying on:
 2. **Trivial session.** Requires `len(paths) == 1` and a session log created
    inside `TRIVIAL_SESSION_SECONDS`. A merge push is never one path.
 3. **`_today_retrospective_exists`.** Globs the **working tree**
-   `.agents/retrospective/` for today's and yesterday's prefixes. It reads the
+   `.project-toolkit/retrospective/` for today's and yesterday's prefixes. It reads the
    checked-out tree, so a retrospective that exists on a *different branch* is
    invisible. The prefixes come from `_recent_date_prefixes`, which is **UTC**:
    at 2026-08-06 evening PDT, UTC is already 2026-08-07, so a file dated

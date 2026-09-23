@@ -28,7 +28,7 @@ Each of the three failures was invisible from inside the session. The agent
 could not see the comment count climbing, the commit count, or which files a
 glob had touched. A limit nobody can read during the work is not a limit.
 
-See `.agents/retrospective/2026-01-15-pr-908-comprehensive-retrospective.md`.
+See `.project-toolkit/retrospective/2026-01-15-pr-908-comprehensive-retrospective.md`.
 
 ## Related
 

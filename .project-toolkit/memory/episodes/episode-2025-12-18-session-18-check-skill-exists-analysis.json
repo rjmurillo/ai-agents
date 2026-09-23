@@ -1,0 +1,36 @@
+{
+  "id": "episode-2025-12-18-session-18-check-skill-exists-analysis",
+  "session": "2025-12-18-session-18-check-skill-exists-analysis",
+  "timestamp": "2025-12-18T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "partial",
+  "task": "[Migrated from markdown]",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2025-12-18T00:00:00+00:00",
+      "type": "milestone",
+      "content": "`github/` - Complete GitHub CLI operations skill (11 scripts)",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2025-12-18T00:00:00+00:00",
+      "type": "milestone",
+      "content": "[ ] Complete skill capability mapping",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 5170
+  },
+  "lessons": []
+}

@@ -49,6 +49,6 @@ sessions per repo) rather than another one-off audit.
 
 ## Evidence
 
-`.agents/sessions/2026-08-19-session-99919-bc967748c-critical-review-open-issues-prs.json`.
+`.project-toolkit/sessions/2026-08-19-session-99919-bc967748c-critical-review-open-issues-prs.json`.
 PR #5078 comment/review data pulled directly via `pull_request_read`
 `get_comments`/`get_reviews` (all pages). Issue #5160.

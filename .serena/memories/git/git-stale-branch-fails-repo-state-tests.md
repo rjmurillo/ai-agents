@@ -32,7 +32,7 @@ FAILED tests/skills/memory/test_extract_session_episode.py::
 = 1 failed, 21180 passed, 31 skipped, 50 deselected in 655.14s =
 ```
 
-That test reads `.agents/memory/episodes` out of the checkout and pins a
+That test reads `.project-toolkit/memory/episodes` out of the checkout and pins a
 repair (issue #3765). The repair landed on `main` in PR #4233. The branch had
 forked before it, so the branch still carried the unrepaired store.
 
@@ -217,7 +217,7 @@ the number that looks wrong on your branch is the correct number on `main`.
 
 - Never pipe `git push` into `tail`: `$?` then reports `tail`'s status, so a
   rejected push reads as success, and the reject line is truncated away. Use
-  Python's `tempfile.NamedTemporaryFile` under `.agents/scratch/`, redirect
+  Python's `tempfile.NamedTemporaryFile` under `.project-toolkit/scratch/`, redirect
   `git push origin <branch>` into that per-run file, then echo and read the exit
   code.
 - `.serena/memories/git/git-merge-preflight.md` for detecting upstream deletions.

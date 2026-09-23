@@ -521,7 +521,7 @@ class TestSkillDocumentsTheSelector:
     [
         ("tests/test_router.py", "qa"), ("src/auth/login.py", "security"),
         ("uv.lock", "devops"), (".github/actions/setup/action.yml", "devops"),
-        ("src/models.py", "architect"), (".agents/architecture/ADR-099-thing.md", "decision-rigor"),
+        ("src/models.py", "architect"), (".project-toolkit/architecture/ADR-099-thing.md", "decision-rigor"),
         (".claude/skills/review/SKILL.md", "agent-safety"),
     ],
 )

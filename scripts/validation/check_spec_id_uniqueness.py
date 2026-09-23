@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Verify spec `id:` frontmatter values are unique within each spec category.
 
-Scans `.agents/specs/{requirements,design,tasks}/*.md`, parses the YAML
+Scans `.project-toolkit/specs/{requirements,design,tasks}/*.md`, parses the YAML
 frontmatter for the top-level `id:` key, and exits non-zero if any value
 collides with another file in the same category.
 
@@ -83,7 +83,7 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    specs_dir = args.repo_root / ".agents" / "specs"
+    specs_dir = args.repo_root / ".project-toolkit" / "specs"
     if not specs_dir.is_dir():
         print(f"[CONFIG] specs directory not found: {specs_dir}", file=sys.stderr)
         return 2
@@ -97,7 +97,7 @@ def main() -> int:
         for err in all_errors:
             print(f"  - {err}")
         print(
-            "\nEach spec file under .agents/specs/{requirements,design,tasks}/ "
+            "\nEach spec file under .project-toolkit/specs/{requirements,design,tasks}/ "
             "MUST have a unique `id:` in its frontmatter. Rename the duplicate "
             "and update its `id:` to the next free NNN."
         )

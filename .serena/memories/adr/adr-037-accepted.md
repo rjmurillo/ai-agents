@@ -1,7 +1,7 @@
 # ADR-037 Memory Router Architecture - Superseded by ADR-106
 
 **Status**: SUPERSEDED (2026-09-09) by
-`.agents/architecture/ADR-106-serena-only-memory-architecture.md`. Recorded as
+`.project-toolkit/architecture/ADR-106-serena-only-memory-architecture.md`. Recorded as
 Accepted on 2026-01-01; that is history, not current state.
 **Rounds**: 2 (Phase 1 review + revision + Phase 4 convergence)
 
@@ -50,9 +50,9 @@ Analyst: Performance targets unvalidated. M-008 benchmark required before Phase 
 
 ## References
 
-- Successor ADR: `.agents/architecture/ADR-106-serena-only-memory-architecture.md`
-- ADR: `.agents/architecture/ADR-037-memory-router-architecture.md`
-- Debate Log: `.agents/critique/ADR-037-debate-log.md`
+- Successor ADR: `.project-toolkit/architecture/ADR-106-serena-only-memory-architecture.md`
+- ADR: `.project-toolkit/architecture/ADR-037-memory-router-architecture.md`
+- Debate Log: `.project-toolkit/critique/ADR-037-debate-log.md`
 
 ## Related
 

@@ -5,7 +5,7 @@
 # Non-blocking: reports findings for audit trail, does not block merge.
 #
 # Detection heuristics:
-#   - Commits modifying .agents/ without session log
+#   - Commits modifying .agents/ or .project-toolkit/ without session log
 #   - HANDOFF.md modifications on feature branches
 #   - Bash scripts added under .github/scripts/ (ADR-042)
 #

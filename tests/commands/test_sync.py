@@ -18,15 +18,15 @@ import scripts.sync.detect_spec_drift as dsd
 
 
 def _make_repo(tmp_path: Path) -> Path:
-    """Build a minimal repo: .agents/specs/requirements plus a real code file."""
-    (tmp_path / ".agents" / "specs" / "requirements").mkdir(parents=True)
+    """Build a minimal repo: .project-toolkit/specs/requirements plus a real code file."""
+    (tmp_path / ".project-toolkit" / "specs" / "requirements").mkdir(parents=True)
     (tmp_path / "scripts").mkdir()
     (tmp_path / "scripts" / "real.py").write_text("# present\n", encoding="utf-8")
     return tmp_path
 
 
 def _write_req(repo_root: Path, name: str, body: str) -> Path:
-    req = repo_root / ".agents" / "specs" / "requirements" / name
+    req = repo_root / ".project-toolkit" / "specs" / "requirements" / name
     req.write_text(body, encoding="utf-8")
     return req
 
@@ -168,7 +168,7 @@ def test_empty_spec_file_yields_no_findings(tmp_path: Path) -> None:
 
 
 def test_missing_target_tier_is_skipped_not_raised(tmp_path: Path) -> None:
-    # Arrange: only .agents exists; the design and tasks tiers are absent.
+    # Arrange: only .project-toolkit/specs/requirements exists; the design and tasks tiers are absent.
     repo = _make_repo(tmp_path)
     _write_req(repo, "REQ-007.md", "Uses `scripts/real.py`.\n")
 
@@ -187,7 +187,7 @@ def test_symlinked_spec_file_escaping_repo_fails_closed(tmp_path: Path) -> None:
     repo = _make_repo(repo_base)
     outside = tmp_path / "outside.md"
     outside.write_text("Uses `scripts/gone.py`.\n", encoding="utf-8")
-    link = repo / ".agents" / "specs" / "requirements" / "outside.md"
+    link = repo / ".project-toolkit" / "specs" / "requirements" / "outside.md"
     try:
         link.symlink_to(outside)
     except (NotImplementedError, OSError) as exc:
@@ -286,7 +286,7 @@ def test_unreadable_file_fails_closed(tmp_path: Path, monkeypatch: pytest.Monkey
 def test_invalid_utf8_file_fails_closed(tmp_path: Path) -> None:
     # Arrange
     repo = _make_repo(tmp_path)
-    spec = repo / ".agents" / "specs" / "requirements" / "REQ-011D.md"
+    spec = repo / ".project-toolkit" / "specs" / "requirements" / "REQ-011D.md"
     spec.write_bytes(b"\xff\xfe\x00")
 
     # Act / Assert
@@ -335,7 +335,7 @@ def test_symlink_reference_escaping_repo_is_reported_as_drift(tmp_path: Path) ->
 def test_find_repo_root_locates_agents_dir(tmp_path: Path) -> None:
     # Arrange
     repo = _make_repo(tmp_path)
-    nested = repo / ".agents" / "specs" / "requirements"
+    nested = repo / ".project-toolkit" / "specs" / "requirements"
 
     # Act
     found = dsd.find_repo_root(nested)
@@ -351,7 +351,7 @@ def test_find_repo_root_returns_none_without_agents(
     original_is_dir = Path.is_dir
 
     def no_agents_dir(path: Path) -> bool:
-        if path.name == ".agents":
+        if path.name == ".project-toolkit":
             return False
         return original_is_dir(path)
 
@@ -468,13 +468,13 @@ def test_main_exits_zero_on_clean(tmp_path: Path, capsys: pytest.CaptureFixture[
 def test_main_exits_two_when_repo_root_absent(
     tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    # Arrange: a directory with no .agents anywhere above it.
+    # Arrange: a directory with no .project-toolkit anywhere above it.
     bare = tmp_path / "bare"
     bare.mkdir()
     original_is_dir = Path.is_dir
 
     def no_agents_dir(path: Path) -> bool:
-        if path.name == ".agents":
+        if path.name == ".project-toolkit":
             return False
         return original_is_dir(path)
 
@@ -491,13 +491,13 @@ def test_main_exits_two_when_repo_root_absent(
 def test_main_honors_custom_target(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     # Arrange: drift lives only in the design tier; scan just that tier.
     repo = _make_repo(tmp_path)
-    (repo / ".agents" / "specs" / "design").mkdir(parents=True)
-    (repo / ".agents" / "specs" / "design" / "DESIGN-001.md").write_text(
+    (repo / ".project-toolkit" / "specs" / "design").mkdir(parents=True)
+    (repo / ".project-toolkit" / "specs" / "design" / "DESIGN-001.md").write_text(
         "Uses `scripts/gone.py`.\n", encoding="utf-8"
     )
 
     # Act
-    code = dsd.main(["--repo-root", str(repo), "--target", ".agents/specs/design"])
+    code = dsd.main(["--repo-root", str(repo), "--target", ".project-toolkit/specs/design"])
 
     # Assert
     assert code == 1
@@ -531,8 +531,8 @@ def test_main_rejects_absolute_target(tmp_path: Path, capsys: pytest.CaptureFixt
 def test_script_entrypoint_honors_cli_flags(tmp_path: Path) -> None:
     # Arrange
     repo = _make_repo(tmp_path)
-    (repo / ".agents" / "specs" / "design").mkdir(parents=True)
-    (repo / ".agents" / "specs" / "design" / "DESIGN-001.md").write_text(
+    (repo / ".project-toolkit" / "specs" / "design").mkdir(parents=True)
+    (repo / ".project-toolkit" / "specs" / "design" / "DESIGN-001.md").write_text(
         "Uses `scripts/gone.py`.\n", encoding="utf-8"
     )
     script = Path(dsd.__file__).resolve()
@@ -545,7 +545,7 @@ def test_script_entrypoint_honors_cli_flags(tmp_path: Path) -> None:
             "--repo-root",
             str(repo),
             "--target",
-            ".agents/specs/design",
+            ".project-toolkit/specs/design",
             "--output-format",
             "human",
         ],

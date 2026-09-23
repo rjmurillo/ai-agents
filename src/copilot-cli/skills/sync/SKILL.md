@@ -12,8 +12,8 @@ user-invocable: true
 
 <!-- vendor-portability: contributor-facing drift detector for the rjmurillo/ai-agents
      repo itself. It runs scripts/sync/detect_spec_drift.py over that repo's own
-     spec tiers under .agents/specs/requirements, .agents/specs/design and
-     .agents/specs/tasks. The sync-log artifacts named under Step 3 are a planned
+     spec tiers under .project-toolkit/specs/requirements, .project-toolkit/specs/design and
+     .project-toolkit/specs/tasks. The sync-log artifacts named under Step 3 are a planned
      follow-up and no such directory exists yet.
      None of those ship in a plugin root, so this skill's audience is repo
      contributors, not plugin consumers (ADR-083, issue #5632). -->
@@ -38,7 +38,7 @@ This command detects Spec->Code drift and reports it. It does NOT auto-rewrite s
 | Phrase | Action |
 |--------|--------|
 | `/sync` | Scan all spec tiers for stale code references |
-| `/sync .agents/specs/design` | Scan one spec tier |
+| `/sync .project-toolkit/specs/design` | Scan one spec tier |
 | `detect spec drift` | Run the detector and report drift |
 
 ## Arguments
@@ -58,12 +58,12 @@ Run the drift detector against the specification tier:
 python3 scripts/sync/detect_spec_drift.py --output-format human
 ```
 
-The detector scans `.agents/specs/requirements`, `.agents/specs/design`, and `.agents/specs/tasks` for backticked references to code and artifact paths rooted at any of its known trees (the scripts, build, skills, commands, templates, tests and source roots; the authoritative list is the detector's own). Each reference is resolved against the working tree. A reference to a path absent on disk is drift: the spec points at code that moved or was deleted.
+The detector scans `.project-toolkit/specs/requirements`, `.project-toolkit/specs/design`, and `.project-toolkit/specs/tasks` for backticked references to code and artifact paths rooted at any of its known trees (the scripts, build, skills, commands, templates, tests and source roots; the authoritative list is the detector's own). Each reference is resolved against the working tree. A reference to a path absent on disk is drift: the spec points at code that moved or was deleted.
 
 To scan one tier only, pass `--target`:
 
 ```bash
-python3 scripts/sync/detect_spec_drift.py --target .agents/specs/design --output-format human
+python3 scripts/sync/detect_spec_drift.py --target .project-toolkit/specs/design --output-format human
 ```
 
 Exit codes (per ADR-035): `0` no drift, `1` drift found, `2` configuration error. Unsafe `--target` values (absolute paths, `..`, or symlink escapes) return exit `2`. Unsafe spec references are reported as drift instead of probing outside the repo.

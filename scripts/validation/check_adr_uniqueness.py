@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify ADR numbers under `.agents/architecture/` are unique.
+"""Verify ADR numbers under `.project-toolkit/architecture/` are unique.
 
 Per Issue #2253: concurrent ADR PRs each pick the same "next" number from
 main at branch time. When the later PR merges, the earlier branches now
@@ -8,7 +8,7 @@ gate that catches collisions deterministically and tells the author the
 exact next free number to use.
 
 Files are scanned by filename: `ADR-NNN-<slug>.md` in
-`.agents/architecture/`. README and DESIGN-REVIEW prefixes are ignored.
+`.project-toolkit/architecture/`. README and DESIGN-REVIEW prefixes are ignored.
 
 The pre-existing duplicates tracked by Issue #2228 (ADR-058, ADR-062,
 ADR-063) were resolved by renaming the non-canonical file in each pair to
@@ -103,7 +103,7 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    adr_dir = args.repo_root / ".agents" / "architecture"
+    adr_dir = args.repo_root / ".project-toolkit" / "architecture"
     if not adr_dir.is_dir():
         print(f"[CONFIG] ADR directory not found: {adr_dir}", file=sys.stderr)
         return 2
@@ -138,7 +138,7 @@ def main() -> int:
         return 1
 
     print(
-        "[PASS] All ADR numbers in .agents/architecture/ unique "
+        "[PASS] All ADR numbers in .project-toolkit/architecture/ unique "
         f"(next free: {next_free_number(by_number):03d})."
     )
     return 0

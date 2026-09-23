@@ -113,10 +113,9 @@ class TestFallbackRecentSessionLog:
 @pytest.fixture
 def project_tree(tmp_path: Path) -> Path:
     """Create a minimal project directory tree with session log."""
-    agents = tmp_path / ".agents"
-    agents.mkdir()
-    sessions = agents / "sessions"
-    sessions.mkdir()
+    (tmp_path / ".agents").mkdir()
+    sessions = tmp_path / ".project-toolkit" / "sessions"
+    sessions.mkdir(parents=True)
 
     session_log = sessions / "2026-01-01-session-001.json"
     session_data = {
@@ -216,7 +215,7 @@ class TestMain:
         self, project_tree: Path, capsys: pytest.CaptureFixture
     ) -> None:
         session_log = list(
-            (project_tree / ".agents" / "sessions").glob("*.json")
+            (project_tree / ".project-toolkit" / "sessions").glob("*.json")
         )[0]
 
         with patch.object(
@@ -250,7 +249,7 @@ class TestMain:
         write path being reintroduced.
         """
         session_log = list(
-            (project_tree / ".agents" / "sessions").glob("*.json")
+            (project_tree / ".project-toolkit" / "sessions").glob("*.json")
         )[0]
 
         with patch.object(

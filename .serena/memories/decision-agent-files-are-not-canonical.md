@@ -88,4 +88,4 @@ per-artifact-class fact, not a per-directory fact. A habit formed on
 
 - `.agents/governance/GENERATOR-FILES.md`
 - ADR-002 (agent generation from shared templates)
-- `.agents/retrospective/2026-07-31-editing-the-wrong-tree.md`
+- `.project-toolkit/retrospective/2026-07-31-editing-the-wrong-tree.md`

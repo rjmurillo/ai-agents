@@ -165,7 +165,7 @@ This step mechanizes the `feedback_bot_thread_clustering.md` mental model. It
 exists because PR #1897 round 7 surfaced 17 unresolved threads where 8 were the
 same "model_tier=opus contradicts cheaper-tier reviewer claim" framing on
 different files; rounds 5 and 6 patched per-file and did not collapse the
-cluster (see `.agents/retrospective/2026-05-08-pr-1897-confident-incorrectness-recurrence.md`).
+cluster (see `.project-toolkit/retrospective/2026-05-08-pr-1897-confident-incorrectness-recurrence.md`).
 
 ```bash
 SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/pr-comment-responder/scripts"
@@ -295,4 +295,4 @@ See [references/bots.md](references/bots.md) for:
 - Add reviewer priority entries for new bot integrations
 - Add response templates in `references/templates.md`
 
-<!-- vendor-portability: declared. This skill cites a retrospective under .agents/retrospective/ and writes a comment map under .agents/pr-comments/PR-[N]/. The retrospective is a documentation citation; the pr-comments path is a write target created on demand for the consumer's review run. Issue #2050. -->
+<!-- vendor-portability: declared. This skill cites a retrospective under .project-toolkit/retrospective/ and writes a comment map under .project-toolkit/pr-comments/PR-[N]/. The retrospective is a documentation citation; the pr-comments path is a write target created on demand for the consumer's review run. Issue #2050. -->

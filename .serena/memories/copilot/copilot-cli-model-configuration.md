@@ -46,7 +46,7 @@ Available models:
 
 ## Cross-References
 
-- ADR-021: AI Review Model Routing Strategy (`.agents/architecture/ADR-021-model-routing-strategy.md`)
+- ADR-021: AI Review Model Routing Strategy (`.project-toolkit/architecture/ADR-021-model-routing-strategy.md`)
 - AI Review Model Policy (`.agents/governance/AI-REVIEW-MODEL-POLICY.md`)
 
 ## Usage Guidance

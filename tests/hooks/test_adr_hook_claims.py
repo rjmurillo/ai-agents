@@ -11,7 +11,7 @@ from types import ModuleType
 import pytest
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-ADR_DIR = PROJECT_ROOT / ".agents" / "architecture"
+ADR_DIR = PROJECT_ROOT / ".project-toolkit" / "architecture"
 HOOKS_ROOT = PROJECT_ROOT / ".claude" / "hooks"
 HOOK_SEARCH_ROOTS = (
     HOOKS_ROOT,

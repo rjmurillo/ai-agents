@@ -42,7 +42,7 @@ def test_creates_unique_private_regular_files(tmp_path: Path) -> None:
     assert first != second
     for relative_path in (first, second):
         path = tmp_path / relative_path
-        assert relative_path.parts[:2] == (".agents", "scratch")
+        assert relative_path.parts[:2] == (".project-toolkit", "scratch")
         assert path.is_file()
         assert not path.is_symlink()
         assert stat.S_IMODE(path.stat().st_mode) == 0o600
@@ -50,7 +50,7 @@ def test_creates_unique_private_regular_files(tmp_path: Path) -> None:
 
 
 def test_repairs_existing_owner_writable_scratch_mode(tmp_path: Path) -> None:
-    scratch = tmp_path / ".agents" / "scratch"
+    scratch = tmp_path / ".project-toolkit" / "scratch"
     scratch.mkdir(parents=True)
     scratch.chmod(0o775)
 
@@ -150,14 +150,14 @@ def test_shipped_allocator_executes_from_consumer_cwd(
     assert completed.returncode == 0, completed.stderr
     body_path = tmp_path / completed.stdout.strip()
     assert body_path.is_file()
-    assert body_path.parent == tmp_path / ".agents" / "scratch"
+    assert body_path.parent == tmp_path / ".project-toolkit" / "scratch"
 
 
 def test_copilot_mirror_matches_canonical() -> None:
     assert _MIRROR_SCRIPT.read_bytes() == _SCRIPT.read_bytes()
 
 
-@pytest.mark.parametrize("symlink_name", [".agents", ".agents/scratch"])
+@pytest.mark.parametrize("symlink_name", [".project-toolkit", ".project-toolkit/scratch"])
 def test_rejects_symlinked_parent(tmp_path: Path, symlink_name: str) -> None:
     outside = tmp_path / "outside"
     outside.mkdir()

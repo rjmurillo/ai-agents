@@ -153,10 +153,10 @@ def check_agents_without_session(
     subject: str,
     files: list[str],
 ) -> BypassIndicator | None:
-    """Check if commit modifies .agents/ files without a session log."""
-    has_agents_files = any(f.startswith(".agents/") for f in files)
+    """Check if commit modifies .agents/ or .project-toolkit/ files without a session log."""
+    has_agents_files = any(f.startswith((".agents/", ".project-toolkit/")) for f in files)
     has_session_log = any(
-        f.startswith(".agents/sessions/") and f.endswith(".json") for f in files
+        f.startswith(".project-toolkit/sessions/") and f.endswith(".json") for f in files
     )
     if has_agents_files and not has_session_log:
         return BypassIndicator(

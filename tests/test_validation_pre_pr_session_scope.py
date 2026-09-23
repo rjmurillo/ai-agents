@@ -17,9 +17,9 @@ def _write_validator(repo_root: Path) -> None:
 
 
 def test_session_newness_is_computed_from_head(tmp_path: Path) -> None:
-    sessions = tmp_path / ".agents" / "sessions"
+    sessions = tmp_path / ".project-toolkit" / "sessions"
     sessions.mkdir(parents=True)
-    path = ".agents/sessions/2025-12-01-session-1.json"
+    path = ".project-toolkit/sessions/2025-12-01-session-1.json"
     (tmp_path / path).write_text("{}", encoding="utf-8")
     _write_validator(tmp_path)
 
@@ -50,7 +50,7 @@ def test_missing_worktree_copy_of_branch_session_fails_closed(
     tmp_path: Path,
 ) -> None:
     _write_validator(tmp_path)
-    path = ".agents/sessions/2025-12-01-session-1.json"
+    path = ".project-toolkit/sessions/2025-12-01-session-1.json"
     seen: list[list[str]] = []
 
     def fake_run(command: list[str], **_kwargs: Any) -> tuple[int, str, str]:

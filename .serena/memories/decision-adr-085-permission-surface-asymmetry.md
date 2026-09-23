@@ -54,8 +54,8 @@ in the underlying policy. Portability and fidelity cannot legalize an unsafe
 approval rule.
 
 ## Reusable process finding
-`invoke_adr_review_guard.py` still reads `.agents/analysis/`, while the adr-review
-skill writes accepted-state debate logs to `.agents/critique/`. PR #3291 fixed
+`invoke_adr_review_guard.py` still reads `.project-toolkit/analysis/`, while the adr-review
+skill writes accepted-state debate logs to `.project-toolkit/critique/`. PR #3291 fixed
 the unrelated-log flaw: the guard now requires an analysis log to name the
 staged ADR identifier. The path mismatch remains. ADR-085 passes because its
 historical initial debate lives in `analysis/`; a future ADR with only a
@@ -71,6 +71,6 @@ historical initial debate lives in `analysis/`; a future ADR with only a
   producer removal, the D-C vendored observation-sync removal, generated
   cleanup, and absence regressions.
 - Historical initial debate:
-  `.agents/analysis/ADR-085-permission-surface-debate.md`.
+  `.project-toolkit/analysis/ADR-085-permission-surface-debate.md`.
 - Superseding security amendment:
-  `.agents/critique/ADR-085-debate-log.md`.
+  `.project-toolkit/critique/ADR-085-debate-log.md`.

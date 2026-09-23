@@ -723,7 +723,7 @@ def _prose_sha_predates_session(sha: str, session_date: str) -> bool:
     * "is ``sha`` an *ancestor* of ``startingCommit``" breaks whenever the log's
       ``startingCommit`` was captured late. Nothing in the schema or in
       ``validate_session_json.py`` requires the anchor to precede the work, and
-      ``.agents/sessions/2026-05-11-session-1832.json`` records exactly that: it
+      ``.project-toolkit/sessions/2026-05-11-session-1832.json`` records exactly that: it
       opened its log after the green-phase commit, so its own spec and red-phase
       commits are ancestors of its own anchor and get dropped.
 
@@ -1589,7 +1589,7 @@ def default_episodes_dir() -> Path:
     One definition so a sibling script does not have to restate the upstream
     path literal, which the vendor-portability ratchet counts per file.
     """
-    return _repo_root() / ".agents" / "memory" / "episodes"
+    return _repo_root() / ".project-toolkit" / "memory" / "episodes"
 
 
 def _repo_root() -> Path:

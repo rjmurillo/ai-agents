@@ -7,7 +7,7 @@ across `check_adr_lifecycle.py`, `detect_adr_changes.py`, and
 `generate_adr_index.py`."
 
 This is that test, widened to the ten fence shapes the buy-vs-build evaluation
-measured (`.agents/analysis/frontmatter-parser-build-vs-buy.md`). Before the
+measured (`.project-toolkit/analysis/frontmatter-parser-build-vs-buy.md`). Before the
 migration the three disagreed on six of them.
 
 It spans a packaging boundary on purpose. `detect_adr_changes.py` ships inside a

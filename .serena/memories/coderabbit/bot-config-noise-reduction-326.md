@@ -105,9 +105,9 @@ Track in session logs using this template:
 
 - **Issue**: #326
 - **Commit**: 9f41f7a
-- **Session**: `.agents/sessions/2025-12-23-session-87-bot-config-noise-reduction.md`
-- **Guide**: `.agents/devops/BOT-CONFIGURATION.md` (comprehensive reference)
-- **Analysis**: `.agents/analysis/085-velocity-bottleneck-analysis.md`
+- **Session**: `.project-toolkit/sessions/2025-12-23-session-87-bot-config-noise-reduction.md`
+- **Guide**: `.project-toolkit/devops/BOT-CONFIGURATION.md` (comprehensive reference)
+- **Analysis**: `.project-toolkit/analysis/085-velocity-bottleneck-analysis.md`
 
 ## References
 

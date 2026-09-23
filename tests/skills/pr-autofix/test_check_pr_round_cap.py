@@ -3,7 +3,7 @@
 pr-autofix's T3/T4 thread-fix loop had no machine-enforced cap on how many
 fix/review rounds it runs against one PR. Incidents ran 11-18 rounds over
 multi-hour spans before a human intervened (46h wall clock for PR #1887; see
-`.agents/retrospective/2026-05-05-pr-1887-iteration-paradox.md`). This script
+`.project-toolkit/retrospective/2026-05-05-pr-1887-iteration-paradox.md`). This script
 is the machine-checked circuit breaker: it records one round per call and
 returns ESCALATE when either the round count or the wall-clock budget is
 exceeded, mirroring the JSON-envelope contract `check_pr_live_state.py`

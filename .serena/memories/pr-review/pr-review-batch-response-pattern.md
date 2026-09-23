@@ -89,6 +89,6 @@ When review comments received:
 ## Source
 
 - Session: 826 (2026-01-13)
-- Retrospective: `.agents/retrospective/2026-01-13-fix-tools-frontmatter-retrospective.md`
+- Retrospective: `.project-toolkit/retrospective/2026-01-13-fix-tools-frontmatter-retrospective.md`
 - Learning: L3 (Phase 4, Lines 540-548)
 - Commit: bce23f0 (8 comments in 1 commit)

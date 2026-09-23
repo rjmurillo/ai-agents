@@ -88,7 +88,7 @@ At 15+ years, optimization targets change:
 
 ## Related
 
-- Full analysis: `.agents/analysis/principal-engineer-knowledge-set.md`
+- Full analysis: `.project-toolkit/analysis/principal-engineer-knowledge-set.md`
 - Previous tier: [foundational-knowledge-index](../foundational-knowledge-index.md)
 - Next tier: [distinguished-engineer-knowledge-index](../distinguished-engineer-knowledge-index.md)
 - Strategic thinking: [wardley-mapping](wardley-mapping.md), [cynefin-framework](cynefin-framework.md), [ooda-loop](ooda-loop.md)

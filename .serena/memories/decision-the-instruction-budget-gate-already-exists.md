@@ -11,7 +11,7 @@ build it?
 The note is specific and the numbers check out. A single `.py` edit really does
 load about 218 KB of always-on rules, `AGENTS.md:31` really does carry the only
 budget line (`Knowledge -> context (<8KB)`), and
-`.agents/analysis/context-engineering.md` really is stale. The gap is real, so
+`.project-toolkit/analysis/context-engineering.md` really is stale. The gap is real, so
 close it.
 
 ## First-principles position

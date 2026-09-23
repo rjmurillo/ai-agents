@@ -62,14 +62,14 @@ Based on the above changes:
 
    <!-- vendor-portability: declared. This skill reads the consumer's
    `.github/PULL_REQUEST_TEMPLATE.md` and writes the consumer's
-   `.agents/scratch/` body file. It resolves the helper from the installed
+   `.project-toolkit/scratch/` body file. It resolves the helper from the installed
    Copilot or Claude plugin root. The `.claude` fallback is only for this
    repository's self-hosted source checkout; `scripts/pr/` is inside the
    shipped github skill, not the upstream-only top-level scripts/ tree.
    Issue #4764. -->
 
    ```bash
-   python3 -I "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr/new_pr.py" --title "<conventional commit title>" --body-file ".agents/scratch/pr-body-<returned-uuid>.md"
+   python3 -I "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr/new_pr.py" --title "<conventional commit title>" --body-file ".project-toolkit/scratch/pr-body-<returned-uuid>.md"
    ```
 
 - Title MUST follow conventional commit format (e.g., `feat: Add feature`, `fix(auth): Resolve bug`)
@@ -110,5 +110,5 @@ You have the capability to call multiple tools in a single response. You MUST do
 - **Branch naming.** Step 1's conventional-type mapping is the repository
   convention; a project with a different scheme changes that sub-step alone.
 
-<!-- vendor-portability: .agents/scratch is created in the consumer workspace
+<!-- vendor-portability: .project-toolkit/scratch is created in the consumer workspace
 for one-run PR body files. It is not an upstream repository dependency. -->

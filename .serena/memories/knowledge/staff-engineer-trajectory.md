@@ -1,7 +1,7 @@
 # Staff Engineer Trajectory
 
 **Category**: Career Growth
-**Source**: `.agents/analysis/senior-engineering-knowledge.md`
+**Source**: `.project-toolkit/analysis/senior-engineering-knowledge.md`
 
 ## Progression Phases
 

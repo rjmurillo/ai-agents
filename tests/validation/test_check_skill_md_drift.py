@@ -105,7 +105,7 @@ class TestExtractPathsFromText:
     def test_extracts_dotfile_prefix(self) -> None:
         text = "Write to .project-toolkit/sessions/log.json."
         paths = _extract_paths_from_text(text)
-        assert paths == {".agents/sessions/log.json"}
+        assert paths == {".project-toolkit/sessions/log.json"}
 
     def test_extracts_multi_segment_prefix(self) -> None:
         text = "Load templates/agents/foo.yaml."
@@ -118,15 +118,15 @@ class TestMarkerDeclaredPaths:
 
     def test_extracts_declared_paths(self) -> None:
         text = _make_marker_file(
-            ".agents/sessions and scripts/validation/foo.py",
+            ".project-toolkit/sessions and scripts/validation/foo.py",
             "Some prose.",
         )
         paths = marker_declared_paths(text, _strip_code, _strip_inline_code)
-        assert ".agents/sessions" in paths
+        assert ".project-toolkit/sessions" in paths
         assert "scripts/validation/foo.py" in paths
 
     def test_no_marker_returns_empty(self) -> None:
-        text = "No marker here. References .agents/sessions.\n"
+        text = "No marker here. References .project-toolkit/sessions.\n"
         paths = marker_declared_paths(text, _strip_code, _strip_inline_code)
         assert paths == set()
 
@@ -134,9 +134,9 @@ class TestMarkerDeclaredPaths:
         """A marker inside a fenced code block is not a real declaration."""
         text = (
             "```\n"
-            "<!-- vendor-portability: declared. References .agents/sessions. -->\n"
+            "<!-- vendor-portability: declared. References .project-toolkit/sessions. -->\n"
             "```\n"
-            "Prose referencing .agents/sessions here.\n"
+            "Prose referencing .project-toolkit/sessions here.\n"
         )
         paths = marker_declared_paths(text, _strip_code, _strip_inline_code)
         assert paths == set()
@@ -153,35 +153,35 @@ class TestProseDeclaredPaths:
 
     def test_excludes_marker_paths_from_prose(self) -> None:
         text = _make_marker_file(
-            ".agents/architecture",
-            "Read .agents/sessions for state.",
+            ".project-toolkit/architecture",
+            "Read .project-toolkit/sessions for state.",
         )
         paths = prose_declared_paths(text, _strip_code, _strip_inline_code)
-        # prose should have .agents/sessions but NOT .agents/architecture
+        # prose should have .project-toolkit/sessions but NOT .project-toolkit/architecture
         # (which was only in the marker)
-        assert ".agents/sessions" in paths
+        assert ".project-toolkit/sessions" in paths
 
     def test_html_comments_stripped_from_prose(self) -> None:
         """Defect 5 (MEDIUM): commented-out refs do not count as prose."""
         text = (
-            "<!-- vendor-portability: declared. References .agents/sessions. -->\n"
-            "<!-- old: .agents/architecture/ADR-001.md -->\n"
-            "Read .agents/sessions for state.\n"
+            "<!-- vendor-portability: declared. References .project-toolkit/sessions. -->\n"
+            "<!-- old: .project-toolkit/architecture/ADR-001.md -->\n"
+            "Read .project-toolkit/sessions for state.\n"
         )
         paths = prose_declared_paths(text, _strip_code, _strip_inline_code)
-        assert ".agents/sessions" in paths
+        assert ".project-toolkit/sessions" in paths
         # The commented-out path must NOT appear
         assert not any("architecture" in p for p in paths)
 
     def test_two_markers_in_one_file(self) -> None:
         """Edge: two markers, both stripped from prose."""
         text = (
-            "<!-- vendor-portability: declared. References .agents/sessions. -->\n"
+            "<!-- vendor-portability: declared. References .project-toolkit/sessions. -->\n"
             "<!-- vendor-portability: declared. References scripts/validation/x.py. -->\n"
-            "Read .agents/sessions and scripts/validation/x.py.\n"
+            "Read .project-toolkit/sessions and scripts/validation/x.py.\n"
         )
         paths = prose_declared_paths(text, _strip_code, _strip_inline_code)
-        assert ".agents/sessions" in paths
+        assert ".project-toolkit/sessions" in paths
         assert "scripts/validation/x.py" in paths
 
 
@@ -190,9 +190,9 @@ class TestMarkerPathDrift:
 
     def test_clean_file_passes(self, tmp_path: Path) -> None:
         """Marker names X, prose references X, X exists on disk: no failures."""
-        (tmp_path / ".agents" / "sessions").mkdir(parents=True)
+        (tmp_path / ".project-toolkit" / "sessions").mkdir(parents=True)
         text = _make_marker_file(
-            ".agents/sessions",
+            ".project-toolkit/sessions",
             "Write state to .project-toolkit/sessions for persistence.",
         )
         failures = marker_path_drift(
@@ -202,9 +202,9 @@ class TestMarkerPathDrift:
 
     def test_stale_declaration_fails(self, tmp_path: Path) -> None:
         """Marker names X, prose does not reference X: stale failure."""
-        (tmp_path / ".agents" / "sessions").mkdir(parents=True)
+        (tmp_path / ".project-toolkit" / "sessions").mkdir(parents=True)
         text = _make_marker_file(
-            ".agents/sessions",
+            ".project-toolkit/sessions",
             "This skill does not reference any upstream paths in prose.",
         )
         failures = marker_path_drift(
@@ -212,16 +212,16 @@ class TestMarkerPathDrift:
         )
         assert len(failures) == 1
         assert "stale" in failures[0]
-        assert ".agents/sessions" in failures[0]
+        assert ".project-toolkit/sessions" in failures[0]
 
     def test_undeclared_ref_fails(self, tmp_path: Path) -> None:
         """Prose references Y, marker does not name Y: undeclared failure."""
-        (tmp_path / ".agents" / "sessions").mkdir(parents=True)
+        (tmp_path / ".project-toolkit" / "sessions").mkdir(parents=True)
         (tmp_path / "scripts" / "validation").mkdir(parents=True)
         (tmp_path / "scripts" / "validation" / "foo.py").touch()
         text = _make_marker_file(
-            ".agents/sessions",
-            "Read .agents/sessions and run scripts/validation/foo.py.",
+            ".project-toolkit/sessions",
+            "Read .project-toolkit/sessions and run scripts/validation/foo.py.",
         )
         failures = marker_path_drift(
             text, tmp_path, "skills/test/SKILL.md", _strip_code, _strip_inline_code
@@ -238,12 +238,12 @@ class TestMarkerPathDrift:
         This is the regression guard for the vacuity bug. The parent-directory
         shortcut made this pass falsely. Without the fix, this test fails.
         """
-        (tmp_path / ".agents" / "architecture").mkdir(parents=True)
-        # Parent .agents/architecture EXISTS and is non-empty (has something)
-        (tmp_path / ".agents" / "architecture" / "ADR-001.md").touch()
+        (tmp_path / ".project-toolkit" / "architecture").mkdir(parents=True)
+        # Parent .project-toolkit/architecture EXISTS and is non-empty (has something)
+        (tmp_path / ".project-toolkit" / "architecture" / "ADR-001.md").touch()
         text = _make_marker_file(
-            ".agents/architecture/ADR-999.md",
-            "See .agents/architecture/ADR-999.md for guidance.",
+            ".project-toolkit/architecture/ADR-999.md",
+            "See .project-toolkit/architecture/ADR-999.md for guidance.",
         )
         failures = marker_path_drift(
             text, tmp_path, "skills/test/SKILL.md", _strip_code, _strip_inline_code
@@ -255,10 +255,10 @@ class TestMarkerPathDrift:
     def test_consumer_workspace_exemption(self, tmp_path: Path) -> None:
         """A consumer-workspace path that does not exist on disk passes."""
         text = _make_marker_file(
-            ".agents/sessions",
+            ".project-toolkit/sessions",
             "Write to .project-toolkit/sessions for state.",
         )
-        # .agents/sessions does NOT exist under tmp_path but is exempt
+        # .project-toolkit/sessions does NOT exist under tmp_path but is exempt
         failures = marker_path_drift(
             text, tmp_path, "skills/test/SKILL.md", _strip_code, _strip_inline_code
         )
@@ -267,23 +267,23 @@ class TestMarkerPathDrift:
     def test_consumer_workspace_component_match(self) -> None:
         """Defect 2 (HIGH): exemption uses component match, not string prefix.
 
-        .agents/sessions-evil must NOT be exempt just because .agents/sessions is.
+        .agents/sessions-evil must NOT be exempt just because .project-toolkit/sessions is.
         """
-        assert _is_consumer_workspace_path(".agents/sessions/foo") is True
-        assert _is_consumer_workspace_path(".agents/sessions") is True
+        assert _is_consumer_workspace_path(".project-toolkit/sessions/foo") is True
+        assert _is_consumer_workspace_path(".project-toolkit/sessions") is True
         assert _is_consumer_workspace_path(".agents/sessions-evil/x") is False
-        assert _is_consumer_workspace_path(".agents/scratch/pr-body-x.md") is True
+        assert _is_consumer_workspace_path(".project-toolkit/scratch/pr-body-x.md") is True
         assert _is_consumer_workspace_path(".agents/scratch-evil/x") is False
 
     def test_scratch_path_is_extracted(self) -> None:
         paths = _extract_paths_from_text(
             "Write the PR body to .project-toolkit/scratch/pr-body-x.md."
         )
-        assert paths == {".agents/scratch/pr-body-x.md"}
+        assert paths == {".project-toolkit/scratch/pr-body-x.md"}
 
     def test_dotdot_traversal_rejected(self, tmp_path: Path) -> None:
         """Defect 2 (HIGH): '..' in declared paths does not bypass checks."""
-        (tmp_path / ".agents" / "sessions").mkdir(parents=True)
+        (tmp_path / ".project-toolkit" / "sessions").mkdir(parents=True)
         text = _make_marker_file(
             ".agents/../../../etc/passwd",
             "Read .agents/../../../etc/passwd for config.",
@@ -375,23 +375,23 @@ class TestMarkerPathDrift:
     def test_html_comment_does_not_count_as_prose(self, tmp_path: Path) -> None:
         """Defect 5 (MEDIUM): commented-out reference does not keep stale
         declaration alive."""
-        (tmp_path / ".agents" / "sessions").mkdir(parents=True)
+        (tmp_path / ".project-toolkit" / "sessions").mkdir(parents=True)
         text = (
             "<!-- vendor-portability: declared. References "
-            ".agents/sessions and .agents/architecture. -->\n"
-            "<!-- old path: .agents/architecture/ADR-001.md -->\n"
+            ".project-toolkit/sessions and .project-toolkit/architecture. -->\n"
+            "<!-- old path: .project-toolkit/architecture/ADR-001.md -->\n"
             "Write to .project-toolkit/sessions.\n"
         )
         failures = marker_path_drift(
             text, tmp_path, "skills/test/SKILL.md", _strip_code, _strip_inline_code
         )
-        # .agents/architecture is in the marker but NOT in prose (the HTML comment
+        # .project-toolkit/architecture is in the marker but NOT in prose (the HTML comment
         # was stripped), so it should be flagged as stale
         stale = [f for f in failures if "stale" in f]
-        assert any(".agents/architecture" in s for s in stale)
+        assert any(".project-toolkit/architecture" in s for s in stale)
 
     def test_no_marker_returns_empty(self, tmp_path: Path) -> None:
-        text = "No marker. References .agents/sessions.\n"
+        text = "No marker. References .project-toolkit/sessions.\n"
         failures = marker_path_drift(
             text, tmp_path, "skills/test/SKILL.md", _strip_code, _strip_inline_code
         )
@@ -470,7 +470,7 @@ class TestVacuityRegressionGuard:
 
     This class exists purely to document the guard. The actual regression test
     is in TestMarkerPathDrift above. If someone re-adds the parent check, that
-    test will fail because the parent (.agents/architecture) exists and is
+    test will fail because the parent (.project-toolkit/architecture) exists and is
     non-empty, yet the child (ADR-999.md) is missing.
     """
 

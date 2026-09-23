@@ -258,8 +258,9 @@ from github_core.api import RepoInfo  # noqa: E402
 # literals instead of writing their own (keeps the portability ratchet's
 # upstream-path literal count from growing every time an evidence
 # subdirectory is added; scripts/validation/skill_portability_baseline.json).
-_AGENTS_SESSIONS_PATTERN = ".agents/sessions/*"
+_AGENTS_SESSIONS_PATTERN = ".project-toolkit/sessions/*"
 _AGENTS_CATCHALL_PATTERN = ".agents/*"
+_TOOLKIT_CATCHALL_PATTERN = ".project-toolkit/*"
 
 # Files that can be auto-resolved by accepting target branch (main) version.
 # These are typically auto-generated or frequently-updated files where
@@ -268,6 +269,7 @@ AUTO_RESOLVABLE_PATTERNS: list[str] = [
     # Session artifacts - constantly changing, main is authoritative
     _AGENTS_SESSIONS_PATTERN,
     _AGENTS_CATCHALL_PATTERN,
+    _TOOLKIT_CATCHALL_PATTERN,
     # Serena memories - auto-generated, main is authoritative
     ".serena/memories/*",
     ".serena/*",
@@ -389,14 +391,14 @@ def is_auto_resolvable(file_path: str) -> bool:
 # branches independently created a record under the same filename.
 # Accept-theirs alone silently discards the head branch's own record instead
 # of picking between two versions of the same one (PR #4856;
-# .agents/retrospective/2026-08-10-pr-4856-session-log-collision.md). These
-# are a subset of the broader ".agents/*" auto-resolvable pattern above, so
-# this check must run before is_auto_resolvable() lets that pattern win.
-_AGENTS_ROOT = _AGENTS_CATCHALL_PATTERN.removesuffix("*")
+# .project-toolkit/retrospective/2026-08-10-pr-4856-session-log-collision.md). These
+# are a subset of the broader ".project-toolkit/*" auto-resolvable pattern above,
+# so this check must run before is_auto_resolvable() lets that pattern win.
+_TOOLKIT_ROOT = _TOOLKIT_CATCHALL_PATTERN.removesuffix("*")
 _EVIDENCE_ADD_ADD_PATTERNS: list[str] = [
     _AGENTS_SESSIONS_PATTERN,
-    f"{_AGENTS_ROOT}qa/*",
-    f"{_AGENTS_ROOT}retrospective/*",
+    f"{_TOOLKIT_ROOT}qa/*",
+    f"{_TOOLKIT_ROOT}retrospective/*",
 ]
 
 

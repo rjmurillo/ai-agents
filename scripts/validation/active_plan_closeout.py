@@ -52,7 +52,7 @@ def active_plan_warnings(
     issue_state_lookup: IssueStateLookup,
 ) -> list[ActivePlanWarning]:
     """Find active plans whose referenced issues all resolve closed."""
-    active_dir = repo_root / ".agents" / "plans" / "active"
+    active_dir = repo_root / ".project-toolkit" / "plans" / "active"
     if not active_dir.is_dir():
         return []
 

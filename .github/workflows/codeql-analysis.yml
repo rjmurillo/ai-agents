@@ -169,7 +169,7 @@ jobs:
         with:
           name: codeql-results-${{ matrix.language }}
           path: .codeql/results/${{ matrix.language }}.sarif
-          # Optimized retention per .agents/devops/artifact-retention-policy.md
+          # Optimized retention per .project-toolkit/devops/artifact-retention-policy.md
           retention-days: 7
 
   skip-analysis:

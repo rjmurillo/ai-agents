@@ -39,7 +39,7 @@ class TestCollectArtifacts:
         assert result == []
 
     def test_returns_recent_files(self, tmp_path: Path) -> None:
-        sessions = tmp_path / ".agents" / "sessions"
+        sessions = tmp_path / ".project-toolkit" / "sessions"
         sessions.mkdir(parents=True)
         recent = sessions / "recent.md"
         recent.write_text("x")
@@ -53,7 +53,7 @@ class TestCollectArtifacts:
         assert str(recent.relative_to(tmp_path)) in result
 
     def test_excludes_old_files(self, tmp_path: Path) -> None:
-        sessions = tmp_path / ".agents" / "sessions"
+        sessions = tmp_path / ".project-toolkit" / "sessions"
         sessions.mkdir(parents=True)
         old = sessions / "old.md"
         old.write_text("x")

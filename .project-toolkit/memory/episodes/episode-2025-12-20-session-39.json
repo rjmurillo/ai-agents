@@ -1,0 +1,28 @@
+{
+  "id": "episode-2025-12-20-session-39",
+  "session": "2025-12-20-session-39",
+  "timestamp": "2025-12-20T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "partial",
+  "task": "[Migrated from markdown]",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2025-12-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "[x] Phase 1: Serena activation complete",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 5197
+  },
+  "lessons": []
+}

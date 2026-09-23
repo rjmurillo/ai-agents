@@ -177,6 +177,6 @@ Contributor-scoped, per SHOULD 2. These paths live in the `rjmurillo/ai-agents` 
 
 - `.claude-plugin/marketplace.json`, `.github/plugin/marketplace.json`. The manifests that define what ships.
 - `.claude/rules/plugin-version-bump.md`. Why the shipping roots' manifests carry no `version` field (ADR-092). This one does ship.
-- `.agents/architecture/ADR-071-plugin-hook-runtime-contract-verification.md`. Defines the plugin-root env var contract and how each host exports it.
-- `.agents/architecture/ADR-045-framework-extraction-via-plugin-marketplace.md`. Why the marketplace split exists.
-- `.agents/architecture/ADR-083-copilot-dogfood-surface-separation.md`. Which surfaces are dogfood-only.
+- `.project-toolkit/architecture/ADR-071-plugin-hook-runtime-contract-verification.md`. Defines the plugin-root env var contract and how each host exports it.
+- `.project-toolkit/architecture/ADR-045-framework-extraction-via-plugin-marketplace.md`. Why the marketplace split exists.
+- `.project-toolkit/architecture/ADR-083-copilot-dogfood-surface-separation.md`. Which surfaces are dogfood-only.

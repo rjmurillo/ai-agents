@@ -180,4 +180,4 @@ Apply this pattern when:
 - Issue #856: Session Protocol Validation enforcement gap
 - Memory: ci-infrastructure-003-job-status-verdict-distinction
 - Memory: ci-infrastructure-001-fail-fast-infrastructure-failures
-- Analysis: .agents/analysis/session-protocol-enforcement-gap-analysis.md
+- Analysis: .project-toolkit/analysis/session-protocol-enforcement-gap-analysis.md

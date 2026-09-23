@@ -134,8 +134,8 @@ Architecture Decision Records or RFCs with sequence numbers (`ADR-021`, `RFC-003
 
 ```bash
 # Check what ADR numbers exist in each branch
-git show main:".agents/architecture/" | grep "^ADR-" | sort -t'-' -k2 -n
-git show HEAD:".agents/architecture/" | grep "^ADR-" | sort -t'-' -k2 -n
+git show main:".project-toolkit/architecture/" | grep "^ADR-" | sort -t'-' -k2 -n
+git show HEAD:".project-toolkit/architecture/" | grep "^ADR-" | sort -t'-' -k2 -n
 
 # Find next available number
 ```
@@ -145,12 +145,12 @@ git show HEAD:".agents/architecture/" | grep "^ADR-" | sort -t'-' -k2 -n
 
 ```bash
 # Accept main's version of the conflicting file
-git checkout --theirs .agents/architecture/ADR-021-*.md
+git checkout --theirs .project-toolkit/architecture/ADR-021-*.md
 
 # Rename incoming ADR to next available number (e.g., ADR-023)
-git mv .agents/architecture/ADR-021-my-adr.md .agents/architecture/ADR-023-my-adr.md
+git mv .project-toolkit/architecture/ADR-021-my-adr.md .project-toolkit/architecture/ADR-023-my-adr.md
 
-sed -i 's/ADR-021/ADR-023/g' .agents/architecture/ADR-023-my-adr.md
+sed -i 's/ADR-021/ADR-023/g' .project-toolkit/architecture/ADR-023-my-adr.md
 
 # Find and update all references to the old number
 git grep -l "ADR-021" -- "*.md" | xargs sed -i 's/ADR-021/ADR-023/g'
@@ -163,10 +163,10 @@ git grep -l "ADR-021" -- "*.md" | xargs sed -i 's/ADR-021/ADR-023/g'
 
 **Related Files to Update:**
 
-- `.agents/critique/ADR-NNN-debate-log.md`
-- `.agents/critique/ADR-NNN-*-critique.md`
-- `.agents/planning/PRD-*.md` (References section)
-- `.agents/sessions/*.json` (if ADR mentioned)
+- `.project-toolkit/critique/ADR-NNN-debate-log.md`
+- `.project-toolkit/critique/ADR-NNN-*-critique.md`
+- `.project-toolkit/planning/PRD-*.md` (References section)
+- `.project-toolkit/sessions/*.json` (if ADR mentioned)
 
 ## Template-Generated File Conflicts
 
@@ -272,7 +272,7 @@ git show REBASE_HEAD:<file> # Version being rebased
 
 ## Append-Only Evidence Artifacts (Add/Add)
 
-Session logs (`.agents/sessions/*`), QA reports (`.agents/qa/*`), and retrospectives (`.agents/retrospective/*`) are append-only evidence records. An add/add conflict on one of these means two branches wrote different records to the same filename, usually because two sessions allocated the same session number.
+Session logs (`.project-toolkit/sessions/*`), QA reports (`.project-toolkit/qa/*`), and retrospectives (`.project-toolkit/retrospective/*`) are append-only evidence records. An add/add conflict on one of these means two branches wrote different records to the same filename, usually because two sessions allocated the same session number.
 
 **Rename, never content-merge.** Keep both files: accept the base branch version at the original name, rename the head branch version with a distinguishing suffix, and update any index or report that references the renamed file. Never merge the two contents into one file. PR #4856 proved the anti-pattern: merging both sessions' prose into one file would have destroyed two accurate records to produce one false one (see `.project-toolkit/retrospective/2026-08-10-pr-4856-session-log-collision.md`). Issue #4751 tracks preventing the collision at allocation time.
 
@@ -280,17 +280,17 @@ For session logs, keep the session number in the renamed filename and append an 
 
 ```bash
 # Keep main's record at the original name
-git checkout --theirs .agents/sessions/<date>-session-<N>.json
+git checkout --theirs .project-toolkit/sessions/<date>-session-<N>.json
 
 # Restore our record under a suffixed name
-git show HEAD:.agents/sessions/<date>-session-<N>.json \
-    > .agents/sessions/<date>-session-<N>-<slug>.json
+git show HEAD:.project-toolkit/sessions/<date>-session-<N>.json \
+    > .project-toolkit/sessions/<date>-session-<N>-<slug>.json
 
-git add .agents/sessions/<date>-session-<N>.json \
-    .agents/sessions/<date>-session-<N>-<slug>.json
+git add .project-toolkit/sessions/<date>-session-<N>.json \
+    .project-toolkit/sessions/<date>-session-<N>-<slug>.json
 
 # Repoint anything that referenced our record (QA reports, indexes)
-git grep -l "session-<N>" -- ".agents/qa/*.md"
+git grep -l "session-<N>" -- ".project-toolkit/qa/*.md"
 ```
 
 This recipe assumes a merge in progress (`git merge`), where `--theirs` is the
@@ -299,4 +299,4 @@ base branch and `HEAD` is your branch. During a rebase the sides invert:
 carries the base, so extract your record with `git show REBASE_HEAD:<path>`
 instead; see Rebase Add/Add Conflicts above.
 
-<!-- vendor-portability: declared. This doc lists .agents/ artifact patterns (critique debate logs, planning PRDs, sessions/*.json, QA reports under .agents/qa/, retrospectives under .agents/retrospective/) as sources for resolving ADR-related conflicts. Each is consulted only if present in the consumer repo; a vendored install without them skips those resolution heuristics. The PR #4856 citation (.agents/retrospective/2026-08-10-pr-4856-session-log-collision.md) and the filename number parser note (scripts/validate_session_json.py) are upstream paths in the rjmurillo/ai-agents repository. Issue #2050. -->
+<!-- vendor-portability: declared. This doc lists .agents/ artifact patterns (critique debate logs, planning PRDs, sessions/*.json, QA reports under .project-toolkit/qa/, retrospectives under .project-toolkit/retrospective/) as sources for resolving ADR-related conflicts. Each is consulted only if present in the consumer repo; a vendored install without them skips those resolution heuristics. The PR #4856 citation (.project-toolkit/retrospective/2026-08-10-pr-4856-session-log-collision.md) and the filename number parser note (scripts/validate_session_json.py) are upstream paths in the rjmurillo/ai-agents repository. Issue #2050. -->

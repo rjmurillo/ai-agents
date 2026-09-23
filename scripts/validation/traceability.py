@@ -519,8 +519,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--specs-path",
-        default=os.environ.get("SPECS_PATH", ".agents/specs"),
-        help="Path to the specs directory (env: SPECS_PATH, default: .agents/specs)",
+        default=os.environ.get("SPECS_PATH", ".project-toolkit/specs"),
+        help="Path to the specs directory (env: SPECS_PATH, default: .project-toolkit/specs)",
     )
     parser.add_argument(
         "--strict",

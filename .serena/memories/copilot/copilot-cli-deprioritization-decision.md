@@ -54,8 +54,8 @@ Copilot CLI support will be evaluated for removal if:
 
 ## Reference Documents
 
-- Analysis: `.agents/analysis/002-copilot-cli-limitations-assessment.md`
-- Roadmap: `.agents/roadmap/product-roadmap.md`
+- Analysis: `.project-toolkit/analysis/002-copilot-cli-limitations-assessment.md`
+- Roadmap: `.project-toolkit/roadmap/product-roadmap.md`
 
 ## Related
 

@@ -34,7 +34,7 @@ Install pre-commit git hook at `.git/hooks/pre-commit` that validates session lo
 # .git/hooks/pre-commit
 
 # Find most recent session log from today
-SESSION_LOG=$(find .agents/sessions -name "$(date +%Y-%m-%d)-session-*.md" -type f -printf '%T@ %p\n' | sort -rn | head -1 | cut -d' ' -f2)
+SESSION_LOG=$(find .project-toolkit/sessions -name "$(date +%Y-%m-%d)-session-*.md" -type f -printf '%T@ %p\n' | sort -rn | head -1 | cut -d' ' -f2)
 
 if [ -z "$SESSION_LOG" ]; then
     echo "Warning: No session log found for today. Skipping validation."
@@ -76,14 +76,14 @@ exit 0
 **Test on known-good session:**
 
 ```bash
-.\scripts\Validate-SessionEnd.ps1 -SessionLogPath ".agents/sessions/2025-12-20-session-44.md"
+.\scripts\Validate-SessionEnd.ps1 -SessionLogPath ".project-toolkit/sessions/2025-12-20-session-44.md"
 # Expected: Exit 0 (PASS)
 ```
 
 **Test on known-bad session:**
 
 ```bash
-.\scripts\Validate-SessionEnd.ps1 -SessionLogPath ".agents/sessions/2025-12-20-session-46.md"
+.\scripts\Validate-SessionEnd.ps1 -SessionLogPath ".project-toolkit/sessions/2025-12-20-session-46.md"
 # Expected: Exit 1 (FAIL)
 ```
 
@@ -114,4 +114,4 @@ git commit -m "test"
 
 ## Source
 
-`.agents/retrospective/2025-12-20-session-protocol-mass-failure.md` (Learning 3, lines 680-697)
+`.project-toolkit/retrospective/2025-12-20-session-protocol-mass-failure.md` (Learning 3, lines 680-697)

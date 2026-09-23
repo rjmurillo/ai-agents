@@ -105,9 +105,9 @@ _SKILL_SCAN_EXTENSIONS = frozenset({".md", ".py", ".ps1", ".psm1"})
 
 _SESSION_LOG_FILENAME_RE = re.compile(
     # Canonical filename convention:
-    # .agents/sessions/YYYY-MM-DD-session-NN[-keyword1-keyword2-...].{md|json}
+    # .project-toolkit/sessions/YYYY-MM-DD-session-NN[-keyword1-keyword2-...].{md|json}
     # Keywords are kebab-case (lowercase letters/digits + hyphens only).
-    r"^\.agents/sessions/"
+    r"^\.project-toolkit/sessions/"
     r"\d{4}-\d{2}-\d{2}-session-\d+"
     r"(?:-[a-z0-9-]+)?"
     r"\.(md|json)$"
@@ -229,15 +229,15 @@ def run_validations(
     """Run pre-creation validations. Raises SystemExit(1) on failure."""
     warnings = _WarningLog()
     try:
-        os.makedirs(os.path.join(repo_root, ".agents"), exist_ok=True)
+        os.makedirs(os.path.join(repo_root, ".project-toolkit"), exist_ok=True)
     except PermissionError as exc:
-        print(f"Warning: Could not create .agents directory: {exc}", file=sys.stderr)
-        warnings.record(f"could not create .agents directory: {exc}")
+        print(f"Warning: Could not create .project-toolkit directory: {exc}", file=sys.stderr)
+        warnings.record(f"could not create .project-toolkit directory: {exc}")
 
     print("Running validations...")
     print()
 
-    # Validation 1: Session End (if .agents/ files changed)
+    # Validation 1: Session End (if .project-toolkit/ files changed)
     print("[1/6] Checking Session End protocol...")
     result = subprocess.run(
         ["git", "diff", "--name-only", f"{base}...{head}"],
@@ -261,7 +261,7 @@ def run_validations(
             "Validations 1 and 2 examined an unknown changed-file set"
         )
     changed_files = result.stdout.strip().splitlines() if not diff_failed else []
-    agents_changed = any(f.startswith(".agents/") for f in changed_files)
+    agents_changed = any(f.startswith(".project-toolkit/") for f in changed_files)
 
     if agents_changed:
         session_logs, has_legacy_md = _extract_validatable_session_logs(
@@ -282,7 +282,7 @@ def run_validations(
     elif diff_failed:
         print("  Skipped: git diff failed, changed files unknown (see warning above).")
     else:
-        print("  No .agents/ changes, skipping")
+        print("  No .project-toolkit/ changes, skipping")
 
     # Validation 2: Skill violation detection (WARNING)
     print()

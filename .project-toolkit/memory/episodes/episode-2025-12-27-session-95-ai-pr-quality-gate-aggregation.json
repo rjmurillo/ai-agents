@@ -1,0 +1,36 @@
+{
+  "id": "episode-2025-12-27-session-95-ai-pr-quality-gate-aggregation",
+  "session": "2025-12-27-session-95-ai-pr-quality-gate-aggregation",
+  "timestamp": "2025-12-27T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "[Migrated from markdown]",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2025-12-27T00:00:00+00:00",
+      "type": "test",
+      "content": "- Ran baseline tests: `pwsh build/scripts/Invoke-PesterTests.ps1 -CI` (pass)",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2025-12-27T00:00:00+00:00",
+      "type": "test",
+      "content": "- Re-ran tests after changes: `pwsh build/scripts/Invoke-PesterTests.ps1 -CI` (pass)",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 5341
+  },
+  "lessons": []
+}

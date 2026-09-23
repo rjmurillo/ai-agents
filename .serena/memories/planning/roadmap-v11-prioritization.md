@@ -39,4 +39,4 @@ Full templating (LiquidJS, 20-31 hours) DEFERRED to v1.2+ pending:
 
 ### Roadmap Document
 
-`.agents/roadmap/product-roadmap.md`
+`.project-toolkit/roadmap/product-roadmap.md`

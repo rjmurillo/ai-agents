@@ -82,7 +82,7 @@ from check_adr_lifecycle import (
 
 
 def _adr_dir(tmp_path: Path) -> Path:
-    path = tmp_path / ".agents" / "architecture"
+    path = tmp_path / ".project-toolkit" / "architecture"
     path.mkdir(parents=True)
     return path
 
@@ -113,11 +113,11 @@ _STATUS_SECTION = "\n## Status\n\nAccepted (2026-08-21).\n"
 
 
 def _counts(tmp_path: Path) -> dict[str, int]:
-    return tally(scan(tmp_path / ".agents" / "architecture", tmp_path))
+    return tally(scan(tmp_path / ".project-toolkit" / "architecture", tmp_path))
 
 
 def _hits(tmp_path: Path, check: str) -> list[str]:
-    adr_dir = tmp_path / ".agents" / "architecture"
+    adr_dir = tmp_path / ".project-toolkit" / "architecture"
     return [v.detail for v in scan(adr_dir, tmp_path) if v.check == check]
 
 
@@ -1394,7 +1394,7 @@ def test_a_record_that_is_not_valid_utf8_is_a_violation_not_a_crash(tmp_path):
     # `_hits` returns details; the record is on the violation's `path` field,
     # so the identification is asserted there rather than in the message text.
     offenders = [v.path for v in scan(adr_dir, tmp_path) if v.check == "frontmatter-parses"]
-    assert offenders == [".agents/architecture/ADR-002-thing.md"], offenders
+    assert offenders == [".project-toolkit/architecture/ADR-002-thing.md"], offenders
 
 
 def test_the_undecodable_message_names_utf8_not_unreadable(tmp_path):

@@ -53,14 +53,14 @@ def test_missing_script_ref_fails_with_file_line_ref(
 
 
 def test_historical_directory_is_skipped(tmp_path: Path) -> None:
-    doc = tmp_path / ".agents" / "sessions" / "old.md"
+    doc = tmp_path / ".project-toolkit" / "sessions" / "old.md"
     doc.parent.mkdir(parents=True)
     doc.write_text("```bash\npwsh scripts/Missing.ps1\n```\n", encoding="utf-8")
 
     findings = find_stale_refs(
         tmp_path,
-        docs={".agents/sessions/old.md"},
-        tracked={".agents/sessions/old.md"},
+        docs={".project-toolkit/sessions/old.md"},
+        tracked={".project-toolkit/sessions/old.md"},
         allowlist=set(),
     )
 

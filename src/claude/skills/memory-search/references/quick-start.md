@@ -89,7 +89,7 @@ python3 .claude/skills/memory/scripts/test_memory_health.py --format table
 ```bash
 # After completing a session
 python3 .claude/skills/memory/scripts/extract_session_episode.py \
-    ".agents/sessions/2026-01-01-session-130.json"
+    ".project-toolkit/sessions/2026-01-01-session-130.json"
 ```
 
 ## Common Patterns
@@ -177,7 +177,7 @@ print(f"Episodes with no recorded lessons: {len(empty)}")
 # Complete at end of every session
 
 SESSION_ID="2026-01-01-session-130"
-SESSION_LOG=".agents/sessions/${SESSION_ID}.md"
+SESSION_LOG=".project-toolkit/sessions/${SESSION_ID}.md"
 
 # 1. Extract episode from session log
 python3 .claude/skills/memory/scripts/extract_session_episode.py \
@@ -229,10 +229,10 @@ recent_episodes = get_episodes(since=since, max_results=5)
 ```bash
 # 1. Extract episode
 python3 .claude/skills/memory/scripts/extract_session_episode.py \
-    ".agents/sessions/$(date +%Y-%m-%d)-session-*.md"
+    ".project-toolkit/sessions/$(date +%Y-%m-%d)-session-*.md"
 
 # 2. Commit the episode
-git add .agents/memory/episodes/
+git add .project-toolkit/memory/episodes/
 git commit -m "session: Extract episode"
 ```
 
@@ -280,12 +280,12 @@ results = search_memory(query="general topic", max_results=20)
 
 ```bash
 # Check if episode file exists
-EPISODE_PATH=".agents/memory/episodes/episode-2026-01-01-session-126.json"
+EPISODE_PATH=".project-toolkit/memory/episodes/episode-2026-01-01-session-126.json"
 if [ ! -f "$EPISODE_PATH" ]; then
     echo "WARNING: Episode not extracted yet"
 
     # Extract from session log
-    SESSION_LOG=".agents/sessions/2026-01-01-session-126.json"
+    SESSION_LOG=".project-toolkit/sessions/2026-01-01-session-126.json"
     if [ -f "$SESSION_LOG" ]; then
         python3 .claude/skills/memory/scripts/extract_session_episode.py \
             "$SESSION_LOG"

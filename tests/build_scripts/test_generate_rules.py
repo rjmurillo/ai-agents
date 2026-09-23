@@ -210,7 +210,7 @@ def test_internal_paths_filtered_from_apply_to(tmp_path: Path) -> None:
         tmp_path / "rules_src",
         "security",
         frontmatter=(
-            'paths: ".agents/security/**,**/Auth/**,*.env*,'
+            'paths: ".project-toolkit/security/**,**/Auth/**,*.env*,'
             '.github/workflows/**,.claude/rules/security.md"\n'
         ),
         body="body\n",
@@ -220,7 +220,7 @@ def test_internal_paths_filtered_from_apply_to(tmp_path: Path) -> None:
     assert rc == 0
     out = _read_output(tmp_path, "security")
     fm = out.split("---")[1]
-    assert ".agents/security/**" not in fm
+    assert ".project-toolkit/security/**" not in fm
     assert ".claude/rules/security.md" not in fm
     # Non-internal globs MUST be preserved verbatim
     assert "**/Auth/**" in fm
@@ -285,7 +285,7 @@ def test_block_list_paths_internal_globs_filtered(tmp_path: Path) -> None:
         "security",
         frontmatter=(
             'paths:\n'
-            '  - ".agents/security/**"\n'
+            '  - ".project-toolkit/security/**"\n'
             '  - "**/Auth/**"\n'
             '  - ".claude/rules/security.md"\n'
         ),
@@ -295,7 +295,7 @@ def test_block_list_paths_internal_globs_filtered(tmp_path: Path) -> None:
     rc, _ = generate_rules.generate_rules(cfg, tmp_path)
     assert rc == 0
     fm = _read_output(tmp_path, "security").split("---")[1]
-    assert ".agents/security/**" not in fm
+    assert ".project-toolkit/security/**" not in fm
     assert ".claude/rules/security.md" not in fm
     assert "**/Auth/**" in fm
     assert "[" not in fm and "]" not in fm
@@ -311,7 +311,7 @@ def test_all_internal_paths_skips_rule_for_plugin_destination(tmp_path: Path) ->
     _write_rule(
         tmp_path / "rules_src",
         "internal_only",
-        frontmatter='paths: ".agents/security/**,.claude/rules/foo.md,.serena/memories/**"\n',
+        frontmatter='paths: ".project-toolkit/security/**,.claude/rules/foo.md,.serena/memories/**"\n',
         body="body\n",
     )
     cfg = _write_config(tmp_path)

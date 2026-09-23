@@ -86,7 +86,7 @@ def test_default_model_is_the_cheapest_served_tier():
 def test_default_model_is_not_a_rolling_alias():
     """Bare aliases are not valid Copilot model ids and fall back silently.
 
-    Measured in `.agents/analysis/2026-08-12-adr-080-copilot-model-resolution.md`.
+    Measured in `.project-toolkit/analysis/2026-08-12-adr-080-copilot-model-resolution.md`.
     """
     assert fallback.DEFAULT_COPILOT_MODEL not in {"haiku", "sonnet", "opus", "auto", ""}
 

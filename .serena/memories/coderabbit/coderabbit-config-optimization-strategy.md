@@ -265,9 +265,9 @@ This separation ensures developers focus on real issues, not bot nitpicks.
 ## References
 
 - PR #20 Review Analysis: <https://github.com/rjmurillo/ai-agents/pull/20>
-- ADR-002: CodeRabbit Configuration Strategy (`.agents/architecture/`)
-- Retrospective: PR #20 Review Noise Analysis (`.agents/retrospective/`)
-- Critic: Noise-Reduction Strategy Validation (`.agents/critique/`)
+- ADR-002: CodeRabbit Configuration Strategy (`.project-toolkit/architecture/`)
+- Retrospective: PR #20 Review Noise Analysis (`.project-toolkit/retrospective/`)
+- Critic: Noise-Reduction Strategy Validation (`.project-toolkit/critique/`)
 
 ## Related
 

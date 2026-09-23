@@ -2688,7 +2688,7 @@ class TestCommandTrustBoundary:
         # comparing it would halt every real run.
         #
         # This used to cite the shipped --dispositions-file as the example.
-        # PR #5481 committed .agents/pr-checks/dispositions.json, so that
+        # PR #5481 committed .project-toolkit/pr-checks/dispositions.json, so that
         # path is tracked now and is compared like any other tracked file.
         # The carve-out this test pins is unchanged; only the example moved.
         marker = tmp_path / "ran.txt"

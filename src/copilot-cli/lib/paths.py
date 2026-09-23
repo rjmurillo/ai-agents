@@ -42,7 +42,7 @@ Relationship to existing skills:
   uses `COPILOT_PLUGIN_ROOT` or `CLAUDE_PLUGIN_ROOT` because packaged plugin
   installs expose the plugin root, not one skill directory. The write path is
   new (the `/review` skill has no write artifact), modeled on `/spec` Step 0 writing
-  `.agents/metrics/STEP-0-METRICS.md` lazily under the consumer cwd. The
+  `.project-toolkit/metrics/STEP-0-METRICS.md` lazily under the consumer cwd. The
   AI_AGENTS_ARTIFACT_ROOT override is added so the consumer, not the skill,
   owns the artifact location.
 

@@ -72,8 +72,8 @@ def _require_script(script: Path) -> None:
 
 
 def _find_latest_session_log(repo_root: Path) -> Path | None:
-    """Find the most recent session log in .agents/sessions/."""
-    sessions_path = repo_root / ".agents" / "sessions"
+    """Find the most recent session log in .project-toolkit/sessions/."""
+    sessions_path = repo_root / ".project-toolkit" / "sessions"
     if not sessions_path.is_dir():
         return None
 
@@ -112,7 +112,7 @@ def _changed_session_paths(output: str, repo_root: Path) -> list[str]:
     return [
         path
         for path in output.split("\0")
-        if path.startswith(".agents/sessions/")
+        if path.startswith(".project-toolkit/sessions/")
         and path.endswith(".json")
     ]
 

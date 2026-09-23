@@ -20,9 +20,9 @@ This document defines the traceability graph structure used to validate cross-re
 
 | Type | ID Pattern | Location | Description |
 |------|------------|----------|-------------|
-| REQ | `REQ-<id>` | `.agents/specs/requirements/` | EARS format requirements |
-| DESIGN | `DESIGN-<id>` | `.agents/specs/design/` | Design documents |
-| TASK | `TASK-<id>` | `.agents/specs/tasks/` | Atomic work items |
+| REQ | `REQ-<id>` | `.project-toolkit/specs/requirements/` | EARS format requirements |
+| DESIGN | `DESIGN-<id>` | `.project-toolkit/specs/design/` | Design documents |
+| TASK | `TASK-<id>` | `.project-toolkit/specs/tasks/` | Atomic work items |
 
 `<id>` is an alphanumeric suffix (digits or lowercase letters, e.g., `001`, `a02`).
 
@@ -190,7 +190,7 @@ graph TD
 
 ```bash
 uv run --frozen python scripts/validation/traceability.py \
-  --specs-path .agents/specs --strict
+  --specs-path .project-toolkit/specs --strict
 ```
 
 ### CI Pipeline

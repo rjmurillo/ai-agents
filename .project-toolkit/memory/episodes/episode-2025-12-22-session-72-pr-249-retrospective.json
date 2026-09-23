@@ -1,0 +1,122 @@
+{
+  "id": "episode-2025-12-22-session-72-pr-249-retrospective",
+  "session": "2025-12-22-session-72-pr-249-retrospective",
+  "timestamp": "2025-12-22T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "[Migrated from markdown]",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2025-12-22T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 52ce873",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2025-12-22T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 52ce873",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ]
+    },
+    {
+      "id": "e003",
+      "timestamp": "2025-12-22T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 52ce873",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ]
+    },
+    {
+      "id": "e004",
+      "timestamp": "2025-12-22T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 52ce873",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ]
+    },
+    {
+      "id": "e005",
+      "timestamp": "2025-12-22T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 52ce873",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e006"
+      ]
+    },
+    {
+      "id": "e006",
+      "timestamp": "2025-12-22T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 52ce873",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e007",
+        "e008",
+        "e009"
+      ]
+    },
+    {
+      "id": "e007",
+      "timestamp": "2025-12-22T00:00:00+00:00",
+      "type": "test",
+      "content": "**Current State**: Tests run against main branch only",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e008",
+      "timestamp": "2025-12-22T00:00:00+00:00",
+      "type": "test",
+      "content": "**Implementation**: Add Pester test context for non-main target",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e009",
+      "timestamp": "2025-12-22T00:00:00+00:00",
+      "type": "test",
+      "content": "**Required**: Pester tests should verify exit code handling",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 5264
+  },
+  "lessons": []
+}

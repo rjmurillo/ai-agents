@@ -2,7 +2,7 @@
 """Gather Phase 0 evidence for a retrospective.
 
 Collects the evidence sources this script currently supports: the recent
-session log under ``.agents/sessions/`` and the ``git log`` over the
+session log under ``.project-toolkit/sessions/`` and the ``git log`` over the
 retrospective period. Each source degrades clearly: a missing or unreadable
 source is marked absent in the returned ``Evidence`` rather than failing the
 whole gather, per the SKILL.md Inputs contract ("When a source is unavailable,
@@ -81,7 +81,7 @@ def _artifact_dir(project_dir: Path, subdir: str) -> Path:
     """
     if _artifact_root_is_set() or project_dir.resolve() == Path.cwd().resolve():
         return Path(_resolve_artifact_dir(subdir))
-    return project_dir / ".agents" / subdir
+    return project_dir / ".project-toolkit" / subdir
 
 # Bound the git call so a wedged repo cannot hang the retrospective.
 _GIT_TIMEOUT_SECONDS = 15
@@ -338,7 +338,7 @@ def gather_evidence(
         session_location = (
             "configured sessions artifact directory"
             if _artifact_root_is_set()
-            else ".agents/sessions/"
+            else ".project-toolkit/sessions/"
         )
         notes.append(f"No session log found under {session_location}.")
         work_items: list[str] = []

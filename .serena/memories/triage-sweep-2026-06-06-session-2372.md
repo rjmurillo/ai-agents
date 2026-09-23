@@ -1,7 +1,7 @@
 # Issue Triage Sweep 2026-06-06 (session 2372)
 
 Autonomous sweep of all 32 open issues (workflow-orchestrated). Full disposition
-matrix: `.agents/analysis/2026-06-06-issue-triage-sweep.md`.
+matrix: `.project-toolkit/analysis/2026-06-06-issue-triage-sweep.md`.
 
 ## Final outcome (USER-RATIFIED 2026-06-06)
 

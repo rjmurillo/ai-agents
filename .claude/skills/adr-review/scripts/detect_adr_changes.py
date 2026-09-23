@@ -10,7 +10,7 @@ Monitors ADR file patterns in designated directories and detects changes
 since the last check. Returns structured JSON output for skill orchestration.
 
 Patterns monitored:
-- .agents/architecture/ADR-*.md
+- .project-toolkit/architecture/ADR-*.md
 - docs/adr/ADR-*.md
 - docs/architecture/ADR-*.md
 - docs/decisions/ADR-*.md
@@ -37,7 +37,7 @@ from pathlib import Path
 import yaml
 
 ADR_PATTERNS = (
-    ".agents/architecture/ADR-*.md",
+    ".project-toolkit/architecture/ADR-*.md",
     "docs/adr/ADR-*.md",
     "docs/architecture/ADR-*.md",
     "docs/decisions/ADR-*.md",
@@ -45,7 +45,7 @@ ADR_PATTERNS = (
 )
 
 ADR_DIRECTORIES = (
-    ".agents/architecture",
+    ".project-toolkit/architecture",
     "docs/adr",
     "docs/architecture",
     "docs/decisions",
@@ -113,7 +113,7 @@ FRONTMATTER_DELIM = "---"
 
 # Frontmatter keys whose value can change without altering the ADR's decision
 # content, so a change confined to them does not need adr-review. Per ADR-073
-# (.agents/architecture/ADR-073-adr-lifecycle-frontmatter.md:57,61), `status`,
+# (.project-toolkit/architecture/ADR-073-adr-lifecycle-frontmatter.md:57,61), `status`,
 # `supersedes`, and `superseded-by` are authoritative governance state: a
 # hand-edit to `status: accepted` MUST still trip the gate so the author binds
 # it to adr-review evidence. Those keys are therefore deliberately EXCLUDED.
@@ -281,7 +281,7 @@ def _get_adr_status(file_path: Path) -> str:
 
     Reads ONLY the leading ``---`` fenced YAML frontmatter block, parsed with
     :func:`yaml.safe_load`. ADR-073
-    (.agents/architecture/ADR-073-adr-lifecycle-frontmatter.md:57) states the
+    (.project-toolkit/architecture/ADR-073-adr-lifecycle-frontmatter.md:57) states the
     contract this function implements verbatim:
 
         The frontmatter `status` enum is authoritative for tooling. The prose
@@ -303,7 +303,7 @@ def _get_adr_status(file_path: Path) -> str:
     distinct sentinel; callers MUST NOT treat it as ``proposed``. Collapsing
     "declares nothing" into "declares proposed" is the fail-open shape
     catalogued in
-    .agents/retrospective/2026-08-19-review-and-land-fleet-campaign-prs.md
+    .project-toolkit/retrospective/2026-08-19-review-and-land-fleet-campaign-prs.md
     (issue #5189). Malformed YAML never raises: :func:`_parse_frontmatter`
     returns ``None`` on :class:`yaml.YAMLError` or a non-mapping document,
     both mapped to ``unknown`` here.

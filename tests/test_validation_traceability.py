@@ -393,7 +393,7 @@ class TestBuildParser:
     def test_default_specs_path(self) -> None:
         parser = build_parser()
         args = parser.parse_args([])
-        assert args.specs_path == ".agents/specs"
+        assert args.specs_path == ".project-toolkit/specs"
 
     def test_custom_specs_path(self) -> None:
         parser = build_parser()

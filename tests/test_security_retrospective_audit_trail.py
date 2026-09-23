@@ -18,7 +18,7 @@ from scripts.security.invoke_security_retrospective import (
     SecurityRetrospective,
 )
 
-_FALLBACK = Path(".agents") / "security" / "false-negatives.json"
+_FALLBACK = Path(".project-toolkit") / "security" / "false-negatives.json"
 
 
 def _retrospective(tmp_path: Path, dry_run: bool = False) -> SecurityRetrospective:

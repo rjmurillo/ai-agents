@@ -1,0 +1,28 @@
+{
+  "id": "episode-2025-12-18-session-12-skill-extraction",
+  "session": "2025-12-18-session-12-skill-extraction",
+  "timestamp": "2025-12-18T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "partial",
+  "task": "Extract skills from the hyper-critical retrospective and persist learnings to Serena memory with a growth mindset. The retrospective documented a catastrophic failure where Session 03 claimed \"zero bugs\" for code that had 6+ critical bugs.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2025-12-18T00:00:00+00:00",
+      "type": "milestone",
+      "content": "[ ] Security scanning completed",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 5164
+  },
+  "lessons": []
+}

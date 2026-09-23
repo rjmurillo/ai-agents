@@ -73,7 +73,7 @@ Use this skill BEFORE proposing changes to existing:
 
 **Step 2: Git Archaeology.** Run `git log --follow` and `git blame` on the target. Identify the commit that introduced it, the author, and the date.
 
-**Step 3: PR/ADR Search.** Search for the originating PR using `gh pr list --search`. Check `${AWESOME_AI_ARCHITECTURE_DIR:-.agents/architecture}` for related ADRs (default `.agents/architecture`). Look for comments explaining intent.
+**Step 3: PR/ADR Search.** Search for the originating PR using `gh pr list --search`. Check `${AWESOME_AI_ARCHITECTURE_DIR:-.project-toolkit/architecture}` for related ADRs (default `.project-toolkit/architecture`). Look for comments explaining intent.
 
 **Step 4: Dependency Analysis.** Use `grep` or `Grep` tool to find all references. Map upstream and downstream dependencies. Identify what breaks if the structure is removed.
 
@@ -143,4 +143,4 @@ Investigation reports use the template at the bundled `templates/chestertons-fen
 | `references/boy-scout-rule.md` | Scoped improvement boundaries, connection to investigation workflow |
 | `references/legacy-code-techniques.md` | Bottom-up refactoring approach, inheritance vs composition, reading list |
 
-<!-- vendor-portability: declared. This skill writes investigation reports to .agents/analysis/ and reads .agents/architecture/ for related ADRs. The report path is a write target (created on demand); the architecture read is best-effort and returns nothing when the dir is absent in a vendored install. Issue #2050. -->
+<!-- vendor-portability: declared. This skill writes investigation reports to .project-toolkit/analysis/ and reads .project-toolkit/architecture/ for related ADRs. The report path is a write target (created on demand); the architecture read is best-effort and returns nothing when the dir is absent in a vendored install. Issue #2050. -->

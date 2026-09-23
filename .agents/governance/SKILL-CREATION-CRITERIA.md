@@ -265,7 +265,7 @@ Sometimes the question is "skill or agent?"
 
 Before creating a skill, determine if the content belongs as passive context in AGENTS.md instead. Passive context achieves higher compliance rates for knowledge-based tasks (Vercel research: 100% vs 79% for skills).
 
-**Source**: [Vercel passive context research](./../analysis/vercel-passive-context-vs-skills-research.md)
+**Source**: [Vercel passive context research](../../.project-toolkit/analysis/vercel-passive-context-vs-skills-research.md)
 
 ### Decision Criteria
 
@@ -364,11 +364,11 @@ Remove skills when:
 ## Related Documents
 
 - [SKILL-PHASE-GATES.md](./SKILL-PHASE-GATES.md): Gate implementation
-- [ADR-030](../architecture/ADR-030-skills-pattern-superiority.md): Skills vs subagents
-- [ADR-033](../architecture/ADR-033-routing-level-enforcement-gates.md): Routing-level enforcement gates
+- [ADR-030](../../.project-toolkit/architecture/ADR-030-skills-pattern-superiority.md): Skills vs subagents
+- [ADR-033](../../.project-toolkit/architecture/ADR-033-routing-level-enforcement-gates.md): Routing-level enforcement gates
 - [Agent Design Principles](./agent-design-principles.md): Agent creation criteria
 - [SkillForge](../../.claude/skills/SkillForge/SKILL.md): Meta-skill for production-ready skill creation
-- [Vercel Passive Context Research](../analysis/vercel-passive-context-vs-skills-research.md): Evidence for passive context over skills
+- [Vercel Passive Context Research](../../.project-toolkit/analysis/vercel-passive-context-vs-skills-research.md): Evidence for passive context over skills
 
 ---
 

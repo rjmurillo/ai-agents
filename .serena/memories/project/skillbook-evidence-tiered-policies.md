@@ -5,13 +5,13 @@
 
 ## What it is
 
-A policy registry under `.agents/skillbook/` that grades agent behavioral
+A policy registry under `.project-toolkit/skillbook/` that grades agent behavioral
 policies by a tier grounded in eval pass/fail outcomes (not regex sentiment).
 
 ## Files
 
-- `.agents/skillbook/{policies,tensions,workflows}.json` - registry data.
-- `.agents/skillbook/README.md` - the model documentation.
+- `.project-toolkit/skillbook/{policies,tensions,workflows}.json` - registry data.
+- `.project-toolkit/skillbook/README.md` - the model documentation.
 - `.agents/schemas/{policy,tension,workflow,evidence-entry}.schema.json` - draft-07 schemas.
 - `scripts/skillbook.py` - CLI: status/confirm/contradict/promote/tension/select.
 - `scripts/validation/validate_skillbook.py` - schema + integrity validator (CI calls this).
@@ -37,7 +37,7 @@ policies by a tier grounded in eval pass/fail outcomes (not regex sentiment).
 - `jsonschema` library deliberately NOT added; validator carries a small
   purpose-built draft-07 subset checker, matching `validate_session_json.py`.
 - Dropped the issue example's `evidence_tier` field (duplicate of `tier`).
-- `.agents/skillbook/` is a policy registry, distinct from the `skillbook`
+- `.project-toolkit/skillbook/` is a policy registry, distinct from the `skillbook`
   AGENT persona (templates/agents/skillbook.shared.md).
 
 ## Deferred (out of scope v1)

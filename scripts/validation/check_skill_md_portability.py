@@ -13,13 +13,13 @@ This validator is that follow-up. Issue #2050's worst offenders are SKILL.md and
 reference ``.md`` files (34 hits in ``memory/references/troubleshooting.md``, 25
 in ``session/SKILL.md``, ...). In a vendored plugin install the consumer repo has
 no ``.agents/``, ``.claude/lib/``, or ``.claude/review-axes/`` tree, so an
-instruction telling the agent to write to ``.agents/analysis/foo.md`` silently
+instruction telling the agent to write to ``.project-toolkit/analysis/foo.md`` silently
 degrades. This check generalizes the /review REQ-008-06 contract (resolve via
 plugin/skill root, the consumer cwd, or a documented env var) to skill prose.
 
 What it counts:
-  Upstream-only runtime path references (``.agents/``, ``.claude/lib/``,
-  ``.claude/review-axes/``) in a skill ``.md`` file, after stripping:
+  Upstream-only runtime path references (``.agents/``, ``.project-toolkit/``,
+  ``.claude/lib/``, ``.claude/review-axes/``) in a skill ``.md`` file, after stripping:
     * fenced code blocks (``` and ~~~): example commands, not runtime instructions
   ``.claude/skills/`` is NOT counted: it is the install-root-relative convention
   the ``paths.py`` helper resolves, mirroring the script ratchet's exclusion.
@@ -236,6 +236,10 @@ _TERMINATOR = r"(?:[\\/]+|(?![\w-])(?!\.[\w]))"
 
 UPSTREAM_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(_BOUNDARY + r"\.agents" + _TERMINATOR, re.IGNORECASE),
+    # Issue #5420 moved the agent write targets out of `.agents/` into
+    # `.project-toolkit/`, the repo-root artifact tree. A skill prose path into
+    # it is the same upstream-only dependency the `.agents/` form was.
+    re.compile(_BOUNDARY + r"\.project-toolkit" + _TERMINATOR, re.IGNORECASE),
     re.compile(_BOUNDARY + r"\.claude[\\/]+lib" + _TERMINATOR, re.IGNORECASE),
     re.compile(
         _BOUNDARY + r"\.claude[\\/]+review-axes" + _TERMINATOR,

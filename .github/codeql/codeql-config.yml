@@ -37,5 +37,6 @@ paths:
 paths-ignore:
   - tests/
   - .agents/
+  - .project-toolkit/
   - docs/
   - '**/*.md'

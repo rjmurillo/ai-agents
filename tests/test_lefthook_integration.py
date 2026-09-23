@@ -386,17 +386,17 @@ def test_adr_review_policy_blocks_stale_debate_reference(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _init_repo(tmp_path)
-    # A debate log exists in the correct dir (.agents/critique/) but references
+    # A debate log exists in the correct dir (.project-toolkit/critique/) but references
     # a DIFFERENT ADR (ADR-042), not the staged ADR (ADR-062). This exercises
     # the stale-reference branch, not the missing-log branch.
-    critique = tmp_path / ".agents" / "critique"
+    critique = tmp_path / ".project-toolkit" / "critique"
     critique.mkdir(parents=True)
     debate = critique / "adr-042-debate.md"
     _write_lf(debate, _debate_log("ADR-042"))
     _git(tmp_path, "add", "--", debate.relative_to(tmp_path).as_posix())
 
     result = policy.check_adr_review_policy(
-        [".agents/architecture/ADR-062-navigation.md"],
+        [".project-toolkit/architecture/ADR-062-navigation.md"],
         tmp_path,
     )
 
@@ -409,7 +409,7 @@ def test_adr_review_policy_allows_fresh_evidence_and_no_adr_change(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _init_repo(tmp_path)
-    critique = tmp_path / ".agents" / "critique"
+    critique = tmp_path / ".project-toolkit" / "critique"
     critique.mkdir(parents=True)
     debate = critique / "adr-062-debate.md"
     _write_lf(debate, _debate_log("ADR-062"))
@@ -417,7 +417,7 @@ def test_adr_review_policy_allows_fresh_evidence_and_no_adr_change(
 
     assert (
         policy.check_adr_review_policy(
-            [".agents/architecture/ADR-062-navigation.md"],
+            [".project-toolkit/architecture/ADR-062-navigation.md"],
             tmp_path,
         )
         == 0
@@ -427,7 +427,7 @@ def test_adr_review_policy_allows_fresh_evidence_and_no_adr_change(
 
 def test_adr_review_policy_matches_complete_adr_ids(tmp_path: Path) -> None:
     _init_repo(tmp_path)
-    critique = tmp_path / ".agents" / "critique"
+    critique = tmp_path / ".project-toolkit" / "critique"
     critique.mkdir(parents=True)
     debate = critique / "adr-0620-debate.md"
     _write_lf(debate, _debate_log("ADR-0620"))
@@ -435,7 +435,7 @@ def test_adr_review_policy_matches_complete_adr_ids(tmp_path: Path) -> None:
 
     assert (
         policy.check_adr_review_policy(
-            [".agents/architecture/ADR-062-navigation.md"],
+            [".project-toolkit/architecture/ADR-062-navigation.md"],
             tmp_path,
         )
         == 1
@@ -446,7 +446,7 @@ def test_adr_review_policy_rejects_symlinked_debate_evidence(tmp_path: Path) -> 
     if os.name == "nt":
         pytest.skip("Symlink creation requires elevated Windows privileges")
     _init_repo(tmp_path)
-    critique = tmp_path / ".agents" / "critique"
+    critique = tmp_path / ".project-toolkit" / "critique"
     critique.mkdir(parents=True)
     evidence = tmp_path / "evidence.md"
     _write_lf(evidence, _debate_log("ADR-062"))
@@ -456,7 +456,7 @@ def test_adr_review_policy_rejects_symlinked_debate_evidence(tmp_path: Path) -> 
 
     assert (
         policy.check_adr_review_policy(
-            [".agents/architecture/ADR-062-navigation.md"],
+            [".project-toolkit/architecture/ADR-062-navigation.md"],
             tmp_path,
         )
         == 1
@@ -468,7 +468,7 @@ def test_adr_review_policy_missing_critique_dir_fails(
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """No .agents/critique/ directory at all means no debate logs: gate fails."""
+    """No .project-toolkit/critique/ directory at all means no debate logs: gate fails."""
     # A real repository, because the premise is "the critique directory is
     # absent", not "this is not a git checkout". Without the init, the staged-log
     # query fails and the gate reports that failure rather than the absence
@@ -477,17 +477,17 @@ def test_adr_review_policy_missing_critique_dir_fails(
     _init_repo(tmp_path)
 
     # Only the old wrong dir exists; critique dir is absent.
-    wrong = tmp_path / ".agents" / "analysis"
+    wrong = tmp_path / ".project-toolkit" / "analysis"
     wrong.mkdir(parents=True)
     _write_lf(wrong / "adr-062-debate.md", _debate_log("ADR-062"))
 
     result = policy.check_adr_review_policy(
-        [".agents/architecture/ADR-062-navigation.md"],
+        [".project-toolkit/architecture/ADR-062-navigation.md"],
         tmp_path,
     )
 
     assert result == 1
-    assert ".agents/critique" in capsys.readouterr().err
+    assert ".project-toolkit/critique" in capsys.readouterr().err
 
 
 def test_configuration_uses_named_native_jobs() -> None:
@@ -1981,7 +1981,7 @@ def _write_session_log(
     """
     if date is None:
         date = datetime.now(tz=UTC).strftime("%Y-%m-%d")
-    sessions = repo / ".agents" / "sessions"
+    sessions = repo / ".project-toolkit" / "sessions"
     sessions.mkdir(parents=True, exist_ok=True)
     path = sessions / f"{date}-{name}.json"
     if raw is not None:
@@ -2164,7 +2164,7 @@ def test_branch_context_survives_merged_import_when_current_branch_owns_no_log(
     os.utime(imported, (2_000_000_000.0, 2_000_000_000.0))
 
     # feature/never-logged owns no session log at all, today or otherwise.
-    sessions_dir = repo / ".agents" / "sessions"
+    sessions_dir = repo / ".project-toolkit" / "sessions"
     assert policy._session_log_for_branch(sessions_dir, "feature/never-logged") is None
 
     assert policy.check_branch_context(repo) == 0
@@ -2557,10 +2557,10 @@ def test_session_policy_is_validate_if_present(
     monkeypatch.setattr(policy, "_run_command", lambda *_args, **_kwargs: _completed(0))
     monkeypatch.setattr(policy, "added_session_paths_in_index", lambda paths, repo_root: set(paths))
 
-    assert policy.check_sessions([".agents/planning/plan.md"], tmp_path) == 0
+    assert policy.check_sessions([".project-toolkit/planning/plan.md"], tmp_path) == 0
     assert (
         policy.check_sessions(
-            [".agents/sessions/2026-07-19-session-1-test.json"],
+            [".project-toolkit/sessions/2026-07-19-session-1-test.json"],
             tmp_path,
         )
         == 0
@@ -2581,7 +2581,7 @@ def test_session_policy_skips_sessions_already_on_main(
 
     assert (
         policy.check_sessions(
-            [".agents/sessions/2026-07-19-session-1-test.json"],
+            [".project-toolkit/sessions/2026-07-19-session-1-test.json"],
             tmp_path,
         )
         == 0
@@ -2775,9 +2775,9 @@ def test_session_policy_propagates_validator_failure_and_skips_merge(
     monkeypatch.setattr(
         policy,
         "added_session_paths_in_index",
-        lambda _paths, _repo_root: {".agents/sessions/2026-07-19-session-1-test.json"},
+        lambda _paths, _repo_root: {".project-toolkit/sessions/2026-07-19-session-1-test.json"},
     )
-    path = ".agents/sessions/2026-07-19-session-1-test.json"
+    path = ".project-toolkit/sessions/2026-07-19-session-1-test.json"
     assert policy.check_sessions([path], tmp_path) == 1
 
     monkeypatch.setattr(policy, "_merge_in_progress", lambda _root: True)
@@ -3434,10 +3434,10 @@ def test_episode_extraction_stages_only_reported_output(
 ) -> None:
     repo = tmp_path / "repo"
     _init_repo(repo)
-    session = ".agents/sessions/2026-07-19-session-1-test.json"
+    session = ".project-toolkit/sessions/2026-07-19-session-1-test.json"
     (repo / session).parent.mkdir(parents=True)
     _write_lf(repo / session, "{}\n")
-    episode = repo / ".agents/memory/episodes/episode-2026-07-19-session-1-test.json"
+    episode = repo / ".project-toolkit/memory/episodes/episode-2026-07-19-session-1-test.json"
     episode.parent.mkdir(parents=True)
     _write_lf(episode, "{}\n")
     original_run = policy._run_command
@@ -3472,7 +3472,7 @@ def test_episode_extraction_is_advisory_but_rejects_unsafe_paths(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(policy, "_run_command", lambda *_args, **_kwargs: _completed(1))
-    session = ".agents/sessions/2026-07-19-session-1-test.json"
+    session = ".project-toolkit/sessions/2026-07-19-session-1-test.json"
 
     assert policy.extract_session_episodes([session], tmp_path) == 0
     assert policy.extract_session_episodes(["../session.json"], tmp_path) == 2
@@ -6786,7 +6786,7 @@ def test_episode_extraction_handles_missing_output_and_stage_failure(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    session = ".agents/sessions/2026-07-19-session-1-test.json"
+    session = ".project-toolkit/sessions/2026-07-19-session-1-test.json"
     monkeypatch.setattr(
         policy,
         "_run_command",
@@ -6809,7 +6809,7 @@ def test_episode_staging_handles_missing_and_symlink(
 ) -> None:
     assert policy._stage_episode("episode-missing", tmp_path) == 0
 
-    episode = tmp_path / ".agents/memory/episodes/episode-link.json"
+    episode = tmp_path / ".project-toolkit/memory/episodes/episode-link.json"
     episode.parent.mkdir(parents=True)
     _write_lf(episode, "{}\n")
     original_is_symlink = Path.is_symlink
@@ -6863,7 +6863,7 @@ def test_atomic_commit_generated_episode_exempt(tmp_path: Path) -> None:
     _init_repo(repo)
     _commit_file(repo, "README.md", "init\n")
     authored = ["a.py", "b.py", "c.py", "d.py", "e.py"]
-    generated = [".agents/memory/episodes/episode-abc123.json"]
+    generated = [".project-toolkit/memory/episodes/episode-abc123.json"]
     _stage_files(repo, authored + generated)
     assert policy.check_atomic_commit(repo) == 0
 
@@ -6876,7 +6876,7 @@ def test_atomic_commit_generated_episode_not_enough_to_hide_violation(
     _init_repo(repo)
     _commit_file(repo, "README.md", "init\n")
     authored = ["a.py", "b.py", "c.py", "d.py", "e.py", "f.py"]
-    generated = [".agents/memory/episodes/episode-abc123.json"]
+    generated = [".project-toolkit/memory/episodes/episode-abc123.json"]
     _stage_files(repo, authored + generated)
     assert policy.check_atomic_commit(repo) == 0
     captured = capsys.readouterr()
@@ -7539,9 +7539,9 @@ def test_session_helpers_aggregate_without_blocking_advisory(
     assert (
         policy.validate_branch_sessions(
             [
-                ".agents/sessions/2026-01-01-session-1.json",
-                ".agents/sessions/2026-01-01-session-1../../x.json",
-                ".agents/sessions/2026-01-02-session-2.json",
+                ".project-toolkit/sessions/2026-01-01-session-1.json",
+                ".project-toolkit/sessions/2026-01-01-session-1../../x.json",
+                ".project-toolkit/sessions/2026-01-02-session-2.json",
             ],
             tmp_path,
         )
@@ -10932,7 +10932,7 @@ _ROOT_SCRATCH_CASES: tuple[tuple[str, list[str], list[str]], ...] = (
     ("root_file_in_head", ["README.md"], []),
     ("allowlisted_new_root_file", ["pyproject.toml"], []),
     ("root_dotfile", [".actrc"], []),
-    ("nested_path", [".agents/sessions/2026-08-04-session-1.json"], []),
+    ("nested_path", [".project-toolkit/sessions/2026-08-04-session-1.json"], []),
     ("deeply_nested_path", ["scripts/validation/report.json"], []),
     ("no_paths", [], []),
 )

@@ -6,7 +6,7 @@ found 42 percent of 23 agents were skill-shape candidates. This check stops
 new agents from accumulating the same misclassification debt at PR time.
 
 Discriminator (locked by the #2003 audit; canonical source:
-``.agents/audits/2026-05-10-agent-skill-classification-audit.md``):
+``.project-toolkit/audits/2026-05-10-agent-skill-classification-audit.md``):
 
 A new or materially changed agent under ``.claude/agents/`` (or its
 ``templates/agents/*.shared.md`` sibling per ADR-036) is a skill-shape
@@ -101,8 +101,8 @@ from scripts.validation.portability_common import (  # noqa: E402
     write_baseline,
 )
 
-AUDIT_PATH = ".agents/audits/2026-05-10-agent-skill-classification-audit.md"
-ADR_PATH = ".agents/architecture/ADR-030-skills-pattern-superiority.md"
+AUDIT_PATH = ".project-toolkit/audits/2026-05-10-agent-skill-classification-audit.md"
+ADR_PATH = ".project-toolkit/architecture/ADR-030-skills-pattern-superiority.md"
 
 # Reserved metadata filenames that are not agents.
 #

@@ -80,14 +80,14 @@ class TestCheckFileSize:
         assert "my_module_helpers.py" in result[0].remediation
 
     def test_memory_data_file_exempt_despite_size(self) -> None:
-        # .agents/memory/ holds append-only generated data (issue #2785).
+        # .project-toolkit/memory/ holds append-only generated data (issue #2785).
         lines = ["{}\n"] * 9000
-        result = check_file_size(".agents/memory/episodes/episode-batch.json", lines)
+        result = check_file_size(".project-toolkit/memory/episodes/episode-batch.json", lines)
         assert result == []
 
     def test_memory_data_absolute_path_under_cwd_exempt(self, tmp_path: Path) -> None:
         # An absolute path that resolves under the repo root (cwd) is exempt.
-        target = tmp_path / ".agents" / "memory" / "episodes" / "episode-1.json"
+        target = tmp_path / ".project-toolkit" / "memory" / "episodes" / "episode-1.json"
         lines = ["{}\n"] * 9000
         with patch.object(mod.Path, "cwd", return_value=tmp_path):
             result = check_file_size(str(target), lines)
@@ -95,8 +95,8 @@ class TestCheckFileSize:
 
     def test_memory_segment_in_parent_dir_not_exempt(self, tmp_path: Path) -> None:
         # Security regression (gemini, PR #2786): a checkout whose PARENT dirs
-        # contain .agents/memory must not leak the exemption to repo files.
-        repo = tmp_path / ".agents" / "memory" / "repo"
+        # contain .project-toolkit/memory must not leak the exemption to repo files.
+        repo = tmp_path / ".project-toolkit" / "memory" / "repo"
         target = repo / "src" / "big_module.py"  # repo-relative is src/big_module.py
         lines = ["line\n"] * 600
         with patch.object(mod.Path, "cwd", return_value=repo):
@@ -106,13 +106,13 @@ class TestCheckFileSize:
 
     def test_absolute_path_outside_repo_not_exempt(self, tmp_path: Path) -> None:
         lines = ["{}\n"] * 9000
-        result = check_file_size("/elsewhere/.agents/memory/data.json", lines)
+        result = check_file_size("/elsewhere/.project-toolkit/memory/data.json", lines)
         assert len(result) == 1
         assert result[0].severity == "error"
 
     def test_absolute_path_with_dotdot_escape_not_exempt(self, tmp_path: Path) -> None:
         repo = tmp_path / "repo"
-        target = repo / ".agents" / "memory" / ".." / ".." / "src" / "big.py"
+        target = repo / ".project-toolkit" / "memory" / ".." / ".." / "src" / "big.py"
         lines = ["line\n"] * 600
         with patch.object(mod.Path, "cwd", return_value=repo):
             result = check_file_size(str(target), lines)
@@ -120,16 +120,16 @@ class TestCheckFileSize:
         assert result[0].severity == "error"
 
     def test_non_memory_large_file_still_fails(self) -> None:
-        # A look-alike path that is not under .agents/memory must still fail.
+        # A look-alike path that is not under .project-toolkit/memory must still fail.
         lines = ["line\n"] * 600
         result = check_file_size(".agents/memoryish/data.json", lines)
         assert len(result) == 1
         assert result[0].severity == "error"
 
     def test_memory_segment_mid_relative_path_not_exempt(self) -> None:
-        # .agents/memory not anchored at the start of the relative path: not exempt.
+        # .project-toolkit/memory not anchored at the start of the relative path: not exempt.
         lines = ["line\n"] * 600
-        result = check_file_size("src/.agents/memory/x.json", lines)
+        result = check_file_size("src/.project-toolkit/memory/x.json", lines)
         assert len(result) == 1
         assert result[0].severity == "error"
 

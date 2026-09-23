@@ -35,13 +35,13 @@ Category: Agent Coordination and Workflow Patterns
 **Artifact Chain**:
 
 ```text
-.agents/analysis/    -> Analyst findings
-.agents/architecture/ -> ADR documents
-.agents/planning/    -> Implementation plans
-.agents/critique/    -> Plan validations
+.project-toolkit/analysis/    -> Analyst findings
+.project-toolkit/architecture/ -> ADR documents
+.project-toolkit/planning/    -> Implementation plans
+.project-toolkit/critique/    -> Plan validations
 [commits]            -> Implementation evidence
-.agents/qa/          -> Verification reports
-.agents/retrospective/ -> Learning extraction
+.project-toolkit/qa/          -> Verification reports
+.project-toolkit/retrospective/ -> Learning extraction
 .agents/skills/      -> Extracted skills
 ```
 
@@ -251,7 +251,7 @@ Discarding feature branch session history during merge conflict resolution loses
 
 ## Skill-Workflow-012: Branch Handoffs for Feature Branch Validator Compliance
 
-- **Statement**: On feature branches, create branch handoffs at `.agents/handoffs/{branch}/{session}.md` to satisfy validator without updating HANDOFF.md
+- **Statement**: On feature branches, create branch handoffs at `.project-toolkit/handoffs/{branch}/{session}.md` to satisfy validator without updating HANDOFF.md
 - **Context**: Session End validation on feature branches where HANDOFF.md is read-only (ADR-014)
 - **Atomicity**: 95%
 - **Evidence**: Session 92-93 - Validator requires HANDOFF.md reference but pre-commit hook blocks HANDOFF.md changes on feature branches
@@ -270,7 +270,7 @@ Three authoritative sources contradict:
 
 | Branch Type | Action | Rationale |
 |-------------|--------|-----------|
-| **Feature Branch** | Create branch handoff at `.agents/handoffs/{branch}/{session}.md` | Satisfies documentation requirement without modifying HANDOFF.md |
+| **Feature Branch** | Create branch handoff at `.project-toolkit/handoffs/{branch}/{session}.md` | Satisfies documentation requirement without modifying HANDOFF.md |
 | **Main Branch** | Update HANDOFF.md "Last 5 Sessions" table | Canonical dashboard maintained on main only |
 
 **Workaround Pattern**:
@@ -278,10 +278,10 @@ Three authoritative sources contradict:
 ```bash
 # On feature branch (e.g., feature/issue-123)
 # Session log created as usual
-.agents/sessions/2025-12-24-session-92.md
+.project-toolkit/sessions/2025-12-24-session-92.md
 
 # Create branch handoff instead of updating HANDOFF.md
-.agents/handoffs/feature/issue-123/2025-12-24-session-92.md
+.project-toolkit/handoffs/feature/issue-123/2025-12-24-session-92.md
 
 # Content: Reference to session log + key decisions
 # Session End validator satisfied by session log existence

@@ -1,0 +1,36 @@
+{
+  "id": "episode-2025-12-22-session-67-guardrails-synthesis",
+  "session": "2025-12-22-session-67-guardrails-synthesis",
+  "timestamp": "2025-12-22T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Synthesize findings from 14-agent review of Local Guardrails SPEC and PLAN into actionable recommendation.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2025-12-22T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Trust-based compliance historically achieves 4% success (Session 53 data)",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2025-12-22T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verification-based enforcement achieves 79% success",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 5256
+  },
+  "lessons": []
+}

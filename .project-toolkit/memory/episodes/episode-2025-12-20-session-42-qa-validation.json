@@ -1,0 +1,19 @@
+{
+  "id": "episode-2025-12-20-session-42-qa-validation",
+  "session": "2025-12-20-session-42-qa-validation",
+  "timestamp": "2025-12-20T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "[Migrated from markdown]",
+  "decisions": [],
+  "events": [],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 5202
+  },
+  "lessons": []
+}

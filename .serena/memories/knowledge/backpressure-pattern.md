@@ -1,7 +1,7 @@
 # Backpressure Pattern
 
 **Category**: Distributed Systems, Resilience
-**Source**: `.agents/analysis/advanced-engineering-knowledge.md`
+**Source**: `.project-toolkit/analysis/advanced-engineering-knowledge.md`
 
 ## Core Concept
 

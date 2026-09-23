@@ -54,7 +54,7 @@ Reference data for memory systems:
 | System | Priority | Location |
 |--------|----------|----------|
 | Serena | 1 | .serena/memories/ |
-| Session logs | 2 | .agents/sessions/ |
+| Session logs | 2 | .project-toolkit/sessions/ |
 
 Always check memories before reasoning.
 Framework knowledge for session protocol.

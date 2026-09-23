@@ -332,8 +332,8 @@ def _verify_memory(citation: Citation, repo_root: Path) -> VerificationResult:
 
 
 def _verify_adr(citation: Citation, repo_root: Path) -> VerificationResult:
-    """Verify an ADR citation exists in .agents/architecture/."""
-    adr_dir = repo_root / ".agents" / "architecture"
+    """Verify an ADR citation exists in .project-toolkit/architecture/."""
+    adr_dir = repo_root / ".project-toolkit" / "architecture"
     target = citation.target
     if not target.endswith(".md"):
         target = target + ".md"

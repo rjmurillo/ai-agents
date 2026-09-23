@@ -28,7 +28,7 @@ $result = Create-File $Path
 if ((Get-Item $Path).LinkType) { throw "symlink" }
 ```
 
-**Source**: `.agents/retrospective/pr-52-symlink-retrospective.md`
+**Source**: `.project-toolkit/retrospective/pr-52-symlink-retrospective.md`
 
 ---
 

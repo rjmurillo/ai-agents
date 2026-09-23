@@ -1,0 +1,52 @@
+{
+  "id": "episode-2025-12-18-session-24-component-agents-docs",
+  "session": "2025-12-18-session-24-component-agents-docs",
+  "timestamp": "2025-12-18T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "partial",
+  "task": "Crawl the repository, extract knowledge from memories, and generate `AGENTS.md` files for each logical component documenting all automated actors (agents) that operate as part of that component.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2025-12-18T00:00:00+00:00",
+      "type": "milestone",
+      "content": "[x] `mcp__serena__activate_project` - Completed",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2025-12-18T00:00:00+00:00",
+      "type": "milestone",
+      "content": "[x] `mcp__serena__initial_instructions` - Completed",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2025-12-18T00:00:00+00:00",
+      "type": "milestone",
+      "content": "[x] Read `.agents/HANDOFF.md` - Completed",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2025-12-18T00:00:00+00:00",
+      "type": "test",
+      "content": "2. **build/AGENTS.md** - Documents build scripts (Generate-Agents, Detect-AgentDrift, Validate-PlanningArtifacts, Validate-PathNormalization, Invoke-PesterTests), their inputs/outputs, invocation, and monitoring",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 5176
+  },
+  "lessons": []
+}

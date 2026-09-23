@@ -25,7 +25,7 @@
 7. Cloud: `*.aws`, `*.azure`, `*.gcp`
 8. Network: firewall rules, security groups
 
-**Source**: `.agents/security/infrastructure-file-patterns.md`
+**Source**: `.project-toolkit/security/infrastructure-file-patterns.md`
 
 ---
 

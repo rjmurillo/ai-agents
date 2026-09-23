@@ -50,14 +50,14 @@ def test_declared_adr_locations_are_monitored() -> None:
     without any test noticing.
     """
     assert mod.ADR_PATTERNS == (
-        ".agents/architecture/ADR-*.md",
+        ".project-toolkit/architecture/ADR-*.md",
         "docs/adr/ADR-*.md",
         "docs/architecture/ADR-*.md",
         "docs/decisions/ADR-*.md",
         "architecture/decisions/ADR-*.md",
     )
     assert mod.ADR_DIRECTORIES == (
-        ".agents/architecture",
+        ".project-toolkit/architecture",
         "docs/adr",
         "docs/architecture",
         "docs/decisions",
@@ -147,7 +147,7 @@ class TestMainScansEveryDeclaredLocation:
     def test_detects_created_adr_under_docs_decisions(
         self, git_repo: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        """Every case in `TestMain` creates its ADR under `.agents/architecture`;
+        """Every case in `TestMain` creates its ADR under `.project-toolkit/architecture`;
         without this one, a regression that narrowed scanning to that single
         directory would pass unnoticed.
         """
@@ -176,7 +176,7 @@ class TestMainScansEveryDeclaredLocation:
         Without the flag an untracked file is invisible to a diff against
         `--since-commit`.
         """
-        adr_dir = git_repo / ".agents" / "architecture"
+        adr_dir = git_repo / ".project-toolkit" / "architecture"
         adr_dir.mkdir(parents=True)
         (adr_dir / "ADR-099.md").write_text("# Untracked")
         exit_code = main(

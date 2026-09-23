@@ -55,7 +55,7 @@ fi
 - Require context (variable name + value pattern)
 - Entropy-based detection for high-entropy strings
 
-**Source**: `.agents/security/secret-detection-patterns.md`
+**Source**: `.project-toolkit/security/secret-detection-patterns.md`
 
 That source file is a broader catalog written in a different dialect: its
 patterns carry `(?i)` and `\s`, which are Python and PCRE constructs, not

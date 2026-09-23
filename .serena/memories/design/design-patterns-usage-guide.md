@@ -1,7 +1,7 @@
 # Design Patterns Usage Guide
 
 **Category**: Software Design
-**Source**: `.agents/analysis/advanced-engineering-knowledge.md`
+**Source**: `.project-toolkit/analysis/advanced-engineering-knowledge.md`
 
 ## Pattern Usage Matrix
 

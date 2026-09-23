@@ -76,7 +76,7 @@ Gaps:
 
 ## Related
 
-- Analysis: `.agents/analysis/building-skills-for-claude-code.md`
+- Analysis: `.project-toolkit/analysis/building-skills-for-claude-code.md`
 - Existing memory: [claude-code-skill-frontmatter-standards](claude-code-skill-frontmatter-standards.md)
 - [claude-code-hooks-opportunity-analysis](claude-code-hooks-opportunity-analysis.md)
 - [claude-code-slash-commands](claude-code-slash-commands.md)

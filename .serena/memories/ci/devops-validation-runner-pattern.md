@@ -91,7 +91,7 @@ Make changes → Quick validation → Fix → Commit → Full validation → Cre
 
 - `scripts/validation/pre_pr.py` - Main validation runner
 - `scripts/validation/pre_pr_sequence.py` - The ordered check sequence
-- `.agents/devops/validation-runner-pattern.md` - DevOps pattern documentation
+- `.project-toolkit/devops/validation-runner-pattern.md` - DevOps pattern documentation
 - `lefthook.yml:345-353` - Pre-push wiring (runner, then pytest separately)
 
 Both `.agents/SHIFT-LEFT.md` and `.githooks/pre-commit` were listed here until 2026-07-28. Neither exists; lefthook replaced the `.githooks/` layout.

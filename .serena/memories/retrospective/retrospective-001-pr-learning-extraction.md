@@ -53,7 +53,7 @@ Single learning: "PR #255 improved GitHub skill" (vague, no evidence, not action
 
 **Session 65**: Extracted 6 learnings from PR #255
 - Input: 8 commits, +1105/-548 lines
-- Output: `.agents/analysis/pr-255-learnings.md` with 6 atomic patterns
+- Output: `.project-toolkit/analysis/pr-255-learnings.md` with 6 atomic patterns
 - Impact: ~4,600 tokens documented
 - Each learning includes commit SHA, before/after, pattern, atomicity score
 

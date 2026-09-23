@@ -1,6 +1,6 @@
 # Feedback: the self-referential-test anti-pattern
 
-**Origin:** PR #2205 customer-wedge incident, retrospective Phase 4 RC8 item 3. See `.agents/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md` and `.claude/rules/canonical-source-mirror.md`.
+**Origin:** PR #2205 customer-wedge incident, retrospective Phase 4 RC8 item 3. See `.project-toolkit/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md` and `.claude/rules/canonical-source-mirror.md`.
 
 ## Definition
 
@@ -33,7 +33,7 @@ The replacement for the PR #2205 test is `tests/build_scripts/test_generate_hook
 
 ## The inverse shape: deriving the expectation from production source
 
-Added 2026-08-02 from `.agents/retrospective/2026-08-02-wrong-fix-before-search.md`.
+Added 2026-08-02 from `.project-toolkit/retrospective/2026-08-02-wrong-fix-before-search.md`.
 
 The sections above describe a test that fails by pinning a hard-coded string the generator also
 produces. The same defect has an opposite-looking costume, and a reader who takes "hard-code it"

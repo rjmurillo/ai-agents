@@ -5,7 +5,7 @@ break.
 
 This guide covers the workflow and the judgment calls. It deliberately does not
 restate the schema. The schema of record is
-[CITATION-SCHEMA.md](../architecture/CITATION-SCHEMA.md): field types, source
+[CITATION-SCHEMA.md](../../.project-toolkit/architecture/CITATION-SCHEMA.md): field types, source
 types, verification semantics, and both scoring formulas live there, and that is
 the file to change when the code changes.
 
@@ -120,7 +120,7 @@ mis-pointed.
 
 Stale and broken are weighted differently in the health score, which is why the
 distinction is worth keeping straight. See
-[CITATION-SCHEMA.md](../architecture/CITATION-SCHEMA.md) for the formula.
+[CITATION-SCHEMA.md](../../.project-toolkit/architecture/CITATION-SCHEMA.md) for the formula.
 
 ## Fixing a Stale Citation
 
@@ -155,6 +155,6 @@ citation count means nothing was checked.
 
 ## References
 
-- [CITATION-SCHEMA.md](../architecture/CITATION-SCHEMA.md) - schema of record
-- [ADR-038: Reflexion Memory Schema](../architecture/ADR-038-reflexion-memory-schema.md)
+- [CITATION-SCHEMA.md](../../.project-toolkit/architecture/CITATION-SCHEMA.md) - schema of record
+- [ADR-038: Reflexion Memory Schema](../../.project-toolkit/architecture/ADR-038-reflexion-memory-schema.md)
 - [citation-verify.yml](../../.github/workflows/citation-verify.yml)

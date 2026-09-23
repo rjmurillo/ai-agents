@@ -14,7 +14,7 @@ refs are being pushed, compares the current local HEAD against the remote
 ref RIGHT NOW (before the long hooks run), and exits 3 (external) if the
 remote has already advanced beyond the local commit's parent chain.
 
-Exit codes follow ADR-035 (.agents/architecture/ADR-035-exit-code-standardization.md,
+Exit codes follow ADR-035 (.project-toolkit/architecture/ADR-035-exit-code-standardization.md,
 table at line 41: "2 | Usage/configuration error | Missing required param, invalid
 argument, not in git repo"):
     0 - Remote ref matches expectation; safe to proceed

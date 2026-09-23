@@ -39,8 +39,8 @@ cat .agents/archive/planning/phase2-handoff.md
 ## Key Documents
 
 - Handoff: `.agents/archive/planning/phase2-handoff.md`
-- Phase 1 Summary: `.agents/planning/phase1-completion-summary.md`
-- Original Plan: `.agents/planning/pr43-remediation-plan.md`
+- Phase 1 Summary: `.project-toolkit/planning/phase1-completion-summary.md`
+- Original Plan: `.project-toolkit/planning/pr43-remediation-plan.md`
 
 ## Known Issues
 

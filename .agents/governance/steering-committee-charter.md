@@ -162,7 +162,7 @@ Changes to this charter require:
 
 ## Related Documents
 
-- [ADR Template](../architecture/ADR-TEMPLATE.md)
+- [ADR Template](../../.project-toolkit/architecture/ADR-TEMPLATE.md)
 - [Agent Design Principles](./agent-design-principles.md)
 - [Agent Consolidation Process](./agent-consolidation-process.md)
 - [Agent Interview Protocol](./agent-interview-protocol.md)

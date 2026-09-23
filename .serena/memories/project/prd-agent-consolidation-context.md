@@ -39,6 +39,6 @@
 
 ## Related Documents
 
-- Ideation: `.agents/analysis/ideation-agent-templating.md`
-- Critique: `.agents/critique/001-agent-templating-critique.md`
-- Roadmap: `.agents/roadmap/product-roadmap.md`
+- Ideation: `.project-toolkit/analysis/ideation-agent-templating.md`
+- Critique: `.project-toolkit/critique/001-agent-templating-critique.md`
+- Roadmap: `.project-toolkit/roadmap/product-roadmap.md`

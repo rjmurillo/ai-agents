@@ -13,11 +13,11 @@ There is no `COPILOT_HOOK_DISPATCH_BUDGET_MS`, 1500 ms default,
 Do not reuse ADR-068 as SIGALRM, watchdog, or `budget_exceeded` prior art.
 ADR-074 now requires a caller or isolated worker process to own deadline
 enforcement. The current decision is
-`.agents/architecture/ADR-074-security-review-quick-pass-mode.md`.
+`.project-toolkit/architecture/ADR-074-security-review-quick-pass-mode.md`.
 
 ## What was delivered (2026-06-17, session 2587)
 
-Authored Proposed ADR-074 (`.agents/architecture/ADR-074-security-review-quick-pass-mode.md`)
+Authored Proposed ADR-074 (`.project-toolkit/architecture/ADR-074-security-review-quick-pass-mode.md`)
 for issue #2617. Branch `adr/2617-security-review-quick-pass` off origin/main fb9741fa9b.
 
 ## Decision recorded by the ADR

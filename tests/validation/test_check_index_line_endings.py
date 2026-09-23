@@ -30,13 +30,13 @@ from tests.validation.index_line_endings_helpers import REPO_ROOT
 
 def test_crlf_blob_under_eol_lf_is_a_violation() -> None:
     """The exact shape that broke merges on main."""
-    output = "i/crlf  w/crlf  attr/text eol=lf     \t.agents/sessions/handoffs/a.md\n"
+    output = "i/crlf  w/crlf  attr/text eol=lf     \t.project-toolkit/sessions/handoffs/a.md\n"
 
     violations, examined = checker.parse_violations(output)
 
     assert examined == 1
     assert len(violations) == 1
-    assert violations[0].path == ".agents/sessions/handoffs/a.md"
+    assert violations[0].path == ".project-toolkit/sessions/handoffs/a.md"
     assert violations[0].index_state == "i/crlf"
 
 

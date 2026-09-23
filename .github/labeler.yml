@@ -58,6 +58,7 @@ documentation:
       - changed-files:
           - all-globs-to-all-files:
               - "!.agents/**/*.md"
+              - "!.project-toolkit/**/*.md"
               - "!.serena/memories/**/*.md"
               - "!src/**/*.md"
   # Always match docs directory

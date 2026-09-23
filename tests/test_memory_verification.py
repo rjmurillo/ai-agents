@@ -57,7 +57,7 @@ class TestVerifyFileCitation:
         Inserting lines above the cited line moves the content the citation
         meant, and verification still passes. The documentation says exactly
         this, so pin it: if line citations ever become content-aware,
-        .agents/architecture/CITATION-SCHEMA.md, .agents/guides/
+        .project-toolkit/architecture/CITATION-SCHEMA.md, .agents/guides/
         memory-citation-guide.md, and .claude/skills/reflect/references/
         phase3-4-propose-persist.md all describe the old behaviour and must
         change with it.
@@ -249,11 +249,11 @@ class TestVerifyMemoryCitation:
 
 
 class TestVerifyAdrCitation:
-    """ADR citation verification against .agents/architecture/ directory."""
+    """ADR citation verification against .project-toolkit/architecture/ directory."""
 
     @pytest.mark.unit
     def test_valid_adr(self, tmp_path):
-        adr_dir = tmp_path / ".agents" / "architecture"
+        adr_dir = tmp_path / ".project-toolkit" / "architecture"
         adr_dir.mkdir(parents=True)
         (adr_dir / "ADR-007.md").write_text("# ADR 007\n")
         c = Citation(source_type=SourceType.ADR, target="ADR-007", context="")
@@ -262,7 +262,7 @@ class TestVerifyAdrCitation:
 
     @pytest.mark.unit
     def test_missing_adr(self, tmp_path):
-        adr_dir = tmp_path / ".agents" / "architecture"
+        adr_dir = tmp_path / ".project-toolkit" / "architecture"
         adr_dir.mkdir(parents=True)
         c = Citation(source_type=SourceType.ADR, target="ADR-999", context="")
         result = verify_citation(c, tmp_path)

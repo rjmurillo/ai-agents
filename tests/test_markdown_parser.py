@@ -943,7 +943,7 @@ class TestNestingExhaustion:
             quote + "```\n"
             + quote + "<!-- vendor-portability: example -->\n"
             + quote + "```\n"
-            + "Ref .agents/analysis/foo.md.\n"
+            + "Ref .project-toolkit/analysis/foo.md.\n"
         )
 
     def test_depth_20_fenced_marker_is_refused(self):
@@ -963,7 +963,7 @@ class TestNestingExhaustion:
         # tokenized and its marker line blanked, so the file is scanned normally.
         out = blank_code_block_lines(self._nested_fence(19))
         assert "vendor-portability" not in out
-        assert "Ref .agents/analysis/foo.md." in out
+        assert "Ref .project-toolkit/analysis/foo.md." in out
 
     def test_marker_deeper_than_both_limits_is_refused(self):
         # A marker nested past the second (detection) limit still diverges the

@@ -4,7 +4,7 @@
 **Milestone**: v0.3.0 - Memory Enhancement and Quality
 **Total Issues**: 23 (revised from 29 after MCP deferral)
 **Master Plan**: `.agents/archive/planning/v0.3.0/PLAN.md`
-**Analysis Session**: .agents/sessions/2026-01-23-session-01-v0.3.0-milestone-review.json (removed)
+**Analysis Session**: .project-toolkit/sessions/2026-01-23-session-01-v0.3.0-milestone-review.json (removed)
 
 > **⚠️ SCOPE REVISION (2026-01-23)**: 17 issues deferred to Future milestone:
 > - 11 MCP Infrastructure issues (#582-#592) - TypeScript MCPs
@@ -26,7 +26,7 @@ Items ranked by:
 
 #### 1. #990 - Memory Enhancement Layer for Serena + Forgetful
 - **Type**: Epic (P1)
-- **PRD**: `.agents/specs/PRD-memory-enhancement-layer-for-serena-forgetful.md`
+- **PRD**: `.project-toolkit/specs/PRD-memory-enhancement-layer-for-serena-forgetful.md`
 - **Impact**: Enables citation validation, staleness detection, graph traversal
 - **Scope**: 4 phases, Python implementation
 - **Dependencies**: None (foundational)
@@ -89,7 +89,7 @@ Items ranked by:
 - **Type**: Technical Debt (P1)
 - **Impact**: 24 of 27 skills need compliance updates
 - **Current**: 11% full compliance, 50.4% average
-- **Gap Analysis**: `.agents/analysis/skill-v2-compliance-gaps.md`
+- **Gap Analysis**: `.project-toolkit/analysis/skill-v2-compliance-gaps.md`
 - **Deliverables**: Triggers, decision trees, anti-patterns, verification
 - **Status**: Compliance gaps documented
 
@@ -143,12 +143,12 @@ All 10 items have:
 
 ## Related Documentation
 
-- **Specs**: `.agents/specs/STATUS.md`
-- **Planning**: `.agents/planning/INDEX.md`
+- **Specs**: `.project-toolkit/specs/STATUS.md`
+- **Planning**: `.project-toolkit/planning/INDEX.md`
 - **PRDs**: 
-  - Memory Enhancement: `.agents/specs/PRD-memory-enhancement-layer-for-serena-forgetful.md`
+  - Memory Enhancement: `.project-toolkit/specs/PRD-memory-enhancement-layer-for-serena-forgetful.md`
   - Workflow Orchestration: `.agents/archive/planning/prd-workflow-orchestration-enhancement.md`
-- **Session Log**: .agents/sessions/2026-01-23-session-01-v0.3.0-milestone-review.json (removed)
+- **Session Log**: .project-toolkit/sessions/2026-01-23-session-01-v0.3.0-milestone-review.json (removed)
 
 ## Success Criteria for v0.3.0 (REVISED)
 

@@ -167,7 +167,7 @@ def _format_message(check: FreshnessCheck) -> str:
 def _write_audit_log(project_dir: str, check: FreshnessCheck) -> None:
     """Write a brief audit entry for the freshness check (best-effort)."""
     try:
-        audit_dir = Path(project_dir) / ".agents" / ".hook-state"
+        audit_dir = Path(project_dir) / ".project-toolkit" / ".hook-state"
         audit_dir.mkdir(parents=True, exist_ok=True)
 
         today = datetime.now(tz=UTC).strftime("%Y-%m-%d")

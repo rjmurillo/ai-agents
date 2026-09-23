@@ -167,4 +167,4 @@ Save to: `.project-toolkit/retrospective/YYYY-MM-DD-[scope].md`
 - [Experiment to try next retrospective]
 ````
 
-<!-- vendor-portability: declared. This template names .agents/retrospective/YYYY-MM-DD-[scope].md as the save location. The path is a write target created on demand; it is not a read precondition. Issue #2050. -->
+<!-- vendor-portability: declared. This template names .project-toolkit/retrospective/YYYY-MM-DD-[scope].md as the save location. The path is a write target created on demand; it is not a read precondition. Issue #2050. -->

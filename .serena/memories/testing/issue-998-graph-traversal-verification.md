@@ -20,7 +20,7 @@ Closed: 2026-01-25T01:04:18Z. Merged via PR #1013 on 2026-01-25T23:58:34Z.
 > required `--start` option, `--strategy` and `--dir` were dropped, `--max-depth`
 > became `--depth`, and `graph` gained no `--json`. The directory is now set by
 > the global `--memories-dir`, which must precede the subcommand. See
-> [CITATION-SCHEMA.md](../../../.agents/architecture/CITATION-SCHEMA.md) for the
+> [CITATION-SCHEMA.md](../../../.project-toolkit/architecture/CITATION-SCHEMA.md) for the
 > current surface. The record below is retained as written.
 
 ## Exit Criteria Met

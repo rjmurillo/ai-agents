@@ -1,7 +1,7 @@
 # CAP Theorem
 
 **Category**: Distributed Systems
-**Source**: `.agents/analysis/advanced-engineering-knowledge.md`
+**Source**: `.project-toolkit/analysis/advanced-engineering-knowledge.md`
 
 ## Core Principle
 

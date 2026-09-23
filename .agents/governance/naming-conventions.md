@@ -18,7 +18,7 @@ These artifacts use sequential numbering for uniqueness and ordering.
 |---------|--------|---------|
 | Pattern | `EPIC-NNN-[kebab-case-name].md` | `EPIC-001-user-authentication.md` |
 | Reference | `EPIC-NNN` | `EPIC-001` |
-| Location | `.agents/roadmap/` | `.agents/roadmap/EPIC-001-user-authentication.md` |
+| Location | `.project-toolkit/roadmap/` | `.project-toolkit/roadmap/EPIC-001-user-authentication.md` |
 
 **Numbering Rules:**
 
@@ -35,7 +35,7 @@ These artifacts use sequential numbering for uniqueness and ordering.
 |---------|--------|---------|
 | Pattern | `ADR-NNN-[kebab-case-title].md` | `ADR-005-use-pkce-for-oauth.md` |
 | Reference | `ADR-NNN` | `ADR-005` |
-| Location | `.agents/architecture/` | `.agents/architecture/ADR-005-use-pkce-for-oauth.md` |
+| Location | `.project-toolkit/architecture/` | `.project-toolkit/architecture/ADR-005-use-pkce-for-oauth.md` |
 
 **Numbering Rules:**
 
@@ -50,7 +50,7 @@ These artifacts use sequential numbering for uniqueness and ordering.
 |---------|--------|---------|
 | Pattern | `TM-NNN-[kebab-case-scope].md` | `TM-001-authentication-flow.md` |
 | Reference | `TM-NNN` | `TM-001` |
-| Location | `.agents/security/` | `.agents/security/TM-001-authentication-flow.md` |
+| Location | `.project-toolkit/security/` | `.project-toolkit/security/TM-001-authentication-flow.md` |
 
 **Numbering Rules:**
 
@@ -64,7 +64,7 @@ These artifacts use sequential numbering for uniqueness and ordering.
 |---------|--------|---------|
 | Pattern | `NNN-[kebab-case-name]-plan.md` | `001-authentication-plan.md` |
 | Reference | `Plan-NNN` | `Plan-001` |
-| Location | `.agents/planning/` | `.agents/planning/001-authentication-plan.md` |
+| Location | `.project-toolkit/planning/` | `.project-toolkit/planning/001-authentication-plan.md` |
 
 **Numbering Rules:**
 
@@ -78,7 +78,7 @@ These artifacts use sequential numbering for uniqueness and ordering.
 |---------|--------|---------|
 | Pattern | `NNN-[kebab-case-name]-critique.md` | `001-authentication-critique.md` |
 | Reference | `Critique-NNN` | `Critique-001` |
-| Location | `.agents/critique/` | `.agents/critique/001-authentication-critique.md` |
+| Location | `.project-toolkit/critique/` | `.project-toolkit/critique/001-authentication-critique.md` |
 
 **Numbering Rules:**
 
@@ -93,7 +93,7 @@ These artifacts use sequential numbering for uniqueness and ordering.
 |---------|--------|---------|
 | Pattern | `REQ-NNN-[kebab-case-name].md` | `REQ-001-user-authentication.md` |
 | Reference | `REQ-NNN` | `REQ-001` |
-| Location | `.agents/specs/requirements/` | `.agents/specs/requirements/REQ-001-user-authentication.md` |
+| Location | `.project-toolkit/specs/requirements/` | `.project-toolkit/specs/requirements/REQ-001-user-authentication.md` |
 
 **Numbering Rules:**
 
@@ -110,7 +110,7 @@ These artifacts use sequential numbering for uniqueness and ordering.
 |---------|--------|---------|
 | Pattern | `DESIGN-NNN-[kebab-case-name].md` | `DESIGN-001-oauth2-flow.md` |
 | Reference | `DESIGN-NNN` | `DESIGN-001` |
-| Location | `.agents/specs/design/` | `.agents/specs/design/DESIGN-001-oauth2-flow.md` |
+| Location | `.project-toolkit/specs/design/` | `.project-toolkit/specs/design/DESIGN-001-oauth2-flow.md` |
 
 **Numbering Rules:**
 
@@ -125,7 +125,7 @@ These artifacts use sequential numbering for uniqueness and ordering.
 |---------|--------|---------|
 | Pattern | `TASK-NNN-[kebab-case-name].md` | `TASK-001-implement-token-endpoint.md` |
 | Reference | `TASK-NNN` | `TASK-001` |
-| Location | `.agents/specs/tasks/` | `.agents/specs/tasks/TASK-001-implement-token-endpoint.md` |
+| Location | `.project-toolkit/specs/tasks/` | `.project-toolkit/specs/tasks/TASK-001-implement-token-endpoint.md` |
 
 **Numbering Rules:**
 
@@ -145,7 +145,7 @@ These artifacts use type prefixes for categorization without sequential numberin
 | Element | Format | Example |
 |---------|--------|---------|
 | Pattern | `prd-[kebab-case-name].md` | `prd-user-authentication.md` |
-| Location | `.agents/planning/` | `.agents/planning/prd-user-authentication.md` |
+| Location | `.project-toolkit/planning/` | `.project-toolkit/planning/prd-user-authentication.md` |
 
 ### Tasks Pattern
 
@@ -154,7 +154,7 @@ These artifacts use type prefixes for categorization without sequential numberin
 | Element | Format | Example |
 |---------|--------|---------|
 | Pattern | `tasks-[kebab-case-name].md` | `tasks-user-authentication.md` |
-| Location | `.agents/planning/` | `.agents/planning/tasks-user-authentication.md` |
+| Location | `.project-toolkit/planning/` | `.project-toolkit/planning/tasks-user-authentication.md` |
 
 ### Implementation Plan Pattern
 
@@ -163,7 +163,7 @@ These artifacts use type prefixes for categorization without sequential numberin
 | Element | Format | Example |
 |---------|--------|---------|
 | Pattern | `implementation-plan-[kebab-case-name].md` | `implementation-plan-user-authentication.md` |
-| Location | `.agents/planning/` | `.agents/planning/implementation-plan-user-authentication.md` |
+| Location | `.project-toolkit/planning/` | `.project-toolkit/planning/implementation-plan-user-authentication.md` |
 
 ### Impact Analysis Pattern
 
@@ -172,7 +172,7 @@ These artifacts use type prefixes for categorization without sequential numberin
 | Element | Format | Example |
 |---------|--------|---------|
 | Pattern | `impact-analysis-[domain]-[feature].md` | `impact-analysis-security-oauth.md` |
-| Location | `.agents/planning/` | `.agents/planning/impact-analysis-security-oauth.md` |
+| Location | `.project-toolkit/planning/` | `.project-toolkit/planning/impact-analysis-security-oauth.md` |
 
 ### Handoff Pattern
 
@@ -181,7 +181,7 @@ These artifacts use type prefixes for categorization without sequential numberin
 | Element | Format | Example |
 |---------|--------|---------|
 | Pattern | `handoff-[kebab-case-topic].md` | `handoff-oauth-migration.md` |
-| Location | `.agents/planning/` | `.agents/planning/handoff-oauth-migration.md` |
+| Location | `.project-toolkit/planning/` | `.project-toolkit/planning/handoff-oauth-migration.md` |
 
 ### Test Report Pattern
 
@@ -190,7 +190,7 @@ These artifacts use type prefixes for categorization without sequential numberin
 | Element | Format | Example |
 |---------|--------|---------|
 | Pattern | `NNN-[kebab-case-name]-test-report.md` | `001-authentication-test-report.md` |
-| Location | `.agents/qa/` | `.agents/qa/001-authentication-test-report.md` |
+| Location | `.project-toolkit/qa/` | `.project-toolkit/qa/001-authentication-test-report.md` |
 
 ### Retrospective Pattern
 
@@ -199,7 +199,7 @@ These artifacts use type prefixes for categorization without sequential numberin
 | Element | Format | Example |
 |---------|--------|---------|
 | Pattern | `YYYY-MM-DD-[kebab-case-topic].md` | `2025-01-15-authentication-sprint.md` |
-| Location | `.agents/retrospective/` | `.agents/retrospective/2025-01-15-authentication-sprint.md` |
+| Location | `.project-toolkit/retrospective/` | `.project-toolkit/retrospective/2025-01-15-authentication-sprint.md` |
 
 ### Skill Pattern
 
@@ -245,7 +245,7 @@ When referencing artifacts across documents:
 
 ```markdown
 - Governance: `.agents/governance/naming-conventions.md`
-- Epic: `.agents/roadmap/EPIC-001-user-authentication.md`
+- Epic: `.project-toolkit/roadmap/EPIC-001-user-authentication.md`
 ```
 
 ---

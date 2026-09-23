@@ -78,7 +78,7 @@ def _create_session_log(
     JSON shape by hand, at the real host date, so the consumer-side
     date-agreement assertions below keep exercising production code.
     """
-    sessions_dir = tmp_path / ".agents" / "sessions"
+    sessions_dir = tmp_path / ".project-toolkit" / "sessions"
     sessions_dir.mkdir(parents=True, exist_ok=True)
     resolved_date = log_date if log_date is not None else host_session_date()
     created = sessions_dir / f"{resolved_date}-session-{number}-e2e.json"
@@ -211,7 +211,7 @@ def test_git_hook_policy_finds_log_across_reverse_timezone_switch(tmp_path):
 
 def test_git_hook_policy_rejects_stale_same_branch_log(tmp_path):
     """A scanner-relative two-day-old log cannot satisfy branch evidence."""
-    sessions = tmp_path / ".agents" / "sessions"
+    sessions = tmp_path / ".project-toolkit" / "sessions"
     sessions.mkdir(parents=True)
     stale = sessions / "2026-03-13-session-1.json"
     stale.write_text('{"session": {"branch": "fix/current"}}', encoding="utf-8")

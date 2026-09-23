@@ -9,14 +9,14 @@ on:
   pull_request:
     branches: [main]
     paths:
-      - '.agents/sessions/**'
-      - '.agents/analysis/**'
-      - '.agents/retrospective/**'
+      - '.project-toolkit/sessions/**'
+      - '.project-toolkit/analysis/**'
+      - '.project-toolkit/retrospective/**'
       - '.serena/memories/**'
-      - '.agents/security/**'
-      - '.agents/memory/**'
-      - '.agents/architecture/REVIEW-*'
-      - '.agents/critique/**'
+      - '.project-toolkit/security/**'
+      - '.project-toolkit/memory/**'
+      - '.project-toolkit/architecture/REVIEW-*'
+      - '.project-toolkit/critique/**'
 
 permissions:
   contents: read
@@ -62,7 +62,7 @@ jobs:
           PR_COMMITS: ${{ steps.pr-commits.outputs.shas }}
         run: |
           python3 .github/scripts/validate_investigation_claims.py \
-            --session-dir .agents/sessions \
+            --session-dir .project-toolkit/sessions \
             --mode session \
             --commits "$PR_COMMITS" \
             --output-format text
@@ -98,20 +98,20 @@ jobs:
           printf '## Investigation-Only Claim Violation\n\nAs of commit `%s`, this PR contained session logs claiming `SKIPPED: investigation-only` while the associated commits included files outside the investigation allowlist. If the PR has since changed, verify the current diff rather than relying on this comment alone; it is not automatically updated or cleared.\n\n' "${HEAD_SHA:0:12}" > "${RUNNER_TEMP:-.}/comment.md"
           cat <<'EOF' >> "${RUNNER_TEMP:-.}/comment.md"
           **Per ADR-034**, investigation-only sessions may only commit:
-          - `.agents/sessions/` (session logs)
-          - `.agents/analysis/` (investigation outputs)
-          - `.agents/retrospective/` (learnings)
+          - `.project-toolkit/sessions/` (session logs)
+          - `.project-toolkit/analysis/` (investigation outputs)
+          - `.project-toolkit/retrospective/` (learnings)
           - `.serena/memories/` (cross-session context)
-          - `.agents/security/` (security assessments)
-          - `.agents/memory/` (memory infrastructure)
-          - `.agents/architecture/REVIEW-*` (review documents)
-          - `.agents/critique/` (critic debate logs)
+          - `.project-toolkit/security/` (security assessments)
+          - `.project-toolkit/memory/` (memory infrastructure)
+          - `.project-toolkit/architecture/REVIEW-*` (review documents)
+          - `.project-toolkit/critique/` (critic debate logs)
 
           **Action Required**: Either:
           1. Remove non-investigation files from the commit, or
           2. Remove the `SKIPPED: investigation-only` claim and obtain proper QA validation
 
-          See [ADR-034](.agents/architecture/ADR-034-investigation-session-qa-exemption.md) for details.
+          See [ADR-034](.project-toolkit/architecture/ADR-034-investigation-session-qa-exemption.md) for details.
           EOF
 
           python3 .github/scripts/run_with_retry.py -- \

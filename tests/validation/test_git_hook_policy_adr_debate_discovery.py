@@ -62,7 +62,7 @@ def test_a_staged_symlink_blocks_even_when_a_sibling_covers_every_id(
     _git(adr_debate_repo, "add", ADR_42)
     _stage_log(adr_debate_repo, "ADR-042-debate-log.md", GENUINE_LOG)
 
-    link = adr_debate_repo / ".agents" / "critique" / "ADR-042-second-debate.md"
+    link = adr_debate_repo / ".project-toolkit" / "critique" / "ADR-042-second-debate.md"
     link.symlink_to("ADR-042-debate-log.md")
     _git(adr_debate_repo, "add", "--", link.relative_to(adr_debate_repo).as_posix())
 
@@ -140,7 +140,7 @@ def test_a_log_that_is_not_utf8_blocks_even_when_a_sibling_covers_every_id(
     _git(adr_debate_repo, "add", ADR_42)
     _stage_log(adr_debate_repo, "ADR-042-debate-log.md", GENUINE_LOG)
 
-    bad = ".agents/critique/ADR-042-second-debate.md"
+    bad = ".project-toolkit/critique/ADR-042-second-debate.md"
     corrupted = GENUINE_LOG.encode("utf-8").replace(b"architect", b"archit\xffct")
     (adr_debate_repo / bad).write_bytes(corrupted)
     _git(adr_debate_repo, "add", bad)
@@ -345,7 +345,7 @@ def test_a_failed_discovery_query_is_reported_as_a_failure_not_an_absence(
     real_run = policy._run_git
 
     def fail_the_discovery_query(root: Path, args: list[str]) -> object:
-        if args[:3] == ["diff", "--cached", "--name-only"] and args[-1] == ".agents/critique":
+        if args[:3] == ["diff", "--cached", "--name-only"] and args[-1] == ".project-toolkit/critique":
             return subprocess.CompletedProcess(args, 128, "", "fatal: not a git repository\n")
         return real_run(root, args)
 

@@ -191,9 +191,9 @@ This exception followed the framework correctly:
 
 ## References
 
-- [ADR-005: PowerShell-Only Scripting](../architecture/ADR-005-powershell-only-scripting.md)
-- [ADR-042: Python Migration Strategy](../architecture/ADR-042-python-migration-strategy.md)
-- [PR #908 Retrospective](../retrospective/2026-01-15-pr-908-comprehensive-retrospective.md) (lines 1280-1285)
+- [ADR-005: PowerShell-Only Scripting](../../.project-toolkit/architecture/ADR-005-powershell-only-scripting.md)
+- [ADR-042: Python Migration Strategy](../../.project-toolkit/architecture/ADR-042-python-migration-strategy.md)
+- [PR #908 Retrospective](../../.project-toolkit/retrospective/2026-01-15-pr-908-comprehensive-retrospective.md) (lines 1280-1285)
 - Chesterton's Fence: G.K. Chesterton, "The Thing" (1929), Chapter 4
 
 ## Validation

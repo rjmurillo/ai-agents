@@ -1,0 +1,19 @@
+{
+  "id": "episode-2025-12-28-session-01-issue-348-review",
+  "session": "2025-12-28-session-01-issue-348-review",
+  "timestamp": "2025-12-28T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "partial",
+  "task": "Verify that the fix for issue",
+  "decisions": [],
+  "events": [],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 5342
+  },
+  "lessons": []
+}

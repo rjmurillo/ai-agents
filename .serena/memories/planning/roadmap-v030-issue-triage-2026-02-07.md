@@ -2,7 +2,7 @@
 
 **Statement**: v0.3.0 milestone is 88% complete (37/42 issues closed) but missing 6 P0/P1 issues directly aligned with theme.
 
-**Evidence**: Analysis documented at `.agents/analysis/v0.3.0-issue-triage-2026-02-07.md`
+**Evidence**: Analysis documented at `.project-toolkit/analysis/v0.3.0-issue-triage-2026-02-07.md`
 
 ## Details
 
@@ -60,7 +60,7 @@
 
 - **Epic #990**: Memory Enhancement Layer (closed, but phases 1-3 unmilestoned)
 - **PR #908**: Retrospective findings led to #934-#936 quality gates
-- **Analysis**: `.agents/analysis/v0.3.0-issue-triage-2026-02-07.md`
+- **Analysis**: `.project-toolkit/analysis/v0.3.0-issue-triage-2026-02-07.md`
 - **Prior memory**: `roadmap-v030-top-10-items` (2026-01-23)
 
 ## Next Steps

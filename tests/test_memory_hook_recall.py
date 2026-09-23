@@ -185,7 +185,7 @@ class TestSearchAndFormat:
 class TestExitContract:
     """UserPromptSubmit exit 2 erases the prompt, so recall must never use it.
 
-    See issue #4011 and the per-event table in .agents/specs/hook-protocol.md.
+    See issue #4011 and the per-event table in .project-toolkit/specs/hook-protocol.md.
     """
 
     @staticmethod

@@ -330,7 +330,7 @@ class TestDeclaration:
 
     def test_declaration_naming_a_different_path_does_not_suppress(self) -> None:
         """The regression. A marker about one dependency must not cover another."""
-        text = self._with_marker("Per docs/agent-metrics.md.", "writes .agents/metrics/out.md")
+        text = self._with_marker("Per docs/agent-metrics.md.", "writes .project-toolkit/metrics/out.md")
         assert [ref for _, _, ref in gate.scan_file(Path("x.md"), text)] == [
             "docs/agent-metrics.md"
         ]

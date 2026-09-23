@@ -1,6 +1,6 @@
 # build/
 
-Generators and drift gates for the agent/skill/rule/hook/settings pipeline. Sources: `templates/`, `scripts/{hook_utilities,github_core,ai_review_common}`, `.agents/architecture/`, and `.claude/skills/` files other than `SKILL.md`.
+Generators and drift gates for the agent/skill/rule/hook/settings pipeline. Sources: `templates/`, `scripts/{hook_utilities,github_core,ai_review_common}`, `.project-toolkit/architecture/`, and `.claude/skills/` files other than `SKILL.md`.
 
 ## Matters
 
@@ -25,7 +25,7 @@ Generators and drift gates for the agent/skill/rule/hook/settings pipeline. Sour
 
 ## Skip
 
-- Generator OUTPUT (`OWNED_PREFIXES`): `src/`, `.github/instructions/`, `.github/agents/`, `.github/hooks/`, `.claude/agents/`, `.claude/rules/`, `.claude/lib/`, `.claude/hooks/`, `.claude/settings.json`, `docs/agent-catalog.md`, `.agents/architecture/README.md`. Hand-maintained inside `src/`: `*.md`, `claude/AGENTS.md`, `claude/claude-instructions.template.md`, `claude/security/references/`, `copilot-cli/THIRD-PARTY-NOTICES.TXT`, `copilot-cli/docs/`, both `plugin.json`.
+- Generator OUTPUT (`OWNED_PREFIXES`): `src/`, `.github/instructions/`, `.github/agents/`, `.github/hooks/`, `.claude/agents/`, `.claude/rules/`, `.claude/lib/`, `.claude/hooks/`, `.claude/settings.json`, `docs/agent-catalog.md`, `.project-toolkit/architecture/README.md`. Hand-maintained inside `src/`: `*.md`, `claude/AGENTS.md`, `claude/claude-instructions.template.md`, `claude/security/references/`, `copilot-cli/THIRD-PARTY-NOTICES.TXT`, `copilot-cli/docs/`, both `plugin.json`.
 
 ## Constraints
 

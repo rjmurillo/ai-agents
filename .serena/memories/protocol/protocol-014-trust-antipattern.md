@@ -3,7 +3,7 @@
 # Protocol: Three Failures That Trust-Based Wording Did Not Prevent
 
 Authoritative owners: `lefthook.yml` and `.claude/rules/push-lock.md` carry the
-live commit and push gates. `.agents/architecture/ADR-014-distributed-handoff-architecture.md`
+live commit and push gates. `.project-toolkit/architecture/ADR-014-distributed-handoff-architecture.md`
 carries the handoff decision. This file keeps the three observations.
 
 ## Observations (PR #669 retrospective and earlier)

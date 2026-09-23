@@ -42,7 +42,7 @@ Per ADR-007 (commit `789abcd`, 2026-01-01, Issue #729), memory retrieval must pr
 ### Session Log Reference
 
 ```markdown
-Analysis completed in Session 121 (commit `fedcba9`, 2026-01-01, `.agents/sessions/2026-01-01-session-121.md`).
+Analysis completed in Session 121 (commit `fedcba9`, 2026-01-01, `.project-toolkit/sessions/2026-01-01-session-121.md`).
 ```
 
 ---
@@ -65,12 +65,12 @@ This protocol applies to:
 
 | Artifact Type | Location | Enforcement Level |
 |---------------|----------|-------------------|
-| ADR documents | `.agents/architecture/` | MUST |
-| Session logs | `.agents/sessions/` | MUST |
+| ADR documents | `.project-toolkit/architecture/` | MUST |
+| Session logs | `.project-toolkit/sessions/` | MUST |
 | Serena memories | `.serena/memories/` | MUST |
-| Analysis documents | `.agents/analysis/` | MUST |
-| Planning documents | `.agents/planning/` | MUST |
-| Retrospectives | `.agents/retrospective/` | MUST |
+| Analysis documents | `.project-toolkit/analysis/` | MUST |
+| Planning documents | `.project-toolkit/planning/` | MUST |
+| Retrospectives | `.project-toolkit/retrospective/` | MUST |
 | Code comments | `*.ps1`, `*.md`, etc. | SHOULD |
 | Commit messages | Git history | SHOULD (for related issue) |
 
@@ -142,7 +142,7 @@ This decision supersedes ADR-005 (commit `abc1234`, 2025-11-01, Issue #234) whic
 ### Retrospective Finding
 
 ```markdown
-Root cause identified in Session 115 (commit `fed4321`, 2025-12-28, `.agents/sessions/2025-12-28-session-115.md`) - the validation script did not check for empty arrays.
+Root cause identified in Session 115 (commit `fed4321`, 2025-12-28, `.project-toolkit/sessions/2025-12-28-session-115.md`) - the validation script did not check for empty arrays.
 ```
 
 ---
@@ -152,7 +152,7 @@ Root cause identified in Session 115 (commit `fed4321`, 2025-12-28, `.agents/ses
 - [Naming Conventions](./naming-conventions.md) - Artifact naming patterns
 - [Traceability Protocol](./traceability-protocol.md) - Specification traceability
 - [`.claude/rules/session-logs.md`](../../.claude/rules/session-logs.md) - Session log mechanics
-- [ADR-007](../architecture/ADR-007-memory-first-architecture.md) - Memory-first architecture
+- [ADR-007](../../.project-toolkit/architecture/ADR-007-memory-first-architecture.md) - Memory-first architecture
 
 ---
 

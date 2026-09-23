@@ -1,7 +1,7 @@
 # Poka-Yoke (Error-Proofing)
 
 **Category**: Design Principle
-**Source**: `.agents/analysis/advanced-engineering-knowledge.md`
+**Source**: `.project-toolkit/analysis/advanced-engineering-knowledge.md`
 **Origin**: Shigeo Shingo, Toyota Production System
 
 ## Core Principle

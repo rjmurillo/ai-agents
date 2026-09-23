@@ -118,7 +118,7 @@ class TestDiffBodyEffectsCoverTheRemainingRoutingRows:
     "execution", "untrusted input", "artifacts", and "rollback" are diff-body
     properties. Matching them as path words over all tracked files produced
     only false positives (`eval` hit the eval-* analysis corpus, `artifacts`
-    hit .agents/analysis/eval-artifacts/), so they are declared effects.
+    hit .project-toolkit/analysis/eval-artifacts/), so they are declared effects.
     """
 
     @pytest.mark.parametrize(
@@ -137,10 +137,10 @@ class TestDiffBodyEffectsCoverTheRemainingRoutingRows:
     @pytest.mark.parametrize(
         "path",
         [
-            ".agents/analysis/eval-artifacts/report.md",
+            ".project-toolkit/analysis/eval-artifacts/report.md",
             ".claude/commands/ship.md",
-            ".agents/architecture/ADR-016-workflow-execution-optimization.md",
-            ".agents/operations/pr-maintenance-rollback.md",
+            ".project-toolkit/architecture/ADR-016-workflow-execution-optimization.md",
+            ".project-toolkit/operations/pr-maintenance-rollback.md",
         ],
     )
     def test_lookalike_paths_do_not_select_security_by_name(self, path: str) -> None:
@@ -172,7 +172,7 @@ class TestAgentArtifactMatchingIsSegmentShaped:
 
     # Real tracked files. Each is prose whose name merely ends "-skill.md".
     OVER_FIRE = [
-        ".agents/specs/requirements/req-019-autoplan-router-skill.md",
+        ".project-toolkit/specs/requirements/req-019-autoplan-router-skill.md",
         ".serena/memories/testing/testing-get-pr-checks-skill.md",
         ".agents/archive/planning/eval-617-spec-generator-skill.md",
     ]
@@ -391,7 +391,7 @@ class TestPathPredicatesMatchSegmentsNotSubstrings:
     def test_root_and_nested_layouts_route_alike(self) -> None:
         assert (
             select(["roadmap/plan.md"])["canonical_selected"]
-            == select([".agents/roadmap/plan.md"])["canonical_selected"]
+            == select([".project-toolkit/roadmap/plan.md"])["canonical_selected"]
         )
 
     @pytest.mark.parametrize("path", ["docs/roadmapping.md", "docs/decisiveness.md"])

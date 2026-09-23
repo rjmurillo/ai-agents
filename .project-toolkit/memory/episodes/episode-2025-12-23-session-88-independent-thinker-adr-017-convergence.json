@@ -1,0 +1,36 @@
+{
+  "id": "episode-2025-12-23-session-88-independent-thinker-adr-017-convergence",
+  "session": "2025-12-23-session-88-independent-thinker-adr-017-convergence",
+  "timestamp": "2025-12-23T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "partial",
+  "task": "[Migrated from markdown]",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2025-12-23T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Description completeness",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2025-12-23T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Success metrics include cost bound: \"Cost increase < 25% vs baseline\" (line 342)",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 5310
+  },
+  "lessons": []
+}

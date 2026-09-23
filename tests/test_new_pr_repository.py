@@ -67,7 +67,7 @@ class TestGetRepoRoot:
 class TestWriteAuditLog:
     def test_creates_audit_file(self, tmp_path):
         write_audit_log(str(tmp_path), "feat/branch", "main", "feat: test", "hotfix")
-        audit_dir = tmp_path / ".agents" / "audit"
+        audit_dir = tmp_path / ".project-toolkit" / "audit"
         assert audit_dir.exists()
         files = list(audit_dir.glob("pr-creation-skip-*.txt"))
         assert len(files) == 1
@@ -79,7 +79,7 @@ class TestWriteAuditLog:
     def test_uses_username_env(self, tmp_path):
         with patch.dict(os.environ, {"USERNAME": "testuser"}, clear=False):
             write_audit_log(str(tmp_path), "feat/b", "main", "feat: t", "reason")
-        files = list((tmp_path / ".agents" / "audit").glob("*.txt"))
+        files = list((tmp_path / ".project-toolkit" / "audit").glob("*.txt"))
         content = files[0].read_text()
         assert "testuser" in content
 
@@ -88,7 +88,7 @@ class TestWriteAuditLog:
         env["USER"] = "fallbackuser"
         with patch.dict(os.environ, env, clear=True):
             write_audit_log(str(tmp_path), "feat/b", "main", "feat: t", "reason")
-        files = list((tmp_path / ".agents" / "audit").glob("*.txt"))
+        files = list((tmp_path / ".project-toolkit" / "audit").glob("*.txt"))
         content = files[0].read_text()
         assert "fallbackuser" in content
 

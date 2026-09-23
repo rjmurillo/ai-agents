@@ -94,7 +94,7 @@ Verify core memory loaded:
 
 ```bash
 SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
-SESSION_DIR=".agents/pr-comments/PR-[number]"
+SESSION_DIR=".project-toolkit/pr-comments/PR-[number]"
 
 if [ -d "$SESSION_DIR" ]; then
   echo "[CONTINUATION] Previous session found"
@@ -355,4 +355,4 @@ mcp__serena__edit_memory(
 )
 ```
 
-<!-- vendor-portability: declared. This workflow saves the comment map and task list under .agents/pr-comments/PR-[number]/. The path is a write target created on demand; a vendored install writes the consumer's own review artifacts there. Issue #2050. -->
+<!-- vendor-portability: declared. This workflow saves the comment map and task list under .project-toolkit/pr-comments/PR-[number]/. The path is a write target created on demand; a vendored install writes the consumer's own review artifacts there. Issue #2050. -->

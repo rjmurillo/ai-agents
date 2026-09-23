@@ -1,0 +1,100 @@
+{
+  "id": "episode-2025-12-22-session-66-guardrails-explainer-review",
+  "session": "2025-12-22-session-66-guardrails-explainer-review",
+  "timestamp": "2025-12-22T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "partial",
+  "task": "Review `.agents/specs/SPEC-local-guardrails.md` and `.agents/planning/PLAN-local-guardrails.md` for clarity and junior developer accessibility.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2025-12-22T00:00:00+00:00",
+      "type": "test",
+      "content": "**Resolution**: Created 3 new Pester test files:",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2025-12-22T00:00:00+00:00",
+      "type": "test",
+      "content": "- Test runner (`Invoke-PesterTests.ps1`) didn't include new test location",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2025-12-22T00:00:00+00:00",
+      "type": "test",
+      "content": "2. Updated `build/scripts/Invoke-PesterTests.ps1`:",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2025-12-22T00:00:00+00:00",
+      "type": "test",
+      "content": "All tests pass:",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2025-12-22T00:00:00+00:00",
+      "type": "test",
+      "content": "Tests Run: 900",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2025-12-22T00:00:00+00:00",
+      "type": "test",
+      "content": "SUCCESS: All tests passed",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e007",
+      "timestamp": "2025-12-22T00:00:00+00:00",
+      "type": "test",
+      "content": "| MUST | Verify all tests pass | [x] | 897/897 tests pass (3 skipped as expected) |",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e008",
+      "timestamp": "2025-12-22T00:00:00+00:00",
+      "type": "test",
+      "content": "- `build/scripts/Invoke-PesterTests.ps1` - Added test path",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e009",
+      "timestamp": "2025-12-22T00:00:00+00:00",
+      "type": "test",
+      "content": "- Update Invoke-PesterTests.ps1 to discover .github/tests/**",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e010",
+      "timestamp": "2025-12-22T00:00:00+00:00",
+      "type": "test",
+      "content": "All 897 tests pass.",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 5252
+  },
+  "lessons": []
+}

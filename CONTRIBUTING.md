@@ -312,7 +312,7 @@ Add the new agent to:
 
 ## Writing a New Hook
 
-ADR-047 (`.agents/architecture/ADR-047-plugin-mode-hook-behavior.md`) is the canonical specification for hook bootstrap. Read it before adding a new hook.
+ADR-047 (`.project-toolkit/architecture/ADR-047-plugin-mode-hook-behavior.md`) is the canonical specification for hook bootstrap. Read it before adding a new hook.
 
 The shipped pattern:
 
@@ -349,7 +349,7 @@ Changes to prompts, skills, and agent definitions can alter LLM behavior. ADR-05
 |----------|---------------|
 | Commands | `.claude/commands/*.md` |
 | Quality gate prompts | `.github/prompts/*.md` |
-| Security prompts | `.agents/security/prompts/*.md` |
+| Security prompts | `.project-toolkit/security/prompts/*.md` |
 | Agent definitions (Claude Code) | `.claude/agents/*.md` |
 | Agent definitions (published) | `src/claude/*.md`, `src/copilot-cli/*.md`, `src/vs-code-agents/*.md` |
 | Skill definitions | `.claude/skills/*/SKILL.md` |
@@ -376,7 +376,7 @@ uv run python scripts/eval/eval-prompt-change.py \
 
 # Security-critical prompts (5 runs, 100% pass required):
 uv run python scripts/eval/eval-prompt-change.py \
-  --prompt .agents/security/prompts/security-review.md \
+  --prompt .project-toolkit/security/prompts/security-review.md \
   --scenarios tests/evals/security-review-scenarios.json \
   --base-ref main --security-critical
 ```
@@ -403,7 +403,7 @@ Scenarios define expected LLM behavior. See `scripts/eval/examples/example-scena
 
 - At least one scenario per decision branch the change introduces or modifies
 - At least one regression scenario for existing behavior the change could affect
-- Store scenarios in `tests/evals/` (general) or `.agents/security/benchmarks/` (security)
+- Store scenarios in `tests/evals/` (general) or `.project-toolkit/security/benchmarks/` (security)
 
 ### Acceptance Gate
 
@@ -420,8 +420,8 @@ A prompt change passes when all three criteria hold:
 
 ### References
 
-- [ADR-057](.agents/architecture/ADR-057-prompt-behavioral-evaluation.md): Full methodology
-- [ADR-023](.agents/architecture/ADR-023-quality-gate-prompt-testing.md): Structural validation (complement)
+- [ADR-057](.project-toolkit/architecture/ADR-057-prompt-behavioral-evaluation.md): Full methodology
+- [ADR-023](.project-toolkit/architecture/ADR-023-quality-gate-prompt-testing.md): Structural validation (complement)
 - [scripts/eval/README.md](scripts/eval/README.md): Script reference and quick start
 
 ## Platform Configuration
@@ -618,7 +618,7 @@ turn, never once per tool call.
 tagged `[hook-error] {hook_name} {context}: {ExceptionClass}: {message}`. The
 remaining hooks surface recoverable failures instead of swallowing them.
 
-Refer to `.agents/architecture/ADR-008-protocol-automation-lifecycle-hooks.md` for the design rationale.
+Refer to `.project-toolkit/architecture/ADR-008-protocol-automation-lifecycle-hooks.md` for the design rationale.
 
 ### Adding a New Lifecycle Hook
 
@@ -730,7 +730,7 @@ Committed session logs are optional.
 
 ### Session Logs
 
-Create a log at `.agents/sessions/YYYY-MM-DD-session-NN.json` only when you
+Create a log at `.project-toolkit/sessions/YYYY-MM-DD-session-NN.json` only when you
 want an explicit committed record. Any staged or explicitly supplied log must
 pass `scripts/validate_session_json.py`.
 
@@ -745,13 +745,13 @@ The pre-commit hook validates that QA has been performed for sessions involving 
 
 **Investigation artifacts** (allowlist for investigation-only exemption):
 
-- `.agents/sessions/` - Optional session logs and per-issue handoffs
-- `.agents/analysis/` - Research findings
-- `.agents/retrospective/` - Learning extractions
+- `.project-toolkit/sessions/` - Optional session logs and per-issue handoffs
+- `.project-toolkit/analysis/` - Research findings
+- `.project-toolkit/retrospective/` - Learning extractions
 - `.serena/memories/` - AI memory updates
-- `.agents/security/` - Security assessments
+- `.project-toolkit/security/` - Security assessments
 
-See [ADR-034](.agents/architecture/ADR-034-investigation-session-qa-exemption.md) for the full specification.
+See [ADR-034](.project-toolkit/architecture/ADR-034-investigation-session-qa-exemption.md) for the full specification.
 
 ## Running Tests
 
@@ -797,7 +797,7 @@ The CI pipeline uses GitHub Copilot CLI to run agent reviews. The CLI version is
 
 The required review path reads `COPILOT_VERSION` from `.github/actions/ai-review/action.yml`. The fallback in `scripts/ci/install_copilot_cli.py` must match it. The nightly smoke workflow carries an independent, Renovate-managed version.
 
-`scripts/validation/check_copilot_version_pin.py` rejects known-bad required-review pins. It is a denylist guard, not the version source or proof of runtime compatibility. See [ADR-094](.agents/architecture/ADR-094-govern-copilot-cli-compatibility.md).
+`scripts/validation/check_copilot_version_pin.py` rejects known-bad required-review pins. It is a denylist guard, not the version source or proof of runtime compatibility. See [ADR-094](.project-toolkit/architecture/ADR-094-govern-copilot-cli-compatibility.md).
 
 ### Why Version Pinning
 
@@ -861,7 +861,7 @@ Routine version bumps do not require an ADR edit. See `.serena/memories/copilot/
 
 ## Pull Request Guidelines
 
-1. **Spec references**: Feature PRs (`feat:`) require spec references (issue, REQ-*, or `.agents/planning/` files)
+1. **Spec references**: Feature PRs (`feat:`) require spec references (issue, REQ-*, or `.project-toolkit/planning/` files)
 2. **Template changes**: Always include both template and generated files
 3. **Validation**: Run `uv run python build/generate_agents.py --validate` before submitting
 4. **Tests**: Ensure all tests pass
@@ -906,7 +906,7 @@ When encountering a PR with the `needs-split` label:
 1. **Run a retrospective analysis**: Determine why the PR required so many commits
 2. **Analyze commit history**: Group commits by logical change to identify potential split points
 3. **Provide recommendations**: Suggest how the work could be divided into smaller PRs
-4. **Document findings**: Save analysis to `.agents/retrospective/PR-[number]-needs-split-analysis.md` for future reference
+4. **Document findings**: Save analysis to `.project-toolkit/retrospective/PR-[number]-needs-split-analysis.md` for future reference
 
 ### PR Description Validation
 
@@ -943,7 +943,7 @@ For PRs where the contextual section allowlist does not fit (e.g. inline pattern
 
 For traceability and AI-assisted validation:
 
-- **Features (`feat:`)**: Always link to an issue or create a planning document in `.agents/planning/` before submitting
+- **Features (`feat:`)**: Always link to an issue or create a planning document in `.project-toolkit/planning/` before submitting
 - **Bug fixes (`fix:`)**: Link to issue if it exists; for complex bugs, explain root cause
 - **Refactors (`refactor:`)**: Explain rationale and scope in PR description
 - **Documentation (`docs:`)**: Spec references not required
@@ -953,7 +953,7 @@ Supported reference formats:
 
 - Issue links: `Closes #123`, `Fixes #456`, `Implements #789`
 - Requirement IDs: `REQ-001`, `DESIGN-002`, `TASK-003`
-- Spec files: `.agents/specs/requirements/...`, `.agents/planning/...`
+- Spec files: `.project-toolkit/specs/requirements/...`, `.project-toolkit/planning/...`
 
 The AI Spec Validation workflow will check for these references on all PRs.
 
@@ -1089,7 +1089,7 @@ license compatibility matrix, and compliance checklist.
 Lefthook's pre-push `security-scan` job runs
 [Semgrep](https://semgrep.dev/docs/) on changed code files. It catches local
 security findings before PR creation. See
-[ADR-054](.agents/architecture/ADR-054-local-security-scanning.md) for the
+[ADR-054](.project-toolkit/architecture/ADR-054-local-security-scanning.md) for the
 decision rationale.
 
 ### Restoring the Pinned Scanner

@@ -124,6 +124,6 @@ This is the tool working as documented (`detect_agent_drift.py:29-33` names the 
 - `.agents/steering/agent-prompts.md`. Prompt standards
 - `.agents/steering/claude-skills.md`. Skill authoring standards
 - `scripts/validation/check_skill_contract_tests.py`. Enforces the executable-contract test requirement
-- `.agents/architecture/ADR-042-python-migration-strategy.md`. Python-first
+- `.project-toolkit/architecture/ADR-042-python-migration-strategy.md`. Python-first
 - ADR-109 (template-first plugin distribution). Agent template generation
 - Issue #3402. worktree identity and stale helper resolution

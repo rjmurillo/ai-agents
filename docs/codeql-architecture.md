@@ -694,9 +694,9 @@ Keep new permissions scoped to the job that needs them.
 
 ## Related Decisions
 
-- [ADR-041: CodeQL Integration Multi-Tier Strategy](../.agents/architecture/ADR-041-codeql-integration.md), amended 2026-07-21 to the current two-tier strategy.
-- [ADR-042: Python Migration Strategy](../.agents/architecture/ADR-042-python-migration-strategy.md), supersedes the older scripting-language decision for new internal automation.
-- [ADR-006: Thin Workflows, Testable Modules](../.agents/architecture/ADR-006-thin-workflows-testable-modules.md), keeps workflow logic thin and scripts testable.
+- [ADR-041: CodeQL Integration Multi-Tier Strategy](../.project-toolkit/architecture/ADR-041-codeql-integration.md), amended 2026-07-21 to the current two-tier strategy.
+- [ADR-042: Python Migration Strategy](../.project-toolkit/architecture/ADR-042-python-migration-strategy.md), supersedes the older scripting-language decision for new internal automation.
+- [ADR-006: Thin Workflows, Testable Modules](../.project-toolkit/architecture/ADR-006-thin-workflows-testable-modules.md), keeps workflow logic thin and scripts testable.
 
 ## References
 

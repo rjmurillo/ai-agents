@@ -43,12 +43,12 @@ issue, or write-up. All commands run from the repo root.
 
 | Claim | Re-verify command |
 |-------|-------------------|
-| ADR-069 status is proposed | `head -5 .agents/architecture/ADR-069-context-corpus-is-the-product.md` |
-| ADR-072 status is Proposed with approval conditions | `sed -n '1,15p' .agents/architecture/ADR-072-jtbd-plugin-architecture.md` |
-| ADR-068 status is Accepted as of 2026-07-30 | `sed -n '1,10p' .agents/architecture/ADR-068-consolidated-hook-dispatcher.md` |
+| ADR-069 status is proposed | `head -5 .project-toolkit/architecture/ADR-069-context-corpus-is-the-product.md` |
+| ADR-072 status is Proposed with approval conditions | `sed -n '1,15p' .project-toolkit/architecture/ADR-072-jtbd-plugin-architecture.md` |
+| ADR-068 status is Accepted as of 2026-07-30 | `sed -n '1,10p' .project-toolkit/architecture/ADR-068-consolidated-hook-dispatcher.md` |
 | Rule-activation eval exists with a no-spend path | `python3 scripts/eval/eval-rule-activation.py --help` |
 | Rule scenario fixtures | `set -- tests/evals/rule-scenarios/*; echo $#` |
-| Corpus size across skills, rules, retros, memories | `python3 -c "from pathlib import Path as P; print(len(list(P('.claude/skills').glob('*/SKILL.md'))),'skills',len(list(P('.claude/rules').glob('*.md'))),'rules',sum(1 for p in P('.agents/retrospective').glob('*.md') if p.is_file() and p.name != 'INDEX.md'),'retros',sum(1 for p in P('.serena/memories').rglob('*.md') if p.is_file()),'memories')"` |
+| Corpus size across skills, rules, retros, memories | `python3 -c "from pathlib import Path as P; print(len(list(P('.claude/skills').glob('*/SKILL.md'))),'skills',len(list(P('.claude/rules').glob('*.md'))),'rules',sum(1 for p in P('.project-toolkit/retrospective').glob('*.md') if p.is_file() and p.name != 'INDEX.md'),'retros',sum(1 for p in P('.serena/memories').rglob('*.md') if p.is_file()),'memories')"` |
 | Runtime contract tests pass | `uv run pytest tests/build_scripts/test_generate_hooks_runtime_contract.py -q` |
 | Apply-step hooks unregistered | `uv run pytest -q "tests/build_scripts/test_copilot_dispatcher_artifact.py::TestDispatcherArtifacts::test_retired_hooks_are_absent_and_keepers_are_plugin_only"` |
 
@@ -80,7 +80,7 @@ it (the #2230 rejected-fix pattern) so the next person does not re-run it.
 
 Thesis (quoting the ADR title verbatim): "The Curated Context Corpus IS the
 Product, Orchestration Is Plumbing"
-(`.agents/architecture/ADR-069-context-corpus-is-the-product.md`, status:
+(`.project-toolkit/architecture/ADR-069-context-corpus-is-the-product.md`, status:
 proposed, date 2026-05-02). Core frame: no learning between runs; the only thing
 that persists is what re-enters the next context window, so the corpus is the
 durable competitive surface and everything else is plumbing.
@@ -117,12 +117,12 @@ durable competitive surface and everything else is plumbing.
 
 1. Wire rule-activation baselines for 3 high-traffic rules that lack fixtures.
    UNVERIFIED: no per-rule traffic measurement exists; as a proxy, pick rules
-   cited most often in `.agents/retrospective/` (grep the rule filename). Write
+   cited most often in `.project-toolkit/retrospective/` (grep the rule filename). Write
    scenario JSON files modeled on `tests/evals/rule-scenarios/refactoring.json`,
    dry-run first, predict scores before the paid run.
 2. Measure FM-1 compliance rate before and after one deliberate context change
    (for example, moving one rule between description-only and full-body
-   loading), using session logs under `.agents/sessions/` as the compliance
+   loading), using session logs under `.project-toolkit/sessions/` as the compliance
    record. Predict the delta first.
 3. Publish the methodology doc: how this repo turns a governance rule into a
    measured, gated, evidenced control. Route it through `adr-generator` or a
@@ -295,15 +295,15 @@ Before acting on this skill's claims, or after editing it:
 Authored 2026-07-03, facts re-verified against the working tree on 2026-07-30.
 Retro-cited SHAs `ddb76e0` and `01e76615a` exist in this clone but are not
 reachable from `main`. Clone refs determine whether those objects exist, so
-verify ancestry before using `git log`. Prefer `.agents/retrospective/` and
+verify ancestry before using `git log`. Prefer `.project-toolkit/retrospective/` and
 `.serena/memories/` for the reasoning behind a change, which commit messages
 rarely carry.
 
 Sources and re-verification:
 
-- ADR-069 thesis and status: `.agents/architecture/ADR-069-context-corpus-is-the-product.md` (status: proposed, line 2; title at line 9). Re-verify: `head -12 .agents/architecture/ADR-069-context-corpus-is-the-product.md`.
-- ADR-072 status, review verdict, five conditions, harness list: `.agents/architecture/ADR-072-jtbd-plugin-architecture.md`. Re-verify: `sed -n '1,25p;119,131p' .agents/architecture/ADR-072-jtbd-plugin-architecture.md`.
-- ADR-068 status and #2295 measurements (3/197 kills, ~246 ms cold start, 40 shims): `.agents/architecture/ADR-068-consolidated-hook-dispatcher.md`. Re-verify: `sed -n '1,10p' .agents/architecture/ADR-068-consolidated-hook-dispatcher.md; grep -n -A1 -e "Three of" -e "246" -e "N=40" .agents/architecture/ADR-068-consolidated-hook-dispatcher.md`.
+- ADR-069 thesis and status: `.project-toolkit/architecture/ADR-069-context-corpus-is-the-product.md` (status: proposed, line 2; title at line 9). Re-verify: `head -12 .project-toolkit/architecture/ADR-069-context-corpus-is-the-product.md`.
+- ADR-072 status, review verdict, five conditions, harness list: `.project-toolkit/architecture/ADR-072-jtbd-plugin-architecture.md`. Re-verify: `sed -n '1,25p;119,131p' .project-toolkit/architecture/ADR-072-jtbd-plugin-architecture.md`.
+- ADR-068 status and #2295 measurements (3/197 kills, ~246 ms cold start, 40 shims): `.project-toolkit/architecture/ADR-068-consolidated-hook-dispatcher.md`. Re-verify: `sed -n '1,10p' .project-toolkit/architecture/ADR-068-consolidated-hook-dispatcher.md; grep -n -A1 -e "Three of" -e "246" -e "N=40" .project-toolkit/architecture/ADR-068-consolidated-hook-dispatcher.md`.
 - Rule-activation eval mechanisms, judge dimensions, exit codes: `scripts/eval/eval-rule-activation.py` docstring. Re-verify: `sed -n '1,40p' scripts/eval/eval-rule-activation.py`.
 - FM-1 95.8% evidence: `.agents/governance/FAILURE-MODES.md:46`. Re-verify: `grep -n "95.8" .agents/governance/FAILURE-MODES.md`.
 - Detect-Log-Graduate and explicit retrieval: the `reflect` skill, `.claude/skills/memory/SKILL.md`, and `.claude/skills/memory-search/SKILL.md`. Re-verify the deleted advisory hooks' absence with the Phase 1 test command.

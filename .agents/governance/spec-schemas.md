@@ -74,7 +74,7 @@ stateDiagram-v2
 ## Requirement Schema (S-003)
 
 **File Pattern**: `REQ-NNN-[kebab-case-name].md`
-**Location**: `.agents/specs/requirements/`
+**Location**: `.project-toolkit/specs/requirements/`
 
 ### YAML Front Matter
 
@@ -173,7 +173,7 @@ SO THAT session state survives MCP restarts and can be recovered
 ## Design Schema (S-004)
 
 **File Pattern**: `DESIGN-NNN-[kebab-case-name].md`
-**Location**: `.agents/specs/design/`
+**Location**: `.project-toolkit/specs/design/`
 
 ### YAML Front Matter
 
@@ -270,7 +270,7 @@ Implement a finite state machine tracking session phases...
 ## Task Schema (S-005)
 
 **File Pattern**: `TASK-NNN-[kebab-case-name].md`
-**Location**: `.agents/specs/tasks/`
+**Location**: `.project-toolkit/specs/tasks/`
 
 ### YAML Front Matter
 
@@ -456,5 +456,5 @@ python3 scripts/validation/spec_contradiction.py --advisory
 - [EARS Format](./ears-format.md) - Requirement syntax
 - [Naming Conventions](./naming-conventions.md) - File naming patterns
 - [Consistency Protocol](./consistency-protocol.md) - Validation rules
-- [Spec Layer README](../specs/README.md) - Overview
+- [Spec Layer README](../../.project-toolkit/specs/README.md) - Overview
 - [enhancement-PROJECT-PLAN.md](../planning/enhancement-PROJECT-PLAN.md) - Phase 1 tasks

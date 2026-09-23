@@ -87,7 +87,7 @@ ships a definition for neither:
 | path | line | attribute | status |
 |---|---|---|---|
 | `.agents/HANDOFF.md` | 408 | `merge=ours` | not a built-in, no definition shipped |
-| `.agents/handoffs/*.md` | 483 | `merge=handoff-aggregate` | not a built-in, never implemented |
+| `.project-toolkit/handoffs/*.md` | 483 | `merge=handoff-aggregate` | not a built-in, never implemented |
 
 Evidence, in the order that settles it:
 
@@ -116,7 +116,7 @@ attribute that used it. Run the condition check in the clone that is misbehaving
 ## History and cleanup
 
 The only custom driver this repository ever shipped was `causal-graph`, a union
-driver over `.agents/memory/causality/causal-graph.json`. PR #3643 removed the
+driver over `.project-toolkit/memory/causality/causal-graph.json`. PR #3643 removed the
 Tier 3 causal memory graph: the file, `scripts/validation/merge_causal_graph.py`,
 `.claude/skills/memory/scripts/update_causal_graph.py`,
 `scripts/maintenance/install_merge_drivers.py`, and the `.gitattributes` entry.
@@ -141,5 +141,5 @@ git config --local --remove-section merge.causal-graph 2>/dev/null || true
 
 - `git-merge-driver-github-disagreement.md`. The companion symptom.
 - Issue #3625, open. The two inert declarations.
-- ADR-089 and `.agents/analysis/2026-07-27-adr-089-causal-tier-removal-debate.md`.
+- ADR-089 and `.project-toolkit/analysis/2026-07-27-adr-089-causal-tier-removal-debate.md`.
 - `.gitattributes` lines 408 and 483.

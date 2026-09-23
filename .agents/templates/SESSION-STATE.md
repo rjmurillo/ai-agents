@@ -8,11 +8,11 @@ The next session (or the next agent after a handoff) inherits this file.
 This file is the template. The live, per-issue instance is written to:
 
 ```text
-.agents/sessions/state/{issue-number}.md
+.project-toolkit/sessions/state/{issue-number}.md
 ```
 
 One file per issue under active work. An agent working issue #1234 reads and
-writes `.agents/sessions/state/1234.md`. When work on the issue completes, the
+writes `.project-toolkit/sessions/state/1234.md`. When work on the issue completes, the
 state file is removed (the session log and PR carry the durable record).
 
 ## When agents write to it

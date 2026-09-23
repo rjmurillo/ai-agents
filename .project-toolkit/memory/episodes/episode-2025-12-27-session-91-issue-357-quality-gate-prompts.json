@@ -1,0 +1,155 @@
+{
+  "id": "episode-2025-12-27-session-91-issue-357-quality-gate-prompts",
+  "session": "2025-12-27-session-91-issue-357-quality-gate-prompts",
+  "timestamp": "2025-12-27T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "partial",
+  "task": "Add context-aware evaluation to AI Quality Gate prompts so DOCS-only PRs don't receive false CRITICAL_FAIL verdicts.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2025-12-27T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 583b4b2",
+      "caused_by": [],
+      "leads_to": [
+        "e007",
+        "e011"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2025-12-27T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: bdd92d1",
+      "caused_by": [],
+      "leads_to": [
+        "e007",
+        "e011"
+      ]
+    },
+    {
+      "id": "e003",
+      "timestamp": "2025-12-27T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 99926ee",
+      "caused_by": [],
+      "leads_to": [
+        "e007",
+        "e011"
+      ]
+    },
+    {
+      "id": "e004",
+      "timestamp": "2025-12-27T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 8417dd7",
+      "caused_by": [],
+      "leads_to": [
+        "e007",
+        "e011"
+      ]
+    },
+    {
+      "id": "e005",
+      "timestamp": "2025-12-27T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 0a04bcf",
+      "caused_by": [],
+      "leads_to": [
+        "e007",
+        "e011"
+      ]
+    },
+    {
+      "id": "e006",
+      "timestamp": "2025-12-27T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 451d113",
+      "caused_by": [],
+      "leads_to": [
+        "e007",
+        "e011"
+      ]
+    },
+    {
+      "id": "e007",
+      "timestamp": "2025-12-27T00:00:00+00:00",
+      "type": "test",
+      "content": "451d113 test(quality-gate): add Pester regression test suite",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e008",
+        "e009",
+        "e010"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e008",
+      "timestamp": "2025-12-27T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: d5c1684",
+      "caused_by": [],
+      "leads_to": [
+        "e007",
+        "e011"
+      ]
+    },
+    {
+      "id": "e009",
+      "timestamp": "2025-12-27T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: d47b65d",
+      "caused_by": [],
+      "leads_to": [
+        "e007",
+        "e011"
+      ]
+    },
+    {
+      "id": "e010",
+      "timestamp": "2025-12-27T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 002cd12",
+      "caused_by": [],
+      "leads_to": [
+        "e007",
+        "e011"
+      ]
+    },
+    {
+      "id": "e011",
+      "timestamp": "2025-12-27T00:00:00+00:00",
+      "type": "test",
+      "content": "| [x] Validation script | \u2705 | 87 tests passed |",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e008",
+        "e009",
+        "e010"
+      ],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 5335
+  },
+  "lessons": []
+}

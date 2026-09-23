@@ -45,5 +45,5 @@ not intentional scope expansion.
 
 ## References
 
-- `.agents/retrospective/2026-01-15-pr-908-comprehensive-retrospective.md` (lines 1080-1120)
+- `.project-toolkit/retrospective/2026-01-15-pr-908-comprehensive-retrospective.md` (lines 1080-1120)
 - PR: https://github.com/rjmurillo/ai-agents/pull/908

@@ -434,7 +434,7 @@ class TestTestsScriptRefs:
         assert "VERDICT: PASS" in out
 
     def test_default_targets_scan_tests_tree(self, fake_repo, capsys):
-        specs_dir = Path("." + "agents") / "specs"
+        specs_dir = Path("." + "project-toolkit") / "specs"
         write(fake_repo / specs_dir / "README.md", "# specs\n")
         write(fake_repo / "src" / "claude" / ".claude-plugin" / "plugin.json", "{}\n")
         write(fake_repo / ".claude-plugin" / "marketplace.json", "{}\n")

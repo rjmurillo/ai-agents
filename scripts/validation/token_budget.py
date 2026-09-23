@@ -132,7 +132,7 @@ def validate_token_budget(
         print("  2. Create minimal dashboard (see ADR-014)")
         print("  3. Use session logs and Serena memory for context")
         print()
-        print("See: .agents/architecture/ADR-014-distributed-handoff-architecture.md")
+        print("See: .project-toolkit/architecture/ADR-014-distributed-handoff-architecture.md")
 
         if ci:
             return 1

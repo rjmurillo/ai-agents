@@ -25,4 +25,4 @@ This consolidated learnings file has been decomposed into 6 atomic memories with
 - Branch: fix/tools-frontmatter
 - Issue: #893
 - PR: #895
-- Retrospective: `.agents/retrospective/2026-01-13-fix-tools-frontmatter-retrospective.md`
+- Retrospective: `.project-toolkit/retrospective/2026-01-13-fix-tools-frontmatter-retrospective.md`

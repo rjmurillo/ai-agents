@@ -13,7 +13,7 @@ deterministic scaffold and fills the data-bearing parts (session info, work
 items, learning scores) so the human-or-agent does not start from a blank file.
 
 Two write modes:
-  * New artifact: writes ``.agents/retrospective/YYYY-MM-DD-[scope].md``.
+  * New artifact: writes ``.project-toolkit/retrospective/YYYY-MM-DD-[scope].md``.
   * Fill skeleton: when ``--fill`` targets an existing
     ``YYYY-MM-DD-auto-retro.md`` skeleton, the artifact overwrites that skeleton
     and removes the UNFILLED banner by replacement.
@@ -83,7 +83,7 @@ def _artifact_dir(project_dir: Path, subdir: str) -> Path:
     """Resolve an artifact directory while preserving explicit project-dir tests."""
     if _artifact_root_is_set() or project_dir.resolve() == Path.cwd().resolve():
         return Path(paths.resolve_artifact_root(subdir))
-    return project_dir / ".agents" / subdir
+    return project_dir / ".project-toolkit" / subdir
 
 
 class EvidenceLike(Protocol):
@@ -389,7 +389,7 @@ def _resolve_output_path(
         skeleton = Path(fill)
         if not skeleton.is_absolute():
             parts = skeleton.parts
-            if len(parts) >= 2 and parts[0] == ".agents" and parts[1] == "retrospective":
+            if len(parts) >= 2 and parts[0] == ".project-toolkit" and parts[1] == "retrospective":
                 skeleton = Path(*parts[2:]) if len(parts) > 2 else Path()
             skeleton = retro_dir / skeleton
         skeleton = _require_fill_path(skeleton, project_dir, retro_dir)

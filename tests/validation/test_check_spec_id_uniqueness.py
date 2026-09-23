@@ -52,7 +52,7 @@ def _run(repo_root: Path) -> subprocess.CompletedProcess[str]:
 
 def _scaffold(tmp_path: Path) -> Path:
     """Create the three category dirs under tmp_path/.project-toolkit/specs/."""
-    specs = tmp_path / ".agents" / "specs"
+    specs = tmp_path / ".project-toolkit" / "specs"
     for cat in ("requirements", "design", "tasks"):
         (specs / cat).mkdir(parents=True)
     return specs
@@ -147,7 +147,7 @@ def test_non_frontmatter_id_mention_ignored(tmp_path: Path) -> None:
 
 def test_missing_specs_directory_returns_config_error(tmp_path: Path) -> None:
     """Per ADR-035: missing config returns exit 2, not 1."""
-    # tmp_path has no .agents/specs/ at all
+    # tmp_path has no .project-toolkit/specs/ at all
     result = _run(tmp_path)
     assert result.returncode == 2
     assert "specs directory not found" in result.stderr

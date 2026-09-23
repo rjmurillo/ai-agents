@@ -80,7 +80,7 @@ def print_result_line(summary: AggregateOutcome) -> None:
     )
     for outcome in licensed:
         print(f"  {outcome.summary_line()}")
-    print("  Licensed by the pre-PR policy; see .agents/devops/SHIFT-LEFT.md")
+    print("  Licensed by the pre-PR policy; see .project-toolkit/devops/SHIFT-LEFT.md")
 
 
 def print_blocking_guidance(summary: AggregateOutcome) -> None:
@@ -96,7 +96,7 @@ def print_blocking_guidance(summary: AggregateOutcome) -> None:
     print("  FAIL: review the error above and fix the violation it names")
     print("  BLOCKED: install or authenticate the dependency named in the reason")
     print("  UNKNOWN: the evidence was unreadable; re-run and read the gate's output")
-    print("  See .agents/devops/SHIFT-LEFT.md for workflow documentation")
+    print("  See .project-toolkit/devops/SHIFT-LEFT.md for workflow documentation")
     print()
 
 

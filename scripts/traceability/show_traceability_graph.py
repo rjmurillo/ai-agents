@@ -263,7 +263,7 @@ def _get_included_nodes(
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Display the traceability graph.")
-    parser.add_argument("--specs-path", default=".agents/specs", help="Path to specs directory")
+    parser.add_argument("--specs-path", default=".project-toolkit/specs", help="Path to specs directory")
     parser.add_argument(
         "--format",
         choices=["text", "mermaid", "json"],

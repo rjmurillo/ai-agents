@@ -148,12 +148,12 @@ class TestFindLatestSessionLog:
         assert _find_latest_session_log(tmp_path) is None
 
     def test_returns_none_when_empty(self, tmp_path: Path) -> None:
-        sessions = tmp_path / ".agents" / "sessions"
+        sessions = tmp_path / ".project-toolkit" / "sessions"
         sessions.mkdir(parents=True)
         assert _find_latest_session_log(tmp_path) is None
 
     def test_finds_latest_log(self, tmp_path: Path) -> None:
-        sessions = tmp_path / ".agents" / "sessions"
+        sessions = tmp_path / ".project-toolkit" / "sessions"
         sessions.mkdir(parents=True)
         (sessions / "2025-12-01-session-1.md").write_text("old", encoding="utf-8")
         (sessions / "2025-12-02-session-1.md").write_text("new", encoding="utf-8")
@@ -163,7 +163,7 @@ class TestFindLatestSessionLog:
         assert result.name == "2025-12-02-session-1.md"
 
     def test_ignores_non_matching_files(self, tmp_path: Path) -> None:
-        sessions = tmp_path / ".agents" / "sessions"
+        sessions = tmp_path / ".project-toolkit" / "sessions"
         sessions.mkdir(parents=True)
         (sessions / "README.md").write_text("not a log", encoding="utf-8")
         (sessions / "2025-12-01-session-1.md").write_text("log", encoding="utf-8")
@@ -287,7 +287,7 @@ class TestValidateSessionEnd:
 
         from scripts.validation.pre_pr import MissingScriptSkip
 
-        sessions = tmp_path / ".agents" / "sessions"
+        sessions = tmp_path / ".project-toolkit" / "sessions"
         sessions.mkdir(parents=True)
         (sessions / "2025-12-01-session-1.json").write_text("{}", encoding="utf-8")
         # No scripts/validate_session_json.py at tmp_path.
@@ -301,7 +301,7 @@ class TestValidateSessionEnd:
         ):
             with patch(
                 "checks_tooling._run_subprocess",
-                return_value=(0, ".agents/sessions/2025-12-01-session-1.json\0", ""),
+                return_value=(0, ".project-toolkit/sessions/2025-12-01-session-1.json\0", ""),
             ):
                 with pytest.raises(MissingScriptSkip):
                     validate_session_end(tmp_path)
@@ -309,7 +309,7 @@ class TestValidateSessionEnd:
     def test_changed_log_is_validated_through_current_head(
         self, tmp_path: Path
     ) -> None:
-        sessions = tmp_path / ".agents" / "sessions"
+        sessions = tmp_path / ".project-toolkit" / "sessions"
         sessions.mkdir(parents=True)
         log = sessions / "2025-12-01-session-1.json"
         log.write_text("{}", encoding="utf-8")
@@ -323,7 +323,7 @@ class TestValidateSessionEnd:
         def fake_run(command: list[str], **_kwargs: Any) -> tuple[int, str, str]:
             seen.append(command)
             if "diff" in command:
-                return 0, ".agents/sessions/2025-12-01-session-1.json\0", ""
+                return 0, ".project-toolkit/sessions/2025-12-01-session-1.json\0", ""
             if "rev-parse" in command:
                 return 0, f"{head}\n", ""
             return 0, "", ""
@@ -333,7 +333,7 @@ class TestValidateSessionEnd:
             return_value="origin/main",
         ), patch(
             "checks_tooling.new_session_logs",
-            return_value={".agents/sessions/2025-12-01-session-1.json"},
+            return_value={".project-toolkit/sessions/2025-12-01-session-1.json"},
         ), patch("checks_tooling._run_subprocess", side_effect=fake_run):
             assert validate_session_end(tmp_path).state is EvidenceState.PASS
 
@@ -342,7 +342,7 @@ class TestValidateSessionEnd:
     def test_existing_historical_log_is_validated_as_a_record(
         self, tmp_path: Path
     ) -> None:
-        sessions = tmp_path / ".agents" / "sessions"
+        sessions = tmp_path / ".project-toolkit" / "sessions"
         sessions.mkdir(parents=True)
         log = sessions / "2025-12-01-session-1.json"
         log.write_text("{}", encoding="utf-8")
@@ -355,7 +355,7 @@ class TestValidateSessionEnd:
         def fake_run(command: list[str], **_kwargs: Any) -> tuple[int, str, str]:
             seen.append(command)
             if "diff" in command:
-                return 0, ".agents/sessions/2025-12-01-session-1.json\0", ""
+                return 0, ".project-toolkit/sessions/2025-12-01-session-1.json\0", ""
             if "rev-parse" in command:
                 return 0, f"{'c' * 40}\n", ""
             return 0, "", ""
@@ -382,7 +382,7 @@ class TestValidateSessionEnd:
         and a reader sent to fix a session log would find nothing wrong with it.
         The run now stops at the unreadable revision and says so.
         """
-        sessions = tmp_path / ".agents" / "sessions"
+        sessions = tmp_path / ".project-toolkit" / "sessions"
         sessions.mkdir(parents=True)
         log = sessions / "2025-12-01-session-1.json"
         log.write_text("{}", encoding="utf-8")
@@ -394,7 +394,7 @@ class TestValidateSessionEnd:
         def fake_run(command: list[str], **_kwargs: Any) -> tuple[int, str, str]:
             seen.append(command)
             if "diff" in command:
-                return 0, ".agents/sessions/2025-12-01-session-1.json\0", ""
+                return 0, ".project-toolkit/sessions/2025-12-01-session-1.json\0", ""
             if "rev-parse" in command:
                 return 1, "", "bad ref"
             return 1, "", "invalid validation head"
@@ -404,7 +404,7 @@ class TestValidateSessionEnd:
             return_value="origin/main",
         ), patch(
             "checks_tooling.new_session_logs",
-            return_value={".agents/sessions/2025-12-01-session-1.json"},
+            return_value={".project-toolkit/sessions/2025-12-01-session-1.json"},
         ), patch("checks_tooling._run_subprocess", side_effect=fake_run):
             outcome = validate_session_end(tmp_path)
 

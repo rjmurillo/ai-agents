@@ -181,7 +181,7 @@ def test_a_non_mapping_document_raises(tmp_path: Path) -> None:
         ".config/wt.toml",
         "scripts/ci/ruff_count_baseline.txt",
         "scripts/ci/subprocess_encoding_count_baseline.txt",
-        ".agents/memory/episodes/2026-01-01-session.json",
+        ".project-toolkit/memory/episodes/2026-01-01-session.json",
     ],
 )
 def test_every_path_the_retired_local_list_named_is_still_covered(rel: str) -> None:

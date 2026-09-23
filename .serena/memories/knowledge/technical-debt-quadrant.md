@@ -72,4 +72,4 @@ A mess is not a debt. Reckless/inadvertent code is just bad code that needs fixi
 
 - [foundational-knowledge-index](../foundational-knowledge-index.md): Overview
 - ADR process for documenting deliberate decisions
-- `.agents/analysis/foundational-engineering-knowledge.md`: Full context
+- `.project-toolkit/analysis/foundational-engineering-knowledge.md`: Full context

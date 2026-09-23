@@ -43,4 +43,4 @@ Learnings from adr-review multi-agent debate workflows. Captures corrections, pa
 
 - [debate-001-multi-agent-adr-consensus](../governance/debate-001-multi-agent-adr-consensus.md) - Base protocol
 - [pr-review-observations](../pr-review/pr-review-observations.md) - Related review patterns
-- ADR-045 debate log: `.agents/critique/ADR-045-debate-log.md`
+- ADR-045 debate log: `.project-toolkit/critique/ADR-045-debate-log.md`

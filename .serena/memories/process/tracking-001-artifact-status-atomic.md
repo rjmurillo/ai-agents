@@ -32,7 +32,7 @@
 # CORRECT: Artifact update BEFORE API calls
 
 1. Commit fix (code change)
-2. Edit .agents/planning/tasks.md - mark task COMPLETE
+2. Edit .project-toolkit/planning/tasks.md - mark task COMPLETE
 3. Post reply to GitHub (API call)
 4. Resolve thread (API call)
 
@@ -51,7 +51,7 @@ Before any GitHub API state change:
 
 ```bash
 # Check artifact reflects current state
-grep "A-001" .agents/planning/tasks.md
+grep "A-001" .project-toolkit/planning/tasks.md
 # Should show [ ] -> [x] transition
 ```
 

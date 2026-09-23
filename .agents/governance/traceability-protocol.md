@@ -19,9 +19,9 @@ This protocol ensures all specification artifacts maintain complete traceability
 
 Applies to all files in:
 
-- `.agents/specs/requirements/` (REQ-NNN)
-- `.agents/specs/design/` (DESIGN-NNN)
-- `.agents/specs/tasks/` (TASK-NNN)
+- `.project-toolkit/specs/requirements/` (REQ-NNN)
+- `.project-toolkit/specs/design/` (DESIGN-NNN)
+- `.project-toolkit/specs/tasks/` (TASK-NNN)
 
 ## Quick Reference
 

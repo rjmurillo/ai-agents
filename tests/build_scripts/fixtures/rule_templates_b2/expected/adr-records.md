@@ -1,12 +1,12 @@
 ---
 paths:
-  - ".agents/architecture/**"
+  - ".project-toolkit/architecture/**"
 priority: high
 ---
 
 # ADR Record Rules
 
-Conventions for authoring a record under `.agents/architecture/`. The generated
+Conventions for authoring a record under `.project-toolkit/architecture/`. The generated
 index reads these files mechanically, so a record can be correct prose and still
 render wrong in the index.
 
@@ -47,4 +47,4 @@ render wrong in the index.
 
 - `build/scripts/generate_adr_index.py`. Renders the index; owns the strip.
 - `tests/build_scripts/test_generate_adr_index.py`. Pins the strip's behavior.
-- `.agents/architecture/README.md`. The generated index itself.
+- `.project-toolkit/architecture/README.md`. The generated index itself.
