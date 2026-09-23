@@ -600,6 +600,89 @@ def _run_single_harness_fixtures(
     return records, final_verdict, final_code
 
 
+def _resolve_ablation(
+    fixtures: Sequence[Fixture], instructions_ref: str | None
+) -> tuple[str, str | None, dict[str, dict[str, bytes]]]:
+    """Resolve report provenance and every fixture's instruction bytes (AC4, AC5)."""
+    source_commit = resolve_source_commit()
+    instructions_ref_sha = resolve_ref_sha(instructions_ref) if instructions_ref else None
+    instructions_by_fixture = {
+        fixture.fixture_id: resolve_instructions(fixture.instructions, instructions_ref)
+        for fixture in fixtures
+    }
+    return source_commit, instructions_ref_sha, instructions_by_fixture
+
+
+def _run_live_records(
+    fixtures: Sequence[Fixture],
+    model: str,
+    workspaces: Path,
+    claude_bin: str,
+    copilot_bin: str,
+    runner: Runner,
+    timeout: float,
+    harnesses: str,
+    instructions_by_fixture: Mapping[str, Mapping[str, bytes]],
+    grader: GraderProtocol | None,
+    grader_model: str,
+) -> tuple[list[dict[str, object]], str, int]:
+    """Dispatch to the dual- or single-harness live run per `--harnesses` (AC3)."""
+    if harnesses == "both":
+        return _run_live_fixtures(
+            fixtures,
+            model,
+            workspaces,
+            claude_bin,
+            copilot_bin,
+            runner,
+            timeout,
+            instructions_by_fixture,
+            grader,
+            grader_model,
+        )
+    executable = claude_bin if harnesses == "claude" else copilot_bin
+    return _run_single_harness_fixtures(
+        fixtures,
+        harnesses,
+        model,
+        workspaces,
+        executable,
+        runner,
+        timeout,
+        instructions_by_fixture,
+        grader,
+        grader_model,
+    )
+
+
+def _base_report(
+    *,
+    model: str,
+    output: Path,
+    claude_bin: str,
+    copilot_bin: str,
+    runner: Runner,
+    timeout: float,
+    dry_run: bool,
+    fixture_count: int,
+    source_commit: str,
+    instructions_ref: str | None,
+    instructions_ref_sha: str | None,
+) -> dict[str, object]:
+    """Build the report shell shared by dry-run and live evaluation."""
+    return {
+        "schema_version": 1,
+        "requested_model": model,
+        "cli_versions": _probe_versions(output, claude_bin, copilot_bin, runner, timeout),
+        "fixture_count": fixture_count,
+        "fixtures": [],
+        "verdict": "DRY_RUN" if dry_run else "PASS",
+        "source_commit": source_commit,
+        "instructions_ref": instructions_ref,
+        "instructions_ref_sha": instructions_ref_sha,
+    }
+
+
 def run_evaluation(
     *,
     fixtures_path: Path,
@@ -618,35 +701,31 @@ def run_evaluation(
 ) -> tuple[dict[str, object], int]:
     """Run all fixtures, stopping immediately on a resolved-model mismatch.
 
-    `instructions_ref` resolves every fixture's `instructions` from
-    `git show REF:path` instead of the working tree (AC4, ablation baseline).
-    `harnesses` selects `"both"` (default, dual-harness comparison, AC3),
-    `"claude"`, or `"copilot"`. `grader` is injectable so a test can supply a
-    fake provider instead of resolving `grader_provider` for real (AC8-AC10);
-    it is only required, and only resolved lazily via `resolve_provider` when
-    still `None`, when a fixture actually carries a semantic assertion.
+    `grader` is injectable so a test can supply a fake provider instead of
+    resolving `grader_provider` for real (AC8-AC10); it is only required,
+    and only resolved lazily via `resolve_provider`, when a fixture actually
+    carries a semantic assertion.
     """
     fixtures = load_fixtures(fixtures_path)
-    source_commit = resolve_source_commit()
-    instructions_ref_sha = resolve_ref_sha(instructions_ref) if instructions_ref else None
-    instructions_by_fixture = {
-        fixture.fixture_id: resolve_instructions(fixture.instructions, instructions_ref)
-        for fixture in fixtures
-    }
+    source_commit, instructions_ref_sha, instructions_by_fixture = _resolve_ablation(
+        fixtures, instructions_ref
+    )
     workspaces = output.parent / "workspaces"
     if not dry_run and (output.exists() or workspaces.exists()):
         raise ParityConfigError("output path already contains a runtime parity run")
-    report: dict[str, object] = {
-        "schema_version": 1,
-        "requested_model": model,
-        "cli_versions": _probe_versions(output, claude_bin, copilot_bin, runner, timeout),
-        "fixture_count": len(fixtures),
-        "fixtures": [],
-        "verdict": "DRY_RUN" if dry_run else "PASS",
-        "source_commit": source_commit,
-        "instructions_ref": instructions_ref,
-        "instructions_ref_sha": instructions_ref_sha,
-    }
+    report = _base_report(
+        model=model,
+        output=output,
+        claude_bin=claude_bin,
+        copilot_bin=copilot_bin,
+        runner=runner,
+        timeout=timeout,
+        dry_run=dry_run,
+        fixture_count=len(fixtures),
+        source_commit=source_commit,
+        instructions_ref=instructions_ref,
+        instructions_ref_sha=instructions_ref_sha,
+    )
     if dry_run:
         report["fixtures"] = [
             _fixture_record(fixture, instructions_by_fixture[fixture.fixture_id])
@@ -656,33 +735,19 @@ def run_evaluation(
     output.parent.mkdir(parents=True, exist_ok=True)
     if grader is None and _needs_grader(fixtures):
         grader = resolve_provider(grader_provider)
-    if harnesses == "both":
-        records, verdict, final_code = _run_live_fixtures(
-            fixtures,
-            model,
-            workspaces,
-            claude_bin,
-            copilot_bin,
-            runner,
-            timeout,
-            instructions_by_fixture,
-            grader,
-            grader_model,
-        )
-    else:
-        executable = claude_bin if harnesses == "claude" else copilot_bin
-        records, verdict, final_code = _run_single_harness_fixtures(
-            fixtures,
-            harnesses,
-            model,
-            workspaces,
-            executable,
-            runner,
-            timeout,
-            instructions_by_fixture,
-            grader,
-            grader_model,
-        )
+    records, verdict, final_code = _run_live_records(
+        fixtures,
+        model,
+        workspaces,
+        claude_bin,
+        copilot_bin,
+        runner,
+        timeout,
+        harnesses,
+        instructions_by_fixture,
+        grader,
+        grader_model,
+    )
     report["fixtures"] = records
     report["verdict"] = verdict
     output.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
