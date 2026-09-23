@@ -28,7 +28,7 @@
     {
       "id": "CR3",
       "desc": "Traces a changed function's real callers before reporting a signature-change defect",
-      "input": "The diff changes `def load_config(path: str) -> dict` to `def load_config(path: str, strict: bool = False) -> dict`, adding a keyword-only parameter with a default. Two callers exist in the repository: `config/loader.py:22` and `scripts/bootstrap.py:9`. Neither passes `strict`. Decide whether to report a breaking-change finding, and what evidence to cite.",
+      "input": "The diff changes `def load_config(path: str) -> dict` to `def load_config(path: str, strict: bool = False) -> dict`, adding a keyword-only parameter with a default. Two callers exist in the repository: one in the config loader module (line 22) and one in the bootstrap script (line 9). Neither passes `strict`. Decide whether to report a breaking-change finding, and what evidence to cite.",
       "verdict_options": [
         "CITE_CALL_SITES_NO_BREAK",
         "REPORT_WITHOUT_READING_CALLERS"

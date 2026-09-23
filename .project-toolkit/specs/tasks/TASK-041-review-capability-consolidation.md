@@ -5,6 +5,7 @@ title: Move code-reviewer doctrine into the review skill and thin the agent
 status: draft
 priority: P2
 related:
+  - DESIGN-030
   - REQ-032
   - ADR-110
 created: 2026-09-22

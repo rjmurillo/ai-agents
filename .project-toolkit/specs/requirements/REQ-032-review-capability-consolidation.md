@@ -8,6 +8,7 @@ category: functional
 source: GH-5395
 epic: EPIC-5456
 related:
+  - DESIGN-030
   - TASK-041
   - REQ-031
   - ADR-110
