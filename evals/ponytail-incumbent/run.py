@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shlex
 import shutil
 import subprocess
 import sys
@@ -28,6 +29,9 @@ from typing import Any
 REPO = Path(__file__).resolve().parents[2]
 CASES = Path(__file__).resolve().parent / "cases"
 PONYTAIL_VERSION = "4.9.0"
+# Pre-registered models. Both arms must run the same pair.
+MODEL = "claude-sonnet-5"
+JUDGE_MODEL = "claude-opus-5-5"
 CORPUS = (
     "AGENTS.md",
     "CLAUDE.md",
@@ -112,21 +116,19 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--plugin-dir", type=Path, required=True)
     parser.add_argument("--out", type=Path, required=True)
-    parser.add_argument("--model", default="claude-sonnet-5")
-    parser.add_argument("--judge-model", default="claude-opus-5-5")
     parser.add_argument("--runs", type=int, default=3)
     parser.add_argument("--max-cost-usd", type=float, default=40.0)
     parser.add_argument("--concurrency", type=int, default=4)
     args = parser.parse_args()
 
     args.out.mkdir(parents=True, exist_ok=True)
-    root = build_root(args.plugin_dir, CASES, args.out, load_corpus(REPO))
+    build_root(args.plugin_dir, CASES, args.out, load_corpus(REPO))
     result_path = args.out / "result.json"
     command = [
         "claude",
         "plugin",
         "eval",
-        str(root),
+        "root",
         "--trust-plugin",
         "--no-publish",
         "--ablation",
@@ -134,19 +136,21 @@ def main() -> int:
         "--threshold",
         "0",
         "--model",
-        args.model,
+        MODEL,
         "--judge-model",
-        args.judge_model,
+        JUDGE_MODEL,
         "--runs",
-        str(args.runs),
+        shlex.quote(str(args.runs)),
         "--max-cost-usd",
-        str(args.max_cost_usd),
+        shlex.quote(str(args.max_cost_usd)),
         "--concurrency",
-        str(args.concurrency),
+        shlex.quote(str(args.concurrency)),
         "--json",
-        str(result_path),
+        "result.json",
     ]
-    completed = subprocess.run(command, check=False)
+    # Paths stay relative to cwd and numbers pass through shlex.quote, so no
+    # parsed argument reaches argv as raw text.
+    completed = subprocess.run(command, cwd=args.out, check=False)
     if not result_path.is_file():
         print(f"claude plugin eval wrote no result (exit {completed.returncode})", file=sys.stderr)
         return 3

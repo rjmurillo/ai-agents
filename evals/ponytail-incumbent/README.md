@@ -77,8 +77,9 @@ python3 evals/ponytail-incumbent/run.py \
   --out <scratch dir>
 ```
 
-Defaults: generator `claude-sonnet-5`, judge `claude-opus-5-5`, three runs per
-case and arm, a 40 USD cost ceiling.
+Models are fixed in `run.py`: generator `claude-sonnet-5`, judge
+`claude-opus-5-5`. Defaults: three runs per case and arm, a 40 USD cost
+ceiling.
 
 ## Known limits, stated before the run
 
