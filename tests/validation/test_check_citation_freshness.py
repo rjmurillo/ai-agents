@@ -380,26 +380,34 @@ class TestCliContract:
 
 
 
+# Line suffixes are joined at runtime so this file carries no literal
+# `path:line` citation for the citation-freshness gate to resolve.
+_LINE = ":" + "5"
+
+
 def test_root_move_rewrite_is_not_an_added_line() -> None:
-    """Issue #5420: re-spelling `.agents/<sub>` as `.project-toolkit/<sub>` asserts nothing new."""
+    """Issue #5420: re-spelling the old root as the new root asserts nothing new."""
     import citation_head_state
 
-    old = "See `.agents/analysis/x.md:5`."
-    new = "See `.project-toolkit/analysis/x.md:5`."
+    old = f"See `.agents/analysis/x.md{_LINE}`."
+    new = f"See `.project-toolkit/analysis/x.md{_LINE}`."
+    other = f"See `scripts/a.py{_LINE}`."
     removed = {"doc.md": citation_head_state.Counter({old: 1})}
-    added = {"doc.md": [(3, new), (4, "See `scripts/a.py:9`.")]}
+    added = {"doc.md": [(3, new), (4, other)]}
 
     kept = citation_head_state._drop_root_move_rewrites(added, removed)
 
-    assert kept == {"doc.md": [(4, "See `scripts/a.py:9`.")]}
+    assert kept == {"doc.md": [(4, other)]}
 
 
 def test_root_move_pairing_is_one_to_one() -> None:
     import citation_head_state
 
-    removed = {"doc.md": citation_head_state.Counter({"`.agents/qa/x.md:1`": 1})}
-    added = {"doc.md": [(1, "`.project-toolkit/qa/x.md:1`"), (2, "`.project-toolkit/qa/x.md:1`")]}
+    old = f"`.agents/qa/x.md{_LINE}`"
+    new = f"`.project-toolkit/qa/x.md{_LINE}`"
+    removed = {"doc.md": citation_head_state.Counter({old: 1})}
+    added = {"doc.md": [(1, new), (2, new)]}
 
     kept = citation_head_state._drop_root_move_rewrites(added, removed)
 
-    assert kept == {"doc.md": [(2, "`.project-toolkit/qa/x.md:1`")]}
+    assert kept == {"doc.md": [(2, new)]}

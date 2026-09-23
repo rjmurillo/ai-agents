@@ -128,7 +128,8 @@ def _pure_rename_destinations(repo_root: Path, base_ref: str) -> set[str]:
         result = subprocess.run(
             ["git", "-C", str(repo_root), "diff", "--name-status", "-M", "-z",
              "--diff-filter=R", f"{base_ref}...HEAD"],
-            capture_output=True, text=True, timeout=60, check=False,
+            capture_output=True, encoding="utf-8", errors="replace",
+            timeout=60, check=False,
         )
     except (OSError, subprocess.TimeoutExpired):
         return set()
