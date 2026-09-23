@@ -199,6 +199,11 @@ ignores:
   - "src/claude/skills/cva-analysis/references/SKILL_SPEC.md"
   - "src/copilot-cli/skills/cva-analysis/references/SKILL_SPEC.md"
 
+  # `claude plugin eval` case payloads (issue #5457). The harness requires
+  # `prompt.md` and `graders/*.md` names, and the body after the frontmatter is
+  # sent to the model verbatim. An H1 would change the pre-registered prompt.
+  - "evals/ponytail-incumbent/cases/**"
+
 # Per-glob rule overrides for skill trees.
 #
 # MD040 (fenced-code-language): 575 violations across .claude/skills/ and

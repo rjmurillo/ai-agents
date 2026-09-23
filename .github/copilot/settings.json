@@ -17,7 +17,8 @@
       "source": {
         "source": "github",
         "repo": "DietrichGebert/ponytail",
-        "sha": "2ed6c52c9d7e5e56942508591085fd45dea277d3"
+        "ref": "v4.9.0",
+        "sha": "0a4dd63ad4541f4f655c4108a295916f3c1d8fda"
       }
     },
     "ai-agents": {
