@@ -1,7 +1,8 @@
 # Always-On Instruction Budget Validation
 #
 # Validates that the always-on instruction corpus (rules whose applyTo scopes
-# them to every file of a language) stays within its per-language byte ceiling.
+# them to every file of a language, plus skills whose description makes them
+# load on every task, issue #4871) stays within its per-language byte ceiling.
 # A single source edit loads this whole corpus, so unbounded growth degrades
 # instruction-following accuracy (issue #3419).
 #

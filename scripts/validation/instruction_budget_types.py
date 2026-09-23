@@ -7,17 +7,33 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class InstructionFile:
-    """A single instruction file with its measured size and scope."""
+    """A single instruction file with its measured size and scope.
+
+    ``activation`` records why the file entered the always-on budget:
+    ``"applyTo"`` for a ``.github/instructions/*.instructions.md`` rule whose
+    frontmatter scopes it to every file of a language, or
+    ``"skill-description"`` for a ``.claude/skills/*/SKILL.md`` whose
+    frontmatter ``description`` declares unconditional loading (issue #4871).
+    """
 
     name: str
     size_bytes: int
     estimated_tokens: int
     patterns: frozenset[str]
+    activation: str = "applyTo"
 
 
 @dataclass(frozen=True)
 class ExtensionResult:
-    """Always-on budget measurement for one representative extension."""
+    """Always-on budget measurement for one representative extension.
+
+    ``matched_activation`` parallels ``matched_files`` index-for-index
+    (``matched_activation[i]`` is why ``matched_files[i]`` entered the
+    budget). It defaults to empty so existing direct constructions (tests,
+    callers built before issue #4871) keep working; ``format_json`` fills a
+    missing entry with ``"applyTo"`` rather than requiring every caller to
+    supply it.
+    """
 
     extension: str
     matched_files: tuple[str, ...]
@@ -25,6 +41,7 @@ class ExtensionResult:
     estimated_tokens: int
     ceiling_bytes: int
     reserve_bytes: int = 0
+    matched_activation: tuple[str, ...] = ()
 
     @property
     def usage_percent(self) -> float:

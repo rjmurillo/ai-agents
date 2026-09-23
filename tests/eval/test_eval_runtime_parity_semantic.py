@@ -1,10 +1,12 @@
 """Tests for the semantic grader, instruction install, and ablation (#5404).
 
-Covers spec-5404.md acceptance criteria 1-10: instruction install and the
-Copilot refusal, `--harnesses` single-harness mode, `--instructions-ref`
-ablation (good and bad ref), the `semantic` assertion loader rules, grader
-PASS/FAIL/raise/malformed handling, calibration (control inversion and the
-automatic mutant), and every exit code the new surface can produce.
+Covers spec-5404.md acceptance criteria 1-10 and REQ-034 criteria 1-7:
+instruction install for both harnesses (Claude's `.claude/rules/*.md`,
+Copilot's `.github/instructions/*.instructions.md` projection),
+`--harnesses` single-harness mode, `--instructions-ref` ablation (good and
+bad ref), the `semantic` assertion loader rules, grader PASS/FAIL/raise/
+malformed handling, calibration (control inversion and the automatic
+mutant), and every exit code the new surface can produce.
 """
 
 from __future__ import annotations
@@ -206,16 +208,40 @@ def test_prepare_workspace_installs_instructions_for_claude(tmp_path: Path) -> N
     assert installed.read_bytes() == b"voice rule bytes"
 
 
-def test_prepare_workspace_refuses_copilot_with_instructions(tmp_path: Path) -> None:
-    fixture = _any_semantic_fixture(tmp_path)
+def test_prepare_workspace_installs_instructions_for_copilot(tmp_path: Path) -> None:
+    """A Copilot instruction fixture installs the projected path, no sentinel (REQ-034 AC1, AC3)."""
+    fixture = _any_semantic_fixture(tmp_path, instructions=["a/b/voice.md"])
+    workspace = tmp_path / "ws"
 
-    with pytest.raises(parity.ParityConfigError, match="Copilot"):
-        parity.prepare_workspace(
-            fixture,
-            "copilot",
-            tmp_path / "ws",
-            instructions={"voice.md": b"x"},
-        )
+    parity.prepare_workspace(
+        fixture,
+        "copilot",
+        workspace,
+        instructions={".github/instructions/voice.instructions.md": b"voice rule bytes"},
+    )
+
+    installed = workspace / ".github" / "instructions" / "voice.instructions.md"
+    assert installed.read_bytes() == b"voice rule bytes"
+    assert not (workspace / ".parity-profile" / "copilot" / "copilot-instructions.md").exists()
+    assert not (workspace / ".github" / "copilot-instructions.md").exists()
+
+
+def test_prepare_workspace_copilot_without_instructions_keeps_the_sentinel(
+    tmp_path: Path,
+) -> None:
+    """A non-instruction Copilot fixture keeps today's sentinel behavior exactly (REQ-034)."""
+    fixture = _any_semantic_fixture(tmp_path)
+    assert fixture.instructions == ()
+    workspace = tmp_path / "ws"
+
+    parity.prepare_workspace(fixture, "copilot", workspace)
+
+    assert parity.SENTINEL in (
+        workspace / ".parity-profile" / "copilot" / "copilot-instructions.md"
+    ).read_text(encoding="utf-8")
+    assert parity.SENTINEL in (
+        workspace / ".github" / "copilot-instructions.md"
+    ).read_text(encoding="utf-8")
 
 
 def test_prepare_workspace_without_instructions_is_unchanged(tmp_path: Path) -> None:

@@ -2,9 +2,38 @@
 
 from __future__ import annotations
 
+import re
+
 INSTRUCTIONS_SUBDIR = ".github/instructions"
 INSTRUCTION_GLOB = "*.instructions.md"
 DEFAULT_RESERVE_BYTES = 600
+
+# Issue #4871: a skill outside .claude/rules/ can still be effectively
+# always-on if its own frontmatter `description` declares unconditional
+# loading (for example "Load at the start of EVERY task."). Such a skill is
+# behaviorally indistinguishable from a rule matched by a universal `applyTo`,
+# so it must count toward the same budget instead of dodging it by living in
+# .claude/skills/ rather than .github/instructions/. Matches only the
+# `description` field text (checked by the caller), never the skill body:
+# body prose like "Every task has a done definition" is not a loading
+# instruction and must not trigger this pattern.
+# The pattern leans toward over-counting: a router such as autoplan, whose
+# description says it routes "any request", is counted because the root
+# instructions send most tasks through it.
+SKILLS_SUBDIR = ".claude/skills"
+SKILL_FILE_NAME = "SKILL.md"
+ALWAYS_ON_SKILL_PATTERN: re.Pattern[str] = re.compile(
+    r"""
+    \b(every|each|any|all)\s+(\w+\s+)?(tasks?|sessions?|turns?|requests?|prompts?|conversations?)\b
+    | \balways\s+load(ed)?\b
+    | \bload(ed)?\s+first\b
+    | \bat\s+(the\s+)?(start\s+of\s+(every|each)|session\s+start)\b
+    | \bbefore\s+answering\s+(any|every)\s+((user|incoming|new)\s+)?
+      (questions?|requests?|prompts?|messages?)\b
+      (?!\s+(about|on|for|regarding|involving|related|concerning)\b)
+    """,
+    re.IGNORECASE | re.VERBOSE,
+)
 
 # Non-regression ratchet ceilings in bytes, seeded just above current measured
 # values (see module docstring). Lower these as the corpus shrinks.

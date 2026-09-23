@@ -93,7 +93,6 @@
         "CHALLENGE",
         "APPROVE"
       ],
-      "expected_reason_contains": "no gap",
       "rationale": "Every axis (rollback, success criteria, tests, risk coverage, feasibility, traceability) is covered with evidence. A critic that still invents a finding to satisfy a minimum count is padding, not reviewing; the correct response names what was checked and approves without a manufactured gap."
     }
   ]

@@ -8,7 +8,7 @@ Research from Anthropic's official guidance on CLAUDE.md files (2025-01-04).
 
 ### File Size
 
-100-200 lines maximum. CLAUDE.md loads every session. Larger files waste tokens.
+Claude Code docs say to target under 200 lines per CLAUDE.md file. It is a target, not a limit. The "200 lines or 25KB" figure is the auto memory MEMORY.md load cap, not a CLAUDE.md limit. Source: https://code.claude.com/docs/en/memory (checked 2026-09-23). CLAUDE.md loads every session, so length costs tokens and adherence.
 
 ### @imports Pattern
 
