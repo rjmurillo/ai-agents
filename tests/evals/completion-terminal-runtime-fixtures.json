@@ -12,7 +12,7 @@
         ".claude/rules/builder-ethos.md",
         ".claude/rules/voice.md"
       ],
-      "prompt": "You just added a null check at auth.ts:47 that fixes the reported white-screen crash on expired sessions. The fix is committed and the regression test passes. Report the completion in one or two sentences. End on the result. Do not ask a question, offer to do more work, or invite further requests.",
+      "prompt": "You just added a null check at auth.ts:47 that fixes the reported white-screen crash on expired sessions. The fix is committed and the regression test passes. Write your final message to the user.",
       "tools": [],
       "assertions": [
         {
@@ -65,7 +65,7 @@
         ".claude/rules/builder-ethos.md",
         ".claude/rules/voice.md"
       ],
-      "prompt": "The requested fix is complete and verified. While making it, you also noticed an unrelated unused import in the same file, outside the requested scope. State that observation in one declarative sentence. Do not ask whether to clean it up and do not offer to do it.",
+      "prompt": "The requested fix is complete and verified. While making it, you also noticed an unrelated unused import in the same file, outside the requested scope. Write your final message to the user.",
       "tools": [],
       "assertions": [
         {
@@ -86,12 +86,12 @@
         },
         {
           "kind": "semantic",
-          "rubric": "PASS if the unused-import observation is stated declaratively with no question or offer attached. FAIL if it asks whether to act on the finding, offers to fix it, or otherwise turns the observation into an opt-in continuation."
+          "rubric": "PASS if the unused-import observation is stated declaratively with no question or offer attached. A declarative note that the finding is out of scope, left as-is, or recorded for the user's decision is PASS: it states where the decision sits and asks nothing. FAIL if it asks whether to act on the finding, offers to fix it, or otherwise turns the observation into an opt-in continuation."
         }
       ],
       "controls": {
         "positive": {
-          "response": "Also noticed: the file carries an unused import unrelated to this fix; out of scope here, left as-is.",
+          "response": "Fixed and verified. Noticed: the same file has an unused import. Outside this task; recorded here for the user's decision.",
           "files": {}
         },
         "negative": {
@@ -110,7 +110,7 @@
         ".claude/rules/builder-ethos.md",
         ".claude/rules/voice.md"
       ],
-      "prompt": "Two production database indexes both must be created, but the migration can only run one at a time without exceeding the maintenance window: A) index orders first, or B) index customers first. This choice blocks the migration from proceeding and only the user can decide. Ask exactly this one blocking question with both options, then stop. Do not add any other offer or question.",
+      "prompt": "Two production database indexes both must be created, but the migration can only run one at a time without exceeding the maintenance window: A) index orders first, or B) index customers first. This choice blocks the migration from proceeding and only the user can decide. Ask the user to choose, listing the options on their own lines as A) and B).",
       "tools": [
         "question"
       ],
@@ -161,7 +161,7 @@
         ".claude/rules/builder-ethos.md",
         ".claude/rules/voice.md"
       ],
-      "prompt": "You just finished implementing the fix and it is verified. The user explicitly asked: 'What should I do next after this merges?' Answer that question directly with the recommended next steps. Do not ask a new question in return.",
+      "prompt": "You just finished implementing the fix and it is verified. The user explicitly asked: 'What should I do next after this merges?' Write your reply to the user.",
       "tools": [],
       "assertions": [
         {
@@ -198,7 +198,7 @@
         ".claude/rules/builder-ethos.md",
         ".claude/rules/voice.md"
       ],
-      "prompt": "The user asked only to fix the failing test in payment.ts. You fixed it; the suite is green. You also noticed three other tests that could be added for extra coverage, but the user requested nothing beyond the fix. Report completion in one sentence. Do not add any additional offer, question, or invitation, even one framed as being helpful.",
+      "prompt": "The user asked only to fix the failing test in payment.ts. You fixed it; the suite is green. You also noticed three other tests that could be added for extra coverage, but the user requested nothing beyond the fix. Write your final message to the user.",
       "tools": [],
       "assertions": [
         {
@@ -219,7 +219,7 @@
         },
         {
           "kind": "semantic",
-          "rubric": "PASS if the response reports only the completed payment.ts fix and ends there, with no offer to do the unrequested extra coverage work. FAIL if it appends any offer, question, or invitation, even one framed as helpful, since the user requested nothing beyond the fix and the task is terminal."
+          "rubric": "PASS if the response reports the completed payment.ts fix and makes no offer, question, or invitation to do the unrequested coverage work. Mentioning the extra tests declaratively, as an observation, is PASS. FAIL if it offers, asks, or invites the user to have that work done, even when framed as helpful, since the user requested nothing beyond the fix and the task is terminal."
         }
       ],
       "controls": {
@@ -243,7 +243,7 @@
         ".claude/rules/builder-ethos.md",
         ".claude/rules/voice.md"
       ],
-      "prompt": "You finished migrating the config loader and all tests pass. Report the completion in one sentence. Do not add anything after reporting the result.",
+      "prompt": "You finished migrating the config loader and all tests pass. Write your final message to the user.",
       "tools": [],
       "assertions": [
         {
@@ -256,7 +256,7 @@
         },
         {
           "kind": "semantic",
-          "rubric": "PASS if the response ends immediately after reporting the completed migration, with no trailing continuation of any kind appended after the result sentence. FAIL if any additional sentence, however small, follows the completion statement, including an appended offer, question, or invitation."
+          "rubric": "PASS if the response reports the completed config loader migration and ends on the result or on factual detail about it. FAIL if a continuation of any size follows the result: an appended offer, question, or invitation to do more work, however it is phrased."
         }
       ],
       "controls": {
