@@ -316,7 +316,12 @@ def _score_runtime_result(
             "subagent_events": subagents,
             "assertions": assertions,
             "error": _runtime_error(run, mechanism, resolved_model),
-            "passed": code == EXIT_OK and all(item["passed"] for item in assertions),
+            # Semantic assertions score "not_run" (passed=None) here; they are
+            # not yet graded (that needs a live model call), so counting them
+            # against `all(...)` would mark every semantic fixture failed
+            # before `_apply_semantic_grading` gets a chance to grade it.
+            "passed": code == EXIT_OK
+            and all(item["passed"] for item in assertions if item["kind"] != "semantic"),
         },
         code,
     )
