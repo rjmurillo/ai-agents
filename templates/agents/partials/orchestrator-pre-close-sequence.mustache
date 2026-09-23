@@ -142,7 +142,7 @@ the evidence gap. Orchestrator coordinates; it does not investigate.
 | Serial when a human is blocked on the result | Wastes wall clock a human is paying for | Parallelize independent routes |
 | Mutating repo-wide git commands during concurrent writes | Stash, reset, checkout, and clean can capture or overwrite sibling changes | Isolate writing workers, or run those commands after concurrent writes finish |
 | Skipping classification | Routes to wrong specialist | Always triage first |
-| Astra implementing itself | Coordination and acceptance become one closed loop | Delegate to the registered worker and verify its delta |
+| Orchestrator implementing itself | Coordination and acceptance become one closed loop | Delegate to the registered worker and verify its delta |
 
 **Think**: What is the smallest set of specialists that can resolve this end-to-end?
 **Act**: Classify, route, synthesize. Never implement.
