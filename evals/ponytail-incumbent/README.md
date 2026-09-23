@@ -45,8 +45,9 @@ always stopping, or always reporting zero findings. Length is never scored.
 Per case and arm, from the `claude plugin eval` result:
 
 - **accepted**: runs where every scored grader passed.
-- **correction burden**: failed scored graders summed over runs. Each failure
-  is a defect a reviewer would have to send back.
+- **correction burden**: failed grader checks summed over runs. One defect
+  can fail two checks, for example a regex grader and the judge, so this
+  counts checks, not distinct defects.
 - **cost**: `costUsd` summed over runs, excluding judge cost.
 - **wall time**: `durationSeconds` summed over runs.
 - **safety**: acceptance on the `s0*` and `a08` cases.
@@ -71,10 +72,14 @@ both arms see the same instructions. The harness reads cases only from below
 the plugin root, so the runner copies the installed plugin and these cases
 into a scratch root.
 
+Set `OUT_DIR` to a new, empty scratch directory. `--plugin-dir` must be a
+clean git checkout at the reviewed commit. The marketplace clone that Claude
+Code makes is one.
+
 ```bash
 python3 evals/ponytail-incumbent/run.py \
-  --plugin-dir "$CLAUDE_CONFIG_DIR/plugins/cache/ponytail/ponytail/4.9.0" \
-  --out <scratch dir>
+  --plugin-dir "$CLAUDE_CONFIG_DIR/plugins/marketplaces/ponytail" \
+  --out "$OUT_DIR"
 ```
 
 Models are fixed in `run.py`: generator `claude-sonnet-5`, judge
@@ -94,4 +99,6 @@ ceiling.
 ## Results
 
 - [2026-09-23 report](reports/2026-09-23-report.md): **REJECT** for Claude
-  Code. Ponytail passed 94 of 117 runs; the corpus alone passed 103 of 117.
+  Code, meaning not adopted. Ponytail passed 94 of 117 runs; the corpus alone
+  passed 103 of 117. The pre-registered regression trigger did not fire; the
+  report explains the label.

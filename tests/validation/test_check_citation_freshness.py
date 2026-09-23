@@ -43,6 +43,8 @@ def test_generated_project_toolkit_artifacts_are_exempt(path: str) -> None:
         ("evals/ponytail-incumbent/README.md", False),
         ("evals/ponytail-incumbent/reports/2026-09-23-report.md", False),
         ("docs/evals/x/runs/notes.md", False),
+        ("evals/security-spike/runs/notes.md", False),
+        ("evals/security-spike/runs/20260503T182553Z-eaa08f8d/REPORT.md", False),
     ),
 )
 def test_only_recorded_eval_runs_are_exempt(path: str, exempt: bool) -> None:

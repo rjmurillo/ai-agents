@@ -72,10 +72,10 @@ IGNORE_MARKER = "citation-freshness: ignore"
 # Directory fragments whose files synthesize citations on purpose.
 _FIXTURE_FRAGMENTS = ("/fixtures/",)
 
-# Recorded eval runs (evals/<name>/runs/). Raw model replies quote the
-# invented paths of the prompts under test, and a run record is a
-# point-in-time capture, like a session log.
-_EVAL_RUN_RECORD = re.compile(r"^evals/[^/]+/runs/")
+# Recorded eval runs (evals/<name>/runs/**/*.jsonl). Raw model replies quote
+# the invented paths of the prompts under test, and a run record is a
+# point-in-time capture, like a session log. Authored files there stay policed.
+_EVAL_RUN_RECORD = re.compile(r"^evals/[^/]+/runs/.+\.jsonl$")
 
 # Historical trees this gate exempts beyond stale_script_refs's tuple:
 # episode records are point-in-time captures, exactly like sessions and

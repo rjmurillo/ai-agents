@@ -29,6 +29,9 @@ from typing import Any
 REPO = Path(__file__).resolve().parents[2]
 CASES = Path(__file__).resolve().parent / "cases"
 PONYTAIL_VERSION = "4.9.0"
+PONYTAIL_SHA = "0a4dd63ad4541f4f655c4108a295916f3c1d8fda"
+# Upper bound on one `claude plugin eval` call; the cost ceiling bounds spend only.
+EVAL_TIMEOUT_SECONDS = 4 * 60 * 60
 # Pre-registered models. Both arms must run the same pair.
 MODEL = "claude-sonnet-5"
 JUDGE_MODEL = "claude-opus-5-5"
@@ -59,15 +62,31 @@ def inject_corpus(prompt: str, corpus: str) -> str:
     return f"{prompt[:end]}\nappend_system_prompt: |\n{block}{prompt[end:]}"
 
 
+def verify_plugin(plugin_dir: Path, expected_sha: str) -> None:
+    """Refuse a plugin directory that is not a clean checkout of the reviewed commit."""
+    head = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=plugin_dir, capture_output=True, text=True, timeout=30
+    )
+    if head.returncode != 0 or head.stdout.strip() != expected_sha:
+        raise ValueError(f"plugin dir is not a git checkout at {expected_sha}")
+    status = subprocess.run(
+        ["git", "status", "--porcelain"], cwd=plugin_dir, capture_output=True, text=True, timeout=30
+    )
+    if status.returncode != 0 or status.stdout.strip():
+        raise ValueError("plugin checkout has local changes")
+
+
 def build_root(plugin_dir: Path, cases: Path, work: Path, corpus: str) -> Path:
     """Copy the plugin and the cases into a scratch plugin root."""
+    if work.resolve().is_relative_to(plugin_dir.resolve()):
+        raise ValueError("--out must not be inside --plugin-dir")
     manifest = json.loads(
         (plugin_dir / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8")
     )
     if manifest.get("version") != PONYTAIL_VERSION:
         raise ValueError(f"expected Ponytail {PONYTAIL_VERSION}, found {manifest.get('version')}")
     root = work / "root"
-    shutil.copytree(plugin_dir, root, ignore=shutil.ignore_patterns(".in_use", "evals"))
+    shutil.copytree(plugin_dir, root, ignore=shutil.ignore_patterns(".git", ".in_use", "evals"))
     shutil.copytree(cases, root / "evals")
     for prompt in (root / "evals").rglob("prompt.md"):
         prompt.write_text(
@@ -121,6 +140,11 @@ def main() -> int:
     parser.add_argument("--concurrency", type=int, default=4)
     args = parser.parse_args()
 
+    verify_plugin(args.plugin_dir, PONYTAIL_SHA)
+    if args.out.exists() and any(args.out.iterdir()):
+        # A fresh directory means result.json can only come from this run.
+        print(f"--out {args.out} is not empty; use a fresh directory", file=sys.stderr)
+        return 2
     args.out.mkdir(parents=True, exist_ok=True)
     build_root(args.plugin_dir, CASES, args.out, load_corpus(REPO))
     result_path = args.out / "result.json"
@@ -150,7 +174,11 @@ def main() -> int:
     ]
     # Paths stay relative to cwd and numbers pass through shlex.quote, so no
     # parsed argument reaches argv as raw text.
-    completed = subprocess.run(command, cwd=args.out, check=False)
+    try:
+        completed = subprocess.run(command, cwd=args.out, check=False, timeout=EVAL_TIMEOUT_SECONDS)
+    except subprocess.TimeoutExpired:
+        print(f"claude plugin eval exceeded {EVAL_TIMEOUT_SECONDS}s", file=sys.stderr)
+        return 3
     if not result_path.is_file():
         print(f"claude plugin eval wrote no result (exit {completed.returncode})", file=sys.stderr)
         return 3
