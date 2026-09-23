@@ -168,7 +168,8 @@ def test_empty_spec_file_yields_no_findings(tmp_path: Path) -> None:
 
 
 def test_missing_target_tier_is_skipped_not_raised(tmp_path: Path) -> None:
-    # Arrange: only .project-toolkit/specs/requirements exists; the design and tasks tiers are absent.
+    # Arrange: only .project-toolkit/specs/requirements exists; the design and
+    # tasks tiers are absent.
     repo = _make_repo(tmp_path)
     _write_req(repo, "REQ-007.md", "Uses `scripts/real.py`.\n")
 

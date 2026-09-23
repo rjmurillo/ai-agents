@@ -14,7 +14,9 @@ from pathlib import Path
 import pytest
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-ADR_PATH = PROJECT_ROOT / ".project-toolkit" / "architecture" / "ADR-079-merge-time-plugin-version-bump.md"
+ADR_PATH = (
+    PROJECT_ROOT / ".project-toolkit" / "architecture" / "ADR-079-merge-time-plugin-version-bump.md"
+)
 _DASH_PATTERN = re.compile("[\u2013\u2014]")
 
 

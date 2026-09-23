@@ -311,7 +311,10 @@ def test_all_internal_paths_skips_rule_for_plugin_destination(tmp_path: Path) ->
     _write_rule(
         tmp_path / "rules_src",
         "internal_only",
-        frontmatter='paths: ".project-toolkit/security/**,.claude/rules/foo.md,.serena/memories/**"\n',
+        frontmatter=(
+            'paths: ".project-toolkit/security/**,.claude/rules/foo.md,'
+            '.serena/memories/**"\n'
+        ),
         body="body\n",
     )
     cfg = _write_config(tmp_path)

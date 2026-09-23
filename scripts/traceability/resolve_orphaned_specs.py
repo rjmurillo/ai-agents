@@ -220,7 +220,9 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Identify and resolve orphaned specs in the traceability graph."
     )
-    parser.add_argument("--specs-path", default=".project-toolkit/specs", help="Path to specs directory")
+    parser.add_argument(
+        "--specs-path", default=".project-toolkit/specs", help="Path to specs directory"
+    )
     parser.add_argument(
         "--action",
         choices=["list", "archive", "delete"],

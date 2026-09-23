@@ -369,7 +369,9 @@ def generated_historical(repo: Path, exclusions: Exclusions) -> dict[str, Any]:
         "episodes": _count_bytes(
             repo / ".project-toolkit" / "memory" / "episodes", exclusions, f"{gh}.episodes"
         ),
-        "sessions": _count_bytes(repo / ".project-toolkit" / "sessions", exclusions, f"{gh}.sessions"),
+        "sessions": _count_bytes(
+            repo / ".project-toolkit" / "sessions", exclusions, f"{gh}.sessions"
+        ),
         "serena_memories": _count_bytes(
             repo / ".serena" / "memories", exclusions, f"{gh}.serena_memories"
         ),

@@ -145,7 +145,8 @@ def test_raw_string_regex_pattern_with_anchor_is_not_an_offender(fake_repo: Path
     _write(
         fake_repo,
         ".claude/skills/foo/scripts/anchored.py",
-        'PATTERNS = [\n    r"^\\.project-toolkit/sessions/",\n    r"^\\.project-toolkit/analysis/",\n]\n',
+        'PATTERNS = [\n    r"^\\.project-toolkit/sessions/",\n'
+        '    r"^\\.project-toolkit/analysis/",\n]\n',
     )
 
     offenders = cvp.collect_offenders(fake_repo)
@@ -231,7 +232,8 @@ def test_argparse_help_text_is_not_an_offender(fake_repo: Path) -> None:
         "p = argparse.ArgumentParser()\n"
         "p.add_argument(\n"
         "    '--episode-path',\n"
-        "    help='Path to episode file or directory (default: .project-toolkit/memory/episodes/)',\n"
+        "    help='Path to episode file or directory "
+        "(default: .project-toolkit/memory/episodes/)',\n"
         ")\n",
     )
 

@@ -714,7 +714,8 @@ def _edge_targets(
             detail = f"`{field}` names itself (ADR-{number:03d}); a record cannot supersede itself"
         elif number not in known:
             detail = (
-                f"`{field}` names ADR-{number:03d}, which has no file under .project-toolkit/architecture/"
+                f"`{field}` names ADR-{number:03d}, which has no file under "
+                ".project-toolkit/architecture/"
             )
         else:
             targets.append(number)

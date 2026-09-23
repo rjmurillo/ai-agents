@@ -48,7 +48,9 @@ from pathlib import Path
 import pytest
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-ADR_PATH = PROJECT_ROOT / ".project-toolkit" / "architecture" / "ADR-063-memory-skill-decomposition.md"
+ADR_PATH = (
+    PROJECT_ROOT / ".project-toolkit" / "architecture" / "ADR-063-memory-skill-decomposition.md"
+)
 
 TESTS_SKILLS_DIR = str(PROJECT_ROOT / "tests" / "skills")
 _paths_added: list[str] = []

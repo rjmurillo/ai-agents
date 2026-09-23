@@ -18,14 +18,29 @@ COPILOT_OFFICIAL_SOURCES = (
 )
 SERENA_HOOK_MEMORY = REPO_ROOT / ".serena" / "memories" / "copilot-hooks-observations.md"
 HOOK_REQUIREMENT = (
-    REPO_ROOT / ".project-toolkit" / "specs" / "requirements" / "REQ-003-multi-tool-artifact-build.md"
+    REPO_ROOT
+    / ".project-toolkit"
+    / "specs"
+    / "requirements"
+    / "REQ-003-multi-tool-artifact-build.md"
 )
 RUNTIME_ADR = (
-    REPO_ROOT / ".project-toolkit" / "architecture" / "ADR-071-plugin-hook-runtime-contract-verification.md"
+    REPO_ROOT
+    / ".project-toolkit"
+    / "architecture"
+    / "ADR-071-plugin-hook-runtime-contract-verification.md"
 )
-DISPATCHER_ADR = REPO_ROOT / ".project-toolkit" / "architecture" / "ADR-068-consolidated-hook-dispatcher.md"
+DISPATCHER_ADR = (
+    REPO_ROOT
+    / ".project-toolkit"
+    / "architecture"
+    / "ADR-068-consolidated-hook-dispatcher.md"
+)
 PERMISSION_ADR = (
-    REPO_ROOT / ".project-toolkit" / "architecture" / "ADR-085-cross-harness-permission-surface-asymmetry.md"
+    REPO_ROOT
+    / ".project-toolkit"
+    / "architecture"
+    / "ADR-085-cross-harness-permission-surface-asymmetry.md"
 )
 PLATFORM_TEMPLATE = REPO_ROOT / "templates" / "platforms" / "copilot-cli.yaml"
 
@@ -464,7 +479,11 @@ def test_generated_instruction_mirrors_route_to_contract() -> None:
 
 def test_requirement_and_historical_audit_do_not_reassert_old_contract() -> None:
     requirement = (
-        REPO_ROOT / ".project-toolkit" / "specs" / "requirements" / "REQ-003-multi-tool-artifact-build.md"
+        REPO_ROOT
+        / ".project-toolkit"
+        / "specs"
+        / "requirements"
+        / "REQ-003-multi-tool-artifact-build.md"
     ).read_text(encoding="utf-8")
     audit = (REPO_ROOT / ".project-toolkit" / "audit" / "m5-matcher-classification.md").read_text(
         encoding="utf-8"
@@ -1281,7 +1300,9 @@ def test_adr_085_decision_eight_complies_with_the_adr_084_carve_out() -> None:
     it is not invoking the bar. The quote is checked against the live ADR-084
     text below so a reworded carve-out cannot leave a stale quote here.
     """
-    carve_out_source = REPO_ROOT / ".project-toolkit" / "architecture" / "ADR-084-vendored-hook-roi-bar.md"
+    carve_out_source = (
+        REPO_ROOT / ".project-toolkit" / "architecture" / "ADR-084-vendored-hook-roi-bar.md"
+    )
     quoted = (
         "It does not authorize retiring an actual security control. A hook "
         "that enforces a security property in consumer repos earns its place "
@@ -1521,7 +1542,12 @@ def test_adr_082_marks_the_deleted_group_example_as_historical() -> None:
     _refute(
         text,
         "`plugin-posttooluse-1-markdown_auto_lint` matches today only",
-        source=REPO_ROOT / ".project-toolkit" / "architecture" / "ADR-082-claude-hook-group-dispatch.md",
+        source=(
+            REPO_ROOT
+            / ".project-toolkit"
+            / "architecture"
+            / "ADR-082-claude-hook-group-dispatch.md"
+        ),
     )
 
 

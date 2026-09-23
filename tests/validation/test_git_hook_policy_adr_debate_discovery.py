@@ -345,7 +345,10 @@ def test_a_failed_discovery_query_is_reported_as_a_failure_not_an_absence(
     real_run = policy._run_git
 
     def fail_the_discovery_query(root: Path, args: list[str]) -> object:
-        if args[:3] == ["diff", "--cached", "--name-only"] and args[-1] == ".project-toolkit/critique":
+        if (
+            args[:3] == ["diff", "--cached", "--name-only"]
+            and args[-1] == ".project-toolkit/critique"
+        ):
             return subprocess.CompletedProcess(args, 128, "", "fatal: not a git repository\n")
         return real_run(root, args)
 

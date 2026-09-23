@@ -116,7 +116,10 @@ class TestIsAddAddConflict:
 
     def test_no_conflict_returns_false(self, tmp_path: Path) -> None:
         _git(tmp_path, "init", "-b", "main")
-        assert _is_add_add_conflict(".project-toolkit/sessions/missing.json", cwd=str(tmp_path)) is False
+        assert (
+            _is_add_add_conflict(".project-toolkit/sessions/missing.json", cwd=str(tmp_path))
+            is False
+        )
 
     def test_inspection_failure_returns_none(self, tmp_path: Path) -> None:
         """CodeRabbit PRRT_kwDOQoWRls6icJzj: fail closed, not "not add/add".

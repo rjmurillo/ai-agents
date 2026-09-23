@@ -511,7 +511,10 @@ def _print_table(report: HealthStatusReport) -> None:
     print()
 
     if not report.components:
-        print("No components checked. Ensure .serena/memories/ and .project-toolkit/sessions/ exist.")
+        print(
+            "No components checked. Ensure .serena/memories/ and "
+            ".project-toolkit/sessions/ exist."
+        )
         return
 
     print(f"{'Component':<30} {'Status':<10} {'Value':>8}  {'Detail'}")

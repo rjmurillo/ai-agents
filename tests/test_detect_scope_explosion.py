@@ -1645,7 +1645,9 @@ class TestGeneratedFileExclusion:
         _init_scope_repo(repo)
         _check_git(repo, "checkout", "-qb", "feature")
 
-        _write_file(repo, ".project-toolkit/memory/episodes/episode-2026-01-01-session-1.json", "{}")
+        _write_file(
+            repo, ".project-toolkit/memory/episodes/episode-2026-01-01-session-1.json", "{}"
+        )
         _write_file(repo, "scripts/real.py", "x = 1\n")
         _commit_all(repo, "episode + authored")
 

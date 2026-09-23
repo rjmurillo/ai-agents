@@ -80,7 +80,13 @@ def validate_traceability(repo_root: Path) -> bool:
             "scripts/validation/traceability.py not present"
         )
     exit_code, stdout, stderr = _run_subprocess(
-        [sys.executable, str(script), "--specs-path", str(repo_root / ".project-toolkit" / "specs"), "--ci"]
+        [
+            sys.executable,
+            str(script),
+            "--specs-path",
+            str(repo_root / ".project-toolkit" / "specs"),
+            "--ci",
+        ]
     )
     output = (stdout or "") + (stderr or "")
     if output.strip():

@@ -291,7 +291,9 @@ class TestSelected:
         assert _selected("lefthook.yml", ["**/*.yml"])
 
     def test_a_directory_entry_selects_a_file_beneath_it(self):
-        assert _selected(".project-toolkit/memory/episodes/e.json", [".project-toolkit/memory/episodes/**"])
+        assert _selected(
+            ".project-toolkit/memory/episodes/e.json", [".project-toolkit/memory/episodes/**"]
+        )
 
     def test_an_extension_mismatch_is_not_selected(self):
         assert not _selected(".github/workflows/a.yaml", ["**/*.yml"])

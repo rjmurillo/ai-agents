@@ -601,7 +601,10 @@ class TestCodeBlockAndInlineHandling:
         assert cmp.count_upstream_refs(text) == 1
 
     def test_counts_inline_code_spans(self) -> None:
-        text = "See `.project-toolkit/sessions/` for examples; write to .project-toolkit/analysis/y.md.\n"
+        text = (
+            "See `.project-toolkit/sessions/` for examples; write to "
+            ".project-toolkit/analysis/y.md.\n"
+        )
         assert cmp.count_upstream_refs(text) == 2
 
     def test_tilde_fences_are_stripped(self) -> None:

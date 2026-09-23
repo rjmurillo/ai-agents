@@ -4267,7 +4267,10 @@ class TestSessionScopeIsDecidedOnceForBothCallSites:
         import scripts.validate_session_json as vsj
 
         root = Path(__file__).resolve().parents[1]
-        assert vsj._repo_relative(root / ".project-toolkit/sessions/x.json") == ".project-toolkit/sessions/x.json"
+        assert (
+            vsj._repo_relative(root / ".project-toolkit/sessions/x.json")
+            == ".project-toolkit/sessions/x.json"
+        )
 
     def test_a_path_outside_the_repository_stays_absolute(self) -> None:
         import scripts.validate_session_json as vsj
