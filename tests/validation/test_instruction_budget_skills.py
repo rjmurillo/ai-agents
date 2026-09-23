@@ -150,6 +150,12 @@ def test_main_returns_2_on_malformed_skill_frontmatter(tmp_path: Path) -> None:
         "loaded at the start of every task, no exceptions.",
         "Read before answering any question.",
         "on every task the harness re-runs this skill.",
+        "Load at the start of each task.",
+        "Load for all tasks.",
+        "Use on ANY coding task.",
+        "Route any request to the right skill.",
+        "Loaded at session start.",
+        "Load first, always.",
     ],
 )
 def test_always_on_skill_pattern_positive_cases(description: str) -> None:
@@ -165,6 +171,8 @@ def test_always_on_skill_pattern_positive_cases(description: str) -> None:
         "A comprehensive skill for many tasks and requests.",
         "Helps write skill descriptions well.",
         "Triggers when the user mentions every quarter's roadmap.",
+        "Use before answering questions about Azure billing.",
+        "Tracks tasking and multitasking notes.",
         "",
     ],
 )

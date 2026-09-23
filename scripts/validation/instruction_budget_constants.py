@@ -17,15 +17,18 @@ DEFAULT_RESERVE_BYTES = 600
 # `description` field text (checked by the caller), never the skill body:
 # body prose like "Every task has a done definition" is not a loading
 # instruction and must not trigger this pattern.
+# The pattern leans toward over-counting: a router such as autoplan, whose
+# description says it routes "any request", is counted because the root
+# instructions send most tasks through it.
 SKILLS_SUBDIR = ".claude/skills"
 SKILL_FILE_NAME = "SKILL.md"
 ALWAYS_ON_SKILL_PATTERN: re.Pattern[str] = re.compile(
     r"""
-    every\s+(task|session|turn|request|prompt|conversation)
-    | always\s+load(ed)?
-    | load(ed)?\s+at\s+the\s+start\s+of\s+every
-    | before\s+answering
-    | on\s+every\s+(task|session|turn|request|prompt)
+    \b(every|each|any|all)\s+(\w+\s+)?(tasks?|sessions?|turns?|requests?|prompts?|conversations?)\b
+    | \balways\s+load(ed)?\b
+    | \bload(ed)?\s+first\b
+    | \bat\s+(the\s+)?(start\s+of\s+(every|each)|session\s+start)\b
+    | \bbefore\s+answering\s+(any|every)\b
     """,
     re.IGNORECASE | re.VERBOSE,
 )
