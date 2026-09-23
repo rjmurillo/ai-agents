@@ -170,7 +170,10 @@ stale.
 - **Owns**: the set of capability names for which the node is canonical.
 - **Depends-on**: the set of capability names the node consumes.
 - **Projection**: a generated copy under `src/claude/`, `src/copilot-cli/`,
-  `.github/instructions/`, or `.claude/`. A projection never owns a capability.
+  `.github/instructions/`, `.github/agents/`, `src/vs-code-agents/`, or
+  `.claude/`. A projection is never the owner. It may repeat its canonical
+  owner's declaration, because the build binplaces byte-identical copies, and
+  it may not own a capability no canonical artifact owns.
 - **Status**: the node's lifecycle value. One of `active`, `sunset`,
   `deprecated`, `retired`.
 

@@ -159,6 +159,23 @@ invariant inline. It may not restate the full policy. The one-line retention is
 deliberate: a harness that does not load the owning rule still carries the
 invariant, so composition never thins a safety control.
 
+### 7. Where the canonical text lives when a policy is prose
+
+A policy a prompt must carry at runtime renders into the prompt; it is not
+cited. The skill renderer and the agent renderer read separate partial
+directories, so such a policy has one canonical text per template tree, pinned
+byte-identical by a contract test. For `untrusted-content-handling`, owned by
+`templates/rules/security.md`:
+
+- `templates/skills/partials/untrusted-content.mustache`
+- `templates/agents/partials/untrusted-content.mustache`
+- `tests/validation/test_untrusted_content_partial_parity.py` asserts
+  `_SKILL_PARTIAL.read_bytes() == _AGENT_PARTIAL.read_bytes()`
+
+The paths live here rather than in the rule because the rule ships to installs
+that do not have the `templates/` tree, and a rule naming a path its reader
+cannot open is dead weight there.
+
 ## Prior Art Investigation
 
 ### What currently exists
