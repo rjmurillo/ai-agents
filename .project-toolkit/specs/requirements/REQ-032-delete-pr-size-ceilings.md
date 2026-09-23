@@ -2,7 +2,7 @@
 type: requirement
 id: REQ-032
 title: Delete the PR size ceilings outright
-status: draft
+status: implemented
 priority: P1
 category: functional
 epic: EPIC-5456

@@ -2,7 +2,7 @@
 type: task
 id: TASK-041
 title: Delete the PR size ceilings outright
-status: in-progress
+status: done
 priority: P1
 complexity: S
 related:
