@@ -498,6 +498,7 @@ Issue #5404 names the mechanism directly rather than one dated incident. The rec
 ### Detection
 
 - A response reports a completed result and then asks a question whose only function is to continue the interaction, with no blocking decision, no user-requested question, and no policy requirement behind it.
+- A completed response ends on a conditional offer ("If you paste X, I can Y"), which is the same continuation edge phrased as a condition.
 - A reviewer agent's findings list contains an item with no file:line evidence, or padded to meet a minimum count on an otherwise clean diff.
 - Work continues after every acceptance criterion in the frozen task contract is satisfied and no blocker has been raised, driven by remaining delegation budget, TODO slots, or review rounds rather than by a falsified criterion.
 
@@ -509,7 +510,7 @@ Issue #5404 names the mechanism directly rather than one dated incident. The rec
 | Response-tail ownership | `.claude/rules/voice.md` Completion-Tail Audit | Prompt-level (always-on) |
 | Reviewer quota removal | `templates/agents/critic.shared.md`, `templates/agents/qa.shared.md`: exhaustive inspection replaces a minimum finding count, mirrored to generated and hand-maintained copies | Prompt-level |
 | Verdict/decision scenarios | `tests/evals/critic-scenarios.json`, `tests/evals/qa-scenarios.json`, `tests/evals/orchestrator-scenarios.json` scored by `scripts/eval/eval-prompt-change.py` | Eval harness (manual/CI-optional) |
-| Ordinary response-tail scenarios | `tests/evals/completion-terminal-runtime-fixtures.json` scored by `scripts/eval/eval_runtime_parity.py` | Eval harness; regex-based regression backstop today, not yet a semantic grader (see the fixture file's own scope note) |
+| Ordinary response-tail scenarios | `tests/evals/completion-terminal-runtime-fixtures.json` scored by `scripts/eval/eval_runtime_parity.py` | Eval harness (manual): installs both rule files into an isolated Claude workspace, grades each reply with a calibrated model grader, and compares against the pre-#5506 rules with `--instructions-ref` |
 
 The principle: **completion is a terminal state, not an invitation to search for or solicit a new objective.** A finding manufactured to satisfy a quota and a question appended to satisfy a habit of helpfulness are the same failure viewed from two sides of one response.
 
