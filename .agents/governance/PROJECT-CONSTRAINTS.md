@@ -109,7 +109,6 @@ When creating a new AI-powered workflow with concurrency control:
 |------------|--------|--------------|
 | MUST NOT mix multiple logical changes in one commit | code-style-conventions | commit-msg hook |
 | SHOULD use one logical change per commit | code-style-conventions | commit-msg hook |
-| SHOULD limit to max 5 files OR single topic | code-style-conventions | commit-msg hook |
 | MUST use conventional commit format | code-style-conventions | commit-msg hook |
 
 **Reference**: Use `mcp__serena__read_memory` with `memory_file_name="code-style-conventions"`

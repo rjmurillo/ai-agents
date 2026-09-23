@@ -25,7 +25,7 @@ The repository currently has:
 Configure these CI checks as **required** before merge:
 
 1. **PR Validation** (`.github/workflows/pr-validation.yml`)
-   - Blocks: PR description and commit-count violations
+   - Blocks: PR description violations
 
 2. **Pester Tests** (`.github/workflows/pester-tests.yml`)
    - Blocks: PowerShell test failures
