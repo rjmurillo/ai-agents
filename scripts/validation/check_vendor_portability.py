@@ -364,7 +364,7 @@ def _is_raw_string_regex(
     no dot, such as ``scripts/``, are also handled correctly.  Issue #4046.
 
     Real path strings never contain these characters; matching
-    ``r".agents/x"`` (no metachar) is rare and intentionally still flagged
+    ``r".agents/x.md"`` (no metachar) is rare and intentionally still flagged
     so a missing-escape regex does not become a silent bypass.
     """
     if is_fstring_middle:

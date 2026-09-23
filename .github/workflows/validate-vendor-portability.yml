@@ -90,7 +90,7 @@ jobs:
           echo "   Update:   python3 scripts/validation/check_skill_md_exec_portability.py --update-baseline"
           echo ""
           echo "4. A skill Markdown file contains a prose reference to an"
-          echo "   upstream-only runtime path (.agents/, .claude/lib/, .claude/review-axes/)"
+          echo "   upstream-only runtime path (.agents/, .project-toolkit/, .claude/lib/, .claude/review-axes/)"
           echo "   without an opt-out marker (issue #2050)."
           echo "   To declare an intentional dependency, add the marker:"
           echo "     <!-- vendor-portability: <reason> -->"
@@ -98,3 +98,25 @@ jobs:
           echo "   Update:   python3 scripts/validation/check_skill_md_portability.py --update-baseline"
           echo ""
           echo "See issues #2050 and #2838 for context."
+
+  # Issue #5420: `.agents/` keeps only read-only canonical inputs, and agent
+  # write targets live under `.project-toolkit/`. A separate job so the
+  # portability job's step list stays the six validators pre_pr mirrors
+  # (tests/validation/test_pre_pr_covers_vendor_portability.py); pre_pr runs
+  # this gate in-process as "Legacy .agents Write Targets".
+  validate-agents-write-targets:
+    name: Validate .agents Write Targets
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 3
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+
+      - name: Check .agents write targets
+        run: uv run --frozen python scripts/validation/check_agents_write_targets.py

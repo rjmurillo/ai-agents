@@ -168,7 +168,7 @@ from scripts.validation.tracked_paths import GitQueryError
 # Adding a raw ``:`` or ``=`` to that set is the obvious way to reach the three
 # shapes it misses, and it is the wrong way: a raw ``:`` makes the Windows drive
 # letters ``C:\templates\`` and ``C:\.agents\`` count, and a raw ``=`` makes the
-# URL query parameter ``?next=/.agents/x`` count. Naming the two contexts
+# URL query parameter ``?next=/.agents/x.md`` count. Naming the two contexts
 # instead reaches all three shapes and admits none of those, so the trade is not
 # forced (measured over nine shapes, issue #3489).
 _ANCHOR = r"(?:^|(?<=[\s(\[<>\"'`|,;*]))"
@@ -195,7 +195,7 @@ _LABEL_ANCHOR = _ANCHOR + r"(?:path|\[[^\]\r\n]+\]):"
 
 # An unquoted HTML attribute ``<img src=/templates/agents/x.md>`` puts an equals
 # sign immediately before the path. Requiring an open tag and a real attribute
-# name is what keeps ``?next=/.agents/x`` out: a URL query parameter has no
+# name is what keeps ``?next=/.agents/x.md`` out: a URL query parameter has no
 # enclosing tag. The quoted form needs no rule here because ``"`` and ``'`` are
 # already anchor characters.
 _ATTR_ANCHOR = r"<[A-Za-z][^<>\r\n]*?\s(?:src|href|action)="
