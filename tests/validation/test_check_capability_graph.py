@@ -429,7 +429,41 @@ def test_the_retired_metadata_type_key_is_refused(tree: Path, capsys) -> None:
 
 
 def test_a_projection_may_still_carry_the_retired_key(tree: Path) -> None:
-    """A stale mirror is the equivalence gate's problem, not this gate's."""
-    _projection(tree, "mirror", "metadata:\n  type: orchestrator")
+    """A stale mirror is the equivalence gate's problem, not this gate's.
+
+    The projection carries a capability block as well, so the assertion is
+    about the retired key rather than about a file the walker never read.
+    """
+    _skill(tree, "mirror", _block(kind="orchestrator", owns=["mirrored"]))
+    _projection(
+        tree,
+        "mirror",
+        "metadata:\n  type: orchestrator\n  capability:\n    kind: orchestrator",
+    )
+
+    nodes, defects = gate.collect_nodes(tree)
+
+    assert ".claude/skills/mirror/SKILL.md" in [node.path for node in nodes]
+    assert defects == []
+    assert gate.validate_capability_graph(tree) is True
+
+
+def test_a_non_mapping_metadata_is_a_defect(tree: Path, capsys) -> None:
+    """Present but malformed is not the same as absent. Review of PR #5885."""
+    _skill(tree, "malformed", "metadata: orchestrator")
+
+    assert gate.validate_capability_graph(tree) is False
+    assert "`metadata` is str, not a mapping" in capsys.readouterr().err
+
+
+def test_an_absent_metadata_key_is_not_a_defect(tree: Path) -> None:
+    _skill(tree, "plainer", "version: 1.0.0")
+
+    assert gate.validate_capability_graph(tree) is True
+
+
+def test_a_bare_metadata_key_is_not_a_defect(tree: Path) -> None:
+    """`metadata:` with nothing under it parses as None and hides no block."""
+    _skill(tree, "bare", "metadata:")
 
     assert gate.validate_capability_graph(tree) is True

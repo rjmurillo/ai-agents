@@ -343,6 +343,15 @@ def collect_nodes(repo_root: Path) -> tuple[list[Node], list[str]]:
             continue
         metadata = front.get("metadata")
         if not isinstance(metadata, dict):
+            # An absent `metadata` key is an ordinary non-node, and so is a
+            # bare `metadata:` with nothing under it, which YAML parses as
+            # None: neither can hide a capability block. Any other non-mapping
+            # value is malformed, and skipping it silently would drop the
+            # artifact from the graph with no finding.
+            if metadata is not None and _is_canonical(rel):
+                defects.append(
+                    f"{rel}: `metadata` is {type(metadata).__name__}, not a mapping"
+                )
             continue
         if _is_canonical(rel):
             defects.extend(_retired_key_defects(rel, metadata))
