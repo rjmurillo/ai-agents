@@ -7,6 +7,7 @@ priority: P1
 complexity: S
 related:
   - REQ-032
+  - DESIGN-030
 created: 2026-09-22
 updated: 2026-09-22
 author: plan
