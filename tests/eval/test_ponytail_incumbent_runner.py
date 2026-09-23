@@ -71,21 +71,26 @@ def test_build_root_refuses_other_plugin_version(tmp_path: Path) -> None:
 
 
 def test_summarize_gates_on_deterministic_graders_only() -> None:
-    """ADR-058: the judge is advisory and never changes `accepted`."""
+    """ADR-058: judge-backed graders (llm, baseline) never change `accepted`."""
     ok = {"name": "regex", "passed": True, "scored": True}
     bad = {"name": "regex", "passed": False, "scored": True}
     judge_no = {"name": "judge", "passed": False, "scored": True}
     judge_yes = {"name": "judge", "passed": True, "scored": True}
     indicator = {"name": "skill", "passed": False, "scored": False}
+    baseline_no = {"name": "vs-baseline", "passed": False, "scored": True}
     result = {
         "cases": [
             {
                 "name": "c1",
-                "graders": [{"name": "regex", "type": "regex"}, {"name": "judge", "type": "llm"}],
+                "graders": [
+                    {"name": "regex", "type": "regex"},
+                    {"name": "judge", "type": "llm"},
+                    {"name": "vs-baseline", "type": "baseline"},
+                ],
                 "arms": {
                     "with": [
                         {
-                            "graders": [ok, judge_no, indicator],
+                            "graders": [ok, judge_no, baseline_no, indicator],
                             "costUsd": 0.1,
                             "durationSeconds": 4,
                         },

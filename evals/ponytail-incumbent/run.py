@@ -32,6 +32,9 @@ PONYTAIL_VERSION = "4.9.0"
 PONYTAIL_SHA = "0a4dd63ad4541f4f655c4108a295916f3c1d8fda"
 # Upper bound on one `claude plugin eval` call; the cost ceiling bounds spend only.
 EVAL_TIMEOUT_SECONDS = 4 * 60 * 60
+# `claude plugin eval` grader types that need no model. Every other type,
+# including `llm` and `baseline`, is judge-backed and stays advisory.
+DETERMINISTIC_GRADERS = frozenset({"regex", "tool_used", "tool_order", "file_exists"})
 # Pre-registered models. Both arms must run the same pair.
 MODEL = "claude-sonnet-5"
 JUDGE_MODEL = "claude-opus-5-5"
@@ -102,16 +105,18 @@ def build_root(plugin_dir: Path, cases: Path, work: Path, corpus: str) -> Path:
 def summarize(result: dict[str, Any]) -> list[dict[str, Any]]:
     """One row per case and arm: gated acceptance, failed checks, cost, time.
 
-    ADR-058: only deterministic graders gate. `llm` graders are reported as
+    ADR-058: only deterministic graders gate. Judge-backed graders are reported as
     an advisory count and never enter `accepted` or `failed_checks`.
     """
     rows = []
     for case in result["cases"]:
-        llm = {g["name"] for g in case.get("graders", []) if g.get("type") == "llm"}
+        gate = {
+            g["name"] for g in case.get("graders", []) if g.get("type") in DETERMINISTIC_GRADERS
+        }
         for arm, runs in case["arms"].items():
             scored = [[g for g in run["graders"] if g.get("scored", True)] for run in runs]
-            gated = [[g for g in gs if g["name"] not in llm] for gs in scored]
-            judged = [[g for g in gs if g["name"] in llm] for gs in scored]
+            gated = [[g for g in gs if g["name"] in gate] for gs in scored]
+            judged = [[g for g in gs if g["name"] not in gate] for gs in scored]
             rows.append(
                 {
                     "case": case["name"],

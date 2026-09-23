@@ -45,10 +45,10 @@ always stopping, or always reporting zero findings. Length is never scored.
 Per case and arm, from the `claude plugin eval` result:
 
 - **accepted**: runs where every scored deterministic grader passed. ADR-058
-  makes deterministic graders the only gated signal. The `llm` judge is
-  reported as `Advisory: not part of the gated signal.` The first version of
+  makes deterministic graders the only gated signal. We report the `llm`
+  judge as `Advisory: not part of the gated signal.` The first version of
   this section counted the judge too; the report records that correction.
-- **correction burden**: failed deterministic grader checks summed over runs.
+- **correction burden**: we sum failed deterministic grader checks over runs.
   One defect can fail more than one check, so this counts checks, not
   distinct defects.
 - **cost**: `costUsd` summed over runs, excluding judge cost.
