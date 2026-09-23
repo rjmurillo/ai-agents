@@ -26,3 +26,4 @@ finally:
 
 runtime_parity = sys.modules["_runtime_parity"]
 runtime_harness = sys.modules["_runtime_harness"]
+runtime_grader = sys.modules["_runtime_grader"]
