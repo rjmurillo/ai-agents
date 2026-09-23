@@ -79,7 +79,9 @@ def test_valid_chain_passes(tree: Path) -> None:
     assert gate.validate_capability_graph(tree) is True
 
 
-def test_missing_dependency_fails_and_names_both(tree: Path, capsys) -> None:
+def test_missing_dependency_fails_and_names_both(
+    tree: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     _skill(tree, "consumer", _block(kind="orchestrator", depends_on=["absent-capability"]))
 
     assert gate.validate_capability_graph(tree) is False
@@ -89,7 +91,7 @@ def test_missing_dependency_fails_and_names_both(tree: Path, capsys) -> None:
     assert "which no artifact owns" in err
 
 
-def test_self_dependency_fails(tree: Path, capsys) -> None:
+def test_self_dependency_fails(tree: Path, capsys: pytest.CaptureFixture[str]) -> None:
     _skill(
         tree,
         "narcissist",
@@ -100,7 +102,7 @@ def test_self_dependency_fails(tree: Path, capsys) -> None:
     assert "which it also owns" in capsys.readouterr().err
 
 
-def test_cycle_fails_and_prints_members(tree: Path, capsys) -> None:
+def test_cycle_fails_and_prints_members(tree: Path, capsys: pytest.CaptureFixture[str]) -> None:
     _skill(tree, "a", _block(kind="orchestrator", owns=["cap-a"], depends_on=["cap-b"]))
     _skill(tree, "b", _block(kind="orchestrator", owns=["cap-b"], depends_on=["cap-c"]))
     _skill(tree, "c", _block(kind="orchestrator", owns=["cap-c"], depends_on=["cap-a"]))
@@ -112,7 +114,9 @@ def test_cycle_fails_and_prints_members(tree: Path, capsys) -> None:
         assert name in err
 
 
-def test_duplicate_owner_fails_and_names_both_files(tree: Path, capsys) -> None:
+def test_duplicate_owner_fails_and_names_both_files(
+    tree: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     _skill(tree, "first", _block(kind="reusable-primitive", owns=["shared-policy"]))
     _skill(tree, "second", _block(kind="reusable-primitive", owns=["shared-policy"]))
 
@@ -132,7 +136,9 @@ def test_a_projection_repeating_its_canonical_owner_passes(tree: Path) -> None:
     assert gate.validate_capability_graph(tree) is True
 
 
-def test_a_projection_owning_what_no_canonical_artifact_owns_fails(tree: Path, capsys) -> None:
+def test_a_projection_owning_what_no_canonical_artifact_owns_fails(
+    tree: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     _projection(tree, "invented", _block(kind="reusable-primitive", owns=["invented-policy"]))
 
     assert gate.validate_capability_graph(tree) is False
@@ -155,7 +161,9 @@ _COPIED_BLOCK = (
 )
 
 
-def test_consumer_repeating_the_owner_block_fails(tree: Path, capsys) -> None:
+def test_consumer_repeating_the_owner_block_fails(
+    tree: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     _skill(
         tree,
         "owner",
@@ -192,21 +200,23 @@ def test_consumer_keeping_one_line_of_the_owner_passes(tree: Path) -> None:
     assert gate.validate_capability_graph(tree) is True
 
 
-def test_unknown_capability_key_fails(tree: Path, capsys) -> None:
+def test_unknown_capability_key_fails(tree: Path, capsys: pytest.CaptureFixture[str]) -> None:
     _skill(tree, "typo", "metadata:\n  capability:\n    kinds: orchestrator")
 
     assert gate.validate_capability_graph(tree) is False
     assert "unknown capability key(s) `kinds`" in capsys.readouterr().err
 
 
-def test_unknown_kind_fails(tree: Path, capsys) -> None:
+def test_unknown_kind_fails(tree: Path, capsys: pytest.CaptureFixture[str]) -> None:
     _skill(tree, "odd", _block(kind="wizard"))
 
     assert gate.validate_capability_graph(tree) is False
     assert "kind `wizard` is not one of" in capsys.readouterr().err
 
 
-def test_deprecated_without_replacement_fails(tree: Path, capsys) -> None:
+def test_deprecated_without_replacement_fails(
+    tree: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     _skill(tree, "dying", _block(kind="reusable-primitive", owns=["old"], status="deprecated"))
 
     assert gate.validate_capability_graph(tree) is False
@@ -229,7 +239,9 @@ def test_deprecated_with_external_replacement_passes(tree: Path) -> None:
     assert gate.validate_capability_graph(tree) is True
 
 
-def test_unparsable_frontmatter_fails_rather_than_dropping_the_node(tree: Path, capsys) -> None:
+def test_unparsable_frontmatter_fails_rather_than_dropping_the_node(
+    tree: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     path = tree / "templates" / "skills" / "broken.SKILL.md.tmpl"
     path.write_text("---\nname: broken\n  bad: [unclosed\n---\n\nBody.\n", encoding="utf-8")
 
@@ -301,7 +313,9 @@ def test_cli_returns_zero_on_a_clean_tree(tree: Path) -> None:
     assert gate.main([str(tree)]) == 0
 
 
-def test_cli_report_flag_prints_and_returns_zero(tree: Path, capsys) -> None:
+def test_cli_report_flag_prints_and_returns_zero(
+    tree: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     _skill(tree, "primitive", _block(kind="reusable-primitive", owns=["cap"]))
 
     assert gate.main([str(tree), "--report", "json"]) == 0
@@ -343,7 +357,9 @@ def test_scattered_owner_lines_do_not_count_as_a_copied_block(tree: Path) -> Non
     assert gate.validate_capability_graph(tree) is True
 
 
-def test_report_mode_returns_one_on_a_broken_graph(tree: Path, capsys) -> None:
+def test_report_mode_returns_one_on_a_broken_graph(
+    tree: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     """A rendered report is not a clean run. Devin review, PR #5879."""
     _skill(tree, "consumer", _block(kind="orchestrator", depends_on=["absent"]))
 
@@ -353,7 +369,7 @@ def test_report_mode_returns_one_on_a_broken_graph(tree: Path, capsys) -> None:
     assert "which no artifact owns" in captured.err
 
 
-def test_a_mapping_under_owns_is_a_defect(tree: Path, capsys) -> None:
+def test_a_mapping_under_owns_is_a_defect(tree: Path, capsys: pytest.CaptureFixture[str]) -> None:
     """A malformed declaration is reported, not normalized away."""
     _skill(tree, "odd", "metadata:\n  capability:\n    kind: orchestrator\n    owns:\n      x: y")
 
@@ -361,7 +377,9 @@ def test_a_mapping_under_owns_is_a_defect(tree: Path, capsys) -> None:
     assert "owns is dict" in capsys.readouterr().err
 
 
-def test_a_non_string_entry_under_depends_on_is_a_defect(tree: Path, capsys) -> None:
+def test_a_non_string_entry_under_depends_on_is_a_defect(
+    tree: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     _skill(
         tree,
         "odd",
@@ -372,14 +390,18 @@ def test_a_non_string_entry_under_depends_on_is_a_defect(tree: Path, capsys) -> 
     assert "holds a non-string entry" in capsys.readouterr().err
 
 
-def test_an_empty_capability_block_is_a_defect(tree: Path, capsys) -> None:
+def test_an_empty_capability_block_is_a_defect(
+    tree: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     _skill(tree, "hollow", "metadata:\n  capability: {}")
 
     assert gate.validate_capability_graph(tree) is False
     assert "empty `capability` block" in capsys.readouterr().err
 
 
-def test_a_per_harness_agent_template_may_not_declare_a_capability(tree: Path, capsys) -> None:
+def test_a_per_harness_agent_template_may_not_declare_a_capability(
+    tree: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     path = tree / "templates" / "agents" / "analyst.claude.md.tmpl"
     path.write_text(
         "---\nname: analyst\nmetadata:\n  capability:\n    kind: orchestrator\n---\n\nBody.\n",
@@ -418,7 +440,9 @@ def test_the_report_counts_only_canonical_edges(tree: Path) -> None:
     assert "edges: 1" in gate.render(nodes, owners, "text")
 
 
-def test_the_retired_metadata_type_key_is_refused(tree: Path, capsys) -> None:
+def test_the_retired_metadata_type_key_is_refused(
+    tree: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     """capability.kind replaced it, so it cannot come back. Review of PR #5885."""
     _skill(tree, "throwback", "metadata:\n  type: orchestrator")
 
@@ -448,7 +472,7 @@ def test_a_projection_may_still_carry_the_retired_key(tree: Path) -> None:
     assert gate.validate_capability_graph(tree) is True
 
 
-def test_a_non_mapping_metadata_is_a_defect(tree: Path, capsys) -> None:
+def test_a_non_mapping_metadata_is_a_defect(tree: Path, capsys: pytest.CaptureFixture[str]) -> None:
     """Present but malformed is not the same as absent. Review of PR #5885."""
     _skill(tree, "malformed", "metadata: orchestrator")
 
