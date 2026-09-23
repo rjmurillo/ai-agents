@@ -1208,9 +1208,10 @@ def _toolcache_permission_hint(combined: str) -> str | None:
     return (
         "[cause] the step cannot write /opt/hostedtoolcache. act keeps that path in the "
         "act-toolcache Docker volume, and files written there by an older image as root "
-        "are not writable by the current image's runner user. This is stale local state, "
-        "not a workflow defect. Fix: docker volume rm act-toolcache, then push again; "
-        "act recreates the volume on the next run."
+        "are not writable by the current image's runner user. If no step in this workflow "
+        "changes permissions under that path, this is stale local state, not a workflow "
+        "defect. Fix: docker volume rm act-toolcache, then push again; act recreates the "
+        "volume on the next run."
     )
 
 
