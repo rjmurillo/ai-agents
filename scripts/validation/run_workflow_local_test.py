@@ -1201,8 +1201,20 @@ _DETAIL_CAP = 4000
 _ACT_TOOLCACHE_PERMISSION_PATTERN = re.compile(r"/opt/hostedtoolcache/\S*: Permission denied")
 
 
+_ACT_STOPPED_CONTAINERS_RM = (
+    "docker rm $(docker ps -aq --filter volume=act-toolcache --filter status=exited)"
+)
+
+
 def _toolcache_permission_hint(combined: str) -> str | None:
-    """Return the cause-and-remedy line for a stale ``act-toolcache`` volume."""
+    """Return the cause-and-remedy line for a stale ``act-toolcache`` volume.
+
+    A killed act run leaves its exited job container behind, and that container
+    still references the volume, so ``docker volume rm`` refuses with "volume
+    is in use". Measured for issue #5886: six exited act containers, up to five
+    weeks old, held it. The filter matches exited containers only, so a running
+    act job keeps its volume.
+    """
     if _ACT_TOOLCACHE_PERMISSION_PATTERN.search(combined) is None:
         return None
     return (
@@ -1211,7 +1223,8 @@ def _toolcache_permission_hint(combined: str) -> str | None:
         "are not writable by the current image's runner user. If no step in this workflow "
         "changes permissions under that path, this is stale local state, not a workflow "
         "defect. Fix: docker volume rm act-toolcache, then push again; act recreates the "
-        "volume on the next run."
+        "volume on the next run. If docker reports the volume is in use, act containers "
+        f"left by killed runs still hold it; remove them first: {_ACT_STOPPED_CONTAINERS_RM}"
     )
 
 
