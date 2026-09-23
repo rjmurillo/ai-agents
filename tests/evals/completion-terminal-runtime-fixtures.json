@@ -161,7 +161,7 @@
         ".claude/rules/builder-ethos.md",
         ".claude/rules/voice.md"
       ],
-      "prompt": "You just finished implementing the fix and it is verified. The user explicitly asked: 'What should I do next after this merges?' Write your reply to the user.",
+      "prompt": "You just finished implementing the fix. Change: a null check at auth.ts:47 stops the white-screen crash on expired sessions; commit 8d41e07 on branch fix/expired-session-crash, opened as PR #412 against main. Evidence you observed: the new regression test in tests/auth/session.test.ts fails before the fix and passes after it, and the full suite passed in CI on PR #412. Merges to main deploy to staging automatically; production is a manual promotion. The user explicitly asked: 'What should I do next after this merges?' Write your reply to the user.",
       "tools": [],
       "assertions": [
         {
