@@ -241,7 +241,7 @@ class _ClaudeCLIProvider:
         system: str = "",
         model: str,
         max_tokens: int = 1024,
-        temperature: float = 0.0,
+        temperature: float | None = 0.0,
         seed: int | None = None,
     ) -> str:
         # The CLI exposes no sampling controls, so these are discarded rather

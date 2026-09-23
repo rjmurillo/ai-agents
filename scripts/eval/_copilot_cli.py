@@ -432,7 +432,7 @@ class _CopilotCLIProvider:
         system: str = "",
         model: str,
         max_tokens: int = 1024,
-        temperature: float = 0.0,
+        temperature: float | None = 0.0,
         seed: int | None = None,
     ) -> str:
         # Copilot CLI exposes no sampling controls. Ignore max_tokens,

@@ -3,8 +3,12 @@
 from __future__ import annotations
 
 import json
+import sys
+from types import ModuleType, SimpleNamespace
 
 import _anthropic_api
+import _providers
+import _runtime_grader
 import pytest
 from _runtime_output import comparison_verdict, harness_model_id, same_model
 
@@ -72,3 +76,54 @@ def test_messages_request_omits_temperature_when_none() -> None:
 
 def test_messages_request_keeps_explicit_temperature() -> None:
     assert _body(0.0)["temperature"] == 0.0
+
+
+class _FakeMessages:
+    def __init__(self, recorder: list[dict[str, object]]) -> None:
+        self._recorder = recorder
+
+    def create(self, **kwargs: object) -> SimpleNamespace:
+        self._recorder.append(kwargs)
+        return SimpleNamespace(content=[SimpleNamespace(type="text", text="ok")])
+
+
+def _sdk_request(monkeypatch: pytest.MonkeyPatch, temperature: float | None) -> dict[str, object]:
+    recorder: list[dict[str, object]] = []
+    module = ModuleType("anthropic")
+    module.__dict__["Anthropic"] = lambda **_: SimpleNamespace(messages=_FakeMessages(recorder))
+    monkeypatch.setitem(sys.modules, "anthropic", module)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    provider = _providers.resolve_provider("anthropic-sdk")
+
+    provider.complete(
+        messages=[{"role": "user", "content": "x"}],
+        model="claude-sonnet-5",
+        temperature=temperature,
+    )
+
+    return recorder[0]
+
+
+def test_sdk_provider_omits_temperature_when_none(monkeypatch: pytest.MonkeyPatch) -> None:
+    assert "temperature" not in _sdk_request(monkeypatch, None)
+
+
+def test_sdk_provider_keeps_explicit_temperature(monkeypatch: pytest.MonkeyPatch) -> None:
+    assert _sdk_request(monkeypatch, 0.0)["temperature"] == 0.0
+
+
+def test_grade_asks_registry_providers_for_no_temperature() -> None:
+    seen: dict[str, object] = {}
+
+    class _Recorder:
+        name = "recorder"
+        system_fingerprint = None
+
+        def complete(self, **kwargs: object) -> str:
+            seen.update(kwargs)
+            return '{"verdict": "PASS", "reason": "ok"}'
+
+    result = _runtime_grader.grade(_Recorder(), "claude-sonnet-5", "rubric", "prompt", "response")
+
+    assert result.verdict == "PASS"
+    assert seen["temperature"] is None

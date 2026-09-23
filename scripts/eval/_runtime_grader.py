@@ -260,6 +260,7 @@ def grade(
             messages=[{"role": "user", "content": message}],
             system=_SYSTEM_PROMPT,
             model=model,
+            temperature=None,
         )
     except RuntimeError as exc:
         return GradeResult("UNAVAILABLE", str(exc), provider.name, model, None)
