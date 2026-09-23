@@ -35,6 +35,21 @@ def test_generated_project_toolkit_artifacts_are_exempt(path: str) -> None:
     assert checker._is_exempt_citing_file(path)
 
 
+@pytest.mark.parametrize(
+    ("path", "exempt"),
+    (
+        ("evals/ponytail-incumbent/runs/2026-09-23/base.jsonl", True),
+        ("evals/security-spike/runs/20260503T182553Z-eaa08f8d/runs.jsonl", True),
+        ("evals/ponytail-incumbent/README.md", False),
+        ("evals/ponytail-incumbent/reports/2026-09-23-report.md", False),
+        ("docs/evals/x/runs/notes.md", False),
+    ),
+)
+def test_only_recorded_eval_runs_are_exempt(path: str, exempt: bool) -> None:
+    """Raw eval replies are records; authored eval docs stay policed."""
+    assert checker._is_exempt_citing_file(path) is exempt
+
+
 class TestFreshCitationsPass:
     def test_anchored_citation_at_the_right_line_exits_0(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
@@ -122,7 +137,6 @@ class TestFreshCitationsPass:
         code, _out = _run(root, capsys)
 
         assert code == 0
-
 
 
 class TestStaleCitationsFail:
@@ -223,9 +237,7 @@ class TestStaleCitationsFail:
         # line when it was first written literally.
         assert f"{'docs/notes.md'}:1" in out
 
-    def test_untracked_file_fails(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
-    ) -> None:
+    def test_untracked_file_fails(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
         root = _repo(tmp_path)
         _add_doc(root, "docs/notes.md", f"See {GONE}:1 for details.\n")
 
@@ -245,9 +257,7 @@ class TestStaleCitationsFail:
         assert code == 1
         assert "has 5 lines at HEAD" in out
 
-    def test_reversed_range_fails(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
-    ) -> None:
+    def test_reversed_range_fails(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
         root = _repo(tmp_path)
         _add_doc(root, "docs/notes.md", f"See {TARGET}:4-2 for details.\n")
 
@@ -280,7 +290,6 @@ class TestStaleCitationsFail:
 
         assert code == 1
         assert "1-based" in out
-
 
 
 class TestCliContract:
@@ -347,9 +356,7 @@ class TestCliContract:
         # Spec-validation nit (PR #5338): the boolean wrapper's git-failure
         # branch is the one pre_pr actually calls; pin it directly.
         root = _repo(tmp_path)
-        monkeypatch.setattr(
-            checker, "_resolve_default_base_ref", lambda _root: "does-not-exist"
-        )
+        monkeypatch.setattr(checker, "_resolve_default_base_ref", lambda _root: "does-not-exist")
 
         assert checker.validate_citation_freshness(root) is False
 
@@ -376,8 +383,6 @@ class TestCliContract:
         monkeypatch.setattr(checker, "_resolve_default_base_ref", lambda _root: "main")
 
         assert checker.validate_citation_freshness(root) is True
-
-
 
 
 # Line suffixes are joined at runtime so this file carries no literal

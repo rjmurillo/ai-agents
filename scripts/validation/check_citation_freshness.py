@@ -72,6 +72,11 @@ IGNORE_MARKER = "citation-freshness: ignore"
 # Directory fragments whose files synthesize citations on purpose.
 _FIXTURE_FRAGMENTS = ("/fixtures/",)
 
+# Recorded eval runs (evals/<name>/runs/). Raw model replies quote the
+# invented paths of the prompts under test, and a run record is a
+# point-in-time capture, like a session log.
+_EVAL_RUN_RECORD = re.compile(r"^evals/[^/]+/runs/")
+
 # Historical trees this gate exempts beyond stale_script_refs's tuple:
 # episode records are point-in-time captures, exactly like sessions and
 # retrospectives, and that tuple is another gate's contract to widen.
@@ -118,7 +123,7 @@ def _is_exempt_citing_file(path: str) -> bool:
     """Return whether a citing file is out of this gate's scope."""
     if path.startswith(HISTORICAL_ROOTS) or path.startswith(_EXTRA_HISTORICAL_ROOTS):
         return True
-    if path.startswith(_GENERATED_SKILL_MIRROR_ROOTS):
+    if path.startswith(_GENERATED_SKILL_MIRROR_ROOTS) or _EVAL_RUN_RECORD.match(path):
         return True
     # The leading slash makes the fragment match a top-level fixtures/
     # directory too, not only nested ones (diff paths are repo-relative).
@@ -258,9 +263,7 @@ def _check_citation(
     start = int(match.group("start"))
     end_group = match.group("end")
     end = int(end_group) if end_group else start
-    citation_text = f"{cited_path}:{match.group('start')}" + (
-        f"-{end_group}" if end_group else ""
-    )
+    citation_text = f"{cited_path}:{match.group('start')}" + (f"-{end_group}" if end_group else "")
 
     citing_lines = head_files.lines(citing_file)
     markdown = citing_file.endswith(".md")
@@ -279,9 +282,7 @@ def _check_citation(
             )
             hint = _relocation_hint(anchors, cited_lines)
             if hint:
-                finding = Finding(
-                    citing_file, line_number, citation_text, finding.reason + hint
-                )
+                finding = Finding(citing_file, line_number, citation_text, finding.reason + hint)
         return finding
     if cited_lines is None:
         return None
@@ -289,9 +290,7 @@ def _check_citation(
         citing_file,
         line_number,
         citation_text,
-        _citation_anchors(
-            citation_text, line_text, segment, citing_lines, line_number, markdown
-        ),
+        _citation_anchors(citation_text, line_text, segment, citing_lines, line_number, markdown),
         cited_lines,
         start,
         end,
