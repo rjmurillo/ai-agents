@@ -119,8 +119,18 @@ holds canonical scripts and references that
 (`repo-observed`, `build/scripts/generate_skills.py:129`). Within those three
 classes, a file under `templates/` is canonical and a file under `src/claude/`,
 `src/copilot-cli/`, `.github/instructions/`, `.github/agents/`,
-`src/vs-code-agents/`, or `.claude/` is a projection. A projection declaring
-`owns` is a defect. This extends ADR-107's provenance rule
+`src/vs-code-agents/`, or `.claude/` is a projection. A projection is never the
+owner.
+
+**Amended 2026-09-22, in the pull request that declared the first owner.** The
+first wording made any `owns` in a projection a defect, which is unenforceable
+against this repository's own build: ADR-109 binplaces byte-identical copies of
+the template trees, so a canonical declaration arrives in a projection by
+construction and the gate reddened the moment an owner existed. The rule is now
+narrower and still catches the case it was written for: a projection may repeat
+its canonical owner's declaration, and may not own a capability that no
+canonical artifact owns. Byte drift between a projection and its source is the
+equivalence gate's job, not this one's. This extends ADR-107's provenance rule
 ("loaded is not authoritative, and the path is not the class") to ownership
 without redefining its equivalence predicate: the predicate stays in
 `.agents/governance/GENERATOR-FILES.md`, and this record adds only the rule that
@@ -132,7 +142,7 @@ a projection makes no ownership claim.
 2. Every `depends-on` name resolves to some node's `owns` entry.
 3. No node depends on a capability it owns.
 4. The edge set is acyclic.
-5. No projection declares `owns`.
+5. No projection owns a capability that no canonical artifact owns.
 6. `status: deprecated` requires `replaced-by`.
 
 ### 5. Adoption is incremental

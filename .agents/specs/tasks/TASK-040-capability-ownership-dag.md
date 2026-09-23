@@ -101,7 +101,9 @@ the counts computed by the script rather than written by hand.
    agent tree. They convert when ADR-109 B1 finishes moving that tree onto the
    per-harness templates; until then the shared body and its partial are two
    authored copies of one agent, which is a pre-existing duplication this
-   milestone does not own.
+   milestone does not own. The security rule carries the waiver: it names the
+   four files, requires them byte-identical to the canonical partial, and says
+   a fifth copy is a violation rather than residue.
 8. Run the security review axis over the diff, because the converted policy is
    a prompt-injection defense. Compare the rendered output before and after, so
    the diff shows that no consumer lost text at render time.

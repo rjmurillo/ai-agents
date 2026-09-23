@@ -87,6 +87,13 @@ and raised two design questions. All five were accepted.
 | D4 | The agent declaration site was ambiguous between `*.shared.md` and the per-harness templates | One site per class, stated in the record and enforced: a block in a per-harness template is a defect naming the shared file |
 | D5 | An empty capability block counted as a node | An empty block is a defect |
 
+## Revision 5, review round 2 on PR #5881
+
+| ID | Finding | Fix |
+|---|---|---|
+| R5-1 | The gate stopped refusing a projection's `owns` declaration, but ADR-110, REQ-031, and TASK-040 still required that refusal. Code and contract disagreed | Amended Decision 3 and invariant 5 in this record, and invariant 5 plus criterion 5 in REQ-031, with the reason the first wording was unenforceable against this repository's own binplace step |
+| R5-2 | The security rule told prompt surfaces not to restate the policy while four agent shared bodies restate it, with no waiver in the rule itself | The rule now names the four files, the generator reason, the byte-identity requirement, and the ADR-109 B1 retirement condition, and states that a fifth copy is a violation rather than residue |
+
 ## Verification after revision
 
 - `uv run python scripts/validation/check_capability_graph.py .` exits 0 against

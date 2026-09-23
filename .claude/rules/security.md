@@ -88,6 +88,19 @@ or agent that needs the policy declares `depends-on: [untrusted-content-handling
 and includes the partial rather than copying its words. ADR-110 carries the
 contract.
 
+### Approved residue
+
+Four agent shared bodies carry the canonical wording verbatim rather than an
+include: `code-reviewer`, `high-level-advisor`, `security`, and `skillbook`.
+Their generator reads those files directly and runs no mustache expansion, so
+an include would ship the literal token to the VS Code agent tree. The copies
+are byte-identical to the canonical partial, and a drift there fails the
+generated-file checks.
+
+This waiver retires when ADR-109 B1 moves that tree onto the per-harness
+templates. Until then, those four files are the whole approved set: a fifth
+copy, or an edited one of these four, is a new violation rather than residue.
+
 ## References
 
 - `.agents/governance/SECURITY-REVIEW-PROTOCOL.md`. Review gates.
