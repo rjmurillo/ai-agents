@@ -47,11 +47,6 @@ from scripts.ci import diff_line_scope
 from scripts.hook_utilities.utilities import recent_host_session_dates
 from scripts.test_selection import select_tests
 from scripts.validation.object_id import ZERO_SHA_LENGTHS, is_full_object_id
-from scripts.validation.pr_commit_count import (
-    ALERT_THRESHOLD,
-    WARNING_THRESHOLD,
-    classify_count,
-)
 from scripts.validation.session_scope import (
     added_session_paths_in_index,
     session_change_scope,
@@ -6854,59 +6849,13 @@ def _check_push_updates(updates: Sequence[PushUpdate], repo_root: Path) -> int:
                 f"{squash_result.warning}",
                 file=sys.stderr,
             )
-        count_result = _check_commit_limit(update, repo_root)
         marker_result = _check_review_marker(update, repo_root)
         plugin_result = _check_plugin_version(update, repo_root)
-        policy_failed |= count_result == 1 or marker_result == 1 or plugin_result == 1
-        config_failed |= count_result == 2 or marker_result == 2
+        policy_failed |= marker_result == 1 or plugin_result == 1
+        config_failed |= marker_result == 2
     if policy_failed:
         return 1
     return 2 if config_failed else 0
-
-
-def _check_commit_limit(update: PushUpdate, repo_root: Path) -> int:
-    """Print an advisory notice for a large branch. Never blocks (issue #5233).
-
-    The 20/40-commit block, its `commit-limit-bypass` human-only label, and the
-    main-merge relief that raised the ceiling to 40 are removed: the block
-    required local verification of a GitHub label that this hook cannot always
-    perform (`gh` has no API access in some sandboxed sessions), which forced
-    authors into an expensive workaround -- an entirely new stacked branch and
-    PR -- to route around a check that could not confirm a fact that was
-    already true. `needs-split` (an advisory-only label with no local
-    enforcement) is unaffected.
-    """
-    result = _run_git(repo_root, ["rev-list", "--count", update.range_spec])
-    if result.returncode != 0:
-        _print_process_output(result)
-        print(
-            f"WARNING: could not measure commit count for '{update.destination_branch}'; "
-            "skipping the advisory notice. This is never blocking (issue #5233).",
-            file=sys.stderr,
-        )
-        return 0
-    try:
-        commit_count = int(result.stdout.strip())
-    except ValueError:
-        print(
-            f"WARNING: could not parse commit count for '{update.destination_branch}' "
-            f"(got {result.stdout.strip()!r}); skipping the advisory notice. "
-            "This is never blocking (issue #5233).",
-            file=sys.stderr,
-        )
-        return 0
-    status = classify_count(commit_count)
-    if status == "ALERT":
-        print(
-            f"NOTE: branch has {commit_count} commits (>= {ALERT_THRESHOLD}). "
-            "Consider splitting; this is advisory only and does not block.",
-        )
-    elif status == "WARNING":
-        print(
-            f"NOTE: branch has {commit_count} commits (>= {WARNING_THRESHOLD}). "
-            "Consider splitting; this is advisory only and does not block.",
-        )
-    return 0
 
 
 def _check_review_marker(update: PushUpdate, repo_root: Path) -> int:

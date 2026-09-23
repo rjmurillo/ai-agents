@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Enforce blocking PR validation results.
 
-The commit-count gate's BLOCKED status and its `commit-limit-bypass` label
-check were removed (issue #5233). The commit count is still reported (see
-`scripts/validation/pr_commit_count.py`) but is advisory only and never fails
-this step.
+The commit-count gate's BLOCKED status, its `commit-limit-bypass` label
+check, and the advisory commit-count classifier that replaced it were all
+removed (issue #5233, issue #5241). This step no longer reports or enforces
+a commit count.
 
 The removal's motivating failure was local, not here: the local pre-push
 hook's bypass-label check (the now-deleted
@@ -15,8 +15,8 @@ branch and PR) to route around a check that could not confirm a fact that
 was already true. This CI job runs under `GH_TOKEN: ${{ secrets.GITHUB_TOKEN
 }}` (`.github/workflows/pr-validation.yml`) and never suffered that specific
 access failure; its own block was removed for consistency with ADR-099's
-decision to make the commit-count signal advisory everywhere, not because
-this step itself lacked GitHub access.
+decision to make the commit-count signal advisory everywhere, and the
+classifier itself was later deleted outright (ADR-100, issue #5241).
 """
 
 from __future__ import annotations

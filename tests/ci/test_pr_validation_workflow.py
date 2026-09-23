@@ -25,7 +25,6 @@ def _load_module(name: str):
 
 description_mod = _load_module("map_pr_description_result")
 report_mod = _load_module("build_pr_validation_report")
-label_mod = _load_module("update_needs_split_label")
 enforce_mod = _load_module("enforce_pr_validation")
 
 
@@ -263,114 +262,6 @@ def test_workflow_delegates_first_pr_validation_blocks():
     assert all("steps.check-qa.outputs" not in str(value) for value in report_env.values())
 
 
-def test_add_needs_split_label_posts_when_missing(monkeypatch: pytest.MonkeyPatch):
-    calls: list[tuple[list[str], str | None]] = []
-
-    def fake_run(
-        args: list[str],
-        *,
-        input_text: str | None = None,
-    ) -> subprocess.CompletedProcess[str]:
-        calls.append((args, input_text))
-        if args[:2] == ["api", "repos/o/r/issues/42/labels"]:
-            return subprocess.CompletedProcess(args, 0, "bug\n")
-        return subprocess.CompletedProcess(args, 0, "")
-
-    monkeypatch.setattr(label_mod, "_run_gh", fake_run)
-
-    assert label_mod.add_label("o/r", "42") == 0
-    assert calls == [
-        (["api", "repos/o/r/issues/42/labels", "--jq", ".[].name"], None),
-        (
-            [
-                "api",
-                "-X",
-                "POST",
-                "-H",
-                "Accept: application/vnd.github+json",
-                "repos/o/r/issues/42/labels",
-                "--input",
-                "-",
-            ],
-            '{"labels":["needs-split"]}',
-        ),
-    ]
-
-
-def test_add_needs_split_label_skips_when_present(monkeypatch: pytest.MonkeyPatch):
-    calls: list[list[str]] = []
-
-    def fake_run(
-        args: list[str],
-        *,
-        input_text: str | None = None,
-    ) -> subprocess.CompletedProcess[str]:
-        calls.append(args)
-        return subprocess.CompletedProcess(args, 0, "needs-split\n")
-
-    monkeypatch.setattr(label_mod, "_run_gh", fake_run)
-
-    assert label_mod.add_label("o/r", "42") == 0
-    assert calls == [["api", "repos/o/r/issues/42/labels", "--jq", ".[].name"]]
-
-
-def test_add_needs_split_label_fetch_failure_is_advisory(
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-):
-    monkeypatch.setattr(
-        label_mod,
-        "_run_gh",
-        lambda *args, **kwargs: subprocess.CompletedProcess(args, 3, ""),
-    )
-
-    assert label_mod.add_label("o/r", "42") == 0
-    assert "skipping advisory 'needs-split' label" in capsys.readouterr().err
-
-
-def test_remove_needs_split_label_deletes_when_present(monkeypatch: pytest.MonkeyPatch):
-    calls: list[list[str]] = []
-
-    def fake_run(
-        args: list[str],
-        *,
-        input_text: str | None = None,
-    ) -> subprocess.CompletedProcess[str]:
-        calls.append(args)
-        if args[:2] == ["api", "repos/o/r/issues/42/labels"]:
-            return subprocess.CompletedProcess(args, 0, "needs-split\n")
-        return subprocess.CompletedProcess(args, 0, "")
-
-    monkeypatch.setattr(label_mod, "_run_gh", fake_run)
-
-    assert label_mod.remove_label("o/r", "42") == 0
-    assert calls[-1] == [
-        "api",
-        "-X",
-        "DELETE",
-        "-H",
-        "Accept: application/vnd.github+json",
-        "repos/o/r/issues/42/labels/needs-split",
-    ]
-
-
-def test_remove_needs_split_label_skips_when_absent(monkeypatch: pytest.MonkeyPatch):
-    calls: list[list[str]] = []
-
-    def fake_run(
-        args: list[str],
-        *,
-        input_text: str | None = None,
-    ) -> subprocess.CompletedProcess[str]:
-        calls.append(args)
-        return subprocess.CompletedProcess(args, 0, "bug\n")
-
-    monkeypatch.setattr(label_mod, "_run_gh", fake_run)
-
-    assert label_mod.remove_label("o/r", "42") == 0
-    assert calls == [["api", "repos/o/r/issues/42/labels", "--jq", ".[].name"]]
-
-
 def test_enforce_fails_on_validation_error(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -400,7 +291,7 @@ def test_enforce_passes_when_no_blocking_inputs(
 def test_enforce_ignores_the_commit_status_env_var(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """ADR-099: the commit-count gate is advisory only; enforce_mod never reads it.
+    """ADR-100: the commit-count gate is gone; enforce_mod never reads its env var.
 
     A leftover COMMIT_STATUS=BLOCKED in the environment (stale caller, a
     workflow that has not been updated) must not resurrect the removed block.
@@ -414,8 +305,6 @@ def test_enforce_ignores_the_commit_status_env_var(
 def test_workflow_delegates_all_pr_validation_blocks():
     workflow = WORKFLOW.read_text(encoding="utf-8")
 
-    assert "python3 scripts/ci/update_needs_split_label.py --mode add" in workflow
-    assert "python3 scripts/ci/update_needs_split_label.py --mode remove" in workflow
     assert "python3 scripts/ci/enforce_pr_validation.py" in workflow
     assert "python3 scripts/ci/adr006_run_block_scanner.py --max 0" in workflow
     assert "gh api `\n            -X DELETE" not in workflow
@@ -526,88 +415,6 @@ class TestModelPinEnforcementIsWiredIntoCI:
         assert result.returncode == 0, result.stdout + result.stderr
 
 
-class TestTheCommitCountGateCanReadMainsTrunk:
-    """The checkout hosting `pr_commit_count.py` must keep full history.
-
-    Historical note: this class originally pinned issue #3997, where
-    ``pr_commit_count.contains_main_merge`` decided a 20-vs-40 commit ceiling
-    by reading ``origin/main``'s first-parent trunk, and a shallow checkout
-    made that predicate fail closed. ADR-099 removed that block and its trunk
-    read entirely: the commit count is advisory only now, and
-    `pr_commit_count.py` needs no history beyond the PR's own commits.
-
-    The checkout still has to stay unshallow, for an unrelated reason that
-    happens to share the same job: `Run merge-tree ratchet` and several count
-    ratchets run later in this same `validate-pr` job (issue #4572, #4518) and
-    need `origin/main` present and unsevered. A shallow checkout here would
-    leave `.git/shallow` in place for the whole job and break `git merge-tree`
-    with "refusing to merge unrelated histories". These tests still pin the
-    checkout wiring; they no longer pin anything about the commit-count gate
-    itself.
-    """
-
-    HOST_JOB = "validate-pr"
-
-    @staticmethod
-    def _jobs() -> dict:
-        return yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))["jobs"]
-
-    @classmethod
-    def _host_steps(cls) -> list:
-        return cls._jobs()[cls.HOST_JOB]["steps"]
-
-    @classmethod
-    def _gate_step(cls) -> dict:
-        steps = [
-            step for step in cls._host_steps() if "pr_commit_count.py" in str(step.get("run", ""))
-        ]
-        assert len(steps) == 1, "expected exactly one commit-count step"
-        return steps[0]
-
-    @classmethod
-    def _checkout_steps(cls) -> list:
-        """The checkouts that run on the same condition as the gate.
-
-        This job also checks out on the *inverse* condition, to validate
-        workflow YAML on PRs whose author suppressed the main path. That
-        checkout never coexists with the gate, so it is not the one under test.
-        """
-        guard = cls._gate_step().get("if")
-        return [
-            step
-            for step in cls._host_steps()
-            if "actions/checkout" in str(step.get("uses")) and step.get("if") == guard
-        ]
-
-    def test_the_commit_count_gate_runs_in_the_checked_out_job(self) -> None:
-        """Positive: the gate and the checkout it depends on share a job.
-
-        The predicate resolves the repository from the process working
-        directory, so a checkout in some other job would not reach it.
-        """
-        assert len(self._checkout_steps()) == 1
-
-    def test_the_checkout_fetches_the_full_history(self) -> None:
-        """Positive: fetch-depth 0 is what populates refs/remotes/origin/main.
-
-        actions/checkout writes ``+refs/heads/*:refs/remotes/origin/*`` only on
-        an unshallow fetch. Any positive depth leaves origin/main absent or
-        truncated, and a truncated trunk is worse than an absent one because it
-        answers wrongly instead of failing closed.
-        """
-        checkout = self._checkout_steps()[0]
-        assert checkout.get("with", {}).get("fetch-depth") == 0
-
-    def test_the_hosting_job_is_not_conditional(self) -> None:
-        """Edge: a skipped host job would report no status at all.
-
-        ``validate-pr`` is a required check that always reports status, so it
-        carries no job-level ``if``. A path filter here would let a PR skip
-        the merge-tree ratchet and every other gate sharing this job.
-        """
-        assert "if" not in self._jobs()[self.HOST_JOB]
-
-
 class TestBotSkipGuardClassification:
     """Every step behind the skip guard must have a documented classification.
 
@@ -630,7 +437,6 @@ class TestBotSkipGuardClassification:
     - Generate Validation Report: same
     - Post PR Comment: same
     - Set Job Summary: same
-    - Check PR commit count: a single-commit dep-bump is never blocked
     - Enforce Blocking Issues: depends on outputs of skip-guarded steps above
 
     Security/correctness gates that MUST be unconditional:
@@ -723,7 +529,6 @@ class TestBotSkipGuardClassification:
             "Generate Validation Report",
             "Post PR Comment",
             "Set Job Summary",
-            "Check PR commit count",
             "Enforce Blocking Issues",
         }
     )
@@ -850,8 +655,7 @@ class TestBotSkipGuardClassification:
         A step removed from the workflow without pruning the allowlist leaves
         phantom permission in _ALLOWED_BEHIND_GUARD that is never exercised.
         This test requires every allowed name to actually exist in the workflow,
-        either as a skip-guarded step or elsewhere in the job (the commit-count
-        label steps are conditional on a different output, not on skip).
+        either as a skip-guarded step or elsewhere in the job.
         """
         all_step_names = {str(step.get("name", "")) for step in self._host_steps()}
         for name in self._ALLOWED_BEHIND_GUARD:

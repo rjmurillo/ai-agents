@@ -719,8 +719,8 @@ class TestWarningSuppressionFromReferenceSection:
             validate_pr_description,
         )
 
-        desc = "## Summary\nBug fix.\n\n## References\n- `scripts/validation/pr_commit_count.py`\n"
-        pr_files = ["scripts/validation/pr_commit_count.py"]
+        desc = "## Summary\nBug fix.\n\n## References\n- `scripts/validation/session_scope.py`\n"
+        pr_files = ["scripts/validation/session_scope.py"]
         mentioned = extract_mentioned_files(desc)
         all_mentioned = extract_all_mentioned_files(desc)
 
@@ -763,7 +763,7 @@ class TestWarningSuppressionFromReferenceSection:
         )
 
         desc = "## Summary\nDid a thing.\n"
-        pr_files = ["scripts/validation/pr_commit_count.py"]
+        pr_files = ["scripts/validation/session_scope.py"]
         mentioned = extract_mentioned_files(desc)
         all_mentioned = extract_all_mentioned_files(desc)
 
