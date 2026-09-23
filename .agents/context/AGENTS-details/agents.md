@@ -2,7 +2,7 @@
 
 Serena[BLOCKING]|mcp__serena__activate_project|mcp__serena__initial_instructions|fallback:`.serena/memories/<name>.md`|post:rerun
 Knowledge -> context|C7/DW/Web|mem|constraints gov|ADRs arch|skills/rules .claude|generators gov
-Gates|S init/handoff/resume/memory/git|M rev-list 10/15|P `pre_pr.py`/no BLOCKING/security/style|E handoff/Serena/lint/commit/check
+Gates|S init/handoff/resume/memory/git|P `pre_pr.py`/no BLOCKING/security/style|E handoff/Serena/lint/commit/check
 **Always**: Python ADR-042|branch/skills/PR/lint|SHA Actions|workflows|No manifest version (ADR-092)
 **Ask First**: architecture/ADR/breaking/security
 **Autonomy Guardrail**: reversible internal|irreversible external|ambiguous minimal+flag

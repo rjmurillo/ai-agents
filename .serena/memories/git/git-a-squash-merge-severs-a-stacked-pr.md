@@ -201,19 +201,11 @@ counting mechanism itself changed (ADR-099, 2026-08-21, issue #5233).**
 in `scripts/validation/git_hook_policy.py`. Its
 `git rev-list --count <sha> --not --exclude=origin/<branch> --remotes=origin`
 query, which excluded commits carried by any *other* `refs/remotes/origin/*`
-ref, is gone with it. The surviving `_check_commit_limit` computes its count
-directly with `git rev-list --count <merge-base>..<head>` (no
-exclude-remotes special-casing), so the "count moves once a tracking ref is
-pruned" behavior this section used to describe no longer applies: nothing
-in the current advisory path reads other remote-tracking refs at all.
-`_check_commit_limit` (`scripts/validation/git_hook_policy.py`) no longer
-blocks a push at any threshold, and the
-`commit-limit-bypass` label and its human-only-maintainer step were removed
-entirely, because the label could not be reliably verified from inside a
-sandboxed Claude Code session. If a repair merge like this one now pushes a
-count over the old 20/40 thresholds, the only visible effect is the
-advisory `needs-split` label and a WARNING/ALERT notice; nothing blocks the
-push. Measured here (before the removal) with the PARENT tracking ref still
+ref, is gone with it. `_check_commit_limit` and the `needs-split` label
+automation were deleted too (ADR-100 amendment, 2026-09-22, issue #5241), so
+no pre-push or CI path counts commits any more, and a repair merge like this
+one has no size effect at all. The `commit-limit-bypass` label went earlier,
+with ADR-099. Measured here (before the removal) with the PARENT tracking ref still
 present: raw 43, counted 21, limit 20, genuinely new 3; removing that
 tracking ref raised the counted figure to 35. That specific measurement is
 kept as a worked example of how the count moves, not as a description of a
