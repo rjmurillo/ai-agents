@@ -28,8 +28,9 @@ ALWAYS_ON_SKILL_PATTERN: re.Pattern[str] = re.compile(
     | \balways\s+load(ed)?\b
     | \bload(ed)?\s+first\b
     | \bat\s+(the\s+)?(start\s+of\s+(every|each)|session\s+start)\b
-    | \bbefore\s+answering\s+(any|every)\s+(questions?|requests?|prompts?|messages?)\b
-      (?!\s+(about|on|for|regarding|involving)\b)
+    | \bbefore\s+answering\s+(any|every)\s+((user|incoming|new)\s+)?
+      (questions?|requests?|prompts?|messages?)\b
+      (?!\s+(about|on|for|regarding|involving|related|concerning)\b)
     """,
     re.IGNORECASE | re.VERBOSE,
 )
