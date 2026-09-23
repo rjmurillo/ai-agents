@@ -22,7 +22,7 @@ ERROR: staged .agents changes require a JSON session log
 The log path must match:
 
 ```
-^\.agents/sessions/\d{4}-\d{2}-\d{2}-session-\d+.*\.json$
+^\.project-toolkit/sessions/\d{4}-\d{2}-\d{2}-session-\d+.*\.json$
 ```
 
 and the file must validate against `.agents/schemas/session-log.schema.json`.
@@ -59,9 +59,9 @@ Required shape, so a log can be written correctly on the first attempt:
 ## Evidence
 
 Observed 2026-08-02 while committing a retrospective artifact to
-`.agents/retrospective/`. Six commit attempts, each rejected with a different
+`.project-toolkit/retrospective/`. Six commit attempts, each rejected with a different
 single missing key, before the log validated. Working example committed at
-`.agents/sessions/2026-08-02-session-4310-retro-phase5.json`.
+`.project-toolkit/sessions/2026-08-02-session-4310-retro-phase5.json`.
 
 Session numbers are not sequential and not enforced against a registry; the
 highest observed at the time was 4256, and 4310 was accepted. There are more

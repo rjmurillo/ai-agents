@@ -16,7 +16,7 @@ Canonical contract quoted verbatim (level-1 lookup) from
 ``scripts/validation/git_hook_policy.py``:
 
     SESSION_PATH_RE = re.compile(
-        r"^\.agents/sessions/\d{4}-\d{2}-\d{2}-session-\d+.*\.json$"
+        r"^\.project-toolkit/sessions/\d{4}-\d{2}-\d{2}-session-\d+.*\.json$"
     )
 
 The new ``check_sessions`` no-log branch, quoted verbatim from the same file:
@@ -51,7 +51,7 @@ SCHEMA_PATH = PROJECT_ROOT / ".agents" / "schemas" / "session-log.schema.json"
 # behavioral pin: a contributor may stage .agents/** with no session log.
 _RETIRED_MANDATE = "require a JSON session log"
 
-_SESSION_REL = ".agents/sessions/2026-01-18-session-1.json"
+_SESSION_REL = ".project-toolkit/sessions/2026-01-18-session-1.json"
 
 _CANONICAL_CONTRACT_PATHS = (
     ".agents/README.md",
@@ -349,8 +349,8 @@ def test_adr_review_gate_requires_staged_debate_evidence(tmp_path: Path) -> None
     """ADR governance accepts durable staged evidence, not a working-tree file."""
     repo = tmp_path / "repo"
     _init_repo(repo)
-    adr_path = ".agents/architecture/ADR-099-example.md"
-    debate_path = ".agents/critique/ADR-099-debate-log.md"
+    adr_path = ".project-toolkit/architecture/ADR-099-example.md"
+    debate_path = ".project-toolkit/critique/ADR-099-debate-log.md"
     _stage_file(repo, adr_path, "# ADR-099\n")
     debate = repo / debate_path
     debate.parent.mkdir(parents=True)

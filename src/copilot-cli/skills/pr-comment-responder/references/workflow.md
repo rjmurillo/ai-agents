@@ -94,7 +94,7 @@ Verify core memory loaded:
 
 ```bash
 SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
-SESSION_DIR=".agents/pr-comments/PR-[number]"
+SESSION_DIR=".project-toolkit/pr-comments/PR-[number]"
 
 if [ -d "$SESSION_DIR" ]; then
   echo "[CONTINUATION] Previous session found"
@@ -183,7 +183,7 @@ fi
 
 ### Step 2.2: Generate Comment Map
 
-Save to: `.agents/pr-comments/PR-[number]/comments.md`
+Save to: `.project-toolkit/pr-comments/PR-[number]/comments.md`
 
 Each comment gets:
 
@@ -245,7 +245,7 @@ For each comment, delegate to orchestrator with full context:
 Task(subagent_type="orchestrator", prompt="""
 [Context from Step 3.1]
 
-After analysis, save plan to: `.agents/pr-comments/PR-[number]/[comment_id]-plan.md`
+After analysis, save plan to: `.project-toolkit/pr-comments/PR-[number]/[comment_id]-plan.md`
 
 Verify the finding's premise (Skill(skill="reviewer-findings")) before
 choosing Action: Implement. A premise git history refutes routes to
@@ -261,7 +261,7 @@ Return:
 
 ## Phase 4: Task List Generation
 
-Save to: `.agents/pr-comments/PR-[number]/tasks.md`
+Save to: `.project-toolkit/pr-comments/PR-[number]/tasks.md`
 
 Priority groups:
 
@@ -355,4 +355,4 @@ mcp__serena__edit_memory(
 )
 ```
 
-<!-- vendor-portability: declared. This workflow saves the comment map and task list under .agents/pr-comments/PR-[number]/. The path is a write target created on demand; a vendored install writes the consumer's own review artifacts there. Issue #2050. -->
+<!-- vendor-portability: declared. This workflow saves the comment map and task list under .project-toolkit/pr-comments/PR-[number]/. The path is a write target created on demand; a vendored install writes the consumer's own review artifacts there. Issue #2050. -->

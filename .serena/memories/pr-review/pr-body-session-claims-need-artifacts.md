@@ -3,7 +3,7 @@
 ## Statement
 
 When a PR body says "N times this session" or "I re-derived X", a reviewer
-verifies that against `.agents/sessions/*.json` and `.agents/retrospective/*.md`.
+verifies that against `.project-toolkit/sessions/*.json` and `.project-toolkit/retrospective/*.md`.
 Your working recollection of the session is not admissible, because the reviewer
 cannot open it. An event you did not write down when it happened cannot be cited
 as evidence later.
@@ -35,7 +35,7 @@ The body was corrected down to the three the retrospective corroborates.
 
 | Claim | Verified against |
 | --- | --- |
-| "N times this session" | `.agents/retrospective/*.md` tables, session `workLog` |
+| "N times this session" | `.project-toolkit/retrospective/*.md` tables, session `workLog` |
 | "this file changed" | the branch diff |
 | "the memory already said X" | the memory file, cited with a line number |
 | "the fix landed at `<sha>`" | `git show <sha>` |

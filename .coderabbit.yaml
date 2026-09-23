@@ -19,8 +19,8 @@ reviews:
 
   # Exclude generated files and agent artifacts from review
   path_filters:
-    - "!.agents/sessions/**"
-    - "!.agents/analysis/**"
+    - "!.project-toolkit/sessions/**"
+    - "!.project-toolkit/analysis/**"
     - "!.serena/memories/**"
     - "!**/*.generated.*"
     - "!**/bin/**"

@@ -9,7 +9,7 @@ coverage.xml
 testResults.xml
 
 # Transient eval artifacts (ADR-057): re-runnable, not source of truth
-.agents/audit/eval-*/
+.project-toolkit/audit/eval-*/
 
 # Model sweep run artifacts: runtime evidence under a tracked fixture tree.
 evals/*/reports/sweep-*/
@@ -18,7 +18,7 @@ evals/*/runs/sweep-*/
 # Transient PR-creation validation-skip audit logs: one record per
 # `new_pr.py --skip-validation` invocation; reproducible from git
 # history + hook output, not source of truth.
-.agents/audit/pr-creation-skip-*.txt
+.project-toolkit/audit/pr-creation-skip-*.txt
 
 # Runtime caches
 .cache/
@@ -71,20 +71,20 @@ ENV/
 **/__pycache__/
 
 # Agent PR scratch files
-.agents/pr-comments/
-.agents/scratch/
-.agents/temp/
-.agents/logs/
-.agents/.hook-state/
+.project-toolkit/pr-comments/
+.project-toolkit/scratch/
+.project-toolkit/temp/
+.project-toolkit/logs/
+.project-toolkit/.hook-state/
 
 # Transient PR review reply drafts. The pr-comment-responder skill
 # stages reply bodies as files for `--body-file` posting; once the
 # reply is on the PR thread the local copy has no enduring value.
 # Reply drafts must not accumulate as untracked workspace clutter.
-.agents/audit/pr-*-replies/
-.agents/audit/pr*-reply-*.md
-.agents/audit/pr*-reply.md
-.agents/audit/pr*-body-*.md
+.project-toolkit/audit/pr-*-replies/
+.project-toolkit/audit/pr*-reply-*.md
+.project-toolkit/audit/pr*-reply.md
+.project-toolkit/audit/pr*-body-*.md
 
 # scripts/ci/build_pr_validation_report.py writes this to the repo root.
 # Harmless on an ephemeral runner, untracked litter in a working tree.
@@ -156,7 +156,7 @@ wt_*/
 .factory/*
 !.factory/mcp.json
 # Claude hook runtime state
-/.agents/.hook-state/
+/.project-toolkit/.hook-state/
 
 # CodeQL artifacts
 .codeql/cli/
@@ -165,7 +165,7 @@ wt_*/
 .codeql/logs/
 
 # Traceability cache
-.agents/.cache/
+.project-toolkit/.cache/
 
 .claude/worktrees/
 .worktrees/
@@ -181,7 +181,7 @@ bun.lockb
 # Kill-criteria telemetry (REQ-008-09): runtime events are not source of
 # truth and must not land in git. Only the .gitkeep seed is tracked so the
 # directory exists on a fresh clone.
-.agents/metrics/drift-events.jsonl
+.project-toolkit/metrics/drift-events.jsonl
 
 # Model-sweep output (#3597). eval-model-sweep.py roots its artifacts at
 # REPO_ROOT, so every run drops directories and an aggregate report inside the

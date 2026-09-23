@@ -41,7 +41,7 @@ for executable invocations of exactly that tree. All four live in
 Symptom: the first two pass, you commit, and the push is rejected by
 `pre_pr.py` with `[FAIL] Skill Markdown Portability` naming a reference file
 you just added. A new `.md` under `.claude/skills/` that cites a repo path such
-as `.agents/analysis/...` starts at baseline 0 and any reference is drift.
+as `.project-toolkit/analysis/...` starts at baseline 0 and any reference is drift.
 
 Fix: resolve the path through the plugin or skill root, or declare it with an
 HTML comment marker on its own line at the end of the file:
@@ -971,7 +971,7 @@ the extractor derive the number, which is what it is built to do:
 ```bash
 # set "endingCommit" in the session log to the commit you just made, then
 uv run --frozen python .claude/skills/memory/scripts/extract_session_episode.py \
-  .agents/sessions/<log>.json --preserve
+  .project-toolkit/sessions/<log>.json --preserve
 ```
 
 `--preserve` recomputes `metrics.commits` from the commit-event stream, so the

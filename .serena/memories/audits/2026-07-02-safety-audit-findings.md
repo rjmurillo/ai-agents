@@ -2,7 +2,7 @@
 
 ## Summary
 
-Full six-pass read-only audit of the repo (report: `.agents/audits/2026-07-02-safety-audit.md`). Counts after cross-model reconciliation: Critical 0, High 13, Medium 37, Low 22. Issues #2806 through #2816 track remediation, grouped by defect shape.
+Full six-pass read-only audit of the repo (report: `.project-toolkit/audits/2026-07-02-safety-audit.md`). Counts after cross-model reconciliation: Critical 0, High 13, Medium 37, Low 22. Issues #2806 through #2816 track remediation, grouped by defect shape.
 
 ## Dominant pattern worth remembering
 

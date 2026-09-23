@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "B008",
   "policy_id": "pol-backlog-generator-from-ai-agents-pattern",
-  "input": "Generator notices: 5 retrospectives in .agents/retrospective/ from the last week reference issue 'verdict-vocabulary mismatch'. Generate task.",
+  "input": "Generator notices: 5 retrospectives in .project-toolkit/retrospective/ from the last week reference issue 'verdict-vocabulary mismatch'. Generate task.",
   "provenance": "paraphrased-from-public",
   "assertions": [
     {

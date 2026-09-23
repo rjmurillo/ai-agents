@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Validate the skillbook registry files against their JSON schemas.
 
-Validates .agents/skillbook/{policies,tensions,workflows}.json against
+Validates .project-toolkit/skillbook/{policies,tensions,workflows}.json against
 .agents/schemas/{policy,tension,workflow}.schema.json (policy.schema.json
 references evidence-entry.schema.json). After schema conformance, it runs
 referential-integrity checks the schema cannot express:
@@ -341,7 +341,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--skillbook-dir",
         type=Path,
-        default=_PROJECT_ROOT / ".agents" / "skillbook",
+        default=_PROJECT_ROOT / ".project-toolkit" / "skillbook",
         help="Directory holding policies/tensions/workflows JSON.",
     )
     parser.add_argument(

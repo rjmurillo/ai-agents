@@ -1,6 +1,6 @@
 # Memory Curation: 2026-06-10 Audit and Dedupe (Session 2382)
 
-Full report: [`.agents/analysis/serena-memory-audit-2026-06-10.md`](../../../.agents/analysis/serena-memory-audit-2026-06-10.md).
+Full report: [`.project-toolkit/analysis/serena-memory-audit-2026-06-10.md`](../../../.project-toolkit/analysis/serena-memory-audit-2026-06-10.md).
 
 ## What changed
 

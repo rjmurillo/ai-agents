@@ -34,7 +34,7 @@ Agents call the CLI. Python callers import the module.
 │         ┌──────────────┐              ┌──────────────────┐           │
 │         │ Serena       │              │ Episodes         │           │
 │         │ (Canonical)  │              │ (Tier 2)         │           │
-│         │ .serena/     │              │ .agents/memory/  │           │
+│         │ .serena/     │              │ .project-toolkit/memory/  │           │
 │         │   memories   │              │   episodes       │           │
 │         │              │              │                  │           │
 │         │ Always avail │              │ Always avail     │           │
@@ -76,7 +76,7 @@ Full option set:
 | `--max-results N` | 10 | Maximum results (1-100) |
 | `--format {json,table}` | `json` | Output format |
 | `--serena-path PATH` | `.serena/memories` | Override the Serena store |
-| `--episodes-path PATH` | `.agents/memory/episodes` | Override the episode store |
+| `--episodes-path PATH` | `.project-toolkit/memory/episodes` | Override the episode store |
 
 The CLI is the only path that searches the Tier 2 episode store. Results from
 that tier carry `source: "Episodes"`.
@@ -352,4 +352,4 @@ time uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skill
 - ADR-037 - Memory Router Architecture
 - ADR-007 - Memory-First Architecture
 
-<!-- vendor-portability: declared. The CLI defaults table names `.agents/memory/episodes` as the episode store's default location. That path is the consumer's own data dir, created on demand when absent, and `--episodes-path` overrides it. A vendored install without the dir loses the Tier 2 episode results, not the search. Issue #2050. -->
+<!-- vendor-portability: declared. The CLI defaults table names `.project-toolkit/memory/episodes` as the episode store's default location. That path is the consumer's own data dir, created on demand when absent, and `--episodes-path` overrides it. A vendored install without the dir loses the Tier 2 episode results, not the search. Issue #2050. -->

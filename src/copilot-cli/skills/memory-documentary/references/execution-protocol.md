@@ -54,10 +54,10 @@ List specific grep patterns and file paths:
 
 | Directory | Pattern | Purpose |
 |-----------|---------|---------|
-| `.agents/retrospective/` | `grep -r "[topic]"` | Learning extractions |
-| `.agents/sessions/` | `grep -l "[topic]"` | Session logs |
-| `.agents/analysis/` | List files | Research reports |
-| `.agents/architecture/` | ADR keywords | Decisions |
+| `.project-toolkit/retrospective/` | `grep -r "[topic]"` | Learning extractions |
+| `.project-toolkit/sessions/` | `grep -l "[topic]"` | Session logs |
+| `.project-toolkit/analysis/` | List files | Research reports |
+| `.project-toolkit/architecture/` | ADR keywords | Decisions |
 
 ### GitHub Issues
 
@@ -153,7 +153,7 @@ For each major finding:
 - **Quote**: "Direct quote from memory content"
 
 **Document Evidence**:
-- **Path**: `.agents/retrospective/2025-12-15-session-review.md`
+- **Path**: `.project-toolkit/retrospective/2025-12-15-session-review.md`
 - **Lines**: 45-52
 - **Quote**: "Direct quote from document"
 - **Git Date**: 2025-12-15 14:32:00

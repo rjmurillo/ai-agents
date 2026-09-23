@@ -185,7 +185,7 @@ class TestFindPlanningDocuments:
     """Tests for planning document discovery."""
 
     def test_finds_epic_by_feature_name(self, tmp_path: Path) -> None:
-        planning = tmp_path / ".agents" / "planning"
+        planning = tmp_path / ".project-toolkit" / "planning"
         planning.mkdir(parents=True)
         (planning / "epic-myfeature.md").write_text("# Epic")
         docs = find_planning_documents(tmp_path, "myfeature")
@@ -194,7 +194,7 @@ class TestFindPlanningDocuments:
         assert "epic" in docs.epic.name.lower()
 
     def test_finds_task_by_feature_name(self, tmp_path: Path) -> None:
-        planning = tmp_path / ".agents" / "planning"
+        planning = tmp_path / ".project-toolkit" / "planning"
         planning.mkdir(parents=True)
         (planning / "tasks-myfeature.md").write_text("# Tasks")
         docs = find_planning_documents(tmp_path, "myfeature")
@@ -202,7 +202,7 @@ class TestFindPlanningDocuments:
         assert docs.tasks is not None
 
     def test_finds_prd_by_feature_name(self, tmp_path: Path) -> None:
-        planning = tmp_path / ".agents" / "planning"
+        planning = tmp_path / ".project-toolkit" / "planning"
         planning.mkdir(parents=True)
         (planning / "prd-myfeature.md").write_text("# PRD")
         docs = find_planning_documents(tmp_path, "myfeature")
@@ -210,7 +210,7 @@ class TestFindPlanningDocuments:
         assert docs.prd is not None
 
     def test_finds_plan_by_feature_name(self, tmp_path: Path) -> None:
-        planning = tmp_path / ".agents" / "planning"
+        planning = tmp_path / ".project-toolkit" / "planning"
         planning.mkdir(parents=True)
         (planning / "plan-myfeature.md").write_text("# Plan")
         docs = find_planning_documents(tmp_path, "myfeature")
@@ -218,7 +218,7 @@ class TestFindPlanningDocuments:
         assert docs.plan is not None
 
     def test_finds_by_prefix_no_feature(self, tmp_path: Path) -> None:
-        planning = tmp_path / ".agents" / "planning"
+        planning = tmp_path / ".project-toolkit" / "planning"
         planning.mkdir(parents=True)
         (planning / "epic-something.md").write_text("# Epic")
         (planning / "tasks-something.md").write_text("# Tasks")
@@ -232,7 +232,7 @@ class TestFindPlanningDocuments:
         assert docs is None
 
     def test_fallback_to_first_doc_as_plan(self, tmp_path: Path) -> None:
-        planning = tmp_path / ".agents" / "planning"
+        planning = tmp_path / ".project-toolkit" / "planning"
         planning.mkdir(parents=True)
         (planning / "random-doc.md").write_text("# Doc")
         docs = find_planning_documents(tmp_path, "")
@@ -240,14 +240,14 @@ class TestFindPlanningDocuments:
         assert docs.plan is not None
 
     def test_empty_planning_dir(self, tmp_path: Path) -> None:
-        planning = tmp_path / ".agents" / "planning"
+        planning = tmp_path / ".project-toolkit" / "planning"
         planning.mkdir(parents=True)
         docs = find_planning_documents(tmp_path, "feature")
         assert docs is not None
         assert docs.all_docs == []
 
     def test_all_docs_populated(self, tmp_path: Path) -> None:
-        planning = tmp_path / ".agents" / "planning"
+        planning = tmp_path / ".project-toolkit" / "planning"
         planning.mkdir(parents=True)
         (planning / "doc1.md").write_text("# Doc 1")
         (planning / "doc2.md").write_text("# Doc 2")
@@ -262,7 +262,7 @@ class TestValidateEstimates:
     def test_pass_within_threshold(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        planning = tmp_path / ".agents" / "planning"
+        planning = tmp_path / ".project-toolkit" / "planning"
         planning.mkdir(parents=True)
         (planning / "epic-feat.md").write_text("**Effort**: 10-12 hours")
         (planning / "tasks-feat.md").write_text("**Total Effort**: 10-14 hours")
@@ -278,7 +278,7 @@ class TestValidateEstimates:
     def test_warn_exceeds_threshold(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        planning = tmp_path / ".agents" / "planning"
+        planning = tmp_path / ".project-toolkit" / "planning"
         planning.mkdir(parents=True)
         (planning / "epic-feat.md").write_text("**Effort**: 8-14 hours")
         (planning / "tasks-feat.md").write_text("**Total Effort**: 12-16 hours")
@@ -296,7 +296,7 @@ class TestValidateConditions:
     """Tests for the validate_conditions function."""
 
     def test_pass_no_orphans(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
-        planning = tmp_path / ".agents" / "planning"
+        planning = tmp_path / ".project-toolkit" / "planning"
         planning.mkdir(parents=True)
         (planning / "plan-feat.md").write_text(
             "| Task | Conditions |\n"
@@ -312,7 +312,7 @@ class TestValidateConditions:
         assert summary.errors == []
 
     def test_fail_with_orphans(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
-        planning = tmp_path / ".agents" / "planning"
+        planning = tmp_path / ".project-toolkit" / "planning"
         planning.mkdir(parents=True)
         (planning / "plan-feat.md").write_text(
             "## Conditions\n"
@@ -340,12 +340,12 @@ class TestMain:
         assert result == 0
 
     def test_returns_0_empty_planning_dir(self, tmp_path: Path) -> None:
-        (tmp_path / ".agents" / "planning").mkdir(parents=True)
+        (tmp_path / ".project-toolkit" / "planning").mkdir(parents=True)
         result = main(["--path", str(tmp_path)])
         assert result == 0
 
     def test_returns_0_clean_plan(self, tmp_path: Path) -> None:
-        planning = tmp_path / ".agents" / "planning"
+        planning = tmp_path / ".project-toolkit" / "planning"
         planning.mkdir(parents=True)
         (planning / "plan-clean.md").write_text(
             "# Plan\n\n"
@@ -357,7 +357,7 @@ class TestMain:
         assert result == 0
 
     def test_returns_0_warnings_without_fail_flag(self, tmp_path: Path) -> None:
-        planning = tmp_path / ".agents" / "planning"
+        planning = tmp_path / ".project-toolkit" / "planning"
         planning.mkdir(parents=True)
         (planning / "epic-warn.md").write_text("**Effort**: 5-5 hours")
         (planning / "tasks-warn.md").write_text("**Effort**: 10-10 hours")
@@ -365,7 +365,7 @@ class TestMain:
         assert result == 0
 
     def test_returns_1_warnings_with_fail_on_warning(self, tmp_path: Path) -> None:
-        planning = tmp_path / ".agents" / "planning"
+        planning = tmp_path / ".project-toolkit" / "planning"
         planning.mkdir(parents=True)
         (planning / "epic-warn.md").write_text("**Effort**: 5-5 hours")
         (planning / "tasks-warn.md").write_text("**Effort**: 10-10 hours")
@@ -377,7 +377,7 @@ class TestMain:
         assert result == 1
 
     def test_returns_1_errors_with_fail_on_error(self, tmp_path: Path) -> None:
-        planning = tmp_path / ".agents" / "planning"
+        planning = tmp_path / ".project-toolkit" / "planning"
         planning.mkdir(parents=True)
         (planning / "plan-err.md").write_text(
             "## Conditions\n"
@@ -392,7 +392,7 @@ class TestMain:
         assert result == 1
 
     def test_returns_0_errors_without_fail_flag(self, tmp_path: Path) -> None:
-        planning = tmp_path / ".agents" / "planning"
+        planning = tmp_path / ".project-toolkit" / "planning"
         planning.mkdir(parents=True)
         (planning / "plan-err.md").write_text(
             "## Conditions\n"
@@ -407,7 +407,7 @@ class TestMain:
         assert result == 0
 
     def test_custom_threshold(self, tmp_path: Path) -> None:
-        planning = tmp_path / ".agents" / "planning"
+        planning = tmp_path / ".project-toolkit" / "planning"
         planning.mkdir(parents=True)
         (planning / "epic-ct.md").write_text("**Effort**: 10-10 hours")
         (planning / "tasks-ct.md").write_text("**Effort**: 11-11 hours")
@@ -422,7 +422,7 @@ class TestMain:
     def test_output_shows_document_count(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        planning = tmp_path / ".agents" / "planning"
+        planning = tmp_path / ".project-toolkit" / "planning"
         planning.mkdir(parents=True)
         (planning / "doc1.md").write_text("# Doc 1")
         (planning / "doc2.md").write_text("# Doc 2")
@@ -433,7 +433,7 @@ class TestMain:
     def test_output_shows_no_docs_message(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        (tmp_path / ".agents" / "planning").mkdir(parents=True)
+        (tmp_path / ".project-toolkit" / "planning").mkdir(parents=True)
         main(["--path", str(tmp_path)])
         captured = capsys.readouterr()
         assert "No planning documents found" in captured.out
@@ -441,7 +441,7 @@ class TestMain:
     def test_output_shows_remediation_for_orphans(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        planning = tmp_path / ".agents" / "planning"
+        planning = tmp_path / ".project-toolkit" / "planning"
         planning.mkdir(parents=True)
         (planning / "plan-rem.md").write_text(
             "## Conditions\n"

@@ -69,7 +69,7 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: drift-events-${{ github.run_id }}
-          path: .agents/metrics/drift-events.jsonl
+          path: .project-toolkit/metrics/drift-events.jsonl
           if-no-files-found: ignore
         continue-on-error: true
 

@@ -1288,7 +1288,7 @@ class TestValidatePRDescription:
         description = (
             "## Testing\n"
             "- Ran the new exit-code check; behavior matches "
-            "`.agents/architecture/ADR-035-exit-code-standardization.md`.\n"
+            "`.project-toolkit/architecture/ADR-035-exit-code-standardization.md`.\n"
         )
         mentioned = extract_mentioned_files(description)
         issues = validate_pr_description(
@@ -1296,7 +1296,7 @@ class TestValidatePRDescription:
             mentioned_files=mentioned,
         )
         offenders = [i.file for i in issues if i.severity == "CRITICAL"]
-        assert ".agents/architecture/ADR-035-exit-code-standardization.md" not in offenders
+        assert ".project-toolkit/architecture/ADR-035-exit-code-standardization.md" not in offenders
 
     def test_issue_2252_pr_1873_author_preflight_shape_not_flagged(self) -> None:
         description = (
@@ -1538,6 +1538,62 @@ class TestFetchPRData:
         assert data["labels"] == [{"name": ""}]
 
     @patch("scripts.validation.pr_description.subprocess.run")
+    def test_truncated_file_list_is_completed_from_git(self, mock_run: MagicMock) -> None:
+        """The REST files endpoint stops at 3000; git supplies the full list."""
+        pr_json = json.dumps(
+            {
+                "title": "T",
+                "body": "",
+                "changed_files": 3,
+                "base": {"sha": "b"},
+                "head": {"sha": "h"},
+            }
+        )
+        mock_run.side_effect = [
+            MagicMock(returncode=0, stdout=pr_json),
+            MagicMock(returncode=0, stdout=json.dumps([{"filename": "a.py"}])),
+            MagicMock(returncode=0, stdout="a.py\0b.py\0c.py\0", stderr=""),
+            MagicMock(returncode=0, stdout=json.dumps([])),
+        ]
+        data = fetch_pr_data(1, "owner", "repo")
+        assert data["files"] == [{"path": "a.py"}, {"path": "b.py"}, {"path": "c.py"}]
+        assert mock_run.call_args_list[2][0][0] == ["git", "diff", "--name-only", "-z", "b...h"]
+
+    @patch("scripts.validation.pr_description.subprocess.run")
+    def test_complete_file_list_skips_git(self, mock_run: MagicMock) -> None:
+        pr_json = json.dumps({"title": "T", "body": "", "changed_files": 1})
+        mock_run.side_effect = [
+            MagicMock(returncode=0, stdout=pr_json),
+            MagicMock(returncode=0, stdout=json.dumps([{"filename": "a.py"}])),
+            MagicMock(returncode=0, stdout=json.dumps([])),
+        ]
+        assert fetch_pr_data(1, "owner", "repo")["files"] == [{"path": "a.py"}]
+        assert mock_run.call_count == 3
+
+    @pytest.mark.parametrize(
+        ("refs", "git_result"),
+        [
+            ({"base": {"sha": "b"}, "head": {"sha": "h"}}, MagicMock(returncode=128, stderr="bad")),
+            ({"base": {"sha": "b"}, "head": {"sha": "h"}}, FileNotFoundError()),
+            ({}, None),
+        ],
+    )
+    @patch("scripts.validation.pr_description.subprocess.run")
+    def test_truncated_file_list_fails_closed(
+        self, mock_run: MagicMock, refs: dict[str, Any], git_result: MagicMock | Exception | None
+    ) -> None:
+        pr_json = json.dumps({"title": "T", "body": "", "changed_files": 2, **refs})
+        responses: list[MagicMock | Exception] = [
+            MagicMock(returncode=0, stdout=pr_json),
+            MagicMock(returncode=0, stdout=json.dumps([{"filename": "a.py"}])),
+        ]
+        if git_result is not None:
+            responses.append(git_result)
+        mock_run.side_effect = responses
+        with pytest.raises(RuntimeError, match="truncated at 1"):
+            fetch_pr_data(1, "owner", "repo")
+
+    @patch("scripts.validation.pr_description.subprocess.run")
     def test_requests_labels_field(self, mock_run: MagicMock) -> None:
         """Bypass-label support requires a labels REST call."""
         pr_json = json.dumps({"title": "T", "body": ""})
@@ -1558,9 +1614,7 @@ class TestFetchPRData:
         mock_run: MagicMock,
     ) -> None:
         """The pull payload keeps bypass labels available when labels GET fails."""
-        pr_json = json.dumps(
-            {"title": "T", "body": "", "labels": [{"name": "bypass"}]}
-        )
+        pr_json = json.dumps({"title": "T", "body": "", "labels": [{"name": "bypass"}]})
         files_json = json.dumps([])
         mock_run.side_effect = [
             MagicMock(returncode=0, stdout=pr_json),

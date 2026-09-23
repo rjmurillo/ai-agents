@@ -9,7 +9,7 @@ Session interruption analysis (Issue #670 evidence):
 - Root cause hypothesis: lack of visibility into agent progress
 - This module addresses the "unclear progress indicators" finding
 
-Related: .agents/analysis/session-export-analysis-2025-12-30.md
+Related: .project-toolkit/analysis/session-export-analysis-2025-12-30.md
 """
 
 from __future__ import annotations

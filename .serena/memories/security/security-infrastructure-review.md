@@ -39,7 +39,7 @@
   - "Ensure minimal permissions"
 ```
 
-**Source**: `.agents/security/infrastructure-file-patterns.md`
+**Source**: `.project-toolkit/security/infrastructure-file-patterns.md`
 
 ## Related
 

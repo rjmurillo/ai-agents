@@ -60,4 +60,4 @@ ai-agents is partially aligned:
 
 ## Analysis
 
-Full analysis: `.agents/analysis/vercel-passive-context-vs-skills-research.md`
+Full analysis: `.project-toolkit/analysis/vercel-passive-context-vs-skills-research.md`

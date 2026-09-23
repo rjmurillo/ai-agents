@@ -264,7 +264,7 @@ def new_episode(
 ) -> dict[str, Any]
 ```
 
-**Side effect**: writes `.agents/memory/episodes/episode-{session_id}.json`.
+**Side effect**: writes `.project-toolkit/memory/episodes/episode-{session_id}.json`.
 
 **Raises**: `ValueError` on an invalid outcome or a schema validation failure, `OSError` on a write failure.
 
@@ -320,8 +320,8 @@ def get_reflexion_memory_status() -> dict[str, Any]
 
 ```python
 {
-    "Episodes": {"Path": "/abs/path/.agents/memory/episodes", "Count": 322},
-    "Configuration": {"EpisodesPath": "/abs/path/.agents/memory/episodes"},
+    "Episodes": {"Path": "/abs/path/.project-toolkit/memory/episodes", "Count": 322},
+    "Configuration": {"EpisodesPath": "/abs/path/.project-toolkit/memory/episodes"},
 }
 ```
 
@@ -359,7 +359,7 @@ uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/mem
 **Parameters**:
 
 - **session_log_path** (required, positional): path to the session log. Must exist.
-- **--output-path**: output directory. Default `.agents/memory/episodes/`.
+- **--output-path**: output directory. Default `.project-toolkit/memory/episodes/`.
 - **--force**: overwrite an existing episode file.
 - **--preserve**: merge fresh extraction over an existing file rather than replacing it.
 
@@ -372,7 +372,7 @@ uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/mem
 
 ```bash
 uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/extract_session_episode.py" \
-    .agents/sessions/2026-01-01-session-126.json
+    .project-toolkit/sessions/2026-01-01-session-126.json
 ```
 
 ---
@@ -455,4 +455,4 @@ Latencies assume SSD storage and a hot filesystem cache.
 - ADR-038. Reflexion Memory schema.
 - ADR-042. Python-first scripting.
 
-<!-- vendor-portability: declared. This API reference documents Python defaults that write episodes to .agents/memory/episodes/. That is a configurable output path (--output-path); a vendored install overrides it or lets the tool create the default dir. Issue #2050. -->
+<!-- vendor-portability: declared. This API reference documents Python defaults that write episodes to .project-toolkit/memory/episodes/. That is a configurable output path (--output-path); a vendored install overrides it or lets the tool create the default dir. Issue #2050. -->

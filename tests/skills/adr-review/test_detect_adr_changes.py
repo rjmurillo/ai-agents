@@ -139,7 +139,7 @@ class TestGetAdrStatus:
         """
         adr = (
             Path(PROJECT_ROOT)
-            / ".agents"
+            / ".project-toolkit"
             / "architecture"
             / ("ADR-073-adr-lifecycle-frontmatter.md")
         )
@@ -152,7 +152,7 @@ class TestGetDependentAdrs:
     """Tests for _get_dependent_adrs function."""
 
     def test_finds_references(self, tmp_path: Path) -> None:
-        arch_dir = tmp_path / ".agents" / "architecture"
+        arch_dir = tmp_path / ".project-toolkit" / "architecture"
         arch_dir.mkdir(parents=True)
         (arch_dir / "ADR-001.md").write_text("# ADR-001\nReferences ADR-002")
         (arch_dir / "ADR-002.md").write_text("# ADR-002\nNo references")
@@ -165,7 +165,7 @@ class TestGetDependentAdrs:
         assert "ADR-002.md" in names
 
     def test_returns_empty_for_no_references(self, tmp_path: Path) -> None:
-        arch_dir = tmp_path / ".agents" / "architecture"
+        arch_dir = tmp_path / ".project-toolkit" / "architecture"
         arch_dir.mkdir(parents=True)
         (arch_dir / "ADR-001.md").write_text("# ADR-001\nNo references")
         result = _get_dependent_adrs("ADR-999", tmp_path)
@@ -246,7 +246,7 @@ class TestMain:
         assert data["RecommendedAction"] == "none"
 
     def test_detects_created_adr(self, git_repo: Path, capsys: pytest.CaptureFixture[str]) -> None:
-        arch_dir = git_repo / ".agents" / "architecture"
+        arch_dir = git_repo / ".project-toolkit" / "architecture"
         arch_dir.mkdir(parents=True)
         (arch_dir / "ADR-001.md").write_text("# ADR-001")
         subprocess.run(["git", "add", "."], cwd=str(git_repo), capture_output=True, check=True)
@@ -391,7 +391,7 @@ class TestFrontmatterFields:
 class TestFrontmatterOnlyDetection:
     """Integration tests for frontmatter-only ADR change exemption (#2845)."""
 
-    ADR_REL = ".agents/architecture/ADR-001.md"
+    ADR_REL = ".project-toolkit/architecture/ADR-001.md"
     BODY = "\n# ADR-001: Example\n\n## Decision\n\nWe do X.\n"
 
     @pytest.fixture
@@ -462,7 +462,7 @@ class TestFrontmatterOnlyDetection:
         self, adr_repo: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
         # ADR-001: frontmatter-only flip. ADR-002: new body change.
-        adr2_rel = ".agents/architecture/ADR-002.md"
+        adr2_rel = ".project-toolkit/architecture/ADR-002.md"
         adr2 = adr_repo / adr2_rel
         adr2.write_text("---\nstatus: proposed\n---\n# ADR-002\n\nOriginal.\n")
         subprocess.run(["git", "add", "."], cwd=str(adr_repo), capture_output=True, check=True)

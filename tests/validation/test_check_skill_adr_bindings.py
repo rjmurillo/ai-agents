@@ -66,7 +66,7 @@ from check_skill_adr_bindings import (
 
 
 def _write_adr(repo: Path, number: int, status: str) -> None:
-    adr_dir = repo / ".agents" / "architecture"
+    adr_dir = repo / ".project-toolkit" / "architecture"
     adr_dir.mkdir(parents=True, exist_ok=True)
     (adr_dir / f"ADR-{number:03d}-fixture.md").write_text(
         f"---\nid: ADR-{number:03d}\nstatus: {status}\n---\n\n# ADR-{number:03d}\n",
@@ -156,7 +156,7 @@ def repo(tmp_path: Path) -> Path:
 
 def _scan_result(repo: Path):
     """The whole :class:`ScanResult`, for cases that assert on the counts."""
-    return scan(repo, repo / ".agents" / "architecture")
+    return scan(repo, repo / ".project-toolkit" / "architecture")
 
 
 def _scan(repo: Path):
@@ -250,7 +250,7 @@ def test_neg_an_id_with_no_record_is_a_finding(repo: Path) -> None:
     opposite contract.
 
     Reading an unresolvable id as clean is what let a wrong corpus score every
-    violating skill clean: `.agents/architecture` holding unrelated records
+    violating skill clean: `.project-toolkit/architecture` holding unrelated records
     passes the presence guard, no declared id resolves, the count collapses, and
     the gate prints `improved` and invites lowering the ceiling. Reproduced on a
     corpus holding only ADR-999 while the skill declared ADR-002.
@@ -310,7 +310,7 @@ def test_edge_scalar_frontmatter_is_clean(repo: Path) -> None:
 def test_edge_adr_with_unparseable_frontmatter_is_not_retired(tmp_path: Path) -> None:
     """An ADR the lifecycle gate cannot parse has no status here, and absent is
     the conservative read for a consumer check."""
-    adr_dir = tmp_path / ".agents" / "architecture"
+    adr_dir = tmp_path / ".project-toolkit" / "architecture"
     adr_dir.mkdir(parents=True)
     (adr_dir / "ADR-002-broken.md").write_text("---\nid: [oops\n---\n# x\n", encoding="utf-8")
     _write_skill(tmp_path, "s", "name: s\nmetadata:\n  adr: ADR-002")
@@ -318,7 +318,7 @@ def test_edge_adr_with_unparseable_frontmatter_is_not_retired(tmp_path: Path) ->
 
 
 def test_edge_non_scalar_status_is_not_retired(tmp_path: Path) -> None:
-    adr_dir = tmp_path / ".agents" / "architecture"
+    adr_dir = tmp_path / ".project-toolkit" / "architecture"
     adr_dir.mkdir(parents=True)
     (adr_dir / "ADR-002-listy.md").write_text(
         "---\nid: ADR-002\nstatus:\n  - superseded\n---\n# x\n", encoding="utf-8"
@@ -328,7 +328,7 @@ def test_edge_non_scalar_status_is_not_retired(tmp_path: Path) -> None:
 
 
 def test_edge_status_case_and_whitespace_tolerated(tmp_path: Path) -> None:
-    adr_dir = tmp_path / ".agents" / "architecture"
+    adr_dir = tmp_path / ".project-toolkit" / "architecture"
     adr_dir.mkdir(parents=True)
     (adr_dir / "ADR-002-cased.md").write_text(
         "---\nid: ADR-002\nstatus: '  SUPERSEDED  '\n---\n# x\n", encoding="utf-8"
@@ -781,7 +781,7 @@ def test_neg_an_empty_adr_corpus_is_a_config_fault(tmp_path: Path) -> None:
     id outside RETIRED_STATUSES, so a violating skill scores clean. The sibling
     `check_adr_lifecycle.py:1258` refuses the same tree; this gate copied the
     `is_dir()` half and dropped the corpus-presence half."""
-    (tmp_path / ".agents" / "architecture").mkdir(parents=True)
+    (tmp_path / ".project-toolkit" / "architecture").mkdir(parents=True)
     _write_skill(tmp_path, "s", "name: s\nmetadata:\n  adr: ADR-002")
     baseline = tmp_path / "b.json"
     baseline.write_text(

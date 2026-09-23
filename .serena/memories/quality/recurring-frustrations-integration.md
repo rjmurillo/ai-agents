@@ -2,7 +2,7 @@
 
 ## Source
 
-Analysis document: `.agents/analysis/recurring-frustrations-report.md` (1,056 lines)
+Analysis document: `.project-toolkit/analysis/recurring-frustrations-report.md` (1,056 lines)
 Report date: January 3, 2026
 Coverage: 90+ memories across Forgetful, Claude-Mem, Serena; 100+ GitHub issues cataloged
 
@@ -188,7 +188,7 @@ Report documents 100+ issues across frustration patterns:
 
 ## References
 
-- Analysis: `.agents/analysis/recurring-frustrations-report.md`
+- Analysis: `.project-toolkit/analysis/recurring-frustrations-report.md`
 - Forgetful Memories: 80-88 (frustration patterns and meta-patterns)
 - Related Serena Memories: testing-coverage-philosophy-integration, chestertons-fence-memory-integration
 - ADRs: ADR-014 (distributed handoff), ADR-007 (memory-first), ADR-005 (PowerShell-only), ADR-006 (thin workflows)

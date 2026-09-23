@@ -455,7 +455,7 @@ class TestBeforeAfterExamples:
             | Priority | Source | Location |
             |----------|--------|----------|
             | 1 | Serena | .serena/memories/ |
-            | 2 | Sessions | .agents/sessions/ |
+            | 2 | Sessions | .project-toolkit/sessions/ |
             | 3 | VSCode | .vscode/memories/ |
 
             The principle is to retrieve before reasoning.

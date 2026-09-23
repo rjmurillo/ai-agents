@@ -45,5 +45,5 @@ instead of 10-30 seconds.
 
 ## References
 
-- `.agents/retrospective/2026-01-15-pr-908-comprehensive-retrospective.md` (lines 1038-1078)
+- `.project-toolkit/retrospective/2026-01-15-pr-908-comprehensive-retrospective.md` (lines 1038-1078)
 - PR: https://github.com/rjmurillo/ai-agents/pull/908

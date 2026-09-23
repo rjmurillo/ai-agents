@@ -1,7 +1,7 @@
 # Resilience Patterns
 
 **Category**: Distributed Systems, Fault Tolerance
-**Source**: `.agents/analysis/advanced-engineering-knowledge.md`
+**Source**: `.project-toolkit/analysis/advanced-engineering-knowledge.md`
 **Origin**: Michael Nygard's "Release It!"
 
 ## Core Patterns

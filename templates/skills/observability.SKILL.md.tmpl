@@ -102,29 +102,29 @@ Agent event logs are stored at:
 
 ```bash
 # Show all events in a session log
-python .claude/skills/observability/scripts/query_logs.py .agents/logs/sess-001.jsonl
+python .claude/skills/observability/scripts/query_logs.py .project-toolkit/logs/sess-001.jsonl
 
 # Find errors only
-python .claude/skills/observability/scripts/query_logs.py .agents/logs/sess-001.jsonl --errors-only
+python .claude/skills/observability/scripts/query_logs.py .project-toolkit/logs/sess-001.jsonl --errors-only
 
 # Find tool calls slower than 500ms
-python .claude/skills/observability/scripts/query_logs.py .agents/logs/sess-001.jsonl --slow 500
+python .claude/skills/observability/scripts/query_logs.py .project-toolkit/logs/sess-001.jsonl --slow 500
 
 # Filter by agent
-python .claude/skills/observability/scripts/query_logs.py .agents/logs/sess-001.jsonl --agent implementer
+python .claude/skills/observability/scripts/query_logs.py .project-toolkit/logs/sess-001.jsonl --agent implementer
 
 # Session summary as JSON
-python .claude/skills/observability/scripts/query_logs.py .agents/logs/sess-001.jsonl --output summary-sessions
+python .claude/skills/observability/scripts/query_logs.py .project-toolkit/logs/sess-001.jsonl --output summary-sessions
 
 # Tool usage summary
-python .claude/skills/observability/scripts/query_logs.py .agents/logs/sess-001.jsonl --output summary-tools
+python .claude/skills/observability/scripts/query_logs.py .project-toolkit/logs/sess-001.jsonl --output summary-tools
 
 # Filter by time range
-python .claude/skills/observability/scripts/query_logs.py .agents/logs/sess-001.jsonl \
+python .claude/skills/observability/scripts/query_logs.py .project-toolkit/logs/sess-001.jsonl \
     --since 2026-03-30T10:00:00Z --until 2026-03-30T11:00:00Z
 
 # JSON output for automation
-python .claude/skills/observability/scripts/query_logs.py .agents/logs/sess-001.jsonl \
+python .claude/skills/observability/scripts/query_logs.py .project-toolkit/logs/sess-001.jsonl \
     --output json --event-type tool_call
 ```
 

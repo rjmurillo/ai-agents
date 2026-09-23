@@ -2,7 +2,7 @@
 
 **Date**: 2026-01-09
 **Branch**: feat/milestone-backstop
-**Critique Document**: `.agents/critique/milestone-tracking-critique.md`
+**Critique Document**: `.project-toolkit/critique/milestone-tracking-critique.md`
 **Verdict**: NEEDS REVISION
 
 ## Key Findings

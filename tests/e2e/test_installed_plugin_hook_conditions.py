@@ -213,14 +213,14 @@ def _read_matcher(script_path: Path) -> str:
 def _create_git_fixture(tmp_path: Path) -> Path:
     fixture = tmp_path / "hook-fixture"
     fixture.mkdir()
-    (fixture / ".agents" / "retrospective").mkdir(parents=True)
-    (fixture / ".agents" / "sessions").mkdir(parents=True)
+    (fixture / ".project-toolkit" / "retrospective").mkdir(parents=True)
+    (fixture / ".project-toolkit" / "sessions").mkdir(parents=True)
     (fixture / ".agents" / "HANDOFF.md").write_text(
         "# Handoff\n\nHook harness fixture.\n",
         encoding="utf-8",
     )
     retro_path = (
-        fixture / ".agents" / "retrospective" / "2026-06-02-hook-harness.md"
+        fixture / ".project-toolkit" / "retrospective" / "2026-06-02-hook-harness.md"
     )
     retro_path.write_text("# Retro\n", encoding="utf-8")
     (fixture / "README.md").write_text("# Hook Harness\n", encoding="utf-8")

@@ -2,7 +2,7 @@
 
 Covers ``discover``, ``discover_errors``, ``owned_targets``, and
 ``compile_all``: DESIGN-024's Tests table
-(``.agents/specs/design/DESIGN-024-skill-guidance-excerpt-sync.md``), plus
+(``.project-toolkit/specs/design/DESIGN-024-skill-guidance-excerpt-sync.md``), plus
 NO-REGEN-fails-closed and partial-trailing-newline cases from later ADR
 review rounds for #5706 (see ``compile_all``'s own docstring). Grammar,
 partial-tree validation, and ``render`` are in the sibling

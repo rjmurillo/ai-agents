@@ -86,7 +86,7 @@ What counts as a violation:
 
   Requiring an extension is what keeps this check honest. The rule permits
   consumer-workspace paths, which are the plugin doing its job: an agent told
-  to write to ``.agents/planning/`` or ``docs/adr/`` is correct, because those
+  to write to ``.project-toolkit/planning/`` or ``docs/adr/`` is correct, because those
   are directories in the *installing* repo. Those have no extension. It also
   sidesteps the prose collisions the rule warns about, such as
   "build/buy/partner", which would match a bare ``build/`` prefix.

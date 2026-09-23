@@ -140,7 +140,7 @@ What needs to be done in 1-2 sentences.
 # Task Breakdown: [Feature Name]
 
 ## Source
-- PRD: `.agents/planning/PRD-[name].md`
+- PRD: `.project-toolkit/planning/PRD-[name].md`
 
 ## Summary
 | Complexity | Count |
@@ -256,7 +256,7 @@ Before handing off, validate ALL items in the applicable checklist:
 ### Task Breakdown Complete (to critic)
 
 ```markdown
-- [ ] Tasks document saved to `.agents/planning/TASKS-[feature].md`
+- [ ] Tasks document saved to `.project-toolkit/planning/TASKS-[feature].md`
 - [ ] All tasks have unique IDs (TASK-NNN format)
 - [ ] All tasks have acceptance criteria
 - [ ] All tasks have complexity estimates (XS/S/M/L/XL)
@@ -300,7 +300,7 @@ If ANY checklist item cannot be completed:
 
 When task breakdown is complete:
 
-1. Save tasks document to `.agents/planning/`
+1. Save tasks document to `.project-toolkit/planning/`
 2. **Validate estimate reconciliation**: Compare derived effort estimates against source PRD/epic estimates. If divergence exceeds 10%, document reconciliation rationale
 3. Store estimation insights in memory
 4. Return to orchestrator with recommendation (e.g., "Recommend orchestrator routes to critic for validation")

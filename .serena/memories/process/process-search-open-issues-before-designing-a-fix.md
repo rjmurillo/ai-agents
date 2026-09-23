@@ -1,7 +1,7 @@
 # Skill: Search open issues for the target file before designing a fix (95%)
 
 **Atomicity Score**: 95%
-**Source**: Retrospective `.agents/retrospective/2026-08-02-wrong-fix-before-search.md`
+**Source**: Retrospective `.project-toolkit/retrospective/2026-08-02-wrong-fix-before-search.md`
 **Date**: 2026-08-02
 **Validation Count**: 2 (PR #4302 built and closed unmerged, issue #4285 already open; issue #4461 filed for a trap already documented in Serena the day before)
 **Tag**: helpful

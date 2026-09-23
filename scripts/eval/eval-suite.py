@@ -74,7 +74,7 @@ EXIT_AUTH = 4
 
 # Security-critical path patterns (ADR-057: 5 runs, 100% pass)
 SECURITY_PATTERNS = [
-    ".agents/security/",
+    ".project-toolkit/security/",
     "pr-quality-gate-security",
     "security-review",
     "security-scan",
@@ -191,7 +191,7 @@ def worst_exit_code(results: dict[str, Any], any_failure: bool) -> int:
 PROMPT_PATTERNS = [
     ".claude/commands/",
     ".github/prompts/",
-    ".agents/security/prompts/",
+    ".project-toolkit/security/prompts/",
 ]
 
 # Agent definition trees. Narrowed from a bare `src/copilot-cli/` prefix, which
@@ -225,7 +225,7 @@ INSTRUCTION_SUFFIX = ".instructions.md"
 
 SCENARIO_DIRS = [
     "tests/evals/",
-    ".agents/security/benchmarks/",
+    ".project-toolkit/security/benchmarks/",
 ]
 
 # Preserved verbatim from the pre-#4882 agent branch, which read:
@@ -418,7 +418,7 @@ def find_scenarios_for_prompt(prompt_path: str) -> str | None:
 
     Convention: for prompt at `path/to/name.md`, look for:
     1. tests/evals/name-scenarios.json
-    2. .agents/security/benchmarks/name-scenarios.json
+    2. .project-toolkit/security/benchmarks/name-scenarios.json
 
     A skill body is named `SKILL.md` in a directory named for the skill, so the
     file stem is the useless constant `SKILL` for every one of them. The name a

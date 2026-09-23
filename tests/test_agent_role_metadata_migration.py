@@ -249,7 +249,7 @@ def test_escalation_target_is_high_level_advisor(document: str):
 def _adr_009_block(start_marker: str, end_marker: str) -> str:
     """Return the ADR-009 span from `start_marker` through `end_marker`."""
     adr = (
-        _REPO_ROOT / ".agents/architecture/ADR-009-parallel-safe-multi-agent-design.md"
+        _REPO_ROOT / ".project-toolkit/architecture/ADR-009-parallel-safe-multi-agent-design.md"
     ).read_text(encoding="utf-8")
     start = adr.index(start_marker)
     end = adr.index(end_marker, start) + len(end_marker)
@@ -286,7 +286,7 @@ def test_adr_009_blocks_are_quoted_byte_for_byte(document: str, start_marker: st
     pins the target string only, so editing ADR-009's table or protocol would
     leave both mirrors silently stale and restore the #5127 condition. The
     byte comparison existed only as a copy-pasteable snippet in
-    `.agents/critique/5130-tier-hierarchy-removal-debate-log.md`.
+    `.project-toolkit/critique/5130-tier-hierarchy-removal-debate-log.md`.
 
     Added by the issue #5130 `adr-review` debate (critic P1-5, architect P2).
 
@@ -302,7 +302,7 @@ def test_adr_009_blocks_are_quoted_byte_for_byte(document: str, start_marker: st
         f"{document} no longer quotes ADR-009 byte-for-byte.\n"
         f"ADR-009 says:\n{quoted}\n"
         "Re-copy the block from "
-        ".agents/architecture/ADR-009-parallel-safe-multi-agent-design.md "
+        ".project-toolkit/architecture/ADR-009-parallel-safe-multi-agent-design.md "
         "rather than editing the mirror."
     )
 

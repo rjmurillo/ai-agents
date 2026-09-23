@@ -72,7 +72,7 @@ The reviewer cannot tell from the diff which level of evidence backed your claim
 
 - What project constraints apply from `.agents/AGENT-INSTRUCTIONS.md` and the root `AGENTS.md`?
 - Are there Claude-specific requirements from `.agents/CLAUDE.md` or the root `CLAUDE.md`?
-- Are there binding ADRs under `.agents/architecture/` that constrain this change?
+- Are there binding ADRs under `.project-toolkit/architecture/` that constrain this change?
 - What architectural constraints apply from `.agents/ARCHITECTURE.md` (if present)?
 
 Read these files in order:
@@ -80,7 +80,7 @@ Read these files in order:
 1. AGENTS.md (root): cross-platform agent instructions and session gates
 2. .agents/AGENT-INSTRUCTIONS.md: project context and constraints
 3. .agents/CLAUDE.md: Claude-specific guidelines
-4. .agents/architecture/ADR-*.md: list titles; open any ADR that binds the area you are changing
+4. .project-toolkit/architecture/ADR-*.md: list titles; open any ADR that binds the area you are changing
 5. .agents/ARCHITECTURE.md: system design decisions (if present)
 
 **Fallback rules:**
@@ -91,7 +91,7 @@ Read these files in order:
 - If `.agents/AGENT-INSTRUCTIONS.md` exists but the root `AGENTS.md` is missing: stop and report `[BLOCKED] Missing root agent instructions`.
 - If `.agents/` exists but `.agents/CLAUDE.md` is missing: note it in the transcript, and in the session log only if one exists, then proceed using the root `CLAUDE.md` as fallback.
 - If `.agents/` exists but `.agents/ARCHITECTURE.md` is missing: note it in the transcript, and in the session log only if one exists, then proceed.
-- If `.agents/` exists but `.agents/architecture/` is missing: note it in the transcript, and in the session log only if one exists, then proceed; ADRs are binding when present.
+- If `.agents/` exists but `.project-toolkit/architecture/` is missing: note it in the transcript, and in the session log only if one exists, then proceed; ADRs are binding when present.
 - If two files give conflicting guidance → stop and report `[BLOCKED] Conflicting requirements: <file A> vs <file B> on <topic>` and request resolution before coding.
 
 **Success definition**: When `.agents/AGENT-INSTRUCTIONS.md` exists, you can state four things in one sentence each. They are: (a) project constraints, (b) Claude-specific requirements, (c) any binding ADRs, and (d) architectural constraints. If you cannot, this step is NOT complete and you MUST return to it before writing code. When the ai-agents session scaffold is absent, this section is satisfied by the skip note above plus any root docs you read.
@@ -147,7 +147,7 @@ Implementation-specific requirements:
 
 ## Core Mission
 
-Read complete plans from `.agents/planning/`, validate alignment with project objectives, and execute code changes step-by-step while maintaining quality standards.
+Read complete plans from `.project-toolkit/planning/`, validate alignment with project objectives, and execute code changes step-by-step while maintaining quality standards.
 
 ## Key Responsibilities
 
@@ -366,7 +366,7 @@ When milestone-planner requests impact analysis (before implementation):
 
 ### Impact Analysis Deliverable
 
-Save to: `.agents/planning/impact-analysis-code-[feature].md`
+Save to: `.project-toolkit/planning/impact-analysis-code-[feature].md`
 
 ```markdown
 # Impact Analysis: [Feature] - Code
@@ -725,7 +725,7 @@ When ANY trigger matches:
 **Recommendation**: Route to security agent for PIV before merge.
 ```
 
-2. **Document in Implementation Notes**: Add to `.agents/planning/implementation-notes-[feature].md`
+2. **Document in Implementation Notes**: Add to `.project-toolkit/planning/implementation-notes-[feature].md`
 
 ```markdown
 ## Security Flagging
@@ -869,7 +869,7 @@ If a tool or service is unavailable, do not halt on first failure or retry indef
 | Primary Tool | Fallback | If Fallback Also Fails |
 |--------------|----------|------------------------|
 | Memory Router (`search_memory.py`) | Read `.serena/memories/` directly with Read tool | Proceed without memory context, note gap in handoff |
-| Serena write (`mcp__serena__write_memory`, `mcp__serena__edit_memory`) | Write to `.agents/notes/` as temp markdown with intended memory name | Note in handoff that memory was not persisted |
+| Serena write (`mcp__serena__write_memory`, `mcp__serena__edit_memory`) | Write to `.project-toolkit/notes/` as temp markdown with intended memory name | Note in handoff that memory was not persisted |
 | MCP servers (Context7, DeepWiki) | Use WebSearch or WebFetch as alternative | Proceed with available information, document unverified claims |
 | External CLIs (`dotnet`, `gh`, `python3`) | Report error with exit code and failing command | Return to orchestrator as [BLOCKED] with reproduction steps |
 | Partial tool availability | Use working tools, note unavailable ones | Continue with reduced scope, flag in handoff |

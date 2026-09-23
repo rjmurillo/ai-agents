@@ -52,7 +52,7 @@ If an artifact ships outside the repository structure, it must be self-contained
 # Project Constraints
 [canonical constraints list]
 
-<!-- .agents/architecture/ADR-005.md -->
+<!-- .project-toolkit/architecture/ADR-005.md -->
 **Constraints**: See .agents/governance/CONSTRAINTS.md
 ```
 

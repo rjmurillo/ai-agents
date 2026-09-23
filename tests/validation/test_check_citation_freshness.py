@@ -21,6 +21,20 @@ from tests.validation.citation_freshness_helpers import (
 )
 
 
+@pytest.mark.parametrize(
+    "path",
+    (
+        ".project-toolkit/planning/impact-analysis.md",
+        ".project-toolkit/pr-comments/PR-42/comments.md",
+        ".project-toolkit/qa/pre-pr-validation.md",
+        ".project-toolkit/retrospective/2026-08-31-change.md",
+    ),
+)
+def test_generated_project_toolkit_artifacts_are_exempt(path: str) -> None:
+    """Generated reports retain the historical-artifact citation policy."""
+    assert checker._is_exempt_citing_file(path)
+
+
 class TestFreshCitationsPass:
     def test_anchored_citation_at_the_right_line_exits_0(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
@@ -364,3 +378,36 @@ class TestCliContract:
         assert checker.validate_citation_freshness(root) is True
 
 
+
+
+# Line suffixes are joined at runtime so this file carries no literal
+# `path:line` citation for the citation-freshness gate to resolve.
+_LINE = ":" + "5"
+
+
+def test_root_move_rewrite_is_not_an_added_line() -> None:
+    """Issue #5420: re-spelling the old root as the new root asserts nothing new."""
+    import citation_head_state
+
+    old = f"See `.agents/analysis/x.md{_LINE}`."
+    new = f"See `.project-toolkit/analysis/x.md{_LINE}`."
+    other = f"See `scripts/a.py{_LINE}`."
+    removed = {"doc.md": citation_head_state.Counter({old: 1})}
+    added = {"doc.md": [(3, new), (4, other)]}
+
+    kept = citation_head_state._drop_root_move_rewrites(added, removed)
+
+    assert kept == {"doc.md": [(4, other)]}
+
+
+def test_root_move_pairing_is_one_to_one() -> None:
+    import citation_head_state
+
+    old = f"`.agents/qa/x.md{_LINE}`"
+    new = f"`.project-toolkit/qa/x.md{_LINE}`"
+    removed = {"doc.md": citation_head_state.Counter({old: 1})}
+    added = {"doc.md": [(1, new), (2, new)]}
+
+    kept = citation_head_state._drop_root_move_rewrites(added, removed)
+
+    assert kept == {"doc.md": [(2, new)]}

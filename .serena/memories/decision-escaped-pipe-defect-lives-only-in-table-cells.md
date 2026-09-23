@@ -80,7 +80,7 @@ GNU-only rather than as something the standard blesses.
 cell can hold occurrences with different verdicts.
 `.claude/skills/ai-agents-change-control/references/provenance.md:21` reads:
 
-    | ... | `ls .agents/retrospective/ \| grep -E "908\|1187\|1887\|1965\|2205"` |
+    | ... | `ls .project-toolkit/retrospective/ \| grep -E "908\|1187\|1887\|1965\|2205"` |
 
 All five are defects, for two different reasons. The first is a shell pipeline
 that never pipes. The other four sit inside `grep -E`, where `\|` is a literal
@@ -120,7 +120,7 @@ GNU bash 5.2.21, with `-x` to show the real argv:
 
 Note the trace: `ls` is handed `|`, not `\|`. The pipe silently does not happen,
 and the command still emits a plausible directory listing on stdout alongside
-the errors on stderr. An agent that copies `ls .agents/retrospective/ \| wc -l`
+the errors on stderr. An agent that copies `ls .project-toolkit/retrospective/ \| wc -l`
 expecting a count receives a file listing. If it reads stdout without checking
 the exit code it proceeds on garbage.
 

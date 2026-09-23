@@ -8,8 +8,8 @@ Generated `.agent.md` files omit "DO NOT EDIT" headers - AI agents consume these
 
 | Agent | Output Path |
 |-------|-------------|
-| Analyst | `.agents/analysis/` |
-| Impact Analysis (5 specialists) | `.agents/planning/impact-analysis-*.md` |
+| Analyst | `.project-toolkit/analysis/` |
+| Impact Analysis (5 specialists) | `.project-toolkit/planning/impact-analysis-*.md` |
 
 **Evidence**: PR #46
 

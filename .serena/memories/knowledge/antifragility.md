@@ -1,7 +1,7 @@
 # Antifragility
 
 **Category**: System Design
-**Source**: `.agents/analysis/senior-engineering-knowledge.md`
+**Source**: `.project-toolkit/analysis/senior-engineering-knowledge.md`
 **Origin**: Nassim Nicholas Taleb
 
 ## Core Concept

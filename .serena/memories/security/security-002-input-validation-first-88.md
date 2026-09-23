@@ -20,7 +20,7 @@
 - Allowlists over denylists for input validation
 - Type checking before processing
 
-**Source**: `.agents/security/security-best-practices.md`
+**Source**: `.project-toolkit/security/security-best-practices.md`
 
 ---
 

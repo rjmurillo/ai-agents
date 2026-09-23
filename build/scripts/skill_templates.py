@@ -10,7 +10,7 @@ install tree) to ``src/claude/skills/`` (a plugin tree, the same shape
 binplace step (``build/scripts/binplace_manifest.py``) then copies each
 rendered ``SKILL.md`` from the plugin tree onto its install-tree
 counterpart byte for byte. This module is that class's compile step, per
-``.agents/specs/design/DESIGN-024-skill-guidance-excerpt-sync.md``, "Compile
+``.project-toolkit/specs/design/DESIGN-024-skill-guidance-excerpt-sync.md``, "Compile
 module: ``build/scripts/skill_templates.py``":
 
     ``discover(repo_root) -> dict[str, Path]``

@@ -59,4 +59,4 @@ Four fixtures (F001, F003, F006, F009) are explicitly agent-discriminating: the 
 - [templates/agents/analyst.shared.md](../../../templates/agents/analyst.shared.md) - agent under test.
 - [scripts/eval/eval-agent-vs-baseline.py](../../../scripts/eval/eval-agent-vs-baseline.py) - runner.
 - [evals/baseline-report.md](../../baseline-report.md) - aggregate baseline across spikes.
-- [.agents/architecture/ADR-057-prompt-behavioral-evaluation.md](../../../.agents/architecture/ADR-057-prompt-behavioral-evaluation.md).
+- [.project-toolkit/architecture/ADR-057-prompt-behavioral-evaluation.md](../../../.project-toolkit/architecture/ADR-057-prompt-behavioral-evaluation.md).

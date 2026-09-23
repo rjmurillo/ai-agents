@@ -49,8 +49,8 @@ When the report names anything else, treat it as a live finding and work it.
   sets `has_specs` true when either extractor returns something.
   `_extract_issue_refs` matches `Closes|Fixes|Resolves|Implements` alone, so
   `Refs #N` yields no issue ref, but `_extract_spec_refs` still arms the gate
-  off a `REQ`, `DESIGN`, or `TASK` id, or an `.agents/specs/` or
-  `.agents/planning/` markdown path, in the same title and body text:
+  off a `REQ`, `DESIGN`, or `TASK` id, or an `.project-toolkit/specs/` or
+  `.project-toolkit/planning/` markdown path, in the same title and body text:
   `req_ids = re.findall(r"(?:REQ|DESIGN|TASK)-\d+", combined)`. `Refs #N` opts
   out only when the body carries none of those, which is the case issue #5489
   reports.

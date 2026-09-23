@@ -1,6 +1,6 @@
 ## Output Location
 
-`.agents/architecture/`
+`.project-toolkit/architecture/`
 
 - `ADR-NNNN-[decision].md` - Architecture Decision Records (use MADR 4.0 template)
 - `DESIGN-REVIEW-[topic].md` - Design reviews (MUST use YAML frontmatter template above)
@@ -22,9 +22,9 @@
 
 ### ADR Creation/Update Protocol (BLOCKING)
 
-When you create or update an ADR file matching `.agents/architecture/ADR-*.md`:
+When you create or update an ADR file matching `.project-toolkit/architecture/ADR-*.md`:
 
-1. Save ADR to `.agents/architecture/ADR-NNNN-[title].md`
+1. Save ADR to `.project-toolkit/architecture/ADR-NNNN-[title].md`
 2. Update architecture changelog if needed
 3. Store decision in memory
 4. Return to orchestrator with **MANDATORY routing**:
@@ -46,6 +46,6 @@ Rationale: All ADRs require multi-agent validation per adr-review protocol.
 
 When review is complete and NO ADR was created/updated:
 
-1. Save findings to `.agents/architecture/`
+1. Save findings to `.project-toolkit/architecture/`
 2. Update architecture changelog if decisions made
 3. Store decision in memory

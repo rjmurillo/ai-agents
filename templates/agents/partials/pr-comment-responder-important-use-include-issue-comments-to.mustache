@@ -2,7 +2,7 @@ echo "Total comments: $TOTAL_COMMENTS"
 
 # Record the API count where every later gate reads it. Shell variables do not
 # survive between fenced blocks, so the count has to reach them as an artifact.
-COUNT_FILE=".agents/pr-comments/PR-[number]/total_comments.txt"
+COUNT_FILE=".project-toolkit/pr-comments/PR-[number]/total_comments.txt"
 mkdir -p "$(dirname "$COUNT_FILE")"
 printf '%s\n' "$TOTAL_COMMENTS" > "$COUNT_FILE"
 
@@ -43,7 +43,7 @@ echo "Total comments: $TOTAL_COMMENTS (Review: $REVIEW_COMMENT_COUNT, Issue: $IS
 
 # Record the API count where every later gate reads it. Shell variables do not
 # survive between fenced blocks, so the count has to reach them as an artifact.
-COUNT_FILE=".agents/pr-comments/PR-[number]/total_comments.txt"
+COUNT_FILE=".project-toolkit/pr-comments/PR-[number]/total_comments.txt"
 mkdir -p "$(dirname "$COUNT_FILE")"
 printf '%s\n' "$TOTAL_COMMENTS" > "$COUNT_FILE"
 ```

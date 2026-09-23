@@ -4,7 +4,7 @@
 
 ## What it is
 
-Conditional, availability-gated LSP-first navigation enforcement. Prefer Serena MCP symbolic tools, then native LSP (Claude `LSP` tool / Copilot auto-LSP), then grep/glob/sed as last resort. Block grep/Read/Glob for code symbols ONLY when an LSP is available; fail open otherwise (never deadlock). See `.agents/architecture/ADR-062-conditional-lsp-first-enforcement.md` and its `.agents/critique/ADR-062-debate-log.md` (verdict ACCEPTED-WITH-DC).
+Conditional, availability-gated LSP-first navigation enforcement. Prefer Serena MCP symbolic tools, then native LSP (Claude `LSP` tool / Copilot auto-LSP), then grep/glob/sed as last resort. Block grep/Read/Glob for code symbols ONLY when an LSP is available; fail open otherwise (never deadlock). See `.project-toolkit/architecture/ADR-062-conditional-lsp-first-enforcement.md` and its `.project-toolkit/critique/ADR-062-debate-log.md` (verdict ACCEPTED-WITH-DC).
 
 ## Components
 

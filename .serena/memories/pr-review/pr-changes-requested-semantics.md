@@ -4,7 +4,7 @@
 
 This memory provides a quick lookup for CHANGES_REQUESTED handling. For the complete protocol with mermaid state diagrams, see the canonical documentation.
 
-**Canonical Documentation**: `.agents/architecture/bot-author-feedback-protocol.md`
+**Canonical Documentation**: `.project-toolkit/architecture/bot-author-feedback-protocol.md`
 
 ## Prerequisites
 
@@ -74,7 +74,7 @@ same `PENDING_DERIVATIVES` classification at line 267.
 
 ## Related
 
-- **Full Protocol**: `.agents/architecture/bot-author-feedback-protocol.md`
+- **Full Protocol**: `.project-toolkit/architecture/bot-author-feedback-protocol.md`
 - `pr-comment-responder` skill agent
 - [pr-review-acknowledgment](pr-review-acknowledgment.md) for eyes reaction protocol
 - [copilot-follow-up-pr](../copilot/copilot-follow-up-pr.md) for copilot derivative behavior

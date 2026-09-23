@@ -87,7 +87,7 @@ Three categories represent genuinely new attack surfaces:
 
 ## References
 
-- Analysis: `.agents/analysis/owasp-agentic-security-integration.md`
-- CWE-699 Research: `.agents/analysis/cwe-699-framework-integration.md`
-- Session 307: `.agents/sessions/2026-01-04-session-307-cwe699-research.md`
-- Session 308: `.agents/sessions/2026-01-04-session-308-owasp-agentic-research.md`
+- Analysis: `.project-toolkit/analysis/owasp-agentic-security-integration.md`
+- CWE-699 Research: `.project-toolkit/analysis/cwe-699-framework-integration.md`
+- Session 307: `.project-toolkit/sessions/2026-01-04-session-307-cwe699-research.md`
+- Session 308: `.project-toolkit/sessions/2026-01-04-session-308-owasp-agentic-research.md`

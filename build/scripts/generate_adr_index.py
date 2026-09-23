@@ -7,9 +7,9 @@
 # version cited "192 of the 558 lines" and it went stale on the very next
 # edit that added lines without updating the count, Copilot, PR #5209
 # round-10 review.)
-"""Generate .agents/architecture/README.md, a current-state index of the ADR corpus.
+"""Generate .project-toolkit/architecture/README.md, a current-state index of the ADR corpus.
 
-`AGENTS.md` points every agent at `.agents/architecture/ADR-*.md`. That is 98
+`AGENTS.md` points every agent at `.project-toolkit/architecture/ADR-*.md`. That is 98
 records, so "which decisions bind me right now" gets answered by grepping a
 keyword and trusting the first hit. A superseded PowerShell mandate and an
 accepted Python mandate look identical to that reader.
@@ -108,7 +108,7 @@ _ADR_FILENAME_RE = re.compile(r"^ADR-(\d{2,})-[^/]+\.md$")
 _ADR_REFERENCE_RE = re.compile(r"^ADR[-_ ]?(\d{1,4})$", re.IGNORECASE)
 
 _ADR_GLOB = "ADR-*.md"
-_ADR_DIR_RELATIVE = Path(".agents") / "architecture"
+_ADR_DIR_RELATIVE = Path(".project-toolkit") / "architecture"
 _OUTPUT_RELATIVE = _ADR_DIR_RELATIVE / "README.md"
 
 # The ADR-073 enum, verbatim from its Decision section:
@@ -713,7 +713,7 @@ _INTRO = (
     "\n"
     "_HANDLER = YAMLHandler()\n"
     "\n"
-    "for path in sorted(pathlib.Path('.agents/architecture').glob('ADR-[0-9]*.md')):\n"
+    "for path in sorted(pathlib.Path('.project-toolkit/architecture').glob('ADR-[0-9]*.md')):\n"
     "    text = path.read_text(encoding='utf-8')\n"
     "    if not _HANDLER.detect(text):\n"
     "        continue  # no frontmatter: see Needs backfill below\n"

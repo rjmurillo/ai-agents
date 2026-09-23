@@ -178,8 +178,8 @@ Consider updating repository description to:
 
 ## Artifacts
 
-- Analysis: `.agents/analysis/003-github-topics-seo-optimization.md`
-- Session Log: `.agents/sessions/2025-12-20-session-38-github-topics-optimization.md`
+- Analysis: `.project-toolkit/analysis/003-github-topics-seo-optimization.md`
+- Session Log: `.project-toolkit/sessions/2025-12-20-session-38-github-topics-optimization.md`
 - Commit: `9eca5bd` docs(analysis): add GitHub topics SEO optimization
 
 ## Related

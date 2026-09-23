@@ -32,7 +32,7 @@
 > Planning does NOT replace validation. Plan quality correlates with design clarity, 
 > not implementation correctness. Session 03 had excellent planning but terrible 
 > implementation due to untested assumptions. The code required 24+ fix commits.
-> See: `.agents/retrospective/2025-12-18-hyper-critical-ai-workflow.md`
+> See: `.project-toolkit/retrospective/2025-12-18-hyper-critical-ai-workflow.md`
 
 ---
 

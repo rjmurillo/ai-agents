@@ -330,6 +330,6 @@ Requirements are validated by the critic agent using this checklist:
 
 - [enhancement-PROJECT-PLAN.md](../planning/enhancement-PROJECT-PLAN.md) - Phase 1: Spec Layer
 - [AGENT-SYSTEM.md](../AGENT-SYSTEM.md) - Agent architecture
-- [ADR-011](../architecture/ADR-011-session-state-mcp.md) - Session State MCP
-- [ADR-012](../architecture/ADR-012-skill-catalog-mcp.md) - Skill Catalog MCP
+- [ADR-011](../../.project-toolkit/architecture/ADR-011-session-state-mcp.md) - Session State MCP
+- [ADR-012](../../.project-toolkit/architecture/ADR-012-skill-catalog-mcp.md) - Skill Catalog MCP
 - Original EARS paper: Mavin et al., "Easy Approach to Requirements Syntax (EARS)"

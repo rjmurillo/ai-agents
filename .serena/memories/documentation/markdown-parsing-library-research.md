@@ -23,4 +23,4 @@ All recommended libraries are MIT-compatible:
 - remark/unified (MIT): Identical license, no special handling needed
 
 ## Reference
-Full analysis: `.agents/analysis/004-markdown-parsing-library-research.md`
+Full analysis: `.project-toolkit/analysis/004-markdown-parsing-library-research.md`

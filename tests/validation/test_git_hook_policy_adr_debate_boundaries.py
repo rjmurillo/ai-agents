@@ -165,7 +165,7 @@ def test_every_debate_log_in_the_working_tree_still_passes() -> None:
     calibrate as clean. All 86 are valid UTF-8 today; the strict read is what
     keeps that a checked fact rather than an assumption.
     """
-    critique = _ROOT / ".agents" / "critique"
+    critique = _ROOT / ".project-toolkit" / "critique"
     logs = sorted(path for path in critique.glob("*.md") if "debate" in path.name)
     assert len(logs) >= 70, "expected the calibration corpus to be present"
 

@@ -1,7 +1,7 @@
 # Roadmap Skills
 
 **Extracted**: 2025-12-16
-**Source**: `.agents/roadmap/` directory
+**Source**: `.project-toolkit/roadmap/` directory
 
 ## Skill-Roadmap-001: RICE-KANO Scoring (85%)
 
@@ -36,11 +36,11 @@ Score = (Reach × Impact × Confidence) / Effort
 3. Prioritize: Must-haves first, then Delighters, then Performance
 4. Within each KANO category, order by RICE score
 
-**Source**: `.agents/roadmap/product-roadmap.md`
+**Source**: `.project-toolkit/roadmap/product-roadmap.md`
 
 ---
 
 ## Related Documents
 
-- Source: `.agents/roadmap/product-roadmap.md`
+- Source: `.project-toolkit/roadmap/product-roadmap.md`
 - Related: skills-planning (task prioritization)

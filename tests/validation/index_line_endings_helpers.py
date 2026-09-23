@@ -132,8 +132,13 @@ def _porcelain(worktree: Path) -> str:
 # the whole-tree guard above, so a reintroduction of these exact paths fails
 # with the incident's own name attached rather than as an anonymous count.
 INCIDENT_PATHS = (
-    ".agents/sessions/handoffs/2026-09-01-4789-handoff.md",
-    ".agents/sessions/handoffs/2026-09-01-5361-handoff.md",
+    ".project-toolkit/sessions/handoffs/2026-09-01-4789-handoff.md",
+    ".project-toolkit/sessions/handoffs/2026-09-01-5361-handoff.md",
+)
+# The same two blobs as the incident commit spelled them, before issue #5420
+# moved agent write targets from `.agents/` to `.project-toolkit/`.
+INCIDENT_PATHS_AT_INCIDENT = tuple(
+    path.replace(".project-toolkit/", ".agents/", 1) for path in INCIDENT_PATHS
 )
 
 

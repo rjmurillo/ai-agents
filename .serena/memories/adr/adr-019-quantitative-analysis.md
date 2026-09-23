@@ -1,7 +1,7 @@
 # ADR-019 Quantitative Verification Findings
 
 **Analyzed**: 2025-12-23 | **Analyst**: Claude Opus 4.5
-**Full Report**: `.agents/analysis/083-adr-017-quantitative-verification.md`
+**Full Report**: `.project-toolkit/analysis/083-adr-017-quantitative-verification.md`
 
 ---
 

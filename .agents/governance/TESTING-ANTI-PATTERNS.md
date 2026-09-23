@@ -2,7 +2,7 @@
 
 **Created**: 2026-02-07
 **Source**: Issue #749 (Evidence-Based Testing Philosophy)
-**References**: Dan North, Rico Mariani, `.agents/analysis/testing-coverage-philosophy.md`
+**References**: Dan North, Rico Mariani, `.project-toolkit/analysis/testing-coverage-philosophy.md`
 
 ---
 
@@ -173,6 +173,6 @@ Where a warning is genuinely wrong, the other discriminators are a counter or a 
 
 ## Related Documents
 
-- `.agents/analysis/testing-coverage-philosophy.md` (full research)
+- `.project-toolkit/analysis/testing-coverage-philosophy.md` (full research)
 - `.agents/governance/test-location-standards.md` (where tests live)
 - Serena memory: `testing-004-coverage-pragmatism`

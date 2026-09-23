@@ -77,7 +77,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--old-id", required=True, help="Current spec ID (e.g., REQ-001)")
     parser.add_argument("--new-id", required=True, help="New spec ID (e.g., REQ-100)")
     parser.add_argument(
-        "--specs-path", default=".agents/specs", help="Path to specs directory"
+        "--specs-path", default=".project-toolkit/specs", help="Path to specs directory"
     )
     parser.add_argument("--dry-run", action="store_true", help="Show plan without changes")
     parser.add_argument("--force", action="store_true", help="Skip confirmation prompts")

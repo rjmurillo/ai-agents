@@ -52,8 +52,8 @@ HISTORICAL_MARKER = "push-lock-historical"
 
 # Trees whose whole purpose is recording what already happened.
 EXCLUDED_PREFIXES = (
-    ".agents/retrospective/",
-    ".agents/audits/",
+    ".project-toolkit/retrospective/",
+    ".project-toolkit/audits/",
     ".agents/archive/",
 )
 

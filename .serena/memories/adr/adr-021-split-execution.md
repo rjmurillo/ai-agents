@@ -46,17 +46,17 @@ Successfully split ADR-019 from bundled document (~550 lines) into focused archi
 
 **Created**:
 
-- `.agents/architecture/ADR-019-model-routing-strategy.md`
+- `.project-toolkit/architecture/ADR-019-model-routing-strategy.md`
 - `.agents/governance/AI-REVIEW-MODEL-POLICY.md`
 
 **Updated**:
 
-- `.agents/critique/ADR-019-debate-log.md` (added "Post-Debate: ADR-019 Split" section)
-- `.agents/sessions/2025-12-23-session-90-adr-debate-clarification.md` (documented split)
+- `.project-toolkit/critique/ADR-019-debate-log.md` (added "Post-Debate: ADR-019 Split" section)
+- `.project-toolkit/sessions/2025-12-23-session-90-adr-debate-clarification.md` (documented split)
 
 **Removed**:
 
-- `.agents/architecture/ADR-019-model-routing-low-false-pass.md` (preserved in git history)
+- `.project-toolkit/architecture/ADR-019-model-routing-low-false-pass.md` (preserved in git history)
 
 ## Pattern: When to Split ADRs
 

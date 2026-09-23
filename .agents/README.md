@@ -12,20 +12,20 @@ When installed as a Claude Code plugin, this project creates an `.agents/` direc
 consumer project roots. This directory stores analysis artifacts and governance
 documents used by the plugin's hooks and skills. Session log creation is
 discontinued; the plugin no longer writes new JSON session log files under
-`.agents/sessions/`. Per-issue continuity handoffs under
-`.agents/sessions/handoffs/` are unaffected and remain actively written.
+`.project-toolkit/sessions/`. Per-issue continuity handoffs under
+`.project-toolkit/sessions/handoffs/` are unaffected and remain actively written.
 
 ### Directory Structure
 
 | Path | Purpose | Safe to Delete |
 |------|---------|----------------|
-| `.agents/sessions/*.json` | Historical session logs (JSON), creation discontinued | Yes, loses history |
-| `.agents/sessions/handoffs/` | Active per-issue continuity records, still written by every agent | No, deletes an open issue's continuity |
-| `.agents/analysis/` | Generated analysis reports | Yes, regenerated on demand |
-| `.agents/architecture/` | ADRs and design decisions | No, contains governance |
+| `.project-toolkit/sessions/*.json` | Historical session logs (JSON), creation discontinued | Yes, loses history |
+| `.project-toolkit/sessions/handoffs/` | Active per-issue continuity records, still written by every agent | No, deletes an open issue's continuity |
+| `.project-toolkit/analysis/` | Generated analysis reports | Yes, regenerated on demand |
+| `.project-toolkit/architecture/` | ADRs and design decisions | No, contains governance |
 | `.agents/governance/` | Project constraints and policies | No, contains enforcement rules |
-| `.agents/security/` | Security review artifacts | No, contains audit evidence |
-| `.agents/critique/` | Plan critique results | Yes, regenerated on demand |
+| `.project-toolkit/security/` | Security review artifacts | No, contains audit evidence |
+| `.project-toolkit/critique/` | Plan critique results | Yes, regenerated on demand |
 
 ### Gitignore Recommendations
 
@@ -33,15 +33,15 @@ Add to your `.gitignore` if you do not want to track generated artifacts:
 
 ```gitignore
 # Optional: exclude regenerable plugin artifacts
-.agents/sessions/*.json
-.agents/analysis/
-.agents/critique/
+.project-toolkit/sessions/*.json
+.project-toolkit/analysis/
+.project-toolkit/critique/
 ```
 
-Do not exclude `.agents/sessions/handoffs/`: those files are the active
+Do not exclude `.project-toolkit/sessions/handoffs/`: those files are the active
 per-issue continuity record, not regenerable history.
 
-Do not exclude `.agents/architecture/`, `.agents/governance/`, or `.agents/security/`.
+Do not exclude `.project-toolkit/architecture/`, `.agents/governance/`, or `.project-toolkit/security/`.
 These contain decisions and policies that should be version-controlled.
 
 ### Directory Creation
@@ -87,12 +87,12 @@ root is read-only, set `CLAUDE_PROJECT_DIR` to a writable location.
 
 ```bash
 # In your ai-agents repository
-mkdir -p .agents/planning .agents/prompts .agents/governance .agents/specs .agents/steering
+mkdir -p .project-toolkit/planning .project-toolkit/prompts .agents/governance .project-toolkit/specs .agents/steering
 
 # Copy files
 cp AGENT-INSTRUCTIONS.md .agents/
 cp PHASE-PROMPTS.md .agents/
-cp prompts/GENERATE-AGENT-SYSTEM-PROMPT.md .agents/prompts/
+cp prompts/GENERATE-AGENT-SYSTEM-PROMPT.md .project-toolkit/prompts/
 
 # Generate AGENT-SYSTEM.md using the prompt
 # (delegate to explainer or architect agent)

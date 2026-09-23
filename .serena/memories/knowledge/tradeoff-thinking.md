@@ -1,7 +1,7 @@
 # Tradeoff Thinking Framework
 
 **Category**: Engineering Decision-Making
-**Source**: `.agents/analysis/senior-engineering-knowledge.md`
+**Source**: `.project-toolkit/analysis/senior-engineering-knowledge.md`
 
 ## Core Principle
 

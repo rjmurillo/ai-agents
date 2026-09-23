@@ -18,14 +18,14 @@ from scripts.validation.tracked_paths import path_exists_in_repo
 
 # Paths that legitimately do not exist in this repo because the skill WRITES
 # them into a consumer workspace rather than reading them here. Exemption is
-# checked on path COMPONENTS, not string prefixes, so .agents/sessions matches
-# .agents/sessions/foo but never .agents/sessions-evil/bar.
+# checked on path COMPONENTS, not string prefixes, so .project-toolkit/sessions matches
+# .project-toolkit/sessions/foo but never .project-toolkit/sessions-evil/bar.
 _CONSUMER_WORKSPACE_PATHS: tuple[tuple[str, ...], ...] = (
-    (".agents", "sessions"),
-    (".agents", "analysis"),
-    (".agents", "critique"),
-    (".agents", "memory"),
-    (".agents", "scratch"),
+    (".project-toolkit", "sessions"),
+    (".project-toolkit", "analysis"),
+    (".project-toolkit", "critique"),
+    (".project-toolkit", "memory"),
+    (".project-toolkit", "scratch"),
 )
 
 # Generated artifacts named in prose that no clean checkout contains. Listed as
@@ -137,7 +137,7 @@ def _extract_paths_from_text(
     # invisible: "./../scripts/x.py" and "a/../scripts/x.py" were extracted as
     # if they began at "scripts", so _is_valid_path never saw the ".." and the
     # reference escaped the plugin unreported. Refs #4116.
-    for prefix in (r"\.agents", r"build", r"scripts"):
+    for prefix in (r"\.agents", r"\.project-toolkit", r"build", r"scripts"):
         pat = re.compile(
             simple_anchor + r"[\\/]?(?:[\w.\-]+[\\/])*?"
             + prefix + r"[\\/]" + path_char + r"+",
@@ -213,8 +213,8 @@ def prose_declared_paths(
 def _is_consumer_workspace_path(path: str) -> bool:
     """Return True if path matches or is under a consumer-workspace prefix.
 
-    Matching is on path COMPONENTS, not string prefixes, so .agents/sessions
-    matches .agents/sessions/x but never .agents/sessions-evil/x.
+    Matching is on path COMPONENTS, not string prefixes, so .project-toolkit/sessions
+    matches .project-toolkit/sessions/x but never .project-toolkit/sessions-evil/x.
     """
     parts = PurePosixPath(path).parts
     for prefix_parts in _CONSUMER_WORKSPACE_PATHS:

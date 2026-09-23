@@ -1,7 +1,7 @@
 # C4 Model (Simon Brown)
 
 **Category**: Architecture Documentation
-**Source**: `.agents/analysis/advanced-engineering-knowledge.md`
+**Source**: `.project-toolkit/analysis/advanced-engineering-knowledge.md`
 
 ## Core Concept
 

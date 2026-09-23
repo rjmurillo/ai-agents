@@ -1,14 +1,14 @@
 """Pins every ``templates/skills/partials/*.mustache`` to the rule it excerpts.
 
 DESIGN-024 "Template grammar"
-(``.agents/specs/design/DESIGN-024-skill-guidance-excerpt-sync.md``):
+(``.project-toolkit/specs/design/DESIGN-024-skill-guidance-excerpt-sync.md``):
 
     A partial's first line MAY be ``{{! rule-source: <file>.md }}``. When
     present, the rest of the file MUST be a verbatim contiguous substring of
     ``.claude/rules/<file>.md``, enforced by
     ``tests/build_scripts/test_skill_partials_rule_parity.py``.
 
-ADR-108 section 5 (``.agents/architecture/ADR-108-template-owned-skill-files.md``):
+ADR-108 section 5 (``.project-toolkit/architecture/ADR-108-template-owned-skill-files.md``):
 
     A partial whose first line is ``{{! rule-source: <file>.md }}`` MUST
     appear verbatim and contiguously in ``.claude/rules/<file>.md``; a test

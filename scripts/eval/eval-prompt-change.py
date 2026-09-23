@@ -19,7 +19,7 @@ Usage:
 
     # Security-critical prompt (5 runs, 100% pass):
     uv run python scripts/eval/eval-prompt-change.py \\
-        --prompt .agents/security/prompts/security-review.md \\
+        --prompt .project-toolkit/security/prompts/security-review.md \\
         --scenarios tests/evals/security-review-scenarios.json \\
         --base-ref main --security-critical
 

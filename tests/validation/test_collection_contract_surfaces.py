@@ -124,7 +124,7 @@ COLLECTION_MISSES = {
 
 _ADR_104 = (
     Path(__file__).resolve().parents[2]
-    / ".agents"
+    / ".project-toolkit"
     / "architecture"
     / "ADR-104-gate-tier-placement-and-budgets.md"
 )

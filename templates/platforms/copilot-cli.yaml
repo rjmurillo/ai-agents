@@ -11,7 +11,7 @@ artifacts:
     sourceDir: ".claude/skills"
     outputDir: "src/copilot-cli/skills"
     mode: "directory-copy"
-    # merge-resolver is hard-wired to this repo's layout (gh, .agents/sessions,
+    # merge-resolver is hard-wired to this repo's layout (gh, .project-toolkit/sessions,
     # .serena, session-protocol scripts) and does not generalize to other repos.
     # It stays in .claude/skills for ai-agents' own use but is omitted from the
     # publicly-shipping copilot-cli toolkit (issue #2026).

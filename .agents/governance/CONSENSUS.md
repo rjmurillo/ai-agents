@@ -58,7 +58,7 @@ decision = recorder.record_decision(
 
 ## Decision Recording
 
-All consensus decisions are stored in `.agents/decisions/` as JSON files containing:
+All consensus decisions are stored in `.project-toolkit/decisions/` as JSON files containing:
 
 - Decision ID and timestamp
 - Topic and detailed context

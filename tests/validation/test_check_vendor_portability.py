@@ -98,7 +98,7 @@ def test_comments_with_upstream_paths_are_not_offenders(fake_repo: Path) -> None
     _write(
         fake_repo,
         ".claude/skills/foo/scripts/comment.py",
-        "# writes to .agents/analysis when running upstream\nvalue = 'safe'\n",
+        "# writes to .project-toolkit/analysis when running upstream\nvalue = 'safe'\n",
     )
 
     offenders = cvp.collect_offenders(fake_repo)
@@ -141,11 +141,12 @@ def test_raw_string_regex_pattern_is_not_an_offender(fake_repo: Path) -> None:
 
 
 def test_raw_string_regex_pattern_with_anchor_is_not_an_offender(fake_repo: Path) -> None:
-    """Anchored regex pattern (r"^\\.agents/sessions/") is still a pattern."""
+    """Anchored regex pattern (r"^\\.project-toolkit/sessions/") is still a pattern."""
     _write(
         fake_repo,
         ".claude/skills/foo/scripts/anchored.py",
-        'PATTERNS = [\n    r"^\\.agents/sessions/",\n    r"^\\.agents/analysis/",\n]\n',
+        'PATTERNS = [\n    r"^\\.project-toolkit/sessions/",\n'
+        '    r"^\\.project-toolkit/analysis/",\n]\n',
     )
 
     offenders = cvp.collect_offenders(fake_repo)
@@ -189,7 +190,7 @@ def test_raw_fstring_without_escape_is_still_an_offender(fake_repo: Path) -> Non
     _write(
         fake_repo,
         ".claude/skills/foo/scripts/raw_fstring_path.py",
-        'day = "today"\nout = rf".agents/analysis/{day}.md"\n',
+        'day = "today"\nout = rf".project-toolkit/analysis/{day}.md"\n',
     )
 
     offenders = cvp.collect_offenders(fake_repo)
@@ -208,7 +209,7 @@ def test_raw_string_without_escape_is_still_an_offender(fake_repo: Path) -> None
     _write(
         fake_repo,
         ".claude/skills/foo/scripts/raw_path.py",
-        'out = r".agents/analysis/x.md"\n',
+        'out = r".project-toolkit/analysis/x.md"\n',
     )
 
     offenders = cvp.collect_offenders(fake_repo)
@@ -221,7 +222,7 @@ def test_argparse_help_text_is_not_an_offender(fake_repo: Path) -> None:
     """An argparse `help=` value containing `.agents/` is prose, not a path.
 
     Evidence: .claude/skills/orphan-ref-validator/scripts/scan.py:563 references
-    `.agents/architecture/` only inside `help=` to document a flag. The string is
+    `.project-toolkit/architecture/` only inside `help=` to document a flag. The string is
     rendered by argparse onto stderr and never opens or writes a file.
     """
     _write(
@@ -231,7 +232,8 @@ def test_argparse_help_text_is_not_an_offender(fake_repo: Path) -> None:
         "p = argparse.ArgumentParser()\n"
         "p.add_argument(\n"
         "    '--episode-path',\n"
-        "    help='Path to episode file or directory (default: .agents/memory/episodes/)',\n"
+        "    help='Path to episode file or directory "
+        "(default: .project-toolkit/memory/episodes/)',\n"
         ")\n",
     )
 
@@ -244,7 +246,7 @@ def test_argparse_epilog_text_is_not_an_offender(fake_repo: Path) -> None:
     """An argparse `epilog=` value (often a concatenated string) is prose.
 
     Evidence: .claude/skills/security-scan/scripts/scan_vulnerabilities.py:337
-    references `.agents/architecture/ADR-054-...` only inside the parser's
+    references `.project-toolkit/architecture/ADR-054-...` only inside the parser's
     `epilog=` tuple. Both `description=` and `metavar=` follow the same
     prose-not-IO contract.
     """
@@ -258,7 +260,7 @@ def test_argparse_epilog_text_is_not_an_offender(fake_repo: Path) -> None:
         "        'Exit codes:\\n'\n"
         "        '  0  no vulnerabilities\\n'\n"
         "        '\\n'\n"
-        "        'See .agents/architecture/ADR-054-local-security-scanning.md.'\n"
+        "        'See .project-toolkit/architecture/ADR-054-local-security-scanning.md.'\n"
         "    ),\n"
         ")\n",
     )
@@ -275,7 +277,7 @@ def test_argparse_description_text_is_not_an_offender(fake_repo: Path) -> None:
         ".claude/skills/foo/scripts/argparse_desc.py",
         "import argparse\n"
         "p = argparse.ArgumentParser(\n"
-        "    description='Reads from .agents/sessions/ and reports stats.',\n"
+        "    description='Reads from .project-toolkit/sessions/ and reports stats.',\n"
         ")\n",
     )
 
@@ -297,14 +299,14 @@ def test_hardcoded_path_outside_help_kwarg_is_still_offender(fake_repo: Path) ->
         "import argparse\n"
         "p = argparse.ArgumentParser(description='Innocent description.')\n"
         "p.add_argument('--out', help='Output file.')\n"
-        "OUT = '.agents/analysis/x.md'\n",
+        "OUT = '.project-toolkit/analysis/x.md'\n",
     )
 
     offenders = cvp.collect_offenders(fake_repo)
 
     assert len(offenders) == 1
     assert offenders[0].relpath == ".claude/skills/foo/scripts/mixed.py"
-    assert ".agents/analysis/x.md" in offenders[0].excerpt
+    assert ".project-toolkit/analysis/x.md" in offenders[0].excerpt
 
 
 def test_non_argparse_help_kwarg_is_also_exempt(fake_repo: Path) -> None:
@@ -317,7 +319,7 @@ def test_non_argparse_help_kwarg_is_also_exempt(fake_repo: Path) -> None:
         fake_repo,
         ".claude/skills/foo/scripts/click_help.py",
         "import click\n\n"
-        "@click.option('--path', help='Defaults to .agents/sessions/')\n"
+        "@click.option('--path', help='Defaults to .project-toolkit/sessions/')\n"
         "def cmd(path):\n"
         "    pass\n",
     )
@@ -334,21 +336,21 @@ def test_hardcoded_agents_path_is_offender(fake_repo: Path) -> None:
     _write(
         fake_repo,
         ".claude/skills/bar/scripts/bad.py",
-        "from pathlib import Path\n\nout = Path('.agents/analysis/x.md')\n",
+        "from pathlib import Path\n\nout = Path('.project-toolkit/analysis/x.md')\n",
     )
 
     offenders = cvp.collect_offenders(fake_repo)
 
     assert len(offenders) == 1
     assert offenders[0].relpath == ".claude/skills/bar/scripts/bad.py"
-    assert ".agents/" in offenders[0].excerpt
+    assert ".project-toolkit/" in offenders[0].excerpt
 
 
 def test_import_pathspec_does_not_exempt_offender(fake_repo: Path) -> None:
     _write(
         fake_repo,
         ".claude/skills/bar/scripts/pathspec_bad.py",
-        "import pathspec\n\nout = '.agents/analysis/x.md'\n",
+        "import pathspec\n\nout = '.project-toolkit/analysis/x.md'\n",
     )
 
     offenders = cvp.collect_offenders(fake_repo)
@@ -361,7 +363,7 @@ def test_unused_paths_import_does_not_exempt_offender(fake_repo: Path) -> None:
     _write(
         fake_repo,
         ".claude/skills/bar/scripts/unused_paths.py",
-        "import paths\n\nout = '.agents/analysis/x.md'\n",
+        "import paths\n\nout = '.project-toolkit/analysis/x.md'\n",
     )
 
     offenders = cvp.collect_offenders(fake_repo)
@@ -374,7 +376,7 @@ def test_standalone_agents_segment_is_offender(fake_repo: Path) -> None:
     _write(
         fake_repo,
         ".claude/skills/bar/scripts/standalone.py",
-        "out = os.path.join('.agents', 'analysis', 'x.md')\n",
+        "out = os.path.join('.project-toolkit', 'analysis', 'x.md')\n",
     )
 
     offenders = cvp.collect_offenders(fake_repo)
@@ -426,7 +428,7 @@ def test_offender_line_number_points_at_first_hit(fake_repo: Path) -> None:
     _write(
         fake_repo,
         ".claude/skills/bar/scripts/bad.py",
-        "import os\n\n\nout = '.agents/sessions/log.json'\n",
+        "import os\n\n\nout = '.project-toolkit/sessions/log.json'\n",
     )
 
     offenders = cvp.collect_offenders(fake_repo)
@@ -439,7 +441,7 @@ def test_offender_line_number_points_at_first_hit(fake_repo: Path) -> None:
 
 def test_baselined_offender_does_not_fail(fake_repo: Path) -> None:
     rel = ".claude/skills/bar/scripts/bad.py"
-    _write(fake_repo, rel, "out = '.agents/analysis/x.md'\n")
+    _write(fake_repo, rel, "out = '.project-toolkit/analysis/x.md'\n")
     offenders = cvp.collect_offenders(fake_repo)
 
     new, known = cvp.split_offenders(offenders, {rel})
@@ -452,7 +454,7 @@ def test_new_offender_outside_baseline_fails(fake_repo: Path) -> None:
     _write(
         fake_repo,
         ".claude/skills/bar/scripts/new_bad.py",
-        "out = '.agents/analysis/x.md'\n",
+        "out = '.project-toolkit/analysis/x.md'\n",
     )
     offenders = cvp.collect_offenders(fake_repo)
 
@@ -493,7 +495,7 @@ def test_main_fails_on_new_offender(fake_repo: Path) -> None:
     _write(
         fake_repo,
         ".claude/skills/bar/scripts/bad.py",
-        "out = '.agents/analysis/x.md'\n",
+        "out = '.project-toolkit/analysis/x.md'\n",
     )
 
     rc = cvp.main(["--repo-root", str(fake_repo)])
@@ -503,7 +505,7 @@ def test_main_fails_on_new_offender(fake_repo: Path) -> None:
 
 def test_main_passes_when_offender_in_baseline(fake_repo: Path) -> None:
     rel = ".claude/skills/bar/scripts/bad.py"
-    _write(fake_repo, rel, "out = '.agents/analysis/x.md'\n")
+    _write(fake_repo, rel, "out = '.project-toolkit/analysis/x.md'\n")
     bpath = cvp.baseline_path(fake_repo)
     bpath.parent.mkdir(parents=True, exist_ok=True)
     bpath.write_text(rel + "\n", encoding="utf-8")
@@ -515,7 +517,7 @@ def test_main_passes_when_offender_in_baseline(fake_repo: Path) -> None:
 
 def test_main_update_baseline_writes_offenders(fake_repo: Path) -> None:
     rel = ".claude/skills/bar/scripts/bad.py"
-    _write(fake_repo, rel, "out = '.agents/analysis/x.md'\n")
+    _write(fake_repo, rel, "out = '.project-toolkit/analysis/x.md'\n")
 
     rc = cvp.main(["--repo-root", str(fake_repo), "--update-baseline"])
 
@@ -546,7 +548,7 @@ def test_pycache_files_are_skipped(fake_repo: Path) -> None:
     _write(
         fake_repo,
         ".claude/skills/foo/scripts/__pycache__/bad.py",
-        "out = '.agents/analysis/x.md'\n",
+        "out = '.project-toolkit/analysis/x.md'\n",
     )
 
     offenders = cvp.collect_offenders(fake_repo)

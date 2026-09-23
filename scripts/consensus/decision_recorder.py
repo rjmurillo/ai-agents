@@ -1,7 +1,7 @@
 """Decision recording and storage for multi-agent consensus.
 
 Records decisions with votes, rationale, algorithm used, and confidence scores.
-Stores decisions as JSON files in .agents/decisions/ directory.
+Stores decisions as JSON files in .project-toolkit/decisions/ directory.
 """
 
 from __future__ import annotations
@@ -50,10 +50,10 @@ class DecisionRecorder:
 
         Args:
             decisions_dir: Directory for storing decisions
-                          (default: .agents/decisions/)
+                          (default: .project-toolkit/decisions/)
         """
         if decisions_dir is None:
-            decisions_dir = Path(".agents/decisions")
+            decisions_dir = Path(".project-toolkit/decisions")
         self.decisions_dir = decisions_dir
         self.decisions_dir.mkdir(parents=True, exist_ok=True)
 

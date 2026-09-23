@@ -5,7 +5,7 @@ This file records the forensic lessons without preserving a volatile result
 snapshot. Read it before relying on an archived judge result or writing a new
 instrument that parses judge output.
 
-Raw artifacts: `.agents/analysis/eval-artifacts/2026-07-29-unified-software-engineering/`.
+Raw artifacts: `.project-toolkit/analysis/eval-artifacts/2026-07-29-unified-software-engineering/`.
 
 ## What recovery established
 
@@ -56,7 +56,7 @@ The detailed parser history remains in
 `rule-audit-measurement-discipline.md`.
 
 <!-- vendor-portability: declared. This file cites
-.agents/analysis/eval-artifacts/2026-07-29-unified-software-engineering/ as the
+.project-toolkit/analysis/eval-artifacts/2026-07-29-unified-software-engineering/ as the
 archive holding the forensic records. It is a narrative citation, not a path
 the skill reads or writes. A vendored install loses local access to that
 archive, but the guidance remains useful. Issue #2050. -->

@@ -22,14 +22,14 @@ Templates (`templates/agents/*.shared.md`) are the SINGLE SOURCE OF TRUTH.
 
 | Document | Location |
 |----------|----------|
-| Context | `.agents/analysis/three-platform-templating-context.md` |
-| Independent Thinker Review | `.agents/analysis/independent-thinker-review-three-platform.md` |
-| High-Level Advisor Verdict | `.agents/analysis/high-level-advisor-verdict-three-platform.md` |
-| ADR | `.agents/architecture/ADR-001-three-platform-template-generation.md` |
-| Design Spec | `.agents/architecture/claude-platform-config-design.md` |
-| Plan | `.agents/planning/001-three-platform-templating-plan.md` |
-| Task Breakdown | `.agents/planning/tasks-three-platform-templating.md` |
-| Critique | `.agents/critique/001-three-platform-templating-critique.md` |
+| Context | `.project-toolkit/analysis/three-platform-templating-context.md` |
+| Independent Thinker Review | `.project-toolkit/analysis/independent-thinker-review-three-platform.md` |
+| High-Level Advisor Verdict | `.project-toolkit/analysis/high-level-advisor-verdict-three-platform.md` |
+| ADR | `.project-toolkit/architecture/ADR-001-three-platform-template-generation.md` |
+| Design Spec | `.project-toolkit/architecture/claude-platform-config-design.md` |
+| Plan | `.project-toolkit/planning/001-three-platform-templating-plan.md` |
+| Task Breakdown | `.project-toolkit/planning/tasks-three-platform-templating.md` |
+| Critique | `.project-toolkit/critique/001-three-platform-templating-critique.md` |
 
 ## Effort Estimate
 

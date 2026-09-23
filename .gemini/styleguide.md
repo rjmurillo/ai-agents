@@ -11,9 +11,9 @@
 | Code quality | [`.agents/governance/code-quality.md`](../.agents/governance/code-quality.md) (canonical) |
 | Code review norms | [`.agents/governance/code-review-norms.md`](../.agents/governance/code-review-norms.md) (canonical) |
 | PowerShell standards | [`scripts/AGENTS.md`](../scripts/AGENTS.md) (canonical) |
-| Exit codes | [`ADR-035`](../.agents/architecture/ADR-035-exit-code-standardization.md) in `.agents/architecture/` |
-| Output schemas | [`ADR-028`](../.agents/architecture/ADR-028-powershell-output-schema-consistency.md) in `.agents/architecture/` |
-| Workflow architecture | [`ADR-006`](../.agents/architecture/ADR-006-thin-workflows-testable-modules.md) in `.agents/architecture/` |
+| Exit codes | [`ADR-035`](../.project-toolkit/architecture/ADR-035-exit-code-standardization.md) in `.project-toolkit/architecture/` |
+| Output schemas | [`ADR-028`](../.project-toolkit/architecture/ADR-028-powershell-output-schema-consistency.md) in `.project-toolkit/architecture/` |
+| Workflow architecture | [`ADR-006`](../.project-toolkit/architecture/ADR-006-thin-workflows-testable-modules.md) in `.project-toolkit/architecture/` |
 | Skill usage | [`.serena/memories/usage-mandatory.md`](../.serena/memories/usage-mandatory.md) |
 | Session log mechanics | [`.claude/rules/session-logs.md`](../.claude/rules/session-logs.md) |
 | Project constraints | [`.agents/governance/PROJECT-CONSTRAINTS.md`](../.agents/governance/PROJECT-CONSTRAINTS.md) |
@@ -21,7 +21,7 @@
 | Naming conventions | [`.agents/governance/naming-conventions.md`](../.agents/governance/naming-conventions.md) |
 | PR template | [`.github/PULL_REQUEST_TEMPLATE.md`](../.github/PULL_REQUEST_TEMPLATE.md) |
 | Documentation links | [`.agents/governance/DOCUMENTATION-LINK-REQUIREMENTS.md`](../.agents/governance/DOCUMENTATION-LINK-REQUIREMENTS.md) |
-| Prompt behavioral eval | [`ADR-057`](../.agents/architecture/ADR-057-prompt-behavioral-evaluation.md) - Run `scripts/eval/eval-suite.py` before merging prompt/skill/command changes |
+| Prompt behavioral eval | [`ADR-057`](../.project-toolkit/architecture/ADR-057-prompt-behavioral-evaluation.md) - Run `scripts/eval/eval-suite.py` before merging prompt/skill/command changes |
 
 ---
 
@@ -195,7 +195,7 @@ Review in this order:
 Load detailed documentation just-in-time from these sources:
 
 - **PowerShell coding standards**: [`scripts/AGENTS.md`](../scripts/AGENTS.md)
-- **Exit code semantics**: [`.agents/architecture/ADR-035-exit-code-standardization.md`](../.agents/architecture/ADR-035-exit-code-standardization.md)
-- **Workflow patterns**: [`.agents/architecture/ADR-006-thin-workflows-testable-modules.md`](../.agents/architecture/ADR-006-thin-workflows-testable-modules.md)
+- **Exit code semantics**: [`.project-toolkit/architecture/ADR-035-exit-code-standardization.md`](../.project-toolkit/architecture/ADR-035-exit-code-standardization.md)
+- **Workflow patterns**: [`.project-toolkit/architecture/ADR-006-thin-workflows-testable-modules.md`](../.project-toolkit/architecture/ADR-006-thin-workflows-testable-modules.md)
 - **Full agent instructions**: [`AGENTS.md`](../AGENTS.md)
 - **Communication style**: [`src/STYLE-GUIDE.md`](../src/STYLE-GUIDE.md)

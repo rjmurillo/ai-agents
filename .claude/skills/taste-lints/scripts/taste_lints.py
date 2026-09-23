@@ -71,7 +71,7 @@ SCANNABLE_EXTENSIONS = {
 #   length tracks how much work a session did and nothing else.
 #   validate_session_json.py validates one file per session, so splitting one
 #   is not available either.
-_AGENT_STATE_DIR = ".agents"
+_AGENT_STATE_DIR = ".project-toolkit"
 
 FILE_SIZE_EXEMPT_SUFFIX = ".json"
 
@@ -551,8 +551,8 @@ def _is_file_size_exempt(filepath: str) -> bool:
 
     Both conditions are required. The exempt segment must anchor at the START of
     the repository-relative path, not match anywhere in it. Otherwise a checkout
-    whose parent directories happen to contain ``.agents/memory`` (for example a
-    clone under ``/home/me/.agents/memory/repo``) would leak the exemption to
+    whose parent directories happen to contain ``.project-toolkit/memory`` (for example a
+    clone under ``/home/me/.project-toolkit/memory/repo``) would leak the exemption to
     unrelated files. The suffix must be ``.json``, because the reason these
     directories are exempt at all is that JSON cannot carry a suppression
     comment; an authored markdown or XML file sitting in one of them has

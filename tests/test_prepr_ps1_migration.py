@@ -122,7 +122,7 @@ class TestSessionEndGate:
         from checks_tooling import validate_session_end
 
         # Create an invalid session log
-        sessions_dir = tmp_path / ".agents" / "sessions"
+        sessions_dir = tmp_path / ".project-toolkit" / "sessions"
         sessions_dir.mkdir(parents=True)
         bad_log = sessions_dir / "2099-01-01-session-01.json"
         bad_log.write_text('{"not": "valid session"}')
@@ -137,7 +137,7 @@ class TestSessionEndGate:
                 "checks_tooling._run_subprocess",
                 side_effect=[
                     # git diff returns the session log path
-                    (0, ".agents/sessions/2099-01-01-session-01.json\0", ""),
+                    (0, ".project-toolkit/sessions/2099-01-01-session-01.json\0", ""),
                     # git rev-parse resolves the validation endpoint
                     (0, f"{'c' * 40}\n", ""),
                     # validator invocation fails
@@ -228,7 +228,7 @@ class TestPlanningArtifactsGate:
 
         # Create a planning doc with an orphan condition (a specialist condition
         # listed outside any table and not referenced in any table row).
-        planning_dir = tmp_path / ".agents" / "planning"
+        planning_dir = tmp_path / ".project-toolkit" / "planning"
         planning_dir.mkdir(parents=True)
         plan_doc = planning_dir / "plan-feature.md"
         plan_doc.write_text(

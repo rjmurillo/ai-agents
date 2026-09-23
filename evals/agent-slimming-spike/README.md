@@ -11,7 +11,7 @@ the kill gate?
 
 ## Provenance
 
-The files were first committed under `.agents/planning/` before `evals/` became
+The files were first committed under `.project-toolkit/planning/` before `evals/` became
 the repository system of record for eval inputs and outputs. Issue #3435
 re-homed them here without changing JSON bytes.
 
@@ -75,7 +75,7 @@ evals/agent-slimming-spike/
 
 All 33 JSON files moved from `.agents/archive/planning/`. Their immediate
 pre-move paths were produced by the #3431 archive pass, which moved the older
-`.agents/planning/` contents into `.agents/archive/planning/` without changing
+`.project-toolkit/planning/` contents into `.agents/archive/planning/` without changing
 filenames.
 
 ## Related records

@@ -1,7 +1,7 @@
 # Chesterton's Fence Principle - Memory Integration
 
 **Created**: 2026-01-03
-**Related**: ADR-007 (Memory-First), Issue #748, `.agents/analysis/chestertons-fence.md`
+**Related**: ADR-007 (Memory-First), Issue #748, `.project-toolkit/analysis/chestertons-fence.md`
 
 ## Core Connection
 
@@ -47,7 +47,7 @@ When changing existing systems:
 
 ### Correction: memory is not the only place the sign is posted
 
-Added 2026-08-02 from `.agents/retrospective/2026-08-02-wrong-fix-before-search.md`.
+Added 2026-08-02 from `.project-toolkit/retrospective/2026-08-02-wrong-fix-before-search.md`.
 
 Line 19 above claims "Memory search IS the investigation mechanism Chesterton's Fence demands."
 That is too strong. Memory holds what a past session chose to write down. It does not hold what
@@ -103,7 +103,7 @@ Added to memory skill: Memory-first gate for changes to existing systems.
 
 ## Implementation Status
 
-- [x] Deep analysis written: `.agents/analysis/chestertons-fence.md`
+- [x] Deep analysis written: `.project-toolkit/analysis/chestertons-fence.md`
 - [x] GitHub issue created: #748 (agent integration plan)
 - [x] Memory skill updated: Added "Memory-First as Chesterton's Fence" section
 - [ ] Agent prompts updated: Add investigation requirement (per Issue #748 plan)
@@ -126,7 +126,7 @@ When you search memory and find rationale, you're doing Chesterton's investigati
 
 ## References
 
-- Full analysis: `.agents/analysis/chestertons-fence.md` (13 sections, decision framework, examples)
+- Full analysis: `.project-toolkit/analysis/chestertons-fence.md` (13 sections, decision framework, examples)
 - Issue #748: Implementation plan for agent integration
 - ADR-007: Memory-first architecture (original mandate)
 - Memory skill: `.claude/skills/memory/SKILL.md` (updated with Chesterton's Fence section)

@@ -2,7 +2,7 @@
 
 **Created**: 2025-12-23
 **Session**: 80
-**Source**: `.agents/analysis/claude-pwsh-performance-strategic.md`
+**Source**: `.project-toolkit/analysis/claude-pwsh-performance-strategic.md`
 
 ## Problem Summary
 

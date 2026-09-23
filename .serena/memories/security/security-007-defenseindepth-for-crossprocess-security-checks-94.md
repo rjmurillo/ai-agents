@@ -33,7 +33,7 @@ fi
 - Trusting child process security checks without re-validation
 - Performing action in different process than security check
 
-**Source**: `.agents/retrospective/pr-52-symlink-retrospective.md`
+**Source**: `.project-toolkit/retrospective/pr-52-symlink-retrospective.md`
 
 ---
 

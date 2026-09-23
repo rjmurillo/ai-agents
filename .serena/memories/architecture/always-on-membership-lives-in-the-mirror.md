@@ -42,4 +42,4 @@ with the generated mirror. Update the membership table when scope changes.
 
 - `.claude/rules/canonical-source-mirror.md`, section "The one place the mirror outranks the source: always-on membership".
 - `.claude/skills/context-optimizer/references/model-context-doctrine.md`, which explains the activation policy.
-- `.agents/architecture/ADR-088-progressive-disclosure-book-rules.md`, which records the progressive-disclosure decision.
+- `.project-toolkit/architecture/ADR-088-progressive-disclosure-book-rules.md`, which records the progressive-disclosure decision.

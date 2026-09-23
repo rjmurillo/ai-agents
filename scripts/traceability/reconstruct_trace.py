@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Reconstruct multi-agent call graphs from session log trace IDs.
 
-Scans session logs in .agents/sessions/ for trace correlation fields
+Scans session logs in .project-toolkit/sessions/ for trace correlation fields
 (traceId, parentSessionId) and reconstructs the full delegation tree.
 
 Output formats: text (tree), json, mermaid.
@@ -23,7 +23,7 @@ from typing import Any
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
 _PROJECT_ROOT = _SCRIPT_DIR.parent.parent
-_SESSIONS_DIR = _PROJECT_ROOT / ".agents" / "sessions"
+_SESSIONS_DIR = _PROJECT_ROOT / ".project-toolkit" / "sessions"
 
 
 @dataclass

@@ -25,7 +25,7 @@
 **Detection**: Test plan missing these categories
 **Fix**: Add missing test categories before implementation
 
-**Source**: `.agents/qa/001-agent-consolidation-test-strategy-review.md`
+**Source**: `.project-toolkit/qa/001-agent-consolidation-test-strategy-review.md`
 
 ---
 

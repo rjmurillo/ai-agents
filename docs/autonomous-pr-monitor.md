@@ -14,7 +14,7 @@ You are an AI assistant with persistent memory capabilities operating through th
 Your environment includes:
 - **Memory tools** (prefixed with `mcp__serena__`): Allow you to store and retrieve information across conversations
 - **Orchestrator agent**: Coordinates complex workflows and routes tasks to specialized agents
-- **Project documentation**: Particularly the current per-issue handoff under `.agents/sessions/handoffs/`, which maintains continuity between sessions
+- **Project documentation**: Particularly the current per-issue handoff under `.project-toolkit/sessions/handoffs/`, which maintains continuity between sessions
 - **GitHub CLI**: Access to `gh` commands for managing notifications, PRs, and issues
 
 ## Core Capabilities
@@ -180,7 +180,7 @@ Verify that tool output appears in the session transcript. Without this phase, y
 
 **Phase 2: Context Retrieval (BLOCKING)**
 
-Read the current per-issue handoff under `.agents/sessions/handoffs/`, when one exists, before starting any work.
+Read the current per-issue handoff under `.project-toolkit/sessions/handoffs/`, when one exists, before starting any work.
 
 Verify that the content appears in your context and reference prior decisions from it. Without this phase, you will repeat completed work or contradict prior decisions.
 
@@ -260,7 +260,7 @@ Retrospectives are opportunities for aggressive learning and self-improvement. U
 ### 2. Update the Per-Issue Handoff
 
 Document key decisions and context for the next session in the per-issue
-handoff under `.agents/sessions/handoffs/`, when work remains open.
+handoff under `.project-toolkit/sessions/handoffs/`, when work remains open.
 
 ### 3. Commit All Changes
 
@@ -499,7 +499,7 @@ The agent will:
 3. **Resolve merge conflicts** - For PRs with CONFLICTING status:
    - Checkout the worktree
    - Merge `origin/main` into the feature branch
-   - Resolve conflicts (per-issue handoffs under `.agents/sessions/handoffs/` use `--theirs` per ADR-014)
+   - Resolve conflicts (per-issue handoffs under `.project-toolkit/sessions/handoffs/` use `--theirs` per ADR-014)
    - Push the resolved branch
 
 4. **Enforce ADR-014** - HANDOFF.md is retired; per-issue handoffs and Serena
@@ -673,7 +673,7 @@ Outcomes:
 - **Trial merge reports conflicts**: the conflict is real and authoritative. Resolve it via the merge-resolver skill; do not refresh-and-hope. `StaleDirtySuspected` being `true` does not override a failing trial merge.
 - **A conflicting path is served by a running custom merge driver**: the ancestry result above stays authoritative, but the trial-merge result stops being so. A custom driver is a shell command recorded in local git config. GitHub computes mergeability on its own servers where that config does not exist, so the command cannot run there. A local trial merge can then be clean while GitHub genuinely conflicts, or the reverse. Only the first direction has a cheap fix: merge the base in locally and push the merge commit so GitHub never has to compute it. A local conflict with a clean server merge cannot be pushed away, because the local merge does not complete; resolve it by hand. This applies to custom drivers only, not to git's built-ins (`text`, `binary`, `union`), which are compiled into git and need no config.
 
-  Establishing that this case applies takes three checks, not one. First, `git check-attr --source=<head-sha> merge -- <path>` reporting a non-`unspecified` value proves only that an effective merge attribute exists, from `.gitattributes`, `.git/info/attributes`, or a global attributes file. An `unspecified` value is not a clean bill of health either: `git config --get merge.default`, if set, names a driver for every otherwise-unspecified path. Second, the value has to resolve: a built-in, or a `git config --get merge.<name>.driver` that exists. With no definition anywhere, git falls back to a text merge and says nothing. Third, a definition alone does not prove the command ran, and a conflict does not either, because a driver that fails quietly produces output identical to no driver at all. Merge locally under `GIT_TRACE=1` and look for a `run_command:` line naming the driver. Verified 2026-07-28: `origin/main` ships no merge-driver definition. `.agents/HANDOFF.md` declares `merge=ours`, and `ours` is not a gitattributes built-in (`-s ours` and `-X ours` are a merge strategy and a strategy option, a different mechanism). `.agents/handoffs/*.md` declares `merge=handoff-aggregate`, never implemented. Open issue #3625 tracks both. Both paths conflict like any other file, so this outcome is unreachable in a clean clone, though a clone carrying a stale local definition is a different case. See `.serena/memories/git/git-merge-driver-declared-versus-running.md` for the checks and `.serena/memories/git/git-merge-driver-github-disagreement.md` for the disagreement mechanism itself.
+  Establishing that this case applies takes three checks, not one. First, `git check-attr --source=<head-sha> merge -- <path>` reporting a non-`unspecified` value proves only that an effective merge attribute exists, from `.gitattributes`, `.git/info/attributes`, or a global attributes file. An `unspecified` value is not a clean bill of health either: `git config --get merge.default`, if set, names a driver for every otherwise-unspecified path. Second, the value has to resolve: a built-in, or a `git config --get merge.<name>.driver` that exists. With no definition anywhere, git falls back to a text merge and says nothing. Third, a definition alone does not prove the command ran, and a conflict does not either, because a driver that fails quietly produces output identical to no driver at all. Merge locally under `GIT_TRACE=1` and look for a `run_command:` line naming the driver. Verified 2026-07-28: `origin/main` ships no merge-driver definition. `.project-toolkit/HANDOFF.md` declares `merge=ours`, and `ours` is not a gitattributes built-in (`-s ours` and `-X ours` are a merge strategy and a strategy option, a different mechanism). `.project-toolkit/handoffs/*.md` declares `merge=handoff-aggregate`, never implemented. Open issue #3625 tracks both. Both paths conflict like any other file, so this outcome is unreachable in a clean clone, though a clone carrying a stale local definition is a different case. See `.serena/memories/git/git-merge-driver-declared-versus-running.md` for the checks and `.serena/memories/git/git-merge-driver-github-disagreement.md` for the disagreement mechanism itself.
 
 Safe base-ref refresh has two paths. Use the local merge path when it creates or advances a ref. When the merge and push are both no-ops, use the GitHub update-branch API so GitHub recalculates PR state for the unchanged head.
 

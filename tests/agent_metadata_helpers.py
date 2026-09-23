@@ -65,10 +65,10 @@ _LEGACY_TIERS = frozenset({"expert", "manager", "builder", "integration"})
 # rather than silent inheritance of a directory-wide exemption.
 _EXEMPT_FILES = frozenset(
     {
-        ".agents/prototypes/agents/implementer.compressed.md",
-        ".agents/prototypes/agents/orchestrator.compressed.md",
-        ".agents/prototypes/agents/security.compressed.md",
-        ".agents/analysis/instruction-specificity-prototype-security-compressed.md",
+        ".project-toolkit/prototypes/agents/implementer.compressed.md",
+        ".project-toolkit/prototypes/agents/orchestrator.compressed.md",
+        ".project-toolkit/prototypes/agents/security.compressed.md",
+        ".project-toolkit/analysis/instruction-specificity-prototype-security-compressed.md",
     }
 )
 

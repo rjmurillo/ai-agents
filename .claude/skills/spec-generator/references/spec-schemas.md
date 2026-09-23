@@ -75,7 +75,7 @@ stateDiagram-v2
 ## Requirement Schema (S-003)
 
 **File Pattern**: `REQ-NNN-[kebab-case-name].md`
-**Location**: `.agents/specs/requirements/`
+**Location**: `.project-toolkit/specs/requirements/`
 
 ### YAML Front Matter
 
@@ -186,7 +186,7 @@ SO THAT session state survives MCP restarts and can be recovered
 ## Design Schema (S-004)
 
 **File Pattern**: `DESIGN-NNN-[kebab-case-name].md`
-**Location**: `.agents/specs/design/`
+**Location**: `.project-toolkit/specs/design/`
 
 ### YAML Front Matter
 
@@ -284,7 +284,7 @@ Implement a finite state machine tracking session phases...
 ## Task Schema (S-005)
 
 **File Pattern**: `TASK-NNN-[kebab-case-name].md`
-**Location**: `.agents/specs/tasks/`
+**Location**: `.project-toolkit/specs/tasks/`
 
 ### YAML Front Matter
 
@@ -473,4 +473,4 @@ python3 scripts/validation/spec_contradiction.py --advisory
 - [Spec Layer README](../specs/README.md) - Overview
 - [enhancement-PROJECT-PLAN.md](../planning/enhancement-PROJECT-PLAN.md) - Phase 1 tasks
 
-<!-- vendor-portability: declared. This doc names .agents/specs/requirements/, design/, and tasks/ as the locations the three spec tiers are written to, and cites .agents/governance/spec-schemas.md as canonical. The specs paths are write targets created on demand; the governance path is provenance for the bundled schema. Issue #2050. -->
+<!-- vendor-portability: declared. This doc names .project-toolkit/specs/requirements/, design/, and tasks/ as the locations the three spec tiers are written to, and cites .agents/governance/spec-schemas.md as canonical. The specs paths are write targets created on demand; the governance path is provenance for the bundled schema. Issue #2050. -->

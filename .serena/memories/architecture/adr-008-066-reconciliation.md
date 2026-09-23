@@ -18,5 +18,5 @@ item 5 is the accepted authority. The Stop host ignores exit codes; per D2 the r
 still treats a failed Stop hook as failed and relies on pre-push, CI, and
 runtime-contract tests.
 
-Refs: .agents/architecture/ADR-066-hook-fail-open-reconciliation.md, #2271,
+Refs: .project-toolkit/architecture/ADR-066-hook-fail-open-reconciliation.md, #2271,
 #2205, PR #2556.

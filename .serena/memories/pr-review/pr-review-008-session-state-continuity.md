@@ -13,7 +13,7 @@
 Before processing PR comments, check if session state exists:
 
 ```bash
-SESSION_DIR=".agents/pr-comments/PR-[number]"
+SESSION_DIR=".project-toolkit/pr-comments/PR-[number]"
 
 if [ -d "$SESSION_DIR" ]; then
   # Load existing state

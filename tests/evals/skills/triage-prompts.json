@@ -29,11 +29,11 @@
     "session": [
       {
         "prompt": "I am about to commit but staged only investigation artifacts. Can I skip QA?",
-        "expected": "session skill was DELETED 2026-08-20 (Issue #5138), along with session-init, session-end, and session-log-fixer. Per ADR-034, run scripts/validation/test_investigation_eligibility.py to validate staged files match the investigation allowlist (.agents/sessions/, .agents/analysis/, .serena/memories/). Mark verdict SKIPPED investigation-only with evidence."
+        "expected": "session skill was DELETED 2026-08-20 (Issue #5138), along with session-init, session-end, and session-log-fixer. Per ADR-034, run scripts/validation/test_investigation_eligibility.py to validate staged files match the investigation allowlist (.project-toolkit/sessions/, .project-toolkit/analysis/, .serena/memories/). Mark verdict SKIPPED investigation-only with evidence."
       },
       {
         "prompt": "What allowlist paths qualify a session for investigation-only QA exemption?",
-        "expected": ".agents/sessions/, .agents/analysis/, .agents/retrospective/, .serena/memories/, .agents/security/. Code or config staged disqualifies. The canonical allowlist lives in scripts/modules/investigation_allowlist.py."
+        "expected": ".project-toolkit/sessions/, .project-toolkit/analysis/, .project-toolkit/retrospective/, .serena/memories/, .project-toolkit/security/. Code or config staged disqualifies. The canonical allowlist lives in scripts/modules/investigation_allowlist.py."
       },
       {
         "prompt": "List the session protocol gates that fire at session start, mid, pre-PR, and end.",
@@ -54,7 +54,7 @@
     ],
     "session-qa-eligibility": [
       {
-        "prompt": "Staged files include .agents/sessions/2026-05-09-session-01.json and one .py change. Investigation-only exempt?",
+        "prompt": "Staged files include .project-toolkit/sessions/2026-05-09-session-01.json and one .py change. Investigation-only exempt?",
         "expected": "Run scripts/validation/test_investigation_eligibility.py (session-qa-eligibility was folded into the session skill in Issue #1946, and the session skill itself was deleted 2026-08-20, Issue #5138). Answer: No. A staged .py disqualifies; investigation-only requires ALL staged files to be investigation artifacts."
       },
       {
@@ -73,7 +73,7 @@
     "session-migration": [
       {
         "prompt": "We have legacy markdown session logs. How do we migrate to JSON?",
-        "expected": "session-migration skill was SUNSET 2026-06-03 (M2, Issue #1946). New session logs are optional and written directly as JSON by hand against .agents/schemas/session-log.schema.json; the session-init skill that once created them was itself deleted 2026-08-20 (Issue #5138). Legacy .md logs under .agents/sessions/ still exist as archive content; do not modify them expecting auto-conversion, because the conversion path no longer exists."
+        "expected": "session-migration skill was SUNSET 2026-06-03 (M2, Issue #1946). New session logs are optional and written directly as JSON by hand against .agents/schemas/session-log.schema.json; the session-init skill that once created them was itself deleted 2026-08-20 (Issue #5138). Legacy .md logs under .project-toolkit/sessions/ still exist as archive content; do not modify them expecting auto-conversion, because the conversion path no longer exists."
       },
       {
         "prompt": "What is the JSON schema target for session logs?",
@@ -92,7 +92,7 @@
         "expected": "No. Directory .claude/skills/session-migration/ was deleted 2026-06-03 (M2 prune, Issue #1946). Update any legacy reference: session logs are now optional, hand-written JSON validated by scripts/validate_session_json.py; no markdown-to-JSON conversion step remains."
       },
       {
-        "prompt": "How do I convert old markdown session logs in .agents/sessions/ to JSON now?",
+        "prompt": "How do I convert old markdown session logs in .project-toolkit/sessions/ to JSON now?",
         "expected": "You do not. Legacy .md session logs remain archive content that git already preserves, and the session-migration skill that converted them was deleted 2026-06-03 (Issue #1946). Write new logs by hand as JSON against .agents/schemas/session-log.schema.json; do not edit archived markdown logs expecting conversion."
       }
     ],
@@ -137,11 +137,11 @@
       },
       {
         "prompt": "When does Tier 2 Episodic memory apply?",
-        "expected": "Replaying prior sessions to understand what was tried, what worked, what failed. Read .agents/sessions/ JSON logs in date order. Useful for retrospectives."
+        "expected": "Replaying prior sessions to understand what was tried, what worked, what failed. Read .project-toolkit/sessions/ JSON logs in date order. Useful for retrospectives."
       },
       {
         "prompt": "Tier 2 Episodic memory captures what?",
-        "expected": "One record per completed session: the task, the decisions taken with their alternatives, the events in lifecycle order, and the lessons. Lives in .agents/memory/episodes/. No code reads it today; the query API has no caller outside its own module, its tests, and documentation examples."
+        "expected": "One record per completed session: the task, the decisions taken with their alternatives, the events in lifecycle order, and the lessons. Lives in .project-toolkit/memory/episodes/. No code reads it today; the query API has no caller outside its own module, its tests, and documentation examples."
       },
       {
         "prompt": "What is the memory-first rule from ADR-007?",
@@ -176,8 +176,8 @@
     ],
     "memory-reflexion": [
       {
-        "prompt": "Extract an episode from .agents/sessions/2026-07-08-session-2613.json and fold it into memory.",
-        "expected": "Use memory-reflexion. Run extract_session_episode.py against the completed session log. The episode file it writes under .agents/memory/episodes/ is the whole write path; there is no downstream aggregation step."
+        "prompt": "Extract an episode from .project-toolkit/sessions/2026-07-08-session-2613.json and fold it into memory.",
+        "expected": "Use memory-reflexion. Run extract_session_episode.py against the completed session log. The episode file it writes under .project-toolkit/memory/episodes/ is the whole write path; there is no downstream aggregation step."
       },
       {
         "prompt": "Re-extract episodes after a batch of completed sessions.",

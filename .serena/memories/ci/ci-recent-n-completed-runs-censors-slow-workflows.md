@@ -1,7 +1,7 @@
 # Skill: A recent-N completed-runs sample censors slow workflows (92%)
 
 **Atomicity Score**: 92%
-**Source**: Retrospective `.agents/retrospective/2026-08-02-wrong-fix-before-search.md`
+**Source**: Retrospective `.project-toolkit/retrospective/2026-08-02-wrong-fix-before-search.md`
 **Date**: 2026-08-02
 **Validation Count**: 1 (measurement reversed, then re-reversed, before anything was filed)
 **Tag**: helpful

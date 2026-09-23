@@ -38,7 +38,7 @@ Before starting work, complete these steps IN ORDER:
 - [ ] Read this file completely
 - [ ] Read `.agents/AGENT-SYSTEM.md` for agent catalog
 - [ ] Read `.agents/archive/planning/enhancement-PROJECT-PLAN.md` for current project
-- [ ] Read the current per-issue handoff under `.agents/sessions/handoffs/`, when one exists
+- [ ] Read the current per-issue handoff under `.project-toolkit/sessions/handoffs/`, when one exists
 - [ ] Identify your assigned phase and tasks
 - [ ] Read the current per-issue handoff, when one exists
 
@@ -292,7 +292,7 @@ The repository should have a pre-commit hook that:
 ## Session Log Template (retired)
 
 Session log creation is discontinued (`.claude/rules/session-logs.md` MUST 1).
-Do not create a new `.agents/sessions/*.json` file. The schema at
+Do not create a new `.project-toolkit/sessions/*.json` file. The schema at
 `.agents/schemas/session-log.schema.json` and the ~1,500 historical logs
 remain for reference; use a per-issue handoff (see below) and Serena memory
 for continuity instead.
@@ -305,8 +305,8 @@ Update the per-issue handoff at session end when work remains open. The
 project-wide `HANDOFF.md` dashboard described in earlier revisions of this
 document is retired per ADR-014; do not recreate it. Copy
 `.agents/templates/HANDOFF.md` to
-`.agents/sessions/handoffs/{ISO_DATE}-{ISSUE_NUMBER}-handoff.md` and fill it
-in. See `.agents/sessions/handoffs/README.md` for naming, lifecycle, and
+`.project-toolkit/sessions/handoffs/{ISO_DATE}-{ISSUE_NUMBER}-handoff.md` and fill it
+in. See `.project-toolkit/sessions/handoffs/README.md` for naming, lifecycle, and
 scope.
 
 If you need context at session start, read these files in order:
@@ -314,7 +314,7 @@ If you need context at session start, read these files in order:
 1. `.agents/AGENT-INSTRUCTIONS.md` - Process instructions (this file)
 2. `.agents/AGENT-SYSTEM.md` - Agent catalog and workflows
 3. `.agents/archive/planning/enhancement-PROJECT-PLAN.md` - Master project plan
-4. The current per-issue handoff under `.agents/sessions/handoffs/`, when one exists
+4. The current per-issue handoff under `.project-toolkit/sessions/handoffs/`, when one exists
 
 ---
 
@@ -332,13 +332,13 @@ analyst → architect → milestone-planner → critic → implementer → qa �
 
 | Step | Agent | Purpose | Output |
 |------|-------|---------|--------|
-| 1 | `analyst` | Research existing code, gather context | `.agents/analysis/` |
-| 2 | `architect` | Design decision, create ADR if needed | `.agents/architecture/` |
-| 3 | `milestone-planner` | Break down into tasks with criteria | `.agents/planning/` |
-| 4 | `critic` | **Validate plan before implementation** | `.agents/critique/` |
+| 1 | `analyst` | Research existing code, gather context | `.project-toolkit/analysis/` |
+| 2 | `architect` | Design decision, create ADR if needed | `.project-toolkit/architecture/` |
+| 3 | `milestone-planner` | Break down into tasks with criteria | `.project-toolkit/planning/` |
+| 4 | `critic` | **Validate plan before implementation** | `.project-toolkit/critique/` |
 | 5 | `implementer` | Implement changes following the plan | Source files |
-| 6 | `qa` | Verify implementation, document tests | `.agents/qa/` |
-| 7 | `retrospective` | Extract learnings, update skills | `.agents/retrospective/` |
+| 6 | `qa` | Verify implementation, document tests | `.project-toolkit/qa/` |
+| 7 | `retrospective` | Extract learnings, update skills | `.project-toolkit/retrospective/` |
 
 ### Spec Generation Workflow (Kiro Pattern)
 
@@ -350,9 +350,9 @@ spec-generator → critic → milestone-planner → task-decomposer
 
 | Step | Agent | Purpose | Output |
 |------|-------|---------|--------|
-| 1 | `spec-generator` | Create EARS requirements, design, tasks | `.agents/specs/` |
-| 2 | `critic` | Validate spec completeness and clarity | `.agents/critique/` |
-| 3 | `milestone-planner` | Refine implementation approach | `.agents/planning/` |
+| 1 | `spec-generator` | Create EARS requirements, design, tasks | `.project-toolkit/specs/` |
+| 2 | `critic` | Validate spec completeness and clarity | `.project-toolkit/critique/` |
+| 3 | `milestone-planner` | Refine implementation approach | `.project-toolkit/planning/` |
 | 4 | `task-decomposer` | Create atomic task breakdown | Updated specs |
 
 ### Quality Evaluation Workflow (Anthropic Pattern)
@@ -395,7 +395,7 @@ analyst → independent-thinker → high-level-advisor → architect
 **IMPORTANT**: Always invoke the critic agent before implementation:
 
 ```text
-@critic Validate plan at .agents/planning/[plan-file].md
+@critic Validate plan at .project-toolkit/planning/[plan-file].md
 ```
 
 The critic will:
@@ -433,16 +433,16 @@ Context:
 
 ```text
 # Research before implementation
-@analyst Investigate [topic] and document findings in .agents/analysis/
+@analyst Investigate [topic] and document findings in .project-toolkit/analysis/
 
 # Design review before coding
 @architect Review design for [feature], create ADR if needed
 
 # Plan validation (REQUIRED before implementation)
-@critic Validate plan at .agents/planning/[file].md
+@critic Validate plan at .project-toolkit/planning/[file].md
 
 # Implementation
-@implementer Implement [feature] per plan at .agents/planning/[file].md
+@implementer Implement [feature] per plan at .project-toolkit/planning/[file].md
 
 # Test verification (REQUIRED after implementation)
 @qa Verify [feature] and document test strategy
@@ -575,9 +575,9 @@ Run traceability validation before commits:
 python3 scripts/traceability/show_traceability_graph.py --show-orphans
 
 # Manual verification
-grep -r "related:" .agents/specs/ | wc -l
-grep -r "requirements:" .agents/specs/ | wc -l
-grep -r "designs:" .agents/specs/ | wc -l
+grep -r "related:" .project-toolkit/specs/ | wc -l
+grep -r "requirements:" .project-toolkit/specs/ | wc -l
+grep -r "designs:" .project-toolkit/specs/ | wc -l
 ```
 
 ---

@@ -414,7 +414,7 @@ def compute_health(
     report = HealthStatusReport()
 
     mem_dir = memories_dir or (project_root / ".serena" / "memories")
-    sess_dir = sessions_dir or (project_root / ".agents" / "sessions")
+    sess_dir = sessions_dir or (project_root / ".project-toolkit" / "sessions")
 
     report.components.extend(compute_memory_health(mem_dir))
     report.components.extend(compute_session_health(sess_dir, limit=session_limit))
@@ -437,7 +437,7 @@ def main() -> int:
         "--sessions-dir",
         type=Path,
         default=None,
-        help="Path to sessions directory (default: .agents/sessions/)",
+        help="Path to sessions directory (default: .project-toolkit/sessions/)",
     )
     parser.add_argument(
         "--limit",
@@ -511,7 +511,10 @@ def _print_table(report: HealthStatusReport) -> None:
     print()
 
     if not report.components:
-        print("No components checked. Ensure .serena/memories/ and .agents/sessions/ exist.")
+        print(
+            "No components checked. Ensure .serena/memories/ and "
+            ".project-toolkit/sessions/ exist."
+        )
         return
 
     print(f"{'Component':<30} {'Status':<10} {'Value':>8}  {'Detail'}")

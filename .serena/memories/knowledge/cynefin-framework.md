@@ -1,7 +1,7 @@
 # Cynefin Framework
 
 **Category**: Problem-Solving
-**Source**: `.agents/analysis/senior-engineering-knowledge.md`
+**Source**: `.project-toolkit/analysis/senior-engineering-knowledge.md`
 **Origin**: Dave Snowden
 
 ## Purpose

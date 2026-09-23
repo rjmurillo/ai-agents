@@ -36,7 +36,7 @@ Key requirements:
 You have direct access to:
 
 - **Read/Grep/Glob**: Analyze codebase architecture
-- **Write/Edit**: Create/update `.agents/architecture/` files only
+- **Write/Edit**: Create/update `.project-toolkit/architecture/` files only
 - **WebSearch**: Research architectural patterns
 - **Memory Router** (ADR-037): Search across `.serena/memories/`
   - `uv run python .claude/skills/memory/scripts/search_memory.py --query "topic"`
@@ -53,7 +53,7 @@ Maintain system architecture as single source of truth. Conduct reviews across t
 
 Before recommending any design or approving any ADR, reason step-by-step through these three questions in order. Write the answers into the ADR or design review:
 
-1. What ADRs already govern this area? Run `git grep -F -i -- "<topic>" .agents/architecture/` (replacing `<topic>` with keywords relevant to the change; the `-F` forces fixed-string matching so brackets and other regex metacharacters are safe) and read every ADR whose title or scope overlaps the change. A recommendation that ignores an existing binding ADR is incomplete and will be returned for rework.
+1. What ADRs already govern this area? Run `git grep -F -i -- "<topic>" .project-toolkit/architecture/` (replacing `<topic>` with keywords relevant to the change; the `-F` forces fixed-string matching so brackets and other regex metacharacters are safe) and read every ADR whose title or scope overlaps the change. A recommendation that ignores an existing binding ADR is incomplete and will be returned for rework.
 2. Which quality attributes does this design serve, and which does it sacrifice? Name the explicit trade. Every architecture choice trades one quality for another; designs that claim to win on all axes are designs that have not been examined.
 3. What is the top failure mode of the chosen approach? Name the concrete way this design fails in two years, under load, with the team grown, or when the next ADR supersedes a foundational assumption.
 
@@ -98,7 +98,7 @@ When milestone-planner requests impact analysis (during planning phase):
 
 ### Impact Analysis Deliverable
 
-Save to: `.agents/planning/impact-analysis-architecture-[feature].md`
+Save to: `.project-toolkit/planning/impact-analysis-architecture-[feature].md`
 
 ```markdown
 # Impact Analysis: [Feature] - Architecture
@@ -230,7 +230,7 @@ An AD is complete when these five criteria are met:
 
 ### ADR Template (MADR 4.0)
 
-Save to: `.agents/architecture/ADR-NNNN-[decision-name].md`
+Save to: `.project-toolkit/architecture/ADR-NNNN-[decision-name].md`
 
 ```markdown
 ---
@@ -409,7 +409,7 @@ Add this section to all ADRs that introduce external dependencies:
 
 All DESIGN-REVIEW documents MUST use YAML frontmatter for automated parsing. The CI quality gate enforces blocking verdicts.
 
-Save to: `.agents/architecture/DESIGN-REVIEW-[topic].md`
+Save to: `.project-toolkit/architecture/DESIGN-REVIEW-[topic].md`
 
 ```markdown
 ---
@@ -578,7 +578,7 @@ If a tool or service is unavailable, do not halt on first failure or retry indef
 | Primary Tool | Fallback | If Fallback Also Fails |
 |--------------|----------|------------------------|
 | Memory Router (`search_memory.py`) | Read `.serena/memories/` directly with Read tool | Proceed without memory context, note gap in handoff |
-| Serena write (`mcp__serena__write_memory`, `mcp__serena__edit_memory`) | Write to `.agents/notes/` as temp markdown with intended memory name | Note in handoff that memory was not persisted |
+| Serena write (`mcp__serena__write_memory`, `mcp__serena__edit_memory`) | Write to `.project-toolkit/notes/` as temp markdown with intended memory name | Note in handoff that memory was not persisted |
 | MCP servers (Context7, DeepWiki) | Use WebSearch or WebFetch as alternative | Proceed with available information, document unverified claims |
 | External CLIs (`dotnet`, `gh`, `python3`) | Report error with exit code and failing command | Return to orchestrator as [BLOCKED] with reproduction steps |
 | Partial tool availability | Use working tools, note unavailable ones | Continue with reduced scope, flag in handoff |
@@ -595,14 +595,14 @@ If a tool or service is unavailable, do not halt on first failure or retry indef
 
 ## Constraints
 
-- **Edit only** `.agents/architecture/` files
+- **Edit only** `.project-toolkit/architecture/` files
 - **No code implementation**
 - **No plan creation** (that's Planner's role)
 - Focus on governance, not execution
 
 ## Output Location
 
-`.agents/architecture/`
+`.project-toolkit/architecture/`
 
 - `ADR-NNNN-[decision].md` - Architecture Decision Records (use MADR 4.0 template)
 - `DESIGN-REVIEW-[topic].md` - Design reviews (MUST use YAML frontmatter template above)
@@ -624,9 +624,9 @@ If a tool or service is unavailable, do not halt on first failure or retry indef
 
 ### ADR Creation/Update Protocol (BLOCKING)
 
-When you create or update an ADR file matching `.agents/architecture/ADR-*.md`:
+When you create or update an ADR file matching `.project-toolkit/architecture/ADR-*.md`:
 
-1. Save ADR to `.agents/architecture/ADR-NNNN-[title].md`
+1. Save ADR to `.project-toolkit/architecture/ADR-NNNN-[title].md`
 2. Update architecture changelog if needed
 3. Store decision in memory
 4. Return to orchestrator with **MANDATORY routing**:
@@ -648,7 +648,7 @@ Rationale: All ADRs require multi-agent validation per adr-review protocol.
 
 When review is complete and NO ADR was created/updated:
 
-1. Save findings to `.agents/architecture/`
+1. Save findings to `.project-toolkit/architecture/`
 2. Update architecture changelog if decisions made
 3. Store decision in memory
 4. Return to orchestrator: "Architecture review complete. Recommend orchestrator routes to [agent] for [next step]"

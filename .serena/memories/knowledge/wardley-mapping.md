@@ -1,7 +1,7 @@
 # Wardley Mapping
 
 **Category**: Strategic Thinking
-**Source**: `.agents/analysis/senior-engineering-knowledge.md`
+**Source**: `.project-toolkit/analysis/senior-engineering-knowledge.md`
 **Origin**: Simon Wardley
 
 ## Purpose

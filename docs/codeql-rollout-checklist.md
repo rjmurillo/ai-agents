@@ -37,8 +37,8 @@ Verify all prerequisites before rollout:
   - [ ] User guide: `docs/codeql-integration.md`
   - [ ] Architecture guide: `docs/codeql-architecture.md`
   - [ ] Rollout checklist: `docs/codeql-rollout-checklist.md`
-  - [ ] ADR-041 amendment reflected: `.agents/architecture/ADR-041-codeql-integration.md`
-  - [ ] ADR-042 Python migration reference reflected: `.agents/architecture/ADR-042-python-migration-strategy.md`
+  - [ ] ADR-041 amendment reflected: `.project-toolkit/architecture/ADR-041-codeql-integration.md`
+  - [ ] ADR-042 Python migration reference reflected: `.project-toolkit/architecture/ADR-042-python-migration-strategy.md`
 
 - [ ] **ADR status understood**
   - [ ] ADR-041 remains the CodeQL strategy record.
@@ -385,8 +385,8 @@ Rollback PR checklist:
 
 - **User Guide**: [docs/codeql-integration.md](./codeql-integration.md)
 - **Architecture**: [docs/codeql-architecture.md](./codeql-architecture.md)
-- **ADR-041**: [.agents/architecture/ADR-041-codeql-integration.md](../.agents/architecture/ADR-041-codeql-integration.md)
-- **ADR-042**: [.agents/architecture/ADR-042-python-migration-strategy.md](../.agents/architecture/ADR-042-python-migration-strategy.md)
+- **ADR-041**: [.project-toolkit/architecture/ADR-041-codeql-integration.md](../.project-toolkit/architecture/ADR-041-codeql-integration.md)
+- **ADR-042**: [.project-toolkit/architecture/ADR-042-python-migration-strategy.md](../.project-toolkit/architecture/ADR-042-python-migration-strategy.md)
 - **Rollout Validator**: [.codeql/scripts/test_codeql_rollout.py](../.codeql/scripts/test_codeql_rollout.py)
 
 ---

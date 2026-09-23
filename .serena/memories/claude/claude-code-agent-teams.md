@@ -68,4 +68,4 @@ Current subagent system handles most cases well. Agent teams add value when team
 
 - ADR-009: Parallel-safe multi-agent design
 - skills-orchestration-index
-- Analysis: `.agents/analysis/claude-code-agent-teams.md`
+- Analysis: `.project-toolkit/analysis/claude-code-agent-teams.md`

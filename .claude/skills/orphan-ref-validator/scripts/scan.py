@@ -35,17 +35,17 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass, replace
 from pathlib import Path
 
-DOT_AGENTS = "." + "agents"
+DOT_TOOLKIT = "." + "project-toolkit"
 
 DEFAULT_TARGETS = (
-    f"{DOT_AGENTS}/specs",
+    f"{DOT_TOOLKIT}/specs",
     "tests",
     "src/claude/.claude-plugin/plugin.json",
     ".claude-plugin/marketplace.json",
     ".github/plugin/marketplace.json",
 )
 DEFAULT_TRACKED_PREFIXES = (
-    f"{DOT_AGENTS}/specs/",
+    f"{DOT_TOOLKIT}/specs/",
     ".claude/rules/",
     ".github/instructions/",
     "src/copilot-cli/instructions/",
@@ -58,7 +58,7 @@ DEFAULT_EXACT_TARGETS = (
 )
 
 OPT_IN_ADR_TARGETS = (
-    ".agents/architecture",
+    ".project-toolkit/architecture",
     "docs",
 )
 
@@ -898,7 +898,7 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
         "--include-adrs",
         action="store_true",
         default=False,
-        help="Also scan .agents/architecture/ and docs/ (opt-in; high-noise historical surface).",
+        help="Also scan .project-toolkit/architecture/ and docs/ (opt-in; high-noise historical surface).",
     )
     parser.add_argument(
         "--include-skill-descriptions",

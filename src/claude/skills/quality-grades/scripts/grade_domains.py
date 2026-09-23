@@ -301,7 +301,7 @@ def _grade_docs_layer(
         Tuple of (score, file_count, gaps).
     """
     gaps: list[Gap] = []
-    doc_locations = [repo_root / "docs", repo_root / ".agents"]
+    doc_locations = [repo_root / "docs", repo_root / ".agents", repo_root / ".project-toolkit"]
     doc_files: list[Path] = []
     for dl in doc_locations:
         if dl.is_dir():

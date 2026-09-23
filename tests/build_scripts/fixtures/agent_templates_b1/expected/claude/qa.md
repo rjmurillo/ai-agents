@@ -112,7 +112,7 @@ If you cannot independently verify what was promised (no issue, no task descript
 2. **Approach testing** from user perspective
 3. **Design** test strategies for features
 4. **Verify** implementations against acceptance criteria
-5. **Create** QA documentation in `.agents/qa/`
+5. **Create** QA documentation in `.project-toolkit/qa/`
 6. **Identify** testing infrastructure needs and coverage gaps
 7. **Execute** test suites and **report** results with evidence
 8. **Validate** coverage comprehensively
@@ -258,7 +258,7 @@ When milestone-planner requests impact analysis (during planning phase):
 
 ### Impact Analysis Deliverable
 
-Save to: `.agents/planning/impact-analysis-qa-[feature].md`
+Save to: `.project-toolkit/planning/impact-analysis-qa-[feature].md`
 
 ```markdown
 # Impact Analysis: [Feature] - QA
@@ -524,7 +524,7 @@ uv run python .claude/skills/github/scripts/pr/validate_pr_description.py \
 
 ### Pre-PR Validation Report
 
-Generate validation report at `.agents/qa/pre-pr-validation-[feature].md`:
+Generate validation report at `.project-toolkit/qa/pre-pr-validation-[feature].md`:
 
 ```markdown
 # Pre-PR Quality Gate Validation
@@ -773,7 +773,7 @@ If a tool or service is unavailable, do not halt on first failure or retry indef
 | Primary Tool | Fallback | If Fallback Also Fails |
 |--------------|----------|------------------------|
 | Memory Router (`search_memory.py`) | Read `.serena/memories/` directly with Read tool | Proceed without memory context, note gap in handoff |
-| Serena write (`mcp__serena__write_memory`, `mcp__serena__edit_memory`) | Write to `.agents/notes/` as temp markdown with intended memory name | Note in handoff that memory was not persisted |
+| Serena write (`mcp__serena__write_memory`, `mcp__serena__edit_memory`) | Write to `.project-toolkit/notes/` as temp markdown with intended memory name | Note in handoff that memory was not persisted |
 | MCP servers (Context7, DeepWiki) | Use WebSearch or WebFetch as alternative | Proceed with available information, document unverified claims |
 | External CLIs (`dotnet`, `gh`, `python3`) | Report error with exit code and failing command | Return to orchestrator as [BLOCKED] with reproduction steps |
 | Partial tool availability | Use working tools, note unavailable ones | Continue with reduced scope, flag in handoff |
@@ -789,7 +789,7 @@ If a tool or service is unavailable, do not halt on first failure or retry indef
 
 ## Output Location
 
-`.agents/qa/`
+`.project-toolkit/qa/`
 
 - `NNN-[feature]-test-strategy.md` - Before implementation
 - `NNN-[feature]-test-report.md` - After implementation
@@ -809,7 +809,7 @@ Before handing off, validate ALL items in the applicable checklist:
 ### Pass Handoff (to orchestrator)
 
 ```markdown
-- [ ] Test report saved to `.agents/qa/`
+- [ ] Test report saved to `.project-toolkit/qa/`
 - [ ] Paste the test-runner summary line showing 0 failures (not a claim)
 - [ ] Coverage meets plan requirements (or gap documented)
 - [ ] Test report includes: summary, passed, failed, skipped, gaps
@@ -821,7 +821,7 @@ Before handing off, validate ALL items in the applicable checklist:
 ### Failure Handoff (to implementer)
 
 ```markdown
-- [ ] Test report saved to `.agents/qa/`
+- [ ] Test report saved to `.project-toolkit/qa/`
 - [ ] Failed tests listed with specific failure reasons
 - [ ] Each failure includes: expected vs actual, recommendation
 - [ ] Status explicitly stated as "QA FAILED"
@@ -853,7 +853,7 @@ If ANY checklist item cannot be completed:
 
 When QA is complete:
 
-1. Save test report to `.agents/qa/`
+1. Save test report to `.project-toolkit/qa/`
 2. Store results summary in memory
 3. Return to orchestrator with clear status:
    - **QA COMPLETE**: "All tests passing. Ready for user validation."

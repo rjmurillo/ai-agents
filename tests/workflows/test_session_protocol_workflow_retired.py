@@ -7,7 +7,7 @@ workflow, a reference to it, or a required-status-check context tied to it.
 
 Scope: this asserts absence only. The real validator
 (``scripts/validate_session_json.py``) and the historical
-``.agents/sessions/*.json`` records stay in place and are out of scope here.
+``.project-toolkit/sessions/*.json`` records stay in place and are out of scope here.
 """
 
 from __future__ import annotations

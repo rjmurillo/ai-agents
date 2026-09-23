@@ -37,7 +37,7 @@ gh api graphql -f query='mutation($id: ID!) { resolveReviewThread(input: {thread
 # 2. Verify API success
 if [ $? -eq 0 ]; then
   # 3. Update artifact IMMEDIATELY
-  # Edit .agents/planning/tasks.md - mark task [x]
+  # Edit .project-toolkit/planning/tasks.md - mark task [x]
   # Edit session log - record state change
 fi
 
@@ -65,7 +65,7 @@ Before phase transition:
 
 ```bash
 # Check artifact reflects latest API state
-LATEST_COMMIT=$(git log -1 --format="%H" .agents/planning/tasks.md)
+LATEST_COMMIT=$(git log -1 --format="%H" .project-toolkit/planning/tasks.md)
 LATEST_API_CALL=$(git log -1 --grep="resolve thread" --format="%H")
 
 # Artifact commit should be >= API call commit

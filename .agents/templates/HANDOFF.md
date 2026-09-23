@@ -2,10 +2,10 @@
 
 <!--
 Per-issue session handoff template. Copy to:
-  .agents/sessions/handoffs/{ISO_DATE}-{ISSUE_NUMBER}-handoff.md
+  .project-toolkit/sessions/handoffs/{ISO_DATE}-{ISSUE_NUMBER}-handoff.md
 
-See: .agents/sessions/handoffs/README.md for naming, lifecycle, and scope.
-See: .agents/architecture/ADR-014-distributed-handoff-architecture.md for tier model.
+See: .project-toolkit/sessions/handoffs/README.md for naming, lifecycle, and scope.
+See: .project-toolkit/architecture/ADR-014-distributed-handoff-architecture.md for tier model.
 -->
 
 ## Status
@@ -64,6 +64,6 @@ See: .agents/architecture/ADR-014-distributed-handoff-architecture.md for tier m
 
 ## Related
 
-- Session log: `.agents/sessions/{YYYY-MM-DD-session-NN}.json`
-- Previous handoff: `.agents/sessions/handoffs/{prior-file}.md` (if continuing)
+- Session log: `.project-toolkit/sessions/{YYYY-MM-DD-session-NN}.json`
+- Previous handoff: `.project-toolkit/sessions/handoffs/{prior-file}.md` (if continuing)
 - PR: {PR URL or "none yet"}

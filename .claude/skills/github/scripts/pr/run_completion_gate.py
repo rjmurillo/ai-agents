@@ -190,7 +190,7 @@ What is classified, and why:
     a safe one. Classification follows the git state of the workspace
     this runs in, nothing else, and that answer differs by workspace.
     In the upstream repository, PR #5481 committed
-    ``.agents/pr-checks/dispositions.json``, the path the shipped config
+    ``.project-toolkit/pr-checks/dispositions.json``, the path the shipped config
     passes, so there it is tracked and compared, and a PR that edits it
     halts the gate until the change is approved. That is the posture to
     want for a file whose contents can wave a red check through. In an

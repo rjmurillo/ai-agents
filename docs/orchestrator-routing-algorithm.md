@@ -214,7 +214,7 @@ conflict to `high-level-advisor`, so escalation is a single hop rather than a
 climb up a hierarchy.
 
 Quoted verbatim from
-`.agents/architecture/ADR-009-parallel-safe-multi-agent-design.md`:
+`.project-toolkit/architecture/ADR-009-parallel-safe-multi-agent-design.md`:
 
 | Strategy | Use Case | Behavior |
 |----------|----------|----------|
@@ -489,7 +489,7 @@ def resolve_conflicts(conflicts):
 ### Conflict Resolution Priority
 
 ADR-009 grants exactly one ordering, quoted verbatim from
-`.agents/architecture/ADR-009-parallel-safe-multi-agent-design.md:90`:
+`.project-toolkit/architecture/ADR-009-parallel-safe-multi-agent-design.md:90`:
 
 > Soft conflicts -> weighted vote (architect > implementer)
 

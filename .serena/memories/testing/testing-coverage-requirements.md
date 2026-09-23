@@ -100,5 +100,5 @@ if ($CoveragePercent -lt 90) {
 ## Related Patterns
 
 - `.serena/memories/skills-powershell-patterns.md` - Glob-to-regex conversion order
-- `.agents/retrospective/2026-01-13-pr894-test-coverage-failure.md` - Full retrospective
+- `.project-toolkit/retrospective/2026-01-13-pr894-test-coverage-failure.md` - Full retrospective
 - Issue #892, PR #894 - Source incident

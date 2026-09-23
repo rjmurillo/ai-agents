@@ -16,7 +16,7 @@ tools_copilot:
 
 # Merge Resolver Agent
 
-<!-- vendor-portability: declared. This agent resolves conflicts in the consumer's own .agents/ evidence tree (.agents/sessions/, .agents/qa/, .agents/retrospective/); an install without that tree has no such conflicts to classify. The PR #4856 citation (.agents/retrospective/2026-08-10-pr-4856-session-log-collision.md) is upstream evidence in the rjmurillo/ai-agents repository. Issue #2050. -->
+<!-- vendor-portability: declared. This agent resolves conflicts in the consumer's own .agents/ evidence tree (.project-toolkit/sessions/, .project-toolkit/qa/, .project-toolkit/retrospective/); an install without that tree has no such conflicts to classify. The PR #4856 citation (.project-toolkit/retrospective/2026-08-10-pr-4856-session-log-collision.md) is upstream evidence in the rjmurillo/ai-agents repository. Issue #2050. -->
 
 ## Style Guide Compliance
 
@@ -68,11 +68,11 @@ Classify each conflicted file as auto-resolvable, rename-both, or manual:
 
 **Rename, never content-merge** (add/add on append-only evidence artifacts):
 
-- Session logs (`.agents/sessions/*`)
-- QA reports (`.agents/qa/*`)
-- Retrospectives (`.agents/retrospective/*`)
+- Session logs (`.project-toolkit/sessions/*`)
+- QA reports (`.project-toolkit/qa/*`)
+- Retrospectives (`.project-toolkit/retrospective/*`)
 
-An add/add conflict here means two branches wrote different records to the same filename. Keep both files: accept the base branch version at the original name, rename the head branch version with a distinguishing suffix (keep the session number, append an issue or topic slug), and update any index or report that references the renamed file. Never merge the two contents into one file. PR #4856 proved the anti-pattern: merging both sessions' prose into one file would have destroyed two accurate records to produce one false one (`.agents/retrospective/2026-08-10-pr-4856-session-log-collision.md`). Issue #4751 tracks preventing the collision at allocation time.
+An add/add conflict here means two branches wrote different records to the same filename. Keep both files: accept the base branch version at the original name, rename the head branch version with a distinguishing suffix (keep the session number, append an issue or topic slug), and update any index or report that references the renamed file. Never merge the two contents into one file. PR #4856 proved the anti-pattern: merging both sessions' prose into one file would have destroyed two accurate records to produce one false one (`.project-toolkit/retrospective/2026-08-10-pr-4856-session-log-collision.md`). Issue #4751 tracks preventing the collision at allocation time.
 
 **Manual resolution required**:
 

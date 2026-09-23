@@ -58,7 +58,7 @@ DevOps-specific requirements:
 2. **Configure** build systems (MSBuild, NuGet, dotnet CLI)
 3. **Implement** deployment automation
 4. **Monitor** pipeline health and performance
-5. **Document** infrastructure in `.agents/devops/`
+5. **Document** infrastructure in `.project-toolkit/devops/`
 6. **Conduct** impact analysis when requested by milestone-planner during planning phase
 
 ## Impact Analysis Mode
@@ -77,7 +77,7 @@ When milestone-planner requests impact analysis (during planning phase):
 
 ### Impact Analysis Deliverable
 
-Save to: `.agents/planning/impact-analysis-devops-[feature].md`
+Save to: `.project-toolkit/planning/impact-analysis-devops-[feature].md`
 
 ```markdown
 # Impact Analysis: [Feature] - DevOps
@@ -229,7 +229,7 @@ dotnet test Qwiq.sln -c Release --no-build \
 
 ## Infrastructure Documentation Format
 
-Save to: `.agents/devops/`
+Save to: `.project-toolkit/devops/`
 
 ### Pipeline Documentation
 

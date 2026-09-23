@@ -126,7 +126,7 @@ see "Every agent must name the lock identically" below for why, and for the
 conditions under which the directory should change. If you find another form in
 a prompt, a skill, or a memory,
 correct it rather than adding a third. Historical records are the exception:
-`.agents/retrospective/2026-07-31-test-infrastructure-cluster.md` records the
+`.project-toolkit/retrospective/2026-07-31-test-infrastructure-cluster.md` records the
 older `/tmp/aiagents-push.lock` as what was running at the time, and a
 retrospective is evidence of a past state rather than instructions to follow.
 Leave those alone; a grep for lock paths will keep surfacing them.

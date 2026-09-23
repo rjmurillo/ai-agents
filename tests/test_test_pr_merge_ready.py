@@ -1542,7 +1542,7 @@ class TestDispositionPullRequestAllowlist:
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _SCRIPT_NAME = "test_pr_merge_ready.py"
 _FLAG = "--dispositions-file"
-_SHIPPED_PATH = ".agents/pr-checks/dispositions.json"
+_SHIPPED_PATH = ".project-toolkit/pr-checks/dispositions.json"
 
 # Everything a plugin installation can carry. Discovered rather than listed,
 # because a hard-coded inventory cannot fail on the call site nobody added to
@@ -1651,8 +1651,8 @@ def _registry_arguments(command: str) -> list[str]:
     """The value that follows each `--dispositions-file` in `command`.
 
     Tokenized with `shlex` and read positionally. A substring test cannot tell
-    `--dispositions-file .agents/pr-checks/dispositions.json` from
-    `--dispositions-file /tmp/other.json --note .agents/pr-checks/dispositions.json`,
+    `--dispositions-file .project-toolkit/pr-checks/dispositions.json` from
+    `--dispositions-file /tmp/other.json --note .project-toolkit/pr-checks/dispositions.json`,
     and the second reads the wrong registry while satisfying every substring
     assertion about the flag and the path.
 
@@ -1784,7 +1784,7 @@ class TestShippedDispositionsFile:
 
     _PATH = (
         Path(__file__).resolve().parents[1]
-        / ".agents" / "pr-checks" / "dispositions.json"
+        / ".project-toolkit" / "pr-checks" / "dispositions.json"
     )
 
     def test_every_entry_carries_both_bounds(self):

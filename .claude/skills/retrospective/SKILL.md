@@ -15,7 +15,7 @@ metadata:
 
 # Retrospective
 
-<!-- vendor-portability: declared. This skill reads the consumer's most recent session log under .agents/sessions/ as evidence and writes the retrospective artifact to .agents/retrospective/YYYY-MM-DD-[scope].md (creating the directory on demand). The session-log read is best-effort (the skill notes the source as absent when missing); the retrospective path is a write target. A vendored install without .agents/ gathers from git history alone and creates the output directory. Issue #2050. -->
+<!-- vendor-portability: declared. This skill reads the consumer's most recent session log under .project-toolkit/sessions/ as evidence and writes the retrospective artifact to .project-toolkit/retrospective/YYYY-MM-DD-[scope].md (creating the directory on demand). The session-log read is best-effort (the skill notes the source as absent when missing); the retrospective path is a write target. A vendored install without .project-toolkit/ gathers from git history alone and creates the output directory. Issue #2050. -->
 
 Turn execution experience into institutional knowledge. This skill orchestrates a fixed
 Phase 0 through Phase 5 workflow that gathers evidence, generates insights, diagnoses root
@@ -47,14 +47,14 @@ retrospective is written when someone asks for one.
 | `main` went red, or a merge was reverted or force-fixed | Yes |
 | The user corrected the work explicitly | Yes |
 | A session ended and nothing above fired | No, a calendar is not a trigger |
-| An unfilled auto-retro skeleton exists in `.agents/retrospective/` | Yes (fill it) |
+| An unfilled auto-retro skeleton exists in `.project-toolkit/retrospective/` | Yes (fill it) |
 | Diagnosing why a task failed (Five Whys, fishbone) | Yes |
 | Capturing a single in-conversation correction ("no", "wrong") | No, use `reflect` |
 | Saving a quick checkpoint with no analysis | No, use `/checkpoint` |
 
 The output artifact is a Markdown file. The Learning Extraction Template in
 `references/learning-template.md` defines the exact structure. Save to
-`.agents/retrospective/YYYY-MM-DD-[scope].md`. Nothing writes new auto-retro
+`.project-toolkit/retrospective/YYYY-MM-DD-[scope].md`. Nothing writes new auto-retro
 skeletons: the Stop hook that produced them was deleted in #3349. Skeletons
 already on disk are historical and still fillable; when filling one, write to
 its existing `YYYY-MM-DD-auto-retro.md`.
@@ -66,7 +66,7 @@ its existing `YYYY-MM-DD-auto-retro.md`.
 | Input | Source | Required |
 |-------|--------|----------|
 | Scope | User argument (session, task, date, PR) | Yes |
-| Session log | `.agents/sessions/` most recent for the period | When available |
+| Session log | `.project-toolkit/sessions/` most recent for the period | When available |
 | Git history | `git log` over the period | When available |
 | GitHub activity | PRs and issues for the period (via the `github` skill) | Optional enrichment |
 
@@ -95,7 +95,7 @@ Gather facts before interpretation. Observation precedes diagnosis.
 - Run **Outcome Classification** (Mad, Sad, Glad): see
   [frameworks.md, Outcome Classification](references/frameworks.md#activity-outcome-classification).
 
-Evidence sources: the most recent session log under `.agents/sessions/`, `git log` for the
+Evidence sources: the most recent session log under `.project-toolkit/sessions/`, `git log` for the
 period, and optional GitHub activity through the `github` skill. Do not use raw `gh`.
 
 ### Phase 1: Generate Insights
@@ -147,7 +147,7 @@ examples, and evidence-based tagging live in
 
 Assemble the artifact using the byte-exact
 [Learning Extraction Template](references/learning-template.md). Save to
-`.agents/retrospective/YYYY-MM-DD-[scope].md`. When filling an auto-retro skeleton, overwrite
+`.project-toolkit/retrospective/YYYY-MM-DD-[scope].md`. When filling an auto-retro skeleton, overwrite
 the placeholder sections in the existing `YYYY-MM-DD-auto-retro.md` and remove the UNFILLED
 banner.
 
@@ -169,7 +169,7 @@ Persist learnings to memory and evaluate the retrospective itself.
 
 Before the retrospective is complete, confirm:
 
-- [ ] One Markdown file exists at `.agents/retrospective/YYYY-MM-DD-[scope].md` (or the
+- [ ] One Markdown file exists at `.project-toolkit/retrospective/YYYY-MM-DD-[scope].md` (or the
   existing auto-retro skeleton was filled and its UNFILLED banner removed).
 - [ ] The artifact structure matches the
   [Learning Extraction Template](references/learning-template.md) byte-for-byte, with

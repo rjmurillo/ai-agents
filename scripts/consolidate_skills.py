@@ -518,7 +518,7 @@ def main() -> int:
         "--sessions-dir",
         type=Path,
         default=None,
-        help="Path to sessions directory (default: .agents/sessions/)",
+        help="Path to sessions directory (default: .project-toolkit/sessions/)",
     )
     parser.add_argument(
         "--memories-dir",
@@ -569,7 +569,7 @@ def main() -> int:
     else:
         project_root = Path(__file__).resolve().parent.parent
 
-    sessions_dir = args.sessions_dir or (project_root / ".agents" / "sessions")
+    sessions_dir = args.sessions_dir or (project_root / ".project-toolkit" / "sessions")
     memories_dir = args.memories_dir or (project_root / ".serena" / "memories")
 
     # CWE-22 path traversal prevention: reject ".." in raw path, then resolve

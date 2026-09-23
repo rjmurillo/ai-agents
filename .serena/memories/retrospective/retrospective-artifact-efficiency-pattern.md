@@ -27,11 +27,11 @@ Task Execution + Concurrent Artifact Creation → Post-session Retrospective (ag
 ```
 
 **During execution, create**:
-1. **Analysis documents** (`.agents/analysis/`) - Root cause, design decisions
-2. **Critique logs** (`.agents/critique/`) - Multi-agent debates
-3. **QA reports** (`.agents/qa/`) - Test coverage, validation results
-4. **Session logs** (`.agents/sessions/`) - Work log, decisions, evidence
-5. **DevOps reports** (`.agents/devops/`) - CI/CD changes, infrastructure
+1. **Analysis documents** (`.project-toolkit/analysis/`) - Root cause, design decisions
+2. **Critique logs** (`.project-toolkit/critique/`) - Multi-agent debates
+3. **QA reports** (`.project-toolkit/qa/`) - Test coverage, validation results
+4. **Session logs** (`.project-toolkit/sessions/`) - Work log, decisions, evidence
+5. **DevOps reports** (`.project-toolkit/devops/`) - CI/CD changes, infrastructure
 
 **During retrospective**:
 - Read artifacts (pre-structured evidence)
@@ -43,13 +43,13 @@ Task Execution + Concurrent Artifact Creation → Post-session Retrospective (ag
 **Session 826** (2026-01-13):
 
 **Artifacts created during execution** (9 files):
-1. `.agents/analysis/826-frontmatter-block-arrays-analysis.md` (243 lines)
-2. `.agents/architecture/ADR-040-skill-frontmatter-standardization.md` (amendment)
-3. `.agents/critique/ADR-040-amendment-2026-01-13-critique.md`
-4. `.agents/critique/ADR-040-amendment-2026-01-13-debate-log.md`
-5. `.agents/qa/pre-pr-validation-frontmatter-block-style.md`
-6. `.agents/devops/ci-validation-2026-01-13.md`
-7. `.agents/sessions/2026-01-13-session-826-yaml-array-format-standardization.json`
+1. `.project-toolkit/analysis/826-frontmatter-block-arrays-analysis.md` (243 lines)
+2. `.project-toolkit/architecture/ADR-040-skill-frontmatter-standardization.md` (amendment)
+3. `.project-toolkit/critique/ADR-040-amendment-2026-01-13-critique.md`
+4. `.project-toolkit/critique/ADR-040-amendment-2026-01-13-debate-log.md`
+5. `.project-toolkit/qa/pre-pr-validation-frontmatter-block-style.md`
+6. `.project-toolkit/devops/ci-validation-2026-01-13.md`
+7. `.project-toolkit/sessions/2026-01-13-session-826-yaml-array-format-standardization.json`
 8. `.serena/memories/patterns-yaml-compatibility.md`
 9. `.serena/memories/patterns-powershell-pitfalls.md`
 
@@ -87,13 +87,13 @@ After completion:
 
 ## Artifact Templates
 
-**Analysis Document** (`.agents/analysis/`):
+**Analysis Document** (`.project-toolkit/analysis/`):
 - Objective, Approach, Data, Analysis, Conclusions, Recommendations
 
-**Critique Log** (`.agents/critique/`):
+**Critique Log** (`.project-toolkit/critique/`):
 - Issue, Debate Participants, Rounds, Consensus, Action Items
 
-**QA Report** (`.agents/qa/`):
+**QA Report** (`.project-toolkit/qa/`):
 - Test Strategy, Coverage, Results, Gaps, Verdict
 
 ## Impact
@@ -112,6 +112,6 @@ After completion:
 ## Source
 
 - Session: 826 (2026-01-13)
-- Retrospective: `.agents/retrospective/2026-01-13-fix-tools-frontmatter-retrospective.md`
+- Retrospective: `.project-toolkit/retrospective/2026-01-13-fix-tools-frontmatter-retrospective.md`
 - Learning: L6 (Phase 4, Meta-learning, Lines 732-740)
 - Evidence: 9 artifacts created during session, 1.5hr retrospective time

@@ -2,7 +2,7 @@
 
 > **Research Date**: 2026-02-07
 > **Source**: https://code.claude.com/docs/en/plugin-marketplaces
-> **Full Analysis**: `.agents/analysis/claude-code-plugin-marketplaces.md`
+> **Full Analysis**: `.project-toolkit/analysis/claude-code-plugin-marketplaces.md`
 
 ## Key Concepts
 

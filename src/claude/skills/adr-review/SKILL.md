@@ -1,7 +1,7 @@
 ---
 name: adr-review
 version: 1.1.0
-description: Multi-agent debate orchestration for Architecture Decision Records. Automatically triggers on ADR create/edit/delete. Coordinates architect, critic, independent-thinker, security, analyst, and high-level-advisor agents in structured debate rounds until consensus. Use when you say "review this ADR", when an ADR is created/edited/deleted, or when reviewing, accepting, or updating a decision file under .agents/architecture/, docs/architecture/, docs/decisions/, docs/adr/, or architecture/decisions/, including intent like "review this decision record" or "check this rationale for future maintainers". Do NOT use to author a new ADR (use adr-generator).
+description: Multi-agent debate orchestration for Architecture Decision Records. Automatically triggers on ADR create/edit/delete. Coordinates architect, critic, independent-thinker, security, analyst, and high-level-advisor agents in structured debate rounds until consensus. Use when you say "review this ADR", when an ADR is created/edited/deleted, or when reviewing, accepting, or updating a decision file under .project-toolkit/architecture/, docs/architecture/, docs/decisions/, docs/adr/, or architecture/decisions/, including intent like "review this decision record" or "check this rationale for future maintainers". Do NOT use to author a new ADR (use adr-generator).
 license: MIT
 metadata:
   domains: [architecture, governance, multi-agent, consensus]
@@ -12,7 +12,7 @@ metadata:
   outputs: [debate-log, updated-adr, recommendations]
   file_triggers:
     patterns:
-      - ".agents/architecture/ADR-*.md"
+      - ".project-toolkit/architecture/ADR-*.md"
       - "docs/adr/ADR-*.md"
       - "docs/architecture/ADR-*.md"
       - "docs/decisions/ADR-*.md"
@@ -41,7 +41,7 @@ Multi-agent debate pattern for rigorous ADR validation. Orchestrates 6 specializ
 
 ```text
 # Manual triggers:
-/adr-review .agents/architecture/ADR-005-api-versioning.md
+/adr-review .project-toolkit/architecture/ADR-005-api-versioning.md
 "review this ADR"
 "validate ADR-005"
 "review this decision record under docs/decisions"
@@ -57,7 +57,7 @@ Multi-agent debate pattern for rigorous ADR validation. Orchestrates 6 specializ
 
 | Pattern | Location | Events |
 |---------|----------|--------|
-| `ADR-*.md` | `.agents/architecture/` | create, update, delete |
+| `ADR-*.md` | `.project-toolkit/architecture/` | create, update, delete |
 | `ADR-*.md` | `docs/adr/` | create, update, delete |
 | `ADR-*.md` | `docs/architecture/` | create, update, delete |
 | `ADR-*.md` | `docs/decisions/` | create, update, delete |
@@ -70,7 +70,7 @@ Multi-agent debate pattern for rigorous ADR validation. Orchestrates 6 specializ
 **MANDATORY Triggers** (automatic):
 
 - Architect creates or updates an ADR
-- ANY agent modifies `.agents/architecture/ADR-*.md`, `docs/adr/ADR-*.md`, `docs/architecture/ADR-*.md`, `docs/decisions/ADR-*.md`, or `architecture/decisions/ADR-*.md`
+- ANY agent modifies `.project-toolkit/architecture/ADR-*.md`, `docs/adr/ADR-*.md`, `docs/architecture/ADR-*.md`, `docs/decisions/ADR-*.md`, or `architecture/decisions/ADR-*.md`
 
 **User-Initiated Triggers** (manual):
 
@@ -218,17 +218,17 @@ echo "exit=$?"   # must be 0; non-zero means git error or I/O failure
 
 After skill invocation:
 
-- [ ] Debate log exists at `.agents/critique/ADR-NNN-debate-log.md`
+- [ ] Debate log exists at `.project-toolkit/critique/ADR-NNN-debate-log.md`
 - [ ] ADR status updated using the frontmatter enum below; use prose for review nuance
 - [ ] Frontmatter `status` field present and a valid enum value: one of
       `proposed | accepted | rejected | deprecated | superseded` (ADR-073).
       A missing or out-of-enum `status` is a P1 blocker; the frontmatter enum is
       authoritative for tooling, the prose `## Status` carries the human nuance.
 - [ ] If this review transitions `status` to `accepted`: the same change carries
-      adr-review debate-log evidence at `.agents/critique/ADR-NNN-debate-log.md`
+      adr-review debate-log evidence at `.project-toolkit/critique/ADR-NNN-debate-log.md`
       (ADR-073 Phase-3 acceptance gate). A hand-edit to `accepted` with no
       debate-log artifact is a forgeable approval signal and MUST be rejected.
-<!-- vendor-portability: declared. adr-review checks accepted-transition evidence under .agents/critique/; a consumer repo without it reports missing evidence, not a silent pass. Issue #2050. -->
+<!-- vendor-portability: declared. adr-review checks accepted-transition evidence under .project-toolkit/critique/; a consumer repo without it reports missing evidence, not a silent pass. Issue #2050. -->
 - [ ] All P0 issues addressed or documented
 - [ ] Dissent captured for Disagree-and-Commit positions
 - [ ] Recommendations provided to orchestrator

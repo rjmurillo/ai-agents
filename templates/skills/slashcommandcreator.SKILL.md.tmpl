@@ -36,7 +36,7 @@ Create production-ready custom slash commands following ai-agents quality standa
 2. Search existing commands: `ls .claude/commands/**/*.md`
 3. Decision: Slash command vs skill (see decision matrix in CLAUDE.md)
 4. Apply 11 thinking models from skillcreator framework
-5. Document findings in `.agents/analysis/slashcommand-[name]-analysis.md`
+5. Document findings in `.project-toolkit/analysis/slashcommand-[name]-analysis.md`
 
 **Deliverable**: Analysis document with recommendation
 
@@ -267,8 +267,8 @@ python3 "$SCRIPTS_DIR/validate_slash_command.py" <skill-dir>
 
 ## References
 
-- `.agents/analysis/custom-slash-commands-research.md`
+- `.project-toolkit/analysis/custom-slash-commands-research.md`
 - `.agents/archive/planning/slashcommandcreator-skill-spec.md`
 - `.serena/memories/skills/slashcommand-best-practices.md`
 
-<!-- vendor-portability: declared. This skill writes research and analysis notes under .agents/analysis/ and .agents/planning/ and cites AGENTS.md and a research doc. The analysis/planning paths are write targets created on demand; the AGENTS.md and research references are documentation citations. Issue #2050. -->
+<!-- vendor-portability: declared. This skill writes research and analysis notes under .project-toolkit/analysis/ and .project-toolkit/planning/ and cites AGENTS.md and a research doc. The analysis/planning paths are write targets created on demand; the AGENTS.md and research references are documentation citations. Issue #2050. -->

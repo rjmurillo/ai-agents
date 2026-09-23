@@ -20,7 +20,7 @@ Each row is a task shape. The columns are the six lifecycle commands. `yes`
 means run this phase. `no` means skip it for this shape. `maybe` means run it
 only when the task has ambiguity or risk that this phase can reduce. The
 rightmost column gives a concrete example, several harvested from this repo's
-own retrospectives under `.agents/retrospective/`.
+own retrospectives under `.project-toolkit/retrospective/`.
 
 | Task shape | /spec | /plan | /build | /test | /review | /ship | Concrete example |
 |------------|:-----:|:-----:|:------:|:-----:|:-------:|:-----:|------------------|
@@ -96,4 +96,4 @@ mistake is skipping `/test` or `/review` on something a customer touches.
   task to the right agents once you know which phases to run.
 - [docs/ideation-workflow.md](./ideation-workflow.md): turning vague ideas into
   bounded scope before the lifecycle starts.
-- `.agents/retrospective/`: the incidents behind the examples in this guide.
+- `.project-toolkit/retrospective/`: the incidents behind the examples in this guide.

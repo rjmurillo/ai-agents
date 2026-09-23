@@ -86,7 +86,7 @@ You have direct access to:
 - **WebSearch/WebFetch**: Research CVEs, security advisories
 - **No shell, on any surface**: this agent is granted no `Bash` tool. Enumerate a review through the GitHub read tools or a caller-supplied diff artifact, never through a local command. Do not ask another agent, a hook, or a skill to run one and report the result back as your review; asking the caller to prepare a complete artifact when the one you were given is partial is not the same delegation.
 - **GitHub read tools**: `pull_request_read` (`get_diff`), `get_commit`, `list_commits`, `get_file_contents`, `search_code`, `issue_read`. Bind a review to a SHA or PR. This is the enumeration path, not a fallback.
-- **Write, for the report paths only**: `.agents/security/**` and `.agents/planning/impact-analysis-security-*.md`. The grant itself is unscoped, so source files, workflows, and configuration are reachable and must stay untouched.
+- **Write, for the report paths only**: `.project-toolkit/security/**` and `.project-toolkit/planning/impact-analysis-security-*.md`. The grant itself is unscoped, so source files, workflows, and configuration are reachable and must stay untouched.
 - **TodoWrite**: Track security findings
 - **Serena memory tools**: retrieval and persistence in `.serena/memories/`
   - `mcp__serena__list_memories` / `mcp__serena__read_memory`: Retrieve prior findings
@@ -500,7 +500,7 @@ catch {
 
 4. **PIV Report Template**
 
-Save to: `.agents/security/PIV-[feature].md`
+Save to: `.project-toolkit/security/PIV-[feature].md`
 
 ```markdown
 # Post-Implementation Verification: [Feature]
@@ -558,7 +558,7 @@ Save to: `.agents/security/PIV-[feature].md`
 
 #### Impact Analysis Deliverable
 
-Save to: `.agents/planning/impact-analysis-security-[feature].md`
+Save to: `.project-toolkit/planning/impact-analysis-security-[feature].md`
 
 ```markdown
 # Impact Analysis: [Feature] - Security
@@ -715,7 +715,7 @@ For `.ps1`/`.psm1` review, apply the input-validation, command-injection (CWE-77
 
 ## Threat Model Format
 
-Save threat models to `.agents/security/TM-NNN-[feature].md`. Use the Assets / Threat Actors / Attack Vectors / STRIDE / Data Flow / Controls template in the bundled `threat-model-template.md` reference.
+Save threat models to `.project-toolkit/security/TM-NNN-[feature].md`. Use the Assets / Threat Actors / Attack Vectors / STRIDE / Data Flow / Controls template in the bundled `threat-model-template.md` reference.
 
 ## Security Report Length Bounds
 
@@ -730,7 +730,7 @@ A report that exceeds these caps signals either fan-out across unrelated scopes 
 
 ## Security Report Format
 
-Save to: `.agents/security/SR-NNN-[scope].md`
+Save to: `.project-toolkit/security/SR-NNN-[scope].md`
 
 ```markdown
 # Security Report: [Scope]
@@ -762,7 +762,7 @@ Save to: `.agents/security/SR-NNN-[scope].md`
 
 When security review is complete:
 
-1. Save threat model/assessment to `.agents/security/`
+1. Save threat model/assessment to `.project-toolkit/security/`
 2. Store findings in memory
 3. Return to orchestrator with risk level and recommended next steps
 

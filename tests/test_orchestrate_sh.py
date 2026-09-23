@@ -1,5 +1,5 @@
 """
-Tests for .agents/projects/v0.3.0/scripts/orchestrate.sh
+Tests for .project-toolkit/projects/v0.3.0/scripts/orchestrate.sh
 
 Smoke tests validating script syntax, help output, and basic command execution.
 These tests do NOT execute agents but verify the orchestration harness itself.
@@ -12,8 +12,8 @@ from pathlib import Path
 
 # Get paths relative to repo root
 REPO_ROOT = Path(__file__).parent.parent
-SCRIPT_PATH = REPO_ROOT / ".agents" / "projects" / "v0.3.0" / "scripts" / "orchestrate.sh"
-PROJECT_DIR = REPO_ROOT / ".agents" / "projects" / "v0.3.0"
+SCRIPT_PATH = REPO_ROOT / ".project-toolkit" / "projects" / "v0.3.0" / "scripts" / "orchestrate.sh"
+PROJECT_DIR = REPO_ROOT / ".project-toolkit" / "projects" / "v0.3.0"
 
 
 class TestOrchestrateShSyntax:

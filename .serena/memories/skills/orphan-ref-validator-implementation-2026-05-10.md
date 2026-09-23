@@ -8,13 +8,13 @@ PR1 implements AC1, AC2, AC3, AC5, AC6, AC7, AC8. AC4 emission is delegated to c
 
 ## Default Scope (intentionally narrow)
 
-- `.agents/specs/` (active specs)
+- `.project-toolkit/specs/` (active specs)
 - `tests/evals/`
 - Plugin and marketplace manifests
 
 Opt-in via flags:
 
-- `--include-adrs` adds `.agents/architecture/` and `docs/`
+- `--include-adrs` adds `.project-toolkit/architecture/` and `docs/`
 - `--include-skill-descriptions` adds `.claude/skills/*/SKILL.md`
 
 Rationale: ADRs and docs reference proposed-but-unimplemented or deleted-by-superseding entities; skill descriptions have widespread preexisting drift. Including them by default produces critical-fail dominated by historical artifacts, defeating the build-gate purpose.
@@ -57,7 +57,7 @@ Rationale: ADRs and docs reference proposed-but-unimplemented or deleted-by-supe
 ## Handling Orphans in Stale Specs (2026-07-27, issue #3450)
 
 The gate returned `CRITICAL_FAIL` on clean `main` with 32 findings across 12 files
-in `.agents/specs/`, so `/build` gate 4 and `/test` gate 5 were red for every
+in `.project-toolkit/specs/`, so `/build` gate 4 and `/test` gate 5 were red for every
 contributor regardless of what their PR touched. All 32 pointed at entities that
 were deliberately deleted. Two had a successor; the rest had none:
 
@@ -104,7 +104,7 @@ PR, and the commit, and stating the instructions below are no longer actionable.
 The other three already declared themselves historical, consolidated, or done in
 their own frontmatter, so a banner would have added nothing. The line
 directives stay, but they now sit under a banner that tells the reader the truth.
-That satisfies `.agents/critique/001-fix-validate-sessionend-references-critique.md`
+That satisfies `.project-toolkit/critique/001-fix-validate-sessionend-references-critique.md`
 (do not rewrite historical records into anachronism) without leaving a live
 contract pointing at a deleted file. Adding an annotation is not anachronism;
 rewriting the original prose would be.

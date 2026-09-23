@@ -35,8 +35,9 @@ def project_tree(tmp_path: Path) -> Path:
     """
     agents = tmp_path / ".agents"
     agents.mkdir()
-    (agents / "sessions").mkdir()
-    (agents / "retrospective").mkdir()
+    toolkit = tmp_path / ".project-toolkit"
+    (toolkit / "sessions").mkdir(parents=True)
+    (toolkit / "retrospective").mkdir()
 
     # Present but must never be loaded (Issue #5168).
     (agents / "HANDOFF.md").write_text(
@@ -213,7 +214,7 @@ class TestMain:
         self, project_tree: Path, capsys: pytest.CaptureFixture
     ) -> None:
         # Add a retrospective
-        retro = project_tree / ".agents" / "retrospective" / "2025-06-15-retro.md"
+        retro = project_tree / ".project-toolkit" / "retrospective" / "2025-06-15-retro.md"
         retro.write_text("# Retro\n\nLearnings here.", encoding="utf-8")
 
         with patch.object(
@@ -269,7 +270,7 @@ class TestMain:
         ):
             invoke_context_loader.main()
 
-        audit_dir = project_tree / ".agents" / ".hook-state"
+        audit_dir = project_tree / ".project-toolkit" / ".hook-state"
         assert audit_dir.exists()
         log_files = list(audit_dir.glob("context-loader-*.log"))
         assert len(log_files) >= 1

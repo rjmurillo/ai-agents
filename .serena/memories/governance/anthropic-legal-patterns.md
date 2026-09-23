@@ -61,4 +61,4 @@ All outputs route to humans for approval.
 ## Related
 
 - Issue #324 (Velocity Improvement)
-- Analysis: `.agents/analysis/anthropic-legal-ai-workflows.md`
+- Analysis: `.project-toolkit/analysis/anthropic-legal-ai-workflows.md`

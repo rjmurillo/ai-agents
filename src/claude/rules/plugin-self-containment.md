@@ -37,7 +37,7 @@ The distinction below is the whole rule. Getting it wrong in either direction is
 | Kind | Example | Verdict |
 |---|---|---|
 | **Bundled dependency**: a file the plugin ships and must resolve at runtime | a sibling skill's script under the same plugin root | Fine. Address it through the plugin-root env vars. |
-| **Consumer-workspace path**: a location in the installing repository that the agent reads or writes | an agent told to write its output to `.agents/planning/` or `docs/adr/` in the consumer's repo | Fine. This is the plugin doing its job. Not a defect. |
+| **Consumer-workspace path**: a location in the installing repository that the agent reads or writes | an agent told to write its output to `.project-toolkit/planning/` or `docs/adr/` in the consumer's repo | Fine. This is the plugin doing its job. Not a defect. |
 | **Upstream-only dependency**: a path that exists only in `rjmurillo/ai-agents` | `templates/agents/security.shared.md`, `docs/agent-catalog.md`, `build/scripts/build_all.py` | **Defect**, unless declared. Dangles for every consumer. |
 
 A grep cannot tell these apart. A reviewer can. When the target exists only upstream and the text instructs the reader to open, run, or resolve it, that is the defect.
@@ -183,6 +183,6 @@ Contributor-scoped, per SHOULD 2. These paths live in the `rjmurillo/ai-agents` 
 
 - `.claude-plugin/marketplace.json`, `.github/plugin/marketplace.json`. The manifests that define what ships.
 - `.claude/rules/plugin-version-bump.md`. Why the shipping roots' manifests carry no `version` field (ADR-092). This one does ship.
-- `.agents/architecture/ADR-071-plugin-hook-runtime-contract-verification.md`. Defines the plugin-root env var contract and how each host exports it.
-- `.agents/architecture/ADR-045-framework-extraction-via-plugin-marketplace.md`. Why the marketplace split exists.
-- `.agents/architecture/ADR-083-copilot-dogfood-surface-separation.md`. Which surfaces are dogfood-only.
+- `.project-toolkit/architecture/ADR-071-plugin-hook-runtime-contract-verification.md`. Defines the plugin-root env var contract and how each host exports it.
+- `.project-toolkit/architecture/ADR-045-framework-extraction-via-plugin-marketplace.md`. Why the marketplace split exists.
+- `.project-toolkit/architecture/ADR-083-copilot-dogfood-surface-separation.md`. Which surfaces are dogfood-only.

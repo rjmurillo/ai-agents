@@ -63,9 +63,9 @@ LOGGER = logging.getLogger("detect_spec_drift")
 # Specification tiers scanned for code references. Each is relative to the
 # repo root. A tier absent on disk (vendored install) is skipped, not an error.
 DEFAULT_SPEC_TARGETS: tuple[str, ...] = (
-    ".agents/specs/requirements",
-    ".agents/specs/design",
-    ".agents/specs/tasks",
+    ".project-toolkit/specs/requirements",
+    ".project-toolkit/specs/design",
+    ".project-toolkit/specs/tasks",
 )
 
 # Reference shapes a spec file uses to point at code or artifacts. Each pattern
@@ -139,14 +139,14 @@ class DriftResult:
 
 
 def find_repo_root(start: Path) -> Path | None:
-    """Walk upward from `start` to the directory holding `.agents`.
+    """Walk upward from `start` to the directory holding `.project-toolkit`.
 
     Returns None when no repo root is found, so the caller can emit a config
     error rather than scan an arbitrary tree.
     """
     current = start.resolve()
     for candidate in (current, *current.parents):
-        if (candidate / ".agents").is_dir():
+        if (candidate / ".project-toolkit").is_dir():
             return candidate
     return None
 
@@ -420,7 +420,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if repo_root is None:
         print(
             render_error_envelope(
-                f"repo root not found from {start} (no .agents directory)",
+                f"repo root not found from {start} (no .project-toolkit directory)",
                 args.output_format,
             )
         )

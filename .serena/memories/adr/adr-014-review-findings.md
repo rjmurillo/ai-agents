@@ -50,9 +50,9 @@ Aggregate findings with severity ratings. Use Go/No-Go matrix for final recommen
 
 ## References
 
-- Full report: `.agents/analysis/ADR-014-review-report.md`
-- Session log: `.agents/sessions/2025-12-22-session-63-adr-014-review.md`
-- ADR: `.agents/architecture/ADR-014-distributed-handoff-architecture.md`
+- Full report: `.project-toolkit/analysis/ADR-014-review-report.md`
+- Session log: `.project-toolkit/sessions/2025-12-22-session-63-adr-014-review.md`
+- ADR: `.project-toolkit/architecture/ADR-014-distributed-handoff-architecture.md`
 
 ## Related
 

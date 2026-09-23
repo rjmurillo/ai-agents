@@ -119,7 +119,7 @@ CodeRabbit correctly identified that PowerShell's symlink check only runs when t
 - TOCTOU issue: PR #52 comment 2628504961
 - TOCTOU fix: Commit 8d9c05a
 - File: `.githooks/pre-commit`
-- QA Report: `.agents/qa/PR-52-grep-pattern-fix-verification.md`
+- QA Report: `.project-toolkit/qa/PR-52-grep-pattern-fix-verification.md`
 
 ## Related
 

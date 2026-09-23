@@ -2,7 +2,7 @@
 
 **Research Date**: 2026-01-01
 **Status**: Complete
-**Analysis Document**: `.agents/analysis/122-adr-036-platform-capability-matrix-research.md`
+**Analysis Document**: `.project-toolkit/analysis/122-adr-036-platform-capability-matrix-research.md`
 
 ## Key Findings
 

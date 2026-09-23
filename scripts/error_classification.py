@@ -30,7 +30,7 @@ import yaml
 _logger = logging.getLogger(__name__)
 
 # Default paths for error logging and graduation.
-_DEFAULT_ERROR_LOG = Path(".agents/sessions/errors.jsonl")
+_DEFAULT_ERROR_LOG = Path(".project-toolkit/sessions/errors.jsonl")
 _GRADUATION_THRESHOLD = 3  # Patterns with 3+ successful recoveries graduate.
 
 
@@ -271,7 +271,7 @@ def log_error(
         classified: The classified error from classify_error().
         recovery_action: Description of the recovery action taken.
         success: True if the recovery was successful.
-        log_path: Path to errors.jsonl. Defaults to .agents/sessions/errors.jsonl.
+        log_path: Path to errors.jsonl. Defaults to .project-toolkit/sessions/errors.jsonl.
     """
     if log_path is None:
         log_path = _DEFAULT_ERROR_LOG
@@ -299,7 +299,7 @@ def get_graduation_candidates(
     Patterns with `threshold` or more successful recoveries are candidates.
 
     Args:
-        log_path: Path to errors.jsonl. Defaults to .agents/sessions/errors.jsonl.
+        log_path: Path to errors.jsonl. Defaults to .project-toolkit/sessions/errors.jsonl.
         threshold: Minimum successful recoveries required (default: 3).
 
     Returns:

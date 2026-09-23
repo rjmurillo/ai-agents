@@ -11,6 +11,7 @@ import difflib
 import io
 import json
 import os
+import posixpath
 import re
 import shlex
 import shutil
@@ -79,7 +80,7 @@ ROOT_SCRATCH_ALLOWLIST = frozenset(
         "uv.lock",
     }
 )
-SESSION_PATH_RE = re.compile(r"^\.agents/sessions/\d{4}-\d{2}-\d{2}-session-\d+.*\.json$")
+SESSION_PATH_RE = re.compile(r"^\.project-toolkit/sessions/\d{4}-\d{2}-\d{2}-session-\d+.*\.json$")
 EPISODE_ID_RE = re.compile(r"^episode-[A-Za-z0-9._-]+$")
 ADR_PATH_RE = re.compile(r"(?:^|[\\/])ADR-\d+(?:-\w+)*\.md$", re.IGNORECASE)
 ALLOWED_REPO_ROOT_ENTRIES = frozenset(
@@ -101,6 +102,7 @@ ALLOWED_REPO_ROOT_ENTRIES = frozenset(
         ".gitignore",
         ".markdownlint-cli2.yaml",
         ".mcp.json",
+        ".project-toolkit",
         ".python-version",
         ".qualityrc.json",
         # semgrep discovers this by walking from the scan cwd up to the git
@@ -137,7 +139,7 @@ ALLOWED_REPO_ROOT_ENTRIES = frozenset(
 )
 ADR_ID_RE = re.compile(r"ADR-\d+", re.IGNORECASE)
 # Issue #5205: thresholds calibrated against the 86 debate logs in
-# .agents/critique on main. All 86 clear these; the smallest is 454 bytes.
+# .project-toolkit/critique on main. All 86 clear these; the smallest is 454 bytes.
 DEBATE_LOG_MIN_BYTES = 300
 # Canonical source: the fenced debate-log template in
 # .claude/skills/adr-review/references/artifacts.md. These are its unfilled
@@ -695,7 +697,7 @@ GENERATED_GLOBS = {
         "src/vs-code-agents/*.agent.md",
         "docs/agent-catalog.md",
     ),
-    "episodes": (".agents/memory/episodes/episode-*.json",),
+    "episodes": (".project-toolkit/memory/episodes/episode-*.json",),
     "memory": (".serena/memories/**/*.md",),
     "prompts": (".github/prompts/pr-quality-gate-*.md",),
 }
@@ -1527,6 +1529,72 @@ def _only_model_pin_fields_changed(
     return bool(changed) and changed <= _ADR080_MODEL_PIN_FIELDS
 
 
+# Issue #5420 moved every agent write target from `.agents/<sub>` to
+# `.project-toolkit/<sub>`. A staged file whose bytes equal its pre-image once
+# that root rename is undone carries no authored change: a pure rename (git
+# similarity 100%), a reference rewrite from the old root to the new one, or a
+# relative Markdown link re-based so it still reaches the same file. Content
+# gates that re-validate a whole file (ADR debate review, session schema) skip
+# such a file instead of re-judging history the commit only moved.
+MOVED_ROOT_REFERENCE = b".project-toolkit"
+FORMER_ROOT_REFERENCE = b".agents"
+_RELATIVE_LINK_RE = re.compile(rb"(\]\()(?![a-z][a-z0-9+.-]*:|/|#)([^)\s#]+)")
+
+
+def _staged_rename_sources(repo_root: Path) -> dict[str, str]:
+    """Map each staged rename destination to its source path.
+
+    An empty map on a failed query keeps every path gated: the caller then
+    compares against HEAD at the destination path, which a renamed file
+    lacks, so nothing is exempted by a git failure.
+    """
+    result = _run_git(
+        repo_root,
+        ["diff", "--cached", "--name-status", "-M", "--diff-filter=R", "-z"],
+    )
+    if result.returncode != 0:
+        return {}
+    fields = result.stdout.split("\0")
+    sources: dict[str, str] = {}
+    for index in range(0, len(fields) - 2, 3):
+        if fields[index].startswith("R"):
+            sources[fields[index + 2]] = fields[index + 1]
+    return sources
+
+
+def _is_root_move_only_change(
+    path: str,
+    repo_root: Path,
+    rename_sources: dict[str, str],
+) -> bool:
+    """Return True when the staged blob differs from HEAD only by the root move."""
+    source = rename_sources.get(path, path)
+    staged = _read_index_blob(repo_root, path)
+    before = _read_head_blob(repo_root, source)
+    if staged is None or before is None:
+        return False
+    return _undo_root_move(staged, path) == _undo_root_move(before, source)
+
+
+def _undo_root_move(content: bytes, path: str) -> bytes:
+    """Resolve relative Markdown links against ``path``, then undo the root move."""
+    directory = posixpath.dirname(path).encode()
+
+    def _resolve(match: re.Match[bytes]) -> bytes:
+        target = posixpath.normpath(posixpath.join(directory, match.group(2)))
+        return match.group(1) + target
+
+    resolved = _RELATIVE_LINK_RE.sub(_resolve, content)
+    return resolved.replace(MOVED_ROOT_REFERENCE, FORMER_ROOT_REFERENCE)
+
+
+def _drop_root_move_only_paths(paths: Sequence[str], repo_root: Path) -> list[str]:
+    rename_sources = _staged_rename_sources(repo_root)
+    return [
+        path for path in paths if not _is_root_move_only_change(path, repo_root, rename_sources)
+    ]
+
+
 def _gated_adr_review_paths(paths: Sequence[str], repo_root: Path) -> list[str]:
     gated: list[str] = []
     for path in paths:
@@ -1535,7 +1603,7 @@ def _gated_adr_review_paths(paths: Sequence[str], repo_root: Path) -> list[str]:
         if _is_frontmatter_only_metadata_change(path, repo_root):
             continue
         gated.append(path)
-    return gated
+    return _drop_root_move_only_paths(gated, repo_root) if gated else gated
 
 
 def _extract_adr_ids(paths: Sequence[str]) -> set[str]:
@@ -1551,14 +1619,14 @@ def _is_debate_log_path(relative_path: str) -> bool:
     if safe_path is None:
         return False
     path = PurePosixPath(safe_path)
-    # Exactly .agents/critique, not below it. A log staged one directory deeper
+    # Exactly .project-toolkit/critique, not below it. A log staged one directory deeper
     # is not a candidate at all, so a commit carrying only such a file fails
-    # with the generic "requires a debate log staged in .agents/critique"
+    # with the generic "requires a debate log staged in .project-toolkit/critique"
     # rather than something that explains the nesting. Fails closed, so this is
     # a diagnostic gap and not a hole, but it will read as the gate not seeing
     # a file that is plainly there.
     return (
-        path.parent == PurePosixPath(".agents/critique")
+        path.parent == PurePosixPath(".project-toolkit/critique")
         and path.suffix == ".md"
         and "debate" in path.name
     )
@@ -1574,10 +1642,10 @@ def _staged_debate_log_paths(repo_root: Path) -> list[str] | None:
     evidence. Reproduced on this branch with exactly that shape, one tracked log
     converted to a symlink beside one valid covering log::
 
-        M  .agents/architecture/ADR-042-python-migration-strategy.md
-        T  .agents/critique/ADR-042-debate-log.md
-        A  .agents/critique/ADR-042-review-debate-log.md
-        ACMR paths seen by the gate -> ['.agents/critique/ADR-042-review-debate-log.md']
+        M  .project-toolkit/architecture/ADR-042-python-migration-strategy.md
+        T  .project-toolkit/critique/ADR-042-debate-log.md
+        A  .project-toolkit/critique/ADR-042-review-debate-log.md
+        ACMR paths seen by the gate -> ['.project-toolkit/critique/ADR-042-review-debate-log.md']
         check_adr_review_policy -> 0
 
     The non-regular-file check was added for the add-a-symlink shape and did not
@@ -1586,7 +1654,7 @@ def _staged_debate_log_paths(repo_root: Path) -> list[str] | None:
 
     Returns None when the query itself fails, rather than an empty list. Both
     block, since no candidates means no evidence, but the empty list blocks with
-    "requires a debate log staged in .agents/critique", which sends a committer
+    "requires a debate log staged in .project-toolkit/critique", which sends a committer
     who already staged one to look for a file that is sitting right there. A
     swallowed error that reports as an absence is the shape this whole gate is
     about; it does not get a pass for being fail-closed.
@@ -1600,7 +1668,7 @@ def _staged_debate_log_paths(repo_root: Path) -> list[str] | None:
             "--diff-filter=ACMRT",
             "-z",
             "--",
-            ".agents/critique",
+            ".project-toolkit/critique",
         ],
     )
     if result.returncode != 0:
@@ -1732,9 +1800,9 @@ def _normalized_for_placeholders(text: str) -> str:
 def debate_log_evidence_gap(content: str) -> str | None:
     """Return why ``content`` fails as review evidence, or None when it passes.
 
-    Issue #5205: the gate accepted any staged ``.agents/critique/*debate*.md``
+    Issue #5205: the gate accepted any staged ``.project-toolkit/critique/*debate*.md``
     whose bytes contained an ADR id, so a 7-byte file cleared it. These four
-    signals are calibrated against the 86 debate logs in ``.agents/critique`` on
+    signals are calibrated against the 86 debate logs in ``.project-toolkit/critique`` on
     main: all 86 pass, and a stub carrying only an ADR id fails on the first.
 
     A fifth check rejects a log still carrying the canonical template's own
@@ -1997,11 +2065,11 @@ def check_adr_review_policy(paths: Sequence[str], repo_root: Path) -> int:
 
     # Canonical debate-log directory per:
     #   .claude/skills/adr-review/references/artifacts.md line 3:
-    #     "Save debate artifacts to `.agents/critique/`."
+    #     "Save debate artifacts to `.project-toolkit/critique/`."
     #   .claude/skills/adr-review/references/artifacts.md line 7:
-    #     "Save to: `.agents/critique/ADR-NNN-debate-log.md`"
-    # Issue #4250: the hook previously searched .agents/analysis/ but the
-    # skill writes to .agents/critique/.
+    #     "Save to: `.project-toolkit/critique/ADR-NNN-debate-log.md`"
+    # Issue #4250: the hook previously searched .project-toolkit/analysis/ but the
+    # skill writes to .project-toolkit/critique/.
     # Only stage-zero regular files in the caller's staged path set can satisfy
     # the gate. Working-tree-only evidence must not authorize an ADR commit.
     #
@@ -2032,7 +2100,7 @@ def check_adr_review_policy(paths: Sequence[str], repo_root: Path) -> int:
         return candidate_failure
     if not debate_logs:
         print(
-            "ERROR: ADR changes require a debate log staged in .agents/critique",
+            "ERROR: ADR changes require a debate log staged in .project-toolkit/critique",
             file=sys.stderr,
         )
         return 1
@@ -2321,7 +2389,7 @@ def check_branch_context(repo_root: Path) -> int:
     on another local branch and never merged is not upstream, so the
     co-mingling case from issue #682 still blocks.
 
-    A linked worktree gets a third exemption. Its ``.agents/sessions`` is a
+    A linked worktree gets a third exemption. Its ``.project-toolkit/sessions`` is a
     checkout of some branch's history, so a log present in ``HEAD`` names
     whatever that branch last recorded and says nothing about the developer's
     current work. Blocking on it forced ``--no-verify`` on every worktree
@@ -2333,7 +2401,7 @@ def check_branch_context(repo_root: Path) -> int:
     try:
         if _merge_in_progress(repo_root):
             return 0
-        sessions_dir = repo_root / ".agents" / "sessions"
+        sessions_dir = repo_root / ".project-toolkit" / "sessions"
         if not sessions_dir.is_dir():
             return 0
         current_branch = _current_branch(repo_root)
@@ -2396,7 +2464,7 @@ def check_root_hygiene(paths: Sequence[str], repo_root: Path) -> int:
         file=sys.stderr,
     )
     print(
-        "Move scratch output under .agents/scratch/, an ignored subdirectory, "
+        "Move scratch output under .project-toolkit/scratch/, an ignored subdirectory, "
         "or a workspace outside the repository.",
         file=sys.stderr,
     )
@@ -2501,16 +2569,7 @@ def _path_exists_at_head(path: str, repo_root: Path) -> bool | None:
 def check_sessions(paths: Sequence[str], repo_root: Path) -> int:
     if _merge_in_progress(repo_root):
         return 0
-    session_paths = [
-        path
-        for raw_path in paths
-        if (path := _safe_relative_path(raw_path)) and SESSION_PATH_RE.fullmatch(path)
-    ]
-    sessions = [
-        path
-        for path in session_paths
-        if not _is_staged_session_on_upstream_default(repo_root, path)
-    ]
+    sessions = _session_logs_to_validate(paths, repo_root)
     if not sessions:
         # The committed session-log gate is retired: staging a .agents change no
         # longer requires a JSON session log. When no session log is present to
@@ -2543,6 +2602,25 @@ def check_sessions(paths: Sequence[str], repo_root: Path) -> int:
     return 0
 
 
+def _session_logs_to_validate(paths: Sequence[str], repo_root: Path) -> list[str]:
+    """Staged session logs that carry content this commit authored.
+
+    Drops logs already on the upstream default branch and logs whose only
+    change is the issue #5420 root move (see ``_drop_root_move_only_paths``).
+    """
+    session_paths = [
+        path
+        for raw_path in paths
+        if (path := _safe_relative_path(raw_path)) and SESSION_PATH_RE.fullmatch(path)
+    ]
+    sessions = [
+        path
+        for path in session_paths
+        if not _is_staged_session_on_upstream_default(repo_root, path)
+    ]
+    return _drop_root_move_only_paths(sessions, repo_root) if sessions else sessions
+
+
 def _is_staged_session_on_upstream_default(repo_root: Path, path: str) -> bool:
     content = _read_index_blob(repo_root, path)
     return content is not None and _is_session_content_on_upstream_default(repo_root, path, content)
@@ -2554,8 +2632,19 @@ def _is_session_on_upstream_default(repo_root: Path, path: str) -> bool:
 
 
 def _is_session_content_on_upstream_default(repo_root: Path, path: str, content: bytes) -> bool:
-    upstream_content = _read_upstream_default_blob(repo_root, path)
-    return upstream_content is not None and upstream_content == content
+    """True when upstream already carries ``content`` at ``path`` or its pre-move path.
+
+    Issue #5420 moved session logs from the ``.agents`` root to
+    ``.project-toolkit/sessions/``. Until upstream carries the new path, a log
+    the branch only moved is still upstream content under its former name.
+    """
+    former_path = path
+    if path.startswith(".project-toolkit/"):
+        former_path = ".agents/" + path.removeprefix(".project-toolkit/")
+    for candidate in dict.fromkeys((path, former_path)):
+        if _read_upstream_default_blob(repo_root, candidate) == content:
+            return True
+    return False
 
 
 def check_commit_message(message_path: Path) -> int:
@@ -3016,7 +3105,9 @@ def stage_generated(kind: str, repo_root: Path) -> int:
 def extract_session_episodes(paths: Sequence[str], repo_root: Path) -> int:
     if check_generated_paths("episodes", repo_root) != 0:
         return 2
-    for raw_path in paths:
+    # A session log the commit only moved (issue #5420) already produced its
+    # episode, and a legacy log name may predate SESSION_PATH_RE.
+    for raw_path in _drop_root_move_only_paths(paths, repo_root):
         path = _safe_relative_path(raw_path)
         if path is None or not SESSION_PATH_RE.fullmatch(path):
             print(f"ERROR: invalid session path: {raw_path}", file=sys.stderr)
@@ -3279,7 +3370,7 @@ def _episode_id_from_output(stdout: str) -> str | None:
 
 
 def _stage_episode(episode_id: str, repo_root: Path) -> int:
-    relative_path = f".agents/memory/episodes/{episode_id}.json"
+    relative_path = f".project-toolkit/memory/episodes/{episode_id}.json"
     episode_path = _safe_output_path(repo_root, relative_path)
     if episode_path is None:
         print(f"ERROR: unsafe generated episode path: {relative_path}", file=sys.stderr)
@@ -4514,10 +4605,52 @@ def scan_pushed_heads(stream: TextIO, repo_root: Path) -> int:
         ]
         if not scan_paths:
             continue
+        root_moves = _pushed_root_moves(update, repo_root)
+        if root_moves is None:
+            return 2
+        scan_paths = [path for path in scan_paths if path not in root_moves]
+        if not scan_paths:
+            continue
         result = _scan_pushed_head(update.head, scan_paths, repo_root, deadline=deadline)
         if result != 0:
             return result
     return 0
+
+
+def _pushed_root_moves(update: PushUpdate, repo_root: Path) -> set[str] | None:
+    """Return destinations of byte-identical moves from the legacy root to ``.project-toolkit``.
+
+    Issue #5420 moved write-target subtrees between roots. A byte-identical move
+    adds no new content, so semgrep-push would only re-report findings the base
+    already carried, such as the deliberate security benchmark samples. Any
+    other rename, or a move with edits, is still scanned.
+    """
+    result = _run_git(
+        repo_root,
+        [
+            "diff",
+            *TEXTUAL_DIFF_FLAGS,
+            "--find-renames=100%",
+            "--name-status",
+            "--diff-filter=R",
+            "-z",
+            update.range_spec,
+        ],
+    )
+    if result.returncode != 0:
+        _print_process_output(result)
+        return None
+    fields = result.stdout.rstrip("\0").split("\0") if result.stdout else []
+    if len(fields) % 3:
+        print("ERROR: malformed rename listing for the pushed range", file=sys.stderr)
+        return None
+    moves: set[str] = set()
+    triples = zip(fields[0::3], fields[1::3], fields[2::3], strict=True)
+    for status, source, destination in triples:
+        moved = ".project-toolkit/" + source.removeprefix(".agents/")
+        if status == "R100" and source.startswith(".agents/") and destination == moved:
+            moves.add(destination)
+    return moves
 
 
 def _scan_pushed_head(

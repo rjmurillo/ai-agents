@@ -125,7 +125,7 @@ Skip RCA when:
    - [ ] Config issue → Guide user
 
 4. **Document RCA**
-   - [ ] Save findings to `.agents/analysis/`
+   - [ ] Save findings to `.project-toolkit/analysis/`
    - [ ] Update issue with findings
    - [ ] Store learnings in memory
 

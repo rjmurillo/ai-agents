@@ -162,9 +162,9 @@ Include complexity estimates and file impact.
 - Related context (ADRs, existing features)
 
 **Output**:
-- Requirements documents in `.agents/specs/requirements/REQ-NNN-*.md`
-- Design documents in `.agents/specs/design/DESIGN-NNN-*.md`
-- Task documents in `.agents/specs/tasks/TASK-NNN-*.md`
+- Requirements documents in `.project-toolkit/specs/requirements/REQ-NNN-*.md`
+- Design documents in `.project-toolkit/specs/design/DESIGN-NNN-*.md`
+- Task documents in `.project-toolkit/specs/tasks/TASK-NNN-*.md`
 
 **Delegates To**: None (returns to orchestrator)
 
@@ -249,7 +249,7 @@ Follow the design in ADR-015. Security-critical paths require 100% coverage.
 **Output**:
 - Pipeline configurations (YAML)
 - Build scripts
-- Infrastructure documentation in `.agents/devops/`
+- Infrastructure documentation in `.project-toolkit/devops/`
 
 **Delegates To**: None (returns to orchestrator)
 
@@ -282,8 +282,8 @@ on release tags. Include security scanning.
 - Change scope
 
 **Output**:
-- Threat models in `.agents/security/TM-NNN-*.md`
-- Security reports in `.agents/security/SR-NNN-*.md`
+- Threat models in `.project-toolkit/security/TM-NNN-*.md`
+- Security reports in `.project-toolkit/security/SR-NNN-*.md`
 - Post-Implementation Verification (PIV) reports
 
 **Delegates To**: None (returns to orchestrator)
@@ -354,7 +354,7 @@ from main with conflicts in 3 source files.
 - Business objectives
 
 **Output**:
-- Critique report in `.agents/critique/`
+- Critique report in `.project-toolkit/critique/`
 - Approval/rejection with rationale
 - Specific improvement recommendations
 
@@ -369,7 +369,7 @@ from main with conflicts in 3 source files.
 
 **Example Invocation**:
 ```text
-@critic Review the implementation plan at .agents/planning/PLAN-auth.md
+@critic Review the implementation plan at .project-toolkit/planning/PLAN-auth.md
 Validate scope, risks, and alignment with requirements.
 ```
 
@@ -403,8 +403,8 @@ Validate scope, risks, and alignment with requirements.
 - Test requirements
 
 **Output**:
-- Test strategies in `.agents/qa/NNN-*-test-strategy.md`
-- Test reports in `.agents/qa/NNN-*-test-report.md`
+- Test strategies in `.project-toolkit/qa/NNN-*-test-strategy.md`
+- Test reports in `.project-toolkit/qa/NNN-*-test-report.md`
 - Coverage analysis with risk-tier classification
 
 **Delegates To**: None (returns to orchestrator)
@@ -477,7 +477,7 @@ should we consider?
 - Cross-cutting concerns
 
 **Output**:
-- ADRs in `.agents/architecture/ADR-NNN-*.md`
+- ADRs in `.project-toolkit/architecture/ADR-NNN-*.md`
 - Design guidance
 - Impact analysis
 
@@ -512,7 +512,7 @@ Document the decision in an ADR with tradeoff analysis.
 - Research topic
 
 **Output**:
-- Analysis reports in `.agents/analysis/`
+- Analysis reports in `.project-toolkit/analysis/`
 - Root cause findings
 - Requirements documentation
 - Feature evaluation with RICE scoring
@@ -548,7 +548,7 @@ Identify the bottleneck and recommend solutions.
 - Clarifying answers from user
 
 **Output**:
-- PRDs in `.agents/planning/PRD-*.md`
+- PRDs in `.project-toolkit/planning/PRD-*.md`
 - Explainer documents
 - Technical specifications
 
@@ -621,7 +621,7 @@ or patching it. Team is split. Give us a verdict.
 - User needs
 
 **Output**:
-- Epic definitions in `.agents/roadmap/`
+- Epic definitions in `.project-toolkit/roadmap/`
 - Roadmap updates
 - Priority recommendations
 
@@ -656,7 +656,7 @@ Prioritize it against existing roadmap items.
 - Feedback
 
 **Output**:
-- Retrospective reports in `.agents/retrospective/`
+- Retrospective reports in `.project-toolkit/retrospective/`
 - Skill recommendations (ADD/UPDATE/TAG/REMOVE)
 - Process improvements
 
@@ -764,7 +764,7 @@ implementation from previous sessions.
 - Review comments to address
 
 **Output**:
-- Comment map in `.agents/pr-comments/PR-[N]/`
+- Comment map in `.project-toolkit/pr-comments/PR-[N]/`
 - Task lists
 - Reply drafts
 
@@ -801,7 +801,7 @@ result, not a statement about who may invoke whom.
 ### Aggregation and Escalation
 
 ADR-009 defines three aggregation strategies. Quoted verbatim from
-`.agents/architecture/ADR-009-parallel-safe-multi-agent-design.md`:
+`.project-toolkit/architecture/ADR-009-parallel-safe-multi-agent-design.md`:
 
 | Strategy | Use Case | Behavior |
 |----------|----------|----------|
@@ -969,7 +969,7 @@ For exploring vague ideas and package requests.
 flowchart TD
     A[Vibe Prompt] --> B[orchestrator]
     B --> C[analyst]
-    C -->|Research: web search, docs, samples| D[".agents/analysis/ideation-[topic].md"]
+    C -->|Research: web search, docs, samples| D[".project-toolkit/analysis/ideation-[topic].md"]
 ```
 
 **Phase 2: Validation & Consensus**
@@ -984,7 +984,7 @@ flowchart TD
     F --> G([Proceed])
     F --> H([Defer])
     F --> I([Reject])
-    E --> J[".agents/analysis/ideation-[topic]-validation.md"]
+    E --> J[".project-toolkit/analysis/ideation-[topic]-validation.md"]
 ```
 
 **Phase 3: Epic & PRD Creation** (if Proceed)
@@ -1012,7 +1012,7 @@ flowchart TD
 
 **Full Sequence**: `analyst → high-level-advisor → independent-thinker → critic → roadmap → explainer → task-decomposer → architect → devops → security → qa`
 
-**Defer Handling**: Create backlog entry at `.agents/roadmap/backlog.md` with resume conditions
+**Defer Handling**: Create backlog entry at `.project-toolkit/roadmap/backlog.md` with resume conditions
 
 **Reject Handling**: Document reasoning in validation file, report to user
 
@@ -1214,7 +1214,7 @@ At session end, create a handoff document:
 
 #### Session Log Location (historical only, creation discontinued)
 
-Historical logs live at `.agents/sessions/YYYY-MM-DD-session-NN[-slug].json`.
+Historical logs live at `.project-toolkit/sessions/YYYY-MM-DD-session-NN[-slug].json`.
 Do not create new ones; see `.claude/rules/session-logs.md`.
 
 ### 5.2 Memory Protocol
@@ -1262,21 +1262,21 @@ Skills extracted from retrospectives are stored with:
 
 | Directory | Purpose | Agent |
 |-----------|---------|-------|
-| `.agents/analysis/` | Research findings | analyst |
-| `.agents/architecture/` | ADRs only (no review documents) | architect |
-| `.agents/planning/` | PRDs, plans, tasks | milestone-planner, explainer |
-| `.agents/critique/` | Plan reviews, ADR reviews, design reviews | critic |
-| `.agents/qa/` | Test strategies, reports | qa |
-| `.agents/retrospective/` | Learning extractions | retrospective |
-| `.agents/roadmap/` | Epic definitions | roadmap |
-| `.agents/devops/` | Pipeline configs | devops |
-| `.agents/security/` | Threat models | security |
-| `.agents/sessions/*.json` | Historical session context (creation discontinued) | memory |
-| `.agents/sessions/handoffs/` | Active per-issue continuity records | all agents |
+| `.project-toolkit/analysis/` | Research findings | analyst |
+| `.project-toolkit/architecture/` | ADRs only (no review documents) | architect |
+| `.project-toolkit/planning/` | PRDs, plans, tasks | milestone-planner, explainer |
+| `.project-toolkit/critique/` | Plan reviews, ADR reviews, design reviews | critic |
+| `.project-toolkit/qa/` | Test strategies, reports | qa |
+| `.project-toolkit/retrospective/` | Learning extractions | retrospective |
+| `.project-toolkit/roadmap/` | Epic definitions | roadmap |
+| `.project-toolkit/devops/` | Pipeline configs | devops |
+| `.project-toolkit/security/` | Threat models | security |
+| `.project-toolkit/sessions/*.json` | Historical session context (creation discontinued) | memory |
+| `.project-toolkit/sessions/handoffs/` | Active per-issue continuity records | all agents |
 | `.agents/skills/` | Skill files | skillbook |
-| `.agents/specs/requirements/` | EARS requirements (Phase 1+) | spec-generator |
-| `.agents/specs/design/` | Design documents (Phase 1+) | architect |
-| `.agents/specs/tasks/` | Atomic tasks (Phase 1+) | task-decomposer |
+| `.project-toolkit/specs/requirements/` | EARS requirements (Phase 1+) | spec-generator |
+| `.project-toolkit/specs/design/` | Design documents (Phase 1+) | architect |
+| `.project-toolkit/specs/tasks/` | Atomic tasks (Phase 1+) | task-decomposer |
 | `.agents/steering/` | Context-aware guidance (Phase 4+) | orchestrator |
 | `.agents/governance/` | Naming, consistency protocols | all agents |
 

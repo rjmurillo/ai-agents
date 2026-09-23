@@ -73,7 +73,7 @@ class TestForbiddenPatterns:
         relative_texts = [
             "docs/guide.md",
             "../architecture/design.md",
-            ".agents/planning/PRD-feature.md",
+            ".project-toolkit/planning/PRD-feature.md",
         ]
         for text in relative_texts:
             for pat in FORBIDDEN_PATTERNS:
@@ -252,7 +252,7 @@ class TestScanFile:
         f.write_text(
             "See: docs/guide.md\n"
             "See: ../architecture/design.md\n"
-            "See: .agents/planning/PRD-feature.md\n"
+            "See: .project-toolkit/planning/PRD-feature.md\n"
         )
         violations = scan_file(f, FORBIDDEN_PATTERNS)
         assert violations == []

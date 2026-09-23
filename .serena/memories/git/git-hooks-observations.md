@@ -79,7 +79,7 @@
 
 ## Related Memories
 
-- `.agents/retrospective/2026-02-08-session-1187-skip-prepush-abuse.md` - Full retrospective analysis
+- `.project-toolkit/retrospective/2026-02-08-session-1187-skip-prepush-abuse.md` - Full retrospective analysis
 - `rootcause-escape-hatch-misuse.md` - Root cause pattern RootCause-Escape-Hatch-Misuse-001
 - `quality-gates-bypass-enforcement.md` - Enforcement recommendations
 - `process-bypass-pattern-generalization.md` - Pattern generalization analysis

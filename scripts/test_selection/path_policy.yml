@@ -59,7 +59,7 @@ python:
   # population issue #3633 names is a hand edit or merge-conflict
   # resolution touching only these files, which no '**/*.py' pattern
   # catches.
-  - '.agents/memory/episodes/**'
+  - '.project-toolkit/memory/episodes/**'
   # Issue #4408: rules files are test inputs -- many Python tests read
   # them directly (e.g. test_validate_workflows.py, test_plugin_tree_no_unicode_dashes.py).
   # A rules-only change must trigger the full suite. The same three
@@ -79,26 +79,26 @@ python:
   #   .claude/skills/**        tests/skills/**, e.g.
   #                            security-review/test_skill_md.py
   #   .serena/memories/**      tests/test_memory_verification.py
-  #   .agents/architecture/**  tests/build_scripts/test_hook_contract_knowledge.py
+  #   .project-toolkit/architecture/**  tests/build_scripts/test_hook_contract_knowledge.py
   #   .agents/governance/**    tests/test_canonical_sources_registration.py
   #   AGENTS.md, README.md     tests/test_knowledge_surface_consistency.py
   #   .agents/AGENT-SYSTEM.md  tests/test_agent_role_metadata_migration.py
   - '.claude/skills/**'
   - 'src/copilot-cli/skills/**'
   - '.serena/memories/**'
-  - '.agents/architecture/**'
+  - '.project-toolkit/architecture/**'
   - '.agents/governance/**'
   - '.agents/AGENT-SYSTEM.md'
   # Added in review on PR #5319, from two concrete misses a reviewer
   # found by reading the tests rather than the filter:
-  #   .agents/critique/**  tests/build_scripts/test_hook_contract_knowledge.py
+  #   .project-toolkit/critique/**  tests/build_scripts/test_hook_contract_knowledge.py
   #                        opens ADR-084-debate-log.md directly
   #   templates/agents/**  tests/test_pr_identity_gate.py reads
   #                        analyst.shared.md directly
   # The colocated test checks that every root here is referenced by
   # a test. It cannot check the reverse, which is the direction that
   # fails silently, and these two are what that gap looked like.
-  - '.agents/critique/**'
+  - '.project-toolkit/critique/**'
   - 'templates/agents/**'
   # Second batch, same method and same reviewer (PR #5319): found by
   # reading tests for direct reads rather than by reading the filter.
@@ -126,8 +126,8 @@ python:
   # resolve to a real repository file, and check each against this
   # filter. It found 120 direct test inputs the allowlist did not
   # match, 92 Markdown, 14 JSON, 5 text, spread across every tree
-  # including `.agents/retrospective/**`, `.agents/sessions/**`, and
-  # `.agents/analysis/**`, which the comment at the top of this
+  # including `.project-toolkit/retrospective/**`, `.project-toolkit/sessions/**`, and
+  # `.project-toolkit/analysis/**`, which the comment at the top of this
   # filter names as the Markdown it deliberately skips. Those trees
   # are test inputs too, so the thing the allowlist was protecting
   # was already close to empty.

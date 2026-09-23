@@ -16,7 +16,7 @@ from pathlib import Path
 import pytest
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-ADR_PATH = PROJECT_ROOT / ".agents" / "architecture" / "ADR-043-scoped-tool-execution.md"
+ADR_PATH = PROJECT_ROOT / ".project-toolkit" / "architecture" / "ADR-043-scoped-tool-execution.md"
 _DASH_PATTERN = re.compile("[\u2013\u2014]")
 
 WRONG_PHRASE = "ensuring only specified files are processed"
@@ -70,7 +70,7 @@ class TestNoPhraseRepetitionAcrossRules:
     """Verify the wrong phrase does not appear in any ADR or rule file."""
 
     def _gather_files(self) -> list[Path]:
-        adrs = list((PROJECT_ROOT / ".agents" / "architecture").glob("ADR-*.md"))
+        adrs = list((PROJECT_ROOT / ".project-toolkit" / "architecture").glob("ADR-*.md"))
         rules = list((PROJECT_ROOT / ".claude" / "rules").glob("*.md"))
         return adrs + rules
 

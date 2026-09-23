@@ -38,7 +38,7 @@ def _write_minimal_adr(adr_dir: Path) -> None:
 
     `generate_adr_index.py` now rejects a directory with no
     `ADR-NNN-*.md` match as a config error (Copilot, PR #5209 round-7
-    review), so a fixture that creates `.agents/architecture` empty to
+    review), so a fixture that creates `.project-toolkit/architecture` empty to
     test something unrelated (skills generation, untracked-file
     detection) must still seed one parseable record.
     """
@@ -711,7 +711,7 @@ def test_run_platform_filter_still_compiles_lib(
     monkeypatch.setattr(build_all, "_git_diff_paths", lambda repo_root: [])
     repo = tmp_path / "repo"
     (repo / ".claude" / "skills").mkdir(parents=True)
-    _write_minimal_adr(repo / ".agents" / "architecture")
+    _write_minimal_adr(repo / ".project-toolkit" / "architecture")
     _write_skill(repo / ".claude" / "skills", "alpha")
     _write_minimal_lib_sources(repo)
     _write_platform_with_skills(repo, provider="copilot-cli")
@@ -744,7 +744,7 @@ def test_run_emits_audit_and_returns_zero_on_clean_state(
     monkeypatch.setattr(build_all, "_git_diff_paths", lambda repo_root: [])
     repo = tmp_path / "repo"
     (repo / ".claude" / "skills").mkdir(parents=True)
-    _write_minimal_adr(repo / ".agents" / "architecture")
+    _write_minimal_adr(repo / ".project-toolkit" / "architecture")
     _write_skill(repo / ".claude" / "skills", "alpha")
     _write_platform_with_skills(repo, provider="copilot-cli")
 
@@ -908,7 +908,7 @@ def test_run_returns_0_when_claude_lib_synced_before_build(
     monkeypatch.setattr(build_all, "_git_diff_paths", lambda repo_root: [])
     repo = tmp_path / "repo"
     (repo / ".claude" / "skills").mkdir(parents=True)
-    _write_minimal_adr(repo / ".agents" / "architecture")
+    _write_minimal_adr(repo / ".project-toolkit" / "architecture")
     _write_skill(repo / ".claude" / "skills", "alpha")
     # Simulate sync_plugin_lib.py having already updated .claude/lib.
     lib = repo / ".claude" / "lib" / "hook_utilities"
@@ -1383,7 +1383,7 @@ def test_build_agent_catalog_skips_when_templates_missing(tmp_path: Path) -> Non
 
 
 def test_build_adr_index_writes_the_readme(tmp_path: Path) -> None:
-    adr_dir = tmp_path / ".agents" / "architecture"
+    adr_dir = tmp_path / ".project-toolkit" / "architecture"
     adr_dir.mkdir(parents=True)
     (adr_dir / "ADR-001-example.md").write_text(
         "---\nid: ADR-001\nstatus: accepted\ndate: 2026-01-01\n---\n\n"
@@ -1576,7 +1576,7 @@ def test_run_check_clean_when_untracked_outside_owned_prefix(
     repo = tmp_path / "repo"
     _init_git_repo(repo)
     (repo / ".claude" / "skills").mkdir(parents=True)
-    _write_minimal_adr(repo / ".agents" / "architecture")
+    _write_minimal_adr(repo / ".project-toolkit" / "architecture")
     _write_skill(repo / ".claude" / "skills", "alpha")
     _write_platform_with_skills(repo, provider="copilot-cli")
     # Pre-generate and commit the ADR index so its first-ever creation is not
@@ -1717,7 +1717,7 @@ def test_run_check_leaves_untracked_owned_path_untouched(
     repo = tmp_path / "repo"
     _init_git_repo(repo)
     (repo / ".claude" / "skills").mkdir(parents=True)
-    (repo / ".agents" / "architecture").mkdir(parents=True)
+    (repo / ".project-toolkit" / "architecture").mkdir(parents=True)
     _write_skill(repo / ".claude" / "skills", "alpha")
     _write_platform_with_skills(repo, provider="copilot-cli")
     subprocess.run(["git", "-C", str(repo), "add", "-A"], check=True)
@@ -2040,7 +2040,7 @@ def test_run_check_removes_new_untracked_files_generators_created(
     repo = tmp_path / "repo"
     _init_git_repo(repo)
     (repo / ".claude" / "skills").mkdir(parents=True)
-    (repo / ".agents" / "architecture").mkdir(parents=True)
+    (repo / ".project-toolkit" / "architecture").mkdir(parents=True)
     _write_skill(repo / ".claude" / "skills", "alpha")
     _write_platform_with_skills(repo, provider="copilot-cli")
     subprocess.run(["git", "-C", str(repo), "add", "-A"], check=True)
@@ -2085,7 +2085,7 @@ def test_run_without_check_does_not_snapshot_or_restore(
     repo = tmp_path / "repo"
     _init_git_repo(repo)
     (repo / ".claude" / "skills").mkdir(parents=True)
-    (repo / ".agents" / "architecture").mkdir(parents=True)
+    (repo / ".project-toolkit" / "architecture").mkdir(parents=True)
     _write_skill(repo / ".claude" / "skills", "alpha")
     _write_platform_with_skills(repo, provider="copilot-cli")
     subprocess.run(["git", "-C", str(repo), "add", "-A"], check=True)
@@ -2133,7 +2133,7 @@ def _seed_repo_with_committed_skill_mirror(
 
     _init_git_repo(repo)
     (repo / ".claude" / "skills").mkdir(parents=True)
-    _write_minimal_adr(repo / ".agents" / "architecture")
+    _write_minimal_adr(repo / ".project-toolkit" / "architecture")
     _write_skill(repo / ".claude" / "skills", "alpha")
     _write_platform_with_skills(repo, provider="copilot-cli")
     monkeypatch.setattr(
@@ -2235,7 +2235,7 @@ def _seed_repo_with_committed_claude_support_mirror(
 
     _init_git_repo(repo)
     (repo / ".claude" / "skills").mkdir(parents=True)
-    _write_minimal_adr(repo / ".agents" / "architecture")
+    _write_minimal_adr(repo / ".project-toolkit" / "architecture")
     skill_dir = repo / ".claude" / "skills" / "alpha"
     skill_dir.mkdir(parents=True)
     (skill_dir / "SKILL.md").write_text("# alpha\n", encoding="utf-8")
@@ -2902,7 +2902,7 @@ def test_run_flags_a_generator_write_hidden_behind_a_git_marker(
     monkeypatch.setattr(build_all, "_git_diff_paths", lambda repo_root: [])
     repo = tmp_path / "repo"
     (repo / ".claude" / "skills").mkdir(parents=True)
-    _write_minimal_adr(repo / ".agents" / "architecture")
+    _write_minimal_adr(repo / ".project-toolkit" / "architecture")
     _write_skill(repo / ".claude" / "skills", "alpha")
     _write_platform_with_skills(repo, provider="copilot-cli")
 
@@ -2949,7 +2949,7 @@ def test_run_check_removes_a_generated_tree_behind_a_git_marker(
     monkeypatch.setattr(build_all, "_git_diff_paths", lambda repo_root: [])
     repo = tmp_path / "repo"
     (repo / ".claude" / "skills").mkdir(parents=True)
-    _write_minimal_adr(repo / ".agents" / "architecture")
+    _write_minimal_adr(repo / ".project-toolkit" / "architecture")
     _write_skill(repo / ".claude" / "skills", "alpha")
     _write_platform_with_skills(repo, provider="copilot-cli")
 
@@ -3526,7 +3526,7 @@ def test_run_check_returns_3_when_git_state_is_unreadable(
     repo = tmp_path / "repo"
     _init_git_repo(repo)
     (repo / ".claude" / "skills").mkdir(parents=True)
-    _write_minimal_adr(repo / ".agents" / "architecture")
+    _write_minimal_adr(repo / ".project-toolkit" / "architecture")
     _write_skill(repo / ".claude" / "skills", "alpha")
     _write_platform_with_skills(repo, provider="copilot-cli")
     stale_text = "# stale, not what the generator would emit\n"
@@ -3568,7 +3568,7 @@ def test_cli_exits_3_when_git_state_read_times_out(
     repo = tmp_path / "repo"
     _init_git_repo(repo)
     (repo / ".claude" / "skills").mkdir(parents=True)
-    _write_minimal_adr(repo / ".agents" / "architecture")
+    _write_minimal_adr(repo / ".project-toolkit" / "architecture")
     _write_skill(repo / ".claude" / "skills", "alpha")
     _write_platform_with_skills(repo, provider="copilot-cli")
 
@@ -3606,7 +3606,7 @@ def test_cli_exits_3_when_git_state_is_unreadable(
     repo = tmp_path / "repo"
     _init_git_repo(repo)
     (repo / ".claude" / "skills").mkdir(parents=True)
-    _write_minimal_adr(repo / ".agents" / "architecture")
+    _write_minimal_adr(repo / ".project-toolkit" / "architecture")
     _write_skill(repo / ".claude" / "skills", "alpha")
     _write_platform_with_skills(repo, provider="copilot-cli")
 
@@ -3646,7 +3646,7 @@ def test_snapshot_strict_raises_on_unreadable_single_file_prefix(
 ) -> None:
     """The single-file prefix branch is as exposed as the directory walk.
 
-    ``docs/agent-catalog.md`` and ``.agents/architecture/README.md`` are
+    ``docs/agent-catalog.md`` and ``.project-toolkit/architecture/README.md`` are
     single-file entries in ``OWNED_PREFIXES``, so they never reach the
     ``rglob`` loop. Covering only the walk would leave both of them deletable
     by restore.
@@ -4795,7 +4795,7 @@ def test_run_check_aborts_before_the_real_generator_writes_into_a_checkout(
     repo = tmp_path / "repo"
     _init_git_repo(repo)
     (repo / ".claude" / "skills").mkdir(parents=True)
-    _write_minimal_adr(repo / ".agents" / "architecture")
+    _write_minimal_adr(repo / ".project-toolkit" / "architecture")
     _write_skill(repo / ".claude" / "skills", "alpha")
     _write_platform_with_skills(repo, provider="copilot-cli")
     nested = repo / "src" / "copilot-cli" / "skills" / "alpha"
@@ -4835,7 +4835,7 @@ def test_run_check_aborts_without_deleting_an_unreadable_owned_file(
     repo = tmp_path / "repo"
     _init_git_repo(repo)
     (repo / ".claude" / "skills").mkdir(parents=True)
-    _write_minimal_adr(repo / ".agents" / "architecture")
+    _write_minimal_adr(repo / ".project-toolkit" / "architecture")
     _write_skill(repo / ".claude" / "skills", "alpha")
     _write_platform_with_skills(repo, provider="copilot-cli")
     protected = repo / "src" / "copilot-cli" / "lib" / "frozen.py"
@@ -4877,7 +4877,7 @@ def test_run_without_check_still_builds_when_an_owned_file_is_unreadable(
     """
     repo = tmp_path / "repo"
     (repo / ".claude" / "skills").mkdir(parents=True)
-    _write_minimal_adr(repo / ".agents" / "architecture")
+    _write_minimal_adr(repo / ".project-toolkit" / "architecture")
     _write_skill(repo / ".claude" / "skills", "alpha")
     _write_platform_with_skills(repo, provider="copilot-cli")
     protected = repo / "src" / "copilot-cli" / "lib" / "frozen.py"
@@ -4937,7 +4937,7 @@ def test_plain_build_reads_git_and_survives_because_that_read_fails_open(
 
     repo = tmp_path / "repo"
     (repo / ".claude" / "skills").mkdir(parents=True)
-    _write_minimal_adr(repo / ".agents" / "architecture")
+    _write_minimal_adr(repo / ".project-toolkit" / "architecture")
     _write_skill(repo / ".claude" / "skills", "alpha")
     _write_platform_with_skills(repo, provider="copilot-cli")
 

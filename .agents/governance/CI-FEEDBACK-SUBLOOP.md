@@ -69,7 +69,7 @@ This document delivers the proposed naming and procedure. Three pieces of issue 
 2. **Session-log schema extension**: add a `sub_loop_turns` array to the session log, each entry recording `{cluster_id, axes_run, verdicts, sha}`. This makes "Round 7 of N" a structured artifact instead of a commit-message convention. The validator at `scripts/validate_session_json.py` does not reject unknown top-level fields today, so the field is additive; the schema change is the validation and the documentation of the field shape, plus tests. Tracked under #2014.
 3. **CI workflow scope-reduction**: when the head SHA is a `fix(subloop):` push, CI should skip axes the cluster does not claim to address and compare verdict-per-axis against the prior push so regressions surface explicitly. This is the larger slice and depends on the draft commit-prefix convention defined here. Tracked under #2014.
 
-A worked example in `.agents/retrospective/` applying the sub-loop to a real CI-feedback cluster is also a follow-up, deferred until the first PR runs the procedure end to end.
+A worked example in `.project-toolkit/retrospective/` applying the sub-loop to a real CI-feedback cluster is also a follow-up, deferred until the first PR runs the procedure end to end.
 
 ## References
 

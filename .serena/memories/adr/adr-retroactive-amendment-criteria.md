@@ -93,7 +93,7 @@ graph LR
 ## Source
 
 - Session: 826 (2026-01-13)
-- Retrospective: `.agents/retrospective/2026-01-13-fix-tools-frontmatter-retrospective.md`
+- Retrospective: `.project-toolkit/retrospective/2026-01-13-fix-tools-frontmatter-retrospective.md`
 - Learning: L5 (Phase 4, Lines 557-565)
 - Issue: #893 (Windows users blocked)
 - ADR: ADR-040 Amendment (2026-01-13)

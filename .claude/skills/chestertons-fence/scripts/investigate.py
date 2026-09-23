@@ -137,7 +137,7 @@ def _read_utf8_adr(adr_file: Path) -> str:
 
 def find_related_adrs(target: str) -> list[str]:
     """Search ADR files for references to the target."""
-    adrs_dir = Path(".agents/architecture")
+    adrs_dir = Path(".project-toolkit/architecture")
     if not adrs_dir.exists():
         return []
 

@@ -21,7 +21,7 @@ _DASH_RE = re.compile("[\u2013\u2014]")
 _SKILL_SCAN_EXTENSIONS = frozenset({".md", ".py", ".ps1", ".psm1"})
 
 _SESSION_LOG_FILENAME_RE = re.compile(
-    r"^\.agents/sessions/"
+    r"^\.project-toolkit/sessions/"
     r"\d{4}-\d{2}-\d{2}-session-\d+"
     r"(?:-[a-z0-9-]+)?"
     r"\.(md|json)$"
@@ -125,7 +125,7 @@ def _session_log_for_validation(
     )
     if show.returncode == 0:
         scratch_dir = os.path.join(
-            repo_root, ".agents", "scratch", "session-log-validation"
+            repo_root, ".project-toolkit", "scratch", "session-log-validation"
         )
         os.makedirs(scratch_dir, exist_ok=True)
         tmp_name = ""
@@ -157,7 +157,7 @@ def _session_log_for_validation(
 def _session_sort_key(path: str) -> tuple[str, int]:
     """Sort session paths by date and numeric session number."""
     match = re.match(
-        r"^\.agents/sessions/"
+        r"^\.project-toolkit/sessions/"
         r"(\d{4}-\d{2}-\d{2})-session-(\d+)",
         path,
     )
@@ -174,12 +174,12 @@ def _validate_session_end(
     diff_failed: bool,
 ) -> None:
     """Run the Session End validation when the changed-file set permits it."""
-    agents_changed = any(path.startswith(".agents/") for path in changed_files)
+    agents_changed = any(path.startswith(".project-toolkit/") for path in changed_files)
     if not agents_changed:
         if diff_failed:
             print("  Skipped: git diff failed, changed files unknown (see warning above).")
         else:
-            print("  No .agents/ changes, skipping")
+            print("  No .project-toolkit/ changes, skipping")
         return
 
     session_logs, has_legacy_md = _extract_validatable_session_logs(changed_files)
@@ -348,9 +348,9 @@ def run_validations(
     """Run pre-creation validations. Raises SystemExit(1) on failure."""
     unrun_validators: list[str] = []
     try:
-        os.makedirs(os.path.join(repo_root, ".agents"), exist_ok=True)
+        os.makedirs(os.path.join(repo_root, ".project-toolkit"), exist_ok=True)
     except PermissionError as exc:
-        print(f"Warning: Could not create .agents directory: {exc}", file=sys.stderr)
+        print(f"Warning: Could not create .project-toolkit directory: {exc}", file=sys.stderr)
 
     print("Running validations...")
     print()

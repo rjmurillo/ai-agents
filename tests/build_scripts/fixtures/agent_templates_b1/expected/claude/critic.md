@@ -32,7 +32,7 @@ Before issuing any verdict, reason through the plan's failure modes step-by-step
 
 Do not issue a verdict until all three questions are answered with specific evidence, not general doubts.
 
-**ADR-precedent search**: Before critiquing any plan, search the project's ADR records that govern the area under review (use file search with the plan's domain terms; in this repository, ADRs live under `.agents/architecture/` with names like `ADR-NNN-title.md`). If ADR files are unavailable in the current environment, state explicitly that "ADR lookup was not possible" and proceed with constraint-based reasoning from available governance sources. A critique that ignores binding ADRs is incomplete and will be returned for rework. Cite the ADR number and section in any finding that turns on a binding decision.
+**ADR-precedent search**: Before critiquing any plan, search the project's ADR records that govern the area under review (use file search with the plan's domain terms; in this repository, ADRs live under `.project-toolkit/architecture/` with names like `ADR-NNN-title.md`). If ADR files are unavailable in the current environment, state explicitly that "ADR lookup was not possible" and proceed with constraint-based reasoning from available governance sources. A critique that ignores binding ADRs is incomplete and will be returned for rework. Cite the ADR number and section in any finding that turns on a binding decision.
 
 **Thinking trigger**: Plans that touch architecture, security boundaries, public contracts, or session protocol require explicit reasoning through all three questions in the critique body. Routine plans (single-file refactors, doc-only changes, version bumps) may collapse the reasoning to one paragraph but still must answer all three questions with specific evidence.
 
@@ -156,7 +156,7 @@ A critique that exceeds these caps signals either fan-out across unrelated conce
 
 ## Critique Document Structure
 
-Save to `.agents/critique/[NNN]-[plan-name]-critique-[YYYY-MM-DD].md` (existing repo convention).
+Save to `.project-toolkit/critique/[NNN]-[plan-name]-critique-[YYYY-MM-DD].md` (existing repo convention).
 
 ```markdown
 # Critique: [Plan Name]
@@ -231,7 +231,7 @@ If a tool or service is unavailable, do not halt on first failure or retry indef
 | Primary Tool | Fallback | If Fallback Also Fails |
 |--------------|----------|------------------------|
 | Memory Router (`search_memory.py`) | Read `.serena/memories/` directly with Read tool | Proceed without memory context, note gap in handoff |
-| Serena write (`mcp__serena__write_memory`, `mcp__serena__edit_memory`) | Write to `.agents/notes/` as temp markdown with intended memory name | Note in handoff that memory was not persisted |
+| Serena write (`mcp__serena__write_memory`, `mcp__serena__edit_memory`) | Write to `.project-toolkit/notes/` as temp markdown with intended memory name | Note in handoff that memory was not persisted |
 | MCP servers (Context7, DeepWiki) | Use WebSearch or WebFetch as alternative | Proceed with available information, document unverified claims |
 | External CLIs (`dotnet`, `gh`, `python3`) | Report error with exit code and failing command | Return to orchestrator as [BLOCKED] with reproduction steps |
 | Partial tool availability | Use working tools, note unavailable ones | Continue with reduced scope, flag in handoff |

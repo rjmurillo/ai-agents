@@ -2871,7 +2871,7 @@ class TestDryRunCostBasis:
         assert "$" not in out
 _ARCHIVE_DIR = (
     REPO_ROOT
-    / ".agents"
+    / ".project-toolkit"
     / "analysis"
     / "eval-artifacts"
     / "2026-07-29-unified-software-engineering"

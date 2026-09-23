@@ -16,7 +16,7 @@ argument-hint: Describe the design decision, review request, or ADR topic
 You have direct access to:
 
 - **Read/Grep/Glob**: Analyze codebase architecture
-- **Write/Edit**: Create/update `.agents/architecture/` files only
+- **Write/Edit**: Create/update `.project-toolkit/architecture/` files only
 - **WebSearch**: Research architectural patterns
 - **Memory Router** (ADR-037): Search across `.serena/memories/`
   - `uv run python .claude/skills/memory/scripts/search_memory.py --query "topic"`
@@ -144,7 +144,7 @@ If a tool or service is unavailable, do not halt on first failure or retry indef
 | Primary Tool | Fallback | If Fallback Also Fails |
 |--------------|----------|------------------------|
 | Memory Router (`search_memory.py`) | Read `.serena/memories/` directly with Read tool | Proceed without memory context, note gap in handoff |
-| Serena write (`mcp__serena__write_memory`, `mcp__serena__edit_memory`) | Write to `.agents/notes/` as temp markdown with intended memory name | Note in handoff that memory was not persisted |
+| Serena write (`mcp__serena__write_memory`, `mcp__serena__edit_memory`) | Write to `.project-toolkit/notes/` as temp markdown with intended memory name | Note in handoff that memory was not persisted |
 | MCP servers (Context7, DeepWiki) | Use WebSearch or WebFetch as alternative | Proceed with available information, document unverified claims |
 | External CLIs (`dotnet`, `gh`, `python3`) | Report error with exit code and failing command | Return to orchestrator as [BLOCKED] with reproduction steps |
 | Partial tool availability | Use working tools, note unavailable ones | Continue with reduced scope, flag in handoff |
@@ -161,7 +161,7 @@ If a tool or service is unavailable, do not halt on first failure or retry indef
 
 ## Constraints
 
-- **Edit only** `.agents/architecture/` files
+- **Edit only** `.project-toolkit/architecture/` files
 - **No code implementation**
 - **No plan creation** (that's Planner's role)
 - Focus on governance, not execution

@@ -176,7 +176,7 @@ class TestDefaultPrePrPolicy:
         assert len(exceptions) == 3
         assert all(exception.justification.strip() for exception in exceptions)
         assert all(exception.reference.strip() for exception in exceptions)
-        assert exceptions[0].reference == ".agents/devops/SHIFT-LEFT.md"
+        assert exceptions[0].reference == ".project-toolkit/devops/SHIFT-LEFT.md"
 
     @pytest.mark.parametrize(
         "validator", ["validate_workflow_yaml", "validate_yaml_style"]

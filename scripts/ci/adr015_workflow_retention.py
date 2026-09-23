@@ -26,7 +26,7 @@ Call sites so the gate is not vacuous (Issue #3329):
     returning an empty list (isolating negative control).
 
 Issue: #3981
-ADR:   .agents/architecture/ADR-015-artifact-storage-minimization.md
+ADR:   .project-toolkit/architecture/ADR-015-artifact-storage-minimization.md
 """
 
 from __future__ import annotations

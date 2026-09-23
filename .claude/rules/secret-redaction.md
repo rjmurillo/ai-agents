@@ -1,8 +1,8 @@
 ---
 paths:
   - ".claude/skills/spec/**"
-  - ".agents/sessions/**"
-  - ".agents/retrospective/**"
+  - ".project-toolkit/sessions/**"
+  - ".project-toolkit/retrospective/**"
   - ".claude/rules/secret-redaction.md"
 priority: high
 ---

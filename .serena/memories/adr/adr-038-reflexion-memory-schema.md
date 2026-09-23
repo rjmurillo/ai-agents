@@ -19,14 +19,14 @@ Reflexion memory architecture for episodic replay. Originally four tiers; Tier 3
 |------|------|---------|---------|
 | 0 | Working | Context window | Current task focus |
 | 1 | Semantic | Serena + Forgetful | Facts, patterns, rules |
-| 2 | Episodic | `.agents/memory/episodes/` | Session transcripts, decisions |
+| 2 | Episodic | `.project-toolkit/memory/episodes/` | Session transcripts, decisions |
 | 3 | Causal | REMOVED by ADR-089 | Was cause-effect graphs; had no reader |
 
 ## Key Files
 
-- `.agents/architecture/ADR-038-reflexion-memory-schema.md` - Full ADR
+- `.project-toolkit/architecture/ADR-038-reflexion-memory-schema.md` - Full ADR
 - .agents/schemas/episode.schema.json (removed) - Episode JSON schema
-- `.agents/memory/causality/causal-graph.json` (removed by ADR-089)
+- `.project-toolkit/memory/causality/causal-graph.json` (removed by ADR-089)
 
 ## Episode Structure
 

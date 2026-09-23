@@ -228,7 +228,7 @@ Implementation: Use GitHub Actions cache with milestone list
 
 ## Session Reference
 
-Implemented in: `.agents/sessions/2026-01-09-session-811.md`
+Implemented in: `.project-toolkit/sessions/2026-01-09-session-811.md`
 Branch: `feat/milestone-backstop`
 
 ## Related

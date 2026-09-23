@@ -1,7 +1,7 @@
 # Design by Contract
 
 **Category**: Software Design
-**Source**: `.agents/analysis/senior-engineering-knowledge.md`
+**Source**: `.project-toolkit/analysis/senior-engineering-knowledge.md`
 **Origin**: Bertrand Meyer, Eiffel programming language
 
 ## Core Concept

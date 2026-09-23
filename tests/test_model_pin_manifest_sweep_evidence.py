@@ -325,7 +325,7 @@ class TestSweepReportContentValidation:
     ) -> None:
         """ADR-080 rule 2 requires "a single-candidate-versus-default sweep
         (so the CI is a plain 95 percent interval, not Bonferroni-widened)"
-        (.agents/architecture/ADR-080-model-pin-justification-policy.md:89-90).
+        (.project-toolkit/architecture/ADR-080-model-pin-justification-policy.md:89-90).
         A third candidate in the models list, even with a numerically
         qualifying ci95, means this report cannot be that: the
         family-wise-adjusted CI a multi-candidate sweep computes lands in

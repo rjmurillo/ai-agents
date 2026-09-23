@@ -27,7 +27,7 @@ mirrors the `## Incremental Scope Declaration` built for issue #2255, which
 the verbatim contract. Both sections are under active revision, so a quoted
 rule number here went stale twice in one review cycle. The comparison, with its
 quotes and the one place the two deliberately disagree, lives in
-`.agents/retrospective/2026-09-01-issue-5366-spec-coverage-nonexecutable-criteria.md`,
+`.project-toolkit/retrospective/2026-09-01-issue-5366-spec-coverage-nonexecutable-criteria.md`,
 which is a dated record rather than a live document.
 
 This repo's own PR template already puts that evidence elsewhere: the

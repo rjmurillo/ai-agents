@@ -195,7 +195,7 @@ completion_criteria:
     fail_open: false
   - name: "PR is ready to merge (CI green, no conflicts)"
     verification: "command"
-    command: "python3 .claude/skills/github/scripts/pr/test_pr_merge_ready.py --pull-request {pr} --dispositions-file .agents/pr-checks/dispositions.json"
+    command: "python3 .claude/skills/github/scripts/pr/test_pr_merge_ready.py --pull-request {pr} --dispositions-file .project-toolkit/pr-checks/dispositions.json"
     # pr-autofix readiness is a four-condition gate: GitHub says the PR can
     # merge, required checks pass, review threads are resolved, and the merge
     # state is CLEAN, HAS_HOOKS, or UNSTABLE. Keep these fields explicit here so

@@ -63,7 +63,7 @@ def _recency_key(name: str) -> tuple[str, int, str]:
     under a reverse sort rather than first as the raw string did. Names with a
     date but no session number use -1, placing them below any numbered session
     on the same date: a numbered session is the more specific record. Four of
-    the 302 episodes in `.agents/memory/episodes` are in that shape.
+    the 302 episodes in `.project-toolkit/memory/episodes` are in that shape.
 
     The full name is the final element so the order is total and stable across
     runs when the date and session number both tie.
@@ -175,7 +175,7 @@ def search_episodes(
     # and session number the filename carries rather than by the raw string.
     # A reverse string sort compares digit by digit, so `session-9` outranks
     # `session-10` and any name that fails the pattern outranks every dated one.
-    # Measured across the 302-episode corpus in `.agents/memory/episodes`, no
+    # Measured across the 302-episode corpus in `.project-toolkit/memory/episodes`, no
     # date yet spans a digit-width boundary, so this was a latent trap rather
     # than an observed regression (issue #3630 review).
     results.sort(key=lambda r: _recency_key(str(r["Name"])), reverse=True)
@@ -282,7 +282,7 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         episodes_path = args.episodes_path.resolve()
     else:
-        episodes_path = repo_root / ".agents" / "memory" / "episodes"
+        episodes_path = repo_root / ".project-toolkit" / "memory" / "episodes"
 
     search_status: dict[str, Any] = {
         "SerenaQueried": True,

@@ -108,7 +108,7 @@ Define explicit boundaries. State what the agent cannot do.
 ```markdown
 ## Constraints
 
-- **Edit only** `.agents/architecture/` files
+- **Edit only** `.project-toolkit/architecture/` files
 - **No code implementation**
 - **No plan creation** (that is the Planner's role)
 - Focus on governance, not execution
@@ -270,7 +270,7 @@ Agents produce artifacts at designated paths. Define the path pattern and templa
 ```markdown
 ## Output Location
 
-`.agents/architecture/`
+`.project-toolkit/architecture/`
 
 - `ADR-NNNN-[decision].md` - Architecture Decision Records
 - `DESIGN-REVIEW-[topic].md` - Design review notes

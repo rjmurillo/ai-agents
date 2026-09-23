@@ -21,8 +21,8 @@ _ROOT = Path(__file__).resolve().parents[2]
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-ADR_42 = ".agents/architecture/ADR-042-python-migration-strategy.md"
-ADR_05 = ".agents/architecture/ADR-005-powershell-only-scripting.md"
+ADR_42 = ".project-toolkit/architecture/ADR-042-python-migration-strategy.md"
+ADR_05 = ".project-toolkit/architecture/ADR-005-powershell-only-scripting.md"
 
 GENUINE_LOG = """# ADR Debate Log: Example
 
@@ -69,7 +69,7 @@ def _init_repo(repo: Path) -> None:
         target = repo / relative
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text("# Title\n\n## Status\n\nAccepted\n\n## Decision\n\nBaseline.\n")
-    (repo / ".agents" / "critique").mkdir(parents=True, exist_ok=True)
+    (repo / ".project-toolkit" / "critique").mkdir(parents=True, exist_ok=True)
     _git(repo, "add", "-A")
     _git(repo, "commit", "-m", "base")
 
@@ -79,7 +79,7 @@ def _edit(repo: Path, relative: str, body: str) -> None:
 
 
 def _stage_log(repo: Path, name: str, content: str) -> str:
-    relative = f".agents/critique/{name}"
+    relative = f".project-toolkit/critique/{name}"
     (repo / relative).write_text(content)
     _git(repo, "add", relative)
     return relative

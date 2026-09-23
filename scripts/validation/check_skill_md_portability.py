@@ -13,13 +13,13 @@ This validator is that follow-up. Issue #2050's worst offenders are SKILL.md and
 reference ``.md`` files (34 hits in ``memory/references/troubleshooting.md``, 25
 in ``session/SKILL.md``, ...). In a vendored plugin install the consumer repo has
 no ``.agents/``, ``.claude/lib/``, or ``.claude/review-axes/`` tree, so an
-instruction telling the agent to write to ``.agents/analysis/foo.md`` silently
+instruction telling the agent to write to ``.project-toolkit/analysis/foo.md`` silently
 degrades. This check generalizes the /review REQ-008-06 contract (resolve via
 plugin/skill root, the consumer cwd, or a documented env var) to skill prose.
 
 What it counts:
-  Upstream-only runtime path references (``.agents/``, ``.claude/lib/``,
-  ``.claude/review-axes/``) in a skill ``.md`` file, after stripping:
+  Upstream-only runtime path references (``.agents/``, ``.project-toolkit/``,
+  ``.claude/lib/``, ``.claude/review-axes/``) in a skill ``.md`` file, after stripping:
     * fenced code blocks (``` and ~~~): example commands, not runtime instructions
   ``.claude/skills/`` is NOT counted: it is the install-root-relative convention
   the ``paths.py`` helper resolves, mirroring the script ratchet's exclusion.
@@ -168,7 +168,7 @@ from scripts.validation.tracked_paths import GitQueryError
 # Adding a raw ``:`` or ``=`` to that set is the obvious way to reach the three
 # shapes it misses, and it is the wrong way: a raw ``:`` makes the Windows drive
 # letters ``C:\templates\`` and ``C:\.agents\`` count, and a raw ``=`` makes the
-# URL query parameter ``?next=/.agents/x`` count. Naming the two contexts
+# URL query parameter ``?next=/.agents/x.md`` count. Naming the two contexts
 # instead reaches all three shapes and admits none of those, so the trade is not
 # forced (measured over nine shapes, issue #3489).
 _ANCHOR = r"(?:^|(?<=[\s(\[<>\"'`|,;*]))"
@@ -195,7 +195,7 @@ _LABEL_ANCHOR = _ANCHOR + r"(?:path|\[[^\]\r\n]+\]):"
 
 # An unquoted HTML attribute ``<img src=/templates/agents/x.md>`` puts an equals
 # sign immediately before the path. Requiring an open tag and a real attribute
-# name is what keeps ``?next=/.agents/x`` out: a URL query parameter has no
+# name is what keeps ``?next=/.agents/x.md`` out: a URL query parameter has no
 # enclosing tag. The quoted form needs no rule here because ``"`` and ``'`` are
 # already anchor characters.
 _ATTR_ANCHOR = r"<[A-Za-z][^<>\r\n]*?\s(?:src|href|action)="
@@ -236,6 +236,10 @@ _TERMINATOR = r"(?:[\\/]+|(?![\w-])(?!\.[\w]))"
 
 UPSTREAM_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(_BOUNDARY + r"\.agents" + _TERMINATOR, re.IGNORECASE),
+    # Issue #5420 moved the agent write targets out of `.agents/` into
+    # `.project-toolkit/`, the repo-root artifact tree. A skill prose path into
+    # it is the same upstream-only dependency the `.agents/` form was.
+    re.compile(_BOUNDARY + r"\.project-toolkit" + _TERMINATOR, re.IGNORECASE),
     re.compile(_BOUNDARY + r"\.claude[\\/]+lib" + _TERMINATOR, re.IGNORECASE),
     re.compile(
         _BOUNDARY + r"\.claude[\\/]+review-axes" + _TERMINATOR,

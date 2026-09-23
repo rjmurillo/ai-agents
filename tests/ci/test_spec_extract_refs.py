@@ -36,12 +36,12 @@ class TestExtractSpecRefs:
         assert "TASK-123" in result
 
     def test_extracts_spec_file_paths(self) -> None:
-        result = _extract_spec_refs("See .agents/specs/my-spec.md for details")
-        assert ".agents/specs/my-spec.md" in result
+        result = _extract_spec_refs("See .project-toolkit/specs/my-spec.md for details")
+        assert ".project-toolkit/specs/my-spec.md" in result
 
     def test_extracts_planning_paths(self) -> None:
-        result = _extract_spec_refs("Plan: .agents/planning/sprint.md")
-        assert ".agents/planning/sprint.md" in result
+        result = _extract_spec_refs("Plan: .project-toolkit/planning/sprint.md")
+        assert ".project-toolkit/planning/sprint.md" in result
 
     def test_empty_string_returns_empty(self) -> None:
         assert _extract_spec_refs("no references here") == ""
@@ -52,8 +52,8 @@ class TestExtractSpecRefs:
         The code-span mask applies to issue refs only. Masking here would
         disarm the gate on the template's own convention.
         """
-        result = _extract_spec_refs("| **Spec** | `.agents/planning/sprint.md` |")
-        assert ".agents/planning/sprint.md" in result
+        result = _extract_spec_refs("| **Spec** | `.project-toolkit/planning/sprint.md` |")
+        assert ".project-toolkit/planning/sprint.md" in result
 
     def test_deduplicates(self) -> None:
         refs = _extract_spec_refs("REQ-001 REQ-001 REQ-002")

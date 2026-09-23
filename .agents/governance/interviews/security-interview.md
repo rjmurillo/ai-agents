@@ -142,7 +142,7 @@ Check if the code is secure.
 | Aspect | Value |
 |--------|-------|
 | Type | Security Report or Threat Model |
-| Location | `.agents/security/` |
+| Location | `.project-toolkit/security/` |
 | Format | Markdown |
 | Naming | `SR-NNN-[scope].md` or `TM-NNN-[feature].md` |
 

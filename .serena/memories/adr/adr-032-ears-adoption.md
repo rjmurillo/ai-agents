@@ -11,7 +11,7 @@ Adopted EARS (Easy Approach to Requirements Syntax) as the standard for formal r
 
 - 6 EARS patterns: Ubiquitous, Event-driven, State-driven, Optional, Unwanted, Complex
 - Mandatory SO THAT rationale clause
-- Applies to `.agents/specs/requirements/` only
+- Applies to `.project-toolkit/specs/requirements/` only
 - Does NOT apply to session logs, code comments, informal docs
 
 ## Multi-Agent Debate
@@ -35,7 +35,7 @@ Rollback path: Revert to natural language. No lock-in.
 
 - Issue #193: Phase 1 Spec Layer Epic
 - PR #603: EARS format template
-- Debate log: `.agents/critique/ADR-032-debate-log.md`
+- Debate log: `.project-toolkit/critique/ADR-032-debate-log.md`
 
 ## Related
 

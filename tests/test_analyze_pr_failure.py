@@ -278,7 +278,7 @@ class TestFindSynthesisPanels:
     @patch("subprocess.run")
     def test_finds_panels(self, mock_run):
         mock_run.return_value = _completed(
-            stdout=".agents/retrospective/2026-01-15-pr-908-comprehensive-retrospective.md\n"
+            stdout=".project-toolkit/retrospective/2026-01-15-pr-908-comprehensive-retrospective.md\n"
         )
         result = mod.find_synthesis_panels("owner", "repo", 908)
         assert len(result) >= 1
@@ -293,7 +293,7 @@ class TestFindSynthesisPanels:
     @patch("subprocess.run")
     def test_deduplicates(self, mock_run):
         mock_run.return_value = _completed(
-            stdout=".agents/retrospective/pr-908-retro.md\n"
+            stdout=".project-toolkit/retrospective/pr-908-retro.md\n"
         )
         result = mod.find_synthesis_panels("owner", "repo", 908)
         # Both patterns may match same file; verify no duplicates
@@ -355,7 +355,7 @@ class TestFormatMarkdown:
                 {"author": "bob", "state": "APPROVED",
                  "submitted_at": "2026-01-11"},
             ],
-            "synthesis_panels": [".agents/retrospective/pr-908-retro.md"],
+            "synthesis_panels": [".project-toolkit/retrospective/pr-908-retro.md"],
         }
         md = mod.format_markdown(analysis)
         assert "# PR #908" in md

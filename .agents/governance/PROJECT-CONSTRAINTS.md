@@ -42,8 +42,8 @@ When making decisions about:
 
 **References**:
 
-- [ADR-005-powershell-only-scripting.md](../architecture/ADR-005-powershell-only-scripting.md) (superseded for new development)
-- [ADR-042-python-migration-strategy.md](../architecture/ADR-042-python-migration-strategy.md) (current)
+- [ADR-005-powershell-only-scripting.md](../../.project-toolkit/architecture/ADR-005-powershell-only-scripting.md) (superseded for new development)
+- [ADR-042-python-migration-strategy.md](../../.project-toolkit/architecture/ADR-042-python-migration-strategy.md) (current)
 
 **Rationale Summary**: ADR-042 establishes Python-first development due to 70-second PowerShell startup times, CodeQL support, and AI/ML ecosystem alignment. The repository no longer tracks PowerShell scripts; new scripts should use Python.
 
@@ -83,7 +83,7 @@ When making decisions about:
 | MUST have pytest tests for modules (80%+ coverage) | ADR-006 | Targeted pytest coverage run; code review |
 | MUST add new AI-powered workflows to monitoring list | workflow-coalescing | Code review, manual validation |
 | MUST run `gh act` locally before pushing workflow changes | AGENTS.md | `gh act` output in transcript |
-**Reference**: [ADR-006-thin-workflows-testable-modules.md](../architecture/ADR-006-thin-workflows-testable-modules.md)
+**Reference**: [ADR-006-thin-workflows-testable-modules.md](../../.project-toolkit/architecture/ADR-006-thin-workflows-testable-modules.md)
 
 **Rationale Summary**: GitHub Actions workflows cannot be tested locally. The feedback loop (edit -> push -> wait -> check) is slow. Extracting logic to modules enables fast local testing with pytest.
 
@@ -146,7 +146,7 @@ When creating a new AI-powered workflow with concurrency control:
 | MUST read the latest per-issue handoff before starting work | AGENTS.md | Content in context |
 | MUST preserve incomplete issue state | ADR-014 | Per-issue handoff |
 | MUST validate a staged or supplied session log, if one is present | `.claude/rules/session-logs.md` | Validator output |
-| MUST NOT create a new session log (creation discontinued) | `.claude/rules/session-logs.md` MUST 1 | No new `.agents/sessions/*.json` file |
+| MUST NOT create a new session log (creation discontinued) | `.claude/rules/session-logs.md` MUST 1 | No new `.project-toolkit/sessions/*.json` file |
 
 **Reference**: [`.claude/rules/session-logs.md`](../../.claude/rules/session-logs.md)
 
@@ -261,6 +261,6 @@ None currently documented. Add here if legacy code violates constraints but is a
 ## Related Documents
 
 - [`.claude/rules/session-logs.md`](../../.claude/rules/session-logs.md) - Session log mechanics
-- [ADR-005-powershell-only-scripting.md](../architecture/ADR-005-powershell-only-scripting.md) - Language decision
-- [ADR-006-thin-workflows-testable-modules.md](../architecture/ADR-006-thin-workflows-testable-modules.md) - Workflow architecture
-- [Analysis 002 - Project Constraints Consolidation](../analysis/002-project-constraints-consolidation.md) - Background analysis
+- [ADR-005-powershell-only-scripting.md](../../.project-toolkit/architecture/ADR-005-powershell-only-scripting.md) - Language decision
+- [ADR-006-thin-workflows-testable-modules.md](../../.project-toolkit/architecture/ADR-006-thin-workflows-testable-modules.md) - Workflow architecture
+- [Analysis 002 - Project Constraints Consolidation](../../.project-toolkit/analysis/002-project-constraints-consolidation.md) - Background analysis

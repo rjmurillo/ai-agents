@@ -24,8 +24,8 @@ Session 129 adr-review feedback: "you don't need to strike out. The ADR is read 
 
 ## Applies To
 
-- ADRs (`.agents/architecture/`)
-- Plans (`.agents/planning/`)
-- Specs (`.agents/specs/`)
-- Session logs (`.agents/sessions/`)
+- ADRs (`.project-toolkit/architecture/`)
+- Plans (`.project-toolkit/planning/`)
+- Specs (`.project-toolkit/specs/`)
+- Session logs (`.project-toolkit/sessions/`)
 - Any artifact consumed by agents

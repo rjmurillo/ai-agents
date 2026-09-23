@@ -1,6 +1,6 @@
 ---
 paths:
-  - ".agents/retrospective/**"
+  - ".project-toolkit/retrospective/**"
   - "docs/retros/**"
 priority: normal
 ---
@@ -46,4 +46,4 @@ A day on which none of those fired owes no retrospective. A pre-push gate used t
 - `.agents/governance/FAILURE-MODES.md`. Failure mode taxonomy
 - `.claude/skills/reflect/SKILL.md`. Learning-capture workflow
 - `.claude/skills/retro/`. On-demand retrospective skill (if present)
-- `.agents/retrospective/`. Historical examples
+- `.project-toolkit/retrospective/`. Historical examples

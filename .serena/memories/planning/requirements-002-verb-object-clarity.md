@@ -18,7 +18,7 @@
 
 **Created**: 2025-12-19
 
-**Source**: `.agents/retrospective/2025-12-19-personality-integration-gaps.md`
+**Source**: `.project-toolkit/retrospective/2025-12-19-personality-integration-gaps.md`
 
 ## Pattern
 

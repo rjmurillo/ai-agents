@@ -29,7 +29,7 @@ Step 4. Delegate skill persistence to the skillbook agent. Read
 - Persist accepted skills as Serena memories under `.serena/memories/retrospective/`.
 
 Step 5. Write the retrospective artifact to
-`.agents/retrospective/<YYYY-MM-DD>-PR${PR_NUMBER}-retrospective.md` using the
+`.project-toolkit/retrospective/<YYYY-MM-DD>-PR${PR_NUMBER}-retrospective.md` using the
 structure of existing files in that directory.
 
 Step 6. Open a follow-up PR with the new artifact and any memory updates.

@@ -66,5 +66,5 @@ Lives at `build/scripts/validate_plugin_manifests.py` + `.github/actions/validat
 
 - Anthropic Claude Code plugin docs: https://code.claude.com/docs/en/plugins-reference
 - Reference plugins (working): `caveman`, `context-mode`, `claude-plugins-official/security-guidance`
-- Incident PIR: `.agents/incidents/2026-04-27-pir-plugin-manifest-schema-1773.md`
-- Session log: `.agents/sessions/2026-04-27-session-1759-fix-plugin-manifest-schema-regression.json`
+- Incident PIR: `.project-toolkit/incidents/2026-04-27-pir-plugin-manifest-schema-1773.md`
+- Session log: `.project-toolkit/sessions/2026-04-27-session-1759-fix-plugin-manifest-schema-regression.json`

@@ -1,5 +1,5 @@
 ---
-applyTo: .agents/security/**,**/Auth/**,*.env*,**/*.secrets.*,.github/workflows/**,lefthook.yml,lefthook.yaml,lefthook.json,lefthook.jsonc,lefthook.toml,.lefthook.yml,.lefthook.yaml,.lefthook.json,.lefthook.jsonc,.lefthook.toml,lefthook-local.yml,lefthook-local.yaml,lefthook-local.json,lefthook-local.jsonc,lefthook-local.toml,.lefthook-local.yml,.lefthook-local.yaml,.lefthook-local.json,.lefthook-local.jsonc,.lefthook-local.toml,.config/lefthook.yml,.config/lefthook.yaml,.config/lefthook.json,.config/lefthook.jsonc,.config/lefthook.toml,.config/lefthook-local.yml,.config/lefthook-local.yaml,.config/lefthook-local.json,.config/lefthook-local.jsonc,.config/lefthook-local.toml,scripts/validation/git_hook_policy.py,.claude/rules/security.md
+applyTo: .project-toolkit/security/**,**/Auth/**,*.env*,**/*.secrets.*,.github/workflows/**,lefthook.yml,lefthook.yaml,lefthook.json,lefthook.jsonc,lefthook.toml,.lefthook.yml,.lefthook.yaml,.lefthook.json,.lefthook.jsonc,.lefthook.toml,lefthook-local.yml,lefthook-local.yaml,lefthook-local.json,lefthook-local.jsonc,lefthook-local.toml,.lefthook-local.yml,.lefthook-local.yaml,.lefthook-local.json,.lefthook-local.jsonc,.lefthook-local.toml,.config/lefthook.yml,.config/lefthook.yaml,.config/lefthook.json,.config/lefthook.jsonc,.config/lefthook.toml,.config/lefthook-local.yml,.config/lefthook-local.yaml,.config/lefthook-local.json,.config/lefthook-local.jsonc,.config/lefthook-local.toml,scripts/validation/git_hook_policy.py,.claude/rules/security.md
 ---
 
 # Security File Rules
@@ -12,7 +12,7 @@ These paths hold threat models, benchmarks, workflows, and hooks that protect th
 2. **Evidence-based**. Every change MUST cite a CVE, CWE, OWASP reference, ADR, or documented threat. No speculative hardening.
 3. **No secrets**. MUST NOT commit credentials, tokens, signing keys, or API keys. Use the configured secrets manager.
 4. **Pin Actions to SHA**. Workflow changes MUST pin every third-party Action to a commit SHA. Floating tags (`@v4`, `@main`) are prohibited.
-5. **Threat model updates**. Changes that introduce new attack surface MUST update the relevant benchmark under `.agents/security/benchmarks/` or cite why no update is required.
+5. **Threat model updates**. Changes that introduce new attack surface MUST update the relevant benchmark under `.project-toolkit/security/benchmarks/` or cite why no update is required.
 6. **Test coverage**. Security-critical code MUST have 100% coverage per `AGENTS.md` standards.
 7. **Eureka: gate availability is gate correctness**. A required security review
    that does not run MUST produce a blocking verdict. Infrastructure failure is

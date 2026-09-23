@@ -17,11 +17,11 @@ _QA_FIELD_PATTERN = re.compile(
     r"^(qaVerdict|qaSessionLog|qaCommit):[ \t]*(.*?)$"
 )
 _REQUIRED_FIELDS = frozenset({"qaVerdict", "qaSessionLog", "qaCommit"})
-_SESSION_LOG_ROOT = PurePosixPath(".agents/sessions")
+_SESSION_LOG_ROOT = PurePosixPath(".project-toolkit/sessions")
 QA_EVIDENCE_PREFIXES = (
-    ".agents/memory/episodes/",
-    ".agents/qa/",
-    ".agents/sessions/",
+    ".project-toolkit/memory/episodes/",
+    ".project-toolkit/qa/",
+    ".project-toolkit/sessions/",
 )
 
 
@@ -55,7 +55,7 @@ def _session_log_relative(session_log: str) -> PurePosixPath:
         relative = session_path.relative_to(_SESSION_LOG_ROOT)
     except ValueError as exc:
         raise ValueError(
-            "QA report session log must be a canonical .agents/sessions/*.json path"
+            "QA report session log must be a canonical .project-toolkit/sessions/*.json path"
         ) from exc
     if (
         session_path.is_absolute()
@@ -65,7 +65,7 @@ def _session_log_relative(session_log: str) -> PurePosixPath:
         or session_path.suffix != ".json"
     ):
         raise ValueError(
-            "QA report session log must be a canonical .agents/sessions/*.json path"
+            "QA report session log must be a canonical .project-toolkit/sessions/*.json path"
         )
     return relative
 

@@ -75,7 +75,7 @@ def _repo_with(tmp_path: Path, *, retired_skills: int) -> Path:
     both cases below would agree for the wrong reason.
     """
     _git(tmp_path, "init", "--quiet")
-    adr_dir = tmp_path / ".agents" / "architecture"
+    adr_dir = tmp_path / ".project-toolkit" / "architecture"
     adr_dir.mkdir(parents=True)
     (adr_dir / "ADR-002-gone.md").write_text(
         "---\nid: ADR-002\nstatus: superseded\n---\n\n# ADR-002\n", encoding="utf-8"
@@ -256,7 +256,7 @@ def test_the_shipped_baseline_matches_the_tracked_tree() -> None:
     import check_skill_adr_bindings as mod
 
     repo_root = Path(__file__).resolve().parents[2]
-    result = mod.scan(repo_root, repo_root / ".agents" / "architecture")
+    result = mod.scan(repo_root, repo_root / ".project-toolkit" / "architecture")
     assert isinstance(result, mod.ScanResult), (
         f"scan reported a fault, so the count below would measure a string: {result!r}"
     )

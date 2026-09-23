@@ -201,8 +201,8 @@ class TestHandleSessions:
             git_hook_policy,
             "_push_range_changed_files",
             lambda _stream, _root: {
-                ".agents/sessions/2026-08-10-session-1-branch.json",
-                ".agents/sessions/upstream-only.json.bak",
+                ".project-toolkit/sessions/2026-08-10-session-1-branch.json",
+                ".project-toolkit/sessions/upstream-only.json.bak",
                 "README.md",
             },
         )
@@ -229,7 +229,7 @@ class TestHandleSessions:
         args = type("Args", (), {"repo_root": str(tmp_path), "paths": []})()
 
         assert git_hook_policy._handle_sessions(args) == 0
-        assert seen == [[".agents/sessions/2026-08-10-session-1-branch.json"]]
+        assert seen == [[".project-toolkit/sessions/2026-08-10-session-1-branch.json"]]
 
     def test_push_range_resolution_failure_blocks(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -252,7 +252,7 @@ class TestHandleSessions:
             git_hook_policy,
             "_push_range_changed_files",
             lambda _stream, _root: {
-                ".agents/sessions/2026-08-10-session-1-branch.json"
+                ".project-toolkit/sessions/2026-08-10-session-1-branch.json"
             },
         )
         monkeypatch.setattr(
@@ -272,7 +272,7 @@ class TestHandleSessions:
             git_hook_policy,
             "_push_range_changed_files",
             lambda _stream, _root: {
-                ".agents/sessions/2026-08-10-session-1-branch.json"
+                ".project-toolkit/sessions/2026-08-10-session-1-branch.json"
             },
         )
         monkeypatch.setattr(
@@ -291,7 +291,7 @@ class TestHandleSessions:
 
     def test_a_committed_session_symlink_does_not_match_head(self, tmp_path: Path) -> None:
         _init_repo(tmp_path)
-        sessions = tmp_path / ".agents" / "sessions"
+        sessions = tmp_path / ".project-toolkit" / "sessions"
         sessions.mkdir(parents=True)
         target = tmp_path / "valid.json"
         target.write_text("{}\n", encoding="utf-8")

@@ -7,7 +7,7 @@ license: MIT
 
 # ai-agents Generation and Release
 
-<!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself. It intentionally references .agents/architecture, .agents/retrospective, .claude/lib, scripts/hook_utilities, scripts/github_core, scripts/ai_review_common, scripts/sync_plugin_lib.py, scripts/validation, build/generate_agents.py, build/scripts, templates/agents, templates/platforms, and AGENTS.md because its audience is repo contributors, not plugin consumers. Issue #2050. -->
+<!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself. It intentionally references .project-toolkit/architecture, .project-toolkit/retrospective, .claude/lib, scripts/hook_utilities, scripts/github_core, scripts/ai_review_common, scripts/sync_plugin_lib.py, scripts/validation, build/generate_agents.py, build/scripts, templates/agents, templates/platforms, and AGENTS.md because its audience is repo contributors, not plugin consumers. Issue #2050. -->
 Runbook for the build, generation, mirroring, versioning, and release machinery of this repo. Every command below was executed or read from source on 2026-07-02/03 and re-verified against the working tree on 2026-07-29; re-verify with the one-liners in Provenance before trusting a volatile number.
 
 Jargon, defined once:
@@ -64,7 +64,7 @@ Generator inventory inside `build/scripts/build_all.py` (the `GENERATORS` list; 
 |---|-----------|-------|--------|
 | 1 | agents | `templates/agents/*.shared.md` + `templates/platforms/*.yaml` | `src/copilot-cli/agents/*.agent.md`, `src/vs-code-agents/*.agent.md` |
 | 2 | agent-catalog | `templates/agents/*.shared.md` | `docs/agent-catalog.md` |
-| 3 | adr-index | the ADR corpus under `.agents/architecture/` | `.agents/architecture/README.md` |
+| 3 | adr-index | the ADR corpus under `.project-toolkit/architecture/` | `.project-toolkit/architecture/README.md` |
 | 4 | lib | `scripts/` packages | `src/claude/lib/`, `src/copilot-cli/lib/`; binplaced `.claude/lib/` |
 | 5 | skills | `.claude/skills/*/SKILL.md` (template-owned skills compile first; ADR-108, ADR-109) | `src/copilot-cli/skills/` |
 | 6 | rules | `.claude/rules/*.md` | `.github/instructions/*.instructions.md` AND `src/copilot-cli/instructions/` |
@@ -73,7 +73,7 @@ Generator inventory inside `build/scripts/build_all.py` (the `GENERATORS` list; 
 Facts that prevent confusion:
 
 - `build_all.py` enforces a no-write invariant on `.claude/` (REQ-003-010): if any generator writes there, the run exits 2 with `REQ-003-010 VIOLATION`, except a `binplace.yaml` row's `.claude/`-rooted `install_tree` (agents, skills, rules, hooks, settings, lib; ADR-109). `.claude/` is otherwise input only.
-- Generated-tree ownership is exactly `OWNED_PREFIXES = ("src/", ".github/instructions/", "docs/agent-catalog.md", ".agents/architecture/README.md")`, four entries, in the `OWNED_PREFIXES` tuple. `--check` only flags staleness inside those prefixes, and the adr-index generator is why the last one is there.
+- Generated-tree ownership is exactly `OWNED_PREFIXES = ("src/", ".github/instructions/", "docs/agent-catalog.md", ".project-toolkit/architecture/README.md")`, four entries, in the `OWNED_PREFIXES` tuple. `--check` only flags staleness inside those prefixes, and the adr-index generator is why the last one is there.
 - The hooks generator maps Stop, SubagentStop, PermissionRequest, and
   PreCompact to their PascalCase compatibility names. Stop and SubagentStop
   remain direct host registrations because their structured decisions require
@@ -115,7 +115,7 @@ Drift-gate matrix (all local commands verified runnable, all green on 2026-07-29
 | Plugin version field present | a manifest or marketplace entry carries `version` | `pre-pr-validation` job in `lefthook.yml` (`scripts/validation/pre_pr.py`) | `validate-plugin-version-bump.yml` |
 | Semantic agent drift (src/claude) | hand-synced tree diverging in meaning | `python3 build/scripts/detect_agent_drift.py` | `drift-detection.yml`, weekly cron Monday 09:00 UTC (line 15); similarity threshold default 80 (detect_agent_drift.py:666-668), with a recorded-baseline floor so a clean checkout does not fail |
 
-When a drift gate is red, the output shows the DIFFERENCE, not the DIRECTION. Ask "which side is canonical?" using the Phase 1 table before touching anything. The 2025-12-15 incident (retro: `.agents/retrospective/2025-12-15-drift-detection-disaster.md`) happened because an agent edited the SOURCE to match the GENERATED tree; the commit was reverted. Fix is always: edit canonical, rerun generator, commit both.
+When a drift gate is red, the output shows the DIFFERENCE, not the DIRECTION. Ask "which side is canonical?" using the Phase 1 table before touching anything. The 2025-12-15 incident (retro: `.project-toolkit/retrospective/2025-12-15-drift-detection-disaster.md`) happened because an agent edited the SOURCE to match the GENERATED tree; the commit was reverted. Fix is always: edit canonical, rerun generator, commit both.
 
 An emergency bypass marker for the drift gate exists but requires a reason and approval; see `ai-agents-config-catalog`. Route the decision through `ai-agents-change-control`.
 
@@ -231,7 +231,7 @@ Verified 2026-07-29 against the working tree (re-verification pass; the 2026-07-
 | npm package, bun build, tag flow | packages/ai-agents-cli/package.json; RELEASING.md; .github/workflows/publish.yml:13-16 | `grep -n '"build":' packages/ai-agents-cli/package.json && grep -n "Rollback" RELEASING.md && grep -n "tags" .github/workflows/publish.yml` |
 | Marketplace count validator retired | no dedicated count validator or marketplace counter YAML should exist | `find . -name "*marketplace*count*" -not -path "./.venv/*"` |
 | Audit log path, gitignored | .gitignore:70 | `grep -n "build/audit" .gitignore` |
-| 2025-12-15 direction story | .agents/retrospective/2025-12-15-drift-detection-disaster.md | `python3 -c "import pathlib;print([p.name for p in pathlib.Path('.agents/retrospective').glob('*drift*')])"` |
-| ADR-036 superseded by ADR-052, ADR-052 superseded by ADR-109, ADR-108 and ADR-109 accepted | the ADR-036, ADR-052, ADR-108, and ADR-109 records | `[ "$(grep -Ec -e '^status: superseded$' -e '^superseded-by: ADR-052$' .agents/architecture/ADR-036-two-source-agent-template-architecture.md)" = 2 ] && [ "$(grep -Ec -e '^status: superseded$' -e '^superseded-by: ADR-109$' .agents/architecture/ADR-052-template-strategy.md)" = 2 ] && [ "$(grep -Ec '^status: accepted$' .agents/architecture/ADR-108-template-owned-skill-files.md)" = 1 ] && [ "$(grep -Ec -e '^status: accepted$' -e '^supersedes: \[ADR-052\]$' .agents/architecture/ADR-109-template-first-plugin-distribution.md)" = 2 ]` (`-e`/`-e` counts matches per named field, no pipe-based grep alternation to mis-escape in a table; a changed status or supersession value drops the count and fails; `&&`-chained so any file's failure fails the probe; re-verified 2026-09-14) |
+| 2025-12-15 direction story | .project-toolkit/retrospective/2025-12-15-drift-detection-disaster.md | `python3 -c "import pathlib;print([p.name for p in pathlib.Path('.project-toolkit/retrospective').glob('*drift*')])"` |
+| ADR-036 superseded by ADR-052, ADR-052 superseded by ADR-109, ADR-108 and ADR-109 accepted | the ADR-036, ADR-052, ADR-108, and ADR-109 records | `[ "$(grep -Ec -e '^status: superseded$' -e '^superseded-by: ADR-052$' .project-toolkit/architecture/ADR-036-two-source-agent-template-architecture.md)" = 2 ] && [ "$(grep -Ec -e '^status: superseded$' -e '^superseded-by: ADR-109$' .project-toolkit/architecture/ADR-052-template-strategy.md)" = 2 ] && [ "$(grep -Ec '^status: accepted$' .project-toolkit/architecture/ADR-108-template-owned-skill-files.md)" = 1 ] && [ "$(grep -Ec -e '^status: accepted$' -e '^supersedes: \[ADR-052\]$' .project-toolkit/architecture/ADR-109-template-first-plugin-distribution.md)" = 2 ]` (`-e` counts each named field; a changed status or supersession drops the count; `&&` fails on any file; re-verified 2026-09-14) |
 
 Maintenance: when a generator is added or removed from `GENERATORS`, when a fourth plugin.json appears, or if a marketplace count validator is reintroduced to replace the retired one, update Phase 1/4 tables and re-run every re-verify command above.

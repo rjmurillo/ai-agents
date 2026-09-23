@@ -62,7 +62,7 @@ From Session 65 (PR #255):
 
 **Session 65**: Documented ~4,600 tokens saved from PR #255
 - Individual changes tracked: comment stripping (2,400), test separation (1,500), schema deletion (500), reference extraction (200)
-- Aggregated in analysis artifact: `.agents/analysis/pr-255-learnings.md`
+- Aggregated in analysis artifact: `.project-toolkit/analysis/pr-255-learnings.md`
 - Cited in session log: Session 65 outcomes section
 - Referenced in 6 skill memories
 

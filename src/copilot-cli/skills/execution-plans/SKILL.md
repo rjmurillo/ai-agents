@@ -9,7 +9,7 @@ license: MIT
 
 Treat execution plans as first-class artifacts, versioned in the repository.
 
-<!-- vendor-portability: declared. This skill reads and writes plan artifacts under the consumer's .agents/plans/ (active/, completed/, abandoned/) and .agents/debt/tech-debt-registry.md, seeded from .agents/plans/TEMPLATE.md. These are consumer-side write targets created on demand; a vendored install without .agents/ creates the directories when the first plan is written rather than failing silently. Issue #2050. -->
+<!-- vendor-portability: declared. This skill reads and writes plan artifacts under the consumer's .project-toolkit/plans/ (active/, completed/, abandoned/) and .project-toolkit/debt/tech-debt-registry.md, seeded from .project-toolkit/plans/TEMPLATE.md. These are consumer-side write targets created on demand; a vendored install without .project-toolkit/ creates the directories when the first plan is written rather than failing silently. Issue #2050. -->
 
 ## Directory Structure
 
@@ -35,7 +35,7 @@ Treat execution plans as first-class artifacts, versioned in the repository.
 
 ## Plan Template
 
-Use `.agents/plans/TEMPLATE.md` as the starting point for new plans.
+Use `.project-toolkit/plans/TEMPLATE.md` as the starting point for new plans.
 
 ### Required Sections
 
@@ -52,7 +52,7 @@ Use `.agents/plans/TEMPLATE.md` as the starting point for new plans.
 
 ### Creating a Plan
 
-1. Copy TEMPLATE.md to `.agents/plans/active/{slug}.md`
+1. Copy TEMPLATE.md to `.project-toolkit/plans/active/{slug}.md`
 2. Fill metadata (status: In Progress, created: today, owner: agent name)
 3. Define objectives as checkboxes
 4. Link to related issue/PR
@@ -109,7 +109,7 @@ Add row to Decision Log table:
 
 After creating a plan:
 
-- [ ] File in `.agents/plans/active/`
+- [ ] File in `.project-toolkit/plans/active/`
 - [ ] Metadata section complete
 - [ ] At least one objective defined
 - [ ] Linked to issue or PR

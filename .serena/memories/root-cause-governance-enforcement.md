@@ -49,6 +49,6 @@ accumulate despite gates existing.
 
 ## References
 
-- `.agents/retrospective/2026-01-15-pr-908-comprehensive-retrospective.md` (lines 997-1036)
+- `.project-toolkit/retrospective/2026-01-15-pr-908-comprehensive-retrospective.md` (lines 997-1036)
 - PR: https://github.com/rjmurillo/ai-agents/pull/908
 - ADR-008: governance limits specification

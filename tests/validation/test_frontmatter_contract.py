@@ -3,7 +3,7 @@
 
 Covers positive, negative and edge cases per `.agents/governance/TESTING-RIGOR.md`,
 plus a negative control for each integration hazard the buy-vs-build evaluation
-recorded at `.agents/analysis/frontmatter-parser-build-vs-buy.md`. The hazard
+recorded at `.project-toolkit/analysis/frontmatter-parser-build-vs-buy.md`. The hazard
 tests exist so a future "simplify this to frontmatter.loads()" change fails
 loudly instead of silently losing a distinction a gate depends on.
 """

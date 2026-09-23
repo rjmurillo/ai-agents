@@ -43,7 +43,7 @@ GitHub Issue #42: "Add caching" (no further details)
 │  PHASE 1: Research & Discovery          │
 │  Orchestrator → analyst → returns       │
 │  Output: Research findings              │
-│  Location: .agents/analysis/            │
+│  Location: .project-toolkit/analysis/            │
 └─────────────────────────────────────────┘
      │
      ▼
@@ -55,7 +55,7 @@ GitHub Issue #42: "Add caching" (no further details)
 │    → critic → returns                   │
 │    → roadmap → returns                  │
 │  Output: Proceed / Defer / Reject       │
-│  Location: .agents/analysis/            │
+│  Location: .project-toolkit/analysis/            │
 └─────────────────────────────────────────┘
      │
      ▼ (if Proceed)
@@ -66,8 +66,8 @@ GitHub Issue #42: "Add caching" (no further details)
 │    → explainer → returns                │
 │    → task-decomposer → returns           │
 │  Output: Epic, PRD, Work Breakdown      │
-│  Location: .agents/roadmap/             │
-│            .agents/planning/            │
+│  Location: .project-toolkit/roadmap/             │
+│            .project-toolkit/planning/            │
 └─────────────────────────────────────────┘
      │
      ▼
@@ -79,7 +79,7 @@ GitHub Issue #42: "Add caching" (no further details)
 │    → security → returns                 │
 │    → qa → returns                       │
 │  Output: Approved implementation plan   │
-│  Location: .agents/planning/            │
+│  Location: .project-toolkit/planning/            │
 └─────────────────────────────────────────┘
      │
      ▼
@@ -114,7 +114,7 @@ GitHub Issue #42: "Add caching" (no further details)
 - WebSearch/WebFetch - General web research
 - GitHub CLI - Issue and PR research
 
-**Output**: `.agents/analysis/ideation-[topic].md`
+**Output**: `.project-toolkit/analysis/ideation-[topic].md`
 
 **Success Criteria**: Research document with clear recommendation (Proceed/Defer/Reject) and supporting evidence.
 
@@ -134,10 +134,10 @@ GitHub Issue #42: "Add caching" (no further details)
 | Decision | Meaning | Next Step |
 |----------|---------|-----------|
 | **Proceed** | Good idea, worth pursuing | Move to Phase 3 |
-| **Defer** | Good idea, but not now | Pause workflow, create backlog entry at `.agents/roadmap/backlog.md` with conditions and resume trigger |
+| **Defer** | Good idea, but not now | Pause workflow, create backlog entry at `.project-toolkit/roadmap/backlog.md` with conditions and resume trigger |
 | **Reject** | Not aligned with goals | Report rejection to user, persist rationale in validation doc |
 
-**Output**: `.agents/analysis/ideation-[topic]-validation.md`
+**Output**: `.project-toolkit/analysis/ideation-[topic]-validation.md`
 
 **Success Criteria**: Unanimous or majority consensus with documented rationale.
 
@@ -147,9 +147,9 @@ GitHub Issue #42: "Add caching" (no further details)
 
 | Agent | Output | Location |
 |-------|--------|----------|
-| roadmap | Epic with vision and outcomes | `.agents/roadmap/epic-[topic].md` |
-| explainer | Full PRD with specifications | `.agents/planning/prd-[topic].md` |
-| task-decomposer | Work breakdown structure | `.agents/planning/tasks-[topic].md` |
+| roadmap | Epic with vision and outcomes | `.project-toolkit/roadmap/epic-[topic].md` |
+| explainer | Full PRD with specifications | `.project-toolkit/planning/prd-[topic].md` |
+| task-decomposer | Work breakdown structure | `.project-toolkit/planning/tasks-[topic].md` |
 
 **Epic Contents**:
 
@@ -194,7 +194,7 @@ GitHub Issue #42: "Add caching" (no further details)
 - **Security**: Any security implications? What mitigations needed?
 - **QA**: How do we test this? What coverage is required?
 
-**Output**: `.agents/planning/implementation-plan-[topic].md`
+**Output**: `.project-toolkit/planning/implementation-plan-[topic].md`
 
 **Success Criteria**: All agents approve (or concerns addressed) before implementation begins.
 
@@ -213,12 +213,12 @@ Note: In Phase 4, architect/devops/security/qa can run in parallel for efficienc
 
 | Phase | Artifact | Location |
 |-------|----------|----------|
-| 1 | Research findings | `.agents/analysis/ideation-[topic].md` |
-| 2 | Validation decision | `.agents/analysis/ideation-[topic]-validation.md` |
-| 3 | Epic | `.agents/roadmap/epic-[topic].md` |
-| 3 | PRD | `.agents/planning/prd-[topic].md` |
-| 3 | Tasks (WBS) | `.agents/planning/tasks-[topic].md` |
-| 4 | Implementation plan | `.agents/planning/implementation-plan-[topic].md` |
+| 1 | Research findings | `.project-toolkit/analysis/ideation-[topic].md` |
+| 2 | Validation decision | `.project-toolkit/analysis/ideation-[topic]-validation.md` |
+| 3 | Epic | `.project-toolkit/roadmap/epic-[topic].md` |
+| 3 | PRD | `.project-toolkit/planning/prd-[topic].md` |
+| 3 | Tasks (WBS) | `.project-toolkit/planning/tasks-[topic].md` |
+| 4 | Implementation plan | `.project-toolkit/planning/implementation-plan-[topic].md` |
 
 ## Exit Points
 

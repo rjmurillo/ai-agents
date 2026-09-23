@@ -185,7 +185,7 @@ def test_retrospectives_are_out_of_scope(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     _init_repo(
         repo,
-        {".agents/retrospective/old.md": "flock /tmp/aiagents-push.lock git push\n"},
+        {".project-toolkit/retrospective/old.md": "flock /tmp/aiagents-push.lock git push\n"},
     )
 
     assert checker.main(["--repo-root", str(repo)]) == 0

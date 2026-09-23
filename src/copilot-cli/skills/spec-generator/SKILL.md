@@ -88,9 +88,9 @@ REQ-NNN (WHAT/WHY) -> DESIGN-NNN (HOW) -> TASK-NNN (IMPLEMENTATION)
 
 | Tier | Format | Location |
 |------|--------|----------|
-| Requirements | EARS | `.agents/specs/requirements/REQ-NNN-{kebab-case-title}.md` |
-| Design | Technical spec | `.agents/specs/design/DESIGN-NNN-{kebab-case-title}.md` |
-| Tasks | Atomic work items | `.agents/specs/tasks/TASK-NNN-{kebab-case-title}.md` |
+| Requirements | EARS | `.project-toolkit/specs/requirements/REQ-NNN-{kebab-case-title}.md` |
+| Design | Technical spec | `.project-toolkit/specs/design/DESIGN-NNN-{kebab-case-title}.md` |
+| Tasks | Atomic work items | `.project-toolkit/specs/tasks/TASK-NNN-{kebab-case-title}.md` |
 
 ### EARS Syntax
 
@@ -119,7 +119,7 @@ Frontmatter (all required unless noted): `type: requirement`, `id`, `title`, `st
 
 ### Ontology Input and the Ontology Section
 
-When `/spec` Step 6 passes an OntologyFragment (the contents of `.agents/specs/ontology/<feature-slug>.md`, produced by the Step 1 ontology elicitation), treat it as the single source of truth for domain vocabulary. The fragment has seven sections (`## O1` entities and value objects, `## O2` ubiquitous language / canonical names, `## O3` relationships, `## O4` aggregate boundaries, `## O5` decision rules, `## O6` bounded-context boundaries, `## O7` open ontology questions). Two rules bind every emitted requirement:
+When `/spec` Step 6 passes an OntologyFragment (the contents of `.project-toolkit/specs/ontology/<feature-slug>.md`, produced by the Step 1 ontology elicitation), treat it as the single source of truth for domain vocabulary. The fragment has seven sections (`## O1` entities and value objects, `## O2` ubiquitous language / canonical names, `## O3` relationships, `## O4` aggregate boundaries, `## O5` decision rules, `## O6` bounded-context boundaries, `## O7` open ontology questions). Two rules bind every emitted requirement:
 
 1. **Reference entities by their O2 canonical name.** Do not introduce a synonym the fragment lists for retirement, and do not invent an entity name the fragment does not contain in any REQ, DESIGN, or TASK artifact. If an artifact genuinely needs a concept absent from the fragment, stop and ask the caller/user to extend the OntologyFragment (O1/O2) first; when invoked by `/spec`, update the Step 1 fragment before continuing. Do not silently mint a new name. A spec artifact that names an entity the OntologyFragment does not contain is the drift the CI completeness check fails on.
 2. **Render an `## Ontology` body section.** Each emitted `REQ-NNN-{slug}.md` includes an `## Ontology` section (body item 3, placed after Context and before Acceptance Criteria) that lists the entities this requirement touches, each by its O2 canonical name, with a one-line note tying it to the requirement. If the requirement also encodes a domain rule, name the O5 decision rule it implements so design and completeness checks can trace it.
@@ -232,4 +232,4 @@ Return:
 4. Estimated effort (complexity counts, total hours)
 5. Recommended next step: critic for review, architect for design validation, implementer to start TASK-001
 
-<!-- vendor-portability: declared. This skill writes the REQ/DESIGN/TASK spec tier under .agents/specs/ and reads the optional ontology fragment at .agents/specs/ontology/. The frontmatter schema is bundled at references/spec-schemas.md, with .agents/governance/spec-schemas.md named as the canonical source; the specs paths are write targets created on demand. Issue #2050. -->
+<!-- vendor-portability: declared. This skill writes the REQ/DESIGN/TASK spec tier under .project-toolkit/specs/ and reads the optional ontology fragment at .project-toolkit/specs/ontology/. The frontmatter schema is bundled at references/spec-schemas.md, with .agents/governance/spec-schemas.md named as the canonical source; the specs paths are write targets created on demand. Issue #2050. -->

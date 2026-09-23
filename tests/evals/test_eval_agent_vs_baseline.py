@@ -117,7 +117,7 @@ cli_main = cli_mod.main
 class TestBuildPromptSymmetry:
     """Both variants must receive the same user-message suffix so the verdict-
     vocabulary contract is symmetric. See
-    .agents/critique/SPIKE-1854-methodology-diagnosis.md for context."""
+    .project-toolkit/critique/SPIKE-1854-methodology-diagnosis.md for context."""
 
     def test_both_variants_receive_output_shape_suffix(self):
         agent_system = "Some agent system prompt"

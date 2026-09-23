@@ -69,7 +69,7 @@ _SPAWN_ATTRS = frozenset({"run", "call", "check_call", "check_output", "Popen"})
 # detectors are measured against.
 _ALLOWLIST = frozenset(
     {
-        ".agents/security/benchmarks/vulnerable_samples/cwe77_command_injection.py",
+        ".project-toolkit/security/benchmarks/vulnerable_samples/cwe77_command_injection.py",
     }
 )
 

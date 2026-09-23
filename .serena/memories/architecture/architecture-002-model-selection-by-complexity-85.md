@@ -22,7 +22,7 @@
 
 **Benefit**: Cost reduction while maintaining quality
 
-**Source**: `.agents/architecture/ADR-002-agent-model-selection-optimization.md`
+**Source**: `.project-toolkit/architecture/ADR-002-agent-model-selection-optimization.md`
 
 ---
 

@@ -1,7 +1,7 @@
 """Audit-completeness checks for issue #1769 Phase 1.
 
 The classification document at
-``.agents/analysis/1769-monolith-section-classification.md`` maps every
+``.project-toolkit/analysis/1769-monolith-section-classification.md`` maps every
 top-level ``##`` section in the always-loaded monolith instruction files
 to a destination. These tests pin the audit's core invariant: no monolith
 section is silently dropped from the classification.
@@ -28,7 +28,7 @@ import pytest
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 ANALYSIS_DOC = (
-    PROJECT_ROOT / ".agents" / "analysis" / "1769-monolith-section-classification.md"
+    PROJECT_ROOT / ".project-toolkit" / "analysis" / "1769-monolith-section-classification.md"
 )
 MONOLITHS = (
     PROJECT_ROOT / ".agents" / "AGENT-SYSTEM.md",

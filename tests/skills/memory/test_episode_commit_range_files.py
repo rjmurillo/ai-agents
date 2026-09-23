@@ -176,7 +176,7 @@ class TestExtractorUsesTheCommitRange:
         _git("add", "-A", cwd=repo)
         _git("commit", "-q", "-m", "work", cwd=repo)
         end = _git("rev-parse", "HEAD", cwd=repo)
-        sessions = repo / ".agents" / "sessions"
+        sessions = repo / ".project-toolkit" / "sessions"
         sessions.mkdir(parents=True, exist_ok=True)
         log = sessions / "2026-08-03-session-1.json"
         log.write_text(

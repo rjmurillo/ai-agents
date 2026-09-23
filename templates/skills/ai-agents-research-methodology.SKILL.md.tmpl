@@ -43,7 +43,7 @@ are hypotheses, not results.
 The cautionary tale is PR #1989. Mitigation M1 was built on a root-cause claim
 inherited from a retro RCA that nobody re-verified: the RCA said pagination was
 missing, but `get_unresolved_review_threads.py` already paginated correctly
-(.agents/retrospective/2026-05-10-pr-1989-recursive-failure.md:20). Five
+(.project-toolkit/retrospective/2026-05-10-pr-1989-recursive-failure.md:20). Five
 commits were spent building on the false premise. The mechanism-check that
 would have caught it costs one file read.
 
@@ -121,7 +121,7 @@ Turn the hunch into a falsifiable claim and probe it. Rules of the probe
   the comfortable default environment.
 - Include a negative control: a case that proves the probe CAN fail.
 - Never trust vendor docs alone; this repo was burned twice by
-  wrong-by-omission docs (#2205, #2290 retros in `.agents/retrospective/`).
+  wrong-by-omission docs (#2205, #2290 retros in `.project-toolkit/retrospective/`).
 - Record the probe result in a decision memory with version and date.
 
 ### Phase 3: Capability Gate and Eval Baseline
@@ -155,7 +155,7 @@ when citing.
 A result becomes enforcement (a hook, a validator, a CI gate) or capability (a
 skill via `SkillForge`). Any threshold-based detector must ship with a
 calibration table. The rule, from the #1989 retro ("Process Change 3",
-.agents/retrospective/2026-05-10-pr-1989-recursive-failure.md:149-157): show
+.project-toolkit/retrospective/2026-05-10-pr-1989-recursive-failure.md:149-157): show
 the threshold, a sample of real PRs measured against it, and the expected
 firing rate. "A detector that cannot fire on the last 5 PRs in the repo is not
 calibrated." The origin: M4 shipped with threshold 6 in a repo whose busiest
@@ -185,7 +185,7 @@ memory, eval numbers, ADR (if governance), calibrated gate, monitoring hook.
 Retirement gets recorded, never silenced. The exemplar is issue #2230: a
 launcher-level fail-open wrapper was proposed, evaluated, and REJECTED as a
 silent-failure anti-pattern; the rejection is recorded with rationale in the #2205 retro decision table
-(.agents/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md:411) and
+(.project-toolkit/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md:411) and
 the binding principle lives in `.claude/rules/generated-artifacts.md`. Because
 the rejection was written down, nobody re-proposes it. An unrecorded rejection
 is a future duplicate proposal.
@@ -204,7 +204,7 @@ is a future duplicate proposal.
 
 ## Where Good Ideas Historically Came From
 
-- **Retro mining.** `.agents/retrospective/` is the
+- **Retro mining.** `.project-toolkit/retrospective/` is the
   richest vein; `ai-agents-failure-archaeology` indexes the major ones.
   Retro-cited short SHAs do not resolve locally even with full history present
   (~1471 commits as of 2026-07-03), so retros and memories, not `git log`,
@@ -263,15 +263,15 @@ volatile facts:
 
 | Fact | Source | Re-verify |
 |---|---|---|
-| #1989 false premise, calibration rule, M4 numbers | `.agents/retrospective/2026-05-10-pr-1989-recursive-failure.md:20` (`misdiagnosed root cause`); the same retro's lines 72 to 73 give the M4 numbers and lines 149 to 157 state the calibration rule | `grep -n "calibrat" .agents/retrospective/2026-05-10-pr-1989-recursive-failure.md` |
-| #2230 rejection record | `.agents/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md:411` (`addressed-by-prevention`) | `grep -n 2230 .agents/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md` |
+| #1989 false premise, calibration rule, M4 numbers | `.project-toolkit/retrospective/2026-05-10-pr-1989-recursive-failure.md:20` (`misdiagnosed root cause`); the same retro's lines 72 to 73 give the M4 numbers and lines 149 to 157 state the calibration rule | `grep -n "calibrat" .project-toolkit/retrospective/2026-05-10-pr-1989-recursive-failure.md` |
+| #2230 rejection record | `.project-toolkit/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md:411` (`addressed-by-prevention`) | `grep -n 2230 .project-toolkit/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md` |
 | adr-review auto-fire + 6-agent debate | `AGENTS.md:40` (`adr-review`); `.claude/skills/adr-review/SKILL.md` | `grep -n "debate" .claude/skills/adr-review/SKILL.md` |
 | buy-vs-build Quick tier gate + 13wk prune | `AGENTS.md:38` (`13wk`) | `grep -n "13" AGENTS.md` |
 | buy-vs-build Quick tier ends in a Go/No-go | `.claude/skills/buy-vs-build-framework/SKILL.md:65` (`Go/No-go`) | verified directly against the cited line; no command needed that would read a sibling skill's directory |
 | eval scripts and `--dry-run` | `scripts/eval/eval-prompt-change.py:633` (`Validate inputs, no API calls`); `scripts/eval/` listing | `ls scripts/eval/ && grep -n "dry-run" scripts/eval/eval-prompt-change.py` |
 | Contradiction log format | `.claude/skills/memory-gate/references/contradiction-log.md` | `grep -n "decision-" .claude/skills/memory-gate/references/contradiction-log.md` |
-| ADR-069 still proposed | `.agents/architecture/ADR-069-context-corpus-is-the-product.md:3` (`status: proposed`) | `head -5 .agents/architecture/ADR-069-context-corpus-is-the-product.md` |
-| Retro corpus size | `.agents/retrospective/` | `python3 -c "import pathlib;print(sum(1 for p in pathlib.Path('.agents/retrospective').glob('*.md') if p.name != 'INDEX.md'))"` |
+| ADR-069 still proposed | `.project-toolkit/architecture/ADR-069-context-corpus-is-the-product.md:3` (`status: proposed`) | `head -5 .project-toolkit/architecture/ADR-069-context-corpus-is-the-product.md` |
+| Retro corpus size | `.project-toolkit/retrospective/` | `python3 -c "import pathlib;print(sum(1 for p in pathlib.Path('.project-toolkit/retrospective').glob('*.md') if p.name != 'INDEX.md'))"` |
 
 Uncertainty flag: the `EVENT=` telemetry consumer pipeline was never fully
 mapped before it was retired (noted in `ai-agents-research-frontier`). The

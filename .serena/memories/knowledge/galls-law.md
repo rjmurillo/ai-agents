@@ -52,4 +52,4 @@ Build simple working systems first, then iterate. Big bang approaches fail. Incr
 
 - [foundational-knowledge-index](../foundational-knowledge-index.md): Overview
 - [yagni-principle](yagni-principle.md): Build only what's needed
-- `.agents/analysis/foundational-engineering-knowledge.md`: Full context
+- `.project-toolkit/analysis/foundational-engineering-knowledge.md`: Full context

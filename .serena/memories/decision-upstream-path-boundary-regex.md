@@ -135,7 +135,7 @@ trades one false negative for one false positive:
 
 | candidate | fixes | breaks |
 |---|---|---|
-| raw `:` | `[x]:/templates/agents/x.md`, `path:/templates/agents/x.md` | `C:\templates\agents\x.md`, `C:\.agents\specs\x.md` |
+| raw `:` | `[x]:/templates/agents/x.md`, `path:/templates/agents/x.md` | `C:\templates\agents\x.md`, `C:\.project-toolkit\specs\x.md` |
 | raw `=` | `<img src=/templates/agents/x.md>` | `[x](https://example.com/p?next=/.agents/x)` |
 
 A Windows drive letter is a colon followed by a single separator. A URL query parameter is

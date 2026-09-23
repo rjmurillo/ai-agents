@@ -7,7 +7,7 @@ description: Symptom-to-triage playbook for this repo's recurring failures. Bloc
 
 # ai-agents Debugging Playbook
 
-<!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself; intentionally references upstream paths (.agents/governance/, .agents/retrospective/, .agents/schemas/session-log.schema.json, .claude/lib/, .github/, build/generate_agents.py, build/scripts/, scripts/ci/, scripts/validate_session_json.py, scripts/validation/, templates/agents/) because its audience is repo contributors, not plugin consumers (issue #2050) -->
+<!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself; intentionally references upstream paths (.agents/governance/, .project-toolkit/retrospective/, .agents/schemas/session-log.schema.json, .claude/lib/, .github/, build/generate_agents.py, build/scripts/, scripts/ci/, scripts/validate_session_json.py, scripts/validation/, templates/agents/) because its audience is repo contributors, not plugin consumers (issue #2050) -->
 Symptom-first triage for this repository's known failure modes. Every row below was earned by a real incident; the retro path is cited so you can read the full story. The playbook answers one question: given this symptom, what is the FIRST command to run, what experiment discriminates between causes, and what trap has already cost someone real time here?
 
 Vocabulary used once: a "guard" is a PreToolUse or pre-push hook that can block an action (exit 2 blocks, exit 0 allows). A "drift gate" is a CI check that fails when a generated tree no longer matches its canonical source. A "discriminating experiment" is one cheap action whose outcome splits the hypothesis space in two.
@@ -95,13 +95,13 @@ One line each; read the retro before repeating history. All paths relative to re
 
 | Trap | Story | Retro |
 |------|-------|-------|
-| Drift direction inversion | Agent "fixed" drift by editing the source-of-truth tree to match the generated tree; wrong direction, reverted | `.agents/retrospective/2025-12-15-drift-detection-disaster.md` |
-| Escape-hatch abuse | SKIP_PREPUSH used 3x within an hour of its creation to dodge validation; user verdict was a trust failure, hatch removed | `.agents/retrospective/2026-02-08-session-1187-skip-prepush-abuse.md` |
-| Unscoped tooling | Repo-wide `markdownlint --fix` reformatted files far outside the change; PR ballooned to 59 commits / 95 files | `.agents/retrospective/2026-01-15-pr-908-comprehensive-retrospective.md` |
-| Fix built on analogy, not probe | First #2205 hook fix assumed an env var by analogy and added 3 new defects; the working fix came from an empirical probe of Copilot CLI 1.0.57 | `.agents/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md` |
-| Two failures, one symptom | "Hook errored" hid both a payload-casing crash (exit 2) and a SIGTERM timeout (exit 143); fixing one masked the other | `.agents/retrospective/2026-06-02-issue-2290-copilot-hook-payload-format.md` |
-| Mitigation reproduces the disease | A mitigation PR shipped a threshold that could never fire (set to 6, repo max was 4) and guards never run on their own branch | `.agents/retrospective/2026-05-10-pr-1989-recursive-failure.md` |
-| Guards that prevent nothing | 69 commits of guard framework; the Phase-6 audit found the guards would have prevented 0 of its own 35 fix commits | `.agents/retrospective/2026-05-05-pr-1887-iteration-paradox.md` |
+| Drift direction inversion | Agent "fixed" drift by editing the source-of-truth tree to match the generated tree; wrong direction, reverted | `.project-toolkit/retrospective/2025-12-15-drift-detection-disaster.md` |
+| Escape-hatch abuse | SKIP_PREPUSH used 3x within an hour of its creation to dodge validation; user verdict was a trust failure, hatch removed | `.project-toolkit/retrospective/2026-02-08-session-1187-skip-prepush-abuse.md` |
+| Unscoped tooling | Repo-wide `markdownlint --fix` reformatted files far outside the change; PR ballooned to 59 commits / 95 files | `.project-toolkit/retrospective/2026-01-15-pr-908-comprehensive-retrospective.md` |
+| Fix built on analogy, not probe | First #2205 hook fix assumed an env var by analogy and added 3 new defects; the working fix came from an empirical probe of Copilot CLI 1.0.57 | `.project-toolkit/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md` |
+| Two failures, one symptom | "Hook errored" hid both a payload-casing crash (exit 2) and a SIGTERM timeout (exit 143); fixing one masked the other | `.project-toolkit/retrospective/2026-06-02-issue-2290-copilot-hook-payload-format.md` |
+| Mitigation reproduces the disease | A mitigation PR shipped a threshold that could never fire (set to 6, repo max was 4) and guards never run on their own branch | `.project-toolkit/retrospective/2026-05-10-pr-1989-recursive-failure.md` |
+| Guards that prevent nothing | 69 commits of guard framework; the Phase-6 audit found the guards would have prevented 0 of its own 35 fix commits | `.project-toolkit/retrospective/2026-05-05-pr-1887-iteration-paradox.md` |
 
 Deeper history and the settled-battles list live in `ai-agents-failure-archaeology`. The 12-pattern failure catalog is `.agents/governance/FAILURE-MODES.md` (numbered sections 1-12, e.g. section 10 silent defaults, section 11 unrun generated artifacts, section 12 post-completion continuation).
 
@@ -128,7 +128,7 @@ Before declaring the failure triaged and fixed:
 
 ## Provenance and Maintenance
 
-Verified against the working tree on 2026-07-03. Retro-cited short SHAs do not resolve locally even with full history present (~1471 commits as of 2026-07-03); use `.agents/retrospective/` and `.serena/memories/` for archaeology, not `git log`.
+Verified against the working tree on 2026-07-03. Retro-cited short SHAs do not resolve locally even with full history present (~1471 commits as of 2026-07-03); use `.project-toolkit/retrospective/` and `.serena/memories/` for archaeology, not `git log`.
 
 | Fact | Source | Re-verify with |
 |------|--------|----------------|
@@ -141,7 +141,7 @@ Verified against the working tree on 2026-07-03. Retro-cited short SHAs do not r
 | `REQ-009` rejects module-name `--cov`, isolates via `--include=` | `.github/workflows/pytest.yml:439-457` (issue #2063, PR #2078) | `grep -n REQ-009 .github/workflows/pytest.yml` |
 | Syntax gate parses at 3.10 floor (`_SUPPORT_FLOOR`) | `scripts/validation/validate_python_syntax.py:56-75` (issue #2655) | `grep -n _SUPPORT_FLOOR scripts/validation/validate_python_syntax.py` |
 | Real-HEAD mutation guard | `conftest.py:435-461` (issue #2316) | `grep -n "#2316" conftest.py` |
-| Exit 143 SIGTERM, P0, unresolved as of retro | `.agents/retrospective/2026-06-02-issue-2290-copilot-hook-payload-format.md:16,27,59` | `grep -n "exit 143" .agents/retrospective/2026-06-02-issue-2290-copilot-hook-payload-format.md` |
+| Exit 143 SIGTERM, P0, unresolved as of retro | `.project-toolkit/retrospective/2026-06-02-issue-2290-copilot-hook-payload-format.md:16,27,59` | `grep -n "exit 143" .project-toolkit/retrospective/2026-06-02-issue-2290-copilot-hook-payload-format.md` |
 | Payload field names depend on event-key casing | `.serena/memories/copilot-hooks-observations.md` | `grep -n "toolName" .serena/memories/copilot-hooks-observations.md` |
 | Reproduce-on-main rule (PR #1361) | `.serena/memories/ci-infrastructure-observations.md` | `grep -n "1361" .serena/memories/ci-infrastructure-observations.md` |
 | pre_pr.py sequence and exit codes (`ADR-035`) | `scripts/validation/pre_pr.py:1-30` | `sed -n '1,30p' scripts/validation/pre_pr.py` |

@@ -161,7 +161,7 @@ ai-agents/
 
 ## Design Decisions
 
-Key architectural decisions are recorded as ADRs in `.agents/architecture/`. Notable decisions include:
+Key architectural decisions are recorded as ADRs in `.project-toolkit/architecture/`. Notable decisions include:
 
 | ADR | Decision |
 |-----|----------|

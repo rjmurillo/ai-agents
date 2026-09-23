@@ -30,7 +30,7 @@
 > because its method sections (contention ratios, the partition breakdown, the
 > measured non-levers) were never disproved. Read its figures as that date's,
 > not as current. Full record and method:
-> `.agents/metrics/gate-latency-v0.7.0.md`, PR #5813, epic #5456 gate 3,
+> `.project-toolkit/metrics/gate-latency-v0.7.0.md`, PR #5813, epic #5456 gate 3,
 > issue #5318 items 1 and 2.
 
 Measured on a real push of one documentation file, 2026-08-19, 4-CPU container,
@@ -120,7 +120,7 @@ under `lefthook` pre-push. `uv run python
 scripts/validation/pre_pr.py`, run by hand, still executes every gate
 (the env flag is unset outside the hook), so the measurements above stay
 accurate for that invocation path. Recorded in
-`.agents/metrics/control-plane-dispositions-v0.7.0.md` as a `KEEP` row.
+`.project-toolkit/metrics/control-plane-dispositions-v0.7.0.md` as a `KEEP` row.
 
 ## Measured non-levers, so nobody re-derives them
 

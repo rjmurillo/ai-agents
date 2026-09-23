@@ -4,7 +4,7 @@ Issue #4032: an external PreToolUse hook denies WebFetch and redirects the agent
 to tools it does not hold. The command's own `allowed-tools` line listed WebFetch
 as the only way to reach a source, so the denial left zero paths to data. The same
 line also made two of the command's four documented outputs unreachable even with
-no hook installed: no Write for `.agents/analysis/{topic-slug}.md` and no Bash for
+no hook installed: no Write for `.project-toolkit/analysis/{topic-slug}.md` and no Bash for
 the Phase 5 issue creation.
 
 These tests pin the repaired contract on both the Claude source and the generated

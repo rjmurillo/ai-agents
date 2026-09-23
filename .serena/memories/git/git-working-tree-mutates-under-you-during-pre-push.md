@@ -9,7 +9,7 @@ few minutes later.
 Observed on 2026-08-02 in a linked worktree during a live push:
 
 ```diff
--        print("ERROR: ADR changes require a debate log in .agents/critique", file=sys.stderr)
+-        print("ERROR: ADR changes require a debate log in .project-toolkit/critique", file=sys.stderr)
 +        print("ERROR: ADR changes require a debate log in .agents/wrong-dir",  # M2 mutant
 +               file=sys.stderr)
 ```

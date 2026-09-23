@@ -22,4 +22,4 @@ Error contract: providers raise `RuntimeError` with the HTTP or timeout message 
 
 Reasoning models in the OpenAI-compatible provider, `o*` and `gpt-5*`, use `max_completion_tokens` and omit custom `temperature`; non-reasoning models keep `max_tokens` and explicit temperature.
 
-Evidence: PR #2710 branch `feat/eval-multiprovider-transport`, files `scripts/eval/_providers.py`, `scripts/eval/_eval_api_adapter.py`, `tests/eval/test_providers.py`, session log `.agents/sessions/2026-06-20-session-2597-eval-multiprovider-transport-openai-github.json`.
+Evidence: PR #2710 branch `feat/eval-multiprovider-transport`, files `scripts/eval/_providers.py`, `scripts/eval/_eval_api_adapter.py`, `tests/eval/test_providers.py`, session log `.project-toolkit/sessions/2026-06-20-session-2597-eval-multiprovider-transport-openai-github.json`.

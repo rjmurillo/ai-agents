@@ -20,7 +20,7 @@
 - Detailed logs internal only
 - Correlation IDs for debugging
 
-**Source**: `.agents/security/security-best-practices.md`
+**Source**: `.project-toolkit/security/security-best-practices.md`
 
 ---
 

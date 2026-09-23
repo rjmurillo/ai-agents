@@ -34,7 +34,7 @@ hooks while disabling repository hooks.
 ## Evidence
 
 Session 3042 recorded the controlled probe counts and timestamps in
-`.agents/analysis/2026-07-14-hook-batching-determination.md`.
+`.project-toolkit/analysis/2026-07-14-hook-batching-determination.md`.
 
 ## Related
 

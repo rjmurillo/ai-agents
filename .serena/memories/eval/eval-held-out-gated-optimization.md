@@ -81,7 +81,7 @@ Round 11 is also the first round partly declined: its double-resolution finding 
 
 Four operational lessons worth more than the defect list. First, a workaround that stops a symptom appearing in tests is not a finding closed: the round-9 double-document bug had already been seen while writing round-7 tests and recorded as a test-harness quirk. Second, hand-written redaction sites are where rounds 9 and 10 both found defects, which is why redaction now has one definition, `_scrub`, rather than a `.replace` per site. Third, when a review is asked to find a defect, give it explicit permission to return ACCEPT and tell it a false finding costs more than a missed one; rounds 10, 11, and 12 all got that instruction and all still returned real findings, which is what makes the streak evidence rather than an artifact of the prompt. Fourth, and this is the one that generalizes furthest: test the property through the seam, not the unit you edited. Round 11 added four passing tests for case folding and every one called `_scrub` directly, so they confirmed the edit while the CLI still printed the digest. A test aimed at the function you just changed will agree with you. Only a test aimed at the property can disagree.
 
-Evidence: issue #3422, PR #3430, PR #3458, branch `fix/eval-holdout-gate-digest-leak`, ADR-087, debate log `.agents/analysis/2026-07-26-adr-087-holdout-gate-debate.md`, session log `.agents/sessions/2026-07-26-session-3422-eval-holdout-gate.json`.
+Evidence: issue #3422, PR #3430, PR #3458, branch `fix/eval-holdout-gate-digest-leak`, ADR-087, debate log `.project-toolkit/analysis/2026-07-26-adr-087-holdout-gate-debate.md`, session log `.project-toolkit/sessions/2026-07-26-session-3422-eval-holdout-gate.json`.
 
 ## The live run, and the lesson that outranks the defect list
 
@@ -103,11 +103,11 @@ The ADR reviewer's headline finding was false. It claimed the null-control flips
 
 **A finding can be wrong about what happened and right about what can happen.** Verify a confident review against data before acting on it, and when the mechanism is real but did not fire, file it (#3474) rather than folding it in or dismissing it. Accepting every finding is not reviewing, and neither is dismissing the ones that turn out to be misattributed.
 
-Evidence: PR #3478, branch `feat/eval-gate-significance-bar`, commits `684060149` and `a5791784c`, session log `.agents/sessions/2026-07-27-session-3468-eval-gate-significance.json`.
+Evidence: PR #3478, branch `feat/eval-gate-significance-bar`, commits `684060149` and `a5791784c`, session log `.project-toolkit/sessions/2026-07-27-session-3468-eval-gate-significance.json`.
 
 ## Round eighteen: a retraction that stopped at the source document
 
-Two PR review threads found the agent-path claim this session had already retracted still being asserted, in full, by the generated memory tier: `.agents/memory/episodes/episode-2026-07-27-*.json` and `.agents/memory/causality/causal-graph.json`. The session log, the README, and ADR-087 all carried the retraction. The artifacts below them had captured the claim before it was withdrawn and then never regenerated.
+Two PR review threads found the agent-path claim this session had already retracted still being asserted, in full, by the generated memory tier: `.project-toolkit/memory/episodes/episode-2026-07-27-*.json` and `.project-toolkit/memory/causality/causal-graph.json`. The session log, the README, and ADR-087 all carried the retraction. The artifacts below them had captured the claim before it was withdrawn and then never regenerated.
 
 The cause is worth remembering because it is a workaround with an invisible blast radius. Every commit this session used `SKIP_AUTOFIX=1`, adopted because lefthook's `stage_fixed: true` drags working-tree modifications into the staged set and breaks atomic commits. That same flag skips `extract-session-episodes` and `update-causal-graph`, the two hooks whose job is keeping derived memory consistent with the session log. The name describes the mechanism, not what is lost.
 

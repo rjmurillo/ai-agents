@@ -211,7 +211,7 @@ def test_absolute_target_is_reported(tmp_path: Path) -> None:
     doc = write(
         tmp_path,
         "architecture/ADR-023-quality-gate.md",
-        "- [Debate Log](/.agents/critique/ADR-023-debate-log.md)\n",
+        "- [Debate Log](/.project-toolkit/critique/ADR-023-debate-log.md)\n",
     )
 
     findings = find_broken_adr_links(
@@ -278,7 +278,7 @@ def test_malformed_unterminated_destination_is_reported(tmp_path: Path) -> None:
 
 
 def test_missing_leading_dot_directory_is_reported(tmp_path: Path) -> None:
-    target = write(tmp_path, ".agents/architecture/ADR-036-two-source.md", "# target\n")
+    target = write(tmp_path, ".project-toolkit/architecture/ADR-036-two-source.md", "# target\n")
     doc = write(
         tmp_path,
         "templates/AGENTS.md",
@@ -354,7 +354,7 @@ def test_reference_style_absolute_target_is_reported(tmp_path: Path) -> None:
     doc = write(
         tmp_path,
         "architecture/ADR-023-quality-gate.md",
-        "See [Debate Log][log].\n\n[log]: /.agents/critique/ADR-023-debate-log.md\n",
+        "See [Debate Log][log].\n\n[log]: /.project-toolkit/critique/ADR-023-debate-log.md\n",
     )
 
     findings = find_broken_adr_links(
@@ -702,8 +702,8 @@ def test_a_three_space_indented_fence_marker_still_opens_a_fence(tmp_path: Path)
     "root",
     [
         ".agents/archive/",
-        ".agents/sessions/",
-        ".agents/critique/",
+        ".project-toolkit/sessions/",
+        ".project-toolkit/critique/",
         ".serena/",
         ".claude-mem/",
     ],
@@ -1002,6 +1002,38 @@ def test_an_entry_absent_at_the_base_ref_is_rejected(tmp_path: Path) -> None:
             baseline={key},
             tracked=frozenset(),
             base_allowances=set(),
+        )
+
+
+def test_an_entry_that_only_moved_root_is_carried(tmp_path: Path) -> None:
+    """Issue #5420: a defect recorded under `.agents/` is the same defect
+    once its file moves to `.project-toolkit/`, so the move is not a new entry."""
+    doc = write(tmp_path, ".project-toolkit/adr/index.md", "[ADR-005](ADR-005-gone.md)\n")
+    key = "unresolved:.project-toolkit/adr/index.md:ADR-005-gone.md"
+
+    broken = find_broken_adr_links(
+        tmp_path,
+        files=[doc],
+        baseline={key},
+        tracked=frozenset(),
+        base_allowances={"unresolved:.agents/adr/index.md:ADR-005-gone.md"},
+    )
+
+    assert broken == []
+
+
+def test_a_root_moved_entry_with_a_new_target_is_rejected(tmp_path: Path) -> None:
+    """Negative control: the root-move mapping does not excuse a different link."""
+    doc = write(tmp_path, ".project-toolkit/adr/index.md", "[ADR-006](ADR-006-gone.md)\n")
+    key = "unresolved:.project-toolkit/adr/index.md:ADR-006-gone.md"
+
+    with pytest.raises(ValueError, match="this branch added"):
+        find_broken_adr_links(
+            tmp_path,
+            files=[doc],
+            baseline={key},
+            tracked=frozenset(),
+            base_allowances={"unresolved:.agents/adr/index.md:ADR-005-gone.md"},
         )
 
 

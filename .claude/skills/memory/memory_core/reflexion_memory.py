@@ -43,9 +43,9 @@ logger = logging.getLogger(__name__)
 
 _MODULE_DIR = Path(__file__).resolve().parent
 _SKILL_ROOT = _MODULE_DIR.parent
-_AGENTS_ROOT = _SKILL_ROOT.parent.parent.parent / ".agents"
+_TOOLKIT_ROOT = _SKILL_ROOT.parent.parent.parent / ".project-toolkit"
 
-EPISODES_PATH = _AGENTS_ROOT / "memory" / "episodes"
+EPISODES_PATH = _TOOLKIT_ROOT / "memory" / "episodes"
 
 SCHEMAS_PATH = _SKILL_ROOT / "resources" / "schemas"
 EPISODE_SCHEMA_FILE = SCHEMAS_PATH / "episode.schema.json"

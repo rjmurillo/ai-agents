@@ -1,6 +1,6 @@
 # Skillbook Validation
 #
-# Validates the evidence-tiered policy registry (.agents/skillbook/*.json)
+# Validates the evidence-tiered policy registry (.project-toolkit/skillbook/*.json)
 # against the JSON schemas in .agents/schemas/ and runs referential-integrity
 # checks. All logic lives in scripts/validation/validate_skillbook.py per
 # ADR-006 (thin workflows, testable modules); this YAML only orchestrates.
@@ -48,7 +48,7 @@ jobs:
         with:
           filters: |
             skillbook:
-              - '.agents/skillbook/**'
+              - '.project-toolkit/skillbook/**'
               - '.agents/schemas/policy.schema.json'
               - '.agents/schemas/tension.schema.json'
               - '.agents/schemas/workflow.schema.json'

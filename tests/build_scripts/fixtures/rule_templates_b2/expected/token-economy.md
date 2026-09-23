@@ -2,6 +2,7 @@
 paths:
   - ".claude/**"
   - ".agents/**"
+  - ".project-toolkit/**"
   - ".github/**"
   - "tests/**"
 priority: normal

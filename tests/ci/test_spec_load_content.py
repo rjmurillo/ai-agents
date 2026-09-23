@@ -113,7 +113,7 @@ class TestRun:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.chdir(tmp_path)
-        nested = tmp_path / ".agents" / "specs" / "requirements" / "REQ-005-example.md"
+        nested = tmp_path / ".project-toolkit" / "specs" / "requirements" / "REQ-005-example.md"
         nested.parent.mkdir(parents=True)
         nested.write_text("# REQ-005\nNested spec", encoding="utf-8")
         out_file = tmp_path / "out.txt"
@@ -165,7 +165,7 @@ class TestRun:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.chdir(tmp_path)
-        nested = tmp_path / ".agents" / "specs" / "requirements" / "REQ-005-empty.md"
+        nested = tmp_path / ".project-toolkit" / "specs" / "requirements" / "REQ-005-empty.md"
         nested.parent.mkdir(parents=True)
         nested.write_text("", encoding="utf-8")
         out_file = tmp_path / "out.txt"

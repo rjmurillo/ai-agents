@@ -2,7 +2,7 @@
 
 ## Overview
 
-This policy operationalizes [ADR-021: AI Review Model Routing Strategy](../architecture/ADR-021-model-routing-strategy.md) with compliance requirements, security hardening, and operational procedures.
+This policy operationalizes [ADR-021: AI Review Model Routing Strategy](../../.project-toolkit/architecture/ADR-021-model-routing-strategy.md) with compliance requirements, security hardening, and operational procedures.
 
 **Policy objective**: Minimize false PASS in AI reviews by routing requests to specialized models based on prompt type and evidence availability.
 
@@ -460,10 +460,10 @@ This is a **governance policy**, not an agent capability. It sets system-wide de
 
 ## Related Policies and Decisions
 
-- [ADR-021: AI Review Model Routing Strategy](../architecture/ADR-021-model-routing-strategy.md) - Architectural decision and rationale
-- [ADR-010: Quality Gates](../architecture/ADR-010-quality-gates-evaluator-optimizer.md) - Aggregation framework
-- [ADR-024: GitHub Actions Runner Selection](../architecture/ADR-024-github-actions-runner-selection.md) - Cost governance pattern
-- [ADR-022: Architecture vs Governance Split Criteria](../architecture/ADR-022-architecture-governance-split-criteria.md) - Defines this split pattern
+- [ADR-021: AI Review Model Routing Strategy](../../.project-toolkit/architecture/ADR-021-model-routing-strategy.md) - Architectural decision and rationale
+- [ADR-010: Quality Gates](../../.project-toolkit/architecture/ADR-010-quality-gates-evaluator-optimizer.md) - Aggregation framework
+- [ADR-024: GitHub Actions Runner Selection](../../.project-toolkit/architecture/ADR-024-github-actions-runner-selection.md) - Cost governance pattern
+- [ADR-022: Architecture vs Governance Split Criteria](../../.project-toolkit/architecture/ADR-022-architecture-governance-split-criteria.md) - Defines this split pattern
 - [COST-GOVERNANCE.md](COST-GOVERNANCE.md) - Runner selection policy (similar enforcement pattern)
 - Issue #164: Failure Categorization (infrastructure noise vs false PASS)
 
@@ -472,4 +472,4 @@ This is a **governance policy**, not an agent capability. It sets system-wide de
 - `.github/actions/ai-review/action.yml` - Context building implementation
 - `.github/prompts/*` - Prompt catalog
 - `.github/workflows/ai-*.yml` - AI review workflows
-- [ADR-021: Model Routing Strategy](../architecture/ADR-021-model-routing-strategy.md) - routing decision and rationale
+- [ADR-021: Model Routing Strategy](../../.project-toolkit/architecture/ADR-021-model-routing-strategy.md) - routing decision and rationale

@@ -11,7 +11,7 @@ directory, not the plugin install directory, so every hook failed at launch
 with "No such file or directory". The failure happened before any in-script
 handler could run. The only recovery was to uninstall the plugin. The broken
 form shipped for 33 days across six releases (v0.3.0 to v0.5.6). See
-`.agents/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md`.
+`.project-toolkit/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md`.
 
 Current official docs define hook `cwd` relative to the repository root or as
 an absolute path. The Copilot CLI changelog documents plugin-root variables.
@@ -220,7 +220,7 @@ never have to uninstall to recover from an artifact we generated.
 
 ## References
 
-- `.agents/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md`. The incident.
+- `.project-toolkit/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md`. The incident.
 - `.claude/skills/agent-harness-reference/SKILL.md`. Operational contract.
 - `.claude/skills/agent-harness-reference/references/official-hook-contracts.md`. Official sources and refresh procedure.
 - `.claude/skills/ai-agents-portability-campaign/SKILL.md`. Contract change workflow.

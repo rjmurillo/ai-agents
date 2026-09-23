@@ -99,7 +99,7 @@ already avoids it.
 Losing the directive is silent, and the ratchet failure will not point at you:
 re-verified 2026-08-03 by deleting it from `GOTCHAS.md`, which produced
 `596 violations > baseline 595` followed by a list headed
-`.agents/analysis/worktrunk-integration.md` and `... and 556 more`. The file
+`.project-toolkit/analysis/worktrunk-integration.md` and `... and 556 more`. The file
 that actually regressed appears nowhere in the output.
 
 

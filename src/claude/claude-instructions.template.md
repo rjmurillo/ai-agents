@@ -29,7 +29,7 @@ Task(subagent_type="implementer", prompt="Implement feature X per plan")
 
 ### Agent Output Directories
 
-Agents save artifacts to `.agents/`:
+Agents save artifacts to `.project-toolkit/`:
 
 | Directory | Purpose |
 |-----------|---------|

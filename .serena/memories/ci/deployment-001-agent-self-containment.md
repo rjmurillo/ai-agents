@@ -74,7 +74,7 @@ source directory and nothing above it.
 automatically a defect. Three kinds:
 
 - Bundled dependency, resolved through the plugin-root env vars: fine.
-- Consumer-workspace path, for example an agent writing to `.agents/planning/`
+- Consumer-workspace path, for example an agent writing to `.project-toolkit/planning/`
   in the installing repo: fine, that is the plugin working.
 - Upstream-only path that exists solely in `rjmurillo/ai-agents`: defect unless
   declared.

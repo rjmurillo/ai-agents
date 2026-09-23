@@ -1,7 +1,7 @@
 # Engineering as a Social Activity
 
 **Category**: Engineering Leadership
-**Source**: `.agents/analysis/senior-engineering-knowledge.md`
+**Source**: `.project-toolkit/analysis/senior-engineering-knowledge.md`
 
 ## Core Principle
 

@@ -37,7 +37,7 @@ Inject "prefer retrieval-led reasoning over pre-training" directives at 7 strate
 8. **PROJECT-CONSTRAINTS.md** (line 13): Added "single source of truth" preamble
 
 ### Analysis Document
-- Created .agents/analysis/retrieval-led-reasoning-injection-points.md with complete strategy and text recommendations
+- Created .project-toolkit/analysis/retrieval-led-reasoning-injection-points.md with complete strategy and text recommendations
 
 ## Key Pattern: Inline Indexes
 
@@ -48,7 +48,7 @@ Each injection point includes an inline index showing WHERE to retrieve from:
 - Constraints: `.agents/governance/PROJECT-CONSTRAINTS.md`
 - Session protocol: `.agents/SESSION-PROTOCOL.md`
 - Memory index: Serena [memory-index](../memory-index.md)
-- Architecture: `.agents/architecture/ADR-*.md`
+- Architecture: `.project-toolkit/architecture/ADR-*.md`
 - Skills: `.claude/skills/{skill-name}/SKILL.md`
 ```
 
@@ -82,7 +82,7 @@ All 9 tasks completed successfully in parallel.
 - .claude/hooks/Invoke-SessionStartMemoryFirst.ps1 (+25 lines)
 - .claude/hooks/SessionStart/Invoke-SessionInitializationEnforcer.ps1 (+13 lines)
 - .claude/settings.json (hook configuration)
-- .agents/analysis/retrieval-led-reasoning-injection-points.md (new, 449 lines)
+- .project-toolkit/analysis/retrieval-led-reasoning-injection-points.md (new, 449 lines)
 
 Total: 616 insertions across 9 files
 

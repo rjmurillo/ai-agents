@@ -2,7 +2,7 @@
 
 This directory contains the shared agent template system for generating platform-specific agent definitions.
 
-> **Governing procedure**: [ADR-036: Two-Source Agent Template Architecture](../.agents/architecture/ADR-036-two-source-agent-template-architecture.md): superseded in governance by [ADR-052](../.agents/architecture/ADR-052-template-strategy.md), but ADR-036's procedure below is still what runs; ADR-052 is accepted target state, not yet implemented.
+> **Governing procedure**: [ADR-036: Two-Source Agent Template Architecture](../.project-toolkit/architecture/ADR-036-two-source-agent-template-architecture.md): superseded in governance by [ADR-052](../.project-toolkit/architecture/ADR-052-template-strategy.md), but ADR-036's procedure below is still what runs; ADR-052 is accepted target state, not yet implemented.
 
 ## Directory Structure
 
@@ -245,7 +245,7 @@ When drift is detected:
 
 ## Related Documentation
 
-- [ADR-036: Two-Source Agent Template Architecture](../.agents/architecture/ADR-036-two-source-agent-template-architecture.md) - Operative procedure (superseded in governance by ADR-052, not yet implemented)
+- [ADR-036: Two-Source Agent Template Architecture](../.project-toolkit/architecture/ADR-036-two-source-agent-template-architecture.md) - Operative procedure (superseded in governance by ADR-052, not yet implemented)
 - [src/claude/AGENTS.md](../src/claude/AGENTS.md) - Claude agent synchronization rules
 - [.vscode/toolsets.jsonc](../.vscode/toolsets.jsonc) - VS Code native toolset definitions
 - [CONTRIBUTING.md](../CONTRIBUTING.md) - Full contribution guide
@@ -311,9 +311,9 @@ See `agents/analyst.shared.md` for a complete example.
 
 `templates/platforms/*.yaml` files declare per-provider substitution rules
 consumed by the build pipeline. The schema is governed by
-[ADR-006 Amendment 2026-04-28](../.agents/architecture/ADR-006-thin-workflows-testable-modules.md#amendment-2026-04-28-config-data-exception-for-build-pipelines)
+[ADR-006 Amendment 2026-04-28](../.project-toolkit/architecture/ADR-006-thin-workflows-testable-modules.md#amendment-2026-04-28-config-data-exception-for-build-pipelines)
 and specified in
-[REQ-003-002](../.agents/specs/requirements/REQ-003-multi-tool-artifact-build.md).
+[REQ-003-002](../.project-toolkit/specs/requirements/REQ-003-multi-tool-artifact-build.md).
 
 ### Provider × Artifact mapping (current state)
 

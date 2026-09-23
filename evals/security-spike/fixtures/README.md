@@ -102,12 +102,12 @@ change scoring.
 |---|---|---|
 | F001 | `pol-security-vuln-first` | The fixture asks whether path-traversal code should merge, exercising the security policy "identify vulnerabilities before trusting code." |
 
-See `.agents/skillbook/README.md` for the policy model.
+See `.project-toolkit/skillbook/README.md` for the policy model.
 
 ## Cross-references
 
-- `.agents/specs/requirements/REQ-004-agent-eval-harness-spike.md`: AC-4 corpus integrity rules
-- `.agents/specs/design/DESIGN-004-agent-eval-harness-spike.md`: §5.2 Fixture validator, §5.3 assertion shape
-- `.agents/specs/tasks/TASK-004-agent-eval-harness-spike.md`: T4-4a/b/c sub-task split
+- `.project-toolkit/specs/requirements/REQ-004-agent-eval-harness-spike.md`: AC-4 corpus integrity rules
+- `.project-toolkit/specs/design/DESIGN-004-agent-eval-harness-spike.md`: §5.2 Fixture validator, §5.3 assertion shape
+- `.project-toolkit/specs/tasks/TASK-004-agent-eval-harness-spike.md`: T4-4a/b/c sub-task split
 - `.agents/archive/plans/PLAN-1854-agent-eval-harness-spike.md`: R1 pilot-gate mitigation
 - `evals/README.md`: directory landscape vs. `tests/evals/`

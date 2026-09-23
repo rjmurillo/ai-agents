@@ -75,6 +75,6 @@ Treat as unified detection category:
 
 ## References
 
-- Analysis: `.agents/analysis/cwe-699-framework-integration.md`
+- Analysis: `.project-toolkit/analysis/cwe-699-framework-integration.md`
 - Remediation Plan: `.agents/archive/planning/security-agent-detection-gaps-remediation.md`
 - CWE-699: https://cwe.mitre.org/data/definitions/699.html

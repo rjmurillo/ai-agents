@@ -99,7 +99,7 @@ class TestNoTrackedFileHidesBehindTheSkip:
     moment someone digs it.
     """
 
-    _KNOWN = frozenset({".agents/projects/v0.3.0/worktrees/.gitkeep"})
+    _KNOWN = frozenset({".project-toolkit/projects/v0.3.0/worktrees/.gitkeep"})
 
     @pytest.mark.skipif(shutil.which("git") is None, reason="git not installed")
     def test_no_new_tracked_path_lands_under_a_worktrees_dir(self) -> None:

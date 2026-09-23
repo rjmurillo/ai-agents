@@ -72,7 +72,7 @@ Key insight: information present every turn without decision points is used reli
 
 ## Analysis
 
-Full analysis: `.agents/analysis/context-engineering.md`
+Full analysis: `.project-toolkit/analysis/context-engineering.md`
 
 ## Related
 

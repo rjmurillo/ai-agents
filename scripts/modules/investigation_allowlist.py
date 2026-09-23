@@ -17,28 +17,28 @@ def get_investigation_allowlist() -> list[str]:
     Returns regex patterns anchored to start of path.
     """
     return [
-        r"^\.agents/sessions/",
-        r"^\.agents/analysis/",
-        r"^\.agents/retrospective/",
+        r"^\.project-toolkit/sessions/",
+        r"^\.project-toolkit/analysis/",
+        r"^\.project-toolkit/retrospective/",
         r"^\.serena/memories($|/)",
-        r"^\.agents/security/",
-        r"^\.agents/memory/",
-        r"^\.agents/architecture/REVIEW-",
-        r"^\.agents/critique/",
+        r"^\.project-toolkit/security/",
+        r"^\.project-toolkit/memory/",
+        r"^\.project-toolkit/architecture/REVIEW-",
+        r"^\.project-toolkit/critique/",
     ]
 
 
 def get_investigation_allowlist_display() -> list[str]:
     """Return human-readable allowed paths for error messages."""
     return [
-        ".agents/sessions/",
-        ".agents/analysis/",
-        ".agents/retrospective/",
+        ".project-toolkit/sessions/",
+        ".project-toolkit/analysis/",
+        ".project-toolkit/retrospective/",
         ".serena/memories/",
-        ".agents/security/",
-        ".agents/memory/",
-        ".agents/architecture/REVIEW-*",
-        ".agents/critique/",
+        ".project-toolkit/security/",
+        ".project-toolkit/memory/",
+        ".project-toolkit/architecture/REVIEW-*",
+        ".project-toolkit/critique/",
     ]
 
 

@@ -1,7 +1,7 @@
 # Human-Agent Collaboration Skills
 
 **Extracted**: 2025-12-16
-**Source**: `.agents/retrospective/phase3-p2-learnings.md`
+**Source**: `.project-toolkit/retrospective/phase3-p2-learnings.md`
 
 ## Skill-Collaboration-001: User Additions as Learning Signals (92%)
 

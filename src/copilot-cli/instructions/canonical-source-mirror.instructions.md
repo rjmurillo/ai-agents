@@ -6,11 +6,11 @@ applyTo: scripts/validation/**,build/scripts/**,.github/prompts/**
 
 When a component's docstring, comment, or README claims to "match", "mirror", "align with", or "extend" an existing source (a regex, a schema, a function signature, a set of exit codes, a JSON contract), the claim is a load-bearing assertion. The reader trusts it. So does the reviewer. So does the next maintainer who replays the contract from your code instead of from the source.
 
-This rule binds those claims to evidence. It exists because PR #1887 (the M4 evidence-rule guard) was designed against an imagined contract instead of the canonical `scripts/validate_session_json.py:CONTRADICTION_PATTERNS` regex. The error survived several reviews. Aligning M4 to canonical took 7 fix commits. The retrospective at `.agents/retrospective/2026-05-05-pr-1887-iteration-paradox.md` names this anti-pattern "confident incorrectness": partial signal, premature conclusion, confident delivery, multi-round correction.
+This rule binds those claims to evidence. It exists because PR #1887 (the M4 evidence-rule guard) was designed against an imagined contract instead of the canonical `scripts/validate_session_json.py:CONTRADICTION_PATTERNS` regex. The error survived several reviews. Aligning M4 to canonical took 7 fix commits. The retrospective at `.project-toolkit/retrospective/2026-05-05-pr-1887-iteration-paradox.md` names this anti-pattern "confident incorrectness": partial signal, premature conclusion, confident delivery, multi-round correction.
 
 ## What this rule binds
 
-This rule binds any new component under `.claude/hooks/`, `.claude/rules/`, `scripts/validation/`, `build/scripts/`, `.claude/skills/`, `.github/prompts/`, `.agents/governance/`, or `.agents/retrospective/` whose contract is derived from another source in the repository. The two Copilot-side mirrors scope differently by consumer. `.github/instructions/canonical-source-mirror.instructions.md`, read by Copilot in full-repo context, keeps the full path set (`.claude/hooks/**`, `.claude/rules/**`, `scripts/validation/**`, `build/scripts/**`, `.claude/skills/**`, `.github/prompts/**`, `.agents/governance/**`, `.agents/retrospective/**`). Its `src/copilot-cli/` twin ships inside the plugin, so it narrows to the paths that travel with the plugin (`scripts/validation/**`, `build/scripts/**`, `.github/prompts/**`). The rule still binds the `.claude/` paths on the Claude side. Examples:
+This rule binds any new component under `.claude/hooks/`, `.claude/rules/`, `scripts/validation/`, `build/scripts/`, `.claude/skills/`, `.github/prompts/`, `.agents/governance/`, or `.project-toolkit/retrospective/` whose contract is derived from another source in the repository. The two Copilot-side mirrors scope differently by consumer. `.github/instructions/canonical-source-mirror.instructions.md`, read by Copilot in full-repo context, keeps the full path set (`.claude/hooks/**`, `.claude/rules/**`, `scripts/validation/**`, `build/scripts/**`, `.claude/skills/**`, `.github/prompts/**`, `.agents/governance/**`, `.project-toolkit/retrospective/**`). Its `src/copilot-cli/` twin ships inside the plugin, so it narrows to the paths that travel with the plugin (`scripts/validation/**`, `build/scripts/**`, `.github/prompts/**`). The rule still binds the `.claude/` paths on the Claude side. Examples:
 
 - A pre-push hook that "mirrors" a CI validator's regex.
 - A skill helper that "matches" the exit codes of a validator script.
@@ -23,7 +23,7 @@ If your code contains the words **matches**, **mirrors**, **aligned with**, **sa
 
 The first commit that introduces the claim MUST:
 
-1. **Cite the path verbatim.** Include the absolute repo path of the canonical source in the docstring or top-level comment. Example: `scripts/validate_session_json.py` or `.agents/architecture/ADR-035-exit-code-standardization.md`.
+1. **Cite the path verbatim.** Include the absolute repo path of the canonical source in the docstring or top-level comment. Example: `scripts/validate_session_json.py` or `.project-toolkit/architecture/ADR-035-exit-code-standardization.md`.
 
 2. **Quote the contract verbatim.** Include the exact regex, schema, function signature, exit-code table, or JSON shape, copied character-for-character from the canonical source. Reword nothing. If the contract is too long to inline, quote the load-bearing fragment (the regex pattern, the type signature, the enum values) and link to the file and line range.
 
@@ -51,7 +51,7 @@ A guard that is silently stricter than canonical is a bug in waiting. A guard th
 - **"Mirrors X" with a paraphrased contract.** The docstring describes the regex in prose instead of pasting it. The prose drifts from the regex within one revision. Reject.
 - **"Aligned with X" with no divergence section, when the implementation diverges.** The reader assumes parity; the code does not deliver parity; the bug compounds with the false claim. Reject.
 - **First-commit citation deferred to "I will add it later".** The cost of citing the canonical source is roughly zero at write time and roughly one round of review later. Pay the zero. Reject.
-- **Self-referential test that mirrors the producer's own output.** A test that asserts a generator emits a specific string, then checks the generator emitted that string, pins the output to itself. It proves the producer is internally consistent; it proves nothing about the canonical contract the output is supposed to honor, and it cannot catch a wrong variable, a wrong path, or a wrong exit code. This is this rule applied at the test layer. The test that satisfies the rule exercises the contract INDEPENDENTLY: it runs the artifact under the real runtime conditions (the cwd and environment the host sets) and asserts the intended effect, with a negative control proving the test fails when the artifact is wrong. PR #2205 shipped a string-match test of this shape against `generate_hooks._build_copilot_entry`; it passed while the generated hooks wedged customer environments. See `.claude/rules/generated-artifacts.md` and `.agents/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md`.
+- **Self-referential test that mirrors the producer's own output.** A test that asserts a generator emits a specific string, then checks the generator emitted that string, pins the output to itself. It proves the producer is internally consistent; it proves nothing about the canonical contract the output is supposed to honor, and it cannot catch a wrong variable, a wrong path, or a wrong exit code. This is this rule applied at the test layer. The test that satisfies the rule exercises the contract INDEPENDENTLY: it runs the artifact under the real runtime conditions (the cwd and environment the host sets) and asserts the intended effect, with a negative control proving the test fails when the artifact is wrong. PR #2205 shipped a string-match test of this shape against `generate_hooks._build_copilot_entry`; it passed while the generated hooks wedged customer environments. See `.claude/rules/generated-artifacts.md` and `.project-toolkit/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md`.
 
 ## Behavioral claims: read the body, not the name
 
@@ -203,6 +203,6 @@ The first iteration of M4 in PR #1887 enforced a 20-character minimum on evidenc
 
 ## References
 
-- `.agents/retrospective/2026-05-05-pr-1887-iteration-paradox.md`. PR #1887 retrospective; "Phase 1, Step 3, Five Whys: M4 evidence rule" names the failure mode.
+- `.project-toolkit/retrospective/2026-05-05-pr-1887-iteration-paradox.md`. PR #1887 retrospective; "Phase 1, Step 3, Five Whys: M4 evidence rule" names the failure mode.
 - `scripts/validate_session_json.py`. Canonical session-log validator; the contract M4 was meant to mirror.
 - `templates/agents/implementer.shared.md`, section "Evidence Standards". The implementer-side hierarchy this rule supports at the file-rule layer.

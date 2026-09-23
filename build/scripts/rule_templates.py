@@ -4,7 +4,7 @@ r"""Compile ``templates/rules/<name>.md`` templates into ``src/claude/rules/``.
 ADR-109 (Template-First Plugin Distribution) step B2 generalizes ADR-108's
 compile-and-drift-gate shape, already applied to skills and to agents
 (``build/scripts/agent_templates.py``, B1), to the rules class. Per
-``.agents/specs/design/DESIGN-025-template-first-compiler-and-binplace.md``,
+``.project-toolkit/specs/design/DESIGN-025-template-first-compiler-and-binplace.md``,
 "Per-class compile modules" section, this module is rules' half of the same
 split ADR-108 established for skills: this file (discovery, allowlist,
 compile orchestration) plus the shared ``skill_template_grammar.py``

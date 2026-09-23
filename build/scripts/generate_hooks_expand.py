@@ -20,7 +20,7 @@ three fail-closed rules to ``copilotExclude`` itself, enforced by
 below:
 
 1. Strict boolean validation (governance item 1). Quoted verbatim from
-   ``.agents/architecture/ADR-085-cross-harness-permission-surface-asymmetry.md``,
+   ``.project-toolkit/architecture/ADR-085-cross-harness-permission-surface-asymmetry.md``,
    Decision 7: "The generator rejects any `copilotExclude` value that is
    not literally `true` or `false`; a truthy non-boolean value such as
    `1`, `"true"`, or `null` fails generation rather than silently

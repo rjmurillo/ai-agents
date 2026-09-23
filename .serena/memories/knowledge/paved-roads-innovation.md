@@ -1,7 +1,7 @@
 # Paved Roads vs Innovation Paths
 
 **Category**: Engineering Culture
-**Source**: `.agents/analysis/advanced-engineering-knowledge.md`
+**Source**: `.project-toolkit/analysis/advanced-engineering-knowledge.md`
 **Origin**: Netflix engineering culture
 
 ## Core Concept

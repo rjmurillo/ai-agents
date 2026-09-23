@@ -39,7 +39,7 @@ pwsh build/Generate-Agents.ps1 -Validate
 
 ## Evidence
 Session: 2024 agent synchronization task
-Files: `.agents/analysis/claude-vs-template-differences.md`
+Files: `.project-toolkit/analysis/claude-vs-template-differences.md`
 
 ## Atomicity Score: 95%
 Specific, measurable, actionable guidance for agent file management.

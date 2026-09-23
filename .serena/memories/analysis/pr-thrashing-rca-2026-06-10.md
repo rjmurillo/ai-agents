@@ -15,15 +15,15 @@
 
 ## Already tracked (do not duplicate)
 
-- #2348/#2530 red-main pin test; #2478-#2480 quality-gate noise (Phase 1 baseline: `.agents/analysis/009-phase1-agent-comment-baseline.md`); #2531 retro skeleton litter; #2537 session metadata; #2539 pre-push mypy duplicate-module; #2519-#2527 latent sweep (session 2381).
+- #2348/#2530 red-main pin test; #2478-#2480 quality-gate noise (Phase 1 baseline: `.project-toolkit/analysis/009-phase1-agent-comment-baseline.md`); #2531 retro skeleton litter; #2537 session metadata; #2539 pre-push mypy duplicate-module; #2519-#2527 latent sweep (session 2381).
 
 ## Process observations (analysis doc has details)
 
-- Session-protocol pre-commit gate requires sessionEnd MUSTs complete in the staged log on EVERY commit -> agents fill "end" evidence mid-session repeatedly; session log shared across concurrent fix branches -> conflicts on .agents/sessions/* (auto-resolved accept-main, losing branch entries).
+- Session-protocol pre-commit gate requires sessionEnd MUSTs complete in the staged log on EVERY commit -> agents fill "end" evidence mid-session repeatedly; session log shared across concurrent fix branches -> conflicts on .project-toolkit/sessions/* (auto-resolved accept-main, losing branch entries).
 - Generated mirror regen (src/copilot-cli) surfaces ~1200 pre-existing ruff violations; the pyproject exemption was duplicated in two in-flight PRs (#2532, #2535) -> guaranteed conflict.
 - Renovate bump PR #2518 sat with `infrastructure-failure` label and status `pending` with 0 checks reported.
 
 ## Artifacts
 
-- Analysis doc: `.agents/analysis/010-pr-thrashing-rca-2026-06-10.md`
-- Session log: `.agents/sessions/2026-06-10-session-2382-analyze-recent-prs-thrashingchurn-rca.json`
+- Analysis doc: `.project-toolkit/analysis/010-pr-thrashing-rca-2026-06-10.md`
+- Session log: `.project-toolkit/sessions/2026-06-10-session-2382-analyze-recent-prs-thrashingchurn-rca.json`

@@ -82,5 +82,5 @@
 
 ## Related
 
-- `.agents/sessions/2026-01-19-session-14-plan-status-update.json`
+- `.project-toolkit/sessions/2026-01-19-session-14-plan-status-update.json`
 - `.agents/archive/planning/v0.2.0/PLAN.md` (updated to 100% P0 complete)

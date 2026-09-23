@@ -130,7 +130,7 @@ Prefer deleting a duplicate over compressing one.
 - [rule-audit-parser-forensics.md](references/rule-audit-parser-forensics.md) - Repair history of the parser that produced the table: what more than twenty rounds of adversarial review found, and which fixes were themselves wrong. Read before writing a new instrument that parses judge output
 - [rule-audit-measurement-discipline.md](references/rule-audit-measurement-discipline.md) - How the checks themselves went wrong: false negative controls, evidence read from the wrong population, and edits that silently deleted what they anchored on. Read before relying on one-off command output
 - [Vercel: AGENTS.md outperforms skills](https://vercel.com/blog/agents-md-outperforms-skills-in-our-agent-evals)
-- Analysis: `.agents/analysis/vercel-passive-context-vs-skills-research.md`
+- Analysis: `.project-toolkit/analysis/vercel-passive-context-vs-skills-research.md`
 - Memory: `passive-context-vs-skills-vercel-research`
 - [vibe-engineering.md](references/vibe-engineering.md) - 7-step agent interaction protocol for structured context optimization
 - [claude-code-productivity-patterns.md](references/claude-code-productivity-patterns.md) - Cost control, context management, and quality gates
@@ -431,4 +431,4 @@ python3 -m pytest tests/ --cov=scripts --cov-report=term-missing  # coverage
 
 </details>
 
-<!-- vendor-portability: declared. This skill cites .agents/analysis/vercel-passive-context-vs-skills-research.md as background reading. It is a documentation citation; the optimizer runs without reading the file, and a vendored install loses only the link target. Issue #2050. -->
+<!-- vendor-portability: declared. This skill cites .project-toolkit/analysis/vercel-passive-context-vs-skills-research.md as background reading. It is a documentation citation; the optimizer runs without reading the file, and a vendored install loses only the link target. Issue #2050. -->

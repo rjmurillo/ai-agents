@@ -9,7 +9,7 @@ measuring machine), was dropped: it measured the laptop running the
 script, not a property of the repository, so a rerun on a different
 machine or a different day changed the number without the repository
 changing at all (review F2). Never gates (DR1, measurement-only,
-``.agents/specs/ontology/control-plane-subtraction-cohort-1.md`` O5): the
+``.project-toolkit/specs/ontology/control-plane-subtraction-cohort-1.md`` O5): the
 only nonzero exits are a dirty tree without ``--allow-dirty`` (1, ADR-035)
 and a missing/non-git ``--repo`` (2). No metric value changes the exit code
 (REQ-024 AC-08).
@@ -323,7 +323,7 @@ def policy_owners(repo: Path, exclusions: Exclusions) -> dict[str, Any]:
             "github_instructions": _count_glob(github_instr, "*.instructions.md"),
             "copilot_cli_instructions": _count_glob(copilot_cli_instr, "*.instructions.md"),
         },
-        "adrs": _count_glob(repo / ".agents" / "architecture", "ADR-*.md"),
+        "adrs": _count_glob(repo / ".project-toolkit" / "architecture", "ADR-*.md"),
         "governance_docs": _count_glob(repo / ".agents" / "governance", "*.md"),
         "serena_memories": serena_memories,
         "always_on": {
@@ -367,15 +367,17 @@ def generated_historical(repo: Path, exclusions: Exclusions) -> dict[str, Any]:
     gh = "generated_historical"
     return {
         "episodes": _count_bytes(
-            repo / ".agents" / "memory" / "episodes", exclusions, f"{gh}.episodes"
+            repo / ".project-toolkit" / "memory" / "episodes", exclusions, f"{gh}.episodes"
         ),
-        "sessions": _count_bytes(repo / ".agents" / "sessions", exclusions, f"{gh}.sessions"),
+        "sessions": _count_bytes(
+            repo / ".project-toolkit" / "sessions", exclusions, f"{gh}.sessions"
+        ),
         "serena_memories": _count_bytes(
             repo / ".serena" / "memories", exclusions, f"{gh}.serena_memories"
         ),
         "archive": _count_bytes(repo / ".agents" / "archive", exclusions, f"{gh}.archive"),
         "eval_results": _count_bytes(
-            repo / ".agents" / "eval-results", exclusions, f"{gh}.eval_results"
+            repo / ".project-toolkit" / "eval-results", exclusions, f"{gh}.eval_results"
         ),
         "generated_projections": {
             "copilot_cli_src": _count_bytes(

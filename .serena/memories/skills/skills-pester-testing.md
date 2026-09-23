@@ -229,5 +229,5 @@ The PowerShell test suite, runner, and workflow have been retired. `scripts/test
 - Test Files: `scripts/tests/*.Tests.ps1`
 - Test Runner: `build/scripts/Invoke-PesterTests.ps1`
 - CI Workflow: `.github/workflows/pester-tests.yml`
-- Retrospective: `.agents/retrospective/2025-12-15-install-scripts-session.md`
-- Retrospective: `.agents/retrospective/2025-12-18-parallel-implementation-retrospective.md`
+- Retrospective: `.project-toolkit/retrospective/2025-12-15-install-scripts-session.md`
+- Retrospective: `.project-toolkit/retrospective/2025-12-18-parallel-implementation-retrospective.md`

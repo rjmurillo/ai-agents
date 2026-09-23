@@ -35,8 +35,8 @@ The violation classes:
     The target starts with ``/``. A leading slash cannot resolve relative to the
     containing file, and GitHub resolves it against the site root rather than the
     blob tree, so the link renders broken. ``ADR-023`` cited its debate log as
-    ``/.agents/critique/ADR-023-debate-log.md`` while the file was present all
-    along at ``.agents/critique/ADR-023-debate-log.md``.
+    ``/.project-toolkit/critique/ADR-023-debate-log.md`` while the file was present all
+    along at ``.project-toolkit/critique/ADR-023-debate-log.md``.
 
 ``number-mismatch``
     The link text names an ADR number and the target filename names a different
@@ -824,7 +824,8 @@ def _validate_allowances(allowed: set[str], base_allowances: set[str] | None) ->
 
     if base_allowances is None:
         return
-    added = sorted(allowed - base_allowances)
+    carried = {_undo_root_move(entry) for entry in base_allowances}
+    added = sorted(entry for entry in allowed if _undo_root_move(entry) not in carried)
     if added:
         listed = "\n  ".join(added)
         raise ValueError(
@@ -833,6 +834,18 @@ def _validate_allowances(allowed: set[str], base_allowances: set[str] | None) ->
             f"defect; it must not be used to clear one the current change "
             f"introduced. Fix the link instead:\n  {listed}"
         )
+
+
+def _undo_root_move(entry: str) -> str:
+    """Map a baseline entry back to its pre-move spelling (issue #5420).
+
+    Issue #5420 moved agent write targets from ``.agents/<sub>`` to
+    ``.project-toolkit/<sub>``. A pre-existing defect whose file or target
+    only changed root is still the defect the base ref recorded, not one this
+    branch added, so the provenance check compares entries with the root
+    move undone.
+    """
+    return entry.replace(".project-toolkit/", ".agents/")
 
 
 def find_broken_adr_links(
@@ -917,7 +930,7 @@ def _scannable_files(repo_root: Path) -> list[str]:
     per-file loop does. Used only to report the examined-file count
     alongside the violation count, so a narrowed or empty scan scope is not
     indistinguishable from a completed one: an existing but empty
-    ``.agents/architecture`` corpus, or a ``git_ls_markdown`` regression that
+    ``.project-toolkit/architecture`` corpus, or a ``git_ls_markdown`` regression that
     only sees a handful of tracked files, would otherwise still print
     "0 violation(s)" and read as a clean, complete pass (Copilot, PR #5209
     round-8 review). ``find_broken_adr_links`` computes its own candidate set
@@ -942,7 +955,7 @@ def _has_adr_corpus(scanned: list[str]) -> bool:
     to this repository's own record naming, so a wrong-but-plausible root
     with unrelated markdown cannot pass.
 
-    Deliberately not anchored to ``.agents/architecture``: this module scans
+    Deliberately not anchored to ``.project-toolkit/architecture``: this module scans
     tracked markdown repo-wide for ADR *links*, not only the records
     directory (see the module docstring's four violation classes), and the
     existing test suite's fixtures place their sample ADR files under an
@@ -959,7 +972,7 @@ def _has_adr_corpus(scanned: list[str]) -> bool:
     instead of failing loudly. `ADR_FILENAME_RE` excludes ADR-TEMPLATE.md, so
     a template sitting alone does not count as evidence records were
     examined (Copilot, PR #5209 round-7 review)." That check is stricter:
-    it requires the file to live under the real ``.agents/architecture``
+    it requires the file to live under the real ``.project-toolkit/architecture``
     directory, which is correct there because that script's whole job is
     walking that one directory. This check only requires an ADR-shaped
     basename (this module's existing ``ADR_BASENAME``, ``^ADR-\\d+.*\\.md$``,

@@ -67,6 +67,6 @@ edge fails before review. ADR-110 carries the contract and names the gate.
 ## References
 
 - `build/generate_agents.py`. Canonical generator
-- `.agents/architecture/ADR-080-model-pin-justification-policy.md`. Model pin policy (supersedes ADR-002's method, per ADR-002's own 2026-08-25 deprecation note)
+- `.project-toolkit/architecture/ADR-080-model-pin-justification-policy.md`. Model pin policy (supersedes ADR-002's method, per ADR-002's own 2026-08-25 deprecation note)
 - `.agents/steering/agent-prompts.md`. Prompt authoring standards
 - `templates/README.md`. Template structure

@@ -42,7 +42,7 @@ def default_manifest_path(
     """Redirect the production default manifest path into tmp_path.
 
     ``scripts/bulk_cancel_guard.py:_DEFAULT_MANIFEST_PATH`` resolves under
-    this repo's own ``.agents/scratch/`` so a real ``--confirm`` run always
+    this repo's own ``.project-toolkit/scratch/`` so a real ``--confirm`` run always
     leaves a manifest. Left unpatched, a test that exercises ``--confirm``
     without ``--manifest`` would write into the actual working tree
     (testing.md MUST 4). Nested under a subdirectory so tests also exercise

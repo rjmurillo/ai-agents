@@ -24,7 +24,7 @@ import check_skill_portability as csp
 
 class TestCountUpstreamRefs:
     def test_counts_each_prefix(self) -> None:
-        text = "x = Path('.agents/architecture')\ny = '.claude/lib/foo'\n"
+        text = "x = Path('.project-toolkit/architecture')\ny = '.claude/lib/foo'\n"
         assert csp.count_upstream_refs(text) == 2
 
     def test_counts_windows_separators_bare_dirs_and_mixed_case(self) -> None:
@@ -114,7 +114,7 @@ class TestScanSkillScripts:
         (d / "run.py").write_text(body, encoding="utf-8")
 
     def test_reports_scripts_with_refs(self, tmp_path: Path) -> None:
-        self._skill_script(tmp_path, "alpha", "Path('.agents/architecture')\n")
+        self._skill_script(tmp_path, "alpha", "Path('.project-toolkit/architecture')\n")
         counts = csp.scan_skill_scripts(tmp_path / ".claude" / "skills")
         assert counts == {"skills/alpha/scripts/run.py": 1}
 
@@ -141,7 +141,7 @@ RUNTIME_PATH = ".claude/skills/runtime"
     def test_fails_closed_on_unreadable_script(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        self._skill_script(tmp_path, "gamma", "Path('.agents/architecture')\n")
+        self._skill_script(tmp_path, "gamma", "Path('.project-toolkit/architecture')\n")
         original_read_text = Path.read_text
 
         def read_text(

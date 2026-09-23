@@ -101,7 +101,7 @@ This would require forking the action and modifying the installer script:
 
 - Failed workflow: https://github.com/rjmurillo/ai-agents/actions/runs/20737935687
 - v1.0.28 release: https://github.com/anthropics/claude-code-action/releases/tag/v1.0.28
-- Session log: .agents/sessions/2026-01-05-session-374-issue-804-debug.md
+- Session log: .project-toolkit/sessions/2026-01-05-session-374-issue-804-debug.md
 
 ## Related
 

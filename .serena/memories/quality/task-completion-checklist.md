@@ -60,12 +60,12 @@ Save artifacts to appropriate directories in `.agents/`:
 
 | Type | Directory |
 |------|-----------|
-| Analysis findings | `.agents/analysis/` |
-| ADRs | `.agents/architecture/` |
-| Plans and PRDs | `.agents/planning/` |
-| Plan reviews | `.agents/critique/` |
-| Test reports | `.agents/qa/` |
-| Retrospectives | `.agents/retrospective/` |
+| Analysis findings | `.project-toolkit/analysis/` |
+| ADRs | `.project-toolkit/architecture/` |
+| Plans and PRDs | `.project-toolkit/planning/` |
+| Plan reviews | `.project-toolkit/critique/` |
+| Test reports | `.project-toolkit/qa/` |
+| Retrospectives | `.project-toolkit/retrospective/` |
 
 ## Post-Task
 

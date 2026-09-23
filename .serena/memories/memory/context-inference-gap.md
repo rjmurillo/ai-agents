@@ -112,8 +112,8 @@ New section after "Commands (Essential Tools)":
 
 ## Analysis Artifacts
 
-- `.agents/analysis/pr-number-extraction-gap.md`: Full root cause analysis
-- `.agents/analysis/pr-number-extraction-gap-issue-draft.md`: GitHub issue draft
+- `.project-toolkit/analysis/pr-number-extraction-gap.md`: Full root cause analysis
+- `.project-toolkit/analysis/pr-number-extraction-gap-issue-draft.md`: GitHub issue draft
 
 ## Open Questions
 

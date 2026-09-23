@@ -1477,7 +1477,7 @@ def _repo_relative(path: Path) -> str:
 def _session_roots() -> tuple[Path, ...]:
     """Return configured and repository-default physical session roots."""
     configured = artifact_dir("sessions", base=_PROJECT_ROOT).resolve()
-    default = (_PROJECT_ROOT / ".agents" / "sessions").resolve()
+    default = (_PROJECT_ROOT / ".project-toolkit" / "sessions").resolve()
     return tuple(dict.fromkeys((configured, default)))
 
 

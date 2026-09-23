@@ -3,7 +3,7 @@
 **Date**: 2025-12-30
 **Source**: https://vexjoy.com/posts/everything-that-can-be-deterministic-should-be-my-claude-code-setup/
 **Verdict**: APPROVE WITH CONDITIONS
-**Critique**: `.agents/critique/001-everything-deterministic-philosophy-evaluation.md`
+**Critique**: `.project-toolkit/critique/001-everything-deterministic-philosophy-evaluation.md`
 
 ## Overview
 
@@ -170,8 +170,8 @@ BLOCKING: Do NOT proceed to ANALYZE until VERIFY confirms accuracy
 
 ## Related Artifacts
 
-- **Critique**: `.agents/critique/001-everything-deterministic-philosophy-evaluation.md`
-- **Session Log**: `.agents/sessions/2025-12-30-session-01-determinism-debate.md`
+- **Critique**: `.project-toolkit/critique/001-everything-deterministic-philosophy-evaluation.md`
+- **Session Log**: `.project-toolkit/sessions/2025-12-30-session-01-determinism-debate.md`
 - **vexjoy Blog**: https://vexjoy.com/posts/everything-that-can-be-deterministic-should-be-my-claude-code-setup/
 - **ADR-003**: Agent Tool Selection Criteria
 - **ADR-005**: PowerShell-only scripting

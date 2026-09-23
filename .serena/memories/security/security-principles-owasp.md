@@ -1,7 +1,7 @@
 # Security Principles and OWASP
 
 **Category**: Security
-**Source**: `.agents/analysis/advanced-engineering-knowledge.md`
+**Source**: `.project-toolkit/analysis/advanced-engineering-knowledge.md`
 
 ## Core Principles
 

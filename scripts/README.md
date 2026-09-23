@@ -19,7 +19,7 @@ Scripts are organized by **intended audience and execution context**:
 - Adding AI agent capability? -> `.claude/skills/` (with wrapper in `scripts/` if needed)
 - Writing tests? -> `tests/`
 
-See [ADR-019](../.agents/architecture/ADR-019-script-organization.md) for detailed rationale and guidelines.
+See [ADR-019](../.project-toolkit/architecture/ADR-019-script-organization.md) for detailed rationale and guidelines.
 
 ## Installation
 
@@ -45,10 +45,10 @@ Validates session protocol compliance for session logs.
 
 ```bash
 # Validate specific session
-uv run python scripts/validate_session_json.py .agents/sessions/2025-12-17-session-01.json
+uv run python scripts/validate_session_json.py .project-toolkit/sessions/2025-12-17-session-01.json
 
 # Validate with pre-commit mode
-uv run python scripts/validate_session_json.py .agents/sessions/2025-12-17-session-01.json --pre-commit
+uv run python scripts/validate_session_json.py .project-toolkit/sessions/2025-12-17-session-01.json --pre-commit
 ```
 
 **Called By**: Pre-commit hook, orchestrator, CI

@@ -176,7 +176,7 @@ FILE_MENTION_PATTERNS: list[re.Pattern[str]] = [
 # these citation cue words/phrases is a REFERENCE, not a change claim. Examples:
 #
 #   see `.claude/skills/spec/SKILL.md`
-#   per `.agents/architecture/ADR-035-exit-code-standardization.md`
+#   per `.project-toolkit/architecture/ADR-035-exit-code-standardization.md`
 #   e.g. `.claude/skills/security-scan/scripts/scan_vulnerabilities.py`
 #   for example `scripts/validate_session_json.py`
 #   as documented in `scripts/ai_review_common/cache_guard.py`
@@ -267,6 +267,41 @@ def get_repo_info() -> RepoInfo:
     return RepoInfo(owner=match.group(1), repo=match.group(2))
 
 
+def _complete_truncated_files(
+    pr_info: dict[str, Any], files: list[dict[str, str]]
+) -> list[dict[str, str]]:
+    """Return the full changed-file list when the REST endpoint truncated it.
+
+    ``pulls/{n}/files`` stops at 3000 entries even with ``--paginate``. A larger
+    PR (#5887 moved about 5100 files) then looks like it never touched files the
+    description names. The pull payload's ``changed_files`` exposes the cut, and
+    the local checkout recovers the rest with the same merge-base diff GitHub
+    shows. A git failure raises, so a truncated list is never treated as whole.
+    """
+    expected = pr_info.get("changed_files")
+    if not isinstance(expected, int) or expected <= len(files):
+        return files
+    base_sha = (pr_info.get("base") or {}).get("sha")
+    head_sha = (pr_info.get("head") or {}).get("sha")
+    if not base_sha or not head_sha:
+        raise RuntimeError(f"PR file list truncated at {len(files)}; base or head SHA missing")
+    try:
+        result = subprocess.run(
+            ["git", "diff", "--name-only", "-z", f"{base_sha}...{head_sha}"],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=60,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired) as exc:
+        raise RuntimeError(f"PR file list truncated at {len(files)}; git diff failed") from exc
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"PR file list truncated at {len(files)}; git diff failed: {result.stderr}"
+        )
+    return [{"path": path} for path in result.stdout.split("\0") if path]
+
+
 def fetch_pr_data(pr_number: int, owner: str, repo: str) -> dict[str, Any]:
     """Fetch PR data (title, body, files, labels) via REST API calls.
 
@@ -307,7 +342,7 @@ def fetch_pr_data(pr_number: int, owner: str, repo: str) -> dict[str, Any]:
     if result.returncode != 0:
         raise RuntimeError(f"Failed to fetch PR #{pr_number} files: {result.stderr}")
     raw_files: list[dict[str, Any]] = json.loads(result.stdout)
-    files = [{"path": f["filename"]} for f in raw_files]
+    files = _complete_truncated_files(pr_info, [{"path": f["filename"]} for f in raw_files])
 
     # 3. Labels (paginated for safety). The pull payload already carries the
     # same labels, so retain it as a fallback when the issues endpoint rejects

@@ -47,7 +47,7 @@ jobs:
         with:
           filters: |
             planning:
-              - '.agents/planning/**'
+              - '.project-toolkit/planning/**'
               - 'build/scripts/validate_planning_artifacts.py'
               - '.github/workflows/validate-planning-artifacts.yml'
 
@@ -107,6 +107,6 @@ jobs:
           echo "Planning artifacts validation skipped - no planning files changed"
           echo ""
           echo "Paths that trigger validation:"
-          echo "  - .agents/planning/**"
+          echo "  - .project-toolkit/planning/**"
           echo "  - build/scripts/validate_planning_artifacts.py"
           echo "  - .github/workflows/validate-planning-artifacts.yml"

@@ -167,4 +167,4 @@ candidate-count, and malformed-batch costs.
 - Final implementation tip: `2b59d62b35ab5dabef576f6120e8c6c485e60218`.
 - Diff stat: 52 files changed, 9691 insertions, 4111 deletions.
 - Final QA verdict: PASS, recorded in
-  `.agents/qa/pr-3097-dispatcher-stdin-ceiling-test-report.md`.
+  `.project-toolkit/qa/pr-3097-dispatcher-stdin-ceiling-test-report.md`.

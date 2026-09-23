@@ -177,7 +177,7 @@ class TestRunValidations:
             sys.path[:] = sys_path_snapshot
 
     def test_agents_changed_with_session_log_runs_validator(self, tmp_path):
-        changed = ".agents/sessions/2025-01-01-session-01.json\n"
+        changed = ".project-toolkit/sessions/2025-01-01-session-01.json\n"
         validate_script = tmp_path / "scripts" / "validate_session_json.py"
         validate_script.parent.mkdir(parents=True)
         validate_script.write_text("# mock")
@@ -193,7 +193,7 @@ class TestRunValidations:
             run_validations(str(tmp_path), "main", "feat/branch")
 
     def test_agents_changed_session_validation_fails_exits_1(self, tmp_path):
-        changed = ".agents/sessions/2025-01-01-session-01.json\n"
+        changed = ".project-toolkit/sessions/2025-01-01-session-01.json\n"
         validate_script = tmp_path / "scripts" / "validate_session_json.py"
         validate_script.parent.mkdir(parents=True)
         validate_script.write_text("# mock")
@@ -212,7 +212,7 @@ class TestRunValidations:
 
     def test_session_log_read_from_branch_ref_not_working_tree(self, tmp_path):
         """Validate a branch session log even when it is not in the worktree."""
-        changed = ".agents/sessions/2025-01-01-session-01.json\n"
+        changed = ".project-toolkit/sessions/2025-01-01-session-01.json\n"
         validate_script = tmp_path / "scripts" / "validate_session_json.py"
         validate_script.parent.mkdir(parents=True)
         validate_script.write_text("# mock")
@@ -233,17 +233,17 @@ class TestRunValidations:
 
         assert len(validated_paths) == 1
         assert Path(validated_paths[0]).parent == (
-            tmp_path / ".agents" / "scratch" / "session-log-validation"
+            tmp_path / ".project-toolkit" / "scratch" / "session-log-validation"
         )
         assert not Path(validated_paths[0]).name.endswith("session-01.json")
 
     def test_session_log_missing_from_head_skips_validation(self, tmp_path, capsys):
         """Do not validate a stale worktree copy when the head lacks the log."""
-        changed = ".agents/sessions/2025-01-01-session-01.json\n"
+        changed = ".project-toolkit/sessions/2025-01-01-session-01.json\n"
         validate_script = tmp_path / "scripts" / "validate_session_json.py"
         validate_script.parent.mkdir(parents=True)
         validate_script.write_text("# mock")
-        stale = tmp_path / ".agents" / "sessions" / "2025-01-01-session-01.json"
+        stale = tmp_path / ".project-toolkit" / "sessions" / "2025-01-01-session-01.json"
         stale.parent.mkdir(parents=True, exist_ok=True)
         stale.write_text('{"stale": true}\n', encoding="utf-8")
         validator_ran = False
@@ -280,7 +280,7 @@ class TestRunValidations:
         self, tmp_path, capsys
     ):
         """A legacy log warning must not be followed by a missing-log warning."""
-        changed = ".agents/sessions/2026-05-10-session-1830.md\n"
+        changed = ".project-toolkit/sessions/2026-05-10-session-1830.md\n"
         with patch(
             "subprocess.run",
             return_value=_completed(stdout=changed, rc=0),
@@ -297,4 +297,4 @@ class TestRunValidations:
         ):
             run_validations(str(tmp_path), "main", "feat/branch")
         stderr = capsys.readouterr().err
-        assert "Could not create .agents directory" in stderr
+        assert "Could not create .project-toolkit directory" in stderr

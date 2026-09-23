@@ -158,7 +158,7 @@ def _extract_open_items(session_log: Path) -> list[str]:
 
     Supports the legacy ``work: [{description, status}, ...]`` shape, the
     current ``workLog`` schema, and the observed ``work: { tasks: [...] }``
-    shape (see ``.agents/sessions/2026-02-08-session-1194.json``).
+    shape (see ``.project-toolkit/sessions/2026-02-08-session-1194.json``).
     Items whose ``status`` is done/complete/completed are excluded.
     """
     items: list[str] = []
@@ -233,7 +233,7 @@ def main() -> None:
     project_path = Path(project_dir)
 
     # Get session log (supports cross-midnight sessions via yesterday fallback)
-    sessions_dir = str(project_path / ".agents" / "sessions")
+    sessions_dir = str(project_path / ".project-toolkit" / "sessions")
     session_log = get_recent_session_log(sessions_dir)
 
     session_log_name = session_log.name if session_log else "(none)"

@@ -58,7 +58,7 @@ grep "ADR-[0-9]" adr-reference-index.md | sed 's/.*ADR-\([0-9]*\).*/\1/' | sort 
 
 # Verify each ADR file exists
 for num in $(grep "ADR-[0-9]" index.md | sed 's/.*ADR-\([0-9]*\).*/\1/'); do
-  ls .agents/architecture/ADR-$num*.md || echo "MISSING: ADR-$num"
+  ls .project-toolkit/architecture/ADR-$num*.md || echo "MISSING: ADR-$num"
 done
 ```
 

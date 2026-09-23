@@ -169,11 +169,12 @@ def has_suppression(lines: list[str], rule: str) -> bool:
 
 
 def get_repo_files(directory: str) -> list[str]:
-    """Recursively collect files, skipping hidden dirs except .claude, .agents, .github."""
+    """Collect files, skipping hidden dirs except .claude, .agents, .project-toolkit, .github."""
     files = []
     for root, dirs, filenames in os.walk(directory):
         dirs[:] = [
-            d for d in dirs if not d.startswith(".") or d in (".claude", ".agents", ".github")
+            d for d in dirs
+            if not d.startswith(".") or d in (".claude", ".agents", ".project-toolkit", ".github")
         ]
         for filename in filenames:
             filepath = os.path.join(root, filename)

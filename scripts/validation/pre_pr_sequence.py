@@ -43,6 +43,7 @@ from active_plan_closeout import validate_active_plan_closeout
 from check_adr_lifecycle import validate_adr_lifecycle
 from check_adr_links import validate_adr_links
 from check_agent_tree_frontmatter import validate_agent_tree_frontmatter
+from check_agents_write_targets import validate_agents_write_targets
 from check_citation_freshness import validate_citation_freshness
 from check_doc_interpreter_portability import validate_doc_interpreter_portability
 from check_duplicate_test_helpers import validate_duplicate_test_helpers
@@ -282,6 +283,7 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # existed, and six violations still accumulated, because nothing read the
     # recipes.
     _Gate("Worktree Recipe Destinations", _root_only(validate_worktree_recipes)),
+    _Gate("Legacy .agents Write Targets", _root_only(validate_agents_write_targets)),
     # Advisory companion to the gate above: the same rule measured against the
     # machine rather than the tree. Reports worktrees sitting under /tmp
     # (including orphans git no longer lists) and a low /tmp free-space floor.
@@ -313,7 +315,7 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # disagreed and one sat a major below the declared floor; a review then
     # proposed aligning the correct one down.
     _Gate("CI Dependency Pins", _root_only(validate_ci_dependency_pins)),
-    # Ratcheted lifecycle gate over .agents/architecture/ADR-NNN-*.md (issue
+    # Ratcheted lifecycle gate over .project-toolkit/architecture/ADR-NNN-*.md (issue
     # #5191). Sits beside the DESIGN-REVIEW gate because both read frontmatter
     # in the same directory. Read-only: ADR-073 forbids rewriting prose.
     _Gate("ADR Lifecycle Frontmatter (ratchet)", _root_only(validate_adr_lifecycle)),
@@ -325,7 +327,7 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # (issue #5665). Sits with the other two ADR gates because it reads the same
     # frontmatter, but its subject is the consumer rather than the record: this
     # is the only one of the three that can fail on a file outside
-    # `.agents/architecture/`. Ratcheted, because 16 skills already declare a
+    # `.project-toolkit/architecture/`. Ratcheted, because 16 skills already declare a
     # retired record and a hard gate would red every push until they are
     # repointed.
     _Gate("Skill ADR Bindings (ratchet)", _root_only(validate_skill_adr_bindings)),
@@ -450,7 +452,7 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # config error (exit 2) still fails.
     _Gate("Model Pin Governance (warn)", _root_only(validate_model_pins)),
     # Advisory warning when every tracking issue on an active execution plan is
-    # closed, so stale plans do not silently refill .agents/plans/active/.
+    # closed, so stale plans do not silently refill .project-toolkit/plans/active/.
     # Issue #3426.
     _Gate("Active Plan Closeout Advisory", _root_only(validate_active_plan_closeout)),
     _Gate("YAML Style Validation", _root_only(validate_yaml_style), skip_when_quick=True),

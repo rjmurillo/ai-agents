@@ -175,7 +175,7 @@ Add spec references to your PR description to enable traceability:
 |:-------|:--------|
 | Reference requirements | `Implements REQ-001` |
 | Link issues | `Closes #123` |
-| Reference spec files | `.agents/specs/requirements/...` |
+| Reference spec files | `.project-toolkit/specs/requirements/...` |
 
 **Spec Requirement by PR Type:**
 

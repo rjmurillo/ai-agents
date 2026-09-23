@@ -115,7 +115,7 @@ matched the path, then suppressed the declared file. The other four scan
 skill scripts, Python, executable paths, or frontmatter, not body prose. None
 resolves paths named by a declaration. Verify the path resolves before writing
 it into a declaration. See
-`.agents/retrospective/2026-07-31-backticking-is-not-repair.md`.
+`.project-toolkit/retrospective/2026-07-31-backticking-is-not-repair.md`.
 
 ## Detection
 

@@ -47,7 +47,7 @@ Net: 4 prunes + 2 investigates + 1 decompose + 1 rename + 7 keeps.
 
 ## Artifacts
 
-- `.agents/analysis/skill-triage-2026-05-09.md` - full report
+- `.project-toolkit/analysis/skill-triage-2026-05-09.md` - full report
 - `evals/reports/skill-triage-20260509-135851/results.json` - raw scores
 - `evals/reports/skill-triage-20260509-135851/run.log` - full run log
 - `tests/evals/skills/triage-prompts.json` - 90 prompts authored

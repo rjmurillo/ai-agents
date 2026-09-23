@@ -1,6 +1,6 @@
 # ADR Template
 
-This project's canonical ADR template. Source: `.agents/architecture/ADR-TEMPLATE.md`.
+This project's canonical ADR template. Source: `.project-toolkit/architecture/ADR-TEMPLATE.md`.
 
 During Phase G2 (Research), the skill detects which template is in use at the destination. This template is the default for this project. For other template formats, see [adr-templates-catalog.md](adr-templates-catalog.md).
 
@@ -200,4 +200,4 @@ Include these additional sections only when the ADR is about an agent:
 | [Metric] | [Target] | [How to measure] |
 ```
 
-<!-- vendor-portability: declared. This bundled template names .agents/architecture/ADR-TEMPLATE.md as the project's canonical source it mirrors. The bundled copy is self-contained; a vendored install uses this file directly and the canonical path is provenance only. Issue #2050. -->
+<!-- vendor-portability: declared. This bundled template names .project-toolkit/architecture/ADR-TEMPLATE.md as the project's canonical source it mirrors. The bundled copy is self-contained; a vendored install uses this file directly and the canonical path is provenance only. Issue #2050. -->

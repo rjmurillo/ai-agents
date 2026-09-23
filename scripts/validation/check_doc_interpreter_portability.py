@@ -49,8 +49,8 @@ Scope:
   ``build/generate_agents.py`` printed a "To fix: Run ..." line naming the bare
   interpreter on every drift failure, which is the exact command that dies on a
   clean checkout.
-  * **Historical roots** (``.agents/sessions/``, ``.agents/retrospective/``,
-    ``.agents/architecture/``, and siblings). These are records of what was
+  * **Historical roots** (``.project-toolkit/sessions/``, ``.project-toolkit/retrospective/``,
+    ``.project-toolkit/architecture/``, and siblings). These are records of what was
     decided or done, not instructions to follow. Rewriting a session log or an
     ADR body to change a command it quotes would falsify the record.
   * **Generated mirrors** (``src/copilot-cli/``, ``src/vs-code-agents/``,
@@ -140,19 +140,19 @@ class ScanError(Exception):
 # Records, not instructions. A command quoted inside one of these describes what
 # was run at the time; changing it would rewrite the record.
 HISTORICAL_ROOTS: tuple[str, ...] = (
-    ".agents/analysis/",
+    ".project-toolkit/analysis/",
     ".agents/archive/",
-    ".agents/architecture/",
-    ".agents/audit/",
-    ".agents/audits/",
-    ".agents/critique/",
-    ".agents/devops/",
-    ".agents/planning/",
-    ".agents/projects/",
-    ".agents/qa/",
-    ".agents/retrospective/",
-    ".agents/sessions/",
-    ".agents/specs/",
+    ".project-toolkit/architecture/",
+    ".project-toolkit/audit/",
+    ".project-toolkit/audits/",
+    ".project-toolkit/critique/",
+    ".project-toolkit/devops/",
+    ".project-toolkit/planning/",
+    ".project-toolkit/projects/",
+    ".project-toolkit/qa/",
+    ".project-toolkit/retrospective/",
+    ".project-toolkit/sessions/",
+    ".project-toolkit/specs/",
     ".claude-mem/",
     ".serena/",
     "evals/",

@@ -473,7 +473,7 @@ catch {
 
 4. **PIV Report Template**
 
-Save to: `.agents/security/PIV-[feature].md`
+Save to: `.project-toolkit/security/PIV-[feature].md`
 
 ```markdown
 # Post-Implementation Verification: [Feature]
@@ -531,7 +531,7 @@ Save to: `.agents/security/PIV-[feature].md`
 
 #### Impact Analysis Deliverable
 
-Save to: `.agents/planning/impact-analysis-security-[feature].md`
+Save to: `.project-toolkit/planning/impact-analysis-security-[feature].md`
 
 ```markdown
 # Impact Analysis: [Feature] - Security
@@ -687,7 +687,7 @@ For `.ps1`/`.psm1` review, apply the input-validation, command-injection (CWE-77
 
 ## Threat Model Format
 
-Save threat models to `.agents/security/TM-NNN-[feature].md`. Use the Assets / Threat Actors / Attack Vectors / STRIDE / Data Flow / Controls template in the bundled `threat-model-template.md` reference.
+Save threat models to `.project-toolkit/security/TM-NNN-[feature].md`. Use the Assets / Threat Actors / Attack Vectors / STRIDE / Data Flow / Controls template in the bundled `threat-model-template.md` reference.
 
 ## Security Report Length Bounds
 
@@ -702,7 +702,7 @@ A report that exceeds these caps signals either fan-out across unrelated scopes 
 
 ## Security Report Format
 
-Save to: `.agents/security/SR-NNN-[scope].md`
+Save to: `.project-toolkit/security/SR-NNN-[scope].md`
 
 ```markdown
 # Security Report: [Scope]
@@ -734,7 +734,7 @@ Save to: `.agents/security/SR-NNN-[scope].md`
 
 When security review is complete:
 
-1. Save threat model/assessment to `.agents/security/`
+1. Save threat model/assessment to `.project-toolkit/security/`
 2. Store findings in memory
 3. Return to orchestrator with risk level and recommended next steps
 

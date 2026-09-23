@@ -42,7 +42,7 @@ Stricter/looser/different than canonical:
   documented in ADR-002, not copied from another validator. The numeric
   threshold comparison is novel to this check. The only shared contract is
   the ADR-035 exit-code table (0 ok, 1 logic, 2 config), quoted above
-  verbatim from ``.agents/architecture/ADR-035-exit-code-standardization.md``.
+  verbatim from ``.project-toolkit/architecture/ADR-035-exit-code-standardization.md``.
   This check is LOOSER than the "Validate Spec Coverage" CI gate: it inspects
   only the model-tier and numeric-threshold axes, where that gate reads the
   whole spec. It is also advisory when invoked from ``pre_pr.py`` (the

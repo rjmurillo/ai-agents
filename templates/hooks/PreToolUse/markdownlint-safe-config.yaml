@@ -129,6 +129,7 @@ ignores:
   - ".work-*/**"
   # Internal tooling outputs and provider caches: not authored .md.
   - ".agents/**"
+  - ".project-toolkit/**"
   - ".serena/**"
   - ".claude-mem/**"
   - ".diffray/**"

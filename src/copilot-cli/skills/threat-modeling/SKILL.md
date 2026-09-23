@@ -23,10 +23,10 @@ Systematic identification, documentation, and mitigation of security threats.
 
 | Input | Output | Destination |
 |-------|--------|-------------|
-| Architecture diagram or description | Threat matrix with STRIDE categories | `.agents/security/threat-models/` |
-| Component list | Trust boundary analysis | `.agents/security/threat-models/` |
-| Data flow description | Data flow diagram threats | `.agents/security/threat-models/` |
-| Prior threat model | Updated model with delta analysis | `.agents/security/threat-models/` |
+| Architecture diagram or description | Threat matrix with STRIDE categories | `.project-toolkit/security/threat-models/` |
+| Component list | Trust boundary analysis | `.project-toolkit/security/threat-models/` |
+| Data flow description | Data flow diagram threats | `.project-toolkit/security/threat-models/` |
+| Prior threat model | Updated model with delta analysis | `.project-toolkit/security/threat-models/` |
 
 ---
 
@@ -185,7 +185,7 @@ Use the generate script to create a structured matrix:
 ```bash
 python .claude/skills/threat-modeling/scripts/generate_threat_matrix.py \
     --scope "Authentication Service" \
-    --output .agents/security/threat-models/auth-threats.md
+    --output .project-toolkit/security/threat-models/auth-threats.md
 ```
 
 **Manual Format:**
@@ -276,8 +276,8 @@ For each threat, document:
 
 ```bash
 python .claude/skills/threat-modeling/scripts/generate_mitigation_roadmap.py \
-    --input .agents/security/threat-models/auth-threats.md \
-    --output .agents/security/threat-models/auth-roadmap.md
+    --input .project-toolkit/security/threat-models/auth-threats.md \
+    --output .project-toolkit/security/threat-models/auth-roadmap.md
 ```
 
 ---
@@ -292,7 +292,7 @@ Run the validation script:
 
 ```bash
 python .claude/skills/threat-modeling/scripts/validate_threat_model.py \
-    .agents/security/threat-models/auth-threats.md
+    .project-toolkit/security/threat-models/auth-threats.md
 ```
 
 **Validation Checks:**
@@ -480,4 +480,4 @@ Exit code 0 indicates a valid, complete threat model.
 | `codeql-scan` | Validates code against identified threats |
 | `adr-review` | Security agent reviews architecture decisions |
 
-<!-- vendor-portability: declared. This skill writes STRIDE threat models to .agents/security/threat-models/. The path is a write target created on demand; a vendored install writes the consumer's own threat models there rather than failing. Issue #2050. -->
+<!-- vendor-portability: declared. This skill writes STRIDE threat models to .project-toolkit/security/threat-models/. The path is a write target created on demand; a vendored install writes the consumer's own threat models there rather than failing. Issue #2050. -->

@@ -52,8 +52,8 @@ uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"/skills/or
 
 | Flag | Purpose | Default |
 |---|---|---|
-| `--targets` | Files or directories to scan | tracked `.md`, `.json`, `.yaml`, and `.yml` files under `.agents/specs/`, `.claude/rules/`, `.github/instructions/`, `src/copilot-cli/instructions/`, and `tests/`, plus plugin manifest JSON files |
-| `--include-adrs` | Add `.agents/architecture/` and `docs/` to defaults (opt-in) | off |
+| `--targets` | Files or directories to scan | tracked `.md`, `.json`, `.yaml`, and `.yml` files under `.project-toolkit/specs/`, `.claude/rules/`, `.github/instructions/`, `src/copilot-cli/instructions/`, and `tests/`, plus plugin manifest JSON files |
+| `--include-adrs` | Add `.project-toolkit/architecture/` and `docs/` to defaults (opt-in) | off |
 | `--include-skill-descriptions` | Add `.claude/skills/*/SKILL.md` to defaults (opt-in until preexisting drift is cleaned) | off |
 | `--allow-missing-targets` | Treat missing targets as optional vendored-install paths | off |
 | `--allow-empty-scan` | Permit `PASS` after scanning zero files | off |
@@ -286,7 +286,7 @@ uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"/skills/or
     --output human
 ```
 
-This adds `.agents/architecture/`, `docs/`, and every `.claude/skills/*/SKILL.md` to the scan. The output is intentionally noisy on first run because preexisting drift surfaces; treat it as a triage list, not a `/build` gate.
+This adds `.project-toolkit/architecture/`, `docs/`, and every `.claude/skills/*/SKILL.md` to the scan. The output is intentionally noisy on first run because preexisting drift surfaces; treat it as a triage list, not a `/build` gate.
 
 ## Examples
 
@@ -365,11 +365,11 @@ Repos that want a tighter feedback loop can add a pre-push hook that runs the sk
 
 ## References
 
-- REQ-009, DESIGN-009, TASK-009 (specs in `.agents/specs/`)
+- REQ-009, DESIGN-009, TASK-009 (specs in `.project-toolkit/specs/`)
 - ADR-035 (exit codes)
 - ADR-042 (Python first)
 - ADR-056 (skill output envelope)
 - `.claude/rules/canonical-source-mirror.md` (citation policy)
 - Companion validators: `build/scripts/validate_plugin_manifests.py`
 
-<!-- vendor-portability: declared. This skill already degrades gracefully: it states that when a target path such as .agents/ is absent it logs INFO and continues. The .agents/specs/ and .agents/architecture/ defaults are scan targets, not preconditions; a vendored install scans only the paths that exist. Issue #2050. -->
+<!-- vendor-portability: declared. This skill already degrades gracefully: it states that when a target path such as .agents/ is absent it logs INFO and continues. The .project-toolkit/specs/ and .project-toolkit/architecture/ defaults are scan targets, not preconditions; a vendored install scans only the paths that exist. Issue #2050. -->

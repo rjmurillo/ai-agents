@@ -115,27 +115,27 @@ that introduced the condition.
 
 | Phrase | Gate condition | Source |
 |---|---|---|
-| `would be nice` | Aspirational demand | `.agents/specs/requirements/REQ-016-spec-step0-first-principles-gate.md` retrospective audit and REQ-016-04 |
-| `would be useful` | Aspirational demand | `.agents/specs/requirements/REQ-016-spec-step0-first-principles-gate.md` retrospective audit and REQ-016-04 |
-| `would be helpful` | Aspirational demand | `.agents/specs/requirements/REQ-016-spec-step0-first-principles-gate.md` retrospective audit and REQ-016-04 |
-| `we believe` | Belief without observation | `.agents/specs/requirements/REQ-016-spec-step0-first-principles-gate.md` retrospective audit and REQ-016-03 |
-| `we expect` | Prediction without observation | `.agents/specs/requirements/REQ-016-spec-step0-first-principles-gate.md` retrospective audit and REQ-016-03 |
-| `we anticipate` | Prediction without observation | `.agents/specs/requirements/REQ-016-spec-step0-first-principles-gate.md` retrospective audit and REQ-016-03 |
-| `we predict` | Prediction without observation | `.agents/specs/requirements/REQ-016-spec-step0-first-principles-gate.md` retrospective audit and REQ-016-03 |
-| `we hope` | Aspiration without demand | `.agents/specs/requirements/REQ-016-spec-step0-first-principles-gate.md` retrospective audit and REQ-016-04 |
-| `we assume` | Unverified premise | `.agents/specs/requirements/REQ-016-spec-step0-first-principles-gate.md` retrospective audit and `.agents/retrospective/2025-12-26-prd-planning-workflow.md` |
-| `stakeholders want` | Unnamed requester | `.agents/specs/requirements/REQ-016-spec-step0-first-principles-gate.md` retrospective audit and REQ-016-04 |
-| `users want` | Unnamed requester | `.agents/specs/requirements/REQ-016-spec-step0-first-principles-gate.md` retrospective audit and REQ-016-04 |
-| `customers want` | Unnamed requester | `.agents/specs/requirements/REQ-016-spec-step0-first-principles-gate.md` retrospective audit and REQ-016-04 |
-| `should we` | Self-questioning in place of commitment | `.agents/specs/requirements/REQ-016-spec-step0-first-principles-gate.md` retrospective audit and `.agents/retrospective/2026-05-05-pr-1887-iteration-paradox.md` |
-| `might be useful` | Speculative value | `.agents/specs/requirements/REQ-016-spec-step0-first-principles-gate.md` retrospective audit and REQ-016-03 |
-| `might be needed` | Speculative need | `.agents/specs/requirements/REQ-016-spec-step0-first-principles-gate.md` retrospective audit and REQ-016-03 |
-| `could be useful` | Speculative value | `.agents/specs/requirements/REQ-016-spec-step0-first-principles-gate.md` retrospective audit and REQ-016-03 |
-| `probably` | Unverified confidence | `.agents/specs/requirements/REQ-016-spec-step0-first-principles-gate.md` retrospective audit and `.agents/retrospective/2026-01-03-adr-generation-quality.md` |
-| `eventually` | Indefinite future | `.agents/specs/requirements/REQ-016-spec-step0-first-principles-gate.md` retrospective audit and REQ-016-13 review cadence |
-| `someday` | Indefinite future | `.agents/specs/requirements/REQ-016-spec-step0-first-principles-gate.md` retrospective audit and REQ-016-13 review cadence |
-| `down the road` | Indefinite future | `.agents/specs/requirements/REQ-016-spec-step0-first-principles-gate.md` retrospective audit and REQ-016-13 review cadence |
-| `nice to have` | Low-priority aspiration | `.agents/retrospective/2025-12-15-documentation-gap.md` and REQ-016-04 |
+| `would be nice` | Aspirational demand | `.project-toolkit/specs/requirements/REQ-016-spec-step0-first-principles-gate.md` retrospective audit and REQ-016-04 |
+| `would be useful` | Aspirational demand | `.project-toolkit/specs/requirements/REQ-016-spec-step0-first-principles-gate.md` retrospective audit and REQ-016-04 |
+| `would be helpful` | Aspirational demand | `.project-toolkit/specs/requirements/REQ-016-spec-step0-first-principles-gate.md` retrospective audit and REQ-016-04 |
+| `we believe` | Belief without observation | `.project-toolkit/specs/requirements/REQ-016-spec-step0-first-principles-gate.md` retrospective audit and REQ-016-03 |
+| `we expect` | Prediction without observation | `.project-toolkit/specs/requirements/REQ-016-spec-step0-first-principles-gate.md` retrospective audit and REQ-016-03 |
+| `we anticipate` | Prediction without observation | `.project-toolkit/specs/requirements/REQ-016-spec-step0-first-principles-gate.md` retrospective audit and REQ-016-03 |
+| `we predict` | Prediction without observation | `.project-toolkit/specs/requirements/REQ-016-spec-step0-first-principles-gate.md` retrospective audit and REQ-016-03 |
+| `we hope` | Aspiration without demand | `.project-toolkit/specs/requirements/REQ-016-spec-step0-first-principles-gate.md` retrospective audit and REQ-016-04 |
+| `we assume` | Unverified premise | `.project-toolkit/specs/requirements/REQ-016-spec-step0-first-principles-gate.md` retrospective audit and `.project-toolkit/retrospective/2025-12-26-prd-planning-workflow.md` |
+| `stakeholders want` | Unnamed requester | `.project-toolkit/specs/requirements/REQ-016-spec-step0-first-principles-gate.md` retrospective audit and REQ-016-04 |
+| `users want` | Unnamed requester | `.project-toolkit/specs/requirements/REQ-016-spec-step0-first-principles-gate.md` retrospective audit and REQ-016-04 |
+| `customers want` | Unnamed requester | `.project-toolkit/specs/requirements/REQ-016-spec-step0-first-principles-gate.md` retrospective audit and REQ-016-04 |
+| `should we` | Self-questioning in place of commitment | `.project-toolkit/specs/requirements/REQ-016-spec-step0-first-principles-gate.md` retrospective audit and `.project-toolkit/retrospective/2026-05-05-pr-1887-iteration-paradox.md` |
+| `might be useful` | Speculative value | `.project-toolkit/specs/requirements/REQ-016-spec-step0-first-principles-gate.md` retrospective audit and REQ-016-03 |
+| `might be needed` | Speculative need | `.project-toolkit/specs/requirements/REQ-016-spec-step0-first-principles-gate.md` retrospective audit and REQ-016-03 |
+| `could be useful` | Speculative value | `.project-toolkit/specs/requirements/REQ-016-spec-step0-first-principles-gate.md` retrospective audit and REQ-016-03 |
+| `probably` | Unverified confidence | `.project-toolkit/specs/requirements/REQ-016-spec-step0-first-principles-gate.md` retrospective audit and `.project-toolkit/retrospective/2026-01-03-adr-generation-quality.md` |
+| `eventually` | Indefinite future | `.project-toolkit/specs/requirements/REQ-016-spec-step0-first-principles-gate.md` retrospective audit and REQ-016-13 review cadence |
+| `someday` | Indefinite future | `.project-toolkit/specs/requirements/REQ-016-spec-step0-first-principles-gate.md` retrospective audit and REQ-016-13 review cadence |
+| `down the road` | Indefinite future | `.project-toolkit/specs/requirements/REQ-016-spec-step0-first-principles-gate.md` retrospective audit and REQ-016-13 review cadence |
+| `nice to have` | Low-priority aspiration | `.project-toolkit/retrospective/2025-12-15-documentation-gap.md` and REQ-016-04 |
 
 ## References
 
@@ -143,5 +143,5 @@ that introduced the condition.
   gate and hedge-phrase table.
 - [`tests/commands/step0_parser.py`](../../tests/commands/step0_parser.py).
   Deterministic test parser and `HEDGE_TECHNICAL_SUFFIXES` exemption table.
-- [`.agents/specs/requirements/REQ-016-spec-step0-first-principles-gate.md`](../../.agents/specs/requirements/REQ-016-spec-step0-first-principles-gate.md).
+- [`.project-toolkit/specs/requirements/REQ-016-spec-step0-first-principles-gate.md`](../../.project-toolkit/specs/requirements/REQ-016-spec-step0-first-principles-gate.md).
   Requirement and retrospective audit that introduced Step 0.

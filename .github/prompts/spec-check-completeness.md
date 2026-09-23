@@ -175,7 +175,7 @@ is misfiled evidence, not a gap in the implementation.
 ## Ontology Coverage (issue #1925)
 
 The specification may carry a domain ontology. The canonical OntologyFragment lives
-at `.agents/specs/ontology/<feature-slug>.md` (seven `## O1..O7` sections), and each
+at `.project-toolkit/specs/ontology/<feature-slug>.md` (seven `## O1..O7` sections), and each
 `REQ-NNN-{slug}.md` may render an `## Ontology` body section naming the entities it
 touches. When an ontology is present, fold these two checks into the existing
 PASS/PARTIAL/FAIL verdict. Do NOT introduce a new top-level verdict token: the CI
@@ -201,7 +201,7 @@ local degraded-run evidence, not a canonical source; record the ontology checks 
    as a minor gap (lean PARTIAL); treat a requirement whose primary entity is
    entirely absent from the OntologyFragment as a critical gap (lean FAIL).
 2. **Decision-rule traceability**: when an OntologyFragment exists, every domain decision rule in
-   `.agents/specs/design/DESIGN-NNN-{slug}.md` should trace to an `## O5`
+   `.project-toolkit/specs/design/DESIGN-NNN-{slug}.md` should trace to an `## O5`
    decision-rule source in the OntologyFragment. An unsourced decision rule is a
    PARTIAL-level gap.
 

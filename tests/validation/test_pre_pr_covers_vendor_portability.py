@@ -36,7 +36,7 @@ Negative controls, each verified to fail before shipping:
 
 The job is not one of the ruleset's nine required status checks. It still
 blocks: ``test_pr_merge_ready.py`` refuses to merge on a failed non-required
-check with no entry in ``.agents/pr-checks/dispositions.json``.
+check with no entry in ``.project-toolkit/pr-checks/dispositions.json``.
 """
 
 from __future__ import annotations

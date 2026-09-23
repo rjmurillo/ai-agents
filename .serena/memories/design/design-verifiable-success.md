@@ -25,7 +25,7 @@ Add expected deliverables with format/location
 
 | Deliverable | Location | Format |
 |-------------|----------|--------|
-| Analysis report | `.agents/analysis/` | Markdown with options table |
+| Analysis report | `.project-toolkit/analysis/` | Markdown with options table |
 | Test results | stdout | PASS/FAIL with evidence |
 | Updated config | `path/to/file` | Valid YAML |
 ```

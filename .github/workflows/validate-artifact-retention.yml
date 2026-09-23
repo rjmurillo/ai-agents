@@ -7,7 +7,7 @@
 # merge rather than detected by the pytest gate (which only fires on Python
 # file changes).
 #
-# Related: ADR-015 (.agents/architecture/ADR-015-artifact-storage-minimization.md)
+# Related: ADR-015 (.project-toolkit/architecture/ADR-015-artifact-storage-minimization.md)
 # Gate script: scripts/ci/adr015_workflow_retention.py
 # Test: tests/ci/test_adr015_workflow_retention.py
 # Issue: #3981

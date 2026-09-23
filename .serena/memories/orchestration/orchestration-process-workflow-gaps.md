@@ -68,12 +68,12 @@ Learned from PR #41 CI fix analysis (2025-12-15).
 
 ## Skill-Process-ReadPRD-001
 
-- **Statement**: Before modifying agent files, read .agents/planning/ PRD and implementation plan
+- **Statement**: Before modifying agent files, read .project-toolkit/planning/ PRD and implementation plan
 - **Context**: When modifying agent system files
 - **Evidence**: Drift detection disaster - failure to read PRD caused entire wrong-direction implementation where Claude was modified to match templates (backwards)
 - **Atomicity**: 95%
 - **Tag**: harmful (when skipped)
-- **Source**: `.agents/retrospective/2025-12-15-drift-detection-disaster.md`
+- **Source**: `.project-toolkit/retrospective/2025-12-15-drift-detection-disaster.md`
 - **Trigger**: Before modifying agent system files
 
 ## Skill-Process-DriftInterpretation-001
@@ -83,7 +83,7 @@ Learned from PR #41 CI fix analysis (2025-12-15).
 - **Evidence**: Misinterpreted "drift detected" as "Claude needs fixing" when PRD explicitly stated Claude is source of truth
 - **Atomicity**: 92%
 - **Tag**: helpful
-- **Source**: `.agents/retrospective/2025-12-15-drift-detection-disaster.md`
+- **Source**: `.project-toolkit/retrospective/2025-12-15-drift-detection-disaster.md`
 
 ## Skill-Process-ClarifySourceOfTruth-001
 
@@ -92,7 +92,7 @@ Learned from PR #41 CI fix analysis (2025-12-15).
 - **Evidence**: User message "Claude templates may need to be updated" was ambiguous; clarification would have prevented wrong-direction implementation
 - **Atomicity**: 90%
 - **Tag**: helpful
-- **Source**: `.agents/retrospective/2025-12-15-drift-detection-disaster.md`
+- **Source**: `.project-toolkit/retrospective/2025-12-15-drift-detection-disaster.md`
 
 ## Skill-Process-BaselineTriage-001
 
@@ -101,7 +101,7 @@ Learned from PR #41 CI fix analysis (2025-12-15).
 - **Evidence**: Validation script found 14 pre-existing issues requiring separate triage to avoid scope creep
 - **Atomicity**: 92%
 - **Tag**: helpful
-- **Source**: `.agents/retrospective/phase1-remediation-pr43.md`
+- **Source**: `.project-toolkit/retrospective/phase1-remediation-pr43.md`
 - **Mitigation**: Baseline snapshot, exception list, gradual rollout
 
 ## Skill-Process-AutoTrigger-Check-001
@@ -154,11 +154,11 @@ After creating artifact with expected triggers:
 
 ## Related Documents
 
-- Analysis: `.agents/analysis/pr41-issue-analysis.md`
+- Analysis: `.project-toolkit/analysis/pr41-issue-analysis.md`
 - PRD: `.agents/archive/planning/prd-pre-pr-security-gate.md`
-- Retrospective: `.agents/retrospective/2025-12-15-pr41-ci-fix-workflow-analysis.md`
-- Retrospective: `.agents/retrospective/2025-12-15-drift-detection-disaster.md`
-- Retrospective: `.agents/retrospective/phase1-remediation-pr43.md`
+- Retrospective: `.project-toolkit/retrospective/2025-12-15-pr41-ci-fix-workflow-analysis.md`
+- Retrospective: `.project-toolkit/retrospective/2025-12-15-drift-detection-disaster.md`
+- Retrospective: `.project-toolkit/retrospective/phase1-remediation-pr43.md`
 - Issue: #42
 
 ## Related

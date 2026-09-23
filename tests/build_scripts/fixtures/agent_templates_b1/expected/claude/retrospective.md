@@ -720,7 +720,7 @@ All learnings scored 0-100%.
 
 ### Learning Extraction Template
 
-Save to: `.agents/retrospective/YYYY-MM-DD-[scope].md`
+Save to: `.project-toolkit/retrospective/YYYY-MM-DD-[scope].md`
 
 ````markdown
 # Retrospective: [Scope]
@@ -1361,7 +1361,7 @@ Execution --> Reflection --> Skill Update --> Improved Execution
 
 When retrospective is complete:
 
-1. Save retrospective document to `.agents/retrospective/`
+1. Save retrospective document to `.project-toolkit/retrospective/`
 2. Return learnings and recommended skill updates to orchestrator
 3. Recommend orchestrator routes to skillbook for skill persistence (if applicable)
 
@@ -1403,7 +1403,7 @@ When retrospective is complete:
 |-----------|------|--------|
 | git add | `.serena/memories/skills-[topic].md` | [New/updated skills] |
 | git add | `.serena/memories/[other].md` | [Reason] |
-| git add | `.agents/retrospective/[file].md` | Retrospective artifact |
+| git add | `.project-toolkit/retrospective/[file].md` | Retrospective artifact |
 
 ### Handoff Summary
 
@@ -1444,7 +1444,7 @@ When retrospective is complete:
 |-----------|------|--------|
 | git add | `.serena/memories/skills-ci-infrastructure.md` | Updated with 2 skills |
 | git add | `.serena/memories/learnings-2025-12.md` | New monthly learnings |
-| git add | `.agents/retrospective/2025-12-18-workflow-retro.md` | Retrospective artifact |
+| git add | `.project-toolkit/retrospective/2025-12-18-workflow-retro.md` | Retrospective artifact |
 
 ### Handoff Summary
 

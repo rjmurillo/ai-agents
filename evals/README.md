@@ -41,7 +41,7 @@ evals/
 ## Cross-references
 
 - Plan: `.agents/archive/plans/PLAN-1854-agent-eval-harness-spike.md`
-- Spec: `.agents/specs/requirements/REQ-004-agent-eval-harness-spike.md`
-- Design: `.agents/specs/design/DESIGN-004-agent-eval-harness-spike.md`
-- Task: `.agents/specs/tasks/TASK-004-agent-eval-harness-spike.md`
-- ADR-057: `.agents/architecture/ADR-057-prompt-behavioral-evaluation.md`
+- Spec: `.project-toolkit/specs/requirements/REQ-004-agent-eval-harness-spike.md`
+- Design: `.project-toolkit/specs/design/DESIGN-004-agent-eval-harness-spike.md`
+- Task: `.project-toolkit/specs/tasks/TASK-004-agent-eval-harness-spike.md`
+- ADR-057: `.project-toolkit/architecture/ADR-057-prompt-behavioral-evaluation.md`

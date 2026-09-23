@@ -109,7 +109,7 @@ class TestValidateMarkdownLint:
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
 
-        target = tmp_path / ".agents" / "analysis" / "p2" / "x.md"
+        target = tmp_path / ".project-toolkit" / "analysis" / "p2" / "x.md"
         target.parent.mkdir(parents=True)
         target.write_text("not a heading\n- missing blank before list\n", encoding="utf-8")
 
@@ -122,7 +122,7 @@ class TestValidateMarkdownLint:
                 )
                 assert validate_markdown_lint(
                     tmp_path,
-                    explicit_targets=[".agents/analysis/p2/x.md"],
+                    explicit_targets=[".project-toolkit/analysis/p2/x.md"],
                 ) is True
 
         mock_run.assert_called_once_with(
@@ -131,7 +131,7 @@ class TestValidateMarkdownLint:
                 "markdownlint-cli2@0.23.1",
                 "--fix",
                 "--",
-                ".agents/analysis/p2/x.md",
+                ".project-toolkit/analysis/p2/x.md",
             ],
             cwd=tmp_path,
         )
@@ -343,7 +343,7 @@ class TestMarkdownLintReportsWhatItActuallyChecked:
     ) -> None:
         outcome, out = self._run(
             tmp_path,
-            [".agents/analysis/notes.md"],
+            [".project-toolkit/analysis/notes.md"],
             (0, _clean_stdout(0), ""),
             capsys,
         )
@@ -367,7 +367,7 @@ class TestMarkdownLintReportsWhatItActuallyChecked:
     ) -> None:
         outcome, out = self._run(
             tmp_path,
-            ["README.md", ".agents/analysis/notes.md"],
+            ["README.md", ".project-toolkit/analysis/notes.md"],
             (0, _clean_stdout(1), ""),
             capsys,
         )

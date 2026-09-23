@@ -21,7 +21,7 @@
 - Connection strings: `(password|pwd)=[^;]+`
 - API keys: `(api_key|apikey)=[A-Za-z0-9]+`
 
-**Source**: `.agents/security/secret-detection-patterns.md`
+**Source**: `.project-toolkit/security/secret-detection-patterns.md`
 
 ---
 

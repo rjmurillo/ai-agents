@@ -57,7 +57,7 @@ Pick the recipe from the selector table. Each recipe states when to use it, the 
 
 ### Recipe 2: Guard and Threshold Calibration
 
-**When to use**: before shipping ANY detector, guard, or numeric threshold (file counts, thread counts, rework counts, similarity percentages). This repo's rule: a detector that cannot fire on the last 5 real PRs is not calibrated (`.agents/retrospective/2026-05-10-pr-1989-recursive-failure.md:153`).
+**When to use**: before shipping ANY detector, guard, or numeric threshold (file counts, thread counts, rework counts, similarity percentages). This repo's rule: a detector that cannot fire on the last 5 real PRs is not calibrated (`.project-toolkit/retrospective/2026-05-10-pr-1989-recursive-failure.md:153`).
 
 **Steps**:
 
@@ -78,7 +78,7 @@ Pick the recipe from the selector table. Each recipe states when to use it, the 
 
 ### Recipe 3: Behavioral A/B via Eval Harness
 
-**When to use**: any claim that a prompt, rule, or agent change improves behavior. "Reads better" is not evidence. ADR-057 (`.agents/architecture/ADR-057-prompt-behavioral-evaluation.md`) defines the acceptance gate; the harness lives in `scripts/eval/`.
+**When to use**: any claim that a prompt, rule, or agent change improves behavior. "Reads better" is not evidence. ADR-057 (`.project-toolkit/architecture/ADR-057-prompt-behavioral-evaluation.md`) defines the acceptance gate; the harness lives in `scripts/eval/`.
 
 **Steps**:
 
@@ -157,7 +157,7 @@ Pick the recipe from the selector table. Each recipe states when to use it, the 
 
 | Anti-pattern | Why it burned us | Evidence |
 |--------------|------------------|----------|
-| Assuming a name or behavior by analogy to a sibling tool | First #2205 fix invented `COPILOT_PLUGIN_ROOT` by analogy; happened to exist, was unverified for a full release | `.agents/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md:49` |
+| Assuming a name or behavior by analogy to a sibling tool | First #2205 fix invented `COPILOT_PLUGIN_ROOT` by analogy; happened to exist, was unverified for a full release | `.project-toolkit/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md:49` |
 | Self-referential tests (test asserts the author's own output) | Passed while every customer install was wedged | same retro, `:83` |
 | Shipping thresholds chosen by intuition | M4 threshold 6 vs repo max 4: could never fire | `2026-05-10-pr-1989-recursive-failure.md:70` |
 | Building guards without asking "would this have caught real history?" | #1887 guards: 0/35 of their own fix commits prevented | `2026-05-05-pr-1887-iteration-paradox.md:199` |

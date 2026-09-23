@@ -10,7 +10,7 @@ checkout and in every linked worktree, which share one config.
 Measured cost: this repository sat in that state, so the generated-file
 hand-edit on PR #5059 reached CI instead of being refused at push time by the
 ``build-all-check`` pre-push job. It is not a one-time slip either.
-``.agents/sessions/2026-07-19-session-3182-githooks-activation.json`` records
+``.project-toolkit/sessions/2026-07-19-session-3182-githooks-activation.json`` records
 the same repair on 2026-07-19, after which the setting drifted back. A
 condition that recurs needs detection, not another manual fix. Issue #5090.
 

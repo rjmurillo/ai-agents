@@ -1811,7 +1811,7 @@ class TestIssue3464RealEpisode:
         repo_root = Path(__file__).resolve().parents[3]
         session_log = (
             repo_root
-            / ".agents"
+            / ".project-toolkit"
             / "sessions"
             / ("2026-07-27-session-3459-templates-portability.json")
         )
@@ -1835,7 +1835,7 @@ class TestIssue3464RealEpisode:
 
 SESSION_DAY = "2026-05-11"
 # Evening before the labelled session day, in a timezone seven hours behind UTC.
-# This is the real shape of .agents/sessions/2026-05-11-session-1832.json, whose
+# This is the real shape of .project-toolkit/sessions/2026-05-11-session-1832.json, whose
 # own commits carry 2026-05-10T20:4x-07:00. See TestPredatingProseShaExclusion.
 EVENING_BEFORE = "2026-05-10T20:42:03-07:00"
 SESSION_DAY_NOON = "2026-05-11T12:00:00+00:00"
@@ -2324,7 +2324,7 @@ class TestFilesChangedPrefersTheStagedDiff:
         for i in range(staged):
             (repo / f"staged{i}.txt").write_text(f"{i}\n", encoding="utf-8")
         _git(repo, "add", "-A")
-        logs = repo / ".agents" / "sessions"
+        logs = repo / ".project-toolkit" / "sessions"
         logs.mkdir(parents=True)
         log = logs / f"{SESSION_DAY}-session-99.json"
         data = _json_log([{"phase": "implementation", "summary": action}])
@@ -2477,7 +2477,7 @@ class TestValidateModeRejectsUnusableEventIds:
     at rest cover different files; neither subsumes the other.
 
     The check found a real one on introduction:
-    `.agents/memory/episodes/episode-2026-05-31-session-1857.json` shipped a
+    `.project-toolkit/memory/episodes/episode-2026-05-31-session-1857.json` shipped a
     list starting at `e002`, exactly as the issue reported. It is repaired in
     the same change.
     """
@@ -2576,7 +2576,7 @@ class TestValidateModeRejectsUnusableEventIds:
         episode may land with ids that tooling cannot index or with a commit
         chain that runs backwards in committer time (issue #3765).
         """
-        store = Path(__file__).resolve().parents[3] / ".agents" / "memory" / "episodes"
+        store = Path(__file__).resolve().parents[3] / ".project-toolkit" / "memory" / "episodes"
         if not store.is_dir():
             pytest.skip("episode store not present")
         event_id_problems = [

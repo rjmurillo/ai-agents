@@ -37,7 +37,7 @@ Since subagents cannot delegate, milestone-planner creates the analysis plan and
 
 ## Impact Analysis Outputs
 
-Each specialist creates: `.agents/planning/impact-analysis-[domain]-[feature].md`
+Each specialist creates: `.project-toolkit/planning/impact-analysis-[domain]-[feature].md`
 
 ## Domain Identification
 

@@ -97,7 +97,7 @@ Output format for results.
   "Results": [...],
   "Diagnostic": {
     "Serena": { "Available": true, "Path": ".serena/memories" },
-    "Episodes": { "Available": true, "Path": ".agents/memory/episodes" }
+    "Episodes": { "Available": true, "Path": ".project-toolkit/memory/episodes" }
   }
 }
 ```
@@ -136,7 +136,7 @@ array-handling          Episodes  0.85  Common array gotchas include...
     },
     "Episodes": {
       "Available": true,
-      "Path": ".agents/memory/episodes"
+      "Path": ".project-toolkit/memory/episodes"
     }
   }
 }

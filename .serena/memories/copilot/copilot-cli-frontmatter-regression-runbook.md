@@ -117,8 +117,8 @@ npm-loader.js delegates to a platform-specific binary that auto-updates independ
 
 ## Related Files
 
-- Current policy: `.agents/architecture/ADR-094-govern-copilot-cli-compatibility.md`
-- Historical decision: `.agents/architecture/ADR-044-copilot-cli-frontmatter-compatibility.md`
+- Current policy: `.project-toolkit/architecture/ADR-094-govern-copilot-cli-compatibility.md`
+- Historical decision: `.project-toolkit/architecture/ADR-044-copilot-cli-frontmatter-compatibility.md`
 - CI action: `.github/actions/ai-review/action.yml`
 - Platform configs: `templates/platforms/copilot-cli.yaml`, `templates/platforms/vscode.yaml`
 - Build system: `build/Generate-Agents.Common.psm1`

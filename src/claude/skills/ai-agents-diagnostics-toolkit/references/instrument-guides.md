@@ -37,7 +37,7 @@ uv run python ./scripts/validation/skill_size.py --path .claude/skills/<name>/SK
 
 ### Orphan references
 
-Scans structured artifacts for references to skills, scripts, and counts that do not match the working tree (REQ-009, issue #1939). Default targets: `.agents/specs`, `tests/evals`, `.claude/.claude-plugin/plugin.json`, and both `marketplace.json` files.
+Scans structured artifacts for references to skills, scripts, and counts that do not match the working tree (REQ-009, issue #1939). Default targets: `.project-toolkit/specs`, `tests/evals`, `.claude/.claude-plugin/plugin.json`, and both `marketplace.json` files.
 
 ```bash
 uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/orphan-ref-validator/scripts/scan.py"            # ADR-056 JSON envelope + VERDICT line
@@ -91,7 +91,7 @@ now-producer-less classifier skill and its two build scripts (an
 aggregator and a classifier) rather than leave them measuring nothing.
 Tier semantics (Harmful, Proficient, Mature, Inert, Growing,
 Budding, keyed on age/intercepts/fitness) are documented for historical
-reference in `.agents/retrospective/` entries that cite this instrument; there
+reference in `.project-toolkit/retrospective/` entries that cite this instrument; there
 is no live command to run. A future guard that adopts the same `EVENT=`
 stderr schema would need to rebuild both the aggregator and the classifier
 from scratch. Re-verify the removal: `ls .claude/hooks/PreToolUse/` (expect

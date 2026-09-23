@@ -187,10 +187,10 @@ def test_prescriptive_surfaces_are_scanned(path: str) -> None:
 @pytest.mark.parametrize(
     "path",
     [
-        ".agents/retrospective/2025-12-24-parallel-pr-review-session.md",
+        ".project-toolkit/retrospective/2025-12-24-parallel-pr-review-session.md",
         ".agents/archive/planning/v0.3.0/PLAN.md",
-        ".agents/sessions/x.json",
-        ".agents/memory/episodes/e.json",
+        ".project-toolkit/sessions/x.json",
+        ".project-toolkit/memory/episodes/e.json",
         ".claude/worktrees/nested/x.md",
         "README.md",
         "scripts/x.bin",

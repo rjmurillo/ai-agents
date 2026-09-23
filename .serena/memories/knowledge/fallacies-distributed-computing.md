@@ -1,7 +1,7 @@
 # Fallacies of Distributed Computing
 
 **Category**: Distributed Systems
-**Source**: `.agents/analysis/senior-engineering-knowledge.md`
+**Source**: `.project-toolkit/analysis/senior-engineering-knowledge.md`
 **Origin**: Peter Deutsch and others at Sun Microsystems
 
 ## The Eight Fallacies

@@ -226,6 +226,6 @@ Validation failed with 1 error(s)
 
 ## See Also
 
-- [ADR-006: Thin Workflows, Testable Modules](../.agents/architecture/ADR-006-thin-workflows-testable-modules.md)
+- [ADR-006: Thin Workflows, Testable Modules](../.project-toolkit/architecture/ADR-006-thin-workflows-testable-modules.md)
 - [PROJECT-CONSTRAINTS.md](../.agents/governance/PROJECT-CONSTRAINTS.md)
 - [nektos/act GitHub Repository](https://github.com/nektos/act)

@@ -39,7 +39,7 @@ storage.
 
 ## Status
 
-ADR-094 (`.agents/architecture/ADR-094-scoped-re-review-axes.md`) proposes
+ADR-094 (`.project-toolkit/architecture/ADR-094-scoped-re-review-axes.md`) proposes
 `/review --axes=<list>` that writes no marker. Status `proposed`, awaiting
 human maintainer approval. `.agents/governance/CI-FEEDBACK-SUBLOOP.md` remains
 non-normative; ADR-094 recommends against promoting it wholesale.

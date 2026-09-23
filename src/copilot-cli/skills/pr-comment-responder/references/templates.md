@@ -31,9 +31,9 @@ SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 python3 "$SCRIPTS_DIR/pr/post_pr_comment_reply.py" --pull-request [number] --comment-id [id] --body "[response]"
 
 # For multi-line responses, stage the body in a TEMP file ($TMPDIR or /tmp).
-# Do NOT write reply drafts under .agents/, the repo working tree, or any
+# Do NOT write reply drafts under .project-toolkit/, the repo working tree, or any
 # path that survives the session. Reply drafts have no enduring value once
-# posted; staging them under .agents/audit/pr-*-replies/ creates untracked
+# posted; staging them under .project-toolkit/audit/pr-*-replies/ creates untracked
 # workspace clutter that future agents cannot tell apart from artifacts the
 # PR intentionally archived. Using a temp dir prevents the clutter from
 # being written in the first place; .gitignore is only a safety net that

@@ -5,7 +5,7 @@ Polls ``get_unresolved_review_threads.py`` and exits 0 only after observing
 THREE consecutive readings of ``unresolved_count == 0 AND
 fetched_pages_complete == true``, each separated by at least
 ``--interval-seconds`` (default 180s). The pre-mortem documented in
-.agents/plans/active/req-009-retro-fixes-pr-1965.md raised the original
+.project-toolkit/plans/active/req-009-retro-fixes-pr-1965.md raised the original
 60s/2-reading wedge to 180s/3 readings because Copilot and Devin webhooks
 arrive 30-120s after a push; a 60s/2-reading window leaves a real chance
 of declaring "done" mid-scan.

@@ -2,8 +2,9 @@
 # ruff: noqa: E402
 """Vendor-portability ratchet for skill scripts (issue #2050).
 
-Skill scripts that hard-code upstream-only paths (``.agents/``, ``.claude/lib/``,
-``.claude/review-axes/``, ``.claude/skills/``) fail or degrade silently in
+Skill scripts that hard-code upstream-only paths (``.agents/``,
+``.project-toolkit/``, ``.claude/lib/``, ``.claude/review-axes/``,
+``.claude/skills/``) fail or degrade silently in
 vendored plugin installs, where the consumer repo has no such tree and the
 plugin lives outside the consumer's working directory. The /review skill's
 REQ-008-06 contract (resolve via plugin/skill root, the consumer cwd, or a
@@ -22,7 +23,7 @@ Markdown instruction files carry a prose-vs-runtime ambiguity (a maintainer note
 mentioning ``.agents/`` is fine; a runtime instruction to write there is not) and
 are a documented follow-up, not part of this ratchet.
 
-EXIT CODES (per .agents/architecture/ADR-035-exit-code-standardization.md):
+EXIT CODES (per .project-toolkit/architecture/ADR-035-exit-code-standardization.md):
   Canonical contract:
   | 0 | Success | Operation completed, idempotent skip |
   | 1 | General error / Validation failure | Logic error, assertion failed |
@@ -76,6 +77,11 @@ from scripts.validation.shell_text import strip_hash_comments
 # sibling skill by that absolute prefix breaks once the plugin root moves.
 UPSTREAM_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"(?<![\\\w.])\.agents(?:[\\/]+|['\"]|$)", re.IGNORECASE),
+    # Issue #5420 moved the agent write targets out of `.agents/` into
+    # `.project-toolkit/`, the repo-root artifact tree. A script hard-coding
+    # that path is the same upstream-only assumption the `.agents/` pattern
+    # already caught.
+    re.compile(r"(?<![\\\w.])\.project-toolkit(?:[\\/]+|['\"]|$)", re.IGNORECASE),
     re.compile(r"(?<![\\\w.])\.claude[\\/]+lib(?:[\\/]+|['\"]|$)", re.IGNORECASE),
     re.compile(
         r"(?<![\\\w.])\.claude[\\/]+review-axes(?:[\\/]+|['\"]|$)",

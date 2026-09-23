@@ -1,6 +1,6 @@
 # Test Location Standards
 
-This document restates, for `.agents/` readers, rules already enforced by [`.claude/rules/testing.md`](../../.claude/rules/testing.md) (the binding rule; its `paths` frontmatter fires on `tests/**`, `**/*.Tests.ps1`, `**/tests/**`, `.claude/skills/**/tests/**`, `.agents/security/benchmarks/**`) and by the placement gates in [`scripts/validation/`](../../scripts/validation/). Nothing below is new policy; it is documentation catching up to [ADR-042](../architecture/ADR-042-python-migration-strategy.md) (accepted, Python-first migration) and to gates that already ship. Where a claim has no gate behind it, it carries a `Why:` paragraph instead of inventing one.
+This document restates, for `.agents/` readers, rules already enforced by [`.claude/rules/testing.md`](../../.claude/rules/testing.md) (the binding rule; its `paths` frontmatter fires on `tests/**`, `**/*.Tests.ps1`, `**/tests/**`, `.claude/skills/**/tests/**`, `.project-toolkit/security/benchmarks/**`) and by the placement gates in [`scripts/validation/`](../../scripts/validation/). Nothing below is new policy; it is documentation catching up to [ADR-042](../../.project-toolkit/architecture/ADR-042-python-migration-strategy.md) (accepted, Python-first migration) and to gates that already ship. Where a claim has no gate behind it, it carries a `Why:` paragraph instead of inventing one.
 
 ## PowerShell layout: retired, no tracked survivors
 
@@ -8,7 +8,7 @@ The previous version of this document specified a Pester `*.Tests.ps1` layout un
 
 - `git ls-files '*.ps1'` → 0 files.
 - `git ls-files '*.Tests.ps1'` → 0 files.
-- `git ls-files '*.psd1' '*.psm1'` → one file, [`.PSScriptAnalyzerSettings.psd1`](../../.PSScriptAnalyzerSettings.psd1), linter configuration for CodeQL/PSScriptAnalyzer static analysis (see [`.agents/security/benchmarks/README.md`](../security/benchmarks/README.md)), not a production or test script.
+- `git ls-files '*.psd1' '*.psm1'` → one file, [`.PSScriptAnalyzerSettings.psd1`](../../.PSScriptAnalyzerSettings.psd1), linter configuration for CodeQL/PSScriptAnalyzer static analysis (see [`.project-toolkit/security/benchmarks/README.md`](../../.project-toolkit/security/benchmarks/README.md)), not a production or test script.
 - Every workflow under `.github/workflows/` that has a Pester toggle sets `enable-pester: false` (12 occurrences, `grep -rn enable-pester .github/workflows/`). No workflow invokes `Invoke-Pester`.
 
 Per [`.claude/rules/universal.md`](../../.claude/rules/universal.md) MUST NOT 9, this is an absence claim scoped to the searches above; a PowerShell test file reintroduced later would need its own placement rule, not a revert of this one.
@@ -23,7 +23,7 @@ ai-agents/
     mutation/                     # mutation harnesses (DEAD/SURVIVED/DID-NOT-APPLY)
     evals/                        # ADR-057 prompt-change scenario JSON + runners
     *.test.ts                     # 2 orphaned bun-shaped files (see TypeScript row below)
-  .agents/security/benchmarks/    # second sanctioned test location (security-agent evidence)
+  .project-toolkit/security/benchmarks/    # second sanctioned test location (security-agent evidence)
   packages/ai-agents-cli/tests/   # live bun/TS suite, unrelated tree
   evals/                          # held-out agent-vs-baseline spikes, NOT pytest input
   .PSScriptAnalyzerSettings.psd1  # linter config, not a script or test
@@ -35,7 +35,7 @@ Source: `pyproject.toml` `[tool.pytest.ini_options]`. Counts are measurements of
 
 | Rule | Statement | Evidence |
 |---|---|---|
-| 1 | New tests MUST live in `tests/` or `.agents/security/benchmarks/`. No other location is sanctioned. | `.claude/rules/testing.md` MUST 6 |
+| 1 | New tests MUST live in `tests/` or `.project-toolkit/security/benchmarks/`. No other location is sanctioned. | `.claude/rules/testing.md` MUST 6 |
 | 2 | Skill tests MUST live under `tests/skills/<name>/`, never colocated inside `.claude/skills/<name>/tests/` or `src/copilot-cli/skills/<name>/tests/`. Colocated files ship to plugin consumers, who would then execute repo-internal test code. | Issue #4838; gate `check_colocated_skill_tests.py` |
 | 3 | Test files MUST be named `test_*.py`. A file named `*_test.py` alone is never collected, because `python_files` lists only the `test_*` prefix. Two tracked files end in `_test.py` and are still collected: both also begin with `test_`, because the module under test is itself named `*_test` (`tests/context-optimizer/test_skill_passive_compliance_test.py`, `tests/validation/test_run_workflow_local_test.py`). That is a suffix inherited from the subject, not a second naming convention. | `pyproject.toml` `[tool.pytest.ini_options]`; `python_files = ["test_*.py"]` |
 | 4 | A `test_*.py` that pytest walks MUST collect at least one test, or MUST carry a `pytest-zero-collection:` marker naming why it is a non-suite (an import helper, or a checker another workflow invokes). | Issue #4494; gate `check_zero_collection_tests.py` |
@@ -60,7 +60,7 @@ All six read the shell-fail-loud contract in [`.claude/rules/ci-scripts.md`](../
 
 ## Second sanctioned location: security benchmarks
 
-[`.agents/security/benchmarks/`](../security/benchmarks/) holds the security agent's benchmark suite (Issue #756): fixtures under `vulnerable_samples/`, `test_agent_review_quality.py`, `test_cwe22_path_traversal.py`, `test_cwe77_command_injection.py`. `.claude/rules/testing.md`'s `paths:` frontmatter names this tree explicitly, making it the one other placement `.claude/rules/testing.md` MUST 6 permits besides `tests/`.
+[`.project-toolkit/security/benchmarks/`](../../.project-toolkit/security/benchmarks) holds the security agent's benchmark suite (Issue #756): fixtures under `vulnerable_samples/`, `test_agent_review_quality.py`, `test_cwe22_path_traversal.py`, `test_cwe77_command_injection.py`. `.claude/rules/testing.md`'s `paths:` frontmatter names this tree explicitly, making it the one other placement `.claude/rules/testing.md` MUST 6 permits besides `tests/`.
 
 ## One TypeScript test tree
 
@@ -73,14 +73,14 @@ A second, orphaned repo-root pair (`tests/command-syntax-translator.test.ts`,
 `src/copilot-target-emitter.ts`) used to sit beside it: no root
 `package.json`/`tsconfig.json`/`bunfig.toml` wired either to any runner.
 Confirmed orphaned in
-`.agents/audit/2026-09-04-ponytail-audit-over-engineering.md`, finding 9, and
+`.project-toolkit/audit/2026-09-04-ponytail-audit-over-engineering.md`, finding 9, and
 deleted by issue #5456.
 
 ## `tests/evals/` vs top-level `evals/`
 
 Same first six letters, unrelated content, unrelated consumers:
 
-- [`tests/evals/`](../../tests/evals/): scenario JSON plus `test_*.py` runners, implementing [ADR-057](../architecture/ADR-057-prompt-behavioral-evaluation.md) prompt-change regression checks ("did this prompt edit help or hurt?"). These ARE pytest input and ARE gated by the placement rules above.
+- [`tests/evals/`](../../tests/evals/): scenario JSON plus `test_*.py` runners, implementing [ADR-057](../../.project-toolkit/architecture/ADR-057-prompt-behavioral-evaluation.md) prompt-change regression checks ("did this prompt edit help or hurt?"). These ARE pytest input and ARE gated by the placement rules above.
 - [`evals/`](../../evals/) (sibling of `tests/`, not inside it): held-out agent-vs-baseline research corpora and spike write-ups ("does this agent's specialization beat a generic baseline?"). Not pytest input; the scenario/spike distinction and the no-fixture-duplication rule are documented in `evals/README.md`.
 
 ## pytest configuration (verified against `pyproject.toml`)
@@ -98,7 +98,7 @@ Source: `pyproject.toml` `[tool.pytest.ini_options]`.
 ## What was dropped from the prior version, and why
 
 - All Pester-specific naming (`{ScriptName}.Tests.ps1`), the `BeforeAll`/`It` examples, and the Pester CI snippet: zero tracked `.ps1` files remain (see PowerShell section above); nothing in this repository executes that pattern today.
-- The single-directory "all tests in `/tests/`" rule: superseded by the two-location rule (`tests/` plus `.agents/security/benchmarks/`) that `.claude/rules/testing.md` MUST 6 actually enforces.
+- The single-directory "all tests in `/tests/`" rule: superseded by the two-location rule (`tests/` plus `.project-toolkit/security/benchmarks/`) that `.claude/rules/testing.md` MUST 6 actually enforces.
 - The "no exceptions currently defined" line: false under current gates, which carry documented, evidence-anchored exceptions (`pytest-zero-collection:`-marked non-suites, legacy colocated skill tests that predate the gate).
 
 ## Related Documents
@@ -107,6 +107,6 @@ Source: `pyproject.toml` `[tool.pytest.ini_options]`.
 - [`.claude/rules/ci-scripts.md`](../../.claude/rules/ci-scripts.md): exit-code and fail-loud contract every gate above follows.
 - [`.agents/governance/TESTING-RIGOR.md`](TESTING-RIGOR.md): pos+neg+edge evidence bar.
 - [`.agents/governance/TESTING-ANTI-PATTERNS.md`](TESTING-ANTI-PATTERNS.md): forbidden test shapes.
-- [`.agents/architecture/ADR-042-python-migration-strategy.md`](../architecture/ADR-042-python-migration-strategy.md): the migration this document catches up to.
-- [`.agents/architecture/ADR-057-prompt-behavioral-evaluation.md`](../architecture/ADR-057-prompt-behavioral-evaluation.md): scope of `tests/evals/`.
+- [`.project-toolkit/architecture/ADR-042-python-migration-strategy.md`](../../.project-toolkit/architecture/ADR-042-python-migration-strategy.md): the migration this document catches up to.
+- [`.project-toolkit/architecture/ADR-057-prompt-behavioral-evaluation.md`](../../.project-toolkit/architecture/ADR-057-prompt-behavioral-evaluation.md): scope of `tests/evals/`.
 - [`AGENTS.md`](../../AGENTS.md): main project documentation.

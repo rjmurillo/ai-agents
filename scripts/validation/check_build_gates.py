@@ -2,7 +2,7 @@
 """Static check that the ``build`` skill wires the required exit gates.
 
 The /build command is the implementer's exit path. Layer 2 of the PR #1887
-retrospective (`.agents/retrospective/2026-05-05-pr-1887-iteration-paradox.md`)
+retrospective (`.project-toolkit/retrospective/2026-05-05-pr-1887-iteration-paradox.md`)
 named the failure mode: existing skills (code-qualities-assessment,
 taste-lints, doc-accuracy) were invoke-on-demand and not on the exit path,
 so review-time bots flagged what they should have caught.
@@ -144,7 +144,7 @@ def collect_violations(repo_root: Path) -> list[GateViolation]:
                     message=(
                         f"build.md must invoke Skill(skill=\"{skill_name}\") as an "
                         f"exit gate. See "
-                        f".agents/retrospective/2026-05-05-pr-1887-iteration-paradox.md "
+                        f".project-toolkit/retrospective/2026-05-05-pr-1887-iteration-paradox.md "
                         f"Layer 2 for context."
                     ),
                 )

@@ -4,7 +4,7 @@ Implements REQ-008-01 acceptance criterion: schema-validation fixture asserts
 exact section-title strings (literal level-2 headings) and required frontmatter
 keys for each canonical axis file.
 
-Spec: .agents/specs/requirements/REQ-008-review-axes-convergence.md
+Spec: .project-toolkit/specs/requirements/REQ-008-review-axes-convergence.md
 """
 
 from __future__ import annotations

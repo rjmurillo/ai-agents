@@ -212,7 +212,7 @@
 
 ## Retrospective Reference
 
-Full analysis: `.agents/retrospective/2026-01-13-pr894-test-coverage-failure.md`
+Full analysis: `.project-toolkit/retrospective/2026-01-13-pr894-test-coverage-failure.md`
 
 ## Key Insight
 

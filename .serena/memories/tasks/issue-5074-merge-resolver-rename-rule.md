@@ -1,8 +1,8 @@
 # Issue 5074: Merge-Resolver Rename Rule
 
-**Statement**: Add/add conflicts on append-only evidence artifacts (`.agents/sessions/*`, `.agents/qa/*`, `.agents/retrospective/*`) resolve by keeping both files and renaming the head branch version with a distinguishing suffix (keep the session number, append an issue or topic slug), never by content-merging. Encoded in every merge-resolver guidance surface per the PR #4856 retrospective.
+**Statement**: Add/add conflicts on append-only evidence artifacts (`.project-toolkit/sessions/*`, `.project-toolkit/qa/*`, `.project-toolkit/retrospective/*`) resolve by keeping both files and renaming the head branch version with a distinguishing suffix (keep the session number, append an issue or topic slug), never by content-merging. Encoded in every merge-resolver guidance surface per the PR #4856 retrospective.
 
-**Evidence**: `.agents/retrospective/2026-08-10-pr-4856-session-log-collision.md`; issue #4751 (allocation-time prevention, open P1).
+**Evidence**: `.project-toolkit/retrospective/2026-08-10-pr-4856-session-log-collision.md`; issue #4751 (allocation-time prevention, open P1).
 
 ## Edit surface map (measured this session)
 
@@ -16,4 +16,4 @@
 
 ## Known gap (follow-up)
 
-`resolve_pr_conflicts.py` `AUTO_RESOLVABLE_PATTERNS` matches `.agents/sessions/*` and resolves by accept-theirs, which on an add/add silently discards the branch's own record. The rename half is manual; documented as a caveat in SKILL.md. The script does not implement the rename.
+`resolve_pr_conflicts.py` `AUTO_RESOLVABLE_PATTERNS` matches `.project-toolkit/sessions/*` and resolves by accept-theirs, which on an add/add silently discards the branch's own record. The rename half is manual; documented as a caveat in SKILL.md. The script does not implement the rename.

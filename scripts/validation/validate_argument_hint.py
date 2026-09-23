@@ -8,7 +8,7 @@ load time. PyYAML also parses an unquoted ``[VALUE]`` hint as a sequence, not a
 string. This gate blocks both shapes before they ship.
 
 Exit codes follow ADR-035
-(`.agents/architecture/ADR-035-exit-code-standardization.md`):
+(`.project-toolkit/architecture/ADR-035-exit-code-standardization.md`):
     0 - All scanned argument-hint values are safe strings
     1 - One or more argument-hint values are unsafe
     2 - Config error

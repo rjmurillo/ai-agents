@@ -33,11 +33,11 @@ jobs:
           python3 .github/scripts/measure_workflow_coalescing.py \
             --since "$SINCE_DAYS" \
             --output markdown \
-            --output-path .agents/metrics/workflow-coalescing.md
+            --output-path .project-toolkit/metrics/workflow-coalescing.md
 
       - name: Upload artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: coalescing-metrics
-          path: .agents/metrics/workflow-coalescing.md
+          path: .project-toolkit/metrics/workflow-coalescing.md
           retention-days: 7

@@ -164,7 +164,7 @@ At session end, extract and persist learnings:
 │                                                              │
 │  uv run python \                                             │
 │    .claude/skills/memory/scripts/extract_session_episode.py \│
-│    ".agents/sessions/[session].json"                         │
+│    ".project-toolkit/sessions/[session].json"                         │
 │                                                              │
 │  → Structured episode from session transcript                │
 └───────────────────────────┬─────────────────────────────────┘
@@ -292,7 +292,7 @@ uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/mem
 mcp__serena__write_memory(memory_file_name="[relevant-memory]", content="...")
 
 # 3. Commit changes
-git add .agents/memory/ .serena/memories/
+git add .project-toolkit/memory/ .serena/memories/
 git commit -m "session: Extract episode and update memory"
 ```
 

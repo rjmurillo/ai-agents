@@ -47,7 +47,7 @@ Session logs from merge resolution work did NOT complete Session End requirement
 ### Missing Pre-Check
 
 Before push, merge-resolver MUST verify:
-- [ ] Session log exists at `.agents/sessions/YYYY-MM-DD-session-NN.json`
+- [ ] Session log exists at `.project-toolkit/sessions/YYYY-MM-DD-session-NN.json`
 - [ ] Session End checklist completed
 - [ ] Protocol Compliance section complete
 - [ ] Evidence recorded (commit SHA, validation result)
@@ -83,7 +83,7 @@ Evidence: PR #246 template validation passed
 **Before push**:
 ```powershell
 # Validate session protocol compliance
-$sessionLog = Get-ChildItem -Path ".agents/sessions" -Filter "*-session-*.md" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+$sessionLog = Get-ChildItem -Path ".project-toolkit/sessions" -Filter "*-session-*.md" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
 
 if ($sessionLog) {
     $validationResult = & ./scripts/Validate-SessionEnd.ps1 -SessionLogPath $sessionLog.FullName
@@ -109,7 +109,7 @@ Before pushing resolved conflicts, verify session requirements:
 - Memory updated
 - Validation script passed
 
-Use: `pwsh scripts/Validate-SessionEnd.ps1 -SessionLogPath ".agents/sessions/[log].md"`
+Use: `pwsh scripts/Validate-SessionEnd.ps1 -SessionLogPath ".project-toolkit/sessions/[log].md"`
 ```
 
 ### P2: Update Merge-Resolver Memory Pattern
@@ -120,7 +120,7 @@ Use: `pwsh scripts/Validate-SessionEnd.ps1 -SessionLogPath ".agents/sessions/[lo
 ## Session Protocol Requirements
 
 After resolving conflicts, MUST complete before push:
-1. Session log at `.agents/sessions/YYYY-MM-DD-session-NN.json`
+1. Session log at `.project-toolkit/sessions/YYYY-MM-DD-session-NN.json`
 2. Protocol Compliance section (all checkboxes)
 3. Session End checklist
 4. Evidence (commit SHA, validation result)
@@ -132,8 +132,8 @@ After resolving conflicts, MUST complete before push:
 
 ## Cross-References
 
-- Analysis: `.agents/analysis/001-merge-resolver-session-protocol-gap.md`
-- Session: `.agents/sessions/2025-12-27-session-68-template-sync-check-analysis.md`
+- Analysis: `.project-toolkit/analysis/001-merge-resolver-session-protocol-gap.md`
+- Session: `.project-toolkit/sessions/2025-12-27-session-68-template-sync-check-analysis.md`
 - Skill: `.claude/skills/merge-resolver/SKILL.md`
 - Memory: [merge-resolver-auto-resolvable-patterns](merge-resolver-auto-resolvable-patterns.md)
 - Protocol: `.agents/SESSION-PROTOCOL.md`

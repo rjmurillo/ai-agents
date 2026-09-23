@@ -9,7 +9,7 @@
 Analyzed 127 agents from github/awesome-copilot against our 18-agent catalog. Identified 3 MUST HAVE gaps limiting effectiveness, 5 SHOULD HAVE improvements, and 3 NICE TO HAVE enhancements.
 
 **Issue**: #166 - https://github.com/rjmurillo/ai-agents/issues/166
-**Analysis**: `.agents/analysis/003-awesome-copilot-gap-analysis.md`
+**Analysis**: `.project-toolkit/analysis/003-awesome-copilot-gap-analysis.md`
 
 ## Agent Count Comparison
 
@@ -164,6 +164,6 @@ Analyzed 127 agents from github/awesome-copilot against our 18-agent catalog. Id
 ## References
 
 - **Issue**: #166 - https://github.com/rjmurillo/ai-agents/issues/166
-- **Analysis Document**: `.agents/analysis/003-awesome-copilot-gap-analysis.md`
-- **Session Log**: `.agents/sessions/2025-12-20-session-38-awesome-copilot-gap-analysis.md`
+- **Analysis Document**: `.project-toolkit/analysis/003-awesome-copilot-gap-analysis.md`
+- **Session Log**: `.project-toolkit/sessions/2025-12-20-session-38-awesome-copilot-gap-analysis.md`
 - **Awesome-Copilot**: https://github.com/github/awesome-copilot/tree/main/agents

@@ -13,7 +13,7 @@ Three mutants and one inverted control:
   M1 (positive): revert the directory name "critique" back to "analysis".
       Expected: DEAD (tests detect the regression).
 
-  M2 (positive): change the error message path from .agents/critique to
+  M2 (positive): change the error message path from .project-toolkit/critique to
       .agents/wrong-dir.
       Expected: DEAD (tests detect the wrong message).
 
@@ -324,8 +324,8 @@ def _active_target_unmodified() -> bool:
 # M1: revert directory name from "critique" back to "analysis"
 # ---------------------------------------------------------------------------
 
-_M1_ORIGINAL = b'        path.parent == PurePosixPath(".agents/critique")\n'
-_M1_MUTANT = b'        path.parent == PurePosixPath(".agents/analysis")  # M1 mutant\n'
+_M1_ORIGINAL = b'        path.parent == PurePosixPath(".project-toolkit/critique")\n'
+_M1_MUTANT = b'        path.parent == PurePosixPath(".project-toolkit/analysis")  # M1 mutant\n'
 
 
 @pytest.mark.timeout(_OUTER_TEST_TIMEOUT_SECONDS)
@@ -343,7 +343,7 @@ def test_m1_directory_name_reverted_is_detected(scratch_worktree: Path) -> None:
 # ---------------------------------------------------------------------------
 
 _M2_ORIGINAL = (
-    b'            "ERROR: ADR changes require a debate log staged in .agents/critique",\n'
+    b'            "ERROR: ADR changes require a debate log staged in .project-toolkit/critique",\n'
 )
 _M2_MUTANT = b'            "ERROR: ADR changes require a debate log staged in .agents/wrong-dir",\n'
 
@@ -383,20 +383,20 @@ def test_m3_missing_debate_log_gate_removed_is_detected(scratch_worktree: Path) 
 _IC_ORIGINAL = (
     b"    # Canonical debate-log directory per:\n"
     b"    #   .claude/skills/adr-review/references/artifacts.md line 3:\n"
-    b'    #     "Save debate artifacts to `.agents/critique/`."\n'
+    b'    #     "Save debate artifacts to `.project-toolkit/critique/`."\n'
     b"    #   .claude/skills/adr-review/references/artifacts.md line 7:\n"
-    b'    #     "Save to: `.agents/critique/ADR-NNN-debate-log.md`"\n'
-    b"    # Issue #4250: the hook previously searched .agents/analysis/ but the\n"
-    b"    # skill writes to .agents/critique/.\n"
+    b'    #     "Save to: `.project-toolkit/critique/ADR-NNN-debate-log.md`"\n'
+    b"    # Issue #4250: the hook previously searched .project-toolkit/analysis/ but the\n"
+    b"    # skill writes to .project-toolkit/critique/.\n"
 )
 _IC_MUTANT = (
     b"    # Canonical debate-log directory per:\n"
     b"    #   .claude/skills/adr-review/references/artifacts.md line 3:\n"
-    b'    #     "Save debate artifacts to `.agents/critique/`."\n'
+    b'    #     "Save debate artifacts to `.project-toolkit/critique/`."\n'
     b"    #   .claude/skills/adr-review/references/artifacts.md line 7:\n"
-    b'    #     "Save to: `.agents/critique/ADR-NNN-debate-log.md`"\n'
-    b"    # Issue #4250: the hook previously searched .agents/analysis/ but the\n"
-    b"    # skill writes to .agents/critique/.  # IC mutant\n"
+    b'    #     "Save to: `.project-toolkit/critique/ADR-NNN-debate-log.md`"\n'
+    b"    # Issue #4250: the hook previously searched .project-toolkit/analysis/ but the\n"
+    b"    # skill writes to .project-toolkit/critique/.  # IC mutant\n"
 )
 
 

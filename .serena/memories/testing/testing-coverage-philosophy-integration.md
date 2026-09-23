@@ -57,7 +57,7 @@ Testing should increase stakeholder confidence through evidence (Dan North), not
 
 ## References
 
-- Analysis: .agents/analysis/testing-coverage-philosophy.md
+- Analysis: .project-toolkit/analysis/testing-coverage-philosophy.md
 - Dan North: https://dannorth.net/blog/we-need-to-talk-about-testing/
 - Rico Mariani: https://ricomariani.medium.com/100-unit-testing-now-its-ante-f0e2384ffedf
 - Related Memories: testing-004-coverage-pragmatism, ADR-006, pester-testing-cross-platform

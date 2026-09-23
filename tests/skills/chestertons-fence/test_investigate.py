@@ -24,7 +24,7 @@ import investigate
 
 
 def test_find_related_adrs_reads_utf8_explicitly(tmp_path: Path, monkeypatch) -> None:
-    adr_dir = tmp_path / ".agents" / "architecture"
+    adr_dir = tmp_path / ".project-toolkit" / "architecture"
     adr_dir.mkdir(parents=True)
     adr_file = adr_dir / "ADR-999-utf8.md"
     adr_file.write_text(
@@ -75,7 +75,7 @@ def test_generate_report_reads_template_utf8_explicitly(
 def test_main_reports_invalid_utf8_adr_path(
     tmp_path: Path, monkeypatch, capsys
 ) -> None:
-    adr_dir = tmp_path / ".agents" / "architecture"
+    adr_dir = tmp_path / ".project-toolkit" / "architecture"
     adr_dir.mkdir(parents=True)
     adr_file = adr_dir / "ADR-999-invalid.md"
     invalid_content = b"# Invalid UTF-8\n\nReferences target.py.\n\xff"

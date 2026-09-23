@@ -3,7 +3,7 @@
 Issue #5205 proved two defects in ``check_adr_review_policy`` on ``main``:
 
 1. The evidence test was a filename pattern plus an ADR-id substring, so a
-   7-byte ``.agents/critique/x-debate.md`` containing ``ADR-042`` cleared it.
+   7-byte ``.project-toolkit/critique/x-debate.md`` containing ``ADR-042`` cleared it.
 2. The coverage test was ``any()`` over the staged logs against the *union* of
    staged ADR ids, so one log naming one record authorized every ADR staged in
    the same commit.
@@ -123,7 +123,7 @@ def test_evidence_gaps_are_named(name: str, content: str, expected_gap: str) -> 
 
 
 def test_self_review_log_without_a_full_roster_passes() -> None:
-    """No false block: single-reviewer logs exist in .agents/critique on main."""
+    """No false block: single-reviewer logs exist in .project-toolkit/critique on main."""
     content = (
         "# ADR-068/071/085 Metrics Update Debate Log\n\n"
         "## Context\n\nIssue #4917 adds a new PreToolUse hook, so the metrics in\n"

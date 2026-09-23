@@ -52,7 +52,7 @@ class TestCheckSkillGate:
 
 class TestCheckSessionLogGate:
     def test_pass_when_session_log_exists(self, tmp_path: Path) -> None:
-        sessions = tmp_path / ".agents" / "sessions"
+        sessions = tmp_path / ".project-toolkit" / "sessions"
         sessions.mkdir(parents=True)
         today = date.today().isoformat()
         log_file = sessions / f"{today}-session-1.json"
@@ -78,7 +78,7 @@ class TestCheckSessionLogGate:
     def test_passes_silently_when_no_today_sessions(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        sessions = tmp_path / ".agents" / "sessions"
+        sessions = tmp_path / ".project-toolkit" / "sessions"
         sessions.mkdir(parents=True)
         # Create a session from yesterday
         (sessions / "2020-01-01-session-1.json").write_text("{}", encoding="utf-8")

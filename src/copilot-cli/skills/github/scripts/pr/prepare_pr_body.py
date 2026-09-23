@@ -65,31 +65,31 @@ def _open_plain_directory(path: Path, *, owner_only: bool) -> int:
 
 def _open_scratch(repo_root: Path) -> tuple[Path, int | None]:
     root = repo_root.resolve()
-    agents_dir = root / ".agents"
-    scratch_dir = agents_dir / "scratch"
+    toolkit_dir = root / ".project-toolkit"
+    scratch_dir = toolkit_dir / "scratch"
     if not _HAS_DIRECTORY_FDS:
         if os.name == "nt":
             raise PreparePrBodyError(
                 "secure PR body files are not supported on Windows"
             )
-        _ensure_plain_directory(agents_dir, owner_only=False)
+        _ensure_plain_directory(toolkit_dir, owner_only=False)
         _ensure_plain_directory(scratch_dir, owner_only=True)
         return scratch_dir, None
 
-    agents_fd = _open_plain_directory(agents_dir, owner_only=False)
+    toolkit_fd = _open_plain_directory(toolkit_dir, owner_only=False)
     try:
         try:
-            os.mkdir("scratch", mode=stat.S_IRWXU, dir_fd=agents_fd)
+            os.mkdir("scratch", mode=stat.S_IRWXU, dir_fd=toolkit_fd)
         except FileExistsError:
             pass
-        before = os.stat("scratch", dir_fd=agents_fd, follow_symlinks=False)
+        before = os.stat("scratch", dir_fd=toolkit_fd, follow_symlinks=False)
         if stat.S_ISLNK(before.st_mode) or not stat.S_ISDIR(before.st_mode):
             raise PreparePrBodyError(
                 f"path must be a plain directory: {scratch_dir}"
             )
         _require_owned(scratch_dir, before)
         flags = os.O_RDONLY | os.O_DIRECTORY | getattr(os, "O_NOFOLLOW", 0)
-        scratch_fd = os.open("scratch", flags, dir_fd=agents_fd)
+        scratch_fd = os.open("scratch", flags, dir_fd=toolkit_fd)
         opened = os.fstat(scratch_fd)
         if not stat.S_ISDIR(opened.st_mode) or not _same_object(before, opened):
             os.close(scratch_fd)
@@ -99,7 +99,7 @@ def _open_scratch(repo_root: Path) -> tuple[Path, int | None]:
         os.fchmod(scratch_fd, stat.S_IRWXU)
         return scratch_dir, scratch_fd
     finally:
-        os.close(agents_fd)
+        os.close(toolkit_fd)
 
 
 def _new_body_name() -> str:
@@ -107,7 +107,7 @@ def _new_body_name() -> str:
 
 
 def prepare_pr_body(repo_root: Path) -> Path:
-    """Return a newly created private file below ``.agents/scratch``."""
+    """Return a newly created private file below ``.project-toolkit/scratch``."""
     root = repo_root.resolve()
     scratch_dir, scratch_fd = _open_scratch(root)
     try:
@@ -151,12 +151,12 @@ def _validate_body_path(relative_path: str) -> Path:
     path = Path(relative_path)
     if (
         path.is_absolute()
-        or path.parts[:2] != (".agents", "scratch")
+        or path.parts[:2] != (".project-toolkit", "scratch")
         or len(path.parts) != 3
         or not _BODY_NAME_RE.fullmatch(path.name)
     ):
         raise PreparePrBodyError(
-            "body file must match .agents/scratch/pr-body-*.md"
+            "body file must match .project-toolkit/scratch/pr-body-*.md"
         )
     return path
 

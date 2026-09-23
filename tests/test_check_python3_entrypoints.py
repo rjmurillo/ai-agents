@@ -43,7 +43,7 @@ _MEMORY_INDEX_ENTRYPOINT = re.compile(
     r"scripts/validation/memory_index\.py --ci)"
 )
 _MEMORY_INDEX_DOCS = {
-    ".agents/prototypes/agents/implementer.compressed.md",
+    ".project-toolkit/prototypes/agents/implementer.compressed.md",
     ".claude/agents/retrospective.md",
     ".github/agents/retrospective.agent.md",
     "src/claude/agents/retrospective.md",

@@ -1,7 +1,7 @@
 # Skill: Root-cause bisection names the cause, never the remedy (90%)
 
 **Atomicity Score**: 90%
-**Source**: Retrospective `.agents/retrospective/2026-08-02-wrong-fix-before-search.md`
+**Source**: Retrospective `.project-toolkit/retrospective/2026-08-02-wrong-fix-before-search.md`
 **Date**: 2026-08-02
 **Validation Count**: 1 (PR #4302 closed unmerged)
 **Tag**: helpful

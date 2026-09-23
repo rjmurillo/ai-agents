@@ -70,7 +70,7 @@ validate_qa_report = _qa_report.validate_qa_report
 
 QA_COMMIT = "a" * 40
 QA_SESSION_LOG = (
-    ".agents/sessions/2026-08-06-session-10004-memory-index-duplicate.json"
+    ".project-toolkit/sessions/2026-08-06-session-10004-memory-index-duplicate.json"
 )
 
 
@@ -151,9 +151,9 @@ def test_rejects_missing_or_malformed_qa_frontmatter(
     "session_log",
     [
         "/absolute/session.json",
-        ".agents/sessions/../qa/report.json",
+        ".project-toolkit/sessions/../qa/report.json",
         ".agents\\sessions\\session.json",
-        ".agents/sessions/session.md",
+        ".project-toolkit/sessions/session.md",
         "sessions/session.json",
         "",
     ],
@@ -165,7 +165,7 @@ def test_rejects_noncanonical_qa_session_identity(
     report_path = tmp_path / "report.md"
     _write_qa_report(report_path, session_log=session_log)
 
-    with pytest.raises(ValueError, match="canonical .agents/sessions"):
+    with pytest.raises(ValueError, match="canonical .project-toolkit/sessions"):
         load_qa_report(report_path)
 
 
@@ -182,7 +182,7 @@ def test_rejects_qa_report_for_unrelated_session(tmp_path: Path) -> None:
     # The session-log identity check runs before any git call (ADR-096), so
     # no real git repo is needed here: the ValueError fires first.
     report_path = tmp_path / "report.md"
-    _write_qa_report(report_path, session_log=".agents/sessions/unrelated.json")
+    _write_qa_report(report_path, session_log=".project-toolkit/sessions/unrelated.json")
 
     with pytest.raises(ValueError, match="unrelated.json"):
         validate_qa_report(
@@ -225,7 +225,7 @@ def test_accepts_qa_report_whose_commit_differs_but_only_evidence_changed(
     completed = [
         subprocess.CompletedProcess([], 0, "", ""),
         subprocess.CompletedProcess([], 0, "", ""),
-        subprocess.CompletedProcess([], 0, ".agents/sessions/session.json\0", ""),
+        subprocess.CompletedProcess([], 0, ".project-toolkit/sessions/session.json\0", ""),
     ]
     with mock.patch.object(_qa_report.subprocess, "run", side_effect=completed):
         report = validate_qa_report(
@@ -434,9 +434,9 @@ def test_filters_session_evidence_from_post_qa_changes() -> None:
     assert non_evidence_paths(
         [
             "",
-            ".agents/qa/report.md",
-            ".agents/sessions/session.json",
-            ".agents/memory/episodes/episode.json",
+            ".project-toolkit/qa/report.md",
+            ".project-toolkit/sessions/session.json",
+            ".project-toolkit/memory/episodes/episode.json",
             "scripts/changed.py",
         ]
     ) == ["scripts/changed.py"]
@@ -455,7 +455,7 @@ def test_maps_external_session_file_to_canonical_identity(
         sessions_root=sessions_root,
     )
 
-    assert identity == ".agents/sessions/nested/session.json"
+    assert identity == ".project-toolkit/sessions/nested/session.json"
     assert resolve_session_log_path(
         identity,
         sessions_root=sessions_root,
@@ -479,7 +479,7 @@ def test_rejects_non_json_session_identity(tmp_path: Path) -> None:
     session_path = sessions_root / "session.md"
     session_path.parent.mkdir()
 
-    with pytest.raises(ValueError, match="canonical .agents/sessions"):
+    with pytest.raises(ValueError, match="canonical .project-toolkit/sessions"):
         session_log_identity(
             session_path,
             sessions_root=sessions_root,
@@ -500,7 +500,7 @@ def test_rejects_session_identity_that_resolves_outside_root(
 
     with pytest.raises(ValueError, match="escapes the sessions root"):
         resolve_session_log_path(
-            ".agents/sessions/linked/session.json",
+            ".project-toolkit/sessions/linked/session.json",
             sessions_root=sessions_root,
         )
 
@@ -518,7 +518,7 @@ def test_validator_accepts_configured_external_session_root(
     validated = _validate_session_path(session_path)
 
     assert validated == session_path
-    assert _session_identity(validated) == ".agents/sessions/session.json"
+    assert _session_identity(validated) == ".project-toolkit/sessions/session.json"
 
 
 def test_detects_code_touched_then_reverted_after_qa(tmp_path: Path) -> None:
@@ -530,7 +530,7 @@ def test_detects_code_touched_then_reverted_after_qa(tmp_path: Path) -> None:
             0,
             (
                 "scripts/changed.py\0"
-                ".agents/qa/report.md\0"
+                ".project-toolkit/qa/report.md\0"
                 "scripts/changed.py\0"
             ),
             "",
@@ -574,9 +574,9 @@ def test_accepts_evidence_only_commits_after_qa(tmp_path: Path) -> None:
             [],
             0,
             (
-                ".agents/sessions/session.json\0"
-                ".agents/qa/report.md\0"
-                ".agents/memory/episodes/episode.json\0"
+                ".project-toolkit/sessions/session.json\0"
+                ".project-toolkit/qa/report.md\0"
+                ".project-toolkit/memory/episodes/episode.json\0"
             ),
             "",
         ),
@@ -784,8 +784,8 @@ def test_catch_up_merge_of_evidence_paths_only_stays_bound(
 ) -> None:
     """Edge: evidence-prefixed paths never invalidate, merged or authored."""
     git = _qa_binding_repo(tmp_path)
-    (tmp_path / ".agents" / "qa").mkdir(parents=True)
-    (tmp_path / ".agents" / "qa" / "report.md").write_text(
+    (tmp_path / ".project-toolkit" / "qa").mkdir(parents=True)
+    (tmp_path / ".project-toolkit" / "qa" / "report.md").write_text(
         "base\n", encoding="utf-8"
     )
     git("add", "-A")
@@ -798,7 +798,7 @@ def test_catch_up_merge_of_evidence_paths_only_stays_bound(
     qa_commit = git("rev-parse", "HEAD")
 
     git("checkout", "-q", "main")
-    (tmp_path / ".agents" / "qa" / "report.md").write_text(
+    (tmp_path / ".project-toolkit" / "qa" / "report.md").write_text(
         "main updated evidence\n", encoding="utf-8"
     )
     git("add", "-A")
@@ -1640,7 +1640,7 @@ class TestValidateQaReportEvidence:
     """Tests for owned QA report evidence."""
 
     COMMIT = "a" * 40
-    SESSION_LOG = ".agents/sessions/current.json"
+    SESSION_LOG = ".project-toolkit/sessions/current.json"
 
     @staticmethod
     def _session_end(evidence: str) -> dict[str, Any]:
@@ -1972,7 +1972,7 @@ class TestValidateQaReportEvidence:
         report = qa_root / "report.md"
         self._write_report(
             report,
-            session_log=".agents/sessions/unrelated.json",
+            session_log=".project-toolkit/sessions/unrelated.json",
         )
         result = ValidationResult()
 
@@ -1989,7 +1989,7 @@ class TestValidateQaReportEvidence:
 
         assert result.errors == [
             "QA report session log does not match current session: "
-            ".agents/sessions/unrelated.json != .agents/sessions/current.json"
+            ".project-toolkit/sessions/unrelated.json != .project-toolkit/sessions/current.json"
         ]
 
     def test_stale_commit_report_fails_closed(self, tmp_path: Path) -> None:
@@ -2511,12 +2511,12 @@ class TestMainFunction:
             errors="replace",
         ).stdout.strip()
 
-        qa_report = tmp_path / ".agents" / "qa" / "report.md"
+        qa_report = tmp_path / ".project-toolkit" / "qa" / "report.md"
         qa_report.parent.mkdir(parents=True)
         qa_report.write_text(
             "---\n"
             "qaVerdict: PASS\n"
-            "qaSessionLog: .agents/sessions/valid-session.json\n"
+            "qaSessionLog: .project-toolkit/sessions/valid-session.json\n"
             f"qaCommit: {commit}\n"
             "---\n"
             "# QA\n",
@@ -2536,7 +2536,7 @@ class TestMainFunction:
                 "sessionEnd": _make_complete_end_section(
                     qaValidation={
                         "complete": True,
-                        "evidence": ".agents/qa/report.md",
+                        "evidence": ".project-toolkit/qa/report.md",
                         "level": "MUST",
                     }
                 ),
@@ -2545,7 +2545,7 @@ class TestMainFunction:
             "endingCommit": commit,
             "nextSteps": [],
         }
-        session_file = tmp_path / ".agents" / "sessions" / "valid-session.json"
+        session_file = tmp_path / ".project-toolkit" / "sessions" / "valid-session.json"
         session_file.parent.mkdir(parents=True)
         session_file.write_text(json.dumps(data))
         return session_file
@@ -2681,7 +2681,7 @@ class TestScriptIntegration:
     def test_validates_real_session(self, script_path: Path, project_root: Path) -> None:
         """Script validates real session files."""
         # Find a real session file
-        sessions_dir = project_root / ".agents" / "sessions"
+        sessions_dir = project_root / ".project-toolkit" / "sessions"
         session_files = list(sessions_dir.glob("*.json"))
 
         if not session_files:
@@ -3020,7 +3020,7 @@ class TestProtocolChecksSurviveSchemaEnforcement:
 
         Note the asymmetry: the anyOf varies the casing of Complete and
         Evidence but declares `level` lowercase in both branches, and all
-        16675 checklist items in .agents/sessions/ agree. A log spelling it
+        16675 checklist items in .project-toolkit/sessions/ agree. A log spelling it
         `Level` passes the Python check (which is case-insensitive) and fails
         the schema; that is the schema's call to make, so this test pins the
         casing the corpus actually uses.
@@ -3081,8 +3081,8 @@ class TestHistoricalLogsAreExemptByConstruction:
 
     def test_git_hook_policy_validates_only_the_paths_it_is_given(self) -> None:
         given = [
-            ".agents/sessions/2026-01-01-session-1.json",
-            ".agents/sessions/2026-01-02-session-2.json",
+            ".project-toolkit/sessions/2026-01-01-session-1.json",
+            ".project-toolkit/sessions/2026-01-02-session-2.json",
         ]
         assert self._invoked_paths(given) == given
 
@@ -3095,11 +3095,11 @@ class TestHistoricalLogsAreExemptByConstruction:
         touches both a session log and any other .agents/ file.
         """
         mixed = [
-            ".agents/sessions/2026-01-01-session-1.json",
+            ".project-toolkit/sessions/2026-01-01-session-1.json",
             ".agents/governance/GOTCHAS.md",
-            ".agents/architecture/ADR-001.md",
+            ".project-toolkit/architecture/ADR-001.md",
         ]
-        assert self._invoked_paths(mixed) == [".agents/sessions/2026-01-01-session-1.json"]
+        assert self._invoked_paths(mixed) == [".project-toolkit/sessions/2026-01-01-session-1.json"]
 
     def test_git_hook_policy_validates_nothing_when_given_nothing(self) -> None:
         """No path list means no work. A directory fallback would fail 131 logs."""
@@ -3109,8 +3109,8 @@ class TestHistoricalLogsAreExemptByConstruction:
         from scripts.validation import git_hook_policy
 
         seen: list[str] = []
-        old_path = ".agents/sessions/2026-01-01-session-1.json"
-        new_path = ".agents/sessions/2026-01-02-session-2.json"
+        old_path = ".project-toolkit/sessions/2026-01-01-session-1.json"
+        new_path = ".project-toolkit/sessions/2026-01-02-session-2.json"
 
         def _record(command: list[str], _repo_root: Path) -> subprocess.CompletedProcess[str]:
             seen.append(command[1 + command.index("scripts/validate_session_json.py")])
@@ -3181,7 +3181,7 @@ class TestMainNarrowsOnThePayload:
         artifact_root = scratch / ".agents"
         report = artifact_root / "qa" / "report.md"
         report.parent.mkdir(parents=True)
-        sessions_root = _REPO_ROOT / ".agents" / "sessions"
+        sessions_root = _REPO_ROOT / ".project-toolkit" / "sessions"
         with tempfile.TemporaryDirectory(dir=sessions_root) as session_dir:
             log = Path(session_dir) / "log.json"
             session_log = log.relative_to(_REPO_ROOT).as_posix()
@@ -3543,7 +3543,7 @@ class TestEveryCommittedLogSatisfiesTheFilenameInvariant:
     """The guard is only trustworthy if the corpus it governs already passes."""
 
     def test_no_committed_session_log_violates_it(self) -> None:
-        sessions = Path(__file__).resolve().parents[1] / ".agents" / "sessions"
+        sessions = Path(__file__).resolve().parents[1] / ".project-toolkit" / "sessions"
         violations = []
         checked = 0
         for path in sorted(sessions.glob("*.json")):
@@ -3675,7 +3675,7 @@ class TestAnExistingLogIsValidatedAsARecord:
         """
         path = (
             Path(__file__).resolve().parents[1]
-            / ".agents/sessions/2026-02-11-session-1198-pr-review-1146-security-fixes.json"
+            / ".project-toolkit/sessions/2026-02-11-session-1198-pr-review-1146-security-fixes.json"
         )
         data = json.loads(path.read_text(encoding="utf-8"))
         assert validate_session_log(data).errors, "the log really was non-compliant"
@@ -3717,7 +3717,7 @@ class TestAMalformedChecklistItemIsReportedNotFatal:
     @pytest.mark.timeout(300)
     def test_every_committed_log_can_be_validated_without_crashing(self) -> None:
         """The corpus is the reason this guard exists."""
-        sessions = Path(__file__).resolve().parents[1] / ".agents" / "sessions"
+        sessions = Path(__file__).resolve().parents[1] / ".project-toolkit" / "sessions"
         checked = 0
         for path in sorted(sessions.glob("*.json")):
             validate_session_log(json.loads(path.read_text(encoding="utf-8")))
@@ -3888,8 +3888,8 @@ class TestSessionScopeIsDecidedOnceForBothCallSites:
     def test_a_session_replacement_still_gets_full_validation(self) -> None:
         from scripts.validation import session_scope
 
-        new_path = ".agents/sessions/2026-08-10-session-2-new.json"
-        old_path = ".agents/sessions/2026-08-10-session-1-old.json"
+        new_path = ".project-toolkit/sessions/2026-08-10-session-2-new.json"
+        old_path = ".project-toolkit/sessions/2026-08-10-session-1-old.json"
         stub, _ = self._stub(
             added=(new_path,),
             deleted=(old_path,),
@@ -3901,7 +3901,7 @@ class TestSessionScopeIsDecidedOnceForBothCallSites:
     def test_a_tab_in_a_new_session_path_is_preserved(self) -> None:
         from scripts.validation import session_scope
 
-        path = ".agents/sessions/2026-08-10-session-1-tab\tname.json"
+        path = ".project-toolkit/sessions/2026-08-10-session-1-tab\tname.json"
         stub, _ = self._stub(added=(path,), tracked=(path,))
         with mock.patch.object(session_scope, "_git", stub):
             assert session_scope.new_session_logs([path], Path.cwd()) == {path}
@@ -4127,7 +4127,7 @@ class TestSessionScopeIsDecidedOnceForBothCallSites:
         git("add", "README.md")
         git("commit", "-m", "test: base")
 
-        relative = ".agents/sessions/2026-01-01-session-1.json"
+        relative = ".project-toolkit/sessions/2026-01-01-session-1.json"
         session_file = repo / relative
         session_file.parent.mkdir(parents=True)
         session_file.write_text("{}\n", encoding="utf-8")
@@ -4146,7 +4146,7 @@ class TestSessionScopeIsDecidedOnceForBothCallSites:
         from scripts.validation import git_hook_policy, session_scope
 
         commands: list[list[str]] = []
-        branch_owned = ".agents/sessions/2026-01-01-session-1.json"
+        branch_owned = ".project-toolkit/sessions/2026-01-01-session-1.json"
 
         def _record(command: list[str], _root: Path) -> subprocess.CompletedProcess[str]:
             commands.append(command)
@@ -4172,7 +4172,7 @@ class TestSessionScopeIsDecidedOnceForBothCallSites:
         from scripts.validation import git_hook_policy, session_scope
 
         commands: list[list[str]] = []
-        historical = ".agents/sessions/2026-01-01-session-1.json"
+        historical = ".project-toolkit/sessions/2026-01-01-session-1.json"
 
         def _record(command: list[str], _root: Path) -> subprocess.CompletedProcess[str]:
             commands.append(command)
@@ -4201,7 +4201,7 @@ class TestSessionScopeIsDecidedOnceForBothCallSites:
         from scripts.validation import git_hook_policy, session_scope
 
         commands: list[list[str]] = []
-        new = ".agents/sessions/2026-01-02-session-2.json"
+        new = ".project-toolkit/sessions/2026-01-02-session-2.json"
 
         def _record(command: list[str], _root: Path) -> subprocess.CompletedProcess[str]:
             commands.append(command)
@@ -4227,8 +4227,8 @@ class TestSessionScopeIsDecidedOnceForBothCallSites:
         from scripts.validation import git_hook_policy, session_scope
 
         commands: list[list[str]] = []
-        new_path = ".agents/sessions/2026-08-10-session-2-new.json"
-        old_path = ".agents/sessions/2026-08-10-session-1-old.json"
+        new_path = ".project-toolkit/sessions/2026-08-10-session-2-new.json"
+        old_path = ".project-toolkit/sessions/2026-08-10-session-1-old.json"
 
         def _record(command: list[str], _root: Path) -> subprocess.CompletedProcess[str]:
             commands.append(command)
@@ -4267,7 +4267,10 @@ class TestSessionScopeIsDecidedOnceForBothCallSites:
         import scripts.validate_session_json as vsj
 
         root = Path(__file__).resolve().parents[1]
-        assert vsj._repo_relative(root / ".agents/sessions/x.json") == ".agents/sessions/x.json"
+        assert (
+            vsj._repo_relative(root / ".project-toolkit/sessions/x.json")
+            == ".project-toolkit/sessions/x.json"
+        )
 
     def test_a_path_outside_the_repository_stays_absolute(self) -> None:
         import scripts.validate_session_json as vsj
@@ -4277,7 +4280,7 @@ class TestSessionScopeIsDecidedOnceForBothCallSites:
     def test_session_identity_override_preserves_the_logical_sessions_path(self) -> None:
         import scripts.validate_session_json as vsj
 
-        identity = ".agents/sessions/2026-08-10-session-42-example.json"
+        identity = ".project-toolkit/sessions/2026-08-10-session-42-example.json"
         assert vsj._session_identity_override(identity) == identity
 
     def test_session_identity_override_rejects_a_scratch_path(self) -> None:
@@ -4285,7 +4288,7 @@ class TestSessionScopeIsDecidedOnceForBothCallSites:
 
         with pytest.raises(ValueError):
             vsj._session_identity_override(
-                ".agents/scratch/session-log-validation/example.json"
+                ".project-toolkit/scratch/session-log-validation/example.json"
             )
 
     def test_an_explicit_existing_log_flag_skips_the_git_probe(self) -> None:
@@ -4317,7 +4320,7 @@ class TestCheckSessionsCreationMode:
         """
         from scripts.validation import git_hook_policy
 
-        new = ".agents/sessions/2026-01-01-session-1.json"
+        new = ".project-toolkit/sessions/2026-01-01-session-1.json"
         validate_commands: list[list[str]] = []
 
         def _record(command, _root):
@@ -4348,7 +4351,7 @@ class TestCheckSessionsCreationMode:
         """
         from scripts.validation import git_hook_policy
 
-        existing = ".agents/sessions/2026-01-01-session-1.json"
+        existing = ".project-toolkit/sessions/2026-01-01-session-1.json"
         validate_commands: list[list[str]] = []
 
         def _record(command, _root):
@@ -4383,7 +4386,7 @@ class TestCheckSessionsCreationMode:
         from scripts.validation import git_hook_policy, session_scope
 
         commands: list[list[str]] = []
-        new = ".agents/sessions/2026-01-02-session-2.json"
+        new = ".project-toolkit/sessions/2026-01-02-session-2.json"
 
         def _record(command: list[str], _root: Path) -> subprocess.CompletedProcess[str]:
             commands.append(command)
@@ -4409,8 +4412,8 @@ class TestCheckSessionsCreationMode:
         from scripts.validation import git_hook_policy, session_scope
 
         commands: list[list[str]] = []
-        new_path = ".agents/sessions/2026-08-10-session-2-new.json"
-        old_path = ".agents/sessions/2026-08-10-session-1-old.json"
+        new_path = ".project-toolkit/sessions/2026-08-10-session-2-new.json"
+        old_path = ".project-toolkit/sessions/2026-08-10-session-1-old.json"
 
         def _record(command: list[str], _root: Path) -> subprocess.CompletedProcess[str]:
             commands.append(command)
@@ -4439,7 +4442,7 @@ class TestCheckSessionsCreationMode:
     def test_check_sessions_blocks_when_the_index_add_probe_fails(self) -> None:
         from scripts.validation import git_hook_policy
 
-        path = ".agents/sessions/2026-01-01-session-1.json"
+        path = ".project-toolkit/sessions/2026-01-01-session-1.json"
         validate_commands: list[list[str]] = []
 
         def _record(command, _root):
@@ -4479,7 +4482,7 @@ class TestCheckSessionsCreationMode:
             commands.append(command)
             return subprocess.CompletedProcess(command, 0, "", "")
 
-        new_path = ".agents/sessions/2026-08-10-session-2-new.json"
+        new_path = ".project-toolkit/sessions/2026-08-10-session-2-new.json"
         stub, _ = self._stub(added=(new_path,), tracked=(new_path,))
         with (
             mock.patch.object(git_hook_policy, "_run_command", _record),

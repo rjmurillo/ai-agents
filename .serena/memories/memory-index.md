@@ -11,11 +11,11 @@
 
 [Decision Records]
 |decision records rationale evidence implementation choices review findings: [skills-decision-index](skills-decision-index.md) (2345)
-|governance bureaucracy audit open issues PR churn session log redundancy critical review: [audits/2026-08-17-governance-bureaucracy-critical-review](audits/2026-08-17-governance-bureaucracy-critical-review.md) (677)
+|governance bureaucracy audit open issues PR churn session log redundancy critical review: [audits/2026-08-17-governance-bureaucracy-critical-review](audits/2026-08-17-governance-bureaucracy-critical-review.md) (681)
 |frontmatter key migration nested metadata shape atomic commit count gate scope bypass bulk rename: [decision-frontmatter-migrations-must-cover-both-key-shapes](decision-frontmatter-migrations-must-cover-both-key-shapes.md) (1353)
 
 [GitHub and PR Operations]
-|premise verification git log -S git grep reviewer-findings pr-comment-responder refuted: [pr-review/decision-premise-verification-reused-reviewer-findings](pr-review/decision-premise-verification-reused-reviewer-findings.md) (798)
+|premise verification git log -S git grep reviewer-findings pr-comment-responder refuted: [pr-review/decision-premise-verification-reused-reviewer-findings](pr-review/decision-premise-verification-reused-reviewer-findings.md) (800)
 |self-assessment ready-to-push refuted independent review negative control inert: [decision-agent-self-assessment-does-not-survive-review](decision-agent-self-assessment-does-not-survive-review.md) (1149)
 |merge invalidates open PRs stale baseline ratchet strict: [decision-every-merge-invalidates-every-open-pr](decision-every-merge-invalidates-every-open-pr.md) (3635)
 |injected instructions stale snapshot always-on context lags repo: [decision-injected-instructions-lag-the-repo](decision-injected-instructions-lag-the-repo.md) (785)
@@ -23,16 +23,16 @@
 |rate limit 403 refusal header X-Ratelimit-Reset Remaining velocity: [ci/github-rate-limit-payload-does-not-predict-service](ci/github-rate-limit-payload-does-not-predict-service.md) (4114)
 |rebase after push non-fast-forward force-push forbidden merge remote: [git/git-rebase-after-push-costs-two-cycles](git/git-rebase-after-push-costs-two-cycles.md) (1350)
 |push takes 15 minutes lefthook pre-push empty ls-remote: [git/git-empty-hook-run-means-an-empty-push](git/git-empty-hook-run-means-an-empty-push.md) (2692)
-|new_pr create stale main ref session end validation: [new-pr-stale-main-ref-trap](new-pr-stale-main-ref-trap.md) (1827)
+|new_pr create stale main ref session end validation: [new-pr-stale-main-ref-trap](new-pr-stale-main-ref-trap.md) (1835)
 |git diff origin main direction stale branch deletion: [git/git-diff-direction-on-a-stale-branch](git/git-diff-direction-on-a-stale-branch.md) (496)
 |close_issue comment-file must stay under repo root git: [github-skill/issue-comment-file-must-live-inside-the-repo](github-skill/issue-comment-file-must-live-inside-the-repo.md) (2127)
 |pr autofix late merge live state base refresh: [pr-autofix/pr-4323-late-base-refresh](pr-autofix/pr-4323-late-base-refresh.md) (144)
 |pr autofix batch merge conflict lease contention hook: [pr-autofix/batch-d-2026-08-11](pr-autofix/batch-d-2026-08-11.md) (1048)
 |pr autofix fleet lease renewal live-state QA evidence: [pr-autofix/fleet-operations](pr-autofix/fleet-operations.md) (406)
-|pr autofix lease renewal comment spam PR-AUTOFIX-LEASE post throttle self-renew noop concurrent session fleet: [pr-autofix/lease-renewal-comment-spam](pr-autofix/lease-renewal-comment-spam.md) (762)
+|pr autofix lease renewal comment spam PR-AUTOFIX-LEASE post throttle self-renew noop concurrent session fleet: [pr-autofix/lease-renewal-comment-spam](pr-autofix/lease-renewal-comment-spam.md) (764)
 |pr autofix orphaned local commits round-cap escalation verification reuse: [pr-autofix/pr-autofix-orphaned-commit-verification](pr-autofix/pr-autofix-orphaned-commit-verification.md) (380)
-|github pr issue cli gh api review comment: [skills-github-cli-index](skills-github-cli-index.md) (627), [skills-pr-review-index](skills-pr-review-index.md) (1100), [pr-review/pr-review-batch-response-pattern](pr-review/pr-review-batch-response-pattern.md) (699), [project/project-labels-milestones](project/project-labels-milestones.md) (325)
-|review axes full rerun cost ship marker amplifier scoped adr-094: [review/review-full-rerun-cost-and-ship-marker-amplifier](review/review-full-rerun-cost-and-ship-marker-amplifier.md) (662)
+|github pr issue cli gh api review comment: [skills-github-cli-index](skills-github-cli-index.md) (627), [skills-pr-review-index](skills-pr-review-index.md) (1100), [pr-review/pr-review-batch-response-pattern](pr-review/pr-review-batch-response-pattern.md) (701), [project/project-labels-milestones](project/project-labels-milestones.md) (325)
+|review axes full rerun cost ship marker amplifier scoped adr-094: [review/review-full-rerun-cost-and-ship-marker-amplifier](review/review-full-rerun-cost-and-ship-marker-amplifier.md) (664)
 |gist githubusercontent raw revision file selector content integrity: [github/gist-routing-content-integrity](github/gist-routing-content-integrity.md) (402)
 |github url path dotfile leading dot traversal encoded blob tree: [issues/4992-leading-dot-github-paths](issues/4992-leading-dot-github-paths.md) (145)
 |graphql mutation query resolve thread reply batch nested: [skills-graphql-index](skills-graphql-index.md) (111)
@@ -40,7 +40,7 @@
 |pr autofix lease bare checkout wrong branch local: [pr-autofix/bare-root-requires-pr-worktree-for-sha-audit](pr-autofix/bare-root-requires-pr-worktree-for-sha-audit.md) (299)
 |mcp tool body param shell substitution cat literal string update_pull_request create_pull_request: [ci/mcp-tool-params-are-not-shell-evaluated](ci/mcp-tool-params-are-not-shell-evaluated.md) (491)
 |gh extension notify combine metrics milestone webhook grep: [skills-gh-extensions-index](skills-gh-extensions-index.md) (346)
-|copilot review false-positive triage response cli agent frontmatter: [skills-copilot-index](skills-copilot-index.md) (497), [copilot/copilot-cli-frontmatter-regression-runbook](copilot/copilot-cli-frontmatter-regression-runbook.md) (1903)
+|copilot review false-positive triage response cli agent frontmatter: [skills-copilot-index](skills-copilot-index.md) (497), [copilot/copilot-cli-frontmatter-regression-runbook](copilot/copilot-cli-frontmatter-regression-runbook.md) (1907)
 |triage stale closure verify history bot superseded duplicate: [pr-review/triage-001-verify-before-stale-closure](pr-review/triage-001-verify-before-stale-closure.md) (435), [pr-review/triage-002-bot-closure-verification](pr-review/triage-002-bot-closure-verification.md) (452)
 |pr validation gate status check blocker merge: [validation/validation-pr-gates](validation/validation-pr-gates.md) (1245)
 |pr checks read rollup truncation cancelled superseded severity: [pr-review/use-get-pr-checks-not-raw-rollup](pr-review/use-get-pr-checks-not-raw-rollup.md) (1974)
@@ -59,10 +59,10 @@
 |detector widening corpus probe measure before design count newly flagged gate false positive: [validation/measure-a-detector-widening-before-designing-it](validation/measure-a-detector-widening-before-designing-it.md) (409)
 |shared resolver latent defect inherited second caller granularity shell comment variable binding order: [validation/reusing-a-resolver-inherits-its-latent-defects](validation/reusing-a-resolver-inherits-its-latent-defects.md) (460)
 |eval harness enumerate scripts naming underscore hyphen glob: [eval-harness-surface-enumeration](eval-harness-surface-enumeration.md) (681)
-|powershell ps1 psm1 module pester test discovery isolation: [skills-powershell-index](skills-powershell-index.md) (443), [skills-pester-testing-index](skills-pester-testing-index.md) (181), [powershell/pester-variable-scoping](powershell/pester-variable-scoping.md) (497), [powershell/powershell-variable-shadowing-detection](powershell/powershell-variable-shadowing-detection.md) (665), [patterns/pattern-thin-workflows](patterns/pattern-thin-workflows.md) (1373)
+|powershell ps1 psm1 module pester test discovery isolation: [skills-powershell-index](skills-powershell-index.md) (443), [skills-pester-testing-index](skills-pester-testing-index.md) (181), [powershell/pester-variable-scoping](powershell/pester-variable-scoping.md) (497), [powershell/powershell-variable-shadowing-detection](powershell/powershell-variable-shadowing-detection.md) (667), [patterns/pattern-thin-workflows](patterns/pattern-thin-workflows.md) (1373)
 |bash exit code cross-language contract AUTOFIX pre-commit hook: [skills-bash-integration-index](skills-bash-integration-index.md) (110)
 |copilot hook generation matcher shim stale cleanup NO-REGEN: [copilot-hook-generation-invariants](copilot-hook-generation-invariants.md) (1992)
-|subagent model gate task tool agent_type require model dispatch group duplicate entry settings twin knowledge count pins adr review debate log: [hooks/require-subagent-model-gate](hooks/require-subagent-model-gate.md) (955)
+|subagent model gate task tool agent_type require model dispatch group duplicate entry settings twin knowledge count pins adr review debate log: [hooks/require-subagent-model-gate](hooks/require-subagent-model-gate.md) (957)
 |lefthook placeholder remote positional arg duplicate job name inert push-ref-staleness: [hooks/lefthook-substitutes-positional-args-not-names](hooks/lefthook-substitutes-positional-args-not-names.md) (788)
 |test exit code pytest pester error failed passed: [testing/testing-exit-code-interpretation](testing/testing-exit-code-interpretation.md) (628)
 |mutation testing false green sed delimiter guard load-bearing: [mutation-testing-false-green](mutation-testing-false-green.md) (908)
@@ -76,9 +76,9 @@
 
 [Architecture and Design]
 |architecture ADR model composite tool allocation producer-consumer: [skills-architecture-index](skills-architecture-index.md) (627)
-|adr decision record active proposed superseded rationale artifact: [adr-reference-index](adr-reference-index.md) (680), [adr/adr-artifact-count-verification](adr/adr-artifact-count-verification.md) (401), [adr/adr-retroactive-amendment-criteria](adr/adr-retroactive-amendment-criteria.md) (825), [adr/adr-review-observations](adr/adr-review-observations.md) (756)
+|adr decision record active proposed superseded rationale artifact: [adr-reference-index](adr-reference-index.md) (680), [adr/adr-artifact-count-verification](adr/adr-artifact-count-verification.md) (403), [adr/adr-retroactive-amendment-criteria](adr/adr-retroactive-amendment-criteria.md) (827), [adr/adr-review-observations](adr/adr-review-observations.md) (758)
 |design agent specialization entry-criteria limitation composability: [skills-design-index](skills-design-index.md) (206)
-|always-on corpus membership applyTo mirror generated synthesized internal-only: [architecture/always-on-membership-lives-in-the-mirror](architecture/always-on-membership-lives-in-the-mirror.md) (454)
+|always-on corpus membership applyTo mirror generated synthesized internal-only: [architecture/always-on-membership-lives-in-the-mirror](architecture/always-on-membership-lives-in-the-mirror.md) (456)
 |always-on rule edit invalidates corpus figures byte totals: [architecture/growing-an-always-on-rule-breaks-four-prose-documents](architecture/growing-an-always-on-rule-breaks-four-prose-documents.md) (1791)
 
 [Implementation and Quality]
@@ -88,11 +88,11 @@
 |sentinel zero None unknown unmeasured tri-state exit code: [quality/add-missing-state-not-sentinel](quality/add-missing-state-not-sentinel.md) (811)
 |quality gate unknown verdict infra downgrade fail closed: [quality/unknown-verdict-infra-downgrade-stays-blocking](quality/unknown-verdict-infra-downgrade-stays-blocking.md) (226)
 |git merge union driver append-only semantic duplicate gitattributes: [quality/union-merge-hides-semantic-duplicates](quality/union-merge-hides-semantic-duplicates.md) (911)
-|merge-resolver add/add session-log rename suffix never content-merge drift floor: [tasks/issue-5074-merge-resolver-rename-rule](tasks/issue-5074-merge-resolver-rename-rule.md) (500)
+|merge-resolver add/add session-log rename suffix never content-merge drift floor: [tasks/issue-5074-merge-resolver-rename-rule](tasks/issue-5074-merge-resolver-rename-rule.md) (510)
 |squash merge ancestry is-ancestor branch deleted REMOTE ABSENT: [quality/verify-squash-merge-by-content-not-ancestry](quality/verify-squash-merge-by-content-not-ancestry.md) (968)
 |github rate limit 403 X-RateLimit-Remaining header endpoint disagrees: [quality/github-rate-limit-endpoint-disagrees-with-enforcement](quality/github-rate-limit-endpoint-disagrees-with-enforcement.md) (865)
 |diff3 zdiff3 conflict markers base region checkout --merge: [quality/diff3-conflicts-have-four-markers](quality/diff3-conflicts-have-four-markers.md) (801)
-|code smell refactoring bloaters couplers dispensables taxonomy Fowler: [quality/code-smells-catalog](quality/code-smells-catalog.md) (1123)
+|code smell refactoring bloaters couplers dispensables taxonomy Fowler: [quality/code-smells-catalog](quality/code-smells-catalog.md) (1125)
 |prompt engineering quality gate AI assessment template: [quality/quality-prompt-engineering-gates](quality/quality-prompt-engineering-gates.md) (1401)
 |code quality changed-only regression gate absolute debt issue: [validation/code-quality-changed-only-regression-gate](validation/code-quality-changed-only-regression-gate.md) (287)
 |validation quality lint false-positive gate test: [skills-validation-index](skills-validation-index.md) (539)
@@ -100,7 +100,7 @@
 |markdownlint scratch argv command length process startup batch exit code empty output issue 4892: [linting/linting-exclusions](linting/linting-exclusions.md) (2065)
 
 [Agent Orchestration]
-|orchestration agent coordination parallel handoff dispatch consensus: [skills-orchestration-index](skills-orchestration-index.md) (506), [governance/consensus-disagree-and-commit-pattern](governance/consensus-disagree-and-commit-pattern.md) (813)
+|orchestration agent coordination parallel handoff dispatch consensus: [skills-orchestration-index](skills-orchestration-index.md) (506), [governance/consensus-disagree-and-commit-pattern](governance/consensus-disagree-and-commit-pattern.md) (817)
 |agent workflow pipeline critic atomic commit scope MVP: [skills-agent-workflow-index](skills-agent-workflow-index.md) (351)
 |autonomous execution guardrails circuit breaker patch signal trust: [skills-autonomous-execution-index](skills-autonomous-execution-index.md) (153)
 |fleet contention stop order renice congestion collapse two: [decision-stop-orders-are-not-a-control-plane](decision-stop-orders-are-not-a-control-plane.md) (876)
@@ -114,18 +114,18 @@
 |BOT_PAT github.token runner token AI review read calls: [ci/ci-ai-review-read-calls-use-runner-token](ci/ci-ai-review-read-calls-use-runner-token.md) (284)
 |count ratchet baseline branch freshness behind main stale: [ci/ci-count-ratchets-require-branch-freshness](ci/ci-count-ratchets-require-branch-freshness.md) (1604)
 |taste count ratchet pre-push cost twelve minutes python-tests: [ci/run-count-ratchets-before-the-expensive-pre-push](ci/run-count-ratchets-before-the-expensive-pre-push.md) (875)
-|pre-push wall clock duration python-tests partitions mutation contention DORA: [ci/ci-pre-push-wall-clock-is-python-tests](ci/ci-pre-push-wall-clock-is-python-tests.md) (1850)
+|pre-push wall clock duration python-tests partitions mutation contention DORA: [ci/ci-pre-push-wall-clock-is-python-tests](ci/ci-pre-push-wall-clock-is-python-tests.md) (1854)
 |taste baseline slack MAX_BASELINE_SLACK drift enforced by pytest: [ci/ci-taste-baseline-slack-is-enforced-by-pytest-not-the-ratchet](ci/ci-taste-baseline-slack-is-enforced-by-pytest-not-the-ratchet.md) (1077)
 |ratchet declared twice lefthook checks_ratchet parity add/add conflict: [ci/ci-a-ratchet-is-declared-twice-so-drop-it-twice](ci/ci-a-ratchet-is-declared-twice-so-drop-it-twice.md) (704)
 |stale detached HEAD shared checkout verify wrong commit: [workspace/workspace-shared-checkout-is-a-stale-detached-head](workspace/workspace-shared-checkout-is-a-stale-detached-head.md) (1497)
 |tracking branch push retry fleet CPU load pre-pr-validation timeout SIGKILL: [ci/tracking-branch-push-retries-under-fleet-cpu-load](ci/tracking-branch-push-retries-under-fleet-cpu-load.md) (2383)
 |stuck subagent SendMessage nudge git checkout stale local branch GH007 private email worktree identity user.email --worktree: [agent-behavior/stuck-subagent-and-worktree-recovery](agent-behavior/stuck-subagent-and-worktree-recovery.md) (205)
-|spec coverage validator verdict differs across reruns adjacent commits PASS WARN FAIL PARTIAL component: [ci/ai-spec-validator-verdicts-flip-flop-across-reruns](ci/ai-spec-validator-verdicts-flip-flop-across-reruns.md) (747)
+|spec coverage validator verdict differs across reruns adjacent commits PASS WARN FAIL PARTIAL component: [ci/ai-spec-validator-verdicts-flip-flop-across-reruns](ci/ai-spec-validator-verdicts-flip-flop-across-reruns.md) (751)
 |gc_worktrees prune registered worktrees rescue branch admin directory unreachable commits: [workspace/gc-worktrees-report-then-apply](workspace/gc-worktrees-report-then-apply.md) (542)
-|validate PR check red advisory blocking signal DESCRIPTION_RESULT: [ci/ci-validate-pr-is-many-gates-only-some-read-the-body](ci/ci-validate-pr-is-many-gates-only-some-read-the-body.md) (3230)
+|validate PR check red advisory blocking signal DESCRIPTION_RESULT: [ci/ci-validate-pr-is-many-gates-only-some-read-the-body](ci/ci-validate-pr-is-many-gates-only-some-read-the-body.md) (3232)
 |workspace WSL native worktree uv network handshake mutation harness /mnt/c: [workspace/wsl-native-worktree-for-uv-network-access](workspace/wsl-native-worktree-for-uv-network-access.md) (352)
-|linking an issue Closes Fixes Resolves Implements Refs: [ci/ci-linking-an-issue-arms-an-ai-gate-against-your-diff](ci/ci-linking-an-issue-arms-an-ai-gate-against-your-diff.md) (1710)
-|QA report filename issue-N pr-N rename first push glob: [ci/ci-qa-report-may-be-named-for-the-issue-not-the-pr](ci/ci-qa-report-may-be-named-for-the-issue-not-the-pr.md) (1221)
+|linking an issue Closes Fixes Resolves Implements Refs: [ci/ci-linking-an-issue-arms-an-ai-gate-against-your-diff](ci/ci-linking-an-issue-arms-an-ai-gate-against-your-diff.md) (1714)
+|QA report filename issue-N pr-N rename first push glob: [ci/ci-qa-report-may-be-named-for-the-issue-not-the-pr](ci/ci-qa-report-may-be-named-for-the-issue-not-the-pr.md) (1227)
 |job name collision duplicate check name ambiguous red: [ci/ci-job-names-collide-so-a-red-check-name-is-ambiguous](ci/ci-job-names-collide-so-a-red-check-name-is-ambiguous.md) (1490)
 |AI quality gate Aggregate Results all agents NEEDS_REVIEW: [ci/ci-ai-gate-blocks-when-the-security-review-did-not-run](ci/ci-ai-gate-blocks-when-the-security-review-did-not-run.md) (2000)
 |copilot skill mirror two canonical sources generate_skills generate_commands: [copilot/copilot-skill-mirror-has-two-sources](copilot/copilot-skill-mirror-has-two-sources.md) (848)
@@ -141,7 +141,7 @@
 [Documentation and Planning]
 |documentation PRD spec user-facing migration self-contained: [skills-documentation-index](skills-documentation-index.md) (311)
 |planning task file path scope breakdown: [skills-planning-index](skills-planning-index.md) (246)
-|roadmap epic priority strategic vision business value: [planning/roadmap-priorities](planning/roadmap-priorities.md) (265)
+|roadmap epic priority strategic vision business value: [planning/roadmap-priorities](planning/roadmap-priorities.md) (271)
 
 [Tooling and Patterns]
 |grep ERE BRE alternation escaped pipe markdownlint MD056: [patterns/pattern-escaping-a-pipe-for-md056-breaks-ere-grep](patterns/pattern-escaping-a-pipe-for-md056-breaks-ere-grep.md) (661)
@@ -151,14 +151,14 @@
 |git branch merge conflict checkout cleanup workflow resolution: [skills-git-index](skills-git-index.md) (923)
 |git stash push -m after double dash parsed: [git/git-stash-m-after-double-dash-is-a-pathspec](git/git-stash-m-after-double-dash-is-a-pathspec.md) (678)
 |script absolute path wrong worktree repo_root __file__ validates: [git/git-a-script-run-by-absolute-path-validates-its-own-worktree](git/git-a-script-run-by-absolute-path-validates-its-own-worktree.md) (1736)
-|merge conflict resolve ours theirs convenience wrong side: [git/git-a-conflict-resolved-for-convenience-records-a-falsehood](git/git-a-conflict-resolved-for-convenience-records-a-falsehood.md) (1185)
+|merge conflict resolve ours theirs convenience wrong side: [git/git-a-conflict-resolved-for-convenience-records-a-falsehood](git/git-a-conflict-resolved-for-convenience-records-a-falsehood.md) (1189)
 |git stash shared across worktrees pop takes another: [git/git-stash-is-shared-across-every-worktree](git/git-stash-is-shared-across-every-worktree.md) (965)
 |git shallow graft depth fetch unshallow blocks push: [git/git-shallow-is-shared-across-every-worktree](git/git-shallow-is-shared-across-every-worktree.md) (1132)
 |subagent sandbox worktree checkout moves head wrong commit: [git/git-a-subagent-in-your-worktree-moves-your-head](git/git-a-subagent-in-your-worktree-moves-your-head.md) (1729)
-|agent steering system prompt renders from live checkout: [git/git-checkout-drift-feeds-stale-agent-steering](git/git-checkout-drift-feeds-stale-agent-steering.md) (943)
+|agent steering system prompt renders from live checkout: [git/git-checkout-drift-feeds-stale-agent-steering](git/git-checkout-drift-feeds-stale-agent-steering.md) (947)
 |git branch switch checkout file state verification lost: [git/git-004-branch-switch-file-verification](git/git-004-branch-switch-file-verification.md) (851)
 |lost code recovery investigation unmerged branch orphaned: [session/recovery-001-lost-code-investigation](session/recovery-001-lost-code-investigation.md) (552)
-|cva refactoring variant consolidation template generate: [utilities/utilities-cva-refactoring](utilities/utilities-cva-refactoring.md) (1251)
+|cva refactoring variant consolidation template generate: [utilities/utilities-cva-refactoring](utilities/utilities-cva-refactoring.md) (1253)
 
 [External Tools]
 |gemini code assist config styleguide ignore path enterprise: [skills-gemini-index](skills-gemini-index.md) (200)
@@ -168,35 +168,35 @@
 
 [Governance]
 |governance agent consolidation design principle overlap: [governance/governance-001-8question-agent-interview-94](governance/governance-001-8question-agent-interview-94.md) (172), [governance/governance-002-five-consolidation-triggers-90](governance/governance-002-five-consolidation-triggers-90.md) (156)
-|process workflow gap missing capability root cause: [orchestration/orchestration-process-workflow-gaps](orchestration/orchestration-process-workflow-gaps.md) (1552)
+|process workflow gap missing capability root cause: [orchestration/orchestration-process-workflow-gaps](orchestration/orchestration-process-workflow-gaps.md) (1570)
 
 [Retrospective and Learning]
-|retrospective learning session failure skill persistence extract artifact: [skills-retrospective-index](skills-retrospective-index.md) (376), [retrospective/retrospective-artifact-efficiency-pattern](retrospective/retrospective-artifact-efficiency-pattern.md) (987)
+|retrospective learning session failure skill persistence extract artifact: [skills-retrospective-index](skills-retrospective-index.md) (376), [retrospective/retrospective-artifact-efficiency-pattern](retrospective/retrospective-artifact-efficiency-pattern.md) (1019)
 |skill sidecar observations learnings eval-harness fixtures build-model parity drift prompt-optimization ci-infrastructure: [agent-prompt-optimization-observations](agent-prompt-optimization-observations.md) (2449), [eval-harness-observations](eval-harness-observations.md) (2714), [ci-infrastructure-observations](ci-infrastructure-observations.md) (1674)
 |eval fixture provenance corpus closed-loop author-worded synthetic trigger-eval upper-bound: [decision-eval-fixture-provenance-closed-loop](decision-eval-fixture-provenance-closed-loop.md) (1509)
 |eval provider billing matrix harness subscription api claude-cli codex-cli copilot-api cost basis credential: [eval/eval-billing-matrix](eval/eval-billing-matrix.md) (1525)
-|implementation contracts PreToolUse advisory envelope hookSpecificOutput two-pipeline agent: [hooks-pretooluse-advisory-envelope-contract](hooks-pretooluse-advisory-envelope-contract.md) (393), [agents-two-pipeline-mirror-recipe](agents-two-pipeline-mirror-recipe.md) (1053), [eval/eval-multiprovider-transport](eval/eval-multiprovider-transport.md) (814), [lsp-first-enforcement-adr062](lsp-first-enforcement-adr062.md) (425)
+|implementation contracts PreToolUse advisory envelope hookSpecificOutput two-pipeline agent: [hooks-pretooluse-advisory-envelope-contract](hooks-pretooluse-advisory-envelope-contract.md) (393), [agents-two-pipeline-mirror-recipe](agents-two-pipeline-mirror-recipe.md) (1053), [eval/eval-multiprovider-transport](eval/eval-multiprovider-transport.md) (816), [lsp-first-enforcement-adr062](lsp-first-enforcement-adr062.md) (427)
 
 [Memory and Context]
-|context engineering token optimization progressive disclosure just-in-time token: [memory/context-engineering-principles](memory/context-engineering-principles.md) (598), [memory/memory-token-efficiency](memory/memory-token-efficiency.md) (862)
+|context engineering token optimization progressive disclosure just-in-time token: [memory/context-engineering-principles](memory/context-engineering-principles.md) (600), [memory/memory-token-efficiency](memory/memory-token-efficiency.md) (862)
 |agentic session cost token replay cached input exec output fanout delegation direct work phase threads: [cost/cost-optimization-observations](cost/cost-optimization-observations.md) (745)
-|passive context AGENTS.md skills decision-point retrieval-led compression research: [memory/passive-context-vs-skills-vercel-research](memory/passive-context-vs-skills-vercel-research.md) (459), [claude/claude-md-anthropic-best-practices](claude/claude-md-anthropic-best-practices.md) (685), [claude/claude-code-skills-official-guidance](claude/claude-code-skills-official-guidance.md) (623)
+|passive context AGENTS.md skills decision-point retrieval-led compression research: [memory/passive-context-vs-skills-vercel-research](memory/passive-context-vs-skills-vercel-research.md) (461), [claude/claude-md-anthropic-best-practices](claude/claude-md-anthropic-best-practices.md) (687), [claude/claude-code-skills-official-guidance](claude/claude-code-skills-official-guidance.md) (625)
 |portability symlink TOCTOU scan_all refuse_symlinked_scan_root: [decision-portability-ratchet-symlink-toctou](decision-portability-ratchet-symlink-toctou.md) (314)
-|instruction budget always-on ceiling applyTo scope headroom rule: [decision-the-instruction-budget-gate-already-exists](decision-the-instruction-budget-gate-already-exists.md) (1856)
+|instruction budget always-on ceiling applyTo scope headroom rule: [decision-the-instruction-budget-gate-already-exists](decision-the-instruction-budget-gate-already-exists.md) (1858)
 |memory index validator one direction unindexed orphan check: [memory-index-validator-checks-one-direction-only](memory-index-validator-checks-one-direction-only.md) (992)
 |memory index token count churn recount every row: [memory-index-token-counts-churn-across-branches](memory-index-token-counts-churn-across-branches.md) (1345)
 |memory size gate characters not bytes wc -c: [memory/memory-size-gate-counts-characters-not-bytes](memory/memory-size-gate-counts-characters-not-bytes.md) (537)
 |forgetful migration backup import legacy PowerShell singleton object null correction export: [memory/forgetful-migration-plan](memory/forgetful-migration-plan.md) (1698)
 
 [Root Cause Patterns (PR #908)]
-|governance enforcement ADR limits commits files programmatic gate: [root-cause-governance-enforcement](root-cause-governance-enforcement.md) (603)
-|late feedback loop CI shift-left CodeQL security pre-push: [root-cause-late-feedback](root-cause-late-feedback.md) (497)
-|scope creep tool side effects markdownlint glob unrelated: [root-cause-scope-creep-tools](root-cause-scope-creep-tools.md) (492)
+|governance enforcement ADR limits commits files programmatic gate: [root-cause-governance-enforcement](root-cause-governance-enforcement.md) (605)
+|late feedback loop CI shift-left CodeQL security pre-push: [root-cause-late-feedback](root-cause-late-feedback.md) (499)
+|scope creep tool side effects markdownlint glob unrelated: [root-cause-scope-creep-tools](root-cause-scope-creep-tools.md) (494)
 
 [Engineering Knowledge Tiers]
 |<5 years foundational: [foundational-knowledge-index](foundational-knowledge-index.md) (487)
 |all tiers: [engineering-knowledge-index](engineering-knowledge-index.md) (1439)
-|15+ years principal: [knowledge/principal-engineering-knowledge](knowledge/principal-engineering-knowledge.md) (857)
+|15+ years principal: [knowledge/principal-engineering-knowledge](knowledge/principal-engineering-knowledge.md) (859)
 |25+ years distinguished: [distinguished-engineer-knowledge-index](distinguished-engineer-knowledge-index.md) (283)
 
 [Governance Evidence]

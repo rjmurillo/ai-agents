@@ -507,7 +507,7 @@ if __name__ == "__main__":
 
 ## References
 
-- [ADR-042: Python Migration Strategy](../architecture/ADR-042-python-migration-strategy.md)
+- [ADR-042: Python Migration Strategy](../../.project-toolkit/architecture/ADR-042-python-migration-strategy.md)
 - [Python CI/CD Patterns](./python-cicd-patterns.md)
-- [Python Security Checklist](../security/python-security-checklist.md)
+- [Python Security Checklist](../../.project-toolkit/security/python-security-checklist.md)
 - [pyproject.toml](../../pyproject.toml) (coding standards)

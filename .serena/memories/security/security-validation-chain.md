@@ -50,7 +50,7 @@ Phase 3 (Post-Implementation):
 - No handoff from implementer back to security
 - Single-agent security review without downstream validation
 
-**Source**: `.agents/retrospective/phase1-remediation-pr43.md`
+**Source**: `.project-toolkit/retrospective/phase1-remediation-pr43.md`
 
 ## Related
 

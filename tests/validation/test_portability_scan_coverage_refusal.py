@@ -284,7 +284,7 @@ class TestDescendantSymlinkEscapes:
     @staticmethod
     def _escape_text(module: ModuleType) -> str:
         if module is cmp:
-            return "Writes .agents/analysis/escape.md.\n"
+            return "Writes .project-toolkit/analysis/escape.md.\n"
         return "python3 .claude/skills/alpha/scripts/escape.py\n"
 
     @pytest.mark.skipif(

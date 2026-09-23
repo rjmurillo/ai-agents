@@ -93,7 +93,7 @@ class TestIsAutoResolvable:
         assert is_auto_resolvable(".agents/governance/PROJECT-CONSTRAINTS.md") is True
 
     def test_session_files_resolvable(self) -> None:
-        assert is_auto_resolvable(".agents/sessions/2025-01-01.json") is True
+        assert is_auto_resolvable(".project-toolkit/sessions/2025-01-01.json") is True
 
     def test_serena_memories_resolvable(self) -> None:
         assert is_auto_resolvable(".serena/memories/test.md") is True

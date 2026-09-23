@@ -1,7 +1,7 @@
 # Feature Toggles
 
 **Category**: Deployment Practices
-**Source**: `.agents/analysis/senior-engineering-knowledge.md`
+**Source**: `.project-toolkit/analysis/senior-engineering-knowledge.md`
 
 ## Purpose
 

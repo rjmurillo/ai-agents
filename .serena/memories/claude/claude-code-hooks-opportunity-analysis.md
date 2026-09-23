@@ -1,7 +1,7 @@
 # Claude Code Hooks Opportunity Analysis
 
 **Date**: 2026-01-04
-**Analysis**: `.agents/analysis/claude-code-hooks-opportunity-analysis.md`
+**Analysis**: `.project-toolkit/analysis/claude-code-hooks-opportunity-analysis.md`
 
 ## Current State
 

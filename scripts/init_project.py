@@ -36,18 +36,21 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Directories to create under .agents/
+# Repository-relative scaffold directories. `.agents/` keeps read-only
+# canonical inputs (governance); agent write targets live under
+# `.project-toolkit/` (issue #5420).
 _AGENTS_DIRS: list[str] = [
-    "architecture",
-    "governance",
-    "sessions",
-    "planning",
-    "memory",
+    ".project-toolkit/architecture",
+    ".agents/governance",
+    ".project-toolkit/sessions",
+    ".project-toolkit/planning",
+    ".project-toolkit/memory",
 ]
 
 # Directories for the minimal scaffold
 _AGENTS_DIRS_MINIMAL: list[str] = [
-    "architecture",
-    "sessions",
+    ".project-toolkit/architecture",
+    ".project-toolkit/sessions",
 ]
 
 _CLAUDE_MD_TEMPLATE = """\
@@ -63,11 +66,11 @@ Cross-platform agent instructions for Claude Code, Copilot CLI, and VS Code.
 
 ## Session Protocol
 
-Session logs go in `.agents/sessions/`.
+Session logs go in `.project-toolkit/sessions/`.
 
 ## Architecture Decisions
 
-ADRs go in `.agents/architecture/`.
+ADRs go in `.project-toolkit/architecture/`.
 
 ## Coding Standards
 
@@ -79,7 +82,7 @@ ADRs go in `.agents/architecture/`.
 
 _GITIGNORE_ENTRIES: list[str] = [
     "# ai-agents session logs",
-    ".agents/sessions/*.json",
+    ".project-toolkit/sessions/*.json",
 ]
 
 _TEAM_YAML_TEMPLATE = """\
@@ -137,7 +140,7 @@ The `ai-agents init` command scaffolded a ready-to-use agent team into your proj
 
 - Run `ai-agents list` to see what was installed.
 - Run `ai-agents init --force` to re-scaffold from scratch.
-- Check `.agents/sessions/` for session logs that may show what changed.
+- Check `.project-toolkit/sessions/` for session logs that may show what changed.
 
 ## Where to ask for help
 
@@ -288,12 +291,11 @@ class ProjectInitializer:
         return True
 
     def scaffold_agents_dirs(self) -> bool:
-        """Create .agents/ directory structure."""
+        """Create the .agents/ input and .project-toolkit/ output directories."""
         dirs = _AGENTS_DIRS_MINIMAL if self.minimal else _AGENTS_DIRS
-        agents_root = self.target_dir / ".agents"
 
         for dir_name in dirs:
-            if not self._make_dir(agents_root / dir_name):
+            if not self._make_dir(self.target_dir / dir_name):
                 return False
         return True
 

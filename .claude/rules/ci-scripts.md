@@ -18,8 +18,8 @@ priority: high
 
 <!-- vendor-portability: this rule's whole subject is this repository's own CI
      and validation tooling, so its body names upstream-only paths throughout,
-     under scripts/validation, scripts/ci, scripts/utils, .agents/architecture,
-     .agents/sessions, and build (both the bare build/ directory mentioned
+     under scripts/validation, scripts/ci, scripts/utils, .project-toolkit/architecture,
+     .project-toolkit/sessions, and build (both the bare build/ directory mentioned
      generally and the specific build/audit/GENERATION-AUDIT.md report), plus
      AGENTS.md, tests, lefthook.yml, and .github (workflows, actions,
      scripts), none of which exist in a consumer's install (issue #5214) -->
@@ -60,7 +60,7 @@ Scripts under `scripts/validation/`, `build/`, and `.github/workflows/` gate eve
 
 10. **Prove the CLI exits nonzero on a failure the shell used to fail on**. A script under `scripts/ci` or `.github/scripts` that defines `main` MUST ship a test asserting a nonzero return from `main(argv)`, not only from a helper. The assertion has to sit in the same test that drives the CLI: the gate credits a nonzero assertion only where the test also calls that script's `main`, runs its path in a subprocess, or calls a local helper that does either. A `run:` block executes under `set -e`, so any command exiting nonzero fails the step. The natural Python translation returns a sentinel instead (empty string, `None`, empty list, a warning followed by `return 0`), and when no caller converts that sentinel into a nonzero exit the step goes green on a failure that used to be red. ADR-006 extraction is therefore a silent-pass generator, not only a silent-pass detector. Six instances were found in two extraction PRs, and three of them shipped tests that asserted the swallow. Every one of those tests asserted on a helper's return value, which structurally cannot catch an exit-code defect: the helper correctly reports failure, and nothing checks that the process does. `scripts/ci/cli_exit_contract_ratchet.py` enforces this as an equality ratchet from `pr-validation.yml`; the count may only fall. Refs Issue #4068.
 
-21. **A stdin-consuming pre-push job MUST stay `piped: true`, never `parallel: true`, unless one producer job captures the ref-update stdin once into a push-scoped immutable artifact for every consumer to read instead of declaring its own `use_stdin: true`.** On Lefthook 2.1.10, parallel `use_stdin: true` jobs race the shared stream, so a consumer can receive a truncated or duplicated payload instead of the full copy `piped: true` delivers. Evidence: `.agents/sessions/2026-08-06-session-10003-profile-optimize-pre-submit-pre-commit-pre-push.json`.
+21. **A stdin-consuming pre-push job MUST stay `piped: true`, never `parallel: true`, unless one producer job captures the ref-update stdin once into a push-scoped immutable artifact for every consumer to read instead of declaring its own `use_stdin: true`.** On Lefthook 2.1.10, parallel `use_stdin: true` jobs race the shared stream, so a consumer can receive a truncated or duplicated payload instead of the full copy `piped: true` delivers. Evidence: `.project-toolkit/sessions/2026-08-06-session-10003-profile-optimize-pre-submit-pre-commit-pre-push.json`.
 
 22. **A job `name:` is a branch-protection identifier. Emit both names before requiring the new one.** GitHub matches a required status check against a workflow job's check-run name, which is the job `name:` or the job id when `name:` is absent. Composite-action metadata under `.github/actions/` does not create check runs by itself; only consuming workflow jobs do. Check the full protected-branch set, not one guessed ruleset: `gh api repos/OWNER/REPO/rules/branches/main --jq '[.[]|select(.type=="required_status_checks")|.parameters.required_status_checks[].context]'`. Compare it with check-run names from a fresh PR run, because `gh pr checks` cannot show a context that never ran. No-gap rename sequence: emit old and new names, merge to `main`, require the new context, remove the old requirement, then remove the old alias. The gap sequence is still valid but less safe: drop the old requirement, merge the rename, observe the new check, then require it. Requiring the new name before `main` emits it blocks every PR. Measured 2026-08-09: required `Session Protocol Results` and `AI Quality Gate Results` existed only on an unmerged PR, so `main` took no commits for five hours.
 
@@ -144,8 +144,8 @@ bytes over its ceiling.
 
 ## References
 
-- `.agents/architecture/ADR-006-thin-workflows-testable-modules.md`. Workflow pattern
-- `.agents/architecture/ADR-042-python-migration-strategy.md`. Python-first
+- `.project-toolkit/architecture/ADR-006-thin-workflows-testable-modules.md`. Workflow pattern
+- `.project-toolkit/architecture/ADR-042-python-migration-strategy.md`. Python-first
 - `scripts/validation/pre_pr.py`. Canonical pre-PR runner
 - `scripts/validation/check_skill_resolver_anchoring.py`. Enforces the anchoring requirement for `SKILL.md` resolvers
 - The `validation-authority` skill. Validator-authority guidance

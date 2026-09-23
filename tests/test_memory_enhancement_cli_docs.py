@@ -52,7 +52,7 @@ DOC_ROOTS = (
     ".claude/rules",
     "src/copilot-cli/skills",
     "src/copilot-cli/instructions",
-    ".agents/architecture",
+    ".project-toolkit/architecture",
     ".agents/guides",
     ".serena/memories",
 )
@@ -327,7 +327,7 @@ class TestDocumentedInvocations:
             ".claude/rules",
             "src/copilot-cli/skills",
             "src/copilot-cli/instructions",
-            ".agents/architecture",
+            ".project-toolkit/architecture",
             ".agents/guides",
             ".serena/memories",
         }, "DOC_ROOTS changed; confirm the new scope is intended"

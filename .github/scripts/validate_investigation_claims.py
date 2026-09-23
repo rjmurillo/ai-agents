@@ -56,15 +56,15 @@ from scripts.modules.investigation_allowlist import (  # noqa: E402
 # This is the sole copy; the session skill's parity twin was removed with
 # the session skill cluster.
 _ALLOWLIST_PATTERNS = [
-    r"^\.agents/sessions/",
-    r"^\.agents/analysis/",
-    r"^\.agents/retrospective/",
+    r"^\.project-toolkit/sessions/",
+    r"^\.project-toolkit/analysis/",
+    r"^\.project-toolkit/retrospective/",
     r"^\.serena/memories($|/)",
-    r"^\.agents/security/",
-    r"^\.agents/memory/",  # Added in PR #926
-    r"^\.agents/architecture/REVIEW-",  # Review documents
-    r"^\.agents/critique/",  # Critic debate logs
-    r"^\.agents/memory/episodes/",  # Memory episodes
+    r"^\.project-toolkit/security/",
+    r"^\.project-toolkit/memory/",  # Added in PR #926
+    r"^\.project-toolkit/architecture/REVIEW-",  # Review documents
+    r"^\.project-toolkit/critique/",  # Critic debate logs
+    r"^\.project-toolkit/memory/episodes/",  # Memory episodes
 ]
 
 # Pattern to detect investigation-only claims in session logs
@@ -140,9 +140,24 @@ def session_claims_investigation_only(session_path: Path) -> bool:
 
 
 def get_commit_for_session(session_path: Path) -> str | None:
-    """Get the commit SHA that introduced or last modified a session file."""
+    """Get the commit SHA that introduced or last modified a session file.
+
+    A byte-identical rename, such as the #5420 root move, is not authorship:
+    ``--follow`` with exact rename detection skips it and reports the commit
+    that last wrote the content. A rename with edits still counts.
+    """
     result = subprocess.run(
-        ["git", "log", "-1", "--format=%H", "--", str(session_path)],
+        [
+            "git",
+            "log",
+            "-1",
+            "--format=%H",
+            "--follow",
+            "--find-renames=100%",
+            "--diff-filter=AM",
+            "--",
+            str(session_path),
+        ],
         capture_output=True,
         text=True,
         timeout=30,
@@ -239,7 +254,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--session-dir",
         type=Path,
-        default=Path(".agents/sessions"),
+        default=Path(".project-toolkit/sessions"),
         help="Directory containing session log JSON files",
     )
     parser.add_argument(

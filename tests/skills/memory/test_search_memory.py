@@ -113,7 +113,7 @@ class TestSearchEpisodes:
         A reverse string sort compares "9" against "1" at the first differing
         position, so session-9 outranks session-10 even though session-10 is
         newer. Measured across the 302-episode corpus in
-        `.agents/memory/episodes`, no date currently spans a digit-width
+        `.project-toolkit/memory/episodes`, no date currently spans a digit-width
         boundary, so this has never fired in production. It is a latent trap,
         not an observed regression.
         """

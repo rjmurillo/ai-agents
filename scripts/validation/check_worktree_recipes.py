@@ -54,13 +54,13 @@ the same carve-out in `scripts/validation/check_push_lock_paths.py`, whose
 EXCLUDED_PREFIXES reads:
 
     EXCLUDED_PREFIXES = (
-        ".agents/retrospective/",
-        ".agents/audits/",
+        ".project-toolkit/retrospective/",
+        ".project-toolkit/audits/",
         ".agents/archive/",
     )
 
-Stricter/looser/different than that checker: this one adds `.agents/memory/`
-and `.agents/sessions/` (episode and session records are also history), and it
+Stricter/looser/different than that checker: this one adds `.project-toolkit/memory/`
+and `.project-toolkit/sessions/` (episode and session records are also history), and it
 scans every tracked text file under its prefixes rather than fenced Markdown
 blocks only, because a worktree recipe appears in shell scripts too.
 
@@ -83,6 +83,7 @@ RULE_CITATION = ".claude/rules/universal.md MUST NOT 6 (git worktrees MUST be ex
 
 SCANNED_PREFIXES = (
     ".agents/",
+    ".project-toolkit/",
     ".claude/",
     ".github/",
     "docs/",
@@ -93,11 +94,11 @@ SCANNED_PREFIXES = (
 
 EXCLUDED_PREFIXES = (
     ".agents/archive/",
-    ".agents/audits/",
-    ".agents/memory/",
-    ".agents/qa/",
-    ".agents/retrospective/",
-    ".agents/sessions/",
+    ".project-toolkit/audits/",
+    ".project-toolkit/memory/",
+    ".project-toolkit/qa/",
+    ".project-toolkit/retrospective/",
+    ".project-toolkit/sessions/",
     ".claude/worktrees/",
 )
 

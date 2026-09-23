@@ -60,7 +60,7 @@ _REQUIRED_TEMPLATE_LINES = (
 
 
 def _write_session(tmp_path: Path, payload: dict) -> Path:
-    sessions = tmp_path / ("." + "agents") / "sessions"
+    sessions = tmp_path / ("." + "project-toolkit") / "sessions"
     sessions.mkdir(parents=True, exist_ok=True)
     path = sessions / "2026-06-03-session-1-demo.json"
     path.write_text(json.dumps(payload), encoding="utf-8")
@@ -72,7 +72,7 @@ def _today() -> str:
 
 
 def _artifact_relpath(*parts: str) -> str:
-    return str(Path("." + "agents", *parts))
+    return str(Path("." + "project-toolkit", *parts))
 
 
 # --- Positive: a populated session produces a scored artifact ---------------
@@ -147,7 +147,7 @@ def test_cli_returns_one_when_a_learning_is_weak(tmp_path):
 
 def test_render_artifact_marks_missing_sources(tmp_path):
     # Arrange: no session log, no git repo.
-    (tmp_path / ("." + "agents") / "sessions").mkdir(parents=True)
+    (tmp_path / ("." + "project-toolkit") / "sessions").mkdir(parents=True)
     evidence = gather_evidence(tmp_path, "degraded")
 
     # Act
@@ -177,7 +177,7 @@ def test_integration_run_writes_conformant_artifact(tmp_path):
 
     # Assert: exit zero, file written at the canonical path, headings present.
     assert rc == 0
-    written = tmp_path / ("." + "agents") / "retrospective" / f"{_today()}-integration.md"
+    written = tmp_path / ("." + "project-toolkit") / "retrospective" / f"{_today()}-integration.md"
     assert written.is_file()
     content = written.read_text(encoding="utf-8")
     for heading in _REQUIRED_HEADINGS:
@@ -195,7 +195,7 @@ def test_scope_date_controls_artifact_date_and_prefix(tmp_path):
 
     # Assert
     assert rc == 0
-    written = tmp_path / ("." + "agents") / "retrospective" / "2026-06-03-2026-06-03.md"
+    written = tmp_path / ("." + "project-toolkit") / "retrospective" / "2026-06-03-2026-06-03.md"
     assert written.is_file()
     content = written.read_text(encoding="utf-8")
     assert "- **Date**: 2026-06-03" in content
@@ -203,11 +203,11 @@ def test_scope_date_controls_artifact_date_and_prefix(tmp_path):
 
 def test_fill_mode_overwrites_skeleton(tmp_path):
     # Arrange: an existing auto-retro skeleton the Stop hook would have produced.
-    retro_dir = tmp_path / ("." + "agents") / "retrospective"
+    retro_dir = tmp_path / ("." + "project-toolkit") / "retrospective"
     retro_dir.mkdir(parents=True)
     skeleton = retro_dir / "2026-06-03-auto-retro.md"
     skeleton.write_text("# Retrospective: 2026-06-03\n\n> UNFILLED SKELETON\n", encoding="utf-8")
-    (tmp_path / ("." + "agents") / "sessions").mkdir(parents=True)
+    (tmp_path / ("." + "project-toolkit") / "sessions").mkdir(parents=True)
 
     # Act
     rc = main([
@@ -227,11 +227,11 @@ def test_fill_mode_overwrites_skeleton(tmp_path):
 
 def test_fill_mode_resolves_relative_path_from_project_dir(tmp_path):
     # Arrange: a relative path to an existing skeleton under the project.
-    retro_dir = tmp_path / ("." + "agents") / "retrospective"
+    retro_dir = tmp_path / ("." + "project-toolkit") / "retrospective"
     retro_dir.mkdir(parents=True)
     skeleton = retro_dir / "2026-06-03-auto-retro.md"
     skeleton.write_text("# Retrospective: 2026-06-03\n\n> UNFILLED SKELETON\n", encoding="utf-8")
-    (tmp_path / ("." + "agents") / "sessions").mkdir(parents=True)
+    (tmp_path / ("." + "project-toolkit") / "sessions").mkdir(parents=True)
 
     # Act
     rc = main([
@@ -248,11 +248,11 @@ def test_fill_mode_resolves_relative_path_from_project_dir(tmp_path):
 
 def test_fill_mode_resolves_basename_from_retrospective_dir(tmp_path):
     # Arrange: a basename should target the retrospective artifact directory.
-    retro_dir = tmp_path / ("." + "agents") / "retrospective"
+    retro_dir = tmp_path / ("." + "project-toolkit") / "retrospective"
     retro_dir.mkdir(parents=True)
     skeleton = retro_dir / "2026-06-03-auto-retro.md"
     skeleton.write_text("# Retrospective: 2026-06-03\n\n> UNFILLED SKELETON\n", encoding="utf-8")
-    (tmp_path / ("." + "agents") / "sessions").mkdir(parents=True)
+    (tmp_path / ("." + "project-toolkit") / "sessions").mkdir(parents=True)
 
     # Act
     rc = main([
@@ -268,12 +268,12 @@ def test_fill_mode_resolves_basename_from_retrospective_dir(tmp_path):
 
 def test_fill_mode_rejects_filled_retrospective(tmp_path):
     # Arrange: a filled artifact has no unfilled marker and must not be overwritten.
-    retro_dir = tmp_path / ("." + "agents") / "retrospective"
+    retro_dir = tmp_path / ("." + "project-toolkit") / "retrospective"
     retro_dir.mkdir(parents=True)
     filled = retro_dir / "2026-06-03-auto-retro.md"
     original = "# Retrospective: 2026-06-03\n\n## Phase 0: Data Gathering\nManual notes\n"
     filled.write_text(original, encoding="utf-8")
-    (tmp_path / ("." + "agents") / "sessions").mkdir(parents=True)
+    (tmp_path / ("." + "project-toolkit") / "sessions").mkdir(parents=True)
 
     # Act
     rc = main([
@@ -300,7 +300,7 @@ def test_fill_mode_rejects_missing_skeleton(tmp_path):
 
     # Assert
     assert rc == 2
-    assert not (tmp_path / ("." + "agents") / "retrospective" / "missing-auto-retro.md").exists()
+    assert not (tmp_path / ("." + "project-toolkit") / "retrospective" / "missing-auto-retro.md").exists()
 
 
 def test_integration_subprocess_writes_file(tmp_path):
@@ -345,7 +345,7 @@ def test_cli_returns_two_for_bad_project_dir(tmp_path):
 
 def test_cli_returns_three_when_gather_fails(tmp_path, monkeypatch):
     # Arrange: force the evidence gather to raise so the boundary handler runs.
-    (tmp_path / ("." + "agents") / "sessions").mkdir(parents=True)
+    (tmp_path / ("." + "project-toolkit") / "sessions").mkdir(parents=True)
 
     def _boom(*_args, **_kwargs):
         raise RuntimeError("gather exploded")
@@ -419,7 +419,7 @@ def test_blank_artifact_root_override_behaves_unset(tmp_path, monkeypatch):
 
     # Assert
     assert rc == 0
-    assert (tmp_path / ("." + "agents") / "retrospective" / "2026-06-03-2026-06-03.md").is_file()
+    assert (tmp_path / ("." + "project-toolkit") / "retrospective" / "2026-06-03-2026-06-03.md").is_file()
 
 
 def test_fill_mode_artifact_root_accepts_project_style_relative_path(tmp_path, monkeypatch):
@@ -527,7 +527,7 @@ def test_resolve_fill_rejects_escape_before_existence_probe(tmp_path, monkeypatc
     # Act / Assert
     try:
         _resolve_output_path(
-            tmp_path / ("." + "agents") / "retrospective",
+            tmp_path / ("." + "project-toolkit") / "retrospective",
             "2026-06-03",
             "2026-06-03",
             str(outside),

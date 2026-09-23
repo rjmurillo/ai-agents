@@ -186,8 +186,8 @@ After running security detection:
 
 Backticked paths below are in the `rjmurillo/ai-agents` repository. They do not ship with this skill; a consumer install cannot resolve them.
 
-- `.agents/security/infrastructure-file-patterns.md`. Infrastructure file patterns.
-- `.agents/security/static-analysis-checklist.md`. Security agent capabilities.
+- `.project-toolkit/security/infrastructure-file-patterns.md`. Infrastructure file patterns.
+- `.project-toolkit/security/static-analysis-checklist.md`. Security agent capabilities.
 - `docs/orchestrator-routing-algorithm.md`. Orchestrator routing algorithm.
 
-<!-- vendor-portability: declared. This skill cites .agents/security/infrastructure-file-patterns.md, .agents/security/static-analysis-checklist.md, and docs/orchestrator-routing-algorithm.md as background reading. All three are citations only; the detection patterns documented here are self-contained, so a vendored install loses the further reading, not the capability. Issue #2050. -->
+<!-- vendor-portability: declared. This skill cites .project-toolkit/security/infrastructure-file-patterns.md, .project-toolkit/security/static-analysis-checklist.md, and docs/orchestrator-routing-algorithm.md as background reading. All three are citations only; the detection patterns documented here are self-contained, so a vendored install loses the further reading, not the capability. Issue #2050. -->

@@ -12,7 +12,7 @@ After extracting learnings from PR or session retrospective. When transitioning 
 
 ### Workflow
 
-1. **Input**: Analysis artifact with extracted learnings (e.g., `.agents/analysis/pr-255-learnings.md`)
+1. **Input**: Analysis artifact with extracted learnings (e.g., `.project-toolkit/analysis/pr-255-learnings.md`)
 
 2. **Skill transformation** (one per learning):
    - **Statement**: Imperative form (max 15 words) - what to do
@@ -38,7 +38,7 @@ After extracting learnings from PR or session retrospective. When transitioning 
 ### Good Example
 
 Session 65 pipeline:
-- **Input**: `.agents/analysis/pr-255-learnings.md` (6 learnings)
+- **Input**: `.project-toolkit/analysis/pr-255-learnings.md` (6 learnings)
 - **Output**: 6 skill files + 1 index file
 - **Naming**: `skill-creator-001` through `skill-creator-006`
 - **Index**: `skill-creator-best-practices-index.md`
@@ -54,7 +54,7 @@ Session 65 pipeline:
 ## Evidence
 
 **Session 65**: Generated 6 skills + index from PR #255 learnings
-- Input: `.agents/analysis/pr-255-learnings.md`
+- Input: `.project-toolkit/analysis/pr-255-learnings.md`
 - Output: 7 Serena memory files
 - Commit: `56a2c37` - "Add skill-creator best practices (6 skills + index)"
 - All skills scored 91-96% atomicity

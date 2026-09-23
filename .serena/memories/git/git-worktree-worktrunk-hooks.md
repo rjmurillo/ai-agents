@@ -150,7 +150,7 @@ wt merge  # Runs markdown linting before merge
 
 - parallel-001-worktree-isolation: Worktree isolation patterns
 - git-hooks-001-pre-commit-branch-validation: Pre-commit hook patterns
-- Analysis: `.agents/analysis/worktrunk-integration.md`
+- Analysis: `.project-toolkit/analysis/worktrunk-integration.md`
 - Documentation: AGENTS.md Worktrunk Setup section
 
 ## Related

@@ -5,7 +5,7 @@ Phase 0 of the pr-comment-responder workflow. When a bot rescan surfaces many
 unresolved threads, several are often the same root cause stated on different
 files. PR #1897 round 7 surfaced 17 unresolved threads; 8 were the same
 "model_tier=opus contradicts cheaper-tier reviewer claim" framing on different
-paths (see .agents/retrospective/2026-05-08-pr-1897-confident-incorrectness-recurrence.md).
+paths (see .project-toolkit/retrospective/2026-05-08-pr-1897-confident-incorrectness-recurrence.md).
 Rounds 5 and 6 patched those per-file and did not close the cluster; round 7
 retired the framing in the source artifact and the cluster collapsed in one
 round.

@@ -82,7 +82,7 @@ def main(argv: list[str] | None = None) -> int:
     print("=================================")
 
     before_stats = get_line_ending_stats("BEFORE")
-    before_audit = Path(".agents/analysis/line-endings-before.txt")
+    before_audit = Path(".project-toolkit/analysis/line-endings-before.txt")
     save_line_ending_audit(before_audit)
 
     if before_stats["index_crlf"] == 0:
@@ -104,7 +104,7 @@ def main(argv: list[str] | None = None) -> int:
     print("  [2/2] Verifying normalization...")
     get_line_ending_stats("AFTER")
 
-    after_audit = Path(".agents/analysis/line-endings-after.txt")
+    after_audit = Path(".project-toolkit/analysis/line-endings-after.txt")
     save_line_ending_audit(after_audit)
 
     print("\nNormalization complete!")

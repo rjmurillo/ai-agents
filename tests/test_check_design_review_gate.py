@@ -141,14 +141,14 @@ class TestCheckReviewFile:
 class TestRunGate:
     def _setup_reviews(self, tmp_path, reviews: dict[str, str]) -> str:
         """Create design review files in a temp directory structure."""
-        arch_dir = tmp_path / ".agents" / "architecture"
+        arch_dir = tmp_path / ".project-toolkit" / "architecture"
         arch_dir.mkdir(parents=True)
         for name, content in reviews.items():
             (arch_dir / f"DESIGN-REVIEW-{name}.md").write_text(content)
         return str(tmp_path)
 
     def test_no_review_files_passes(self, tmp_path):
-        arch_dir = tmp_path / ".agents" / "architecture"
+        arch_dir = tmp_path / ".project-toolkit" / "architecture"
         arch_dir.mkdir(parents=True)
         output = io.StringIO()
         rc = run_gate(str(tmp_path), output=output)
@@ -237,7 +237,7 @@ class TestMainExitContract:
         blocking review; it proves nothing about the process exit code
         (issue #4528). This drives main() itself.
         """
-        arch_dir = tmp_path / ".agents" / "architecture"
+        arch_dir = tmp_path / ".project-toolkit" / "architecture"
         arch_dir.mkdir(parents=True)
         (arch_dir / "DESIGN-REVIEW-beta.md").write_text("**Verdict**: NEEDS_CHANGES\n")
 

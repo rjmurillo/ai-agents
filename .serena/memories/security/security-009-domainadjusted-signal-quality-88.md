@@ -27,7 +27,7 @@
 4. Otherwise → Use base signal quality
 ```
 
-**Source**: `.agents/retrospective/pr-52-symlink-retrospective.md`
+**Source**: `.project-toolkit/retrospective/pr-52-symlink-retrospective.md`
 
 ## Related
 

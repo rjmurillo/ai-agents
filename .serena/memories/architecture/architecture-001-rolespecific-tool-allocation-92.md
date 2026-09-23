@@ -25,7 +25,7 @@
 - Blanket `github/*` (~77 tools) to all agents
 - Generic tool allocation regardless of role
 
-**Source**: `.agents/architecture/ADR-0003-agent-tool-selection-criteria.md`
+**Source**: `.project-toolkit/architecture/ADR-0003-agent-tool-selection-criteria.md`
 
 ---
 

@@ -6,7 +6,7 @@
 
 ## Evidence
 
-Full findings, methodology, and citations: `.agents/retrospective/2026-08-17-governance-bureaucracy-critical-review.md`. Session log: `.agents/sessions/2026-08-17-session-99917-b41b3bf39-critical-review-open-issues-backlog.json`.
+Full findings, methodology, and citations: `.project-toolkit/retrospective/2026-08-17-governance-bureaucracy-critical-review.md`. Session log: `.project-toolkit/sessions/2026-08-17-session-99917-b41b3bf39-critical-review-open-issues-backlog.json`.
 
 Two live gate bugs were found while shipping the review's own first fix (a 3-file rule-file dedup, `.claude/rules/generated-artifacts.md`):
 

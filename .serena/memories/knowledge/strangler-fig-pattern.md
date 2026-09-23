@@ -1,7 +1,7 @@
 # Strangler Fig Pattern
 
 **Category**: Migration Patterns
-**Source**: `.agents/analysis/senior-engineering-knowledge.md`
+**Source**: `.project-toolkit/analysis/senior-engineering-knowledge.md`
 **Origin**: Martin Fowler
 
 ## Core Concept

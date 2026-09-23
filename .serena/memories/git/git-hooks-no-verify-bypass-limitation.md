@@ -46,7 +46,7 @@ Claude hooks execute at LLM level BEFORE commands reach bash/git, making them tr
 
 ```bash
 # SessionStart:compact hook
-if ! ls .agents/sessions/$(date +%Y-%m-%d)-session-*.md 1>/dev/null 2>&1; then
+if ! ls .project-toolkit/sessions/$(date +%Y-%m-%d)-session-*.md 1>/dev/null 2>&1; then
   echo "ERROR: No session log found for today"
   echo "BLOCKING: Cannot proceed without session initialization"
   exit 1  # Blocks ALL further execution
@@ -57,7 +57,7 @@ fi
 
 ```bash
 # Pre-commit hook (CAN BE BYPASSED)
-if [ ! -f .agents/sessions/current-session.md ]; then
+if [ ! -f .project-toolkit/sessions/current-session.md ]; then
   echo "ERROR: No session log found"
   exit 2  # Agent can bypass with --no-verify
 fi

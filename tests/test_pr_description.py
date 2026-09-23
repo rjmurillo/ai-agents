@@ -634,10 +634,10 @@ class TestChangeClaimContextContract:
         description = (
             "## Testing\n"
             "Ran the validator described by "
-            "`.agents/architecture/ADR-035-exit-code-standardization.md`.\n"
+            "`.project-toolkit/architecture/ADR-035-exit-code-standardization.md`.\n"
         )
         offenders = self._critical_files(description, ["scripts/validation/pre_pr.py"])
-        assert ".agents/architecture/ADR-035-exit-code-standardization.md" not in offenders
+        assert ".project-toolkit/architecture/ADR-035-exit-code-standardization.md" not in offenders
 
     def test_pr_1873_inline_reference_under_author_preflight_is_not_flagged(self):
         description = (

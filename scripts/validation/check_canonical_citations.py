@@ -7,12 +7,12 @@ at the file-rule layer. When a Python source file under
 docstring or top-level comment that asserts the file "matches", "mirrors",
 or is "aligned with" some other source, this check verifies that within the
 same file there is at least one path-like reference (e.g.
-`scripts/foo.py`, `.agents/architecture/ADR-001.md`,
+`scripts/foo.py`, `.project-toolkit/architecture/ADR-001.md`,
 `build/scripts/bar.py`) somewhere in the docstrings or top-level comments.
 
 The check is intentionally a heuristic. It is designed to catch the
 specific failure mode documented in the PR #1887 retrospective
-(`.agents/retrospective/2026-05-05-pr-1887-iteration-paradox.md`): a
+(`.project-toolkit/retrospective/2026-05-05-pr-1887-iteration-paradox.md`): a
 docstring that says "matches X" with no path, no quoted contract, and no
 divergence section. False positives are acceptable; the false-negative
 case (the bare "matches X" with no citation) is the bug this rule is
@@ -65,6 +65,7 @@ _PATH_REF: re.Pattern[str] = re.compile(
     r"(?:"
     r"\.claude/[\w./-]+"
     r"|\.agents/[\w./-]+"
+    r"|\.project-toolkit/[\w./-]+"
     r"|\.github/[\w./-]+"
     r"|scripts/[\w./-]+"
     r"|build/[\w./-]+"

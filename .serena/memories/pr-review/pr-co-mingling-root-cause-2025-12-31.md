@@ -89,9 +89,9 @@ Trust-based compliance fails for multi-step protocols; always use verification-b
 
 ## Related
 
-- **Retrospective**: `.agents/retrospective/2025-12-31-pr-co-mingling-analysis.md`
+- **Retrospective**: `.project-toolkit/retrospective/2025-12-31-pr-co-mingling-analysis.md`
 - **Session Protocol**: `.agents/SESSION-PROTOCOL.md` (needs update)
-- **Session Log**: `.agents/sessions/2025-12-31-session-01-pr-comingling-retrospective.md`
+- **Session Log**: `.project-toolkit/sessions/2025-12-31-session-01-pr-comingling-retrospective.md`
 - **Similar Pattern**: Session Protocol v1.4 evolution (trust → verification)
 
 ## Keywords

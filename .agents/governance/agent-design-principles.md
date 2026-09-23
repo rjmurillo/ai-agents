@@ -27,7 +27,7 @@ External sources, not this project's own measurement:
 
 ### Relationship to the model-pin policy
 
-ADR-080 (accepted, not yet implemented) sets the model-pin policy: an unpinned unit inherits the harness model, and that absence needs no justification. The policy still permits a bare rolling alias with a rationale on skills and commands, and an evidence-backed versioned pin on an agent when a cited sweep justifies it. For the inherited-model units, this project assumes the harness default stays inside the frontier-tier calibrated envelope, because the guardrails are constrain-down. If that stops being true, revisit the default-to-inherit policy and its exception rules. See [ADR-080](../architecture/ADR-080-model-pin-justification-policy.md).
+ADR-080 (accepted, not yet implemented) sets the model-pin policy: an unpinned unit inherits the harness model, and that absence needs no justification. The policy still permits a bare rolling alias with a rationale on skills and commands, and an evidence-backed versioned pin on an agent when a cited sweep justifies it. For the inherited-model units, this project assumes the harness default stays inside the frontier-tier calibrated envelope, because the guardrails are constrain-down. If that stops being true, revisit the default-to-inherit policy and its exception rules. See [ADR-080](../../.project-toolkit/architecture/ADR-080-model-pin-justification-policy.md).
 
 ### How to Verify
 
@@ -336,8 +336,8 @@ All ADRs must demonstrate compliance with all 6 principles:
 
 ## Related Documents
 
-- [ADR Template](../architecture/ADR-TEMPLATE.md)
-- [ADR-080: Model Pins Require Cited Eval Evidence](../architecture/ADR-080-model-pin-justification-policy.md)
+- [ADR Template](../../.project-toolkit/architecture/ADR-TEMPLATE.md)
+- [ADR-080: Model Pins Require Cited Eval Evidence](../../.project-toolkit/architecture/ADR-080-model-pin-justification-policy.md)
 - [Steering Committee Charter](./steering-committee-charter.md)
 - [Agent Consolidation Process](./agent-consolidation-process.md)
 - [Agent Interview Protocol](./agent-interview-protocol.md)

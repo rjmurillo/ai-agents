@@ -25,10 +25,10 @@ Root map: what to edit, what is generated, what to skip. `AGENTS.md` owns protoc
 
 | Path | Why |
 |---|---|
-| `src/`, `.claude/{agents,rules,lib,hooks}/`, `.claude/skills/*/SKILL.md`, `.claude/settings.json`, `.github/{instructions,agents,hooks}/`, `docs/agent-catalog.md`, `.agents/architecture/README.md` | `build_all.py` `OWNED_PREFIXES`; edit the template (`build/AGENTS.md`) |
+| `src/`, `.claude/{agents,rules,lib,hooks}/`, `.claude/skills/*/SKILL.md`, `.claude/settings.json`, `.github/{instructions,agents,hooks}/`, `docs/agent-catalog.md`, `.project-toolkit/architecture/README.md` | `build_all.py` `OWNED_PREFIXES`; edit the template (`build/AGENTS.md`) |
 | `src/*.md`, `src/claude/{AGENTS.md,claude-instructions.template.md,security/references/}`, every `.claude-plugin/plugin.json`, `src/copilot-cli/{THIRD-PARTY-NOTICES.TXT,docs/}`, `.claude/hooks/**/{AGENTS,CLAUDE,README}.md`, `.claude/skills/*/{scripts,references,tests}/` bar `review/scripts/validate_review_marker.py`, `.github/agents/{pr-comment-responder.prompt.md,security/references/}` | Hand-maintained inside those prefixes |
 | `.serena/memories/` | Retrieval aid; `/memory-search`, never read whole |
-| `.agents/{archive,retrospective,critique,qa,analysis}/`, `.agents/memory/episodes/` | Evidence. Live: `.agents/sessions/handoffs/`, latest at start, update at end |
+| `.agents/{archive,retrospective,critique,qa,analysis}/`, `.project-toolkit/memory/episodes/` | Evidence. Live: `.project-toolkit/sessions/handoffs/`, latest at start, update at end |
 | `evals/`, `tests/eval_scenarios/` | Corpora; runners in `scripts/eval/`. `tests/evals/` is pytest input |
 | `.factory/mcp.json`, `.vscode/mcp.json` | `scripts/sync_mcp_config.py --sync-all` output |
 | `.github/prompts/pr-quality-gate-*.md` | `build/scripts/generate_pr_quality_prompts.py`; `build_all.py` skips it |

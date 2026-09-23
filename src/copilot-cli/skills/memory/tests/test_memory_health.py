@@ -97,12 +97,12 @@ class TestMainFunction:
     """Tests for the main CLI entry point."""
 
     def test_json_output(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture,
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str],
     ) -> None:
         base = tmp_path / "project"
         base.mkdir()
         (base / ".serena" / "memories").mkdir(parents=True)
-        (base / ".agents" / "memory" / "episodes").mkdir(parents=True)
+        (base / ".project-toolkit" / "memory" / "episodes").mkdir(parents=True)
 
         with patch("socket.create_connection", side_effect=OSError("refused")):
             result = main(["--base-path", str(base)])
@@ -114,12 +114,12 @@ class TestMainFunction:
         assert "overall" in health
 
     def test_table_output(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture,
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str],
     ) -> None:
         base = tmp_path / "project"
         base.mkdir()
         (base / ".serena" / "memories").mkdir(parents=True)
-        (base / ".agents" / "memory" / "episodes").mkdir(parents=True)
+        (base / ".project-toolkit" / "memory" / "episodes").mkdir(parents=True)
 
         with patch("socket.create_connection", side_effect=OSError("refused")):
             result = main(["--format", "table", "--base-path", str(base)])
@@ -129,12 +129,12 @@ class TestMainFunction:
         assert "Memory System Health Check" in captured.out
 
     def test_degraded_when_modules_missing(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture,
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str],
     ) -> None:
         base = tmp_path / "project"
         base.mkdir()
         (base / ".serena" / "memories").mkdir(parents=True)
-        (base / ".agents" / "memory" / "episodes").mkdir(parents=True)
+        (base / ".project-toolkit" / "memory" / "episodes").mkdir(parents=True)
         # Create .claude/skills/memory/ but NOT memory_core/
         (base / ".claude" / "skills" / "memory").mkdir(parents=True)
 
@@ -147,14 +147,14 @@ class TestMainFunction:
         assert health["overall"] in ("degraded", "unhealthy")
 
     def test_healthy_with_all_components(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture,
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str],
     ) -> None:
         base = tmp_path / "project"
         base.mkdir()
         serena = base / ".serena" / "memories"
         serena.mkdir(parents=True)
         (serena / "test.md").write_text("content")
-        (base / ".agents" / "memory" / "episodes").mkdir(parents=True)
+        (base / ".project-toolkit" / "memory" / "episodes").mkdir(parents=True)
 
         # Create memory_core modules
         mem_root = base / ".claude" / "skills" / "memory"
@@ -172,12 +172,12 @@ class TestMainFunction:
         assert health["overall"] in ("healthy", "degraded")
 
     def test_recommendations_generated(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture,
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str],
     ) -> None:
         base = tmp_path / "project"
         base.mkdir()
         (base / ".serena" / "memories").mkdir(parents=True)
-        (base / ".agents" / "memory" / "episodes").mkdir(parents=True)
+        (base / ".project-toolkit" / "memory" / "episodes").mkdir(parents=True)
 
         with patch("socket.create_connection", side_effect=OSError("refused")):
             result = main(["--base-path", str(base)])

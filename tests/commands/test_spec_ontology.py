@@ -60,7 +60,7 @@ GENERATOR_SCHEMA_PATH = (
 )
 COMPLETENESS_PATH = REPO_ROOT / ".github" / "prompts" / "spec-check-completeness.md"
 REFERENCE_FRAGMENT = (
-    REPO_ROOT / ".agents" / "specs" / "ontology" / "spec-ontology-elicitation.md"
+    REPO_ROOT / ".project-toolkit" / "specs" / "ontology" / "spec-ontology-elicitation.md"
 )
 
 ONTOLOGY_PROMPTS = ["O1", "O2", "O3", "O4", "O5", "O6", "O7"]
@@ -201,8 +201,8 @@ def test_ontology_substep_covers_ddd_concepts(step_1_region: str) -> None:
 
 def test_ontology_fragment_output_path_documented(step_1_region: str) -> None:
     """The OntologyFragment is written to the canonical ontology directory."""
-    assert ".agents/specs/ontology/" in step_1_region, (
-        "Step 1 ontology elicitation must name the `.agents/specs/ontology/` "
+    assert ".project-toolkit/specs/ontology/" in step_1_region, (
+        "Step 1 ontology elicitation must name the `.project-toolkit/specs/ontology/` "
         "output directory for the OntologyFragment"
     )
 
@@ -215,7 +215,7 @@ def test_ontology_fragment_carried_into_step_6(step_6_region: str) -> None:
     assert "Problem, User stories, Ontology, Data model" in step_6_region, (
         "Step 6 must pass the PRD Ontology section to spec-generator"
     )
-    assert ".agents/specs/ontology/" in step_6_region, (
+    assert ".project-toolkit/specs/ontology/" in step_6_region, (
         "Step 6 must name the OntologyFragment path passed to spec-generator"
     )
 
@@ -260,19 +260,19 @@ def test_ontology_checks_reference_real_spec_artifact_paths(
     Searches the combined corpus (spec.md + spec-prior-art-schema.md) because
     the step-level content was extracted by issue #3632.
     """
-    assert ".agents/specs/requirements/REQ-NNN-{slug}.md" in spec_corpus, (
+    assert ".project-toolkit/specs/requirements/REQ-NNN-{slug}.md" in spec_corpus, (
         "Step 1 ontology handoff must name the generated REQ artifact pattern"
     )
-    assert ".agents/specs/design/DESIGN-NNN-{slug}.md" in spec_corpus, (
+    assert ".project-toolkit/specs/design/DESIGN-NNN-{slug}.md" in spec_corpus, (
         "Step 1 ontology handoff must name the generated DESIGN artifact pattern"
     )
-    assert ".agents/specs/tasks/TASK-NNN-{slug}.md" in spec_corpus, (
+    assert ".project-toolkit/specs/tasks/TASK-NNN-{slug}.md" in spec_corpus, (
         "Step 1 ontology handoff must name the generated TASK artifact pattern"
     )
     assert "`requirements.md`" not in spec_corpus, (
         "Step 1 ontology handoff must not point at a non-emitted requirements.md"
     )
-    assert ".agents/specs/design/DESIGN-NNN-{slug}.md" in completeness_text, (
+    assert ".project-toolkit/specs/design/DESIGN-NNN-{slug}.md" in completeness_text, (
         "completeness prompt must name the generated DESIGN artifact pattern"
     )
     assert "`design.md`" not in completeness_text, (
@@ -586,8 +586,8 @@ def test_reference_fragment_slug_matches_directory_convention() -> None:
     """The reference fragment lives under the canonical ontology directory with
     a kebab-case slug (the same slug convention spec-generator uses)."""
     assert REFERENCE_FRAGMENT.parent == (
-        REPO_ROOT / ".agents" / "specs" / "ontology"
-    ), "reference fragment must live under .agents/specs/ontology/"
+        REPO_ROOT / ".project-toolkit" / "specs" / "ontology"
+    ), "reference fragment must live under .project-toolkit/specs/ontology/"
     assert re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", REFERENCE_FRAGMENT.stem), (
         f"reference fragment slug {REFERENCE_FRAGMENT.stem!r} must be kebab-case"
     )

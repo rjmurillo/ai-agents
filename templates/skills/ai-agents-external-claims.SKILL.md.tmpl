@@ -57,7 +57,7 @@ Name the exact assertion in one sentence and the ONE authoritative source that c
 | Attribution ("X said Y") | The named party's own published statement | A third party reporting it |
 | Repo-internal cross-claim | The file, ADR, or test in this tree, quoted verbatim | A retro's paraphrase of it |
 
-Repo caution, verified in `ai-agents-research-methodology`: vendor docs alone are not a primary source for runtime behavior. This repo was burned twice by wrong-by-omission docs (the #2205 and #2290 retros in `.agents/retrospective/`). When the claim is about how an external tool behaves, the primary source is an empirical probe at a pinned version, not the doc. Route that through `ai-agents-empirical-probe-toolkit`.
+Repo caution, verified in `ai-agents-research-methodology`: vendor docs alone are not a primary source for runtime behavior. This repo was burned twice by wrong-by-omission docs (the #2205 and #2290 retros in `.project-toolkit/retrospective/`). When the claim is about how an external tool behaves, the primary source is an empirical probe at a pinned version, not the doc. Route that through `ai-agents-empirical-probe-toolkit`.
 
 ### Phase 2: Fetch and compare against the primary source
 

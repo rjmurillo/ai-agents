@@ -63,7 +63,7 @@ Complex questions requiring synthesis.
 Primary tier unavailable?
 │
 ├── Tier 2 unavailable
-│   └── Check .agents/memory/episodes/ exists
+│   └── Check .project-toolkit/memory/episodes/ exists
 │   └── If missing, no historical data yet
 ```
 

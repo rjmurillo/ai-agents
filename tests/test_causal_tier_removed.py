@@ -26,7 +26,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 SKILL_TREES = (".claude", "src/copilot-cli")
 
 DELETED_ARTIFACTS = (
-    ".agents/memory/causality/causal-graph.json",
+    ".project-toolkit/memory/causality/causal-graph.json",
     "scripts/maintenance/install_merge_drivers.py",
     "scripts/maintenance/repair_causal_graph_ids.py",
     "scripts/validation/merge_causal_graph.py",
@@ -113,7 +113,7 @@ def test_episode_schema_retains_intra_episode_causal_links() -> None:
     that greps for "causal" and deletes matches would strip them, which is why
     this asserts presence rather than absence.
     """
-    episodes = sorted((REPO_ROOT / ".agents/memory/episodes").glob("episode-*.json"))
+    episodes = sorted((REPO_ROOT / ".project-toolkit/memory/episodes").glob("episode-*.json"))
     assert episodes, "no episode files found; the fixture for this test is gone"
 
     for path in episodes:

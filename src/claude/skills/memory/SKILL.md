@@ -217,7 +217,7 @@ references travel with their sub-skill (ADR-063).
 |-----------|--------------|
 | Routed to sub-skill | Sub-skill SKILL.md loaded and its verification gate applied |
 | Search completed | Result count > 0 OR logged "no results" |
-| Episode extracted | JSON file in `.agents/memory/episodes/` |
+| Episode extracted | JSON file in `.project-toolkit/memory/episodes/` |
 | Health check | All tiers show "available: true" |
 
 Verification checklist:

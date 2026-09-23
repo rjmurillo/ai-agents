@@ -21,7 +21,7 @@
 - Data modifications
 - Configuration changes
 
-**Source**: `.agents/security/security-best-practices.md`
+**Source**: `.project-toolkit/security/security-best-practices.md`
 
 ---
 

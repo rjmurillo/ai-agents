@@ -42,7 +42,7 @@ jobs:
         with:
           filters: |
             adrs:
-              - '.agents/architecture/ADR-*.md'
+              - '.project-toolkit/architecture/ADR-*.md'
               - 'scripts/validation/check_adr_uniqueness.py'
               - '.github/workflows/validate-adr-number-uniqueness.yml'
 
@@ -69,7 +69,7 @@ jobs:
             "" \
             "=== ADR Number Uniqueness Validation Failed ===" \
             "" \
-            "Two ADR files under .agents/architecture/ share the same" \
+            "Two ADR files under .project-toolkit/architecture/ share the same" \
             "number. This is the concurrent-PR race described in #2253:" \
             "your branch picked an ADR number that another PR has since" \
             "merged to main." \
@@ -80,7 +80,7 @@ jobs:
             "  2. Rename your ADR file to ADR-<new>-<slug>.md" \
             "  3. Update the '# ADR-NNN:' heading inside the file" \
             "  4. Sweep references:" \
-            "       git grep -nE 'ADR-<old>\\b' .agents/ .claude/ src/ docs/" \
+            "       git grep -nE 'ADR-<old>\\b' .project-toolkit/ .agents/ .claude/ src/ docs/" \
             "  5. Re-run the gate locally:" \
             "       python3 scripts/validation/check_adr_uniqueness.py" \
             "" \

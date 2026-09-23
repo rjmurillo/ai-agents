@@ -30,7 +30,7 @@ python3 scripts/validation/traceability.py --format markdown > orphan-report.md
 # Traceability Validation Report
 
 **Generated**: YYYY-MM-DD HH:MM:SS
-**Specs Path**: .agents/specs
+**Specs Path**: .project-toolkit/specs
 **Validation Mode**: [Standard | Strict]
 ```
 
@@ -66,7 +66,7 @@ Errors are BLOCKING violations that must be fixed:
 
 | Task ID | File | Fix |
 |---------|------|-----|
-| TASK-005 | .agents/specs/tasks/TASK-005-orphan.md | Add `related: [DESIGN-NNN]` to front matter |
+| TASK-005 | .project-toolkit/specs/tasks/TASK-005-orphan.md | Add `related: [DESIGN-NNN]` to front matter |
 ```
 
 ### Warnings Section
@@ -80,13 +80,13 @@ Warnings are non-blocking but indicate spec hygiene issues:
 
 | REQ ID | File | Impact |
 |--------|------|--------|
-| REQ-003 | .agents/specs/requirements/REQ-003-unused.md | No design implements this requirement |
+| REQ-003 | .project-toolkit/specs/requirements/REQ-003-unused.md | No design implements this requirement |
 
 ### Orphaned Designs
 
 | DESIGN ID | File | Impact |
 |-----------|------|--------|
-| DESIGN-002 | .agents/specs/design/DESIGN-002-unused.md | No tasks implement this design |
+| DESIGN-002 | .project-toolkit/specs/design/DESIGN-002-unused.md | No tasks implement this design |
 ```
 
 ### Info Section
@@ -111,7 +111,7 @@ Informational findings about status consistency:
 
    ```bash
    # Create missing design
-   Copy-Item .agents/specs/design/DESIGN-001-template.md .agents/specs/design/DESIGN-999-new.md
+   Copy-Item .project-toolkit/specs/design/DESIGN-001-template.md .project-toolkit/specs/design/DESIGN-999-new.md
    ```
 
 2. **Update the source spec** if reference is incorrect:

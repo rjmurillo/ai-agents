@@ -759,7 +759,7 @@ def test_generate_writes_the_index_and_exits_zero(tmp_path: Path) -> None:
 def test_generate_does_not_write_through_a_symlinked_destination(tmp_path: Path) -> None:
     """CWE-59/CWE-22: a symlinked ``--output`` must not corrupt its target.
 
-    A contributor who committed ``.agents/architecture/README.md`` as a
+    A contributor who committed ``.project-toolkit/architecture/README.md`` as a
     symlink (or a CI runner that checked out such a commit) must not have
     this generator overwrite whatever the symlink points to. ``generate()``
     writes atomically via a temp file plus ``os.replace``, which unlinks the
@@ -1177,7 +1177,7 @@ def test_build_all_owns_the_index_path_for_the_staleness_diff() -> None:
     sys.path.insert(0, str(REPO_ROOT / "build"))
     import build_all
 
-    assert ".agents/architecture/README.md" in build_all.OWNED_PREFIXES
+    assert ".project-toolkit/architecture/README.md" in build_all.OWNED_PREFIXES
 
 
 def test_is_adr_filename_accepts_canonical_names_only() -> None:
@@ -1461,7 +1461,7 @@ def _documented_recipe() -> str:
 def _accepted_ids_via_recipe(adr_dir: Path) -> list[str]:
     """Run the documented recipe against `adr_dir` and collect what it prints."""
     printed: list[str] = []
-    source = _documented_recipe().replace("'.agents/architecture'", repr(str(adr_dir)))
+    source = _documented_recipe().replace("'.project-toolkit/architecture'", repr(str(adr_dir)))
     # exec is the point: the contract under test is that the shipped recipe
     # RUNS and agrees with the generator. Asserting on its text would pin the
     # recipe to a copy of itself. Input is our own module constant, never

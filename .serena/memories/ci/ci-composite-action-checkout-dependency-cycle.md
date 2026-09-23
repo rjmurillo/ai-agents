@@ -38,7 +38,7 @@ Move checkout from composite action to calling workflow:
 
 ## Related
 
-- Session 02: `.agents/sessions/2026-01-09-session-02.md`
+- Session 02: `.project-toolkit/sessions/2026-01-09-session-02.md`
 - PR #845: AI PR quality gate refactoring
 
 ## Keywords

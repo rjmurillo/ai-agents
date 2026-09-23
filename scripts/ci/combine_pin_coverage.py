@@ -13,7 +13,7 @@ because the 100% gate against their pinned module is a branch gate, so they
 keep --cov-branch.
 
 Evidence:
-.agents/sessions/2026-08-06-session-10003-profile-optimize-pre-submit-pre-commit-pre-push.json
+.project-toolkit/sessions/2026-08-06-session-10003-profile-optimize-pre-submit-pre-commit-pre-push.json
 
 This module docstring is the one place the +27.02s/+6.2% measurement is
 recorded; `.github/workflows/pytest.yml` points here rather than repeating
