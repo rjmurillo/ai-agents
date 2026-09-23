@@ -10,7 +10,9 @@ description: Tier 2 episode extraction, the reflexion write path split out of th
 license: MIT
 metadata:
   adr: ADR-038, ADR-063, ADR-089, ADR-103, ADR-106
-  type: operation
+  capability:
+    kind: specialized-implementation
+    status: active
   parent: memory
 ---
 

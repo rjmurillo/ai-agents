@@ -12,7 +12,9 @@ metadata:
     - milestones
     - comments
     - reactions
-  type: integration
+  capability:
+    kind: specialized-implementation
+    status: active
   complexity: intermediate
   generator:
     keep_headings:
