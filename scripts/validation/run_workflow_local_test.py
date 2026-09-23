@@ -584,7 +584,7 @@ def _actionlint_stage(files: Sequence[str], repo_root: Path) -> StageResult:
     )
     if rc == 0:
         return StageResult("actionlint", True)
-    return StageResult("actionlint", False, _with_timeout_hint((out + err).strip()))
+    return StageResult("actionlint", False, _with_cause_hints((out + err).strip()))
 
 
 # gh act defaults to the ``push`` event. A workflow with no ``push`` trigger
@@ -752,7 +752,7 @@ def _local_pytest_stage(files: Sequence[str], repo_root: Path) -> StageResult:
                 env=command_env,
             )
             if returncode != 0:
-                detail = _with_timeout_hint((stdout + stderr).strip())
+                detail = _with_cause_hints((stdout + stderr).strip())
                 return StageResult(stage, False, detail)
     return StageResult(stage, True)
 
@@ -1168,9 +1168,8 @@ def _stage_timeout_hint(combined: str) -> str | None:
     Returns None when the output carries no timeout marker.
 
     Every stage routes its failure detail through this, not the act stages only.
-    The detail is truncated for readability and the timeout marker sits at its
-    tail, so a chatty child that outruns the cap would otherwise leave the
-    operator a failure with no stated reason at all.
+    The detail is truncated to its tail for readability, which can drop the
+    clone lines this counts, so the hint reads the full text instead.
     """
     if _ACT_TIMEOUT_MARKER not in combined:
         return None
@@ -1190,16 +1189,49 @@ def _stage_timeout_hint(combined: str) -> str | None:
     )
 
 
-def _with_timeout_hint(combined: str) -> str:
-    """Truncate a failure detail, then append the timeout cause line if any.
+_DETAIL_CAP = 4000
 
-    Order matters: the hint is derived from the full text and appended after the
-    truncation, because reading it out of the truncated copy would lose it on a
-    run whose partial output outruns the cap.
+# act keeps /opt/hostedtoolcache in the persistent ``act-toolcache`` Docker
+# volume. Measured for issue #5886: that volume held a Python 3.14.5 tree owned
+# by root from an older image, and catthehacker/ubuntu:full-latest built
+# 2026-09-16 runs steps as uid 1001, so uv could not replace a root-owned file.
+# A hosted runner starts from a fresh toolcache it owns, so this is local state,
+# not a workflow defect. It still blocks: the rest of the job never ran, and the
+# stale volume is fixed with one command.
+_ACT_TOOLCACHE_PERMISSION_PATTERN = re.compile(r"/opt/hostedtoolcache/\S*: Permission denied")
+
+
+def _toolcache_permission_hint(combined: str) -> str | None:
+    """Return the cause-and-remedy line for a stale ``act-toolcache`` volume."""
+    if _ACT_TOOLCACHE_PERMISSION_PATTERN.search(combined) is None:
+        return None
+    return (
+        "[cause] the step cannot write /opt/hostedtoolcache. act keeps that path in the "
+        "act-toolcache Docker volume, and files written there by an older image as root "
+        "are not writable by the current image's runner user. If no step in this workflow "
+        "changes permissions under that path, this is stale local state, not a workflow "
+        "defect. Fix: docker volume rm act-toolcache, then push again; act recreates the "
+        "volume on the next run."
+    )
+
+
+def _with_cause_hints(combined: str) -> str:
+    """Truncate a failure detail, then append any cause lines.
+
+    The tail is kept, not the head. act prints the failing step and the job
+    verdict last, while its first kilobytes are action clones and image pulls.
+    Keeping the head hid the failing step of issue #5886 behind a ``git clone``
+    warning.
+
+    Order matters: the hints are derived from the full text and appended after
+    the truncation, because reading them out of the truncated copy would lose
+    the clone lines a timeout hint counts.
     """
-    detail = combined[:4000]
-    hint = _stage_timeout_hint(combined)
-    return detail if hint is None else f"{detail}\n{hint}"
+    detail = combined[-_DETAIL_CAP:]
+    if len(combined) > _DETAIL_CAP:
+        detail = f"[... {len(combined) - _DETAIL_CAP} earlier chars omitted]\n{detail}"
+    hints = (_stage_timeout_hint(combined), _toolcache_permission_hint(combined))
+    return "\n".join([detail, *(hint for hint in hints if hint is not None)])
 
 
 _ACT_CONTENTION_PATTERN = re.compile(
@@ -1232,7 +1264,7 @@ def _run_act_stage(
     an otherwise valid push. Every other nonzero exit still blocks.
 
     A stage timeout keeps blocking, but the detail gains a cause line from
-    :func:`_with_timeout_hint` instead of a bare ``TimeoutExpired``.
+    :func:`_with_cause_hints` instead of a bare ``TimeoutExpired``.
     """
     env = _act_env(repo_root)
     warnings: list[str] = []
@@ -1274,7 +1306,7 @@ def _run_act_stage(
                 if hint is not None:
                     warnings.append(f"[WARN] {wf}: {hint} Set {_BYPASS_ENV}=true to silence.")
                     continue
-            return StageResult(stage, False, f"{wf}:\n{_with_timeout_hint(combined)}")
+            return StageResult(stage, False, f"{wf}:\n{_with_cause_hints(combined)}")
     return StageResult(stage, True, "\n".join(warnings))
 
 

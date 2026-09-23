@@ -2173,15 +2173,79 @@ def test_timeout_hint_is_absent_without_a_timeout() -> None:
 
 
 def test_timeout_hint_survives_the_detail_truncation() -> None:
-    # Edge: the cap trims the raw output, and the timeout marker sits at its
-    # tail. Deriving the hint from the full text keeps the cause visible.
-    combined = ("noise\n" * 2000) + _CLONE_LINE + "\nTimeoutExpired: timed out after 120 seconds"
+    # Edge: the cap keeps the tail, so the clone lines at the head are cut.
+    # Deriving the hint from the full text keeps the cold-cache cause visible.
+    combined = _CLONE_LINE + ("\nnoise" * 2000) + "\nTimeoutExpired: timed out after 120 seconds"
 
-    detail = w._with_timeout_hint(combined)
+    detail = w._with_cause_hints(combined)
 
     assert len(combined) > 4000
-    assert "TimeoutExpired" not in detail[:4000]
+    assert _CLONE_LINE not in detail
     assert "cold gh act action cache" in detail
+
+
+def test_failure_detail_keeps_the_failing_step_at_the_tail() -> None:
+    # Issue #5886: act prints clone chatter first and the failing step last.
+    # The detail must keep the failing step and name the omitted prefix.
+    failing_step = "Failure - Main Install Python dependencies"
+    combined = "git clone warning\n" + ("noise\n" * 2000) + failing_step
+
+    detail = w._with_cause_hints(combined)
+
+    assert detail.endswith(failing_step)
+    assert "git clone warning" not in detail
+    assert detail.startswith(f"[... {len(combined) - 4000} earlier chars omitted]")
+
+
+def test_failure_detail_under_the_cap_is_unchanged() -> None:
+    # Negative: short output passes through with no omission marker.
+    assert w._with_cause_hints("::error::step failed") == "::error::step failed"
+
+
+# Issue #5886, captured from `gh act pull_request -W
+# .github/workflows/investigation-claim-backstop.yml` on an unmodified main.
+_TOOLCACHE_PERMISSION_FAILURE = (
+    "[Investigation Claim Backstop/Validate Investigation Claims]   | error: failed to "
+    "remove file `/opt/hostedtoolcache/Python/3.14.5/x64/lib/python3.14/site-packages/"
+    "packaging-26.2.dist-info/INSTALLER`: Permission denied (os error 13)\n"
+    "[Investigation Claim Backstop/Validate Investigation Claims]   ❌  Failure - Main "
+    "Install Python dependencies [3.587012548s]\n"
+    "Error: Job 'Validate Investigation Claims' failed"
+)
+
+
+def test_toolcache_permission_failure_names_the_stale_volume() -> None:
+    # Positive: the captured uv failure gets the cause and the one-line fix.
+    hint = w._toolcache_permission_hint(_TOOLCACHE_PERMISSION_FAILURE)
+
+    assert hint is not None
+    assert "docker volume rm act-toolcache" in hint
+
+
+def test_permission_denied_outside_the_toolcache_gets_no_hint() -> None:
+    # Negative: a workflow writing a path it does not own is a real defect.
+    text = "error: failed to remove file `/etc/hosts`: Permission denied (os error 13)"
+
+    assert w._toolcache_permission_hint(text) is None
+
+
+def test_toolcache_permission_failure_is_not_downgraded() -> None:
+    # Edge: the rest of the job never ran, so the gate must keep blocking.
+    assert w._act_limitation_hint(_TOOLCACHE_PERMISSION_FAILURE, "pull_request") is None
+
+
+def test_act_full_toolcache_failure_blocks_with_the_cause(monkeypatch, tmp_path) -> None:
+    # Integration: chatter pushes the failing step past the cap, and the
+    # detail still shows the step and the remedy.
+    wf = _write_wf(tmp_path, "name: x\non: workflow_dispatch\njobs: {}\n")
+    output = _CLONE_LINE + ("\n| Downloaded pkg" * 400) + "\n" + _TOOLCACHE_PERMISSION_FAILURE
+    monkeypatch.setattr(w, "_run", lambda cmd, *, timeout, cwd=None, env=None: (1, output, ""))
+
+    res = w._act_full_stage([wf.name], tmp_path)
+
+    assert res.ok is False
+    assert "Failure - Main Install Python dependencies" in res.detail
+    assert "docker volume rm act-toolcache" in res.detail
 
 
 def test_act_dryrun_timeout_fails_with_the_cause(monkeypatch, tmp_path) -> None:
