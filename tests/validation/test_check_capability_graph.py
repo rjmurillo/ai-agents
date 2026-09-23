@@ -416,3 +416,20 @@ def test_the_report_counts_only_canonical_edges(tree: Path) -> None:
     owners, _ = gate.build_owner_index(nodes)
 
     assert "edges: 1" in gate.render(nodes, owners, "text")
+
+
+def test_the_retired_metadata_type_key_is_refused(tree: Path, capsys) -> None:
+    """capability.kind replaced it, so it cannot come back. Review of PR #5885."""
+    _skill(tree, "throwback", "metadata:\n  type: orchestrator")
+
+    assert gate.validate_capability_graph(tree) is False
+    err = capsys.readouterr().err
+    assert "retired `metadata.type`" in err
+    assert "throwback.SKILL.md.tmpl" in err
+
+
+def test_a_projection_may_still_carry_the_retired_key(tree: Path) -> None:
+    """A stale mirror is the equivalence gate's problem, not this gate's."""
+    _projection(tree, "mirror", "metadata:\n  type: orchestrator")
+
+    assert gate.validate_capability_graph(tree) is True

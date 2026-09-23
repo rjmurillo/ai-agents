@@ -23,8 +23,10 @@ description: Detailed description
 allowed-tools: Read, Write, Bash  # Comma-separated tool restrictions
 metadata:                         # Domain-specific configuration
   domains: [architecture, planning]
-  type: orchestrator
   complexity: advanced
+  capability:                     # ADR-110; `type:` was retired for this
+    kind: orchestrator
+    status: active
 ---
 ```
 

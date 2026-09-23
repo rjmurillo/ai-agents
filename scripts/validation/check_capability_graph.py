@@ -283,6 +283,22 @@ def _has_capability_block(text: str) -> bool:
     return isinstance(metadata, dict) and isinstance(metadata.get("capability"), dict)
 
 
+def _retired_key_defects(rel: str, metadata: dict[str, object]) -> list[str]:
+    """Refuse the vocabulary `capability.kind` replaced.
+
+    `metadata.type` carried nine unchecked values that no validator read. The
+    capability block took its job, and a file that declares no capability block
+    is not a node, so without this check the retired key could return in a new
+    artifact and nothing would notice.
+    """
+    if "type" not in metadata:
+        return []
+    return [
+        f"{rel}: declares the retired `metadata.type`; "
+        "use `metadata.capability.kind` instead"
+    ]
+
+
 def _harness_template_defects(repo_root: Path) -> list[str]:
     """Refuse a capability block in a per-harness agent template.
 
@@ -326,7 +342,11 @@ def collect_nodes(repo_root: Path) -> tuple[list[Node], list[str]]:
             defects.append(f"{rel}: frontmatter cannot be parsed: {exc}")
             continue
         metadata = front.get("metadata")
-        block = metadata.get("capability") if isinstance(metadata, dict) else None
+        if not isinstance(metadata, dict):
+            continue
+        if _is_canonical(rel):
+            defects.extend(_retired_key_defects(rel, metadata))
+        block = metadata.get("capability")
         if not isinstance(block, dict):
             continue
         defects.extend(_block_defects(rel, block))
