@@ -111,7 +111,7 @@ Flag format, one sentence each, declarative rather than an opt-in question (see 
 What this is not:
 
 - **Not nitpicking.** Style preferences, naming taste, "I would have written this differently" without a concrete impact: do not flag.
-- **Not boiling the ocean.** A flag is an offer, not a unilateral expansion. The user decides whether to take the fix.
+- **Not boiling the ocean.** A flag is a report, not a unilateral expansion. The user decides whether to take the fix.
 - **Not deflection.** "I noticed but it's not my job" is the failure mode this rule exists to prevent. Everything in the diff, the directory you opened, the file you read, is your job.
 
 ## Completion-Tail Audit
@@ -159,7 +159,7 @@ mechanics.
 - Did you boil the lake (cover the full scope you can see) or flag the ocean (name what is out of scope)?
 - If options differ in coverage, did you score each one? If they differ in kind, did you say so instead of fabricating scores?
 - High-stakes ambiguity present? If yes, did you stop, name it, and ask instead of guessing?
-- See anything wrong on the path you took (dead code, stale doc, missing test, suspicious shortcut)? If yes, did you flag it in one sentence with impact and a fix offer?
+- See anything wrong on the path you took (dead code, stale doc, missing test, suspicious shortcut)? If yes, did you flag it in one sentence with impact, stated declaratively, not as an offer?
 - Uncleared gate? Clear it, drop the claim, or name who can.
 - Is the task terminal (builder-ethos.md Terminal Predicate)? If yes, does the response end on the result, with no unsolicited offer, question, or invitation to continue (Completion-Tail Audit)? Any sentence carrying no fact, cut it.
 

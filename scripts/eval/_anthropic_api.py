@@ -120,7 +120,7 @@ def _call_selected_provider(
     system: str,
     model: str,
     max_tokens: int,
-    temperature: float,
+    temperature: float | None,
     seed: int | None,
     metadata: dict[str, object] | None,
 ) -> str | None:
@@ -136,8 +136,9 @@ def _call_selected_provider(
         "system": system,
         "model": model,
         "max_tokens": max_tokens,
-        "temperature": temperature,
     }
+    if temperature is not None:
+        kwargs["temperature"] = temperature
     if seed is not None:
         kwargs["seed"] = seed
     text = cast(str, selected_provider.complete(**kwargs))
@@ -240,7 +241,7 @@ def call_api(
     system: str = "",
     model: str = DEFAULT_MODEL,
     max_tokens: int = 1024,
-    temperature: float = 0.0,
+    temperature: float | None = 0.0,
     provider: str | None = None,
     seed: int | None = None,
     metadata: dict[str, object] | None = None,

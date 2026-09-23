@@ -160,6 +160,28 @@ def test_sdk_provider_retries_without_temperature_on_deprecated_400(
     assert "temperature" not in calls[1]
 
 
+def test_sdk_provider_omits_temperature_when_none(monkeypatch: pytest.MonkeyPatch) -> None:
+    """`temperature=None` (the runtime grader default) sends one request with no field."""
+    calls: list[dict[str, object]] = []
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        calls.append(json.loads(request.content.decode()))
+        return httpx2.Response(200, json=_ok_message_body("omitted"))
+
+    monkeypatch.setattr(anthropic, "Anthropic", lambda **_: _mock_anthropic_client(handler))
+    provider = _http_providers._AnthropicSDKProvider()
+
+    text = provider.complete(
+        messages=[{"role": "user", "content": "hi"}],
+        model="claude-sonnet-5",
+        temperature=None,
+    )
+
+    assert text == "omitted"
+    assert len(calls) == 1
+    assert "temperature" not in calls[0]
+
+
 def test_sdk_provider_does_not_retry_on_unrelated_400(monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[dict[str, object]] = []
     other_error = {
@@ -226,9 +248,7 @@ def test_real_sdk_rejects_temperature_as_a_direct_keyword() -> None:
     `temperature` as a typed parameter, this test starts failing, which is
     the signal to drop the `extra_body` workaround.
     """
-    client = _mock_anthropic_client(
-        lambda request: httpx2.Response(200, json=_ok_message_body())
-    )
+    client = _mock_anthropic_client(lambda request: httpx2.Response(200, json=_ok_message_body()))
     # cast: deliberately calling with an argument the typed signature does
     # not accept, to prove the SDK itself rejects it at runtime.
     create = cast("Callable[..., object]", client.messages.create)
@@ -394,6 +414,24 @@ def test_call_api_retries_without_temperature_on_deprecated_400(
     assert len(calls) == 2
     assert "temperature" in calls[0]
     assert "temperature" not in calls[1]
+
+
+def test_call_api_omits_temperature_when_none(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[dict[str, object]] = []
+
+    def fake_urlopen(request: urllib.request.Request, timeout: float | None = None) -> _Resp:
+        calls.append(_sent_body(request))
+        return _Resp(json.dumps({"content": [{"type": "text", "text": "omitted"}]}).encode())
+
+    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+
+    text = _anthropic_api.call_api(
+        "key", [{"role": "user", "content": "hi"}], model="claude-sonnet-5", temperature=None
+    )
+
+    assert text == "omitted"
+    assert len(calls) == 1
+    assert "temperature" not in calls[0]
 
 
 def test_call_api_does_not_retry_on_unrelated_400(monkeypatch: pytest.MonkeyPatch) -> None:

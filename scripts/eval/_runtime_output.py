@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 from collections.abc import Mapping, Sequence
 
@@ -19,6 +20,27 @@ AUTH_HINTS = (
     "sign in",
     "unauthorized",
 )
+_CLAUDE_DOTTED_VERSION = re.compile(r"^(claude-.+)-(\d+)\.(\d{1,2})$")
+_CLAUDE_DASHED_VERSION = re.compile(r"^(claude-.+)-(\d+)-(\d{1,2})$")
+
+
+def harness_model_id(harness: str, model: str) -> str:
+    """Spell a Claude model ID the way `harness` accepts it.
+
+    Probed 2026-09-23: Copilot CLI accepts only `claude-opus-5.5` and Claude
+    Code only `claude-opus-5-5`; each rejects the other spelling. Non-Claude
+    IDs and dated IDs such as `claude-haiku-4-5-20251001` pass through.
+    """
+    if harness == "copilot":
+        return _CLAUDE_DASHED_VERSION.sub(r"\1-\2.\3", model)
+    return _CLAUDE_DOTTED_VERSION.sub(r"\1-\2-\3", model)
+
+
+def same_model(left: object, right: object) -> bool:
+    """Return whether two model IDs name the same model in either spelling."""
+    if not isinstance(left, str) or not isinstance(right, str):
+        return False
+    return harness_model_id("claude", left) == harness_model_id("claude", right)
 
 
 def claude_result(
@@ -88,10 +110,8 @@ def comparison_verdict(
     model: str,
 ) -> str | None:
     """Return the parity failure shared by one completed fixture pair."""
-    if (
-        claude["resolved_model"] != model
-        or copilot["resolved_model"] != model
-        or claude["resolved_model"] != copilot["resolved_model"]
+    if not (
+        same_model(claude["resolved_model"], model) and same_model(copilot["resolved_model"], model)
     ):
         return "FAIL_MODEL_MISMATCH"
     if claude["question_mechanism"] != copilot["question_mechanism"]:

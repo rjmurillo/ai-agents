@@ -113,7 +113,7 @@ class EvalProvider(Protocol):
         system: str = "",
         model: str,
         max_tokens: int = 1024,
-        temperature: float = 0.0,
+        temperature: float | None = 0.0,
         seed: int | None = None,
     ) -> str:
         """Return assistant text. Raise RuntimeError on any failure."""

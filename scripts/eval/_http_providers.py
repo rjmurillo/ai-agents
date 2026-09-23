@@ -225,7 +225,7 @@ class _OpenAICompatibleProvider:
         system: str = "",
         model: str,
         max_tokens: int = 1024,
-        temperature: float = 0.0,
+        temperature: float | None = 0.0,
         seed: int | None = None,
     ) -> str:
         client = self._client()
@@ -241,7 +241,8 @@ class _OpenAICompatibleProvider:
             create_kwargs["max_completion_tokens"] = max_tokens
         else:
             create_kwargs["max_tokens"] = max_tokens
-            create_kwargs["temperature"] = temperature
+            if temperature is not None:
+                create_kwargs["temperature"] = temperature
         if seed is not None:
             create_kwargs["seed"] = seed
         try:
@@ -286,7 +287,7 @@ class _AnthropicSDKProvider:
         system: str = "",
         model: str,
         max_tokens: int = 1024,
-        temperature: float = 0.0,
+        temperature: float | None = 0.0,
         seed: int | None = None,
     ) -> str:
         try:
@@ -306,7 +307,7 @@ class _AnthropicSDKProvider:
         # the raw JSON request body instead, bypassing the typed schema, so
         # models that still accept the field (see the comment above
         # `_eval_common._TEMPERATURE_DEPRECATED_RE` for the current split)
-        # keep getting it.
+        # keep getting it. A `None` temperature is omitted entirely.
         create_message = cast("Callable[..., Any]", client.messages.create)
 
         def _send(include_temperature: bool) -> object:
@@ -316,7 +317,7 @@ class _AnthropicSDKProvider:
                 "system": system or "",
                 "messages": anthropic_messages,
             }
-            if include_temperature:
+            if include_temperature and temperature is not None:
                 kwargs["extra_body"] = {"temperature": temperature}
             return create_message(**kwargs)
 
