@@ -378,3 +378,28 @@ class TestCliContract:
         assert checker.validate_citation_freshness(root) is True
 
 
+
+
+def test_root_move_rewrite_is_not_an_added_line() -> None:
+    """Issue #5420: re-spelling `.agents/<sub>` as `.project-toolkit/<sub>` asserts nothing new."""
+    import citation_head_state
+
+    old = "See `.agents/analysis/x.md:5`."
+    new = "See `.project-toolkit/analysis/x.md:5`."
+    removed = {"doc.md": citation_head_state.Counter({old: 1})}
+    added = {"doc.md": [(3, new), (4, "See `scripts/a.py:9`.")]}
+
+    kept = citation_head_state._drop_root_move_rewrites(added, removed)
+
+    assert kept == {"doc.md": [(4, "See `scripts/a.py:9`.")]}
+
+
+def test_root_move_pairing_is_one_to_one() -> None:
+    import citation_head_state
+
+    removed = {"doc.md": citation_head_state.Counter({"`.agents/qa/x.md:1`": 1})}
+    added = {"doc.md": [(1, "`.project-toolkit/qa/x.md:1`"), (2, "`.project-toolkit/qa/x.md:1`")]}
+
+    kept = citation_head_state._drop_root_move_rewrites(added, removed)
+
+    assert kept == {"doc.md": [(2, "`.project-toolkit/qa/x.md:1`")]}

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import subprocess
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -117,10 +118,12 @@ def test_moved_legacy_session_log_skips_schema_validation(
 
     real_run_command = policy._run_command
 
-    def _refuse_validator(args: list[str], *rest: object, **kwargs: object) -> object:
+    def _refuse_validator(
+        args: list[str], cwd: Path, *rest: Any, **kwargs: Any
+    ) -> subprocess.CompletedProcess[str]:
         if "scripts/validate_session_json.py" in args:
             raise AssertionError("a moved legacy log must not be re-validated")
-        return real_run_command(args, *rest, **kwargs)
+        return real_run_command(args, cwd, *rest, **kwargs)
 
     monkeypatch.setattr(policy, "_run_command", _refuse_validator)
     assert policy.check_sessions([destination], repo) == 0
@@ -185,3 +188,17 @@ def test_new_session_log_with_legacy_name_is_still_refused(
     monkeypatch.setattr(policy, "check_generated_paths", lambda _kind, _root: 0)
 
     assert policy.extract_session_episodes([path], repo) == 2
+
+
+def test_moved_session_on_upstream_under_former_path_is_upstream_content(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    content = b'{"workLog": {}}\n'
+    upstream = {".agents/sessions/2025-01-01-session-1.json": content}
+    monkeypatch.setattr(
+        policy, "_read_upstream_default_blob", lambda _root, path: upstream.get(path)
+    )
+    moved = ".project-toolkit/sessions/2025-01-01-session-1.json"
+
+    assert policy._is_session_content_on_upstream_default(tmp_path, moved, content)
+    assert not policy._is_session_content_on_upstream_default(tmp_path, moved, b"{}\n")

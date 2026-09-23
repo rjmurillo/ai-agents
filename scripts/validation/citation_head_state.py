@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import re
 import sys
+from collections import Counter
 from pathlib import Path
 from typing import cast
 
@@ -94,6 +95,7 @@ def _added_lines_since_base(
         return None
 
     added: dict[str, list[tuple[int, str]]] = {}
+    removed: dict[str, Counter[str]] = {}
     current_file: str | None = None
     new_lineno = 0
     in_hunk = False
@@ -120,7 +122,35 @@ def _added_lines_since_base(
         if raw.startswith("+"):
             added.setdefault(current_file, []).append((new_lineno, raw[1:]))
             new_lineno += 1
-    return added
+        elif raw.startswith("-"):
+            removed.setdefault(current_file, Counter())[_undo_root_move(raw[1:])] += 1
+    return _drop_root_move_rewrites(added, removed)
+
+
+def _undo_root_move(line: str) -> str:
+    return line.replace(".project-toolkit/", ".agents/")
+
+
+def _drop_root_move_rewrites(
+    added: dict[str, list[tuple[int, str]]], removed: dict[str, Counter[str]]
+) -> dict[str, list[tuple[int, str]]]:
+    """Drop added lines that only re-spell a removed line under the new root.
+
+    Issue #5420 rewrote ``.agents/<sub>`` references to
+    ``.project-toolkit/<sub>``. Such a line asserts nothing the base did not
+    already assert, so it is not newly authored. Each removed line pairs with
+    at most one added line.
+    """
+    kept: dict[str, list[tuple[int, str]]] = {}
+    for path, lines in added.items():
+        pool = removed.get(path, Counter())
+        for line_number, text in lines:
+            key = _undo_root_move(text)
+            if pool[key] > 0:
+                pool[key] -= 1
+                continue
+            kept.setdefault(path, []).append((line_number, text))
+    return kept
 
 
 class HeadReadError(RuntimeError):

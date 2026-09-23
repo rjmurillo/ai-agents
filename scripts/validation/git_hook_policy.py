@@ -2634,8 +2634,19 @@ def _is_session_on_upstream_default(repo_root: Path, path: str) -> bool:
 
 
 def _is_session_content_on_upstream_default(repo_root: Path, path: str, content: bytes) -> bool:
-    upstream_content = _read_upstream_default_blob(repo_root, path)
-    return upstream_content is not None and upstream_content == content
+    """True when upstream already carries ``content`` at ``path`` or its pre-move path.
+
+    Issue #5420 moved session logs from the ``.agents`` root to
+    ``.project-toolkit/sessions/``. Until upstream carries the new path, a log
+    the branch only moved is still upstream content under its former name.
+    """
+    former_path = path
+    if path.startswith(".project-toolkit/"):
+        former_path = ".agents/" + path.removeprefix(".project-toolkit/")
+    for candidate in dict.fromkeys((path, former_path)):
+        if _read_upstream_default_blob(repo_root, candidate) == content:
+            return True
+    return False
 
 
 def check_commit_message(message_path: Path) -> int:

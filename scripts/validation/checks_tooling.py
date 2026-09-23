@@ -117,6 +117,31 @@ def _changed_session_paths(output: str, repo_root: Path) -> list[str]:
     ]
 
 
+def _pure_rename_destinations(repo_root: Path, base_ref: str) -> set[str]:
+    """Paths the branch renamed without changing a byte (git similarity 100%).
+
+    Issue #5420 moved session logs from the ``.agents`` root to
+    ``.project-toolkit/sessions/``; a pure move is not a changed session log.
+    A failed query returns an empty set, so every changed log stays validated.
+    """
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(repo_root), "diff", "--name-status", "-M", "-z",
+             "--diff-filter=R", f"{base_ref}...HEAD"],
+            capture_output=True, text=True, timeout=60, check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return set()
+    if result.returncode != 0:
+        return set()
+    fields = result.stdout.split("\0")
+    return {
+        fields[index + 2]
+        for index in range(0, len(fields) - 2, 3)
+        if fields[index] == "R100"
+    }
+
+
 _SESSION_END = "validate_session_end"
 
 
@@ -165,7 +190,10 @@ def validate_session_end(repo_root: Path) -> CheckOutcome:
             detail=f"git diff exited {exit_code}, so the changed-file set is unknown",
         )
 
-    changed_paths = _changed_session_paths(stdout, repo_root)
+    moved_only = _pure_rename_destinations(repo_root, base_ref)
+    changed_paths = [
+        path for path in _changed_session_paths(stdout, repo_root) if path not in moved_only
+    ]
 
     # The revision is the PASS's whole falsifiability claim, so a failed
     # rev-parse cannot be papered over with a placeholder. This call used to
