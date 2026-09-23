@@ -511,3 +511,37 @@ def test_http_grader_missing_key_grades_unavailable(
 
     assert result.verdict == "UNAVAILABLE"
     assert result.provider == "anthropic"
+
+
+class _FixedTextGrader:
+    name = "fixed"
+    system_fingerprint: str | None = None
+
+    def __init__(self, text: str) -> None:
+        self.text = text
+
+    def complete(self, **_: object) -> str:
+        return self.text
+
+
+def test_grade_salvages_verdict_from_malformed_json() -> None:
+    raw = '{"verdict": "FAIL", "reason": "appends an offer.""}'
+
+    result = runtime_grader.grade(_FixedTextGrader(raw), "m", "r", "p", "x")
+
+    assert result.verdict == "FAIL"
+    assert result.reason == ""
+
+
+def test_grade_conflicting_salvaged_verdicts_are_unavailable() -> None:
+    raw = '"verdict": "PASS" then "verdict": "FAIL" {'
+
+    result = runtime_grader.grade(_FixedTextGrader(raw), "m", "r", "p", "x")
+
+    assert result.verdict == "UNAVAILABLE"
+
+
+def test_grade_prose_without_verdict_field_is_unavailable() -> None:
+    result = runtime_grader.grade(_FixedTextGrader("I think it FAILs."), "m", "r", "p", "x")
+
+    assert result.verdict == "UNAVAILABLE"

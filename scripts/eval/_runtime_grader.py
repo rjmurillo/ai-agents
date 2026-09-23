@@ -40,6 +40,7 @@ is reported `INVALID_GRADER` rather than trusted for anything.
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Protocol
 
@@ -103,6 +104,7 @@ def resolve_grader(name: str) -> GraderProtocol:
         return _AnthropicHTTPGrader()
     provider: GraderProtocol = resolve_provider(name)
     return provider
+
 
 #: Appended to a fixture's own positive-control response to build the
 #: automatic mutant every semantic assertion must be calibrated against
@@ -217,6 +219,21 @@ def _parse_first_json_object(text: str) -> dict[str, object] | None:
     return None
 
 
+_VERDICT_FIELD = re.compile(r'"verdict"\s*:\s*"(PASS|FAIL)"')
+
+
+def _salvage_verdict(text: str) -> str | None:
+    """Read the verdict field from output that is not valid JSON.
+
+    Probed 2026-09-22, claude-haiku-4-5-20251001 at temperature 0 closed a
+    reason string with `""}`, so the object never parsed although the verdict
+    was explicit. Accept only a single unambiguous verdict field; two
+    different values stay unparseable.
+    """
+    found = set(_VERDICT_FIELD.findall(text))
+    return found.pop() if len(found) == 1 else None
+
+
 def grade(
     provider: GraderProtocol,
     model: str,
@@ -244,7 +261,7 @@ def grade(
     except RuntimeError as exc:
         return GradeResult("UNAVAILABLE", str(exc), provider.name, model, None)
     parsed = _parse_first_json_object(text)
-    verdict = parsed.get("verdict") if parsed else None
+    verdict = parsed.get("verdict") if parsed else _salvage_verdict(text)
     fingerprint = getattr(provider, "system_fingerprint", None)
     if verdict not in {"PASS", "FAIL"}:
         return GradeResult(
