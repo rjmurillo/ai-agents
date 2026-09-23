@@ -183,11 +183,14 @@ def test_fixture_rejects_negative_control_that_passes(tmp_path: Path) -> None:
 def test_commands_isolate_profiles_and_send_the_same_fixture() -> None:
     fixture = parity.load_fixtures(FIXTURES)[1]
 
-    assert parity.DEFAULT_MODEL == "claude-opus-4.6"
+    assert parity.DEFAULT_MODEL == "claude-opus-5-5"
     claude = parity.build_argv("claude", "claude", parity.DEFAULT_MODEL, fixture)
     copilot = parity.build_argv(
         "copilot", "copilot", parity.DEFAULT_MODEL, fixture
     )
+
+    assert claude[claude.index("--model") + 1] == "claude-opus-5-5"
+    assert copilot[copilot.index("--model") + 1] == "claude-opus-5.5"
 
     assert "--setting-sources" in claude
     assert claude[claude.index("--setting-sources") + 1] == "project"

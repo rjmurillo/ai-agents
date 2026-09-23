@@ -191,7 +191,7 @@ class _OpenAICompatibleProvider:
         system: str = "",
         model: str,
         max_tokens: int = 1024,
-        temperature: float = 0.0,
+        temperature: float | None = 0.0,
         seed: int | None = None,
     ) -> str:
         client = self._client()
@@ -207,7 +207,8 @@ class _OpenAICompatibleProvider:
             create_kwargs["max_completion_tokens"] = max_tokens
         else:
             create_kwargs["max_tokens"] = max_tokens
-            create_kwargs["temperature"] = temperature
+            if temperature is not None:
+                create_kwargs["temperature"] = temperature
         if seed is not None:
             create_kwargs["seed"] = seed
         try:
@@ -252,7 +253,7 @@ class _AnthropicSDKProvider:
         system: str = "",
         model: str,
         max_tokens: int = 1024,
-        temperature: float = 0.0,
+        temperature: float | None = 0.0,
         seed: int | None = None,
     ) -> str:
         try:
@@ -266,19 +267,21 @@ class _AnthropicSDKProvider:
         client = Anthropic(api_key=api_key, timeout=120.0, max_retries=0)
         anthropic_messages = cast("Iterable[MessageParam]", messages)
         # `temperature` is absent from the SDK's `create` overloads, so mypy
-        # rejects the call although the API accepts the field and the urllib
-        # path sends it. Cast at the boundary, the same way the OpenAI client
-        # is called below, rather than dropping an argument the adapter
-        # documents as sent on every call.
+        # rejects the call although older models accept the field. Cast at the
+        # boundary, the same way the OpenAI client is called below. A `None`
+        # temperature is omitted: current models such as `claude-sonnet-5`
+        # reject the field with HTTP 400.
         create_message = cast("Callable[..., Any]", client.messages.create)
+        create_kwargs: dict[str, object] = {
+            "model": model,
+            "max_tokens": max_tokens,
+            "system": system or "",
+            "messages": anthropic_messages,
+        }
+        if temperature is not None:
+            create_kwargs["temperature"] = temperature
         try:
-            resp = create_message(
-                model=model,
-                max_tokens=max_tokens,
-                system=system or "",
-                messages=anthropic_messages,
-                temperature=temperature,
-            )
+            resp = create_message(**create_kwargs)
         except Exception as exc:
             _normalize_and_raise(self._provider_label, exc)
             raise  # unreachable
