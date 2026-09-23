@@ -366,6 +366,7 @@ assertion alongside its regex/not_regex regression backstop.
 uv run python scripts/eval/eval_runtime_parity.py \
   --fixtures tests/evals/completion-terminal-runtime-fixtures.json \
   --model claude-opus-4.6 \
+  --harnesses claude \
   --dry-run
 ```
 
@@ -378,11 +379,13 @@ those exact strings, and using one of them inside a genuine blocking question
 is not itself a defect; the `semantic` assertion is what actually grades
 whether a response reopens the interaction. Running the corpus live needs
 `--harnesses claude` (Copilot instruction loading is unverified and refused,
-see above), a signed-in `claude` CLI, and a signed-in grader CLI matching
-`--grader-provider`. `--dry-run` still validates the fixture schema, the
-instruction files, and both CLI versions without a model call, and exits 3
-(external/unavailable) rather than a false pass when a required CLI binary is
-not installed.
+see above), a `claude` CLI that can authenticate inside the isolated profile
+(`ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN`), and the grader credential:
+`ANTHROPIC_API_KEY` for the default `anthropic` provider, or the credential
+the provider matrix above lists for another `--grader-provider`. `--dry-run`
+still validates the fixture schema, the instruction files, and the selected
+CLI versions without a model call, and exits 3 (external/unavailable) rather
+than a false pass when a required CLI binary is not installed.
 
 ## End-to-End Delivery Eval
 

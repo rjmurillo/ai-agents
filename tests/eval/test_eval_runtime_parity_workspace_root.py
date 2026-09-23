@@ -6,6 +6,7 @@ under the 500-line taste limit.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -190,3 +191,57 @@ def test_unknown_grader_provider_is_a_config_error_even_in_dry_run(tmp_path: Pat
     )
 
     assert code == parity.EXIT_CONFIG
+
+
+def test_claude_only_run_never_probes_copilot(tmp_path: Path) -> None:
+    corpus = corpus_with_instructions(tmp_path, default_instructions=False)
+    runner = FixedResponseRunner("CONTINUE_PHASE_3")
+
+    report, code = parity.run_evaluation(
+        fixtures_path=corpus,
+        model=parity.DEFAULT_MODEL,
+        output=tmp_path / "run" / "report.json",
+        claude_bin="claude",
+        copilot_bin="copilot-not-installed",
+        timeout=30,
+        dry_run=True,
+        runner=runner,
+        harnesses="claude",
+    )
+
+    assert code == parity.EXIT_OK
+    assert list(report["cli_versions"]) == ["claude"]
+    assert all("copilot" not in call[0] for call in runner.calls)
+
+
+def test_semantic_grader_receives_the_scored_assertion_text(tmp_path: Path) -> None:
+    corpus = corpus_with_instructions(tmp_path, default_instructions=False, semantic=True)
+    seen: list[str] = []
+
+    class RecordingGrader:
+        name = "recording"
+        system_fingerprint = None
+        calls = 0
+
+        def complete(self, *, messages, **_kwargs):
+            self.calls += 1
+            seen.append(messages[0]["content"])
+            verdict = "FAIL" if self.calls in (2, 3) else "PASS"
+            return json.dumps({"verdict": verdict, "reason": "r"})
+
+    parity.run_evaluation(
+        fixtures_path=corpus,
+        model=parity.DEFAULT_MODEL,
+        output=tmp_path / "run" / "report.json",
+        claude_bin="claude",
+        copilot_bin="copilot",
+        timeout=30,
+        dry_run=False,
+        runner=FixedResponseRunner("CONTINUE_PHASE_3"),
+        harnesses="claude",
+        grader=RecordingGrader(),
+    )
+
+    report = (tmp_path / "run" / "report.json").read_text(encoding="utf-8")
+    assert '"assertion_text": "CONTINUE_PHASE_3"' in report
+    assert seen[-1].endswith("CONTINUE_PHASE_3")

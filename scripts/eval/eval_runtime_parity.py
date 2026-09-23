@@ -312,6 +312,7 @@ def _score_runtime_result(
             "raw_output": run.stdout,
             "stderr": run.stderr,
             "response": response,
+            "assertion_text": assertion_text,
             "question_mechanism": mechanism,
             "tool_events": tools,
             "subagent_events": subagents,
@@ -363,23 +364,17 @@ def _probe_versions(
     copilot_bin: str,
     runner: Runner,
     timeout: float,
+    harnesses: str = DEFAULT_HARNESSES,
 ) -> dict[str, str]:
+    """Probe only the selected harnesses, so a Claude run needs no Copilot."""
     version_workspaces = output.parent / "version-probes"
+    selected = ("claude", "copilot") if harnesses == "both" else (harnesses,)
+    binaries = {"claude": claude_bin, "copilot": copilot_bin}
     return {
-        "claude": probe_version(
-            claude_bin,
-            "claude",
-            version_workspaces / "claude",
-            runner,
-            timeout,
-        ),
-        "copilot": probe_version(
-            copilot_bin,
-            "copilot",
-            version_workspaces / "copilot",
-            runner,
-            timeout,
-        ),
+        name: probe_version(
+            binaries[name], name, version_workspaces / name, runner, timeout
+        )
+        for name in selected
     }
 
 
@@ -420,7 +415,10 @@ def _apply_semantic_grading(
     when calibration proved the grader miscalibrated (AC8).
     """
     semantic_results, verdict_override, calibration = grade_semantic_assertions(
-        fixture, str(record["response"]), grader, grader_model
+        fixture,
+        str(record.get("assertion_text", record["response"])),
+        grader,
+        grader_model,
     )
     if verdict_override == "UNAVAILABLE":
         record["error"] = "semantic grader is unavailable"
@@ -673,12 +671,15 @@ def _base_report(
     source_commit: str,
     instructions_ref: str | None,
     instructions_ref_sha: str | None,
+    harnesses: str,
 ) -> dict[str, object]:
     """Build the report shell shared by dry-run and live evaluation."""
     return {
         "schema_version": 1,
         "requested_model": model,
-        "cli_versions": _probe_versions(output, claude_bin, copilot_bin, runner, timeout),
+        "cli_versions": _probe_versions(
+            output, claude_bin, copilot_bin, runner, timeout, harnesses
+        ),
         "fixture_count": fixture_count,
         "fixtures": [],
         "verdict": "DRY_RUN" if dry_run else "PASS",
@@ -760,6 +761,7 @@ def run_evaluation(
         source_commit=source_commit,
         instructions_ref=instructions_ref,
         instructions_ref_sha=instructions_ref_sha,
+        harnesses=harnesses,
     )
     report["workspace_root"] = str(workspaces)
     if dry_run:
