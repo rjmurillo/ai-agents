@@ -21,6 +21,7 @@ tools:
   - memory
 model: Claude Haiku 4.5 (copilot)
 role: executor
+isolation_required: true
 ---
 
 # Code Reviewer Agent

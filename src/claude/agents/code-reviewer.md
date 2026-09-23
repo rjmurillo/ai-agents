@@ -5,6 +5,8 @@ model: haiku
 model-rationale: cost. The reviewer filters to high-confidence findings and escalates complex architecture or security concerns to specialist agents, so the lower-cost tier is sufficient.
 metadata:
   role: executor
+# Runs the review contract in fresh context with read-only tools, apart from the implementer.
+isolation_required: true
 argument-hint: Point to the diff, PR, or files to review; defaults to current working changes
 ---
 

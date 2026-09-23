@@ -19,6 +19,7 @@ tools:
   - cloudmcp-manager/*
   - serena/*
 role: executor
+isolation_required: true
 ---
 
 # Code Reviewer Agent

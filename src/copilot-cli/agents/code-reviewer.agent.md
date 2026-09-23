@@ -20,6 +20,7 @@ tools:
   - serena/*
 model: claude-haiku-4.5
 role: executor
+isolation_required: true
 ---
 
 # Code Reviewer Agent
