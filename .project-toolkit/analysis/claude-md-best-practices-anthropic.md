@@ -33,9 +33,11 @@ CLAUDE.md files are loaded in this order (later files can override earlier ones)
 
 ### 1.3 Recommended File Size
 
-**Anthropic's recommendation**: 100-200 lines maximum.
+**Anthropic's guidance**: the Claude Code memory docs say to "target under 200 lines per CLAUDE.md file." That is a target, not a hard limit. The "first 200 lines or 25KB" figure in the same docs is the load cap for the auto memory `MEMORY.md` index, not for CLAUDE.md or AGENTS.md. Source: <https://code.claude.com/docs/en/memory> (checked 2026-09-23).
 
-**Rationale**: CLAUDE.md is added to context every session. Large files waste tokens on every interaction. If you exceed 200 lines, move details into per-folder files or use `@imports`.
+The Claude 5 context-engineering post (Anthropic, 2026-07-24) sets no line or byte ceiling. It says to keep CLAUDE.md lightweight, spend its tokens on gotchas, and move procedures into skills.
+
+**Rationale**: CLAUDE.md is added to context every session. Longer files cost tokens on every turn and reduce adherence. When a file grows, move details into path-scoped rules, skills, or `@imports`.
 
 ### 1.4 Content Categories
 
@@ -144,7 +146,7 @@ Large CLAUDE.md files waste tokens. Break into:
 
 | Aspect | Anthropic Guidance | Our Implementation | Status |
 |--------|-------------------|-------------------|--------|
-| File size | 100-200 lines | CLAUDE.md: 66 lines | ALIGNED |
+| File size | Target under 200 lines (not a limit) | CLAUDE.md: 66 lines | ALIGNED |
 | Concise format | Human-readable, minimal | Pointer pattern | ALIGNED |
 | Critical constraints | Quick reference | Table format | ALIGNED |
 | Hierarchical files | Use subdirectory CLAUDE.md | Not used | GAP |
