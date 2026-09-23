@@ -23,6 +23,13 @@ DEFAULT_TOTAL_TIMEOUT_SEC: float = 180.0
 HTTP_STATUS_RE = re.compile(r"HTTP (\d{3})")
 TIMEOUT_HINT: str = "timed out"
 RATE_LIMIT_HINT: str = "rate limit"
+# `_http_providers._normalize_and_raise`'s TypeError branch (an SDK call
+# rejected an argument the provider sent, e.g. a keyword an installed SDK
+# version removed). No HTTP status accompanies it, so without this hint
+# `_categorize_error` falls through to the transient server_error default
+# and the adapter retries a call that will deterministically fail the same
+# way every time (issue found in PR #5895 review).
+SDK_ARGUMENT_MISMATCH_HINT: str = "error=sdk_argument_mismatch"
 AUTH_HINT_RE = re.compile(
     r"(authentication failed|not logged in|not signed in|please (?:log|sign) in|login required)",
     re.IGNORECASE,

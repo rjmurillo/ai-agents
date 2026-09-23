@@ -18,7 +18,13 @@ from typing import Any, cast
 
 # Sibling import; loaded under the same EVAL_DIR sys.path entry every caller
 # of this module already uses to reach it by bare name.
-from _eval_common import require_str_or_none, safe_http_error_message
+from _eval_common import (
+    call_with_temperature_fallback,
+    is_temperature_deprecated_message,
+    require_str_or_none,
+    safe_http_error_message,
+)
+from _eval_errors import TemperatureDeprecatedError
 
 # Single source of truth for the default eval model. Every eval script imports
 # this instead of hard-coding an id, so a model bump is a one-line change here
@@ -153,6 +159,9 @@ def _build_messages_request(
     max_tokens: int,
     temperature: float | None,
 ) -> urllib.request.Request:
+    """Build the `POST /v1/messages` request. `temperature=None` omits the
+    field entirely, for the retry after the model rejects it as deprecated.
+    """
     body: dict[str, Any] = {
         "model": model,
         "max_tokens": max_tokens,
@@ -197,6 +206,12 @@ def _read_messages_response(
         with urllib.request.urlopen(request, timeout=120) as response:
             return json.loads(response.read().decode(errors="replace"))
     except urllib.error.HTTPError as error:
+        if error.code == 400:
+            # Inspect the raw body before it is redacted below. Discarded
+            # immediately if it doesn't match; never logged or re-raised.
+            detail = error.read().decode(errors="replace")
+            if is_temperature_deprecated_message(detail):
+                raise TemperatureDeprecatedError from None
         message = safe_http_error_message("Anthropic API", error.code)
         if error.code == 404:
             message += _reachable_model_hint(api_key)
@@ -250,15 +265,21 @@ def call_api(
     )
     if alternate is not None:
         return alternate
-    request = _build_messages_request(
-        api_key,
-        messages,
-        system,
-        model,
-        max_tokens,
-        temperature,
+
+    def _send(include_temperature: bool) -> object:
+        request = _build_messages_request(
+            api_key,
+            messages,
+            system,
+            model,
+            max_tokens,
+            temperature if include_temperature else None,
+        )
+        return _read_messages_response(request, api_key)
+
+    result = call_with_temperature_fallback(
+        _send, lambda exc: isinstance(exc, TemperatureDeprecatedError)
     )
-    result = _read_messages_response(request, api_key)
     if not isinstance(result, dict):
         raise RuntimeError(
             "Anthropic API returned an unexpected payload shape: "

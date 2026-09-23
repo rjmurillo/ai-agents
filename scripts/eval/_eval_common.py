@@ -7,10 +7,14 @@ duplication of score aggregation logic.
 from __future__ import annotations
 
 import os
-from typing import Any
+import re
+from collections.abc import Callable
+from typing import Any, TypeVar
 
 from _billing_matrix import quota_billed_provider_names
 from _eval_errors import MalformedProviderMetadataError
+
+_T = TypeVar("_T")
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -70,6 +74,54 @@ PRICING_RATE_AS_OF = "2026-08-01"
 _RETIRED_QUOTA_BILLED: frozenset[str] = frozenset({"github", "github-models"})
 
 QUOTA_BILLED_PROVIDERS: frozenset[str] = quota_billed_provider_names() | _RETIRED_QUOTA_BILLED
+
+
+# Anthropic deprecates `temperature` per model, not all at once: as of
+# 2026-09-22, claude-sonnet-5, claude-opus-4-8, claude-opus-5-5, and
+# claude-fable-5-1 reject it with this HTTP 400 message; claude-opus-4-6,
+# claude-sonnet-4-6, claude-sonnet-4-5, and claude-haiku-4-5-20251001 still
+# accept it. Matching the documented message instead of hand-keeping a model
+# list means a newly deprecated model needs no code change here: the next
+# `call_with_temperature_fallback` call just retries once without the field.
+#
+# Live-verified 2026-09-23 against claude-sonnet-5: the API's actual wording
+# quotes the field with backticks (`` `temperature` is deprecated for this
+# model. ``), not double quotes as a first written description of this
+# message assumed. `[`"']?\\?` on both sides tolerates a backtick, a bare
+# quote (a Python-side exception message, e.g. the SDK's
+# `BadRequestError.message`, already JSON-decoded), or a backslash-escaped
+# quote (the raw, undecoded HTTP response body the urllib transport matches
+# against before it parses JSON).
+_TEMPERATURE_DEPRECATED_RE = re.compile(
+    r"[`\"']?\\?temperature\\?[`\"']?\s+is\s+deprecated\s+for\s+this\s+model",
+    re.IGNORECASE,
+)
+
+
+def is_temperature_deprecated_message(message: str) -> bool:
+    """True when a 400 body says the model has deprecated `temperature`."""
+    return bool(_TEMPERATURE_DEPRECATED_RE.search(message))
+
+
+def call_with_temperature_fallback(
+    send: Callable[[bool], _T],
+    is_deprecated_error: Callable[[Exception], bool],
+) -> _T:
+    """Call `send(True)`; on a temperature-deprecated 400, retry `send(False)`.
+
+    `send` takes one bool: whether this attempt should include `temperature`
+    in the request. `is_deprecated_error` inspects the raised exception
+    (before any redaction) for the documented 400 shape. One shared retry
+    policy for both Anthropic transports (SDK and urllib) instead of two
+    copies of the same decision; each transport supplies its own `send` and
+    its own way of reading the exception the underlying client raises.
+    """
+    try:
+        return send(True)
+    except Exception as exc:
+        if not is_deprecated_error(exc):
+            raise
+        return send(False)
 
 
 def safe_http_error_message(provider_surface: str, status_code: int) -> str:

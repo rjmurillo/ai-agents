@@ -105,11 +105,16 @@ def _sdk_request(monkeypatch: pytest.MonkeyPatch, temperature: float | None) -> 
 
 
 def test_sdk_provider_omits_temperature_when_none(monkeypatch: pytest.MonkeyPatch) -> None:
-    assert "temperature" not in _sdk_request(monkeypatch, None)
+    request = _sdk_request(monkeypatch, None)
+    assert "temperature" not in request
+    assert "extra_body" not in request
 
 
 def test_sdk_provider_keeps_explicit_temperature(monkeypatch: pytest.MonkeyPatch) -> None:
-    assert _sdk_request(monkeypatch, 0.0)["temperature"] == 0.0
+    # anthropic SDK 1.6.0 removed the `temperature` keyword; it rides in `extra_body`.
+    request = _sdk_request(monkeypatch, 0.0)
+    assert "temperature" not in request
+    assert request["extra_body"] == {"temperature": 0.0}
 
 
 def test_grade_asks_registry_providers_for_no_temperature() -> None:
