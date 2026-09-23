@@ -738,10 +738,6 @@ _PROMPT_ROLE_FILE_RE = re.compile(r"^[a-z][a-z0-9_-]*\.md$")
 # canonical file with the same name is tracked.
 _COPILOT_SKILL_EXCLUDES = frozenset({"AGENTS.md", "CLAUDE.md", "merge-resolver"})
 
-# Per-commit atomic file limit (AGENTS.md:24, .claude/rules/universal.md:15).
-# Generated companions (episodes, mcp, agents, memory-index) are exempt.
-MAX_AUTHORED_FILES_PER_COMMIT = 5
-
 
 @dataclass(frozen=True, slots=True)
 class PushRef:
@@ -3220,23 +3216,6 @@ def _is_staged_regular_file(repo_root: Path, relative_path: str) -> bool:
     regular file to them, which is the fail-closed reading.
     """
     return _staged_regular_file_state(repo_root, relative_path) is True
-
-
-def _is_generated(relative_path: str, repo_root: Path | None = None) -> bool:
-    """Return True when *relative_path* matches any generated-file pattern."""
-    for entries in GENERATED_PATHS.values():
-        if relative_path in entries:
-            return True
-    for kind, globs in GENERATED_GLOBS.items():
-        if kind == "prompts":
-            continue
-        if any(_matches_generated_glob(relative_path, pat) for pat in globs):
-            return True
-    source = _mirror_source(relative_path)
-    if source is not None:
-        root = repo_root if repo_root is not None else Path.cwd()
-        return _is_staged_regular_file(root, source)
-    return False
 
 
 def _episode_id_from_output(stdout: str) -> str | None:
