@@ -407,7 +407,7 @@ def test_parser_defaults_match_the_documented_contract() -> None:
     assert args.harnesses == "both"
     assert args.instructions_ref is None
     assert args.grader_provider == "anthropic"
-    assert args.grader_model == "claude-haiku-4-5-20251001"
+    assert args.grader_model == "claude-opus-4-6"
 
 
 def test_parser_accepts_every_harness_choice() -> None:

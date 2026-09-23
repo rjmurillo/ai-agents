@@ -91,7 +91,7 @@ DEFAULT_TIMEOUT = 900.0
 DEFAULT_HARNESSES = "both"
 HARNESS_CHOICES = ("both", "claude", "copilot")
 DEFAULT_GRADER_PROVIDER = "anthropic"
-DEFAULT_GRADER_MODEL = "claude-haiku-4-5-20251001"
+DEFAULT_GRADER_MODEL = "claude-opus-4-6"
 MODEL_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$")
 Runner = Callable[..., subprocess.CompletedProcess[str]]
 

@@ -41,7 +41,7 @@
         },
         {
           "kind": "semantic",
-          "rubric": "PASS if the response reports the completed auth.ts:47 fix and ends there. FAIL if it appends any question, offer, or invitation to do more work after reporting the result, however it is phrased."
+          "rubric": "Judge the response against .claude/rules/voice.md's Completion-Tail Audit. FAIL when the response contains an unsolicited offer, question, or invitation whose only function is to continue the interaction, including a conditional offer such as 'If you paste X, I can Y' or 'Say so and I'll begin'. Declarative content is not a continuation and PASSes: observations, explanations, trade-offs, residual risks, notes that a claim is unverified, and a recommended next step stated as a fact. The response must report the completed auth.ts:47 fix."
         }
       ],
       "controls": {
@@ -86,7 +86,7 @@
         },
         {
           "kind": "semantic",
-          "rubric": "PASS if the unused-import observation is stated declaratively with no question or offer attached. A declarative note that the finding is out of scope, left as-is, or recorded for the user's decision is PASS: it states where the decision sits and asks nothing. FAIL if it asks whether to act on the finding, offers to fix it, or otherwise turns the observation into an opt-in continuation."
+          "rubric": "Judge the response against .claude/rules/voice.md's Completion-Tail Audit. FAIL when the response contains an unsolicited offer, question, or invitation whose only function is to continue the interaction, including a conditional offer such as 'If you paste X, I can Y' or 'Say so and I'll begin'. Declarative content is not a continuation and PASSes: observations, explanations, trade-offs, residual risks, notes that a claim is unverified, and a recommended next step stated as a fact. The unused-import finding must appear as a declarative statement; 'out of scope', 'left as-is', or 'recorded for the user's decision' notes PASS."
         }
       ],
       "controls": {
@@ -137,7 +137,7 @@
         },
         {
           "kind": "semantic",
-          "rubric": "PASS if the response asks exactly the one blocking migration-order question with both options and adds no other offer or question. FAIL if it appends a second question or an unsolicited offer beyond the one blocking decision it was asked to raise."
+          "rubric": "Judge the response against .claude/rules/voice.md's Completion-Tail Audit. FAIL when the response contains an unsolicited offer, question, or invitation whose only function is to continue the interaction, including a conditional offer such as 'If you paste X, I can Y' or 'Say so and I'll begin'. Declarative content is not a continuation and PASSes: observations, explanations, trade-offs, residual risks, notes that a claim is unverified, and a recommended next step stated as a fact. The one blocking A/B migration-order question is required and allowed; any additional question or offer beyond it FAILs."
         }
       ],
       "controls": {
@@ -166,7 +166,7 @@
       "assertions": [
         {
           "kind": "regex",
-          "pattern": "(?i)deploy|staging|monitor|next"
+          "pattern": "(?i)deploy|staging|monitor|next|merge|release|verify|rollout"
         },
         {
           "kind": "not_regex",
@@ -174,7 +174,7 @@
         },
         {
           "kind": "semantic",
-          "rubric": "PASS if the response directly answers the user's explicit request for next steps and adds no separate, unsolicited offer beyond what was asked. FAIL if it deflects the question, replaces the answer with a new question, or adds an unrelated unsolicited offer instead of answering."
+          "rubric": "Judge the response against .claude/rules/voice.md's Completion-Tail Audit. FAIL when the response contains an unsolicited offer, question, or invitation whose only function is to continue the interaction, including a conditional offer such as 'If you paste X, I can Y' or 'Say so and I'll begin'. Declarative content is not a continuation and PASSes: observations, explanations, trade-offs, residual risks, notes that a claim is unverified, and a recommended next step stated as a fact. The user explicitly asked what to do next, so answering with next steps is required and allowed; an offer added beyond that answer FAILs."
         }
       ],
       "controls": {
@@ -219,7 +219,7 @@
         },
         {
           "kind": "semantic",
-          "rubric": "PASS if the response reports the completed payment.ts fix and makes no offer, question, or invitation to do the unrequested coverage work. Mentioning the extra tests declaratively, as an observation, is PASS. FAIL if it offers, asks, or invites the user to have that work done, even when framed as helpful, since the user requested nothing beyond the fix and the task is terminal."
+          "rubric": "Judge the response against .claude/rules/voice.md's Completion-Tail Audit. FAIL when the response contains an unsolicited offer, question, or invitation whose only function is to continue the interaction, including a conditional offer such as 'If you paste X, I can Y' or 'Say so and I'll begin'. Declarative content is not a continuation and PASSes: observations, explanations, trade-offs, residual risks, notes that a claim is unverified, and a recommended next step stated as a fact. Mentioning the three extra tests declaratively PASSes; offering, asking about, or inviting that unrequested work FAILs."
         }
       ],
       "controls": {
@@ -256,7 +256,7 @@
         },
         {
           "kind": "semantic",
-          "rubric": "PASS if the response reports the completed config loader migration and ends on the result or on factual detail about it. FAIL if a continuation of any size follows the result: an appended offer, question, or invitation to do more work, however it is phrased."
+          "rubric": "Judge the response against .claude/rules/voice.md's Completion-Tail Audit. FAIL when the response contains an unsolicited offer, question, or invitation whose only function is to continue the interaction, including a conditional offer such as 'If you paste X, I can Y' or 'Say so and I'll begin'. Declarative content is not a continuation and PASSes: observations, explanations, trade-offs, residual risks, notes that a claim is unverified, and a recommended next step stated as a fact. The response must report the completed config loader migration; any continuation edge after it FAILs."
         }
       ],
       "controls": {

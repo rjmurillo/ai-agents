@@ -321,14 +321,18 @@ resolved-model and question-mechanism parity checks. A single harness
 verdict, since there is nothing on the other side to compare against. A
 fixture that fails in single-harness mode sets verdict `FAIL` and exit 1.
 `--grader-provider` (default `anthropic`, the urllib transport reading
-`ANTHROPIC_API_KEY`) and `--grader-model` (default
-`claude-haiku-4-5-20251001`) select the model that grades `semantic`
+`ANTHROPIC_API_KEY`) and `--grader-model` (default `claude-opus-4-6`)
+select the model that grades `semantic`
 assertions; they are unused, and no grader is constructed, when no fixture in
 the run carries one. The grader sends `temperature: 0`. Probed 2026-09-22, the
-Messages API rejects that field for `claude-sonnet-5` with HTTP 400
-("`temperature` is deprecated for this model"), and `anthropic-sdk` 1.6.0 no
-longer accepts the keyword at all, so pick a grader model that still accepts
-it. Per-run calibration catches a grader that cannot discriminate.
+Messages API rejects that field for `claude-sonnet-5`, `claude-opus-4-8`,
+`claude-opus-5-5`, and `claude-fable-5-1` with HTTP 400 ("`temperature` is
+deprecated for this model"), and `anthropic-sdk` 1.6.0 no longer accepts the
+keyword at all, so pick a grader model that still accepts it. On the same
+responses, `claude-haiku-4-5-20251001` passed a tail ending "say so and I'll
+begin" that `claude-opus-4-6` failed, which is why the default is the larger
+model. Per-run calibration catches a grader that cannot discriminate a
+fixture's own controls, not every misjudged live response.
 
 ```bash
 uv run python scripts/eval/eval_runtime_parity.py \
@@ -336,7 +340,7 @@ uv run python scripts/eval/eval_runtime_parity.py \
   --model claude-opus-4.6 \
   --harnesses claude \
   --grader-provider anthropic \
-  --grader-model claude-haiku-4-5-20251001 \
+  --grader-model claude-opus-4-6 \
   --output artifacts/runtime-parity/completion-terminal/report.json \
   --workspace-root "$(mktemp -d)"
 ```
