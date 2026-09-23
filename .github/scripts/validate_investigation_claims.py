@@ -140,9 +140,24 @@ def session_claims_investigation_only(session_path: Path) -> bool:
 
 
 def get_commit_for_session(session_path: Path) -> str | None:
-    """Get the commit SHA that introduced or last modified a session file."""
+    """Get the commit SHA that introduced or last modified a session file.
+
+    A byte-identical rename, such as the #5420 root move, is not authorship:
+    ``--follow`` with exact rename detection skips it and reports the commit
+    that last wrote the content. A rename with edits still counts.
+    """
     result = subprocess.run(
-        ["git", "log", "-1", "--format=%H", "--", str(session_path)],
+        [
+            "git",
+            "log",
+            "-1",
+            "--format=%H",
+            "--follow",
+            "--find-renames=100%",
+            "--diff-filter=AM",
+            "--",
+            str(session_path),
+        ],
         capture_output=True,
         text=True,
         timeout=30,
