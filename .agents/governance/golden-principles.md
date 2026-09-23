@@ -27,10 +27,11 @@ PowerShell is grandfathered for existing scripts only.
 
 ### GP-002: Atomic Commits
 
-Each commit addresses a single logical change with 5 or fewer files.
+Each commit addresses a single logical change. A rough five-files guideline is
+author judgment, not a measured number.
 
 - **Rationale**: Small commits are easier to review, revert, and bisect. Issue #934 retrospective.
-- **Enforcement**: advisory only. `check_atomic_commit` (pre-commit `commit-file-count`) reports over five authored files and exits 0; ADR-100 item 2, issue #5241. PR review checklist.
+- **Enforcement**: none. `check_atomic_commit`, the pre-commit advisory that used to report over-five-file commits, was deleted outright (ADR-100, issue #5241). PR review checklist only.
 
 ### GP-003: Skill Frontmatter Required
 

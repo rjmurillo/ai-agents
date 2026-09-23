@@ -103,9 +103,9 @@ mcp__serena__read_memory(memory_file_name="pr-review/pr-comment-responder-skills
 {{> pr-comment-responder-step-1-0-session-state-check-2}}
 {{> pr-comment-responder-returns-json-with-number-title-body}}
 
-{{> pr-comment-responder-store-for-later-use}}
-   /agent retrospective
-{{> pr-comment-responder-check-for-needs-split-label}}
+#### Step 1.2: Enumerate All Reviewers
+
+```bash
 {{> pr-comment-responder-exclude-bots-from-enumeration}}
 
 #### Step 1.2a: Load Reviewer-Specific Memories

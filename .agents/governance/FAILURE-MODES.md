@@ -88,7 +88,7 @@ Context window approaches its limit. The harness compacts prior messages. Compre
 ### Enforcement Pattern
 
 - Persist task and decision state to the task tracker, per-issue handoff, or Serena memory.
-- Display `Commit X/20`, or `X/40` once the branch merges main, every turn so the counter survives compaction visibly. Thresholds live in `scripts/validation/pr_commit_count.py`.
+- Display a running `Commit N` count every turn so the counter survives compaction visibly. No script enforces a threshold on it (ADR-100 deleted the last one, issue #5241); the display exists to keep the counter visible, not to gate against a number.
 - On resume, require the agent to read the latest per-issue handoff before taking any mutating action.
 
 See ADR-008 (protocol automation lifecycle hooks).

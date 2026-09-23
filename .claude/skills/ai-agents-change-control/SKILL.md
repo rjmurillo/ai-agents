@@ -72,9 +72,9 @@ Drift-gate bypass exists but is not free. `[skip-drift-check]` anywhere in a com
 
 ### Phase 3: Run the gates, local to CI
 
-The gate ladder runs in feedback-cost order: pre-commit beats CI beats code review beats documentation, so catch violations at rung 1 (`uv run python scripts/validation/pre_pr.py`, `--quick` skips slow checks), not rung 4 (CI round-trip plus reviewer attention). Local hooks fire only after Lefthook is installed: `uv run --frozen lefthook install --reset-hooks-path`, then verify with `uv run --frozen lefthook check-install`. Commit-discipline cap: 5 files or fewer per commit. Commit count is advisory only, never blocking (`needs-split` label plus a WARNING/ALERT notice at 10/15 commits, via `git rev-list --count HEAD ^origin/main`; ADR-099), and scope markdownlint to changed files only.
+The gate ladder runs in feedback-cost order: pre-commit beats CI beats code review beats documentation, so catch violations at rung 1 (`uv run python scripts/validation/pre_pr.py`, `--quick` skips slow checks), not rung 4 (CI round-trip plus reviewer attention). Local hooks fire only after Lefthook is installed: `uv run --frozen lefthook install --reset-hooks-path`, then verify with `uv run --frozen lefthook check-install`. No hook measures commit or file count anymore (ADR-100 deleted the last advisory, issue #5241); scope markdownlint to changed files only.
 
-The full four-rung ladder (shift-left runner, pre-commit, pre-push, CI required checks with their exact commands and exit codes), the commit-discipline enforcement points, and the PR #908 story that set the caps are in `references/gate-ladder.md`. Consult it before your first push in a session.
+The full four-rung ladder (shift-left runner, pre-commit, pre-push, CI required checks with their exact commands and exit codes) and the PR #908 story behind the now-deleted commit-discipline caps are in `references/gate-ladder.md`. Consult it before your first push in a session.
 
 ### Phase 4: Hold the non-negotiables
 

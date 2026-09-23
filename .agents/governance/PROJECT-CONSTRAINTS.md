@@ -118,7 +118,7 @@ When creating a new AI-powered workflow with concurrency control:
 
 | Constraint | Source | Verification |
 |------------|--------|--------------|
-| SHOULD plan PRs for <=20 commits; validation may allow <=40 after a qualifying base merge | PR #908 retrospective, Issue #934, Issue #3596 | `git rev-list --count HEAD ^origin/main`; thresholds in `scripts/validation/pr_commit_count.py` |
+| SHOULD plan PRs for <=20 commits; no tool enforces this (ADR-100, issue #5241 removed the automated advisory) | PR #908 retrospective, Issue #934, Issue #3596 | `git rev-list --count HEAD ^origin/main`, author judgment only |
 | SHOULD limit PRs to <=10 changed files | PR #908 retrospective, Issue #934 | `git diff --stat origin/main` |
 | SHOULD limit PRs to <=500 added lines | PR #908 retrospective, Issue #934 | `git diff --stat origin/main` |
 

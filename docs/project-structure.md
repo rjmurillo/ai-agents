@@ -37,7 +37,6 @@ Root map: what to edit, what is generated, what to skip. `AGENTS.md` owns protoc
 ## Constraints
 
 - No em or en dash: `git_hook_policy.py` `staged-dashes` blocks the commit, `branch-dashes` the push; `tests/hooks/fixtures/` exempt.
-- `atomic-commit` (over 5 authored files) and `scripts/detect_scope_explosion.py` (10 or more on the branch) are advisory, never blocking (ADR-100).
 - A documented bare-interpreter call on a tracked script with a non-stdlib import fails `scripts/validation/check_doc_interpreter_portability.py`; baseline empty. Exempt: `tests/`, generated mirrors, 16 `HISTORICAL_ROOTS` (not `.agents/{memory,metrics,roadmap,plans}/`). Use `uv run python <path>`.
 - `build/scripts/validate_path_normalization.py --fail-on-violation` scans Markdown for an absolute home or drive path.
 

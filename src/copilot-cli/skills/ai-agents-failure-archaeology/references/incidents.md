@@ -211,8 +211,9 @@ incident. The commit-count cap itself was later removed (ADR-099, issue
 #5233): its local verification depended on a GitHub label a sandboxed
 harness cannot always check, which forced the same kind of PR-sprawl
 workaround (a whole new stacked branch and PR) the cap existed to prevent.
-Commit count is advisory only now (`needs-split` label, WARNING/ALERT
-notices at 10/15).
+Its advisory successor (`needs-split` label, WARNING/ALERT notices at
+10/15) was deleted outright (ADR-100, issue #5241): no gate measures
+commit count anymore.
 
 ## Incident 7: 2025-12-15 Drift Inversion (edited the source of truth)
 
