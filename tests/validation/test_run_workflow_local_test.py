@@ -2222,6 +2222,18 @@ def test_toolcache_permission_failure_names_the_stale_volume() -> None:
     assert "docker volume rm act-toolcache" in hint
 
 
+def test_toolcache_hint_removes_only_exited_act_containers() -> None:
+    # Edge: "volume is in use" blocks the volume rm. The hint names the
+    # container cleanup, scoped to exited containers on that volume.
+    hint = w._toolcache_permission_hint(_TOOLCACHE_PERMISSION_FAILURE)
+
+    assert hint is not None
+    assert (
+        "docker rm $(docker ps -aq --filter volume=act-toolcache --filter status=exited)"
+        in hint
+    )
+
+
 def test_permission_denied_outside_the_toolcache_gets_no_hint() -> None:
     # Negative: a workflow writing a path it does not own is a real defect.
     text = "error: failed to remove file `/etc/hosts`: Permission denied (os error 13)"
