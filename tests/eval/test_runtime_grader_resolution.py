@@ -108,3 +108,10 @@ def test_grade_prose_without_verdict_field_is_unavailable() -> None:
     result = runtime_grader.grade(_FixedTextGrader("I think it FAILs."), "m", "r", "p", "x")
 
     assert result.verdict == "UNAVAILABLE"
+
+
+@pytest.mark.parametrize("raw", ['{"verdict": ["PASS"]}', '{"verdict": {}}', '{"verdict": 1}'])
+def test_grade_non_string_verdict_is_unavailable(raw: str) -> None:
+    result = runtime_grader.grade(_FixedTextGrader(raw), "m", "r", "p", "x")
+
+    assert result.verdict == "UNAVAILABLE"

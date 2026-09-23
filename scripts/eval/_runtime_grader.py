@@ -264,7 +264,7 @@ def grade(
     parsed = _parse_first_json_object(text)
     verdict = parsed.get("verdict") if parsed else _salvage_verdict(text)
     fingerprint = getattr(provider, "system_fingerprint", None)
-    if verdict not in {"PASS", "FAIL"}:
+    if not isinstance(verdict, str) or verdict not in {"PASS", "FAIL"}:
         return GradeResult(
             "UNAVAILABLE",
             "grader returned no parseable PASS/FAIL verdict",

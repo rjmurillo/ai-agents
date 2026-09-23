@@ -597,6 +597,8 @@ def _run_single_harness_fixtures(
         final_code = max(final_code, code)
         if verdict is not None:
             return records, verdict, final_code
+        if code == EXIT_OK and result.get("resolved_model") != model:
+            return records, "FAIL_MODEL_MISMATCH", max(final_code, EXIT_LOGIC)
         if not result["passed"]:
             final_verdict = "FAIL"
             final_code = max(final_code, EXIT_LOGIC)
@@ -610,7 +612,7 @@ def _resolve_ablation(
     source_commit = resolve_source_commit()
     instructions_ref_sha = resolve_ref_sha(instructions_ref) if instructions_ref else None
     instructions_by_fixture = {
-        fixture.fixture_id: resolve_instructions(fixture.instructions, instructions_ref)
+        fixture.fixture_id: resolve_instructions(fixture.instructions, instructions_ref_sha)
         for fixture in fixtures
     }
     return source_commit, instructions_ref_sha, instructions_by_fixture
@@ -686,6 +688,30 @@ def _base_report(
     }
 
 
+def _non_empty_dir(path: Path) -> bool:
+    return path.exists() and (not path.is_dir() or any(path.iterdir()))
+
+
+def _refuse_unsupported_instructions(fixtures: Sequence[Fixture], harnesses: str) -> None:
+    """Refuse a Copilot run of an `instructions` fixture before any model call."""
+    if harnesses == "claude":
+        return
+    listed = [fixture.fixture_id for fixture in fixtures if fixture.instructions]
+    if listed:
+        raise ParityConfigError(
+            f"--harnesses {harnesses} includes Copilot, whose repository "
+            "instruction loading is unverified; fixtures with `instructions` "
+            f"need --harnesses claude: {', '.join(listed)}"
+        )
+
+
+def _resolve_grader_or_config_error(name: str) -> GraderProtocol:
+    try:
+        return resolve_grader(name)
+    except RuntimeError as exc:
+        raise ParityConfigError(f"--grader-provider {name!r}: {exc}") from exc
+
+
 def run_evaluation(
     *,
     fixtures_path: Path,
@@ -711,11 +737,14 @@ def run_evaluation(
     carries a semantic assertion.
     """
     fixtures = load_fixtures(fixtures_path)
+    _refuse_unsupported_instructions(fixtures, harnesses)
+    if grader is None and _needs_grader(fixtures):
+        grader = _resolve_grader_or_config_error(grader_provider)
     source_commit, instructions_ref_sha, instructions_by_fixture = _resolve_ablation(
         fixtures, instructions_ref
     )
     workspaces = workspace_root or output.parent / "workspaces"
-    if not dry_run and (output.exists() or workspaces.exists()):
+    if not dry_run and (output.exists() or _non_empty_dir(workspaces)):
         raise ParityConfigError("output path already contains a runtime parity run")
     if not dry_run:
         require_isolated_workspace_root(workspaces)
@@ -740,8 +769,6 @@ def run_evaluation(
         ]
         return report, EXIT_OK
     output.parent.mkdir(parents=True, exist_ok=True)
-    if grader is None and _needs_grader(fixtures):
-        grader = resolve_grader(grader_provider)
     records, verdict, final_code = _run_live_records(
         fixtures,
         model,

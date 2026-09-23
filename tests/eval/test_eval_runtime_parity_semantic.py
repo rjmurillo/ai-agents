@@ -445,3 +445,16 @@ def test_grade_semantic_assertions_reports_unavailable_when_the_final_grade_fail
 
     assert results == []
     assert override == "UNAVAILABLE"
+
+
+def test_resolve_ref_sha_refuses_an_option_shaped_ref() -> None:
+    with pytest.raises(runtime_parity.ParityConfigError, match="must not start with"):
+        runtime_parity.resolve_ref_sha("--output=/tmp/x")
+
+
+def test_duplicate_instruction_basenames_are_refused(tmp_path: Path) -> None:
+    with pytest.raises(runtime_parity.ParityConfigError, match="duplicate file names"):
+        _any_semantic_fixture(
+            tmp_path,
+            instructions=[".claude/rules/voice.md", "templates/rules/voice.md"],
+        )

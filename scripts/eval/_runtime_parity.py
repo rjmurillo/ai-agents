@@ -198,6 +198,12 @@ def _load_fixture(value: object, index: int) -> Fixture:
     instructions_raw = raw.get("instructions", [])
     if not isinstance(instructions_raw, list):
         raise ParityConfigError(f"{field}.instructions must be an array of strings")
+    basenames = [Path(str(item)).name for item in instructions_raw]
+    if len(set(basenames)) != len(basenames):
+        raise ParityConfigError(
+            f"{field}.instructions has duplicate file names; each installs to "
+            ".claude/rules/<name> and one would overwrite another"
+        )
     return Fixture(
         fixture_id=_relative_path(raw.get("id"), f"{field}.id"),
         claude_agent=_repo_file(agents.get("claude"), f"{field}.agents.claude"),
@@ -342,8 +348,11 @@ def resolve_source_commit() -> str:
 
 def resolve_ref_sha(ref: str) -> str:
     """Return the resolved sha of an ablation ref, or raise (AC4)."""
+    if ref.startswith("-"):
+        raise ParityConfigError(f"--instructions-ref {ref!r} must not start with '-'")
     return _run_git(
-        ["rev-parse", ref], f"--instructions-ref {ref!r} is not a resolvable ref"
+        ["rev-parse", "--verify", "--end-of-options", f"{ref}^{{commit}}"],
+        f"--instructions-ref {ref!r} is not a resolvable ref",
     )
 
 
@@ -352,9 +361,11 @@ def resolve_instructions(
 ) -> dict[str, bytes]:
     """Resolve fixture instruction bytes from the working tree or a git ref.
 
-    `ref=None` reads the current working tree. Otherwise every path is read
-    with `git show REF:path` as an argv list (no shell), so an unresolvable
-    ref or path raises `ParityConfigError` (AC4) before any harness runs.
+    `ref=None` reads the current working tree. Otherwise `ref` must be the
+    commit sha from `resolve_ref_sha`, so the bytes match the sha the report
+    records even if a branch moves; every path is read with
+    `git show SHA:path` as an argv list (no shell), and an unresolvable path
+    raises `ParityConfigError` (AC4) before any harness runs.
     """
     return {path: _read_instruction(path, ref) for path in paths}
 

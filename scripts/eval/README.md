@@ -255,7 +255,7 @@ under the home directory, even with `--setting-sources project` and a relocated
 config directory. A live run therefore refuses (exit 2) a workspace root when
 it, or any ancestor, holds `CLAUDE.md`, `CLAUDE.local.md`, `AGENTS.md`,
 `.claude/CLAUDE.md`, `.claude/rules`, `.github/copilot-instructions.md`, or
-`.github/instructions`. The default root, `workspaces/` beside the report,
+`.github/instructions`. An existing empty directory, such as one made by `mktemp -d`, is accepted. The default root, `workspaces/` beside the report,
 sits inside this repository and fails that check, so pass `--workspace-root`
 with a directory outside it. The report records `workspace_root`. Dry runs
 skip the check because no CLI runs.
@@ -319,7 +319,11 @@ harnesses run. `both` keeps today's dual-harness comparison, including the
 resolved-model and question-mechanism parity checks. A single harness
 (`claude` or `copilot`) runs only that harness and emits no parity comparison
 verdict, since there is nothing on the other side to compare against. A
-fixture that fails in single-harness mode sets verdict `FAIL` and exit 1.
+fixture that fails in single-harness mode sets verdict `FAIL` and exit 1, and
+a resolved model that differs from `--model` stops the run with
+`FAIL_MODEL_MISMATCH` (exit 1). A run that includes Copilot refuses any
+fixture with `instructions` before a model call (exit 2), and an unknown
+`--grader-provider` is a config error (exit 2) even under `--dry-run`.
 `--grader-provider` (default `anthropic`, the urllib transport reading
 `ANTHROPIC_API_KEY`) and `--grader-model` (default `claude-opus-4-6`)
 select the model that grades `semantic`

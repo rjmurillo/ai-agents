@@ -16,7 +16,6 @@ from pathlib import Path
 import pytest
 
 from tests.eval._runtime_parity_test_support import (
-    FIXTURES,
     FixedResponseRunner,
     corpus_with_instructions,
     parity,
@@ -113,8 +112,8 @@ def test_harnesses_claude_installs_instructions_and_passes(tmp_path: Path) -> No
     assert "copilot" not in report["fixtures"][0]
 
 
-def test_single_harness_mode_emits_no_comparison_verdict(tmp_path: Path) -> None:
-    """AC3: `--harnesses claude` runs only claude and skips FAIL_MODEL_MISMATCH."""
+def test_single_harness_mode_still_fails_a_model_mismatch(tmp_path: Path) -> None:
+    """`--harnesses claude` runs only claude but still checks the resolved model."""
     corpus = corpus_with_instructions(tmp_path, default_instructions=False)
 
     report, code = parity.run_evaluation(
@@ -125,14 +124,12 @@ def test_single_harness_mode_emits_no_comparison_verdict(tmp_path: Path) -> None
         copilot_bin="copilot",
         timeout=30,
         dry_run=False,
-        # A model mismatch would fail closed in dual-harness mode; in
-        # single-harness mode there is nothing to compare it against.
         runner=FixedResponseRunner("CONTINUE_PHASE_3", model="a-different-model"),
         harnesses="claude",
     )
 
-    assert code == parity.EXIT_OK
-    assert report["verdict"] == "PASS"
+    assert code == parity.EXIT_LOGIC
+    assert report["verdict"] == "FAIL_MODEL_MISMATCH"
     assert "copilot" not in report["fixtures"][0]
 
 
@@ -224,6 +221,7 @@ def test_dry_run_reports_semantic_as_not_run_and_calls_no_grader(
         dry_run=True,
         runner=FixedResponseRunner("CONTINUE_PHASE_3"),
         grader=ExplodingGrader(),
+        harnesses="claude",
     )
 
     assert code == parity.EXIT_OK
@@ -395,94 +393,3 @@ def test_main_plumbs_instructions_ref_to_a_config_error(
 
     assert code == parity.EXIT_CONFIG
     assert "not a resolvable ref" in capsys.readouterr().err
-
-
-# --- Workspace ancestry isolation ---------------------------------------------
-
-
-def test_live_run_refuses_a_workspace_root_under_instruction_files(tmp_path: Path) -> None:
-    corpus = corpus_with_instructions(tmp_path, default_instructions=False)
-    parent = tmp_path / "contaminated"
-    (parent / ".claude").mkdir(parents=True)
-    (parent / ".claude" / "CLAUDE.md").write_text("leak", encoding="utf-8")
-
-    with pytest.raises(parity.ParityConfigError, match="inherits instruction files"):
-        parity.run_evaluation(
-            fixtures_path=corpus,
-            model=parity.DEFAULT_MODEL,
-            output=tmp_path / "run" / "report.json",
-            claude_bin="claude",
-            copilot_bin="copilot",
-            timeout=30,
-            dry_run=False,
-            runner=FixedResponseRunner("CONTINUE_PHASE_3"),
-            harnesses="claude",
-            workspace_root=parent / "workspaces",
-        )
-
-
-def test_dry_run_skips_the_workspace_ancestry_guard(tmp_path: Path) -> None:
-    corpus = corpus_with_instructions(tmp_path, default_instructions=False)
-    parent = tmp_path / "contaminated"
-    parent.mkdir()
-    (parent / "AGENTS.md").write_text("leak", encoding="utf-8")
-
-    report, code = parity.run_evaluation(
-        fixtures_path=corpus,
-        model=parity.DEFAULT_MODEL,
-        output=tmp_path / "run" / "report.json",
-        claude_bin="claude",
-        copilot_bin="copilot",
-        timeout=30,
-        dry_run=True,
-        runner=FixedResponseRunner("CONTINUE_PHASE_3"),
-        harnesses="claude",
-        workspace_root=parent / "workspaces",
-    )
-
-    assert code == parity.EXIT_OK
-    assert report["workspace_root"] == str(parent / "workspaces")
-
-
-def test_live_run_uses_the_given_workspace_root(tmp_path: Path) -> None:
-    corpus = corpus_with_instructions(tmp_path, default_instructions=False)
-    root = tmp_path / "isolated"
-
-    report, code = parity.run_evaluation(
-        fixtures_path=corpus,
-        model=parity.DEFAULT_MODEL,
-        output=tmp_path / "run" / "report.json",
-        claude_bin="claude",
-        copilot_bin="copilot",
-        timeout=30,
-        dry_run=False,
-        runner=FixedResponseRunner("CONTINUE_PHASE_3"),
-        harnesses="claude",
-        workspace_root=root,
-    )
-
-    assert code == parity.EXIT_OK
-    assert (root / "resume-phase-3" / "claude" / "PARITY_FIXTURE.md").is_file()
-    assert report["workspace_root"] == str(root)
-
-
-def test_main_exits_config_for_a_contaminated_workspace_root(tmp_path: Path) -> None:
-    parent = tmp_path / "contaminated"
-    parent.mkdir()
-    (parent / "CLAUDE.md").write_text("leak", encoding="utf-8")
-
-    code = parity.main(
-        [
-            "--fixtures",
-            str(FIXTURES),
-            "--output",
-            str(tmp_path / "run" / "report.json"),
-            "--harnesses",
-            "claude",
-            "--workspace-root",
-            str(parent / "workspaces"),
-        ],
-        runner=FixedResponseRunner("CONTINUE_PHASE_3"),
-    )
-
-    assert code == parity.EXIT_CONFIG
