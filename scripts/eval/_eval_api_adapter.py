@@ -59,6 +59,7 @@ _HTTP_STATUS_RE = _constants.HTTP_STATUS_RE
 _TIMEOUT_HINT: str = _constants.TIMEOUT_HINT
 _RATE_LIMIT_HINT: str = _constants.RATE_LIMIT_HINT
 _AUTH_HINT_RE = _constants.AUTH_HINT_RE
+_SDK_ARGUMENT_MISMATCH_HINT: str = _constants.SDK_ARGUMENT_MISMATCH_HINT
 _ALLOWED_LOG_FIELDS: frozenset[str] = _constants.ALLOWED_LOG_FIELDS
 _BANNED_LOG_FIELDS: frozenset[str] = _constants.BANNED_LOG_FIELDS
 
@@ -100,12 +101,21 @@ def _categorize_error(exc: Exception) -> str:
     non-transient 4xx. Text hints are the fallback for the providers that
     report no status at all, which is the only population they were chosen to
     describe.
+
+    `_SDK_ARGUMENT_MISMATCH_HINT` is checked first among the text hints: an
+    SDK rejecting an argument at the Python call boundary carries no HTTP
+    status and is deterministic for the installed client, so it is
+    `ERR_CLIENT_ERROR` (non-transient), not the transient default a few
+    lines below. Left unclassified, it fell through to `ERR_SERVER_ERROR`
+    and the adapter retried the identical invalid call three times.
     """
     message = str(exc)
     match = _HTTP_STATUS_RE.search(message)
     if match is None:
         # No HTTP status. Check the text signals a subprocess provider can
         # give, then treat the rest as a transient network issue.
+        if _SDK_ARGUMENT_MISMATCH_HINT in message:
+            return ERR_CLIENT_ERROR
         if _TIMEOUT_HINT in message:
             return ERR_TIMEOUT
         if _RATE_LIMIT_HINT in message.lower():

@@ -910,6 +910,31 @@ class TestAnthropicAPIAdapterErrors:
         assert result.outcome == "success"
         assert result.attempts == 2
 
+    def test_sdk_argument_mismatch_immediate_error_no_retry(self):
+        """`_http_providers._normalize_and_raise`'s TypeError branch carries
+        no HTTP status. Left unclassified, `_categorize_error` fell through
+        to the transient `server_error` default and this deterministic
+        failure was retried 3x instead of recorded once (PR #5895 review)."""
+
+        def _sdk_argument_mismatch() -> Exception:
+            return RuntimeError(
+                "Anthropic SDK call raised TypeError: error=sdk_argument_mismatch; "
+                "the installed SDK version does not accept an argument this provider sends"
+            )
+
+        transport = _FakeTransport(script=[lambda: (_ for _ in ()).throw(_sdk_argument_mismatch())])
+        adapter = AnthropicAPIAdapter(transport=transport, sleep=lambda _s: None)
+        result = adapter.call_model(
+            prompt="x",
+            model_id="claude-sonnet-5",
+            fixture_id="F007",
+            variant="agent",
+            run_index=0,
+        )
+        assert result.outcome == "error"
+        assert result.error_category == ERR_CLIENT_ERROR
+        assert result.attempts == 1
+
 
 class TestAnthropicAPIAdapterTransportConstruction:
     """`call_model` MUST honor its docstring contract:
