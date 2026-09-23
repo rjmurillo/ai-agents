@@ -170,7 +170,12 @@ def _load_always_on_skills(repo_root: Path) -> list[InstructionFile]:
         return []
     files: list[InstructionFile] = []
     for path in sorted(skills_dir.glob(f"*/{SKILL_FILE_NAME}")):
-        content = path.read_text(encoding="utf-8", errors="replace")
+        # glob follows symlinks, so contain each file, not only the directory.
+        resolved = path.resolve()
+        if not resolved.is_relative_to(skills_dir):
+            msg = f"SKILL.md resolves outside {SKILLS_SUBDIR}: {path.relative_to(repo_root)}"
+            raise MalformedSkillFrontmatterError(msg)
+        content = resolved.read_text(encoding="utf-8", errors="replace")
         parsed = parse_frontmatter(content)
         if not parsed.is_valid:
             msg = f"malformed SKILL.md frontmatter: {path}: {'; '.join(parsed.errors)}"

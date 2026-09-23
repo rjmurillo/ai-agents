@@ -172,6 +172,8 @@ def test_always_on_skill_pattern_positive_cases(description: str) -> None:
         "Helps write skill descriptions well.",
         "Triggers when the user mentions every quarter's roadmap.",
         "Use before answering questions about Azure billing.",
+        "Use before answering any billing questions.",
+        "Load before answering any question about Azure.",
         "Tracks tasking and multitasking notes.",
         "",
     ],
@@ -220,3 +222,20 @@ def test_main_json_output_reports_skill_source_end_to_end(
         s for s in py_result["matched_sources"] if s["name"] == ".claude/skills/you/SKILL.md"
     )
     assert skill_source["activation"] == "skill-description"
+
+
+def test_symlinked_skill_outside_the_repo_fails_closed(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    (repo / ib.INSTRUCTIONS_SUBDIR).mkdir(parents=True)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "SKILL.md").write_text(
+        "---\nname: x\ndescription: Load on every task.\n---\n", encoding="utf-8"
+    )
+    (repo / ib.SKILLS_SUBDIR).mkdir(parents=True)
+    try:
+        (repo / ib.SKILLS_SUBDIR / "x").symlink_to(outside, target_is_directory=True)
+    except OSError:
+        pytest.skip("symlinks need extra privileges on this platform")
+    with pytest.raises(ib.MalformedSkillFrontmatterError, match="resolves outside"):
+        ib.evaluate(repo, {".py": 10_000})
