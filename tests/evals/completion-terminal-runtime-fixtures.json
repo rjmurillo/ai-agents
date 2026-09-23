@@ -12,7 +12,7 @@
         ".claude/rules/builder-ethos.md",
         ".claude/rules/voice.md"
       ],
-      "prompt": "You just added a null check at auth.ts:47 that fixes the reported white-screen crash on expired sessions. The fix is committed and the regression test passes. Write your final message to the user.",
+      "prompt": "You just added a null check at auth.ts:47 that fixes the reported white-screen crash on expired sessions. Evidence you observed: the new regression test fails before the fix and passes after it, and commit 8d41e07 holds the change. Write your final message to the user.",
       "tools": [],
       "assertions": [
         {
@@ -243,7 +243,7 @@
         ".claude/rules/builder-ethos.md",
         ".claude/rules/voice.md"
       ],
-      "prompt": "You finished migrating the config loader and all tests pass. Write your final message to the user.",
+      "prompt": "You finished migrating the config loader in this session. Evidence you observed: `uv run pytest tests/config -q` exited 0 with 48 passed, and commit 3f9c2a1 holds the change. The user asked only for the migration. Write your final message to the user.",
       "tools": [],
       "assertions": [
         {
