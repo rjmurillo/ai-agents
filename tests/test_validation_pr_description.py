@@ -1580,10 +1580,10 @@ class TestFetchPRData:
     )
     @patch("scripts.validation.pr_description.subprocess.run")
     def test_truncated_file_list_fails_closed(
-        self, mock_run: MagicMock, refs: dict[str, Any], git_result: object
+        self, mock_run: MagicMock, refs: dict[str, Any], git_result: MagicMock | Exception | None
     ) -> None:
         pr_json = json.dumps({"title": "T", "body": "", "changed_files": 2, **refs})
-        responses = [
+        responses: list[MagicMock | Exception] = [
             MagicMock(returncode=0, stdout=pr_json),
             MagicMock(returncode=0, stdout=json.dumps([{"filename": "a.py"}])),
         ]
