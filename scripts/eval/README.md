@@ -306,7 +306,8 @@ records `grader_provider`, `grader_model`, and `grader_fingerprint`.
 harnesses run. `both` keeps today's dual-harness comparison, including the
 resolved-model and question-mechanism parity checks. A single harness
 (`claude` or `copilot`) runs only that harness and emits no parity comparison
-verdict, since there is nothing on the other side to compare against.
+verdict, since there is nothing on the other side to compare against. A
+fixture that fails in single-harness mode sets verdict `FAIL` and exit 1.
 `--grader-provider` (default `anthropic`, the urllib transport reading
 `ANTHROPIC_API_KEY`) and `--grader-model` (default
 `claude-haiku-4-5-20251001`) select the model that grades `semantic`

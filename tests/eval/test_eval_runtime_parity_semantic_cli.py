@@ -185,6 +185,26 @@ def test_single_harness_mode_emits_no_comparison_verdict(tmp_path: Path) -> None
     assert "copilot" not in report["fixtures"][0]
 
 
+def test_single_harness_assertion_failure_exits_logic(tmp_path: Path) -> None:
+    """A FAIL verdict in single-harness mode must not exit 0 (FAIL_BEHAVIOR)."""
+    corpus = _corpus_with_instructions(tmp_path, instructions=None)
+
+    report, code = parity.run_evaluation(
+        fixtures_path=corpus,
+        model=parity.DEFAULT_MODEL,
+        output=tmp_path / "run" / "report.json",
+        claude_bin="claude",
+        copilot_bin="copilot",
+        timeout=30,
+        dry_run=False,
+        runner=FixedResponseRunner("RESTART_PHASE_1"),
+        harnesses="claude",
+    )
+
+    assert report["verdict"] == "FAIL"
+    assert code == parity.EXIT_LOGIC
+
+
 # --- AC4, AC5: --instructions-ref ablation -----------------------------------
 
 
@@ -324,7 +344,7 @@ def test_semantic_assertion_fails_the_run_when_the_response_fails(
         grader=CalibratedFakeGrader(fail_response=True),
     )
 
-    assert code == parity.EXIT_OK
+    assert code == parity.EXIT_LOGIC
     assert report["verdict"] == "FAIL"
     assert report["fixtures"][0]["claude"]["passed"] is False
 

@@ -596,6 +596,7 @@ def _run_single_harness_fixtures(
             return records, verdict, final_code
         if not result["passed"]:
             final_verdict = "FAIL"
+            final_code = max(final_code, EXIT_LOGIC)
     return records, final_verdict, final_code
 
 
