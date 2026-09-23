@@ -116,6 +116,7 @@ def main() -> int:
     parser.add_argument("--judge-model", default="claude-opus-5-5")
     parser.add_argument("--runs", type=int, default=3)
     parser.add_argument("--max-cost-usd", type=float, default=40.0)
+    parser.add_argument("--concurrency", type=int, default=4)
     args = parser.parse_args()
 
     args.out.mkdir(parents=True, exist_ok=True)
@@ -140,6 +141,8 @@ def main() -> int:
         str(args.runs),
         "--max-cost-usd",
         str(args.max_cost_usd),
+        "--concurrency",
+        str(args.concurrency),
         "--json",
         str(result_path),
     ]
