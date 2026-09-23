@@ -93,6 +93,46 @@ def _install_instructions(workspace: Path, instructions: Mapping[str, bytes]) ->
         (rules_dir / Path(relative).name).write_bytes(content)
 
 
+#: Instruction files a CLI can discover by walking up from its working
+#: directory. Observed 2026-09-22 with Claude Code 2.1.280: a workspace under
+#: `/home/<user>/...` loaded `/home/<user>/.claude/CLAUDE.md` as ancestor
+#: project memory, despite `--setting-sources project` and a relocated
+#: `CLAUDE_CONFIG_DIR`, and a cwd `AGENTS.md` loaded too. The Copilot entries
+#: are listed conservatively; Copilot ancestor discovery was not probed.
+ANCESTOR_INSTRUCTION_FILES = (
+    "CLAUDE.md",
+    "CLAUDE.local.md",
+    "AGENTS.md",
+    ".claude/CLAUDE.md",
+    ".claude/rules",
+    ".github/copilot-instructions.md",
+    ".github/instructions",
+)
+
+
+def ancestor_instructions(root: Path) -> list[Path]:
+    """Return instruction files in `root` or any ancestor a CLI would load."""
+    resolved = root.resolve()
+    return [
+        directory / name
+        for directory in (resolved, *resolved.parents)
+        for name in ANCESTOR_INSTRUCTION_FILES
+        if (directory / name).exists()
+    ]
+
+
+def require_isolated_workspace_root(root: Path) -> None:
+    """Refuse a workspace root whose ancestry would leak instructions."""
+    found = ancestor_instructions(root)
+    if found:
+        listed = ", ".join(str(path) for path in found)
+        raise ParityConfigError(
+            f"workspace root {root} inherits instruction files a CLI loads "
+            f"from ancestor directories: {listed}. Pass --workspace-root with "
+            'a directory outside them, for example "$(mktemp -d)".'
+        )
+
+
 def _nested_git_env() -> dict[str, str]:
     env = os.environ.copy()
     for name in GIT_CONTEXT_VARIABLES:

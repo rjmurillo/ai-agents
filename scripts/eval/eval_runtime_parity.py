@@ -31,6 +31,7 @@ from _runtime_harness import (
     hash_installed_agent,
     prepare_workspace,
     probe_version,
+    require_isolated_workspace_root,
     runtime_env,
 )
 from _runtime_output import (
@@ -698,6 +699,7 @@ def run_evaluation(
     grader_provider: str = DEFAULT_GRADER_PROVIDER,
     grader_model: str = DEFAULT_GRADER_MODEL,
     grader: GraderProtocol | None = None,
+    workspace_root: Path | None = None,
 ) -> tuple[dict[str, object], int]:
     """Run all fixtures, stopping immediately on a resolved-model mismatch.
 
@@ -710,9 +712,11 @@ def run_evaluation(
     source_commit, instructions_ref_sha, instructions_by_fixture = _resolve_ablation(
         fixtures, instructions_ref
     )
-    workspaces = output.parent / "workspaces"
+    workspaces = workspace_root or output.parent / "workspaces"
     if not dry_run and (output.exists() or workspaces.exists()):
         raise ParityConfigError("output path already contains a runtime parity run")
+    if not dry_run:
+        require_isolated_workspace_root(workspaces)
     report = _base_report(
         model=model,
         output=output,
@@ -726,6 +730,7 @@ def run_evaluation(
         instructions_ref=instructions_ref,
         instructions_ref_sha=instructions_ref_sha,
     )
+    report["workspace_root"] = str(workspaces)
     if dry_run:
         report["fixtures"] = [
             _fixture_record(fixture, instructions_by_fixture[fixture.fixture_id])
@@ -767,6 +772,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--instructions-ref", default=None)
     parser.add_argument("--grader-provider", default=DEFAULT_GRADER_PROVIDER)
     parser.add_argument("--grader-model", default=DEFAULT_GRADER_MODEL)
+    parser.add_argument("--workspace-root", type=Path)
     return parser
 
 
@@ -794,6 +800,7 @@ def main(argv: Sequence[str] | None = None, *, runner: Runner = _run_in_process_
             instructions_ref=args.instructions_ref,
             grader_provider=args.grader_provider,
             grader_model=args.grader_model,
+            workspace_root=args.workspace_root.resolve() if args.workspace_root else None,
         )
     except ParityConfigError as exc:
         print(f"Error: {exc}", file=sys.stderr)

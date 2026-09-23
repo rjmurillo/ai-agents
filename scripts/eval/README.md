@@ -236,7 +236,8 @@ mechanism, then runs the same fixture request through both binaries.
 uv run python scripts/eval/eval_runtime_parity.py \
   --fixtures scripts/eval/examples/runtime-parity-fixtures.json \
   --model claude-opus-4.6 \
-  --output artifacts/runtime-parity/report.json
+  --output artifacts/runtime-parity/report.json \
+  --workspace-root "$(mktemp -d)"
 ```
 
 Each fixture declares one Claude agent, one Copilot agent, deterministic
@@ -247,6 +248,17 @@ Copilot uses an isolated `COPILOT_HOME`, disables custom instructions, and
 disables built-in MCP servers. A sentinel instruction is placed on each
 excluded profile surface; any leak fails the run. The fixture request is passed
 as the non-interactive prompt to both CLIs. Reports redact that argv field.
+A CLI also discovers instruction files by walking up from its working
+directory. Probed 2026-09-22, Claude Code 2.1.280 loaded
+`/home/<user>/.claude/CLAUDE.md` as ancestor project memory for a workspace
+under the home directory, even with `--setting-sources project` and a relocated
+config directory. A live run therefore refuses (exit 2) a workspace root when
+it, or any ancestor, holds `CLAUDE.md`, `CLAUDE.local.md`, `AGENTS.md`,
+`.claude/CLAUDE.md`, `.claude/rules`, `.github/copilot-instructions.md`, or
+`.github/instructions`. The default root, `workspaces/` beside the report,
+sits inside this repository and fails that check, so pass `--workspace-root`
+with a directory outside it. The report records `workspace_root`. Dry runs
+skip the check because no CLI runs.
 Fixture requests are visible to local process inspection while a CLI runs.
 Treat fixture text as public test data. Never place credentials in it.
 
@@ -325,7 +337,8 @@ uv run python scripts/eval/eval_runtime_parity.py \
   --harnesses claude \
   --grader-provider anthropic \
   --grader-model claude-haiku-4-5-20251001 \
-  --output artifacts/runtime-parity/completion-terminal/report.json
+  --output artifacts/runtime-parity/completion-terminal/report.json \
+  --workspace-root "$(mktemp -d)"
 ```
 
 ### Completion-Tail Regression Fixtures
