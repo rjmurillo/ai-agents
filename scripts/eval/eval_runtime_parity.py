@@ -37,10 +37,12 @@ from _runtime_harness import (
 )
 from _runtime_output import (
     RuntimeOutputError,
+    harness_model_id,
     parse_events,
     question_mechanism,
     question_payload,
     runtime_failure_record,
+    same_model,
     structured_tool_model,
 )
 from _runtime_output import (
@@ -87,12 +89,12 @@ EXIT_AUTH = 4
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_FIXTURES = Path(__file__).parent / "examples" / "runtime-parity-fixtures.json"
-DEFAULT_MODEL = "claude-opus-4.6"
+DEFAULT_MODEL = "claude-opus-5-5"
 DEFAULT_TIMEOUT = 900.0
 DEFAULT_HARNESSES = "both"
 HARNESS_CHOICES = ("both", "claude", "copilot")
 DEFAULT_GRADER_PROVIDER = "anthropic"
-DEFAULT_GRADER_MODEL = "claude-opus-4-6"
+DEFAULT_GRADER_MODEL = "claude-sonnet-5"
 MODEL_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$")
 Runner = Callable[..., subprocess.CompletedProcess[str]]
 
@@ -163,6 +165,7 @@ def build_argv(
     fixture: Fixture,
 ) -> list[str]:
     """Build a shell-free real CLI invocation for one fixture."""
+    model = harness_model_id(harness, model)
     if harness == "claude":
         return [
             executable,
@@ -595,7 +598,7 @@ def _run_single_harness_fixtures(
         final_code = max(final_code, code)
         if verdict is not None:
             return records, verdict, final_code
-        if code == EXIT_OK and result.get("resolved_model") != model:
+        if code == EXIT_OK and not same_model(result.get("resolved_model"), model):
             return records, "FAIL_MODEL_MISMATCH", max(final_code, EXIT_LOGIC)
         if not result["passed"]:
             final_verdict = "FAIL"

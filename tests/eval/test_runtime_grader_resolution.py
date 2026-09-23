@@ -57,6 +57,7 @@ def test_http_grader_forwards_arguments_to_call_api(
     assert seen["system"] == "s"
     assert seen["max_tokens"] == 7
     assert seen["provider"] == "anthropic"
+    assert seen["temperature"] is None
 
 
 def test_http_grader_missing_key_grades_unavailable(

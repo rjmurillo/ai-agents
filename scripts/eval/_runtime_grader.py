@@ -17,7 +17,7 @@ quoted verbatim because this module is a consumer, not the definition:
             system: str = "",
             model: str,
             max_tokens: int = 1024,
-            temperature: float = 0.0,
+            temperature: float | None = None,
             seed: int | None = None,
         ) -> str:
             '''Return assistant text. Raise RuntimeError on any failure.'''
@@ -65,8 +65,10 @@ class _AnthropicHTTPGrader:
     `_providers.resolve_provider` refuses the default Anthropic names because
     that transport is a function (`_anthropic_api.call_api`), not a provider
     object. It is also the only Anthropic path that works with a Console API
-    key when `anthropic-sdk` cannot send `temperature` (SDK 1.6.0 removed the
-    keyword) and `claude-cli` needs a subscription token.
+    key when `claude-cli` needs a subscription token. It sends no
+    `temperature` unless a caller passes one: the Messages API rejects the
+    field for current models such as `claude-sonnet-5` (HTTP 400, probed
+    2026-09-22).
     """
 
     name = "anthropic"
@@ -79,7 +81,7 @@ class _AnthropicHTTPGrader:
         system: str = "",
         model: str,
         max_tokens: int = 1024,
-        temperature: float = 0.0,
+        temperature: float | None = None,
         seed: int | None = None,
     ) -> str:
         from _anthropic_api import call_api, load_api_key
@@ -138,7 +140,7 @@ class GraderProtocol(Protocol):
         system: str = "",
         model: str,
         max_tokens: int = 1024,
-        temperature: float = 0.0,
+        temperature: float | None = None,
         seed: int | None = None,
     ) -> str:
         """Return assistant text. Raise RuntimeError on any failure."""

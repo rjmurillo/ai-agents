@@ -235,10 +235,17 @@ mechanism, then runs the same fixture request through both binaries.
 ```bash
 uv run python scripts/eval/eval_runtime_parity.py \
   --fixtures scripts/eval/examples/runtime-parity-fixtures.json \
-  --model claude-opus-4.6 \
+  --model claude-opus-5-5 \
   --output artifacts/runtime-parity/report.json \
   --workspace-root "$(mktemp -d)"
 ```
+
+`--model` defaults to `claude-opus-5-5`, the default frontier model in the
+routing policy (`AGENTS.md`). The two CLIs spell Claude IDs differently:
+Claude Code accepts only `claude-opus-5-5` and Copilot CLI only
+`claude-opus-5.5` (probed 2026-09-23). Pass either spelling. The runner sends
+each harness its own spelling and treats the two as the same model when it
+checks the resolved model.
 
 Each fixture declares one Claude agent, one Copilot agent, deterministic
 assertions, and positive and negative controls. The runner creates a nested git
@@ -325,26 +332,27 @@ a resolved model that differs from `--model` stops the run with
 fixture with `instructions` before a model call (exit 2), and an unknown
 `--grader-provider` is a config error (exit 2) even under `--dry-run`.
 `--grader-provider` (default `anthropic`, the urllib transport reading
-`ANTHROPIC_API_KEY`) and `--grader-model` (default `claude-opus-4-6`)
+`ANTHROPIC_API_KEY`) and `--grader-model` (default `claude-sonnet-5`)
 select the model that grades `semantic`
 assertions; they are unused, and no grader is constructed, when no fixture in
-the run carries one. The grader sends `temperature: 0`. Probed 2026-09-22, the
-Messages API rejects that field for `claude-sonnet-5`, `claude-opus-4-8`,
-`claude-opus-5-5`, and `claude-fable-5-1` with HTTP 400 ("`temperature` is
-deprecated for this model"), and `anthropic-sdk` 1.6.0 no longer accepts the
-keyword at all, so pick a grader model that still accepts it. On the same
-responses, `claude-haiku-4-5-20251001` passed a tail ending "say so and I'll
-begin" that `claude-opus-4-6` failed, which is why the default is the larger
-model. Per-run calibration catches a grader that cannot discriminate a
-fixture's own controls, not every misjudged live response.
+the run carries one. Grading a response against a written rubric is specified
+judgment, which the routing policy assigns to Sonnet 5. The grader sends no
+`temperature`: probed 2026-09-22, the Messages API rejects that field for
+`claude-sonnet-5`, `claude-opus-4-8`, `claude-opus-5-5`, and
+`claude-fable-5-1` with HTTP 400 ("`temperature` is deprecated for this
+model"). On the same responses, `claude-haiku-4-5-20251001` passed a tail
+ending "say so and I'll begin" that `claude-opus-4-6` failed, so the bounded
+Haiku tier is not the default. Per-run calibration catches a grader that
+cannot discriminate a fixture's own controls, not every misjudged live
+response.
 
 ```bash
 uv run python scripts/eval/eval_runtime_parity.py \
   --fixtures tests/evals/completion-terminal-runtime-fixtures.json \
-  --model claude-opus-4.6 \
+  --model claude-opus-5-5 \
   --harnesses claude \
   --grader-provider anthropic \
-  --grader-model claude-opus-4-6 \
+  --grader-model claude-sonnet-5 \
   --output artifacts/runtime-parity/completion-terminal/report.json \
   --workspace-root "$(mktemp -d)"
 ```
@@ -365,7 +373,7 @@ assertion alongside its regex/not_regex regression backstop.
 ```bash
 uv run python scripts/eval/eval_runtime_parity.py \
   --fixtures tests/evals/completion-terminal-runtime-fixtures.json \
-  --model claude-opus-4.6 \
+  --model claude-opus-5-5 \
   --harnesses claude \
   --dry-run
 ```
