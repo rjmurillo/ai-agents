@@ -5,7 +5,9 @@ description: Deal intelligence skill for offer analysis and counter-proposal dra
 license: MIT
 metadata:
   domains: [negotiation, deal-intelligence, behavioral-influence, agent-design]
-  type: knowledge
+  capability:
+    kind: reusable-primitive
+    status: active
   source: Anthropic Project Deal (Dec 2025), Fisher and Ury, Voss, Navarro, Hughes, Cialdini, Galinsky
 ---
 

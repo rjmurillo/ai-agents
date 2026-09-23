@@ -6,7 +6,9 @@ license: MIT
 user-invocable: true
 metadata:
   domains: [architecture, documentation, governance, decision-records]
-  type: generator
+  capability:
+    kind: specialized-implementation
+    status: active
   inputs: [decision-description, context, alternatives]
   outputs: [adr-markdown-file]
 ---

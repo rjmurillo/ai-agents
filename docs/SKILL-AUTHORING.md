@@ -46,8 +46,10 @@ description: Complex orchestration skill requiring maximum reasoning capability
 allowed-tools: Bash(pwsh:*), Read, Write, Grep
 metadata:
   domains: [architecture, planning]
-  type: orchestrator
   complexity: advanced
+  capability:
+    kind: orchestrator
+    status: active
 ---
 ```
 

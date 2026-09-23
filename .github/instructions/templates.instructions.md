@@ -37,6 +37,33 @@ instructions the shipped skill would execute. Issue #2050. -->
 1. MUST NOT edit generated files directly (`src/copilot-cli/agents/`, `src/vs-code-agents/`). Edit the template in `templates/` and regenerate. This does NOT apply to `src/claude/`, `.claude/agents/`, or `.github/agents/`, which are hand-maintained; the claude-agents rule, MUST-1, requires editing `src/claude/<agent>.md` directly, in the same change as the template.
 2. MUST NOT remove a platform target without a corresponding ADR.
 
+## Compose a capability, do not copy its policy
+
+Before you write a normative block into a template, check whether some artifact
+already owns that policy. A capability has exactly one canonical owner, and
+every other artifact declares a dependency on it instead of restating it.
+
+Declare it in the artifact's own frontmatter, nested under `metadata`:
+
+```yaml
+metadata:
+  capability:
+    kind: orchestrator | specialized-implementation | reusable-primitive | cross-cutting-rule
+    owns: [capability-name]
+    depends-on: [capability-name]
+    status: active
+```
+
+One declaration site per class: a skill declares in its SKILL.md template, a
+rule in its Markdown file, and an agent in its shared body rather than either
+per-harness template. A policy a prompt must carry at runtime renders in
+through a partial; a policy a reader only needs to find is cited.
+
+The gate refuses a dependency that resolves to no owner, two owners for one
+capability, a cycle, and a consumer that repeats three or more consecutive
+lines of the owner it depends on. It runs in the pre-PR sequence, so a broken
+edge fails before review. ADR-110 carries the contract and names the gate.
+
 ## References
 
 - `build/generate_agents.py`. Canonical generator

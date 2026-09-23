@@ -8,7 +8,9 @@ metadata:
   - github
   - url-parsing
   - context-optimization
-  type: interceptor
+  capability:
+    kind: cross-cutting-rule
+    status: active
   complexity: low
   priority: critical
   related_skills:

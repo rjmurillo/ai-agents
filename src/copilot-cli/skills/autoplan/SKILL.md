@@ -8,7 +8,9 @@ description: Route any request to the right skill, command, or agent chain with
   lifecycle command; invoke that directly.
 license: MIT
 metadata:
-  type: router
+  capability:
+    kind: orchestrator
+    status: active
   inspiration: gstack /autoplan (garrytan/gstack autoplan/SKILL.md.tmpl)
 ---
 

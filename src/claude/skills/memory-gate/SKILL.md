@@ -11,7 +11,9 @@ description: Memory-First Gate (BLOCKING) and the Chesterton's Fence investigati
 license: MIT
 metadata:
   adr: ADR-063, ADR-070, ADR-106
-  type: operation
+  capability:
+    kind: reusable-primitive
+    status: active
   parent: memory
 ---
 

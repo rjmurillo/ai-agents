@@ -5,7 +5,9 @@ description: Extract learnings from a session or task through structured retrosp
 license: MIT
 metadata:
   domains: [retrospective, learning-extraction, root-cause-analysis, continuous-improvement]
-  type: workflow
+  capability:
+    kind: orchestrator
+    status: active
   inputs: [scope-description, session-log, git-history]
   outputs: [retrospective-markdown-file]
   adr: ADR-008, ADR-017, ADR-106

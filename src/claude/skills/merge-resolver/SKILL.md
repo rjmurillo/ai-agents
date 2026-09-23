@@ -9,7 +9,9 @@ metadata:
   - github
   - merge-conflicts
   - pr-maintenance
-  type: workflow
+  capability:
+    kind: specialized-implementation
+    status: active
   complexity: advanced
 ---
 # Merge Resolver

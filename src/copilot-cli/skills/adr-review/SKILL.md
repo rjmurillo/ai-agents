@@ -5,7 +5,9 @@ description: Multi-agent debate orchestration for Architecture Decision Records.
 license: MIT
 metadata:
   domains: [architecture, governance, multi-agent, consensus]
-  type: orchestrator
+  capability:
+    kind: orchestrator
+    status: active
   inputs: [adr-file-path, change-type]
   outputs: [debate-log, updated-adr, recommendations]
   file_triggers:

@@ -10,7 +10,9 @@ description: Memory-system maintenance operations, split out of the memory route
 license: MIT
 metadata:
   adr: ADR-063, ADR-106
-  type: operation
+  capability:
+    kind: specialized-implementation
+    status: active
   parent: memory
 ---
 

@@ -10,7 +10,9 @@ description: Tier 1 semantic memory search across the Serena corpus with
 license: MIT
 metadata:
   adr: ADR-038, ADR-063, ADR-103, ADR-106
-  type: operation
+  capability:
+    kind: reusable-primitive
+    status: active
   parent: memory
 ---
 
