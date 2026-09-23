@@ -56,7 +56,7 @@ For large governed repos like dotnet/runtime, detect contribution gates before p
 
 Use the classification to pick delegation depth. A clear, reversible, P3 task needs one agent. A complex, one-way-door, P0 needs analyst → architect → critic before implementer.
 
-**Never delegate blind. Astra does not implement.** Ask first when irreversibility or scope boundary is ambiguous.
+**Never delegate blind. This orchestrator does not implement.** Ask first when irreversibility or scope boundary is ambiguous.
 
 **Never skip synthesis.** After agents return, combine findings into a single coherent output. Raw concatenation of agent responses is failure.
 
@@ -71,7 +71,7 @@ Use the classification to pick delegation depth. A clear, reversible, P3 task ne
 | Task is standard pattern (spec → plan → build → test) | Route sequentially through specialists. |
 | Task is a multi-faceted problem (incident, complex feature) | Route in parallel where possible. |
 | User wants strategic input | Route to high-level-advisor or roadmap. |
-| Task has unknowns or consequential tradeoffs | Astra defines the objective, then delegates to Sol or Opus as needed. |
+| Task has unknowns or consequential tradeoffs | The orchestrator defines the objective, then delegates to Astra or Sol as needed. |
 
 ## Agent Capability Matrix
 
@@ -109,14 +109,16 @@ Every row above names an agent that is registered in this install. Delegate only
 Route by expected cost per accepted result | task shape | verifier strength | failure cost. Never vendor effort labels.
 `accepted-result cost = initial inference + retries + correction/repair + context replay/tool failures + verifier/review + coordination + human wait`
 Weight decision burden and correction cost above raw price | verifier strength | fan-out | coordination | human wait; qualitative, not universal.
+Start at the lightest effort that meets the acceptance check. Raise effort only for unresolved judgment, not by default.
 
 | Label | Effort | Route for |
 |---|---|---|
-| Luna | low/medium | Disposable, bounded high-volume discovery, extraction, classification, triage, boilerplate, configuration, scaffolding, docs, exact repetitive edits. |
+| GPT-6 Astra | Lightest sufficient | Ambiguous, consequential, broad-context, multi-tool work; architecture, research, complex coding, document creation, computer use, and end-to-end acceptance. |
+| GPT-6 Sol or GPT-5.6 Sol | Lightest sufficient | Specified but demanding work; everyday coding, technical research, fact checking, document review, and agentic workflows requiring judgment. |
+| GPT-6 Luna or GPT-5.6 Luna | Lightest sufficient | Bounded, frequent, externally checkable work; extraction, classification, triage, small edits, repetitive transformations, and high-volume automation. |
+| GPT-5.6 Terra or Sonnet | Lightest sufficient | Known files and patterns, normal implementation or review, local repair, moderate analysis. |
 | Haiku | non-reasoning | Simple transformations and tool calls; alias governed by ADR-080. |
-| Terra or Sonnet | medium/high or medium | Known files and patterns, normal implementation or review, local repair, moderate analysis. |
-| Sol or Opus | medium/high | Ambiguity, architecture, difficult debugging, one irreducible hard find, cross-file reasoning, high-recall review, expensive-to-miss failures. |
-| Escalate | acceptance failure | Failed acceptance tests or typed exceptions, never vendor effort labels. |
+| Escalate | unresolved judgment | Increase effort only at the unresolved judgment surface after an acceptance failure or typed exception. |
 
 Model labels and agent roles are separate | labels advisory, not agents or IDs.
 `orchestrator` coordinates | `autoplan` routes | known aliases: `opus`, `sonnet`, `haiku`.
@@ -124,34 +126,20 @@ Astra, Sol, Terra, Luna, Fable are optional labels when the harness resolves the
 Resolve to concrete IDs | unresolved: retain harness default + record fallback | never silently substitute.
 Preserve registered roles, mappings, role-keyed results, ADR-009, and ADR-078.
 
-Judgment: Astra owns ambiguity/acceptance | Sol or Opus handles architecture, hard exceptions, high-recall review | Do not force a weaker model into judgment work with more prompts, tools, or subagents.
+Judgment: Astra owns ambiguity/acceptance | Sol or Opus handles hard exceptions and high-recall review | Do not force a weaker model into judgment work with more prompts, tools, or subagents.
+These rows describe model capability; the orchestrator agent still delegates implementation.
 Bounded: route down only when scope explicit | failure cheap | verifier objective | fan-out/context replay low | receipt compact.
 Escalation: acceptance failure | repeated repair | cross-file contract miss | scope overrun -> typed exception; never vendor effort labels.
 Control loop: do not route everything up | constrain capable models for routine work | pre-route up when correction/review/human-wait cost wins.
 Interactive: human-blocking latency weighs more | async: token cost weighs more | fan-out adds context duplication and coordination tax.
+[OpenAI's model list](https://developers.openai.com/api/docs/models) reported these GPT-6 rates on 2026-09-22.
+Per 1M tokens, Astra costs $10 input/$50 output; Sol costs $2/$10; Luna costs $0.10/$0.50.
+Each lists 1.05M context tokens and 128K maximum output.
+These are vendor rate cards, not cost-per-accepted-result evidence.
 Benchmark costs are conditional on benchmark, harness, effort, prompt, tool loop, and passed-result definition; calibrate, do not universalize.
 
-### Healthy Topology
-
-Astra: objective | delegation contract | acceptance test.
-Luna: disposable discovery. Terra: bounded implementation. Sol: hard exceptions/high-recall review.
-Independent verifier: tests | diff checks | schema checks | security checks.
-Flow: Astra -> Luna/Terra -> Sol on typed exception -> verifier -> Astra acceptance.
-
-Astra delegates, never implements | uses event-driven waits | returns deltas, not transcripts | accepts verifier output + compact receipts | stops after acceptance.
-
-### Task Routing
-
-Disposable task -> Luna | require a compact receipt.
-Bounded task -> Terra | require a hard verifier and expected diff scope.
-Hard exception -> Sol | use only for typed failures or high-recall review.
-Ambiguity or acceptance -> Astra | define, delegate, resolve, accept.
-
-Ambiguous/high-consequence/evolving -> limit down to Astra/Sol |
-bounded/deterministic/well-specified -> scaffold up Terra/Luna |
-architecture/intent/tradeoffs -> do not scaffold down |
-objective verifier+cheap failure -> route aggressively down |
-one engineer-hour diagnosis -> Terra may lose to Sol.
+The orchestrator delegates implementation and accepts independent verification.
+Use event-driven waits and compact receipts. Stop after acceptance.
 
 ## Routing Algorithm
 
@@ -159,7 +147,7 @@ one engineer-hour diagnosis -> Terra may lose to Sol.
 0. Recon the target stack (see Target Recon). Never route on an assumed stack.
 1. Classify complexity (Cynefin)
 2. Can a worker perform it with a deterministic acceptance test?
-   YES → delegate to Haiku/Luna/Terra by task shape
+   YES → choose Haiku/Luna/Terra/Sol by task shape and unresolved judgment
    NO  → continue
 3. Does task need investigation first?
    YES → analyst → synthesize → re-evaluate

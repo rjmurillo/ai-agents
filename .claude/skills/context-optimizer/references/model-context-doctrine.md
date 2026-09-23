@@ -1,7 +1,7 @@
 # Model Context Doctrine
 
-Current as of 2026-09-05. Covers Claude Opus 5, the GPT-5.6 tiers
-(Sol, Terra, Luna), and GPT-6 Astra.
+Current as of 2026-09-22. Covers Claude Opus 5, GPT-5.6 Sol/Terra/Luna,
+and GPT-6 Astra/Sol/Luna.
 
 Read this before you argue about what belongs in always-on context. It exists
 so nobody has to re-derive the argument from primary sources every time. When
@@ -155,7 +155,7 @@ prefix so one alternation covers every tier in a generation at once.
 that the number identifies a generation while the names "identify durable
 capability tiers that can advance on their own cadence". Sol is the
 hard-problem tier, Terra the high-volume tier, Luna the cheap everyday tier.
-Astra is the only GPT-6 tier documented as of this update.
+GPT-6 also offers Sol and Luna. Route them by task shape and an external acceptance check, as the orchestrator policy specifies.
 
 Behavior transfers across neither axis. Do not assume a fix for one model
 moves another, and do not write a rule file per tier: rule frontmatter scopes
