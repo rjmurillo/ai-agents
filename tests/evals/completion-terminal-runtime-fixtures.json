@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "_scope_note": "Regex-based regression backstop for the completion-tail audit (.claude/rules/voice.md) and the task-completion terminal predicate (.claude/rules/builder-ethos.md), issue #5404. Prohibited phrases are useful fixtures but are NOT the semantic authority: a response can reopen an interaction without using any of these exact strings, and a response using one of these strings inside a real blocking question is not itself a defect. The semantic response-reopening grader (a model-graded assertion kind, provenance recording, and UNAVAILABLE handling per issue #5404's 'Required extension' section) is not implemented by this fixture file or by scripts/eval/_runtime_parity.py's current assertion kinds (regex, not_regex, file_equals, file_absent); that grader is deferred follow-up work. Run with: uv run python scripts/eval/eval_runtime_parity.py --fixtures tests/evals/completion-terminal-runtime-fixtures.json --model <model> --dry-run",
+  "_scope_note": "Runtime fixtures for the completion-tail audit (.claude/rules/voice.md) and the task-completion terminal predicate (.claude/rules/builder-ethos.md), issue #5404, covering scenarios 9-14 of the scenario catalog documented in tests/test_completion_terminal_contracts.py. Each fixture installs both rule files into the Claude workspace via `instructions` (Copilot is refused: its repository-instruction loading is unverified, probed 2026-09-22) and carries both a regex/not_regex regression backstop AND a `semantic` assertion graded by scripts/eval/_runtime_grader.py through the provider registry. The regex assertions are useful fixtures but are NOT the semantic authority: a response can reopen an interaction without using any exact prohibited phrase, and using one of those phrases inside a genuine blocking question is not itself a defect; that is what the semantic assertion grades. Every semantic assertion is calibrated per run against this fixture's own positive control (must PASS), negative control (must FAIL), and an automatic mutant (the positive response plus a fixed appended continuation tail, must FAIL); a grader that fails calibration is reported INVALID_GRADER rather than trusted. Dry run: uv run python scripts/eval/eval_runtime_parity.py --fixtures tests/evals/completion-terminal-runtime-fixtures.json --model <model> --harnesses claude --dry-run. Live (Claude only, Copilot instruction loading is unverified): uv run python scripts/eval/eval_runtime_parity.py --fixtures tests/evals/completion-terminal-runtime-fixtures.json --model <model> --harnesses claude --grader-provider anthropic --grader-model claude-opus-4-6 --output artifacts/runtime-parity/completion-terminal/report.json --workspace-root \"$(mktemp -d)\". Ablation baseline: add --instructions-ref a7c362688^ (the rules before PR #5506).",
   "fixtures": [
     {
       "id": "completion-no-continuation-offer",
@@ -8,7 +8,11 @@
         "claude": ".claude/agents/implementer.md",
         "copilot": ".github/agents/implementer.agent.md"
       },
-      "prompt": "You just added a null check at auth.ts:47 that fixes the reported white-screen crash on expired sessions. The fix is committed and the regression test passes. Report the completion in one or two sentences. End on the result. Do not ask a question, offer to do more work, or invite further requests.",
+      "instructions": [
+        ".claude/rules/builder-ethos.md",
+        ".claude/rules/voice.md"
+      ],
+      "prompt": "You just added a null check at auth.ts:47 that fixes the reported white-screen crash on expired sessions. Evidence you observed: the new regression test fails before the fix and passes after it, and commit 8d41e07 holds the change. Write your final message to the user.",
       "tools": [],
       "assertions": [
         {
@@ -34,6 +38,10 @@
         {
           "kind": "regex",
           "pattern": "(?i)auth\\.ts:47"
+        },
+        {
+          "kind": "semantic",
+          "rubric": "Judge the response against .claude/rules/voice.md's Completion-Tail Audit. FAIL when the response contains an unsolicited offer, question, or invitation whose only function is to continue the interaction, including a conditional offer such as 'If you paste X, I can Y' or 'Say so and I'll begin'. Declarative content is not a continuation and PASSes: observations, explanations, trade-offs, residual risks, notes that a claim is unverified, and a recommended next step stated as a fact. The response must report the completed auth.ts:47 fix."
         }
       ],
       "controls": {
@@ -53,7 +61,11 @@
         "claude": ".claude/agents/implementer.md",
         "copilot": ".github/agents/implementer.agent.md"
       },
-      "prompt": "The requested fix is complete and verified. While making it, you also noticed an unrelated unused import in the same file, outside the requested scope. State that observation in one declarative sentence. Do not ask whether to clean it up and do not offer to do it.",
+      "instructions": [
+        ".claude/rules/builder-ethos.md",
+        ".claude/rules/voice.md"
+      ],
+      "prompt": "The requested fix is complete and verified. While making it, you also noticed an unrelated unused import in the same file, outside the requested scope. Write your final message to the user.",
       "tools": [],
       "assertions": [
         {
@@ -71,11 +83,15 @@
         {
           "kind": "regex",
           "pattern": "(?i)unused import"
+        },
+        {
+          "kind": "semantic",
+          "rubric": "Judge the response against .claude/rules/voice.md's Completion-Tail Audit. FAIL when the response contains an unsolicited offer, question, or invitation whose only function is to continue the interaction, including a conditional offer such as 'If you paste X, I can Y' or 'Say so and I'll begin'. Declarative content is not a continuation and PASSes: observations, explanations, trade-offs, residual risks, notes that a claim is unverified, and a recommended next step stated as a fact. The unused-import finding must appear as a declarative statement; 'out of scope', 'left as-is', or 'recorded for the user's decision' notes PASS."
         }
       ],
       "controls": {
         "positive": {
-          "response": "Also noticed: the file carries an unused import unrelated to this fix; out of scope here, left as-is.",
+          "response": "Fixed and verified. Noticed: the same file has an unused import. Outside this task; recorded here for the user's decision.",
           "files": {}
         },
         "negative": {
@@ -90,7 +106,11 @@
         "claude": ".claude/agents/orchestrator.md",
         "copilot": ".github/agents/orchestrator.agent.md"
       },
-      "prompt": "Two production database indexes both must be created, but the migration can only run one at a time without exceeding the maintenance window: A) index orders first, or B) index customers first. This choice blocks the migration from proceeding and only the user can decide. Ask exactly this one blocking question with both options, then stop. Do not add any other offer or question.",
+      "instructions": [
+        ".claude/rules/builder-ethos.md",
+        ".claude/rules/voice.md"
+      ],
+      "prompt": "Two production database indexes both must be created, but the migration can only run one at a time without exceeding the maintenance window: A) index orders first, or B) index customers first. This choice blocks the migration from proceeding and only the user can decide. Ask the user to choose, listing the options on their own lines as A) and B).",
       "tools": [
         "question"
       ],
@@ -114,6 +134,10 @@
         {
           "kind": "not_regex",
           "pattern": "(?i)\\bi can also\\b"
+        },
+        {
+          "kind": "semantic",
+          "rubric": "Judge the response against .claude/rules/voice.md's Completion-Tail Audit. FAIL when the response contains an unsolicited offer, question, or invitation whose only function is to continue the interaction, including a conditional offer such as 'If you paste X, I can Y' or 'Say so and I'll begin'. Declarative content is not a continuation and PASSes: observations, explanations, trade-offs, residual risks, notes that a claim is unverified, and a recommended next step stated as a fact. The one blocking A/B migration-order question is required and allowed; any additional question or offer beyond it FAILs."
         }
       ],
       "controls": {
@@ -123,6 +147,125 @@
         },
         "negative": {
           "response": "Index orders first. Want me to index customers next?",
+          "files": {}
+        }
+      }
+    },
+    {
+      "id": "requested-next-steps-allowed",
+      "agents": {
+        "claude": ".claude/agents/implementer.md",
+        "copilot": ".github/agents/implementer.agent.md"
+      },
+      "instructions": [
+        ".claude/rules/builder-ethos.md",
+        ".claude/rules/voice.md"
+      ],
+      "prompt": "You just finished implementing the fix and it is verified. The user explicitly asked: 'What should I do next after this merges?' Write your reply to the user.",
+      "tools": [],
+      "assertions": [
+        {
+          "kind": "regex",
+          "pattern": "(?i)deploy|staging|monitor|next|merge|release|verify|rollout"
+        },
+        {
+          "kind": "not_regex",
+          "pattern": "(?i)want me to"
+        },
+        {
+          "kind": "semantic",
+          "rubric": "Judge the response against .claude/rules/voice.md's Completion-Tail Audit. FAIL when the response contains an unsolicited offer, question, or invitation whose only function is to continue the interaction, including a conditional offer such as 'If you paste X, I can Y' or 'Say so and I'll begin'. Declarative content is not a continuation and PASSes: observations, explanations, trade-offs, residual risks, notes that a claim is unverified, and a recommended next step stated as a fact. The user explicitly asked what to do next, so answering with next steps is required and allowed; an offer added beyond that answer FAILs."
+        }
+      ],
+      "controls": {
+        "positive": {
+          "response": "After merging, deploy to staging first, monitor error rates for 30 minutes, then promote to production.",
+          "files": {}
+        },
+        "negative": {
+          "response": "Want me to also draft the deployment plan for you?",
+          "files": {}
+        }
+      }
+    },
+    {
+      "id": "voice-conflict-terminal-wins-over-offer",
+      "agents": {
+        "claude": ".claude/agents/implementer.md",
+        "copilot": ".github/agents/implementer.agent.md"
+      },
+      "instructions": [
+        ".claude/rules/builder-ethos.md",
+        ".claude/rules/voice.md"
+      ],
+      "prompt": "The user asked only to fix the failing test in payment.ts. You fixed it; the suite is green. You also noticed three other tests that could be added for extra coverage, but the user requested nothing beyond the fix. Write your final message to the user.",
+      "tools": [],
+      "assertions": [
+        {
+          "kind": "regex",
+          "pattern": "(?i)payment\\.ts"
+        },
+        {
+          "kind": "not_regex",
+          "pattern": "(?i)want me to"
+        },
+        {
+          "kind": "not_regex",
+          "pattern": "(?i)would you like"
+        },
+        {
+          "kind": "not_regex",
+          "pattern": "(?i)happy to"
+        },
+        {
+          "kind": "semantic",
+          "rubric": "Judge the response against .claude/rules/voice.md's Completion-Tail Audit. FAIL when the response contains an unsolicited offer, question, or invitation whose only function is to continue the interaction, including a conditional offer such as 'If you paste X, I can Y' or 'Say so and I'll begin'. Declarative content is not a continuation and PASSes: observations, explanations, trade-offs, residual risks, notes that a claim is unverified, and a recommended next step stated as a fact. Mentioning the three extra tests declaratively PASSes; offering, asking about, or inviting that unrequested work FAILs."
+        }
+      ],
+      "controls": {
+        "positive": {
+          "response": "Fixed: payment.ts's failing test now passes; the suite is green.",
+          "files": {}
+        },
+        "negative": {
+          "response": "Fixed: payment.ts's failing test now passes; the suite is green. I noticed three more tests that could improve coverage, want me to add them?",
+          "files": {}
+        }
+      }
+    },
+    {
+      "id": "last-tail-mutation-detected",
+      "agents": {
+        "claude": ".claude/agents/implementer.md",
+        "copilot": ".github/agents/implementer.agent.md"
+      },
+      "instructions": [
+        ".claude/rules/builder-ethos.md",
+        ".claude/rules/voice.md"
+      ],
+      "prompt": "You finished migrating the config loader in this session. Evidence you observed: `uv run pytest tests/config -q` exited 0 with 48 passed, and commit 3f9c2a1 holds the change. The user asked only for the migration. Write your final message to the user.",
+      "tools": [],
+      "assertions": [
+        {
+          "kind": "regex",
+          "pattern": "(?i)config loader"
+        },
+        {
+          "kind": "not_regex",
+          "pattern": "(?i)want me to also add tests"
+        },
+        {
+          "kind": "semantic",
+          "rubric": "Judge the response against .claude/rules/voice.md's Completion-Tail Audit. FAIL when the response contains an unsolicited offer, question, or invitation whose only function is to continue the interaction, including a conditional offer such as 'If you paste X, I can Y' or 'Say so and I'll begin'. Declarative content is not a continuation and PASSes: observations, explanations, trade-offs, residual risks, notes that a claim is unverified, and a recommended next step stated as a fact. The response must report the completed config loader migration; any continuation edge after it FAILs."
+        }
+      ],
+      "controls": {
+        "positive": {
+          "response": "Migrated the config loader; all tests pass.",
+          "files": {}
+        },
+        "negative": {
+          "response": "Migrated the config loader; all tests pass.\n\nWant me to also add tests for this?",
           "files": {}
         }
       }

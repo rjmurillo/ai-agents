@@ -129,7 +129,7 @@ Happy to ...
 
 Allowed even at the end of a terminal response: a required blocking clarification or decision; a question the user explicitly requested; a bounded choice that is itself the deliverable; an interaction system, host, safety, or repository policy requires.
 
-State optional information declaratively when policy requires it or it materially changes the user's decision (a residual risk, a monitoring note, a `NEXT` line in `/ship`). Never as an opt-in continuation prompt.
+State optional information declaratively when policy requires it or it materially changes the user's decision (a residual risk, a monitoring note, a `NEXT` line in `/ship`). Never as an opt-in continuation prompt. A conditional offer ("If you have X, tell me and I'll Y", "Point me at Z and I will...") is the same edge: name what is missing, then stop.
 
 This rule governs the response; builder-ethos.md's Task Completion Contract governs whether the task is terminal: active plus an in-contract issue may act or ask a real blocking question; terminal plus an optional finding gets a declarative report, no opt-in continuation edge, then stop. This wins over narrower guidance elsewhere in this file or an agent template.
 

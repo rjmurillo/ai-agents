@@ -85,6 +85,36 @@ COMPLETION_TAIL_PHRASES = (
 CRITIC_SCENARIOS_PATH = Path("tests/evals/critic-scenarios.json")
 QA_SCENARIOS_PATH = Path("tests/evals/qa-scenarios.json")
 ORCHESTRATOR_SCENARIOS_PATH = Path("tests/evals/orchestrator-scenarios.json")
+RUNTIME_FIXTURES_PATH = Path("tests/evals/completion-terminal-runtime-fixtures.json")
+
+# The full 1-14 scenario catalog for the task-completion contract (issue
+# #5404, spec-5404.md AC11): scenarios 1-6 are orchestrator disposition
+# verdicts (builder-ethos.md's four-class table), 7-8 are the zero-finding
+# and budget-conservation scenarios that already shipped in #5506, and 9-14
+# are runtime fixtures that install both rule files and grade a live
+# response. Scenario 7 covers the same "no manufactured finding" claim in
+# two agents at once (TC-1 for critic, S3 for qa), so it maps to two ids.
+SCENARIO_CATALOG: dict[int, tuple[tuple[Path, str, str], ...]] = {
+    1: ((ORCHESTRATOR_SCENARIOS_PATH, "scenarios", "S9"),),
+    2: ((ORCHESTRATOR_SCENARIOS_PATH, "scenarios", "S10"),),
+    3: ((ORCHESTRATOR_SCENARIOS_PATH, "scenarios", "S11"),),
+    4: ((ORCHESTRATOR_SCENARIOS_PATH, "scenarios", "S12"),),
+    5: ((ORCHESTRATOR_SCENARIOS_PATH, "scenarios", "S13"),),
+    6: ((ORCHESTRATOR_SCENARIOS_PATH, "scenarios", "S14"),),
+    7: (
+        (CRITIC_SCENARIOS_PATH, "scenarios", "TC-1"),
+        (QA_SCENARIOS_PATH, "scenarios", "S3"),
+    ),
+    8: ((ORCHESTRATOR_SCENARIOS_PATH, "scenarios", "S8"),),
+    9: ((RUNTIME_FIXTURES_PATH, "fixtures", "completion-no-continuation-offer"),),
+    10: (
+        (RUNTIME_FIXTURES_PATH, "fixtures", "optional-finding-declarative-not-solicited"),
+    ),
+    11: ((RUNTIME_FIXTURES_PATH, "fixtures", "blocking-decision-question-allowed"),),
+    12: ((RUNTIME_FIXTURES_PATH, "fixtures", "requested-next-steps-allowed"),),
+    13: ((RUNTIME_FIXTURES_PATH, "fixtures", "voice-conflict-terminal-wins-over-offer"),),
+    14: ((RUNTIME_FIXTURES_PATH, "fixtures", "last-tail-mutation-detected"),),
+}
 
 # The only critic scenario allowed to expect a passing verdict. Every other
 # fixture carries a planted defect and must expect CHALLENGE. Stated as an
@@ -223,3 +253,29 @@ def test_orchestrator_budget_scenario_stays_tied_to_the_prompt_text() -> None:
         f"predicate, which orchestrator-scenarios.json scenario "
         f"{scenario['id']!r} grades against"
     )
+
+
+def _entry_ids(payload_path: Path, collection_key: str) -> set[str]:
+    payload = json.loads((REPO_ROOT / payload_path).read_text(encoding="utf-8"))
+    return {entry["id"] for entry in payload[collection_key]}
+
+
+@pytest.mark.parametrize("scenario_number", sorted(SCENARIO_CATALOG), ids=str)
+def test_every_scenario_number_maps_to_a_registered_id(scenario_number: int) -> None:
+    """Scenario N (spec-5404.md AC11) must resolve to a real id, not a stale one.
+
+    A scenario deleted from its source file (renamed, or dropped in a merge)
+    fails this test by scenario number, pointing straight at which of the 14
+    is now unmeasured, instead of silently leaving a gap only a full manual
+    diff of the catalog against three JSON files would notice.
+    """
+    for payload_path, collection_key, scenario_id in SCENARIO_CATALOG[scenario_number]:
+        assert scenario_id in _entry_ids(payload_path, collection_key), (
+            f"scenario {scenario_number} names {scenario_id!r} in "
+            f"{payload_path}, but no entry with that id exists there"
+        )
+
+
+def test_scenario_catalog_covers_exactly_one_through_fourteen() -> None:
+    """The catalog itself must not silently drop or duplicate a scenario number."""
+    assert set(SCENARIO_CATALOG) == set(range(1, 15))

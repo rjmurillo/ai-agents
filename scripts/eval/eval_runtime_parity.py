@@ -24,12 +24,15 @@ import sys
 import uuid
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
+from typing import cast
 
+from _runtime_grader import GraderProtocol, grade_semantic_assertions, resolve_grader
 from _runtime_harness import (
     SENTINEL,
     hash_installed_agent,
     prepare_workspace,
     probe_version,
+    require_isolated_workspace_root,
     runtime_env,
 )
 from _runtime_output import (
@@ -69,6 +72,9 @@ from _runtime_parity import (
     ParityConfigError,
     live_files,
     load_fixtures,
+    resolve_instructions,
+    resolve_ref_sha,
+    resolve_source_commit,
     score_assertions,
     verify_worktree_identity,
 )
@@ -83,6 +89,10 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_FIXTURES = Path(__file__).parent / "examples" / "runtime-parity-fixtures.json"
 DEFAULT_MODEL = "claude-opus-4.6"
 DEFAULT_TIMEOUT = 900.0
+DEFAULT_HARNESSES = "both"
+HARNESS_CHOICES = ("both", "claude", "copilot")
+DEFAULT_GRADER_PROVIDER = "anthropic"
+DEFAULT_GRADER_MODEL = "claude-opus-4-6"
 MODEL_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$")
 Runner = Callable[..., subprocess.CompletedProcess[str]]
 
@@ -212,12 +222,13 @@ def _invoke_runtime(
     workspace: Path,
     runner: Runner,
     timeout: float,
+    instructions: Mapping[str, bytes],
 ) -> tuple[
     subprocess.CompletedProcess[str] | None,
     list[str],
     dict[str, object] | None,
 ]:
-    prepare_workspace(fixture, harness, workspace)
+    prepare_workspace(fixture, harness, workspace, instructions=instructions)
     argv = build_argv(harness, executable, model, fixture)
     try:
         run = runner(
@@ -301,12 +312,18 @@ def _score_runtime_result(
             "raw_output": run.stdout,
             "stderr": run.stderr,
             "response": response,
+            "assertion_text": assertion_text,
             "question_mechanism": mechanism,
             "tool_events": tools,
             "subagent_events": subagents,
             "assertions": assertions,
             "error": _runtime_error(run, mechanism, resolved_model),
-            "passed": code == EXIT_OK and all(item["passed"] for item in assertions),
+            # Semantic assertions score "not_run" (passed=None) here; they are
+            # not yet graded (that needs a live model call), so counting them
+            # against `all(...)` would mark every semantic fixture failed
+            # before `_apply_semantic_grading` gets a chance to grade it.
+            "passed": code == EXIT_OK
+            and all(item["passed"] for item in assertions if item["kind"] != "semantic"),
         },
         code,
     )
@@ -320,9 +337,10 @@ def _run_fixture(
     workspace: Path,
     runner: Runner,
     timeout: float,
+    instructions: Mapping[str, bytes],
 ) -> tuple[dict[str, object], int]:
     run, argv, failure = _invoke_runtime(
-        fixture, harness, executable, model, workspace, runner, timeout
+        fixture, harness, executable, model, workspace, runner, timeout, instructions
     )
     if failure is not None:
         return failure, EXIT_EXTERNAL
@@ -346,34 +364,114 @@ def _probe_versions(
     copilot_bin: str,
     runner: Runner,
     timeout: float,
+    harnesses: str = DEFAULT_HARNESSES,
 ) -> dict[str, str]:
+    """Probe only the selected harnesses, so a Claude run needs no Copilot."""
     version_workspaces = output.parent / "version-probes"
+    selected = ("claude", "copilot") if harnesses == "both" else (harnesses,)
+    binaries = {"claude": claude_bin, "copilot": copilot_bin}
     return {
-        "claude": probe_version(
-            claude_bin,
-            "claude",
-            version_workspaces / "claude",
-            runner,
-            timeout,
-        ),
-        "copilot": probe_version(
-            copilot_bin,
-            "copilot",
-            version_workspaces / "copilot",
-            runner,
-            timeout,
-        ),
+        name: probe_version(
+            binaries[name], name, version_workspaces / name, runner, timeout
+        )
+        for name in selected
     }
 
 
-def _fixture_record(fixture: Fixture) -> dict[str, object]:
+def _fixture_record(
+    fixture: Fixture, instructions: Mapping[str, bytes]
+) -> dict[str, object]:
     return {
         "id": fixture.fixture_id,
         "claude_agent_sha256": hash_installed_agent(fixture.claude_agent),
         "copilot_agent_sha256": hash_installed_agent(fixture.copilot_agent),
         "fixture_sha256": hashlib.sha256(fixture.prompt.encode("utf-8")).hexdigest(),
         "controls": _control_report(fixture),
+        "instructions": [
+            {"path": path, "sha256": hashlib.sha256(content).hexdigest()}
+            for path, content in instructions.items()
+        ],
     }
+
+
+def _needs_grader(fixtures: Sequence[Fixture]) -> bool:
+    """True when any fixture carries a semantic assertion (AC8, AC9)."""
+    return any(
+        spec.kind == "semantic" for fixture in fixtures for spec in fixture.assertions
+    )
+
+
+def _apply_semantic_grading(
+    fixture: Fixture,
+    record: dict[str, object],
+    grader: GraderProtocol,
+    grader_model: str,
+) -> tuple[dict[str, object], int]:
+    """Replace not-run semantic placeholders in `record` with graded verdicts.
+
+    Returns the updated record and an exit-code override: `EXIT_OK` when
+    grading completed (whether the semantic assertions passed or failed),
+    `EXIT_EXTERNAL` when the grader was UNAVAILABLE (AC9), or `EXIT_LOGIC`
+    when calibration proved the grader miscalibrated (AC8).
+    """
+    semantic_results, verdict_override, calibration = grade_semantic_assertions(
+        fixture,
+        str(record.get("assertion_text", record["response"])),
+        grader,
+        grader_model,
+    )
+    if verdict_override == "UNAVAILABLE":
+        record["error"] = "semantic grader is unavailable"
+        record["calibration"] = calibration
+        record["passed"] = False
+        return record, EXIT_EXTERNAL
+    if verdict_override == "INVALID_GRADER":
+        record["error"] = "semantic grader failed calibration (INVALID_GRADER)"
+        record["calibration"] = calibration
+        record["passed"] = False
+        return record, EXIT_LOGIC
+    existing = cast("list[dict[str, object]]", record["assertions"])
+    record["assertions"] = [
+        item for item in existing if item.get("kind") != "semantic"
+    ] + semantic_results
+    record["passed"] = bool(record["passed"]) and all(
+        item["passed"] for item in semantic_results
+    )
+    return record, EXIT_OK
+
+
+def _run_one_harness(
+    fixture: Fixture,
+    harness: str,
+    model: str,
+    workspace: Path,
+    executable: str,
+    runner: Runner,
+    timeout: float,
+    instructions: Mapping[str, bytes],
+    grader: GraderProtocol | None,
+    grader_model: str,
+) -> tuple[dict[str, object], int, str | None]:
+    """Run one harness for one fixture, then grade any semantic assertion.
+
+    Returns the harness record, the worst exit code observed, and a verdict
+    override (`"ERROR"` or `"INVALID_GRADER"`) naming why the run failed
+    closed, or `None` when it produced an ordinary pass/fail result a caller
+    can compare across harnesses.
+    """
+    record, code = _run_fixture(
+        fixture, harness, executable, model, workspace, runner, timeout, instructions
+    )
+    if code != EXIT_OK:
+        return record, code, "ERROR"
+    if any(spec.kind == "semantic" for spec in fixture.assertions):
+        assert grader is not None  # resolved by run_evaluation whenever needed
+        record, code = _apply_semantic_grading(fixture, record, grader, grader_model)
+        if code == EXIT_EXTERNAL:
+            return record, code, "ERROR"
+        if code == EXIT_LOGIC:
+            return record, code, "INVALID_GRADER"
+    return record, code, None
 
 
 def _run_fixture_pair(
@@ -384,32 +482,41 @@ def _run_fixture_pair(
     copilot_bin: str,
     runner: Runner,
     timeout: float,
+    instructions: Mapping[str, bytes],
+    grader: GraderProtocol | None,
+    grader_model: str,
 ) -> tuple[dict[str, object], int, str | None]:
-    record = _fixture_record(fixture)
-    claude, claude_code = _run_fixture(
+    record = _fixture_record(fixture, instructions)
+    claude, claude_code, claude_verdict = _run_one_harness(
         fixture,
         "claude",
-        claude_bin,
         model,
         workspaces / fixture.fixture_id / "claude",
+        claude_bin,
         runner,
         timeout,
+        instructions,
+        grader,
+        grader_model,
     )
     record["claude"] = claude
-    if claude_code != EXIT_OK:
-        return record, claude_code, "ERROR"
-    copilot, copilot_code = _run_fixture(
+    if claude_verdict is not None:
+        return record, claude_code, claude_verdict
+    copilot, copilot_code, copilot_verdict = _run_one_harness(
         fixture,
         "copilot",
-        copilot_bin,
         model,
         workspaces / fixture.fixture_id / "copilot",
+        copilot_bin,
         runner,
         timeout,
+        instructions,
+        grader,
+        grader_model,
     )
     record["copilot"] = copilot
-    if copilot_code != EXIT_OK:
-        return record, copilot_code, "ERROR"
+    if copilot_verdict is not None:
+        return record, copilot_code, copilot_verdict
     verdict = _comparison_verdict(claude, copilot, model)
     return record, EXIT_LOGIC if verdict else EXIT_OK, verdict
 
@@ -422,7 +529,11 @@ def _run_live_fixtures(
     copilot_bin: str,
     runner: Runner,
     timeout: float,
+    instructions_by_fixture: Mapping[str, Mapping[str, bytes]],
+    grader: GraderProtocol | None,
+    grader_model: str,
 ) -> tuple[list[dict[str, object]], str, int]:
+    """Run every fixture through both harnesses (AC3 default: `--harnesses both`)."""
     records: list[dict[str, object]] = []
     final_code = EXIT_OK
     final_verdict = "PASS"
@@ -435,14 +546,171 @@ def _run_live_fixtures(
             copilot_bin,
             runner,
             timeout,
+            instructions_by_fixture.get(fixture.fixture_id, {}),
+            grader,
+            grader_model,
         )
         records.append(record)
         final_code = max(final_code, code)
-        if verdict in {"ERROR", "FAIL_MODEL_MISMATCH"}:
+        if verdict in {"ERROR", "FAIL_MODEL_MISMATCH", "INVALID_GRADER"}:
             return records, verdict, final_code
         if verdict is not None:
             final_verdict = _accumulate_verdict(final_verdict, verdict)
     return records, final_verdict, final_code
+
+
+def _run_single_harness_fixtures(
+    fixtures: Sequence[Fixture],
+    harness: str,
+    model: str,
+    workspaces: Path,
+    executable: str,
+    runner: Runner,
+    timeout: float,
+    instructions_by_fixture: Mapping[str, Mapping[str, bytes]],
+    grader: GraderProtocol | None,
+    grader_model: str,
+) -> tuple[list[dict[str, object]], str, int]:
+    """Run every fixture through one harness only; no comparison verdict (AC3)."""
+    records: list[dict[str, object]] = []
+    final_code = EXIT_OK
+    final_verdict = "PASS"
+    for fixture in fixtures:
+        instructions = instructions_by_fixture.get(fixture.fixture_id, {})
+        record = _fixture_record(fixture, instructions)
+        result, code, verdict = _run_one_harness(
+            fixture,
+            harness,
+            model,
+            workspaces / fixture.fixture_id / harness,
+            executable,
+            runner,
+            timeout,
+            instructions,
+            grader,
+            grader_model,
+        )
+        record[harness] = result
+        records.append(record)
+        final_code = max(final_code, code)
+        if verdict is not None:
+            return records, verdict, final_code
+        if code == EXIT_OK and result.get("resolved_model") != model:
+            return records, "FAIL_MODEL_MISMATCH", max(final_code, EXIT_LOGIC)
+        if not result["passed"]:
+            final_verdict = "FAIL"
+            final_code = max(final_code, EXIT_LOGIC)
+    return records, final_verdict, final_code
+
+
+def _resolve_ablation(
+    fixtures: Sequence[Fixture], instructions_ref: str | None
+) -> tuple[str, str | None, dict[str, dict[str, bytes]]]:
+    """Resolve report provenance and every fixture's instruction bytes (AC4, AC5)."""
+    source_commit = resolve_source_commit()
+    instructions_ref_sha = resolve_ref_sha(instructions_ref) if instructions_ref else None
+    instructions_by_fixture = {
+        fixture.fixture_id: resolve_instructions(fixture.instructions, instructions_ref_sha)
+        for fixture in fixtures
+    }
+    return source_commit, instructions_ref_sha, instructions_by_fixture
+
+
+def _run_live_records(
+    fixtures: Sequence[Fixture],
+    model: str,
+    workspaces: Path,
+    claude_bin: str,
+    copilot_bin: str,
+    runner: Runner,
+    timeout: float,
+    harnesses: str,
+    instructions_by_fixture: Mapping[str, Mapping[str, bytes]],
+    grader: GraderProtocol | None,
+    grader_model: str,
+) -> tuple[list[dict[str, object]], str, int]:
+    """Dispatch to the dual- or single-harness live run per `--harnesses` (AC3)."""
+    if harnesses == "both":
+        return _run_live_fixtures(
+            fixtures,
+            model,
+            workspaces,
+            claude_bin,
+            copilot_bin,
+            runner,
+            timeout,
+            instructions_by_fixture,
+            grader,
+            grader_model,
+        )
+    executable = claude_bin if harnesses == "claude" else copilot_bin
+    return _run_single_harness_fixtures(
+        fixtures,
+        harnesses,
+        model,
+        workspaces,
+        executable,
+        runner,
+        timeout,
+        instructions_by_fixture,
+        grader,
+        grader_model,
+    )
+
+
+def _base_report(
+    *,
+    model: str,
+    output: Path,
+    claude_bin: str,
+    copilot_bin: str,
+    runner: Runner,
+    timeout: float,
+    dry_run: bool,
+    fixture_count: int,
+    source_commit: str,
+    instructions_ref: str | None,
+    instructions_ref_sha: str | None,
+    harnesses: str,
+) -> dict[str, object]:
+    """Build the report shell shared by dry-run and live evaluation."""
+    return {
+        "schema_version": 1,
+        "requested_model": model,
+        "cli_versions": _probe_versions(
+            output, claude_bin, copilot_bin, runner, timeout, harnesses
+        ),
+        "fixture_count": fixture_count,
+        "fixtures": [],
+        "verdict": "DRY_RUN" if dry_run else "PASS",
+        "source_commit": source_commit,
+        "instructions_ref": instructions_ref,
+        "instructions_ref_sha": instructions_ref_sha,
+    }
+
+
+def _non_empty_dir(path: Path) -> bool:
+    return path.exists() and (not path.is_dir() or any(path.iterdir()))
+
+
+def _refuse_unsupported_instructions(fixtures: Sequence[Fixture], harnesses: str) -> None:
+    """Refuse a Copilot run of an `instructions` fixture before any model call."""
+    if harnesses == "claude":
+        return
+    listed = [fixture.fixture_id for fixture in fixtures if fixture.instructions]
+    if listed:
+        raise ParityConfigError(
+            f"--harnesses {harnesses} includes Copilot, whose repository "
+            "instruction loading is unverified; fixtures with `instructions` "
+            f"need --harnesses claude: {', '.join(listed)}"
+        )
+
+
+def _resolve_grader_or_config_error(name: str) -> GraderProtocol:
+    try:
+        return resolve_grader(name)
+    except RuntimeError as exc:
+        raise ParityConfigError(f"--grader-provider {name!r}: {exc}") from exc
 
 
 def run_evaluation(
@@ -455,25 +723,55 @@ def run_evaluation(
     timeout: float,
     dry_run: bool,
     runner: Runner = _run_in_process_group,
+    harnesses: str = DEFAULT_HARNESSES,
+    instructions_ref: str | None = None,
+    grader_provider: str = DEFAULT_GRADER_PROVIDER,
+    grader_model: str = DEFAULT_GRADER_MODEL,
+    grader: GraderProtocol | None = None,
+    workspace_root: Path | None = None,
 ) -> tuple[dict[str, object], int]:
-    """Run all fixtures, stopping immediately on a resolved-model mismatch."""
+    """Run all fixtures, stopping immediately on a resolved-model mismatch.
+
+    `grader` is injectable so a test can supply a fake provider instead of
+    resolving `grader_provider` for real (AC8-AC10); it is only required,
+    and only resolved lazily via `resolve_grader`, when a fixture actually
+    carries a semantic assertion.
+    """
     fixtures = load_fixtures(fixtures_path)
-    workspaces = output.parent / "workspaces"
-    if not dry_run and (output.exists() or workspaces.exists()):
+    _refuse_unsupported_instructions(fixtures, harnesses)
+    if grader is None and _needs_grader(fixtures):
+        grader = _resolve_grader_or_config_error(grader_provider)
+    source_commit, instructions_ref_sha, instructions_by_fixture = _resolve_ablation(
+        fixtures, instructions_ref
+    )
+    workspaces = workspace_root or output.parent / "workspaces"
+    if not dry_run and (output.exists() or _non_empty_dir(workspaces)):
         raise ParityConfigError("output path already contains a runtime parity run")
-    report: dict[str, object] = {
-        "schema_version": 1,
-        "requested_model": model,
-        "cli_versions": _probe_versions(output, claude_bin, copilot_bin, runner, timeout),
-        "fixture_count": len(fixtures),
-        "fixtures": [],
-        "verdict": "DRY_RUN" if dry_run else "PASS",
-    }
+    if not dry_run:
+        require_isolated_workspace_root(workspaces)
+    report = _base_report(
+        model=model,
+        output=output,
+        claude_bin=claude_bin,
+        copilot_bin=copilot_bin,
+        runner=runner,
+        timeout=timeout,
+        dry_run=dry_run,
+        fixture_count=len(fixtures),
+        source_commit=source_commit,
+        instructions_ref=instructions_ref,
+        instructions_ref_sha=instructions_ref_sha,
+        harnesses=harnesses,
+    )
+    report["workspace_root"] = str(workspaces)
     if dry_run:
-        report["fixtures"] = [_fixture_record(fixture) for fixture in fixtures]
+        report["fixtures"] = [
+            _fixture_record(fixture, instructions_by_fixture[fixture.fixture_id])
+            for fixture in fixtures
+        ]
         return report, EXIT_OK
     output.parent.mkdir(parents=True, exist_ok=True)
-    records, verdict, final_code = _run_live_fixtures(
+    records, verdict, final_code = _run_live_records(
         fixtures,
         model,
         workspaces,
@@ -481,6 +779,10 @@ def run_evaluation(
         copilot_bin,
         runner,
         timeout,
+        harnesses,
+        instructions_by_fixture,
+        grader,
+        grader_model,
     )
     report["fixtures"] = records
     report["verdict"] = verdict
@@ -497,6 +799,11 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--copilot-bin", default="copilot")
     parser.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT)
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--harnesses", choices=HARNESS_CHOICES, default=DEFAULT_HARNESSES)
+    parser.add_argument("--instructions-ref", default=None)
+    parser.add_argument("--grader-provider", default=DEFAULT_GRADER_PROVIDER)
+    parser.add_argument("--grader-model", default=DEFAULT_GRADER_MODEL)
+    parser.add_argument("--workspace-root", type=Path)
     return parser
 
 
@@ -520,6 +827,11 @@ def main(argv: Sequence[str] | None = None, *, runner: Runner = _run_in_process_
             timeout=args.timeout,
             dry_run=args.dry_run,
             runner=runner,
+            harnesses=args.harnesses,
+            instructions_ref=args.instructions_ref,
+            grader_provider=args.grader_provider,
+            grader_model=args.grader_model,
+            workspace_root=args.workspace_root.resolve() if args.workspace_root else None,
         )
     except ParityConfigError as exc:
         print(f"Error: {exc}", file=sys.stderr)

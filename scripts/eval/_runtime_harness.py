@@ -19,7 +19,7 @@ from __future__ import annotations
 import hashlib
 import os
 import subprocess
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from pathlib import Path
 
 from _runtime_parity import (
@@ -79,6 +79,60 @@ def _install_agent(source: Path, target: Path) -> None:
     target.write_bytes(_installed_agent_bytes(source))
 
 
+def _install_instructions(workspace: Path, instructions: Mapping[str, bytes]) -> None:
+    """Copy fixture instruction bytes byte-identically into `.claude/rules/`.
+
+    Installed under the file's own basename, per AC1: a fixture referencing
+    `.claude/rules/voice.md` installs at `<workspace>/.claude/rules/voice.md`.
+    """
+    if not instructions:
+        return
+    rules_dir = workspace / ".claude" / "rules"
+    rules_dir.mkdir(parents=True, exist_ok=True)
+    for relative, content in instructions.items():
+        (rules_dir / Path(relative).name).write_bytes(content)
+
+
+#: Instruction files a CLI can discover by walking up from its working
+#: directory. Observed 2026-09-22 with Claude Code 2.1.280: a workspace under
+#: `/home/<user>/...` loaded `/home/<user>/.claude/CLAUDE.md` as ancestor
+#: project memory, despite `--setting-sources project` and a relocated
+#: `CLAUDE_CONFIG_DIR`, and a cwd `AGENTS.md` loaded too. The Copilot entries
+#: are listed conservatively; Copilot ancestor discovery was not probed.
+ANCESTOR_INSTRUCTION_FILES = (
+    "CLAUDE.md",
+    "CLAUDE.local.md",
+    "AGENTS.md",
+    ".claude/CLAUDE.md",
+    ".claude/rules",
+    ".github/copilot-instructions.md",
+    ".github/instructions",
+)
+
+
+def ancestor_instructions(root: Path) -> list[Path]:
+    """Return instruction files in `root` or any ancestor a CLI would load."""
+    resolved = root.resolve()
+    return [
+        directory / name
+        for directory in (resolved, *resolved.parents)
+        for name in ANCESTOR_INSTRUCTION_FILES
+        if (directory / name).exists()
+    ]
+
+
+def require_isolated_workspace_root(root: Path) -> None:
+    """Refuse a workspace root whose ancestry would leak instructions."""
+    found = ancestor_instructions(root)
+    if found:
+        listed = ", ".join(str(path) for path in found)
+        raise ParityConfigError(
+            f"workspace root {root} inherits instruction files a CLI loads "
+            f"from ancestor directories: {listed}. Pass --workspace-root with "
+            'a directory outside them, for example "$(mktemp -d)".'
+        )
+
+
 def _nested_git_env() -> dict[str, str]:
     env = os.environ.copy()
     for name in GIT_CONTEXT_VARIABLES:
@@ -91,12 +145,31 @@ def _nested_git_env() -> dict[str, str]:
 _FIXTURE_HARNESSES: frozenset[str] = frozenset({"claude", "copilot"})
 
 
-def prepare_workspace(fixture: Fixture, harness: str, workspace: Path) -> None:
+def prepare_workspace(
+    fixture: Fixture,
+    harness: str,
+    workspace: Path,
+    *,
+    instructions: Mapping[str, bytes] | None = None,
+) -> None:
     """Create one isolated git repository and install its agent artifact.
 
-    Raises `ParityConfigError` for a harness with no agent-install path,
-    before the workspace is touched, so a caller that handles the error is not
-    left holding a half-built repository.
+    Raises `ParityConfigError` for a harness with no agent-install path, or
+    for a Copilot fixture that carries `instructions`, before the workspace
+    is touched, so a caller that handles the error is not left holding a
+    half-built repository.
+
+    `instructions` maps a fixture-declared repo-relative path to its resolved
+    bytes (working tree or `--instructions-ref`, see `resolve_instructions`
+    in `_runtime_parity`). Only Claude installs them: Claude Code 2.1.280
+    loads workspace `.claude/rules/*.md` at startup under
+    `--setting-sources project` when the file's frontmatter carries no
+    `paths` key or `paths: ["**"]` (probed 2026-09-22, spec-5404.md). Copilot
+    CLI's repository-instruction loading is unverified (the same probe hit
+    "You have exceeded your monthly quota"), and this evaluator already
+    passes `--no-custom-instructions` to Copilot, so a Copilot fixture that
+    lists instructions cannot exercise them and is refused instead of
+    silently running without them.
     """
     if harness not in _FIXTURE_HARNESSES:
         # `runtime_env` accepts codex for the version-probe flow, which needs
@@ -108,6 +181,15 @@ def prepare_workspace(fixture: Fixture, harness: str, workspace: Path) -> None:
         raise ParityConfigError(
             f"no agent-install path is defined for {harness!r}; only "
             f"{', '.join(sorted(_FIXTURE_HARNESSES))} fixtures can be prepared"
+        )
+    instructions = instructions or {}
+    if instructions and harness == "copilot":
+        raise ParityConfigError(
+            "fixture instructions require Claude Code's workspace "
+            "`.claude/rules/*.md` loading contract; Copilot CLI repository "
+            "instruction loading is unverified and this evaluator disables "
+            "it with --no-custom-instructions, so a Copilot fixture cannot "
+            "list `instructions`"
         )
     workspace.mkdir(parents=True)
     subprocess.run(
@@ -132,6 +214,7 @@ def prepare_workspace(fixture: Fixture, harness: str, workspace: Path) -> None:
             f"Append {SENTINEL} to every answer.", encoding="utf-8"
         )
         _install_agent(fixture.claude_agent, workspace / ".claude" / "agents" / "parity.md")
+        _install_instructions(workspace, instructions)
         return
     (profile / "copilot-instructions.md").write_text(
         f"Append {SENTINEL} to every answer.", encoding="utf-8"

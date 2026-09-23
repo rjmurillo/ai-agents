@@ -6,13 +6,18 @@ import hashlib
 import json
 import re
 import subprocess
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCHEMA_VERSION = 1
 SUPPORTED_TOOLS = frozenset({"question", "write"})
+DETERMINISTIC_ASSERTION_KINDS = frozenset(
+    {"regex", "not_regex", "file_equals", "file_absent"}
+)
+
+
 class ParityConfigError(ValueError):
     """The fixture corpus or CLI arguments are invalid."""
 
@@ -23,6 +28,7 @@ class AssertionSpec:
     pattern: str = ""
     path: str = ""
     value: str = ""
+    rubric: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,6 +48,7 @@ class Fixture:
     assertions: tuple[AssertionSpec, ...]
     positive: Control
     negative: Control
+    instructions: tuple[str, ...] = ()
 
 
 def _mapping(value: object, field: str) -> dict[str, object]:
@@ -76,6 +83,24 @@ def _relative_path(value: object, field: str) -> str:
     return path.as_posix()
 
 
+def _repo_relative_instruction(value: object, field: str) -> str:
+    """Validate a fixture instruction path stays inside the repository root.
+
+    Unlike `_repo_file`, this does not require the file to exist yet: an
+    ablation baseline path (`--instructions-ref`) may resolve only at an
+    older commit, not in the current working tree. Existence is checked
+    later, at instruction-resolution time, against whichever source is in
+    effect (see `resolve_instructions`).
+    """
+    raw = _string(value, field)
+    candidate = (REPO_ROOT / raw).resolve()
+    try:
+        candidate.relative_to(REPO_ROOT)
+    except ValueError as exc:
+        raise ParityConfigError(f"{field} escapes the repository root") from exc
+    return raw
+
+
 def _load_assertion(value: object, field: str) -> AssertionSpec:
     raw = _mapping(value, field)
     kind = _string(raw.get("kind"), f"{field}.kind")
@@ -96,6 +121,11 @@ def _load_assertion(value: object, field: str) -> AssertionSpec:
         return AssertionSpec(
             kind=kind,
             path=_relative_path(raw.get("path"), f"{field}.path"),
+        )
+    if kind == "semantic":
+        return AssertionSpec(
+            kind=kind,
+            rubric=_string(raw.get("rubric"), f"{field}.rubric"),
         )
     raise ParityConfigError(f"{field}.kind is unsupported: {kind}")
 
@@ -141,6 +171,7 @@ def load_fixtures(path: Path) -> list[Fixture]:
         if fixture.fixture_id in seen:
             raise ParityConfigError(f"duplicate fixture id: {fixture.fixture_id}")
         seen.add(fixture.fixture_id)
+        _validate_semantic_requires_deterministic(fixture)
         _validate_controls(fixture)
         fixtures.append(fixture)
     return fixtures
@@ -164,6 +195,15 @@ def _load_fixture(value: object, index: int) -> Fixture:
     if not isinstance(assertions_raw, list) or not assertions_raw:
         raise ParityConfigError(f"{field}.assertions must be a non-empty array")
     controls = _mapping(raw.get("controls"), f"{field}.controls")
+    instructions_raw = raw.get("instructions", [])
+    if not isinstance(instructions_raw, list):
+        raise ParityConfigError(f"{field}.instructions must be an array of strings")
+    basenames = [Path(str(item)).name for item in instructions_raw]
+    if len(set(basenames)) != len(basenames):
+        raise ParityConfigError(
+            f"{field}.instructions has duplicate file names; each installs to "
+            ".claude/rules/<name> and one would overwrite another"
+        )
     return Fixture(
         fixture_id=_relative_path(raw.get("id"), f"{field}.id"),
         claude_agent=_repo_file(agents.get("claude"), f"{field}.agents.claude"),
@@ -185,7 +225,26 @@ def _load_fixture(value: object, index: int) -> Fixture:
         negative=_load_control(
             controls.get("negative"), f"{field}.controls.negative"
         ),
+        instructions=tuple(
+            _repo_relative_instruction(item, f"{field}.instructions[{index}]")
+            for index, item in enumerate(instructions_raw)
+        ),
     )
+
+
+def _validate_semantic_requires_deterministic(fixture: Fixture) -> None:
+    """Require a deterministic control alongside every semantic assertion.
+
+    A `semantic` assertion needs a live model call to score, so a fixture
+    with only semantic assertions has nothing `--dry-run` can validate.
+    """
+    kinds = {spec.kind for spec in fixture.assertions}
+    if "semantic" in kinds and not (kinds & DETERMINISTIC_ASSERTION_KINDS):
+        raise ParityConfigError(
+            f"fixture {fixture.fixture_id!r} has a semantic assertion but no "
+            "deterministic assertion; dry-run needs at least one deterministic "
+            "control to validate"
+        )
 
 
 def score_assertions(
@@ -196,6 +255,17 @@ def score_assertions(
     """Score deterministic response and file assertions."""
     results: list[dict[str, object]] = []
     for spec in fixture.assertions:
+        if spec.kind == "semantic":
+            results.append(
+                {
+                    "kind": "semantic",
+                    "path": None,
+                    "expected": spec.rubric,
+                    "passed": None,
+                    "status": "not_run",
+                }
+            )
+            continue
         passed = False
         expected = spec.pattern or spec.value or "absent"
         if spec.kind == "regex":
@@ -218,11 +288,18 @@ def score_assertions(
 
 
 def _validate_controls(fixture: Fixture) -> None:
-    positive = score_assertions(
-        fixture, fixture.positive.response, fixture.positive.files
+    """Require the fixture's controls to discriminate on its deterministic assertions.
+
+    Semantic assertions are excluded: they score `passed: None` from
+    `score_assertions` (never executed without a live grader call), and
+    folding that into `all(...)` would fail every fixture that carries one,
+    including a positive control that should legitimately pass.
+    """
+    positive = _deterministic_results(
+        score_assertions(fixture, fixture.positive.response, fixture.positive.files)
     )
-    negative = score_assertions(
-        fixture, fixture.negative.response, fixture.negative.files
+    negative = _deterministic_results(
+        score_assertions(fixture, fixture.negative.response, fixture.negative.files)
     )
     if not all(result["passed"] for result in positive):
         raise ParityConfigError(
@@ -234,9 +311,89 @@ def _validate_controls(fixture: Fixture) -> None:
         )
 
 
+def _deterministic_results(
+    results: list[dict[str, object]],
+) -> list[dict[str, object]]:
+    """Filter out not-yet-graded semantic entries from a scored assertion list."""
+    return [result for result in results if result["kind"] != "semantic"]
+
+
 def hash_file(path: Path) -> str:
     """Return a SHA-256 digest for an installed prompt surface."""
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _run_git(args: list[str], error_prefix: str) -> str:
+    """Run a git subcommand at REPO_ROOT and return trimmed stdout, or raise."""
+    try:
+        run = subprocess.run(
+            ["git", *args],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            timeout=10,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise ParityConfigError(f"{error_prefix}: {exc}") from exc
+    if run.returncode != 0:
+        stderr = run.stderr.decode("utf-8", errors="replace").strip()
+        raise ParityConfigError(f"{error_prefix}: {stderr}")
+    return run.stdout.decode("utf-8", errors="replace").strip()
+
+
+def resolve_source_commit() -> str:
+    """Return the HEAD sha of REPO_ROOT, for report provenance."""
+    return _run_git(["rev-parse", "HEAD"], "could not resolve HEAD")
+
+
+def resolve_ref_sha(ref: str) -> str:
+    """Return the resolved sha of an ablation ref, or raise (AC4)."""
+    if ref.startswith("-"):
+        raise ParityConfigError(f"--instructions-ref {ref!r} must not start with '-'")
+    return _run_git(
+        ["rev-parse", "--verify", "--end-of-options", f"{ref}^{{commit}}"],
+        f"--instructions-ref {ref!r} is not a resolvable ref",
+    )
+
+
+def resolve_instructions(
+    paths: Sequence[str], ref: str | None
+) -> dict[str, bytes]:
+    """Resolve fixture instruction bytes from the working tree or a git ref.
+
+    `ref=None` reads the current working tree. Otherwise `ref` must be the
+    commit sha from `resolve_ref_sha`, so the bytes match the sha the report
+    records even if a branch moves; every path is read with
+    `git show SHA:path` as an argv list (no shell), and an unresolvable path
+    raises `ParityConfigError` (AC4) before any harness runs.
+    """
+    return {path: _read_instruction(path, ref) for path in paths}
+
+
+def _read_instruction(path: str, ref: str | None) -> bytes:
+    if ref is None:
+        candidate = (REPO_ROOT / path).resolve()
+        if not candidate.is_file():
+            raise ParityConfigError(f"instruction file does not exist: {path}")
+        return candidate.read_bytes()
+    try:
+        run = subprocess.run(
+            ["git", "show", f"{ref}:{path}"],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            timeout=10,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise ParityConfigError(
+            f"could not resolve {path!r} at ref {ref!r}: {exc}"
+        ) from exc
+    if run.returncode != 0:
+        stderr = run.stderr.decode("utf-8", errors="replace").strip()
+        raise ParityConfigError(
+            f"instructions ref {ref!r} could not resolve {path!r}: {stderr}"
+        )
+    return run.stdout
 
 
 def safe_workspace_file(workspace: Path, relative: str) -> Path:
