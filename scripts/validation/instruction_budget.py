@@ -22,6 +22,15 @@ follow-up rescope (#3419 AC #2) lowers these ceilings as book-derived rules move
 to task-invoked skills. Lower a ceiling when the corpus shrinks; never raise one
 without recording why in the same change.
 
+Issue #4871: a skill living outside ``.claude/rules/`` (for example under
+``.claude/skills/``) is effective always-on context, indistinguishable from a
+universal-``applyTo`` rule, when its own frontmatter ``description`` declares
+unconditional loading ("Load at the start of EVERY task."). Such a skill
+cannot bypass this accounting merely by living in a different directory: it
+is discovered and summed into the same per-extension budget below, tagged
+with ``activation="skill-description"`` so a report can show where the bytes
+came from.
+
 Gate is on bytes (exact and reproducible). Estimated tokens are informational
 and reuse the shared estimator from ``token_budget``.
 
@@ -34,6 +43,7 @@ Exit codes follow ADR-035:
 from __future__ import annotations
 
 import argparse
+import itertools
 import json
 import os
 import sys
@@ -46,10 +56,13 @@ if _VALIDATION_PACKAGE_SENTINEL.is_file() and str(_PROJECT_ROOT) not in sys.path
     sys.path.insert(0, str(_PROJECT_ROOT))
 
 from scripts.validation.instruction_budget_constants import (
+    ALWAYS_ON_SKILL_PATTERN,
     DEFAULT_CEILINGS_BYTES,
     DEFAULT_RESERVE_BYTES,
     INSTRUCTION_GLOB,
     INSTRUCTIONS_SUBDIR,
+    SKILL_FILE_NAME,
+    SKILLS_SUBDIR,
 )
 from scripts.validation.instruction_budget_globs import (
     UnsupportedApplyToError,
@@ -59,15 +72,18 @@ from scripts.validation.instruction_budget_globs import (
     parse_applyto,
 )
 from scripts.validation.instruction_budget_types import ExtensionResult, InstructionFile
+from scripts.validation.skill_frontmatter import parse_frontmatter
 from scripts.validation.token_budget import estimate_token_count
 
 __all__ = [
     "DEFAULT_CEILINGS_BYTES",
     "DEFAULT_RESERVE_BYTES",
     "INSTRUCTIONS_SUBDIR",
+    "SKILLS_SUBDIR",
     "BudgetVerdict",
     "ExtensionResult",
     "InstructionFile",
+    "MalformedSkillFrontmatterError",
     "UnsupportedApplyToError",
     "_glob_to_regex",
     "_vscode_effective_glob",
@@ -85,6 +101,18 @@ __all__ = [
 ]
 
 
+class MalformedSkillFrontmatterError(ValueError):
+    """A ``SKILL.md``'s frontmatter could not be parsed.
+
+    Fails closed (ADR-035 exit code 2), mirroring how
+    ``instruction_budget_globs.UnsupportedApplyToError`` treats an
+    unparseable ``applyTo``: a skill whose ``description`` cannot be read
+    cleanly is exactly the case where the always-on declaration cannot be
+    ruled out, so silently excluding it would risk under-counting the budget
+    instead of over-counting it (issue #4871).
+    """
+
+
 def _resolve_safe(repo_root: Path, relative: str) -> Path | None:
     """Resolve a relative path safely within repo_root (CWE-22 protection)."""
     candidate = (repo_root / relative).resolve()
@@ -95,19 +123,74 @@ def _resolve_safe(repo_root: Path, relative: str) -> Path | None:
 
 
 def load_instruction_files(repo_root: Path) -> list[InstructionFile]:
-    """Read every instruction file, measuring size and parsing ``applyTo``."""
+    """Read every instruction file, measuring size and parsing ``applyTo``.
+
+    Also folds in every behaviorally always-on skill (issue #4871), so a
+    skill under ``.claude/skills/`` cannot dodge the budget merely by living
+    outside ``.github/instructions/``.
+    """
     instructions_dir = _resolve_safe(repo_root, INSTRUCTIONS_SUBDIR)
-    if instructions_dir is None or not instructions_dir.is_dir():
+    files: list[InstructionFile] = []
+    if instructions_dir is not None and instructions_dir.is_dir():
+        for path in sorted(instructions_dir.rglob(INSTRUCTION_GLOB)):
+            content = path.read_text(encoding="utf-8", errors="replace")
+            files.append(
+                InstructionFile(
+                    name=path.name,
+                    size_bytes=len(content.encode("utf-8")),
+                    estimated_tokens=estimate_token_count(content),
+                    patterns=frozenset(parse_applyto(content)),
+                )
+            )
+    files.extend(_load_always_on_skills(repo_root))
+    return files
+
+
+def _skill_declares_always_on(description: str) -> bool:
+    """True when ``description`` text declares unconditional loading.
+
+    Only the frontmatter ``description`` field is passed in here, never the
+    skill body: a skill scoped to a real trigger ("Use when you say build
+    this") must not be swept into the always-on budget merely because its
+    body mentions the word "every" in an unrelated sentence (for example
+    "Every task has a done definition").
+    """
+    return ALWAYS_ON_SKILL_PATTERN.search(description) is not None
+
+
+def _load_always_on_skills(repo_root: Path) -> list[InstructionFile]:
+    """Find ``.claude/skills/*/SKILL.md`` files that declare always-on loading.
+
+    Fails closed on unparseable frontmatter via
+    ``MalformedSkillFrontmatterError`` rather than skipping the file, per the
+    error's docstring.
+    """
+    skills_dir = _resolve_safe(repo_root, SKILLS_SUBDIR)
+    if skills_dir is None or not skills_dir.is_dir():
         return []
     files: list[InstructionFile] = []
-    for path in sorted(instructions_dir.rglob(INSTRUCTION_GLOB)):
+    for path in sorted(skills_dir.glob(f"*/{SKILL_FILE_NAME}")):
         content = path.read_text(encoding="utf-8", errors="replace")
+        parsed = parse_frontmatter(content)
+        if not parsed.is_valid:
+            msg = f"malformed SKILL.md frontmatter: {path}: {'; '.join(parsed.errors)}"
+            raise MalformedSkillFrontmatterError(msg)
+        # Read the typed YAML value: the simple key-value parser drops the
+        # continuation lines of a plain multi-line scalar, which would let an
+        # always-on declaration on the second line escape.
+        description = parsed.typed.get("description", "")
+        if not isinstance(description, str):
+            msg = f"SKILL.md description must be a string: {path}"
+            raise MalformedSkillFrontmatterError(msg)
+        if not _skill_declares_always_on(description):
+            continue
         files.append(
             InstructionFile(
-                name=path.name,
+                name=f"{SKILLS_SUBDIR}/{path.parent.name}/{SKILL_FILE_NAME}",
                 size_bytes=len(content.encode("utf-8")),
                 estimated_tokens=estimate_token_count(content),
-                patterns=frozenset(parse_applyto(content)),
+                patterns=frozenset({"**"}),
+                activation="skill-description",
             )
         )
     return files
@@ -124,6 +207,7 @@ def measure_extension(
     return ExtensionResult(
         extension=ext,
         matched_files=tuple(f.name for f in matched),
+        matched_activation=tuple(f.activation for f in matched),
         total_bytes=sum(f.size_bytes for f in matched),
         estimated_tokens=sum(f.estimated_tokens for f in matched),
         ceiling_bytes=ceiling_bytes,
@@ -188,11 +272,24 @@ def format_table(results: list[ExtensionResult]) -> str:
 
 
 def format_json(results: list[ExtensionResult]) -> str:
-    """Format results as JSON for machine consumption."""
+    """Format results as JSON for machine consumption.
+
+    ``matched_sources`` names each matched file alongside its ``activation``
+    (``"applyTo"`` for a scoped instruction file, ``"skill-description"`` for
+    an always-on skill, issue #4871). A result built without
+    ``matched_activation`` (a caller or test predating that field) fills the
+    gap with ``"applyTo"`` rather than requiring every caller to supply it.
+    """
     data = [
         {
             "extension": r.extension,
             "matched_files": list(r.matched_files),
+            "matched_sources": [
+                {"name": name, "activation": activation}
+                for name, activation in itertools.zip_longest(
+                    r.matched_files, r.matched_activation, fillvalue="applyTo"
+                )
+            ],
             "file_count": len(r.matched_files),
             "total_bytes": r.total_bytes,
             "estimated_tokens": r.estimated_tokens,
@@ -311,6 +408,9 @@ def main(argv: list[str] | None = None) -> int:
         results = evaluate(repo_path, ceilings, args.reserve)
     except UnsupportedApplyToError as exc:
         print(f"Error: unsupported applyTo in an instruction file: {exc}", file=sys.stderr)
+        return 2
+    except MalformedSkillFrontmatterError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
         return 2
     any_over = any(r.over_budget for r in results)
     any_under_reserve = any(r.under_reserve for r in results)

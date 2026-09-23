@@ -2,9 +2,33 @@
 
 from __future__ import annotations
 
+import re
+
 INSTRUCTIONS_SUBDIR = ".github/instructions"
 INSTRUCTION_GLOB = "*.instructions.md"
 DEFAULT_RESERVE_BYTES = 600
+
+# Issue #4871: a skill outside .claude/rules/ can still be effectively
+# always-on if its own frontmatter `description` declares unconditional
+# loading (for example "Load at the start of EVERY task."). Such a skill is
+# behaviorally indistinguishable from a rule matched by a universal `applyTo`,
+# so it must count toward the same budget instead of dodging it by living in
+# .claude/skills/ rather than .github/instructions/. Matches only the
+# `description` field text (checked by the caller), never the skill body:
+# body prose like "Every task has a done definition" is not a loading
+# instruction and must not trigger this pattern.
+SKILLS_SUBDIR = ".claude/skills"
+SKILL_FILE_NAME = "SKILL.md"
+ALWAYS_ON_SKILL_PATTERN: re.Pattern[str] = re.compile(
+    r"""
+    every\s+(task|session|turn|request|prompt|conversation)
+    | always\s+load(ed)?
+    | load(ed)?\s+at\s+the\s+start\s+of\s+every
+    | before\s+answering
+    | on\s+every\s+(task|session|turn|request|prompt)
+    """,
+    re.IGNORECASE | re.VERBOSE,
+)
 
 # Non-regression ratchet ceilings in bytes, seeded just above current measured
 # values (see module docstring). Lower these as the corpus shrinks.
