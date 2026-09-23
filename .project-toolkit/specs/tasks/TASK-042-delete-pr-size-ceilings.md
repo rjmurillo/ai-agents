@@ -1,13 +1,13 @@
 ---
 type: task
-id: TASK-041
+id: TASK-042
 title: Delete the PR size ceilings outright
 status: done
 priority: P1
 complexity: S
 related:
-  - REQ-032
-  - DESIGN-030
+  - REQ-033
+  - DESIGN-031
 created: 2026-09-22
 updated: 2026-09-22
 author: plan
@@ -16,9 +16,9 @@ tags:
   - adr-100
 ---
 
-# TASK-041: Delete the PR size ceilings outright
+# TASK-042: Delete the PR size ceilings outright
 
-Implements REQ-032. One PR, closes #5241.
+Implements REQ-033. One PR, closes #5241.
 
 ## Milestones
 
@@ -28,7 +28,7 @@ Each milestone is one atomic commit. Order matters only where noted.
    the pre-push path, and the `pr_commit_count` import in the hook policy
    module. Delete the commit-count classifier module and its tests. Remove the
    three `pr-validation.yml` steps (count check, add label, remove label).
-   Delete the `needs-split` label script and its tests. Covers REQ-032 AC 1, 2.
+   Delete the `needs-split` label script and its tests. Covers REQ-033 AC 1, 2.
 2. **Atomic-commit ceiling.** Remove `check_atomic_commit`, its CLI handler,
    the `atomic-commit` lefthook job, and its tests. Covers AC 3.
 3. **Scope ceiling.** Delete the scope script and the PR-base helper it alone
@@ -51,4 +51,4 @@ Each milestone is one atomic commit. Order matters only where noted.
 
 ## Done
 
-REQ-032 AC 1 to 10 pass. Full suite green.
+REQ-033 AC 1 to 10 pass. Full suite green.

@@ -15,7 +15,7 @@ review below checked only that the ADR text and the code match the decision.
 
 ## Reviewer
 
-One critic reviewer (Opus) read the branch diff against REQ-032 acceptance
+One critic reviewer (Opus) read the branch diff against REQ-033 acceptance
 criteria 1 to 10, and the ADR-100 working-tree edit.
 
 ## Round 1

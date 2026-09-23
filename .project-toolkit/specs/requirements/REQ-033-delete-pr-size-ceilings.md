@@ -1,6 +1,6 @@
 ---
 type: requirement
-id: REQ-032
+id: REQ-033
 title: Delete the PR size ceilings outright
 status: implemented
 priority: P1
@@ -9,8 +9,8 @@ epic: EPIC-5456
 source: GH-5241
 related:
   - REQ-023
-  - DESIGN-030
-  - TASK-041
+  - DESIGN-031
+  - TASK-042
 created: 2026-09-22
 updated: 2026-09-22
 author: spec
@@ -20,7 +20,7 @@ tags:
   - pr-size-ceilings
 ---
 
-# REQ-032: Delete the PR size ceilings outright
+# REQ-033: Delete the PR size ceilings outright
 
 ## Step 0 First Principles
 

@@ -1,12 +1,12 @@
 ---
 type: design
-id: DESIGN-030
+id: DESIGN-031
 title: Delete the PR size ceilings outright
 status: implemented
 priority: P1
 related:
-  - REQ-032
-  - TASK-041
+  - REQ-033
+  - TASK-042
 adr: ADR-100
 created: 2026-09-22
 updated: 2026-09-22
@@ -16,11 +16,11 @@ tags:
   - adr-100
 ---
 
-# DESIGN-030: Delete the PR size ceilings outright
+# DESIGN-031: Delete the PR size ceilings outright
 
 ## Requirements Addressed
 
-- REQ-032: Delete the PR size ceilings outright
+- REQ-033: Delete the PR size ceilings outright
 
 ## Design Overview
 
