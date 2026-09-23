@@ -78,12 +78,11 @@ Use the classification to pick delegation depth. A clear, reversible, P3 task ne
 
 | Situation | Behavior |
 |-----------|----------|
-| Task is a simple transformation or tool call | Route to Haiku non-reasoning. |
-| Task is bounded, high-volume, or disposable | Route to Luna when externally checkable. |
+| Task is bounded, frequent, or high-volume | Route to Haiku 4.5 or Luna when externally checkable. |
 | Task is standard pattern (spec → plan → build → test) | Route sequentially through specialists. |
 | Task is a multi-faceted problem (incident, complex feature) | Route in parallel where possible. |
 | User wants strategic input | Route to high-level-advisor or roadmap. |
-| Task has unknowns or consequential tradeoffs | Select a registered specialist; request Astra or Sol as its model when available. |
+| Task has unknowns or consequential tradeoffs | Select a registered specialist; request Opus 5.5 or Astra as its model when available. |
 
 ## Agent Capability Matrix
 
@@ -121,33 +120,29 @@ Every row above names an agent that is registered in this install. Delegate only
 Route by expected cost per accepted result | task shape | verifier strength | failure cost. Never vendor effort labels.
 `accepted-result cost = initial inference + retries + correction/repair + context replay/tool failures + verifier/review + coordination + human wait`
 Weight decision burden and correction cost above raw price | verifier strength | fan-out | coordination | human wait; qualitative, not universal.
-Start at the lightest effort that meets the acceptance check. Raise effort only for unresolved judgment, not by default.
+Start at the lightest effort that meets the acceptance check, not the vendor default.
 
 | Label | Effort | Route for |
 |---|---|---|
-| GPT-6 Astra | Lightest sufficient | Ambiguous, consequential, broad-context, multi-tool work; architecture, research, complex coding, document creation, computer use, and end-to-end acceptance. |
-| GPT-6 Sol or GPT-5.6 Sol | Lightest sufficient | Specified but demanding work; everyday coding, technical research, fact checking, document review, and agentic workflows requiring judgment. |
-| GPT-6 Luna or GPT-5.6 Luna | Lightest sufficient | Bounded, frequent, externally checkable work; extraction, classification, triage, small edits, repetitive transformations, and high-volume automation. |
-| GPT-5.6 Terra or Sonnet | Lightest sufficient | Known files and patterns, normal implementation or review, local repair, moderate analysis. |
-| Haiku | non-reasoning | Simple transformations and tool calls; alias governed by ADR-080. |
-| Escalate | unresolved judgment | Increase effort only at the unresolved judgment surface after an acceptance failure or typed exception. |
+| Claude Fable 5.1 | Default high | Escalation only: highest-stakes reasoning, long-horizon agentic work, architecture, complex research, consequential analysis. |
+| Claude Opus 5.5 | Default medium | Default frontier: long-running agentic coding, broad-context engineering, knowledge work, computer use, multi-step research, end-to-end judgment. |
+| GPT-6 Astra | Lightest | Ambiguous, consequential, broad-context, multi-tool: architecture, research, complex coding, documents, computer use, end-to-end acceptance. |
+| Claude Sonnet 5 or GPT-6/5.6 Sol | Sonnet default high | Specified judgment where speed matters: everyday coding, document review, fact checking, structured or technical research, production work below Opus. |
+| Claude Haiku 4.5 or GPT-6/5.6 Luna | Haiku: no effort control | Bounded, frequent, externally checkable: extraction, classification, triage, summarization, small edits, routing, repeated transforms, volume automation. Haiku alias: ADR-080. |
+| GPT-5.6 Terra | Lightest | Known files and patterns: normal implementation or review, local repair. |
+| Escalate | unresolved judgment | Acceptance failure, repeated repair, cross-file contract miss, or scope overrun raises a typed exception; raise effort only there. Raise Opus 5.5 effort before Fable 5.1. |
 
 Model labels and agent roles are separate | labels advisory, not agents or IDs.
-`orchestrator` coordinates | `autoplan` routes | known aliases: `opus`, `sonnet`, `haiku`.
-Astra, Sol, Terra, Luna, Fable are optional labels when the harness resolves them.
+`orchestrator` coordinates | `autoplan` routes | known aliases: `opus`, `sonnet`, `haiku`; other labels only when the harness resolves them.
 Resolve to concrete IDs | unresolved: retain harness default + record fallback | never silently substitute.
 Preserve registered roles, mappings, role-keyed results, ADR-009, and ADR-078.
 
-Judgment: Astra owns ambiguity/acceptance | Sol or Opus handles hard exceptions and high-recall review | Do not force a weaker model into judgment work with more prompts, tools, or subagents.
-These rows describe models; this agent delegates implementation.
+Judgment: Opus 5.5 or Astra owns ambiguity/acceptance | Sol or Opus handles hard exceptions and high-recall review | Do not force a weaker model into judgment work with more prompts, tools, or subagents.
 Bounded: route down only when scope explicit | failure cheap | verifier objective | fan-out/context replay low | receipt compact.
-Escalation: acceptance failure | repeated repair | cross-file contract miss | scope overrun -> typed exception; never vendor effort labels.
 Control loop: do not route everything up | constrain capable models for routine work | pre-route up when correction/review/human-wait cost wins.
 Interactive: human-blocking latency weighs more | async: token cost weighs more | fan-out adds context duplication and coordination tax.
-[OpenAI's model list](https://developers.openai.com/api/docs/models) reported these GPT-6 rates on 2026-09-22.
-Per 1M tokens, Astra costs $10 input/$50 output; Sol costs $2/$10; Luna costs $0.10/$0.50.
-Each lists 1.05M context tokens and 128K maximum output.
-These are vendor rate cards, not cost-per-accepted-result evidence.
+Vendor rates 2026-09-22, per 1M input/output tokens: Fable 5.1 $10/$50, Opus 5.5 $4/$20, Sonnet 5 $2/$10, Haiku 4.5 $1/$5 (Anthropic); Astra $10/$50, Sol $2/$10, Luna $0.10/$0.50 ([OpenAI](https://developers.openai.com/api/docs/models)).
+Limits: Fable/Opus/Sonnet 1M context, 128K output; Haiku 4.5 200K/64K; GPT-6 1.05M/128K. Rate cards are not cost-per-accepted-result evidence.
 Benchmark costs are conditional on benchmark, harness, effort, prompt, tool loop, and passed-result definition; calibrate, do not universalize.
 
 The orchestrator delegates implementation and accepts independent verification.
@@ -159,7 +154,7 @@ Use event-driven waits and compact receipts. Stop after acceptance.
 0. Recon the target stack (see Target Recon). Never route on an assumed stack.
 1. Classify complexity (Cynefin)
 2. Can a worker perform it with a deterministic acceptance test?
-   YES → choose Haiku/Luna/Terra/Sol by task shape and unresolved judgment
+   YES → choose Haiku/Luna/Sonnet/Sol/Terra by task shape and unresolved judgment
    NO  → continue
 3. Does task need investigation first?
    YES → analyst → synthesize → re-evaluate

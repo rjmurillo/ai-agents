@@ -1,7 +1,7 @@
 # Model Context Doctrine
 
-Current as of 2026-09-22. Covers Claude Opus 5, GPT-5.6 Sol/Terra/Luna,
-and GPT-6 Astra/Sol/Luna.
+Current as of 2026-09-22. Covers Claude Opus 5, Claude Fable 5.1, Opus 5.5,
+Sonnet 5, and Haiku 4.5, GPT-5.6 Sol/Terra/Luna, and GPT-6 Astra/Sol/Luna.
 
 Read this before you argue about what belongs in always-on context. It exists
 so nobody has to re-derive the argument from primary sources every time. When
@@ -155,6 +155,9 @@ prefix so one alternation covers every tier in a generation at once.
 that the number identifies a generation while the names "identify durable
 capability tiers that can advance on their own cadence". GPT-5.6 offers
 Sol, Terra, and Luna. GPT-6 offers Astra, Sol, and Luna.
+Anthropic's current tiers are Fable 5.1, Opus 5.5, Sonnet 5, and Haiku 4.5.
+Opus 5.5 is the default frontier model. Fable 5.1 is escalation only.
+Raise Opus effort before routing to Fable.
 Route each model by task shape and an external acceptance check.
 
 Behavior transfers across neither axis. Do not assume a fix for one model
