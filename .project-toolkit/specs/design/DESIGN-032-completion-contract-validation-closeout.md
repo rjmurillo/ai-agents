@@ -57,7 +57,7 @@ writes no sentinel file, drops `--no-custom-instructions`, and runs the
 listing command in the prepared workspace with the run's own environment.
 The listed `sourcePath` set must equal the installed projection set. Any
 other source means a leak; any missing source means the rule never loaded.
-Both exit 2.
+An entry without a string `sourcePath` could hide a leak. All three exit 2.
 
 ## Threshold
 

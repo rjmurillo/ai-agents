@@ -310,8 +310,9 @@ sentinel would appear in every reply. Its isolation proof is the listing
 itself: before the model call, the evaluator runs `copilot instruction list
 --json` in the prepared workspace with the run's environment. The listed
 `sourcePath` set must equal the installed projection set. An extra or missing
-source is a config error (exit 2). A listing command that fails or prints
-unparsable JSON is `UNAVAILABLE` (exit 3). The report records the listing.
+source, or an entry without a string `sourcePath`, is a config error (exit
+2). A listing command that fails, times out, or prints unparsable JSON ends
+the run with verdict `ERROR` (exit 3). The report records the listing.
 
 An `--instructions-ref REF` flag resolves instruction bytes from
 `git show REF:path` instead of the working tree, for an ablation baseline

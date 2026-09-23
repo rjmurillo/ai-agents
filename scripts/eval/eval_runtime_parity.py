@@ -239,10 +239,11 @@ def _verify_copilot_instruction_listing(
 ) -> tuple[list[object] | None, dict[str, object] | None]:
     """Require `copilot instruction list --json` to name exactly the installed files.
 
-    A listing that cannot run or parse is an external failure (exit 3),
-    returned as a failure record so sibling fixtures stay in the report. A
-    listing that parses but differs from the installed set is a config
-    defect (exit 2): an extra source leaked in, a missing source never loaded.
+    A listing that cannot run or parse is an external failure (verdict
+    `ERROR`, exit 3), returned as a failure record so sibling fixtures stay
+    in the report. A listing with an unreadable entry, or one that differs
+    from the installed set, is a config defect (exit 2): an extra source
+    leaked in, a missing source never loaded.
     """
     argv = [executable, "instruction", "list", "--json"]
     try:
@@ -275,11 +276,18 @@ def _verify_copilot_instruction_listing(
             raw_output=run.stdout,
             stderr=run.stderr,
         )
-    listed = {
-        str(entry["sourcePath"])
+    malformed = [
+        entry
         for entry in listing
-        if isinstance(entry, dict) and "sourcePath" in entry
-    }
+        if not isinstance(entry, dict) or not isinstance(entry.get("sourcePath"), str)
+    ]
+    if malformed:
+        # An entry this parser cannot read could hide a leaked source, so fail closed.
+        raise ParityConfigError(
+            f"copilot instruction listing for fixture {fixture.fixture_id!r} has "
+            f"entries without a string sourcePath: {malformed}"
+        )
+    listed = {cast(dict[str, str], entry)["sourcePath"] for entry in listing}
     extra = sorted(listed - set(instructions))
     missing = sorted(set(instructions) - listed)
     if extra or missing:

@@ -112,8 +112,9 @@ def _install_copilot_instructions(workspace: Path, instructions: Mapping[str, by
 #: project memory, despite `--setting-sources project` and a relocated
 #: `CLAUDE_CONFIG_DIR`, and a cwd `AGENTS.md` loaded too. Probed 2026-09-23,
 #: `copilot instruction list --json` (CLI 1.0.89) listed root `AGENTS.md`,
-#: `CLAUDE.md`, `.github/copilot-instructions.md`, and
-#: `.github/instructions/*.instructions.md`, and nothing above the git root.
+#: `CLAUDE.md`, `.github/copilot-instructions.md`,
+#: `.github/instructions/*.instructions.md`, and
+#: `$COPILOT_HOME/copilot-instructions.md`, and nothing above the git root.
 ANCESTOR_INSTRUCTION_FILES = (
     "CLAUDE.md",
     "CLAUDE.local.md",

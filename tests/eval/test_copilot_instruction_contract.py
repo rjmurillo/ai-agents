@@ -10,9 +10,11 @@ of the `copilot instruction list --json` preflight
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import subprocess
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -125,34 +127,32 @@ def test_build_argv_keeps_no_custom_instructions_without_instructions() -> None:
 # --- AC4-AC6: the instruction listing preflight ------------------------------
 
 
-def _fixture() -> runtime_parity.Fixture:
+def _fixture() -> Any:
     fixture = runtime_parity.load_fixtures(FIXTURES)[0]
-    return runtime_parity.Fixture(
-        fixture_id=fixture.fixture_id,
-        claude_agent=fixture.claude_agent,
-        copilot_agent=fixture.copilot_agent,
-        prompt=fixture.prompt,
-        setup_files=fixture.setup_files,
-        tools=fixture.tools,
-        assertions=fixture.assertions,
-        positive=fixture.positive,
-        negative=fixture.negative,
-        instructions=(".claude/rules/voice.md",),
-    )
+    return dataclasses.replace(fixture, instructions=(".claude/rules/voice.md",))
 
 
-def _listing_runner(response, *, returncode=0, stdout="", timeout=False):
-    calls: list[list[str]] = []
+class _ListingRunner:
+    """Answer the listing call and record the `cwd` and `env` it ran with."""
 
-    def runner(argv, **kwargs):
+    def __init__(self, *, returncode: int = 0, stdout: str = "", timeout: bool = False) -> None:
+        self.returncode = returncode
+        self.stdout = stdout
+        self.timeout = timeout
+        self.kwargs: list[dict[str, Any]] = []
+
+    def __call__(self, argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
         args = [str(value) for value in argv]
-        calls.append(args)
-        if timeout:
+        self.kwargs.append(kwargs)
+        if self.timeout:
             raise subprocess.TimeoutExpired(args, kwargs.get("timeout") or 1)
-        return subprocess.CompletedProcess(args, returncode, stdout, "")
+        return subprocess.CompletedProcess(args, self.returncode, self.stdout, "")
 
-    runner.calls = calls  # type: ignore[attr-defined]
-    return runner
+
+def _listing_runner(
+    response: None, *, returncode: int = 0, stdout: str = "", timeout: bool = False
+) -> _ListingRunner:
+    return _ListingRunner(returncode=returncode, stdout=stdout, timeout=timeout)
 
 
 def test_listing_matching_the_installed_set_returns_it_with_no_failure(
@@ -171,6 +171,31 @@ def test_listing_matching_the_installed_set_returns_it_with_no_failure(
 
     assert failure is None
     assert listing == [{"sourcePath": ".github/instructions/voice.instructions.md"}]
+    # The listing must see the same workspace and environment as the model run.
+    assert runner.kwargs[0]["cwd"] == workspace
+    assert runner.kwargs[0]["env"] == runtime_harness.runtime_env(workspace, "copilot")
+
+
+@pytest.mark.parametrize(
+    "entry",
+    [{"path": "AGENTS.md"}, {"sourcePath": 7}, "AGENTS.md"],
+    ids=["other-key", "non-string", "non-dict"],
+)
+def test_listing_with_an_unreadable_entry_is_a_config_error(
+    tmp_path: Path, entry: object
+) -> None:
+    """An entry the parser cannot read could hide a leaked source."""
+    fixture = _fixture()
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    installed = {".github/instructions/voice.instructions.md": b"x"}
+    stdout = json.dumps([{"sourcePath": ".github/instructions/voice.instructions.md"}, entry])
+    runner = _listing_runner(None, stdout=stdout)
+
+    with pytest.raises(parity.ParityConfigError, match="without a string sourcePath"):
+        parity._verify_copilot_instruction_listing(
+            fixture, "copilot", workspace, runner, 30, installed
+        )
 
 
 def test_listing_with_an_extra_source_is_a_config_error(tmp_path: Path) -> None:

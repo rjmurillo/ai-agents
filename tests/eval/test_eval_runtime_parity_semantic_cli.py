@@ -57,7 +57,7 @@ class CalibratedFakeGrader:
         return json.dumps({"verdict": verdict, "reason": "test"})
 
 
-# --- AC1, AC2: instruction install and Copilot refusal, end to end ----------
+# --- AC1, AC2: instruction install for both harnesses, end to end ----------
 
 
 def test_default_both_harnesses_installs_instructions_for_both(

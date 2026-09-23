@@ -113,7 +113,8 @@ listing.
 - The instruction listing differs from the installed set: exit 2, the run
   would test leaked or missing instructions.
 - Copilot model quota exhausted: exit 3, `UNAVAILABLE`, never a pass.
-- The listing command fails or returns bad JSON: exit 3.
+- The listing command fails or returns bad JSON: verdict `ERROR`, exit 3.
+- A listing entry has no string `sourcePath`: exit 2, it could hide a leak.
 
 ## Security
 
@@ -137,8 +138,8 @@ carries every run's command, exit code, and per-scenario result.
 4. Before each Copilot instruction fixture runs, the evaluator shall compare
    the listing's `sourcePath` set with the installed set and exit 2 on any
    difference.
-5. When the listing command fails, the evaluator shall report `UNAVAILABLE`
-   and exit 3.
+5. When the listing command fails, times out, or prints unparsable JSON,
+   the evaluator shall report verdict `ERROR` and exit 3.
 6. The report shall record the listing for each Copilot instruction fixture.
 7. The scenario 10 and 13 fixtures shall judge the reply without requiring
    one exact phrase, and keep their controls and rubrics.
