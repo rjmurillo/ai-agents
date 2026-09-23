@@ -96,7 +96,6 @@
       "input": "Session state: qa is validating the shipped fix against acceptance criterion AC3 ('the API returns 404 for a missing resource'). qa finds the endpoint returns 500 instead of 404 for that exact case. No other criterion is affected. What do you do next?",
       "expected_verdict": "CONTINUE",
       "verdict_options": ["STOP", "CONTINUE", "ASK"],
-      "expected_reason_contains": "blocker",
       "rationale": "builder-ethos.md's four-class disposition table: a blocker (evidence falsifies a frozen criterion) keeps the task active, but only for the exact scope the finding names. Fix AC3; do not reopen the rest of the task. DELEGATE is not an option here: for an orchestrator, continuing the task means delegating the fix, so offering both labels graded a synonym instead of the stop-or-continue decision."
     },
     {

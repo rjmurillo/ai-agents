@@ -83,15 +83,21 @@ def test_build_argv_drops_no_custom_instructions_only_for_instruction_fixtures(
     assert ("--no-custom-instructions" in argv) is not with_instructions
 
 
-@pytest.mark.parametrize("listing_works", [True, False])
-def test_end_to_end_listing_result_is_recorded(tmp_path: Path, listing_works: bool) -> None:
+@pytest.mark.parametrize("failure", [None, "listing", "model-timeout", "model-output"])
+def test_end_to_end_listing_result_is_recorded(tmp_path: Path, failure: str | None) -> None:
     corpus = corpus_with_instructions(tmp_path)
     fixed = FixedResponseRunner("CONTINUE_PHASE_3")
 
     def runner(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
         args = [str(value) for value in argv]
-        if args[1:4] == ["instruction", "list", "--json"] and not listing_works:
+        listing_call = args[1:4] == ["instruction", "list", "--json"]
+        model_call = "copilot" in args[0] and "--agent" in args
+        if listing_call and failure == "listing":
             return subprocess.CompletedProcess(args, 1, "", "boom")
+        if model_call and failure == "model-timeout":
+            raise subprocess.TimeoutExpired(args, 30)
+        if model_call and failure == "model-output":
+            return subprocess.CompletedProcess(args, 0, "not jsonl", "")
         return fixed(argv, **kwargs)
 
     report, code = parity.run_evaluation(
@@ -106,13 +112,16 @@ def test_end_to_end_listing_result_is_recorded(tmp_path: Path, listing_works: bo
     )
 
     copilot_record = report["fixtures"][0]["copilot"]
-    if listing_works:
-        installed = {entry["path"] for entry in report["fixtures"][0]["copilot_instructions"]}
-        listed = {entry["sourcePath"] for entry in copilot_record["instruction_listing"]}
-        assert listed == installed != set()
+    if failure == "listing":
+        assert code == parity.EXIT_EXTERNAL
+        assert report["verdict"] == "ERROR"
+        assert "unavailable" in copilot_record["error"]
+        assert "instruction_listing" not in copilot_record
         return
-    assert code == parity.EXIT_EXTERNAL
-    assert report["verdict"] == "ERROR"
-    assert copilot_record["passed"] is False
-    assert "unavailable" in copilot_record["error"]
-    assert "instruction_listing" not in copilot_record
+    if failure is not None:
+        assert code == parity.EXIT_EXTERNAL
+        assert copilot_record["passed"] is False
+    # A listing that passed stays in the report, even when the model run fails.
+    installed = {entry["path"] for entry in report["fixtures"][0]["copilot_instructions"]}
+    listed = {entry["sourcePath"] for entry in copilot_record["instruction_listing"]}
+    assert listed == installed != set()

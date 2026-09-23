@@ -349,7 +349,7 @@ def _invoke_runtime(
                 exit_code=None,
                 error="runtime timed out",
             ),
-            None,
+            listing,
         )
     return run, argv, None, listing
 
@@ -443,13 +443,16 @@ def _run_fixture(
     run, argv, failure, listing = _invoke_runtime(
         fixture, harness, executable, model, workspace, runner, timeout, instructions
     )
+    events = None
+    if failure is None:
+        assert run is not None
+        events, failure = _parse_runtime_events(run, harness, argv)
     if failure is not None:
+        # A preflight that passed stays in the report even when the model run fails.
+        if listing is not None:
+            failure["instruction_listing"] = listing
         return failure, EXIT_EXTERNAL
-    assert run is not None
-    events, failure = _parse_runtime_events(run, harness, argv)
-    if failure is not None:
-        return failure, EXIT_EXTERNAL
-    assert events is not None
+    assert run is not None and events is not None
     return _score_runtime_result(fixture, harness, argv, run, events, workspace, listing)
 
 
