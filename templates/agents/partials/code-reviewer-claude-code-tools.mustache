@@ -2,7 +2,7 @@
 
 This agent's review doctrine, convention discovery, reasoning protocol, confidence and disposition rules, and output shape all live in the `review` skill's technical-review contract (capability `technical-review`), not in this file. Load it before reviewing, first candidate that resolves:
 
-1. `${CLAUDE_PLUGIN_ROOT}/skills/review/resources/technical-review.md`
+1. `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/review/resources/technical-review.md`
 2. `.claude/skills/review/resources/technical-review.md`
 3. `skills/review/resources/technical-review.md`
 

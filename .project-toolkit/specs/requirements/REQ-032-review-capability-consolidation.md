@@ -209,12 +209,15 @@ Relationship: axes and the agent consume one contract; the orchestrator merges.
 
 | Test from #5395 | Evidence | Result |
 |---|---|---|
-| Independent context | `dx-review` Review Gate and the new correctness pass dispatch it as a separate subagent | holds |
-| Model selection | `model: haiku` with an ADR-080 cost rationale | intentional, not measured |
+| Independent context | `dx-review` Review Gate and the new correctness pass dispatch it as a separate subagent | holds, but any subagent gives it |
+| Model selection | `model: haiku` with an ADR-080 cost rationale | intentional, not measured; not relied on |
 | Tool restriction | Copilot, VS Code, GitHub copies list read and search tools only; Claude copy has no `tools:` | holds on three harnesses |
 | Handoff identity | `dx-review` pins the `code-reviewer` subagent type in a test | holds |
 
 Decision: retain as a thin execution boundary that consumes `technical-review`.
+The material boundary is the read-only tool list that three harnesses
+enforce. Deletion becomes correct if those harnesses stop enforcing it, or if
+the Claude copy stays unrestricted and no Copilot consumer remains.
 
 ## Buy-vs-build decision
 

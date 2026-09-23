@@ -183,6 +183,19 @@
       "expected_verdict": "APPLY_FALLBACK_AND_NOTE_UNAVAILABLE",
       "expected_reason_contains": "unavailable",
       "rationale": "The agent's Load the contract section states that when none of the three candidate paths resolves, it applies the fallback invariants and states in its output that the contract was unavailable. The agent must still report the real bug using the fallback invariants, not refuse to review and not silently proceed without noting the degraded mode."
+    },
+    {
+      "id": "CR16",
+      "desc": "Deleted-agent path: a harness with no code-reviewer agent runs the contract through a general-purpose subagent and reaches the same verdict",
+      "input": "/review step 4c runs in a harness that registers no code-reviewer subagent type, so it dispatches a general-purpose subagent with the technical-review contract as the response contract. The CONTEXT_MODE header is full. The diff adds an off-by-one in a pagination loop: the last page is never fetched, and the only caller renders a list to users. Decide the verdict and whether the missing agent changes it.",
+      "verdict_options": [
+        "CRITICAL_FAIL_SAME_AS_AGENT",
+        "UNKNOWN_AGENT_MISSING",
+        "PASS_NO_AGENT"
+      ],
+      "expected_verdict": "CRITICAL_FAIL_SAME_AS_AGENT",
+      "expected_reason_contains": "contract",
+      "rationale": "The contract drives the review, not the subagent identity. A confirmed user-visible bug is a blocking finding under the contract's Finding shape, so the verdict is CRITICAL_FAIL whether the code-reviewer agent or a general-purpose subagent applies it. A missing agent is not a reason to emit UNKNOWN or PASS."
     }
   ]
 }

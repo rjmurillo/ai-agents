@@ -55,6 +55,14 @@ the first of three candidate paths. When none resolves, it applies six
 one-line invariants and says the contract was unavailable. It keeps the
 canonical untrusted-content block byte-identical.
 
+### Dispatch is not a dependency edge
+
+Step 4c dispatches `code-reviewer` to execute the contract that `review` owns.
+That is an execution call, not a `depends-on` edge. Declaring it would draw a
+cycle, `review` to `code-reviewer` to `technical-review`, for a relation where
+no policy flows from the agent back to the skill. ADR-110 section 1 scopes the
+graph to where policy is owned and consumed, not to who calls whom.
+
 ## Rejected alternatives
 
 | Alternative | Reason rejected |
