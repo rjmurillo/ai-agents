@@ -126,14 +126,6 @@ uv run python ./scripts/eval/eval-agent-vs-baseline.py --agent <name> --fixtures
 - Healthy discipline: predict the delta BEFORE running, then compare. The prediction recipe lives in `ai-agents-empirical-probe-toolkit`.
 - Trap: an eval that confirms whatever you hoped is measurement theater. If you did not write down the expected number first, you measured nothing.
 
-### Commit-count monitor
-
-```bash
-git rev-list --count HEAD ^origin/main
-```
-
-Advisory only, never blocking: `needs-split` label at 10 commits, WARNING notice at 10, ALERT notice at 15 (AGENTS.md Mid gate, advisory only per ADR-099; the notice is surfaced by `pr-validation.yml` and the pre-push hook; thresholds in `scripts/validation/pr_commit_count.py`). Current reading on a fresh main checkout: 0. Run it mid-session, not at push time, so you can split the branch while it is still cheap.
-
 ## Current Baselines Summary (as of 2026-07-29)
 
 | Instrument | Reading | State |
@@ -145,7 +137,6 @@ Advisory only, never blocking: `needs-split` label at 10 commits, WARNING notice
 | Agent drift | `VALIDATION PASSED`, exit 0 | Green |
 | Mirror drift (`build_all.py --check`) | exit 0 | Green |
 | Plugin lib drift | `All plugin lib copies are in sync.`, exit 0 | Green |
-| Commit count | 0 on main | Green |
 
 Two instruments read red on main: golden principles (exit 10) and the description budget in gate mode (exit 1). Guard telemetry and maturity tiers is no longer in this list: it was retired entirely under ADR-084 (issue #5154), not merely feed-starved. Every other instrument is green.
 

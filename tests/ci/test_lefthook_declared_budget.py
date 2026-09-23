@@ -95,7 +95,7 @@ from scripts.ci.lefthook_budget_model import (
 # the total has fallen, just by less than an unmeasured cut made it look.
 DECLARED_BUDGET_BASELINE_SECONDS: dict[str, float] = {
     "pre-push": 3450.0,
-    "pre-commit": 6530.0,
+    "pre-commit": 5815.0,
 }
 
 # The order the count ratchets use. They are handed `--base-ref origin/main` by

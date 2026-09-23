@@ -203,9 +203,9 @@ says why.
 | `drift-detection.yml:63` | `detect-drift` / Summarize kill-criteria drift telemetry | the report exits 1 when a criterion fired | partial, alert lands in the job step summary | DELIBERATE |
 | `post-pr-retrospective.yml:150` | `retrospective` / Run retrospective via Claude Code | an expired OAuth token, an API outage, any real agent error | partial, step annotation | DELIBERATE, Issue #2015, "the annotation, not a red check, is the signal" |
 | `pr-maintenance.yml:95` | `discover-prs` / Detect orphan commits | detector failures and findings alike | no, raw run log only | DELIBERATE, Issue #4316, "Warn, never block" |
-| `pr-validation.yml:161-165` | `validate-pr` / Check PR commit count | a transient GitHub API failure degrades to `status=UNKNOWN` and exit 0 | no | DELIBERATE, issues #3262 and #5233 |
-| `pr-validation.yml:175` | `validate-pr` / Apply needs-split label | a label API outage on add | partial | DELIBERATE, Issue #2557 |
-| `pr-validation.yml:183` | `validate-pr` / Remove needs-split label | the same on removal | partial | DELIBERATE, Issue #2557 |
+| `pr-validation.yml` | `validate-pr` / Check PR commit count | RESOLVED by deletion, ADR-100, issue #5241: the step no longer exists, so the construct cannot run | n/a | was DELIBERATE, issues #3262 and #5233 |
+| `pr-validation.yml` | `validate-pr` / Apply needs-split label | RESOLVED by deletion, ADR-100, issue #5241: the step no longer exists, so the construct cannot run | n/a | was DELIBERATE, Issue #2557 |
+| `pr-validation.yml` | `validate-pr` / Remove needs-split label | RESOLVED by deletion, ADR-100, issue #5241: the step no longer exists, so the construct cannot run | n/a | was DELIBERATE, Issue #2557 |
 | `ai-spec-validation.yml:193` | `validate-spec` / External-signal gate (observe) | the deterministic acceptance-criteria check failing | partial, job summary; explicitly not yet authoritative | DELIBERATE |
 
 ### Group 4: swallowed at step level, re-asserted by an explicit downstream gate

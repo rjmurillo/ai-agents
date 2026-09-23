@@ -223,7 +223,7 @@ destination file, because the suppression becomes active at that boundary.
 
 Existing suppressions on `main` remain grandfathered unless the change makes
 them newly active. Refs #3940, #4049, #4051, and #4052.
-## Large branches get an advisory notice, not a block (ADR-099)
+## A large branch has no commit-count gate at all (ADR-099, ADR-100)
 
 The pre-push `push-ref-policy` hook and `pr-validation.yml` used to hard-fail a
 branch carrying more than 20 commits ahead of `origin/main` (40 after a
@@ -235,17 +235,14 @@ satisfy it even when the label was already correctly applied, forcing an
 expensive stacked-branch-and-PR workaround (issue #5233) to route around a
 verification failure that had nothing to do with the PR's merits.
 
-A large branch still gets a `needs-split` label and a WARNING (>=10 commits)
-or ALERT (>=15 commits) notice, both from `scripts/validation/pr_commit_count.py`,
-but neither blocks a push or a merge. Check mid-session if you want to see it
-coming:
+ADR-099 first demoted the block to an advisory `needs-split` label and a
+WARNING/ALERT notice. ADR-100 (issue #5241) deleted that advisory outright:
+the classifier module, its pre-push call site, and the three `pr-validation.yml`
+steps that read and labeled on its status are gone. Nothing measures or
+reports commit count on push or in CI anymore.
 
-```
-git rev-list --count HEAD ^origin/main
-```
-
-Splitting a large PR is still good practice for reviewability; it is no
-longer required by git.
+Splitting a large PR is still good practice for reviewability; it was never
+required by git, and now nothing suggests it either.
 ## Never revert a source file with `git checkout` to negative-control a fix
 
 Negative-controlling a fix means reverting the source, confirming the new tests
@@ -817,20 +814,22 @@ one created after the transfer starts will not be. Measured both ways. Do not
 reason about it: read the sha off the remote and compare.
 ## Never measure a gate from a detached HEAD
 
-`scripts/detect_scope_explosion.py` returns 0 on a detached `HEAD` for staged
-content that returns 1 on a branch. Same commit, same staged files, same tree;
-the only variable is whether `HEAD` is attached. It does not report that it
-skipped, it reports success (issue #4602).
+`scripts/detect_scope_explosion.py` (deleted, ADR-100, issue #5241) used to
+return 0 on a detached `HEAD` for staged content that returned 1 on a branch.
+Same commit, same staged files, same tree; the only variable was whether
+`HEAD` was attached. It did not report that it skipped, it reported success
+(issue #4602).
 
-The direct cost is that `git bisect`, `git worktree add --detach`, a CI checkout
-of a SHA, and a rebase in progress all detach, so committing from any of those
-states skips the gate with no signal.
+The direct cost was that `git bisect`, `git worktree add --detach`, a CI
+checkout of a SHA, and a rebase in progress all detach, so committing from
+any of those states skipped the gate with no signal. The gate itself is gone,
+but the general lesson holds for any gate whose script reads `HEAD`:
 
-The larger cost is to measurement. A probe run detached reports PASS on input the
-gate blocks, so the obvious way to test this check yields a false negative. That
-is how issue #4544 came to be closed as already-fixed while still reproducing,
-and the retraction had to be retracted. When you probe any gate, attach `HEAD`
-first with `git checkout -B probe/<name> <sha>` rather than
+The larger cost was to measurement. A probe run detached reported PASS on
+input the gate blocked, so the obvious way to test the check yielded a false
+negative. That is how issue #4544 came to be closed as already-fixed while
+still reproducing, and the retraction had to be retracted. When you probe any
+gate, attach `HEAD` first with `git checkout -B probe/<name> <sha>` rather than
 `git worktree add --detach`, and treat a detached PASS as no result at all.
 ## The CLI e2e pre-push jobs need a Copilot token, and fail fast without one
 

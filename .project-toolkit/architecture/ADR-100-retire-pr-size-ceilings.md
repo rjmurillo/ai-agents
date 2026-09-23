@@ -6,14 +6,16 @@ decision-makers: [rjmurillo]
 supersedes: []
 superseded-by: null
 explainer: null
-implemented: false
+implemented: true
 ---
 
 # ADR-100: Retire the Pull Request Size Ceilings
 
 ## Status
 
-Accepted by the repository owner on 2026-08-21, recorded in issue **#5241**, which also carries the implementation work list. `implemented` stays `false`: accepting this decision changed no behaviour, and the items below are unstarted except where ADR-099 already delivered them.
+Accepted by the repository owner on 2026-08-21, recorded in issue **#5241**, which also carries the implementation work list.
+
+**Amended 2026-09-22 by the repository owner: delete the ceilings outright.** The owner decided in the #5241 session that the ceilings go entirely, advisory output included, and that nothing is re-measured. In the owner's words: "we don't need to remeasure; just remove the PR size ceilings. They were to prevent runaway or large merges, but we have other guardrails in place now. It's just a PITA to deal with and creates overhead and tax. Kill it". So the commit-count notice, the `needs-split` label automation, the five-file atomic-commit advisory, and the 50-file scope advisory are deleted, with their hooks, workflow steps, scripts, and tests. Item 6 and the time-box re-measure are withdrawn, and their follow-up issues #5238 and #5239 are closed as not planned when this amendment merges. `implemented` is `true`: items 1 to 4 are delivered, item 5 was closed as obsolete on 2026-09-11, and item 6 is withdrawn. The sections below keep the original argument as history.
 
 **Re-baselined 2026-09-10, and the reason matters more than the edit.** The frontmatter read `proposed` for twenty days after acceptance because the update #5241 records as made never landed, so every reader and every agent saw an accepted decision as an open proposal. In the same twenty days ADR-099 retired one of the two gates this record was written to retire, and this record went on describing it as live. Both are corrected here.
 
@@ -243,6 +245,8 @@ This is not offered as proof the ceiling is wrong. It is one event, and the samp
 
 Retire both size ceilings as blocking gates. Do not replace them with another blocking size gate.
 
+Amended 2026-09-22 (see Status): the advisory output this Decision kept is deleted too. No size ceiling remains, blocking or advisory.
+
 1. **Both commit-ceiling enforcement sites stop blocking. This item is DELIVERED, by ADR-099 under issue #5233, and is retained for the record rather than as work.** Verified 2026-09-10: `_check_commit_limit` (`git_hook_policy.py:6727`) documents itself as "Print an advisory notice for a large branch. Never blocks (issue #5233)" and returns 0 on every path, and `scripts/ci/enforce_pr_validation.py` no longer consults a bypass label at all. The rest of this item describes the two sites as they stood when this decision was written; the analysis is kept because the cost argument above depends on it, and because the ordering property it records was the thing that made the gate expensive. There are two, they count differently, and an earlier draft of this item named only the classifier, which would have retired nothing.
 
    `scripts/validation/pr_commit_count.py` classifies and **already returns 0 on every classification path** (`pr_commit_count.py:303` and `:319`; it still exits 2 on an argument or lookup error and 3 on a `RuntimeError`, at `:271`, `:290` and `:293`, so "returns 0 in every case" as an earlier revision put it is wrong and the distinction matters to anyone reading its exit code); its own comment explains that the `BLOCKED` status is emitted as a `::warning::` because "the final enforcement decision and its error annotation live in enforce_pr_validation.py." The CI block is therefore `scripts/ci/enforce_pr_validation.py`, which then read `COMMIT_STATUS` at lines 64 to 84, fetched the pull request's labels, and returned `LOGIC_ERROR` unless `commit-limit-bypass` is present. Remove that branch and its bypass-label handling; keep the classifier's notice and warning output.
@@ -291,7 +295,7 @@ Retire both size ceilings as blocking gates. Do not replace them with another bl
 
    Prefer over-reporting to under-reporting if any residual ambiguity remains: a spurious rebind costs one commit, a missed one leaves a false PASS on the artifact that gates the merge. Pin all four cases with tests, not the two originally named or the three that replaced them: a branch that merges `main` cleanly on disjoint files keeps its QA binding, a branch whose merge resolved a conflict in a QA-relevant path does not, a branch whose merge resolved such a conflict to the incoming side also does not, and a branch whose merge automerged one QA-relevant file cleanly from both sides does not either. The fourth is the probe a reviewer asked for and it is the discriminating one: it is the case where `-c` and `merge-tree` disagree, so a test suite without it passes against either implementation and pins neither. `--no-merges` is the cruder alternative and a real loss, because it would stop counting conflict resolutions as authored change at all. This decision's own pull request hit it four separate times while being written, and the fourth is the sharpest: once the local history was pushed, its reconciliation merges joined the remote lineage and the same `-m` walk flagged the ADRs again from the pull request head, so no binding short of the head was stable.
 
-6. **Record push-ceiling telemetry at demotion time.** When `_check_commit_limit` is demoted under item 1, have it emit what it would have blocked: branch, total and authored counts, the effective limit, which relief applied, and whether a relief check failed to evaluate. Append-only, outside the branch under measurement. Without this the pre-push ceiling has no observable behaviour at all after demotion, and the re-measure above can never cover the half of the gate that produced every recorded workaround. This item exists because a reviewer pointed out that the telemetry appeared only in prose and would therefore never be built.
+6. **Withdrawn 2026-09-22 by the repository owner; not built.** The text below is kept as history. **Record push-ceiling telemetry at demotion time.** When `_check_commit_limit` is demoted under item 1, have it emit what it would have blocked: branch, total and authored counts, the effective limit, which relief applied, and whether a relief check failed to evaluate. Append-only, outside the branch under measurement. Without this the pre-push ceiling has no observable behaviour at all after demotion, and the re-measure above can never cover the half of the gate that produced every recorded workaround. This item exists because a reviewer pointed out that the telemetry appeared only in prose and would therefore never be built.
 
    The recording has a second use this decision met first-hand. Both relief checks shell out to `check_pr_bypass_label.py`, which reads labels through `gh pr view`, which uses GraphQL. In the environment this decision was authored in, GraphQL returns 403 and both checks exit 3, so `_check_commit_limit` saw no relief and blocked a two-commit push on a branch that carries the `needs-split` label and qualified for the small-push allowance. A gate that fails closed when its relief check is merely unreachable converts an environment limitation into an unconditional block, and nothing today records that this happened. The telemetry field "whether a relief check failed to evaluate" is what makes that distinguishable from a genuine refusal.
 
@@ -370,9 +374,12 @@ This trades a small, unproven protection against sprawl for the removal of a mea
 
 ### Neutral
 
-- The advisory output stays, so the information a reviewer used is still printed. Only the blocking authority is removed.
+- Amended 2026-09-22: the advisory output is deleted too. No size notice is printed, and no label is applied.
+- As written before the amendment: the advisory output stays, so the information a reviewer used is still printed. Only the blocking authority is removed.
 
 ## Impact on Dependent Components
+
+Amended 2026-09-22: the table records the demotion plan as written. Under the amendment, `_check_commit_limit`, `check_atomic_commit`, the commit-count classifier, the `needs-split` label step, the scope check, and their lefthook jobs are deleted, not demoted, and no telemetry lands.
 
 | Component | Dependency | Required update | Risk |
 |---|---|---|---|
@@ -396,6 +403,8 @@ One phase. No dependency on repository configuration, no new gate, no new requir
 Order: fix the rebind churn at `post_qa_code_changes` per item 5; remove the CI block in `enforce_pr_validation.py` and demote `_check_commit_limit`, **landing item 6's telemetry in that same step rather than after it**, because a demotion that ships without the recording loses the push-time evidence permanently and the re-measure can never recover it; demote `check_atomic_commit` early, so that this change's own wide diff is not sliced by the cap it retires; demote the scope `BLOCK_THRESHOLD` and add the process-record exclusions; then remove `SKIP_SCOPE_CHECK`; then update the documents. The last two are ordered, not interchangeable, per Decision items 3 and 4.
 
 ### Time-box and re-measure
+
+**Withdrawn 2026-09-22 by the repository owner.** No re-measure runs, and #5238 closes as not planned. The owner judged that other guardrails cover large merges and that the ceilings cost more than any re-measure could recover. The text below is kept as history.
 
 The blocking-value claim rests on ten labeled pull requests classified by hand across both populations, plus eight in-tree workaround records with no stated selection method. That is enough to retire the gates and not enough to close the question, so this decision carries one falsification commitment. A prior revision of this section was challenged from both directions in review, one role arguing it be cut as unrunnable and one arguing it be rewritten as the only test the decision has. It is rewritten, because the second reading is right: cutting it would leave the weakest-evidenced item in the decision with no test at all.
 
@@ -427,6 +436,8 @@ Three partitions over one population, one 90 day window, three separate verdicts
 **The pre-push half cannot be tested by this procedure, and that is a consequence rather than an omission.** Three earlier revisions grounded this on the wrong property, saying its contract evaluates a push range. It does not; it evaluates the same branch-against-trunk range CI does (`git_hook_policy.py:5604`), so the range is not what resists reconstruction. Three other things are, and only the third is unique to this half, which two revisions of this paragraph did not say. It applies two reliefs computed at push time from remote state as it stood at that moment; the CI block also consults labels at run time, so that break is shared. A squashed branch has erased the commits it saw; the CI counterfactual at the re-measure below replays merged history too, so for #5178 it replays 12 commits rather than the 33 the gate saw, and that break is shared as well. **The job does not always run at all**, and nothing on the CI side has an equivalent. So the honest statement is that squashing degrades both replays and the scheduling skip breaks only this one, which narrows the asymmetry this paragraph once asserted without removing the need for item 6's telemetry. This decision's own PR #5178 case is the proof of the second: 12 commits in surviving history against 33 the gate actually blocked. The third is the sharpest: a push whose files already match the remote skips the job entirely, leaving no record either way, and the pair recorded above shows the skipped push can be the larger one. Measuring it needs push-time telemetry recorded as it happens, covering the skipped pushes as well as the evaluated ones, which does not exist and cannot be added retroactively. That is why it is Decision item 6 rather than a line in this section: if the recording is not built when the ceilings are demoted, the pre-push ceiling is unmeasurable by construction and its retirement is permanent on the evidence already gathered.
 
 ### Follow-up, not part of this decision
+
+Amended 2026-09-22: the re-measure bullet below is withdrawn with the Time-box section.
 
 - Commit thrash as a token-budget control, if it proves needed, with its own evidence.
 - Whether the retired ceilings should be re-measured against a larger stratified sample of the 104 labeled pull requests, to confirm the five-pull-request result holds.

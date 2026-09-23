@@ -20,7 +20,6 @@ Thank you for your interest in contributing to this project. This guide explains
 - [Running Tests](#running-tests)
 - [Copilot CLI Version Management](#copilot-cli-version-management)
 - [Pull Request Guidelines](#pull-request-guidelines)
-  - [Commit Count Thresholds](#commit-count-thresholds)
 - [Third-Party License Attribution](#third-party-license-attribution)
 - [Security Scanning](#security-scanning)
 
@@ -867,46 +866,6 @@ Routine version bumps do not require an ADR edit. See `.serena/memories/copilot/
 4. **Tests**: Ensure all tests pass
 5. **Documentation**: Update relevant docs if adding new agents
 6. **Commit messages**: Use conventional commit format (e.g., `feat(agent):`, `fix(template):`)
-
-### Commit Count Thresholds
-
-PRs with many commits often indicate scope creep or should be split into smaller PRs. The repository flags large commit counts advisorily; it does not block a PR on commit count:
-
-| Commit Count | Action | Label Applied |
-|--------------|--------|---------------|
-| 10 commits | Warning notice in PR | `needs-split` |
-| 15 commits | Alert warning in PR | `needs-split` |
-
-#### What This Means
-
-- **10 commits**: The workflow adds a notice. Consider whether the PR should be split.
-- **15 commits**: The workflow adds an alert. Splitting is strongly recommended.
-
-There is no hard ceiling and no bypass label: a large PR is never blocked from
-merge on commit count alone. The former 20/40-commit block and its
-`commit-limit-bypass` human-only label were removed (issue #5233). That gate
-required local, pre-push verification of a GitHub label, which is not always
-possible: a sandboxed harness without `gh`/API access could not confirm a
-label that was already correctly applied, and the only way through was an
-expensive workaround (an entirely new stacked branch and PR) that a local
-check could not distinguish from a genuine violation.
-
-#### Handling `needs-split` Labels
-
-**For contributors**:
-
-1. Review the commit history to identify logical groupings
-2. Split into smaller, focused PRs where practical
-3. It is fine to leave a large PR unsplit when splitting is not practical; the label is a suggestion, not a requirement
-
-**For AI agents (pr-review, pr-comment-responder)**:
-
-When encountering a PR with the `needs-split` label:
-
-1. **Run a retrospective analysis**: Determine why the PR required so many commits
-2. **Analyze commit history**: Group commits by logical change to identify potential split points
-3. **Provide recommendations**: Suggest how the work could be divided into smaller PRs
-4. **Document findings**: Save analysis to `.project-toolkit/retrospective/PR-[number]-needs-split-analysis.md` for future reference
 
 ### PR Description Validation
 

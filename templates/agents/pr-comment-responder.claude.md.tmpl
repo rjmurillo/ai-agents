@@ -142,9 +142,9 @@ python3 "$SCRIPTS_DIR/pr/get_pr_context.py" --pull-request [number] --include-ch
 
 </details>
 
-{{> pr-comment-responder-store-for-later-use}}
-   #runSubagent with subagentType=retrospective
-{{> pr-comment-responder-check-for-needs-split-label}}
+#### Step 1.2: Enumerate All Reviewers
+
+```bash
 PLUGIN_ROOT="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
 SCRIPTS_DIR="$PLUGIN_ROOT/skills/github/scripts"
 # Using github skill (PREFERRED) - prevents single-bot blindness (pr-enum-001)

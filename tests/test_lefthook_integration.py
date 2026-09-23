@@ -526,7 +526,6 @@ def test_configuration_uses_named_native_jobs() -> None:
         "memory-skill-format",
         "adr-review-policy",
         "taste-advisory",
-        "scope-policy",
         "generate-mcp-config",
         "stage-mcp-config",
         "generate-agents",
@@ -537,7 +536,6 @@ def test_configuration_uses_named_native_jobs() -> None:
         "memory-cross-reference",
         "stage-memory-cross-references",
         "extract-session-episodes",
-        "commit-file-count",
     }
     expected_pre_push = {
         "repo-health",
@@ -554,7 +552,6 @@ def test_configuration_uses_named_native_jobs() -> None:
         "path-normalization",
         "planning-artifacts",
         "placeholder-identity",
-        "branch-scope",
         "additions-advisory",
         "hook-anchoring-e2e",
         "plugin-load-e2e",
@@ -586,9 +583,6 @@ def test_configuration_uses_named_native_jobs() -> None:
     assert pre_commit_names.index("memory-size") < pre_commit_names.index("memory-cross-reference")
     assert pre_commit_names.index("memory-cross-reference") < pre_commit_names.index(
         "memory-skill-format"
-    )
-    assert pre_commit_names.index("extract-session-episodes") < pre_commit_names.index(
-        "commit-file-count"
     )
 
 
@@ -715,7 +709,6 @@ def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
         "memory-cross-reference",
         "stage-memory-cross-references",
         "extract-session-episodes",
-        "commit-file-count",
         "memory-size",
         "adr-review-policy",
         "taste-advisory",
@@ -804,11 +797,8 @@ def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
         assert isinstance(run, str)
         assert "{push_files}" in run
     workflow_run = pre_push_jobs["workflow-local-run"]["run"]
-    branch_scope_run = pre_push_jobs["branch-scope"]["run"]
     assert isinstance(workflow_run, str)
-    assert isinstance(branch_scope_run, str)
     assert "--no-full" not in workflow_run
-    assert "origin/main" in branch_scope_run
     # Issue #5079 review: the standalone build-all-check job is gone on
     # purpose. pre-pr-validation's Generated Artifact Staleness gate runs
     # build_all.py --check inside the sequence; a second concurrent
@@ -6079,12 +6069,11 @@ def test_push_policy_blocks_main_and_preserves_destination_branch(
     head = _commit_file(repo, "tracked", "head\n")
     destinations: list[str | None] = []
 
-    def capture_limit(update: policy.PushUpdate, _root: Path) -> int:
+    def capture_marker(update: policy.PushUpdate, _root: Path) -> int:
         destinations.append(update.destination_branch)
         return 0
 
-    monkeypatch.setattr(policy, "_check_commit_limit", capture_limit)
-    monkeypatch.setattr(policy, "_check_review_marker", lambda *_args: 0)
+    monkeypatch.setattr(policy, "_check_review_marker", capture_marker)
     monkeypatch.setattr(policy, "_check_plugin_version", lambda *_args: 0)
 
     blocked = policy.check_push_refs(
@@ -6821,76 +6810,6 @@ def test_episode_staging_handles_missing_and_symlink(
     assert policy._stage_episode("episode-link", tmp_path) == 2
 
 
-def _stage_files(repo: Path, paths: list[str]) -> None:
-    """Stage new files in repo without committing."""
-    for rel in paths:
-        full = repo / rel
-        full.parent.mkdir(parents=True, exist_ok=True)
-        full.write_bytes(b"content\n")
-        _git(repo, "add", "--", rel)
-
-
-def test_atomic_commit_below_limit(tmp_path: Path) -> None:
-    repo = tmp_path / "repo"
-    _init_repo(repo)
-    _commit_file(repo, "README.md", "init\n")
-    _stage_files(repo, ["a.py", "b.py", "c.py"])
-    assert policy.check_atomic_commit(repo) == 0
-
-
-def test_atomic_commit_at_limit(tmp_path: Path) -> None:
-    repo = tmp_path / "repo"
-    _init_repo(repo)
-    _commit_file(repo, "README.md", "init\n")
-    _stage_files(repo, ["a.py", "b.py", "c.py", "d.py", "e.py"])
-    assert policy.check_atomic_commit(repo) == 0
-
-
-def test_atomic_commit_above_limit(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
-    """Six authored files report an advisory and exit 0 (ADR-100 item 2)."""
-    repo = tmp_path / "repo"
-    _init_repo(repo)
-    _commit_file(repo, "README.md", "init\n")
-    _stage_files(repo, ["a.py", "b.py", "c.py", "d.py", "e.py", "f.py"])
-    assert policy.check_atomic_commit(repo) == 0
-    captured = capsys.readouterr()
-    assert "ADVISORY" in captured.out + captured.err
-
-
-def test_atomic_commit_generated_episode_exempt(tmp_path: Path) -> None:
-    """Five authored files plus a generated episode must not exceed the limit."""
-    repo = tmp_path / "repo"
-    _init_repo(repo)
-    _commit_file(repo, "README.md", "init\n")
-    authored = ["a.py", "b.py", "c.py", "d.py", "e.py"]
-    generated = [".project-toolkit/memory/episodes/episode-abc123.json"]
-    _stage_files(repo, authored + generated)
-    assert policy.check_atomic_commit(repo) == 0
-
-
-def test_atomic_commit_generated_episode_not_enough_to_hide_violation(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    """Six authored files still report the advisory when a generated episode is staged."""
-    repo = tmp_path / "repo"
-    _init_repo(repo)
-    _commit_file(repo, "README.md", "init\n")
-    authored = ["a.py", "b.py", "c.py", "d.py", "e.py", "f.py"]
-    generated = [".project-toolkit/memory/episodes/episode-abc123.json"]
-    _stage_files(repo, authored + generated)
-    assert policy.check_atomic_commit(repo) == 0
-    captured = capsys.readouterr()
-    assert "ADVISORY" in captured.out + captured.err
-
-
-def test_atomic_commit_git_failure_returns_error(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(policy, "_run_git", lambda *_a, **_k: _completed(128))
-    assert policy.check_atomic_commit(tmp_path) == 2
-
-
 def test_push_ref_parser_rejects_option_like_refs() -> None:
     sha = "1" * 40
     with pytest.raises(ValueError, match="invalid ref name"):
@@ -6928,69 +6847,10 @@ def test_push_update_aggregation_returns_configuration_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     update = _push_update()
-    monkeypatch.setattr(policy, "_check_commit_limit", lambda *_args: 2)
-    monkeypatch.setattr(policy, "_check_review_marker", lambda *_args: 0)
+    monkeypatch.setattr(policy, "_check_review_marker", lambda *_args: 2)
     monkeypatch.setattr(policy, "_check_plugin_version", lambda *_args: 0)
 
     assert policy._check_push_updates([update], tmp_path) == 2
-
-
-@pytest.mark.parametrize(
-    "git_result",
-    [_completed(1, stderr="git failed\n"), _completed(0, "not-a-number\n")],
-)
-def test_commit_limit_degrades_measurement_failures_to_a_warning(
-    git_result: subprocess.CompletedProcess[str],
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """A `git rev-list` failure or an unparseable count MUST NOT block the
-    push (issue #5233's contract: the commit-count check never blocks).
-    Both branches previously returned 2, which `_check_push_updates`
-    aggregates into a nonzero, push-blocking result; a Copilot review on
-    PR #5234 caught the contradiction between that behavior and this
-    function's own "Never blocks" docstring.
-    """
-    update = _push_update(None)
-    monkeypatch.setattr(policy, "_run_git", lambda *_args: git_result)
-
-    assert policy._check_commit_limit(update, tmp_path) == 0
-    assert "WARNING" in capsys.readouterr().err
-
-
-@pytest.mark.parametrize(
-    ("commit_count", "expect_note"),
-    [
-        (policy.WARNING_THRESHOLD - 1, False),
-        (policy.WARNING_THRESHOLD, True),
-        (policy.WARNING_THRESHOLD + 4, True),
-        (policy.ALERT_THRESHOLD, True),
-        (policy.ALERT_THRESHOLD + 6, True),
-    ],
-)
-def test_commit_limit_notice_covers_below_warning_through_alert(
-    commit_count: int,
-    expect_note: bool,
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """Never blocks at any count, and prints the advisory NOTE only from
-    WARNING_THRESHOLD upward; below it, the push is silent.
-    """
-    update = _push_update(None)
-    monkeypatch.setattr(policy, "_run_git", lambda *_args: _completed(0, f"{commit_count}\n"))
-
-    result = policy._check_commit_limit(update, tmp_path)
-
-    assert result == 0
-    out = capsys.readouterr().out
-    if expect_note:
-        assert f"NOTE: branch has {commit_count} commits" in out
-        assert "does not block" in out
-    else:
-        assert out == ""
 
 
 def test_advisory_failure_prints_process_explanation_with_warning(
@@ -8206,7 +8066,6 @@ def test_push_update_defense_blocks_protected_destination(
 ) -> None:
     ref = policy.PushRef("refs/heads/a", "1" * 40, "refs/heads/main", "2" * 40)
     update = policy.PushUpdate(ref, "base", ref.local_sha, "base..head", "main")
-    monkeypatch.setattr(policy, "_check_commit_limit", lambda *_args: 0)
     monkeypatch.setattr(policy, "_check_review_marker", lambda *_args: 0)
     monkeypatch.setattr(policy, "_check_plugin_version", lambda *_args: 0)
 
@@ -8249,9 +8108,6 @@ def test_remaining_policy_success_and_error_branches(
         "base..head",
         None,
     )
-    monkeypatch.setattr(policy, "_run_git", lambda *_args: _completed(0, "21\n"))
-    assert policy._check_commit_limit(update, tmp_path) == 0
-
     monkeypatch.setattr(
         policy,
         "_run_git",
@@ -8434,7 +8290,6 @@ def test_old_bot_review_does_not_warn(
         ("sessions", ["session.json"], "validate_branch_sessions"),
         ("stage-generated", ["mcp"], "stage_generated"),
         ("extract-episodes", ["session.json"], "extract_session_episodes"),
-        ("atomic-commit", [], "check_atomic_commit"),
         ("planning", [], "run_planning_advisory"),
         ("adr-review", ["README.md"], "check_adr_review_policy"),
         ("generate-mcp", [], "generate_mcp_advisory"),

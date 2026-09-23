@@ -426,20 +426,10 @@ pre-commit:
             skip:
               - merge
 
-          - name: commit-file-count
-            timeout: 2m
-            run: uv run --frozen python scripts/validation/git_hook_policy.py atomic-commit
-            skip:
-              - merge
-
     - name: github-bash-policy
       timeout: 2m
       run: uv run --frozen python scripts/validation/git_hook_policy.py github-bash {staged_files}
       glob: ".github/scripts/**"
-
-    - name: scope-policy
-      timeout: 5m
-      run: uv run --frozen python scripts/detect_scope_explosion.py
 
 # Issue #5066: pre-push is staged so cheap gates fail before the expensive
 # ones start. The hook is `piped: true`, so a failing job or group skips
@@ -556,10 +546,6 @@ pre-push:
               uv run --frozen python
               build/scripts/validate_planning_artifacts.py
               --path . --fail-on-error
-
-          - name: branch-scope
-            timeout: 90s
-            run: uv run --frozen python scripts/detect_scope_explosion.py --base-branch origin/main
 
           - name: branch-context-policy
             timeout: 2m

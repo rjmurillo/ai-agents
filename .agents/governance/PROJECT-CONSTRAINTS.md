@@ -109,7 +109,6 @@ When creating a new AI-powered workflow with concurrency control:
 |------------|--------|--------------|
 | MUST NOT mix multiple logical changes in one commit | code-style-conventions | commit-msg hook |
 | SHOULD use one logical change per commit | code-style-conventions | commit-msg hook |
-| SHOULD limit to max 5 files OR single topic | code-style-conventions | commit-msg hook |
 | MUST use conventional commit format | code-style-conventions | commit-msg hook |
 
 **Reference**: Use `mcp__serena__read_memory` with `memory_file_name="code-style-conventions"`
@@ -118,7 +117,7 @@ When creating a new AI-powered workflow with concurrency control:
 
 | Constraint | Source | Verification |
 |------------|--------|--------------|
-| SHOULD plan PRs for <=20 commits; validation may allow <=40 after a qualifying base merge | PR #908 retrospective, Issue #934, Issue #3596 | `git rev-list --count HEAD ^origin/main`; thresholds in `scripts/validation/pr_commit_count.py` |
+| SHOULD plan PRs for <=20 commits; no tool enforces this (ADR-100, issue #5241 removed the automated advisory) | PR #908 retrospective, Issue #934, Issue #3596 | `git rev-list --count HEAD ^origin/main`, author judgment only |
 | SHOULD limit PRs to <=10 changed files | PR #908 retrospective, Issue #934 | `git diff --stat origin/main` |
 | SHOULD limit PRs to <=500 added lines | PR #908 retrospective, Issue #934 | `git diff --stat origin/main` |
 

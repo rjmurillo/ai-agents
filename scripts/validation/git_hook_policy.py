@@ -47,11 +47,6 @@ from scripts.ci import diff_line_scope
 from scripts.hook_utilities.utilities import recent_host_session_dates
 from scripts.test_selection import select_tests
 from scripts.validation.object_id import ZERO_SHA_LENGTHS, is_full_object_id
-from scripts.validation.pr_commit_count import (
-    ALERT_THRESHOLD,
-    WARNING_THRESHOLD,
-    classify_count,
-)
 from scripts.validation.session_scope import (
     added_session_paths_in_index,
     session_change_scope,
@@ -742,10 +737,6 @@ _PROMPT_ROLE_FILE_RE = re.compile(r"^[a-z][a-z0-9_-]*\.md$")
 # the generator never visits must not gain an exemption merely because a
 # canonical file with the same name is tracked.
 _COPILOT_SKILL_EXCLUDES = frozenset({"AGENTS.md", "CLAUDE.md", "merge-resolver"})
-
-# Per-commit atomic file limit (AGENTS.md:24, .claude/rules/universal.md:15).
-# Generated companions (episodes, mcp, agents, memory-index) are exempt.
-MAX_AUTHORED_FILES_PER_COMMIT = 5
 
 
 @dataclass(frozen=True, slots=True)
@@ -3225,137 +3216,6 @@ def _is_staged_regular_file(repo_root: Path, relative_path: str) -> bool:
     regular file to them, which is the fail-closed reading.
     """
     return _staged_regular_file_state(repo_root, relative_path) is True
-
-
-def _is_generated(relative_path: str, repo_root: Path | None = None) -> bool:
-    """Return True when *relative_path* matches any generated-file pattern."""
-    for entries in GENERATED_PATHS.values():
-        if relative_path in entries:
-            return True
-    for kind, globs in GENERATED_GLOBS.items():
-        if kind == "prompts":
-            continue
-        if any(_matches_generated_glob(relative_path, pat) for pat in globs):
-            return True
-    source = _mirror_source(relative_path)
-    if source is not None:
-        root = repo_root if repo_root is not None else Path.cwd()
-        return _is_staged_regular_file(root, source)
-    return False
-
-
-def _atomic_commit_paths(diff_output: str) -> list[str]:
-    paths: list[str] = []
-    for line in diff_output.splitlines():
-        if not line:
-            continue
-        parts = line.split("\t")
-        status = parts[0]
-        if status.startswith(("R", "C")) and len(parts) >= 3:
-            paths.append(parts[2])
-        elif len(parts) >= 2:
-            paths.append(parts[1])
-    return paths
-
-
-def _merge_brought_paths(repo_root: Path, staged_paths: list[str]) -> set[str]:
-    """Return staged paths brought in by a merge without author modification.
-
-    During a merge commit, ``git diff --cached`` reports ALL files that differ
-    from HEAD, including those the merge parent introduces untouched. To find
-    which files the author actually changed (conflict resolutions, manual edits
-    during merge), we diff the staged content against MERGE_HEAD. Files with no
-    diff against MERGE_HEAD are purely brought in by the merge (issue #4307).
-    """
-    result = _run_git(repo_root, ["rev-parse", "MERGE_HEAD"])
-    if result.returncode != 0:
-        return set()
-    merge_head = result.stdout.strip()
-
-    # Diff the index (staged) against MERGE_HEAD. Files that show NO diff
-    # are identical to the merge parent, meaning the author did not touch them.
-    diff_result = _run_git(
-        repo_root,
-        ["diff", "--cached", "--name-only", "--diff-filter=ACMRD", merge_head],
-    )
-    if diff_result.returncode != 0:
-        return set()
-    author_changed = set(diff_result.stdout.splitlines())
-    return {p for p in staged_paths if p not in author_changed}
-
-
-def check_atomic_commit(repo_root: Path) -> int:
-    """Report when authored staged files exceed MAX_AUTHORED_FILES_PER_COMMIT.
-
-    Advisory since ADR-100 item 2 (issue #5241): prints the same guidance the
-    former blocking check printed, but never fails the commit for exceeding
-    the limit. Commit granularity is left to author judgment, which ADR-100
-    names as the honest description of the resulting state.
-
-    Generated companions (episodes, mcp, agents, memory-index) are exempt from
-    the count so that a hook-generated sixth file cannot silently produce a
-    guidance-violating commit. During a merge commit, files brought in by the
-    merge parent without author modification are also exempt (issue #4307).
-
-    EXIT CODES:
-      0 - always, for a staged set determined successfully (advisory only;
-          the file count no longer affects the exit code)
-      2 - unexpected error determining the staged set
-    """
-    result = _run_git(
-        repo_root,
-        ["diff", "--cached", "--name-status", "-M", "--diff-filter=ACMRD"],
-    )
-    if result.returncode != 0:
-        print("ERROR: could not determine staged files", file=sys.stderr)
-        return 2
-
-    staged = _atomic_commit_paths(result.stdout)
-
-    # During a merge, exclude files the merge parent introduces untouched.
-    merge_brought = _merge_brought_paths(repo_root, staged)
-
-    authored: list[str] = []
-    generated: list[str] = []
-    merge_exempt: list[str] = []
-    for path in staged:
-        if path in merge_brought:
-            merge_exempt.append(path)
-        elif _is_generated(path, repo_root):
-            generated.append(path)
-        else:
-            authored.append(path)
-
-    authored_count = len(authored)
-    if merge_exempt:
-        print(
-            f"INFO: {len(merge_exempt)} merge-brought file(s) excluded from atomic-commit count.",
-            file=sys.stderr,
-        )
-    if generated:
-        print(
-            f"INFO: {len(generated)} generated file(s) excluded from atomic-commit count:",
-            file=sys.stderr,
-        )
-        for gp in generated:
-            print(f"  {gp}", file=sys.stderr)
-
-    if authored_count <= MAX_AUTHORED_FILES_PER_COMMIT:
-        return 0
-
-    print(
-        f"ADVISORY: commit touches {authored_count} authored files"
-        f" (guidance is {MAX_AUTHORED_FILES_PER_COMMIT}).",
-        file=sys.stderr,
-    )
-    print("Authored files staged:", file=sys.stderr)
-    for ap in authored:
-        print(f"  {ap}", file=sys.stderr)
-    print(
-        "Consider splitting this commit. Advisory only, does not block (ADR-100 item 2).",
-        file=sys.stderr,
-    )
-    return 0
 
 
 def _episode_id_from_output(stdout: str) -> str | None:
@@ -6854,59 +6714,13 @@ def _check_push_updates(updates: Sequence[PushUpdate], repo_root: Path) -> int:
                 f"{squash_result.warning}",
                 file=sys.stderr,
             )
-        count_result = _check_commit_limit(update, repo_root)
         marker_result = _check_review_marker(update, repo_root)
         plugin_result = _check_plugin_version(update, repo_root)
-        policy_failed |= count_result == 1 or marker_result == 1 or plugin_result == 1
-        config_failed |= count_result == 2 or marker_result == 2
+        policy_failed |= marker_result == 1 or plugin_result == 1
+        config_failed |= marker_result == 2
     if policy_failed:
         return 1
     return 2 if config_failed else 0
-
-
-def _check_commit_limit(update: PushUpdate, repo_root: Path) -> int:
-    """Print an advisory notice for a large branch. Never blocks (issue #5233).
-
-    The 20/40-commit block, its `commit-limit-bypass` human-only label, and the
-    main-merge relief that raised the ceiling to 40 are removed: the block
-    required local verification of a GitHub label that this hook cannot always
-    perform (`gh` has no API access in some sandboxed sessions), which forced
-    authors into an expensive workaround -- an entirely new stacked branch and
-    PR -- to route around a check that could not confirm a fact that was
-    already true. `needs-split` (an advisory-only label with no local
-    enforcement) is unaffected.
-    """
-    result = _run_git(repo_root, ["rev-list", "--count", update.range_spec])
-    if result.returncode != 0:
-        _print_process_output(result)
-        print(
-            f"WARNING: could not measure commit count for '{update.destination_branch}'; "
-            "skipping the advisory notice. This is never blocking (issue #5233).",
-            file=sys.stderr,
-        )
-        return 0
-    try:
-        commit_count = int(result.stdout.strip())
-    except ValueError:
-        print(
-            f"WARNING: could not parse commit count for '{update.destination_branch}' "
-            f"(got {result.stdout.strip()!r}); skipping the advisory notice. "
-            "This is never blocking (issue #5233).",
-            file=sys.stderr,
-        )
-        return 0
-    status = classify_count(commit_count)
-    if status == "ALERT":
-        print(
-            f"NOTE: branch has {commit_count} commits (>= {ALERT_THRESHOLD}). "
-            "Consider splitting; this is advisory only and does not block.",
-        )
-    elif status == "WARNING":
-        print(
-            f"NOTE: branch has {commit_count} commits (>= {WARNING_THRESHOLD}). "
-            "Consider splitting; this is advisory only and does not block.",
-        )
-    return 0
 
 
 def _check_review_marker(update: PushUpdate, repo_root: Path) -> int:
@@ -8402,10 +8216,6 @@ def _handle_extract_episodes(args: argparse.Namespace) -> int:
     return extract_session_episodes(args.paths, _repo_root(args))
 
 
-def _handle_atomic_commit(args: argparse.Namespace) -> int:
-    return check_atomic_commit(_repo_root(args))
-
-
 def _handle_semgrep(args: argparse.Namespace) -> int:
     return run_semgrep(_repo_root(args))
 
@@ -8455,7 +8265,6 @@ def build_parser() -> argparse.ArgumentParser:
         ("security-suppressions-staged", _handle_staged_suppressions),
         ("pre-push", _handle_pre_push),
         ("tracked-conflict-markers", _handle_tracked_conflict_markers),
-        ("atomic-commit", _handle_atomic_commit),
         ("branch-dashes", _handle_branch_dashes),
     )
     for name, handler in path_commands:

@@ -1,6 +1,6 @@
 # Gate Ladder and Commit Discipline
 
-Consult this before your first push in a session. SKILL.md Phase 3 names the ladder and the commit caps; the full rung table, the install commands, and the incident that set the caps live here.
+Consult this before your first push in a session. SKILL.md Phase 3 names the ladder; the full rung table, the install commands, and the incident that set and then removed the commit caps live here.
 
 <!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself; intentionally references upstream paths (.agents/, .claude/, scripts/, build/) because its audience is repo contributors, not plugin consumers (issue #2050) -->
 
@@ -30,13 +30,13 @@ hook that dispatches Lefthook. Neither proves the shim resolves the same
 binary: on Windows the generated shim omits the configured runner and resolves
 through `PATH`.
 
-## Respect commit discipline
+## Commit discipline has no automated ceiling
 
-| Rule | Limit | Enforcement |
-|------|-------|-------------|
-| Files per commit | Advisory only: 5 or fewer, reports and does not block | `.claude/rules/universal.md` SHOULD 5; `check_atomic_commit` advisory (issue #5241, ADR-100 item 2) |
-| Commits per PR | Advisory only: notice at 10, alert at 15, no block | `scripts/validation/pr_commit_count.py` (`WARNING_THRESHOLD = 10`, `ALERT_THRESHOLD = 15`), wired at `pr-validation.yml`. The former 20/40-commit block and its `commit-limit-bypass` human-only label were removed (issue #5233): the block required local, pre-push verification of a GitHub label that a sandboxed harness cannot always perform, and the only way through an unverifiable-but-satisfied gate was an expensive stacked-branch workaround |
-| Mid-session check | Notice at 10, alert at 15, no block | `git rev-list --count HEAD ^origin/main` (thresholds from `scripts/validation/pr_commit_count.py`) |
+| Rule | State | Note |
+|------|-------|------|
+| Files per commit | No hook measures this | `check_atomic_commit` was demoted to advisory (issue #5241, ADR-100 item 2), then deleted outright (ADR-100, issue #5241). `.claude/rules/universal.md` SHOULD 5 stays as author guidance, not a measured number |
+| Commits per PR | No hook or CI step measures this | `scripts/validation/pr_commit_count.py` and the `pr-validation.yml` steps that read its status were deleted (ADR-100, issue #5241). The former 20/40-commit block and its `commit-limit-bypass` human-only label were removed earlier (issue #5233): that block required local, pre-push verification of a GitHub label that a sandboxed harness cannot always perform, and the only way through an unverifiable-but-satisfied gate was an expensive stacked-branch workaround |
 | Lint scope | Changed files only | PR #908 fix: scope `markdownlint --fix` to `git diff --name-only` output, never `**/*.md` |
 
-The story behind the original caps. PR #908 (January 2026) grew to 228+ comments, 59 commits, 95 files, and 5,060 additions (`.project-toolkit/retrospective/2026-01-15-pr-908-comprehensive-retrospective.md:6`). More than half the diff was collateral: the session protocol at the time mandated an unscoped `markdownlint --fix **/*.md`, which reformatted memory files across the repo (53 memory-file changes, 56% of the diff; five-whys at retro lines 285-298). Review became impossible and feedback arrived late on everything. `pre_pr.py` itself and the scoped-lint rule date from that retrospective and remain in force. The 20-commit block that also came out of it was removed in issue #5233, once the human-only bypass label it relied on turned out to force the exact kind of PR sprawl (a whole new stacked branch and PR to route around an unverifiable local check) that the original cap existed to prevent. Splitting a large PR is still good practice; it is no longer mandatory.
+<!-- citation-freshness: ignore -- retro line 6 holds the 228-comment stats; the checker anchors on the later markdownlint span -->
+The story behind the original caps. PR #908 (January 2026) grew to 228+ comments, 59 commits, 95 files, and 5,060 additions (`.project-toolkit/retrospective/2026-01-15-pr-908-comprehensive-retrospective.md:6`). More than half the diff was collateral: the session protocol at the time mandated an unscoped `markdownlint --fix **/*.md`, which reformatted memory files across the repo (53 memory-file changes, 56% of the diff; five-whys at retro lines 285-298). Review became impossible and feedback arrived late on everything. `pre_pr.py` itself and the scoped-lint rule date from that retrospective and remain in force. The 20-commit block that also came out of it was removed in issue #5233, once the human-only bypass label it relied on turned out to force the exact kind of PR sprawl (a whole new stacked branch and PR to route around an unverifiable local check) that the original cap existed to prevent. Its advisory successors (the file-count and commit-count notices) ran for a while longer, then the repository owner decided they cost hook and CI time for output nobody acted on and deleted them outright (ADR-100, issue #5241). Splitting a large PR is still good practice for reviewability; no tool suggests or requires it anymore.
