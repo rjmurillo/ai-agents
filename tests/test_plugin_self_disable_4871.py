@@ -124,3 +124,129 @@ class TestDisabledPredicateRejectsNonDisablingShapes:
         settings = {"enabledPlugins": {"caveman@caveman": False, PLUGIN_ID: True}}
         assert not _plugin_is_disabled(settings, PLUGIN_ID)
         assert _plugin_is_disabled(settings, "caveman@caveman")
+
+
+# Issue #5457: both harnesses install Ponytail from repository configuration,
+# pinned to the same reviewed release. Both harnesses pin through `ref`.
+# Copilot CLI 1.0.89 ignores a marketplace `sha`: with `sha` alone, a clean
+# install checked out upstream main. Copilot also keeps `sha` so the reviewed
+# commit is recorded next to the tag. `evals/ponytail-incumbent/README.md`
+# records the live check that the tag resolves to this commit.
+PONYTAIL_ID = "ponytail@ponytail"
+PONYTAIL_REPO = "DietrichGebert/ponytail"
+PONYTAIL_TAG = "v4.9.0"
+PONYTAIL_SHA = "0a4dd63ad4541f4f655c4108a295916f3c1d8fda"
+COPILOT_PINS = {"ref": PONYTAIL_TAG, "sha": PONYTAIL_SHA}
+
+# A phrase unique to Ponytail's SKILL.md. Finding it in a repository
+# instruction surface means someone copied the ruleset instead of installing it.
+PONYTAIL_FINGERPRINT = "The best code is the code never written"
+INSTRUCTION_SURFACES = (
+    "AGENTS.md",
+    "CLAUDE.md",
+    ".github/copilot-instructions.md",
+    ".github/instructions",
+    ".claude/rules",
+    ".claude/skills",
+    ".claude/agents",
+    "templates",
+    "src",
+)
+
+
+def _ponytail_pin_errors(settings: Any, pins: dict[str, str]) -> list[str]:
+    """Return every way `settings` fails to install the reviewed Ponytail."""
+    if not isinstance(settings, dict):
+        return ["settings is not a JSON object"]
+    errors = []
+    markets = settings.get("extraKnownMarketplaces")
+    source = markets.get("ponytail", {}) if isinstance(markets, dict) else {}
+    source = source.get("source") if isinstance(source, dict) else None
+    if not isinstance(source, dict):
+        errors.append("marketplace 'ponytail' is not declared")
+    else:
+        if source.get("source") != "github" or source.get("repo") != PONYTAIL_REPO:
+            errors.append(f"marketplace 'ponytail' is not github {PONYTAIL_REPO}")
+        for key, value in pins.items():
+            if source.get(key) != value:
+                errors.append(f"marketplace 'ponytail' {key} is not {value}")
+    enabled = settings.get("enabledPlugins")
+    if not isinstance(enabled, dict) or enabled.get(PONYTAIL_ID) is not True:
+        errors.append(f"{PONYTAIL_ID} is not enabled with JSON true")
+    return errors
+
+
+class TestPonytailIsInstalledFromRepositoryConfig:
+    """Positive: both harnesses pin the same reviewed Ponytail release."""
+
+    def test_claude_settings_pin_the_reviewed_tag(self) -> None:
+        assert _ponytail_pin_errors(_load(CLAUDE_SETTINGS), {"ref": PONYTAIL_TAG}) == []
+
+    def test_copilot_settings_pin_the_reviewed_commit(self) -> None:
+        assert _ponytail_pin_errors(_load(COPILOT_SETTINGS), COPILOT_PINS) == []
+
+    def test_copilot_keeps_its_other_marketplaces(self) -> None:
+        markets = _load(COPILOT_SETTINGS)["extraKnownMarketplaces"]
+        for name in ("caveman", "ai-agents", "agent-plugins", "graybeard"):
+            assert name in markets, f"repinning Ponytail displaced {name!r}"
+
+    def test_no_instruction_surface_copies_the_ruleset(self) -> None:
+        hits = []
+        for surface in INSTRUCTION_SURFACES:
+            root = REPO_ROOT / surface
+            files = [root] if root.is_file() else sorted(root.rglob("*"))
+            for path in files:
+                rel = path.relative_to(REPO_ROOT).as_posix()
+                if path.is_dir() and path.name.startswith("ponytail"):
+                    hits.append(f"{rel}: local ponytail directory shadows the plugin")
+                elif path.is_file() and path.suffix in {".md", ".json", ".yaml", ".tmpl"}:
+                    if PONYTAIL_FINGERPRINT in path.read_text(encoding="utf-8", errors="ignore"):
+                        hits.append(f"{rel}: copies Ponytail's SKILL.md")
+        assert hits == [], "\n".join(hits)
+
+
+def _source(settings: dict[str, Any]) -> dict[str, Any]:
+    return settings["extraKnownMarketplaces"]["ponytail"]["source"]
+
+
+class TestPonytailPinPredicateRejectsDrift:
+    """Negative and edge: every shape that drops or repoints the plugin."""
+
+    GOOD = {
+        "extraKnownMarketplaces": {
+            "ponytail": {"source": {"source": "github", "repo": PONYTAIL_REPO, **COPILOT_PINS}}
+        },
+        "enabledPlugins": {PONYTAIL_ID: True},
+    }
+
+    def test_good_shape_passes(self) -> None:
+        assert _ponytail_pin_errors(self.GOOD, COPILOT_PINS) == []
+
+    @pytest.mark.parametrize(
+        ("mutate", "why"),
+        [
+            (lambda s: s.pop("extraKnownMarketplaces"), "marketplace dropped"),
+            (lambda s: s["extraKnownMarketplaces"].pop("ponytail"), "ponytail entry dropped"),
+            (lambda s: s["extraKnownMarketplaces"]["ponytail"].pop("source"), "source dropped"),
+            (lambda s: _source(s).update(repo="fork/ponytail"), "repointed repo"),
+            (lambda s: _source(s).update(source="url"), "wrong source kind"),
+            (
+                lambda s: _source(s).update(sha="2ed6c52c9d7e5e56942508591085fd45dea277d3"),
+                "old sha",
+            ),
+            (lambda s: _source(s).pop("sha"), "sha dropped"),
+            (lambda s: _source(s).pop("ref"), "ref dropped, sha alone does not pin"),
+            (lambda s: _source(s).update(ref="main"), "floating ref"),
+            (lambda s: s.pop("enabledPlugins"), "enabledPlugins dropped"),
+            (lambda s: s["enabledPlugins"].update({PONYTAIL_ID: False}), "disabled"),
+            (lambda s: s["enabledPlugins"].update({PONYTAIL_ID: "true"}), "string is not true"),
+        ],
+    )
+    def test_drift_is_reported(self, mutate: Any, why: str) -> None:
+        settings = json.loads(json.dumps(self.GOOD))
+        mutate(settings)
+        assert _ponytail_pin_errors(settings, COPILOT_PINS), why
+
+    @pytest.mark.parametrize("settings", [None, [], "x"])
+    def test_non_object_settings_fail(self, settings: Any) -> None:
+        assert _ponytail_pin_errors(settings, COPILOT_PINS)
