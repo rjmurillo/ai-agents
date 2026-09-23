@@ -25,7 +25,11 @@ from typing import TYPE_CHECKING, Any, cast
 # when a caller has the repo root on sys.path, and a monkeypatch applied to
 # one copy would not reach the other.
 import _eval_api_adapter_constants as _constants
-from _eval_common import safe_http_error_message
+from _eval_common import (
+    call_with_temperature_fallback,
+    is_temperature_deprecated_message,
+    safe_http_error_message,
+)
 
 if TYPE_CHECKING:  # imported lazily at runtime; typed here for the client factory
     from anthropic.types import MessageParam
@@ -43,6 +47,7 @@ __all__ = [
     "_OpenAICompatibleProvider",
     "_http_code_from_exc",
     "_is_reasoning_model",
+    "_is_temperature_deprecated_sdk_error",
     "_normalize_and_raise",
     "_read_env_key",
 ]
@@ -110,11 +115,23 @@ def _http_code_from_exc(exc: Exception) -> int | None:
 
 def _normalize_and_raise(provider_label: str, exc: Exception) -> None:
     """Re-raise an SDK exception as a RuntimeError matching the message shapes
-    `_eval_api_adapter._categorize_error` already understands."""
+    `_eval_api_adapter._categorize_error` already understands.
+
+    Order matters: a `TypeError` (the SDK's own call rejected an argument
+    this provider sent, e.g. a keyword an installed SDK version removed) is
+    not a network condition and must not fall through to the
+    `network_failure` label below, which used to hide exactly that failure
+    behind a misleading message.
+    """
     name = type(exc).__name__.lower()
     if "timeout" in name:
         raise RuntimeError(
             f"{provider_label} API request timed out. The service may be slow or unreachable."
+        ) from None
+    if isinstance(exc, TypeError):
+        raise RuntimeError(
+            f"{provider_label} SDK call raised TypeError: error=sdk_argument_mismatch; "
+            "the installed SDK version does not accept an argument this provider sends"
         ) from None
     code = _http_code_from_exc(exc)
     if code is not None:
@@ -122,6 +139,23 @@ def _normalize_and_raise(provider_label: str, exc: Exception) -> None:
     raise RuntimeError(
         f"{provider_label} API network error: error=network_failure; provider details redacted"
     ) from None
+
+
+def _is_temperature_deprecated_sdk_error(exc: Exception) -> bool:
+    """True for the SDK's `BadRequestError` shape of a deprecated-temperature
+    400. Gated on status code 400 first so an unrelated message never
+    triggers the fallback retry by accident."""
+    if _http_code_from_exc(exc) != 400:
+        return False
+    message = getattr(exc, "message", None)
+    if not isinstance(message, str):
+        message = str(exc)
+    # bool(...): `_eval_common` is a sibling module reached through the same
+    # bare sys.path import every function in this file already uses, which
+    # mypy cannot resolve without a package `__init__.py` and reads as `Any`
+    # under `ignore_missing_imports`. The function itself is typed `-> bool`;
+    # this only satisfies `no-any-return` at the call site.
+    return bool(is_temperature_deprecated_message(message))
 
 
 # OpenAI reasoning models (o1/o3/o4 series, gpt-5 and gpt-6 families) reject
@@ -265,20 +299,29 @@ class _AnthropicSDKProvider:
         api_key = _read_env_key(["ANTHROPIC_API_KEY"])
         client = Anthropic(api_key=api_key, timeout=120.0, max_retries=0)
         anthropic_messages = cast("Iterable[MessageParam]", messages)
-        # `temperature` is absent from the SDK's `create` overloads, so mypy
-        # rejects the call although the API accepts the field and the urllib
-        # path sends it. Cast at the boundary, the same way the OpenAI client
-        # is called below, rather than dropping an argument the adapter
-        # documents as sent on every call.
+        # `temperature` is not a typed parameter of `messages.create` in SDK
+        # >=1.x (anthropic 1.6.0 dropped it from every overload; Anthropic is
+        # deprecating the field per model). Passing it as a direct keyword
+        # raises TypeError regardless of model. `extra_body` merges it into
+        # the raw JSON request body instead, bypassing the typed schema, so
+        # models that still accept the field (see the comment above
+        # `_eval_common._TEMPERATURE_DEPRECATED_RE` for the current split)
+        # keep getting it.
         create_message = cast("Callable[..., Any]", client.messages.create)
+
+        def _send(include_temperature: bool) -> object:
+            kwargs: dict[str, object] = {
+                "model": model,
+                "max_tokens": max_tokens,
+                "system": system or "",
+                "messages": anthropic_messages,
+            }
+            if include_temperature:
+                kwargs["extra_body"] = {"temperature": temperature}
+            return create_message(**kwargs)
+
         try:
-            resp = create_message(
-                model=model,
-                max_tokens=max_tokens,
-                system=system or "",
-                messages=anthropic_messages,
-                temperature=temperature,
-            )
+            resp = call_with_temperature_fallback(_send, _is_temperature_deprecated_sdk_error)
         except Exception as exc:
             _normalize_and_raise(self._provider_label, exc)
             raise  # unreachable
