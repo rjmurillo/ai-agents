@@ -121,7 +121,6 @@ Before you push, confirm:
 - [ ] `uv run --frozen lefthook check-install` exits 0
 - [ ] Touched `.claude/`, `src/claude/`, or `src/copilot-cli/`? The matching `plugin.json` still carries no `version` field (`python3 build/scripts/validate_plugin_version_bump.py` exits 0)
 - [ ] Touched a canonical generation source? `uv run python build/scripts/build_all.py --check` and `uv run python build/generate_agents.py --validate` both pass
-- [ ] Each commit 5 files or fewer (commit count itself is advisory only; ADR-099)
 - [ ] Created or edited an ADR? `adr-review` gate acknowledged
 - [ ] No em or en dashes in changed files: `python3 -c "import sys; b=open(sys.argv[1],'rb').read(); print(b.count(chr(0x2014).encode())+b.count(chr(0x2013).encode()))" FILE` prints 0
 

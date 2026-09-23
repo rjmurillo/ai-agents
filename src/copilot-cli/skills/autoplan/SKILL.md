@@ -82,7 +82,7 @@ when it does, extract that slice into its own minimal, mergeable PR rather
 than filing a follow-up issue and reporting the parent issue as handled
 while it stays open with no merged artifact. (Learned from the
 `rjmurillo/ai-agents` repository's issue #5198, 2026-08-25, where
-`needs-split` is assigned purely from commit count and proves nothing about
+`needs-split` was assigned purely from commit count and proves nothing about
 scope; an earlier version of this rule hardcoded that repository's label
 semantics and pointed plugin consumers at a test file that does not ship
 with this skill. Also from the same issue: two independently-extracted
