@@ -1,0 +1,177 @@
+2026-09-24T12:53:50.088Z [DEBUG] [rust:model_wire] Wire request: {
+  "model": "claude-haiku-4-5",
+  "thinking": {
+    "type": "enabled",
+    "budget_tokens": 1024,
+    "display": "summarized"
+  },
+  "stream": true
+}
+2026-09-24T12:53:55.495Z [DEBUG] [rust:model_wire] response (Request-ID req_011CfNJEHfQGEua5ZnrWUYnB):
+2026-09-24T12:53:55.495Z [DEBUG] [rust:model_wire] data:
+2026-09-24T12:53:55.495Z [DEBUG] [rust:model_wire] {
+  "id": "msg_011CfNJEJq6jVUmejv32A6Fk",
+  "object": "chat.completion",
+  "model": "claude-haiku-4-5-20251001",
+  "usage": {
+    "prompt_tokens": 27289,
+    "completion_tokens": 720,
+    "total_tokens": 28009,
+    "prompt_tokens_details": {
+      "cached_tokens": 14696,
+      "cache_creation_tokens": 12583,
+      "cache_ttl_seconds": 300
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 274
+    }
+  }
+}
+2026-09-24T12:53:55.608Z [DEBUG] [rust:model_wire] Wire request: {
+  "model": "claude-haiku-4-5",
+  "thinking": {
+    "type": "enabled",
+    "budget_tokens": 1024,
+    "display": "summarized"
+  },
+  "stream": true
+}
+2026-09-24T12:53:55.851Z [DEBUG] [rust:model_wire] Wire request: {
+  "model": "claude-haiku-4-5",
+  "thinking": {
+    "type": "enabled",
+    "budget_tokens": 1024,
+    "display": "summarized"
+  },
+  "stream": true
+}
+2026-09-24T12:53:55.852Z [DEBUG] [rust:model_wire] Wire request: {
+  "model": "claude-haiku-4-5",
+  "thinking": {
+    "type": "enabled",
+    "budget_tokens": 1024,
+    "display": "summarized"
+  },
+  "stream": true
+}
+2026-09-24T12:53:55.890Z [DEBUG] [rust:model_wire] Wire request: {
+  "model": "claude-haiku-4-5",
+  "thinking": {
+    "type": "enabled",
+    "budget_tokens": 1024,
+    "display": "summarized"
+  },
+  "stream": true
+}
+2026-09-24T12:53:56.737Z [DEBUG] [rust:model_wire] response (Request-ID req_011CfNJEgyc2fi2FgP7VHtte):
+2026-09-24T12:53:56.737Z [DEBUG] [rust:model_wire] data:
+2026-09-24T12:53:56.738Z [DEBUG] [rust:model_wire] {
+  "id": "msg_011CfNJEhKwo9CM5GhJMsofd",
+  "object": "chat.completion",
+  "model": "claude-haiku-4-5-20251001",
+  "usage": {
+    "prompt_tokens": 28450,
+    "completion_tokens": 118,
+    "total_tokens": 28568,
+    "prompt_tokens_details": {
+      "cached_tokens": 27279,
+      "cache_creation_tokens": 1164,
+      "cache_ttl_seconds": 300
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 0
+    }
+  }
+}
+2026-09-24T12:54:06.587Z [DEBUG] [rust:model_wire] response (Request-ID req_011CfNJEiGFRy14RyAtxdZUh):
+2026-09-24T12:54:06.587Z [DEBUG] [rust:copilot_runtime::session::pending_request_flow] Detached host delivery retirement decision completed
+2026-09-24T12:54:06.587Z [DEBUG] [rust:model_wire] data:
+2026-09-24T12:54:06.587Z [DEBUG] [rust:copilot_runtime::session::pending_request_flow] Detached host delivery started
+2026-09-24T12:54:06.587Z [DEBUG] [rust:copilot_runtime::session::pending_request_flow] Detached host delivery completed
+2026-09-24T12:54:06.587Z [DEBUG] [rust:copilot_runtime::session::pending_request_flow] Detached host delivery retirement decision completed
+2026-09-24T12:54:06.587Z [DEBUG] [rust:copilot_runtime::session::pending_request_flow] Detached host delivery started
+2026-09-24T12:54:06.587Z [DEBUG] [rust:copilot_runtime::session::pending_request_flow] Detached host delivery completed
+2026-09-24T12:54:06.588Z [DEBUG] [rust:copilot_runtime::session::pending_request_flow] Detached host delivery retirement decision completed
+2026-09-24T12:54:06.588Z [DEBUG] [rust:model_wire] {
+  "id": "msg_011CfNJEia7VkdqDg9rxsVPV",
+  "object": "chat.completion",
+  "model": "claude-haiku-4-5-20251001",
+  "usage": {
+    "prompt_tokens": 26432,
+    "completion_tokens": 1039,
+    "total_tokens": 27471,
+    "prompt_tokens_details": {
+      "cached_tokens": 14782,
+      "cache_creation_tokens": 11640,
+      "cache_ttl_seconds": 300
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 775
+    }
+  }
+}
+2026-09-24T12:54:06.990Z [DEBUG] [rust:model_wire] response (Request-ID req_011CfNJEiGVWRMavy2hGSafp):
+2026-09-24T12:54:06.990Z [DEBUG] [rust:model_wire] data:
+2026-09-24T12:54:06.990Z [DEBUG] [rust:session_bindings::api_session_event_stream] Coalescing waiting session event stream flushes
+2026-09-24T12:54:06.990Z [DEBUG] [rust:model_wire] {
+  "id": "msg_011CfNJEivSquxFdVozCztNQ",
+  "object": "chat.completion",
+  "model": "claude-haiku-4-5-20251001",
+  "usage": {
+    "prompt_tokens": 26432,
+    "completion_tokens": 1071,
+    "total_tokens": 27503,
+    "prompt_tokens_details": {
+      "cached_tokens": 14782,
+      "cache_creation_tokens": 11640,
+      "cache_ttl_seconds": 300
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 850
+    }
+  }
+}
+2026-09-24T12:54:07.274Z [DEBUG] [rust:model_wire] response (Request-ID req_011CfNJEiKxyDreWtgaCzbSq):
+2026-09-24T12:54:07.274Z [DEBUG] [rust:model_wire] data:
+2026-09-24T12:54:07.274Z [DEBUG] [rust:model_wire] {
+  "id": "msg_011CfNJEifJhqMHezyAJH2E9",
+  "object": "chat.completion",
+  "model": "claude-haiku-4-5-20251001",
+  "usage": {
+    "prompt_tokens": 26432,
+    "completion_tokens": 1056,
+    "total_tokens": 27488,
+    "prompt_tokens_details": {
+      "cached_tokens": 14782,
+      "cache_creation_tokens": 11640,
+      "cache_ttl_seconds": 300
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 831
+    }
+  }
+}
+2026-09-24T12:54:07.491Z [DEBUG] [rust:model_wire] Wire request: {
+  "model": "claude-haiku-4-5",
+  "stream": true
+}
+2026-09-24T12:54:08.669Z [DEBUG] [rust:model_wire] response (Request-ID req_011CfNJFZon5KivZL2YnBVn5):
+2026-09-24T12:54:08.669Z [DEBUG] [rust:model_wire] data:
+2026-09-24T12:54:08.669Z [DEBUG] [rust:model_wire] {
+  "id": "msg_011CfNJFaN25a7RYYsWNKJN8",
+  "object": "chat.completion",
+  "model": "claude-haiku-4-5-20251001",
+  "usage": {
+    "prompt_tokens": 29643,
+    "completion_tokens": 23,
+    "total_tokens": 29666,
+    "prompt_tokens_details": {
+      "cached_tokens": 26618,
+      "cache_creation_tokens": 3020,
+      "cache_ttl_seconds": 300
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 0
+    }
+  }
+}

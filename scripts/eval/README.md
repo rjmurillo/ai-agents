@@ -210,24 +210,35 @@ templates, pinned by a live `--help` read (codex-cli 0.156.0, Copilot CLI
 | ------- | ------------------------------ | -------------------- | ------------------------- |
 | codex   | `model_override`               | `--model`            | `<value>`                 |
 | codex   | `effort_override`, `sol_ultra` | `-c`                  | `model_reasoning_effort=<value>` |
+| codex   | `concurrency_limit`            | `-c`                  | `agents.max_threads=<value>` |
 | copilot | `model_override`               | `--model`            | `<value>`                 |
 | copilot | `effort_override`, `sol_ultra` | `--reasoning-effort` | `<value>`                 |
 
-`concurrency_limit` has no trusted template for either harness: neither
-`codex exec --help` nor `copilot --help` lists a `--max-concurrency`-equivalent
-option, so a concurrency probe is always UNVERIFIED "not trusted" and the CLI
-never runs for it.
+Codex `agents.max_threads` is enforced and does not count the root thread:
+with a value of 1 a second concurrent spawn failed with "collab spawn failed:
+agent thread limit reached". Copilot has no concurrency option, so a copilot
+concurrency probe is UNVERIFIED "not trusted" and the CLI never runs for it.
+
+The checked-in matrix (`examples/harness-capability-matrix.json`) is now
+evidence-backed: every `VERIFIED` cell cites a trimmed backend capture under
+`tests/eval/fixtures/harness_capability/`, and
+`tests/eval/test_harness_capability_live_evidence.py` (codex) and
+`tests/eval/test_harness_capability_live_evidence_copilot.py` (copilot)
+re-derive each `VERIFIED` cell from that capture using the in-tree parsers,
+independent of the live-probe pipeline. `tests/eval/test_harness_capability_live_evidence.py::test_checked_in_matrix_verified_cells_cite_real_evidence`
+pins that every `VERIFIED` cell has `BACKEND` evidence, a `probe_command`, a
+`date`, and a `detail` naming a fixture file that actually exists.
 
 ```json
 {
   "probes": [
     {
-      "harness": "copilot",
-      "capability": "model_override",
-      "parent_value": "gpt-5.6-sol",
-      "child_value": "claude-opus-5",
-      "argv": ["copilot", "--prompt", "probe"],
-      "request_flag": "--model"
+      "harness": "codex",
+      "capability": "effort_override",
+      "parent_value": "medium",
+      "child_value": "high",
+      "argv": ["codex", "exec", "--json", "--skip-git-repo-check", "-m", "gpt-5.6-sol"],
+      "request_flag": "-c"
     }
   ]
 }
@@ -282,6 +293,40 @@ The flag is opt-in and ignored for non-codex probes. The file is copied, not
 referenced, so the operator's real `auth.json` is never opened by the probed
 CLI, and its contents are never logged. A path that is not a regular file
 fails closed (exit 2) before any CLI runs.
+
+### Copilot: the client-label finding and BYOK
+
+Live finding (BYOK Anthropic, copilot-cli 1.0.89, 2026-09-24):
+`assistant.message.data.model` in `--output-format json` stdout reports the
+requested alias (`claude-haiku-4-5`), not the dated id the provider actually
+returned (`claude-haiku-4-5-20251001`). It is `CLIENT_ECHO`, not backend
+evidence. The provider's own response appears only in the debug log written
+by `--log-level all --log-dir <dir>`, as `[rust:model_wire]` lines
+(`scripts/eval/_copilot_wire.py`). A copilot `model_override` or
+`effort_override` probe plan needs `--log-level all --log-dir <dir>` in its
+argv; a plan that omits it, or whose log carries no matching wire response,
+resolves to UNVERIFIED naming that flag rather than falling back to the
+client-echoed model.
+
+GitHub-routed Copilot calls all returned HTTP 402 (monthly quota exceeded) on
+2026-09-24, so every copilot `VERIFIED` cell in the checked-in matrix was
+probed through the documented BYOK path instead:
+
+```bash
+COPILOT_PROVIDER_TYPE=anthropic \
+COPILOT_PROVIDER_BASE_URL=https://api.anthropic.com \
+COPILOT_PROVIDER_API_KEY=<key> \
+copilot -p '<prompt>' --output-format json --model claude-haiku-4-5 \
+  --reasoning-effort low --allow-all-tools --no-color --no-auto-update \
+  --log-level all --log-dir <dir>
+```
+
+BYOK replaces GitHub model routing, so GitHub-routed Sol, Luna, and Terra
+models remain unobserved for copilot; every #5422 arm (`_harness_capability.ARMS`)
+requires a Sol-family model on both harnesses compared
+(`Arm.required_models`), so no arm reads as `ELIGIBLE_MATCHED` between codex
+and copilot in the checked-in matrix, only `UNVERIFIED`, until a Copilot
+GitHub-routed run is captured.
 
 ## Real CLI Runtime Parity
 

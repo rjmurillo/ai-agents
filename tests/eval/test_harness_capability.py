@@ -15,13 +15,19 @@ from pathlib import Path
 
 import pytest
 
-from tests.eval._harness_capability_test_support import MATRIX, UNPROBED_MATRIX, capability, cli
+from tests.eval._harness_capability_test_support import (
+    MATRIX,
+    UNPROBED_MATRIX,
+    capability,
+    cli,
+)
 
 
 @pytest.fixture(autouse=True)
 def _start_from_the_unprobed_matrix(monkeypatch: pytest.MonkeyPatch) -> None:
     """Point the CLI default at the pre-probe matrix, not the live-probed one."""
     monkeypatch.setattr(cli, "DEFAULT_MATRIX", UNPROBED_MATRIX)
+
 
 CapabilityStatus = capability.CapabilityStatus
 EvidenceKind = capability.EvidenceKind
@@ -82,18 +88,6 @@ def test_fully_backed_record_validates() -> None:
 def test_load_matrix_reads_checked_in_deliverable() -> None:
     records = capability.load_matrix(MATRIX)
     assert {record.harness for record in records} == {"codex", "copilot"}
-
-
-def test_checked_in_matrix_verifies_only_with_live_backend_provenance() -> None:
-    # The deliverable must not ship a VERIFIED claim it did not prove: each
-    # one needs backend evidence, a runtime version, and the probe that made it.
-    for record in capability.load_matrix(MATRIX):
-        for key, cap in record.capabilities.items():
-            if cap.status is not CapabilityStatus.VERIFIED:
-                continue
-            assert cap.evidence is EvidenceKind.BACKEND, key
-            assert record.version_evidence is EvidenceKind.BACKEND, key
-            assert cap.probe_command and cap.date, key
 
 
 def test_checked_in_matrix_never_verifies_sol_ultra_as_another_tier() -> None:

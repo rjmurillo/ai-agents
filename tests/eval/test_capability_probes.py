@@ -18,6 +18,7 @@ case; they are labeled because they are not evidence that any guard works.
 
 from __future__ import annotations
 
+import os
 import subprocess
 
 import pytest
@@ -27,6 +28,7 @@ from tests.eval._capability_probe_fixtures import (
     CapabilityStatus,
     EvidenceKind,
     HarnessCapabilityError,
+    ProbeCommand,
     ProbeError,
     _answer,
     _command,
@@ -34,40 +36,123 @@ from tests.eval._capability_probe_fixtures import (
     _plan,
     _runner,
     _session_change,
+    copilot_wire_log_dir,
+    copilot_wire_response_line,
 )
-from tests.eval._harness_capability_test_support import probes, topology
+from tests.eval._harness_capability_test_support import evidence, probes
 
 # --- Model override probe ------------------------------------------------------
 
 
-def test_a_backend_attributed_model_verifies_the_override() -> None:
-    """CONFIRMATORY: the only path that may reach VERIFIED."""
-    stdout = _jsonl([_session_change(newModel="gpt-5.6-sol"), _answer("hi", model="gpt-5.6-sol")])
+def test_a_copilot_child_wire_response_verifies_the_override(tmp_path) -> None:
+    """CONFIRMATORY: copilot reads backend evidence from its `--log-dir` wire log."""
+    wire_text = copilot_wire_response_line("req_1", "msg_1", "claude-sonnet-4-6")
+    log_dir = copilot_wire_log_dir(tmp_path, wire_text)
+    command = ProbeCommand(
+        harness="copilot",
+        argv=(
+            "copilot",
+            "--prompt",
+            "probe",
+            "--log-level",
+            "all",
+            "--log-dir",
+            str(log_dir),
+            "--model",
+            "claude-sonnet-4-6",
+        ),
+        request_flag="--model",
+    )
+    stdout = _jsonl(
+        [{"type": "assistant.message", "data": {"content": "hi", "apiCallId": "msg_1"}}]
+    )
 
-    result = probes.probe_override(_plan(), _command(), runner=_runner(stdout), timeout=TIMEOUT)
+    result = probes.probe_override(
+        _plan(parent="claude-haiku-4-5-20251001", candidates=("claude-sonnet-4-6",)),
+        command,
+        runner=_runner(stdout),
+        timeout=TIMEOUT,
+    )
 
     assert result.status is CapabilityStatus.VERIFIED
     assert result.evidence is EvidenceKind.BACKEND
 
 
-def test_an_echo_only_output_never_verifies_the_override() -> None:
-    """NEGATIVE CONTROL: client and schema echo is not backend evidence."""
+def test_only_the_newest_log_dir_file_is_read(tmp_path) -> None:
+    """NEGATIVE CONTROL (issue #5423 review finding 8): a stale `process-*.log`
+
+    left behind by an earlier run in a reused `--log-dir` must not have its
+    wire evidence joined into this run's. An older file here names a
+    response for a `msg_1` the current run's stdout never mentions, and a
+    younger file (created after, so its mtime sorts last) is the one that
+    actually answers this run's `apiCallId`.
+    """
+    log_dir = tmp_path / "copilot-logs"
+    log_dir.mkdir()
+    stale = log_dir / "process-1.log"
+    stale.write_text(
+        copilot_wire_response_line("req_stale", "msg_stale", "claude-opus-4"), encoding="utf-8"
+    )
+    newest = log_dir / "process-2.log"
+    newest.write_text(
+        copilot_wire_response_line("req_1", "msg_1", "claude-sonnet-4-6"), encoding="utf-8"
+    )
+    now = os.stat(newest).st_mtime
+    os.utime(stale, (now - 60, now - 60))
+    command = ProbeCommand(
+        harness="copilot",
+        argv=(
+            "copilot",
+            "--prompt",
+            "probe",
+            "--log-level",
+            "all",
+            "--log-dir",
+            str(log_dir),
+            "--model",
+            "claude-sonnet-4-6",
+        ),
+        request_flag="--model",
+    )
+    stdout = _jsonl(
+        [{"type": "assistant.message", "data": {"content": "hi", "apiCallId": "msg_1"}}]
+    )
+
+    result = probes.probe_override(
+        _plan(parent="claude-haiku-4-5-20251001", candidates=("claude-sonnet-4-6",)),
+        command,
+        runner=_runner(stdout),
+        timeout=TIMEOUT,
+    )
+
+    assert result.status is CapabilityStatus.VERIFIED
+    assert "msg_stale" not in result.detail
+
+
+def test_an_echo_only_output_with_no_log_dir_never_verifies_the_override(tmp_path) -> None:
+    """NEGATIVE CONTROL: missing wire evidence is UNVERIFIED, never CLIENT_ECHO-as-proof.
+
+    `_capture_copilot_wire` requires the caller to have already asked for
+    `--log-level all --log-dir <dir>`; a plan that omits it gets a detail
+    naming that flag instead of silently trusting `assistant.message.model`.
+    """
     stdout = _jsonl([_session_change(newModel="gpt-5.6-sol"), _answer("hi")])
+    command = ProbeCommand(
+        harness="copilot",
+        argv=("copilot", "--prompt", "probe", "--model", "gpt-5.6-sol"),
+        request_flag="--model",
+    )
 
-    result = probes.probe_override(_plan(), _command(), runner=_runner(stdout), timeout=TIMEOUT)
+    result = probes.probe_override(
+        _plan(parent="claude-opus-5", candidates=("gpt-5.6-sol",)),
+        command,
+        runner=_runner(stdout),
+        timeout=TIMEOUT,
+    )
 
     assert result.status is CapabilityStatus.UNVERIFIED
-    assert result.evidence is EvidenceKind.CLIENT_ECHO
-
-
-def test_a_child_that_silently_inherits_the_parent_never_verifies() -> None:
-    """NEGATIVE CONTROL: an inherit is not an honored override."""
-    stdout = _jsonl([_answer("hi", model="claude-opus-5")])
-
-    result = probes.probe_override(_plan(), _command(), runner=_runner(stdout), timeout=TIMEOUT)
-
-    assert result.status is CapabilityStatus.UNVERIFIED
-    assert "claude-opus-5" in result.detail
+    assert result.evidence is EvidenceKind.NONE
+    assert "--log-dir" in result.detail
 
 
 def test_a_hand_built_plan_with_an_equal_child_value_cannot_be_constructed() -> None:
@@ -154,83 +239,63 @@ def test_the_probe_passes_the_command_argv_through_verbatim() -> None:
 # --- Effort override probe -----------------------------------------------------
 
 
+#: These five tests exercise `_capability_evidence.observe_effort` directly
+#: rather than through `probes.probe_override`. That pipeline no longer
+#: reaches this function for either currently-trusted harness: codex reads
+#: `observe_codex_effort` from RUST_LOG frames and copilot reads
+#: `observe_copilot_effort` from its wire log (both added when copilot's
+#: `assistant.message.model` was found to be a client label, see
+#: `test_capability_evidence.py`). `observe_effort` itself is unchanged and
+#: still the generic events-path a future harness could use, so its own
+#: key-matching behavior is still worth pinning in isolation.
+
+
 def test_an_effort_on_an_answer_turn_verifies_the_override() -> None:
-    """CONFIRMATORY: happy path for the effort observable.
+    """CONFIRMATORY: happy path for the effort observable."""
+    events = [_answer("hi", reasoningEffort="Sol Ultra")]
 
-    `--reasoning-effort` is the trusted Copilot flag (probed 2026-09-24,
-    Copilot CLI 1.0.89); `--effort` never existed on any harness.
-    """
-    stdout = _jsonl([_answer("hi", reasoningEffort="Sol Ultra")])
+    observation = evidence.observe_effort("copilot", events)
 
-    result = probes.probe_override(
-        _plan(capability_key="effort_override", parent="high", candidates=("Sol Ultra",)),
-        _command(requests="Sol Ultra", request_flag="--reasoning-effort"),
-        runner=_runner(stdout),
-        timeout=TIMEOUT,
-    )
-
-    assert result.status is CapabilityStatus.VERIFIED
-    assert result.evidence is EvidenceKind.BACKEND
-    assert "'Sol Ultra'" in result.detail
+    assert observation.evidence is EvidenceKind.BACKEND
+    assert observation.observed == "Sol Ultra"
 
 
 def test_an_effort_read_from_session_state_never_verifies() -> None:
     """NEGATIVE CONTROL: session state is the request echoed back."""
-    stdout = _jsonl([_session_change(reasoningEffort="Sol Ultra"), _answer("hi")])
+    events = [_session_change(reasoningEffort="Sol Ultra"), _answer("hi")]
 
-    result = probes.probe_override(
-        _plan(capability_key="effort_override", parent="high", candidates=("Sol Ultra",)),
-        _command(requests="Sol Ultra", request_flag="--reasoning-effort"),
-        runner=_runner(stdout),
-        timeout=TIMEOUT,
-    )
+    observation = evidence.observe_effort("copilot", events)
 
-    assert result.status is CapabilityStatus.UNVERIFIED
-    assert result.evidence is EvidenceKind.CLIENT_ECHO
+    assert observation.evidence is EvidenceKind.CLIENT_ECHO
+    assert observation.observed == "Sol Ultra"
 
 
 def test_an_effort_on_a_contentless_turn_is_not_backend_evidence() -> None:
     """NEGATIVE CONTROL: a status line is not an answer the backend produced."""
-    stdout = _jsonl([{"type": "assistant.message", "data": {"reasoningEffort": "Sol Ultra"}}])
+    events = [{"type": "assistant.message", "data": {"reasoningEffort": "Sol Ultra"}}]
 
-    result = probes.probe_override(
-        _plan(capability_key="effort_override", parent="high", candidates=("Sol Ultra",)),
-        _command(requests="Sol Ultra", request_flag="--reasoning-effort"),
-        runner=_runner(stdout),
-        timeout=TIMEOUT,
-    )
+    observation = evidence.observe_effort("copilot", events)
 
-    assert result.status is CapabilityStatus.UNVERIFIED
-    assert result.evidence is EvidenceKind.NONE
+    assert observation.evidence is EvidenceKind.NONE
 
 
 def test_an_effort_key_outside_the_configured_set_observes_nothing() -> None:
     """NEGATIVE CONTROL: the key set is a bounded allowlist, not a scan."""
-    stdout = _jsonl([_answer("hi", tier="Sol Ultra")])
+    events = [_answer("hi", tier="Sol Ultra")]
 
-    result = probes.probe_override(
-        _plan(capability_key="effort_override", parent="high", candidates=("Sol Ultra",)),
-        _command(requests="Sol Ultra", request_flag="--reasoning-effort"),
-        runner=_runner(stdout),
-        timeout=TIMEOUT,
-    )
+    observation = evidence.observe_effort("copilot", events)
 
-    assert result.evidence is EvidenceKind.NONE
+    assert observation.evidence is EvidenceKind.NONE
 
 
 def test_a_caller_supplied_effort_key_is_honored() -> None:
     """CONFIRMATORY: a live run can name the real key without a code change."""
-    stdout = _jsonl([_answer("hi", tier="Sol Ultra")])
+    events = [_answer("hi", tier="Sol Ultra")]
 
-    result = probes.probe_override(
-        _plan(capability_key="effort_override", parent="high", candidates=("Sol Ultra",)),
-        _command(requests="Sol Ultra", request_flag="--reasoning-effort"),
-        runner=_runner(stdout),
-        timeout=TIMEOUT,
-        effort_keys=("tier",),
-    )
+    observation = evidence.observe_effort("copilot", events, effort_keys=("tier",))
 
-    assert result.status is CapabilityStatus.VERIFIED
+    assert observation.evidence is EvidenceKind.BACKEND
+    assert observation.observed == "Sol Ultra"
 
 
 # --- Process-level failures ----------------------------------------------------
@@ -280,210 +345,3 @@ def test_truncated_runtime_output_fails_closed() -> None:
 
     with pytest.raises(HarnessCapabilityError, match="empty or truncated"):
         probes.probe_override(_plan(), _command(), runner=runner, timeout=TIMEOUT)
-
-
-# --- Subagent support ----------------------------------------------------------
-
-
-def test_subagent_events_in_the_stream_verify_support() -> None:
-    """CONFIRMATORY: happy path; the observable comes from `traces`."""
-    stdout = _jsonl(
-        [{"type": "subagent.start", "data": {}}, {"type": "subagent.complete", "data": {}}]
-    )
-
-    result = probes.probe_subagent_support(_command(), runner=_runner(stdout), timeout=TIMEOUT)
-
-    assert result.status is CapabilityStatus.VERIFIED
-    assert result.evidence is EvidenceKind.BACKEND
-
-
-def test_a_run_with_no_subagent_events_does_not_verify_support() -> None:
-    """NEGATIVE CONTROL: asking for children is not observing them."""
-    stdout = _jsonl([_answer("hi", model="gpt-5.6-sol")])
-
-    result = probes.probe_subagent_support(_command(), runner=_runner(stdout), timeout=TIMEOUT)
-
-    assert result.status is CapabilityStatus.UNVERIFIED
-    assert result.evidence is EvidenceKind.NONE
-
-
-def test_a_missing_cli_does_not_crash_the_subagent_probe() -> None:
-    """NEGATIVE CONTROL: same fail-closed path on a different prober."""
-    runner = _runner(raises=FileNotFoundError(2, "No such file or directory", "codex"))
-
-    result = probes.probe_subagent_support(_command("codex"), runner=runner, timeout=TIMEOUT)
-
-    assert result.status is CapabilityStatus.UNVERIFIED
-
-
-# --- Concurrency ---------------------------------------------------------------
-
-
-def test_concurrency_probe_is_untrusted_by_construction_and_never_runs() -> None:
-    """NEGATIVE CONTROL: no `--max-concurrency`-equivalent flag is attested for
-    either harness (`codex exec --help` and `copilot --help`, both read
-    2026-09-24: codex-cli 0.156.0, Copilot CLI 1.0.89). `TRUSTED_REQUEST_TEMPLATES`
-    has no `concurrency_limit` entry for either, so `_trusted_request_flag` can
-    never match and the CLI must never run for this capability.
-    """
-    seen: list[list[str]] = []
-
-    result = probes.probe_concurrency(
-        _command(requests="3", request_flag="--max-concurrency"),
-        requested=3,
-        runner=_runner("", seen=seen),
-        timeout=TIMEOUT,
-    )
-
-    assert result.status is CapabilityStatus.UNVERIFIED
-    assert result.evidence is EvidenceKind.NONE
-    assert "not trusted" in result.detail
-    assert seen == []
-
-
-def test_concurrency_records_the_observed_peak_not_the_requested_count(monkeypatch) -> None:
-    """NEGATIVE CONTROL: the config-echo failure applied to a count.
-
-    No harness currently has a trusted concurrency flag (see the test above),
-    so this injects one synthetic template to exercise the peak-measurement
-    code that will run the day a real flag is attested; it is not a claim
-    that `copilot` has this flag today.
-    """
-    monkeypatch.setitem(
-        probes.TRUSTED_REQUEST_TEMPLATES,
-        ("copilot", "concurrency_limit"),
-        probes._RequestTemplate("--max-concurrency"),
-    )
-    stdout = _jsonl(
-        [
-            {"type": "subagent.start", "data": {"id": "a"}},
-            {"type": "subagent.start", "data": {"id": "b"}},
-            {"type": "subagent.complete", "data": {"id": "a"}},
-            {"type": "subagent.complete", "data": {"id": "b"}},
-            {"type": "subagent.start", "data": {"id": "c"}},
-            {"type": "subagent.complete", "data": {"id": "c"}},
-        ]
-    )
-
-    result = probes.probe_concurrency(
-        _command(requests="3", request_flag="--max-concurrency"),
-        requested=3,
-        runner=_runner(stdout),
-        timeout=TIMEOUT,
-    )
-
-    assert result.status is CapabilityStatus.UNVERIFIED
-    assert result.evidence is EvidenceKind.BACKEND
-    assert result.value == 2
-    assert result.value != 3
-
-
-def test_concurrency_with_too_few_launches_stays_unverified(monkeypatch) -> None:
-    """NEGATIVE CONTROL: a shorter workload cannot prove the requested count.
-
-    See the synthetic-template note on the peak-measurement test above.
-    """
-    monkeypatch.setitem(
-        probes.TRUSTED_REQUEST_TEMPLATES,
-        ("copilot", "concurrency_limit"),
-        probes._RequestTemplate("--max-concurrency"),
-    )
-    stdout = _jsonl(
-        [
-            {"type": "subagent.start"},
-            {"type": "subagent.complete"},
-            {"type": "subagent.start"},
-            {"type": "subagent.complete"},
-        ]
-    )
-
-    result = probes.probe_concurrency(
-        _command(requests="3", request_flag="--max-concurrency"),
-        requested=3,
-        runner=_runner(stdout),
-        timeout=TIMEOUT,
-    )
-
-    assert result.status is CapabilityStatus.UNVERIFIED
-    assert "fewer than the requested 3" in result.detail
-
-
-def test_starts_with_no_completion_boundary_cannot_derive_concurrency(monkeypatch) -> None:
-    """NEGATIVE CONTROL: N starts without ends is N sequential children too.
-
-    See the synthetic-template note on the peak-measurement test above.
-    """
-    monkeypatch.setitem(
-        probes.TRUSTED_REQUEST_TEMPLATES,
-        ("copilot", "concurrency_limit"),
-        probes._RequestTemplate("--max-concurrency"),
-    )
-    stdout = _jsonl([{"type": "subagent.start", "data": {"id": str(index)}} for index in range(4)])
-
-    result = probes.probe_concurrency(
-        _command(requests="4", request_flag="--max-concurrency"),
-        requested=4,
-        runner=_runner(stdout),
-        timeout=TIMEOUT,
-    )
-
-    assert result.status is CapabilityStatus.UNVERIFIED
-    assert result.value is None
-
-
-def test_claude_agent_tool_blocks_carry_no_concurrency_boundary() -> None:
-    """CONFIRMATORY: no mutation of this module changes the result; `traces` owns it."""
-    events = [
-        {
-            "type": "assistant",
-            "message": {
-                "content": [
-                    {"type": "tool_use", "name": "Task", "input": {}},
-                    {"type": "tool_use", "name": "Task", "input": {}},
-                ]
-            },
-        }
-    ]
-
-    assert topology.max_concurrent_children(events) is None
-
-
-def test_a_sequential_run_records_a_peak_of_one() -> None:
-    """CONFIRMATORY: pins the walk, which is arithmetic over the boundaries."""
-    events = [
-        {"type": "subagent.start"},
-        {"type": "subagent.complete"},
-        {"type": "subagent.start"},
-        {"type": "subagent.complete"},
-    ]
-
-    assert topology.max_concurrent_children(events) == 1
-
-
-def test_concurrency_rejects_a_requested_count_below_one() -> None:
-    """NEGATIVE CONTROL: a probe that asks for no children measures nothing."""
-    with pytest.raises(ProbeError, match="at least 1"):
-        probes.probe_concurrency(_command(), requested=0, runner=_runner(""), timeout=TIMEOUT)
-
-
-def test_a_missing_cli_does_not_crash_the_concurrency_probe(monkeypatch) -> None:
-    """NEGATIVE CONTROL: same fail-closed path on the third prober.
-
-    See the synthetic-template note on the peak-measurement test above.
-    """
-    monkeypatch.setitem(
-        probes.TRUSTED_REQUEST_TEMPLATES,
-        ("copilot", "concurrency_limit"),
-        probes._RequestTemplate("--max-concurrency"),
-    )
-    runner = _runner(raises=FileNotFoundError(2, "No such file or directory", "copilot"))
-
-    result = probes.probe_concurrency(
-        _command(requests="2", request_flag="--max-concurrency"),
-        requested=2,
-        runner=runner,
-        timeout=TIMEOUT,
-    )
-
-    assert result.status is CapabilityStatus.UNVERIFIED
-    assert result.value is None

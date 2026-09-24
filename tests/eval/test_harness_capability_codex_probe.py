@@ -14,6 +14,7 @@ against a future regression rather than proving this one.
 from __future__ import annotations
 
 import json
+import shlex
 import subprocess
 from datetime import date
 from pathlib import Path
@@ -38,10 +39,12 @@ class _MultiHarnessRunner:
         versions: dict[str, str] | None = None,
         fail: frozenset[str] = frozenset(),
         stdout: str = "",
+        stderr: str = "",
     ) -> None:
         self.versions = versions or {}
         self.fail = fail
         self.stdout = stdout
+        self.stderr = stderr
         self.calls: list[list[str]] = []
         self.kwargs: list[dict[str, object]] = []
 
@@ -53,7 +56,7 @@ class _MultiHarnessRunner:
         if executable in self.fail:
             return subprocess.CompletedProcess(args, 1, "", "boom")
         if "--version" not in args:
-            return subprocess.CompletedProcess(args, 0, self.stdout, "")
+            return subprocess.CompletedProcess(args, 0, self.stdout, self.stderr)
         return subprocess.CompletedProcess(args, 0, self.versions.get(executable, ""), "")
 
 
@@ -62,14 +65,32 @@ def _which_only(*names: str):
     return lambda name: f"/bin/{name}" if name in allowed else None
 
 
-def _write_model_probe(path: Path) -> None:
-    path.write_text(
-        '{"probes":[{"harness":"copilot","capability":"model_override",'
-        '"parent_value":"gpt-5.6-sol","child_value":"claude-opus-5",'
-        '"cwd":"nested","argv":["copilot","--prompt","probe"],'
-        '"request_flag":"--model"}]}',
-        encoding="utf-8",
-    )
+def _write_model_probe(path: Path, *, log_dir: Path | None = None) -> None:
+    """Write a copilot `model_override` behavioral-probe plan.
+
+    `log_dir`, when given, adds `--log-level all --log-dir <log_dir>` to the
+    probe's argv: copilot's `model_override` now reads its backend evidence
+    from that wire log (`_capability_probes._capture_copilot_wire`), not
+    `--json` stdout, so a plan that omits it can never reach `VERIFIED`
+    regardless of what the fake runner returns.
+    """
+    argv = ["copilot", "--prompt", "probe"]
+    if log_dir is not None:
+        argv += ["--log-level", "all", "--log-dir", str(log_dir)]
+    payload = {
+        "probes": [
+            {
+                "harness": "copilot",
+                "capability": "model_override",
+                "parent_value": "gpt-5.6-sol",
+                "child_value": "claude-opus-5",
+                "cwd": "nested",
+                "argv": argv,
+                "request_flag": "--model",
+            }
+        ]
+    }
+    path.write_text(json.dumps(payload), encoding="utf-8")
 
 
 # --- Positive: codex is probed and its version filled when on PATH -------------
@@ -176,20 +197,65 @@ def test_dry_run_validates_behavioral_plan(tmp_path: Path, monkeypatch) -> None:
     assert not output.exists()
 
 
+def _write_copilot_wire_log(log_dir: Path) -> None:
+    """Write a wire log whose one response pairs `req_1` with `resp1`/`claude-opus-5`."""
+    log_dir.mkdir(parents=True)
+    (log_dir / "process-1.log").write_text(
+        "2026-09-24T12:00:00.000Z [DEBUG] [rust:model_wire] "
+        "response (Request-ID req_1):\n"
+        "2026-09-24T12:00:00.000Z [DEBUG] [rust:model_wire] data:\n"
+        '2026-09-24T12:00:00.000Z [DEBUG] [rust:model_wire] {"id": "resp1", '
+        '"model": "claude-opus-5", "usage": {}}\n',
+        encoding="utf-8",
+    )
+
+
+def _assert_copilot_model_override_updated(
+    output: Path,
+    expected_call: list[str],
+    *,
+    log_dir: Path,
+    runner: _MultiHarnessRunner,
+) -> None:
+    report = json.loads(output.read_text(encoding="utf-8"))
+    copilot = next(row for row in report["harnesses"] if row["harness"] == "copilot")
+    expected_command = shlex.join(expected_call)
+    assert copilot["capabilities"]["model_override"]["status"] == "VERIFIED"
+    assert copilot["capabilities"]["model_override"]["probe_command"] == expected_command
+    assert copilot["capabilities"]["model_override"]["date"] == date.today().isoformat()
+    assert copilot["supported_models"] == ["claude-opus-5"]
+    assert copilot["probe_command"] == expected_command
+    assert copilot["date"] == date.today().isoformat()
+    assert expected_call in runner.calls
+    behavioral_kwargs = runner.kwargs[runner.calls.index(expected_call)]
+    workspace = Path(str(behavioral_kwargs["cwd"])).parent
+    assert workspace.parent == (output.parent / "behavioral-probes" / "copilot").resolve()
+    assert workspace.name.startswith("probe-0-")
+    assert behavioral_kwargs["cwd"] == workspace / "nested"
+    behavioral_env = behavioral_kwargs["env"]
+    assert isinstance(behavioral_env, dict)
+    assert Path(str(behavioral_env["COPILOT_HOME"])) == (workspace / ".parity-profile" / "copilot")
+    assert log_dir.is_dir()
+
+
 def test_behavioral_probe_updates_copilot_record(tmp_path: Path, monkeypatch) -> None:
+    """Copilot's `model_override` now reads its `--log-dir` wire log, not
+
+    `--json` stdout (`assistant.message.data.model` is a client label, see
+    `_capability_evidence.observe_copilot_model`), so this test pre-creates
+    the wire log before the plan runs and points the plan's argv at it. The
+    log dir sits outside the per-run workspace, which is deleted afterward.
+    """
     output = tmp_path / "report.json"
     plan = tmp_path / "probes.json"
-    _write_model_probe(plan)
+    log_dir = (tmp_path / "copilot-logs").resolve()
+    _write_copilot_wire_log(log_dir)
+    _write_model_probe(plan, log_dir=log_dir)
     monkeypatch.setattr(cli.shutil, "which", _which_only("custom-copilot"))
+    answer = {"content": "ok", "model": "claude-opus-5", "apiCallId": "resp1"}
     runner = _MultiHarnessRunner(
         versions={"custom-copilot": "copilot 9.9.9"},
-        stdout=json.dumps(
-            {
-                "type": "assistant.message",
-                "data": {"content": "ok", "model": "claude-opus-5"},
-            }
-        )
-        + "\n",
+        stdout=json.dumps({"type": "assistant.message", "data": answer}) + "\n",
     )
 
     code = cli.main(
@@ -205,35 +271,18 @@ def test_behavioral_probe_updates_copilot_record(tmp_path: Path, monkeypatch) ->
     )
 
     assert code == 0
-    report = json.loads(output.read_text(encoding="utf-8"))
-    copilot = next(row for row in report["harnesses"] if row["harness"] == "copilot")
-    assert copilot["capabilities"]["model_override"]["status"] == "VERIFIED"
-    assert copilot["capabilities"]["model_override"]["probe_command"] == (
-        "custom-copilot --prompt probe --model claude-opus-5"
-    )
-    assert copilot["capabilities"]["model_override"]["date"] == date.today().isoformat()
-    assert copilot["supported_models"] == ["claude-opus-5"]
-    assert copilot["probe_command"] == "custom-copilot --prompt probe --model claude-opus-5"
-    assert copilot["date"] == date.today().isoformat()
     expected_call = [
         "custom-copilot",
         "--prompt",
         "probe",
+        "--log-level",
+        "all",
+        "--log-dir",
+        str(log_dir),
         "--model",
         "claude-opus-5",
     ]
-    assert expected_call in runner.calls
-    behavioral_index = runner.calls.index(expected_call)
-    behavioral_kwargs = runner.kwargs[behavioral_index]
-    workspace = Path(str(behavioral_kwargs["cwd"])).parent
-    assert workspace.parent == (output.parent / "behavioral-probes" / "copilot").resolve()
-    assert workspace.name.startswith("probe-0-")
-    assert behavioral_kwargs["cwd"] == workspace / "nested"
-    # The per-run workspace is a TemporaryDirectory, gone once the probe ends.
-    assert not workspace.exists()
-    behavioral_env = behavioral_kwargs["env"]
-    assert isinstance(behavioral_env, dict)
-    assert Path(str(behavioral_env["COPILOT_HOME"])) == (workspace / ".parity-profile" / "copilot")
+    _assert_copilot_model_override_updated(output, expected_call, log_dir=log_dir, runner=runner)
 
 
 def test_same_harness_behavioral_probes_use_distinct_workspaces(
@@ -319,12 +368,21 @@ def test_cli_missing_codex_binary_stays_unverified_not_crash(tmp_path: Path, mon
     assert not any(call[0] == "codex" for call in runner.calls)
 
 
-def test_cli_missing_codex_binary_verifies_no_capability_silently(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_cli_missing_codex_binary_changes_no_codex_capability(tmp_path: Path, monkeypatch) -> None:
+    """A missing binary must never be read as license to add or drop a capability claim.
+
+    The checked-in matrix already carries real, independently-verified codex
+    capabilities (live probes against codex-cli 0.156.0, 2026-09-24), so
+    this run's job is to prove they pass through byte-for-byte unchanged
+    when no probe of any kind can run, not to prove they start UNVERIFIED
+    (they do not).
+    """
     output = tmp_path / "report.json"
     monkeypatch.setattr(cli.shutil, "which", _which_only("copilot"))
     runner = _MultiHarnessRunner(versions={"copilot": "copilot 9.9.9"})
+    checked_in_codex = next(
+        record for record in capability.load_matrix(cli.DEFAULT_MATRIX) if record.harness == "codex"
+    )
 
     cli.main(["--output", str(output)], runner=runner)
 
@@ -332,7 +390,7 @@ def test_cli_missing_codex_binary_verifies_no_capability_silently(
     codex_capabilities = next(row for row in report["harnesses"] if row["harness"] == "codex")[
         "capabilities"
     ]
-    # A missing version probe must never be read as license to mark a
-    # behavioral capability VERIFIED by default (no silent pass).
     for key in capability.CAPABILITY_KEYS:
-        assert codex_capabilities[key]["status"] == "UNVERIFIED", key
+        checked_in = checked_in_codex.capabilities[key]
+        assert codex_capabilities[key]["status"] == checked_in.status.value, key
+        assert codex_capabilities[key]["evidence"] == checked_in.evidence.value, key

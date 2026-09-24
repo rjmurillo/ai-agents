@@ -397,7 +397,12 @@ def test_codex_a_dash_c_equals_joined_token_does_not_carry_the_request() -> None
 
 
 def test_copilot_effort_equals_joined_flag_still_carries_the_request() -> None:
-    """CONFIRMATORY: a long option keeps the `flag=value` acceptance."""
+    """CONFIRMATORY: a long option keeps the `flag=value` acceptance.
+
+    The request is carried, so no `ProbeError` is raised. Copilot effort is
+    request-only evidence since the 2026-09-24 BYOK capture (the provider
+    reports no effort), so the probe records UNVERIFIED rather than VERIFIED.
+    """
     stdout = _jsonl([_answer("hi", reasoningEffort="low")])
     command = probes.ProbeCommand(
         harness="copilot",
@@ -412,7 +417,7 @@ def test_copilot_effort_equals_joined_flag_still_carries_the_request() -> None:
         timeout=TIMEOUT,
     )
 
-    assert result.status is CapabilityStatus.VERIFIED
+    assert result.status is CapabilityStatus.UNVERIFIED
 
 
 # --- sol_ultra routes through probe_override, like effort_override -------------
