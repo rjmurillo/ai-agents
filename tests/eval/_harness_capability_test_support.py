@@ -10,6 +10,12 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 EVAL_DIR = REPO_ROOT / "scripts" / "eval"
 CLI_SCRIPT = EVAL_DIR / "eval_harness_capability.py"
 MATRIX = EVAL_DIR / "examples" / "harness-capability-matrix.json"
+# The matrix as it stood before any live probe ran: every cell UNVERIFIED and
+# no runtime version. CLI tests start from it so their assertions about what a
+# fake run may fill do not depend on what the last real run recorded.
+UNPROBED_MATRIX = (
+    Path(__file__).resolve().parent / "fixtures" / "harness-capability-matrix-unprobed.json"
+)
 
 _path_added = str(EVAL_DIR) not in sys.path
 if _path_added:
@@ -28,4 +34,4 @@ finally:
     if _path_added:
         sys.path.remove(str(EVAL_DIR))
 
-__all__ = ["MATRIX", "capability", "cli", "probes", "topology"]
+__all__ = ["MATRIX", "UNPROBED_MATRIX", "capability", "cli", "probes", "topology"]

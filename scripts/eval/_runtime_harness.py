@@ -274,17 +274,26 @@ def runtime_env(workspace: Path, harness: str) -> dict[str, str]:
     }
     # CODEX_API_KEY ("Supplies an API key to non-interactive processes") and
     # CODEX_ACCESS_TOKEN ("Furnishes access tokens for trusted automation")
-    # are Codex's own non-interactive auth variables, quoted from
-    # https://developers.openai.com/codex/environment-variables, fetched
-    # 2026-09-06. OPENAI_API_KEY is documented elsewhere only as a value piped
-    # into the interactive `codex login --with-api-key` command, not as an
-    # ambient variable Codex reads at runtime, so it is excluded here.
+    # are documented at
+    # https://developers.openai.com/codex/environment-variables (fetched
+    # 2026-09-06) as Codex's non-interactive auth variables, but a live probe
+    # falsifies that for a ChatGPT-login account: setting CODEX_ACCESS_TOKEN to
+    # the account's ChatGPT access token produced a 401 "Missing bearer"
+    # against api.openai.com (probed 2026-09-24, codex-cli 0.156.0). A
+    # ChatGPT-login Codex authenticates only through `$CODEX_HOME/auth.json`,
+    # which this isolated profile does not carry, so a codex probe run through
+    # this environment has no working auth by default. A caller can opt in to
+    # one by copying an `auth.json` into the isolated `CODEX_HOME` before the
+    # probe runs; `eval_harness_capability.py --codex-auth-file` does exactly
+    # that. Both variables stay in the allowlist regardless, in case an
+    # API-key-based (non-ChatGPT) login honors one of them; only the
+    # ChatGPT-token-in-CODEX_ACCESS_TOKEN combination above is falsified.
+    # OPENAI_API_KEY is documented elsewhere only as a value piped into the
+    # interactive `codex login --with-api-key` command, not as an ambient
+    # variable Codex reads at runtime, so it remains excluded here.
     # `scripts/eval/README.md` does map codex to OPENAI_API_KEY, but for the
     # direct-API provider path in `_providers.py`, not for this CLI
-    # subprocess. An operator whose environment follows that row will find the
-    # variable stripped here and the probe failing to authenticate, which is
-    # the fail-closed direction; a live step-3 run should confirm the real
-    # variable before either name is treated as settled.
+    # subprocess.
     authentication = {
         "claude": {"ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN"},
         "copilot": {"COPILOT_GITHUB_TOKEN", "GH_TOKEN", "GITHUB_TOKEN"},
@@ -347,7 +356,11 @@ def probe_version(
     )
     if run.returncode != 0:
         raise RuntimeError(f"{executable} --version failed")
-    version = (run.stdout or run.stderr).strip()
+    # Copilot CLI 1.0.89 appends "Run 'copilot update' to check for updates."
+    # on a second line (probed 2026-09-24), so only the first non-empty line
+    # is the version string.
+    lines = [line.strip() for line in (run.stdout or run.stderr).splitlines()]
+    version = next((line for line in lines if line), "")
     if not version:
         raise RuntimeError(f"{executable} --version returned no version")
     return version

@@ -1,56 +1,188 @@
 {
   "schema_version": 1,
-  "note": "Honest capability state for issue #5423 at authoring time. No live behavioral probe was run, so every capability is UNVERIFIED with an explicit reason. Runtime versions are filled live by scripts/eval/eval_harness_capability.py when the CLI is installed and probe-capable. VERIFIED is reserved for backend evidence only. Provider/model/pricing authority stays in scripts/eval/_providers.py and scripts/eval/_eval_common.py; supported_models here is the observed-live set, not a registry.",
+  "note": "Capability state for issue #5423. Live probes ran on 2026-09-24 with scripts/eval/examples/harness-capability-probes.json (codex-cli 0.156.0, GitHub Copilot CLI 1.0.89). VERIFIED cells carry backend evidence from that run. Every other cell stays UNVERIFIED with the reason it could not be verified. Provider/model/pricing authority stays in scripts/eval/_providers.py and scripts/eval/_eval_common.py; supported_models here is the observed-live set, not a registry. Effort evidence is the reasoning.effort the server reported on response.completed: what the backend accepted, which normalized ultra to max, not a measurement of compute spent.",
   "harnesses": [
     {
       "harness": "codex",
-      "version": "",
-      "version_evidence": "none",
-      "supported_models": [],
-      "supported_efforts": [],
-      "tool_sandbox_constraints": "UNVERIFIED: Codex tool and sandbox constraints not probed. No in-tree Codex runtime support exists to probe (issue #5423 confirmed gap).",
-      "telemetry_fields": [],
-      "failure_retry_behavior": "UNVERIFIED: retry and failure semantics not observed from a live Codex run.",
-      "probe_command": "uv run python scripts/eval/eval_harness_capability.py --dry-run",
-      "date": "2026-08-31",
+      "version": "codex-cli 0.156.0",
+      "version_evidence": "backend",
+      "supported_models": [
+        "gpt-5.6-luna"
+      ],
+      "supported_efforts": [
+        "low"
+      ],
       "capabilities": {
-        "model_override": {"status": "UNVERIFIED", "evidence": "none", "detail": "No backend run observed a requested Codex model id (Sol low/medium, Luna high, Terra high) being honored rather than echoed.", "value": null},
-        "effort_override": {"status": "UNVERIFIED", "evidence": "none", "detail": "No backend run observed a requested reasoning effort/tier being honored. Zero in-tree occurrences of reasoning_effort passed to Codex.", "value": null},
-        "subagent_support": {"status": "UNVERIFIED", "evidence": "none", "detail": "Codex subagent support not observed from a live run.", "value": null},
-        "concurrency_limit": {"status": "UNVERIFIED", "evidence": "none", "detail": "Maximum concurrent children not measured for Codex.", "value": null},
-        "parent_child_override": {"status": "UNVERIFIED", "evidence": "none", "detail": "Whether a Codex child can differ from its parent model/effort not observed. A silent inherit-parent would fail verification.", "value": null},
-        "reviewer_isolation": {"status": "UNVERIFIED", "evidence": "none", "detail": "Reviewer isolation from producer-private context not probed for Codex.", "value": null},
-        "single_agent": {"status": "UNVERIFIED", "evidence": "none", "detail": "Single-agent/no-child execution not observed for Codex.", "value": null},
-        "fresh_session": {"status": "UNVERIFIED", "evidence": "none", "detail": "Fresh-context/session support within one project not observed for Codex.", "value": null},
-        "durable_artifact_handoff": {"status": "UNVERIFIED", "evidence": "none", "detail": "Durable implementation-plan.md handoff not observed for Codex.", "value": null},
-        "context_reset_observability": {"status": "UNVERIFIED", "evidence": "none", "detail": "Context compaction/reset/restart observability not probed for Codex.", "value": null},
-        "sol_ultra": {"status": "UNVERIFIED", "evidence": "none", "detail": "No backend evidence for a Sol Ultra control. Aliasing Sol Ultra to high/xhigh/max is forbidden without direct evidence (issue #5423 negative control 4). Zero in-tree occurrences of Sol Ultra.", "value": null}
-      }
+        "model_override": {
+          "status": "VERIFIED",
+          "evidence": "backend",
+          "detail": "requested 'gpt-5.6-luna' against parent 'gpt-6-sol'; observed 'gpt-5.6-luna' (codex response.completed frame carried model) Parent 'gpt-6-sol' is the operator config default and was not observed in this run.",
+          "value": null,
+          "probe_command": "codex exec --json --ephemeral --skip-git-repo-check -s read-only 'Reply with the single word OK.' --model gpt-5.6-luna",
+          "date": "2026-09-24"
+        },
+        "effort_override": {
+          "status": "VERIFIED",
+          "evidence": "backend",
+          "detail": "requested 'low' against parent 'medium'; observed 'low' (codex response.completed frame carried effort)",
+          "value": null,
+          "probe_command": "codex exec --json --ephemeral --skip-git-repo-check -s read-only -m gpt-5.6-sol 'Reply with the single word OK.' -c model_reasoning_effort=low",
+          "date": "2026-09-24"
+        },
+        "subagent_support": {
+          "status": "UNVERIFIED",
+          "evidence": "none",
+          "detail": "UNVERIFIED by probe. Observed 2026-09-24 outside the probe path: a spawn_agent request wrote two child rollouts with parent_thread_id under CODEX_HOME/sessions, but `codex exec --json` stdout carried only a `collab_tool_call` wait item. No in-tree reader classifies child rollouts yet.",
+          "value": null
+        },
+        "concurrency_limit": {
+          "status": "UNVERIFIED",
+          "evidence": "none",
+          "detail": "UNVERIFIED. Neither CLI has a --max-concurrency flag, and codex exec --json does not emit child start and completion boundaries, so no peak can be derived.",
+          "value": null
+        },
+        "parent_child_override": {
+          "status": "UNVERIFIED",
+          "evidence": "none",
+          "detail": "Whether a Codex child can differ from its parent model/effort not observed. A silent inherit-parent would fail verification.",
+          "value": null
+        },
+        "reviewer_isolation": {
+          "status": "UNVERIFIED",
+          "evidence": "none",
+          "detail": "Reviewer isolation from producer-private context not probed for Codex.",
+          "value": null
+        },
+        "single_agent": {
+          "status": "UNVERIFIED",
+          "evidence": "none",
+          "detail": "Single-agent/no-child execution not observed for Codex.",
+          "value": null
+        },
+        "fresh_session": {
+          "status": "UNVERIFIED",
+          "evidence": "none",
+          "detail": "Fresh-context/session support within one project not observed for Codex.",
+          "value": null
+        },
+        "durable_artifact_handoff": {
+          "status": "UNVERIFIED",
+          "evidence": "none",
+          "detail": "Durable implementation-plan.md handoff not observed for Codex.",
+          "value": null
+        },
+        "context_reset_observability": {
+          "status": "UNVERIFIED",
+          "evidence": "none",
+          "detail": "Context compaction/reset/restart observability not probed for Codex.",
+          "value": null
+        },
+        "sol_ultra": {
+          "status": "UNVERIFIED",
+          "evidence": "backend",
+          "detail": "requested 'ultra' against parent 'medium'; observed 'max' (codex response.completed frame carried effort)",
+          "value": null,
+          "probe_command": "codex exec --json --ephemeral --skip-git-repo-check -s read-only -m gpt-5.6-sol 'Reply with the single word OK.' -c model_reasoning_effort=ultra",
+          "date": "2026-09-24"
+        }
+      },
+      "tool_sandbox_constraints": "Probes ran with `codex exec -s read-only` in an isolated CODEX_HOME. Other modes (workspace-write, danger-full-access) exist in `codex exec --help` but were not probed. `codex exec` reads stdin, so probes close it.",
+      "telemetry_fields": [
+        "turn.completed.usage.input_tokens",
+        "turn.completed.usage.cached_input_tokens",
+        "turn.completed.usage.cache_write_input_tokens",
+        "turn.completed.usage.output_tokens",
+        "turn.completed.usage.reasoning_output_tokens"
+      ],
+      "failure_retry_behavior": "Observed 2026-09-24: an unauthenticated run retried the websocket 5 times (\"Reconnecting... 5/5\"), then emitted turn.failed and exited 1. A ChatGPT-login profile authenticates only through $CODEX_HOME/auth.json; CODEX_ACCESS_TOKEN holding that token was ignored (401).",
+      "probe_command": "codex exec --json --ephemeral --skip-git-repo-check -s read-only -m gpt-5.6-sol 'Reply with the single word OK.' -c model_reasoning_effort=ultra",
+      "date": "2026-09-24"
     },
     {
       "harness": "copilot",
-      "version": "",
-      "version_evidence": "none",
+      "version": "GitHub Copilot CLI 1.0.89-1.",
+      "version_evidence": "backend",
       "supported_models": [],
       "supported_efforts": [],
+      "capabilities": {
+        "model_override": {
+          "status": "UNVERIFIED",
+          "evidence": "none",
+          "detail": "copilot probe exited with code 1: You have exceeded your monthly quota (Request ID: B63A:299605:1502EB8:198F54F:6AB51E52)",
+          "value": null,
+          "probe_command": "copilot --no-auto-update --no-custom-instructions --output-format json -p 'Reply with the single word OK.' --model gpt-5.6-luna",
+          "date": "2026-09-24"
+        },
+        "effort_override": {
+          "status": "UNVERIFIED",
+          "evidence": "none",
+          "detail": "copilot probe exited with code 1: You have exceeded your monthly quota (Request ID: B656:144A31:14BE536:1949FCD:6AB51E57)",
+          "value": null,
+          "probe_command": "copilot --no-auto-update --no-custom-instructions --output-format json -p 'Reply with the single word OK.' --model gpt-5.6-sol --reasoning-effort low",
+          "date": "2026-09-24"
+        },
+        "subagent_support": {
+          "status": "UNVERIFIED",
+          "evidence": "none",
+          "detail": "Copilot subagent support not observed from a live run for this matrix.",
+          "value": null
+        },
+        "concurrency_limit": {
+          "status": "UNVERIFIED",
+          "evidence": "none",
+          "detail": "UNVERIFIED. Copilot CLI 1.0.89 exposes no --max-concurrency flag, and no live run was possible while the account quota was exhausted.",
+          "value": null
+        },
+        "parent_child_override": {
+          "status": "UNVERIFIED",
+          "evidence": "none",
+          "detail": "Whether a Copilot child can differ from its parent model/effort not observed. A silent inherit-parent would fail verification.",
+          "value": null
+        },
+        "reviewer_isolation": {
+          "status": "UNVERIFIED",
+          "evidence": "none",
+          "detail": "Reviewer isolation from producer-private context not probed for Copilot.",
+          "value": null
+        },
+        "single_agent": {
+          "status": "UNVERIFIED",
+          "evidence": "none",
+          "detail": "Single-agent/no-child execution not observed for Copilot.",
+          "value": null
+        },
+        "fresh_session": {
+          "status": "UNVERIFIED",
+          "evidence": "none",
+          "detail": "Fresh-context/session support within one project not observed for Copilot.",
+          "value": null
+        },
+        "durable_artifact_handoff": {
+          "status": "UNVERIFIED",
+          "evidence": "none",
+          "detail": "Durable implementation-plan.md handoff not observed for Copilot.",
+          "value": null
+        },
+        "context_reset_observability": {
+          "status": "UNVERIFIED",
+          "evidence": "none",
+          "detail": "Context compaction/reset/restart observability not probed for Copilot.",
+          "value": null
+        },
+        "sol_ultra": {
+          "status": "UNVERIFIED",
+          "evidence": "none",
+          "detail": "copilot probe exited with code 1: error: invalid value 'ultra' for '--reasoning-effort <level>'",
+          "value": null,
+          "probe_command": "copilot --no-auto-update --no-custom-instructions --output-format json -p 'Reply with the single word OK.' --model gpt-5.6-sol --reasoning-effort ultra",
+          "date": "2026-09-24"
+        }
+      },
       "tool_sandbox_constraints": "UNVERIFIED: Copilot CLI tool and sandbox constraints not probed for this matrix.",
       "telemetry_fields": [],
-      "failure_retry_behavior": "UNVERIFIED: retry and failure semantics not observed from a live Copilot run for this matrix.",
-      "probe_command": "uv run python scripts/eval/eval_harness_capability.py",
-      "date": "2026-08-31",
-      "capabilities": {
-        "model_override": {"status": "UNVERIFIED", "evidence": "none", "detail": "No backend run in this matrix observed a requested Copilot model being honored. The existing runtime-parity harness verifies resolved_model separately; that evidence is not imported here.", "value": null},
-        "effort_override": {"status": "UNVERIFIED", "evidence": "none", "detail": "No backend run observed a requested reasoning effort/tier being honored for Copilot. Zero in-tree occurrences of reasoning_effort passed to Copilot.", "value": null},
-        "subagent_support": {"status": "UNVERIFIED", "evidence": "none", "detail": "Copilot subagent support not observed from a live run for this matrix.", "value": null},
-        "concurrency_limit": {"status": "UNVERIFIED", "evidence": "none", "detail": "Maximum concurrent children not measured for Copilot.", "value": null},
-        "parent_child_override": {"status": "UNVERIFIED", "evidence": "none", "detail": "Whether a Copilot child can differ from its parent model/effort not observed. A silent inherit-parent would fail verification.", "value": null},
-        "reviewer_isolation": {"status": "UNVERIFIED", "evidence": "none", "detail": "Reviewer isolation from producer-private context not probed for Copilot.", "value": null},
-        "single_agent": {"status": "UNVERIFIED", "evidence": "none", "detail": "Single-agent/no-child execution not observed for Copilot.", "value": null},
-        "fresh_session": {"status": "UNVERIFIED", "evidence": "none", "detail": "Fresh-context/session support within one project not observed for Copilot.", "value": null},
-        "durable_artifact_handoff": {"status": "UNVERIFIED", "evidence": "none", "detail": "Durable implementation-plan.md handoff not observed for Copilot.", "value": null},
-        "context_reset_observability": {"status": "UNVERIFIED", "evidence": "none", "detail": "Context compaction/reset/restart observability not probed for Copilot.", "value": null},
-        "sol_ultra": {"status": "UNVERIFIED", "evidence": "none", "detail": "No backend evidence for a Sol Ultra control in Copilot. Aliasing Sol Ultra to high/xhigh/max is forbidden without direct evidence (issue #5423 negative control 4).", "value": null}
-      }
+      "failure_retry_behavior": "Observed 2026-09-24: a quota-exhausted account exits 1 with empty stderr and reports HTTP 402 only as a session.error event on stdout. No retry was observed.",
+      "probe_command": "copilot --no-auto-update --no-custom-instructions --output-format json -p 'Reply with the single word OK.' --model gpt-5.6-sol --reasoning-effort ultra",
+      "date": "2026-09-24"
     }
   ]
 }

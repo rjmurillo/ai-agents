@@ -152,3 +152,21 @@ def test_prepare_workspace_still_installs_the_copilot_artifacts_for_copilot(
     parity.prepare_workspace(_any_fixture(), "copilot", workspace)
 
     assert (workspace / ".github" / "copilot-instructions.md").exists()
+
+
+def test_probe_version_keeps_only_the_first_line_of_copilot_output(tmp_path: Path) -> None:
+    runner = _version_runner(
+        "GitHub Copilot CLI 1.0.89-1.\nRun 'copilot update' to check for updates.\n"
+    )
+
+    version = parity.probe_version("copilot", "copilot", tmp_path / "probe", runner, 30)
+
+    assert version == "GitHub Copilot CLI 1.0.89-1."
+
+
+def test_probe_version_skips_leading_blank_lines(tmp_path: Path) -> None:
+    runner = _version_runner("\n\ncodex-cli 0.156.0\n")
+
+    version = parity.probe_version("codex", "codex", tmp_path / "probe", runner, 30)
+
+    assert version == "codex-cli 0.156.0"

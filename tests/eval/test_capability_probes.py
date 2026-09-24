@@ -121,22 +121,6 @@ def test_two_answer_turns_naming_different_models_verify_nothing() -> None:
     assert result.evidence is EvidenceKind.NONE
 
 
-def test_a_harness_with_no_backend_model_parser_verifies_nothing() -> None:
-    """NEGATIVE CONTROL: codex has no in-tree output parser, so it observes nothing."""
-    stdout = _jsonl([_answer("hi", model="sol-medium")])
-
-    result = probes.probe_override(
-        _plan(harness="codex", parent="sol-low", candidates=("sol-medium",)),
-        _command("codex", requests="sol-medium"),
-        runner=_runner(stdout),
-        timeout=TIMEOUT,
-    )
-
-    assert result.status is CapabilityStatus.UNVERIFIED
-    assert result.evidence is EvidenceKind.NONE
-    assert "no in-tree parser" in result.detail
-
-
 def test_claude_init_model_is_not_treated_as_backend_evidence() -> None:
     """NEGATIVE CONTROL: the init event precedes any backend turn."""
     stdout = _jsonl(
@@ -171,12 +155,16 @@ def test_the_probe_passes_the_command_argv_through_verbatim() -> None:
 
 
 def test_an_effort_on_an_answer_turn_verifies_the_override() -> None:
-    """CONFIRMATORY: happy path for the effort observable."""
+    """CONFIRMATORY: happy path for the effort observable.
+
+    `--reasoning-effort` is the trusted Copilot flag (probed 2026-09-24,
+    Copilot CLI 1.0.89); `--effort` never existed on any harness.
+    """
     stdout = _jsonl([_answer("hi", reasoningEffort="Sol Ultra")])
 
     result = probes.probe_override(
         _plan(capability_key="effort_override", parent="high", candidates=("Sol Ultra",)),
-        _command(requests="Sol Ultra", request_flag="--effort"),
+        _command(requests="Sol Ultra", request_flag="--reasoning-effort"),
         runner=_runner(stdout),
         timeout=TIMEOUT,
     )
@@ -192,7 +180,7 @@ def test_an_effort_read_from_session_state_never_verifies() -> None:
 
     result = probes.probe_override(
         _plan(capability_key="effort_override", parent="high", candidates=("Sol Ultra",)),
-        _command(requests="Sol Ultra", request_flag="--effort"),
+        _command(requests="Sol Ultra", request_flag="--reasoning-effort"),
         runner=_runner(stdout),
         timeout=TIMEOUT,
     )
@@ -207,7 +195,7 @@ def test_an_effort_on_a_contentless_turn_is_not_backend_evidence() -> None:
 
     result = probes.probe_override(
         _plan(capability_key="effort_override", parent="high", candidates=("Sol Ultra",)),
-        _command(requests="Sol Ultra"),
+        _command(requests="Sol Ultra", request_flag="--reasoning-effort"),
         runner=_runner(stdout),
         timeout=TIMEOUT,
     )
@@ -222,7 +210,7 @@ def test_an_effort_key_outside_the_configured_set_observes_nothing() -> None:
 
     result = probes.probe_override(
         _plan(capability_key="effort_override", parent="high", candidates=("Sol Ultra",)),
-        _command(requests="Sol Ultra"),
+        _command(requests="Sol Ultra", request_flag="--reasoning-effort"),
         runner=_runner(stdout),
         timeout=TIMEOUT,
     )
@@ -236,7 +224,7 @@ def test_a_caller_supplied_effort_key_is_honored() -> None:
 
     result = probes.probe_override(
         _plan(capability_key="effort_override", parent="high", candidates=("Sol Ultra",)),
-        _command(requests="Sol Ultra", request_flag="--effort"),
+        _command(requests="Sol Ultra", request_flag="--reasoning-effort"),
         runner=_runner(stdout),
         timeout=TIMEOUT,
         effort_keys=("tier",),
@@ -275,7 +263,7 @@ def test_a_nonzero_exit_yields_unverified_and_records_stderr() -> None:
     result = probes.probe_override(_plan(), _command(), runner=runner, timeout=TIMEOUT)
 
     assert result.status is CapabilityStatus.UNVERIFIED
-    assert result.detail == "not logged in"
+    assert result.detail == "copilot probe exited with code 1: not logged in"
 
 
 def test_malformed_runtime_output_fails_closed_rather_than_degrading() -> None:
@@ -331,8 +319,41 @@ def test_a_missing_cli_does_not_crash_the_subagent_probe() -> None:
 # --- Concurrency ---------------------------------------------------------------
 
 
-def test_concurrency_records_the_observed_peak_not_the_requested_count() -> None:
-    """NEGATIVE CONTROL: the config-echo failure applied to a count."""
+def test_concurrency_probe_is_untrusted_by_construction_and_never_runs() -> None:
+    """NEGATIVE CONTROL: no `--max-concurrency`-equivalent flag is attested for
+    either harness (`codex exec --help` and `copilot --help`, both read
+    2026-09-24: codex-cli 0.156.0, Copilot CLI 1.0.89). `TRUSTED_REQUEST_TEMPLATES`
+    has no `concurrency_limit` entry for either, so `_trusted_request_flag` can
+    never match and the CLI must never run for this capability.
+    """
+    seen: list[list[str]] = []
+
+    result = probes.probe_concurrency(
+        _command(requests="3", request_flag="--max-concurrency"),
+        requested=3,
+        runner=_runner("", seen=seen),
+        timeout=TIMEOUT,
+    )
+
+    assert result.status is CapabilityStatus.UNVERIFIED
+    assert result.evidence is EvidenceKind.NONE
+    assert "not trusted" in result.detail
+    assert seen == []
+
+
+def test_concurrency_records_the_observed_peak_not_the_requested_count(monkeypatch) -> None:
+    """NEGATIVE CONTROL: the config-echo failure applied to a count.
+
+    No harness currently has a trusted concurrency flag (see the test above),
+    so this injects one synthetic template to exercise the peak-measurement
+    code that will run the day a real flag is attested; it is not a claim
+    that `copilot` has this flag today.
+    """
+    monkeypatch.setitem(
+        probes.TRUSTED_REQUEST_TEMPLATES,
+        ("copilot", "concurrency_limit"),
+        probes._RequestTemplate("--max-concurrency"),
+    )
     stdout = _jsonl(
         [
             {"type": "subagent.start", "data": {"id": "a"}},
@@ -357,8 +378,16 @@ def test_concurrency_records_the_observed_peak_not_the_requested_count() -> None
     assert result.value != 3
 
 
-def test_concurrency_with_too_few_launches_stays_unverified() -> None:
-    """NEGATIVE CONTROL: a shorter workload cannot prove the requested count."""
+def test_concurrency_with_too_few_launches_stays_unverified(monkeypatch) -> None:
+    """NEGATIVE CONTROL: a shorter workload cannot prove the requested count.
+
+    See the synthetic-template note on the peak-measurement test above.
+    """
+    monkeypatch.setitem(
+        probes.TRUSTED_REQUEST_TEMPLATES,
+        ("copilot", "concurrency_limit"),
+        probes._RequestTemplate("--max-concurrency"),
+    )
     stdout = _jsonl(
         [
             {"type": "subagent.start"},
@@ -379,8 +408,16 @@ def test_concurrency_with_too_few_launches_stays_unverified() -> None:
     assert "fewer than the requested 3" in result.detail
 
 
-def test_starts_with_no_completion_boundary_cannot_derive_concurrency() -> None:
-    """NEGATIVE CONTROL: N starts without ends is N sequential children too."""
+def test_starts_with_no_completion_boundary_cannot_derive_concurrency(monkeypatch) -> None:
+    """NEGATIVE CONTROL: N starts without ends is N sequential children too.
+
+    See the synthetic-template note on the peak-measurement test above.
+    """
+    monkeypatch.setitem(
+        probes.TRUSTED_REQUEST_TEMPLATES,
+        ("copilot", "concurrency_limit"),
+        probes._RequestTemplate("--max-concurrency"),
+    )
     stdout = _jsonl([{"type": "subagent.start", "data": {"id": str(index)}} for index in range(4)])
 
     result = probes.probe_concurrency(
@@ -429,8 +466,16 @@ def test_concurrency_rejects_a_requested_count_below_one() -> None:
         probes.probe_concurrency(_command(), requested=0, runner=_runner(""), timeout=TIMEOUT)
 
 
-def test_a_missing_cli_does_not_crash_the_concurrency_probe() -> None:
-    """NEGATIVE CONTROL: same fail-closed path on the third prober."""
+def test_a_missing_cli_does_not_crash_the_concurrency_probe(monkeypatch) -> None:
+    """NEGATIVE CONTROL: same fail-closed path on the third prober.
+
+    See the synthetic-template note on the peak-measurement test above.
+    """
+    monkeypatch.setitem(
+        probes.TRUSTED_REQUEST_TEMPLATES,
+        ("copilot", "concurrency_limit"),
+        probes._RequestTemplate("--max-concurrency"),
+    )
     runner = _runner(raises=FileNotFoundError(2, "No such file or directory", "copilot"))
 
     result = probes.probe_concurrency(

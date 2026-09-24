@@ -322,8 +322,18 @@ def test_a_fully_paired_overlap_still_reports_its_real_peak() -> None:
     assert topology.max_concurrent_children(events) == 3
 
 
-def test_an_inflated_stream_leaves_the_concurrency_probe_unverified() -> None:
-    """NEGATIVE CONTROL: the count guard reaches the prober, not only the helper."""
+def test_an_inflated_stream_leaves_the_concurrency_probe_unverified(monkeypatch) -> None:
+    """NEGATIVE CONTROL: the count guard reaches the prober, not only the helper.
+
+    No harness has a trusted `concurrency_limit` flag (see
+    `test_capability_probes.test_concurrency_probe_is_untrusted_by_construction_and_never_runs`),
+    so this injects a synthetic template to exercise the guard the test names.
+    """
+    monkeypatch.setitem(
+        probes.TRUSTED_REQUEST_TEMPLATES,
+        ("copilot", "concurrency_limit"),
+        probes._RequestTemplate("--max-concurrency"),
+    )
     stdout = _jsonl(_boundaries("start", "start", "start"))
 
     result = probes.probe_concurrency(

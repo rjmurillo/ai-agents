@@ -18,7 +18,15 @@ import subprocess
 from datetime import date
 from pathlib import Path
 
-from tests.eval._harness_capability_test_support import capability, cli
+import pytest
+
+from tests.eval._harness_capability_test_support import UNPROBED_MATRIX, capability, cli
+
+
+@pytest.fixture(autouse=True)
+def _start_from_the_unprobed_matrix(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Point the CLI default at the pre-probe matrix, not the live-probed one."""
+    monkeypatch.setattr(cli, "DEFAULT_MATRIX", UNPROBED_MATRIX)
 
 
 class _MultiHarnessRunner:
