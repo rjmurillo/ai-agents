@@ -1,0 +1,114 @@
+{
+  "probes": [
+    {
+      "harness": "codex",
+      "capability": "model_override",
+      "parent_value": "gpt-6-sol",
+      "child_value": "gpt-5.6-luna",
+      "argv": [
+        "codex",
+        "exec",
+        "--json",
+        "--ephemeral",
+        "--skip-git-repo-check",
+        "-s",
+        "read-only",
+        "Reply with the single word OK."
+      ],
+      "request_flag": "--model",
+      "env": { "RUST_LOG": "tungstenite::protocol=trace" }
+    },
+    {
+      "harness": "codex",
+      "capability": "effort_override",
+      "parent_value": "medium",
+      "child_value": "low",
+      "argv": [
+        "codex",
+        "exec",
+        "--json",
+        "--ephemeral",
+        "--skip-git-repo-check",
+        "-s",
+        "read-only",
+        "-m",
+        "gpt-5.6-sol",
+        "Reply with the single word OK."
+      ],
+      "request_flag": "-c",
+      "env": { "RUST_LOG": "tungstenite::protocol=trace" }
+    },
+    {
+      "harness": "codex",
+      "capability": "sol_ultra",
+      "parent_value": "medium",
+      "child_value": "ultra",
+      "argv": [
+        "codex",
+        "exec",
+        "--json",
+        "--ephemeral",
+        "--skip-git-repo-check",
+        "-s",
+        "read-only",
+        "-m",
+        "gpt-5.6-sol",
+        "Reply with the single word OK."
+      ],
+      "request_flag": "-c",
+      "env": { "RUST_LOG": "tungstenite::protocol=trace" }
+    },
+    {
+      "harness": "copilot",
+      "capability": "model_override",
+      "parent_value": "auto",
+      "child_value": "gpt-5.6-luna",
+      "argv": [
+        "copilot",
+        "--no-auto-update",
+        "--no-custom-instructions",
+        "--output-format",
+        "json",
+        "-p",
+        "Reply with the single word OK."
+      ],
+      "request_flag": "--model"
+    },
+    {
+      "harness": "copilot",
+      "capability": "effort_override",
+      "parent_value": "medium",
+      "child_value": "low",
+      "argv": [
+        "copilot",
+        "--no-auto-update",
+        "--no-custom-instructions",
+        "--output-format",
+        "json",
+        "-p",
+        "Reply with the single word OK.",
+        "--model",
+        "gpt-5.6-sol"
+      ],
+      "request_flag": "--reasoning-effort"
+    },
+    {
+      "harness": "copilot",
+      "capability": "sol_ultra",
+      "parent_value": "medium",
+      "child_value": "ultra",
+      "argv": [
+        "copilot",
+        "--no-auto-update",
+        "--no-custom-instructions",
+        "--output-format",
+        "json",
+        "-p",
+        "Reply with the single word OK.",
+        "--model",
+        "gpt-5.6-sol"
+      ],
+      "request_flag": "--reasoning-effort"
+    }
+  ]
+}
