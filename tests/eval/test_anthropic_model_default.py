@@ -54,7 +54,7 @@ def _models_payload(ids: list[str]) -> bytes:
 
 
 def test_default_model_is_live_id() -> None:
-    assert _anthropic_api.DEFAULT_MODEL == "claude-sonnet-4-6"
+    assert _anthropic_api.DEFAULT_MODEL == "claude-sonnet-5"
 
 
 def test_default_model_is_priced() -> None:

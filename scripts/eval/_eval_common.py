@@ -38,6 +38,9 @@ MODEL_PRICING_RATES_USD_PER_1K_TOKENS: dict[str, dict[str, float]] = {
     # claude-opus-5, which scripts/eval/panels/owner-copilot-cli.json
     # dispatches and which had no rate until issue #3905.
     "claude-sonnet-4-6": {"input": 0.003, "output": 0.015},
+    # Sonnet 5: $2/$10 per MTok, from the Claude API model table read
+    # 2026-09-24. It is the eval default (issue #2858 single source).
+    "claude-sonnet-5": {"input": 0.002, "output": 0.010},
     "claude-opus-4-6": {"input": 0.005, "output": 0.025},
     "claude-opus-4-8": {"input": 0.005, "output": 0.025},
     "claude-opus-5": {"input": 0.005, "output": 0.025},
