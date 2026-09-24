@@ -29,9 +29,10 @@ from _eval_errors import TemperatureDeprecatedError
 # Single source of truth for the default eval model. Every eval script imports
 # this instead of hard-coding an id, so a model bump is a one-line change here
 # (issue #2858). The previous default `claude-sonnet-4-20250514` is a dead id
-# that returns HTTP 404 against a current key; `claude-sonnet-4-6` is reachable
-# and priced in `_eval_common.py`.
-DEFAULT_MODEL = "claude-sonnet-4-6"
+# that returns HTTP 404 against a current key. `claude-sonnet-5` follows the
+# routing policy in AGENTS.md (Sonnet 5 for specified judgment) and is priced
+# in `_eval_common.py`. It rejects `temperature`; `call_api` retries without it.
+DEFAULT_MODEL = "claude-sonnet-5"
 
 _MODELS_ENDPOINT = "https://api.anthropic.com/v1/models"
 

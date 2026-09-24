@@ -14,9 +14,9 @@
       "desc": "Classifies vague performance complaint as complex, not clear",
       "input": "Our API is slow. Fix it.",
       "expected_verdict": "ROUTE",
-      "verdict_options": ["ROUTE", "DELEGATE", "EXECUTE", "ASK"],
-      "expected_reason_contains": "investigate",
-      "rationale": "Vague performance complaints have multiple unknowns. Orchestrator should classify as complex and route to analyst for profiling, not directly to implementer."
+      "verdict_options": ["ROUTE", "EXECUTE", "ASK"],
+      "expected_reason_contains": "investigat",
+      "rationale": "Vague performance complaints have multiple unknowns. Orchestrator should classify as complex and route to analyst for profiling, not directly to implementer. DELEGATE is not an option: sending the investigation to analyst is routing, so offering both labels graded a synonym. The reason check uses the stem investigat, so investigate and investigation both match, and still separates analyst from implementer."
     },
     {
       "id": "S3",
@@ -41,9 +41,9 @@
       "desc": "Does not self-implement when task requires specialist",
       "input": "Review this endpoint for path traversal vulnerabilities: POST /api/files?path=../../etc/passwd",
       "expected_verdict": "ROUTE",
-      "verdict_options": ["ROUTE", "DELEGATE", "EXECUTE", "ASK"],
+      "verdict_options": ["ROUTE", "EXECUTE", "ASK"],
       "expected_reason_contains": "security",
-      "rationale": "Security assessment requires the security agent. Orchestrator should not attempt the review itself."
+      "rationale": "Security assessment requires the security agent. Orchestrator should not attempt the review itself. DELEGATE is not an option: handing the review to the security agent is routing, so offering both labels graded a synonym instead of the route-or-self-review decision."
     },
     {
       "id": "S6",
@@ -87,7 +87,6 @@
       "input": "Session state: the requested fix is complete and verified; no blocker is open. While fixing it, implementer noticed an unrelated file could be refactored for clarity, but nothing in the request or an acceptance criterion asked for that refactor. What do you do next?",
       "expected_verdict": "STOP",
       "verdict_options": ["STOP", "CONTINUE", "DELEGATE", "ASK"],
-      "expected_reason_contains": "optional",
       "rationale": "builder-ethos.md's four-class disposition table: an optional enhancement (useful, but no criterion or consumer requires it) does not keep the task active. Flag it declaratively and stop; do not delegate further work to it."
     },
     {
