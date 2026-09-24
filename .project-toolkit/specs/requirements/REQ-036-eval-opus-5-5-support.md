@@ -48,7 +48,8 @@ two tests, and live corpus runs.
 ### Q5 Observation
 
 2026-09-24 baseline on `claude-opus-5-5`, 14 scenarios, 3 runs per arm:
-84 of 84 verdicts matched the expected label and 84 of 84 responses parsed.
+84 of 84 verdicts matched the expected label, and every response held a
+complete JSON verdict object.
 The gate still failed. S8, S9, and S13 answered STOP in 6 of 6 runs each, but
 some reasons omitted the phrase `terminal` or `side quest`.
 
@@ -105,8 +106,10 @@ Anthropic Messages API for `claude-opus-5-5`. Copilot CLI for the panel tier
 - The two spellings drift to different rates: one model reports two costs.
   `test_spellings_of_one_model_share_one_rate` guards every pair.
 - Opus 5.5 thinking cannot be disabled and may use the 1,024-token budget:
-  the answer truncates. The 2026-09-24 baseline parsed 84 of 84 responses, so
-  no budget change is made.
+  the answer truncates. In the 2026-09-24 baseline, 84 of 84 responses held a
+  complete JSON verdict object, so no grade was lost and no budget change is
+  made. The adapter drops `stop_reason`, so these runs cannot show whether a
+  response hit the limit after its verdict. Issue #5902 tracks that gap.
 
 ## Security
 

@@ -25,8 +25,11 @@ REQ-036 criteria 1 to 6.
 
 Opus 5.5 needs no transport change. It rejects `temperature`, and
 `call_with_temperature_fallback` already retries without it. Thinking cannot
-be disabled, so thinking tokens share the 1,024-token budget. A 2026-09-24
-baseline of the orchestrator corpus parsed 84 of 84 responses, so the budget
+be disabled, so thinking tokens share the 1,024-token budget. In a
+2026-09-24 baseline of the orchestrator corpus, 84 of 84 responses held a
+complete JSON verdict object, so no grade was lost. The adapter drops
+`stop_reason`, so the runs cannot show whether a response hit the limit
+after its verdict. Issue #5902 tracks keeping that metadata. The budget
 stays.
 
 The gate failed on wording. S8, S9, and S13 answered STOP in 6 of 6 runs. Some
@@ -37,7 +40,8 @@ reasons said "done" or "complete" instead of `terminal`, or never said
 
 - `_eval_common.py` gains `claude-opus-5-5` and `claude-opus-5.5` rows at
   $0.004 input and $0.020 output per 1K tokens. The rate comes from the
-  Claude API model table. Two rows are needed because the lookup is an exact
+  Anthropic pricing page. On 2026-09-24 every row in the table matched that
+  page, so `PRICING_RATE_AS_OF` moves to that date. Two rows are needed because the lookup is an exact
   key match and each harness accepts one spelling.
 - `owner-copilot-cli.json` gains an `opus55` reference tier on
   `claude-opus-5.5`.
@@ -51,5 +55,5 @@ reasons said "done" or "complete" instead of `terminal`, or never said
 
 - One row plus spelling normalization in the price lookup. It touches every
   cost caller for a two-row gain.
-- Raising `max_tokens`. No truncation was observed, and a larger budget
-  raises the cost of every run on every model.
+- Raising `max_tokens`. No grade was lost to a cut-off answer, and a larger
+  budget raises the cost of every run on every model.
