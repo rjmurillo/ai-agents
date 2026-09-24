@@ -292,6 +292,47 @@ def _run_behavioral_probe(
     )
 
 
+def _run_in_fresh_workspace(
+    probe: BehavioralProbe,
+    *,
+    harness_root: Path,
+    prefix: str,
+    executable: str,
+    expected: Path,
+    codex_auth_file: Path | None,
+    runner: Runner,
+    timeout: float,
+) -> tuple[Capability, BehavioralProbe]:
+    """Run one probe in a workspace that exists only for that run.
+
+    Never a reused `probe-<n>`: a run killed before cleanup would leave
+    `auth.json` behind, and the exclusive create in `_install_codex_auth`
+    would then refuse every later run. A `TemporaryDirectory` also keeps
+    repeated runs from piling up isolated profiles, and two concurrent
+    invocations never share a credential copy. The copied credential is
+    unlinked explicitly first, so it is gone even if directory removal fails.
+    """
+    harness_root.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix=prefix, dir=harness_root) as temporary:
+        isolated_probe, installed_auth = _isolate_probe(
+            probe,
+            workspace=Path(temporary),
+            executable=executable,
+            codex_auth_file=codex_auth_file,
+        )
+        try:
+            result = _run_behavioral_probe(
+                isolated_probe,
+                executable_allowlist={probe.harness: expected},
+                runner=runner,
+                timeout=timeout,
+            )
+        finally:
+            if installed_auth is not None:
+                installed_auth.unlink(missing_ok=True)
+    return result, isolated_probe
+
+
 def _augment_behavioral(
     records: list[HarnessCapabilityRecord],
     *,
@@ -317,29 +358,17 @@ def _augment_behavioral(
         expected = _canonical_executable(executable)
         if expected is None:
             continue
-        # A fresh directory per run, never a reused `probe-<n>`: a run killed
-        # before its `finally` leaves `auth.json` behind, and the exclusive
-        # create in `_install_codex_auth` would then refuse every later run.
-        # Two concurrent invocations also never share a credential copy.
         harness_root = output.parent / "behavioral-probes" / probe.harness
-        harness_root.mkdir(parents=True, exist_ok=True)
-        workspace = Path(tempfile.mkdtemp(prefix=f"probe-{probe_index}-", dir=harness_root))
-        isolated_probe, installed_auth = _isolate_probe(
+        result, isolated_probe = _run_in_fresh_workspace(
             probe,
-            workspace=workspace,
+            harness_root=harness_root,
+            prefix=f"probe-{probe_index}-",
             executable=executable,
+            expected=expected,
             codex_auth_file=codex_auth_file,
+            runner=runner,
+            timeout=timeout,
         )
-        try:
-            result = _run_behavioral_probe(
-                isolated_probe,
-                executable_allowlist={probe.harness: expected},
-                runner=runner,
-                timeout=timeout,
-            )
-        finally:
-            if installed_auth is not None:
-                installed_auth.unlink(missing_ok=True)
         by_harness[probe.harness] = apply_behavioral_probe(
             record,
             probe.capability,

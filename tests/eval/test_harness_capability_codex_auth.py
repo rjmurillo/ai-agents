@@ -66,6 +66,8 @@ class _CodexEffortRunner:
         self.stderr = stderr
         self.calls: list[list[str]] = []
         self.kwargs: list[dict[str, object]] = []
+        # Read during the run: the workspace is removed once the probe ends.
+        self.codex_home_modes: list[str] = []
 
     def __call__(self, argv: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
         args = [str(value) for value in argv]
@@ -73,6 +75,10 @@ class _CodexEffortRunner:
         self.kwargs.append(dict(_kwargs))
         if "--version" in args:
             return subprocess.CompletedProcess(args, 0, self.version, "")
+        env = _kwargs.get("env")
+        if isinstance(env, dict) and "CODEX_HOME" in env:
+            mode = Path(str(env["CODEX_HOME"])).stat().st_mode
+            self.codex_home_modes.append(oct(mode)[-3:])
         return subprocess.CompletedProcess(args, 0, self.stdout, self.stderr)
 
 
@@ -288,8 +294,8 @@ def test_codex_home_directory_is_created_mode_0700(tmp_path: Path, monkeypatch) 
     behavioral_kwargs = runner.kwargs[-1]
     env = behavioral_kwargs["env"]
     assert isinstance(env, dict)
-    codex_home = Path(str(env["CODEX_HOME"]))
-    assert oct(codex_home.stat().st_mode)[-3:] == "700"
+    assert runner.codex_home_modes == ["700"]
+    assert not Path(str(env["CODEX_HOME"])).exists()
 
 
 def test_codex_auth_file_refuses_a_non_regular_file(tmp_path: Path, monkeypatch) -> None:

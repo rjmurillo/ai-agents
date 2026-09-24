@@ -197,8 +197,9 @@ base argv and a typed request flag; the loader renders the request through
 that (harness, capability) pair's trusted template and appends the rendered
 flag and value. Only a template's own flag is trusted: a plan carrying any
 other flag records UNVERIFIED "not trusted" without running the CLI.
-Behavioral commands run with an isolated profile and workspace; plan cwd
-values must stay inside that workspace.
+Behavioral commands run with an isolated profile in a temporary per-run
+workspace that is removed after each probe; plan cwd values must stay inside
+that workspace.
 
 The checked-in live plan is `scripts/eval/examples/harness-capability-probes.json`,
 covering codex and Copilot model, effort, and `sol_ultra` overrides. Trusted

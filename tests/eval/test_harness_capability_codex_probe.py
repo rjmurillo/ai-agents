@@ -229,7 +229,8 @@ def test_behavioral_probe_updates_copilot_record(tmp_path: Path, monkeypatch) ->
     assert workspace.parent == (output.parent / "behavioral-probes" / "copilot").resolve()
     assert workspace.name.startswith("probe-0-")
     assert behavioral_kwargs["cwd"] == workspace / "nested"
-    assert (workspace / "nested").is_dir()
+    # The per-run workspace is a TemporaryDirectory, gone once the probe ends.
+    assert not workspace.exists()
     behavioral_env = behavioral_kwargs["env"]
     assert isinstance(behavioral_env, dict)
     assert Path(str(behavioral_env["COPILOT_HOME"])) == (workspace / ".parity-profile" / "copilot")
