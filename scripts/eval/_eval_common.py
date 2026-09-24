@@ -44,6 +44,11 @@ MODEL_PRICING_RATES_USD_PER_1K_TOKENS: dict[str, dict[str, float]] = {
     "claude-opus-4-6": {"input": 0.005, "output": 0.025},
     "claude-opus-4-8": {"input": 0.005, "output": 0.025},
     "claude-opus-5": {"input": 0.005, "output": 0.025},
+    # Opus 5.5: $4/$20 per MTok, from the vendor rate table dated 2026-09-22
+    # in templates/agents/orchestrator.shared.md. The dotted id is the Copilot
+    # CLI spelling that scripts/eval/panels/owner-copilot-cli.json dispatches.
+    "claude-opus-5-5": {"input": 0.004, "output": 0.020},
+    "claude-opus-5.5": {"input": 0.004, "output": 0.020},
     "claude-haiku-4-5": {"input": 0.001, "output": 0.005},
     # No row for gpt-5.6-sol on purpose (issue #3905). That id is reachable
     # only through the copilot-cli provider, which meters premium requests
