@@ -31,19 +31,23 @@ MODEL_PRICING_RATES_USD_PER_1K_TOKENS: dict[str, dict[str, float]] = {
     # id (HTTP 404) and MUST NOT be used as a default (issue #2858).
     "claude-sonnet-4-20250514": {"input": 0.003, "output": 0.015},
     # Verified rates from platform.claude.com/docs/en/about-claude/pricing
-    # (retrieved 2026-08-01, every row below re-read from that table on that
-    # date). Rates are per-1K tokens = base MTok rate / 1000. Sonnet 4.6:
+    # (retrieved 2026-09-24, every row in this table re-read from that page on
+    # that date). Rates are per-1K tokens = base MTok rate / 1000. Sonnet 4.6:
     # $3/$15 per MTok. Opus 5, 4.6, and 4.8: $5/$25 per MTok. Haiku 4.5:
-    # $1/$5 per MTok. These are the live pins enumerated in issue #2840, plus
-    # claude-opus-5, which scripts/eval/panels/owner-copilot-cli.json
-    # dispatches and which had no rate until issue #3905.
+    # $1/$5 per MTok. Sonnet 5: $2/$10 per MTok. Opus 5.5: $4/$20 per MTok.
+    # Rows cover the live pins enumerated in issue #2840, claude-opus-5
+    # (dispatched by scripts/eval/panels/owner-copilot-cli.json, unpriced
+    # until issue #3905), the Sonnet 5 eval default, and Opus 5.5.
     "claude-sonnet-4-6": {"input": 0.003, "output": 0.015},
-    # Sonnet 5: $2/$10 per MTok, from the Claude API model table read
-    # 2026-09-24. It is the eval default (issue #2858 single source).
+    # Sonnet 5 is the eval default (issue #2858 single source).
     "claude-sonnet-5": {"input": 0.002, "output": 0.010},
     "claude-opus-4-6": {"input": 0.005, "output": 0.025},
     "claude-opus-4-8": {"input": 0.005, "output": 0.025},
     "claude-opus-5": {"input": 0.005, "output": 0.025},
+    # Opus 5.5 in both harness spellings. The dotted id is the Copilot CLI
+    # spelling that scripts/eval/panels/owner-copilot-cli.json dispatches.
+    "claude-opus-5-5": {"input": 0.004, "output": 0.020},
+    "claude-opus-5.5": {"input": 0.004, "output": 0.020},
     "claude-haiku-4-5": {"input": 0.001, "output": 0.005},
     # No row for gpt-5.6-sol on purpose (issue #3905). That id is reachable
     # only through the copilot-cli provider, which meters premium requests
@@ -52,7 +56,7 @@ MODEL_PRICING_RATES_USD_PER_1K_TOKENS: dict[str, dict[str, float]] = {
     # which is the failure issue #3786 records. Its cost basis is tracked in
     # PR #4005.
 }
-PRICING_RATE_AS_OF = "2026-08-01"
+PRICING_RATE_AS_OF = "2026-09-24"
 
 # Providers that meter requests against an account allowance instead of
 # charging a published per-token USD rate. Every subscription cell bills this
