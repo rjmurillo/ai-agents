@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import subprocess
 import urllib.request
 from pathlib import Path
 from typing import Any
@@ -388,14 +389,22 @@ def test_main_exits_external_with_infra_message_when_every_run_is_infra_failure(
     assert "Your credit balance is too low." in stderr
 
 
+@pytest.mark.parametrize(
+    "error",
+    [
+        OSError("simulated fixture build failure"),
+        subprocess.CalledProcessError(128, ["git", "init"]),
+        subprocess.TimeoutExpired(["git", "commit"], 30),
+    ],
+)
 def test_main_builds_fixtures_for_a_config_error_on_git_failure(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, error: Exception
 ) -> None:
     monkeypatch.setattr(ab, "load_api_key", lambda repo_root: "test-key")
     hooks_dir = write_stub_plugin(tmp_path)
 
     def _boom(root: Path, names: Any) -> list[ab.Fixture]:
-        raise OSError("simulated fixture build failure")
+        raise error
 
     monkeypatch.setattr(ab, "build_fixtures", _boom)
 

@@ -393,7 +393,7 @@ def _report_total_failure(rows: Sequence[RunResult]) -> None:
 def repo_root_for(module_file: Path) -> Path | None:
     """Repository root for the ``.env`` lookup, or None for a symlinked module.
 
-    Mirrors ``scripts/eval/_anthropic_api.py:67-73``: a symlinked module path
+    Mirrors ``scripts/eval/_anthropic_api.py:59-74``: a symlinked module path
     would move ``parents[2]`` and let a planted ``.env`` supply credentials, and
     ``resolve()`` would hide the symlink, so the check runs first.
     """
@@ -418,7 +418,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         tmp_root = Path(tmp)
         try:
             fixtures = build_fixtures(tmp_root, fixture_names)
-        except (subprocess.CalledProcessError, OSError) as exc:
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as exc:
             print(f"sg_reference_ab: failed building fixtures: {exc}", file=sys.stderr)
             return EXIT_CONFIG
         rows = run_all(fixtures, args.runs, api_key, model, contract, tmp_root / "store")
