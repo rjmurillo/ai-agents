@@ -265,7 +265,8 @@ def peak_overlap(spans: Sequence[ResponseSpan], *, model: str) -> int | None:
     gives for an incoherent or empty stream.
 
     Verified against `codex-0.156.0/concurrency-3-requested.trace.log`: three
-    `gpt-6-luna` children are requested and their `created`/`completed`
+    `gpt-6-luna` children ran (four spawns were issued; the first,
+    `fork_turns=all`, failed under `--ephemeral`), and their `created`/`completed`
     frame positions interleave so that at most two are open at once (child A
     closes before child C opens; child B stays open across both of the other
     two), matching this repository's checked-in matrix, which records

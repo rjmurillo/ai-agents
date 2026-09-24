@@ -137,12 +137,15 @@ def _runner(
     stderr: str = "",
     raises: BaseException | None = None,
     seen: list[list[str]] | None = None,
+    seen_kwargs: list[dict[str, Any]] | None = None,
 ):
     """Build a fake runner that dispatches on argv rather than call order."""
 
     def run(argv: Sequence[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
         if seen is not None:
             seen.append(list(argv))
+        if seen_kwargs is not None:
+            seen_kwargs.append(dict(kwargs))
         if raises is not None:
             raise raises
         return subprocess.CompletedProcess(list(argv), returncode, stdout, stderr)

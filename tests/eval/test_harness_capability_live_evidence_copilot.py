@@ -198,7 +198,7 @@ def test_no_copilot_probe_path_can_verify_concurrency() -> None:
     events for that capability; the trust gate refuses it first, the same
     way it refuses the old `--max-concurrency` placeholder.
     """
-    assert ("copilot", "concurrency_limit") not in probes.TRUSTED_REQUEST_SYNTAX
+    assert ("copilot", "concurrency_limit") not in probes.TRUSTED_REQUEST_TEMPLATES
 
 
 # --- reviewer_isolation ------------------------------------------------------------

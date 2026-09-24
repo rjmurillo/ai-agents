@@ -16,7 +16,20 @@ from pathlib import Path
 
 import pytest
 
-from tests.eval._harness_capability_test_support import FIXTURES, MATRIX, capability, cli
+from tests.eval._harness_capability_test_support import (
+    FIXTURES,
+    MATRIX,
+    UNPROBED_MATRIX,
+    capability,
+    cli,
+)
+
+
+@pytest.fixture(autouse=True)
+def _start_from_the_unprobed_matrix(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Point the CLI default at the pre-probe matrix, not the live-probed one."""
+    monkeypatch.setattr(cli, "DEFAULT_MATRIX", UNPROBED_MATRIX)
+
 
 CapabilityStatus = capability.CapabilityStatus
 EvidenceKind = capability.EvidenceKind
@@ -116,6 +129,19 @@ def test_checked_in_matrix_verified_cells_cite_real_evidence() -> None:
                 assert (FIXTURES / name).is_file(), (
                     f"{record.harness}.{key} cites missing fixture {name}"
                 )
+
+
+def test_checked_in_matrix_never_verifies_sol_ultra_as_another_tier() -> None:
+    # Codex received `ultra` and the backend reported `max` (2026-09-24).
+    for record in capability.load_matrix(MATRIX):
+        assert record.capabilities["sol_ultra"].status is not CapabilityStatus.VERIFIED
+
+
+def test_unprobed_fixture_claims_nothing_verified() -> None:
+    for record in capability.load_matrix(UNPROBED_MATRIX):
+        assert record.version_evidence is EvidenceKind.NONE
+        for cap in record.capabilities.values():
+            assert cap.status is CapabilityStatus.UNVERIFIED
 
 
 # --- Negative control 1: missing runtime identity cannot become VERIFIED ------
@@ -400,16 +426,12 @@ def test_cli_live_probe_fills_copilot_version(tmp_path: Path, monkeypatch) -> No
     assert by_harness["copilot"]["version"] == "copilot 9.9.9"
     assert by_harness["copilot"]["version_evidence"] == "backend"
     # Codex is probe-capable (see PROBE_HARNESS) but absent from PATH in this
-    # fake, so `_augment_versions` never attempts a probe and the record
-    # passes through unchanged: the checked-in matrix already carries a live
-    # 2026-09-24 codex-cli 0.156.0 version probe, not a fabricated one.
-    assert by_harness["codex"]["version"] == "codex-cli 0.156.0"
-    assert by_harness["codex"]["version_evidence"] == "backend"
+    # fake, so it stays UNVERIFIED rather than being fabricated.
+    assert by_harness["codex"]["version"] == ""
+    assert by_harness["codex"]["version_evidence"] == "none"
 
 
-def test_cli_probe_failure_leaves_the_checked_in_version_untouched(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_cli_probe_failure_leaves_version_unverified(tmp_path: Path, monkeypatch) -> None:
     output = tmp_path / "report.json"
     monkeypatch.setattr(
         cli.shutil, "which", lambda name: "C:/copilot.exe" if name == "copilot" else None
@@ -419,13 +441,7 @@ def test_cli_probe_failure_leaves_the_checked_in_version_untouched(
     assert code == 0
     report = json.loads(output.read_text(encoding="utf-8"))
     by_harness = {row["harness"]: row for row in report["harnesses"]}
-    # `_augment_versions` "continuing on failure never upgrades a claim; it
-    # only declines to" (its own docstring): a failed live probe leaves the
-    # record at whatever the checked-in matrix already had, which is now a
-    # real 2026-09-24 backend probe rather than the placeholder "none" this
-    # test pinned before the matrix carried live evidence.
-    assert by_harness["copilot"]["version_evidence"] == "backend"
-    assert by_harness["copilot"]["version"] == "GitHub Copilot CLI 1.0.89-1."
+    assert by_harness["copilot"]["version_evidence"] == "none"
 
 
 def test_cli_rejects_malformed_matrix(tmp_path: Path) -> None:

@@ -1,12 +1,13 @@
 {
   "schema_version": 1,
-  "note": "Live capability state for issue #5423, probed on 2026-09-24. Every VERIFIED cell cites a trimmed backend capture under tests/eval/fixtures/harness_capability/, and tests/eval/test_harness_capability_live_evidence.py re-derives each VERIFIED cell from that capture. Codex backend model and effort come from websocket response frames logged with RUST_LOG=tungstenite::protocol=trace; codex --json stdout carries neither. GitHub-routed Copilot calls returned HTTP 402 (monthly quota exceeded), so Copilot behavioral cells were probed through the documented BYOK Anthropic provider and GitHub-routed Sol, Luna, and Terra models remain unobserved. VERIFIED is reserved for backend evidence only. Provider/model/pricing authority stays in scripts/eval/_providers.py and scripts/eval/_eval_common.py; supported_models here is the observed-live set, not a registry.",
+  "note": "Live capability state for issue #5423, probed on 2026-09-24 with codex-cli 0.156.0 and GitHub Copilot CLI 1.0.89. scripts/eval/examples/harness-capability-probes.json holds the single-agent override plan; the topology, isolation, and handoff probes are recorded per cell. Every VERIFIED cell cites a trimmed backend capture under tests/eval/fixtures/harness_capability/, and tests/eval/test_harness_capability_live_evidence.py re-derives each VERIFIED cell from that capture. Codex backend model and effort come from websocket response frames logged with RUST_LOG=tungstenite::protocol=trace; codex --json stdout carries neither. GitHub-routed Copilot calls returned HTTP 402 (monthly quota exceeded), so Copilot behavioral cells were probed through the documented BYOK Anthropic provider and GitHub-routed Sol, Luna, and Terra models remain unobserved. VERIFIED is reserved for backend evidence only. Provider/model/pricing authority stays in scripts/eval/_providers.py and scripts/eval/_eval_common.py; supported_models here is the observed-live set, not a registry.",
   "harnesses": [
     {
       "harness": "codex",
       "version": "codex-cli 0.156.0",
       "version_evidence": "backend",
       "supported_models": [
+        "gpt-5.6-luna",
         "gpt-5.6-sol",
         "gpt-5.6-terra",
         "gpt-6-luna",
@@ -114,9 +115,9 @@
           "value": null
         },
         "sol_ultra": {
-          "status": "VERIFIED",
+          "status": "UNVERIFIED",
           "evidence": "backend",
-          "detail": "Control: -c model_reasoning_effort=ultra on gpt-6-sol or gpt-5.6-sol. The codex-cli 0.156.0 backend model catalog lists ultra for gpt-6-sol, gpt-6-astra, gpt-5.6-sol, and gpt-5.6-terra, not for gpt-6-luna or gpt-5.6-luna, and describes it as 'Maximum reasoning with automatic task delegation'. For an ultra request the backend response.created frame reports reasoning.effort max and mode standard, so the effort field the backend reports for ultra is max. Whether ultra also changes delegation behavior was not observed. Evidence: codex-0.156.0/sol-6-ultra.trace.log, codex-0.156.0/sol-5.6-ultra.trace.log, codex-0.156.0/models-catalog.json.",
+          "detail": "Not verified as a distinct tier. Control: -c model_reasoning_effort=ultra on gpt-6-sol or gpt-5.6-sol. The codex-cli 0.156.0 backend model catalog lists ultra for gpt-6-sol, gpt-6-astra, gpt-5.6-sol, and gpt-5.6-terra, not for gpt-6-luna or gpt-5.6-luna, and describes it as 'Maximum reasoning with automatic task delegation'. For an ultra request the backend response.created frame reports reasoning.effort max and mode standard, so the effort field the backend reports for ultra is max, and ultra is never aliased to max here. Whether ultra also changes delegation behavior was not observed. Evidence: codex-0.156.0/sol-6-ultra.trace.log, codex-0.156.0/sol-5.6-ultra.trace.log, codex-0.156.0/models-catalog.json.",
           "value": null,
           "probe_command": "RUST_LOG=tungstenite::protocol=trace codex exec --json --skip-git-repo-check --ephemeral --ignore-user-config --ignore-rules -s read-only -m gpt-6-sol -c model_reasoning_effort=ultra 'Reply with the single word OK.'",
           "date": "2026-09-24"

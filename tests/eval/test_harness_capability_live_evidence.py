@@ -275,7 +275,6 @@ _REPRODUCED_CODEX_VERIFIED_KEYS = frozenset(
         "single_agent",
         "fresh_session",
         "durable_artifact_handoff",
-        "sol_ultra",
     }
 )
 

@@ -19,7 +19,15 @@ import subprocess
 from datetime import date
 from pathlib import Path
 
-from tests.eval._harness_capability_test_support import capability, cli
+import pytest
+
+from tests.eval._harness_capability_test_support import UNPROBED_MATRIX, capability, cli
+
+
+@pytest.fixture(autouse=True)
+def _start_from_the_unprobed_matrix(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Point the CLI default at the pre-probe matrix, not the live-probed one."""
+    monkeypatch.setattr(cli, "DEFAULT_MATRIX", UNPROBED_MATRIX)
 
 
 class _MultiHarnessRunner:
@@ -116,13 +124,7 @@ def test_cli_probe_failure_still_attempts_codex(tmp_path: Path, monkeypatch) -> 
     assert code == 0
     report = json.loads(output.read_text(encoding="utf-8"))
     by_harness = {row["harness"]: row for row in report["harnesses"]}
-    # `_augment_versions` "continuing on failure never upgrades a claim; it
-    # only declines to" (its own docstring): a failed live probe leaves the
-    # record at whatever the checked-in matrix already had, a real
-    # 2026-09-24 backend probe now rather than the "none" placeholder this
-    # test pinned before the matrix carried live evidence.
-    assert by_harness["codex"]["version_evidence"] == "backend"
-    assert by_harness["codex"]["version"] == "codex-cli 0.156.0"
+    assert by_harness["codex"]["version_evidence"] == "none"
     # A probe was actually attempted and failed closed, rather than never
     # being attempted at all.
     assert ["codex", "--version"] in runner.calls
@@ -143,13 +145,7 @@ def test_behavioral_probe_waits_for_backend_version(tmp_path: Path, monkeypatch)
     assert code == 0
     report = json.loads(output.read_text(encoding="utf-8"))
     copilot = next(row for row in report["harnesses"] if row["harness"] == "copilot")
-    # copilot is absent from PATH in this fake, so `_augment_versions` never
-    # probes it and `_augment_behavioral` never runs its behavioral plan
-    # either: the checked-in matrix's own `model_override` (VERIFIED, from
-    # a real BYOK Anthropic wire capture) passes through completely
-    # unchanged. `runner.calls == []` is the actual proof this test names:
-    # the behavioral probe waited and never ran.
-    assert copilot["capabilities"]["model_override"]["status"] == "VERIFIED"
+    assert copilot["capabilities"]["model_override"]["status"] == "UNVERIFIED"
     assert runner.calls == []
 
 
@@ -218,7 +214,6 @@ def _assert_copilot_model_override_updated(
     output: Path,
     expected_call: list[str],
     *,
-    workspace: Path,
     log_dir: Path,
     runner: _MultiHarnessRunner,
 ) -> None:
@@ -228,19 +223,15 @@ def _assert_copilot_model_override_updated(
     assert copilot["capabilities"]["model_override"]["status"] == "VERIFIED"
     assert copilot["capabilities"]["model_override"]["probe_command"] == expected_command
     assert copilot["capabilities"]["model_override"]["date"] == date.today().isoformat()
-    # `apply_behavioral_probe` appends a newly reported model to whatever
-    # the checked-in matrix already lists; it does not start from empty.
-    assert copilot["supported_models"] == [
-        "claude-haiku-4-5-20251001",
-        "claude-sonnet-4-6",
-        "claude-opus-5",
-    ]
+    assert copilot["supported_models"] == ["claude-opus-5"]
     assert copilot["probe_command"] == expected_command
     assert copilot["date"] == date.today().isoformat()
     assert expected_call in runner.calls
     behavioral_kwargs = runner.kwargs[runner.calls.index(expected_call)]
+    workspace = Path(str(behavioral_kwargs["cwd"])).parent
+    assert workspace.parent == (output.parent / "behavioral-probes" / "copilot").resolve()
+    assert workspace.name.startswith("probe-0-")
     assert behavioral_kwargs["cwd"] == workspace / "nested"
-    assert (workspace / "nested").is_dir()
     behavioral_env = behavioral_kwargs["env"]
     assert isinstance(behavioral_env, dict)
     assert Path(str(behavioral_env["COPILOT_HOME"])) == (workspace / ".parity-profile" / "copilot")
@@ -252,14 +243,12 @@ def test_behavioral_probe_updates_copilot_record(tmp_path: Path, monkeypatch) ->
 
     `--json` stdout (`assistant.message.data.model` is a client label, see
     `_capability_evidence.observe_copilot_model`), so this test pre-creates
-    the wire log at the same isolated-workspace path `_isolate_probe` will
-    resolve for probe index 0, before the plan even runs, and points the
-    plan's argv at it.
+    the wire log before the plan runs and points the plan's argv at it. The
+    log dir sits outside the per-run workspace, which is deleted afterward.
     """
     output = tmp_path / "report.json"
     plan = tmp_path / "probes.json"
-    workspace = (output.parent / "behavioral-probes" / "copilot" / "probe-0").resolve()
-    log_dir = workspace / "logs"
+    log_dir = (tmp_path / "copilot-logs").resolve()
     _write_copilot_wire_log(log_dir)
     _write_model_probe(plan, log_dir=log_dir)
     monkeypatch.setattr(cli.shutil, "which", _which_only("custom-copilot"))
@@ -293,9 +282,7 @@ def test_behavioral_probe_updates_copilot_record(tmp_path: Path, monkeypatch) ->
         "--model",
         "claude-opus-5",
     ]
-    _assert_copilot_model_override_updated(
-        output, expected_call, workspace=workspace, log_dir=log_dir, runner=runner
-    )
+    _assert_copilot_model_override_updated(output, expected_call, log_dir=log_dir, runner=runner)
 
 
 def test_same_harness_behavioral_probes_use_distinct_workspaces(
@@ -357,8 +344,8 @@ def test_same_harness_behavioral_probes_use_distinct_workspaces(
     ]
     workspaces = [Path(str(kwargs["cwd"])) for kwargs in behavioral_kwargs]
     assert len(workspaces) == 2
-    assert workspaces[0].name == "probe-0"
-    assert workspaces[1].name == "probe-1"
+    assert workspaces[0].name.startswith("probe-0-")
+    assert workspaces[1].name.startswith("probe-1-")
     assert workspaces[0].parent == workspaces[1].parent
     assert workspaces[0] != workspaces[1]
 
@@ -376,12 +363,8 @@ def test_cli_missing_codex_binary_stays_unverified_not_crash(tmp_path: Path, mon
     assert code == 0
     report = json.loads(output.read_text(encoding="utf-8"))
     by_harness = {row["harness"]: row for row in report["harnesses"]}
-    # codex is absent from PATH in this fake, so `_augment_versions` never
-    # probes it; the record passes through unchanged, carrying whatever the
-    # checked-in matrix already had (a real 2026-09-24 backend probe), not
-    # a fabricated absence.
-    assert by_harness["codex"]["version"] == "codex-cli 0.156.0"
-    assert by_harness["codex"]["version_evidence"] == "backend"
+    assert by_harness["codex"]["version"] == ""
+    assert by_harness["codex"]["version_evidence"] == "none"
     assert not any(call[0] == "codex" for call in runner.calls)
 
 

@@ -2,200 +2,160 @@
 
 ## Master Product Objective
 
-Enable development teams to adopt coordinated multi-agent AI workflows across VS Code, GitHub Copilot CLI, and Claude Code with minimal friction and maximum consistency.
+Enable development teams to adopt coordinated multi-agent AI workflows across Claude Code, GitHub Copilot CLI, Codex, and VS Code with minimal friction and maximum consistency.
 
 ## Vision Statement
 
-A single-source agent system where developers contribute once and deploy everywhere, with platform-specific behaviors generated automatically.
+A single-source agent system where developers contribute once and deploy everywhere. Platform-specific output is generated from canonical templates, not hand-maintained per platform.
+
+## Operating Principle for v0.7.0
+
+Subtraction outranks feature expansion (epic #5456). ADR-069 (proposed) frames the same idea: the curated context corpus is the product, and orchestration is plumbing. A change that adds machinery must retire something or show a measured benefit.
 
 ---
 
 ## Platform Priority Hierarchy
 
-> **Strategic Decision**: Platforms are prioritized based on capability, reach, and maintenance value.
+| Priority | Platform | Investment Level | Current State |
+|----------|----------|------------------|---------------|
+| **P0** | Claude Code | Full investment | Rendered to `src/claude/`, bin-placed to `.claude/`, shipped as the `project-toolkit` plugin |
+| **P0** | GitHub Copilot CLI | Full investment | Rendered to `src/copilot-cli/` every build (ADR-109). Ship and internal surfaces split by tag (ADR-083). Version pins governed by ADR-094 |
+| **P1** | Codex | Active development | Eval harness support only (#5819, #5423). Codex reads `AGENTS.md`. No platform template or rendered tree exists yet |
+| **P2** | VS Code | Maintenance | `src/vs-code-agents/` renders from `templates/agents/<stem>.shared.md`. ADR-109 leaves this seam unmigrated |
 
-| Priority | Platform | Investment Level | Rationale |
-|----------|----------|-----------------|-----------|
-| **P0** | Claude Code | Full investment | Most capable, largest context, semantic analysis, project-level MCP |
-| **P1** | VS Code | Active development | IDE integration, workspace MCP config, broad adoption |
-| **P2** | Copilot CLI | Maintenance only | Critical limitations make full investment unjustified |
+### What each level means
 
-### Copilot CLI De-Prioritization Decision
+- **P0**: New capabilities ship to the platform in the same change. Parity gaps are defects.
+- **P1**: New capabilities should reach the platform. Gaps are tracked, not blocking.
+- **P2**: Keep existing output building and correct. No new features unless they come free from shared templates.
 
-**Date**: 2025-12-17
-**Decision**: De-prioritize Copilot CLI to P2 (Nice to Have)
-**Status**: Active
+### Evidence for the 2026-09-24 change
 
-**Critical Limitations Identified:**
+The 2025-12-17 decision put Copilot CLI at P2, maintenance only. The work since then went the other way:
 
-1. **User-level MCP config only** - Cannot version-control or share MCP servers with team
-2. **No Plan Mode** - Cannot perform multi-step reasoning workflows
-3. **Limited context window** (8k-32k vs 200k+) - Cannot analyze large codebases
-4. **No semantic code analysis** - Text-only search, no LSP integration
-5. **No VS Code configuration reuse** - Despite shared branding, architecturally separate
-6. **Known reliability issues** - User-level agent loading has documented bugs
+- ADR-083 (accepted) made Copilot a shipped plugin target with a dogfooded internal overlay.
+- ADR-094 (accepted) governs Copilot CLI version pins and upgrades.
+- ADR-109 (accepted) renders the Copilot tree in the same build as Claude.
+- In the 90 days before 2026-09-24, 590 commits touched `src/copilot-cli/`, 94 touched `src/claude/`, and 63 touched `src/vs-code-agents/`.
 
-**RICE Score**: 0.8 (vs Claude Code ~20+, VS Code ~10+)
+The owner set the new hierarchy on 2026-09-24.
 
-**Investment Decision:**
+### Codex onboarding (P1)
 
-- **DECLINED**: Adding Copilot CLI sync to `Sync-McpConfig.ps1`
-  - Rationale: User-level config is a risk, not a feature; no team collaboration value
-- **MAINTENANCE ONLY**: Existing Copilot CLI agents remain but receive no new features
-- **NO PARITY REQUIREMENT**: New features may ship to Claude Code/VS Code only
+Codex support today is limited to the eval harness. Adding a rendered Codex tree is new capability that adds machinery, which the v0.7.0 milestone lists as out of scope. Plan it for the release after v0.7.0, as follows:
 
-**Removal Evaluation Criteria:**
-
-Copilot CLI support will be considered for removal if ANY of these conditions occur:
-
-| Criterion | Threshold |
-|-----------|-----------|
-| Maintenance burden | >10% of total development effort |
-| User demand | Zero feature requests in 90 days |
-| Platform viability | No GitHub improvements to critical gaps in 6 months |
-| Adoption ratio | >90% users on Claude Code or VS Code |
-
-**Reference**: `.project-toolkit/analysis/002-copilot-cli-limitations-assessment.md`
+1. Record the Codex output contract in an ADR, extending ADR-109's per-platform templates.
+2. Add `templates/platforms/codex.yaml` and render through `build_all.py`, with no hand-maintained Codex tree.
+3. Reuse the ADR-107 projection invariants so Codex output is checked the same way as Claude and Copilot output.
 
 ---
 
-## Current Release: v1.0 (Foundation)
+## Release History
 
-### P0 - Critical (Must Have)
+Issue and PR counts below are milestone totals, which include pull requests.
 
-| Epic | User Value | Status |
-|------|------------|--------|
-| Unified Install Script | Users can install agents for any platform with a single command | Complete (PR #41) |
-| Multi-Agent Impact Analysis | Planner coordinates cross-domain reviews before implementation | Complete (PR #40) |
-| Agent Parity Across Platforms | All 18 agents available on Claude, VS Code, and Copilot CLI | Complete |
+| Release | Tag date | Theme | Milestone items closed |
+|---------|----------|-------|------------------------|
+| v0.0.1 | 2025-12-18 | The Beginning: first agent set for three platforms | No milestone |
+| v0.2.0 | 2026-01-19 | Foundation hardening, Codex MCP support (#804), Codex effectiveness epic (#858) | 344 |
+| v0.3.0 | 2026-02-09 | Agents that remember: MCP infrastructure, memory citations, new skills | 139 |
+| v0.3.1 | Closed 2026-07-30 | PowerShell to Python migration (ADR-042) | 54 |
+| v0.4.0 | 2026-05-30 | Python-Complete, Gate-Guarded: pre-push guards, eval harness, `ai-agents init`, first Copilot CLI target | 295 |
+| v0.5.0 | 2026-06-01 | LSP-First, Leak-Proof: LSP-first navigation, four review axes, secret redaction | 66 |
+| v0.6.0 | 2026-07-04 | Hardened and Portable: fail-closed gates, subprocess timeouts, vendor portability | 349 |
 
-### P1 - Important (Should Have)
+### Goals that changed along the way
 
-| Epic | User Value | Status |
-|------|------------|--------|
-| Pre-PR Security Gate | Infrastructure changes auto-route to security/devops review | Planned (PRD Complete) |
-| CodeRabbit Optimization | Reduce CI noise from automated PR reviews | Complete (PR #32) |
-
-### P2 - Nice to Have
-
-| Epic | User Value | Status |
-|------|------------|--------|
-| Skill Management System | Agents learn and apply patterns across sessions | Partial |
-
----
-
-## Next Release: v1.1 (Maintainability)
-
-### Epic: VS Code Consolidation + Diff-Linting
-
-> **Scope Change**: Following Copilot CLI de-prioritization, this epic now focuses on VS Code as the primary secondary platform. Copilot CLI enters maintenance-only mode.
-
-**As a** repository maintainer
-**I want** VS Code agents derived from Claude Code source
-**So that** I maintain fewer files and Claude Code innovations automatically propagate to VS Code
-
-#### KANO Classification
-
-**Performance** - Directly improves maintainability satisfaction proportionally to effort invested.
-
-Rationale: Users expect agent consistency between Claude Code and VS Code. Copilot CLI is now maintenance-only and excluded from active consolidation.
-
-#### RICE Score
-
-| Factor | Value | Rationale |
-|--------|-------|-----------|
-| Reach | 3 users/quarter | Maintainers (1-3 active contributors) |
-| Impact | 2 (High) | Simplified sync, eliminates manual errors |
-| Confidence | 85% | Clear implementation path, reduced scope |
-| Effort | 0.4 person-months | 6-10 hours (reduced from 8-14) |
-| **Score** | **12.75** | (3 x 2 x 0.85) / 0.4 |
-
-#### Rumsfeld Matrix Assessment
-
-| Quadrant | Items |
-|----------|-------|
-| **Known Knowns** | VS Code agents closely mirror Claude Code; only YAML frontmatter differs |
-| **Known Unknowns** | Will semantic drift detection catch meaningful vs cosmetic differences? |
-| **Unknown Unknowns** | Platform-specific edge cases we haven't encountered yet |
-| **Unknown Knowns** | We may already have patterns that should differ but don't |
-
-#### Assumptions (Validation Status)
-
-| Type | Assumption | Status |
-|------|------------|--------|
-| Assumption | VS Code tools lists are functionally equivalent to Claude Code | Validated - minor naming differences only |
-| Assumption | 90-day data collection sufficient to identify drift patterns | Untested |
-| Known Unknown | Optimal diff-linting threshold for alerts | Needs calibration |
-| **NEW** | Copilot CLI can be excluded without user impact | High confidence (RICE 0.8) |
-
-#### Success Criteria
-
-- [ ] VS Code agents derive from Claude Code source with build-time frontmatter generation
-- [ ] Build-time generation completes in < 5 seconds
-- [ ] CI diff-lint job alerts on semantic drift (configurable threshold)
-- [ ] 90-day data collection period establishes baseline drift patterns
-- [ ] Copilot CLI agents frozen at current state (maintenance-only)
-
-#### Copilot CLI Handling
-
-| Action | Status |
-|--------|--------|
-| Active consolidation | **Excluded** (maintenance-only) |
-| New feature parity | **Not required** |
-| Bug fixes | As-needed basis only |
-| Eventual deprecation | Per removal criteria in Platform Priority section |
-
-#### Dependencies
-
-- None blocking (builds on existing file structure)
-- Dependent on: Platform Priority Hierarchy decision (complete)
-
-#### Priority
-
-**P1** - Important but not blocking core functionality
-
-#### Target Release
-
-v1.1
+- **Framework extraction (v0.4.0 milestone goal)**: The plan was to extract the framework into `rjmurillo/awesome-ai` as a plugin marketplace. That repository does not exist, and the v0.4.0 release notes do not mention it. The marketplace ships from this repository instead (`.claude-plugin/marketplace.json`).
+- **Full templating (deferred in 2025-12 as "v1.2+")**: This shipped in a different form. ADR-108 templated skills with a restricted mustache grammar, and ADR-109 extended templates to agents, rules, hooks, and settings. LiquidJS was never adopted.
+- **VS Code consolidation (former "v1.1" epic #972)**: Closed.
+- **JTBD plugin slicing (ADR-072, accepted)**: ADR-072 names five plugins. The marketplace ships one, `project-toolkit`. The slicing is not implemented.
+- **Version labels**: The 2025-12 roadmap used "v1.0" and "v1.1". Releases actually ship as v0.x. The v1.x labels are retired.
 
 ---
 
-## Deferred: v1.2+ (Full Templating)
+## Current Release: v0.7.0 (Subtraction and Engineering Taste)
 
-### Epic: Full Agent Templating System (LiquidJS)
+**Status**: Open. 430 items closed, 119 open as of 2026-09-24.
 
-**As a** contributor
-**I want** to edit agents in a single canonical template
-**So that** changes automatically propagate to all three platforms
+**Goal**: Ship a smaller system, with matched evidence that accepted-task quality did not regress.
 
-#### Deferral Rationale
+### In scope
 
-1. **2-Variant Consolidation is the 80/20 solution** - Gets 80% of the benefit (33% reduction) at 20% of the effort
-2. **Data-driven decision** - 90-day diff-linting data will inform whether full templating is justified
-3. **Reversible path** - Consolidation does not preclude templating later; it's a stepping stone
-4. **Reduced risk** - Smaller change, easier to validate, less breaking
+1. Delete and consolidate machinery: unreferenced scripts, duplicate parsers and policy owners, obsolete subsystems, retired agents and commands.
+2. Cut always-loaded instruction bytes, path-local instruction layers, and catalog budgets.
+3. Reduce generated governance and the sync obligations it creates.
+4. Lower local pre-commit and pre-push gate cost.
+5. Route in ways that remove surface rather than add it.
+6. Fix gate-correctness defects that waste agent cycles: laundering ratchets, false-green checks, permanently red gates, flaky fixtures, and guards that block valid work.
+7. Measure token and agent-cycle cost, and ratchet it.
+8. Prove accepted-task quality held.
 
-#### Conditions to Proceed to Full Templating
+### Out of scope
 
-- [ ] Drift-linting shows Claude diverging from VS Code/Copilot variants
-- [ ] Maintenance burden still significant after consolidation
-- [ ] Contributor feedback requests single-source editing
+1. Net-new governance with no retirement and no measured benefit.
+2. New capability that adds machinery.
+3. One-off bugs, doc and ADR housekeeping, and platform-specific fixes with no recurring agent cost.
 
-#### Estimated Effort (If Needed)
+### Epics and trackers
 
-20-31 hours (original CVA estimate)
+| Issue | Outcome |
+|-------|---------|
+| #5456 | Subtract the control plane and prove the smaller system (release epic) |
+| #5698 | Stop agent-manufactured backlog growth with provenance at the issue door |
+| #5704 | Triage the open backlog from one sheet; owner keeps, agent closes the rest |
+| #5422 | Falsify orchestration routing hypotheses across models and harnesses (#5423 to #5426) |
+| #5390 | Make autoplan composition discoverable, safe, and measurable |
+
+### Open work by area (119 open issues)
+
+| Label | Open |
+|-------|------|
+| area-infrastructure | 48 |
+| area-skills | 38 |
+| area-workflows | 19 |
+| area-prompts | 16 |
+| area-validation | 7 |
+
+34 open issues carry `priority:P1` and 20 carry `priority:P2`.
+
+### Exit criteria
+
+- [ ] #5456 baseline committed from one pinned `main` SHA, with measurement commands and targets.
+- [ ] Each candidate mechanism classified as KEEP, MERGE, or DELETE per the #5456 contract.
+- [ ] Always-loaded instruction bytes and local gate p50/p95 below the committed baseline.
+- [ ] Accepted-task outcomes from #5422 to #5426 show no regression.
 
 ---
 
-## Backlog
+## Next Release (after v0.7.0)
 
-### Future Consideration
+Not yet a milestone. Candidates, in priority order:
 
-| Epic | User Value | Priority | Notes |
-|------|------------|----------|-------|
-| Internationalization | Non-English agent instructions | P3 | No current demand |
-| Agent Composition | Combine agents dynamically | P3 | Architecture TBD |
-| Performance Metrics Dashboard | Track agent effectiveness | P2 | Requires telemetry |
+1. **Codex onboarding (P1)**: see Codex onboarding above.
+2. **Canonical skill contracts and harness projections (ADR-107, proposed)**: #5686 to #5689 and #5691 define equivalence predicates and projection invariants across Claude and Copilot. #5690, in v0.7.0, retires the orphaned TypeScript emission pipeline. This also gives Codex a checkable target.
+3. **Template-first completion (ADR-109)**: move the remaining hand-maintained agent bodies into templates.
+
+---
+
+## Backlog (Future milestone)
+
+The Future milestone holds 109 open issues with no date. Main themes:
+
+| Theme | Examples |
+|-------|----------|
+| ADR accuracy and lifecycle | #5555, #5675, #5696, `bug(adr)` and `docs(adr)` items |
+| Harness projection (ADR-107) | #5686, #5687, #5688, #5689, #5691 |
+| Test and gate coverage gaps | #5538, #5568, #5619, #5637 |
+| Build and generator safety | #5522, #5657 |
+| Cross-platform launch | #5521 (POSIX shell and `python3` assumptions) |
+
+Each theme should either get pulled into a release or get closed. It should not sit in Future indefinitely. #5704 owns that sweep.
+
+### Explicitly not on the roadmap
+
+- **Service-operations registers** (service standards, incident and MTTR inventory, deployment migration tracking; #5864 to #5867). These serve teams that run production services. This repository ships agent tooling and runs no services.
+- **Internationalization**: no demand recorded.
 
 ---
 
@@ -203,127 +163,38 @@ v1.1
 
 ```mermaid
 graph TD
-    A[v1.0 Foundation] --> B[2-Variant Consolidation]
-    A --> C[Pre-PR Security Gate]
-    B --> D{90-Day Diff Data}
-    D -->|Drift detected| E[Full Templating System]
-    D -->|No drift| F[Stay at 2-Variant]
-    C --> G[v1.1 Maintainability]
-    B --> G
+    A[v0.6.0 Hardened and Portable] --> B[v0.7.0 Subtraction]
+    B --> C[#5456 baseline and KEEP/MERGE/DELETE]
+    B --> D[#5422 routing evidence]
+    C --> E[Next release]
+    D --> E
+    E --> F[Codex onboarding P1]
+    E --> G[ADR-107 projections]
+    G --> F
 ```
 
 ---
 
 ## Success Metrics
 
-### Primary Metrics (Claude Code + VS Code)
-
-| Metric | Target | Current | Notes |
-|--------|--------|---------|-------|
-| Claude Code agent completeness | 100% | 100% | All 18 agents |
-| VS Code agent parity | 100% | 100% | Derives from Claude Code |
-| Platform sync errors | 0 | Unknown | Between Claude Code and VS Code |
-| Contributor onboarding time | < 30 min | Unknown | |
-| CI security alerts pre-PR | > 80% caught | 0% (new) | |
-
-### Secondary Metrics (Maintenance Only)
-
-| Metric | Target | Current | Notes |
-|--------|--------|---------|-------|
-| Copilot CLI agent availability | Frozen | 18 | No new features |
-| Copilot CLI maintenance effort | < 10% total | Unknown | Triggers removal review if exceeded |
-| Copilot CLI user requests | Tracked | 0 | 90-day window for removal evaluation |
-
-### Removed Metrics
-
-| Metric | Reason for Removal |
-|--------|-------------------|
-| Agent file count (54 to 36) | Superseded by platform-specific tracking; Copilot CLI excluded from consolidation |
+| Metric | Target | Current | Source |
+|--------|--------|---------|--------|
+| Always-loaded instruction bytes | Below #5456 baseline | Baseline not yet committed | #5456 |
+| Local pre-push gate p95 | Below #5456 baseline | Baseline not yet committed | #5456, #5318 |
+| Accepted-task quality | No regression vs baseline | Pending #5426 | #5422 |
+| Claude and Copilot projection parity | Zero invariant violations | ADR-107 proposed, not enforced | #5687 |
+| Codex rendered output | Exists and passes projection checks | Not started | This roadmap |
+| Open backlog | Every open issue has an owner decision | 241 open on 2026-09-24 | #5704 |
 
 ---
 
-## Changelog
+## Decision Log
 
-| Date | Change | Rationale |
-|------|--------|-----------|
-| 2025-12-15 | Created roadmap with v1.0, v1.1, deferred v1.2+ | Initial strategic planning |
-| 2025-12-15 | Prioritized 2-Variant Consolidation over Full Templating | 80/20 rule; data-driven deferral |
-| 2025-12-15 | Added Pre-PR Security Gate to v1.1 | Gap identified in PR #41 |
-| 2025-12-17 | **Added Platform Priority Hierarchy** (Claude Code P0, VS Code P1, Copilot CLI P2) | Comprehensive limitations analysis; RICE score 0.8 vs 20+ |
-| 2025-12-17 | **De-prioritized Copilot CLI to P2 (Maintenance Only)** | Critical gaps: user-level config, no Plan Mode, limited context, no semantic analysis |
-| 2025-12-17 | **DECLINED Copilot CLI sync in Sync-McpConfig.ps1** | User-level config is a risk; no team collaboration value |
-| 2025-12-17 | **Renamed epic to "VS Code Consolidation"** (from "2-Variant Consolidation") | Copilot CLI excluded from active consolidation; scope reduced |
-| 2025-12-17 | **Added removal evaluation criteria** for Copilot CLI | 10% maintenance threshold, 90-day demand window, 6-month platform viability |
-| 2025-12-17 | **Restructured Success Metrics** by platform priority | Primary (Claude Code + VS Code), Secondary (Copilot CLI maintenance) |
-
----
-
-## Priority Assessment: VS Code Consolidation
-
-> **Updated 2025-12-17**: Renamed from "2-Variant Consolidation" following Copilot CLI de-prioritization.
-
-### Summary
-
-| Dimension | Assessment |
-|-----------|------------|
-| **Priority** | P1 (Important, Should Have) |
-| **Wave** | Next Release (v1.1) |
-| **Dependencies** | Platform Priority Hierarchy decision (complete) |
-| **Strategic Fit** | High - stepping stone to full templating if needed |
-| **Scope Change** | Reduced: VS Code only (Copilot CLI maintenance-only) |
-| **Opportunity Cost** | Delays Pre-PR Security Gate by ~1 week if done first |
-
-### Framework Analysis
-
-#### Eisenhower Matrix
-
-| | Urgent | Not Urgent |
-|---|--------|------------|
-| **Important** | Pre-PR Security Gate (process gap active) | VS Code Consolidation |
-| **Not Important** | - | Full Templating, Copilot CLI features |
-
-**Recommendation**: Schedule VS Code Consolidation; Do Pre-PR Security Gate if security incidents continue. Copilot CLI features are explicitly NOT important.
-
-#### Combined Prioritization
-
-1. **Pre-PR Security Gate** - P1, addresses active process gap (CodeQL alert)
-2. **VS Code Consolidation** - P1, reduces maintenance burden, enables data collection
-3. **Full Templating** - P2, deferred pending 90-day data
-4. **Copilot CLI features** - P2, maintenance-only, no new investment
-
-### Recommended Sequencing
-
-```text
-Week 1-2: Pre-PR Security Gate (Phase 1-2 from PRD)
-Week 3: VS Code Consolidation (Phase 1)
-Week 4: VS Code Consolidation (Phase 2) + Diff-Linting CI
-```
-
-### Opportunity Cost Analysis
-
-If we do VS Code Consolidation now:
-
-**What gets done:**
-
-- Simplified Claude Code to VS Code sync
-- CI drift detection infrastructure
-- Stepping stone toward templating
-- Copilot CLI frozen (no effort spent)
-
-**What gets delayed:**
-
-- Pre-PR Security Gate by ~1 week
-- Any new feature work
-
-**What we explicitly do NOT do:**
-
-- Copilot CLI sync in Sync-McpConfig.ps1
-- Copilot CLI consolidation effort
-- Copilot CLI feature parity
-
-**Recommendation**: Given the CodeQL alert in PR #41, prioritize Pre-PR Security Gate first (documentation-focused, ~1 day Phase 1), then proceed with VS Code Consolidation.
-
----
-
-*Generated by Roadmap Agent*
-*Updated: 2025-12-17 with Copilot CLI de-prioritization*
+| Date | Decision | Rationale |
+|------|----------|-----------|
+| 2025-12-15 | Created roadmap with v1.0, v1.1, and deferred v1.2+ | Initial strategic planning |
+| 2025-12-17 | Put Copilot CLI at P2, maintenance only; declined Copilot CLI sync in `Sync-McpConfig.ps1` | Limits at the time: user-level MCP config, no plan mode, small context, no semantic analysis |
+| 2026-09-24 | **Platform hierarchy reset**: Claude Code P0, Copilot CLI P0, Codex P1, VS Code P2 | Owner decision. Accepted ADR-083, ADR-094, and ADR-109 already treat Copilot CLI as a shipped target, and the 90-day commit volume matches |
+| 2026-09-24 | Retired the v1.x labels and replaced them with the actual v0.x release history | Releases ship as v0.x. The v1.0 and v1.1 epics closed or shipped in another form |
+| 2026-09-24 | Recorded v0.7.0 subtraction as the current release | Milestone v0.7.0 and epic #5456 |
+| 2026-09-24 | Declined service-operations registers (#5864 to #5867) | Outside the master objective, and they conflict with #5456 |

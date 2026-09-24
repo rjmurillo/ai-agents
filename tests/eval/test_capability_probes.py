@@ -36,38 +36,12 @@ from tests.eval._capability_probe_fixtures import (
     _plan,
     _runner,
     _session_change,
-    codex_stderr,
     copilot_wire_log_dir,
     copilot_wire_response_line,
 )
 from tests.eval._harness_capability_test_support import evidence, probes
 
 # --- Model override probe ------------------------------------------------------
-
-
-def test_a_codex_child_that_answers_on_the_requested_model_verifies_the_override() -> None:
-    """CONFIRMATORY: codex reads backend evidence from RUST_LOG stderr frames.
-
-    Neither harness's model_override reaches VERIFIED from `--json` stdout
-    any more: codex never carried backend evidence there at all, and
-    Copilot's `assistant.message.model` was found to be a client label (see
-    `test_a_copilot_child_wire_response_verifies_the_override` below and
-    `_capability_evidence.observe_copilot_model`).
-    """
-    stderr = codex_stderr(
-        ("parent", "gpt-5.6-sol", "medium", None),
-        ("child", "gpt-6-luna", "high", None),
-    )
-
-    result = probes.probe_override(
-        _plan(harness="codex", parent="gpt-5.6-sol", candidates=("gpt-6-luna",)),
-        _command("codex", requests="gpt-6-luna"),
-        runner=_runner(stdout="", stderr=stderr),
-        timeout=TIMEOUT,
-    )
-
-    assert result.status is CapabilityStatus.VERIFIED
-    assert result.evidence is EvidenceKind.BACKEND
 
 
 def test_a_copilot_child_wire_response_verifies_the_override(tmp_path) -> None:
@@ -181,30 +155,6 @@ def test_an_echo_only_output_with_no_log_dir_never_verifies_the_override(tmp_pat
     assert "--log-dir" in result.detail
 
 
-def test_a_codex_child_that_silently_inherits_the_parent_never_verifies() -> None:
-    """NEGATIVE CONTROL: a child span reporting the parent's own model is not an override.
-
-    Every span's model equals `parent_value`, so `_codex_candidate_spans`
-    excludes all of them: there is no span left that could be a child's own
-    answer, which is exactly what a codex run that silently ignored
-    `spawn_agent`'s `model` argument would look like on the wire.
-    """
-    stderr = codex_stderr(
-        ("parent", "gpt-5.6-sol", "medium", None),
-        ("child", "gpt-5.6-sol", "medium", None),
-    )
-
-    result = probes.probe_override(
-        _plan(harness="codex", parent="gpt-5.6-sol", candidates=("gpt-6-luna",)),
-        _command("codex", requests="gpt-6-luna"),
-        runner=_runner(stdout="", stderr=stderr),
-        timeout=TIMEOUT,
-    )
-
-    assert result.status is CapabilityStatus.UNVERIFIED
-    assert "parent" in result.detail
-
-
 def test_a_hand_built_plan_with_an_equal_child_value_cannot_be_constructed() -> None:
     """NEGATIVE CONTROL: the discrimination guard binds the dataclass, not only the builder.
 
@@ -254,26 +204,6 @@ def test_two_answer_turns_naming_different_models_verify_nothing() -> None:
 
     assert result.status is CapabilityStatus.UNVERIFIED
     assert result.evidence is EvidenceKind.NONE
-
-
-def test_codex_exiting_zero_with_no_stderr_frames_fails_closed() -> None:
-    """NEGATIVE CONTROL: codex has an in-tree frame parser now, but it needs
-    `RUST_LOG=tungstenite::protocol=trace` to have anything to read. A codex
-    run that exits 0 with empty stderr means the caller forgot that
-    environment variable, a misconfigured plan rather than a negative
-    capability result, so this raises instead of resolving to `UNVERIFIED`
-    (compare `test_malformed_runtime_output_fails_closed_rather_than_degrading`,
-    the equivalent control for `--json` stdout).
-    """
-    stdout = _jsonl([_answer("hi", model="sol-medium")])
-
-    with pytest.raises(ProbeError, match="RUST_LOG=tungstenite::protocol=trace"):
-        probes.probe_override(
-            _plan(harness="codex", parent="sol-low", candidates=("sol-medium",)),
-            _command("codex", requests="sol-medium"),
-            runner=_runner(stdout),
-            timeout=TIMEOUT,
-        )
 
 
 def test_claude_init_model_is_not_treated_as_backend_evidence() -> None:
@@ -398,7 +328,7 @@ def test_a_nonzero_exit_yields_unverified_and_records_stderr() -> None:
     result = probes.probe_override(_plan(), _command(), runner=runner, timeout=TIMEOUT)
 
     assert result.status is CapabilityStatus.UNVERIFIED
-    assert result.detail == "not logged in"
+    assert result.detail == "copilot probe exited with code 1: not logged in"
 
 
 def test_malformed_runtime_output_fails_closed_rather_than_degrading() -> None:

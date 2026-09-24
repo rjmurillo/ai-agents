@@ -33,10 +33,27 @@ def test_subagent_events_in_the_stream_verify_support() -> None:
         [{"type": "subagent.start", "data": {}}, {"type": "subagent.complete", "data": {}}]
     )
 
-    result = probes.probe_subagent_support(_command(), runner=_runner(stdout), timeout=TIMEOUT)
+    result = probes.probe_subagent_support(
+        _command("claude"), runner=_runner(stdout), timeout=TIMEOUT
+    )
 
     assert result.status is CapabilityStatus.VERIFIED
     assert result.evidence is EvidenceKind.BACKEND
+
+
+def test_copilot_lifecycle_events_without_a_wire_log_never_verify() -> None:
+    """NEGATIVE CONTROL: copilot `subagent.*` events are client-emitted."""
+    stdout = _jsonl(
+        [
+            {"type": "subagent.started", "data": {"model": "claude-sonnet-4-6"}},
+            {"type": "subagent.completed", "data": {"model": "claude-sonnet-4-6"}},
+        ]
+    )
+
+    result = probes.probe_subagent_support(_command(), runner=_runner(stdout), timeout=TIMEOUT)
+
+    assert result.status is CapabilityStatus.UNVERIFIED
+    assert result.evidence is EvidenceKind.CLIENT_ECHO
 
 
 def test_a_run_with_no_subagent_events_does_not_verify_support() -> None:

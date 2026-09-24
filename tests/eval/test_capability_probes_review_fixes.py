@@ -83,6 +83,9 @@ def test_a_command_targeting_another_harness_is_refused() -> None:
     assert seen == [], "the CLI must not run for a harness the plan does not probe"
 
 
+_CODEX_STDOUT = '{"type": "thread.started", "thread_id": "t1"}\n'
+
+
 def test_an_equals_joined_flag_carries_the_request() -> None:
     """CONFIRMATORY: `--model=value` is the same request as `--model value`.
 
@@ -93,9 +96,7 @@ def test_an_equals_joined_flag_carries_the_request() -> None:
     joined form and still proves the `token == f"{flag}={value}"` branch in
     `_carries_request`.
     """
-    stderr = codex_stderr(
-        ("parent", "gpt-5-low", "medium", None), ("only", "gpt-5.6-sol", "medium", None)
-    )
+    stderr = codex_stderr(("only", "gpt-5.6-sol", "medium", None))
     command = probes.ProbeCommand(
         harness="codex",
         argv=("codex", "--model=gpt-5.6-sol"),
@@ -105,7 +106,7 @@ def test_an_equals_joined_flag_carries_the_request() -> None:
     result = probes.probe_override(
         _plan(harness="codex", parent="gpt-5-low", candidates=("gpt-5.6-sol",)),
         command,
-        runner=_runner(stdout="", stderr=stderr),
+        runner=_runner(stdout=_CODEX_STDOUT, stderr=stderr),
         timeout=TIMEOUT,
     )
 
@@ -201,9 +202,7 @@ def test_an_executable_path_still_satisfies_the_harness_check() -> None:
     `test_an_equals_joined_flag_carries_the_request`: copilot's
     model_override reads its `--log-dir` wire log now, not `--json` stdout.
     """
-    stderr = codex_stderr(
-        ("parent", "gpt-5-low", "medium", None), ("only", "gpt-5.6-sol", "medium", None)
-    )
+    stderr = codex_stderr(("only", "gpt-5.6-sol", "medium", None))
     command = probes.ProbeCommand(
         harness="codex",
         argv=("/usr/local/bin/codex", "--model", "gpt-5.6-sol"),
@@ -213,7 +212,7 @@ def test_an_executable_path_still_satisfies_the_harness_check() -> None:
     result = probes.probe_override(
         _plan(harness="codex", parent="gpt-5-low", candidates=("gpt-5.6-sol",)),
         command,
-        runner=_runner(stdout="", stderr=stderr),
+        runner=_runner(stdout=_CODEX_STDOUT, stderr=stderr),
         timeout=TIMEOUT,
     )
 
@@ -352,18 +351,18 @@ def test_a_fully_paired_overlap_still_reports_its_real_peak() -> None:
     assert topology.max_concurrent_children(events) == 3
 
 
-def test_an_inflated_stream_leaves_the_concurrency_probe_unverified() -> None:
+def test_an_inflated_stream_leaves_the_concurrency_probe_unverified(monkeypatch) -> None:
     """NEGATIVE CONTROL: the count guard reaches the prober, not only the helper.
 
-    `--max-concurrency` is untrusted for every harness now (neither codex
-    nor copilot has ever accepted it), so this input no longer reaches
-    `max_concurrent_children` through `probe_concurrency` at all; it is
-    refused at the trust gate first, which is its own guard
-    (`test_capability_probes.py::test_an_untrusted_concurrency_flag_stays_unverified`).
-    `test_capability_probes.py::test_codex_frame_concurrency_below_the_requested_count_stays_unverified`
-    now carries the "count guard reaches the prober" proof this test used
-    to, against the real codex fixture instead of a synthetic stream.
+    No harness has a trusted `concurrency_limit` flag (see
+    `test_capability_probes.test_concurrency_probe_is_untrusted_by_construction_and_never_runs`),
+    so this injects a synthetic template to exercise the guard the test names.
     """
+    monkeypatch.setitem(
+        probes.TRUSTED_REQUEST_TEMPLATES,
+        ("copilot", "concurrency_limit"),
+        probes._RequestTemplate("--max-concurrency"),
+    )
     stdout = _jsonl(_boundaries("start", "start", "start"))
 
     result = probes.probe_concurrency(
@@ -374,6 +373,4 @@ def test_an_inflated_stream_leaves_the_concurrency_probe_unverified() -> None:
     )
 
     assert result.status is CapabilityStatus.UNVERIFIED
-    assert result.evidence is EvidenceKind.NONE
-    assert "not trusted" in result.detail
     assert result.value is None

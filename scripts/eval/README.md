@@ -193,13 +193,31 @@ Copilot equivalent.
 ## Harness Capability Evidence
 
 Use a JSON plan when live runtime evidence is authorized. The plan supplies a
-base argv and a typed request flag because each harness owns its own flag
-surface; only the flags listed below are trusted (`_capability_probes.TRUSTED_REQUEST_SYNTAX`).
-An untrusted flag stays UNVERIFIED even if the CLI happens to accept it. The
-loader appends the requested value to that flag, rendering codex's `-c
-key=value` config-override shape when the plan's capability calls for one.
-Behavioral commands run with an isolated profile and workspace; plan cwd
-values must stay inside that workspace.
+base argv and a typed request flag; the loader renders the request through
+that (harness, capability) pair's trusted template and appends the rendered
+flag and value. Only a template's own flag is trusted: a plan carrying any
+other flag records UNVERIFIED "not trusted" without running the CLI.
+Behavioral commands run with an isolated profile in a temporary per-run
+workspace that is removed after each probe; plan cwd values must stay inside
+that workspace.
+
+The checked-in live plan is `scripts/eval/examples/harness-capability-probes.json`,
+covering codex and Copilot model, effort, and `sol_ultra` overrides. Trusted
+templates, pinned by a live `--help` read (codex-cli 0.156.0, Copilot CLI
+1.0.89, both probed 2026-09-24):
+
+| harness | capability                    | flag                | rendered value           |
+| ------- | ------------------------------ | -------------------- | ------------------------- |
+| codex   | `model_override`               | `--model`            | `<value>`                 |
+| codex   | `effort_override`, `sol_ultra` | `-c`                  | `model_reasoning_effort=<value>` |
+| codex   | `concurrency_limit`            | `-c`                  | `agents.max_threads=<value>` |
+| copilot | `model_override`               | `--model`            | `<value>`                 |
+| copilot | `effort_override`, `sol_ultra` | `--reasoning-effort` | `<value>`                 |
+
+Codex `agents.max_threads` is enforced and does not count the root thread:
+with a value of 1 a second concurrent spawn failed with "collab spawn failed:
+agent thread limit reached". Copilot has no concurrency option, so a copilot
+concurrency probe is UNVERIFIED "not trusted" and the CLI never runs for it.
 
 The checked-in matrix (`examples/harness-capability-matrix.json`) is now
 evidence-backed: every `VERIFIED` cell cites a trimmed backend capture under
@@ -211,20 +229,6 @@ independent of the live-probe pipeline. `tests/eval/test_harness_capability.py::
 pins that every `VERIFIED` cell has `BACKEND` evidence, a `probe_command`, a
 `date`, and a `detail` naming a fixture file that actually exists.
 
-### Real request flags (verified live, 2026-09-24)
-
-| Harness | Capability | Flag | Notes |
-|---|---|---|---|
-| codex | `model_override` | `--model <id>` | `codex --help`, codex-cli 0.156.0 |
-| codex | `effort_override` | `-c model_reasoning_effort=<effort>` | config override, not a bare flag |
-| codex | `concurrency_limit` | `-c agents.max_threads=<n>` | root thread not counted; `N=0` is rejected |
-| copilot | `model_override` | `--model <id>` | `copilot --help`, 1.0.89 |
-| copilot | `effort_override` | `--reasoning-effort <level>` | `none,minimal,low,medium,high,xhigh,max`; `ultra` is refused before any model call |
-| copilot | `concurrency_limit` | none | copilot has no concurrency flag at all; its `concurrency_limit` cell is observed directly from `subagent.*` events, not probed through a request flag |
-
-`--effort` and `--max-concurrency` were earlier placeholders neither CLI has
-ever accepted; a plan carrying either now resolves to `UNVERIFIED` with a
-"not trusted" detail instead of silently degrading further.
 
 ```json
 {
@@ -244,27 +248,52 @@ ever accepted; a plan carrying either now resolves to `UNVERIFIED` with a
 Run the probe without modifying the checked-in matrix:
 
 ```bash
-RUST_LOG=tungstenite::protocol=trace uv run python scripts/eval/eval_harness_capability.py \
-  --behavioral-probes probes.json \
+uv run python scripts/eval/eval_harness_capability.py \
+  --behavioral-probes scripts/eval/examples/harness-capability-probes.json \
   --output artifacts/harness-capability/report.json
 ```
 
-The plan supports model and effort overrides, subagent support, and concurrency
-measurements. The CLI writes a report, never the checked-in matrix. Missing
-commands, failed runs, and incomplete event streams remain UNVERIFIED.
+The plan supports model, effort, and `sol_ultra` overrides, subagent support,
+and concurrency measurements. The CLI writes a report, never the checked-in
+matrix. Missing commands, failed runs, and incomplete event streams remain
+UNVERIFIED. Verified model and effort values require backend attribution and
+a live runtime version for the same harness.
 
-### Codex: RUST_LOG and authentication
+### Codex backend evidence requires a stderr trace
 
-`codex exec --json` stdout carries no model or reasoning effort field at all.
-Backend evidence exists only on stderr, and only with
-`RUST_LOG=tungstenite::protocol=trace` set (see
-`scripts/eval/_codex_frames.py`'s module docstring for the exact frame
-shapes). Without it, a codex probe that exits 0 raises `ProbeError` rather
-than resolving to UNVERIFIED: a missing environment variable is a
-misconfigured plan, not a negative capability result. The isolated profile
-this evaluator builds needs `CODEX_API_KEY`; `CODEX_ACCESS_TOKEN` from a
-ChatGPT login returned 401 in codex-cli 0.156.0 (see
-`codex-0.156.0/isolated-auth-401.stdout.jsonl`).
+`codex exec --json` stdout carries no model or reasoning effort at all
+(probed 2026-09-24, codex-cli 0.156.0): its event stream is limited to
+`thread.started`, `turn.started`, `item.completed`, and `turn.completed`. The
+backend's own `response.completed` object is observable only on the client's
+websocket trace, so a codex probe plan sets `RUST_LOG=tungstenite::protocol=trace`
+in its `env`; `observe_model`/`observe_effort` then read `response.model` and
+`response.reasoning.effort` off that trace on stderr. A codex probe run
+without this variable stays UNVERIFIED with a detail naming it, never a
+silent guess.
+
+### `--codex-auth-file`: opt-in credential for an isolated codex probe
+
+A ChatGPT-login Codex authenticates only through `$CODEX_HOME/auth.json`;
+`CODEX_ACCESS_TOKEN` is ignored for that login method (probed 2026-09-24,
+codex-cli 0.156.0: a ChatGPT access token in that variable produced a 401
+"Missing bearer" against api.openai.com). The isolated profile a behavioral
+probe runs under therefore has no working codex auth by default. Pass
+`--codex-auth-file PATH` to copy that file into each codex probe's isolated
+`CODEX_HOME` as `auth.json`, mode `0600` inside a profile directory mode
+`0700`, before the probe runs, and deletes the copy once that probe has run,
+whether it succeeded or raised:
+
+```bash
+uv run python scripts/eval/eval_harness_capability.py \
+  --behavioral-probes scripts/eval/examples/harness-capability-probes.json \
+  --codex-auth-file ~/.codex/auth.json \
+  --output artifacts/harness-capability/report.json
+```
+
+The flag is opt-in and ignored for non-codex probes. The file is copied, not
+referenced, so the operator's real `auth.json` is never opened by the probed
+CLI, and its contents are never logged. A path that is not a regular file
+fails closed (exit 2) before any CLI runs.
 
 ### Copilot: the client-label finding and BYOK
 

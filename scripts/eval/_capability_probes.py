@@ -65,8 +65,6 @@ from pathlib import Path
 from _capability_evidence import (
     DEFAULT_EFFORT_KEYS,
     ProbeObservation,
-    observe_codex_effort,
-    observe_codex_model,
     observe_copilot_effort,
     observe_copilot_model,
     observe_effort,
@@ -111,62 +109,62 @@ from _runtime_output import RuntimeOutputError, parse_events
 
 Runner = Callable[..., "subprocess.CompletedProcess[str]"]
 
-#: Capabilities this module can probe through `classify_override`.
-OVERRIDE_CAPABILITIES: tuple[str, ...] = ("model_override", "effort_override")
+#: Capabilities this module can probe through `classify_override`. `sol_ultra`
+#: is a control value, not a fourth kind of evidence: it is probed exactly
+#: like `effort_override` (`probe_override` routes every non-model capability
+#: to `observe_effort`), and the request template it renders through is the
+#: harness's effort template, because both requests land on the same CLI flag
+#: (probed 2026-09-24: codex `-c model_reasoning_effort=<value>`, Copilot
+#: `--reasoning-effort <value>`).
+OVERRIDE_CAPABILITIES: tuple[str, ...] = ("model_override", "effort_override", "sol_ultra")
 
 
 @dataclass(frozen=True, slots=True)
-class RequestSyntax:
-    """The real CLI flag (and optional `-c key=value` config key) a harness
-    accepts for one probeable capability.
+class _RequestTemplate:
+    """One flag and value format a trusted override or concurrency probe may use.
 
-    `flag` alone renders as `(flag, value)`, a bare `--flag value` pair.
-    `config_key` set renders as `(flag, f"{config_key}={value}")`, codex's
-    `-c key=value` shape (`codex --help`, codex-cli 0.156.0, and
-    `codex-0.156.0/*.trace.log`, where every probe command carries
-    `-c model_reasoning_effort=<effort>` or `-c agents.max_threads=<n>`).
+    `value_format` is a `str.format` template applied to the caller's plain
+    request value (`plan.child_value`, or `str(requested)` for concurrency)
+    before it is compared against argv or rendered into a JSON-loaded plan's
+    command. Codex's `-c` is a short GNU option: `codex exec --help` (codex-cli
+    0.156.0, read 2026-09-24) documents it as `-c, --config <key=value>`, which
+    does not accept `flag=value` syntax the way a long option does, so the key
+    is folded into the single token that follows `-c` instead
+    (`model_reasoning_effort=<value>`). Copilot's `--reasoning-effort` and
+    `--model` are plain long options that take the value directly.
     """
 
     flag: str
-    config_key: str | None = None
+    value_format: str = "{}"
 
-    def render(self, value: str) -> tuple[str, str]:
-        if self.config_key is not None:
-            return (self.flag, f"{self.config_key}={value}")
-        return (self.flag, value)
+    def render(self, value: str) -> str:
+        return self.value_format.format(value)
 
 
-# The real request syntax for each (harness, capability) this module can
-# probe, verified live 2026-09-24: `codex --help` and the trace fixtures for
-# codex; `copilot --help` (1.0.89) for copilot. Neither CLI has ever accepted
-# `--effort` or `--max-concurrency`, the placeholder flags this table used to
-# carry; a plan built against either name is now untrusted (see
-# `_trusted_request_flag`) rather than silently treated as real. Copilot has
-# no concurrency flag at all (`copilot --help` lists none), so it carries no
-# `concurrency_limit` entry.
-TRUSTED_REQUEST_SYNTAX: Mapping[tuple[str, str], RequestSyntax] = {
-    ("codex", "model_override"): RequestSyntax("--model"),
-    ("codex", "effort_override"): RequestSyntax("-c", "model_reasoning_effort"),
-    ("codex", "concurrency_limit"): RequestSyntax("-c", "agents.max_threads"),
-    ("copilot", "model_override"): RequestSyntax("--model"),
-    ("copilot", "effort_override"): RequestSyntax("--reasoning-effort"),
+# A JSON plan may choose the argv shape, but only these typed (flag,
+# value_format) templates can carry behavioral probe requests for the
+# supported harnesses, each pinned by a live `--help` read (codex-cli 0.156.0,
+# Copilot CLI 1.0.89, both probed 2026-09-24). `codex`'s and `copilot`'s
+# `effort_override` and `sol_ultra` rows share one template each: both
+# requests render onto the same effort flag, and `_discriminates` is what
+# tells "Sol Ultra" apart from a tier rather than the flag choice.
+#
+# Concurrency: codex caps concurrent child threads with `-c agents.max_threads=N`.
+# It is enforced, and the root thread is not counted: with N=1 a second
+# concurrent spawn failed with "collab spawn failed: agent thread limit reached"
+# (tests/eval/fixtures/harness_capability/codex-0.156.0/thread-limit-1.trace.log,
+# codex-cli 0.156.0, 2026-09-24). `copilot --help` (1.0.89) lists no concurrency
+# option, so copilot has no entry, and `probe_concurrency` records UNVERIFIED
+# "not trusted" rather than guessing a flag the CLI does not honor.
+TRUSTED_REQUEST_TEMPLATES: Mapping[tuple[str, str], _RequestTemplate] = {
+    ("codex", "model_override"): _RequestTemplate("--model"),
+    ("codex", "effort_override"): _RequestTemplate("-c", "model_reasoning_effort={}"),
+    ("codex", "sol_ultra"): _RequestTemplate("-c", "model_reasoning_effort={}"),
+    ("codex", "concurrency_limit"): _RequestTemplate("-c", "agents.max_threads={}"),
+    ("copilot", "model_override"): _RequestTemplate("--model"),
+    ("copilot", "effort_override"): _RequestTemplate("--reasoning-effort"),
+    ("copilot", "sol_ultra"): _RequestTemplate("--reasoning-effort"),
 }
-
-
-def _rendered_request(
-    harness: str, capability: str, flag: str, value: str
-) -> tuple[str, str] | None:
-    """Return the trusted `(flag, value)` pair for this request, or `None`.
-
-    `None` means either the (harness, capability) pair is not in
-    `TRUSTED_REQUEST_SYNTAX`, or `flag` does not name that pair's real flag;
-    both cases fall back to the literal, unrendered `(flag, value)` at the
-    call site, which is the pre-existing behavior for an untrusted plan.
-    """
-    syntax = TRUSTED_REQUEST_SYNTAX.get((harness, capability))
-    if syntax is None or syntax.flag != flag:
-        return None
-    return syntax.render(value)
 
 
 class ProbeError(HarnessCapabilityError):
@@ -290,36 +288,49 @@ class BehavioralProbe:
 
 
 def _trusted_request_flag(command: ProbeCommand, capability: str) -> bool:
-    syntax = TRUSTED_REQUEST_SYNTAX.get((command.harness, capability))
-    return syntax is not None and syntax.flag == command.request_flag
+    template = TRUSTED_REQUEST_TEMPLATES.get((command.harness, capability))
+    return template is not None and template.flag == command.request_flag
 
 
-def _carries_request(command: ProbeCommand, value: str, capability: str) -> bool:
+def _render_request_value(command: ProbeCommand, capability: str, value: str) -> str:
+    """Return the request value as it would appear in argv for `capability`.
+
+    Falls back to `value` unchanged when no template is trusted for this
+    (harness, capability) pair, so an untrusted request flag still has a
+    string to compare against; `_trusted_request_flag` is the single place
+    that decides whether the probe is honored, not this function.
+    """
+    template = TRUSTED_REQUEST_TEMPLATES.get((command.harness, capability))
+    return template.render(value) if template is not None else value
+
+
+def _carries_request(command: ProbeCommand, value: str) -> bool:
     """Return whether the typed request flag is bound to the requested value.
 
-    Renders through `TRUSTED_REQUEST_SYNTAX` first, so a codex `-c` flag is
-    checked against `-c model_reasoning_effort=<value>` or
-    `-c agents.max_threads=<value>`, whichever `capability` names, rather
-    than the bare `value` a `--flag value` harness would carry. An untrusted
-    (harness, capability, flag) combination falls back to the literal
-    `(flag, value)` pair, which is the pre-existing check for a plan
-    `_trusted_request_flag` will go on to reject anyway.
+    `value` must already be rendered through `_render_request_value`: for
+    codex's `-c` template that is `model_reasoning_effort=<value>`, not the
+    bare value, so a command carrying only the unformatted value after `-c`
+    is correctly rejected here rather than misread as an honored request.
+
+    Accepts the two-token form (`flag`, `value`) for any flag. Accepts the
+    single-token `flag=value` form only for a long option (`--foo`): a short
+    GNU option such as `-c` does not support `=` syntax (`codex exec --help`,
+    codex-cli 0.156.0, read 2026-09-24), and codex's own rendered value
+    already contains an `=` of its own, so a literal `-c=value` token must
+    never satisfy this check.
     """
     flag = command.request_flag
     if flag is None:
         return False
-    rendered = _rendered_request(command.harness, capability, flag, value)
-    target_flag, target_value = rendered if rendered is not None else (flag, value)
-    joined = f"{target_flag}={target_value}"
-    return any(
-        token == joined
-        or (
-            token == target_flag
-            and index + 1 < len(command.argv)
-            and command.argv[index + 1] == target_value
-        )
+    two_token = any(
+        token == flag and index + 1 < len(command.argv) and command.argv[index + 1] == value
         for index, token in enumerate(command.argv)
     )
+    if two_token:
+        return True
+    if not flag.startswith("--"):
+        return False
+    return f"{flag}={value}" in command.argv
 
 
 def _discriminates(candidate: str, parent: str) -> bool:
@@ -416,19 +427,56 @@ def _validate_command(
         )
 
 
-def _capture_events(
+#: Longest failure reason carried into a matrix cell. A codex run under
+#: `RUST_LOG=tungstenite::protocol=trace` writes megabytes of stderr, so the
+#: whole stream would bury the one line that explains the exit.
+MAX_FAILURE_REASON = 500
+
+#: Event types whose message explains a failed run. Copilot CLI 1.0.89 exits 1
+#: with empty stderr and reports quota and auth failures only as a
+#: `session.error` event on stdout; codex reports `turn.failed` and `error`
+#: (both probed 2026-09-24).
+_FAILURE_EVENTS: frozenset[str] = frozenset({"session.error", "turn.failed", "error"})
+
+
+def _stdout_failure(stdout: str) -> str:
+    """Return the last failure message a runtime wrote to its event stream."""
+    message = ""
+    for line in stdout.splitlines():
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(event, dict) or event.get("type") not in _FAILURE_EVENTS:
+            continue
+        data = event.get("data") or event.get("error") or event
+        text = data.get("message") if isinstance(data, dict) else None
+        if isinstance(text, str) and text:
+            message = text
+    return message
+
+
+def _failure_reason(harness: str, returncode: int, stdout: str | None, stderr: str) -> str:
+    """Name why a probe failed in one bounded line, never the whole stream."""
+    reason = _stdout_failure(stdout or "")
+    if not reason:
+        # A clap usage error puts the reason on its `error:` line and ends
+        # with a "try '--help'" hint, so the error line wins over the last.
+        lines = [line.strip() for line in stderr.splitlines() if line.strip()]
+        errors = [line for line in lines if line.lower().startswith("error")]
+        reason = (errors or lines or [""])[-1]
+    if not reason:
+        return f"{harness} probe exited with code {returncode}"
+    return f"{harness} probe exited with code {returncode}: {reason[:MAX_FAILURE_REASON]}"
+
+
+def _run_probe(
     command: ProbeCommand,
     *,
     runner: Runner,
     timeout: float,
-) -> tuple[list[dict[str, object]] | None, str]:
-    """Run one probe and return its events, or a reason it produced none.
-
-    A missing CLI, a failed launch, a timeout, and a non-zero exit return
-    `(None, reason)` so the caller records `UNVERIFIED`. Malformed or empty
-    output raises, because output that cannot be parsed says nothing about the
-    capability and must not be read as a negative result either.
-    """
+) -> tuple[subprocess.CompletedProcess[str] | None, str]:
+    """Run one probe with stdin closed, or return why it could not run."""
     try:
         run = runner(
             list(command.argv),
@@ -440,14 +488,47 @@ def _capture_events(
             errors="replace",
             timeout=timeout,
             check=False,
+            stdin=subprocess.DEVNULL,
         )
     except FileNotFoundError as exc:
         return None, f"{command.argv[0]} is not on PATH: {exc}"
     except (OSError, subprocess.SubprocessError) as exc:
         return None, f"{command.harness} probe did not complete: {exc}"
+    return run, ""
+
+
+def _capture_events(
+    command: ProbeCommand,
+    *,
+    runner: Runner,
+    timeout: float,
+) -> tuple[list[dict[str, object]] | None, str, str]:
+    """Run one probe and return its events, a failure reason, and raw stderr.
+
+    A missing CLI, a failed launch, a timeout, and a non-zero exit return
+    `(None, reason, stderr)` so the caller records `UNVERIFIED`. Malformed or
+    empty output raises, because output that cannot be parsed says nothing
+    about the capability and must not be read as a negative result either.
+
+    `stdin=subprocess.DEVNULL` closes stdin for the child process. Codex reads
+    from stdin when none is provided (`codex exec` prints "Reading additional
+    input from stdin..." and blocks on it, probed 2026-09-24, codex-cli
+    0.156.0), which would hang a probe indefinitely rather than exit within
+    `timeout`.
+
+    `stderr` is returned even on success (empty string on the exception paths,
+    where no process ran): codex carries no model or reasoning effort in its
+    `--json` stdout event stream at all (probed 2026-09-24), so
+    `_capability_evidence.observe_model`/`observe_effort` read codex's backend
+    evidence from this stderr instead, when the caller ran it with
+    `RUST_LOG=tungstenite::protocol=trace`.
+    """
+    run, failure = _run_probe(command, runner=runner, timeout=timeout)
+    if run is None:
+        return None, failure, ""
+    stderr = run.stderr or ""
     if run.returncode != 0:
-        stderr = (run.stderr or "").strip()
-        return None, stderr or f"{command.harness} probe exited with code {run.returncode}"
+        return None, _failure_reason(command.harness, run.returncode, run.stdout, stderr), stderr
     try:
         events = parse_events(run.stdout or "")
     except RuntimeOutputError as exc:
@@ -456,7 +537,7 @@ def _capture_events(
         raise ProbeError(
             f"{command.harness} probe exited 0 with no events; the output is empty or truncated"
         )
-    return events, ""
+    return events, "", stderr
 
 
 def _capture_codex_frames(
@@ -473,39 +554,24 @@ def _capture_codex_frames(
     `RUST_LOG=tungstenite::protocol=trace`. A missing CLI, a failed launch, a
     timeout, and a non-zero exit return `(None, reason)`, mirroring
     `_capture_events`, so the caller records `UNVERIFIED`. Exit 0 with no
-    frames on stderr is different: that is a misconfigured plan (RUST_LOG was
-    never set, or codex changed its logging) rather than a negative
-    capability result, so it raises instead of resolving to `UNVERIFIED`,
-    the same fail-closed direction `_capture_events` takes for malformed
-    `--json` stdout.
+    frames on stderr also returns `(None, reason)`, naming the missing
+    `RUST_LOG=tungstenite::protocol=trace`, the contract PR #5910 set for
+    codex override probes.
     """
-    try:
-        run = runner(
-            list(command.argv),
-            cwd=command.cwd,
-            env=dict(command.env) if command.env is not None else None,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=timeout,
-            check=False,
-        )
-    except FileNotFoundError as exc:
-        return None, f"{command.argv[0]} is not on PATH: {exc}"
-    except (OSError, subprocess.SubprocessError) as exc:
-        return None, f"{command.harness} probe did not complete: {exc}"
+    run, failure = _run_probe(command, runner=runner, timeout=timeout)
+    if run is None:
+        return None, failure
+    stderr = run.stderr or ""
     if run.returncode != 0:
-        stderr = (run.stderr or "").strip()
-        return None, stderr or f"{command.harness} probe exited with code {run.returncode}"
+        return None, _failure_reason(command.harness, run.returncode, run.stdout, stderr)
     try:
-        frames = parse_codex_frames(run.stderr or "")
+        frames = parse_codex_frames(stderr)
     except CodexFrameError as exc:
         raise ProbeError(f"{command.harness} probe stderr is malformed: {exc}") from exc
     if not frames:
-        raise ProbeError(
-            f"{command.harness} probe exited 0 with no backend frames on stderr; set "
-            "RUST_LOG=tungstenite::protocol=trace to capture them"
+        return None, (
+            f"{command.harness} stderr carried no backend frame; rerun with "
+            "RUST_LOG=tungstenite::protocol=trace to capture the backend Response object"
         )
     return tuple(frames), ""
 
@@ -550,7 +616,7 @@ def _capture_copilot_wire(
     log carried no wire responses, rather than silently falling back to
     client-echoed evidence.
     """
-    events, failure = _capture_events(command, runner=runner, timeout=timeout)
+    events, failure, _stderr = _capture_events(command, runner=runner, timeout=timeout)
     if events is None:
         return None, (), (), failure
     log_dir = _find_flag_value(command.argv, "--log-dir")
@@ -588,18 +654,6 @@ def _capture_copilot_wire(
     return events, responses, requests, ""
 
 
-def _observe_codex_override(
-    plan: OverridePlan, command: ProbeCommand, *, runner: Runner, timeout: float
-) -> ProbeObservation | Capability:
-    """Read codex override evidence, or the `Capability` a capture failure already is."""
-    frames, failure = _capture_codex_frames(command, runner=runner, timeout=timeout)
-    if frames is None:
-        return Capability(CapabilityStatus.UNVERIFIED, EvidenceKind.NONE, failure)
-    if plan.capability == "model_override":
-        return observe_codex_model(frames, parent_value=plan.parent_value)
-    return observe_codex_effort(frames, parent_value=plan.parent_value)
-
-
 def _observe_copilot_override(
     plan: OverridePlan, command: ProbeCommand, *, runner: Runner, timeout: float
 ) -> ProbeObservation | Capability:
@@ -626,13 +680,13 @@ def _observe_generic_override(
     timeout: float,
     effort_keys: Sequence[str],
 ) -> ProbeObservation | Capability:
-    """Read override evidence from `--json` stdout events, the pre-codex/copilot path."""
-    events, failure = _capture_events(command, runner=runner, timeout=timeout)
+    """Read override evidence from `--json` stdout events and codex trace stderr."""
+    events, failure, stderr = _capture_events(command, runner=runner, timeout=timeout)
     if events is None:
         return Capability(CapabilityStatus.UNVERIFIED, EvidenceKind.NONE, failure)
     if plan.capability == "model_override":
-        return observe_model(plan.harness, events)
-    return observe_effort(plan.harness, events, effort_keys=effort_keys)
+        return observe_model(plan.harness, events, stderr=stderr)
+    return observe_effort(plan.harness, events, effort_keys=effort_keys, stderr=stderr)
 
 
 def _guard_override_plan(
@@ -655,7 +709,8 @@ def _guard_override_plan(
             "a run against one harness cannot verify an override on another"
         )
     _validate_command(command, executable_allowlist=executable_allowlist)
-    if not _carries_request(command, plan.child_value, plan.capability):
+    rendered_child = _render_request_value(command, plan.capability, plan.child_value)
+    if not _carries_request(command, rendered_child):
         raise ProbeError(
             f"command does not request {plan.child_value!r} in its argv, so an "
             f"observed {plan.child_value!r} would be the harness default rather than an "
@@ -681,12 +736,10 @@ def _observe_override(
 ) -> ProbeObservation | Capability:
     """Route to the evidence reader for `plan.harness`.
 
-    Codex reads `RUST_LOG` trace frames from stderr, copilot reads its
-    `--log-dir` wire log, and every other harness reads `--json` stdout
-    events, the pre-existing path.
+    Copilot reads its `--log-dir` wire log. Every other harness reads
+    `--json` stdout events, and codex additionally reads its agreeing
+    `response.completed` frames from `RUST_LOG` trace stderr.
     """
-    if plan.harness == "codex":
-        return _observe_codex_override(plan, command, runner=runner, timeout=timeout)
     if plan.harness == "copilot":
         return _observe_copilot_override(plan, command, runner=runner, timeout=timeout)
     return _observe_generic_override(
@@ -830,6 +883,55 @@ def _codex_subagent_support(command: ProbeCommand, frames: Sequence[CodexFrame])
     )
 
 
+def _copilot_subagent_support(
+    command: ProbeCommand, *, runner: Runner, timeout: float
+) -> Capability:
+    """Verify a copilot child from its provider response, not its lifecycle events.
+
+    `subagent.started` and `subagent.completed` are client events, so they
+    alone earn only `CLIENT_ECHO`. `VERIFIED` needs a wire-log response on a
+    model some `subagent.started` event requested, and that model must differ
+    from the parent's first response model, so the response is attributable
+    to the child rather than to the parent.
+    """
+    events, responses, _requests, failure = _capture_copilot_wire(
+        command, runner=runner, timeout=timeout
+    )
+    if events is None:
+        return Capability(CapabilityStatus.UNVERIFIED, EvidenceKind.NONE, failure)
+    launched = subagent_lifecycle_events(events)
+    if not launched:
+        return Capability(
+            CapabilityStatus.UNVERIFIED,
+            EvidenceKind.NONE,
+            "copilot output carried no subagent events",
+        )
+    child_models = {
+        data.get("model")
+        for event in events
+        if event.get("type") == "subagent.started"
+        and isinstance(data := event.get("data"), Mapping)
+    }
+    parent_model = responses[0].model if responses else None
+    attributed = sorted(
+        {r.model for r in responses if r.model in child_models and r.model != parent_model}
+    )
+    if not attributed:
+        return Capability(
+            CapabilityStatus.UNVERIFIED,
+            EvidenceKind.CLIENT_ECHO,
+            f"copilot output carried {len(launched)} client subagent lifecycle events but no "
+            "wire response attributable to a child model; "
+            + (failure or "request a child model that differs from the parent's"),
+        )
+    return Capability(
+        CapabilityStatus.VERIFIED,
+        EvidenceKind.BACKEND,
+        f"copilot wire log carried a provider response on child model {attributed[0]!r}, "
+        f"distinct from the parent's {parent_model!r}",
+    )
+
+
 def probe_subagent_support(
     command: ProbeCommand,
     *,
@@ -844,7 +946,9 @@ def probe_subagent_support(
         if frames is None:
             return Capability(CapabilityStatus.UNVERIFIED, EvidenceKind.NONE, failure)
         return _codex_subagent_support(command, frames)
-    events, failure = _capture_events(command, runner=runner, timeout=timeout)
+    if command.harness == "copilot":
+        return _copilot_subagent_support(command, runner=runner, timeout=timeout)
+    events, failure, _stderr = _capture_events(command, runner=runner, timeout=timeout)
     if events is None:
         return Capability(CapabilityStatus.UNVERIFIED, EvidenceKind.NONE, failure)
     launched = subagent_lifecycle_events(events)
@@ -873,8 +977,9 @@ def _codex_concurrency(
     list: excluding the parent's own spans (issue #5423 review finding 5)
     means a parent that happens to share the requested child model can
     never inflate the count. Verified against
-    `codex-0.156.0/concurrency-3-requested.trace.log`: three `spawn_agent`
-    calls name `gpt-6-luna`, and at most two of that model's child spans
+    `codex-0.156.0/concurrency-3-requested.trace.log`: four `spawn_agent`
+    calls name `gpt-6-luna` (the first, with `fork_turns=all`, failed under
+    `--ephemeral` and was retried), and at most two of that model's child spans
     overlap, so a request for three stays `UNVERIFIED` with `value=2`,
     matching this repository's checked-in matrix.
     """
@@ -918,7 +1023,8 @@ def probe_concurrency(
     if requested < 1:
         raise ProbeError("requested concurrency must be at least 1")
     _validate_command(command, executable_allowlist=executable_allowlist)
-    if not _carries_request(command, str(requested), "concurrency_limit"):
+    rendered_requested = _render_request_value(command, "concurrency_limit", str(requested))
+    if not _carries_request(command, rendered_requested):
         raise ProbeError(
             f"command does not request concurrency {requested} in its typed request flag"
         )
@@ -934,7 +1040,7 @@ def probe_concurrency(
         if frames is None:
             return Capability(CapabilityStatus.UNVERIFIED, EvidenceKind.NONE, failure)
         return _codex_concurrency(command, frames, requested=requested)
-    events, failure = _capture_events(command, runner=runner, timeout=timeout)
+    events, failure, _stderr = _capture_events(command, runner=runner, timeout=timeout)
     if events is None:
         return Capability(CapabilityStatus.UNVERIFIED, EvidenceKind.NONE, failure)
     launches = subagent_launch_count(events)
@@ -1013,11 +1119,10 @@ def _load_probe_command(
         raise ProbeError(f"{field}.env must not contain NUL bytes")
     argv = tuple(raw_argv)
     if request_flag is not None:
-        rendered = _rendered_request(harness, capability, request_flag, str(request_value))
-        target_flag, target_value = (
-            rendered if rendered is not None else (request_flag, str(request_value))
-        )
-        argv = (*argv, target_flag, target_value)
+        template = TRUSTED_REQUEST_TEMPLATES.get((harness, capability))
+        raw_value = str(request_value)
+        rendered = template.render(raw_value) if template is not None else raw_value
+        argv = (*argv, request_flag, rendered)
     command = ProbeCommand(
         harness=harness,
         argv=argv,

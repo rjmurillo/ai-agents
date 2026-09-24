@@ -7,14 +7,16 @@ labels the evidence it found. The seam is the same one that keeps
 classifying are three jobs, and a value earns `BACKEND` in exactly one of
 them.
 
-Codex shapes (`observe_codex_model`, `observe_codex_effort`) are attested from
-live codex-cli 0.156.0 RUST_LOG trace captures dated 2026-09-24, cited in each
-function's docstring and checked in under
-`tests/eval/fixtures/harness_capability/codex-0.156.0/`. Copilot backend
-answer turns (`observe_model`, `observe_effort`, `_assistant_values`) remain
-unattested live: every GitHub-routed Copilot call on 2026-09-24 returned HTTP
-402 (monthly quota exceeded), so those shapes are exercised by recorded output
-only, not a real backend response.
+Copilot `assistant.message.data.model` is a client label, not backend
+evidence (live BYOK capture, Copilot CLI 1.0.89, 2026-09-24): the backend model
+is read from the `--log-dir` wire log by `observe_copilot_model`. The codex
+shape is different: `codex exec --json` stdout (codex-cli 0.156.0, probed
+2026-09-24) names no model or reasoning effort at all. The backend's own
+Response object is observable only on the websocket trace enabled with
+`RUST_LOG=tungstenite::protocol=trace`. `observe_model`/`observe_effort` read
+one agreeing `response.completed` value from that stderr for a single-agent
+run; `observe_codex_model`/`observe_codex_effort` read parent and child spans
+through `_codex_frames` for runs that spawn children.
 
 Authority boundary: provider, model, and pricing tables stay in
 `scripts/eval/_providers.py` and `scripts/eval/_eval_common.py`.
@@ -22,6 +24,7 @@ Authority boundary: provider, model, and pricing tables stay in
 
 from __future__ import annotations
 
+import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
@@ -49,27 +52,119 @@ SESSION_STATE_EVENTS: frozenset[str] = frozenset({"session.model_change", "sessi
 #: inventing one. A live run should replace this with the observed key.
 DEFAULT_EFFORT_KEYS: tuple[str, ...] = ("reasoningEffort", "reasoning_effort", "effort")
 
-#: Harnesses `observe_model`/`observe_effort` (the JSONL-event path) attribute
-#: a model to a backend turn for. Empty: every harness this repository has
-#: live evidence for has been ruled out. Claude is absent on purpose:
-#: `_runtime_output.claude_result` reads the model off the `system`/`init`
-#: event, which the CLI emits before the backend has replied, so it cannot be
-#: told apart from the request echoed back. Codex is absent because it never
-#: emits JSONL evidence on stdout at all (see this module's docstring); its
-#: backend model and effort are read by `observe_codex_model` and
-#: `observe_codex_effort` from RUST_LOG trace frames instead. Copilot was
-#: removed 2026-09-24 after a live BYOK Anthropic capture proved
-#: `assistant.message.data.model` is the requested alias Copilot echoes back
-#: (`claude-haiku-4-5`), not the provider's own dated id
+#: Harnesses `observe_model` attributes a model to a backend turn for. Claude
+#: is absent on purpose: `_runtime_output.claude_result` reads the model off
+#: the `system`/`init` event, which the CLI emits before the backend has
+#: replied, so it cannot be told apart from the request echoed back. Codex is
+#: present, but through `stderr`, not `events`: see `_codex_backend_value` and
+#: the module docstring; codex's own branch in `observe_model` runs before
+#: this set is consulted. Copilot was removed 2026-09-24 after a live BYOK
+#: Anthropic capture showed `assistant.message.data.model` is the requested
+#: alias (`claude-haiku-4-5`), not the provider's dated id
 #: (`claude-haiku-4-5-20251001`); see
-#: `copilot-1.0.89-byok-anthropic/child-model-override.wire.log` next to
-#: `.events.jsonl` for the same `apiCallId`/`id` pair carrying both. Copilot's
-#: backend model is read by `observe_copilot_model` from that wire log
-#: instead, a different event vocabulary this constant does not govern; this
-#: JSONL path now has no harness left to serve and stays only so a future
-#: harness whose event stream genuinely carries backend truth has somewhere
-#: to be added.
-BACKEND_MODEL_HARNESSES: frozenset[str] = frozenset()
+#: `copilot-1.0.89-byok-anthropic/child-model-override.wire.log`. Copilot's
+#: backend model is read by `observe_copilot_model` from that wire log.
+BACKEND_MODEL_HARNESSES: frozenset[str] = frozenset({"codex"})
+
+#: The verbatim text codex-cli's TRACE line emits immediately before the raw
+#: JSON body of a frame it *received* from the backend
+#: (`RUST_LOG=tungstenite::protocol=trace`), one line per frame. A frame's own
+#: JSON begins right after this prefix on the same line. Requiring that
+#: adjacency, instead of searching the whole line for the substring
+#: `{"type":"response.completed"` anywhere in it, is what rejects a
+#: client-sent `Sending message` line whose request body embeds a *prior*
+#: turn's `"type":"response.completed"` (for example
+#: `Sending message {"type":"response.create","prior":{"type":"response.completed",...}}}`)
+#: and rejects a non-trace line that merely echoes the same substring (for
+#: example `codex echo: {"type":"response.completed",...}`). Quoted from a
+#: live capture, probed 2026-09-24, codex-cli 0.156.0:
+#: ``2026-09-24T12:36:36.792998Z TRACE tungstenite::protocol: Received message
+#: {"type":"response.completed","response":{...,"model":"gpt-5.6-terra",...,
+#: "reasoning":{"context":"all_turns","effort":"low","mode":"standard",
+#: "summary":null},...}}``
+_CODEX_TRACE_RECEIVED_PREFIX = "tungstenite::protocol: Received message "
+
+
+def _codex_response_completed_frames(stderr: str) -> list[Mapping[str, object]]:
+    """Return every backend `response.completed` frame in codex TRACE stderr.
+
+    A frame's JSON body must start immediately after
+    `_CODEX_TRACE_RECEIVED_PREFIX` on its line; `JSONDecoder.raw_decode`
+    starting at that offset reads exactly the JSON object and ignores
+    trailing log text a `TimeoutExpired` capture might append. A candidate is
+    kept only when the decoded top-level value is a mapping, its `type` is
+    exactly `"response.completed"`, and it carries a `response` mapping.
+    Anything else (decode failure, non-mapping, wrong `type`, missing or
+    non-mapping `response`) is skipped rather than raised: malformed TRACE
+    output is not this function's contract to police, only which frames count
+    as the backend's own report.
+    """
+    decoder = json.JSONDecoder()
+    frames: list[Mapping[str, object]] = []
+    for line in stderr.splitlines():
+        offset = line.find(_CODEX_TRACE_RECEIVED_PREFIX)
+        if offset == -1:
+            continue
+        json_start = offset + len(_CODEX_TRACE_RECEIVED_PREFIX)
+        try:
+            frame, _end = decoder.raw_decode(line, json_start)
+        except json.JSONDecodeError:
+            continue
+        if (
+            isinstance(frame, Mapping)
+            and frame.get("type") == "response.completed"
+            and isinstance(frame.get("response"), Mapping)
+        ):
+            frames.append(frame)
+    return frames
+
+
+def _codex_backend_value(stderr: str, path: tuple[str, ...]) -> str | None:
+    """Return the single value at `path` across all `response.completed` frames.
+
+    Two frames disagreeing return `None`, mirroring `_assistant_values`: a
+    blended answer has no single author, so no value earns the claim. `path`
+    walks nested mappings, for example `("response", "reasoning", "effort")`.
+    """
+    found: set[str] = set()
+    for frame in _codex_response_completed_frames(stderr):
+        node: object = frame
+        for key in path:
+            if not isinstance(node, Mapping):
+                node = None
+                break
+            node = node.get(key)
+        if isinstance(node, str) and node:
+            found.add(node)
+    return found.pop() if len(found) == 1 else None
+
+
+def _observe_codex_backend(stderr: str, label: str, path: tuple[str, ...]) -> ProbeObservation:
+    """Read one field off codex's `response.completed` frames, or NONE closed.
+
+    A stderr with no `response.completed` frame at all almost always means the
+    caller ran without `RUST_LOG=tungstenite::protocol=trace`, so that is
+    named explicitly rather than folded into the generic "frames disagreed"
+    message below, which is for the rarer case of a trace that did capture
+    frames that do not agree.
+    """
+    if _CODEX_TRACE_RECEIVED_PREFIX not in stderr:
+        return ProbeObservation(
+            None,
+            EvidenceKind.NONE,
+            "codex stderr carried no response.completed frame; rerun with "
+            "RUST_LOG=tungstenite::protocol=trace to capture the backend Response object",
+        )
+    value = _codex_backend_value(stderr, path)
+    if value is None:
+        return ProbeObservation(
+            None,
+            EvidenceKind.NONE,
+            f"codex response.completed frames disagreed on {label}, or none carried it",
+        )
+    return ProbeObservation(
+        value, EvidenceKind.BACKEND, f"codex response.completed frame carried {label}"
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -132,8 +227,17 @@ def _session_state_value(
 def observe_model(
     harness: str,
     events: Sequence[Mapping[str, object]],
+    *,
+    stderr: str = "",
 ) -> ProbeObservation:
-    """Read the model the backend attributed to its own answer."""
+    """Read the model the backend attributed to its own answer.
+
+    Codex is read from `stderr`, not `events`: see the module docstring and
+    `_observe_codex_backend`. `events` is unused for codex; the parameter is
+    still accepted so callers share one call shape across harnesses.
+    """
+    if harness == "codex":
+        return _observe_codex_backend(stderr, "model", ("response", "model"))
     if harness not in BACKEND_MODEL_HARNESSES:
         return ProbeObservation(
             None,
@@ -160,8 +264,17 @@ def observe_effort(
     events: Sequence[Mapping[str, object]],
     *,
     effort_keys: Sequence[str] = DEFAULT_EFFORT_KEYS,
+    stderr: str = "",
 ) -> ProbeObservation:
-    """Read the reasoning effort or tier the backend attributed to its answer."""
+    """Read the reasoning effort or tier the backend attributed to its answer.
+
+    Codex is read from `stderr`, not `events`, same as `observe_model`.
+    `effort_keys` does not apply to codex: its field is always
+    `response.reasoning.effort`, a fixed path on a frame this module already
+    decoded rather than a key name to search assistant turns for.
+    """
+    if harness == "codex":
+        return _observe_codex_backend(stderr, "effort", ("response", "reasoning", "effort"))
     observed = _assistant_values(events, effort_keys)
     if observed:
         return ProbeObservation(

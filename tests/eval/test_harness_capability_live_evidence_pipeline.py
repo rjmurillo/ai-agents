@@ -51,8 +51,6 @@ def _codex_command(*, request_flag: str, request_value: str) -> ProbeCommand:
             "--ephemeral",
             "-s",
             "read-only",
-            "-m",
-            "gpt-5.6-sol",
             request_flag,
             rendered_value,
         ),
@@ -63,14 +61,17 @@ def _codex_command(*, request_flag: str, request_value: str) -> ProbeCommand:
 # --- codex: model_override, effort_override, subagent_support --------------------
 
 
-def test_codex_model_override_verifies_from_the_raw_subagent_luna_high_fixture() -> None:
-    stderr = _codex_stderr("subagent-luna-high.trace.log")
-    command = _codex_command(request_flag="--model", request_value="gpt-6-luna")
+_CODEX_STDOUT = '{"type": "thread.started", "thread_id": "t1"}\n'
+
+
+def test_codex_model_override_verifies_from_the_raw_terra_high_fixture() -> None:
+    stderr = _codex_stderr("terra-high.trace.log")
+    command = _codex_command(request_flag="--model", request_value="gpt-5.6-terra")
 
     result = probes.probe_override(
-        _plan(harness="codex", parent="gpt-5.6-sol", candidates=("gpt-6-luna",)),
+        _plan(harness="codex", parent="gpt-6-sol", candidates=("gpt-5.6-terra",)),
         command,
-        runner=_runner(stdout="", stderr=stderr),
+        runner=_runner(stdout=_CODEX_STDOUT, stderr=stderr),
         timeout=TIMEOUT,
     )
 
@@ -78,19 +79,38 @@ def test_codex_model_override_verifies_from_the_raw_subagent_luna_high_fixture()
     assert result.evidence is EvidenceKind.BACKEND
 
 
-def test_codex_effort_override_verifies_from_the_raw_subagent_luna_high_fixture() -> None:
+def test_codex_parent_and_child_frames_do_not_verify_a_top_level_override() -> None:
+    """NEGATIVE CONTROL: a subagent run's frames disagree, so no single value wins.
+
+    `probe_override` reads one agreeing `response.completed` value. Parent and
+    child verification lives in `observe_codex_model`, not this path.
+    """
     stderr = _codex_stderr("subagent-luna-high.trace.log")
-    command = _codex_command(request_flag="-c", request_value="high")
+    command = _codex_command(request_flag="--model", request_value="gpt-6-luna")
+
+    result = probes.probe_override(
+        _plan(harness="codex", parent="gpt-5.6-sol", candidates=("gpt-6-luna",)),
+        command,
+        runner=_runner(stdout=_CODEX_STDOUT, stderr=stderr),
+        timeout=TIMEOUT,
+    )
+
+    assert result.status is CapabilityStatus.UNVERIFIED
+
+
+def test_codex_effort_override_verifies_from_the_raw_sol_6_low_fixture() -> None:
+    stderr = _codex_stderr("sol-6-low.trace.log")
+    command = _codex_command(request_flag="-c", request_value="low")
 
     result = probes.probe_override(
         _plan(
             harness="codex",
             capability_key="effort_override",
             parent="medium",
-            candidates=("high",),
+            candidates=("low",),
         ),
         command,
-        runner=_runner(stdout="", stderr=stderr),
+        runner=_runner(stdout=_CODEX_STDOUT, stderr=stderr),
         timeout=TIMEOUT,
     )
 
@@ -192,9 +212,15 @@ def test_copilot_effort_override_stays_client_echo_from_the_raw_wire_fixture(tmp
     assert result.evidence is EvidenceKind.CLIENT_ECHO
 
 
-def test_copilot_subagent_support_verifies_from_the_raw_events_fixture() -> None:
+def test_copilot_subagent_support_verifies_from_the_raw_events_fixture(tmp_path) -> None:
     stdout = _copilot_events("child-model-override.events.jsonl")
-    command = ProbeCommand(harness="copilot", argv=("copilot", "-p", "probe"))
+    log_dir = tmp_path / "logs"
+    log_dir.mkdir()
+    wire = (COPILOT_FIXTURES / "child-model-override.wire.log").read_text(encoding="utf-8")
+    (log_dir / "process-1.log").write_text(wire, encoding="utf-8")
+    command = ProbeCommand(
+        harness="copilot", argv=("copilot", "-p", "probe", "--log-dir", str(log_dir))
+    )
 
     result = probes.probe_subagent_support(command, runner=_runner(stdout), timeout=TIMEOUT)
 
