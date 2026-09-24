@@ -1,0 +1,87 @@
+2026-09-24T12:53:39.142Z [DEBUG] [rust:model_wire] Wire request: {
+  "model": "claude-haiku-4-5",
+  "thinking": {
+    "type": "enabled",
+    "budget_tokens": 1024,
+    "display": "summarized"
+  },
+  "stream": true
+}
+2026-09-24T12:53:42.980Z [DEBUG] [rust:model_wire] response (Request-ID req_011CfNJDUzW6nVxxNRzag79E):
+2026-09-24T12:53:42.980Z [DEBUG] [rust:model_wire] data:
+2026-09-24T12:53:42.980Z [DEBUG] [rust:model_wire] {
+  "id": "msg_011CfNJDVR4jT9eJxMAuAXzF",
+  "object": "chat.completion",
+  "model": "claude-haiku-4-5-20251001",
+  "usage": {
+    "prompt_tokens": 27284,
+    "completion_tokens": 343,
+    "total_tokens": 27627,
+    "prompt_tokens_details": {
+      "cached_tokens": 14696,
+      "cache_creation_tokens": 12578,
+      "cache_ttl_seconds": 300
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 181
+    }
+  }
+}
+2026-09-24T12:53:43.259Z [DEBUG] [rust:model_wire] Wire request: {
+  "model": "claude-sonnet-4-6",
+  "thinking": {
+    "type": "enabled",
+    "budget_tokens": 1024,
+    "display": "summarized"
+  },
+  "stream": true
+}
+2026-09-24T12:53:45.040Z [DEBUG] [rust:model_wire] response (Request-ID req_011CfNJDnB7h7fC91p4pqLAT):
+2026-09-24T12:53:45.040Z [DEBUG] [rust:model_wire] data:
+2026-09-24T12:53:45.040Z [DEBUG] [rust:model_wire] {
+  "id": "msg_011CfNJDoFcnmVFkxcTBaEAk",
+  "object": "chat.completion",
+  "model": "claude-sonnet-4-6",
+  "usage": {
+    "prompt_tokens": 26369,
+    "completion_tokens": 15,
+    "total_tokens": 26384,
+    "prompt_tokens_details": {
+      "cached_tokens": 0,
+      "cache_creation_tokens": 26359,
+      "cache_ttl_seconds": 300
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 8
+    }
+  }
+}
+2026-09-24T12:53:45.096Z [DEBUG] [rust:model_wire] Wire request: {
+  "model": "claude-haiku-4-5",
+  "thinking": {
+    "type": "enabled",
+    "budget_tokens": 1024,
+    "display": "summarized"
+  },
+  "stream": true
+}
+2026-09-24T12:53:46.066Z [DEBUG] [rust:model_wire] response (Request-ID req_011CfNJDv4P7vKvFahZgvM7K):
+2026-09-24T12:53:46.066Z [DEBUG] [rust:model_wire] data:
+2026-09-24T12:53:46.066Z [DEBUG] [rust:model_wire] {
+  "id": "msg_011CfNJDvQEAb4kz7myGdhLN",
+  "object": "chat.completion",
+  "model": "claude-haiku-4-5-20251001",
+  "usage": {
+    "prompt_tokens": 27641,
+    "completion_tokens": 5,
+    "total_tokens": 27646,
+    "prompt_tokens_details": {
+      "cached_tokens": 27274,
+      "cache_creation_tokens": 361,
+      "cache_ttl_seconds": 300
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 0
+    }
+  }
+}

@@ -15,9 +15,13 @@ _path_added = str(EVAL_DIR) not in sys.path
 if _path_added:
     sys.path.insert(0, str(EVAL_DIR))
 try:
+    import _capability_evidence as evidence
     import _capability_probes as probes
     import _capability_topology as topology
+    import _codex_frames as codex_frames
+    import _copilot_wire as copilot_wire
     import _harness_capability as capability
+    import _runtime_harness as runtime_harness
 
     _spec = importlib.util.spec_from_file_location("eval_harness_capability", CLI_SCRIPT)
     assert _spec and _spec.loader
@@ -28,4 +32,17 @@ finally:
     if _path_added:
         sys.path.remove(str(EVAL_DIR))
 
-__all__ = ["MATRIX", "capability", "cli", "probes", "topology"]
+FIXTURES = REPO_ROOT / "tests" / "eval" / "fixtures" / "harness_capability"
+
+__all__ = [
+    "FIXTURES",
+    "MATRIX",
+    "capability",
+    "cli",
+    "codex_frames",
+    "copilot_wire",
+    "evidence",
+    "probes",
+    "runtime_harness",
+    "topology",
+]

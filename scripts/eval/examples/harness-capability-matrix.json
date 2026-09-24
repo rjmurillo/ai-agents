@@ -1,55 +1,247 @@
 {
   "schema_version": 1,
-  "note": "Honest capability state for issue #5423 at authoring time. No live behavioral probe was run, so every capability is UNVERIFIED with an explicit reason. Runtime versions are filled live by scripts/eval/eval_harness_capability.py when the CLI is installed and probe-capable. VERIFIED is reserved for backend evidence only. Provider/model/pricing authority stays in scripts/eval/_providers.py and scripts/eval/_eval_common.py; supported_models here is the observed-live set, not a registry.",
+  "note": "Live capability state for issue #5423, probed on 2026-09-24. Every VERIFIED cell cites a trimmed backend capture under tests/eval/fixtures/harness_capability/, and tests/eval/test_harness_capability_live_evidence.py re-derives each VERIFIED cell from that capture. Codex backend model and effort come from websocket response frames logged with RUST_LOG=tungstenite::protocol=trace; codex --json stdout carries neither. GitHub-routed Copilot calls returned HTTP 402 (monthly quota exceeded), so Copilot behavioral cells were probed through the documented BYOK Anthropic provider and GitHub-routed Sol, Luna, and Terra models remain unobserved. VERIFIED is reserved for backend evidence only. Provider/model/pricing authority stays in scripts/eval/_providers.py and scripts/eval/_eval_common.py; supported_models here is the observed-live set, not a registry.",
   "harnesses": [
     {
       "harness": "codex",
-      "version": "",
-      "version_evidence": "none",
-      "supported_models": [],
-      "supported_efforts": [],
-      "tool_sandbox_constraints": "UNVERIFIED: Codex tool and sandbox constraints not probed. No in-tree Codex runtime support exists to probe (issue #5423 confirmed gap).",
-      "telemetry_fields": [],
-      "failure_retry_behavior": "UNVERIFIED: retry and failure semantics not observed from a live Codex run.",
-      "probe_command": "uv run python scripts/eval/eval_harness_capability.py --dry-run",
-      "date": "2026-08-31",
+      "version": "codex-cli 0.156.0",
+      "version_evidence": "backend",
+      "supported_models": [
+        "gpt-5.6-sol",
+        "gpt-5.6-terra",
+        "gpt-6-luna",
+        "gpt-6-sol"
+      ],
+      "supported_efforts": [
+        "high",
+        "low",
+        "max",
+        "medium"
+      ],
+      "tool_sandbox_constraints": "Sandbox is chosen per run with -s read-only, workspace-write, or danger-full-access; the plan writer needed workspace-write and every other probe ran read-only. The collaboration tools (spawn_agent, wait_agent, send_message, followup_task, interrupt_agent, list_agents) are sent on every request, even with --disable multi_agent --disable multi_agent_v2 or -c agents.max_threads=1, so no-child execution is by instruction and is checked per run, not enforced. spawn_agent fork_turns defaults to all; fork_turns=all needs a persisted thread and fails under --ephemeral with 'collab spawn failed: no thread with id'. An isolated CODEX_HOME given CODEX_ACCESS_TOKEN from a ChatGPT login is rejected with 401 (codex-0.156.0/isolated-auth-401.stdout.jsonl), so the isolated profile in eval_harness_capability.py needs CODEX_API_KEY. Backend model and effort appear only in RUST_LOG=tungstenite::protocol=trace frames on stderr.",
+      "telemetry_fields": [
+        "thread.started.thread_id",
+        "turn.completed.usage.input_tokens",
+        "turn.completed.usage.cached_input_tokens",
+        "turn.completed.usage.cache_write_input_tokens",
+        "turn.completed.usage.output_tokens",
+        "turn.completed.usage.reasoning_output_tokens",
+        "trace:response.created.response.model",
+        "trace:response.created.response.reasoning.effort",
+        "trace:response.completed.response.usage",
+        "trace:log-line timestamp"
+      ],
+      "failure_retry_behavior": "On a 401 Codex emitted 'Reconnecting... n/5' error events for 5 websocket attempts, fell back to HTTPS, retried 5 more times, then emitted turn.failed and exited 1 (codex-0.156.0/isolated-auth-401.stdout.jsonl). A benchmark must count that as one failed invocation. No cost field and no elapsed-time field appear in --json output; elapsed time is only derivable from trace-line timestamps.",
+      "probe_command": "RUST_LOG=tungstenite::protocol=trace codex exec --json --skip-git-repo-check --ephemeral --ignore-user-config --ignore-rules -s read-only -m <model> -c model_reasoning_effort=<effort> <prompt>",
+      "date": "2026-09-24",
       "capabilities": {
-        "model_override": {"status": "UNVERIFIED", "evidence": "none", "detail": "No backend run observed a requested Codex model id (Sol low/medium, Luna high, Terra high) being honored rather than echoed.", "value": null},
-        "effort_override": {"status": "UNVERIFIED", "evidence": "none", "detail": "No backend run observed a requested reasoning effort/tier being honored. Zero in-tree occurrences of reasoning_effort passed to Codex.", "value": null},
-        "subagent_support": {"status": "UNVERIFIED", "evidence": "none", "detail": "Codex subagent support not observed from a live run.", "value": null},
-        "concurrency_limit": {"status": "UNVERIFIED", "evidence": "none", "detail": "Maximum concurrent children not measured for Codex.", "value": null},
-        "parent_child_override": {"status": "UNVERIFIED", "evidence": "none", "detail": "Whether a Codex child can differ from its parent model/effort not observed. A silent inherit-parent would fail verification.", "value": null},
-        "reviewer_isolation": {"status": "UNVERIFIED", "evidence": "none", "detail": "Reviewer isolation from producer-private context not probed for Codex.", "value": null},
-        "single_agent": {"status": "UNVERIFIED", "evidence": "none", "detail": "Single-agent/no-child execution not observed for Codex.", "value": null},
-        "fresh_session": {"status": "UNVERIFIED", "evidence": "none", "detail": "Fresh-context/session support within one project not observed for Codex.", "value": null},
-        "durable_artifact_handoff": {"status": "UNVERIFIED", "evidence": "none", "detail": "Durable implementation-plan.md handoff not observed for Codex.", "value": null},
-        "context_reset_observability": {"status": "UNVERIFIED", "evidence": "none", "detail": "Context compaction/reset/restart observability not probed for Codex.", "value": null},
-        "sol_ultra": {"status": "UNVERIFIED", "evidence": "none", "detail": "No backend evidence for a Sol Ultra control. Aliasing Sol Ultra to high/xhigh/max is forbidden without direct evidence (issue #5423 negative control 4). Zero in-tree occurrences of Sol Ultra.", "value": null}
+        "model_override": {
+          "status": "VERIFIED",
+          "evidence": "backend",
+          "detail": "Parent gpt-5.6-sol spawned children with spawn_agent model=gpt-6-luna, and every child response.created frame reports model gpt-6-luna while the parent frames report gpt-5.6-sol. Top-level -m gpt-5.6-terra also reports gpt-5.6-terra. Evidence: codex-0.156.0/subagent-luna-high.trace.log, codex-0.156.0/terra-high.trace.log.",
+          "value": null,
+          "probe_command": "RUST_LOG=tungstenite::protocol=trace codex exec --json --skip-git-repo-check --ephemeral --ignore-user-config --ignore-rules -s read-only -m gpt-5.6-sol -c model_reasoning_effort=medium 'Spawn exactly 3 subagents at the same time, in parallel, each using model gpt-6-luna with reasoning effort high. Each subagent must reply with only its index number (1, 2, or 3). Wait for all three, then reply with the three answers joined by commas. Do not run shell commands.'",
+          "date": "2026-09-24"
+        },
+        "effort_override": {
+          "status": "VERIFIED",
+          "evidence": "backend",
+          "detail": "Children requested reasoning_effort=high against a medium parent, and every child response.created frame reports reasoning.effort high while the parent frames report medium. Top-level -c model_reasoning_effort=low on gpt-6-sol reports low. An ultra request reports max, see sol_ultra. Evidence: codex-0.156.0/subagent-luna-high.trace.log, codex-0.156.0/sol-6-low.trace.log.",
+          "value": null,
+          "probe_command": "RUST_LOG=tungstenite::protocol=trace codex exec --json --skip-git-repo-check --ephemeral --ignore-user-config --ignore-rules -s read-only -m gpt-6-sol -c model_reasoning_effort=low 'Reply with the single word OK.'",
+          "date": "2026-09-24"
+        },
+        "subagent_support": {
+          "status": "VERIFIED",
+          "evidence": "backend",
+          "detail": "The parent issued spawn_agent and wait_agent calls, and child responses ran on the requested child model. Evidence: codex-0.156.0/subagent-luna-high.trace.log.",
+          "value": null,
+          "probe_command": "RUST_LOG=tungstenite::protocol=trace codex exec --json --skip-git-repo-check --ephemeral --ignore-user-config --ignore-rules -s read-only -m gpt-5.6-sol -c model_reasoning_effort=medium 'Spawn exactly 3 subagents at the same time, in parallel, each using model gpt-6-luna with reasoning effort high. Each subagent must reply with only its index number (1, 2, or 3). Wait for all three, then reply with the three answers joined by commas. Do not run shell commands.'",
+          "date": "2026-09-24"
+        },
+        "concurrency_limit": {
+          "status": "UNVERIFIED",
+          "evidence": "backend",
+          "detail": "Three concurrent gpt-6-luna children were requested, and at most 2 child responses overlapped (codex-0.156.0/concurrency-3-requested.trace.log). The backend reports parallel_tool_calls=false, so the parent issues one spawn per response. The limit control is -c agents.max_threads=N and it is enforced: with N=1 a second concurrent spawn failed with 'collab spawn failed: agent thread limit reached' (codex-0.156.0/thread-limit-1.trace.log). The root thread is not counted, and N=0 is rejected with 'agents.max_concurrent_threads_per_session must be at least 1'. A limit of 3 was not reached, so it stays UNVERIFIED.",
+          "value": 2,
+          "probe_command": "RUST_LOG=tungstenite::protocol=trace codex exec --json --skip-git-repo-check --ephemeral --ignore-user-config --ignore-rules -s read-only -m gpt-5.6-sol -c model_reasoning_effort=medium 'Spawn 3 subagents using model gpt-6-luna with reasoning effort high. Spawn all three before waiting on any of them. Subagent N must write a 250-word paragraph about the number N and then reply with only the digit N. After all three finish, reply with their digits joined by commas. Do not run shell commands.' ; limit check: RUST_LOG=tungstenite::protocol=trace codex exec --json --skip-git-repo-check --ephemeral --ignore-user-config --ignore-rules -c agents.max_threads=1 -s read-only -m gpt-5.6-sol -c model_reasoning_effort=low 'Spawn subagent task_name a (fork_turns none, message '\"'\"'Write 300 words about rivers, then reply A'\"'\"'). Immediately, before waiting, spawn subagent task_name b (fork_turns none, message '\"'\"'Reply B'\"'\"'). Then wait for both. Reply with each result or the exact spawn error text for any spawn that failed. Do not run shell commands.'",
+          "date": "2026-09-24"
+        },
+        "parent_child_override": {
+          "status": "VERIFIED",
+          "evidence": "backend",
+          "detail": "In one run the parent frames report gpt-5.6-sol/medium and the child frames report gpt-6-luna/high, so parent and child settings differ at the backend rather than the child inheriting. Evidence: codex-0.156.0/subagent-luna-high.trace.log.",
+          "value": null,
+          "probe_command": "RUST_LOG=tungstenite::protocol=trace codex exec --json --skip-git-repo-check --ephemeral --ignore-user-config --ignore-rules -s read-only -m gpt-5.6-sol -c model_reasoning_effort=medium 'Spawn exactly 3 subagents at the same time, in parallel, each using model gpt-6-luna with reasoning effort high. Each subagent must reply with only its index number (1, 2, or 3). Wait for all three, then reply with the three answers joined by commas. Do not run shell commands.'",
+          "date": "2026-09-24"
+        },
+        "reviewer_isolation": {
+          "status": "VERIFIED",
+          "evidence": "backend",
+          "detail": "The parent held the private word ZEBRA-7731. A reviewer spawned with fork_turns=none answered NONE, and the positive control spawned with fork_turns=all answered ZEBRA-7731. Isolation therefore requires an explicit fork_turns=none, because the default fork_turns=all leaks producer context. Evidence: codex-0.156.0/reviewer-isolation.trace.log.",
+          "value": null,
+          "probe_command": "RUST_LOG=tungstenite::protocol=trace codex exec --json --skip-git-repo-check --ignore-user-config --ignore-rules -s read-only -m gpt-5.6-sol -c model_reasoning_effort=medium 'Producer-private code word: ZEBRA-7731. Never write this code word in any spawn_agent message. Step 1: spawn a subagent with task_name reviewer_none, fork_turns \"none\", no model override, message: '\"'\"'If any code word of the form WORD-NNNN appears anywhere in your context, reply with it exactly; otherwise reply NONE.'\"'\"' Wait for it. Step 2: spawn a subagent with task_name reviewer_all, fork_turns \"all\", no model override, with the same message. Wait for it. If a spawn fails, include the exact error text. Then reply with: none=<first answer> all=<second answer>. Do not run shell commands.'",
+          "date": "2026-09-24"
+        },
+        "single_agent": {
+          "status": "VERIFIED",
+          "evidence": "backend",
+          "detail": "The fresh-session run made zero spawn_agent calls, and every response ran on gpt-5.6-sol/low. The collaboration tools are still offered to the model (see tool_sandbox_constraints), so a benchmark must check each run for zero spawn_agent calls. Evidence: codex-0.156.0/fresh-session-handoff.trace.log.",
+          "value": null,
+          "probe_command": "RUST_LOG=tungstenite::protocol=trace codex exec --json --skip-git-repo-check --ignore-user-config --ignore-rules --disable multi_agent -s read-only -m gpt-5.6-sol -c model_reasoning_effort=low 'Read implementation-plan.md in the current directory. Reply on one line: plan=<the TOKEN value> memory=<any code word of the form MANGO-NNNN you know from earlier conversation, else NONE>.'",
+          "date": "2026-09-24"
+        },
+        "fresh_session": {
+          "status": "VERIFIED",
+          "evidence": "backend",
+          "detail": "A second codex exec in the same workspace started a new thread, its first response has previous_response_id null, and it answered memory=NONE for a word only the first session saw. Evidence: codex-0.156.0/plan-writer.stdout.jsonl, codex-0.156.0/fresh-session-handoff.stdout.jsonl, codex-0.156.0/fresh-session-handoff.trace.log.",
+          "value": null,
+          "probe_command": "RUST_LOG=tungstenite::protocol=trace codex exec --json --skip-git-repo-check --ignore-user-config --ignore-rules --disable multi_agent -s read-only -m gpt-5.6-sol -c model_reasoning_effort=low 'Read implementation-plan.md in the current directory. Reply on one line: plan=<the TOKEN value> memory=<any code word of the form MANGO-NNNN you know from earlier conversation, else NONE>.'",
+          "date": "2026-09-24"
+        },
+        "durable_artifact_handoff": {
+          "status": "VERIFIED",
+          "evidence": "backend",
+          "detail": "The writer session created implementation-plan.md containing 'TOKEN: PLAN-4417' under -s workspace-write. A separate fresh session read the file and answered plan=PLAN-4417. Evidence: codex-0.156.0/plan-writer.stdout.jsonl, codex-0.156.0/fresh-session-handoff.trace.log.",
+          "value": null,
+          "probe_command": "codex exec --json --skip-git-repo-check --ignore-user-config --ignore-rules -s workspace-write -m gpt-5.6-sol -c model_reasoning_effort=low 'Private session code word: MANGO-2208. Do not write it to any file. Create a file named implementation-plan.md in the current directory whose only content is the line: TOKEN: PLAN-4417. Then reply DONE.' ; then: RUST_LOG=tungstenite::protocol=trace codex exec --json --skip-git-repo-check --ignore-user-config --ignore-rules --disable multi_agent -s read-only -m gpt-5.6-sol -c model_reasoning_effort=low 'Read implementation-plan.md in the current directory. Reply on one line: plan=<the TOKEN value> memory=<any code word of the form MANGO-NNNN you know from earlier conversation, else NONE>.'",
+          "date": "2026-09-24"
+        },
+        "context_reset_observability": {
+          "status": "UNVERIFIED",
+          "evidence": "none",
+          "detail": "No compaction, reset, or restart was triggered, and no such event appeared in any codex --json stream from these probes.",
+          "value": null
+        },
+        "sol_ultra": {
+          "status": "VERIFIED",
+          "evidence": "backend",
+          "detail": "Control: -c model_reasoning_effort=ultra on gpt-6-sol or gpt-5.6-sol. The codex-cli 0.156.0 backend model catalog lists ultra for gpt-6-sol, gpt-6-astra, gpt-5.6-sol, and gpt-5.6-terra, not for gpt-6-luna or gpt-5.6-luna, and describes it as 'Maximum reasoning with automatic task delegation'. For an ultra request the backend response.created frame reports reasoning.effort max and mode standard, so the effort field the backend reports for ultra is max. Whether ultra also changes delegation behavior was not observed. Evidence: codex-0.156.0/sol-6-ultra.trace.log, codex-0.156.0/sol-5.6-ultra.trace.log, codex-0.156.0/models-catalog.json.",
+          "value": null,
+          "probe_command": "RUST_LOG=tungstenite::protocol=trace codex exec --json --skip-git-repo-check --ephemeral --ignore-user-config --ignore-rules -s read-only -m gpt-6-sol -c model_reasoning_effort=ultra 'Reply with the single word OK.'",
+          "date": "2026-09-24"
+        }
       }
     },
     {
       "harness": "copilot",
-      "version": "",
-      "version_evidence": "none",
-      "supported_models": [],
+      "version": "GitHub Copilot CLI 1.0.89-1.",
+      "version_evidence": "backend",
+      "supported_models": [
+        "claude-haiku-4-5-20251001",
+        "claude-sonnet-4-6"
+      ],
       "supported_efforts": [],
-      "tool_sandbox_constraints": "UNVERIFIED: Copilot CLI tool and sandbox constraints not probed for this matrix.",
-      "telemetry_fields": [],
-      "failure_retry_behavior": "UNVERIFIED: retry and failure semantics not observed from a live Copilot run for this matrix.",
-      "probe_command": "uv run python scripts/eval/eval_harness_capability.py",
-      "date": "2026-08-31",
+      "tool_sandbox_constraints": "GitHub-routed calls all returned HTTP 402 (monthly quota exceeded), so every behavioral cell below was probed through the documented BYOK path: COPILOT_PROVIDER_TYPE=anthropic with the Anthropic API. BYOK replaces GitHub model routing, so GitHub-routed gpt-6/gpt-5.6 models (Sol, Luna, Terra) remain unobserved. The provider's own response, including its model id, appears only in the debug log written by --log-level all --log-dir <dir> as '[rust:model_wire] response (Request-ID ...)'. --excluded-tools task removes the subagent tool. --allow-all-tools, --allow-tool, --deny-tool, --available-tools, --allow-all-paths, and --disallow-temp-dir also exist (copilot --help, 1.0.89).",
+      "telemetry_fields": [
+        "result.exitCode",
+        "result.sessionId",
+        "result.usage.premiumRequests",
+        "result.usage.totalApiDurationMs",
+        "result.usage.sessionDurationMs",
+        "result.usage.codeChanges",
+        "model.call_failure.statusCode",
+        "model.call_failure.durationMs",
+        "model.call_failure.apiCallId",
+        "model.call_failure.providerCallId",
+        "model.call_failure.serviceRequestId",
+        "model.call_finished.dispatchDurationMs",
+        "subagent.completed.totalTokens",
+        "subagent.completed.totalToolCalls",
+        "subagent.completed.durationMs",
+        "debug-log:model_wire response.model",
+        "debug-log:model_wire response.usage"
+      ],
+      "failure_retry_behavior": "On HTTP 402 through GitHub routing Copilot emitted model.call_failure with statusCode 402, session.error with errorType quota, and result with exitCode 1, then exited 1 (copilot-1.0.89/quota-402.stdout.jsonl). The gpt-6-luna run emitted two model.call_start events before one model.call_failure, so one client retry was observed. premiumRequests stayed 0. No failure was observed on the BYOK path.",
+      "probe_command": "COPILOT_PROVIDER_TYPE=anthropic COPILOT_PROVIDER_BASE_URL=https://api.anthropic.com COPILOT_PROVIDER_API_KEY=<key> copilot -p <prompt> --output-format json --model claude-haiku-4-5 --reasoning-effort low --allow-all-tools --no-color --no-auto-update --log-level all --log-dir <dir>",
+      "date": "2026-09-24",
       "capabilities": {
-        "model_override": {"status": "UNVERIFIED", "evidence": "none", "detail": "No backend run in this matrix observed a requested Copilot model being honored. The existing runtime-parity harness verifies resolved_model separately; that evidence is not imported here.", "value": null},
-        "effort_override": {"status": "UNVERIFIED", "evidence": "none", "detail": "No backend run observed a requested reasoning effort/tier being honored for Copilot. Zero in-tree occurrences of reasoning_effort passed to Copilot.", "value": null},
-        "subagent_support": {"status": "UNVERIFIED", "evidence": "none", "detail": "Copilot subagent support not observed from a live run for this matrix.", "value": null},
-        "concurrency_limit": {"status": "UNVERIFIED", "evidence": "none", "detail": "Maximum concurrent children not measured for Copilot.", "value": null},
-        "parent_child_override": {"status": "UNVERIFIED", "evidence": "none", "detail": "Whether a Copilot child can differ from its parent model/effort not observed. A silent inherit-parent would fail verification.", "value": null},
-        "reviewer_isolation": {"status": "UNVERIFIED", "evidence": "none", "detail": "Reviewer isolation from producer-private context not probed for Copilot.", "value": null},
-        "single_agent": {"status": "UNVERIFIED", "evidence": "none", "detail": "Single-agent/no-child execution not observed for Copilot.", "value": null},
-        "fresh_session": {"status": "UNVERIFIED", "evidence": "none", "detail": "Fresh-context/session support within one project not observed for Copilot.", "value": null},
-        "durable_artifact_handoff": {"status": "UNVERIFIED", "evidence": "none", "detail": "Durable implementation-plan.md handoff not observed for Copilot.", "value": null},
-        "context_reset_observability": {"status": "UNVERIFIED", "evidence": "none", "detail": "Context compaction/reset/restart observability not probed for Copilot.", "value": null},
-        "sol_ultra": {"status": "UNVERIFIED", "evidence": "none", "detail": "No backend evidence for a Sol Ultra control in Copilot. Aliasing Sol Ultra to high/xhigh/max is forbidden without direct evidence (issue #5423 negative control 4).", "value": null}
+        "model_override": {
+          "status": "VERIFIED",
+          "evidence": "backend",
+          "detail": "Through BYOK Anthropic, the parent on claude-haiku-4-5 launched a task subagent with model claude-sonnet-4-6 (subagent.started taskModelSource task_argument). The provider response for the child reports model claude-sonnet-4-6, and the parent responses report claude-haiku-4-5-20251001. assistant.message.model reports the requested alias claude-haiku-4-5, not the dated id the provider returned, so that event field is a client label and is not backend evidence. GitHub-routed models were not observable (HTTP 402). Evidence: copilot-1.0.89-byok-anthropic/child-model-override.wire.log, copilot-1.0.89-byok-anthropic/child-model-override.events.jsonl.",
+          "value": null,
+          "probe_command": "COPILOT_PROVIDER_TYPE=anthropic COPILOT_PROVIDER_BASE_URL=https://api.anthropic.com COPILOT_PROVIDER_API_KEY=<key> copilot -p <prompt> --output-format json --model claude-haiku-4-5 --reasoning-effort low --allow-all-tools --no-color --no-auto-update --log-level all --log-dir <dir>",
+          "date": "2026-09-24"
+        },
+        "effort_override": {
+          "status": "UNVERIFIED",
+          "evidence": "client_echo",
+          "detail": "--reasoning-effort low sends thinking.budget_tokens 1024 and high sends 4096 in the request (copilot-1.0.89-byok-anthropic/child-model-override.wire.log, copilot-1.0.89-byok-anthropic/effort-high.wire.log). The Anthropic response carries no effort field, so only the request is observed. GitHub-routed calls returned HTTP 402.",
+          "value": null,
+          "probe_command": "COPILOT_PROVIDER_TYPE=anthropic COPILOT_PROVIDER_BASE_URL=https://api.anthropic.com COPILOT_PROVIDER_API_KEY=<key> copilot -p <prompt> --output-format json --model claude-haiku-4-5 --reasoning-effort low --allow-all-tools --no-color --no-auto-update --log-level all --log-dir <dir>",
+          "date": "2026-09-24"
+        },
+        "subagent_support": {
+          "status": "VERIFIED",
+          "evidence": "backend",
+          "detail": "The parent called the task tool, subagent.started and subagent.completed bracket each child, and the child's provider response is present in the wire log. Evidence: copilot-1.0.89-byok-anthropic/child-model-override.events.jsonl, copilot-1.0.89-byok-anthropic/child-model-override.wire.log.",
+          "value": null,
+          "probe_command": "COPILOT_PROVIDER_TYPE=anthropic COPILOT_PROVIDER_BASE_URL=https://api.anthropic.com COPILOT_PROVIDER_API_KEY=<key> copilot -p <prompt> --output-format json --model claude-haiku-4-5 --reasoning-effort low --allow-all-tools --no-color --no-auto-update --log-level all --log-dir <dir>",
+          "date": "2026-09-24"
+        },
+        "concurrency_limit": {
+          "status": "UNVERIFIED",
+          "evidence": "client_echo",
+          "detail": "Three background task subagents were requested, and all three subagent.started events precede the first subagent.completed. Those lifecycle events are emitted by the client, and the Anthropic wire log carries no request id on requests, so child provider calls cannot be paired into backend spans. No concurrency limit flag exists in copilot --help (1.0.89). Evidence: copilot-1.0.89-byok-anthropic/concurrency-3-requested.events.jsonl, copilot-1.0.89-byok-anthropic/concurrency-3-requested.wire.log.",
+          "value": 3,
+          "probe_command": "COPILOT_PROVIDER_TYPE=anthropic COPILOT_PROVIDER_BASE_URL=https://api.anthropic.com COPILOT_PROVIDER_API_KEY=<key> copilot -p <prompt> --output-format json --model claude-haiku-4-5 --reasoning-effort low --allow-all-tools --no-color --no-auto-update --log-level all --log-dir <dir>",
+          "date": "2026-09-24"
+        },
+        "parent_child_override": {
+          "status": "VERIFIED",
+          "evidence": "backend",
+          "detail": "In one run the parent provider responses report claude-haiku-4-5-20251001 and the child provider response reports claude-sonnet-4-6. Evidence: copilot-1.0.89-byok-anthropic/child-model-override.wire.log.",
+          "value": null,
+          "probe_command": "COPILOT_PROVIDER_TYPE=anthropic COPILOT_PROVIDER_BASE_URL=https://api.anthropic.com COPILOT_PROVIDER_API_KEY=<key> copilot -p <prompt> --output-format json --model claude-haiku-4-5 --reasoning-effort low --allow-all-tools --no-color --no-auto-update --log-level all --log-dir <dir>",
+          "date": "2026-09-24"
+        },
+        "reviewer_isolation": {
+          "status": "VERIFIED",
+          "evidence": "backend",
+          "detail": "The parent held the ticket ZEBRA-7731 in its own prompt. A task subagent whose prompt did not contain it answered NONE. The control subagent, whose prompt did contain it, answered ZEBRA-7731, which shows a child reports what is in its context. The task tool has no option to inherit parent context, so no inherited-context positive control exists for Copilot. Evidence: copilot-1.0.89-byok-anthropic/reviewer-isolation.events.jsonl.",
+          "value": null,
+          "probe_command": "COPILOT_PROVIDER_TYPE=anthropic COPILOT_PROVIDER_BASE_URL=https://api.anthropic.com COPILOT_PROVIDER_API_KEY=<key> copilot -p <prompt> --output-format json --model claude-haiku-4-5 --reasoning-effort low --allow-all-tools --no-color --no-auto-update --log-level all --log-dir <dir>",
+          "date": "2026-09-24"
+        },
+        "single_agent": {
+          "status": "VERIFIED",
+          "evidence": "backend",
+          "detail": "With --excluded-tools task the model reported NO_TASK_TOOL and no subagent event occurred, so no-child execution is enforced by tool removal. The fresh-session run also made no task call. Evidence: copilot-1.0.89-byok-anthropic/excluded-task-tool.events.jsonl, copilot-1.0.89-byok-anthropic/fresh-session-handoff.events.jsonl.",
+          "value": null,
+          "probe_command": "COPILOT_PROVIDER_TYPE=anthropic COPILOT_PROVIDER_BASE_URL=https://api.anthropic.com COPILOT_PROVIDER_API_KEY=<key> copilot -p <prompt> --output-format json --model claude-haiku-4-5 --reasoning-effort low --allow-all-tools --no-color --no-auto-update --log-level all --log-dir <dir> --excluded-tools task",
+          "date": "2026-09-24"
+        },
+        "fresh_session": {
+          "status": "VERIFIED",
+          "evidence": "backend",
+          "detail": "A second copilot -p in the same directory reported a new result.sessionId and answered memory=NONE for a ticket only the first session saw. Evidence: copilot-1.0.89-byok-anthropic/plan-writer.events.jsonl, copilot-1.0.89-byok-anthropic/fresh-session-handoff.events.jsonl.",
+          "value": null,
+          "probe_command": "COPILOT_PROVIDER_TYPE=anthropic COPILOT_PROVIDER_BASE_URL=https://api.anthropic.com COPILOT_PROVIDER_API_KEY=<key> copilot -p <prompt> --output-format json --model claude-haiku-4-5 --reasoning-effort low --allow-all-tools --no-color --no-auto-update --log-level all --log-dir <dir>",
+          "date": "2026-09-24"
+        },
+        "durable_artifact_handoff": {
+          "status": "VERIFIED",
+          "evidence": "backend",
+          "detail": "The writer session used the create tool to write implementation-plan.md containing 'TOKEN: PLAN-4417'. A separate fresh session read it and answered plan=PLAN-4417. Evidence: copilot-1.0.89-byok-anthropic/plan-writer.events.jsonl, copilot-1.0.89-byok-anthropic/fresh-session-handoff.events.jsonl.",
+          "value": null,
+          "probe_command": "COPILOT_PROVIDER_TYPE=anthropic COPILOT_PROVIDER_BASE_URL=https://api.anthropic.com COPILOT_PROVIDER_API_KEY=<key> copilot -p <prompt> --output-format json --model claude-haiku-4-5 --reasoning-effort low --allow-all-tools --no-color --no-auto-update --log-level all --log-dir <dir>",
+          "date": "2026-09-24"
+        },
+        "context_reset_observability": {
+          "status": "UNVERIFIED",
+          "evidence": "none",
+          "detail": "No compaction, reset, or restart was triggered, and no such event appeared in any Copilot stream from these probes.",
+          "value": null
+        },
+        "sol_ultra": {
+          "status": "UNSUPPORTED",
+          "evidence": "config",
+          "detail": "The CLI refuses the value before any model call: \"error: invalid value 'ultra' for '--reasoning-effort <level>'\" with possible values none, minimal, low, medium, high, xhigh, max. Evidence: copilot-1.0.89/reasoning-effort-ultra.stderr.txt.",
+          "value": null,
+          "probe_command": "copilot -p 'Reply OK.' --output-format json --model gpt-5.6-sol --reasoning-effort ultra",
+          "date": "2026-09-24"
+        }
       }
     }
   ]

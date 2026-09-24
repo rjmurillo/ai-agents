@@ -347,7 +347,12 @@ def probe_version(
     )
     if run.returncode != 0:
         raise RuntimeError(f"{executable} --version failed")
-    version = (run.stdout or run.stderr).strip()
-    if not version:
-        raise RuntimeError(f"{executable} --version returned no version")
-    return version
+    # Copilot CLI 1.0.89 prints a second, unrelated line after the version
+    # ("GitHub Copilot CLI 1.0.89-1.\nRun 'copilot update' to check for
+    # updates."), so the whole stripped output is not the version string;
+    # the first non-empty line is.
+    for line in (run.stdout or run.stderr).splitlines():
+        stripped = line.strip()
+        if stripped:
+            return stripped
+    raise RuntimeError(f"{executable} --version returned no version")

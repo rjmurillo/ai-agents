@@ -192,21 +192,50 @@ Copilot equivalent.
 
 ## Harness Capability Evidence
 
-Use a JSON plan when live runtime evidence is authorized. The plan supplies a base argv and a typed request flag because each harness
-owns its own flag surface. The loader appends the requested value to that flag.
-Behavioral commands run with an isolated profile and workspace; plan cwd values
-must stay inside that workspace.
+Use a JSON plan when live runtime evidence is authorized. The plan supplies a
+base argv and a typed request flag because each harness owns its own flag
+surface; only the flags listed below are trusted (`_capability_probes.TRUSTED_REQUEST_SYNTAX`).
+An untrusted flag stays UNVERIFIED even if the CLI happens to accept it. The
+loader appends the requested value to that flag, rendering codex's `-c
+key=value` config-override shape when the plan's capability calls for one.
+Behavioral commands run with an isolated profile and workspace; plan cwd
+values must stay inside that workspace.
+
+The checked-in matrix (`examples/harness-capability-matrix.json`) is now
+evidence-backed: every `VERIFIED` cell cites a trimmed backend capture under
+`tests/eval/fixtures/harness_capability/`, and
+`tests/eval/test_harness_capability_live_evidence.py` (codex) and
+`tests/eval/test_harness_capability_live_evidence_copilot.py` (copilot)
+re-derive each `VERIFIED` cell from that capture using the in-tree parsers,
+independent of the live-probe pipeline. `tests/eval/test_harness_capability.py::test_checked_in_matrix_verified_cells_cite_real_evidence`
+pins that every `VERIFIED` cell has `BACKEND` evidence, a `probe_command`, a
+`date`, and a `detail` naming a fixture file that actually exists.
+
+### Real request flags (verified live, 2026-09-24)
+
+| Harness | Capability | Flag | Notes |
+|---|---|---|---|
+| codex | `model_override` | `--model <id>` | `codex --help`, codex-cli 0.156.0 |
+| codex | `effort_override` | `-c model_reasoning_effort=<effort>` | config override, not a bare flag |
+| codex | `concurrency_limit` | `-c agents.max_threads=<n>` | root thread not counted; `N=0` is rejected |
+| copilot | `model_override` | `--model <id>` | `copilot --help`, 1.0.89 |
+| copilot | `effort_override` | `--reasoning-effort <level>` | `none,minimal,low,medium,high,xhigh,max`; `ultra` is refused before any model call |
+| copilot | `concurrency_limit` | none | copilot has no concurrency flag at all; its `concurrency_limit` cell is observed directly from `subagent.*` events, not probed through a request flag |
+
+`--effort` and `--max-concurrency` were earlier placeholders neither CLI has
+ever accepted; a plan carrying either now resolves to `UNVERIFIED` with a
+"not trusted" detail instead of silently degrading further.
 
 ```json
 {
   "probes": [
     {
-      "harness": "copilot",
-      "capability": "model_override",
-      "parent_value": "gpt-5.6-sol",
-      "child_value": "claude-opus-5",
-      "argv": ["copilot", "--prompt", "probe"],
-      "request_flag": "--model"
+      "harness": "codex",
+      "capability": "effort_override",
+      "parent_value": "medium",
+      "child_value": "high",
+      "argv": ["codex", "exec", "--json", "--skip-git-repo-check", "-m", "gpt-5.6-sol"],
+      "request_flag": "-c"
     }
   ]
 }
@@ -215,7 +244,7 @@ must stay inside that workspace.
 Run the probe without modifying the checked-in matrix:
 
 ```bash
-uv run python scripts/eval/eval_harness_capability.py \
+RUST_LOG=tungstenite::protocol=trace uv run python scripts/eval/eval_harness_capability.py \
   --behavioral-probes probes.json \
   --output artifacts/harness-capability/report.json
 ```
@@ -223,8 +252,53 @@ uv run python scripts/eval/eval_harness_capability.py \
 The plan supports model and effort overrides, subagent support, and concurrency
 measurements. The CLI writes a report, never the checked-in matrix. Missing
 commands, failed runs, and incomplete event streams remain UNVERIFIED.
-Verified model and effort values require backend attribution and a live runtime
-version for the same harness.
+
+### Codex: RUST_LOG and authentication
+
+`codex exec --json` stdout carries no model or reasoning effort field at all.
+Backend evidence exists only on stderr, and only with
+`RUST_LOG=tungstenite::protocol=trace` set (see
+`scripts/eval/_codex_frames.py`'s module docstring for the exact frame
+shapes). Without it, a codex probe that exits 0 raises `ProbeError` rather
+than resolving to UNVERIFIED: a missing environment variable is a
+misconfigured plan, not a negative capability result. The isolated profile
+this evaluator builds needs `CODEX_API_KEY`; `CODEX_ACCESS_TOKEN` from a
+ChatGPT login returned 401 in codex-cli 0.156.0 (see
+`codex-0.156.0/isolated-auth-401.stdout.jsonl`).
+
+### Copilot: the client-label finding and BYOK
+
+Live finding (BYOK Anthropic, copilot-cli 1.0.89, 2026-09-24):
+`assistant.message.data.model` in `--output-format json` stdout reports the
+requested alias (`claude-haiku-4-5`), not the dated id the provider actually
+returned (`claude-haiku-4-5-20251001`). It is `CLIENT_ECHO`, not backend
+evidence. The provider's own response appears only in the debug log written
+by `--log-level all --log-dir <dir>`, as `[rust:model_wire]` lines
+(`scripts/eval/_copilot_wire.py`). A copilot `model_override` or
+`effort_override` probe plan needs `--log-level all --log-dir <dir>` in its
+argv; a plan that omits it, or whose log carries no matching wire response,
+resolves to UNVERIFIED naming that flag rather than falling back to the
+client-echoed model.
+
+GitHub-routed Copilot calls all returned HTTP 402 (monthly quota exceeded) on
+2026-09-24, so every copilot `VERIFIED` cell in the checked-in matrix was
+probed through the documented BYOK path instead:
+
+```bash
+COPILOT_PROVIDER_TYPE=anthropic \
+COPILOT_PROVIDER_BASE_URL=https://api.anthropic.com \
+COPILOT_PROVIDER_API_KEY=<key> \
+copilot -p '<prompt>' --output-format json --model claude-haiku-4-5 \
+  --reasoning-effort low --allow-all-tools --no-color --no-auto-update \
+  --log-level all --log-dir <dir>
+```
+
+BYOK replaces GitHub model routing, so GitHub-routed Sol, Luna, and Terra
+models remain unobserved for copilot; every #5422 arm (`_harness_capability.ARMS`)
+requires a Sol-family model on both harnesses compared
+(`Arm.required_models`), so no arm reads as `ELIGIBLE_MATCHED` between codex
+and copilot in the checked-in matrix, only `UNVERIFIED`, until a Copilot
+GitHub-routed run is captured.
 
 ## Real CLI Runtime Parity
 

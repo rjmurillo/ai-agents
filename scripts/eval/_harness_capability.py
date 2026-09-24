@@ -133,12 +133,21 @@ class HarnessCapabilityRecord:
 
 @dataclass(frozen=True, slots=True)
 class Arm:
-    """A #5422 competing-hypothesis arm and the capabilities it requires."""
+    """A #5422 competing-hypothesis arm and the capabilities it requires.
+
+    `required_models` is a tuple of any-of token groups: every group must be
+    satisfied by both harnesses being compared, but any one token inside a
+    group is enough. A record satisfies a group when some id in its
+    `supported_models`, split on `-`, contains one of the group's tokens as
+    a whole path segment (`_satisfies_model_groups`), not as a substring, so
+    a model named `solar-1` does not satisfy a `"sol"` requirement.
+    """
 
     arm_id: str
     summary: str
     required: tuple[str, ...]
     match_values: tuple[str, ...]
+    required_models: tuple[tuple[str, ...], ...] = ()
 
 
 # The six #5422 arms A-F, quoted from issue #5422 "Competing hypotheses" and
@@ -159,6 +168,7 @@ ARMS: tuple[Arm, ...] = (
             "parent_child_override",
         ),
         ("concurrency_limit",),
+        (("sol",),),
     ),
     Arm(
         "B",
@@ -172,6 +182,7 @@ ARMS: tuple[Arm, ...] = (
             "reviewer_isolation",
         ),
         ("concurrency_limit",),
+        (("sol",), ("luna", "terra")),
     ),
     Arm(
         "C",
@@ -185,6 +196,7 @@ ARMS: tuple[Arm, ...] = (
             "parent_child_override",
         ),
         ("concurrency_limit",),
+        (("sol",), ("luna",)),
     ),
     Arm(
         "D",
@@ -198,6 +210,7 @@ ARMS: tuple[Arm, ...] = (
             "parent_child_override",
         ),
         ("concurrency_limit",),
+        (("sol",), ("terra",)),
     ),
     Arm(
         "E",
@@ -208,6 +221,7 @@ ARMS: tuple[Arm, ...] = (
             "single_agent",
         ),
         (),
+        (("sol",),),
     ),
     Arm(
         "F",
@@ -220,6 +234,7 @@ ARMS: tuple[Arm, ...] = (
             "single_agent",
         ),
         (),
+        (("sol",),),
     ),
 )
 
@@ -291,6 +306,27 @@ def classify_reviewer_isolation(
     return CapabilityStatus.VERIFIED
 
 
+def _model_family_tokens(model_id: str) -> frozenset[str]:
+    """Split a model id into its `-`-separated path segments.
+
+    Whole-segment membership, not substring search: `"solar-1".split("-")`
+    is `{"solar", "1"}`, which does not contain `"sol"`, so a model named
+    `solar-1` cannot satisfy a `"sol"` family requirement by aliasing.
+    """
+    return frozenset(model_id.split("-"))
+
+
+def _satisfies_model_group(models: Sequence[str], tokens: Sequence[str]) -> bool:
+    return any(_model_family_tokens(model) & frozenset(tokens) for model in models)
+
+
+def _satisfies_model_groups(
+    record: HarnessCapabilityRecord, groups: Sequence[Sequence[str]]
+) -> bool:
+    """Return whether `record.supported_models` covers every any-of group."""
+    return all(_satisfies_model_group(record.supported_models, group) for group in groups)
+
+
 def derive_arm_eligibility(
     arm: Arm,
     harness: HarnessCapabilityRecord,
@@ -301,22 +337,34 @@ def derive_arm_eligibility(
     Precedence (issue #5423 "Matched-comparison eligibility"):
       1. any required capability `UNSUPPORTED` in either harness -> UNSUPPORTED;
       2. any required capability `UNVERIFIED` in either harness -> UNVERIFIED;
-      3. all required capabilities `VERIFIED` in both, but a `match_values`
+      3. either harness misses one of `arm.required_models`'s token groups in
+         its own `supported_models` -> UNVERIFIED, not UNSUPPORTED: a harness
+         that never ran the arm's model family (for example Copilot routed
+         through GitHub, which returned HTTP 402 before any Sol call) has not
+         been shown unable to run it, only unobserved running it;
+      4. all required capabilities `VERIFIED` in both, but a `match_values`
          scalar differs -> ELIGIBLE_UNMATCHED (a material harness difference
          blocks causal comparison);
-      4. otherwise -> ELIGIBLE_MATCHED.
+      5. otherwise -> ELIGIBLE_MATCHED.
 
-    A matched result is reachable only through step 4, which requires backend
-    `VERIFIED` on both sides. There is no path that reads a model label, so
-    negative control 8 (never infer parity from a matching model label) holds
-    structurally: two harnesses reporting the same model but an `UNVERIFIED`
-    required capability resolve to `UNVERIFIED`, not matched.
+    A matched result is reachable only through step 5, which requires backend
+    `VERIFIED` on both sides and both sides' `supported_models` covering the
+    arm's model families. Negative control 8 (never infer parity from a
+    matching model label) still holds: step 3 can only ever downgrade toward
+    `UNVERIFIED`, never promote toward `ELIGIBLE_MATCHED`, so two harnesses
+    reporting the same model but an `UNVERIFIED` required capability still
+    resolve to `UNVERIFIED`, not matched.
     """
     statuses = [harness.capabilities[key].status for key in arm.required]
     statuses += [peer.capabilities[key].status for key in arm.required]
     if CapabilityStatus.UNSUPPORTED in statuses:
         return ArmEligibility.UNSUPPORTED
     if CapabilityStatus.UNVERIFIED in statuses:
+        return ArmEligibility.UNVERIFIED
+    if arm.required_models and (
+        not _satisfies_model_groups(harness, arm.required_models)
+        or not _satisfies_model_groups(peer, arm.required_models)
+    ):
         return ArmEligibility.UNVERIFIED
     for key in arm.match_values:
         if harness.capabilities[key].value != peer.capabilities[key].value:

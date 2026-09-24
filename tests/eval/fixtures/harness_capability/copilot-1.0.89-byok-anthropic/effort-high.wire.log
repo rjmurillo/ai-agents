@@ -1,0 +1,29 @@
+2026-09-24T12:52:08.906Z [DEBUG] [rust:model_wire] Wire request: {
+  "model": "claude-haiku-4-5",
+  "thinking": {
+    "type": "enabled",
+    "budget_tokens": 4096,
+    "display": "summarized"
+  },
+  "stream": true
+}
+2026-09-24T12:52:10.561Z [DEBUG] [rust:model_wire] response (Request-ID req_011CfNJ6q4JtayJCDUwHR1sq):
+2026-09-24T12:52:10.561Z [DEBUG] [rust:model_wire] data:
+2026-09-24T12:52:10.561Z [DEBUG] [rust:model_wire] {
+  "id": "msg_011CfNJ6qKSiSaPSnHdyLDPb",
+  "object": "chat.completion",
+  "model": "claude-haiku-4-5-20251001",
+  "usage": {
+    "prompt_tokens": 27233,
+    "completion_tokens": 83,
+    "total_tokens": 27316,
+    "prompt_tokens_details": {
+      "cached_tokens": 14696,
+      "cache_creation_tokens": 12527,
+      "cache_ttl_seconds": 300
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 77
+    }
+  }
+}

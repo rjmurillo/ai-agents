@@ -30,6 +30,7 @@ from tests.eval._capability_probe_fixtures import (
     _jsonl,
     _plan,
     _runner,
+    codex_stderr,
 )
 from tests.eval._harness_capability_test_support import cli, probes, topology
 
@@ -83,14 +84,30 @@ def test_a_command_targeting_another_harness_is_refused() -> None:
 
 
 def test_an_equals_joined_flag_carries_the_request() -> None:
-    """CONFIRMATORY: `--model=value` is the same request as `--model value`."""
+    """CONFIRMATORY: `--model=value` is the same request as `--model value`.
+
+    Codex, not copilot: copilot's model_override now reads its `--log-dir`
+    wire log (see `test_capability_probes.py`), so a bare `--json` stdout
+    stream can no longer reach `VERIFIED` for it regardless of argv shape.
+    Codex's `--model` flag carries no `config_key`, so it renders the same
+    joined form and still proves the `token == f"{flag}={value}"` branch in
+    `_carries_request`.
+    """
+    stderr = codex_stderr(
+        ("parent", "gpt-5-low", "medium", None), ("only", "gpt-5.6-sol", "medium", None)
+    )
     command = probes.ProbeCommand(
-        harness="copilot",
-        argv=("copilot", "--model=gpt-5.6-sol"),
+        harness="codex",
+        argv=("codex", "--model=gpt-5.6-sol"),
         request_flag="--model",
     )
 
-    result = probes.probe_override(_plan(), command, runner=_runner(_HONORED), timeout=TIMEOUT)
+    result = probes.probe_override(
+        _plan(harness="codex", parent="gpt-5-low", candidates=("gpt-5.6-sol",)),
+        command,
+        runner=_runner(stdout="", stderr=stderr),
+        timeout=TIMEOUT,
+    )
 
     assert result.status is CapabilityStatus.VERIFIED
 
@@ -178,14 +195,27 @@ def test_a_command_whose_executable_does_not_name_the_harness_is_refused() -> No
 
 
 def test_an_executable_path_still_satisfies_the_harness_check() -> None:
-    """CONFIRMATORY: an absolute path to the CLI is the normal shape, not a violation."""
+    """CONFIRMATORY: an absolute path to the CLI is the normal shape, not a violation.
+
+    Codex, not copilot, for the same reason as
+    `test_an_equals_joined_flag_carries_the_request`: copilot's
+    model_override reads its `--log-dir` wire log now, not `--json` stdout.
+    """
+    stderr = codex_stderr(
+        ("parent", "gpt-5-low", "medium", None), ("only", "gpt-5.6-sol", "medium", None)
+    )
     command = probes.ProbeCommand(
-        harness="copilot",
-        argv=("/usr/local/bin/copilot", "--model", "gpt-5.6-sol"),
+        harness="codex",
+        argv=("/usr/local/bin/codex", "--model", "gpt-5.6-sol"),
         request_flag="--model",
     )
 
-    result = probes.probe_override(_plan(), command, runner=_runner(_HONORED), timeout=TIMEOUT)
+    result = probes.probe_override(
+        _plan(harness="codex", parent="gpt-5-low", candidates=("gpt-5.6-sol",)),
+        command,
+        runner=_runner(stdout="", stderr=stderr),
+        timeout=TIMEOUT,
+    )
 
     assert result.status is CapabilityStatus.VERIFIED
 
@@ -323,7 +353,17 @@ def test_a_fully_paired_overlap_still_reports_its_real_peak() -> None:
 
 
 def test_an_inflated_stream_leaves_the_concurrency_probe_unverified() -> None:
-    """NEGATIVE CONTROL: the count guard reaches the prober, not only the helper."""
+    """NEGATIVE CONTROL: the count guard reaches the prober, not only the helper.
+
+    `--max-concurrency` is untrusted for every harness now (neither codex
+    nor copilot has ever accepted it), so this input no longer reaches
+    `max_concurrent_children` through `probe_concurrency` at all; it is
+    refused at the trust gate first, which is its own guard
+    (`test_capability_probes.py::test_an_untrusted_concurrency_flag_stays_unverified`).
+    `test_capability_probes.py::test_codex_frame_concurrency_below_the_requested_count_stays_unverified`
+    now carries the "count guard reaches the prober" proof this test used
+    to, against the real codex fixture instead of a synthetic stream.
+    """
     stdout = _jsonl(_boundaries("start", "start", "start"))
 
     result = probes.probe_concurrency(
@@ -334,4 +374,6 @@ def test_an_inflated_stream_leaves_the_concurrency_probe_unverified() -> None:
     )
 
     assert result.status is CapabilityStatus.UNVERIFIED
+    assert result.evidence is EvidenceKind.NONE
+    assert "not trusted" in result.detail
     assert result.value is None

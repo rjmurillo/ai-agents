@@ -64,6 +64,11 @@ from pathlib import Path
 
 from _capability_evidence import (
     DEFAULT_EFFORT_KEYS,
+    ProbeObservation,
+    observe_codex_effort,
+    observe_codex_model,
+    observe_copilot_effort,
+    observe_copilot_model,
     observe_effort,
     observe_model,
 )
@@ -72,6 +77,28 @@ from _capability_topology import (
     requested_subagent_tools,
     subagent_launch_count,
     subagent_lifecycle_events,
+)
+from _codex_frames import (
+    CodexFrame,
+    CodexFrameError,
+    ResponseSpan,
+    parse_codex_frames,
+)
+from _codex_frames import (
+    function_calls as codex_function_calls,
+)
+from _codex_frames import (
+    peak_overlap as codex_peak_overlap,
+)
+from _codex_frames import (
+    response_spans as codex_response_spans,
+)
+from _copilot_wire import (
+    CopilotWireError,
+    WireRequest,
+    WireResponse,
+    parse_wire_requests,
+    parse_wire_responses,
 )
 from _harness_capability import (
     Capability,
@@ -87,16 +114,59 @@ Runner = Callable[..., "subprocess.CompletedProcess[str]"]
 #: Capabilities this module can probe through `classify_override`.
 OVERRIDE_CAPABILITIES: tuple[str, ...] = ("model_override", "effort_override")
 
-# A JSON plan may choose the argv shape, but only these typed flags can carry
-# behavioral probe requests for the supported harnesses.
-TRUSTED_REQUEST_FLAGS: Mapping[tuple[str, str], str] = {
-    ("codex", "model_override"): "--model",
-    ("codex", "effort_override"): "--effort",
-    ("codex", "concurrency_limit"): "--max-concurrency",
-    ("copilot", "model_override"): "--model",
-    ("copilot", "effort_override"): "--effort",
-    ("copilot", "concurrency_limit"): "--max-concurrency",
+
+@dataclass(frozen=True, slots=True)
+class RequestSyntax:
+    """The real CLI flag (and optional `-c key=value` config key) a harness
+    accepts for one probeable capability.
+
+    `flag` alone renders as `(flag, value)`, a bare `--flag value` pair.
+    `config_key` set renders as `(flag, f"{config_key}={value}")`, codex's
+    `-c key=value` shape (`codex --help`, codex-cli 0.156.0, and
+    `codex-0.156.0/*.trace.log`, where every probe command carries
+    `-c model_reasoning_effort=<effort>` or `-c agents.max_threads=<n>`).
+    """
+
+    flag: str
+    config_key: str | None = None
+
+    def render(self, value: str) -> tuple[str, str]:
+        if self.config_key is not None:
+            return (self.flag, f"{self.config_key}={value}")
+        return (self.flag, value)
+
+
+# The real request syntax for each (harness, capability) this module can
+# probe, verified live 2026-09-24: `codex --help` and the trace fixtures for
+# codex; `copilot --help` (1.0.89) for copilot. Neither CLI has ever accepted
+# `--effort` or `--max-concurrency`, the placeholder flags this table used to
+# carry; a plan built against either name is now untrusted (see
+# `_trusted_request_flag`) rather than silently treated as real. Copilot has
+# no concurrency flag at all (`copilot --help` lists none), so it carries no
+# `concurrency_limit` entry.
+TRUSTED_REQUEST_SYNTAX: Mapping[tuple[str, str], RequestSyntax] = {
+    ("codex", "model_override"): RequestSyntax("--model"),
+    ("codex", "effort_override"): RequestSyntax("-c", "model_reasoning_effort"),
+    ("codex", "concurrency_limit"): RequestSyntax("-c", "agents.max_threads"),
+    ("copilot", "model_override"): RequestSyntax("--model"),
+    ("copilot", "effort_override"): RequestSyntax("--reasoning-effort"),
 }
+
+
+def _rendered_request(
+    harness: str, capability: str, flag: str, value: str
+) -> tuple[str, str] | None:
+    """Return the trusted `(flag, value)` pair for this request, or `None`.
+
+    `None` means either the (harness, capability) pair is not in
+    `TRUSTED_REQUEST_SYNTAX`, or `flag` does not name that pair's real flag;
+    both cases fall back to the literal, unrendered `(flag, value)` at the
+    call site, which is the pre-existing behavior for an untrusted plan.
+    """
+    syntax = TRUSTED_REQUEST_SYNTAX.get((harness, capability))
+    if syntax is None or syntax.flag != flag:
+        return None
+    return syntax.render(value)
 
 
 class ProbeError(HarnessCapabilityError):
@@ -220,18 +290,34 @@ class BehavioralProbe:
 
 
 def _trusted_request_flag(command: ProbeCommand, capability: str) -> bool:
-    return TRUSTED_REQUEST_FLAGS.get((command.harness, capability)) == command.request_flag
+    syntax = TRUSTED_REQUEST_SYNTAX.get((command.harness, capability))
+    return syntax is not None and syntax.flag == command.request_flag
 
 
-def _carries_request(command: ProbeCommand, value: str) -> bool:
-    """Return whether the typed request flag is bound to the requested value."""
+def _carries_request(command: ProbeCommand, value: str, capability: str) -> bool:
+    """Return whether the typed request flag is bound to the requested value.
+
+    Renders through `TRUSTED_REQUEST_SYNTAX` first, so a codex `-c` flag is
+    checked against `-c model_reasoning_effort=<value>` or
+    `-c agents.max_threads=<value>`, whichever `capability` names, rather
+    than the bare `value` a `--flag value` harness would carry. An untrusted
+    (harness, capability, flag) combination falls back to the literal
+    `(flag, value)` pair, which is the pre-existing check for a plan
+    `_trusted_request_flag` will go on to reject anyway.
+    """
     flag = command.request_flag
     if flag is None:
         return False
-    joined = f"{flag}={value}"
+    rendered = _rendered_request(command.harness, capability, flag, value)
+    target_flag, target_value = rendered if rendered is not None else (flag, value)
+    joined = f"{target_flag}={target_value}"
     return any(
         token == joined
-        or (token == flag and index + 1 < len(command.argv) and command.argv[index + 1] == value)
+        or (
+            token == target_flag
+            and index + 1 < len(command.argv)
+            and command.argv[index + 1] == target_value
+        )
         for index, token in enumerate(command.argv)
     )
 
@@ -373,24 +459,195 @@ def _capture_events(
     return events, ""
 
 
-def probe_override(
+def _capture_codex_frames(
+    command: ProbeCommand,
+    *,
+    runner: Runner,
+    timeout: float,
+) -> tuple[tuple[CodexFrame, ...] | None, str]:
+    """Run one codex probe and return its backend frames, or a reason it produced none.
+
+    Codex's `--json` stdout carries no model or effort at all (see
+    `_codex_frames`'s module docstring); backend evidence exists only on
+    stderr, and only when the caller set
+    `RUST_LOG=tungstenite::protocol=trace`. A missing CLI, a failed launch, a
+    timeout, and a non-zero exit return `(None, reason)`, mirroring
+    `_capture_events`, so the caller records `UNVERIFIED`. Exit 0 with no
+    frames on stderr is different: that is a misconfigured plan (RUST_LOG was
+    never set, or codex changed its logging) rather than a negative
+    capability result, so it raises instead of resolving to `UNVERIFIED`,
+    the same fail-closed direction `_capture_events` takes for malformed
+    `--json` stdout.
+    """
+    try:
+        run = runner(
+            list(command.argv),
+            cwd=command.cwd,
+            env=dict(command.env) if command.env is not None else None,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=timeout,
+            check=False,
+        )
+    except FileNotFoundError as exc:
+        return None, f"{command.argv[0]} is not on PATH: {exc}"
+    except (OSError, subprocess.SubprocessError) as exc:
+        return None, f"{command.harness} probe did not complete: {exc}"
+    if run.returncode != 0:
+        stderr = (run.stderr or "").strip()
+        return None, stderr or f"{command.harness} probe exited with code {run.returncode}"
+    try:
+        frames = parse_codex_frames(run.stderr or "")
+    except CodexFrameError as exc:
+        raise ProbeError(f"{command.harness} probe stderr is malformed: {exc}") from exc
+    if not frames:
+        raise ProbeError(
+            f"{command.harness} probe exited 0 with no backend frames on stderr; set "
+            "RUST_LOG=tungstenite::protocol=trace to capture them"
+        )
+    return tuple(frames), ""
+
+
+def _find_flag_value(argv: Sequence[str], flag: str) -> str | None:
+    try:
+        index = argv.index(flag)
+    except ValueError:
+        return None
+    return argv[index + 1] if index + 1 < len(argv) else None
+
+
+def _newest_log_file(log_path: Path) -> Path | None:
+    """Return the most recently modified `process-*.log` under `log_path`.
+
+    A run's `--log-dir` can accumulate one file per invocation across a
+    reused directory; joining all of them would mix an earlier run's wire
+    evidence into this one's, so only the newest by mtime is read.
+    """
+    if not log_path.is_dir():
+        return None
+    log_files = list(log_path.glob("process-*.log"))
+    if not log_files:
+        return None
+    return max(log_files, key=lambda path: path.stat().st_mtime)
+
+
+def _capture_copilot_wire(
+    command: ProbeCommand,
+    *,
+    runner: Runner,
+    timeout: float,
+) -> tuple[list[dict[str, object]] | None, tuple[WireResponse, ...], tuple[WireRequest, ...], str]:
+    """Run one copilot probe and return its events plus its backend wire evidence.
+
+    `assistant.message.data.model` is a client label, not backend evidence
+    (see `_capability_evidence.observe_copilot_model`), so a model or effort
+    override probe additionally needs the debug log `--log-level all
+    --log-dir <dir>` writes. This function does not add that flag; it reads
+    whichever `--log-dir` value is already in `command.argv`, and returns a
+    reason naming the missing flag when the caller's plan omitted it or the
+    log carried no wire responses, rather than silently falling back to
+    client-echoed evidence.
+    """
+    events, failure = _capture_events(command, runner=runner, timeout=timeout)
+    if events is None:
+        return None, (), (), failure
+    log_dir = _find_flag_value(command.argv, "--log-dir")
+    if log_dir is None:
+        return (
+            events,
+            (),
+            (),
+            "no --log-dir in the command argv; pass --log-level all --log-dir "
+            "<dir> to capture backend wire evidence",
+        )
+    log_file = _newest_log_file(Path(log_dir))
+    if log_file is None:
+        return (
+            events,
+            (),
+            (),
+            f"no process-*.log file under {log_dir}; pass --log-level all "
+            "--log-dir <dir> to capture backend wire evidence",
+        )
+    text = log_file.read_text(encoding="utf-8")
+    try:
+        responses = tuple(parse_wire_responses(text))
+        requests = tuple(parse_wire_requests(text))
+    except CopilotWireError as exc:
+        raise ProbeError(f"{command.harness} wire log is malformed: {exc}") from exc
+    if not responses:
+        return (
+            events,
+            (),
+            requests,
+            f"{log_dir} carried no backend wire responses; pass --log-level all "
+            "--log-dir <dir> to capture them",
+        )
+    return events, responses, requests, ""
+
+
+def _observe_codex_override(
+    plan: OverridePlan, command: ProbeCommand, *, runner: Runner, timeout: float
+) -> ProbeObservation | Capability:
+    """Read codex override evidence, or the `Capability` a capture failure already is."""
+    frames, failure = _capture_codex_frames(command, runner=runner, timeout=timeout)
+    if frames is None:
+        return Capability(CapabilityStatus.UNVERIFIED, EvidenceKind.NONE, failure)
+    if plan.capability == "model_override":
+        return observe_codex_model(frames, parent_value=plan.parent_value)
+    return observe_codex_effort(frames, parent_value=plan.parent_value)
+
+
+def _observe_copilot_override(
+    plan: OverridePlan, command: ProbeCommand, *, runner: Runner, timeout: float
+) -> ProbeObservation | Capability:
+    """Read copilot override evidence from its wire log, or a capture-failure `Capability`."""
+    events, responses, requests, failure = _capture_copilot_wire(
+        command, runner=runner, timeout=timeout
+    )
+    if events is None:
+        return Capability(CapabilityStatus.UNVERIFIED, EvidenceKind.NONE, failure)
+    if plan.capability == "model_override":
+        if not responses:
+            return Capability(CapabilityStatus.UNVERIFIED, EvidenceKind.NONE, failure)
+        return observe_copilot_model(events, responses)
+    if not requests:
+        return Capability(CapabilityStatus.UNVERIFIED, EvidenceKind.NONE, failure)
+    return observe_copilot_effort(requests)
+
+
+def _observe_generic_override(
     plan: OverridePlan,
     command: ProbeCommand,
     *,
     runner: Runner,
     timeout: float,
-    executable_allowlist: Mapping[str, Path] | None = None,
-    effort_keys: Sequence[str] = DEFAULT_EFFORT_KEYS,
-) -> Capability:
-    """Run one override probe and classify it with the existing classifier.
+    effort_keys: Sequence[str],
+) -> ProbeObservation | Capability:
+    """Read override evidence from `--json` stdout events, the pre-codex/copilot path."""
+    events, failure = _capture_events(command, runner=runner, timeout=timeout)
+    if events is None:
+        return Capability(CapabilityStatus.UNVERIFIED, EvidenceKind.NONE, failure)
+    if plan.capability == "model_override":
+        return observe_model(plan.harness, events)
+    return observe_effort(plan.harness, events, effort_keys=effort_keys)
 
-    Classification is not reimplemented here. The observed value, its evidence
-    kind, and the plan's parent value go straight to the existing classifier,
-    which owns every rule that can withhold VERIFIED.
 
-    Raises ProbeError when command does not implement plan: a different
-    harness, or an invocation that does not carry the plan's child value.
-    Both are refused before the CLI runs.
+def _guard_override_plan(
+    plan: OverridePlan,
+    command: ProbeCommand,
+    *,
+    executable_allowlist: Mapping[str, Path] | None,
+) -> Capability | None:
+    """Refuse a command that cannot implement `plan`, or an untrusted flag.
+
+    Raises `ProbeError` for a harness mismatch or an argv that does not
+    carry the plan's child value, both before any CLI runs. Returns the
+    `UNVERIFIED`/"not trusted" `Capability` for an untrusted request flag,
+    or `None` once `plan` and `command` have cleared every guard and the
+    caller may proceed to capture evidence.
     """
     if command.harness != plan.harness:
         raise ProbeError(
@@ -398,7 +655,7 @@ def probe_override(
             "a run against one harness cannot verify an override on another"
         )
     _validate_command(command, executable_allowlist=executable_allowlist)
-    if not _carries_request(command, plan.child_value):
+    if not _carries_request(command, plan.child_value, plan.capability):
         raise ProbeError(
             f"command does not request {plan.child_value!r} in its argv, so an "
             f"observed {plan.child_value!r} would be the harness default rather than an "
@@ -411,27 +668,165 @@ def probe_override(
             f"{command.harness} request flag {command.request_flag!r} is not trusted "
             f"for {plan.capability}",
         )
-    events, failure = _capture_events(command, runner=runner, timeout=timeout)
-    if events is None:
-        return Capability(CapabilityStatus.UNVERIFIED, EvidenceKind.NONE, failure)
-    observation = (
-        observe_model(plan.harness, events)
-        if plan.capability == "model_override"
-        else observe_effort(plan.harness, events, effort_keys=effort_keys)
+    return None
+
+
+def _observe_override(
+    plan: OverridePlan,
+    command: ProbeCommand,
+    *,
+    runner: Runner,
+    timeout: float,
+    effort_keys: Sequence[str],
+) -> ProbeObservation | Capability:
+    """Route to the evidence reader for `plan.harness`.
+
+    Codex reads `RUST_LOG` trace frames from stderr, copilot reads its
+    `--log-dir` wire log, and every other harness reads `--json` stdout
+    events, the pre-existing path.
+    """
+    if plan.harness == "codex":
+        return _observe_codex_override(plan, command, runner=runner, timeout=timeout)
+    if plan.harness == "copilot":
+        return _observe_copilot_override(plan, command, runner=runner, timeout=timeout)
+    return _observe_generic_override(
+        plan, command, runner=runner, timeout=timeout, effort_keys=effort_keys
     )
+
+
+def probe_override(
+    plan: OverridePlan,
+    command: ProbeCommand,
+    *,
+    runner: Runner,
+    timeout: float,
+    executable_allowlist: Mapping[str, Path] | None = None,
+    effort_keys: Sequence[str] = DEFAULT_EFFORT_KEYS,
+) -> Capability:
+    """Run one override probe and classify it with the existing classifier.
+
+    Classification is not reimplemented here: the observed value, its
+    evidence kind, and the plan's parent value go straight to the existing
+    classifier, which owns every rule that can withhold `VERIFIED`. Guard
+    checks live in `_guard_override_plan`, and reading the evidence lives
+    in `_observe_override`.
+    """
+    rejection = _guard_override_plan(plan, command, executable_allowlist=executable_allowlist)
+    if rejection is not None:
+        return rejection
+    result = _observe_override(
+        plan, command, runner=runner, timeout=timeout, effort_keys=effort_keys
+    )
+    if isinstance(result, Capability):
+        return result
     status = classify_override(
-        plan.child_value,
-        observation.observed,
-        observation.evidence,
-        parent_value=plan.parent_value,
+        plan.child_value, result.observed, result.evidence, parent_value=plan.parent_value
     )
     return Capability(
         status=status,
-        evidence=observation.evidence,
+        evidence=result.evidence,
         detail=(
             f"requested {plan.child_value!r} against parent {plan.parent_value!r}; "
-            f"observed {observation.observed!r} ({observation.detail})"
+            f"observed {result.observed!r} ({result.detail})"
         ),
+    )
+
+
+def _codex_spawn_models(frames: Sequence[CodexFrame]) -> list[str]:
+    """Return every model a `spawn_agent` call in `frames` explicitly named.
+
+    A `spawn_agent` call with no `model` argument (a child that inherits the
+    parent's model, as in `codex-0.156.0/reviewer-isolation.trace.log`)
+    contributes nothing: it cannot discriminate a launched child from the
+    parent's own continuation turns, which is exactly what
+    `probe_subagent_support` and `probe_concurrency` need to rule out.
+    """
+    models: list[str] = []
+    for name, arguments in codex_function_calls(frames):
+        if name != "spawn_agent":
+            continue
+        model = arguments.get("model")
+        if isinstance(model, str) and model:
+            models.append(model)
+    return models
+
+
+def _codex_spawn_call_indices(frames: Sequence[CodexFrame]) -> list[int]:
+    """Return the frame position of every `spawn_agent` function-call frame."""
+    indices: list[int] = []
+    for index, frame in enumerate(frames):
+        payload = frame.payload
+        if payload.get("type") != "response.output_item.done":
+            continue
+        item = payload.get("item")
+        if (
+            isinstance(item, Mapping)
+            and item.get("type") == "function_call"
+            and item.get("name") == "spawn_agent"
+        ):
+            indices.append(index)
+    return indices
+
+
+def _codex_parent_signature(spans: Sequence[ResponseSpan]) -> tuple[str, str | None] | None:
+    """Return the first span's `(model, effort)`, the parent's own signature."""
+    if not spans:
+        return None
+    return (spans[0].model, spans[0].effort)
+
+
+def _codex_child_spans(frames: Sequence[CodexFrame]) -> list[ResponseSpan]:
+    """Return spans that plausibly answer for a spawned child, not the parent.
+
+    A span counts only when both hold (issue #5423 review finding 5):
+    it was created after at least one `spawn_agent` call frame, and its
+    `(model, effort)` differs from the parent's own (the first span's).
+    Neither check alone is enough: a `spawn_agent` call that names the
+    parent's own model, or that fails outright (`collab spawn failed`),
+    must not be read as a verified child merely because the parent's own
+    completed spans happen to share that model, and a span with a genuinely
+    different model that somehow preceded any spawn request is not a
+    spawned child either.
+    """
+    spans = codex_response_spans(frames)
+    parent = _codex_parent_signature(spans)
+    if parent is None:
+        return []
+    spawn_indices = _codex_spawn_call_indices(frames)
+    if not spawn_indices:
+        return []
+    earliest_spawn = min(spawn_indices)
+    return [
+        span
+        for span in spans
+        if span.created > earliest_spawn and (span.model, span.effort) != parent
+    ]
+
+
+def _codex_subagent_support(command: ProbeCommand, frames: Sequence[CodexFrame]) -> Capability:
+    """Verify codex launched a child that differs from the parent and completed.
+
+    Codex never emits the `subagent.*` event vocabulary
+    `_capability_topology` reads, so `subagent_support` is read from
+    `_codex_child_spans` instead (see its docstring for the exact rule).
+    Verified against `codex-0.156.0/subagent-luna-high.trace.log`, whose
+    three child spans (`gpt-6-luna`/`high`) complete after the parent's
+    (`gpt-5.6-sol`/`medium`) `spawn_agent` calls.
+    """
+    completed_children = [span for span in _codex_child_spans(frames) if span.completed is not None]
+    if not completed_children:
+        return Capability(
+            CapabilityStatus.UNVERIFIED,
+            EvidenceKind.NONE,
+            f"{command.harness} output carried no completed child response that differs "
+            "from the parent's own (model, effort) and followed a spawn_agent call",
+        )
+    return Capability(
+        CapabilityStatus.VERIFIED,
+        EvidenceKind.BACKEND,
+        f"{command.harness} output carried a completed child response on model "
+        f"{completed_children[0].model!r}, differing from the parent and following a "
+        "spawn_agent call",
     )
 
 
@@ -444,6 +839,11 @@ def probe_subagent_support(
 ) -> Capability:
     """Verify the harness launched a child in its backend event stream."""
     _validate_command(command, executable_allowlist=executable_allowlist)
+    if command.harness == "codex":
+        frames, failure = _capture_codex_frames(command, runner=runner, timeout=timeout)
+        if frames is None:
+            return Capability(CapabilityStatus.UNVERIFIED, EvidenceKind.NONE, failure)
+        return _codex_subagent_support(command, frames)
     events, failure = _capture_events(command, runner=runner, timeout=timeout)
     if events is None:
         return Capability(CapabilityStatus.UNVERIFIED, EvidenceKind.NONE, failure)
@@ -464,6 +864,48 @@ def probe_subagent_support(
     )
 
 
+def _codex_concurrency(
+    command: ProbeCommand, frames: Sequence[CodexFrame], *, requested: int
+) -> Capability:
+    """Measure the peak concurrent codex children on the requested child model.
+
+    `peak_overlap` runs over `_codex_child_spans` only, never the full span
+    list: excluding the parent's own spans (issue #5423 review finding 5)
+    means a parent that happens to share the requested child model can
+    never inflate the count. Verified against
+    `codex-0.156.0/concurrency-3-requested.trace.log`: three `spawn_agent`
+    calls name `gpt-6-luna`, and at most two of that model's child spans
+    overlap, so a request for three stays `UNVERIFIED` with `value=2`,
+    matching this repository's checked-in matrix.
+    """
+    requested_models = _codex_spawn_models(frames)
+    if len(requested_models) < requested:
+        return Capability(
+            CapabilityStatus.UNVERIFIED,
+            EvidenceKind.NONE,
+            f"{command.harness} output recorded {len(requested_models)} spawn_agent call(s) "
+            f"naming a model, fewer than the requested {requested}",
+        )
+    target_model = requested_models[0]
+    child_spans = _codex_child_spans(frames)
+    peak = codex_peak_overlap(child_spans, model=target_model)
+    if peak is None:
+        return Capability(
+            CapabilityStatus.UNVERIFIED,
+            EvidenceKind.NONE,
+            f"{command.harness} output has no completed child response on {target_model!r}, "
+            f"so concurrency cannot be derived (requested {requested})",
+        )
+    status = CapabilityStatus.VERIFIED if peak >= requested else CapabilityStatus.UNVERIFIED
+    return Capability(
+        status,
+        EvidenceKind.BACKEND,
+        f"{command.harness} ran at most {peak} children of {target_model!r} at once while "
+        f"{requested} were requested",
+        value=peak,
+    )
+
+
 def probe_concurrency(
     command: ProbeCommand,
     *,
@@ -476,7 +918,7 @@ def probe_concurrency(
     if requested < 1:
         raise ProbeError("requested concurrency must be at least 1")
     _validate_command(command, executable_allowlist=executable_allowlist)
-    if not _carries_request(command, str(requested)):
+    if not _carries_request(command, str(requested), "concurrency_limit"):
         raise ProbeError(
             f"command does not request concurrency {requested} in its typed request flag"
         )
@@ -487,6 +929,11 @@ def probe_concurrency(
             f"{command.harness} request flag {command.request_flag!r} is not trusted "
             "for concurrency_limit",
         )
+    if command.harness == "codex":
+        frames, failure = _capture_codex_frames(command, runner=runner, timeout=timeout)
+        if frames is None:
+            return Capability(CapabilityStatus.UNVERIFIED, EvidenceKind.NONE, failure)
+        return _codex_concurrency(command, frames, requested=requested)
     events, failure = _capture_events(command, runner=runner, timeout=timeout)
     if events is None:
         return Capability(CapabilityStatus.UNVERIFIED, EvidenceKind.NONE, failure)
@@ -525,6 +972,7 @@ def _load_probe_command(
     value: Mapping[str, object],
     field: str,
     harness: str,
+    capability: str,
     *,
     request_value: str | int | None = None,
 ) -> ProbeCommand:
@@ -565,7 +1013,11 @@ def _load_probe_command(
         raise ProbeError(f"{field}.env must not contain NUL bytes")
     argv = tuple(raw_argv)
     if request_flag is not None:
-        argv = (*argv, request_flag, str(request_value))
+        rendered = _rendered_request(harness, capability, request_flag, str(request_value))
+        target_flag, target_value = (
+            rendered if rendered is not None else (request_flag, str(request_value))
+        )
+        argv = (*argv, target_flag, target_value)
     command = ProbeCommand(
         harness=harness,
         argv=argv,
@@ -620,11 +1072,13 @@ def _load_behavioral_probe(value: object, index: int) -> BehavioralProbe:
     parent_value, child_value, requested = _load_probe_values(value, field, capability)
     if capability in OVERRIDE_CAPABILITIES or capability == "concurrency_limit":
         request_value = child_value if capability in OVERRIDE_CAPABILITIES else requested
-        command = _load_probe_command(value, field, harness, request_value=request_value)
+        command = _load_probe_command(
+            value, field, harness, capability, request_value=request_value
+        )
     else:
         if "request_flag" in value:
             raise ProbeError(f"{field}.request_flag requires an override or concurrency probe")
-        command = _load_probe_command(value, field, harness)
+        command = _load_probe_command(value, field, harness, capability)
     return BehavioralProbe(
         harness=harness,
         capability=capability,
