@@ -488,6 +488,8 @@ def _backend_agreement(values: set[str]) -> ProbeObservation | None:
 def observe_copilot_model(
     events: Sequence[Mapping[str, object]],
     wire_responses: Sequence[WireResponse],
+    *,
+    scope: str = "parent",
 ) -> ProbeObservation:
     """Read the model Copilot's configured provider actually returned.
 
@@ -500,14 +502,18 @@ def observe_copilot_model(
     `.events.jsonl`. That makes `data.model` `CLIENT_ECHO`, and the wire
     response body `BACKEND`.
 
-    A child task-tool turn (see `_copilot_answer_turns`) is preferred over a
-    parent turn when both exist, the same reasoning `observe_codex_model`
-    applies to a spawned child's own frames: a model-override probe wants
-    the child's value, not the parent's echoed request.
+    `scope` picks which turns count, and nothing falls back to the other
+    set. `"parent"` reads top-level turns only, which is what a top-level
+    `--model` override sets. `"child"` reads task-subagent turns only, which
+    is what a task-tool `model` argument sets. Reading children for a
+    top-level override would let a child that asked for the same model
+    verify an override the parent never honored.
     """
+    if scope not in ("parent", "child"):
+        raise ValueError(f"scope must be 'parent' or 'child', got {scope!r}")
     wire_by_id = {response.id: response.model for response in wire_responses}
     parent, child = _copilot_answer_turns(events, wire_by_id)
-    candidates = child or parent
+    candidates = parent if scope == "parent" else child
     if not candidates:
         return ProbeObservation(None, EvidenceKind.NONE, "no copilot answer turn carried a model")
     backend_values = {backend for backend, _ in candidates if backend}

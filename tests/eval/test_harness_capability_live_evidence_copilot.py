@@ -101,7 +101,7 @@ def test_model_override_reproduces_verified_from_child_model_override() -> None:
     events = _events("child-model-override.events.jsonl")
     responses = copilot_wire.parse_wire_responses(_wire_text("child-model-override.wire.log"))
 
-    observed = evidence.observe_copilot_model(events, responses)
+    observed = evidence.observe_copilot_model(events, responses, scope="child")
     status = capability.classify_override(
         "claude-sonnet-4-6",
         observed.observed,

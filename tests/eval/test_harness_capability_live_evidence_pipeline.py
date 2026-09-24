@@ -14,6 +14,8 @@ pipeline runs are all exercised together, not just the observation layer.
 
 from __future__ import annotations
 
+import pytest
+
 from tests.eval._capability_probe_fixtures import (
     TIMEOUT,
     CapabilityStatus,
@@ -150,10 +152,8 @@ def test_codex_concurrency_stays_unverified_from_the_raw_concurrency_fixture() -
 # --- copilot: model_override, effort_override, subagent_support ------------------
 
 
-def test_copilot_model_override_verifies_from_the_raw_wire_and_events_fixtures(tmp_path) -> None:
-    wire_text = (COPILOT_FIXTURES / "child-model-override.wire.log").read_text()
-    log_dir = copilot_wire_log_dir(tmp_path, wire_text)
-    command = ProbeCommand(
+def _copilot_model_command(log_dir, model: str) -> ProbeCommand:
+    return ProbeCommand(
         harness="copilot",
         argv=(
             "copilot",
@@ -164,21 +164,43 @@ def test_copilot_model_override_verifies_from_the_raw_wire_and_events_fixtures(t
             "--log-dir",
             str(log_dir),
             "--model",
-            "claude-sonnet-4-6",
+            model,
         ),
         request_flag="--model",
     )
-    stdout = _copilot_events("child-model-override.events.jsonl")
+
+
+def test_copilot_top_level_alias_request_does_not_verify_against_the_dated_id(tmp_path) -> None:
+    """NEGATIVE CONTROL: the parent asked for `claude-haiku-4-5` and the provider
+    answered `claude-haiku-4-5-20251001`; the alias is never folded onto it."""
+    wire_text = (COPILOT_FIXTURES / "child-model-override.wire.log").read_text()
+    command = _copilot_model_command(copilot_wire_log_dir(tmp_path, wire_text), "claude-haiku-4-5")
+
+    result = probes.probe_override(
+        _plan(parent="claude-sonnet-4-6", candidates=("claude-haiku-4-5",)),
+        command,
+        runner=_runner(_copilot_events("child-model-override.events.jsonl")),
+        timeout=TIMEOUT,
+    )
+
+    assert result.status is CapabilityStatus.UNVERIFIED
+
+
+def test_copilot_child_on_the_requested_model_does_not_verify_a_top_level_override(
+    tmp_path,
+) -> None:
+    """NEGATIVE CONTROL: only the child ran `claude-sonnet-4-6`; the parent did not."""
+    wire_text = (COPILOT_FIXTURES / "child-model-override.wire.log").read_text()
+    command = _copilot_model_command(copilot_wire_log_dir(tmp_path, wire_text), "claude-sonnet-4-6")
 
     result = probes.probe_override(
         _plan(parent="claude-haiku-4-5-20251001", candidates=("claude-sonnet-4-6",)),
         command,
-        runner=_runner(stdout),
+        runner=_runner(_copilot_events("child-model-override.events.jsonl")),
         timeout=TIMEOUT,
     )
 
-    assert result.status is CapabilityStatus.VERIFIED
-    assert result.evidence is EvidenceKind.BACKEND
+    assert result.status is CapabilityStatus.UNVERIFIED
 
 
 def test_copilot_effort_override_stays_client_echo_from_the_raw_wire_fixture(tmp_path) -> None:
@@ -246,3 +268,55 @@ def test_copilot_concurrency_is_refused_before_any_capture(tmp_path) -> None:
     assert result.status is CapabilityStatus.UNVERIFIED
     assert result.evidence is EvidenceKind.NONE
     assert "not trusted" in result.detail
+
+
+def test_copilot_relative_log_dir_resolves_against_the_probe_cwd(tmp_path) -> None:
+    wire_text = (COPILOT_FIXTURES / "child-model-override.wire.log").read_text()
+    copilot_wire_log_dir(tmp_path, wire_text)
+    log_dir_name = "copilot-logs"
+    command = ProbeCommand(
+        harness="copilot",
+        argv=("copilot", "-p", "probe", "--log-dir", log_dir_name),
+        cwd=tmp_path,
+    )
+
+    result = probes.probe_subagent_support(
+        command,
+        runner=_runner(_copilot_events("child-model-override.events.jsonl")),
+        timeout=TIMEOUT,
+    )
+
+    assert result.status is CapabilityStatus.VERIFIED
+
+
+def test_copilot_a_stale_wire_log_never_verifies_subagent_support(tmp_path) -> None:
+    """NEGATIVE CONTROL: responses from another run share no apiCallId."""
+    wire_text = (COPILOT_FIXTURES / "concurrency-3-requested.wire.log").read_text()
+    log_dir = copilot_wire_log_dir(tmp_path, wire_text)
+    command = ProbeCommand(
+        harness="copilot", argv=("copilot", "-p", "probe", "--log-dir", str(log_dir))
+    )
+
+    result = probes.probe_subagent_support(
+        command,
+        runner=_runner(_copilot_events("child-model-override.events.jsonl")),
+        timeout=TIMEOUT,
+    )
+
+    assert result.status is CapabilityStatus.UNVERIFIED
+    assert result.evidence is EvidenceKind.CLIENT_ECHO
+
+
+def test_copilot_an_unreadable_wire_log_raises_probe_error(tmp_path) -> None:
+    log_dir = tmp_path / "logs"
+    (log_dir / "process-1.log").mkdir(parents=True)
+    command = ProbeCommand(
+        harness="copilot", argv=("copilot", "-p", "probe", "--log-dir", str(log_dir))
+    )
+
+    with pytest.raises(probes.ProbeError, match="could not be read"):
+        probes.probe_subagent_support(
+            command,
+            runner=_runner(_copilot_events("child-model-override.events.jsonl")),
+            timeout=TIMEOUT,
+        )

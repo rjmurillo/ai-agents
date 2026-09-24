@@ -628,7 +628,10 @@ def _capture_copilot_wire(
             "no --log-dir in the command argv; pass --log-level all --log-dir "
             "<dir> to capture backend wire evidence",
         )
-    log_file = _newest_log_file(Path(log_dir))
+    log_path = Path(log_dir)
+    if not log_path.is_absolute() and command.cwd is not None:
+        log_path = command.cwd / log_path
+    log_file = _newest_log_file(log_path)
     if log_file is None:
         return (
             events,
@@ -637,7 +640,10 @@ def _capture_copilot_wire(
             f"no process-*.log file under {log_dir}; pass --log-level all "
             "--log-dir <dir> to capture backend wire evidence",
         )
-    text = log_file.read_text(encoding="utf-8")
+    try:
+        text = log_file.read_text(encoding="utf-8", errors="replace")
+    except OSError as exc:
+        raise ProbeError(f"{command.harness} wire log could not be read: {exc}") from exc
     try:
         responses = tuple(parse_wire_responses(text))
         requests = tuple(parse_wire_requests(text))
@@ -666,7 +672,7 @@ def _observe_copilot_override(
     if plan.capability == "model_override":
         if not responses:
             return Capability(CapabilityStatus.UNVERIFIED, EvidenceKind.NONE, failure)
-        return observe_copilot_model(events, responses)
+        return observe_copilot_model(events, responses, scope="parent")
     if not requests:
         return Capability(CapabilityStatus.UNVERIFIED, EvidenceKind.NONE, failure)
     return observe_copilot_effort(requests)
@@ -889,10 +895,10 @@ def _copilot_subagent_support(
     """Verify a copilot child from its provider response, not its lifecycle events.
 
     `subagent.started` and `subagent.completed` are client events, so they
-    alone earn only `CLIENT_ECHO`. `VERIFIED` needs a wire-log response on a
-    model some `subagent.started` event requested, and that model must differ
-    from the parent's first response model, so the response is attributable
-    to the child rather than to the parent.
+    alone earn only `CLIENT_ECHO`. `VERIFIED` needs a child answer turn (an
+    `assistant.message` with `agentId`) whose `data.apiCallId` equals the
+    `id` of a response in this run's wire log. The join rejects a stale log
+    from an earlier run and does not depend on model names.
     """
     events, responses, _requests, failure = _capture_copilot_wire(
         command, runner=runner, timeout=timeout
@@ -906,29 +912,28 @@ def _copilot_subagent_support(
             EvidenceKind.NONE,
             "copilot output carried no subagent events",
         )
-    child_models = {
-        data.get("model")
+    response_ids = {response.id for response in responses}
+    joined = sorted(
+        str(data.get("apiCallId"))
         for event in events
-        if event.get("type") == "subagent.started"
+        if event.get("type") == "assistant.message"
+        and event.get("agentId")
         and isinstance(data := event.get("data"), Mapping)
-    }
-    parent_model = responses[0].model if responses else None
-    attributed = sorted(
-        {r.model for r in responses if r.model in child_models and r.model != parent_model}
+        and data.get("apiCallId") in response_ids
     )
-    if not attributed:
+    if not joined:
         return Capability(
             CapabilityStatus.UNVERIFIED,
             EvidenceKind.CLIENT_ECHO,
             f"copilot output carried {len(launched)} client subagent lifecycle events but no "
-            "wire response attributable to a child model; "
-            + (failure or "request a child model that differs from the parent's"),
+            "child answer turn whose apiCallId matches a wire response; "
+            + (failure or "pass --log-level all --log-dir <dir> for this run"),
         )
     return Capability(
         CapabilityStatus.VERIFIED,
         EvidenceKind.BACKEND,
-        f"copilot wire log carried a provider response on child model {attributed[0]!r}, "
-        f"distinct from the parent's {parent_model!r}",
+        f"copilot wire log carried {len(joined)} provider response(s) joined by apiCallId "
+        "to child answer turns",
     )
 
 

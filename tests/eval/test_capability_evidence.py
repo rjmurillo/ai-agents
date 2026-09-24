@@ -11,6 +11,8 @@ fallback rules in isolation.
 
 from __future__ import annotations
 
+import pytest
+
 from tests.eval._harness_capability_test_support import codex_frames as cf
 from tests.eval._harness_capability_test_support import copilot_wire as cw
 from tests.eval._harness_capability_test_support import evidence as ev
@@ -181,7 +183,7 @@ def test_observe_copilot_model_prefers_the_wire_response_over_the_client_label()
     assert observation.evidence is EvidenceKind.BACKEND
 
 
-def test_observe_copilot_model_prefers_a_child_turn_over_the_parent() -> None:
+def test_observe_copilot_model_reads_only_the_requested_scope() -> None:
     events = [
         _answer(content="parent reply", model="claude-haiku-4-5", api_call_id="msg_parent"),
         _answer(
@@ -198,9 +200,29 @@ def test_observe_copilot_model_prefers_a_child_turn_over_the_parent() -> None:
         cw.WireResponse(request_id="req_c", id="msg_child", model="claude-sonnet-4-6", usage={}),
     ]
 
-    observation = ev.observe_copilot_model(events, responses)
+    parent = ev.observe_copilot_model(events, responses, scope="parent")
+    child = ev.observe_copilot_model(events, responses, scope="child")
 
-    assert observation.observed == "claude-sonnet-4-6"
+    assert parent.observed == "claude-haiku-4-5-20251001"
+    assert child.observed == "claude-sonnet-4-6"
+
+
+def test_observe_copilot_model_child_scope_never_falls_back_to_the_parent() -> None:
+    """NEGATIVE CONTROL: a run with no child turn observes no child model."""
+    events = [_answer(content="parent reply", model="claude-haiku-4-5", api_call_id="msg_p")]
+    responses = [
+        cw.WireResponse(request_id="req_p", id="msg_p", model="claude-haiku-4-5-20251001", usage={})
+    ]
+
+    observation = ev.observe_copilot_model(events, responses, scope="child")
+
+    assert observation.observed is None
+    assert observation.evidence is EvidenceKind.NONE
+
+
+def test_observe_copilot_model_rejects_an_unknown_scope() -> None:
+    with pytest.raises(ValueError, match="scope"):
+        ev.observe_copilot_model([], [], scope="both")
 
 
 def test_observe_copilot_model_falls_back_to_client_echo_with_no_wire_match() -> None:
