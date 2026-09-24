@@ -229,16 +229,24 @@ class TestApplyMutation:
 
 class TestRunTestsDefaultRepoRoot:
     def test_run_tests_disables_bytecode_writes(self, monkeypatch):
+        # Stub the purge (issue #5913). The real one runs rmtree over the live
+        # checkout while other xdist workers write .pyc files, so it can raise
+        # and make _run_tests return before subprocess.run is ever called.
+        purged: list[Path] = []
         captured = {}
 
         def fake_run(*args, **kwargs):
             captured["env"] = kwargs["env"]
             return _proc(0)
 
+        monkeypatch.setattr(harness, "purge_bytecode", purged.append)
         monkeypatch.setattr(harness.subprocess, "run", fake_run)
 
-        harness._run_tests("tests/example.py::test_example")
+        result = harness._run_tests("tests/example.py::test_example")
 
+        assert result.returncode == 0
+        assert purged == [harness.REPO_ROOT]
+        assert "env" in captured, "_run_tests returned before calling subprocess.run"
         assert captured["env"]["PYTHONDONTWRITEBYTECODE"] == "1"
 
 
