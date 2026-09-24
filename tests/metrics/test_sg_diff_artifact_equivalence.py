@@ -13,6 +13,7 @@ from __future__ import annotations
 import hashlib
 import os
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -197,10 +198,10 @@ def test_prune_skips_artifact_when_stat_raises(
     artifact = store_dir / repo_id / f"{ref.sha256}.diff"
     original_stat = Path.stat
 
-    def _flaky_stat(self: Path, *args: object, **kwargs: object) -> os.stat_result:
+    def _flaky_stat(self: Path, *args: Any, **kwargs: Any) -> os.stat_result:
         if self == artifact:
             raise OSError("simulated stat failure")
-        return original_stat(self, *args, **kwargs)  # type: ignore[arg-type]
+        return original_stat(self, *args, **kwargs)
 
     monkeypatch.setattr(Path, "stat", _flaky_stat)
 

@@ -16,7 +16,7 @@ import json
 import urllib.error
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from scripts.metrics.sg_reference_ab import DEFAULT_PLUGIN_DIR as _PLUGIN_HOOKS_DIR
 
@@ -82,7 +82,7 @@ def http_error(code: int, body: bytes | None = None) -> urllib.error.HTTPError:
     """
     fp = io.BytesIO(body) if body is not None else None
     return urllib.error.HTTPError(
-        "https://api.anthropic.com/v1/messages", code, "err", {}, fp  # type: ignore[arg-type]
+        "https://api.anthropic.com/v1/messages", code, "err", cast(Any, {}), cast(Any, fp)
     )
 
 

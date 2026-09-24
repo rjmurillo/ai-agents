@@ -18,6 +18,7 @@ import json
 import urllib.error
 import urllib.request
 from pathlib import Path
+from typing import Any, cast
 
 import pytest
 
@@ -396,7 +397,7 @@ def test_read_http_error_body_empty_when_read_raises() -> None:
             return None
 
     exc = urllib.error.HTTPError(
-        "https://api.anthropic.com/v1/messages", 400, "err", {}, _BoomFp()  # type: ignore[arg-type]
+        "https://api.anthropic.com/v1/messages", 400, "err", cast(Any, {}), cast(Any, _BoomFp())
     )
     assert api._read_http_error_body(exc) == ""
 
