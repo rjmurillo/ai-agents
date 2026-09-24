@@ -1,3 +1,5 @@
+> **Superseded 2026-09-24.** The owner reset the platform hierarchy: Claude Code P0, Copilot CLI P0, Codex P1, VS Code P2. See the Platform Priority Hierarchy in `.project-toolkit/roadmap/product-roadmap.md`. The content below is kept as history.
+
 | Priority | Platform | Investment |
 |----------|----------|------------|
 | P0 | Claude Code | Full |

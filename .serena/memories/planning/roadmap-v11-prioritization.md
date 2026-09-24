@@ -3,6 +3,8 @@
 **Date**: 2025-12-15
 **Decision**: 2-Variant Consolidation approved at P1
 
+> **Superseded 2026-09-24.** The v1.x release labels are retired. The VS Code consolidation epic (#972) closed, and full templating shipped through ADR-108 and ADR-109. See `.project-toolkit/roadmap/product-roadmap.md`. The content below is kept as history.
+
 ## Epic: 2-Variant Consolidation + Diff-Linting
 
 ### Priority Assessment
