@@ -249,6 +249,21 @@ class TestRunTestsDefaultRepoRoot:
         assert "env" in captured, "_run_tests returned before calling subprocess.run"
         assert captured["env"]["PYTHONDONTWRITEBYTECODE"] == "1"
 
+    def test_purge_failure_returns_4_without_running_pytest(self, monkeypatch):
+        calls = []
+
+        def failing_purge(root):
+            raise OSError(39, "Directory not empty", str(root / "__pycache__"))
+
+        monkeypatch.setattr(harness, "purge_bytecode", failing_purge)
+        monkeypatch.setattr(harness.subprocess, "run", lambda *a, **k: calls.append(a))
+
+        result = harness._run_tests("tests/example.py::test_example")
+
+        assert result.returncode == 4
+        assert "could not purge bytecode" in result.stderr
+        assert calls == []
+
 
 class TestRestoreBackups:
     """Restore helper reports every dirty file before exiting."""
