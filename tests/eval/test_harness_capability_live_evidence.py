@@ -21,6 +21,8 @@ this repository's 500-line file-size ceiling.
 from __future__ import annotations
 
 import json
+import re
+from typing import Any
 
 from tests.eval._harness_capability_test_support import (
     FIXTURES,
@@ -186,7 +188,7 @@ def test_durable_artifact_handoff_reproduces_verified_from_the_handoff_pair() ->
     writer_text = (CODEX_FIXTURES / "plan-writer.stdout.jsonl").read_text(encoding="utf-8")
     plan_writer_events = [json.loads(line) for line in writer_text.splitlines() if line.strip()]
 
-    def _is_file_change_start(event: dict[str, object]) -> bool:
+    def _is_file_change_start(event: dict[str, Any]) -> bool:
         item = event.get("item", {})
         return event.get("type") == "item.started" and item.get("type") == "file_change"
 
@@ -286,3 +288,42 @@ def test_every_verified_codex_capability_is_reproduced_here() -> None:
     }
 
     assert matrix_verified == _REPRODUCED_CODEX_VERIFIED_KEYS
+
+
+#: A fixture path a matrix `detail` field cites as evidence, for example
+#: `codex-0.156.0/subagent-luna-high.trace.log` or
+#: `copilot-1.0.89-byok-anthropic/child-model-override.wire.log`. `\b` after
+#: the extension stops a greedy match from stopping at a shorter alternative
+#: that happens to be a prefix of a longer one (`json` inside `jsonl`): `\b`
+#: only holds at a word/non-word boundary, and `n`/`l` are both word
+#: characters, so the engine is forced to keep matching through the `l`.
+_FIXTURE_CITATION = re.compile(
+    r"[\w.\-]+/[\w.\-]+\.(?:trace\.log|stdout\.jsonl|events\.jsonl|wire\.log|json|stderr\.txt)\b"
+)
+
+
+def test_checked_in_matrix_verified_cells_cite_real_evidence() -> None:
+    """Every VERIFIED cell must carry backend evidence and cite a real fixture.
+
+    Replaces the old all-`UNVERIFIED` pin (issue #5423 reopen): live probes
+    against codex-cli 0.156.0 and copilot-cli 1.0.89 on 2026-09-24 produced
+    real `VERIFIED` cells, so pinning "nothing is ever verified" would now
+    be false. What still must hold is that a `VERIFIED` cell is never a bare
+    assertion: it needs `BACKEND` evidence, a `probe_command`, a `date`, and
+    a `detail` that names a fixture file this repository actually ships,
+    which `tests/eval/test_harness_capability_live_evidence.py` then
+    re-derives from that exact fixture.
+    """
+    for record in capability.load_matrix(MATRIX):
+        for key, cap in record.capabilities.items():
+            if cap.status is not CapabilityStatus.VERIFIED:
+                continue
+            assert cap.evidence is EvidenceKind.BACKEND, f"{record.harness}.{key}"
+            assert cap.probe_command, f"{record.harness}.{key} has no probe_command"
+            assert cap.date, f"{record.harness}.{key} has no date"
+            names = _FIXTURE_CITATION.findall(cap.detail)
+            assert names, f"{record.harness}.{key} detail names no fixture: {cap.detail!r}"
+            for name in names:
+                assert (FIXTURES / name).is_file(), (
+                    f"{record.harness}.{key} cites missing fixture {name}"
+                )

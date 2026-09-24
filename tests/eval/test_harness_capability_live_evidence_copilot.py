@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+from typing import Any
 
 from tests.eval._harness_capability_test_support import (
     FIXTURES,
@@ -34,7 +35,7 @@ BYOK_FIXTURES = FIXTURES / "copilot-1.0.89-byok-anthropic"
 LEGACY_FIXTURES = FIXTURES / "copilot-1.0.89"
 
 
-def _events(name: str) -> list[dict[str, object]]:
+def _events(name: str) -> list[dict[str, Any]]:
     text = (BYOK_FIXTURES / name).read_text(encoding="utf-8")
     return [json.loads(line) for line in text.splitlines() if line.strip()]
 
@@ -43,7 +44,7 @@ def _wire_text(name: str) -> str:
     return (BYOK_FIXTURES / name).read_text(encoding="utf-8")
 
 
-def _final_answer(events: list[dict[str, object]]) -> str:
+def _final_answer(events: list[dict[str, Any]]) -> str:
     """Return the last top-level (no `agentId`) assistant turn with real content.
 
     A turn that only carries tool requests (`content == ""`) is not the

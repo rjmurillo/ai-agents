@@ -24,7 +24,7 @@ EvidenceKind = capability.EvidenceKind
 HarnessCapabilityRecord = capability.HarnessCapabilityRecord
 
 
-def _verified_cap(value: int | None = None, detail: str = "") -> Capability:
+def _verified_cap(value: int | None = None, detail: str = "") -> capability.Capability:
     return Capability(
         status=CapabilityStatus.VERIFIED,
         evidence=EvidenceKind.BACKEND,
@@ -33,8 +33,8 @@ def _verified_cap(value: int | None = None, detail: str = "") -> Capability:
     )
 
 
-def _record(harness: str, supported_models: tuple[str, ...]) -> HarnessCapabilityRecord:
-    caps: dict[str, Capability] = {}
+def _record(harness: str, supported_models: tuple[str, ...]) -> capability.HarnessCapabilityRecord:
+    caps: dict[str, capability.Capability] = {}
     for key in capability.CAPABILITY_KEYS:
         if key == "concurrency_limit":
             caps[key] = _verified_cap(value=3)

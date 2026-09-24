@@ -1,3 +1,6 @@
+# taste-lint: ignore file-size
+# file-size suppression rationale: every rule for what a runtime value is worth
+# (backend, client echo, or none) lives at this one boundary, per harness.
 """What a runtime's own output said, and how much that is worth.
 
 Split out of `_capability_probes` after PR #5623's review. That module runs a

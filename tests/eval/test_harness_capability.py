@@ -10,14 +10,12 @@ of the checked-in matrix deliverable itself.
 from __future__ import annotations
 
 import json
-import re
 import subprocess
 from pathlib import Path
 
 import pytest
 
 from tests.eval._harness_capability_test_support import (
-    FIXTURES,
     MATRIX,
     UNPROBED_MATRIX,
     capability,
@@ -90,45 +88,6 @@ def test_fully_backed_record_validates() -> None:
 def test_load_matrix_reads_checked_in_deliverable() -> None:
     records = capability.load_matrix(MATRIX)
     assert {record.harness for record in records} == {"codex", "copilot"}
-
-
-#: A fixture path a matrix `detail` field cites as evidence, for example
-#: `codex-0.156.0/subagent-luna-high.trace.log` or
-#: `copilot-1.0.89-byok-anthropic/child-model-override.wire.log`. `\b` after
-#: the extension stops a greedy match from stopping at a shorter alternative
-#: that happens to be a prefix of a longer one (`json` inside `jsonl`): `\b`
-#: only holds at a word/non-word boundary, and `n`/`l` are both word
-#: characters, so the engine is forced to keep matching through the `l`.
-_FIXTURE_CITATION = re.compile(
-    r"[\w.\-]+/[\w.\-]+\.(?:trace\.log|stdout\.jsonl|events\.jsonl|wire\.log|json|stderr\.txt)\b"
-)
-
-
-def test_checked_in_matrix_verified_cells_cite_real_evidence() -> None:
-    """Every VERIFIED cell must carry backend evidence and cite a real fixture.
-
-    Replaces the old all-`UNVERIFIED` pin (issue #5423 reopen): live probes
-    against codex-cli 0.156.0 and copilot-cli 1.0.89 on 2026-09-24 produced
-    real `VERIFIED` cells, so pinning "nothing is ever verified" would now
-    be false. What still must hold is that a `VERIFIED` cell is never a bare
-    assertion: it needs `BACKEND` evidence, a `probe_command`, a `date`, and
-    a `detail` that names a fixture file this repository actually ships,
-    which `tests/eval/test_harness_capability_live_evidence.py` then
-    re-derives from that exact fixture.
-    """
-    for record in capability.load_matrix(MATRIX):
-        for key, cap in record.capabilities.items():
-            if cap.status is not CapabilityStatus.VERIFIED:
-                continue
-            assert cap.evidence is EvidenceKind.BACKEND, f"{record.harness}.{key}"
-            assert cap.probe_command, f"{record.harness}.{key} has no probe_command"
-            assert cap.date, f"{record.harness}.{key} has no date"
-            names = _FIXTURE_CITATION.findall(cap.detail)
-            assert names, f"{record.harness}.{key} detail names no fixture: {cap.detail!r}"
-            for name in names:
-                assert (FIXTURES / name).is_file(), (
-                    f"{record.harness}.{key} cites missing fixture {name}"
-                )
 
 
 def test_checked_in_matrix_never_verifies_sol_ultra_as_another_tier() -> None:

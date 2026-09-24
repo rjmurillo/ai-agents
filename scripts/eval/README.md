@@ -225,10 +225,9 @@ evidence-backed: every `VERIFIED` cell cites a trimmed backend capture under
 `tests/eval/test_harness_capability_live_evidence.py` (codex) and
 `tests/eval/test_harness_capability_live_evidence_copilot.py` (copilot)
 re-derive each `VERIFIED` cell from that capture using the in-tree parsers,
-independent of the live-probe pipeline. `tests/eval/test_harness_capability.py::test_checked_in_matrix_verified_cells_cite_real_evidence`
+independent of the live-probe pipeline. `tests/eval/test_harness_capability_live_evidence.py::test_checked_in_matrix_verified_cells_cite_real_evidence`
 pins that every `VERIFIED` cell has `BACKEND` evidence, a `probe_command`, a
 `date`, and a `detail` naming a fixture file that actually exists.
-
 
 ```json
 {
