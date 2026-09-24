@@ -5,7 +5,7 @@
       "desc": "Routes chaotic incident to analyst before implementer",
       "input": "The checkout page is broken after the latest deploy. Orders are failing with a 500 error. Coordinate the response.",
       "expected_verdict": "ROUTE",
-      "verdict_options": ["ROUTE", "DELEGATE", "EXECUTE", "ASK"],
+      "verdict_options": ["ROUTE", "EXECUTE", "ASK"],
       "expected_reason_contains": "analyst",
       "rationale": "Chaotic incidents require investigation before fixing. Orchestrator must route to analyst for root cause, not jump to implementer."
     },
@@ -16,14 +16,14 @@
       "expected_verdict": "ROUTE",
       "verdict_options": ["ROUTE", "EXECUTE", "ASK"],
       "expected_reason_contains": "investigat",
-      "rationale": "Vague performance complaints have multiple unknowns. Orchestrator should classify as complex and route to analyst for profiling, not directly to implementer. DELEGATE is not an option: sending the investigation to analyst is routing, so offering both labels graded a synonym. The reason check uses the stem investigat, so investigate and investigation both match, and still separates analyst from implementer."
+      "rationale": "Vague performance complaints have multiple unknowns. Orchestrator should classify as complex and route to analyst for profiling, not directly to implementer. DELEGATE is not an option: sending the investigation to analyst is routing, so offering both labels graded a synonym. The reason check uses the stem investigat, so investigate and investigation both match."
     },
     {
       "id": "S3",
       "desc": "Sequences multi-step feature work with spec before code",
       "input": "Plan and implement a new webhook system for our API.",
       "expected_verdict": "ROUTE",
-      "verdict_options": ["ROUTE", "DELEGATE", "EXECUTE", "ASK"],
+      "verdict_options": ["ROUTE", "EXECUTE", "ASK"],
       "expected_reason_contains": "spec",
       "rationale": "Multi-step feature work requires requirements before implementation. Orchestrator must sequence spec-generator or architect before implementer."
     },
@@ -32,7 +32,7 @@
       "desc": "Prioritizes security fix over feature and refactor PRs",
       "input": "Three PRs are open: a security fix (P0), a feature (P2), and a refactor (P3). Coordinate review and merge.",
       "expected_verdict": "ROUTE",
-      "verdict_options": ["ROUTE", "DELEGATE", "EXECUTE", "ASK"],
+      "verdict_options": ["ROUTE", "EXECUTE", "ASK"],
       "expected_reason_contains": "security",
       "rationale": "Security fixes are non-negotiable P0. Orchestrator must route security PR first, then order remaining by priority."
     },

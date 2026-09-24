@@ -2,7 +2,7 @@
 type: design
 id: DESIGN-033
 title: Grade orchestrator S2 and S5 on the decision, and move the eval default to Sonnet 5
-status: draft
+status: implemented
 priority: P2
 related:
   - REQ-035
@@ -38,7 +38,10 @@ not made.
 ## Change
 
 - S2 and S5 drop DELEGATE from `verdict_options`. Their reason checks stay
-  and still reject a route to the wrong specialist.
+  and still reject a reason that names no investigation or no security
+  review. S1, S3, and S4 offered the same synonym pair; S1 answered DELEGATE
+  once on `claude-sonnet-5`. They drop DELEGATE too, and keep their reason
+  checks (`analyst`, `spec`, `security`).
 - S2's reason check becomes the stem `investigat`. On `claude-sonnet-5`, S2
   answered ROUTE in 6 of 6 runs but passed 2, because 4 reasons said
   "investigation", which the literal `investigate` does not match.

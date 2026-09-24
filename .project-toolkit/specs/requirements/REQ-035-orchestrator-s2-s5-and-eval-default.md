@@ -2,7 +2,7 @@
 type: requirement
 id: REQ-035
 title: Grade orchestrator S2 and S5 on the decision, and move the eval default to Sonnet 5
-status: draft
+status: implemented
 priority: P2
 category: functional
 source: PR-5904
@@ -48,7 +48,7 @@ one pricing row, and rerun the corpus.
 
 PR #5904 ablation on `claude-sonnet-4-6`: S2 went from 3 of 3 to 0 of 3, and
 S5 failed on both arms. A 2026-09-24 baseline on `claude-sonnet-5` with the
-current prompt answered DELEGATE on S2 and S5 in 6 of 6 runs each, with
+current prompt answered DELEGATE on S2 in 5 of 6 runs and on S5 in 6 of 6, with
 reasons "route to analyst first for investigation" and "delegate to the
 security agent". Those are the intended behaviors under a different label.
 
@@ -108,7 +108,7 @@ The prompt-change report records the model and every per-run verdict.
 
 ## Acceptance Criteria
 
-1. The S2 and S5 scenarios shall not offer DELEGATE beside ROUTE.
+1. The S1 to S5 scenarios shall not offer DELEGATE beside ROUTE.
 2. The S2 and S5 scenarios shall keep their expected verdict and reason check.
    The S2 check shall match both "investigate" and "investigation".
 3. `DEFAULT_MODEL` shall be `claude-sonnet-5`.

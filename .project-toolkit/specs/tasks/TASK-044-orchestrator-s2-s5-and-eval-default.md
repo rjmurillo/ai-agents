@@ -2,7 +2,7 @@
 type: task
 id: TASK-044
 title: Grade orchestrator S2 and S5 on the decision, and move the eval default to Sonnet 5
-status: todo
+status: done
 priority: P2
 complexity: S
 related:
@@ -24,7 +24,7 @@ Implements REQ-035 per DESIGN-033. One PR.
 
 1. Baseline the orchestrator corpus on `claude-sonnet-5` with the current
    scenarios.
-2. Drop DELEGATE from S2 and S5. Stem the S2 reason check. Drop the S10
+2. Drop DELEGATE from S1 to S5. Stem the S2 reason check. Drop the S10
    phrase check.
 3. Bump `DEFAULT_MODEL` and add the pricing row; update the default test.
 4. Rerun the corpus with no `--model`.
