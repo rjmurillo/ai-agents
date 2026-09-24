@@ -21,8 +21,10 @@ import json
 import os
 import shlex
 import shutil
+import stat
 import subprocess
 import sys
+import tempfile
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import replace
 from datetime import date
@@ -132,11 +134,11 @@ def _install_codex_auth(source: Path, codex_home: Path) -> Path:
     """
     if not source.is_file():
         raise HarnessCapabilityError(f"--codex-auth-file {source} is not a regular file")
-    codex_home.mkdir(parents=True, exist_ok=True, mode=0o700)
-    os.chmod(codex_home, 0o700)
+    codex_home.mkdir(parents=True, exist_ok=True, mode=stat.S_IRWXU)
+    os.chmod(codex_home, stat.S_IRWXU)
     target = codex_home / "auth.json"
     flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
-    fd = os.open(target, flags, 0o600)
+    fd = os.open(target, flags, stat.S_IRUSR | stat.S_IWUSR)
     try:
         with os.fdopen(fd, "wb") as dest, source.open("rb") as src:
             shutil.copyfileobj(src, dest)
@@ -315,7 +317,13 @@ def _augment_behavioral(
         expected = _canonical_executable(executable)
         if expected is None:
             continue
-        workspace = output.parent / "behavioral-probes" / probe.harness / f"probe-{probe_index}"
+        # A fresh directory per run, never a reused `probe-<n>`: a run killed
+        # before its `finally` leaves `auth.json` behind, and the exclusive
+        # create in `_install_codex_auth` would then refuse every later run.
+        # Two concurrent invocations also never share a credential copy.
+        harness_root = output.parent / "behavioral-probes" / probe.harness
+        harness_root.mkdir(parents=True, exist_ok=True)
+        workspace = Path(tempfile.mkdtemp(prefix=f"probe-{probe_index}-", dir=harness_root))
         isolated_probe, installed_auth = _isolate_probe(
             probe,
             workspace=workspace,
@@ -357,6 +365,15 @@ def run(
     """Load the matrix, validate plans, and optionally run live probes."""
     records = load_matrix(matrix_path)
     probes = load_behavioral_probes(behavioral_probes) if behavioral_probes is not None else ()
+    # Checked before any CLI runs, so a bad path cannot let version probes and
+    # earlier copilot probes spend a live run first. A plan with no codex
+    # probe ignores the option.
+    if (
+        codex_auth_file is not None
+        and any(probe.harness == "codex" for probe in probes)
+        and not codex_auth_file.is_file()
+    ):
+        raise HarnessCapabilityError(f"--codex-auth-file {codex_auth_file} is not a regular file")
     if not dry_run:
         records = _augment_versions(
             records,

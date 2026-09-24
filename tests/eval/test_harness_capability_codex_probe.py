@@ -225,7 +225,9 @@ def test_behavioral_probe_updates_copilot_record(tmp_path: Path, monkeypatch) ->
     assert expected_call in runner.calls
     behavioral_index = runner.calls.index(expected_call)
     behavioral_kwargs = runner.kwargs[behavioral_index]
-    workspace = (output.parent / "behavioral-probes" / "copilot" / "probe-0").resolve()
+    workspace = Path(str(behavioral_kwargs["cwd"])).parent
+    assert workspace.parent == (output.parent / "behavioral-probes" / "copilot").resolve()
+    assert workspace.name.startswith("probe-0-")
     assert behavioral_kwargs["cwd"] == workspace / "nested"
     assert (workspace / "nested").is_dir()
     behavioral_env = behavioral_kwargs["env"]
@@ -292,8 +294,8 @@ def test_same_harness_behavioral_probes_use_distinct_workspaces(
     ]
     workspaces = [Path(str(kwargs["cwd"])) for kwargs in behavioral_kwargs]
     assert len(workspaces) == 2
-    assert workspaces[0].name == "probe-0"
-    assert workspaces[1].name == "probe-1"
+    assert workspaces[0].name.startswith("probe-0-")
+    assert workspaces[1].name.startswith("probe-1-")
     assert workspaces[0].parent == workspaces[1].parent
     assert workspaces[0] != workspaces[1]
 

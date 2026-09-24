@@ -140,9 +140,9 @@ def test_codex_auth_file_is_copied_into_the_isolated_codex_home(
             env = kwargs.get("env")
             assert isinstance(env, dict)
             installed = Path(str(env["CODEX_HOME"])) / "auth.json"
-            seen_auth.append(
-                (installed.read_text(encoding="utf-8"), oct(installed.stat().st_mode)[-3:])
-            )
+            # Windows reports no POSIX mode bits, so only POSIX checks them.
+            mode = "600" if cli.os.name == "nt" else oct(installed.stat().st_mode)[-3:]
+            seen_auth.append((installed.read_text(encoding="utf-8"), mode))
             stdout = json.dumps({"type": "turn.completed", "data": {"usage": {}}}) + "\n"
             stderr = f"TRACE tungstenite::protocol: Received message {frame}\n"
             return subprocess.CompletedProcess(args, 0, stdout, stderr)
@@ -364,3 +364,50 @@ def test_codex_auth_file_is_ignored_for_a_copilot_only_plan(tmp_path: Path, monk
     )
 
     assert code == 0
+
+
+def test_bad_codex_auth_file_is_refused_before_any_cli_runs(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """NEGATIVE: a bad path must not let version or copilot probes spend a run first."""
+    plan = tmp_path / "probes.json"
+    plan.write_text(
+        json.dumps(
+            {
+                "probes": [
+                    {
+                        "harness": "copilot",
+                        "capability": "subagent_support",
+                        "argv": ["copilot", "--prompt", "probe"],
+                    },
+                    {
+                        "harness": "codex",
+                        "capability": "subagent_support",
+                        "argv": ["codex", "exec", "probe"],
+                    },
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(cli.shutil, "which", lambda name: f"/bin/{name}")
+    calls: list[list[str]] = []
+
+    def runner(argv: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        calls.append([str(value) for value in argv])
+        return subprocess.CompletedProcess(argv, 0, "", "")
+
+    code = cli.main(
+        [
+            "--output",
+            str(tmp_path / "report.json"),
+            "--behavioral-probes",
+            str(plan),
+            "--codex-auth-file",
+            str(tmp_path / "missing.json"),
+        ],
+        runner=runner,
+    )
+
+    assert code == cli.EXIT_CONFIG
+    assert calls == []
