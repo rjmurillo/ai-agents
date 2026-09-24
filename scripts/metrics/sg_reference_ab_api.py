@@ -84,7 +84,9 @@ import importlib
 import importlib.util
 import json
 import os
+import random
 import sys
+import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
@@ -96,6 +98,8 @@ ANTHROPIC_MESSAGES_URL = "https://api.anthropic.com/v1/messages"
 ANTHROPIC_VERSION = "2023-06-01"
 REQUEST_TIMEOUT_S = 120
 _RETRYABLE_STATUS = frozenset({429, 500, 502, 503, 504})
+RETRY_BASE_DELAY_S = 2.0
+RETRY_MAX_DELAY_S = 60.0
 FALLBACK_MODEL = "claude-sonnet-5"
 
 _MAX_ERROR_BODY_BYTES = 4_096
@@ -248,13 +252,34 @@ def _send_once(request: urllib.request.Request) -> dict[str, Any]:
         return dict(json.loads(response.read().decode("utf-8", errors="replace")))
 
 
+def retry_delay_s(exc: Exception, jitter: float) -> float | None:
+    """Seconds to wait before the single retry, or None when ``exc`` is not retryable.
+
+    A 429 or 5xx honors a numeric ``Retry-After`` header, capped at
+    ``RETRY_MAX_DELAY_S``. Otherwise the wait is ``RETRY_BASE_DELAY_S`` scaled by
+    ``jitter`` in [0.5, 1.5). A network error or timeout is retried too: the
+    Messages API call is read-only, so a repeat cannot double an effect.
+    """
+    if isinstance(exc, urllib.error.HTTPError):
+        if exc.code not in _RETRYABLE_STATUS:
+            return None
+        header = exc.headers.get("Retry-After") if exc.headers else None
+        if header is not None and header.strip().isdigit():
+            return min(float(header.strip()), RETRY_MAX_DELAY_S)
+    elif not isinstance(exc, (urllib.error.URLError, TimeoutError)):
+        return None
+    return RETRY_BASE_DELAY_S * (0.5 + jitter)
+
+
 def _send_with_one_retry(request: urllib.request.Request) -> dict[str, Any]:
     try:
         return _send_once(request)
-    except urllib.error.HTTPError as exc:
-        if exc.code not in _RETRYABLE_STATUS:
+    except (urllib.error.URLError, TimeoutError) as exc:
+        delay = retry_delay_s(exc, random.random())
+        if delay is None:
             raise
-        return _send_once(request)
+    time.sleep(delay)
+    return _send_once(request)
 
 
 def post_messages(

@@ -12,14 +12,11 @@ Transport, tool handlers, and orchestration live in the sibling modules
 
 from __future__ import annotations
 
-import subprocess
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
 from scripts.metrics import sg_diff_reference as sgd
-
-_ALL_FIXTURE_NAMES = ("f_repeat", "f_paths", "f_trunc", "f_mismatch")
 
 
 @dataclass(frozen=True, slots=True)
@@ -44,19 +41,6 @@ class Fixture:
     head: str
 
 
-def _run_git(repo_dir: Path, *args: str) -> str:
-    result = subprocess.run(
-        ["git", *args],
-        cwd=repo_dir,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        check=True,
-    )
-    return result.stdout.strip()
-
-
 def _write_repo_file(repo_dir: Path, rel_path: str, content: str) -> None:
     path = repo_dir / rel_path
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -65,15 +49,15 @@ def _write_repo_file(repo_dir: Path, rel_path: str, content: str) -> None:
 
 def _init_fixture_repo(repo_dir: Path) -> None:
     repo_dir.mkdir(parents=True, exist_ok=True)
-    _run_git(repo_dir, "init", "-q")
-    _run_git(repo_dir, "config", "user.email", "sg-ab@example.com")
-    _run_git(repo_dir, "config", "user.name", "sg-ab")
+    sgd.run_git(repo_dir, ["init", "-q"])
+    sgd.run_git(repo_dir, ["config", "user.email", "sg-ab@example.com"])
+    sgd.run_git(repo_dir, ["config", "user.name", "sg-ab"])
 
 
 def _commit_all(repo_dir: Path, message: str) -> str:
-    _run_git(repo_dir, "add", "-A")
-    _run_git(repo_dir, "commit", "-q", "-m", message)
-    return _run_git(repo_dir, "rev-parse", "HEAD")
+    sgd.run_git(repo_dir, ["add", "-A"])
+    sgd.run_git(repo_dir, ["commit", "-q", "-m", message])
+    return sgd.run_git(repo_dir, ["rev-parse", "HEAD"])
 
 
 def _build_f_repeat(root: Path) -> Fixture:
@@ -260,7 +244,7 @@ def _build_f_mismatch(root: Path) -> Fixture:
     head = _commit_all(repo_dir, "seed vuln commit")
 
     context_dir = root / "f_mismatch-context"
-    _run_git(repo_dir, "worktree", "add", str(context_dir), parent_head)
+    sgd.run_git(repo_dir, ["worktree", "add", str(context_dir), parent_head])
 
     diff_files = [
         (
@@ -294,6 +278,9 @@ _FIXTURE_BUILDERS = {
     "f_trunc": _build_f_trunc,
     "f_mismatch": _build_f_mismatch,
 }
+
+FIXTURE_NAMES = tuple(_FIXTURE_BUILDERS)
+"""Every fixture name, in run order. The CLI validates ``--fixtures`` against it."""
 
 
 def build_fixtures(root: Path, names: Sequence[str]) -> list[Fixture]:

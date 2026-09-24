@@ -70,6 +70,14 @@ _DIFF_BODY_TERMINATOR = "\n\nInvestigate per the method"
 Shared by investigate and iter2; see module docstring divergence note.
 """
 
+_ITER2_SUFFIX_MARKER = "\n\n---\n\nA prior reviewer already flagged"
+"""llm.py:1423: `+ "\\n\\n---\\n\\nA prior reviewer already flagged the items inside "`.
+
+Appears only after the real diff-body terminator. A diff under review can
+quote ``<excluded_findings>`` or this marker, so iter2 is decided from the
+text after the last terminator, never from the whole prompt.
+"""
+
 _CHECKOUT_MARKER = "The DIFF below is authoritative"
 """llm.py:1205: `"...The DIFF below is authoritative for what changed..."`. Optional;
 present only when `SG_AGENTIC_CONTEXT_DIR` differs from the repo dir."""
@@ -126,7 +134,10 @@ _USAGE_FIELDS = (
 def classify_prompt(text: str) -> str | None:
     """Return "investigate", "iter2", "refute", or None for a non-review prompt."""
     if text.startswith(_INVESTIGATE_PREFIX):
-        return "iter2" if _EXCLUDED_FINDINGS_MARKER in text else "investigate"
+        end_idx = text.rfind(_DIFF_BODY_TERMINATOR)
+        tail = text[end_idx:] if end_idx != -1 else ""
+        is_iter2 = _ITER2_SUFFIX_MARKER in tail and _EXCLUDED_FINDINGS_MARKER in tail
+        return "iter2" if is_iter2 else "investigate"
     if text.startswith(_REFUTE_PREFIX):
         return "refute"
     return None
@@ -138,7 +149,10 @@ def _extract_investigate_diff(text: str) -> tuple[str, bool]:
         return "", _CHECKOUT_MARKER in text
     checkout_note = _CHECKOUT_MARKER in text[:header_idx]
     start = header_idx + len(_DIFF_HEADER)
-    end_idx = text.find(_DIFF_BODY_TERMINATOR, start)
+    # rfind, not find: the reviewed diff can quote the terminator as data. The
+    # plugin appends the real terminator after the diff, and nothing after it
+    # carries a blank line plus this text (iter2 exclusions are whitespace-collapsed).
+    end_idx = text.rfind(_DIFF_BODY_TERMINATOR, start)
     diff_body = text[start:end_idx] if end_idx != -1 else text[start:]
     return diff_body, checkout_note
 
@@ -148,7 +162,8 @@ def _extract_refute_diff(text: str) -> str:
     if header_idx == -1:
         return ""
     start = header_idx + len(_REFUTE_DIFF_HEADER)
-    end_idx = text.find(_REFUTE_TERMINATOR, start)
+    # rfind for the same reason: the capped diff can quote the refute tail.
+    end_idx = text.rfind(_REFUTE_TERMINATOR, start)
     return text[start:end_idx] if end_idx != -1 else text[start:]
 
 

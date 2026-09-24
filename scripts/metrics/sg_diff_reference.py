@@ -125,8 +125,16 @@ DEFAULT_TOTAL_BYTES = 400_000
 _DIFF_SECTION_RE = re.compile(r"^=== DIFF: (.+) ===$")
 
 
-def _run_git(repo_dir: str | Path, args: list[str]) -> str:
+GIT_TIMEOUT_S = 30
+"""Upper bound for one git subprocess; a locked repository raises instead of hanging."""
+
+
+def run_git(repo_dir: str | Path, args: list[str]) -> str:
     """Run a git subcommand in ``repo_dir`` and return trimmed stdout.
+
+    Shared by this module and ``sg_reference_ab_fixtures`` so the subprocess
+    convention has one owner. Raises ``subprocess.TimeoutExpired`` after
+    ``GIT_TIMEOUT_S`` seconds.
 
     Raises ``subprocess.CalledProcessError`` on a non-zero exit so callers can
     distinguish "git says no" (e.g. no configured remote) from "git ran fine
@@ -142,6 +150,7 @@ def _run_git(repo_dir: str | Path, args: list[str]) -> str:
         encoding="utf-8",
         errors="replace",
         check=True,
+        timeout=GIT_TIMEOUT_S,
     )
     return result.stdout.strip()
 
@@ -156,13 +165,13 @@ def repo_identity(repo_dir: str | Path) -> str:
     unrelated repositories with no remote configured still differ, because
     their ``--git-common-dir`` realpaths differ.
     """
-    common_dir_raw = _run_git(repo_dir, ["rev-parse", "--git-common-dir"])
+    common_dir_raw = run_git(repo_dir, ["rev-parse", "--git-common-dir"])
     common_dir = Path(common_dir_raw)
     if not common_dir.is_absolute():
         common_dir = Path(repo_dir).resolve() / common_dir
     realpath = os.path.realpath(common_dir)
     try:
-        remote_url = _run_git(repo_dir, ["config", "--get", "remote.origin.url"])
+        remote_url = run_git(repo_dir, ["config", "--get", "remote.origin.url"])
     except subprocess.CalledProcessError:
         remote_url = ""
     digest_input = f"{realpath}\x00{remote_url}".encode()

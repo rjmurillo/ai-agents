@@ -207,3 +207,18 @@ def test_diff_line_semantics_excludes_file_headers_counts_multiset() -> None:
     semantics = sgd.diff_line_semantics(diff_text)
 
     assert semantics == {"a.py": Counter({"+added once": 2, "-removed": 1})}
+
+
+def test_run_git_passes_a_bounded_timeout(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    seen: dict[str, object] = {}
+
+    class _Done:
+        stdout = " out \n"
+
+    def _fake_run(*args: object, **kwargs: object) -> _Done:
+        seen.update(kwargs)
+        return _Done()
+
+    monkeypatch.setattr(sgd.subprocess, "run", _fake_run)
+    assert sgd.run_git(tmp_path, ["status"]) == "out"
+    assert seen["timeout"] == sgd.GIT_TIMEOUT_S

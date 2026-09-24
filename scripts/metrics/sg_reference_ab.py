@@ -56,7 +56,7 @@ from scripts.metrics.sg_reference_ab_api import (
     load_api_key,
     load_plugin_contract,
 )
-from scripts.metrics.sg_reference_ab_fixtures import Fixture, build_fixtures
+from scripts.metrics.sg_reference_ab_fixtures import FIXTURE_NAMES, Fixture, build_fixtures
 from scripts.metrics.sg_reference_ab_toolloop import run_investigate_loop
 
 DEFAULT_PLUGIN_DIR = (
@@ -70,7 +70,6 @@ DEFAULT_PLUGIN_DIR = (
     / "hooks"
 )
 
-_ALL_FIXTURE_NAMES = ("f_repeat", "f_paths", "f_trunc", "f_mismatch")
 
 EXIT_OK = 0
 EXIT_CONFIG = 2
@@ -335,13 +334,13 @@ def _parse_args(argv: Sequence[str]) -> argparse.Namespace:
 
 def _selected_fixture_names(raw: str | None) -> tuple[str, ...] | None:
     if raw is None:
-        return _ALL_FIXTURE_NAMES
+        return FIXTURE_NAMES
     names = tuple(n.strip() for n in raw.split(",") if n.strip())
-    unknown = [n for n in names if n not in _ALL_FIXTURE_NAMES]
+    unknown = [n for n in names if n not in FIXTURE_NAMES]
     if unknown or not names:
         print(
             f"sg_reference_ab: unknown fixture(s) {unknown or '(empty)'}; "
-            f"choose from {_ALL_FIXTURE_NAMES}",
+            f"choose from {FIXTURE_NAMES}",
             file=sys.stderr,
         )
         return None
@@ -391,9 +390,24 @@ def _report_total_failure(rows: Sequence[RunResult]) -> None:
     print("sg_reference_ab: every run failed", file=sys.stderr)
 
 
+def repo_root_for(module_file: Path) -> Path | None:
+    """Repository root for the ``.env`` lookup, or None for a symlinked module.
+
+    Mirrors ``scripts/eval/_anthropic_api.py:67-73``: a symlinked module path
+    would move ``parents[2]`` and let a planted ``.env`` supply credentials, and
+    ``resolve()`` would hide the symlink, so the check runs first.
+    """
+    if module_file.is_symlink():
+        return None
+    return module_file.resolve().parents[2]
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parse_args(sys.argv[1:] if argv is None else argv)
-    repo_root = Path(__file__).resolve().parents[2]
+    repo_root = repo_root_for(Path(__file__))
+    if repo_root is None:
+        print("sg_reference_ab: refusing a symlinked module path (CWE-22)", file=sys.stderr)
+        return 2
 
     resolved = _resolve_config(args, repo_root)
     if isinstance(resolved, int):

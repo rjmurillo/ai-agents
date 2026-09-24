@@ -206,9 +206,9 @@ class ToolLoopResult:
     turns: int
     read_diff_artifact_called: bool
     usage: UsageTotals
-    failure: str | None
-    failure_detail: str | None
-    infra_failure: bool
+    failure: str | None = None
+    failure_detail: str | None = None
+    infra_failure: bool = False
 
 
 def _handle_tool_uses(
@@ -267,13 +267,13 @@ def run_investigate_loop(
         except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError) as exc:
             classification = classify_failure(exc)
             return ToolLoopResult(
-                [],
-                turn,
-                read_diff_artifact_called,
-                usage,
-                classification.failure,
-                classification.failure_detail,
-                classification.infra_failure,
+                findings=[],
+                turns=turn,
+                read_diff_artifact_called=read_diff_artifact_called,
+                usage=usage,
+                failure=classification.failure,
+                failure_detail=classification.failure_detail,
+                infra_failure=classification.infra_failure,
             )
 
         usage = usage.add(response.get("usage") or {})
@@ -285,17 +285,18 @@ def run_investigate_loop(
         if report is not None:
             findings = (report.get("input") or {}).get("findings") or []
             return ToolLoopResult(
-                list(findings), turn, read_diff_artifact_called, usage, None, None, False
+                findings=list(findings),
+                turns=turn,
+                read_diff_artifact_called=read_diff_artifact_called,
+                usage=usage,
             )
         if not tool_uses:
             return ToolLoopResult(
-                [],
-                turn,
-                read_diff_artifact_called,
-                usage,
-                "model_stopped_without_report",
-                None,
-                False,
+                findings=[],
+                turns=turn,
+                read_diff_artifact_called=read_diff_artifact_called,
+                usage=usage,
+                failure="model_stopped_without_report",
             )
 
         results, called_artifact = _handle_tool_uses(
@@ -311,5 +312,9 @@ def run_investigate_loop(
         messages.append({"role": "user", "content": results})
 
     return ToolLoopResult(
-        [], MAX_TURNS, read_diff_artifact_called, usage, "max_turns_exceeded", None, False
+        findings=[],
+        turns=MAX_TURNS,
+        read_diff_artifact_called=read_diff_artifact_called,
+        usage=usage,
+        failure="max_turns_exceeded",
     )

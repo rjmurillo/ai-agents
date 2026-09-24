@@ -238,11 +238,13 @@ def test_post_messages_returns_parsed_response(monkeypatch: pytest.MonkeyPatch) 
 def test_post_messages_retries_once_on_429(monkeypatch: pytest.MonkeyPatch) -> None:
     fake, calls = make_fake_urlopen([http_error(429), {"content": [], "usage": {}}])
     monkeypatch.setattr(urllib.request, "urlopen", fake)
+    slept = _record_sleeps(monkeypatch)
 
     result = api.post_messages("key", "model", "system", [], [])
 
     assert result == {"content": [], "usage": {}}
     assert len(calls) == 2
+    assert len(slept) == 1
 
 
 def test_post_messages_retries_once_on_5xx_then_raises_if_still_failing(
@@ -250,19 +252,77 @@ def test_post_messages_retries_once_on_5xx_then_raises_if_still_failing(
 ) -> None:
     fake, calls = make_fake_urlopen([http_error(503), http_error(503)])
     monkeypatch.setattr(urllib.request, "urlopen", fake)
+    slept = _record_sleeps(monkeypatch)
 
     with pytest.raises(urllib.error.HTTPError):
         api.post_messages("key", "model", "system", [], [])
     assert len(calls) == 2
+    assert len(slept) == 1
 
 
 def test_post_messages_does_not_retry_non_retryable_status(monkeypatch: pytest.MonkeyPatch) -> None:
     fake, calls = make_fake_urlopen([http_error(400)])
     monkeypatch.setattr(urllib.request, "urlopen", fake)
+    slept = _record_sleeps(monkeypatch)
 
     with pytest.raises(urllib.error.HTTPError):
         api.post_messages("key", "model", "system", [], [])
     assert len(calls) == 1
+    assert slept == []
+
+
+def test_post_messages_retries_once_on_network_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    fake, calls = make_fake_urlopen(
+        [urllib.error.URLError("connection reset"), {"content": [], "usage": {}}]
+    )
+    monkeypatch.setattr(urllib.request, "urlopen", fake)
+    slept = _record_sleeps(monkeypatch)
+
+    assert api.post_messages("key", "model", "system", [], []) == {"content": [], "usage": {}}
+    assert len(calls) == 2
+    assert len(slept) == 1
+
+
+def _record_sleeps(monkeypatch: pytest.MonkeyPatch) -> list[float]:
+    slept: list[float] = []
+    monkeypatch.setattr(api.time, "sleep", slept.append)
+    return slept
+
+
+def _http_error_with_headers(code: int, headers: dict[str, str] | None) -> urllib.error.HTTPError:
+    return urllib.error.HTTPError(
+        "https://api.anthropic.com/v1/messages", code, "err", cast(Any, headers), None
+    )
+
+
+@pytest.mark.parametrize(
+    ("exc", "expected"),
+    [
+        (_http_error_with_headers(429, {"Retry-After": "7"}), 7.0),
+        (_http_error_with_headers(429, {"Retry-After": " 999 "}), api.RETRY_MAX_DELAY_S),
+        (_http_error_with_headers(503, {"Retry-After": "Wed, 21 Oct 2026 07:28:00 GMT"}), 2.0),
+        (_http_error_with_headers(503, None), 2.0),
+        (_http_error_with_headers(502, {}), 2.0),
+        (urllib.error.URLError("dns"), 2.0),
+        (TimeoutError("slow"), 2.0),
+    ],
+)
+def test_retry_delay_s_for_retryable_errors(exc: Exception, expected: float) -> None:
+    assert api.retry_delay_s(exc, jitter=0.5) == expected
+
+
+@pytest.mark.parametrize(
+    "exc", [_http_error_with_headers(400, {"Retry-After": "1"}), ValueError("not transport")]
+)
+def test_retry_delay_s_returns_none_for_non_retryable_errors(exc: Exception) -> None:
+    assert api.retry_delay_s(exc, jitter=0.5) is None
+
+
+def test_retry_delay_s_jitter_scales_the_base_delay() -> None:
+    low = api.retry_delay_s(urllib.error.URLError("x"), jitter=0.0)
+    high = api.retry_delay_s(urllib.error.URLError("x"), jitter=0.99)
+    assert low == api.RETRY_BASE_DELAY_S * 0.5
+    assert high is not None and high > api.RETRY_BASE_DELAY_S
 
 
 # ---------------------------------------------------------------------------

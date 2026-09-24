@@ -80,7 +80,7 @@ Command: `uv run python -m scripts.metrics.sg_prompt_audit --since 2026-08-22 --
 The tool emits hashes, sizes, paths, cap state, and usage. It never emits diff content.
 The earliest child transcript on disk is dated 2026-09-10, so the issue window holds 11 days of data.
 
-| Metric | Issue window (to 2026-09-20) | All transcripts (to 2026-09-24) |
+| Metric | Issue window (to 2026-09-20) | All transcripts (snapshot 2026-09-24, before this branch's commits) |
 |--------|------------------------------|---------------------------------|
 | Child sessions | 223 (216 investigate, 6 iter2, 1 refute) | 328 (319, 8, 1) |
 | Prompt bytes | 5,475,987 | 7,426,324 |
@@ -98,8 +98,9 @@ The 14 repeated whole-diff groups fall into two causes.
 
 - **Designed repeats (6 groups).** Investigate plus iter2 or refute on the same review.
   Iter2 is a fresh child session, so its first turn re-creates the prompt cache for the diff.
-  Measured first-turn usage: `cache_read` stays at the 21,092-token shared prefix, and
-  `cache_creation` is 5,351 to 16,240 tokens per iter2 session.
+  Measured first-turn usage in the window: `cache_read` is 21,092 tokens in three of four
+  iter2 sessions and 38,915 in the fourth, a different project. `cache_creation` is 5,351
+  to 16,240 tokens per iter2 session, so each one writes the diff to the cache again.
 - **Duplicate reviews (8 groups, 660,787 redundant bytes, about 165,000 tokens, 12.1% of window bytes).**
   Two investigate sessions reviewed byte-identical diffs 4.5 to 1,001 seconds apart, seven
   in one checkout and one across two checkouts. The commit and push handlers dedupe by

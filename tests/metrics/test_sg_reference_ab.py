@@ -206,7 +206,7 @@ def test_parse_args_reads_all_flags() -> None:
 
 
 def test_selected_fixture_names_default_is_all() -> None:
-    assert ab._selected_fixture_names(None) == ab._ALL_FIXTURE_NAMES
+    assert ab._selected_fixture_names(None) == ab.FIXTURE_NAMES
 
 
 def test_selected_fixture_names_subset() -> None:
@@ -411,3 +411,22 @@ def test_main_builds_fixtures_for_a_config_error_on_git_failure(
     )
 
     assert rc == ab.EXIT_CONFIG
+
+
+def test_repo_root_for_returns_repo_root_for_a_real_module_path() -> None:
+    module = Path(ab.__file__)
+    assert ab.repo_root_for(module) == module.resolve().parents[2]
+
+
+def test_repo_root_for_refuses_a_symlinked_module_path(tmp_path: Path) -> None:
+    link = tmp_path / "sg_reference_ab.py"
+    link.symlink_to(Path(ab.__file__))
+    assert ab.repo_root_for(link) is None
+
+
+def test_main_exits_config_when_module_path_is_symlinked(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(ab, "repo_root_for", lambda _path: None)
+    assert ab.main(["--runs", "1", "--output", str(tmp_path / "out.json")]) == 2
+    assert "symlinked module path" in capsys.readouterr().err

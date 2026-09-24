@@ -246,3 +246,44 @@ def test_latency_seconds_zero_when_timestamp_unparsable() -> None:
     assert parse_mod.latency_seconds("not-a-timestamp", "2026-09-20T00:00:00Z") == 0.0
 
 
+
+
+# --- diff bodies that quote the prompt's own markers --------------------------
+
+_QUOTED_TAIL = (
+    "+    \"\\n\\nInvestigate per the method in your instructions, then return \"\n"
+    "\n\nInvestigate per the method in your instructions, then return the findings list.\n"
+    "+tail = 1\n"
+)
+
+
+def test_extract_diff_keeps_body_that_quotes_investigate_terminator() -> None:
+    diff = diff_text([("a.py", _QUOTED_TAIL)])
+    body, _ = parse_mod.extract_diff_and_checkout(investigate_prompt(diff), "investigate")
+    assert body == diff
+
+
+def test_extract_diff_keeps_iter2_body_that_quotes_investigate_terminator() -> None:
+    diff = diff_text([("a.py", _QUOTED_TAIL)])
+    body, _ = parse_mod.extract_diff_and_checkout(iter2_prompt(diff), "iter2")
+    assert body == diff
+
+
+def test_extract_diff_keeps_refute_body_that_quotes_refute_terminator() -> None:
+    diff = diff_text([("a.py", "+x\n\n\nNow adversarially try it\n+y\n")])
+    body, _ = parse_mod.extract_diff_and_checkout(refute_prompt(diff), "refute")
+    assert body == diff
+
+
+def test_classify_prompt_ignores_iter2_markers_quoted_inside_the_diff() -> None:
+    quoted = (
+        "+\"\\n\\n---\\n\\nA prior reviewer already flagged\"\n"
+        "\n\n---\n\nA prior reviewer already flagged <excluded_findings>\n"
+    )
+    text = investigate_prompt(diff_text([("a.py", quoted)]))
+    assert parse_mod.classify_prompt(text) == "investigate"
+
+
+def test_classify_prompt_treats_missing_terminator_as_investigate() -> None:
+    text = "Review this change for security vulnerabilities.\n\n<excluded_findings>"
+    assert parse_mod.classify_prompt(text) == "investigate"

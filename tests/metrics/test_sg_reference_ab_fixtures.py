@@ -15,7 +15,7 @@ from scripts.metrics import sg_diff_reference as sgd
 from scripts.metrics import sg_reference_ab_fixtures as fixtures_mod
 
 
-@pytest.mark.parametrize("name", list(fixtures_mod._ALL_FIXTURE_NAMES))
+@pytest.mark.parametrize("name", list(fixtures_mod.FIXTURE_NAMES))
 def test_each_fixture_builder_seeds_new_vuln_on_plus_line_only(tmp_path: Path, name: str) -> None:
     fixture = fixtures_mod._FIXTURE_BUILDERS[name](tmp_path)
 
