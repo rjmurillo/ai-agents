@@ -115,8 +115,8 @@ in a tool result and is re-read every turn the same way.
 
 ## Reference model and safety fixtures
 
-`scripts/metrics/sg_diff_reference.py` and `scripts/metrics/sg_diff_artifact.py` model the
-candidate design. They are evaluation code, not wired to any hook.
+`scripts/metrics/sg_diff_reference.py`, `sg_diff_artifact.py`, and `sg_diff_producer.py` model
+the candidate design. They are evaluation code, not wired to any hook.
 
 | Property | Rule |
 |----------|------|

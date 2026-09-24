@@ -9,11 +9,10 @@ without losing review correctness, provenance, or fail-safe behavior (see
 This module owns prompt construction and diff capping: the port of the
 plugin's byte-capping helper and the byte-for-byte reproduction of its inline
 investigate prompt. The content-addressed artifact store (write, prune,
-resolve, produce, serve) is a separate concern and lives in the sibling module
-``scripts/metrics/sg_diff_artifact.py``, split out under the taste-lints
-file-size gate; ``build_inline_prompt`` and ``capped_diff_text`` below are
-imported from there to build the reference-mode prompt and the inline
-fallback text.
+resolve) lives in ``scripts/metrics/sg_diff_artifact.py``, and the producer
+and read-time tool live in ``scripts/metrics/sg_diff_producer.py``. The
+producer imports ``assemble_prompt`` and ``capped_diff_text`` from here to
+build the reference-mode prompt and the inline fallback text.
 
 Plugin under test: ``security-guidance@claude-plugins-official`` 2.0.8,
 marketplace commit ``55b58ec6e5649104f926ba7558b567dc8d33c5ff``.
@@ -221,7 +220,7 @@ def capped_diff_text(
     """Public accessor for the same capped diff text :func:`build_inline_prompt` embeds.
 
     Exists so a caller holding an ``ArtifactRef`` (see ``sg_diff_artifact``;
-    for example its ``produce_prompt`` fail-safe fallback) can reconstruct the
+    for example ``sg_diff_producer.produce_prompt``'s fail-safe fallback) can reconstruct the
     exact inline diff text without duplicating the capping logic.
     """
     return _capped_diff_text(diff_files, per_file_bytes, total_bytes)
@@ -230,7 +229,7 @@ def capped_diff_text(
 def assemble_prompt(touched_paths: Sequence[str], diff_text: str, context_note: str) -> str:
     """Byte-for-byte port of ``llm.py``'s inline ``user_prompt``; see docstring citation 2.
 
-    Public (not module-private) because ``sg_diff_artifact.build_referenced_prompt``
+    Public (not module-private) because ``sg_diff_producer.build_referenced_prompt``
     reuses it verbatim to assemble the reference-mode prompt around a pointer
     block instead of the capped diff text, so both prompt shapes share exactly
     one header/footer implementation.

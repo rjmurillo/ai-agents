@@ -18,6 +18,7 @@ from typing import Any
 import pytest
 
 from scripts.metrics import sg_diff_artifact as sgda
+from scripts.metrics import sg_diff_producer as sgdp
 from scripts.metrics import sg_diff_reference as sgd
 
 # --- diff_line_semantics equivalence: inline vs resolved artifact -----------
@@ -34,10 +35,10 @@ def test_diff_line_semantics_identical_inline_vs_resolved_repeated_diff(
     inline_prompt = sgd.build_inline_prompt(touched, diff_files, "")
     inline_semantics = sgd.diff_line_semantics(inline_prompt)
 
-    _prompt1, outcome1 = sgda.produce_prompt(
+    _prompt1, outcome1 = sgdp.produce_prompt(
         "referenced", store_dir, "c1" * 32, "head1", touched, diff_files, ""
     )
-    _prompt2, outcome2 = sgda.produce_prompt(
+    _prompt2, outcome2 = sgdp.produce_prompt(
         "referenced", store_dir, "c1" * 32, "head1", touched, diff_files, ""
     )
 
@@ -66,10 +67,10 @@ def test_diff_line_semantics_identical_inline_vs_resolved_changed_paths(
     inline_prompt = sgd.build_inline_prompt(touched_a, diff_files, "")
     inline_semantics = sgd.diff_line_semantics(inline_prompt)
 
-    _prompt, outcome = sgda.produce_prompt(
+    _prompt, outcome = sgdp.produce_prompt(
         "referenced", store_dir, "d1" * 32, "head1", touched_a, diff_files, ""
     )
-    _prompt_b, outcome_b = sgda.produce_prompt(
+    _prompt_b, outcome_b = sgdp.produce_prompt(
         "referenced", store_dir, "d1" * 32, "head1", touched_b, diff_files, ""
     )
 
@@ -105,7 +106,7 @@ def test_diff_line_semantics_identical_inline_vs_resolved_truncation(
     )
     inline_semantics = sgd.diff_line_semantics(inline_prompt)
 
-    _prompt, outcome = sgda.produce_prompt(
+    _prompt, outcome = sgdp.produce_prompt(
         "referenced",
         store_dir,
         "e1" * 32,
@@ -140,7 +141,7 @@ def test_context_note_present_verbatim_in_both_modes_checkout_mismatch(
     store_dir = tmp_path / "store"
 
     inline_prompt = sgd.build_inline_prompt(touched, diff_files, context_note)
-    prompt, outcome = sgda.produce_prompt(
+    prompt, outcome = sgdp.produce_prompt(
         "referenced", store_dir, "f1" * 32, "head1", touched, diff_files, context_note
     )
 

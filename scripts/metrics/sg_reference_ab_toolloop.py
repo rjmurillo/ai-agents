@@ -31,6 +31,7 @@ from pathlib import Path
 from typing import Any
 
 from scripts.metrics import sg_diff_artifact as sgda
+from scripts.metrics import sg_diff_producer as sgdp
 from scripts.metrics.sg_reference_ab_api import classify_failure, post_messages
 
 MAX_TURNS = 12
@@ -165,7 +166,7 @@ def _execute_tool(
     if name == "read_diff_artifact":
         if ref is None:
             return "read_diff_artifact is not available in inline mode.", False
-        text = sgda.serve_artifact_tool(
+        text = sgdp.serve_artifact_tool(
             store_dir, ref, expected_repo_id, expected_head, inline_diff_text
         )
         return text, True

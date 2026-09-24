@@ -6,7 +6,7 @@ investigate system prompt and findings schema (loaded from the installed
 loop against the Anthropic Messages API, once with the diff inlined
 (:func:`scripts.metrics.sg_diff_reference.build_inline_prompt`) and once with
 the diff replaced by a content-addressed artifact reference
-(:func:`scripts.metrics.sg_diff_artifact.produce_prompt`, mode
+(:func:`scripts.metrics.sg_diff_producer.produce_prompt`, mode
 ``"referenced"``), so prompt size, token usage, latency, and finding parity
 can be compared per REQ-8.
 
@@ -47,7 +47,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from scripts.metrics import sg_diff_artifact as sgda
+from scripts.metrics import sg_diff_producer as sgdp
 from scripts.metrics import sg_diff_reference as sgd
 from scripts.metrics.sg_reference_ab_api import (
     PluginContract,
@@ -123,7 +123,7 @@ def run_fixture_mode(
     store_dir: Path,
 ) -> RunResult:
     start = time.monotonic()
-    prompt, outcome = sgda.produce_prompt(
+    prompt, outcome = sgdp.produce_prompt(
         mode,
         store_dir,
         fixture.repo_id,

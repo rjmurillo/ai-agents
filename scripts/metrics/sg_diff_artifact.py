@@ -1,20 +1,13 @@
 """Content-addressed diff artifact store for the security-guidance prompt (#5856).
 
-Evaluation model only. Not wired to any hook, skill, or runtime path. Split
-out of ``scripts/metrics/sg_diff_reference.py`` (the prompt-building and
-byte-capping module) under the taste-lints file-size gate: this module owns
-the artifact store itself (write, prune, resolve) and the two callers that sit
-on top of it (``produce_prompt``, ``serve_artifact_tool``), plus
-``build_referenced_prompt``, the reference-mode prompt shape. See that
-module's docstring for the canonical-source citations this evaluation as a
-whole mirrors (``review_api.cap_diff_for_prompt``, ``llm.py``'s inline
-``user_prompt``); nothing in this module independently mirrors plugin code,
-it reuses ``sg_diff_reference.assemble_prompt`` and
-``sg_diff_reference.capped_diff_text`` so both prompt shapes share one
-header/footer implementation. The content-addressed artifact reference itself
-(``ArtifactRef``, the on-disk store, re-verify-then-serve) is original to this
-evaluation harness: the plugin has no such mechanism today, so there is
-nothing upstream for it to diverge from.
+Evaluation model only. Not wired to any hook, skill, or runtime path. This
+module owns the artifact store: ``write_artifact``, ``prune``, and ``resolve``.
+``scripts/metrics/sg_diff_producer.py`` builds prompts and serves the
+read-time tool on top of it. ``scripts/metrics/sg_diff_reference.py`` owns
+prompt building and byte capping, and its docstring holds the citations this
+evaluation mirrors from the plugin. The artifact reference itself is original
+to this harness: the plugin has no such mechanism, so nothing upstream exists
+for it to diverge from.
 """
 
 from __future__ import annotations
@@ -23,19 +16,11 @@ import contextlib
 import hashlib
 import os
 import re
-import sys
 import tempfile
 import time
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-
-from scripts.metrics.sg_diff_reference import (
-    DEFAULT_PER_FILE_BYTES,
-    DEFAULT_TOTAL_BYTES,
-    assemble_prompt,
-    capped_diff_text,
-)
 
 # A repo_id or artifact sha256 is a hex sha256 digest, always exactly 64
 # lowercase hex characters. Validating against this pattern before building
@@ -181,113 +166,3 @@ def resolve(
     if len(raw) != ref.size or hashlib.sha256(raw).hexdigest() != ref.sha256:
         return Resolution(ok=False, text=None, reason="tampered")
     return Resolution(ok=True, text=raw.decode("utf-8", errors="replace"), reason="ok")
-
-
-def build_referenced_prompt(
-    touched_paths: Sequence[str],
-    ref: ArtifactRef,
-    context_note: str = "",
-) -> str:
-    """The reference-mode prompt: same shape as ``sg_diff_reference.build_inline_prompt``,
-    with the diff body replaced by a pointer block naming the artifact and instructing
-    the model to fetch it via the ``read_diff_artifact`` tool before reviewing.
-    The authoritative-diff ``context_note`` is preserved verbatim, at the same
-    position, so REQ-7 (checkout-mismatch warning survives) holds for both modes.
-    """
-    pointer_block = (
-        "=== DIFF ARTIFACT (fetch before reviewing) ===\n"
-        f"sha256: {ref.sha256}\n"
-        f"size_bytes: {ref.size}\n"
-        "paths:\n"
-        + "\n".join(f"  - {p}" for p in touched_paths)
-        + "\n\nCall the read_diff_artifact tool with sha256="
-        f'"{ref.sha256}" to fetch the exact capped diff before reviewing. '
-        "Do not guess its contents; the tool returns the authoritative text."
-    )
-    return assemble_prompt(touched_paths, pointer_block, context_note)
-
-
-@dataclass(frozen=True, slots=True)
-class ProducerOutcome:
-    """What :func:`produce_prompt` actually did.
-
-    ``mode_used`` is ``"inline"`` or ``"referenced"``. ``fallback_reason`` is
-    ``None`` when ``mode_used == "referenced"`` (or when the caller asked for
-    ``"inline"`` outright), and is the :class:`Resolution` reason otherwise.
-    """
-
-    mode_used: str
-    fallback_reason: str | None
-    ref: ArtifactRef | None
-
-
-def produce_prompt(
-    mode: str,
-    store_dir: str | Path,
-    repo_id: str,
-    head: str,
-    touched_paths: Sequence[str],
-    diff_files: Sequence[tuple[str, str]],
-    context_note: str = "",
-    *,
-    per_file_bytes: int = DEFAULT_PER_FILE_BYTES,
-    total_bytes: int = DEFAULT_TOTAL_BYTES,
-) -> tuple[str, ProducerOutcome]:
-    """Produce a review prompt in ``mode`` ("inline" or "referenced").
-
-    "referenced" writes the artifact, then immediately re-resolves it under
-    the same expectations a later reader would apply. Any resolution failure
-    (REQ-5: missing, unreadable, stale, cross-repository, tampered) falls back
-    to the EXACT inline prompt, so a caller never has to special-case a
-    reference failure at review time.
-    """
-    if mode not in ("inline", "referenced"):
-        raise ValueError(
-            f"produce_prompt: unknown mode {mode!r}; expected 'inline' or 'referenced'"
-        )
-
-    diff_text, truncated_bytes = capped_diff_text(
-        diff_files, per_file_bytes=per_file_bytes, total_bytes=total_bytes
-    )
-    inline_prompt = assemble_prompt(touched_paths, diff_text, context_note)
-    if mode == "inline":
-        return inline_prompt, ProducerOutcome(mode_used="inline", fallback_reason=None, ref=None)
-
-    ref = write_artifact(store_dir, repo_id, head, diff_text, list(touched_paths), truncated_bytes)
-    resolution = resolve(store_dir, ref, repo_id, head)
-    if not resolution.ok:
-        return inline_prompt, ProducerOutcome(
-            mode_used="inline", fallback_reason=resolution.reason, ref=ref
-        )
-    referenced_prompt = build_referenced_prompt(touched_paths, ref, context_note)
-    return referenced_prompt, ProducerOutcome(mode_used="referenced", fallback_reason=None, ref=ref)
-
-
-def serve_artifact_tool(
-    store_dir: str | Path,
-    ref: ArtifactRef,
-    expected_repo_id: str,
-    expected_head: str,
-    inline_diff_text: str,
-) -> str:
-    """The ``read_diff_artifact`` tool handler: re-verify, then serve.
-
-    Re-verification happens at read time rather than trusting the write-time
-    :class:`ArtifactRef`, because time has passed since the prompt was built
-    (retention pruning, a concurrent tamper, a stale reference reused across
-    sessions). On any resolution failure this returns ``inline_diff_text``
-    unchanged (fail-safe: the reviewer always gets a diff, never an error),
-    and reports which outcome occurred on stderr so a caller inspecting
-    output can tell "ok" from a named fallback reason without parsing the
-    returned text.
-    """
-    resolution = resolve(store_dir, ref, expected_repo_id, expected_head)
-    if resolution.ok and resolution.text is not None:
-        print(f"sg_diff_artifact: read_diff_artifact ok sha256={ref.sha256}", file=sys.stderr)
-        return resolution.text
-    print(
-        f"sg_diff_artifact: read_diff_artifact fallback reason={resolution.reason} "
-        f"sha256={ref.sha256}",
-        file=sys.stderr,
-    )
-    return inline_diff_text
