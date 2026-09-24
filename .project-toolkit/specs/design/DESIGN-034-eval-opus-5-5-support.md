@@ -44,7 +44,7 @@ reasons said "done" or "complete" instead of `terminal`, or never said
 - S8, S9, and S13 drop `expected_reason_contains`. STOP against CONTINUE,
   DELEGATE, and ASK still grades the decision, as S10 does after PR #5908.
   S12 keeps its `terminal` check because it passed 6 of 6 on Opus 5.5.
-- `test_pricing_coverage.py` pins both Opus 5.5 rates and checks that every
+- `test_pricing_spellings.py` pins both Opus 5.5 rates and checks that every
   spelling pair of one model carries one rate, using `harness_model_id`.
 
 ## Alternatives Rejected

@@ -25,7 +25,6 @@ try:
     from _eval_common import (
         MODEL_PRICING_RATES_USD_PER_1K_TOKENS,
     )
-    from _runtime_output import harness_model_id
 finally:
     if _path_added and str(EVAL_DIR) in sys.path:
         sys.path.remove(str(EVAL_DIR))
@@ -102,24 +101,3 @@ def test_pricing_rates_have_positive_input_and_output() -> None:
         assert rates["input"] > 0, model_id
         assert rates["output"] > 0, model_id
         assert rates["output"] >= rates["input"], model_id
-
-
-def test_opus_5_5_is_priced_in_both_harness_spellings() -> None:
-    """Claude Code dispatches `claude-opus-5-5`; Copilot CLI only `claude-opus-5.5`.
-
-    The price lookup is an exact key match, so each spelling needs a row.
-    Opus 5.5 lists at $4 input and $20 output per million tokens.
-    """
-    expected = {"input": 0.004, "output": 0.020}
-    assert MODEL_PRICING_RATES_USD_PER_1K_TOKENS["claude-opus-5-5"] == expected
-    assert MODEL_PRICING_RATES_USD_PER_1K_TOKENS["claude-opus-5.5"] == expected
-
-
-def test_spellings_of_one_model_share_one_rate() -> None:
-    """A dotted and a dashed row for one model must not quote two prices."""
-    by_model: dict[str, set[tuple[float, float]]] = {}
-    for model_id, rates in MODEL_PRICING_RATES_USD_PER_1K_TOKENS.items():
-        canonical = harness_model_id("claude", model_id)
-        by_model.setdefault(canonical, set()).add((rates["input"], rates["output"]))
-    conflicting = sorted(m for m, rates in by_model.items() if len(rates) > 1)
-    assert not conflicting, f"Spellings of one model carry different rates: {conflicting}"
