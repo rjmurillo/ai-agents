@@ -150,8 +150,11 @@ lines and one pre-existing vulnerability in context lines only.
 Harness gap: this is not the plugin's child CLI, so absolute token counts differ from
 production. The comparison between modes is the result that matters.
 
-Valid runs only. Runs that failed with the API billing error
-(`invalid_request_error: credit balance is too low`) are excluded; they never reached the model.
+Valid runs only. Runs that failed with HTTP 400 are excluded; they never reached the model.
+The first runner recorded only `http_400`. A rerun of the failing cells with the error body
+captured returned `invalid_request_error`, "Your credit balance is too low to access the
+Anthropic API", on every request (for example `req_011CfNcAyjA3JLEgMvCzRsLo`). The runner now
+records that type and message, and marks billing failures as infrastructure failures.
 
 | Model | Fixture | Mode | Runs | Prompt B | Median input tokens | Median latency s | Median turns | Seeded found | Pre-existing flagged |
 |-------|---------|------|------|----------|---------------------|------------------|--------------|--------------|----------------------|
