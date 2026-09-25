@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore naming, hyphenated CLI name is the shipped entrypoint.
 """ADR-057 Compliant Prompt Change Evaluator.
 
 Validates behavioral correctness of prompt changes using scenario-based
