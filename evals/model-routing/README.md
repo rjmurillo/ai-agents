@@ -24,7 +24,8 @@ that still passes the acceptance fixtures?
   vendor APIs (Anthropic and OpenAI), 4096-token response budget, measured
   2026-09-24. Child runs are named `sweep-<model>-<hex8>` and
   `sweep-skill-<skill>-<model>-<hex8>` under each agent's `runs/` and
-  `reports/`.
+  `reports/`. Per #3597 that output is regenerable and gitignored; this
+  directory is the committed record.
 - **Verdict.** The lightest sufficient model is the cheapest one whose mean
   per-fixture pass rate trails the best model on its ladder by at most 0.10.
   Flaky fixtures are scored, not dropped: run-to-run variance is part of
@@ -34,7 +35,20 @@ that still passes the acceptance fixtures?
   to 24 fixtures most gaps stay unproven, so a verdict routes down unless the
   measured gap exceeds the margin.
 
-Reproduce:
+Reproduce. First make one child run per subject and model. An exit code of 1
+with a written `report.json` is the flaky-halt flag, not a failure; the rollup
+still reads that report. `eval-model-sweep.py` stops at the first such exit, so
+drive the base evaluator directly:
+
+```bash
+python3 scripts/eval/eval-agent-vs-baseline.py --agent critic \
+  --fixtures evals/critic-spike/fixtures --model claude-haiku-4-5 --n-runs 3 \
+  --run-id "sweep-claude-haiku-4-5-$(python3 -c 'import uuid; print(uuid.uuid4().hex[:8])')"
+# Skill variant: add --skill-path .claude/skills/<skill>/SKILL.md and name the
+# run sweep-skill-<skill>-<model>-<hex8>. GPT-6 models: add --provider openai.
+```
+
+Then roll up:
 
 ```bash
 python3 scripts/eval/eval_model_routing.py \
@@ -82,5 +96,5 @@ reasoning depth.
 
 ## Cost
 
-Committed runs cost $86.76 at list price: Astra $48.42, Opus 5.5 $14.81, Sol
+The runs behind this rollup cost $86.76 at list price: Astra $48.42, Opus 5.5 $14.81, Sol
 $9.06, Sonnet 5 $8.97, Haiku 4.5 $5.04, Luna $0.45.
