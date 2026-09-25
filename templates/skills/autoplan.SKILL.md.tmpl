@@ -273,13 +273,15 @@ Every /autoplan run ends with one summary block, not a narration stream:
 
 ## Scripts
 
-`scripts/resolve_route.py` is the deterministic long-tail resolver Phase 2b
-runs on a single-domain table miss (DESIGN-037). It reads local `SKILL.md`
+`resolve_route.py` is the deterministic long-tail resolver Phase 2b runs on
+a single-domain table miss (DESIGN-037). It reads local `SKILL.md`
 frontmatter and prints one JSON line to stdout; it opens no network
-connection and runs no subprocess.
+connection and runs no subprocess. Resolve its path the same way Phase 2b
+does (`$RESOLVER` below), never as a bare relative invocation:
 
 ```bash
-python3 scripts/resolve_route.py --request "audit our CLI for developer friction"
+RESOLVER="$(git rev-parse --show-toplevel)/.claude/skills/autoplan/scripts/resolve_route.py"
+python3 "$RESOLVER" --request "audit our CLI for developer friction"
 ```
 
 Exit codes: `0` on any resolution, including `kind: "none"`. `2` for a
