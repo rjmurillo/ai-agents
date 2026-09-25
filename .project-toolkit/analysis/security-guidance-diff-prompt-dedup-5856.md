@@ -104,9 +104,13 @@ The 14 repeated whole-diff groups fall into two causes.
 - **Duplicate reviews (8 groups, 660,787 redundant bytes, about 165,000 tokens, 12.1% of window bytes).**
   Two investigate sessions reviewed byte-identical diffs 4.5 to 1,001 seconds apart, seven
   in one checkout and one across two checkouts. The commit and push handlers dedupe by
-  commit SHA (`:1116`, `:1725`), so identical content under a new SHA is reviewed again.
-  INFERRED: amend, rebase, cherry-pick, and a repeated commit in a sibling worktree all
-  produce that shape. The transcripts do not record which one happened.
+  commit SHA (`:1116`, `:1725`), and upstream issue
+  [anthropics/claude-plugins-official#5425](https://github.com/anthropics/claude-plugins-official/issues/5425)
+  shows the SHA is recorded only after the review ends. A push or second commit inside that
+  window reviews the same diff again. INFERRED: five of the seven same-checkout pairs started
+  4.5 to 43 seconds apart, which fits that race. The plugin log had rotated, so no pair can be
+  tied to a hook event. #5425 also reports that linked worktrees keep separate SHA records,
+  which fits the cross-checkout pair.
 
 Inside each child session the diff is not paid once. The session re-reads its context
 every turn (median 7 assistant messages, max 34). Across all 328 sessions the usage
@@ -203,7 +207,7 @@ is unmeasured.
 | Inline diff (today) | Baseline | Baseline | None added | Keep |
 | Session-local artifact | Same or higher, plus a turn | Lower in the prompt, same in the tool result | Stale and cross-session reads; needs fallback | Reject |
 | Content-addressed artifact | Same or higher, plus a turn | Same as session-local | Needs identity, retention, and tamper checks, all modeled here | Reject |
-| Content-hash review dedupe | Removes a whole review per duplicate | Removes a whole child session per duplicate | Must key on capped diff text plus repo identity and reviewed `HEAD` | Adopt, upstream |
+| Content-hash review dedupe | Removes a whole review per duplicate | Removes a whole child session per duplicate | Must key on capped diff text scoped by repo identity, claimed before the review starts | Adopt, upstream (#5425) |
 | Resume investigate session for iter2 | Iter2 reads the diff from cache | Iter2 lands in the same transcript | Changes the iter2 isolation the plugin chose | Defer, upstream |
 
 ## Decision
@@ -216,11 +220,12 @@ is unmeasured.
   second source of truth for the diff, and no user-visible saving remains once the
   reviewer reads the artifact.
 - **Smallest safe follow-up**, for the upstream owner: key the commit and push dedupe on
-  SHA-256 of the capped diff text plus repository identity and reviewed `HEAD`, alongside
-  the commit SHA. The Stop hook already does this with `reviewed_diff_hash`
+  SHA-256 of the capped diff text, scoped by repository identity, and record it as in flight
+  before the review starts. The Stop hook already dedupes this way with `reviewed_diff_hash`
   (`security_reminder_hook.py:2043-2046`). In the issue window this would have removed 8
   child sessions and about 165,000 prompt tokens before per-turn re-reads.
-  The follow-up has not been filed. Filing on an external repository is the maintainer's decision.
+  Recorded upstream on the existing issue instead of a duplicate:
+  [anthropics/claude-plugins-official#5425 comment](https://github.com/anthropics/claude-plugins-official/issues/5425#issuecomment-5824629186).
 
 ## Noticed, outside this issue
 
