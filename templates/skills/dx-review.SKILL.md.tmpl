@@ -55,6 +55,51 @@ PARTIAL or INFERRED evidence when browser tooling is unavailable. Fetched
 docs and search results alone are never TESTED. State what could not be
 tested and why.
 
+## Change-Scope Mode
+
+`/test` Gate 5 invokes this skill in change-scope mode. It passes the
+`dx_trigger.py` decision JSON, the changed paths, and the diff. Change-scope
+mode audits only the developer journeys the change touches, not the whole
+product. Every other rule in this skill still applies: evidence labels, command
+safety, TTHW, and both blocking gates.
+
+1. Name the reviewed user journey: the concrete task a developer completes
+   through the changed surface, for example "install the plugin and run `/test`".
+2. Run the Process steps only for dimensions a changed journey can alter:
+
+   | Journey | Applicable dimensions |
+   |---------|-----------------------|
+   | `public-cli` | API/CLI/SDK, Error Messages, Documentation |
+   | `public-api` | API/CLI/SDK, Error Messages, Upgrade Path, Documentation |
+   | `install-onboarding` | Getting Started, Dev Environment, Upgrade Path, Documentation |
+   | `harness-interface` | Getting Started, API/CLI/SDK, Error Messages, Documentation |
+   | `user-docs` | Getting Started, Documentation |
+   | `contributor-workflow` | Dev Environment, Community, Documentation |
+
+   A fail-closed decision with no journey applies all eight dimensions. Mark
+   every other dimension `N/A` in the scorecard with a one-line rationale.
+3. Cite the evidence source for each applicable dimension as `file:line` or the
+   approved command, with its TESTED, PARTIAL, or INFERRED label.
+4. Rank findings CRITICAL, HIGH, MEDIUM, LOW, each with a `file:line` or command.
+5. Set the verdict: CRITICAL_FAIL on any CRITICAL finding, WARN on any HIGH or
+   MEDIUM finding, PASS otherwise. A failed Evidence Gate or Review Gate is
+   `VERDICT: ERROR`.
+
+```text
+DX CHANGE-SCOPE REPORT
+Activation: [reason field from the trigger JSON]
+Journeys: [journeys field]
+Reviewed user journey: [task a developer completes]
+TTHW: [measured minutes with boundaries, or N/A: reason]
+[the scorecard from the DX Scorecard section; N/A rows carry their rationale]
+Skipped dimensions: [dimension: rationale, one per line]
+Findings:
+1. [SEVERITY] (file:line or command) description: recommendation
+GATE_STATUS: Evidence Gate = [PASS|FAIL]
+GATE_STATUS: Review Gate = [PASS|PASS_WITH_CONCERNS|FAIL]
+VERDICT: PASS|WARN|CRITICAL_FAIL|ERROR
+```
+
 ## Process
 
 ### Step 0: Target Discovery
