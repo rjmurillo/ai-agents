@@ -213,7 +213,11 @@ def _read_frontmatter(path: Path) -> dict[str, object]:
         return {}
     try:
         data = yaml.safe_load(match.group(1))
-    except yaml.YAMLError:
+    except yaml.YAMLError as exc:
+        # Foreign plugin roots never pass the routing-role gate, so say which
+        # skill dropped out instead of skipping it silently.
+        reason = exc.__class__.__name__
+        print(f"warning: skipped {path}: unparseable frontmatter ({reason})", file=sys.stderr)
         return {}
     return data if isinstance(data, dict) else {}
 

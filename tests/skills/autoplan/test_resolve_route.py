@@ -377,3 +377,17 @@ def test_orchestrator_shared_source_never_invokes_autoplan() -> None:
         marker in text for marker in ('Skill(skill="autoplan"', "Skill(skill='autoplan'")
     )
     assert "You never invoke `autoplan`" in text
+
+
+def test_unparseable_frontmatter_is_skipped_with_a_stderr_warning(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = tmp_path / "skills"
+    bad = root / "bad"
+    bad.mkdir(parents=True)
+    (bad / "SKILL.md").write_text("---\nname: bad\nmetadata: [unclosed\n---\n", encoding="utf-8")
+
+    result = resolver.resolve("bad things", [resolver.Root(path=root, namespace="ns")])
+
+    assert result["kind"] == "none"
+    assert "skipped" in capsys.readouterr().err
