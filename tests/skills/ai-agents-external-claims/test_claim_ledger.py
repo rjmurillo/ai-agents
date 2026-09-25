@@ -54,7 +54,7 @@ def _claim(**overrides: Any) -> dict[str, Any]:
     return claim
 
 
-def _ledger(*claims: dict[str, Any], decision: str = "activate") -> dict[str, Any]:
+def _ledger(*claims: Any, decision: str = "activate") -> dict[str, Any]:
     return {
         "artifact": "analysis/queue-backpressure.md",
         "activation": {"decision": decision, "reason": "vendor and statistic claims"},
@@ -120,8 +120,9 @@ def _unavailable() -> dict[str, Any]:
     )
 
 
-def _errors(ledger: dict[str, Any], artifact: str | None = None) -> list[str]:
-    return mod.validate(ledger, artifact)
+def _errors(ledger: Any, artifact: str | None = None) -> list[str]:
+    errors: list[str] = mod.validate(ledger, artifact)
+    return errors
 
 
 # Positive cases: one per issue category.
@@ -193,7 +194,7 @@ def test_missing_top_level_key_fails(key: str) -> None:
 
 
 def test_ledger_not_an_object_fails() -> None:
-    assert _errors([]) == ["ledger must be a JSON object"]  # type: ignore[arg-type]
+    assert _errors([]) == ["ledger must be a JSON object"]
 
 
 def test_claims_not_a_list_fails() -> None:
@@ -203,7 +204,7 @@ def test_claims_not_a_list_fails() -> None:
 
 
 def test_claim_not_an_object_fails() -> None:
-    assert any("object" in e for e in _errors(_ledger("C1")))  # type: ignore[arg-type]
+    assert any("object" in e for e in _errors(_ledger("C1")))
 
 
 def test_activation_not_an_object_fails() -> None:
@@ -441,3 +442,8 @@ def test_script_runs_as_a_program(tmp_path: Path) -> None:
     )
     assert result.returncode == 0
     assert json.loads(result.stdout)["ok"] is True
+
+
+def test_non_string_ids_do_not_crash() -> None:
+    errors = _errors(_ledger(_claim(id=["C1"]), _claim(id=["C1"])))
+    assert any("`id`" in e for e in errors)

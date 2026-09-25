@@ -66,8 +66,11 @@ claim_ledger.py --ledger PATH [--artifact PATH]
 
 1. `decision` is `activate` or `skip`, and `reason` is non-empty.
 2. `skip` carries no claims. `activate` carries one or more.
-3. `category`, `source.kind`, `confidence`, and `disposition` take only the
-   listed values. Dates are ISO `YYYY-MM-DD`. Claim ids are unique.
+3. `category` is one of `vendor`, `api`, `statistic`, `legal`,
+   `project-status`, `comparative`. `source.kind` is one of `primary`,
+   `secondary`, `none`. `confidence` is one of `high`, `medium`, `low`,
+   `none`. `disposition` is one of `verified`, `narrowed`, `qualified`,
+   `removed`. Dates are ISO `YYYY-MM-DD`. Claim ids are unique.
 4. `primary` and `secondary` sources need `url` and `accessed`.
 5. `secondary` needs `secondary_reason`, and caps confidence at `medium`.
 6. `verified` needs a `primary` source and `high` or `medium` confidence.

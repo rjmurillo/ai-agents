@@ -213,7 +213,7 @@ def validate(ledger: dict[str, Any], artifact: str | None = None) -> list[str]:
     defects = _activation_defects(ledger)
     for index, claim in enumerate(claims):
         defects += _claim_defects(index, claim)
-    ids = [c.get("id") for c in claims if isinstance(c, dict)]
+    ids = [c.get("id") for c in claims if isinstance(c, dict) and isinstance(c.get("id"), str)]
     defects += [f"duplicate claim id `{i}`" for i, n in Counter(ids).items() if n > 1]
     if artifact is not None and not defects:
         defects += _artifact_defects(claims, artifact)

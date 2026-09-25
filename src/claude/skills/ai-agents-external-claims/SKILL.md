@@ -194,11 +194,10 @@ the checked wording, not the unreviewed draft.
 
 | Script | Purpose | Exit codes |
 |--------|---------|------------|
-| `scripts/claim_ledger.py` | Validates a claim ledger, and with `--artifact` the artifact text, before a research write. Prints a sorted JSON summary. Reads local files only. | 0 pass, 1 defects, 2 unreadable input or bad arguments |
+| `claim_ledger.py` | Validates a claim ledger, and with `--artifact` the artifact text, before a research write. Prints a sorted JSON summary. Reads local files only. | 0 pass, 1 defects, 2 unreadable input or bad arguments |
 
-```bash
-python3 scripts/claim_ledger.py --ledger claims.json [--artifact analysis.md]
-```
+The script ships in this skill's own `scripts/` directory. The Adjunct Mode
+gate above shows the plugin-root invocation.
 
 ## Anti-Patterns
 

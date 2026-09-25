@@ -1,4 +1,5 @@
 """Structure test for this skill, mirroring the prose-self-check tests pattern."""
+
 import re
 from pathlib import Path
 
