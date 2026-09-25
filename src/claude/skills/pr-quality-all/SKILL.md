@@ -10,11 +10,10 @@ model-rationale: cost. The 'haiku' rolling alias resolves via the platform model
 user-invocable: true
 metadata:
   routing:
-    role: explicit-only
-    invoker: user
-    trigger: a user asks to run all six PR quality axes before opening or updating a PR
+    role: conditional-adjunct
+    invoker: pr-comment-responder
+    trigger: pr-comment-responder redirects local quality gates before a push here
     user-facing: true
-    rationale: No skill composes pr-quality-all as a sub-step; pr-autofix and pr-review only disambiguate away from it.
 ---
 
 # PR Quality Gate: All Axes

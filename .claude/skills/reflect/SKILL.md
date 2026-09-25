@@ -10,7 +10,7 @@ metadata:
     role: front-door
     invoker: autoplan
     trigger: autoplan routes a received correction or lesson learned to reflect
-    user-facing: false
+    user-facing: true
 ---
 
 # Reflect Skill

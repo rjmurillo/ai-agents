@@ -10,7 +10,7 @@ metadata:
     invoker: user
     trigger: a user asks to check Serena and Context7 plugin prerequisites
     user-facing: true
-    rationale: No skill or agent composes context-hub-setup as a sub-step yet. No issue names a future invoker.
+    rationale: Automatic routing would be noisy. It only diagnoses local plugin setup, which a user asks for on purpose. No issue names a future invoker.
 ---
 
 # Context Hub Setup

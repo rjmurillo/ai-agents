@@ -9,7 +9,7 @@ metadata:
     invoker: user
     trigger: a user asks to run the world model diagnostic
     user-facing: true
-    rationale: No skill or agent composes world-model-diagnostic as a sub-step yet. Issue #5385 will wire it into a routing chain.
+    rationale: Automatic routing would be noisy until issue #5385 adds a long-tail resolver; its description overlaps ordinary debugging requests.
 ---
 
 # World Model Diagnostic

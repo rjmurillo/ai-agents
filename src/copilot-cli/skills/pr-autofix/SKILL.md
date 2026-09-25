@@ -9,11 +9,10 @@ size-exception: true
 user-invocable: true
 metadata:
   routing:
-    role: explicit-only
-    invoker: user
-    trigger: a user asks to autofix or monitor open PRs
+    role: conditional-adjunct
+    invoker: pr-review
+    trigger: pr-review redirects a red check with no review comments here
     user-facing: true
-    rationale: No skill composes pr-autofix as a sub-step; pr-review's text only disambiguates away from it.
 ---
 
 # PR Autofix

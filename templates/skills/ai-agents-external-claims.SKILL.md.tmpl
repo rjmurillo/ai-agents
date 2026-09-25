@@ -7,9 +7,9 @@ metadata:
   routing:
     role: explicit-only
     invoker: user
-    trigger: no invoker composes this skill yet
-    user-facing: false
-    rationale: No skill or agent composes ai-agents-external-claims as a sub-step yet. Issue #5388 will wire specialist composition before validator edits.
+    trigger: a user asks to verify an external, vendor, or third-party claim
+    user-facing: true
+    rationale: Automatic routing would be noisy until issue #5388 defines when external claims enter a durable artifact; without that trigger it would fire on internal facts.
 ---
 
 # ai-agents External Claims

@@ -11,7 +11,7 @@ metadata:
     invoker: user
     trigger: a user asks how to treat an upstream validator as authoritative
     user-facing: true
-    rationale: No skill or agent composes validation-authority as a sub-step yet. Issue #5387 will wire it in before validator edits.
+    rationale: Automatic routing would be noisy until issue #5387 defines the validator-change trigger; firing on every failing check would stall routine fixes.
 ---
 
 # Validation Authority

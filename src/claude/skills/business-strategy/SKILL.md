@@ -13,7 +13,7 @@ metadata:
     invoker: user
     trigger: a user asks to route a founder problem to a business framework
     user-facing: true
-    rationale: No skill or agent composes business-strategy as a sub-step yet. Issue #5385 will wire it into a routing chain.
+    rationale: Automatic routing would be noisy until issue #5385 adds a long-tail resolver; a broad business description would match unrelated product questions.
 ---
 
 # Business Strategy

@@ -8,11 +8,10 @@ argument-hint: '<PR_NUMBERS> [--parallel --cleanup --dry-run]'
 user-invocable: true
 metadata:
   routing:
-    role: explicit-only
-    invoker: user
-    trigger: a user asks to respond to PR review comments
+    role: conditional-adjunct
+    invoker: pr-autofix
+    trigger: pr-autofix redirects an interactive reply to one PR's review comments here
     user-facing: true
-    rationale: No skill or agent composes pr-review as a sub-step in canonical text; pr-autofix and pr-comment-responder only disambiguate toward it or reference an unrelated memory path.
 ---
 
 # PR Review

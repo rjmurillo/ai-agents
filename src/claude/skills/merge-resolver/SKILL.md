@@ -18,7 +18,7 @@ metadata:
     invoker: user
     trigger: a user asks to resolve merge conflicts
     user-facing: true
-    rationale: Callers that mention merge-resolver route conflicts to the merge-resolver agent, not this skill; no skill or agent composes the skill itself.
+    rationale: Automatic routing would be noisy. Conflict callers already send work to the merge-resolver agent, so routing this skill too would duplicate that path.
 ---
 # Merge Resolver
 

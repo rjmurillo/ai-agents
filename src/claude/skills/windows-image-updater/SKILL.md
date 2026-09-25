@@ -9,7 +9,7 @@ metadata:
     invoker: user
     trigger: a user asks to migrate a Windows container image for OneBranch pipelines
     user-facing: true
-    rationale: No skill composes windows-image-updater as a sub-step; pipeline-validator only cites it as an example caller it watches for.
+    rationale: Automatic routing would be unsafe. It rewrites pipeline images for one platform. pipeline-validator cites it only as an example caller.
 ---
 
 # Windows Image Updater

@@ -12,7 +12,7 @@ metadata:
     invoker: user
     trigger: a user asks to write a checkpoint snapshot of decisions and progress
     user-facing: true
-    rationale: No skill or agent composes checkpoint as a sub-step; inbound matches are the common word checkpoint in unrelated prose.
+    rationale: Automatic routing would be unsafe. A snapshot writes files, so it runs only when a user asks. Inbound matches are the common word checkpoint.
 ---
 
 # Checkpoint

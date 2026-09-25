@@ -16,7 +16,7 @@ metadata:
     role: front-door
     invoker: autoplan
     trigger: autoplan routes diff vulnerability review requests to security-review
-    user-facing: false
+    user-facing: true
 ---
 
 # Security Review

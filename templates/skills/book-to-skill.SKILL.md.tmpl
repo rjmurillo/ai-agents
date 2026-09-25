@@ -7,9 +7,9 @@ metadata:
   routing:
     role: explicit-only
     invoker: user
-    trigger: no invoker composes this skill yet
-    user-facing: false
-    rationale: No skill or agent composes book-to-skill as a sub-step yet. Issue #5385 will wire it as an input adapter for SkillForge.
+    trigger: a user asks to turn a book's method into a skill
+    user-facing: true
+    rationale: Automatic routing would be noisy until issue #5385 adds a long-tail resolver; a book mention in ordinary chat must not start skill creation.
 ---
 
 # book-to-skill

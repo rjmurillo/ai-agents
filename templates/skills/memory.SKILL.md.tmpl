@@ -12,11 +12,10 @@ metadata:
   adr: ADR-038, ADR-063, ADR-106
   timelessness: 8/10
   routing:
-    role: explicit-only
-    invoker: user
-    trigger: a user asks a memory question that memory-search's front-door route does not cover
-    user-facing: false
-    rationale: No skill or agent composes the memory router itself as a sub-step; its sub-skills are the composed ones. A user or the harness selects it directly by description.
+    role: conditional-adjunct
+    invoker: research
+    trigger: research redirects a search of this repository here
+    user-facing: true
 ---
 # Memory System Skill
 

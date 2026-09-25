@@ -8,7 +8,7 @@ metadata:
     invoker: user
     trigger: a user asks to collect agent usage metrics
     user-facing: true
-    rationale: No skill composes metrics as a sub-step; inbound matches are the common word metrics in unrelated prose about observability data.
+    rationale: Automatic routing would be noisy. Usage collection is an operator task, and inbound matches are the common word metrics in unrelated prose.
 version: 1.0.0
 model: haiku
 model-rationale: cost. The 'haiku' rolling alias resolves via the platform model_tiers map to a tier priced below the sonnet-tier harness default; this unit is routing/mechanical work where the cheaper tier suffices (ADR-080 rule 3).

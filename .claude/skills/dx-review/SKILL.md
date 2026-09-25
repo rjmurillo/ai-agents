@@ -27,7 +27,7 @@ metadata:
     invoker: user
     trigger: a user asks for a developer experience audit
     user-facing: true
-    rationale: code-reviewer's agent text names dx-review only in passing, describing why that agent is dispatched, not as a route. Issue #5386 will wire dx-review into /test.
+    rationale: Automatic routing would be noisy until issue #5386 adds a developer-facing change trigger to /test; a full DX audit is too costly to run on every change.
 ---
 
 # dx-review: Evidence-Based Developer Experience Audit

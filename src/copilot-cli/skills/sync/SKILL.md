@@ -12,7 +12,7 @@ metadata:
     invoker: user
     trigger: a user asks to detect spec-to-code drift
     user-facing: true
-    rationale: No skill composes sync as a sub-step; inbound matches are the unrelated uv sync command, not this skill.
+    rationale: Automatic routing would be noisy. Inbound matches are the unrelated uv sync command, and a drift sweep is a deliberate request.
 ---
 
 # Sync

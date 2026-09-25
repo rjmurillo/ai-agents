@@ -8,7 +8,7 @@ metadata:
     invoker: user
     trigger: a user asks to optimize a system prompt
     user-facing: true
-    rationale: No skill composes prompt-engineer as a sub-step; prose-self-check only disambiguates away from it.
+    rationale: Automatic routing would be noisy. Prompt rewrites change agent behavior, so they run only on request. prose-self-check lists it only for comparison.
 version: 1.0.0
 ---
 

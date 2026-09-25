@@ -8,11 +8,10 @@ allowed-tools: Skill, Read, Glob
 user-invocable: true
 metadata:
   routing:
-    role: explicit-only
-    invoker: user
-    trigger: a user asks to fill or list pending retrospective skeletons
+    role: conditional-adjunct
+    invoker: checkpoint
+    trigger: checkpoint redirects writing a retrospective here
     user-facing: true
-    rationale: No skill composes retro as a sub-step; inbound matches are the common word retro in unrelated prose about retrospective files.
 ---
 
 # Retro
