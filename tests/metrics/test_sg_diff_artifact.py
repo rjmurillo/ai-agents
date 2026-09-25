@@ -219,3 +219,17 @@ def test_resolve_invalid_ref_rejects_traversal_and_malformed_hex(
     assert resolution == sgda.Resolution(ok=False, text=None, reason="invalid_ref")
     # No file was created anywhere store_dir's parents could reach via traversal.
     assert not (tmp_path / "etc").exists()
+
+
+def test_write_artifact_refuses_a_preexisting_directory_open_to_other_users(
+    tmp_path: Path,
+) -> None:
+    store_dir = tmp_path / "store"
+    repo_id = "c" * 64
+    open_dir = store_dir / repo_id
+    open_dir.mkdir(parents=True)
+    open_dir.chmod(0o755)
+
+    with pytest.raises(PermissionError, match="readable by other users"):
+        sgda.write_artifact(store_dir, repo_id, "head1", "diff", ["f.py"], 0)
+    assert list(open_dir.iterdir()) == []

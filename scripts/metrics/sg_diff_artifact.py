@@ -16,6 +16,7 @@ import contextlib
 import hashlib
 import os
 import re
+import stat
 import tempfile
 import time
 from collections.abc import Sequence
@@ -27,6 +28,7 @@ from pathlib import Path
 # any filesystem path from a reference field is the CWE-22 (path traversal)
 # defense in `resolve`: no digit-and-a-to-f string can encode `../`.
 _HEX64_RE = re.compile(r"^[0-9a-f]{64}$")
+_OWNER_ONLY_DIR_MODE = 0o700
 
 
 @dataclass(frozen=True, slots=True)
@@ -95,9 +97,12 @@ def write_artifact(
     path_order_sha256 = hashlib.sha256("\n".join(paths).encode()).hexdigest()
 
     repo_dir_path = Path(store_dir) / repo_id
-    repo_dir_path.mkdir(parents=True, exist_ok=True)
-    # Owner-only, stricter than the rule's 0o644 advice; artifacts may hold private diffs.
-    os.chmod(repo_dir_path, 0o700)
+    # Owner-only: artifacts may hold private diffs. mkdir's mode can only lose bits to
+    # the umask, and a pre-existing directory that grants any group or other access
+    # is refused rather than silently reused.
+    repo_dir_path.mkdir(mode=_OWNER_ONLY_DIR_MODE, parents=True, exist_ok=True)
+    if stat.S_IMODE(repo_dir_path.stat().st_mode) & (stat.S_IRWXG | stat.S_IRWXO):
+        raise PermissionError(f"write_artifact: {repo_dir_path} is readable by other users")
 
     target = repo_dir_path / f"{sha256}.diff"
     fd, tmp_name = tempfile.mkstemp(dir=repo_dir_path, prefix=".tmp-", suffix=".diff")

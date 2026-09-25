@@ -9,7 +9,7 @@ classification tests in ``test_sg_reference_ab_api.py``, tool-loop tests in
 ``test_sg_reference_ab_aggregates.py``.
 
 All network access is mocked: every test that reaches ``post_messages``
-patches ``urllib.request.urlopen`` with a scripted fake transport, or stubs
+patches the https-only Messages API opener with a scripted fake transport, or stubs
 ``run_fixture_mode``/``post_messages`` directly. No test performs a live
 Anthropic API call.
 """
@@ -21,7 +21,6 @@ import json
 import runpy
 import subprocess
 import sys
-import urllib.request
 from pathlib import Path
 from typing import Any
 
@@ -29,6 +28,7 @@ import pytest
 
 from scripts.metrics import sg_diff_reference as sgd
 from scripts.metrics import sg_reference_ab as ab
+from scripts.metrics import sg_reference_ab_api
 from scripts.metrics import sg_reference_ab_fixtures as fixtures_mod
 from tests.metrics.sg_reference_ab_helpers import (
     SCHEMA,
@@ -49,7 +49,7 @@ def test_run_fixture_mode_inline_records_prompt_and_classification(
     fixture = fixtures_mod._build_f_repeat(tmp_path / "fixture")
     findings = [{"filePath": fixture.seeded_path, "category": "CWE-78", "severity": "high"}]
     fake, _calls = make_fake_urlopen([report_findings_response(findings)])
-    monkeypatch.setattr(urllib.request, "urlopen", fake)
+    monkeypatch.setattr(sg_reference_ab_api._HTTPS_OPENER, "open", fake)
 
     result = ab.run_fixture_mode(
         fixture=fixture,

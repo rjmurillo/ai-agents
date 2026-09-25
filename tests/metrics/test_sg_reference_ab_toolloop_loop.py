@@ -7,7 +7,7 @@ taste-lints file-size gate: that sibling file keeps the tool-confinement
 tool loop itself. Transport and failure classification are tested in the
 sibling ``tests/metrics/test_sg_reference_ab_api.py``.
 
-All network access is mocked: every test here patches ``urllib.request.urlopen``
+All network access is mocked: every test here patches the https-only Messages API opener
 with a scripted fake transport. No test performs a live Anthropic API call.
 """
 
@@ -15,13 +15,13 @@ from __future__ import annotations
 
 import http.client
 import json
-import urllib.request
 from pathlib import Path
 from typing import Any
 
 import pytest
 
 from scripts.metrics import sg_diff_artifact as sgda
+from scripts.metrics import sg_reference_ab_api
 from scripts.metrics import sg_reference_ab_toolloop as toolloop
 from tests.metrics.sg_reference_ab_helpers import (
     SCHEMA,
@@ -42,7 +42,7 @@ def test_run_investigate_loop_calls_report_findings_immediately(
 ) -> None:
     findings = [{"filePath": "a.py", "category": "CWE-78", "severity": "high"}]
     fake, calls = make_fake_urlopen([report_findings_response(findings)])
-    monkeypatch.setattr(urllib.request, "urlopen", fake)
+    monkeypatch.setattr(sg_reference_ab_api._HTTPS_OPENER, "open", fake)
 
     result = toolloop.run_investigate_loop(
         api_key="key",
@@ -77,7 +77,7 @@ def test_run_investigate_loop_executes_read_file_then_reports(
         report_findings_response([{"filePath": "a.py", "category": "CWE-78", "severity": "high"}]),
     ]
     fake, calls = make_fake_urlopen(list(responses))
-    monkeypatch.setattr(urllib.request, "urlopen", fake)
+    monkeypatch.setattr(sg_reference_ab_api._HTTPS_OPENER, "open", fake)
 
     result = toolloop.run_investigate_loop(
         api_key="key",
@@ -111,7 +111,7 @@ def test_run_investigate_loop_executes_grep_then_reports(
         report_findings_response([]),
     ]
     fake, calls = make_fake_urlopen(list(responses))
-    monkeypatch.setattr(urllib.request, "urlopen", fake)
+    monkeypatch.setattr(sg_reference_ab_api._HTTPS_OPENER, "open", fake)
 
     result = toolloop.run_investigate_loop(
         api_key="key",
@@ -141,7 +141,7 @@ def test_run_investigate_loop_unknown_tool_name_reports_gracefully(
         report_findings_response([]),
     ]
     fake, calls = make_fake_urlopen(list(responses))
-    monkeypatch.setattr(urllib.request, "urlopen", fake)
+    monkeypatch.setattr(sg_reference_ab_api._HTTPS_OPENER, "open", fake)
 
     result = toolloop.run_investigate_loop(
         api_key="key",
@@ -173,7 +173,7 @@ def test_run_investigate_loop_records_read_diff_artifact_call(
         report_findings_response([]),
     ]
     fake, _calls = make_fake_urlopen(list(responses))
-    monkeypatch.setattr(urllib.request, "urlopen", fake)
+    monkeypatch.setattr(sg_reference_ab_api._HTTPS_OPENER, "open", fake)
 
     result = toolloop.run_investigate_loop(
         api_key="key",
@@ -204,7 +204,7 @@ def test_run_investigate_loop_read_diff_artifact_unavailable_in_inline_mode(
         report_findings_response([]),
     ]
     fake, _calls = make_fake_urlopen(list(responses))
-    monkeypatch.setattr(urllib.request, "urlopen", fake)
+    monkeypatch.setattr(sg_reference_ab_api._HTTPS_OPENER, "open", fake)
 
     result = toolloop.run_investigate_loop(
         api_key="key",
@@ -228,7 +228,7 @@ def test_run_investigate_loop_fails_on_http_error(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     fake, _calls = make_fake_urlopen([http_error(400)])
-    monkeypatch.setattr(urllib.request, "urlopen", fake)
+    monkeypatch.setattr(sg_reference_ab_api._HTTPS_OPENER, "open", fake)
 
     result = toolloop.run_investigate_loop(
         api_key="key",
@@ -269,7 +269,7 @@ def test_run_investigate_loop_fails_on_infra_http_error_carries_classification(
         }
     ).encode()
     fake, _calls = make_fake_urlopen([http_error(400, body)])
-    monkeypatch.setattr(urllib.request, "urlopen", fake)
+    monkeypatch.setattr(sg_reference_ab_api._HTTPS_OPENER, "open", fake)
 
     result = toolloop.run_investigate_loop(
         api_key="key",
@@ -300,7 +300,7 @@ def test_run_investigate_loop_fails_on_incomplete_read(
     fixture/mode/run, discarding every already-completed row.
     """
     fake, _calls = make_fake_urlopen([http.client.IncompleteRead(b"")])
-    monkeypatch.setattr(urllib.request, "urlopen", fake)
+    monkeypatch.setattr(sg_reference_ab_api._HTTPS_OPENER, "open", fake)
 
     result = toolloop.run_investigate_loop(
         api_key="key",
@@ -342,7 +342,7 @@ def test_run_investigate_loop_fails_on_non_json_200_body(
     def _fake_urlopen(request: Any, timeout: float | None = None) -> _RawBodyResponse:
         return _RawBodyResponse()
 
-    monkeypatch.setattr(urllib.request, "urlopen", _fake_urlopen)
+    monkeypatch.setattr(sg_reference_ab_api._HTTPS_OPENER, "open", _fake_urlopen)
 
     result = toolloop.run_investigate_loop(
         api_key="key",
@@ -367,7 +367,7 @@ def test_run_investigate_loop_fails_when_model_stops_without_report(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     fake, _calls = make_fake_urlopen([text_only_response()])
-    monkeypatch.setattr(urllib.request, "urlopen", fake)
+    monkeypatch.setattr(sg_reference_ab_api._HTTPS_OPENER, "open", fake)
 
     result = toolloop.run_investigate_loop(
         api_key="key",
@@ -395,7 +395,7 @@ def test_run_investigate_loop_exhausts_max_turns(
         tool_use_response("read_file", {"path": "a.py"}) for _ in range(toolloop.MAX_TURNS)
     ]
     fake, calls = make_fake_urlopen(responses)
-    monkeypatch.setattr(urllib.request, "urlopen", fake)
+    monkeypatch.setattr(sg_reference_ab_api._HTTPS_OPENER, "open", fake)
 
     result = toolloop.run_investigate_loop(
         api_key="key",

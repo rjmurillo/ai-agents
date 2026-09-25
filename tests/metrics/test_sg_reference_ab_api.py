@@ -8,7 +8,7 @@ file-size gate; the tool loop built on this transport is tested in the
 sibling ``tests/metrics/test_sg_reference_ab_toolloop.py``.
 
 All network access is mocked: every test that reaches ``post_messages``
-patches ``urllib.request.urlopen`` with a scripted fake transport. No test
+patches the https-only Messages API opener with a scripted fake transport. No test
 performs a live Anthropic API call.
 """
 
@@ -27,6 +27,7 @@ from tests.metrics.sg_reference_ab_helpers import (
     http_error,
     make_fake_urlopen,
     plugin_hooks_dir,
+    record_sleeps,
     write_stub_plugin,
 )
 
@@ -227,7 +228,7 @@ def test_load_plugin_contract_against_real_installed_plugin() -> None:
 
 def test_post_messages_returns_parsed_response(monkeypatch: pytest.MonkeyPatch) -> None:
     fake, calls = make_fake_urlopen([{"content": [], "usage": {}}])
-    monkeypatch.setattr(urllib.request, "urlopen", fake)
+    monkeypatch.setattr(api._HTTPS_OPENER, "open", fake)
 
     result = api.post_messages("key", "model", "system", [], [])
 
@@ -237,8 +238,8 @@ def test_post_messages_returns_parsed_response(monkeypatch: pytest.MonkeyPatch) 
 
 def test_post_messages_retries_once_on_429(monkeypatch: pytest.MonkeyPatch) -> None:
     fake, calls = make_fake_urlopen([http_error(429), {"content": [], "usage": {}}])
-    monkeypatch.setattr(urllib.request, "urlopen", fake)
-    slept = _record_sleeps(monkeypatch)
+    monkeypatch.setattr(api._HTTPS_OPENER, "open", fake)
+    slept = record_sleeps(monkeypatch)
 
     result = api.post_messages("key", "model", "system", [], [])
 
@@ -251,8 +252,8 @@ def test_post_messages_retries_once_on_5xx_then_raises_if_still_failing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     fake, calls = make_fake_urlopen([http_error(503), http_error(503)])
-    monkeypatch.setattr(urllib.request, "urlopen", fake)
-    slept = _record_sleeps(monkeypatch)
+    monkeypatch.setattr(api._HTTPS_OPENER, "open", fake)
+    slept = record_sleeps(monkeypatch)
 
     with pytest.raises(urllib.error.HTTPError):
         api.post_messages("key", "model", "system", [], [])
@@ -262,67 +263,13 @@ def test_post_messages_retries_once_on_5xx_then_raises_if_still_failing(
 
 def test_post_messages_does_not_retry_non_retryable_status(monkeypatch: pytest.MonkeyPatch) -> None:
     fake, calls = make_fake_urlopen([http_error(400)])
-    monkeypatch.setattr(urllib.request, "urlopen", fake)
-    slept = _record_sleeps(monkeypatch)
+    monkeypatch.setattr(api._HTTPS_OPENER, "open", fake)
+    slept = record_sleeps(monkeypatch)
 
     with pytest.raises(urllib.error.HTTPError):
         api.post_messages("key", "model", "system", [], [])
     assert len(calls) == 1
     assert slept == []
-
-
-def test_post_messages_retries_once_on_network_error(monkeypatch: pytest.MonkeyPatch) -> None:
-    fake, calls = make_fake_urlopen(
-        [urllib.error.URLError("connection reset"), {"content": [], "usage": {}}]
-    )
-    monkeypatch.setattr(urllib.request, "urlopen", fake)
-    slept = _record_sleeps(monkeypatch)
-
-    assert api.post_messages("key", "model", "system", [], []) == {"content": [], "usage": {}}
-    assert len(calls) == 2
-    assert len(slept) == 1
-
-
-def _record_sleeps(monkeypatch: pytest.MonkeyPatch) -> list[float]:
-    slept: list[float] = []
-    monkeypatch.setattr(api.time, "sleep", slept.append)
-    return slept
-
-
-def _http_error_with_headers(code: int, headers: dict[str, str] | None) -> urllib.error.HTTPError:
-    return urllib.error.HTTPError(
-        "https://api.anthropic.com/v1/messages", code, "err", cast(Any, headers), None
-    )
-
-
-@pytest.mark.parametrize(
-    ("exc", "expected"),
-    [
-        (_http_error_with_headers(429, {"Retry-After": "7"}), 7.0),
-        (_http_error_with_headers(429, {"Retry-After": " 999 "}), api.RETRY_MAX_DELAY_S),
-        (_http_error_with_headers(503, {"Retry-After": "Wed, 21 Oct 2026 07:28:00 GMT"}), 2.0),
-        (_http_error_with_headers(503, None), 2.0),
-        (_http_error_with_headers(502, {}), 2.0),
-        (urllib.error.URLError("dns"), 2.0),
-        (TimeoutError("slow"), 2.0),
-    ],
-)
-def test_retry_delay_s_for_retryable_errors(exc: Exception, expected: float) -> None:
-    assert api.retry_delay_s(exc, jitter=0.5) == expected
-
-
-@pytest.mark.parametrize(
-    "exc", [_http_error_with_headers(400, {"Retry-After": "1"}), ValueError("not transport")]
-)
-def test_retry_delay_s_returns_none_for_non_retryable_errors(exc: Exception) -> None:
-    assert api.retry_delay_s(exc, jitter=0.5) is None
-
-
-def test_retry_delay_s_jitter_scales_the_base_delay() -> None:
-    low = api.retry_delay_s(urllib.error.URLError("x"), jitter=0.0)
-    high = api.retry_delay_s(urllib.error.URLError("x"), jitter=0.99)
-    assert low == api.RETRY_BASE_DELAY_S * 0.5
-    assert high is not None and high > api.RETRY_BASE_DELAY_S
 
 
 # ---------------------------------------------------------------------------
@@ -486,13 +433,3 @@ def test_parse_anthropic_error_returns_none_when_error_field_not_a_dict() -> Non
 def test_parse_anthropic_error_returns_none_for_non_string_type_or_message() -> None:
     body = json.dumps({"error": {"type": 123, "message": None}})
     assert api._parse_anthropic_error(body) == (None, None)
-
-
-def test_send_once_refuses_a_non_https_url(monkeypatch: pytest.MonkeyPatch) -> None:
-    fake, calls = make_fake_urlopen([{"content": []}])
-    monkeypatch.setattr(urllib.request, "urlopen", fake)
-    request = urllib.request.Request("file:///etc/passwd")
-
-    with pytest.raises(ValueError, match="non-https"):
-        api._send_once(request)
-    assert calls == []

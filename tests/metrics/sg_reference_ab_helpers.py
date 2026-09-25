@@ -3,7 +3,7 @@
 Not a test module itself (no ``test_`` functions; pytest collects nothing
 here), so it is not subject to the taste-lints file-size gate's own
 "cohesive seam" pressure the way the test modules that import it are. Holds
-the scripted ``urlopen`` fake, response-payload builders, and the stub
+the scripted opener fake, response-payload builders, and the stub
 plugin-directory builder that ``tests/metrics/test_sg_reference_ab_api.py``,
 ``test_sg_reference_ab_toolloop.py``, and ``test_sg_reference_ab.py`` all
 need, so none of them duplicates it.
@@ -18,6 +18,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any, cast
 
+from scripts.metrics import sg_reference_ab_api
 from scripts.metrics.sg_reference_ab import DEFAULT_PLUGIN_DIR as _PLUGIN_HOOKS_DIR
 
 __all__ = [
@@ -25,6 +26,7 @@ __all__ = [
     "http_error",
     "make_fake_urlopen",
     "plugin_hooks_dir",
+    "record_sleeps",
     "report_findings_response",
     "text_only_response",
     "tool_use_response",
@@ -57,7 +59,7 @@ class _FakeHTTPResponse:
 def make_fake_urlopen(
     actions: list[dict[str, Any] | Exception],
 ) -> tuple[Callable[..., _FakeHTTPResponse], list[Any]]:
-    """A ``urlopen`` replacement consuming ``actions`` in order.
+    """A replacement for the opener's ``open`` consuming ``actions`` in order.
 
     Each action is either a response payload (dict) or an exception instance
     to raise. Returns the fake and the list of requests it was called with,
@@ -147,3 +149,10 @@ def write_stub_plugin(root: Path, *, with_version: bool = True, valid: bool = Tr
             json.dumps({"name": "security-guidance", "version": "9.9.9"}), encoding="utf-8"
         )
     return hooks_dir
+
+
+def record_sleeps(monkeypatch: Any) -> list[float]:
+    """Replace the retry sleep with a recorder so retry tests run instantly."""
+    slept: list[float] = []
+    monkeypatch.setattr(sg_reference_ab_api.time, "sleep", slept.append)
+    return slept

@@ -247,11 +247,33 @@ def load_plugin_contract(plugin_dir: Path) -> PluginContract:
 # ---------------------------------------------------------------------------
 
 
+def _https_only_opener() -> urllib.request.OpenerDirector:
+    """An opener with no file, ftp, or data handler, so only http(s) URLs can open.
+
+    ``urlopen`` installs a ``FileHandler``; this opener cannot read local files
+    even if the request URL changes. ``UnknownHandler`` makes any other scheme
+    raise ``URLError`` instead of returning ``None``.
+    """
+    opener = urllib.request.OpenerDirector()
+    for handler in (
+        urllib.request.ProxyHandler(),
+        urllib.request.HTTPSHandler(),
+        urllib.request.HTTPDefaultErrorHandler(),
+        urllib.request.HTTPErrorProcessor(),
+        urllib.request.UnknownHandler(),
+    ):
+        opener.add_handler(handler)
+    return opener
+
+
+_HTTPS_OPENER = _https_only_opener()
+
+
 def _send_once(request: urllib.request.Request) -> dict[str, Any]:
-    # Refuse any scheme but https, so a changed URL can never read file:// paths.
+    # Refuse any scheme but https before the request leaves the process.
     if not request.full_url.startswith("https://"):
         raise ValueError(f"refusing non-https URL: {request.full_url!r}")
-    with urllib.request.urlopen(request, timeout=REQUEST_TIMEOUT_S) as response:
+    with _HTTPS_OPENER.open(request, timeout=REQUEST_TIMEOUT_S) as response:
         return dict(json.loads(response.read().decode("utf-8", errors="replace")))
 
 
