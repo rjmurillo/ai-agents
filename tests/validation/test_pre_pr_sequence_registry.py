@@ -125,6 +125,7 @@ EXPECTED_ORDER: tuple[str, ...] = (
     'Always-on Corpus Claims',
     'Rule Scope Declarations (paths:)',
     'Capability Graph (metadata.capability)',
+    'Skill Routing Roles (metadata.routing)',
 )
 
 QUICK_SKIPPED: frozenset[str] = frozenset(

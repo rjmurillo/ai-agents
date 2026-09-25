@@ -117,6 +117,7 @@ from checks_tooling import (
     validate_planning_artifacts,
     validate_rule_scope_declarations,
     validate_session_end,
+    validate_skill_routing_roles_declarations,
     validate_workflow_yaml,
     validate_yaml_style,
 )
@@ -539,6 +540,14 @@ _SEQUENCE: tuple[_Gate, ...] = (
     _Gate(
         "Capability Graph (metadata.capability)",
         _root_only(validate_capability_graph_declarations),
+    ),
+    # Refuses a skill template with no `metadata.routing` block, an invalid
+    # role, a role/invoker contradiction, a missing explicit-only rationale,
+    # or a deprecated skill with no resolvable retirement key (REQ-038,
+    # issue #5384).
+    _Gate(
+        "Skill Routing Roles (metadata.routing)",
+        _root_only(validate_skill_routing_roles_declarations),
     ),
 )
 

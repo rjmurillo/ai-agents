@@ -311,6 +311,86 @@ allowed-tools:
 ---
 ```
 
+## Routing Role
+
+Every skill template declares `metadata.routing`, stating who selects it and
+how. `scripts/validation/check_skill_routing_roles.py` refuses a template
+with no block, an invalid role, a role/invoker contradiction, or a malformed
+`explicit-only` or `deprecated` declaration (REQ-038, DESIGN-036).
+
+```yaml
+metadata:
+  routing:
+    role: nested-helper
+    invoker: pr-quality-all
+    trigger: pr-quality-all runs the security axis
+    user-facing: true
+```
+
+### The six roles
+
+| Role | Legal invoker | Notes |
+|---|---|---|
+| `front-door` | `autoplan`, or `harness` for a skill the harness selects by description | The six lifecycle skills (`spec`, `plan`, `build`, `test`, `review`, `ship`) are front-door: autoplan routes to them. |
+| `lifecycle` | one of `spec`, `plan`, `build`, `test`, `review`, `ship` | A skill one of the six lifecycle skills selects. |
+| `conditional-adjunct` | any other skill or agent, not itself | Selected by another skill or agent under a condition. |
+| `nested-helper` | any other skill or agent, not itself | Selected internally by another skill or agent. |
+| `explicit-only` | `user` | Reachable only by the user naming it directly; requires `rationale`. |
+| `deprecated` | any, or absent | Requires `replaced-by` (a non-deprecated skill name) or a positive `removal-issue`. |
+
+`conditional-adjunct` and `nested-helper` may not be invoked by `user`,
+`harness`, or the skill's own name.
+
+### Required keys by role
+
+| Key | Type | Required |
+|---|---|---|
+| `role` | one of the six roles above | always |
+| `invoker` | skill, agent, `user`, or `harness` | unless `deprecated` |
+| `trigger` | non-empty string | unless `deprecated` |
+| `user-facing` | boolean | unless `deprecated` |
+| `scenario` | relative path under `tests/evals/` | never; defaults to `tests/evals/skill-scenarios/<name>.json` |
+| `rationale` | non-empty string | `explicit-only` only |
+| `replaced-by` | a non-deprecated skill name | `deprecated`, unless `removal-issue` is set |
+| `removal-issue` | positive integer | `deprecated`, unless `replaced-by` is set |
+
+No other key is allowed in the block.
+
+### How to pick a role
+
+1. Search every other skill template and agent body for your skill's exact
+   name. If one names it, that is your invoker, and its role follows from
+   the table above (a lifecycle skill selecting it makes it `lifecycle`; any
+   other skill or agent makes it `conditional-adjunct` or `nested-helper`
+   depending on whether the selection is conditional or an internal
+   implementation detail). A redirect such as "Do NOT use for X (use
+   your-skill)" counts as a conditional route: the trigger is X.
+2. If the skill exists to intercept requests automatically (its own
+   description says it triggers on a pattern, as `autoplan` and
+   `github-url-intercept` do), use `front-door` with `invoker: harness`.
+   Plain description matching does not qualify, since every skill has it.
+3. If nothing names it and the harness does not select it either, use
+   `explicit-only` with `invoker: user` and a `rationale` explaining why no
+   automatic route exists.
+4. A skill being retired uses `deprecated`, naming its replacement or a
+   removal issue instead of a live `invoker`.
+
+The lifecycle skills themselves (`spec`, `plan`, `build`, `test`, `review`,
+`ship`) are front-door: autoplan is their invoker, not the other way around.
+
+### Running the gate
+
+```bash
+uv run python scripts/validation/check_skill_routing_roles.py --report
+uv run python scripts/validation/check_skill_routing_roles.py --report --format json
+```
+
+`--report` prints totals by role, the unresolved list (skills whose
+declared invoker's own text never names them, an upper bound rather than a
+refusal), the inbound-zero list (skills no skill or agent text names at
+all), and scenario coverage. Scored routing accuracy is out of scope for
+this gate; issue #5389 owns it.
+
 ## Frontmatter Checklist
 
 Before committing a new skill, verify:
@@ -325,6 +405,7 @@ Before committing a new skill, verify:
 - [ ] SKILL.md under 500 lines (use progressive disclosure if larger)
 - [ ] Pre-commit validation passes (`.claude/skills/SkillForge/scripts/validate-skill.py <skill-dir>`, which Lefthook's `skillforge` job runs on staged `SKILL.md` files through `scripts/validation/git_hook_policy.py`)
 - [ ] Model-pin check passes (`uv run python scripts/validation/check_model_pins.py`; `scripts/validation/pre_pr.py` runs it in warn mode)
+- [ ] `metadata.routing` declared with a valid role and invoker (`uv run python scripts/validation/check_skill_routing_roles.py --report`)
 
 ## Troubleshooting
 
