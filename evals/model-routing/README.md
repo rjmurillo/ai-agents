@@ -93,6 +93,26 @@ downstream verifier checks. A passing eval fixture is not that verifier.
 Judgment and end-to-end work keep task-shape routing. The $86.76 below is an
 experiment bill, not evidence of lower cost per accepted production result.
 
+## Does a model follow the guidance?
+
+`tests/evals/model-routing-scenarios.json` holds 10 dispatch scenarios. The
+answer to each is a Claude tier. They cover bounded leaves with a real
+verifier, an ambiguous architecture call, a review where only an eval fixture
+"verifies", the skillbook and security-review exceptions, long-horizon coding,
+one-rung escalation after failed acceptance, and Fable only after Opus fails.
+
+Run on 2026-09-25 with `eval-prompt-change.py`, 3 runs per scenario, the
+orchestrator prompt as the system prompt:
+
+| Judge model | main to HEAD | pre-review wording to HEAD |
+|---|---|---|
+| GPT-6 Sol | 10/10 before and after | 10/10 before and after |
+| GPT-6 Astra | R1 to R7 pass before and after; stopped on an HTTP 500 | R1 to R8 pass before and after; stopped on an HTTP 500 |
+
+A model reading the prompt picks the intended tier. The scenarios do not
+separate the prompt versions: `main`'s task-shape rules already produce these
+choices. Claude was not run; the Anthropic account had no credit.
+
 ## Limits
 
 - **Single turn.** Each fixture is one prompt and one answer. Multi-step tool

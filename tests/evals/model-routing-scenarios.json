@@ -1,0 +1,132 @@
+{
+  "scenarios": [
+    {
+      "id": "R1",
+      "desc": "Bounded extraction leaf with a real downstream verifier routes to the cheapest tier",
+      "input": "You are dispatching one subtask on the Claude ladder. Subtask: extract every TODO comment from 40 named Python files into a JSON array of {path, line, text}. The output feeds a script that validates it against a JSON schema and fails the pipeline on any mismatch. Which model tier do you assign to this subtask?",
+      "expected_verdict": "HAIKU",
+      "verdict_options": [
+        "HAIKU",
+        "SONNET",
+        "OPUS",
+        "FABLE"
+      ],
+      "rationale": "Bounded, frequent, externally checkable leaf work with a real downstream verifier is exactly where the guidance lets the fixture evidence nominate the cheapest tier."
+    },
+    {
+      "id": "R2",
+      "desc": "Bounded classification leaf with a deterministic check routes to the cheapest tier",
+      "input": "You are dispatching one subtask on the Claude ladder. Subtask: assign one label from a fixed list of 12 labels to each of 500 issue titles. A script rejects any label outside the list and a sampled spot-check compares against a gold set. Which model tier do you assign?",
+      "expected_verdict": "HAIKU",
+      "verdict_options": [
+        "HAIKU",
+        "SONNET",
+        "OPUS",
+        "FABLE"
+      ],
+      "rationale": "Classification at volume with an objective check is the Haiku 4.5 / Luna shape in the routing table."
+    },
+    {
+      "id": "R3",
+      "desc": "Ambiguous architecture decision keeps task-shape routing to the frontier tier",
+      "input": "You are dispatching one subtask on the Claude ladder. Subtask: decide whether the plugin install path should move from per-repo copies to a shared global cache, weighing migration risk, offline use, and three downstream consumers. No test can check the answer; the user will act on the recommendation. Which model tier do you assign?",
+      "expected_verdict": "OPUS",
+      "verdict_options": [
+        "HAIKU",
+        "SONNET",
+        "OPUS",
+        "FABLE"
+      ],
+      "rationale": "Ambiguous, consequential judgment with no verifier keeps task-shape routing: Opus 5.5 is the default frontier. Fable is escalation only."
+    },
+    {
+      "id": "R4",
+      "desc": "A passing eval fixture is not treated as a downstream verifier",
+      "input": "You are dispatching one subtask on the Claude ladder. Subtask: review a 300-line refactor of the session-state module for correctness and hidden behavior changes before merge. The eval report says Haiku 4.5 was within 0.10 of the best model on the critic agent's fixtures. Nothing downstream checks the review; a human merges on its verdict. Do you assign Haiku 4.5 or a higher tier?",
+      "expected_verdict": "HIGHER",
+      "verdict_options": [
+        "HAIKU",
+        "HIGHER"
+      ],
+      "rationale": "Fixture evidence only nominates a tier for a bounded leaf with a real verifier. With no verifier, task shape governs, and the guidance sends high-recall review to Sonnet or Opus, never to the fixture-nominated Haiku."
+    },
+    {
+      "id": "R5",
+      "desc": "Measured exception: skillbook work routes to Opus",
+      "input": "You are dispatching one subtask on the Claude ladder to the skillbook agent. Subtask: deduplicate 40 candidate learnings against the existing skillbook and score each for atomicity. A validator checks the output file's schema. Which model tier do you assign?",
+      "expected_verdict": "OPUS",
+      "verdict_options": [
+        "HAIKU",
+        "SONNET",
+        "OPUS",
+        "FABLE"
+      ],
+      "rationale": "skillbook is a measured exception: the cheapest rungs trailed by more than the margin, so it routes to Opus 5.5 on Claude."
+    },
+    {
+      "id": "R6",
+      "desc": "Measured exception: security-review skill routes to Opus",
+      "input": "You are dispatching one subtask on the Claude ladder using the security-review skill. Subtask: review a 60-line request handler for path traversal and injection before merge. A CodeQL job also runs on the PR. Which model tier do you assign?",
+      "expected_verdict": "OPUS",
+      "verdict_options": [
+        "HAIKU",
+        "SONNET",
+        "OPUS",
+        "FABLE"
+      ],
+      "rationale": "security-review is a measured exception that routes to Opus 5.5 on Claude."
+    },
+    {
+      "id": "R7",
+      "desc": "Long-horizon end-to-end implementation keeps the frontier default",
+      "input": "You are dispatching one subtask on the Claude ladder. Subtask: implement a new eval provider end to end across six modules, add tests, fix what breaks, and iterate until the suite passes. It will take many tool calls over several hours. Which model tier do you assign?",
+      "expected_verdict": "OPUS",
+      "verdict_options": [
+        "HAIKU",
+        "SONNET",
+        "OPUS",
+        "FABLE"
+      ],
+      "rationale": "Long-running agentic coding is the Opus 5.5 default-frontier shape; the single-turn fixture evidence does not cover tool loops."
+    },
+    {
+      "id": "R8",
+      "desc": "Failed acceptance on a cheap leaf escalates one rung",
+      "input": "You are dispatching one subtask on the Claude ladder. A Haiku 4.5 worker converted 30 YAML configs to TOML, and the round-trip validator failed on 7 files twice in a row with the same class of error (anchors and merge keys). Which model tier do you assign for the retry?",
+      "expected_verdict": "SONNET",
+      "verdict_options": [
+        "HAIKU",
+        "SONNET",
+        "OPUS",
+        "FABLE"
+      ],
+      "rationale": "Repeated acceptance failure raises a typed exception at the unresolved surface. The next rung for specified work is Sonnet 5; repeating Haiku ignores the failure and jumping to Fable skips Opus."
+    },
+    {
+      "id": "R9",
+      "desc": "Fable only after higher-effort Opus fails",
+      "input": "You are dispatching one subtask on the Claude ladder. Subtask: design the consistency model for a cross-harness memory store. Opus 5.5 at its highest effort produced two designs that both failed the architect's acceptance review on the same unresolved concurrency question. Which model tier do you assign next?",
+      "expected_verdict": "FABLE",
+      "verdict_options": [
+        "HAIKU",
+        "SONNET",
+        "OPUS",
+        "FABLE"
+      ],
+      "rationale": "Fable 5.1 is escalation only, after higher-effort Opus fails on highest-stakes architecture."
+    },
+    {
+      "id": "R10",
+      "desc": "Fable is not the first choice even for high-stakes work",
+      "input": "You are dispatching one subtask on the Claude ladder. Subtask: write the threat model for a new credential-handling hook. The stakes are high, and no model has attempted it yet. Which model tier do you assign first?",
+      "expected_verdict": "OPUS",
+      "verdict_options": [
+        "HAIKU",
+        "SONNET",
+        "OPUS",
+        "FABLE"
+      ],
+      "rationale": "Opus 5.5 is the default frontier; Fable 5.1 is reserved for escalation after Opus fails."
+    }
+  ]
+}
