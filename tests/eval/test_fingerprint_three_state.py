@@ -59,7 +59,7 @@ class TestOpenAITransportFingerprintIntegration:
         t._seed = None
         t._max_tokens = 1024
         t.system_fingerprint = None
-        t.termination = "unknown"
+        t._termination = "unknown"
         return t
 
     def test_valid_fingerprint_recorded(self) -> None:
@@ -109,7 +109,7 @@ class TestAnthropicTransportFingerprintIntegration:
             t._seed = None
             t._max_tokens = 1024
             t.system_fingerprint = None
-            t.termination = None
+            t._termination = None
             with pytest.raises(MalformedProviderMetadataError):
                 t("prompt", "model", "system")
             assert t.system_fingerprint is None
@@ -126,6 +126,6 @@ class TestAnthropicTransportFingerprintIntegration:
             t._seed = None
             t._max_tokens = 1024
             t.system_fingerprint = None
-            t.termination = None
+            t._termination = None
             t("prompt", "model", "system")
             assert t.system_fingerprint is None

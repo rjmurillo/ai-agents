@@ -70,11 +70,11 @@ from typing import Any
 
 from _anthropic_api import (
     DEFAULT_MODEL,
-    NON_SCOREABLE_TERMINATIONS,
     call_api,
     load_api_key_for_selected_provider,
     verify_model_available,
 )
+from _anthropic_response import NON_SCOREABLE_TERMINATIONS
 from _billing_matrix import (
     BILLING_MODES,
     HARNESSES,
@@ -566,9 +566,21 @@ def acceptance_gate(
     with zero targeted improvements). See ADR-057 (2026-06-01 relaxation note).
 
     Security-critical tier: all runs must pass (100% pass rate). Unchanged.
+
+    REQ-037 AC-11: excluding refusal/token_limit/incomplete runs from the
+    scored-run count (`run_scenario_multi`) means a scenario can reach
+    `passed=True` on far fewer than the `DEFAULT_RUNS`/`SECURITY_RUNS`
+    minimum `parse_args` enforces at the CLI boundary; for example
+    {pass, refusal, refusal} scores 1/1 = 100% on a single scored run. This
+    gate re-enforces that floor: an "after" scenario scored on fewer than
+    the required minimum blocks the gate as inconclusive (`passed=False`),
+    never as a silent pass. The same check on "before" is reported only
+    (`insufficient_scored_before`); a stale base-ref result cannot block a
+    current change.
     """
     before_results = comparison["before_results"]
     after_results = comparison["after_results"]
+    required_scored_runs = SECURITY_RUNS if security_critical else DEFAULT_RUNS
 
     # Criterion 1: no regression
     no_regression = comparison["after_score"] >= comparison["before_score"]
@@ -577,6 +589,8 @@ def acceptance_gate(
     regressions = []
     flaky_scenarios = []
     not_scored_scenarios = []
+    insufficient_scored_scenarios = []
+    insufficient_scored_before = []
 
     for b, a in zip(before_results, after_results, strict=True):
         sid = b["scenario_id"]
@@ -592,6 +606,13 @@ def acceptance_gate(
         # just makes the excluded-run count visible in the report.
         if a.get("not_scored_runs"):
             not_scored_scenarios.append(sid)
+        # REQ-037 AC-11: blocking on "after", reported only on "before".
+        if a["runs"] < required_scored_runs:
+            insufficient_scored_scenarios.append(sid)
+        if b["runs"] < required_scored_runs:
+            insufficient_scored_before.append(sid)
+
+    no_insufficient_scored_runs = len(insufficient_scored_scenarios) == 0
 
     # Informational only: whether the change moved any scenario fail->pass, or
     # the base ref already passed everything. NOT a gating requirement (see
@@ -625,7 +646,12 @@ def acceptance_gate(
     # an offsetting improvement keeps after_score flat (no_regression stays
     # True); the regressions list, not the score delta, is the authoritative
     # block signal.
-    passed = no_regression and no_unexplained_regressions and no_high_flakiness
+    passed = (
+        no_regression
+        and no_unexplained_regressions
+        and no_high_flakiness
+        and no_insufficient_scored_runs
+    )
     if security_critical:
         passed = passed and security_pass
 
@@ -640,12 +666,16 @@ def acceptance_gate(
             "has_improvement": has_improvement,
             "no_unexplained_regressions": no_unexplained_regressions,
             "no_high_flakiness": no_high_flakiness,
+            "no_insufficient_scored_runs": no_insufficient_scored_runs,
         },
         "improvements": improvements,
         "regressions": regressions,
         "flaky_scenarios": flaky_scenarios,
         "not_scored_scenarios": not_scored_scenarios,
         "high_flakiness_scenarios": high_flakiness_scenarios,
+        "insufficient_scored_scenarios": insufficient_scored_scenarios,
+        "insufficient_scored_before": insufficient_scored_before,
+        "required_scored_runs": required_scored_runs,
         "before_score": comparison["before_score"],
         "after_score": comparison["after_score"],
         "delta": comparison["delta"],
@@ -878,6 +908,18 @@ def _print_gate_summary(gate: dict[str, Any]) -> None:
         print(f"  Not scored (excluded runs): {gate['not_scored_scenarios']}", file=sys.stderr)
     if gate.get("high_flakiness_scenarios"):
         print(f"  BLOCKED (>40% flaky): {gate['high_flakiness_scenarios']}", file=sys.stderr)
+    if gate.get("insufficient_scored_scenarios"):
+        print(
+            f"  BLOCKED (< {gate['required_scored_runs']} scored runs, after): "
+            f"{gate['insufficient_scored_scenarios']}",
+            file=sys.stderr,
+        )
+    if gate.get("insufficient_scored_before"):
+        print(
+            f"  Insufficient scored runs (before, informational): "
+            f"{gate['insufficient_scored_before']}",
+            file=sys.stderr,
+        )
     print(f"{'=' * 60}", file=sys.stderr)
 
 

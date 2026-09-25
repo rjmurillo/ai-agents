@@ -19,9 +19,10 @@ tags:
 
 ## Steps
 
-1. Add `MessageResponse`, `classify_termination`, `parse_message_response`,
-   and `call_api_response` to `scripts/eval/_anthropic_api.py`. Make
-   `call_api` a text view with the metadata write-through.
+1. Add `MessageResponse`, `classify_termination`, and
+   `parse_message_response` to `scripts/eval/_anthropic_response.py`. Add
+   `call_api_response` to `scripts/eval/_anthropic_api.py`. Make `call_api`
+   a text view with the metadata write-through.
 2. Add unit tests for `end_turn`, `refusal`, `max_tokens`, mixed thinking
    and text blocks, unknown stop reasons, a non-default provider, and the
    `max_tokens` pass-through.
@@ -29,7 +30,8 @@ tags:
    `max_tokens` parameter to `scripts/eval/_eval_api_adapter.py`, with
    tests.
 4. Make the judges in `eval-rule-activation.py` and `eval-prompt-change.py`
-   refuse to score a `refusal` or `token_limit` response, with tests.
+   refuse to score a `refusal`, `token_limit`, or `incomplete` response,
+   with tests.
 5. Run the eval test suite, ruff, and mypy on the changed files.
 
 ## Done When

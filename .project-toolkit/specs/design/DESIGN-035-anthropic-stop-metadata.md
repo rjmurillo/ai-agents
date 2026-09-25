@@ -19,13 +19,15 @@ tags:
 
 ## Requirements Addressed
 
-REQ-037 criteria 1 to 10.
+REQ-037 criteria 1 to 11.
 
 ## Change
 
-- `_anthropic_api.py` gains `MessageResponse`, `classify_termination`, and
-  `parse_message_response`. The parser reads the response dict once.
-- `call_api_response` holds the request logic and returns a
+- `_anthropic_response.py` (new module) holds `MessageResponse`,
+  `classify_termination`, and `parse_message_response`. The parser reads
+  the response dict once.
+- `_anthropic_api.py` imports from `_anthropic_response.py`.
+  `call_api_response` holds the request logic and returns a
   `MessageResponse`. A non-default provider yields termination `unknown`.
 - `call_api` calls `call_api_response` and returns its text. When the caller
   passes `metadata`, it also writes `termination` and `stop_reason`, and
@@ -33,15 +35,21 @@ REQ-037 criteria 1 to 10.
 - `_eval_api_adapter.py`: `APICallResult` gains `termination`. The
   Anthropic transport records the termination it read. A `refusal`,
   `token_limit`, or `incomplete` result returns `outcome="error"` with a new
-  error category and is not retried. The adapter takes `max_tokens` and
-  passes it to both transports.
+  error category and is not retried; that blocked result sets
+  `raw_response` to `None`, so `eval-agent-vs-baseline.py` and
+  `variance-control.py` never score or persist the refused or cut-off text,
+  while the structured log record still carries the termination. The
+  adapter takes `max_tokens` and passes it to both transports.
 - `eval-rule-activation.py`: the judge fails on a `refusal`, `token_limit`,
   or `incomplete` termination and records it in the sample.
 - `eval-prompt-change.py`: the judge reads the termination through
   `metadata` and returns a `not_scored` result on `refusal`, `token_limit`,
   or `incomplete`. `run_scenario_multi` excludes such runs from its scored
   run count instead of counting them as a failed run; a scenario with zero
-  scored runs cannot pass.
+  scored runs cannot pass. `acceptance_gate` also fails a scenario as
+  inconclusive when its scored-run count falls below the `DEFAULT_RUNS`/
+  `SECURITY_RUNS` minimum, so excluding not-scored runs can never let a
+  scenario pass on too few scored runs (REQ-037 AC-11).
 
 ## Alternatives Rejected
 

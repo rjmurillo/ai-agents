@@ -39,7 +39,8 @@ from typing import Literal, Protocol, cast
 
 # Sibling import; loaded under the same EVAL_DIR sys.path entry that the CLI uses.
 import _eval_api_adapter_constants as _constants
-from _anthropic_api import NON_SCOREABLE_TERMINATIONS, call_api, load_api_key
+from _anthropic_api import call_api, load_api_key
+from _anthropic_response import NON_SCOREABLE_TERMINATIONS
 from _eval_common import MalformedProviderMetadataError, require_str_or_none
 
 OutcomeLiteral = Literal["success", "error"]
@@ -171,7 +172,8 @@ def _blocked_termination_result(
     category: str,
     fingerprint: str | None,
 ) -> APICallResult:
-    """Record a refusal or token-limit cutoff as an error, never a scored answer.
+    """Record a refusal, token-limit cutoff, or incomplete stop as an error,
+    never a scored answer.
 
     REQ-037 AC-9. Token and latency figures are the same ones the success
     path would have used; `raw_response` is `None` because the text is not a
@@ -265,7 +267,13 @@ class _OpenAIProviderTransport:
         self._seed = seed
         self._max_tokens = max_tokens
         self.system_fingerprint: str | None = None
-        self.termination: str = "unknown"
+        self._termination: str = "unknown"
+
+    @property
+    def termination(self) -> str:
+        """Always ``"unknown"``; a non-default provider carries no Messages
+        API stop metadata. Read-only: only `__call__` sets `_termination`."""
+        return self._termination
 
     def __call__(self, prompt: str, model_id: str, system: str) -> str:
         kwargs: dict[str, object] = {
@@ -291,12 +299,19 @@ class _AnthropicTransport:
         self._seed = seed
         self._max_tokens = max_tokens
         self.system_fingerprint: str | None = None
-        self.termination: str | None = None
+        self._termination: str | None = None
+
+    @property
+    def termination(self) -> str | None:
+        """The termination `__call__` read from `call_api`'s metadata, or
+        `None` before the first call or after a raise. Read-only: only
+        `__call__` sets `_termination`."""
+        return self._termination
 
     def __call__(self, prompt: str, model_id: str, system: str) -> str:
         # Reset before each call: a stale termination from a prior attempt
         # must never be read as this attempt's outcome (REQ-037 Design).
-        self.termination = None
+        self._termination = None
         metadata: dict[str, object] = {}
         text = cast(
             str,
@@ -314,7 +329,7 @@ class _AnthropicTransport:
         fingerprint = metadata.get("system_fingerprint")
         self.system_fingerprint = _constants.normalize_fingerprint(fingerprint)
         termination = metadata.get("termination")
-        self.termination = termination if isinstance(termination, str) else None
+        self._termination = termination if isinstance(termination, str) else None
         return text
 
 

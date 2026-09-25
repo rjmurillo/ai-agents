@@ -62,11 +62,12 @@ from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Any
 
-from _anthropic_api import DEFAULT_MODEL, NON_SCOREABLE_TERMINATIONS, verify_model_available
+from _anthropic_api import DEFAULT_MODEL, verify_model_available
 from _anthropic_api import call_api as _call_api
 from _anthropic_api import (
     load_api_key_for_selected_provider as _load_api_key,
 )
+from _anthropic_response import NON_SCOREABLE_TERMINATIONS
 from _eval_common import (
     EST_TOKENS_PER_CALL,
     MalformedProviderMetadataError,
@@ -482,8 +483,9 @@ Respond in JSON only, no other text:
         metadata=metadata,
     )
 
-    # REQ-037 AC-9: a refusal or a token-limit cutoff is recorded and never
-    # scored as a right or wrong verdict. Checked before any parsing.
+    # REQ-037 AC-9: a refusal, a token-limit cutoff, or an incomplete stop is
+    # recorded and never scored as a right or wrong verdict. Checked before
+    # any parsing.
     termination = metadata.get("termination")
     if termination in NON_SCOREABLE_TERMINATIONS:
         return _failed_judge(

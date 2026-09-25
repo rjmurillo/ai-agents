@@ -157,6 +157,8 @@ termination field.
    as an answer. The prompt-change evaluator shall exclude such runs from
    its scored-run count rather than counting them as a failed run.
 10. The adapter shall add no streaming loop and no continuation request.
+11. When a scenario has fewer scored runs than the run minimum, the
+    prompt-change gate shall fail as inconclusive.
 
 ## Out of Scope
 
