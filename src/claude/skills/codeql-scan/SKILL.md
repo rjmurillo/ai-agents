@@ -3,6 +3,12 @@ name: codeql-scan
 version: 1.0.1
 description: Execute CodeQL security scans with language detection, database caching, and SARIF output. Use when performing static security analysis on Python or GitHub Actions code.
 license: MIT
+metadata:
+  routing:
+    role: conditional-adjunct
+    invoker: security-scan
+    trigger: security-scan escalates to codeql-scan for full SAST analysis when it finds issues or high-risk files
+    user-facing: false
 ---
 
 # CodeQL Scan Skill

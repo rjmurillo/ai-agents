@@ -3,12 +3,18 @@ name: ai-agents-generation-and-release
 description: Operate the ai-agents generation and release machinery, covering the seven build_all.py generators, generate_agents.py, sync_plugin_lib.py, the drift gates, the version-free plugin manifests, and the npm publish path. Use when you say `regenerate the mirrors`, `run the drift checks`, `why is the plugin version gate red`, `release the npm cli`. Do NOT use for environment setup (use `ai-agents-build-and-env`) or architecture rationale (use `ai-agents-architecture-contract`).
 version: 1.0.0
 license: MIT
+metadata:
+  routing:
+    role: conditional-adjunct
+    invoker: ai-agents-build-and-env
+    trigger: build-and-env redirects release work here
+    user-facing: false
 ---
 
 # ai-agents Generation and Release
 
 <!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself. It intentionally references .project-toolkit/architecture, .project-toolkit/retrospective, .claude/lib, scripts/hook_utilities, scripts/github_core, scripts/ai_review_common, scripts/sync_plugin_lib.py, scripts/validation, build/generate_agents.py, build/scripts, templates/agents, templates/platforms, and AGENTS.md because its audience is repo contributors, not plugin consumers. Issue #2050. -->
-Runbook for the build, generation, mirroring, versioning, and release machinery of this repo. Every command below was executed or read from source on 2026-07-02/03 and re-verified against the working tree on 2026-07-29; re-verify with the one-liners in Provenance before trusting a volatile number.
+Runbook for the build, generation, mirroring, versioning, and release machinery. Every command below was run or read from source on 2026-07-02/03 and re-verified on 2026-07-29; re-verify with the one-liners in Provenance before trusting a volatile number.
 
 Jargon, defined once:
 
@@ -58,7 +64,7 @@ The generation seam is ASYMMETRIC (ADR-072 is PROPOSED and refines this; the run
 
 All 111 skills are template-owned (ADR-108, ADR-109 B3): edit `templates/skills/<name>.SKILL.md.tmpl`; it renders `src/claude/skills/<name>/SKILL.md` first, binplace copies that to `.claude/skills/<name>/SKILL.md`, then the Copilot copy step mirrors it (plus the skill's hand-maintained `scripts/`, `references/`, `tests/`) into `src/copilot-cli/skills/<name>/SKILL.md`.
 
-Generator inventory inside `build/scripts/build_all.py` (the `GENERATORS` list; order is load-bearing per the `Order matters` comment above it; a `commands` step sat between skills and rules until ADR-064 retired `.claude/commands/`, so the count is seven, not eight):
+Generator inventory inside `build/scripts/build_all.py` (the `GENERATORS` list; order is load-bearing per the `Order matters` comment above it; seven since ADR-064 retired `commands`):
 
 | # | Generator | Reads | Writes |
 |---|-----------|-------|--------|

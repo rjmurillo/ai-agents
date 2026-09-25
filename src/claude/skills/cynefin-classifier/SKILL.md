@@ -5,6 +5,11 @@ description: Classify problems into Cynefin Framework domains (Clear, Complicate
 license: MIT
 metadata:
   framework: Cynefin (Dave Snowden)
+  routing:
+    role: conditional-adjunct
+    invoker: buy-vs-build-framework
+    trigger: buy-vs-build-framework runs cynefin-classifier first when the problem domain is unclear
+    user-facing: false
 ---
 
 # Cynefin Classifier

@@ -3,6 +3,12 @@ name: panning-for-gold
 version: 1.0.0
 description: "Triage raw unstructured input (transcripts, brain dumps) into evaluated thread inventories and a synthesized gold-found file. Four phases: front-gate, extract, evaluate, synthesize. Use when you say \"pan for gold\", \"triage transcript\", \"synthesize gold-found\", or hand it a voice transcript or brain dump. Do NOT use for structured input like specs or ADRs (use analyst or spec-generator instead)."
 license: MIT
+metadata:
+  routing:
+    role: conditional-adjunct
+    invoker: research
+    trigger: research checks panning-for-gold Phase 0 before triaging raw unstructured input
+    user-facing: false
 ---
 
 # Panning for Gold

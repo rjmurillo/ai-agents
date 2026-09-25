@@ -10,6 +10,12 @@ description: >-
   file. Do NOT use for documentation accuracy checks or verifying code examples
   (use doc-accuracy).
 license: MIT
+metadata:
+  routing:
+    role: nested-helper
+    invoker: doc-accuracy
+    trigger: doc-accuracy calls fix-markdown-fences to repair malformed code fences it finds
+    user-facing: false
 ---
 
 # Fix Markdown Code Fence Closings

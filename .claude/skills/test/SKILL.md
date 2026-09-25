@@ -6,6 +6,12 @@ license: MIT
 allowed-tools: Task, Skill, Read, Glob, Grep, Bash(*)
 argument-hint: component-or-failure-description
 user-invocable: true
+metadata:
+  routing:
+    role: front-door
+    invoker: autoplan
+    trigger: autoplan routes lifecycle requests to this skill
+    user-facing: true
 ---
 
 # Test

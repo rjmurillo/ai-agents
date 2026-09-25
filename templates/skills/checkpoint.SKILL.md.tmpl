@@ -6,6 +6,13 @@ license: MIT
 allowed-tools: Bash(date:*), Bash(git branch:*), Bash(python3 -m json.tool:*), Bash(python3 scripts/redact_secrets.py:*), Glob, Read, Edit, Write
 argument-hint: optional-short-label
 user-invocable: true
+metadata:
+  routing:
+    role: explicit-only
+    invoker: user
+    trigger: a user asks to write a checkpoint snapshot of decisions and progress
+    user-facing: true
+    rationale: Automatic routing would be unsafe. A snapshot writes files, so it runs only when a user asks. Inbound matches are the common word checkpoint.
 ---
 
 # Checkpoint

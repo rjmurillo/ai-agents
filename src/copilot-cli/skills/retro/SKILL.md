@@ -6,6 +6,12 @@ license: MIT
 argument-hint: fill <YYYY-MM-DD>
 allowed-tools: Skill, Read, Glob
 user-invocable: true
+metadata:
+  routing:
+    role: conditional-adjunct
+    invoker: checkpoint
+    trigger: checkpoint redirects writing a retrospective here
+    user-facing: true
 ---
 
 # Retro

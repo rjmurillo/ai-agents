@@ -6,6 +6,12 @@ license: MIT
 allowed-tools: Task, Skill, Read, Write, Edit, Glob, Grep, Bash(*)
 argument-hint: plan-step-or-task-description
 user-invocable: true
+metadata:
+  routing:
+    role: front-door
+    invoker: autoplan
+    trigger: autoplan routes lifecycle requests to this skill
+    user-facing: true
 ---
 
 # Build

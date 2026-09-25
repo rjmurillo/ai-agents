@@ -11,6 +11,11 @@ license: MIT
 metadata:
   timelessness: 8/10
   category: analysis
+  routing:
+    role: nested-helper
+    invoker: memory
+    trigger: memory routes narrative cross-system report requests to memory-documentary
+    user-facing: false
 ---
 # Memory Documentary Skill
 

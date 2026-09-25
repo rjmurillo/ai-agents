@@ -12,6 +12,11 @@ metadata:
     kind: reusable-primitive
     status: active
   adr: ADR-038, ADR-106
+  routing:
+    role: nested-helper
+    invoker: memory-search
+    trigger: memory-search chains its results through memory-enhancement for citations and confidence scoring
+    user-facing: false
 ---
 
 # Memory Enhancement

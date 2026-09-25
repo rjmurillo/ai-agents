@@ -3,6 +3,12 @@ name: work-operating-model
 version: 1.0.0
 description: "Run a 5-layer interview to elicit how a team actually works (rhythms, decisions, dependencies, institutional knowledge, friction) and emit a structured operating model. Use when you say \"elicit operating model\", \"interview team operating model\", \"how does this team actually work\", or \"validate operating model\". Do NOT use for code analysis (use the analyst agent), external audience narratives (use the explainer agent), or retrospectives (use the retrospective agent)."
 license: MIT
+metadata:
+  routing:
+    role: lifecycle
+    invoker: spec
+    trigger: spec Step 1 elicits the operating model context for a Tier 5 PRD
+    user-facing: false
 ---
 
 # Work Operating Model

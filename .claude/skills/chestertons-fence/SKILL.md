@@ -10,6 +10,11 @@ metadata:
     owns:
       - code-archaeology
     status: active
+  routing:
+    role: conditional-adjunct
+    invoker: memory-gate
+    trigger: memory-gate points here for the full four-phase investigation framework
+    user-facing: true
 ---
 
 # Chesterton's Fence Investigation

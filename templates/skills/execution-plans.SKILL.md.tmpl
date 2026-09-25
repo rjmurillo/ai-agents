@@ -3,6 +3,12 @@ name: execution-plans
 version: 1.0.0
 description: Manage execution plans as versioned artifacts with progress tracking and decision logs. Use when you say "create execution plan", "update plan progress", "log decision", "complete plan", or "abandon plan". Do NOT use to break work into milestones or delegate tasks (use planner).
 license: MIT
+metadata:
+  routing:
+    role: lifecycle
+    invoker: plan
+    trigger: plan persists the finished plan as a versioned artifact through execution-plans
+    user-facing: false
 ---
 
 # Execution Plans Skill

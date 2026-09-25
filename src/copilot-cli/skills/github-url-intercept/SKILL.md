@@ -15,6 +15,11 @@ metadata:
   priority: critical
   related_skills:
   - github
+  routing:
+    role: front-door
+    invoker: harness
+    trigger: the harness intercepts any github.com URL in user input before other routing runs
+    user-facing: false
 ---
 # GitHub URL Intercept
 

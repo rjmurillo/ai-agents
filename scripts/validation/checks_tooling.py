@@ -879,6 +879,26 @@ def validate_capability_graph_declarations(repo_root: Path) -> bool:
     return bool(validate_capability_graph(repo_root))
 
 
+def validate_skill_routing_roles_declarations(repo_root: Path) -> bool:
+    """Gate every skill's `metadata.routing` declaration (REQ-038, issue #5384).
+
+    Refuses a missing or malformed routing block, a role/invoker
+    contradiction, a missing `explicit-only` rationale, a `deprecated` skill
+    with no resolvable retirement key, and `user-facing: true` on a skill
+    whose frontmatter sets `user-invocable: false`. SKIP when `templates/`
+    is absent, which is a downstream install rather than a violation.
+    """
+    if not (repo_root / "templates" / "skills").is_dir():
+        raise MissingScriptSkip(
+            "templates/skills not present (downstream install); no routing roles to check"
+        )
+    from check_skill_routing_roles import validate_skill_routing_roles
+
+    # bool() for the same reason the capability-graph wrapper above coerces:
+    # the flat import resolves untyped, so mypy reads the result as Any.
+    return bool(validate_skill_routing_roles(repo_root))
+
+
 def validate_always_on_corpus_claims(repo_root: Path) -> bool:
     """Pin the numeric claims in model-context-doctrine.md to live measurements.
 

@@ -11,6 +11,12 @@ description: Reflective consolidation pass over Serena memory files. Separates
   for in-file supersession markers (use curating-memories) or health, token, or
   size checks (use memory-maintenance).
 license: MIT
+metadata:
+  routing:
+    role: nested-helper
+    invoker: memory
+    trigger: memory routes periodic durable consolidation and index tidy requests to memory-consolidate
+    user-facing: false
 ---
 
 # Memory Consolidate

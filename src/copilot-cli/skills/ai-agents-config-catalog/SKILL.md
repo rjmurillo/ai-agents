@@ -3,6 +3,12 @@ name: ai-agents-config-catalog
 description: Catalog of every configuration axis in this repo, env vars, commit markers, frontmatter keys, QA skip verdicts, and escape hatches, each with its enforcement point and abuse story, plus the checklist for adding a new flag safely. Use when you say `what does a skip flag do`, `list escape hatches`, `can I skip this gate`, `add a config flag`. Do NOT use for hook runtime behavior (use `agent-harness-reference`) or change gating policy (use `ai-agents-change-control`).
 version: 1.0.0
 license: MIT
+metadata:
+  routing:
+    role: conditional-adjunct
+    invoker: ai-agents-debugging-playbook
+    trigger: ai-agents-debugging-playbook points here for the full catalog of env vars, markers, and escape hatches
+    user-facing: false
 ---
 
 # AI Agents Config Catalog

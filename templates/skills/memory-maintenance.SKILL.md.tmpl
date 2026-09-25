@@ -14,6 +14,11 @@ metadata:
     kind: specialized-implementation
     status: active
   parent: memory
+  routing:
+    role: nested-helper
+    invoker: curating-memories
+    trigger: curating-memories routes store health, token, and size checks to memory-maintenance
+    user-facing: false
 ---
 
 # Memory Maintenance

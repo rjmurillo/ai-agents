@@ -7,6 +7,12 @@ argument-hint: "[pull-request|mode]"
 allowed-tools: Bash, Read, Edit, Write, Skill, mcp__github__pull_request_read, mcp__github__issue_read, mcp__github__get_check_run, mcp__github__get_job_logs
 size-exception: true
 user-invocable: true
+metadata:
+  routing:
+    role: conditional-adjunct
+    invoker: pr-review
+    trigger: pr-review redirects a red check with no review comments here
+    user-facing: true
 ---
 
 # PR Autofix

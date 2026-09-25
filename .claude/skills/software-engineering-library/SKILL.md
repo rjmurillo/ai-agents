@@ -3,6 +3,12 @@ name: software-engineering-library
 version: 1.0.0
 description: Route software engineering design and discovered code-risk tasks to on-demand book references. Use for `architecture review`, `layer boundary change`, `dependency boundary`, `module interface shape`, `domain modeling`, `bounded context`, `refactoring`, `code smell`, `legacy code`, `low test coverage`, `old file`, `characterization test`, `external API calls`, `queues`, `retries`, `transactions`, `event ordering`, `data layer`, `storage design`, `consistency`, `schema evolution`, `timeout`, `circuit breaker`, `bulkhead`, and production resilience in .py, .cs, .ts, .tsx, .js, .ps1, .sql, and service design docs. Do NOT use for reinventing-the-wheel or build-vs-buy, use programming-advisor. Do NOT use for single-file maintainability scoring, use code-qualities-assessment. Do NOT use for CVA design, use cva-analysis.
 license: MIT
+metadata:
+  routing:
+    role: front-door
+    invoker: autoplan
+    trigger: autoplan routes design-depth and architecture-boundary questions to software-engineering-library
+    user-facing: false
 ---
 
 # Software Engineering Library

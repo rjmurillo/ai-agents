@@ -13,6 +13,12 @@ metadata:
     kind: specialized-implementation
     status: active
   complexity: advanced
+  routing:
+    role: explicit-only
+    invoker: user
+    trigger: a user asks to resolve merge conflicts
+    user-facing: true
+    rationale: Automatic routing would be noisy. Conflict callers already send work to the merge-resolver agent, so routing this skill too would duplicate that path.
 ---
 # Merge Resolver
 

@@ -10,6 +10,12 @@ allowed-tools:
   - Glob
   - Bash
   - Task
+metadata:
+  routing:
+    role: front-door
+    invoker: autoplan
+    trigger: autoplan routes bug and error triage requests to analyze before build
+    user-facing: true
 ---
 
 # Analyze Skill

@@ -5,6 +5,11 @@ description: Evaluate existing solutions (libraries, SaaS, open source) AND inte
 license: MIT
 metadata:
   version: 1.0.0
+  routing:
+    role: conditional-adjunct
+    invoker: spec-generator
+    trigger: spec-generator checks programming-advisor when the spec proposes a new external dependency
+    user-facing: false
 ---
 
 # Programming Advisor - "Reinventing the Wheel" Detector

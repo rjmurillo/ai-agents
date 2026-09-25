@@ -17,6 +17,11 @@ metadata:
     status: active
   inputs: [any-input, user-goal, domain-hints]
   outputs: [SKILL.md, references/, scripts/, SKILL_SPEC.md, recommendations]
+  routing:
+    role: front-door
+    invoker: autoplan
+    trigger: autoplan routes requests for a new skill to skillforge
+    user-facing: true
 ---
 
 # SkillForge 4.1 - Intelligent Skill Router and Creator

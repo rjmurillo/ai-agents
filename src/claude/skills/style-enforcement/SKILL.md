@@ -4,6 +4,11 @@ description: Validate code against style rules from .editorconfig, StyleCop.json
 license: MIT
 metadata:
   version: 1.0.0
+  routing:
+    role: conditional-adjunct
+    invoker: doc-accuracy
+    trigger: doc-accuracy points here for complementary code style checks
+    user-facing: false
 ---
 
 # Style Enforcement

@@ -6,6 +6,12 @@ license: MIT
 allowed-tools: Task, Skill, Read, Write, Glob, Grep
 argument-hint: problem-statement-or-issue-number
 user-invocable: true
+metadata:
+  routing:
+    role: front-door
+    invoker: autoplan
+    trigger: autoplan routes lifecycle requests to this skill
+    user-facing: true
 ---
 
 # Spec

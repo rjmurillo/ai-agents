@@ -10,6 +10,12 @@ description: >-
   generation pipeline (use `ai-agents-generation-and-release`) or CI gate
   evidence rules (use `ai-agents-validation-and-qa`).
 license: MIT
+metadata:
+  routing:
+    role: conditional-adjunct
+    invoker: ai-agents-generation-and-release
+    trigger: ai-agents-generation-and-release points here to set up the dev environment, uv, and hooks
+    user-facing: false
 ---
 
 # ai-agents Build and Environment Runbook

@@ -3,6 +3,13 @@ name: world-model-diagnostic
 version: 1.0.0
 description: Twenty-minute diagnostic mapping a team to a world-model paradigm (vector DB, structured ontology, signal-fidelity). Use when you say "run the world model diagnostic", "audit our world model", "which world model architecture fits us", or "audit where we automate judgment". Use for AI readiness assessments and boundary-layer audits where automated judgment is safe. Do NOT use for mapping team operating rhythms or decision flows; use work-operating-model instead.
 license: MIT
+metadata:
+  routing:
+    role: explicit-only
+    invoker: user
+    trigger: a user asks to run the world model diagnostic
+    user-facing: true
+    rationale: Automatic routing would be noisy until issue #5385 adds a long-tail resolver; its description overlaps ordinary debugging requests.
 ---
 
 # World Model Diagnostic

@@ -8,6 +8,12 @@ argument-hint: base-branch
 model: haiku
 model-rationale: cost. The 'haiku' rolling alias resolves via the platform model_tiers map to a tier priced below the sonnet-tier harness default; this unit is routing/mechanical work where the cheaper tier suffices (ADR-080 rule 3).
 user-invocable: true
+metadata:
+  routing:
+    role: conditional-adjunct
+    invoker: pr-comment-responder
+    trigger: pr-comment-responder redirects local quality gates before a push here
+    user-facing: true
 ---
 
 # PR Quality Gate: All Axes

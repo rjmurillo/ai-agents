@@ -3,6 +3,12 @@ name: ai-agents-architecture-contract
 description: Load-bearing design decisions for this repo as a contract you check before changing anything. Covers the asymmetric generation seam, source-of-truth per tree, hook runtime failure policy, memory tiers, plugin surfaces, invariants, and known-weak points. Use when you say `which tree is canonical`, `architecture contract`, `why is this designed this way`. Do NOT use for operating the build pipeline (use `ai-agents-generation-and-release`) or CI triage (use `ai-agents-debugging-playbook`).
 version: 1.0.0
 license: MIT
+metadata:
+  routing:
+    role: conditional-adjunct
+    invoker: ai-agents-generation-and-release
+    trigger: ai-agents-generation-and-release points here to explain why the generation seam is shaped this way
+    user-facing: false
 ---
 
 # AI Agents Architecture Contract

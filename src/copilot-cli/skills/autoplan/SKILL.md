@@ -12,6 +12,11 @@ metadata:
     kind: orchestrator
     status: active
   inspiration: gstack /autoplan (garrytan/gstack autoplan/SKILL.md.tmpl)
+  routing:
+    role: front-door
+    invoker: harness
+    trigger: the harness selects autoplan for a concrete request that names no skill
+    user-facing: true
 ---
 
 # Autoplan

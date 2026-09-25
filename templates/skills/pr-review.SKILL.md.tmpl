@@ -6,6 +6,12 @@ license: MIT
 allowed-tools: Bash(git:*), Bash(gh:*), Bash(python3:*), Bash(pwsh:*), Task, Skill, Read, Write, Edit, Glob, Grep, mcp__github__pull_request_read, mcp__github__list_pull_requests, mcp__github__issue_read, mcp__github__get_check_run, mcp__github__get_job_logs, mcp__github__add_issue_comment, mcp__github__add_reply_to_pull_request_comment, mcp__github__resolve_review_thread, mcp__github__unresolve_review_thread
 argument-hint: '<PR_NUMBERS> [--parallel --cleanup --dry-run]'
 user-invocable: true
+metadata:
+  routing:
+    role: conditional-adjunct
+    invoker: pr-autofix
+    trigger: pr-autofix redirects an interactive reply to one PR's review comments here
+    user-facing: true
 ---
 
 # PR Review

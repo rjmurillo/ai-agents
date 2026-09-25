@@ -11,6 +11,11 @@ license: MIT
 metadata:
   adr: ADR-038, ADR-063, ADR-106
   timelessness: 8/10
+  routing:
+    role: conditional-adjunct
+    invoker: research
+    trigger: research redirects a search of this repository here
+    user-facing: true
 ---
 # Memory System Skill
 

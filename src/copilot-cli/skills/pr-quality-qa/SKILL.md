@@ -6,6 +6,12 @@ license: MIT
 allowed-tools: Bash(git:*), Read, Grep, Glob, serena/*
 argument-hint: base-branch
 user-invocable: true
+metadata:
+  routing:
+    role: nested-helper
+    invoker: pr-quality-all
+    trigger: pr-quality-all invokes pr-quality-qa as one of its six axes
+    user-facing: true
 ---
 
 # PR Quality Gate: QA

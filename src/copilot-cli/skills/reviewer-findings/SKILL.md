@@ -3,6 +3,12 @@ name: reviewer-findings
 version: 1.0.0
 description: Verify a review finding before acting on it. Splits a finding into verdict, diagnosis, and prescribed fix, each needing its own evidence, so you verify before you fix and check the supporting claims rather than only the conclusion. Use when you say "address this review comment", "the bot flagged this", "handle this finding", "a sub-agent reported this", or when you inherit findings from a prior session. Do NOT use to produce a review (use review) or to run the PR thread workflow end to end (use pr-comment-responder, which applies this per finding).
 license: MIT
+metadata:
+  routing:
+    role: nested-helper
+    invoker: pr-comment-responder
+    trigger: pr-comment-responder verifies every actionable finding through reviewer-findings
+    user-facing: false
 ---
 
 # Reviewer Findings

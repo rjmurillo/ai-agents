@@ -15,6 +15,11 @@ metadata:
     kind: reusable-primitive
     status: active
   parent: memory
+  routing:
+    role: lifecycle
+    invoker: spec
+    trigger: spec Step 0 routes to the memory-first gate before changing an existing system
+    user-facing: false
 ---
 
 # Memory Gate

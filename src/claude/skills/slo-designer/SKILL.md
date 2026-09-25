@@ -5,6 +5,11 @@ description: Design Service Level Objectives (SLOs) with SLIs, targets, alerting
 license: MIT
 metadata:
   source: Google SRE Book
+  routing:
+    role: lifecycle
+    invoker: review
+    trigger: review invokes slo-designer when the change defines or affects a reliability target
+    user-facing: false
 ---
 
 # SLO Designer

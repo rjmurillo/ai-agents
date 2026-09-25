@@ -11,6 +11,12 @@ allowed-tools:
   - Grep
 argument-hint: '[pr-title path-to-body-file]'
 user-invocable: true
+metadata:
+  routing:
+    role: lifecycle
+    invoker: ship
+    trigger: ship runs validate-pr-description to validate PR metadata before push-pr
+    user-facing: true
 ---
 
 # Validate PR Description

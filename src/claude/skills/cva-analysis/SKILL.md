@@ -12,6 +12,11 @@ metadata:
     - patterns
     - abstraction-discovery
   author: Multi-Paradigm Design (Coplien 1999), adapted for modern engineering
+  routing:
+    role: lifecycle
+    invoker: review
+    trigger: review invokes cva-analysis when the change introduces a new abstraction
+    user-facing: false
 ---
 
 # CVA Analysis - Discover Natural Abstractions

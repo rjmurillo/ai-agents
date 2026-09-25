@@ -6,6 +6,11 @@ license: MIT
 metadata:
   author: SkillForge
   academic_source: "HBR 2007 - Performing a Project Premortem by Gary Klein"
+  routing:
+    role: conditional-adjunct
+    invoker: buy-vs-build-framework
+    trigger: buy-vs-build-framework always runs pre-mortem in Phase 3 for risk identification
+    user-facing: false
 ---
 
 # Pre-Mortem Risk Identification

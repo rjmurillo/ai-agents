@@ -12,6 +12,11 @@ metadata:
   issue: "1875"
   adr: ADR-058
   canonical_source: templates/agents/security.shared.md
+  routing:
+    role: front-door
+    invoker: autoplan
+    trigger: autoplan routes diff vulnerability review requests to security-review
+    user-facing: true
 ---
 
 # Security Review

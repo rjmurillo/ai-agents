@@ -9,6 +9,11 @@ metadata:
     kind: reusable-primitive
     status: active
   source: Anthropic Project Deal (Dec 2025), Fisher and Ury, Voss, Navarro, Hughes, Cialdini, Galinsky
+  routing:
+    role: conditional-adjunct
+    invoker: business-strategy
+    trigger: business-strategy routes deal and offer analysis requests to negotiation
+    user-facing: false
 ---
 
 # Negotiation Skill

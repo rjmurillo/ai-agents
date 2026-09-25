@@ -14,6 +14,11 @@ metadata:
     kind: reusable-primitive
     status: active
   parent: memory
+  routing:
+    role: front-door
+    invoker: autoplan
+    trigger: autoplan routes what-do-we-know-about-X requests to memory-search
+    user-facing: false
 ---
 
 # Memory Search

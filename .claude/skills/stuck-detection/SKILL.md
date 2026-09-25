@@ -11,6 +11,12 @@ description: >-
   for semantic similarity checks or multi-turn intent tracking; use a richer
   evaluation tool for those.
 license: MIT
+metadata:
+  routing:
+    role: conditional-adjunct
+    invoker: ai-agents-debugging-playbook
+    trigger: ai-agents-debugging-playbook triggers stuck-detection after three read-only commands find no cause
+    user-facing: false
 ---
 
 # Stuck Detection Guard

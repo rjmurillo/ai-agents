@@ -9,6 +9,11 @@ metadata:
     depends-on:
       - untrusted-content-handling
     status: active
+  routing:
+    role: lifecycle
+    invoker: ship
+    trigger: ship invokes pipeline-validator to confirm CI checks are green before completion
+    user-facing: false
 ---
 
 # Pipeline Validator

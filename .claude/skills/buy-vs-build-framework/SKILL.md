@@ -6,6 +6,11 @@ license: MIT
 metadata:
   author: SkillForge
   domains: [strategy, sourcing, decision-making, tco-analysis]
+  routing:
+    role: front-door
+    invoker: autoplan
+    trigger: autoplan routes new capability requests to buy-vs-build-framework before spec
+    user-facing: false
 ---
 
 # Buy vs Build Framework

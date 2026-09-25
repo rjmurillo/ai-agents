@@ -8,6 +8,12 @@ allowed-tools:
   - view
   - bash
   - glob
+metadata:
+  routing:
+    role: conditional-adjunct
+    invoker: skillforge
+    trigger: skillforge points here for progressive disclosure guidance before adding always-on context
+    user-facing: true
 ---
 
 # Context Optimizer

@@ -9,6 +9,12 @@ description: How a hunch becomes an accepted result in this repo. Covers the
   idea`, `run the idea lifecycle`, `what is the evidence bar`. Do NOT use for
   the open research programs (use ai-agents-research-frontier) or probe recipe
   depth (use ai-agents-empirical-probe-toolkit).
+metadata:
+  routing:
+    role: conditional-adjunct
+    invoker: ai-agents-external-claims
+    trigger: ai-agents-external-claims points here to prove a repo-internal idea with a probe, eval, or ADR debate
+    user-facing: false
 ---
 
 # AI Agents Research Methodology
