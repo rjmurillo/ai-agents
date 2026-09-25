@@ -248,6 +248,9 @@ def load_plugin_contract(plugin_dir: Path) -> PluginContract:
 
 
 def _send_once(request: urllib.request.Request) -> dict[str, Any]:
+    # Refuse any scheme but https, so a changed URL can never read file:// paths.
+    if not request.full_url.startswith("https://"):
+        raise ValueError(f"refusing non-https URL: {request.full_url!r}")
     with urllib.request.urlopen(request, timeout=REQUEST_TIMEOUT_S) as response:
         return dict(json.loads(response.read().decode("utf-8", errors="replace")))
 

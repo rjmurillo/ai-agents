@@ -47,17 +47,26 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from scripts.metrics import sg_diff_producer as sgdp
-from scripts.metrics import sg_diff_reference as sgd
-from scripts.metrics.sg_reference_ab_api import (
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+_SENTINEL = _PROJECT_ROOT / "scripts" / "validation" / "models.py"
+if _SENTINEL.is_file() and str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+from scripts.metrics import sg_diff_producer as sgdp  # noqa: E402
+from scripts.metrics import sg_diff_reference as sgd  # noqa: E402
+from scripts.metrics.sg_reference_ab_api import (  # noqa: E402
     PluginContract,
     PluginContractError,
     default_model,
     load_api_key,
     load_plugin_contract,
 )
-from scripts.metrics.sg_reference_ab_fixtures import FIXTURE_NAMES, Fixture, build_fixtures
-from scripts.metrics.sg_reference_ab_toolloop import run_investigate_loop
+from scripts.metrics.sg_reference_ab_fixtures import (  # noqa: E402
+    FIXTURE_NAMES,
+    Fixture,
+    build_fixtures,
+)
+from scripts.metrics.sg_reference_ab_toolloop import run_investigate_loop  # noqa: E402
 
 DEFAULT_PLUGIN_DIR = (
     Path.home()

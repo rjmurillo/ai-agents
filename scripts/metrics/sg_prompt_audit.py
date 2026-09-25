@@ -32,7 +32,12 @@ from collections.abc import Sequence
 from datetime import date, datetime
 from pathlib import Path
 
-from scripts.metrics.sg_prompt_audit_models import (
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+_SENTINEL = _PROJECT_ROOT / "scripts" / "validation" / "models.py"
+if _SENTINEL.is_file() and str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+from scripts.metrics.sg_prompt_audit_models import (  # noqa: E402
     AuditReport,
     FailureEntry,
     Iter2CacheEntry,
@@ -42,7 +47,10 @@ from scripts.metrics.sg_prompt_audit_models import (
     SessionRecord,
     Window,
 )
-from scripts.metrics.sg_prompt_audit_parse import parse_timestamp, process_transcript_file
+from scripts.metrics.sg_prompt_audit_parse import (  # noqa: E402
+    parse_timestamp,
+    process_transcript_file,
+)
 
 _TOKEN_ESTIMATE_METHOD = "bytes_div_4"
 

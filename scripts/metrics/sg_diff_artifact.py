@@ -83,6 +83,7 @@ def write_artifact(
 
     repo_dir_path = Path(store_dir) / repo_id
     repo_dir_path.mkdir(parents=True, exist_ok=True)
+    # Owner-only, stricter than the rule's 0o644 advice; artifacts may hold private diffs.
     os.chmod(repo_dir_path, 0o700)
 
     target = repo_dir_path / f"{sha256}.diff"

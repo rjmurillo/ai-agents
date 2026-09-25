@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import runpy
+import sys
 from pathlib import Path
 
 import pytest
@@ -140,3 +142,15 @@ def test_report_json_never_contains_diff_or_prompt_content(tmp_path: Path) -> No
     # finding nothing: the diff's hash and byte count are present.
     assert report.sessions_examined == 1
     assert report.total_prompt_bytes == len(text.encode("utf-8"))
+
+
+def test_module_puts_repo_root_on_sys_path_when_run_as_a_plain_script(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module_file = Path(audit.__file__).resolve()
+    repo_root = str(module_file.parents[2])
+    monkeypatch.setattr(sys, "path", [p for p in sys.path if p != repo_root])
+
+    runpy.run_path(str(module_file), run_name="__not_main__")
+
+    assert sys.path[0] == repo_root

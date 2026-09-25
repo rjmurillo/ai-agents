@@ -486,3 +486,13 @@ def test_parse_anthropic_error_returns_none_when_error_field_not_a_dict() -> Non
 def test_parse_anthropic_error_returns_none_for_non_string_type_or_message() -> None:
     body = json.dumps({"error": {"type": 123, "message": None}})
     assert api._parse_anthropic_error(body) == (None, None)
+
+
+def test_send_once_refuses_a_non_https_url(monkeypatch: pytest.MonkeyPatch) -> None:
+    fake, calls = make_fake_urlopen([{"content": []}])
+    monkeypatch.setattr(urllib.request, "urlopen", fake)
+    request = urllib.request.Request("file:///etc/passwd")
+
+    with pytest.raises(ValueError, match="non-https"):
+        api._send_once(request)
+    assert calls == []

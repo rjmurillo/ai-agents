@@ -18,7 +18,9 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import runpy
 import subprocess
+import sys
 import urllib.request
 from pathlib import Path
 from typing import Any
@@ -439,3 +441,15 @@ def test_main_exits_config_when_module_path_is_symlinked(
     monkeypatch.setattr(ab, "repo_root_for", lambda _path: None)
     assert ab.main(["--runs", "1", "--output", str(tmp_path / "out.json")]) == 2
     assert "symlinked module path" in capsys.readouterr().err
+
+
+def test_module_puts_repo_root_on_sys_path_when_run_as_a_plain_script(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module_file = Path(ab.__file__).resolve()
+    repo_root = str(module_file.parents[2])
+    monkeypatch.setattr(sys, "path", [p for p in sys.path if p != repo_root])
+
+    runpy.run_path(str(module_file), run_name="__not_main__")
+
+    assert sys.path[0] == repo_root
