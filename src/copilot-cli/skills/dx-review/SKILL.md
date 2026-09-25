@@ -23,10 +23,16 @@ allowed-tools:
   - WebFetch
 metadata:
   routing:
-    role: conditional-adjunct
-    invoker: test
-    trigger: test Gate 5 runs dx_trigger.py and invokes this skill in change-scope mode when the decision is activate
+    role: front-door
+    invoker: autoplan
+    trigger: autoplan's long-tail resolver matches a developer-friction audit
     user-facing: true
+    intents:
+      - developer experience audit
+      - developer friction
+      - onboarding friction
+      - dx scorecard
+      - cli ergonomics audit
 ---
 
 # dx-review: Evidence-Based Developer Experience Audit

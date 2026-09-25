@@ -8,10 +8,12 @@ category: developer-experience
 epic: skill-routing
 related:
   - TASK-019
+  - REQ-039
 issues:
   - 2828
+  - 5385
 created: 2026-07-03
-updated: 2026-07-03
+updated: 2026-09-25
 author: richard
 ---
 
@@ -31,10 +33,10 @@ Issue #2828 requested a lazy router inspired by gstack autoplan. The implemented
 
 - [x] REQ-019-AC1: WHEN `/autoplan` is invoked, THE SYSTEM SHALL classify the request by intent family and size tier SO THAT routing starts from the user's outcome.
 - [x] REQ-019-AC2: WHEN a request maps to a high-traffic workflow, THE SYSTEM SHALL route through the table in `.claude/skills/autoplan/SKILL.md` SO THAT common work avoids the orchestrator fallback.
-- [x] REQ-019-AC3: WHEN a new capability is requested, THE SYSTEM SHALL invoke `buy-vs-build-framework` before `/spec` SO THAT repository governance is preserved.
+- [x] REQ-019-AC3: WHEN a new capability is requested, THE SYSTEM SHALL run `programming-advisor` prior-art discovery before `/spec`, and SHALL invoke `buy-vs-build-framework` only for a strategic build, buy, partner, or defer decision, SO THAT repository governance is preserved without routing every narrow prior-art question through the strategic framework (REQ-039 criterion 6, DESIGN-037).
 - [x] REQ-019-AC4: WHEN security triage is needed, THE SYSTEM SHALL route detection through `security-detection` and vulnerability review through `security-review` or `security-scan` SO THAT security paths use the canonical skills.
 - [x] REQ-019-AC5: WHEN a decision is mechanical, taste-based, or sovereignty-bound, THE SYSTEM SHALL apply the matching handling rule SO THAT user-owned decisions are not auto-decided.
-- [x] REQ-019-AC6: WHEN no routing row matches, THE SYSTEM SHALL fall back to `Task(subagent_type="orchestrator")` SO THAT long-tail work still has an owner.
+- [x] REQ-019-AC6: WHEN no routing row matches, THE SYSTEM SHALL apply the REQ-039 precedence: the long-tail resolver for a single-domain request, the lifecycle chain for a feature, bug, or shipping request, and `Task(subagent_type="orchestrator")` only for multi-domain, cross-cutting, or multi-agent work SO THAT long-tail work reaches the smallest owner.
 - [x] REQ-019-AC7: WHEN the skill is published to Copilot CLI, THE SYSTEM SHALL include the generated `src/copilot-cli/skills/autoplan/SKILL.md` mirror SO THAT both harnesses expose the same router.
 - [x] REQ-019-AC8: WHEN plugin source changes, THE SYSTEM SHALL bump both project-toolkit plugin manifests to the same patch version SO THAT release validation can prove parity.
 

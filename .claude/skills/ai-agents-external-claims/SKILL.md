@@ -9,7 +9,7 @@ metadata:
     invoker: user
     trigger: a user asks to verify an external, vendor, or third-party claim
     user-facing: true
-    rationale: Automatic routing would be noisy until issue #5388 defines when external claims enter a durable artifact; without that trigger it would fire on internal facts.
+    rationale: "The DESIGN-037 long-tail resolver excludes explicit-only skills from intent matching; issue #5388 will define this skill's own adjunct trigger for when an external claim enters a durable artifact."
 ---
 
 # ai-agents External Claims

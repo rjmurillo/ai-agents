@@ -7,6 +7,7 @@ priority: P1
 related:
   - REQ-038
   - TASK-047
+  - DESIGN-037
 created: 2026-09-24
 updated: 2026-09-24
 author: spec-generator
@@ -51,6 +52,7 @@ as an abort condition). The issue's "small reviewed override file" is the
 | `trigger` | non-empty string | unless deprecated |
 | `user-facing` | boolean | unless deprecated |
 | `scenario` | relative path under `tests/evals/` | never; default `tests/evals/skill-scenarios/<name>.json` |
+| `intents` | non-empty list of non-empty strings | never; `front-door` only (DESIGN-037) |
 | `rationale` | non-empty string | explicit-only |
 | `replaced-by` | non-deprecated skill name | deprecated, unless `removal-issue` |
 | `removal-issue` | positive integer, checked whenever present | deprecated, unless `replaced-by` |

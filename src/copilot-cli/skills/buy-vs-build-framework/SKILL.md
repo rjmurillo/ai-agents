@@ -9,8 +9,17 @@ metadata:
   routing:
     role: front-door
     invoker: autoplan
-    trigger: autoplan routes new capability requests to buy-vs-build-framework before spec
+    trigger: autoplan routes a strategic build, buy, partner, or defer decision here after programming-advisor's prior-art discovery
     user-facing: false
+    intents:
+      - build vs buy
+      - buy vs build
+      - strategic sourcing decision
+      - partner or defer
+      - total cost of ownership
+      - build buy partner defer
+      - tco
+      - make or buy
 ---
 
 # Buy vs Build Framework
@@ -26,6 +35,19 @@ Activate when the user:
 - `core vs context analysis for {capability}`
 - `strategic sourcing decision for {feature}`
 - `make or buy decision for {system}`
+
+## When to use / Do NOT use
+
+Use this skill: "should we build or buy a customer data platform, partner with
+a vendor, or defer the investment for two years", "strategic sourcing
+decision for our identity provider with TCO". Every one of these compares
+multiple sourcing options over a multi-year horizon with budget stakes.
+
+Do NOT use this skill for: "is there a library for parsing YAML in Python"
+(narrow, tactical, one implementation choice; use `programming-advisor`
+instead). The dividing line is time horizon and option count: a multi-option
+strategic trade-off with TCO stays here, one tactical answer goes to
+`programming-advisor`.
 
 ## When to Use
 
