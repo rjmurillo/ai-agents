@@ -721,7 +721,7 @@ def test_default_transport_factory_closes_over_resolved_provider(
         "messages": [{"role": "user", "content": "prompt"}],
         "system": "system",
         "model": "gpt-4o",
-        "max_tokens": _eval_api_adapter.EVAL_MAX_TOKENS,
+        "max_tokens": _eval_api_adapter.DEFAULT_MAX_TOKENS,
         "temperature": 0.0,
     }
 
@@ -2953,5 +2953,5 @@ def test_anthropic_transport_sends_shared_eval_budget(monkeypatch: pytest.Monkey
     transport = _eval_api_adapter._AnthropicTransport("key", seed=None)
 
     assert transport("prompt", "claude-sonnet-5", "system") == "ok"
-    assert seen["max_tokens"] == _eval_api_adapter.EVAL_MAX_TOKENS
-    assert _eval_api_adapter.EVAL_MAX_TOKENS >= 4096
+    assert seen["max_tokens"] == _eval_api_adapter.DEFAULT_MAX_TOKENS
+    assert _eval_api_adapter.DEFAULT_MAX_TOKENS >= 4096

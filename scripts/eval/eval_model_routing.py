@@ -327,6 +327,18 @@ def render_markdown(entries: list[dict[str, Any]], ladders: list[Ladder], margin
     return "\n".join(lines) + "\n"
 
 
+def render_json(entries: list[dict[str, Any]], *, margin: float, seed: int) -> str:
+    """``routing.json`` with one entry per line.
+
+    Pretty-printing every nested field runs past 3,000 lines for 46 entries.
+    One compact line per entry keeps the file valid JSON and keeps each diff
+    hunk to the subject whose verdict changed.
+    """
+    head = json.dumps({"schemaVersion": "1", "margin": margin, "seed": seed}, sort_keys=True)
+    rows = ",\n".join(json.dumps(e, sort_keys=True) for e in entries)
+    return f'{head[:-1]}, "entries": [\n{rows}\n]}}\n'
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="eval_model_routing", description=__doc__.splitlines()[0])
     parser.add_argument("--agents", default="", help="comma-separated agent names")
@@ -375,9 +387,8 @@ def run(args: argparse.Namespace) -> int:
     parse = _load_sweep_module().parse_report
     entries = [_route_or_error(s, lad, args, parse) for s in subjects for lad in args.ladder]
     args.out_dir.mkdir(parents=True, exist_ok=True)
-    payload = {"schemaVersion": "1", "margin": args.margin, "seed": args.seed, "entries": entries}
     (args.out_dir / "routing.json").write_text(
-        json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        render_json(entries, margin=args.margin, seed=args.seed), encoding="utf-8"
     )
     (args.out_dir / "REPORT.md").write_text(
         render_markdown(entries, args.ladder, args.margin), encoding="utf-8"

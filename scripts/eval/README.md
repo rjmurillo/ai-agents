@@ -853,7 +853,7 @@ python3 scripts/eval/eval_model_routing.py \
 A ladder is one vendor's models. Ladders are routed separately because a
 harness routes within one vendor: the question is which rung a task needs, not
 which vendor wins. Every call gets the same response budget,
-`EVAL_MAX_TOKENS` (4096) in `_eval_api_adapter.py`, because thinking models
+`DEFAULT_MAX_TOKENS` (4096) in `_eval_api_adapter.py`, because thinking models
 spend hidden reasoning tokens from it. A skill subject routes the skill variant
 (`--skill-path`) of runs named `sweep-skill-<skill>-<model>-<hex8>` over the
 paired agent's fixtures. Exactly one report must match each subject and model
