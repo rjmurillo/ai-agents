@@ -39,6 +39,12 @@ generated shims, event translation, or hook output:
    each affected harness.
 4. Treat documentation silence as an unknown to probe, not permission to guess.
 
+## Scripts
+
+| Script | Purpose | Exit codes |
+|--------|---------|------------|
+| `dx_trigger.py` (this skill's script directory) | Decides whether Gate 5 composes `dx-review`, from verified changed paths and DX effects. Emits the decision, journeys, and skip or activation reason as JSON. | `0` decision emitted, `2` config error (review-axis classifier missing or unloadable) |
+
 ## Step 0: Classify PR Type
 
 Detect the base branch from `gh pr view --json baseRefName` or fall back to `main`. Run `git diff origin/<base-branch> --name-only` and classify changed files:
@@ -46,10 +52,14 @@ Detect the base branch from `gh pr view --json baseRefName` or fall back to `mai
 | Type | Patterns | Gates to Run |
 |------|----------|--------------|
 | CODE | `*.py`, `*.ps1`, `*.ts`, `*.js`, `*.cs` | All 6 gates |
-| WORKFLOW | `*.yml` in `.github/workflows/` | Gates 1, 3, 4 |
-| CONFIG | `*.json`, `*.yaml` (non-workflow) | Gates 3, 4 |
+| WORKFLOW | `*.yml` in `.github/workflows/` | Gates 1, 3, 4, 5 |
+| CONFIG | `*.json`, `*.yaml` (non-workflow) | Gates 3, 4, 5 |
 | DOCS | `*.md`, `*.txt`, `*.rst` | Gate 5 only |
 | MIXED | Combination | Apply per-file rules |
+
+Gate 5 runs for every type. A plugin manifest or a hook config is a CONFIG file
+and still a developer interface, so the Gate 5 DX trigger, not the file
+extension, decides whether `dx-review` runs.
 
 Print: `PR TYPE: [type]. Running gates: [list].`
 
@@ -112,13 +122,31 @@ Output: `VERDICT: PASS|WARN|CRITICAL_FAIL` with findings array.
 
 Invoke `skill: "orphan-ref-validator"`. Reject the gate on `VERDICT: CRITICAL_FAIL` or `VERDICT: ERROR`; `VERDICT: WARN` is non-blocking and surfaces in the test summary. This mirrors the `build` skill's Mandatory Exit Gate 4 so a reference to a deleted skill or a missing script path is caught at `/test` as well as at `/build`. To diagnose a failure, re-run the skill with `--output human`; each finding shows `path:line` plus a one-line recommendation. Manifest count claims are not validated by anything: the marketplace count validator was retired in #2187 and orphan-ref-validator never took the work over. Its scanner emits only skill_name, script_path, and scan_truncated findings. The skill invocation is platform-agnostic; each platform mirror runs its own copy of `scan.py`. If pre-existing drift outside the PR's scope blocks the gate, fix it in the same PR (the directives at `<!-- orphan-ref-ignore -->` and `<!-- orphan-ref-ignore-file -->` are documented in the skill's SKILL.md).
 
-`agent_type: "project-toolkit:critic"`: You are a developer advocate reviewing from the consumer perspective. Would a new contributor understand this code? Would the API frustrate or delight? Evaluate:
+Then compose `dx-review`. This gate keeps no DX checklist of its own:
+`dx-review` owns the eight-dimension scorecard and the Time-to-Hello-World
+(TTHW) contract, and a second checklist here would drift from it.
 
-1. **API ergonomics** - Consumer perspective. Are signatures intuitive? Error messages helpful?
-2. **Documentation** - Is changed behavior documented? Are code comments accurate (not stale)?
-3. **Debuggability** - Can a developer diagnose failures from logs alone? Stack traces preserved?
-4. **Onboarding** - Would a new contributor understand this code? Are conventions followed?
-5. **Tooling** - Does this work with existing linters, formatters, IDE support?
+1. **Decide.** Run the trigger with every changed path from Step 0, each as its
+   own argument, plus each DX effect you verified in the diff body. Never
+   shell-expand the paths.
+   `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/test/scripts/dx_trigger.py" --changed-path <path> --effect <name>`
+   Effects: `cli-surface`, `public-api`, `onboarding-flow`, `agent-behavior`,
+   `user-task-docs`, `contributor-workflow`. Pass `contributor-workflow` when a
+   workflow file changes a `workflow_call` interface. The trigger reuses the `/review`
+   risk classifier (`select_axes.py`), so do not re-derive the decision from
+   prose. Exit `2` means the classifier could not load: report `VERDICT: ERROR`.
+2. **Skip.** On `"decision": "skip"`, do not invoke `dx-review`. Record
+   `DX REVIEW: SKIPPED` and quote the `reason` field verbatim; it names each
+   changed path and why it cannot alter a developer workflow.
+3. **Activate.** On `"decision": "activate"`, invoke `skill: "dx-review"`
+   in change-scope mode. Pass the trigger JSON, the changed paths, and the diff.
+   Adopt its `DX CHANGE-SCOPE REPORT` as this gate's findings: activation
+   reason, reviewed user journey, an evidence label per applicable dimension,
+   TTHW or N/A with reason, severity-ranked findings, and skipped dimensions
+   with rationale. A missing report is `VERDICT: ERROR`.
+
+Gate verdict: the worse of orphan-ref-validator and `dx-review`, ordered PASS,
+WARN, CRITICAL_FAIL, ERROR. A skip contributes PASS.
 
 Output: `VERDICT: PASS|WARN|CRITICAL_FAIL|ERROR` with findings array.
 
@@ -171,10 +199,10 @@ Synthesize into overall report:
 | Non-Functional | PASS/WARN/CRITICAL_FAIL | Count | file:line citations |
 | Security | PASS/WARN/CRITICAL_FAIL | Count | CWE references |
 | DevOps | PASS/WARN/CRITICAL_FAIL | Count | file:line citations |
-| DX | PASS/WARN/CRITICAL_FAIL | Count | file:line citations |
+| DX | PASS/WARN/CRITICAL_FAIL/ERROR | Count | `dx_trigger.py` reason, dx-review file:line citations |
 | Observability | PASS/WARN/CRITICAL_FAIL | Count | file:line citations |
 
-**Overall verdict**: CRITICAL_FAIL if any gate fails. WARN if any gate warns. PASS if all gates pass.
+**Overall verdict**: CRITICAL_FAIL if any gate fails or reports ERROR (a gate that could not run proved nothing). WARN if any gate warns. PASS if all gates pass.
 
 > After reporting a completed requested result, remove any unsolicited offer, question, or invitation whose only function is to continue the interaction.
 
@@ -254,6 +282,7 @@ If any answer is "no" or "not sure," adjust before proceeding.
 - [ ] Every finding cites `file:line`, and every security finding cites a CWE
 - [ ] A CRITICAL_FAIL in one gate did not stop the remaining gates
 - [ ] Each test failure was diagnosed by hypothesis before any code changed
+- [ ] Gate 5 ran `dx_trigger.py`; a skip quotes its reason, an activation carries the `dx-review` change-scope report
 - [ ] Gate verdicts synthesized into one overall verdict via quality-grades
 
 ## Anti-Patterns
@@ -262,6 +291,7 @@ If any answer is "no" or "not sure," adjust before proceeding.
 |-------|-----|---------|
 | Stopping at the first CRITICAL_FAIL | Findings are additive, so an early stop hides the rest and buys a second round | Mark the overall verdict and keep running the gates |
 | Running all six gates on a docs-only diff | Burns five agent invocations on dimensions the diff cannot affect | Classify in Step 0 and skip |
+| Writing a DX checklist into Gate 5 | Duplicates `dx-review` and drifts from its eight-dimension contract | Run `dx_trigger.py`, then compose `dx-review` |
 | A finding with no `file:line` | The reader cannot act on it, and it cannot be verified or refuted | Cite the location, and a CWE for security findings |
 | Changing code to make a red test pass | Fixes the symptom and often moves the defect | Form a hypothesis, verify it, then fix |
 | Treating a passing suite as proof of coverage | A green run says the tests that exist pass, not that the risky paths have any | Check error paths and edge cases per Gate 1 |
