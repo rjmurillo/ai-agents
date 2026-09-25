@@ -23,6 +23,19 @@
       "expected_signals": [],
       "expected_gate": "skip-rule-not-applicable",
       "rationale": "This prompt asks for an implementation fix, not a developer-experience audit. It names no DX trigger phrase and does not request onboarding, documentation, or scorecard work, so dx-review should stay inactive."
+    },
+    {
+      "id": "S3",
+      "desc": "Change-scope mode from /test Gate 5 audits only the touched journeys",
+      "input": "/test Gate 5 handed you this trigger decision: {\"decision\": \"activate\", \"fail_closed\": false, \"journeys\": [\"public-cli\"], \"reason\": \"activate - developer journeys: public-cli\"}. The diff changes the --help text and one error message in src/cli.py. Run the DX review for this change. Answer in 6 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "DX CHANGE-SCOPE REPORT",
+        "Reviewed user journey",
+        "N/A",
+        "TTHW"
+      ],
+      "expected_gate": "dx-review-scorecard",
+      "rationale": "The input carries a dx_trigger.py decision, which is the change-scope mode entry. The skill limits the audit to the dimensions the public-cli journey can alter, names the reviewed user journey, marks the other dimensions N/A with a rationale, and states TTHW or its N/A reason. A generic full DX audit or a generic code review does neither."
     }
   ]
 }

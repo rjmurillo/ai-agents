@@ -23,11 +23,10 @@ allowed-tools:
   - WebFetch
 metadata:
   routing:
-    role: explicit-only
-    invoker: user
-    trigger: a user asks for a developer experience audit
+    role: conditional-adjunct
+    invoker: test
+    trigger: test Gate 5 runs dx_trigger.py and invokes this skill in change-scope mode when the decision is activate
     user-facing: true
-    rationale: Automatic routing would be noisy until issue #5386 adds a developer-facing change trigger to /test; a full DX audit is too costly to run on every change.
 ---
 
 # dx-review: Evidence-Based Developer Experience Audit
