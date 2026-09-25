@@ -93,7 +93,10 @@ def _write_skill(
             "world-model-diagnostic",
         ),
         ("Audit our CLI onboarding workflow for developer friction.", "dx-review"),
-        ("Is there an existing library for parsing YAML before we build one?", "programming-advisor"),
+        (
+            "Is there an existing library for parsing YAML before we build one?",
+            "programming-advisor",
+        ),
         (
             "Compare build vs buy vs partner vs defer with total cost of ownership.",
             "buy-vs-build-framework",
