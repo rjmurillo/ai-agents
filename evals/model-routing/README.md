@@ -62,8 +62,13 @@ python3 scripts/eval/eval_model_routing.py \
 
 ## Findings
 
-The cheapest rung passes acceptance for 34 of 42 decided subject-ladder pairs.
-The exceptions:
+The cheapest rung is sufficient for 34 of 42 decided subject-ladder pairs.
+Sufficient is relative: within 0.10 mean recall of the best model on the same
+ladder. It is not an absolute acceptance bar. Nine chosen routes score below
+0.60, and GPT-6 Luna qualifies on qa at 0.33 because every GPT-6 model scores
+low there. 15 of the 42 verdicts are unresolved.
+
+The exceptions, where the cheapest rung trails by more than the margin:
 
 | Subject | Claude | GPT-6 |
 |---|---|---|
@@ -81,11 +86,22 @@ a leading verdict token and a regex, so they reward following the output
 contract. That is what acceptance means here, and it is not a measure of
 reasoning depth.
 
+## How to use these results
+
+Use a verdict to nominate a tier for a bounded leaf task whose output a real
+downstream verifier checks. A passing eval fixture is not that verifier.
+Judgment and end-to-end work keep task-shape routing. The $86.76 below is an
+experiment bill, not evidence of lower cost per accepted production result.
+
 ## Limits
 
 - **Single turn.** Each fixture is one prompt and one answer. Multi-step tool
   loops, long-horizon agentic work, and broad-context tasks are unmeasured. The
   task-shape rules in the orchestrator still govern them.
+- **Skill fixtures.** Each skill runs on its paired agent's fixtures, not on
+  fixtures written for the skill.
+- **Cost of a result.** Retries, repair, verifier time, and human correction
+  are unmeasured. The verdicts compare pass rates, not cost per accepted result.
 - **Unmeasured cells.** Claude analyze, plan, review, and spec skill runs
   stopped on API errors. They are recorded as undecided in `routing.json`.
 - **Small corpora.** 8 fixtures for most agents, 12 for qa, 16 for security, 24

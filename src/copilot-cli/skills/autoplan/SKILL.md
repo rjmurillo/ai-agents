@@ -143,15 +143,12 @@ evidence (failing tests, widening diff), not on speculation.
 The user naming a skill or command bypasses this table entirely. User
 Sovereignty wins over any row.
 
-**Model tier.** When a route dispatches an agent or subagent on single-turn
-work with a deterministic acceptance check, start it at its measured tier.
-With no measured exception, that is the cheapest tier: Haiku 4.5 or GPT-6
-Luna, which passed acceptance for 34 of 42 agent and skill cells. Escalate
-after a failed acceptance check or at an unresolved judgment. Tool loops and
-work without such a check are unmeasured; they follow the orchestrator's
-task-shape rules. The orchestrator agent's Model, Effort, and Cost Routing
-section owns the exception list and the escalation rules; do not restate them
-here.
+**Model tier.** Task shape picks the model tier; the orchestrator agent's
+Model, Effort, and Cost Routing section owns those rules and the measured
+exceptions. Fixture results only nominate a cheaper tier for a bounded leaf
+whose output a real downstream verifier checks. A passing eval fixture is not
+that verifier. Judgment and end-to-end work keep task-shape routing. Escalate
+on a failed acceptance check.
 
 **Router boundary (ADR-078).** Autoplan is the outer front-door router at the
 skill layer. It classifies any request that names no skill and routes it to one

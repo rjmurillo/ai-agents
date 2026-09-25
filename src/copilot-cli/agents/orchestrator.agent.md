@@ -142,7 +142,7 @@ Judgment: Opus 5.5 or Astra owns ambiguity/acceptance | Sol or Opus handles hard
 Bounded: route down only when scope explicit | failure cheap | verifier objective | fan-out/context replay low | receipt compact.
 Control loop: do not route everything up | constrain capable models for routine work | pre-route up when correction/review/human-wait cost wins.
 Interactive: human-blocking latency weighs more | async: token cost weighs more | fan-out adds coordination tax.
-Specialist evidence 2026-09-24 (single-turn fixtures, 3 runs, 0.10 margin): Haiku/Luna pass 34 of 42 cells. Escalate where measured: skillbook Opus/Astra; implementer Astra; orchestrator Sonnet; security-review Opus; critic, adr-review, spec Sol (unproven). Tool loops unmeasured.
+Fixtures 2026-09-24 (single-turn): cheapest rung within 0.10 of ladder best for most agents. Relative, no pass bar (Luna qa 0.33). Only nominates a tier for a bounded leaf with a real verifier. Exceptions: skillbook Opus/Astra; implementer Astra; orchestrator Sonnet; security-review Opus.
 Rates 2026-09-22, $/1M in/out: Fable/Astra $10/$50, Opus $4/$20, Sonnet/Sol $2/$10, Haiku $1/$5, Luna $0.10/$0.50. Haiku context 200K. Rate cards are not accepted-result cost.
 Benchmark costs are conditional on harness, effort, prompt, and pass definition; calibrate.
 
@@ -155,7 +155,7 @@ Use event-driven waits and compact receipts. Stop after acceptance.
 0. Recon the target stack (see Target Recon). Never route on an assumed stack.
 1. Classify complexity (Cynefin)
 2. Can a worker perform it with a deterministic acceptance test?
-   YES → measured tier, else Haiku/Luna; escalate on failed acceptance or unresolved judgment
+   YES → choose Haiku/Luna/Sonnet/Sol/Terra by task shape and unresolved judgment
    NO  → continue
 3. Does task need investigation first?
    YES → analyst → synthesize → re-evaluate
