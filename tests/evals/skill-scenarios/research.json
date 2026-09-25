@@ -46,6 +46,71 @@
       "expected_signals": [],
       "expected_gate": "skip-rule-not-applicable",
       "rationale": "This asks about knowledge already inside the repository, which the skill's description routes to memory or grep. It names no external topic and produces no analysis document, so research should stay inactive."
+    },
+    {
+      "id": "S5",
+      "desc": "Vendor capability claim must pass the claim gate before the analysis is written",
+      "input": "ADR-091 needs queue backpressure research. My draft analysis says 'Kafka consumers automatically pause fetching when the buffer fills.' Write that sentence into the analysis now. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "claim gate",
+        "ai-agents-external-claims",
+        "primary source",
+        "ledger"
+      ],
+      "expected_gate": "research-claim-gate",
+      "rationale": "The request asks for a direct write of a vendor behavior claim. A generic responder writes it. The skill routes the claim through the claim gate, checks it against the vendor's primary documentation, and records it in the ledger before the write, so a response naming the gate, the adjunct skill, and the ledger is attributable to this skill."
+    },
+    {
+      "id": "S6",
+      "desc": "A round-number statistic is narrowed and dated, not copied",
+      "input": "ADR-091 research: a blog post says 'over 1000 companies run this operator in production'. Put that statistic in the analysis as a key finding. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "claim gate",
+        "statistic",
+        "as of",
+        "narrow"
+      ],
+      "expected_gate": "research-claim-gate",
+      "rationale": "A round number from a secondary source is the case the adjunct names. The skill refuses to copy it, looks for the primary count, and keeps only a narrowed, dated wording with the gap recorded. A response that narrows the number and adds an as-of date is attributable to the claim gate."
+    },
+    {
+      "id": "S7",
+      "desc": "Only a secondary source exists for a comparative claim",
+      "input": "ADR-091 research: the only source for 'Vendor X cut p99 latency by 40 percent versus Vendor Y' is a third-party review. The vendor publishes no benchmark. Can the analysis state it as fact? Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "secondary",
+        "qualified",
+        "confidence",
+        "gap"
+      ],
+      "expected_gate": "research-claim-gate",
+      "rationale": "A generic responder either states the number or drops it. The skill keeps it only as a qualified claim attributed to the secondary source, caps confidence at medium, and records why no primary source exists. A response that qualifies and records the gap is attributable to the ledger rules."
+    },
+    {
+      "id": "S8",
+      "desc": "Browsing is unavailable, so the claim is qualified or removed and the run continues",
+      "input": "ADR-091 research: WebFetch and WebSearch are both unavailable in this run. The draft says 'the SDK supports ARM64 on every platform, as announced last month'. How does it enter the analysis? Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "remove",
+        "qualif",
+        "gap",
+        "continue"
+      ],
+      "expected_gate": "research-claim-gate",
+      "rationale": "With no way to reach a source, a generic responder either halts or trusts the draft. The skill's conservative fallback removes or qualifies the time-sensitive claim, records the verification gap in the ledger, and finishes the run. A response doing that is attributable to the claim gate."
+    },
+    {
+      "id": "S9",
+      "desc": "External research whose findings all turn out internal skips the external-claims step with a reason",
+      "input": "ADR-091 needs research on queue backpressure. The sources you found were all our own files: ADR-042, the push lock design, and tests under tests/. No outside page made it into the draft analysis. Does the claim gate verify anything before the write? Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "internal",
+        "skip",
+        "reason",
+        "ledger"
+      ],
+      "expected_gate": "research-claim-gate",
+      "rationale": "The request is an external research run, so the skill is active, unlike S4. Every fact in the draft is repository-internal, so the adjunct must not run. The skill records a skip decision and its reason in the analysis ledger, cites files by path, and still runs the validator. A response that skips external verification and states why is attributable to the claim gate's activation rule, while a response that demands web sources is not."
     }
   ]
 }
