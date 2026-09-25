@@ -97,7 +97,7 @@ ledger, because each one restates a different set of claims.
 |----------|-------|--------|
 | Analysis document | `{analysis-dir}/{topic-slug}-analysis.draft.md` | `{analysis-dir}/{topic-slug}-analysis-claims.json` |
 | Serena memory | `{analysis-dir}/{topic-slug}-memory.draft.md` | `{analysis-dir}/{topic-slug}-memory-claims.json` |
-| Issue body | `{analysis-dir}/{topic-slug}-issue.draft.md` | `{analysis-dir}/{topic-slug}-issue-claims.json` |
+| Issue body | `{analysis-dir}/{topic-slug}-issue-body.md` (published, not moved) | `{analysis-dir}/{topic-slug}-issue-claims.json` |
 
 1. List each claim the artifact will state that rests on an outside source: a
    vendor or product behavior, an external API or compatibility fact, a
@@ -115,9 +115,13 @@ ledger, because each one restates a different set of claims.
 4. Write the draft with the final wording, never the gathered sentence. If
    browsing is unavailable or no authority exists, qualify or remove the claim
    and record the gap. Do not halt.
-5. Run the validator on the ledger and the draft. On exit 0, move the draft to
-   the artifact's final location. On exit 1 or 2, fix the draft or the ledger
-   and rerun; never write the final artifact on a failed run.
+5. Run the validator on the ledger and the draft. On exit 1 or 2, fix the
+   draft or the ledger and rerun; never write the final artifact on a failed
+   run. On exit 0, Read the draft and Write its exact text to the final
+   location, then run the validator again with `--artifact` on the final file.
+   It must exit 0 again, which proves the copy is the checked text. The issue
+   body is published straight from its checked file. Drafts and ledgers stay
+   in `{analysis-dir}` as the audit record.
 
    ```bash
    python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/ai-agents-external-claims/scripts/claim_ledger.py" \
@@ -132,8 +136,8 @@ ledger, because each one restates a different set of claims.
 
    **Bound the search.** If three tool calls have not surfaced anything useful, stop searching and switch to first-principles reasoning. Document what you tried (which tool, what query, what came back) so the user can extend the search if the answer matters more than your time budget suggests.
 2. **Analysis.** Draft the analysis document, using the skeleton in
-   `references/templates.md`. Pass the claim gate, then move the draft to the
-   location in the Output table.
+   `references/templates.md`. Pass the claim gate, then copy the checked draft
+   to the location in the Output table.
 
    No em dashes or en dashes in anything this skill writes.
    Use commas, periods, colons, parentheses, hyphens, or restructure.
@@ -144,7 +148,7 @@ ledger, because each one restates a different set of claims.
    with the memory's own ledger.
 5. **Action.** File a GitHub issue when implementation work is identified.
    Writing the body is internal and reversible, so do it without asking. Pass
-   the claim gate on the issue draft first, then move it to the body file below.
+   the claim gate on the body file before the publish step below.
    Publishing the issue is external and irreversible, so confirm with the user before running this, and skip it rather than guess when no answer is available.
 
    ```bash

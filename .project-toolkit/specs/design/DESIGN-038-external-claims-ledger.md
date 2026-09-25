@@ -28,15 +28,16 @@ REQ-040 criteria 1 to 10.
 The `research` skill writes three durable artifacts: the analysis document
 (Phase 2), the Serena memory (Phase 4), and the issue body (Phase 5). Each
 artifact is first written to a draft file with its own ledger. The claim gate
-validates the ledger against the draft, and the draft moves to its final
-location only on exit 0. A direct `/research` call passes through the same
+validates the ledger against the draft. Only on exit 0 is the draft's exact
+text written to its final location, and the gate then checks that file too.
+The issue body is published from its checked file, so it needs no copy. A direct `/research` call passes through the same
 phases, so it cannot skip the gate.
 
 | Artifact | Draft | Ledger |
 |---|---|---|
 | Analysis | `{topic-slug}-analysis.draft.md` | `{topic-slug}-analysis-claims.json` |
 | Memory | `{topic-slug}-memory.draft.md` | `{topic-slug}-memory-claims.json` |
-| Issue body | `{topic-slug}-issue.draft.md` | `{topic-slug}-issue-claims.json` |
+| Issue body | `{topic-slug}-issue-body.md` | `{topic-slug}-issue-claims.json` |
 
 One ledger per artifact, because a memory or an issue body restates only
 some of the analysis claims, and rule 11 needs every kept wording present.
@@ -93,7 +94,7 @@ claim_ledger.py --ledger PATH [--artifact PATH]
     `published` date when its source kind is not `none`.
 11. With `--artifact`, each kept `final_wording` must appear in the draft.
     A removed claim, or the gathered sentence of a narrowed or qualified
-    claim, must not appear outside the kept wordings. Matching is
+    claim, must not appear, except inside a kept wording that contains it. Matching is
     case-insensitive, whitespace-collapsed, and on word boundaries.
 12. With `--artifact`, a `skip` decision fails when the draft cites an
     `http` or `https` URL. Internal-only drafts cite repository files by path.

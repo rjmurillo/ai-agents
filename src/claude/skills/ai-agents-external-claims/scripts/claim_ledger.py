@@ -182,29 +182,39 @@ def _claim_defects(index: int, claim: object) -> list[str]:
     return _evidence_defects(where, claim, kind) + _wording_defects(where, claim, claim["source"])
 
 
-def _contains(text: str, phrase: str) -> bool:
-    """Return True when phrase occurs in text on word boundaries."""
-    return re.search(rf"(?<!\w){re.escape(phrase)}(?!\w)", text) is not None
+def _spans(text: str, phrase: str) -> list[tuple[int, int]]:
+    """Return the spans where phrase occurs in text on word boundaries."""
+    pattern = re.compile(rf"(?<!\w){re.escape(phrase)}(?!\w)")
+    return [match.span() for match in pattern.finditer(text)]
+
+
+def _stray_draft(text: str, draft: str, kept: list[str]) -> bool:
+    """Return True when the draft occurs outside every kept wording that contains it.
+
+    A kept wording may legitimately repeat a shorter draft sentence. The reverse
+    case, a narrowed wording cut from a longer draft, never forgives the draft.
+    """
+    covers = [span for wording in kept if draft in wording for span in _spans(text, wording)]
+    return any(
+        not any(start <= s and e <= end for start, end in covers) for s, e in _spans(text, draft)
+    )
 
 
 def _artifact_defects(claims: list[dict[str, Any]], artifact: str) -> list[str]:
     """Check that the artifact carries the checked wording, not the draft."""
     text = _normalize(artifact)
     kept = [_normalize(c["final_wording"]) for c in claims if c["disposition"] != "removed"]
-    residue = text
-    for wording in kept:
-        residue = residue.replace(wording, " ")
     defects: list[str] = []
     for claim in claims:
         where = f"claim {claim['id']}"
         draft = _normalize(claim["claim"])
         if claim["disposition"] == "removed":
-            if _contains(residue, draft):
+            if _stray_draft(text, draft, kept):
                 defects.append(f"{where}: the artifact still carries the removed claim")
             continue
-        if not _contains(text, _normalize(claim["final_wording"])):
+        if not _spans(text, _normalize(claim["final_wording"])):
             defects.append(f"{where}: final_wording is absent from the artifact")
-        elif _contains(residue, draft):
+        elif _stray_draft(text, draft, kept):
             defects.append(f"{where}: the artifact still carries the unreviewed draft wording")
     return defects
 

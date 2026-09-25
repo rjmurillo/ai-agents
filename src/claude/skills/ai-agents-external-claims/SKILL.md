@@ -172,8 +172,9 @@ A search result snippet is not a source. Fetch the page it points to.
 ### The gate
 
 Write the artifact to a draft file first. Run the validator on the ledger and
-the draft. Move the draft to its final location only when the validator exits
-0. The `artifact` field names that final location.
+the draft. Only when it exits 0, copy the draft's exact text to its final
+location and run the validator again on that file. The `artifact` field names
+that final location.
 
 ```bash
 python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/ai-agents-external-claims/scripts/claim_ledger.py" \
@@ -183,7 +184,7 @@ python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/ai-agents
 
 | Exit | Meaning | Next move |
 |------|---------|-----------|
-| 0 | The ledger passed | Move the draft to its final location |
+| 0 | The ledger passed | Copy the draft to its final location and recheck it |
 | 1 | Defects, listed in the JSON on stdout | Fix the ledger or the draft, then rerun |
 | 2 | A file is unreadable or the ledger is not JSON | Fix the input; do not write |
 
@@ -223,7 +224,7 @@ Before a claim from an external source enters a durable artifact:
 - [ ] Any stat-of-a-stat chain was followed to its origin, and any repo cross-claim is quoted verbatim with its path.
 - [ ] Stake-holding sources are flagged, and self-favorable claims are confirmed against a neutral source.
 - [ ] Every external number and attribution is cited inline or removed; no unrun verification is named as a caveat.
-- [ ] In research adjunct mode, the claim ledger passed `claim_ledger.py` against the finished artifact before the write.
+- [ ] In research adjunct mode, the claim ledger passed `claim_ledger.py` against the draft before the write, and again against the written file.
 
 ## Provenance
 

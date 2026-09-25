@@ -99,7 +99,8 @@ and `reason`), and `claims`. Each claim holds `id`, `claim`, `category`,
 
 ## Integrations
 
-- `research` runs the gate after Phase 1 and before Phase 2.
+- `research` runs the gate on each artifact's draft before the Phase 2, 4,
+  and 5 writes.
 - `ai-agents-external-claims` owns the ledger contract and the validator.
 - `autoplan` names the gate in its research row.
 - `build/scripts/build_all.py` renders the mirrors.

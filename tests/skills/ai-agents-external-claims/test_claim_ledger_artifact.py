@@ -176,3 +176,20 @@ def test_script_runs_as_a_program(tmp_path: Path) -> None:
     )
     assert result.returncode == 0
     assert json.loads(result.stdout)["ok"] is True
+
+
+def test_narrowed_wording_cut_from_draft_still_refuses_draft() -> None:
+    claim = make_claim(
+        claim="Kafka consumers apply backpressure in every mode",
+        disposition="narrowed",
+        confidence="medium",
+        final_wording="Kafka consumers apply backpressure",
+        gap="The docs cover the default fetch mode only.",
+    )
+    artifact = "Kafka consumers apply backpressure in every mode."
+    assert any("draft" in e for e in ledger_errors(make_ledger(claim), artifact))
+
+
+def test_verified_claim_equal_to_draft_passes() -> None:
+    artifact = "Kafka consumers pause fetches when the buffer is full. Again: " * 2
+    assert ledger_errors(make_ledger(make_claim()), artifact) == []
