@@ -143,6 +143,13 @@ evidence (failing tests, widening diff), not on speculation.
 The user naming a skill or command bypasses this table entirely. User
 Sovereignty wins over any row.
 
+**Model tier.** When a route dispatches an agent or subagent, start it at the
+cheapest tier: Haiku 4.5 or GPT-6 Luna. Measured on each specialist's
+acceptance fixtures, that tier passed for 34 of 42 agent and skill cells.
+Escalate only for a measured exception or an unresolved judgment. The
+orchestrator agent's Model, Effort, and Cost Routing section owns the
+exception list and the escalation rules; do not restate them here.
+
 **Router boundary (ADR-078).** Autoplan is the outer front-door router at the
 skill layer. It classifies any request that names no skill and routes it to one
 destination: a skill, a lifecycle command, or an agent chain. When a request is

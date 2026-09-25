@@ -128,10 +128,10 @@ Preserve registered roles, mappings, role-keyed results, ADR-009, and ADR-078.
 Judgment: Opus 5.5 or Astra owns ambiguity/acceptance | Sol or Opus handles hard exceptions and high-recall review | Do not force a weaker model into judgment work with more prompts, tools, or subagents.
 Bounded: route down only when scope explicit | failure cheap | verifier objective | fan-out/context replay low | receipt compact.
 Control loop: do not route everything up | constrain capable models for routine work | pre-route up when correction/review/human-wait cost wins.
-Interactive: human-blocking latency weighs more | async: token cost weighs more | fan-out adds context duplication and coordination tax.
-Vendor rates 2026-09-22, per 1M input/output tokens: Fable 5.1 $10/$50, Opus 5.5 $4/$20, Sonnet 5 $2/$10, Haiku 4.5 $1/$5 (Anthropic); Astra $10/$50, Sol $2/$10, Luna $0.10/$0.50 ([OpenAI](https://developers.openai.com/api/docs/models)).
-Limits: Fable/Opus/Sonnet 1M context, 128K output; Haiku 4.5 200K/64K; GPT-6 1.05M/128K. Rate cards are not cost-per-accepted-result evidence.
-Benchmark costs are conditional on benchmark, harness, effort, prompt, tool loop, and passed-result definition; calibrate, do not universalize.
+Interactive: human-blocking latency weighs more | async: token cost weighs more | fan-out adds coordination tax.
+Specialist evidence 2026-09-24 (single-turn fixtures, 3 runs, 0.10 margin): Haiku/Luna pass 34 of 42 cells. Escalate where measured: skillbook Opus/Astra; implementer Astra; orchestrator Sonnet; security-review Opus; critic, adr-review, spec Sol (unproven). Tool loops unmeasured.
+Rates 2026-09-22, $/1M in/out: Fable/Astra $10/$50, Opus $4/$20, Sonnet/Sol $2/$10, Haiku $1/$5, Luna $0.10/$0.50. Haiku context 200K, others 1M+. Rate cards are not accepted-result cost.
+Benchmark costs are conditional on harness, effort, prompt, and pass definition; calibrate.
 
 The orchestrator delegates implementation and accepts independent verification.
 Use event-driven waits and compact receipts. Stop after acceptance.
@@ -142,7 +142,7 @@ Use event-driven waits and compact receipts. Stop after acceptance.
 0. Recon the target stack (see Target Recon). Never route on an assumed stack.
 1. Classify complexity (Cynefin)
 2. Can a worker perform it with a deterministic acceptance test?
-   YES → choose Haiku/Luna/Sonnet/Sol/Terra by task shape and unresolved judgment
+   YES → start at Haiku/Luna; escalate per evidence or unresolved judgment
    NO  → continue
 3. Does task need investigation first?
    YES → analyst → synthesize → re-evaluate
