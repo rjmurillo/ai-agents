@@ -32,6 +32,7 @@ ROUTING_KEYS: tuple[str, ...] = (
     "rationale",
     "replaced-by",
     "removal-issue",
+    "intents",
 )
 
 
