@@ -188,11 +188,14 @@ coordinates specialists.
 
 When the request names no skill or command, matches no row above, and is not
 multi-domain (Precedence step 3), run the resolver before falling back to the
-orchestrator. In a repository checkout, resolve
-`RESOLVER="$(git rev-parse --show-toplevel)/.claude/skills/autoplan/scripts/resolve_route.py"`.
-From an installed skill copy, use the local skill path:
-`RESOLVER="$PWD/scripts/resolve_route.py"` when your shell is in the
-`autoplan` skill directory. Then run:
+orchestrator. Resolve the script from the plugin root, so it works from an
+installed plugin and from a repository checkout:
+
+```bash
+RESOLVER="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-$(git rev-parse --show-toplevel)/.claude}}/skills/autoplan/scripts/resolve_route.py"
+```
+
+Then run:
 
 ```bash
 python3 "$RESOLVER" --request "<the user's request text>"
@@ -280,7 +283,7 @@ connection and runs no subprocess. Resolve its path the same way Phase 2b
 does (`$RESOLVER` below), never as a bare relative invocation:
 
 ```bash
-RESOLVER="$(git rev-parse --show-toplevel)/.claude/skills/autoplan/scripts/resolve_route.py"
+RESOLVER="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-$(git rev-parse --show-toplevel)/.claude}}/skills/autoplan/scripts/resolve_route.py"
 python3 "$RESOLVER" --request "audit our CLI for developer friction"
 ```
 
