@@ -14,6 +14,14 @@ ERR_CLIENT_ERROR: str = "client_error"
 ERR_AUTH: str = "auth"
 ERR_UNKNOWN: str = "unknown"
 ERR_TOTAL_TIMEOUT: str = "timeout_total"
+# REQ-037 AC-9/Failure Modes: a refusal, a token-limit cutoff, or an
+# unrecognized stop reason is a provider outcome, not a transport failure.
+# All three are non-transient: retrying sends the identical request and gets
+# the identical stop reason back (`_TRANSIENT` in `_eval_api_adapter.py`
+# deliberately omits them).
+ERR_REFUSAL: str = "refusal"
+ERR_TOKEN_LIMIT: str = "token_limit"
+ERR_INCOMPLETE: str = "incomplete"
 
 DEFAULT_MAX_RETRIES: int = 3
 BACKOFF_BASE_SEC: float = 1.0
@@ -47,6 +55,7 @@ ALLOWED_LOG_FIELDS: frozenset[str] = frozenset(
         "tokens_in",
         "tokens_out",
         "error_category",
+        "termination",
     }
 )
 

@@ -664,14 +664,16 @@ class TestJudgeScenario:
         "verdict_options": ["ROUTE", "DELEGATE"],
     }
 
-    def _patch_call_api(self, monkeypatch, response: str):
+    def _patch_call_api(self, monkeypatch, response: str, *, termination: str = "completed"):
         captured = {}
 
-        def fake(api_key, messages, system, model, max_tokens):
+        def fake(api_key, messages, system, model, max_tokens, metadata=None):
             captured["api_key"] = api_key
             captured["messages"] = messages
             captured["system"] = system
             captured["model"] = model
+            if metadata is not None:
+                metadata["termination"] = termination
             return response
 
         monkeypatch.setattr(eval_mod, "call_api", fake)

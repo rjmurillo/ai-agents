@@ -502,6 +502,7 @@ class TestEvalLogSchema:
                 "tokens_in": 4,
                 "tokens_out": 5,
                 "error_category": None,
+                "termination": "completed",
             }
         )
 
