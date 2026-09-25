@@ -23,6 +23,7 @@ excerpt::
 
 from __future__ import annotations
 
+import http.client
 import os
 import re
 import urllib.error
@@ -66,10 +67,54 @@ def _tool_read_file(fixture_dir: Path, raw_path: str) -> str:
         return f"Error reading {raw_path}: {exc}"
 
 
+def _confine_walked_candidate(resolved_root: Path, candidate: Path) -> Path | None:
+    """Reject a ``rglob``-discovered ``candidate`` whose resolved (symlink-
+    followed) target escapes ``resolved_root``.
+
+    ``_confine_path`` validates a single caller-supplied relative path
+    string against traversal and an escaping symlink; it never sees the
+    files ``Path.rglob`` discovers by walking the tree, so a *file* symlink
+    sitting inside the fixture (unlike the symlink ``_confine_path`` itself
+    rejects) previously reached ``candidate.read_text()`` unchecked and
+    ``grep`` returned its target's lines. Mirrors ``_confine_path``'s guard:
+    resolve, then require ``relative_to(resolved_root)``.
+    """
+    resolved_candidate = candidate.resolve()
+    try:
+        resolved_candidate.relative_to(resolved_root)
+    except ValueError:
+        return None
+    return resolved_candidate
+
+
+def _grep_file_matches(resolved_root: Path, candidate: Path, regex: re.Pattern[str]) -> list[str]:
+    """Matched ``"rel:lineno:line"`` strings for one ``rglob``-discovered
+    ``candidate``, or ``[]`` when it is not a regular file, escapes
+    ``resolved_root`` via a symlink (see ``_confine_walked_candidate``), or
+    cannot be read.
+    """
+    if not candidate.is_file():
+        return []
+    confined_candidate = _confine_walked_candidate(resolved_root, candidate)
+    if confined_candidate is None:
+        return []
+    try:
+        text = confined_candidate.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return []
+    rel = candidate.relative_to(resolved_root)
+    return [
+        f"{rel}:{lineno}:{line}"
+        for lineno, line in enumerate(text.splitlines(), start=1)
+        if regex.search(line)
+    ]
+
+
 def _tool_grep(fixture_dir: Path, pattern: str, raw_path: str | None) -> str:
     if not pattern:
         return "Error: pattern is required."
-    search_root = fixture_dir.resolve()
+    resolved_root = fixture_dir.resolve()
+    search_root = resolved_root
     if raw_path:
         confined = _confine_path(fixture_dir, raw_path)
         if confined is None:
@@ -82,16 +127,7 @@ def _tool_grep(fixture_dir: Path, pattern: str, raw_path: str | None) -> str:
     candidates = [search_root] if search_root.is_file() else sorted(search_root.rglob("*"))
     matches: list[str] = []
     for candidate in candidates:
-        if not candidate.is_file():
-            continue
-        try:
-            text = candidate.read_text(encoding="utf-8", errors="replace")
-        except OSError:
-            continue
-        rel = candidate.relative_to(fixture_dir.resolve())
-        for lineno, line in enumerate(text.splitlines(), start=1):
-            if regex.search(line):
-                matches.append(f"{rel}:{lineno}:{line}")
+        matches.extend(_grep_file_matches(resolved_root, candidate, regex))
     return "\n".join(matches[:200]) if matches else "No matches."
 
 
@@ -264,7 +300,28 @@ def run_investigate_loop(
     for turn in range(1, MAX_TURNS + 1):
         try:
             response = post_messages(api_key, model, system, messages, tools)
-        except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError) as exc:
+        except (
+            urllib.error.HTTPError,
+            urllib.error.URLError,
+            http.client.HTTPException,
+            ValueError,
+            TypeError,
+            OSError,
+        ) as exc:
+            # OSError also catches TimeoutError and ConnectionError, both of
+            # which are OSError subclasses (Python's OS-exception hierarchy):
+            # a socket timeout or a reset connection during response.read()
+            # raises through post_messages the same as a connection-setup
+            # failure urlopen() itself would raise. http.client.HTTPException
+            # (e.g. IncompleteRead) and ValueError (json.loads on a non-JSON
+            # 200 body, or dict() on a non-object JSON value) are the two
+            # post-connection failure modes _send_once can raise that a bare
+            # urllib.error catch never saw, so a single malformed response
+            # used to abort run_all for every fixture/mode/run still queued,
+            # discarding every already-completed row. classify_failure's
+            # generic `error_{type(exc).__name__}` branch already handles
+            # every one of these; only this except clause was too narrow to
+            # reach it.
             classification = classify_failure(exc)
             return ToolLoopResult(
                 findings=[],

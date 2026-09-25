@@ -223,4 +223,40 @@ def test_prune_never_follows_symlinked_artifacts(tmp_path: Path) -> None:
     old_time = 1_000_000.0
     os.utime(symlink_path, (old_time, old_time), follow_symlinks=False)
 
-    sgda.prune(store_dir, max_age_s=1)
+    removed = sgda.prune(store_dir, max_age_s=1)
+
+    # The prior version of this test called prune and asserted nothing, so
+    # it passed whether or not prune deleted the symlink or its outside
+    # target. Both must survive: prune's is_symlink() guard means neither
+    # the symlink entry nor what it points at is ever unlinked.
+    assert removed == 0
+    assert symlink_path.is_symlink()
+    assert outside_target.exists()
+    assert outside_target.read_text(encoding="utf-8") == "outside"
+
+
+def test_prune_skips_symlinked_repo_directory(tmp_path: Path) -> None:
+    """A store_dir entry that is a symlink to a directory outside the store
+    (as opposed to a symlinked *artifact* inside a real repo directory,
+    covered above) must not be walked at all: is_dir() follows symlinks, so
+    without an is_symlink() check first, prune would glob() the outside
+    directory's *.diff files and unlink the old one, deleting content
+    outside the store.
+    """
+    store_dir = tmp_path / "store"
+    store_dir.mkdir(parents=True)
+    outside_repo = tmp_path / "outside-repo"
+    outside_repo.mkdir()
+    outside_artifact = outside_repo / (hashlib.sha256(b"outside").hexdigest() + ".diff")
+    outside_artifact.write_text("outside repo content", encoding="utf-8")
+    old_time = 1_000_000.0
+    os.utime(outside_artifact, (old_time, old_time))
+    symlinked_repo = store_dir / ("5" * 64)
+    symlinked_repo.symlink_to(outside_repo)
+
+    removed = sgda.prune(store_dir, max_age_s=1)
+
+    assert removed == 0
+    assert symlinked_repo.is_symlink()
+    assert outside_artifact.exists()
+    assert outside_artifact.read_text(encoding="utf-8") == "outside repo content"

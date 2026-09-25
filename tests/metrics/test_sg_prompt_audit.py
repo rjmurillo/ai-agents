@@ -89,6 +89,25 @@ def test_main_exits_two_on_malformed_until_date(tmp_path: Path) -> None:
     assert audit.main(["--projects-dir", str(tmp_path), "--until", "2026/09/20"]) == 2
 
 
+def test_main_exits_two_on_negative_top(tmp_path: Path) -> None:
+    """A negative --top slices `[:top]` from the tail (Python list semantics),
+    silently dropping groups from the report while main still exits 0.
+    Reject it as a config error instead.
+    """
+    assert audit.main(["--projects-dir", str(tmp_path), "--top", "-1"]) == 2
+
+
+def test_main_accepts_top_zero(tmp_path: Path) -> None:
+    """--top 0 is a legitimate (if unusual) request for no groups, not an
+    error: only negative values are rejected.
+    """
+    diff = diff_text([("a.py", "+x\n")])
+    session = successful_session(investigate_prompt(diff))
+    write_transcript(tmp_path, "proj-a", "s1.jsonl", session)
+
+    assert audit.main(["--projects-dir", str(tmp_path), "--top", "0"]) == 0
+
+
 def test_main_filters_by_since_and_until(tmp_path: Path) -> None:
     diff = diff_text([("a.py", "+x\n")])
     write_transcript(

@@ -27,6 +27,7 @@ from typing import Any
 
 import pytest
 
+from scripts.metrics import sg_diff_reference as sgd
 from scripts.metrics import sg_reference_ab as ab
 from scripts.metrics import sg_reference_ab_fixtures as fixtures_mod
 from tests.metrics.sg_reference_ab_helpers import (
@@ -95,10 +96,17 @@ def test_run_fixture_mode_referenced_writes_artifact_and_can_be_read(
         messages: list[dict[str, Any]],
         tools: list[dict[str, Any]],
     ) -> dict[str, Any]:
-        calls.append(messages)
+        # Snapshot the list at call time: `messages` is the same object
+        # every call receives and mutates in place (append), so storing the
+        # reference itself would leave every entry in `calls` pointing at
+        # its final state once the loop finishes, not the state at the
+        # moment of that call.
+        calls.append(list(messages))
         if len(calls) == 1:
-            sha_tool = next(t for t in tools if t["name"] == "read_diff_artifact")
-            assert sha_tool is not None
+            # next() raises StopIteration (failing the test) if no tool
+            # named "read_diff_artifact" was offered; nothing further to
+            # assert about the object it finds.
+            next(t for t in tools if t["name"] == "read_diff_artifact")
             return responses[0]
         return responses[1]
 
@@ -119,6 +127,19 @@ def test_run_fixture_mode_referenced_writes_artifact_and_can_be_read(
 
     assert result.mode == "referenced"
     assert len(list((store_dir / fixture.repo_id).glob("*.diff"))) == 1
+    # The test's name claims the artifact "can be read"; prove it actually
+    # was, not merely that a .diff file exists on disk (which write_artifact
+    # alone would also produce, with no read ever happening).
+    assert result.read_diff_artifact_called is True
+    # And prove the tool_result content the model receives in its second
+    # turn is the exact capped diff text, not merely present.
+    tool_result_message = calls[1][-1]
+    assert tool_result_message["role"] == "user"
+    tool_result_content = tool_result_message["content"][0]["content"]
+    expected_diff_text, _dropped = sgd.capped_diff_text(
+        fixture.diff_files, per_file_bytes=fixture.per_file_bytes, total_bytes=fixture.total_bytes
+    )
+    assert tool_result_content == expected_diff_text
 
 
 def test_run_all_produces_one_row_per_fixture_mode_run(

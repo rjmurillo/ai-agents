@@ -128,6 +128,35 @@ def test_finding_set_excludes_infra_failure_rows() -> None:
     assert ab._finding_set(rows) == {("a.py", "CWE-78", "high")}
 
 
+def test_build_aggregates_jaccard_is_none_when_a_mode_is_all_infra_failures() -> None:
+    """REQ-8's original motivating case: the referenced mode's whole run
+    failed on a billing error (an infra failure), so it has zero valid rows.
+    _finding_set drops infra rows and returns an empty set either way, so
+    the old `_jaccard(a, b)` (b == set()) with `a` non-empty returned 0.0,
+    reading as "the two modes found nothing in common" when the true state
+    is "there is no referenced-mode data to compare at all".
+    """
+    rows = [
+        _run(
+            fixture="f_mismatch",
+            mode="inline",
+            findings=[("a.py", "CWE-78", "high")],
+        ),
+        _run(
+            fixture="f_mismatch",
+            mode="referenced",
+            failure="http_402:billing_error",
+            failure_detail="Your credit balance is too low.",
+            infra_failure=True,
+        ),
+    ]
+
+    aggregates = ab.build_aggregates(rows)
+
+    assert aggregates["f_mismatch"]["referenced"]["valid_run_count"] == 0
+    assert aggregates["f_mismatch"]["jaccard"] is None
+
+
 def test_build_aggregates_groups_by_fixture_and_mode() -> None:
     rows = [
         _run(fixture="f1", mode="inline", findings=[("a.py", "CWE-78", "high")]),

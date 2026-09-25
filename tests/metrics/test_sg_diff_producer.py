@@ -78,6 +78,42 @@ def test_produce_prompt_falls_back_to_exact_inline_on_every_resolve_failure(
     assert outcome.ref is not None  # the artifact was written; only resolution failed
 
 
+@pytest.mark.parametrize(
+    "write_error",
+    [
+        OSError("simulated full disk"),
+        ValueError("write_artifact: repo_id must be 64 lowercase hex chars, got 'bad'"),
+    ],
+)
+def test_produce_prompt_falls_back_to_exact_inline_when_write_artifact_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, write_error: Exception
+) -> None:
+    """REQ-5's fallback covers a failed write, not only a failed resolve: a
+    full disk or permission error raises OSError from write_artifact's
+    os.replace/mkdir, and a malformed repo_id raises ValueError from its
+    _HEX64_RE guard. Both must fall back to the exact inline prompt with
+    fallback_reason="write_failed", never propagate, and never reach
+    resolve() (there is no ref to resolve).
+    """
+    touched = ["a.py"]
+    diff_files = [("a.py", "+x\n")]
+    store_dir = tmp_path / "store"
+
+    def _fake_write_artifact(*_args: object, **_kwargs: object) -> sgda.ArtifactRef:
+        raise write_error
+
+    monkeypatch.setattr(sgdp, "write_artifact", _fake_write_artifact)
+
+    prompt, outcome = sgdp.produce_prompt(
+        "referenced", store_dir, "a" * 64, "head1", touched, diff_files, ""
+    )
+
+    assert prompt == sgd.build_inline_prompt(touched, diff_files, "")
+    assert outcome.mode_used == "inline"
+    assert outcome.fallback_reason == "write_failed"
+    assert outcome.ref is None
+
+
 # --- serve_artifact_tool -----------------------------------------------------
 
 

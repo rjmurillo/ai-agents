@@ -246,6 +246,40 @@ def test_latency_seconds_zero_when_timestamp_unparsable() -> None:
     assert parse_mod.latency_seconds("not-a-timestamp", "2026-09-20T00:00:00Z") == 0.0
 
 
+def test_parse_timestamp_accepts_z_suffix() -> None:
+    parsed = parse_mod.parse_timestamp("2026-09-20T00:00:00.000Z")
+    assert parsed.tzinfo is not None
+    assert parsed.isoformat() == "2026-09-20T00:00:00+00:00"
+
+
+def test_parse_timestamp_rejects_naive_datetime() -> None:
+    """A timestamp with no `Z` or UTC offset parses via `datetime.fromisoformat`
+    to a naive datetime, which raises TypeError (not ValueError) if later
+    subtracted from an aware one. parse_timestamp rejects it at the parse
+    boundary instead, so every caller that keeps only validated timestamps
+    (sg_prompt_audit_parse._valid_timestamp) never has to catch TypeError.
+    """
+    with pytest.raises(ValueError, match="naive datetime"):
+        parse_mod.parse_timestamp("2026-09-20T00:00:00")
+
+
+def test_latency_seconds_zero_when_timestamp_naive() -> None:
+    """Before parse_timestamp rejected naive datetimes, this combination
+    (one aware, one naive) raised TypeError from the bare subtraction, which
+    latency_seconds's `except ValueError` did not catch. It must not crash.
+    """
+    assert parse_mod.latency_seconds("2026-09-20T00:00:00", "2026-09-20T00:00:05Z") == 0.0
+
+
+def test_valid_timestamp_true_for_aware_iso_string() -> None:
+    assert parse_mod._valid_timestamp("2026-09-20T00:00:00Z") is True
+
+
+@pytest.mark.parametrize("bad", ["not-a-timestamp", "2026-09-20T00:00:00", ""])
+def test_valid_timestamp_false_for_garbage_or_naive_or_empty(bad: str) -> None:
+    assert parse_mod._valid_timestamp(bad) is False
+
+
 
 
 # --- diff bodies that quote the prompt's own markers --------------------------

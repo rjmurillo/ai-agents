@@ -75,7 +75,20 @@ def write_artifact(
     0o600. The write is atomic: content lands in a same-directory temp file
     first, then ``os.replace`` swaps it into place, so a reader never observes
     a partially written artifact.
+
+    Raises:
+        ValueError: ``repo_id`` is not 64 lowercase hex characters. This is
+            the same ``_HEX64_RE`` CWE-22 guard ``resolve`` applies (module
+            comment above the pattern): a ``repo_id`` such as ``"../x"``
+            would otherwise reach ``Path(store_dir) / repo_id`` and make
+            ``mkdir(parents=True)``/``os.chmod`` act on a directory outside
+            ``store_dir`` before any content is written. Checked before any
+            path is built, so no partial write or directory creation happens
+            on rejection.
     """
+    if not _HEX64_RE.match(repo_id):
+        raise ValueError(f"write_artifact: repo_id must be 64 lowercase hex chars, got {repo_id!r}")
+
     diff_bytes = diff_text.encode()
     sha256 = hashlib.sha256(diff_bytes).hexdigest()
     size = len(diff_bytes)
@@ -116,7 +129,14 @@ def prune(store_dir: str | Path, max_age_s: float) -> int:
     now = time.time()
     removed = 0
     for repo_entry in store_path.iterdir():
-        if not repo_entry.is_dir():
+        # is_symlink() first: is_dir() follows symlinks, so a repo_entry that
+        # is a symlink to a directory outside store_dir would otherwise be
+        # walked and have its *.diff files unlinked below, escaping the
+        # store. The per-artifact is_symlink() check further down only
+        # catches a symlinked *file*; it never runs for files reached
+        # through a symlinked *directory*, because glob() itself would
+        # already be resolving the symlink to get there.
+        if repo_entry.is_symlink() or not repo_entry.is_dir():
             continue
         for artifact in repo_entry.glob("*.diff"):
             if artifact.is_symlink():

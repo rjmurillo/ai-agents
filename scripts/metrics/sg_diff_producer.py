@@ -80,7 +80,14 @@ def produce_prompt(
     the same expectations a later reader would apply. Any resolution failure
     (REQ-5: missing, unreadable, stale, cross-repository, tampered) falls back
     to the EXACT inline prompt, so a caller never has to special-case a
-    reference failure at review time.
+    reference failure at review time. The write itself can also fail: a full
+    disk or a permission error raises ``OSError`` from ``write_artifact``'s
+    ``os.replace``/``mkdir``, and a malformed ``repo_id`` raises ``ValueError``
+    from its ``_HEX64_RE`` guard. Both fall back to the same exact inline
+    prompt, with ``fallback_reason="write_failed"``, so every failure path
+    (write or resolve) returns the exact inline prompt as the module
+    docstring promises; nothing here ever propagates a write failure to the
+    caller.
     """
     if mode not in ("inline", "referenced"):
         raise ValueError(
@@ -94,7 +101,14 @@ def produce_prompt(
     if mode == "inline":
         return inline_prompt, ProducerOutcome(mode_used="inline", fallback_reason=None, ref=None)
 
-    ref = write_artifact(store_dir, repo_id, head, diff_text, list(touched_paths), truncated_bytes)
+    try:
+        ref = write_artifact(
+            store_dir, repo_id, head, diff_text, list(touched_paths), truncated_bytes
+        )
+    except (OSError, ValueError):
+        return inline_prompt, ProducerOutcome(
+            mode_used="inline", fallback_reason="write_failed", ref=None
+        )
     resolution = resolve(store_dir, ref, repo_id, head)
     if not resolution.ok:
         return inline_prompt, ProducerOutcome(

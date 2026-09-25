@@ -204,6 +204,50 @@ def test_diff_group_entry_span_zero_when_fewer_than_two_timestamps() -> None:
     assert group.time_span_seconds == 0.0
 
 
+def test_diff_group_entry_computes_span_by_parsed_time_not_string_order() -> None:
+    """Different valid ISO-8601 forms do not sort in time order as strings.
+
+    As strings, "2026-09-19T23:00:00Z" < "2026-09-20T00:00:00+02:00"
+    lexically (comparing "...09-19..." against "...09-20..."). As instants,
+    it is the reverse: 2026-09-20T00:00:00+02:00 is 2026-09-19T22:00:00 UTC,
+    one hour BEFORE 2026-09-19T23:00:00Z. Computing span from
+    max(strings)/min(strings) (the prior behavior) therefore picks the wrong
+    endpoints and can even go negative; computing it from
+    max(parsed)/min(parsed) gives the true one-hour elapsed time.
+    """
+
+    def _record(started_at: str) -> SessionRecord:
+        return SessionRecord(
+            locator=Locator(project="p", file="f.jsonl", line=1),
+            kind="investigate",
+            cwd="/repo",
+            started_at=started_at,
+            ended_at=started_at,
+            latency_s=0.0,
+            prompt_bytes=1,
+            prompt_sha256="x",
+            diff_bytes=1,
+            diff_sha256="y",
+            blocks=(),
+            path_order_sha256="z",
+            cap=CapCounts(0, 0, 0),
+            checkout_note=False,
+            assistant_turns=0,
+            usage=UsageTotals(0, 0, 0, 0),
+            first_turn_usage=None,
+            succeeded=False,
+            failure="no_assistant",
+        )
+
+    earlier_as_instant = "2026-09-20T00:00:00+02:00"  # == 2026-09-19T22:00:00Z
+    later_as_instant = "2026-09-19T23:00:00Z"
+    members = [_record(earlier_as_instant), _record(later_as_instant)]
+
+    group = audit._diff_group_entry("hash", members)
+
+    assert group.time_span_seconds == pytest.approx(3600.0)
+
+
 # --- window filtering -------------------------------------------------------------
 
 

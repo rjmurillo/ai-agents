@@ -85,10 +85,16 @@ def build_report(
 
 def _diff_group_entry(diff_sha256: str, members: list[SessionRecord]) -> RepeatedDiffGroup:
     total_bytes = members[0].diff_bytes
-    started = [m.started_at for m in members if m.started_at]
+    # Parse before comparing: different valid ISO-8601 forms (a fractional
+    # second, a non-UTC offset) do not sort in time order as strings, so
+    # max()/min() must run over parsed datetimes, not over the raw strings
+    # first. `started_at` is only ever a validated timestamp or "" by the
+    # time it reaches a SessionRecord (sg_prompt_audit_parse._valid_timestamp
+    # is the parse boundary), so parse_timestamp here cannot raise.
+    started = [parse_timestamp(m.started_at) for m in members if m.started_at]
     span = 0.0
     if len(started) >= 2:
-        span = (parse_timestamp(max(started)) - parse_timestamp(min(started))).total_seconds()
+        span = (max(started) - min(started)).total_seconds()
     return RepeatedDiffGroup(
         diff_sha256=diff_sha256,
         count=len(members),
@@ -255,6 +261,9 @@ def main(argv: list[str] | None = None) -> int:
     projects_dir = Path(args.projects_dir)
     if not projects_dir.is_dir():
         print(f"error: not a directory: {projects_dir}", file=sys.stderr)
+        return 2
+    if args.top < 0:
+        print(f"error: --top must be >= 0, got {args.top}", file=sys.stderr)
         return 2
     try:
         since = _parse_date_bound(args.since)

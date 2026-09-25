@@ -265,8 +265,36 @@ def add_usage(a: UsageTotals, b: UsageTotals) -> UsageTotals:
 
 
 def parse_timestamp(value: str) -> datetime:
-    """Parse a security-guidance transcript's ISO-Z timestamp."""
-    return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    """Parse a security-guidance transcript's ISO-Z timestamp.
+
+    Raises:
+        ValueError: ``value`` is not a valid ISO-8601 timestamp, or parses to
+            a naive datetime (no ``Z``/offset). A naive result cannot be
+            subtracted from an aware one without raising ``TypeError``
+            downstream, so callers that keep only validated timestamps (see
+            ``_valid_timestamp`` below) never observe that failure mode.
+    """
+    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    if parsed.tzinfo is None:
+        raise ValueError(f"parse_timestamp: naive datetime (no timezone offset) in {value!r}")
+    return parsed
+
+
+def _valid_timestamp(value: str) -> bool:
+    """True when ``value`` parses via :func:`parse_timestamp` without raising.
+
+    The parse boundary for every timestamp this module keeps: called from
+    ``_update_timestamp`` and ``_handle_first_user_entry`` so a garbage or
+    naive transcript timestamp is treated as absent (``None``) at the point
+    it is read, rather than reaching ``sg_prompt_audit._in_window`` or
+    ``_diff_group_entry`` unvalidated, where an uncaught ``ValueError`` or
+    ``TypeError`` would previously crash the whole audit on one bad line.
+    """
+    try:
+        parse_timestamp(value)
+    except ValueError:
+        return False
+    return True
 
 
 def latency_seconds(start: str, end: str) -> float:
@@ -275,7 +303,7 @@ def latency_seconds(start: str, end: str) -> float:
         return 0.0
     try:
         return (parse_timestamp(end) - parse_timestamp(start)).total_seconds()
-    except ValueError:
+    except (ValueError, TypeError):
         return 0.0
 
 
@@ -310,7 +338,7 @@ class _RecordContext:
 
 def _update_timestamp(state: _ParseState, entry: dict[str, Any]) -> None:
     ts = entry.get("timestamp")
-    if isinstance(ts, str) and ts:
+    if isinstance(ts, str) and ts and _valid_timestamp(ts):
         state.last_ts = ts
 
 
@@ -325,7 +353,7 @@ def _handle_first_user_entry(state: _ParseState, entry: dict[str, Any], line_no:
     state.first_user_text = text
     state.first_user_line = line_no
     ts = entry.get("timestamp")
-    state.first_user_ts = ts if isinstance(ts, str) else None
+    state.first_user_ts = ts if isinstance(ts, str) and _valid_timestamp(ts) else None
     cwd_value = entry.get("cwd")
     state.cwd = cwd_value if isinstance(cwd_value, str) else None
     state.kind = kind

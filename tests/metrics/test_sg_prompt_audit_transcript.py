@@ -277,3 +277,54 @@ def test_process_transcript_file_assistant_without_structured_output_is_failure(
     assert record.failure == "no_structured_output"
 
 
+# --- timestamp validation at the parse boundary --------------------------------
+
+
+@pytest.mark.parametrize(
+    "bad_ts", ["garbage-not-a-timestamp", "2026-09-20T00:00:00"], ids=["garbage", "naive"]
+)
+def test_process_transcript_file_treats_bad_first_user_timestamp_as_absent(
+    tmp_path: Path, bad_ts: str
+) -> None:
+    """A garbage or naive (no tz offset) timestamp on the first user entry
+    must not crash the parse (it previously reached sg_prompt_audit._in_window
+    unvalidated, raising ValueError, or TypeError on a naive-vs-aware
+    subtraction in _diff_group_entry). It is treated as absent instead:
+    started_at is "", the same value used when the transcript has no
+    timestamp at all.
+    """
+    diff = diff_text([("a.py", "+x\n")])
+    entries = [
+        user_entry(investigate_prompt(diff), ts=bad_ts),
+        assistant_entry("2026-09-20T00:00:01Z", usage=USAGE_1, tool_names=("StructuredOutput",)),
+    ]
+    path = write_transcript(tmp_path, "proj-a", "sess15.jsonl", entries)
+
+    record, skipped = parse_mod.process_transcript_file(path, "proj-a")
+
+    assert skipped == 0  # a bad timestamp is not a malformed JSON line
+    assert record is not None
+    assert record.started_at == ""
+
+
+def test_process_transcript_file_treats_bad_later_timestamp_as_absent(tmp_path: Path) -> None:
+    """A garbage timestamp on a LATER entry (not the first user entry) must
+    also not crash, and must not overwrite `last_ts` with an unparsable
+    value: `ended_at` falls back to the last entry that carried a valid
+    timestamp.
+    """
+    diff = diff_text([("a.py", "+x\n")])
+    entries = [
+        user_entry(investigate_prompt(diff), ts="2026-09-20T00:00:00Z"),
+        assistant_entry("2026-09-20T00:00:01Z", usage=USAGE_1, tool_names=("StructuredOutput",)),
+        {"type": "queue-operation", "timestamp": "garbage-not-a-timestamp"},
+    ]
+    path = write_transcript(tmp_path, "proj-a", "sess16.jsonl", entries)
+
+    record, skipped = parse_mod.process_transcript_file(path, "proj-a")
+
+    assert skipped == 0
+    assert record is not None
+    assert record.ended_at == "2026-09-20T00:00:01Z"
+
+

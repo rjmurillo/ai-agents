@@ -294,10 +294,25 @@ def build_aggregates(rows: Sequence[RunResult]) -> dict[str, dict[str, Any]]:
         }
         # _finding_set already excludes infra-failure rows (REQ-8: jaccard
         # measures finding-set parity, which an auth/billing failure cannot
-        # speak to).
-        entry["jaccard"] = _jaccard(
-            _finding_set(modes.get("inline", [])), _finding_set(modes.get("referenced", []))
-        )
+        # speak to). A mode missing here, or present with valid_run_count
+        # == 0 (every row for that mode was an infra failure -- the
+        # f_mismatch case this module's provenance docstring cites, where a
+        # referenced-mode run failed entirely on a billing error), carries
+        # zero valid data for that mode. That is a different state from
+        # "valid rows exist and legitimately found nothing" (an empty
+        # finding set, itself a real 0.0/1.0 comparison), and must not
+        # silently collapse into the same 0.0 an ordinary disjoint-set
+        # comparison would produce: _jaccard(a, b) with `a` non-empty and
+        # `b` empty already returns 0.0, which reads as "no overlap" rather
+        # than "no data".
+        inline_valid_count = entry.get("inline", {}).get("valid_run_count", 0)
+        referenced_valid_count = entry.get("referenced", {}).get("valid_run_count", 0)
+        if inline_valid_count == 0 or referenced_valid_count == 0:
+            entry["jaccard"] = None
+        else:
+            entry["jaccard"] = _jaccard(
+                _finding_set(modes.get("inline", [])), _finding_set(modes.get("referenced", []))
+            )
         result[fixture_name] = entry
     return result
 

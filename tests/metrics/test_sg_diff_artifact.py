@@ -57,10 +57,32 @@ def test_write_artifact_cleans_up_temp_file_on_replace_failure(
     monkeypatch.setattr(sgda.os, "replace", _boom)
 
     with pytest.raises(OSError, match="simulated replace failure"):
+        sgda.write_artifact(store_dir, "9" * 64, "head1", "content", ["f.py"], 0)
+
+    leftover = list((store_dir / ("9" * 64)).glob(".tmp-*"))
+    assert leftover == []
+
+
+def test_write_artifact_rejects_non_hex_repo_id(tmp_path: Path) -> None:
+    store_dir = tmp_path / "store"
+
+    with pytest.raises(ValueError, match="repo_id must be 64 lowercase hex"):
         sgda.write_artifact(store_dir, "g" * 64, "head1", "content", ["f.py"], 0)
 
-    leftover = list((store_dir / ("g" * 64)).glob(".tmp-*"))
-    assert leftover == []
+    # No path was built or created from the rejected repo_id: reject before
+    # any mkdir/chmod, the same CWE-22 ordering `resolve` already applies.
+    assert not store_dir.exists()
+
+
+def test_write_artifact_rejects_traversal_repo_id(tmp_path: Path) -> None:
+    store_dir = tmp_path / "store"
+
+    with pytest.raises(ValueError, match="repo_id must be 64 lowercase hex"):
+        sgda.write_artifact(
+            store_dir, "../../../etc/passwd" + "a" * 45, "head1", "content", ["f.py"], 0
+        )
+
+    assert not (tmp_path / "etc").exists()
 
 
 def test_write_artifact_is_content_addressed_idempotent(tmp_path: Path) -> None:
