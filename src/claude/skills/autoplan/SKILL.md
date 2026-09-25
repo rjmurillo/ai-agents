@@ -160,7 +160,7 @@ evidence (failing tests, widening diff), not on speculation.
 | Merge conflicts | Agent: merge-resolver |
 | Push, ship, "open a PR" | /ship (or /push-pr for push-only) |
 | "what do we know about X" | Skill: memory-search |
-| Research an unfamiliar topic | Skill: context-gather, then command: /research (its claim gate composes ai-agents-external-claims before any durable write) |
+| Research an unfamiliar topic | Skill: context-gather, then Skill: research (its claim gate composes ai-agents-external-claims before any durable write) |
 | Ask about Claude Code or Copilot CLI hook contracts | Skill: agent-harness-reference |
 | Port, implement, or change cross-harness hooks | Skill: ai-agents-portability-campaign |
 | Software design depth, architecture boundaries, domain modeling, refactoring, legacy code, low coverage, old files, external APIs, queues, retries, transactions, event ordering, schema evolution, resilience | Skill: software-engineering-library, then the routed reference |

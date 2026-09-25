@@ -90,29 +90,39 @@ resolved directory.
 
 The analysis document, the Serena memory, and the issue body are durable
 artifacts. External claims reach them from fetched pages, so check the claims
-before each write, not after.
+before each write, not after. Each artifact gets its own draft and its own
+ledger, because each one restates a different set of claims.
+
+| Artifact | Draft | Ledger |
+|----------|-------|--------|
+| Analysis document | `{analysis-dir}/{topic-slug}-analysis.draft.md` | `{analysis-dir}/{topic-slug}-analysis-claims.json` |
+| Serena memory | `{analysis-dir}/{topic-slug}-memory.draft.md` | `{analysis-dir}/{topic-slug}-memory-claims.json` |
+| Issue body | `{analysis-dir}/{topic-slug}-issue.draft.md` | `{analysis-dir}/{topic-slug}-issue-claims.json` |
 
 1. List each claim the artifact will state that rests on an outside source: a
    vendor or product behavior, an external API or compatibility fact, a
    statistic, a legal or standards assertion, a third-party project's status,
    or a comparison of external tools. Decide on what the text claims, not on
    the file type.
-2. If the list is empty, the run is internal-only. Record `decision: skip` and
-   the reason in the ledger, and skip the verification step.
+2. If the list is empty, the artifact is internal-only. Record `decision:
+   skip` and the reason in its ledger, and skip the verification step. Cite
+   repository facts by file path; the validator refuses a skip over a draft
+   that cites an outside URL.
 3. Otherwise invoke the `ai-agents-external-claims` skill in its adjunct mode.
    It checks each claim against a primary source and records the source, the
    dates, the confidence, the final wording, and any gap. Unsupported or
    overbroad claims are narrowed, qualified, or removed.
-4. Write the artifact with the final wording, never the draft. If browsing is
-   unavailable or no authority exists, qualify or remove the claim and record
-   the gap. Do not halt.
-5. Run the validator on the ledger and the artifact text. Write only when it
-   exits 0.
+4. Write the draft with the final wording, never the gathered sentence. If
+   browsing is unavailable or no authority exists, qualify or remove the claim
+   and record the gap. Do not halt.
+5. Run the validator on the ledger and the draft. On exit 0, move the draft to
+   the artifact's final location. On exit 1 or 2, fix the draft or the ledger
+   and rerun; never write the final artifact on a failed run.
 
    ```bash
    python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/ai-agents-external-claims/scripts/claim_ledger.py" \
-       --ledger "{analysis-dir}/{topic-slug}-claims.json" \
-       --artifact "{draft-file}"
+       --ledger "{analysis-dir}/{topic-slug}-analysis-claims.json" \
+       --artifact "{analysis-dir}/{topic-slug}-analysis.draft.md"
    ```
 
 ## Process
@@ -122,19 +132,19 @@ before each write, not after.
 
    **Bound the search.** If three tool calls have not surfaced anything useful, stop searching and switch to first-principles reasoning. Document what you tried (which tool, what query, what came back) so the user can extend the search if the answer matters more than your time budget suggests.
 2. **Analysis.** Draft the analysis document, using the skeleton in
-   `references/templates.md`. Pass the claim gate, then write it to the location
-   in the Output table.
+   `references/templates.md`. Pass the claim gate, then move the draft to the
+   location in the Output table.
 
    No em dashes or en dashes in anything this skill writes.
    Use commas, periods, colons, parentheses, hyphens, or restructure.
 3. **Applicability.** Map integration points and prioritize them, using the five
    assessment areas in `references/templates.md`.
 4. **Memory.** Write a Serena memory at `{topic-slug}-integration` that
-   cross-references the analysis. Pass the claim gate first for any external
-   claim the memory restates.
+   cross-references the analysis. Pass the claim gate on the memory draft first,
+   with the memory's own ledger.
 5. **Action.** File a GitHub issue when implementation work is identified.
    Writing the body is internal and reversible, so do it without asking. Pass
-   the claim gate for the body before it is written.
+   the claim gate on the issue draft first, then move it to the body file below.
    Publishing the issue is external and irreversible, so confirm with the user before running this, and skip it rather than guess when no answer is available.
 
    ```bash
@@ -174,7 +184,7 @@ the stop conditions. Every rule there degrades the run rather than halting it.
 | Artifact | Location |
 |----------|----------|
 | Analysis document | `{analysis-dir}/{topic-slug}.md` |
-| Claim ledger | `{analysis-dir}/{topic-slug}-claims.json` |
+| Claim ledgers | `{analysis-dir}/{topic-slug}-{analysis,memory,issue}-claims.json` |
 | Serena memory | `.serena/memories/{topic-slug}-integration.md` |
 | GitHub issue | Created if implementation work identified |
 
@@ -182,7 +192,7 @@ the stop conditions. Every rule there degrades the run rather than halting it.
 
 - [ ] Front gate cleared: a named spec, issue, or artifact consumes this analysis
 - [ ] Every BLOCKING quality gate met, or the run stopped and said which failed
-- [ ] Claim gate passed (`claim_ledger.py` exit 0) before every durable write, or the ledger records an internal-only skip with its reason
+- [ ] Claim gate passed (`claim_ledger.py` exit 0) on each artifact's own draft and ledger before that artifact was written
 - [ ] Three or more concrete examples, each with context, application, and outcome
 - [ ] Three or more failure modes, each paired with a correction
 - [ ] Applicability names real file paths and agent names, not generic possibilities

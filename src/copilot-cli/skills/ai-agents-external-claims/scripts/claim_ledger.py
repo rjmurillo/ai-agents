@@ -45,6 +45,7 @@ CLAIM_ENUMS = {
 }
 _DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _AS_OF = re.compile(r"\bas of\b", re.IGNORECASE)
+_URL = re.compile(r"https?://[^\s)>\]\"'`]+")
 
 
 def _text(value: object) -> bool:
@@ -181,23 +182,45 @@ def _claim_defects(index: int, claim: object) -> list[str]:
     return _evidence_defects(where, claim, kind) + _wording_defects(where, claim, claim["source"])
 
 
+def _contains(text: str, phrase: str) -> bool:
+    """Return True when phrase occurs in text on word boundaries."""
+    return re.search(rf"(?<!\w){re.escape(phrase)}(?!\w)", text) is not None
+
+
 def _artifact_defects(claims: list[dict[str, Any]], artifact: str) -> list[str]:
     """Check that the artifact carries the checked wording, not the draft."""
     text = _normalize(artifact)
+    kept = [_normalize(c["final_wording"]) for c in claims if c["disposition"] != "removed"]
+    residue = text
+    for wording in kept:
+        residue = residue.replace(wording, " ")
     defects: list[str] = []
     for claim in claims:
         where = f"claim {claim['id']}"
         draft = _normalize(claim["claim"])
-        wording = _normalize(claim["final_wording"])
         if claim["disposition"] == "removed":
-            if draft in text:
+            if _contains(residue, draft):
                 defects.append(f"{where}: the artifact still carries the removed claim")
             continue
-        if wording not in text:
+        if not _contains(text, _normalize(claim["final_wording"])):
             defects.append(f"{where}: final_wording is absent from the artifact")
-        if draft not in wording and draft in text:
+        elif _contains(residue, draft):
             defects.append(f"{where}: the artifact still carries the unreviewed draft wording")
     return defects
+
+
+def _skip_defects(ledger: dict[str, Any], artifact: str) -> list[str]:
+    """Refuse an internal-only skip over an artifact that cites an outside URL."""
+    activation = ledger["activation"]
+    if activation.get("decision") != "skip":
+        return []
+    urls = sorted(set(_URL.findall(artifact)))
+    if not urls:
+        return []
+    return [
+        "activation.decision `skip` but the artifact cites an outside URL "
+        f"({urls[0]}); record its claims or cite repository files by path"
+    ]
 
 
 def validate(ledger: dict[str, Any], artifact: str | None = None) -> list[str]:
@@ -210,27 +233,34 @@ def validate(ledger: dict[str, Any], artifact: str | None = None) -> list[str]:
     claims = ledger["claims"]
     if not isinstance(claims, list):
         return ["`claims` must be a list"]
-    defects = _activation_defects(ledger)
+    defects = [] if _text(ledger["artifact"]) else ["`artifact` must be a non-empty string"]
+    defects += _activation_defects(ledger)
     for index, claim in enumerate(claims):
         defects += _claim_defects(index, claim)
     ids = [c.get("id") for c in claims if isinstance(c, dict) and isinstance(c.get("id"), str)]
     defects += [f"duplicate claim id `{i}`" for i, n in Counter(ids).items() if n > 1]
     if artifact is not None and not defects:
-        defects += _artifact_defects(claims, artifact)
+        defects += _skip_defects(ledger, artifact) + _artifact_defects(claims, artifact)
     return defects
 
 
-def _summary(ledger: object, defects: list[str]) -> dict[str, Any]:
+def _summary(
+    ledger: object, defects: list[str], ledger_path: Path, artifact_path: Path | None
+) -> dict[str, Any]:
     """Build the stdout summary for a validated ledger."""
     data = ledger if isinstance(ledger, dict) else {}
     activation = data.get("activation")
     claims = data.get("claims")
     claims = claims if isinstance(claims, list) else []
     dispositions = Counter(
-        c.get("disposition") for c in claims if isinstance(c, dict) and c.get("disposition")
+        c.get("disposition")
+        for c in claims
+        if isinstance(c, dict) and isinstance(c.get("disposition"), str)
     )
     return {
         "ok": not defects,
+        "ledger": str(ledger_path),
+        "artifact": str(artifact_path) if artifact_path else None,
         "decision": activation.get("decision") if isinstance(activation, dict) else None,
         "claims": len(claims),
         "dispositions": dict(sorted(dispositions.items())),
@@ -261,7 +291,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"{args.ledger}: not valid JSON: {exc}", file=sys.stderr)
         return 2
     defects = validate(ledger, artifact)
-    print(json.dumps(_summary(ledger, defects), sort_keys=True))
+    print(json.dumps(_summary(ledger, defects, args.ledger, args.artifact), sort_keys=True))
     return 1 if defects else 0
 
 

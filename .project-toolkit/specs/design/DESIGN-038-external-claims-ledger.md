@@ -26,10 +26,20 @@ REQ-040 criteria 1 to 10.
 ## Where the gate sits
 
 The `research` skill writes three durable artifacts: the analysis document
-(Phase 2), the Serena memory (Phase 4), and the issue body (Phase 5). The
-claim gate runs once, after Phase 1 and before Phase 2, and again on each
-artifact before it is written. A direct `/research` call passes through the
-same phases, so it cannot skip the gate.
+(Phase 2), the Serena memory (Phase 4), and the issue body (Phase 5). Each
+artifact is first written to a draft file with its own ledger. The claim gate
+validates the ledger against the draft, and the draft moves to its final
+location only on exit 0. A direct `/research` call passes through the same
+phases, so it cannot skip the gate.
+
+| Artifact | Draft | Ledger |
+|---|---|---|
+| Analysis | `{topic-slug}-analysis.draft.md` | `{topic-slug}-analysis-claims.json` |
+| Memory | `{topic-slug}-memory.draft.md` | `{topic-slug}-memory-claims.json` |
+| Issue body | `{topic-slug}-issue.draft.md` | `{topic-slug}-issue-claims.json` |
+
+One ledger per artifact, because a memory or an issue body restates only
+some of the analysis claims, and rule 11 needs every kept wording present.
 
 `ai-agents-external-claims` owns the contract. `research` invokes it.
 
@@ -81,11 +91,16 @@ claim_ledger.py --ledger PATH [--artifact PATH]
    non-empty one.
 10. A kept `time_sensitive` claim needs "as of" in its `final_wording`, and a
     `published` date when its source kind is not `none`.
-11. With `--artifact`, each kept `final_wording` must appear in the artifact,
-    and each removed `claim` must not appear.
+11. With `--artifact`, each kept `final_wording` must appear in the draft.
+    A removed claim, or the gathered sentence of a narrowed or qualified
+    claim, must not appear outside the kept wordings. Matching is
+    case-insensitive, whitespace-collapsed, and on word boundaries.
+12. With `--artifact`, a `skip` decision fails when the draft cites an
+    `http` or `https` URL. Internal-only drafts cite repository files by path.
+13. `artifact` is a non-empty string naming the final location.
 
 Exit codes: 0 pass, 1 defects, 2 unreadable input or bad arguments. Output is
-one sorted JSON object on stdout.
+one sorted JSON object on stdout, naming the ledger and the draft.
 
 ## Routing
 

@@ -101,8 +101,8 @@
     },
     {
       "id": "S9",
-      "desc": "Internal-only research skips the external-claims step with a reason",
-      "input": "ADR-091 needs a summary of how our own push lock and ADR-042 constrain queue design, using only this repository's files and tests. Answer in 5 short bullets. Do not modify any files.",
+      "desc": "External research whose findings all turn out internal skips the external-claims step with a reason",
+      "input": "ADR-091 needs research on queue backpressure. The sources you found were all our own files: ADR-042, the push lock design, and tests under tests/. No outside page made it into the draft analysis. Does the claim gate verify anything before the write? Answer in 5 short bullets. Do not modify any files.",
       "expected_signals": [
         "internal",
         "skip",
@@ -110,7 +110,7 @@
         "ledger"
       ],
       "expected_gate": "research-claim-gate",
-      "rationale": "Every fact comes from the repository, so the adjunct must not run. The skill still records a skip decision and its reason in the ledger. A response that skips external verification and states why is attributable to the claim gate's activation rule, while a response that demands web sources is not."
+      "rationale": "The request is an external research run, so the skill is active, unlike S4. Every fact in the draft is repository-internal, so the adjunct must not run. The skill records a skip decision and its reason in the analysis ledger, cites files by path, and still runs the validator. A response that skips external verification and states why is attributable to the claim gate's activation rule, while a response that demands web sources is not."
     }
   ]
 }

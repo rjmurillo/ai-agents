@@ -126,8 +126,9 @@ writes a ledger, with the reason.
 
 ### The claim ledger
 
-Write one JSON ledger per artifact. Record one entry per atomic claim: one
-assertion, small enough that one source can confirm or refute it.
+Write one JSON ledger per artifact, since each artifact restates its own set
+of claims. Record one entry per atomic claim: one assertion, small enough that
+one source can confirm or refute it.
 
 ```json
 {
@@ -170,25 +171,28 @@ A search result snippet is not a source. Fetch the page it points to.
 
 ### The gate
 
-Run the validator on the ledger and the finished artifact text before the
-write. Write only when it exits 0.
+Write the artifact to a draft file first. Run the validator on the ledger and
+the draft. Move the draft to its final location only when the validator exits
+0. The `artifact` field names that final location.
 
 ```bash
 python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/ai-agents-external-claims/scripts/claim_ledger.py" \
-    --ledger "{analysis-dir}/{topic-slug}-claims.json" \
-    --artifact "{analysis-dir}/{topic-slug}.md"
+    --ledger "{analysis-dir}/{topic-slug}-analysis-claims.json" \
+    --artifact "{analysis-dir}/{topic-slug}-analysis.draft.md"
 ```
 
 | Exit | Meaning | Next move |
 |------|---------|-----------|
-| 0 | The ledger passed | Write the artifact |
-| 1 | Defects, listed in the JSON on stdout | Fix the ledger or the text, then rerun |
+| 0 | The ledger passed | Move the draft to its final location |
+| 1 | Defects, listed in the JSON on stdout | Fix the ledger or the draft, then rerun |
 | 2 | A file is unreadable or the ledger is not JSON | Fix the input; do not write |
 
 With `--artifact`, the validator refuses a kept final wording that is missing
-from the artifact, a removed claim that is still present, and a narrowed or
-qualified claim whose draft sentence is still present. So the artifact carries
-the checked wording, not the unreviewed draft.
+from the draft, a removed claim that is still present, and a narrowed or
+qualified claim whose gathered sentence is still present. It also refuses a
+`skip` decision over a draft that cites an outside URL. So the artifact carries
+the checked wording, not the unreviewed draft. The JSON summary names the
+ledger and the draft, so a failure log says which gate failed.
 
 ## Scripts
 
