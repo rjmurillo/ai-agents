@@ -51,7 +51,7 @@ def test_write_artifact_cleans_up_temp_file_on_replace_failure(
 ) -> None:
     store_dir = tmp_path / "store"
 
-    def _boom(_src: object, _dst: object) -> None:
+    def _boom(_src: object, _dst: object, **_dir_fds: object) -> None:
         raise OSError("simulated replace failure")
 
     monkeypatch.setattr(sgda.os, "replace", _boom)
@@ -233,3 +233,33 @@ def test_write_artifact_refuses_a_preexisting_directory_open_to_other_users(
     with pytest.raises(PermissionError, match="readable by other users"):
         sgda.write_artifact(store_dir, repo_id, "head1", "diff", ["f.py"], 0)
     assert list(open_dir.iterdir()) == []
+
+
+def test_write_artifact_refuses_a_symlinked_repo_directory(tmp_path: Path) -> None:
+    store_dir = tmp_path / "store"
+    store_dir.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir(mode=0o700)
+    repo_id = "d" * 64
+    (store_dir / repo_id).symlink_to(outside, target_is_directory=True)
+
+    with pytest.raises(PermissionError, match="is a symlink"):
+        sgda.write_artifact(store_dir, repo_id, "head1", "private diff", ["f.py"], 0)
+    assert list(outside.iterdir()) == []
+
+
+def test_write_artifact_no_follow_open_blocks_a_symlink_swapped_in_after_the_check(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    store_dir = tmp_path / "store"
+    store_dir.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir(mode=0o700)
+    repo_id = "e" * 64
+    (store_dir / repo_id).symlink_to(outside, target_is_directory=True)
+    monkeypatch.setattr(sgda.Path, "is_symlink", lambda _self: False)
+
+    with pytest.raises(OSError):
+        sgda.write_artifact(store_dir, repo_id, "head1", "private diff", ["f.py"], 0)
+    assert list(outside.iterdir()) == []
+

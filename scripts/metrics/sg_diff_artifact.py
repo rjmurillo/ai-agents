@@ -16,8 +16,8 @@ import contextlib
 import hashlib
 import os
 import re
+import secrets
 import stat
-import tempfile
 import time
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -60,6 +60,43 @@ def _artifact_path(store_dir: str | Path, repo_id: str, sha256: str) -> Path:
     return Path(store_dir) / repo_id / f"{sha256}.diff"
 
 
+def _open_owner_only_dir(repo_dir_path: Path) -> int:
+    """Create or open ``repo_dir_path`` and return a no-follow directory descriptor.
+
+    Artifacts may hold private diffs. ``mkdir``'s mode can only lose bits to the
+    umask. A symlink at the path is refused, and ``O_NOFOLLOW`` closes the race
+    where one appears after the check. A directory open to group or other users
+    is refused rather than silently reused.
+    """
+    repo_dir_path.mkdir(mode=_OWNER_ONLY_DIR_MODE, parents=True, exist_ok=True)
+    if repo_dir_path.is_symlink():
+        raise PermissionError(f"write_artifact: {repo_dir_path} is a symlink")
+    dir_fd = os.open(repo_dir_path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    if stat.S_IMODE(os.fstat(dir_fd).st_mode) & (stat.S_IRWXG | stat.S_IRWXO):
+        os.close(dir_fd)
+        raise PermissionError(f"write_artifact: {repo_dir_path} is readable by other users")
+    return dir_fd
+
+
+def _write_atomically(dir_fd: int, name: str, data: bytes) -> None:
+    """Write ``data`` to ``name`` inside ``dir_fd`` through a same-directory temp file.
+
+    Every call is relative to ``dir_fd`` and refuses to follow a symlink, so the
+    write cannot leave the directory even if its path changes mid-write.
+    """
+    tmp_name = f".tmp-{secrets.token_hex(8)}.diff"
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW
+    fd = os.open(tmp_name, flags, 0o600, dir_fd=dir_fd)
+    try:
+        with os.fdopen(fd, "wb") as handle:
+            handle.write(data)
+        os.replace(tmp_name, name, src_dir_fd=dir_fd, dst_dir_fd=dir_fd)
+    except OSError:
+        with contextlib.suppress(OSError):
+            os.unlink(tmp_name, dir_fd=dir_fd)
+        raise
+
+
 def write_artifact(
     store_dir: str | Path,
     repo_id: str,
@@ -96,25 +133,11 @@ def write_artifact(
     size = len(diff_bytes)
     path_order_sha256 = hashlib.sha256("\n".join(paths).encode()).hexdigest()
 
-    repo_dir_path = Path(store_dir) / repo_id
-    # Owner-only: artifacts may hold private diffs. mkdir's mode can only lose bits to
-    # the umask, and a pre-existing directory that grants any group or other access
-    # is refused rather than silently reused.
-    repo_dir_path.mkdir(mode=_OWNER_ONLY_DIR_MODE, parents=True, exist_ok=True)
-    if stat.S_IMODE(repo_dir_path.stat().st_mode) & (stat.S_IRWXG | stat.S_IRWXO):
-        raise PermissionError(f"write_artifact: {repo_dir_path} is readable by other users")
-
-    target = repo_dir_path / f"{sha256}.diff"
-    fd, tmp_name = tempfile.mkstemp(dir=repo_dir_path, prefix=".tmp-", suffix=".diff")
+    repo_dir_fd = _open_owner_only_dir(Path(store_dir) / repo_id)
     try:
-        with os.fdopen(fd, "wb") as handle:
-            handle.write(diff_bytes)
-        os.chmod(tmp_name, 0o600)
-        os.replace(tmp_name, target)
-    except OSError:
-        with contextlib.suppress(OSError):
-            os.unlink(tmp_name)
-        raise
+        _write_atomically(repo_dir_fd, f"{sha256}.diff", diff_bytes)
+    finally:
+        os.close(repo_dir_fd)
 
     return ArtifactRef(
         sha256=sha256,
