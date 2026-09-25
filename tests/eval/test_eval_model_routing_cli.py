@@ -290,7 +290,9 @@ def test_render_markdown_marks_missing_combo_as_not_run():
                 "best_model": "claude-opus-5-5",
                 "margin": 0.1,
                 "resolved": False,
-                "candidates": [{"model_id": "claude-haiku-4-5", "sufficient": True}],
+                "candidates": [
+                    {"model_id": "claude-haiku-4-5", "mean_recall": 0.9, "sufficient": True}
+                ],
                 "reason": "test reason",
             },
             "models": [
@@ -316,3 +318,59 @@ def test_render_json_writes_one_entry_per_line_and_round_trips():
     assert json.loads(text) == {"schemaVersion": "1", "margin": 0.1, "seed": 42, "entries": entries}
     assert text.count("\n") == len(entries) + 2
     assert json.loads(routing.render_json([], margin=0.1, seed=42))["entries"] == []
+
+
+def test_main_records_missing_skill_runs_as_undecided(tmp_path, monkeypatch):
+    """A skill report whose runs.jsonl is gone must not abort the rollup."""
+    monkeypatch.setattr(routing, "REPO_ROOT", tmp_path)
+    agent = "critic"
+    fixtures_dir = write_fixtures(tmp_path, agent)
+    sha = routing.fixture_set_sha(fixtures_dir)
+    reports = make_reports_dir(tmp_path, agent)
+    for model in ("claude-haiku-4-5", "claude-sonnet-5"):
+        run_id = f"sweep-skill-review-{model}-r1"
+        write_report(reports, run_id, report_dict(model, sha, 0.5, skill_rate=0.5))
+    (reports.parent / "runs" / "sweep-skill-review-claude-sonnet-5-r1" / "runs.jsonl").unlink()
+    out_dir = tmp_path / "routing-out"
+
+    rc = routing.main(
+        [
+            "--skill",
+            "review=critic",
+            "--ladder",
+            "claude=claude-haiku-4-5,claude-sonnet-5",
+            "--out-dir",
+            str(out_dir),
+        ]
+    )
+
+    assert rc == routing.EXIT_LOGIC
+    entry = json.loads((out_dir / "routing.json").read_text(encoding="utf-8"))["entries"][0]
+    assert "runs/sweep-skill-review-claude-sonnet-5-r1/runs.jsonl is missing" in entry["error"]
+    assert (out_dir / "REPORT.md").is_file()
+
+
+def test_detail_lines_show_routed_recall_not_headline_recall():
+    entry = {
+        "subject": "orchestrator",
+        "kind": "agent",
+        "ladder": "claude",
+        "routing": {
+            "candidates": [
+                {"model_id": "claude-haiku-4-5", "mean_recall": 0.646, "sufficient": False}
+            ]
+        },
+        "models": [
+            {
+                "model_id": "claude-haiku-4-5",
+                "agent_recall": 0.71,
+                "baseline_recall": 0.5,
+                "cost_usd": 0.01,
+            }
+        ],
+    }
+
+    row = routing._detail_lines([entry])[-1]
+
+    assert row.startswith("| orchestrator | claude | claude-haiku-4-5 | 0.65 | 0.71 | 0.50 |")
+    assert row.endswith("| False |")

@@ -127,10 +127,22 @@ def test_decide_routing_rejects_invalid_margin(margin):
         core.decide_routing([cheap, mid], prices=_ROUTING_PRICES, margin=margin)
 
 
-def test_decide_routing_below_min_shared_fixtures_raises():
+def test_decide_routing_single_shared_fixture_keeps_verdict_unresolved():
+    """One fixture cannot support a CI, but the point verdict still stands."""
+    cheap = _result("cheap", {"f0": [0.95]}, recall=0.95)
+    mid = _result("mid", {"f0": [1.0]}, recall=1.0)
+    decision = core.decide_routing([cheap, mid], prices=_ROUTING_PRICES)
+    assert decision.lightest_sufficient_model == "cheap"
+    assert decision.resolved is False
+    cheap_row = next(r for r in decision.candidates if r["model_id"] == "cheap")
+    assert cheap_row["ci_low_vs_best"] is None
+    assert cheap_row["ci_high_vs_best"] is None
+
+
+def test_decide_routing_no_shared_fixtures_raises():
     cheap = _result("cheap", {"f0": [1.0]}, recall=1.0)
-    mid = _result("mid", {"f0": [0.9]}, recall=0.9)
-    with pytest.raises(core.SweepDecisionError, match="shared stable fixture"):
+    mid = _result("mid", {"f1": [0.9]}, recall=0.9)
+    with pytest.raises(core.SweepDecisionError, match="shared and stable"):
         core.decide_routing([cheap, mid], prices=_ROUTING_PRICES)
 
 

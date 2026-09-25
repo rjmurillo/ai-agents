@@ -423,9 +423,9 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         type=float,
         default=DEFAULT_ROUTING_MARGIN,
         help=(
-            "largest recall shortfall versus the best model, at the CI lower "
-            "bound, that still counts a cheaper model as sufficient "
-            f"(default {DEFAULT_ROUTING_MARGIN})"
+            "largest mean-recall shortfall versus the best model that still "
+            "counts a cheaper model as sufficient; the bootstrap CI only marks "
+            f"whether the corpus proves it (default {DEFAULT_ROUTING_MARGIN})"
         ),
     )
     parser.add_argument("--seed", type=int, default=DEFAULT_SEED)

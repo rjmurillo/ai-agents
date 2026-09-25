@@ -59,6 +59,7 @@ def _percentile(values: list[float], pct: float) -> float:
     frac = rank - lower
     return s[lower] + frac * (s[upper] - s[lower])
 
+
 SCHEMA_VERSION = "1"
 DEFAULT_MIN_EFFECT = 0.05
 DEFAULT_SEED = 42
@@ -171,8 +172,7 @@ def refuse_degraded_results(results: list[ModelResult]) -> None:
             degraded.append(f"{result.model_id}: error_count={error_count}")
     if malformed:
         raise SweepDecisionError(
-            "model sweep report has invalid error_count values: "
-            + "; ".join(malformed)
+            "model sweep report has invalid error_count values: " + "; ".join(malformed)
         )
     if degraded:
         raise SweepDecisionError(
@@ -280,9 +280,7 @@ def _candidate_rng(seed: int, default_model: str, candidate_id: str) -> random.R
     of the order candidates appear in (e.g. the ``--models`` argument order),
     while staying fully reproducible for a given seed.
     """
-    digest = hashlib.sha256(
-        f"{seed}:{default_model}:{candidate_id}".encode()
-    ).digest()
+    digest = hashlib.sha256(f"{seed}:{default_model}:{candidate_id}".encode()).digest()
     return random.Random(int.from_bytes(digest[:8], "big"))
 
 
@@ -530,11 +528,8 @@ def decide_routing(
     refuse_degraded_results(results)
     check_comparable(results)
     ids = common_fixture_ids(results)
-    if len(ids) < MIN_SHARED_FIXTURES:
-        raise SweepDecisionError(
-            f"only {len(ids)} shared stable fixture(s); routing needs at least "
-            f"{MIN_SHARED_FIXTURES} for a meaningful bootstrap CI"
-        )
+    if not ids:
+        raise SweepDecisionError("no fixtures are shared and stable across all swept models")
     best = rank(results, ids)[0]
     ladder = sorted(results, key=lambda r: (_list_price(r.model_id, prices), r.model_id))
     lower_percentile = ROUTING_LOWER_PERCENTILE / max(len(results) - 1, 1)
@@ -570,25 +565,31 @@ def _routing_row(
 ) -> dict[str, object]:
     """One ladder rung: recall, gap to the best model, and its CI."""
     delta = mean_recall_on(model, ids) - mean_recall_on(best, ids)
-    if model.model_id == best.model_id:
-        ci_low, ci_high = 0.0, 0.0
-    else:
-        ci_low, ci_high = paired_bootstrap_ci(
-            model,
-            best,
-            ids,
-            rng=_candidate_rng(seed, best.model_id, model.model_id),
-            lower_percentile=lower_percentile,
-            upper_percentile=100.0 - lower_percentile,
-        )
-    return {
+    row: dict[str, object] = {
         "model_id": model.model_id,
         "list_price_per_1k": round(_list_price(model.model_id, prices), 6),
         "mean_recall": round(mean_recall_on(model, ids), 6),
         "delta_vs_best": round(delta, 6),
+        "sufficient": delta >= -margin - 1e-9,
+    }
+    if model.model_id == best.model_id:
+        return {**row, "ci_low_vs_best": 0.0, "ci_high_vs_best": 0.0, "resolved": True}
+    if len(ids) < MIN_SHARED_FIXTURES:
+        # One shared fixture: the bootstrap collapses onto the point delta and
+        # proves nothing, so the verdict stands but stays unresolved.
+        return {**row, "ci_low_vs_best": None, "ci_high_vs_best": None, "resolved": False}
+    ci_low, ci_high = paired_bootstrap_ci(
+        model,
+        best,
+        ids,
+        rng=_candidate_rng(seed, best.model_id, model.model_id),
+        lower_percentile=lower_percentile,
+        upper_percentile=100.0 - lower_percentile,
+    )
+    return {
+        **row,
         "ci_low_vs_best": round(ci_low, 6),
         "ci_high_vs_best": round(ci_high, 6),
-        "sufficient": delta >= -margin - 1e-9,
         "resolved": ci_low >= -margin,
     }
 

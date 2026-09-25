@@ -156,7 +156,7 @@ def find_report(reports_dir: Path, subject: Subject, model_id: str, sha: str) ->
             f"under {where} on the current fixtures, found {len(matches)}: {found}"
         )
     path, report = matches[0]
-    report["_path"] = str(path.parent.relative_to(REPO_ROOT))
+    report["_path"] = path.parent.relative_to(REPO_ROOT).as_posix()
     return include_flaky(as_variant(report, subject.variant))
 
 
@@ -204,7 +204,10 @@ def as_variant(report: dict[str, Any], variant: str) -> dict[str, Any]:
     form_factor = report.get("form_factor")
     if not isinstance(form_factor, dict) or "skill_recall" not in form_factor:
         raise RollupError(f"{report['_path']} has no skill variant (run with --skill-path)")
-    runs_path = REPO_ROOT / report["_path"].replace("/reports/", "/runs/", 1) / "runs.jsonl"
+    run_dir = Path(report["_path"])
+    runs_path = REPO_ROOT / run_dir.parent.parent / "runs" / run_dir.name / "runs.jsonl"
+    if not runs_path.is_file():
+        raise RollupError(f"{runs_path.relative_to(REPO_ROOT).as_posix()} is missing")
     rates = variant_rates(runs_path, "skill")
     if not rates:
         raise RollupError(f"{runs_path.relative_to(REPO_ROOT)} has no skill records")
@@ -286,22 +289,31 @@ def _summary_lines(entries: list[dict[str, Any]], ladders: list[Ladder]) -> list
 
 
 def _detail_lines(entries: list[dict[str, Any]]) -> list[str]:
+    """Per-model rows. Routed recall is the metric behind the verdict.
+
+    Headline and baseline recall are the base evaluator's figures, with flaky
+    fixtures excluded; they are shown for reference and do not gate routing.
+    """
     lines = [
-        "| Subject | Ladder | Model | Recall | Baseline recall | Cost USD | Sufficient |",
-        "|---|---|---|---|---|---|---|",
+        "| Subject | Ladder | Model | Routed recall | Headline recall "
+        "| Headline baseline | Cost USD | Sufficient |",
+        "|---|---|---|---|---|---|---|---|",
     ]
     for entry in sorted(entries, key=lambda e: (e["kind"], e["subject"], e["ladder"])):
         if "error" in entry:
             lines.append(
-                f"| {entry['subject']} | {entry['ladder']} | undecided: {entry['error']} | | | | |"
+                f"| {entry['subject']} | {entry['ladder']} "
+                f"| undecided: {entry['error']} | | | | | |"
             )
             continue
-        verdict = {c["model_id"]: c["sufficient"] for c in entry["routing"]["candidates"]}
+        routed = {c["model_id"]: c for c in entry["routing"]["candidates"]}
         for row in entry["models"]:
+            candidate = routed[row["model_id"]]
             lines.append(
                 f"| {entry['subject']} | {entry['ladder']} | {row['model_id']} "
-                f"| {_fmt(row['agent_recall'])} | {_fmt(row['baseline_recall'])} "
-                f"| {_fmt(row['cost_usd'])} | {verdict[row['model_id']]} |"
+                f"| {_fmt(candidate['mean_recall'])} | {_fmt(row['agent_recall'])} "
+                f"| {_fmt(row['baseline_recall'])} | {_fmt(row['cost_usd'])} "
+                f"| {candidate['sufficient']} |"
             )
     return lines
 
@@ -366,7 +378,7 @@ def _route_or_error(
 ) -> dict[str, Any]:
     try:
         return route_subject(subject, ladder, parse=parse, margin=args.margin, seed=args.seed)
-    except (RollupError, SweepDecisionError, KeyError, ValueError) as exc:
+    except (RollupError, SweepDecisionError, KeyError, ValueError, OSError) as exc:
         return {
             "subject": subject.name,
             "kind": subject.variant,

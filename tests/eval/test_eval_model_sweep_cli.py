@@ -732,3 +732,34 @@ def test_parse_report_defaults_basis_to_usd_when_absent():
     result = sweep.parse_report(report, model_id="m1")
     assert result.cost_usd == 0.05
     assert result.cost_basis == "usd"
+
+
+def test_run_sweep_single_shared_fixture_keeps_verdict_and_writes_artifact(tmp_path, capsys):
+    """A one-fixture sweep still DROPs and writes; routing stays unresolved."""
+    default_id = "claude-sonnet-5"
+    haiku_id = "claude-haiku-4-5"
+    results = {
+        default_id: core.ModelResult(
+            model_id=default_id,
+            agent_recall=0.9,
+            per_fixture_agent_rates={"f0": [0.9]},
+            fixture_set_sha="fakesha",
+        ),
+        haiku_id: core.ModelResult(
+            model_id=haiku_id,
+            agent_recall=0.85,
+            per_fixture_agent_rates={"f0": [0.85]},
+            fixture_set_sha="fakesha",
+        ),
+    }
+    output = tmp_path / "sweep.json"
+    args = _args(models=f"{default_id},{haiku_id}", default_model=default_id, output=output)
+
+    rc = sweep.run_sweep(args, runner=_FakeRunner(results))
+
+    assert rc == sweep.EXIT_OK
+    assert "DROP_PIN" in capsys.readouterr().out
+    artifact = json.loads(output.read_text(encoding="utf-8"))
+    assert artifact["decision"] == "DROP_PIN"
+    assert artifact["routing"]["lightest_sufficient_model"] == haiku_id
+    assert artifact["routing"]["resolved"] is False

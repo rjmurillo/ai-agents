@@ -143,10 +143,10 @@ evidence (failing tests, widening diff), not on speculation.
 The user naming a skill or command bypasses this table entirely. User
 Sovereignty wins over any row.
 
-**Model tier.** When a route dispatches an agent or subagent, start it at the
-cheapest tier: Haiku 4.5 or GPT-6 Luna. Measured on each specialist's
-acceptance fixtures, that tier passed for 34 of 42 agent and skill cells.
-Escalate only for a measured exception or an unresolved judgment. The
+**Model tier.** When a route dispatches an agent or subagent, start it at its
+measured tier. With no measured exception, that is the cheapest tier: Haiku
+4.5 or GPT-6 Luna, which passed acceptance for 34 of 42 agent and skill cells.
+Escalate after a failed acceptance check or at an unresolved judgment. The
 orchestrator agent's Model, Effort, and Cost Routing section owns the
 exception list and the escalation rules; do not restate them here.
 

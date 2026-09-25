@@ -831,11 +831,15 @@ no API calls.
 KEEP/DROP asks whether a pin beats the default. The sweep also answers the
 routing question: how cheap a model can do this agent's work. The artifact's
 `routing` block names the `lightest_sufficient_model`. That is the cheapest
-swept model, by list price, whose recall stays within `--routing-margin`
-(default 0.10) of the best swept model. The bound is the lower end of a
-one-sided 95% paired bootstrap over fixtures, Bonferroni-split across the
-cheaper models. The best model always qualifies, so the verdict always names a
-model.
+swept model, by list price, whose mean recall trails the best swept model by
+at most `--routing-margin` (default 0.10). The best model always qualifies, so
+the verdict always names a model.
+
+The bootstrap CI does not gate that choice. It sets `resolved`: true when the
+lower end of a one-sided 95% paired bootstrap on the gap, Bonferroni-split
+across the cheaper models, stays at or above the negative margin. At 8 to 24
+fixtures most gaps stay unresolved, so an unresolved verdict still routes down.
+With a single shared fixture no CI is computed and the verdict is unresolved.
 
 ### Routing rollup
 
