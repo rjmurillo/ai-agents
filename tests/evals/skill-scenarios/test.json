@@ -53,7 +53,7 @@
       "input": "My branch only changes tests/test_uploader.py and a retrospective note under .agents/retrospective/. Run the test gates. Answer in 5 short bullets. Do not modify any files.",
       "expected_signals": [
         "dx_trigger",
-        "skip",
+        "DX REVIEW: SKIPPED",
         "reason"
       ],
       "expected_gate": "test-gates",
