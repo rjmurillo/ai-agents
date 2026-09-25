@@ -18,6 +18,8 @@ metadata:
       - partner or defer
       - total cost of ownership
       - build buy partner defer
+      - tco
+      - make or buy
 ---
 
 # Buy vs Build Framework

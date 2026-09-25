@@ -101,6 +101,16 @@ def _write_skill(
             "Compare build vs buy vs partner vs defer with total cost of ownership.",
             "buy-vs-build-framework",
         ),
+        (
+            "Is there already a library or SaaS that parses cron expressions?",
+            "programming-advisor",
+        ),
+        (
+            "Does an internal component already solve rate limiting for us?",
+            "programming-advisor",
+        ),
+        ("Should we build or partner for search? Give me the TCO.", "buy-vs-build-framework"),
+        ("Make or buy decision for our identity provider.", "buy-vs-build-framework"),
     ],
 )
 def test_fixture_table_positive_rows_resolve_against_real_catalog(

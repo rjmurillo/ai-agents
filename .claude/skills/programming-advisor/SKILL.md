@@ -17,6 +17,10 @@ metadata:
       - reinvent the wheel
       - is there a package
       - internal component reuse
+      - already library
+      - already package
+      - already saas
+      - already solves
 ---
 
 # Programming Advisor - "Reinventing the Wheel" Detector
