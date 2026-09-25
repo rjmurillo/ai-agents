@@ -132,10 +132,12 @@ the three evidence layers. `--format json` emits the same data for #5389.
    `harness`, lifecycle not invoked by a lifecycle skill, adjunct or helper
    invoked by `user`, `harness`, or itself, explicit-only not invoked by
    `user`), THEN the gate SHALL exit 1.
-7. IF an explicit-only skill has no non-empty `rationale`, THEN the gate SHALL
-   exit 1.
+7. IF an explicit-only skill has no non-empty `rationale`, or sets
+   `user-facing: false`, THEN the gate SHALL exit 1. The rationale SHALL say
+   why automatic routing would be unsafe or noisy.
 8. IF a deprecated skill has neither a resolvable `replaced-by` nor a positive
-   `removal-issue`, THEN the gate SHALL exit 1.
+   `removal-issue`, or has a `removal-issue` that is not a positive integer,
+   THEN the gate SHALL exit 1.
 9. IF `user-facing` is true on a skill whose frontmatter sets
    `user-invocable: false`, THEN the gate SHALL exit 1.
 10. WHEN run with `--report`, the gate SHALL print totals by role, the

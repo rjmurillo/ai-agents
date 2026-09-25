@@ -53,7 +53,12 @@ as an abort condition). The issue's "small reviewed override file" is the
 | `scenario` | relative path under `tests/evals/` | never; default `tests/evals/skill-scenarios/<name>.json` |
 | `rationale` | non-empty string | explicit-only |
 | `replaced-by` | non-deprecated skill name | deprecated, unless `removal-issue` |
-| `removal-issue` | positive integer | deprecated, unless `replaced-by` |
+| `removal-issue` | positive integer, checked whenever present | deprecated, unless `replaced-by` |
+
+`user-facing` is true when a person may ask for the skill directly, by name
+or by its trigger phrases. It is false for a helper that only another skill
+or agent runs. An `explicit-only` skill must be user-facing, since a user
+request is its only route.
 
 ## Role and invoker rules
 
@@ -81,8 +86,9 @@ matching, which every skill has.
    roles, the invoker's canonical text names the skill as an exact token.
    Canonical text is the invoker's template plus the Markdown files under
    `.claude/skills/<invoker>/` other than `SKILL.md`, or the agent's
-   `templates/agents/<name>.shared.md`, with every `metadata.routing` block
-   removed so a declaration cannot certify itself. `harness` routes pass by
+   `templates/agents/<name>.shared.md`. The gate parses each template's
+   frontmatter and removes `metadata.routing` before matching, so a
+   declaration cannot certify itself in any YAML form. `harness` routes pass by
    declaration. `user` routes (explicit-only) are outside this layer and
    leave its denominator. A skill that fails this check is "unresolved".
    It is reported, not refused: the routes are prose, and a common-word skill

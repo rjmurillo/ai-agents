@@ -356,6 +356,12 @@ metadata:
 
 No other key is allowed in the block.
 
+`user-facing` is true when a person may ask for the skill directly, by name
+or by its trigger phrases, and false for a helper only another skill or
+agent runs. An `explicit-only` skill must set it to true. Its `rationale`
+must say why automatic routing would be unsafe or noisy. Quote a value that
+contains `:`, or YAML reads it as a nested key.
+
 ### How to pick a role
 
 1. Search every other skill template and agent body for your skill's exact

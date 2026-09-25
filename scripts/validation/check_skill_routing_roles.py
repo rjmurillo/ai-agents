@@ -37,10 +37,7 @@ Exit codes (ADR-035):
 from __future__ import annotations
 
 import argparse
-import json
-import re
 import sys
-from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
@@ -62,31 +59,18 @@ from instruction_budget_globs import (  # noqa: E402
     _UniqueKeySafeLoader,
 )
 
-ROLES: tuple[str, ...] = (
-    "front-door",
-    "lifecycle",
-    "conditional-adjunct",
-    "nested-helper",
-    "explicit-only",
-    "deprecated",
+# The shared vocabulary lives in skill_routing_model.py and the reported
+# evidence layers in skill_routing_evidence.py, so each module stays small.
+from skill_routing_evidence import Evidence, compute_evidence, render  # noqa: E402
+from skill_routing_model import (  # noqa: E402
+    LIFECYCLE_SKILLS,
+    RESERVED_INVOKERS,
+    ROLES,
+    ROUTING_KEYS,
+    SkillDecl,
 )
 
-# The six lifecycle skills. autoplan routes to them (they are themselves
-# `front-door`); a skill *they* select is `lifecycle` (DESIGN-036).
-LIFECYCLE_SKILLS: frozenset[str] = frozenset({"spec", "plan", "build", "test", "review", "ship"})
-
-RESERVED_INVOKERS: frozenset[str] = frozenset({"user", "harness"})
-
-ROUTING_KEYS: tuple[str, ...] = (
-    "role",
-    "invoker",
-    "trigger",
-    "user-facing",
-    "scenario",
-    "rationale",
-    "replaced-by",
-    "removal-issue",
-)
+__all__ = ["main", "render", "survey", "validate_skill_routing_roles"]
 
 _SCENARIO_PREFIX = "tests/evals/"
 
@@ -95,33 +79,6 @@ class TreeError(Exception):
     """The canonical skill tree cannot answer the question this gate asks."""
 
 
-@dataclass(frozen=True)
-class SkillDecl:
-    """One skill's best-effort parsed routing declaration.
-
-    Fields hold ``None`` when the corresponding block value is absent or the
-    wrong type; the shape defect itself is recorded separately by
-    :func:`_block_defects` so a malformed field is never silently
-    indistinguishable from an absent one. ``scenario`` always holds a usable
-    path: the declared override when valid, otherwise the REQ-038 default.
-    """
-
-    name: str
-    path: str
-    role: str | None
-    invoker: str | None
-    replaced_by: str | None
-    scenario: str
-
-
-@dataclass(frozen=True)
-class Evidence:
-    """The three reported (non-refusing) evidence layers, sorted by name."""
-
-    unresolved: tuple[str, ...]
-    inbound_zero: tuple[str, ...]
-    scenario_covered: tuple[str, ...]
-    checked: tuple[str, ...]
 
 
 def _frontmatter(text: str) -> dict[str, object]:
@@ -163,7 +120,7 @@ def _routing_or_defect(
 def _key_shape_defects(rel: str, block: dict[str, object]) -> list[str]:
     """Return defects for an unknown key and for a missing or invalid role."""
     defects: list[str] = []
-    unknown = sorted(key for key in block if key not in ROUTING_KEYS)
+    unknown = sorted((key for key in block if key not in ROUTING_KEYS), key=str)
     if unknown:
         keys = ", ".join(f"`{key}`" for key in unknown)
         defects.append(f"{rel}: unknown routing key(s) {keys}")
@@ -199,10 +156,13 @@ def _explicit_only_defects(rel: str, block: dict[str, object], role: str) -> lis
     """Return the defect for a missing or empty `rationale` on `explicit-only`."""
     if role != "explicit-only":
         return []
+    defects: list[str] = []
     rationale = block.get("rationale")
     if not isinstance(rationale, str) or not rationale.strip():
-        return [f"{rel}: explicit-only role requires a non-empty `rationale`"]
-    return []
+        defects.append(f"{rel}: explicit-only role requires a non-empty `rationale`")
+    if block.get("user-facing") is False:
+        defects.append(f"{rel}: explicit-only role requires `user-facing: true`")
+    return defects
 
 
 def _deprecated_defects(rel: str, block: dict[str, object], role: str) -> list[str]:
@@ -211,12 +171,11 @@ def _deprecated_defects(rel: str, block: dict[str, object], role: str) -> list[s
         return []
     replaced_by = block.get("replaced-by")
     removal_issue = block.get("removal-issue")
-    has_replaced = isinstance(replaced_by, str) and bool(replaced_by.strip())
-    has_removal = _is_positive_int(removal_issue)
-    if has_replaced or has_removal:
-        return []
-    if removal_issue is not None:
+    if "removal-issue" in block and not _is_positive_int(removal_issue):
         return [f"{rel}: `removal-issue` value {removal_issue!r} is not a positive integer"]
+    has_replaced = isinstance(replaced_by, str) and bool(replaced_by.strip())
+    if has_replaced or "removal-issue" in block:
+        return []
     return [
         f"{rel}: deprecated skill declares neither a resolvable `replaced-by` "
         "nor a positive `removal-issue`"
@@ -248,7 +207,7 @@ def _block_defects(rel: str, front: dict[str, object], block: dict[str, object])
     """Return every shape defect in one skill's routing declaration."""
     defects = _key_shape_defects(rel, block)
     role = block.get("role")
-    if role not in ROLES:
+    if not isinstance(role, str) or role not in ROLES:
         return defects
     defects.extend(_required_key_defects(rel, block, role))
     defects.extend(_explicit_only_defects(rel, block, role))
@@ -416,129 +375,6 @@ def check_routing_graph(
     return sorted(findings)
 
 
-_REACHABLE_ROLES = frozenset({"front-door", "lifecycle", "conditional-adjunct", "nested-helper"})
-
-
-_ROUTING_BLOCK = re.compile(r"^  routing:\n(?:    .*\n|\n)*", re.MULTILINE)
-
-
-def _names_token(name: str, text: str) -> bool:
-    """Return True when `name` appears in `text` as an exact token."""
-    return re.search(rf"(?<![\w-]){re.escape(name)}(?![\w-])", text) is not None
-
-
-def _strip_routing_block(text: str) -> str:
-    """Drop the `metadata.routing` block so a declaration cannot certify itself.
-
-    Without this, one skill's `invoker:` or `rationale:` naming another skill
-    counts as an inbound reference, and the manifest would prove its own
-    reachability. Only authored body and non-routing frontmatter count.
-    """
-    return _ROUTING_BLOCK.sub("", text, count=1)
-
-
-def _skill_own_text(repo_root: Path, skill_path: Path, name: str) -> str:
-    """Return a skill's canonical text: its template plus its reference files.
-
-    DESIGN-036: "Canonical text is the invoker's template plus the Markdown
-    files under `.claude/skills/<invoker>/` other than `SKILL.md`". The
-    shipped `SKILL.md` there is a generated projection of the same template
-    this function already reads, not a second authored source.
-    """
-    parts = [_strip_routing_block(skill_path.read_text(encoding="utf-8", errors="replace"))]
-    ref_root = repo_root / ".claude" / "skills" / name
-    if ref_root.is_dir():
-        for md in sorted(ref_root.rglob("*.md")):
-            if md.name != "SKILL.md":
-                parts.append(md.read_text(encoding="utf-8", errors="replace"))
-    return "\n".join(parts)
-
-
-def _canonical_texts(
-    repo_root: Path, skill_templates: dict[str, Path], agent_templates: dict[str, Path]
-) -> tuple[dict[str, str], dict[str, str]]:
-    """Return (skill name -> canonical text, agent name -> canonical text)."""
-    skill_text = {
-        name: _skill_own_text(repo_root, path, name) for name, path in skill_templates.items()
-    }
-    agent_text = {
-        name: path.read_text(encoding="utf-8", errors="replace")
-        for name, path in agent_templates.items()
-    }
-    return skill_text, agent_text
-
-
-def _invoker_text(invoker: str, skill_text: dict[str, str], agent_text: dict[str, str]) -> str:
-    """Return the canonical text attributed to one invoker name.
-
-    A name can name both a skill and an agent (four names collide in this
-    catalog: merge-resolver, negotiation, pr-comment-responder,
-    retrospective). DESIGN-036 does not resolve that collision, so this gate
-    treats it permissively: the union of both texts is searched, which can
-    only make a name *more* likely to resolve, never less. A stricter
-    resolution (skill text only, or agent text only) risked marking a real
-    route unresolved on the ambiguous names.
-    """
-    parts = []
-    if invoker in skill_text:
-        parts.append(skill_text[invoker])
-    if invoker in agent_text:
-        parts.append(agent_text[invoker])
-    return "\n".join(parts)
-
-
-def _unresolved_skills(
-    skills: list[SkillDecl], skill_text: dict[str, str], agent_text: dict[str, str]
-) -> tuple[list[str], list[str]]:
-    """Return (checked names, unresolved names) for the four reachable roles."""
-    checked: list[str] = []
-    unresolved: list[str] = []
-    for skill in skills:
-        if skill.role not in _REACHABLE_ROLES or skill.invoker is None:
-            continue
-        checked.append(skill.name)
-        if skill.invoker in RESERVED_INVOKERS:
-            continue  # reachable by declaration (DESIGN-036)
-        text = _invoker_text(skill.invoker, skill_text, agent_text)
-        if not _names_token(skill.name, text):
-            unresolved.append(skill.name)
-    return checked, unresolved
-
-
-def _inbound_zero_skills(
-    skills: list[SkillDecl], skill_text: dict[str, str], agent_text: dict[str, str]
-) -> list[str]:
-    """Return names no other skill or agent's canonical text mentions at all."""
-    inbound_zero: list[str] = []
-    for skill in skills:
-        corpus = "\n".join(
-            text for other, text in skill_text.items() if other != skill.name
-        )
-        corpus = "\n".join([corpus, *agent_text.values()])
-        if not _names_token(skill.name, corpus):
-            inbound_zero.append(skill.name)
-    return inbound_zero
-
-
-def compute_evidence(
-    repo_root: Path,
-    skills: list[SkillDecl],
-    skill_templates: dict[str, Path],
-    agent_templates: dict[str, Path],
-) -> Evidence:
-    """Return the three reported evidence layers, sorted for determinism."""
-    skill_text, agent_text = _canonical_texts(repo_root, skill_templates, agent_templates)
-    checked, unresolved = _unresolved_skills(skills, skill_text, agent_text)
-    inbound_zero = _inbound_zero_skills(skills, skill_text, agent_text)
-    scenario_covered = [skill.name for skill in skills if (repo_root / skill.scenario).is_file()]
-    return Evidence(
-        unresolved=tuple(sorted(unresolved)),
-        inbound_zero=tuple(sorted(inbound_zero)),
-        scenario_covered=tuple(sorted(scenario_covered)),
-        checked=tuple(sorted(checked)),
-    )
-
-
 def survey(repo_root: Path) -> tuple[list[SkillDecl], list[str], Evidence]:
     """Read the tree once and return every declaration, finding, and evidence layer."""
     skills, defects = collect_skills(repo_root)
@@ -549,57 +385,6 @@ def survey(repo_root: Path) -> tuple[list[SkillDecl], list[str], Evidence]:
     )
     evidence = compute_evidence(repo_root, skills, skill_templates, agent_templates)
     return skills, sorted(defects) + graph_findings, evidence
-
-
-def render(skills: list[SkillDecl], evidence: Evidence, fmt: str) -> str:
-    """Emit the deterministic report. Two runs on one tree are byte-identical."""
-    total = len(skills)
-    by_role = {role: sum(1 for skill in skills if skill.role == role) for role in ROLES}
-    classified = sum(by_role.values())
-    checked = len(evidence.checked)
-    reachable = checked - len(evidence.unresolved)
-    if fmt == "json":
-        return _render_json(skills, evidence, total, by_role, classified, reachable, checked)
-    lines = [f"skills: {total}", f"classified: {classified}/{total}"]
-    lines.extend(f"role {role}: {count}" for role, count in sorted(by_role.items()))
-    lines.append(f"structurally reachable: {reachable}/{checked}")
-    lines.append(f"unresolved: {len(evidence.unresolved)}")
-    lines.extend(f"unresolved {name}" for name in evidence.unresolved)
-    lines.append(f"scenario coverage: {len(evidence.scenario_covered)}/{total}")
-    lines.append(f"inbound-zero: {len(evidence.inbound_zero)}")
-    lines.extend(f"inbound-zero {name}" for name in evidence.inbound_zero)
-    lines.append("scored accuracy: not measured")
-    return "\n".join(lines)
-
-
-def _render_json(
-    skills: list[SkillDecl],
-    evidence: Evidence,
-    total: int,
-    by_role: dict[str, int],
-    classified: int,
-    reachable: int,
-    checked: int,
-) -> str:
-    """Render the JSON report shape (issue #5389 reads this)."""
-    payload = {
-        "skills": [
-            {"name": skill.name, "path": skill.path, "role": skill.role, "invoker": skill.invoker}
-            for skill in skills
-        ],
-        "counts": {
-            "total": total,
-            "by_role": by_role,
-            "classified": classified,
-            "structurally_reachable": reachable,
-            "structurally_checked": checked,
-            "scenario_covered": len(evidence.scenario_covered),
-        },
-        "unresolved": list(evidence.unresolved),
-        "inbound_zero": list(evidence.inbound_zero),
-        "scored_accuracy": "not measured",
-    }
-    return json.dumps(payload, indent=2, sort_keys=True)
 
 
 def _report_findings(findings: list[str]) -> None:
