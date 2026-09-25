@@ -23,11 +23,16 @@ allowed-tools:
   - WebFetch
 metadata:
   routing:
-    role: explicit-only
-    invoker: user
-    trigger: a user asks for a developer experience audit
+    role: front-door
+    invoker: autoplan
+    trigger: autoplan's long-tail resolver matches a developer-friction audit
     user-facing: true
-    rationale: Automatic routing would be noisy until issue #5386 adds a developer-facing change trigger to /test; a full DX audit is too costly to run on every change.
+    intents:
+      - developer experience audit
+      - developer friction
+      - onboarding friction
+      - dx scorecard
+      - cli ergonomics audit
 ---
 
 # dx-review: Evidence-Based Developer Experience Audit

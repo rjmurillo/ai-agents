@@ -5,11 +5,15 @@ description: Input adapter that extracts a book's method into a structured paylo
 license: MIT
 metadata:
   routing:
-    role: explicit-only
-    invoker: user
-    trigger: a user asks to turn a book's method into a skill
+    role: front-door
+    invoker: autoplan
+    trigger: autoplan's long-tail resolver matches a request to turn a book into a skill
     user-facing: true
-    rationale: Automatic routing would be noisy until issue #5385 adds a long-tail resolver; a book mention in ordinary chat must not start skill creation.
+    intents:
+      - turn book into skill
+      - book to skill
+      - extract method from book
+      - book method skill
 ---
 
 # book-to-skill

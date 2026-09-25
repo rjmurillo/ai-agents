@@ -350,6 +350,7 @@ metadata:
 | `trigger` | non-empty string | unless `deprecated` |
 | `user-facing` | boolean | unless `deprecated` |
 | `scenario` | relative path under `tests/evals/` | never; defaults to `tests/evals/skill-scenarios/<name>.json` |
+| `intents` | non-empty list of non-empty strings | never; `front-door` only |
 | `rationale` | non-empty string | `explicit-only` only |
 | `replaced-by` | a non-deprecated skill name | `deprecated`, unless `removal-issue` is set |
 | `removal-issue` | positive integer | `deprecated`, unless `replaced-by` is set |
@@ -360,7 +361,39 @@ No other key is allowed in the block.
 or by its trigger phrases, and false for a helper only another skill or
 agent runs. An `explicit-only` skill must set it to true. Its `rationale`
 must say why automatic routing would be unsafe or noisy. Quote a value that
-contains `:`, or YAML reads it as a nested key.
+contains `:`, or YAML reads it as a nested key. Quote a value that contains
+a space then `#` (`#1234`), or YAML reads the rest of the line as a comment
+and silently truncates the scalar there.
+
+### `intents` (DESIGN-037)
+
+A `front-door` skill may declare `intents`: a short list of phrases the
+autoplan long-tail resolver
+(`.claude/skills/autoplan/scripts/resolve_route.py`) matches against a
+request that misses the high-traffic table. An intent matches when every one
+of its words appears in the request (after lowercasing, dropping stop
+words, and folding a trailing `s`). Write two to six phrases that name the
+skill's core question in the user's own words, for example:
+
+```yaml
+metadata:
+  routing:
+    role: front-door
+    invoker: autoplan
+    trigger: autoplan's long-tail resolver matches a developer-friction audit
+    user-facing: true
+    intents:
+      - developer experience audit
+      - developer friction
+      - onboarding friction
+```
+
+The routing-role gate refuses `intents` on any role other than `front-door`,
+and refuses a non-list, an empty list, or an empty string item. When two
+skills' intents both cover a request, add a "When to use / Do NOT use"
+positive and negative example pair to each skill's body so a reader (and a
+fixture test) can tell which one owns the request; `programming-advisor` and
+`buy-vs-build-framework` are the worked example.
 
 ### How to pick a role
 
@@ -375,10 +408,15 @@ contains `:`, or YAML reads it as a nested key.
    description says it triggers on a pattern, as `autoplan` and
    `github-url-intercept` do), use `front-door` with `invoker: harness`.
    Plain description matching does not qualify, since every skill has it.
-3. If nothing names it and the harness does not select it either, use
-   `explicit-only` with `invoker: user` and a `rationale` explaining why no
-   automatic route exists.
-4. A skill being retired uses `deprecated`, naming its replacement or a
+3. If nothing names it and the harness does not select it either, but the
+   skill answers one clear question a user states in their own words, use
+   `front-door` with `invoker: autoplan` and add `intents` so the long-tail
+   resolver can reach it, instead of `explicit-only`.
+4. If even that does not apply (the request is unsafe to auto-route, or too
+   broad to phrase as a few intents), use `explicit-only` with
+   `invoker: user` and a `rationale` explaining why no automatic route
+   exists.
+5. A skill being retired uses `deprecated`, naming its replacement or a
    removal issue instead of a live `invoker`.
 
 The lifecycle skills themselves (`spec`, `plan`, `build`, `test`, `review`,

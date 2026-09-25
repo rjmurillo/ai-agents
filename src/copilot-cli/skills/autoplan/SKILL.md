@@ -25,6 +25,24 @@ One lazy entry point for the whole catalog. Classify the request, route it,
 apply defaults, and only stop for decisions that are genuinely the user's.
 Models and people do not hand-route across dozens of skills; this skill does.
 
+## Identity
+
+This router's stable identity is `project-toolkit:autoplan`. `/autoplan`
+stays the local alias inside this repository; nothing is renamed
+(REQ-039 criterion 10, DESIGN-037).
+
+| Context | Name the model sees | Contract selected |
+|---|---|---|
+| This repository, `.claude/skills` | `autoplan` | this router |
+| Packaged plugin | `project-toolkit:autoplan` | this router |
+| Mixed catalog with gstack | `project-toolkit:autoplan` and `gstack:autoplan` | router by qualified name; gstack's own review pipeline only by its qualified name |
+
+gstack ships an unrelated skill also named `autoplan` (a four-phase
+CEO/design/engineering/DX review pipeline). Never invoke a bare `autoplan` in
+a mixed catalog expecting this router; use the qualified name. This router
+never selects the gstack pipeline by an unqualified request, because that
+skill carries no `intents` for this router's long-tail resolver to match.
+
 ## Triggers
 
 | Trigger Phrase | Operation |
@@ -46,6 +64,20 @@ the X, do it, and handle it, not ceremonial delegation phrases. Continue and
 proceed are deliberately excluded as hard triggers: they mean resume the
 in-flight work, so they route to whatever is already running rather than
 re-classifying from scratch.
+
+## Precedence
+
+Apply in this order (REQ-039):
+
+1. An explicitly named, installed skill wins, with no rerouting.
+2. A high-traffic table row wins next.
+3. A single-domain miss goes to the long-tail resolver.
+4. A feature, bug, or shipping request with no specialist uses the lifecycle
+   chain.
+5. Only multi-domain, cross-cutting, or multi-agent work goes to the
+   orchestrator.
+6. The router never routes to itself. The orchestrator never invokes the
+   router.
 
 ## Process
 
@@ -121,7 +153,7 @@ evidence (failing tests, widening diff), not on speculation.
 | Intent | Route |
 |--------|-------|
 | Build a feature, "add X" | Lifecycle chain per size tier above |
-| New capability (Context, module, scanner, validator, pipeline component) | Skill: buy-vs-build-framework (Quick tier) BEFORE /spec, then the Feature chain |
+| New capability (Context, module, scanner, validator, pipeline component) | Skill: programming-advisor prior-art discovery BEFORE /spec; add buy-vs-build-framework only for a strategic build, buy, partner, or defer decision, then the Feature chain |
 | Bug, error, "why is this broken" | Skill: analyze, then /build for the fix |
 | PR, issue, label, milestone ops | Skill: github |
 | Respond to PR review threads | Skill: pr-comment-responder |
@@ -138,7 +170,7 @@ evidence (failing tests, widening diff), not on speculation.
 | Correction received, lesson learned | Skill: reflect |
 | Document a decision | Skill: adr-generator |
 | New skill wanted | Skill: skillforge |
-| Multi-step, cross-cutting, or no row matches | `agent_type: "project-toolkit:orchestrator"` |
+| Multi-domain, cross-cutting, or requires multiple agents | `agent_type: "project-toolkit:orchestrator"` |
 
 The user naming a skill or command bypasses this table entirely. User
 Sovereignty wins over any row.
@@ -151,6 +183,50 @@ multi-domain or multi-agent execution, autoplan hands off to `orchestrator`
 not a peer: it owns multi-agent coordination, handoff management, and synthesis,
 and it never routes back to autoplan. Rule: autoplan routes; orchestrator
 coordinates specialists.
+
+### Phase 2b: Single-domain miss -> long-tail resolver
+
+When the request names no skill or command, matches no row above, and is not
+multi-domain (Precedence step 3), run the resolver before falling back to the
+orchestrator. In a repository checkout, resolve
+`RESOLVER="$(git rev-parse --show-toplevel)/.claude/skills/autoplan/scripts/resolve_route.py"`.
+From an installed skill copy, use the local skill path:
+`RESOLVER="$PWD/scripts/resolve_route.py"` when your shell is in the
+`autoplan` skill directory. Then run:
+
+```bash
+python3 "$RESOLVER" --request "<the user's request text>"
+```
+
+Read `kind` from the JSON result and act:
+
+| `kind` | Action |
+|--------|--------|
+| `explicit` | Invoke `route` directly; the request already named it. |
+| `orchestrator` | `agent_type: "project-toolkit:orchestrator"`; a multi-domain marker fired. |
+| `specialist` | Invoke `route`, the one eligible skill whose intents matched. |
+| `ambiguous` | Ask the user to pick from `candidates` (Sovereignty; do not guess). |
+| `none` | No specialist matched. Fall through to the lifecycle chain by size tier, or `agent_type: "project-toolkit:orchestrator"` when nothing else fits. |
+
+A missing PyYAML module or a missing skills root exits 2 with a named
+reason on stderr; when that happens, read skill descriptions directly
+instead of retrying the resolver. The resolver never returns this router
+itself (Precedence step 6): a request naming `/autoplan` drops that
+self-reference and resolves the rest of the request instead.
+
+Example specialists this step reaches that carry no table row above:
+`business-strategy` (a founder problem, a business model, or a competitive
+strategy question), `book-to-skill` (turn a named book into a reusable
+skill), `world-model-diagnostic` (why an agent's assumptions or model are
+failing), and `dx-review` (audit a CLI, API, or onboarding workflow for
+developer friction).
+
+### Phase 2c: Resolver ambiguity from a home-repo run
+
+When you cannot invoke a subprocess (a constrained sandbox, no `python3`),
+fall back to reading each candidate skill's `description` frontmatter field
+directly and picking the closest match. Report which path you took
+(resolver output vs. description fallback) in the Phase 4 final gate.
 
 ### Phase 3: Execute with defaults
 
@@ -194,6 +270,21 @@ Every /autoplan run ends with one summary block, not a narration stream:
    one-line rationale.
 3. **Open Sovereignty questions**, if any, with options.
 4. **Evidence**: tests run and their counts, gates passed, artifacts produced.
+
+## Scripts
+
+`scripts/resolve_route.py` is the deterministic long-tail resolver Phase 2b
+runs on a single-domain table miss (DESIGN-037). It reads local `SKILL.md`
+frontmatter and prints one JSON line to stdout; it opens no network
+connection and runs no subprocess.
+
+```bash
+python3 scripts/resolve_route.py --request "audit our CLI for developer friction"
+```
+
+Exit codes: `0` on any resolution, including `kind: "none"`. `2` for a
+missing skills root, a missing PyYAML module (named on stderr), or a bad
+argument. See Phase 2b above for the `kind` values and how to act on each.
 
 ## Verification
 
