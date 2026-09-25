@@ -182,7 +182,8 @@ Copilot equivalent.
 | `analyze-pr-churn.py` | Deterministic commit-churn classification across a PR cohort (degenerate vs control) to evaluate instruction/rule changes against historical PRs. No LLM; core in `_pr_churn.py`. | Complementary |
 | `eval-reviewer-asymmetry.py` | Statistical-significance test for `templates/agents/{critic,qa,implementer}.shared.md` reviewer-asymmetry framing. Fisher's exact (verdict-pass) + Mann-Whitney U (findings-count). | Complementary |
 | `eval-e2e-delivery.py` | End-to-end delivery eval (plan-rubric proxy). Feeds a vague germ, captures each agent's plan, LLM-judges it against hidden acceptance criteria. Core in `_e2e_delivery_core.py`. | #2859 |
-| `eval-model-sweep.py` | Sweep one agent's fixtures across candidate models; scored KEEP_PIN/DROP_PIN verdict with effect size. Core in `_model_sweep_core.py`. | #2840 |
+| `eval-model-sweep.py` | Sweep one agent's fixtures across candidate models; scored KEEP_PIN/DROP_PIN verdict with effect size, plus the lightest sufficient model for routing. Core in `_model_sweep_core.py`. | #2840 |
+| `eval_model_routing.py` | Roll per-model sweep reports for many agents and skills into `evals/model-routing/` routing tables. | #5883, #5889 |
 | `eval_runtime_parity.py` | Run the same fixture through real Claude and Copilot CLIs with isolated agent profiles, resolved-model checks, traces, and deterministic controls. | #4853 |
 | `eval_harness_capability.py` | Run fail-closed live capability probes from a shell-free JSON plan and derive the #5422 arm matrix. | #5423 |
 | `optimize-artifact.py` | Held-out-gated edit loop for agents, rules, and hooks. Splits tasks, bounds how many times an edit may be measured against the held-out group, and applies patches. A budgeted comparison, not an access boundary; see the seam section below. Core in `_optimizer_core.py`, scorer adapters in `_optimizer_adapters.py`. | #3422 |
@@ -820,9 +821,49 @@ always DROPs; widen the shared `--fixtures` set to decide.
 `MODEL_PRICING_RATES_USD_PER_1K_TOKENS` (`_eval_common.py`). The base evaluator
 hard-fails on an unpriced model (#2858), so the sweep pre-checks pricing and
 exits `2` with an actionable message naming the unpriced models. It does **not**
-invent pricing. Today only two `claude-sonnet` ids are priced, so a real
-opus/haiku sweep needs a verified pricing entry added first. `--dry-run`
-validates inputs and prints the per-model plan with no API calls.
+invent pricing. Claude Haiku 4.5, Sonnet 5, and Opus 5.5 and GPT-6 Luna, Sol,
+and Astra are priced; GPT-5.6 ids are not, because OpenAI publishes no GPT-5.6
+rate to verify. `--dry-run` validates inputs and prints the per-model plan with
+no API calls.
+
+### Routing verdict
+
+KEEP/DROP asks whether a pin beats the default. The sweep also answers the
+routing question: how cheap a model can do this agent's work. The artifact's
+`routing` block names the `lightest_sufficient_model`. That is the cheapest
+swept model, by list price, whose recall stays within `--routing-margin`
+(default 0.10) of the best swept model. The bound is the lower end of a
+one-sided 95% paired bootstrap over fixtures, Bonferroni-split across the
+cheaper models. The best model always qualifies, so the verdict always names a
+model.
+
+### Routing rollup
+
+`eval_model_routing.py` reads the per-model child reports for many agents and
+skills and writes `evals/model-routing/routing.json` and `REPORT.md`:
+
+```bash
+python3 scripts/eval/eval_model_routing.py \
+  --agents analyst,critic \
+  --skill analyze=analyst \
+  --ladder claude=claude-haiku-4-5,claude-sonnet-5,claude-opus-5-5 \
+  --ladder gpt6=gpt-6-luna,gpt-6-sol,gpt-6-astra
+```
+
+A ladder is one vendor's models. Ladders are routed separately because a
+harness routes within one vendor: the question is which rung a task needs, not
+which vendor wins. Every call gets the same response budget,
+`EVAL_MAX_TOKENS` (4096) in `_eval_api_adapter.py`, because thinking models
+spend hidden reasoning tokens from it. A skill subject routes the skill variant
+(`--skill-path`) of runs named `sweep-skill-<skill>-<model>-<hex8>` over the
+paired agent's fixtures. Exactly one report must match each subject and model
+on the current fixture set; a missing, duplicate, or degraded report records an
+undecided entry and the rollup exits `1`.
+
+The rollup scores every fixture, including ones the base evaluator marked
+flaky. The base evaluator drops them because it asks whether a prompt beats a
+baseline. Routing asks whether a model can be trusted with the task, and
+run-to-run variance is part of that answer.
 
 Output is a JSON artifact (`--output`, default under
 `evals/{agent}-spike/reports/`) with `schemaVersion`, per-model recall/tokens/

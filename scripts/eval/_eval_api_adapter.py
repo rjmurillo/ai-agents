@@ -56,7 +56,13 @@ ERR_REFUSAL: str = _constants.ERR_REFUSAL
 ERR_TOKEN_LIMIT: str = _constants.ERR_TOKEN_LIMIT
 ERR_INCOMPLETE: str = _constants.ERR_INCOMPLETE
 DEFAULT_MAX_RETRIES: int = _constants.DEFAULT_MAX_RETRIES
-DEFAULT_MAX_TOKENS: int = 1024
+# Response budget per eval call, shared by every transport. Thinking models
+# (Claude Sonnet 5 and Opus 5.5 by default, GPT-6 reasoning models) spend
+# hidden reasoning tokens from this same budget. At 1024 they sometimes spent
+# all of it and returned no text: 9% of Sonnet 5 agent calls and 7% of GPT-6
+# Luna agent calls in the 2026-09-24 routing sweep, against 0% for Haiku 4.5,
+# which does not think. That scores the budget, not the model.
+DEFAULT_MAX_TOKENS: int = 4096
 DEFAULT_TOTAL_TIMEOUT_SEC: float = _constants.DEFAULT_TOTAL_TIMEOUT_SEC
 _BACKOFF_BASE_SEC: float = _constants.BACKOFF_BASE_SEC
 _BACKOFF_MAX_SEC: float = _constants.BACKOFF_MAX_SEC

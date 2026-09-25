@@ -721,7 +721,7 @@ def test_default_transport_factory_closes_over_resolved_provider(
         "messages": [{"role": "user", "content": "prompt"}],
         "system": "system",
         "model": "gpt-4o",
-        "max_tokens": 1024,
+        "max_tokens": _eval_api_adapter.EVAL_MAX_TOKENS,
         "temperature": 0.0,
     }
 
@@ -2939,3 +2939,19 @@ class TestTheTraceRefusalIsDeliberatelyConservative:
 
         assert "carries tool-call traces" not in str(caught.value)
         assert "opens with a CLI trace marker" in str(caught.value)
+
+
+def test_anthropic_transport_sends_shared_eval_budget(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Thinking models spend hidden tokens from this budget; both transports share it."""
+    seen: dict[str, object] = {}
+
+    def fake_call_api(**kwargs: object) -> str:
+        seen.update(kwargs)
+        return "ok"
+
+    monkeypatch.setattr(_eval_api_adapter, "call_api", fake_call_api)
+    transport = _eval_api_adapter._AnthropicTransport("key", seed=None)
+
+    assert transport("prompt", "claude-sonnet-5", "system") == "ok"
+    assert seen["max_tokens"] == _eval_api_adapter.EVAL_MAX_TOKENS
+    assert _eval_api_adapter.EVAL_MAX_TOKENS >= 4096

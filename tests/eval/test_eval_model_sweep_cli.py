@@ -73,6 +73,7 @@ def _args(**overrides):
         default_model=sweep.DEFAULT_MODEL,
         n_runs=3,
         min_effect=0.05,
+        routing_margin=sweep.DEFAULT_ROUTING_MARGIN,
         seed=42,
         provider=None,
         output=None,
@@ -440,6 +441,57 @@ def test_run_sweep_keep_pin_end_to_end(tmp_path, capsys):
     assert artifact["winner"] == candidate_id
     assert artifact["decision"] == core.DECISION_KEEP
     assert artifact["fixtures_sha"] == "fakesha"
+
+
+def test_run_sweep_reports_routing_block_and_route_line(tmp_path, capsys):
+    default_id = "claude-sonnet-5"
+    haiku_id = "claude-haiku-4-5"
+    opus_id = "claude-opus-5-5"
+    results = {
+        default_id: _result(default_id, 0.85),
+        haiku_id: _result(haiku_id, 0.80, cost_usd=0.01, error_count=0),
+        opus_id: _result(opus_id, 0.95, cost_usd=0.5, error_count=0),
+    }
+    runner = _FakeRunner(results)
+    output = tmp_path / "sweep.json"
+    args = _args(
+        models=f"{default_id},{haiku_id},{opus_id}",
+        default_model=default_id,
+        output=output,
+    )
+    rc = sweep.run_sweep(args, runner=runner)
+    out = capsys.readouterr().out
+    assert rc == sweep.EXIT_OK
+    assert "ROUTE " in out
+    artifact = json.loads(output.read_text(encoding="utf-8"))
+    assert "routing" in artifact
+    routing = artifact["routing"]
+    assert set(routing) == {
+        "lightest_sufficient_model",
+        "best_model",
+        "margin",
+        "resolved",
+        "candidates",
+        "reason",
+    }
+    assert routing["best_model"] in results
+    assert routing["lightest_sufficient_model"] in results
+    assert {row["model_id"] for row in routing["candidates"]} == set(results)
+
+
+@pytest.mark.parametrize("margin", [-0.1, float("nan")])
+def test_run_sweep_rejects_invalid_routing_margin_before_runner(capsys, margin):
+    priced = list(sweep.MODEL_PRICING_RATES_USD_PER_1K_TOKENS)[0]
+
+    class _NeverCalled:
+        def run(self, model_id):
+            raise AssertionError("runner must not be called on a config error")
+
+    args = _args(models=priced, default_model=priced, routing_margin=margin)
+    rc = sweep.run_sweep(args, runner=_NeverCalled())
+    err = capsys.readouterr().err
+    assert rc == sweep.EXIT_CONFIG
+    assert "--routing-margin" in err
 
 
 def test_run_sweep_artifact_write_failure_maps_to_external(tmp_path, capsys):
