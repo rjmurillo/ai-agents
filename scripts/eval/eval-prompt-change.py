@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore naming, hyphenated CLI name is the shipped entrypoint.
 """ADR-057 Compliant Prompt Change Evaluator.
 
 Validates behavioral correctness of prompt changes using scenario-based
@@ -74,6 +75,7 @@ from _anthropic_api import (
     load_api_key_for_selected_provider,
     verify_model_available,
 )
+from _anthropic_response import NON_SCOREABLE_TERMINATIONS
 from _billing_matrix import (
     BILLING_MODES,
     HARNESSES,
@@ -322,6 +324,7 @@ def judge_scenario(
     # moved generation and the judge still hit the default Anthropic path.
     provider = os.environ.get("EVAL_PROVIDER", "").strip()
     use_provider = bool(provider) and not is_default_anthropic(provider)
+    metadata: dict[str, object] = {}
     if use_provider:
         raw = call_api(
             "",
@@ -330,6 +333,7 @@ def judge_scenario(
             model=model,
             max_tokens=1024,
             provider=provider,
+            metadata=metadata,
         )
     else:
         raw = call_api(
@@ -338,7 +342,24 @@ def judge_scenario(
             system=system_prompt,
             model=model,
             max_tokens=1024,
+            metadata=metadata,
         )
+
+    # REQ-037 AC-9/Failure Modes: a refusal, a token-limit cutoff, or an
+    # unrecognized stop reason is recorded and never scored as a right or
+    # wrong verdict. `not_scored` is the flag scoring reads
+    # (`check_scenario_pass` returns False on it unconditionally);
+    # `verdict: "NOT_SCORED"` is a display label only, not a controlled
+    # vocabulary member, so it never matches a scenario's `expected_verdict`.
+    termination = metadata.get("termination")
+    if termination in NON_SCOREABLE_TERMINATIONS:
+        return {
+            "verdict": "NOT_SCORED",
+            "reason": f"judge response ended with termination={termination}",
+            "raw": raw,
+            "termination": termination,
+            "not_scored": True,
+        }
 
     # Parse JSON from response
     text = raw.strip()
@@ -356,23 +377,39 @@ def judge_scenario(
                 "verdict": str(parsed.get("verdict", "UNKNOWN")).upper(),
                 "reason": str(parsed.get("reason", "")),
                 "raw": raw,
+                "termination": termination,
+                "not_scored": False,
             }
         except json.JSONDecodeError:
             pass
 
-    return {"verdict": "PARSE_ERROR", "reason": f"Could not parse: {text[:200]}", "raw": raw}
+    return {
+        "verdict": "PARSE_ERROR",
+        "reason": f"Could not parse: {text[:200]}",
+        "raw": raw,
+        "termination": termination,
+        "not_scored": False,
+    }
 
 
 def check_scenario_pass(result: dict[str, Any], scenario: dict[str, Any]) -> bool:
     """Check if a single scenario result matches expectations.
 
     Match rules (controlled vocabulary; see module docstring):
-        - Verdict matches if `result["verdict"]` equals `expected_verdict`
-          (uppercased).
+        - A `not_scored` result (REQ-037: refusal, token_limit, or
+          incomplete termination) never passes, regardless of `verdict` or
+          `expected_verdict`. This is checked first so a scenario whose
+          `expected_verdict` happens to be "ERROR" or "NOT_SCORED" cannot
+          pass on a refusal.
+        - Otherwise, verdict matches if `result["verdict"]` equals
+          `expected_verdict` (uppercased).
         - If `expected_reason_contains` is set, the substring must appear in
           `result["reason"]` (case-insensitive).
         - Both checks must pass.
     """
+    if result.get("not_scored"):
+        return False
+
     expected_upper = str(scenario["expected_verdict"]).strip().upper()
     actual_upper = str(result.get("verdict", "")).strip().upper()
     verdict_match = actual_upper == expected_upper
@@ -399,8 +436,17 @@ def run_scenario_multi(
 ) -> dict[str, Any]:
     """Run a scenario multiple times and aggregate per ADR-057 flakiness protocol.
 
-    Non-security: passes if >= 2/3 runs succeed.
-    Security-critical: passes if 100% of runs succeed (enforced by caller).
+    REQ-037 AC-9/Failure Modes: a run whose judge response ends in a
+    refusal, a token-limit cutoff, or an unrecognized stop reason
+    (`not_scored=True`) counts toward neither a pass nor a fail. `runs` in
+    the returned dict is the number of SCORED runs, not the number
+    requested; `requested_runs` keeps the original count for the caller and
+    `not_scored_runs` reports how many were excluded. A scenario with zero
+    scored runs cannot pass: `passed` requires `scored > 0`.
+
+    Non-security: passes if >= 2/3 of scored runs succeed.
+    Security-critical: passes if 100% of scored runs succeed (enforced by
+    caller).
     """
     run_results = []
     for _ in range(runs):
@@ -410,16 +456,21 @@ def run_scenario_multi(
         run_results.append(result)
         time.sleep(RATE_LIMIT_SLEEP_SEC)
 
-    passes = sum(1 for r in run_results if r["passed"])
-    pass_rate = passes / runs
+    scored_results = [r for r in run_results if not r.get("not_scored")]
+    scored = len(scored_results)
+    not_scored_runs = runs - scored
+    passes = sum(1 for r in scored_results if r["passed"])
+    pass_rate = passes / scored if scored > 0 else 0.0
 
     return {
         "scenario_id": scenario["id"],
         "passes": passes,
-        "runs": runs,
+        "runs": scored,
+        "requested_runs": runs,
+        "not_scored_runs": not_scored_runs,
         "pass_rate": pass_rate,
-        "passed": passes >= max(1, (runs * 2) // 3),  # 2/3 threshold
-        "flaky": 0 < passes < runs,
+        "passed": scored > 0 and passes >= max(1, (scored * 2) // 3),  # 2/3 threshold
+        "flaky": 0 < passes < scored,
         "per_run": run_results,
     }
 
@@ -463,7 +514,14 @@ def run_comparison(
         a_tag = "PASS" if after["passed"] else "FAIL"
         flaky_b = " [FLAKY]" if before["flaky"] else ""
         flaky_a = " [FLAKY]" if after["flaky"] else ""
-        print(f"    {b_tag}{flaky_b} -> {a_tag}{flaky_a}", file=sys.stderr)
+        before_not_scored = before.get("not_scored_runs", 0)
+        after_not_scored = after.get("not_scored_runs", 0)
+        not_scored_b = f" [{before_not_scored} not scored]" if before_not_scored else ""
+        not_scored_a = f" [{after_not_scored} not scored]" if after_not_scored else ""
+        print(
+            f"    {b_tag}{flaky_b}{not_scored_b} -> {a_tag}{flaky_a}{not_scored_a}",
+            file=sys.stderr,
+        )
 
     before_score = sum(1 for r in before_results if r["passed"]) / total
     after_score = sum(1 for r in after_results if r["passed"]) / total
@@ -509,9 +567,21 @@ def acceptance_gate(
     with zero targeted improvements). See ADR-057 (2026-06-01 relaxation note).
 
     Security-critical tier: all runs must pass (100% pass rate). Unchanged.
+
+    REQ-037 AC-11: excluding refusal/token_limit/incomplete runs from the
+    scored-run count (`run_scenario_multi`) means a scenario can reach
+    `passed=True` on far fewer than the `DEFAULT_RUNS`/`SECURITY_RUNS`
+    minimum `parse_args` enforces at the CLI boundary; for example
+    {pass, refusal, refusal} scores 1/1 = 100% on a single scored run. This
+    gate re-enforces that floor: an "after" scenario scored on fewer than
+    the required minimum blocks the gate as inconclusive (`passed=False`),
+    never as a silent pass. The same check on "before" is reported only
+    (`insufficient_scored_before`); a stale base-ref result cannot block a
+    current change.
     """
     before_results = comparison["before_results"]
     after_results = comparison["after_results"]
+    required_scored_runs = SECURITY_RUNS if security_critical else DEFAULT_RUNS
 
     # Criterion 1: no regression
     no_regression = comparison["after_score"] >= comparison["before_score"]
@@ -519,6 +589,9 @@ def acceptance_gate(
     improvements = []
     regressions = []
     flaky_scenarios = []
+    not_scored_scenarios = []
+    insufficient_scored_scenarios = []
+    insufficient_scored_before = []
 
     for b, a in zip(before_results, after_results, strict=True):
         sid = b["scenario_id"]
@@ -528,6 +601,19 @@ def acceptance_gate(
             regressions.append(sid)
         if a.get("flaky"):
             flaky_scenarios.append(sid)
+        # REQ-037: surfaced for visibility only. A scenario that lost every
+        # scored run on "after" already fails via `a["passed"] is False`
+        # (`run_scenario_multi` requires `scored > 0` to pass); this list
+        # just makes the excluded-run count visible in the report.
+        if a.get("not_scored_runs"):
+            not_scored_scenarios.append(sid)
+        # REQ-037 AC-11: blocking on "after", reported only on "before".
+        if a["runs"] < required_scored_runs:
+            insufficient_scored_scenarios.append(sid)
+        if b["runs"] < required_scored_runs:
+            insufficient_scored_before.append(sid)
+
+    no_insufficient_scored_runs = len(insufficient_scored_scenarios) == 0
 
     # Informational only: whether the change moved any scenario fail->pass, or
     # the base ref already passed everything. NOT a gating requirement (see
@@ -561,7 +647,12 @@ def acceptance_gate(
     # an offsetting improvement keeps after_score flat (no_regression stays
     # True); the regressions list, not the score delta, is the authoritative
     # block signal.
-    passed = no_regression and no_unexplained_regressions and no_high_flakiness
+    passed = (
+        no_regression
+        and no_unexplained_regressions
+        and no_high_flakiness
+        and no_insufficient_scored_runs
+    )
     if security_critical:
         passed = passed and security_pass
 
@@ -576,11 +667,16 @@ def acceptance_gate(
             "has_improvement": has_improvement,
             "no_unexplained_regressions": no_unexplained_regressions,
             "no_high_flakiness": no_high_flakiness,
+            "no_insufficient_scored_runs": no_insufficient_scored_runs,
         },
         "improvements": improvements,
         "regressions": regressions,
         "flaky_scenarios": flaky_scenarios,
+        "not_scored_scenarios": not_scored_scenarios,
         "high_flakiness_scenarios": high_flakiness_scenarios,
+        "insufficient_scored_scenarios": insufficient_scored_scenarios,
+        "insufficient_scored_before": insufficient_scored_before,
+        "required_scored_runs": required_scored_runs,
         "before_score": comparison["before_score"],
         "after_score": comparison["after_score"],
         "delta": comparison["delta"],
@@ -809,8 +905,22 @@ def _print_gate_summary(gate: dict[str, Any]) -> None:
         print(f"  Regressions: {gate['regressions']}", file=sys.stderr)
     if gate["flaky_scenarios"]:
         print(f"  Flaky: {gate['flaky_scenarios']}", file=sys.stderr)
+    if gate.get("not_scored_scenarios"):
+        print(f"  Not scored (excluded runs): {gate['not_scored_scenarios']}", file=sys.stderr)
     if gate.get("high_flakiness_scenarios"):
         print(f"  BLOCKED (>40% flaky): {gate['high_flakiness_scenarios']}", file=sys.stderr)
+    if gate.get("insufficient_scored_scenarios"):
+        print(
+            f"  BLOCKED (< {gate['required_scored_runs']} scored runs, after): "
+            f"{gate['insufficient_scored_scenarios']}",
+            file=sys.stderr,
+        )
+    if gate.get("insufficient_scored_before"):
+        print(
+            f"  Insufficient scored runs (before, informational): "
+            f"{gate['insufficient_scored_before']}",
+            file=sys.stderr,
+        )
     print(f"{'=' * 60}", file=sys.stderr)
 
 

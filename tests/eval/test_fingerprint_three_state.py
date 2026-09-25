@@ -57,7 +57,9 @@ class TestOpenAITransportFingerprintIntegration:
         t = adapter._OpenAIProviderTransport.__new__(adapter._OpenAIProviderTransport)
         t._provider = _FakeProvider()
         t._seed = None
+        t._max_tokens = 1024
         t.system_fingerprint = None
+        t._termination = "unknown"
         return t
 
     def test_valid_fingerprint_recorded(self) -> None:
@@ -105,7 +107,9 @@ class TestAnthropicTransportFingerprintIntegration:
             t = adapter._AnthropicTransport.__new__(adapter._AnthropicTransport)
             t._api_key = "key"
             t._seed = None
+            t._max_tokens = 1024
             t.system_fingerprint = None
+            t._termination = None
             with pytest.raises(MalformedProviderMetadataError):
                 t("prompt", "model", "system")
             assert t.system_fingerprint is None
@@ -120,6 +124,8 @@ class TestAnthropicTransportFingerprintIntegration:
             t = adapter._AnthropicTransport.__new__(adapter._AnthropicTransport)
             t._api_key = "key"
             t._seed = None
+            t._max_tokens = 1024
             t.system_fingerprint = None
+            t._termination = None
             t("prompt", "model", "system")
             assert t.system_fingerprint is None

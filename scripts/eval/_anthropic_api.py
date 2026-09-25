@@ -3,6 +3,8 @@
 This module provides common functions for loading API keys, calling the
 Anthropic Messages API, and loading custom prompt JSON files. Used by
 eval-agents.py and eval-knowledge-integration.py.
+
+`call_api_response` keeps stop metadata (REQ-037); `call_api` is its text view.
 """
 
 from __future__ import annotations
@@ -16,8 +18,9 @@ import urllib.request
 from pathlib import Path
 from typing import Any, cast
 
-# Sibling import; loaded under the same EVAL_DIR sys.path entry every caller
-# of this module already uses to reach it by bare name.
+# Sibling imports; loaded under the same EVAL_DIR sys.path entry every
+# caller of this module already uses to reach them by bare name.
+from _anthropic_response import MessageResponse, parse_message_response
 from _eval_common import (
     call_with_temperature_fallback,
     is_temperature_deprecated_message,
@@ -236,7 +239,7 @@ def _read_messages_response(
         ) from None
 
 
-def call_api(
+def call_api_response(
     api_key: str,
     messages: list[dict[str, str]],
     system: str = "",
@@ -246,12 +249,14 @@ def call_api(
     provider: str | None = None,
     seed: int | None = None,
     metadata: dict[str, object] | None = None,
-) -> str:
-    """Call the selected provider and return assistant text.
+) -> MessageResponse:
+    """Call the selected provider and return the structured response.
 
     ``provider`` overrides ``EVAL_PROVIDER``. The default uses Anthropic
     urllib; other values route through ``_providers``. Provider-controlled
     failure details and exception causes are not serialized.
+
+    A non-default provider carries no stop metadata: termination ``"unknown"``.
     """
     selected = provider if provider is not None else os.environ.get("EVAL_PROVIDER")
     alternate = _call_selected_provider(
@@ -265,7 +270,7 @@ def call_api(
         metadata,
     )
     if alternate is not None:
-        return alternate
+        return MessageResponse(alternate, None, "unknown", ())
 
     def _send(include_temperature: bool) -> object:
         request = _build_messages_request(
@@ -286,10 +291,35 @@ def call_api(
             "Anthropic API returned an unexpected payload shape: "
             "error=invalid_response; provider response redacted"
         )
-    text_parts = [
-        block["text"] for block in result.get("content", []) if block.get("type") == "text"
-    ]
-    return "\n".join(text_parts)
+    return parse_message_response(result)
+
+
+def call_api(
+    api_key: str,
+    messages: list[dict[str, str]],
+    system: str = "",
+    model: str = DEFAULT_MODEL,
+    max_tokens: int = 1024,
+    temperature: float | None = 0.0,
+    provider: str | None = None,
+    seed: int | None = None,
+    metadata: dict[str, object] | None = None,
+) -> str:
+    """Call the selected provider and return assistant text.
+
+    Text view over `call_api_response`. A passed `metadata` dict also gets
+    `termination`, `stop_reason`, and `refusal_category` on a refusal.
+    """
+    response = call_api_response(
+        api_key, messages, system, model, max_tokens, temperature, provider, seed, metadata
+    )
+    if metadata is not None:
+        metadata["termination"] = response.termination
+        metadata["stop_reason"] = response.stop_reason
+        if response.refusal_category is not None:
+            metadata["refusal_category"] = response.refusal_category
+    # Per-file mypy resolves the sibling import as Any; the field is str.
+    return cast(str, response.text)
 
 
 def _parse_model_ids(result: object) -> list[str]:

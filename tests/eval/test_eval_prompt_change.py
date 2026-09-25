@@ -664,14 +664,16 @@ class TestJudgeScenario:
         "verdict_options": ["ROUTE", "DELEGATE"],
     }
 
-    def _patch_call_api(self, monkeypatch, response: str):
+    def _patch_call_api(self, monkeypatch, response: str, *, termination: str = "completed"):
         captured = {}
 
-        def fake(api_key, messages, system, model, max_tokens):
+        def fake(api_key, messages, system, model, max_tokens, metadata=None):
             captured["api_key"] = api_key
             captured["messages"] = messages
             captured["system"] = system
             captured["model"] = model
+            if metadata is not None:
+                metadata["termination"] = termination
             return response
 
         monkeypatch.setattr(eval_mod, "call_api", fake)
@@ -1062,6 +1064,65 @@ class TestAcceptanceGate:
         comp["delta"] = 0.0
         gate = eval_mod.acceptance_gate(comp)
         assert gate["criteria"]["no_high_flakiness"] is True
+
+    def test_default_tier_below_run_minimum_fails_as_inconclusive(self):
+        # REQ-037 AC-11: {pass, refusal, refusal} scores 1/1 = 100% on a
+        # single scored run out of the 3 DEFAULT_RUNS requested. Without this
+        # gate, a scenario this thin would silently pass.
+        before = [self._r("S1", True, pass_rate=1.0, runs=3)]
+        after = [self._r("S1", True, pass_rate=1.0, runs=1)]
+        comp = self._comparison(before, after, before_score=1.0, after_score=1.0)
+        comp["delta"] = 0.0
+        gate = eval_mod.acceptance_gate(comp)
+        assert gate["passed"] is False
+        assert gate["criteria"]["no_insufficient_scored_runs"] is False
+        assert "S1" in gate["insufficient_scored_scenarios"]
+        assert gate["required_scored_runs"] == eval_mod.DEFAULT_RUNS
+
+    def test_security_tier_below_run_minimum_fails_as_inconclusive(self):
+        # {pass, 4 refusals} scores 1/1 = 100% on a single scored run out of
+        # the 5 SECURITY_RUNS the security tier requires.
+        before = [self._r("S1", True, pass_rate=1.0, runs=5)]
+        after = [self._r("S1", True, pass_rate=1.0, runs=1)]
+        comp = self._comparison(before, after, before_score=1.0, after_score=1.0)
+        comp["delta"] = 0.0
+        gate = eval_mod.acceptance_gate(comp, security_critical=True)
+        assert gate["passed"] is False
+        assert gate["criteria"]["no_insufficient_scored_runs"] is False
+        assert "S1" in gate["insufficient_scored_scenarios"]
+        assert gate["required_scored_runs"] == eval_mod.SECURITY_RUNS
+
+    def test_all_scored_runs_meeting_minimum_is_unaffected(self):
+        before = [self._r("S1", True, pass_rate=1.0, runs=3)]
+        after = [self._r("S1", True, pass_rate=1.0, runs=3)]
+        comp = self._comparison(before, after, before_score=1.0, after_score=1.0)
+        comp["delta"] = 0.0
+        gate = eval_mod.acceptance_gate(comp)
+        assert gate["passed"] is True
+        assert gate["criteria"]["no_insufficient_scored_runs"] is True
+        assert gate["insufficient_scored_scenarios"] == []
+
+    def test_after_losing_every_scored_run_fails(self):
+        before = [self._r("S1", True, pass_rate=1.0, runs=3)]
+        after = [self._r("S1", False, pass_rate=0.0, runs=0)]
+        comp = self._comparison(before, after, before_score=1.0, after_score=0.0)
+        comp["delta"] = -1.0
+        gate = eval_mod.acceptance_gate(comp)
+        assert gate["passed"] is False
+        assert gate["criteria"]["no_insufficient_scored_runs"] is False
+        assert "S1" in gate["insufficient_scored_scenarios"]
+
+    def test_insufficient_before_is_reported_but_not_blocking(self):
+        # A stale base-ref result thin on scored runs must not, by itself,
+        # block a current change that meets the minimum.
+        before = [self._r("S1", True, pass_rate=1.0, runs=1)]
+        after = [self._r("S1", True, pass_rate=1.0, runs=3)]
+        comp = self._comparison(before, after, before_score=1.0, after_score=1.0)
+        comp["delta"] = 0.0
+        gate = eval_mod.acceptance_gate(comp)
+        assert gate["passed"] is True
+        assert gate["insufficient_scored_scenarios"] == []
+        assert "S1" in gate["insufficient_scored_before"]
 
 
 # ---------------------------------------------------------------------------

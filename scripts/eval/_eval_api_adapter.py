@@ -40,6 +40,7 @@ from typing import Literal, Protocol, cast
 # Sibling import; loaded under the same EVAL_DIR sys.path entry that the CLI uses.
 import _eval_api_adapter_constants as _constants
 from _anthropic_api import call_api, load_api_key
+from _anthropic_response import NON_SCOREABLE_TERMINATIONS
 from _eval_common import MalformedProviderMetadataError, require_str_or_none
 
 OutcomeLiteral = Literal["success", "error"]
@@ -51,7 +52,11 @@ ERR_CLIENT_ERROR: str = _constants.ERR_CLIENT_ERROR
 ERR_AUTH: str = _constants.ERR_AUTH
 ERR_UNKNOWN: str = _constants.ERR_UNKNOWN
 ERR_TOTAL_TIMEOUT: str = _constants.ERR_TOTAL_TIMEOUT
+ERR_REFUSAL: str = _constants.ERR_REFUSAL
+ERR_TOKEN_LIMIT: str = _constants.ERR_TOKEN_LIMIT
+ERR_INCOMPLETE: str = _constants.ERR_INCOMPLETE
 DEFAULT_MAX_RETRIES: int = _constants.DEFAULT_MAX_RETRIES
+DEFAULT_MAX_TOKENS: int = 1024
 DEFAULT_TOTAL_TIMEOUT_SEC: float = _constants.DEFAULT_TOTAL_TIMEOUT_SEC
 _BACKOFF_BASE_SEC: float = _constants.BACKOFF_BASE_SEC
 _BACKOFF_MAX_SEC: float = _constants.BACKOFF_MAX_SEC
@@ -83,6 +88,7 @@ class APICallResult:
     attempts: int
     tokens_estimated: bool = True
     system_fingerprint: str | None = None
+    termination: str | None = None
 
 
 def _categorize_error(exc: Exception) -> str:
@@ -140,6 +146,67 @@ def _categorize_error(exc: Exception) -> str:
 # Retried = transient. Anything else is recorded once and not retried.
 _TRANSIENT: frozenset[str] = frozenset({ERR_RATE_LIMIT, ERR_SERVER_ERROR, ERR_TIMEOUT})
 
+# REQ-037 AC-9/Failure Modes: a refusal, a token-limit cutoff, or an
+# unrecognized stop reason is a provider outcome, not a transient transport
+# failure, so none of the three is in `_TRANSIENT`. Keys mirror
+# `NON_SCOREABLE_TERMINATIONS` from `_anthropic_api`.
+_TERMINATION_ERROR_CATEGORIES: dict[str, str] = {
+    "refusal": ERR_REFUSAL,
+    "token_limit": ERR_TOKEN_LIMIT,
+    "incomplete": ERR_INCOMPLETE,
+}
+
+
+def _blocked_termination_result(
+    *,
+    fixture_id: str,
+    variant: str,
+    run_index: int,
+    model_id: str,
+    attempt: int,
+    latency_ms: float,
+    total_latency_ms: float,
+    tokens_in: int,
+    tokens_out: int,
+    termination: str,
+    category: str,
+    fingerprint: str | None,
+) -> APICallResult:
+    """Record a refusal, token-limit cutoff, or incomplete stop as an error,
+    never a scored answer.
+
+    REQ-037 AC-9. Token and latency figures are the same ones the success
+    path would have used; `raw_response` is `None` because the text is not a
+    scoreable answer.
+    """
+    _emit_log(
+        {
+            "fixture_id": fixture_id,
+            "variant": variant,
+            "run_index": run_index,
+            "model_id": model_id,
+            "attempt": attempt,
+            "outcome": "error",
+            "latency_ms": round(latency_ms, 2),
+            "tokens_in": tokens_in,
+            "tokens_out": tokens_out,
+            "error_category": category,
+            "termination": termination,
+        }
+    )
+    return APICallResult(
+        outcome="error",
+        raw_response=None,
+        tokens_in=tokens_in,
+        tokens_out=tokens_out,
+        latency_ms=round(total_latency_ms, 2),
+        error_category=category,
+        attempts=attempt,
+        tokens_estimated=True,
+        system_fingerprint=fingerprint,
+        termination=termination,
+    )
+
 
 def _is_transient(category: str) -> bool:
     return category in _TRANSIENT
@@ -185,17 +252,35 @@ class _ProviderWithFingerprint(Protocol):
 
 
 class _OpenAIProviderTransport:
-    def __init__(self, provider: _ProviderWithFingerprint, *, seed: int | None) -> None:
+    """Non-Anthropic transport. Carries no Messages API stop metadata, so its
+    termination is always ``"unknown"`` (REQ-037 Data Model: a non-default
+    provider returns text with no stop metadata)."""
+
+    def __init__(
+        self,
+        provider: _ProviderWithFingerprint,
+        *,
+        seed: int | None,
+        max_tokens: int = DEFAULT_MAX_TOKENS,
+    ) -> None:
         self._provider = provider
         self._seed = seed
+        self._max_tokens = max_tokens
         self.system_fingerprint: str | None = None
+        self._termination: str = "unknown"
+
+    @property
+    def termination(self) -> str:
+        """Always ``"unknown"``; a non-default provider carries no Messages
+        API stop metadata. Read-only: only `__call__` sets `_termination`."""
+        return self._termination
 
     def __call__(self, prompt: str, model_id: str, system: str) -> str:
         kwargs: dict[str, object] = {
             "messages": [{"role": "user", "content": prompt}],
             "system": system,
             "model": model_id,
-            "max_tokens": 1024,
+            "max_tokens": self._max_tokens,
             "temperature": 0.0,
         }
         if self._seed is not None:
@@ -207,12 +292,26 @@ class _OpenAIProviderTransport:
 
 
 class _AnthropicTransport:
-    def __init__(self, api_key: str, *, seed: int | None) -> None:
+    def __init__(
+        self, api_key: str, *, seed: int | None, max_tokens: int = DEFAULT_MAX_TOKENS
+    ) -> None:
         self._api_key = api_key
         self._seed = seed
+        self._max_tokens = max_tokens
         self.system_fingerprint: str | None = None
+        self._termination: str | None = None
+
+    @property
+    def termination(self) -> str | None:
+        """The termination `__call__` read from `call_api`'s metadata, or
+        `None` before the first call or after a raise. Read-only: only
+        `__call__` sets `_termination`."""
+        return self._termination
 
     def __call__(self, prompt: str, model_id: str, system: str) -> str:
+        # Reset before each call: a stale termination from a prior attempt
+        # must never be read as this attempt's outcome (REQ-037 Design).
+        self._termination = None
         metadata: dict[str, object] = {}
         text = cast(
             str,
@@ -221,6 +320,7 @@ class _AnthropicTransport:
                 messages=[{"role": "user", "content": prompt}],
                 system=system,
                 model=model_id,
+                max_tokens=self._max_tokens,
                 temperature=0.0,
                 seed=self._seed,
                 metadata=metadata,
@@ -228,10 +328,14 @@ class _AnthropicTransport:
         )
         fingerprint = metadata.get("system_fingerprint")
         self.system_fingerprint = _constants.normalize_fingerprint(fingerprint)
+        termination = metadata.get("termination")
+        self._termination = termination if isinstance(termination, str) else None
         return text
 
 
-def _default_transport_factory(seed: int | None = None) -> Transport:
+def _default_transport_factory(
+    seed: int | None = None, max_tokens: int = DEFAULT_MAX_TOKENS
+) -> Transport:
     """Build the production transport selected by EVAL_PROVIDER.
 
     The default Anthropic urllib path reads ANTHROPIC_API_KEY once here and
@@ -247,10 +351,10 @@ def _default_transport_factory(seed: int | None = None) -> Transport:
 
     if provider and not is_default_anthropic(provider):
         selected_provider = resolve_provider(provider)
-        return _OpenAIProviderTransport(selected_provider, seed=seed)
+        return _OpenAIProviderTransport(selected_provider, seed=seed, max_tokens=max_tokens)
 
     api_key = load_api_key()
-    return _AnthropicTransport(api_key, seed=seed)
+    return _AnthropicTransport(api_key, seed=seed, max_tokens=max_tokens)
 
 
 class AnthropicAPIAdapter:
@@ -263,7 +367,15 @@ class AnthropicAPIAdapter:
         clock: Callable[[], float] = time.monotonic,
         total_timeout_seconds: float = DEFAULT_TOTAL_TIMEOUT_SEC,
         seed: int | None = None,
+        max_tokens: int = DEFAULT_MAX_TOKENS,
     ) -> None:
+        """Raises `ValueError` when `max_tokens` is not a positive int.
+
+        A caller configuration mistake, not a provider failure (mirrors the
+        `max_retries` boundary check in `call_model`).
+        """
+        if type(max_tokens) is not int or max_tokens < 1:
+            raise ValueError(f"max_tokens must be an integer >= 1, got {max_tokens!r}")
         # Lazy default: only resolve the API key when the adapter actually
         # needs the production transport. Tests inject `transport` directly.
         self._transport = transport
@@ -271,10 +383,13 @@ class AnthropicAPIAdapter:
         self._clock = clock
         self._total_timeout_seconds = total_timeout_seconds
         self._seed = seed
+        self._max_tokens = max_tokens
 
     def _resolve_transport(self) -> Transport:
         if self._transport is None:
-            self._transport = _default_transport_factory(seed=self._seed)
+            self._transport = _default_transport_factory(
+                seed=self._seed, max_tokens=self._max_tokens
+            )
         return self._transport
 
     def call_model(
@@ -466,6 +581,8 @@ class AnthropicAPIAdapter:
             fingerprint = require_str_or_none(
                 getattr(transport, "system_fingerprint", None), "system_fingerprint"
             )
+            termination_raw = getattr(transport, "termination", None)
+            termination = termination_raw if isinstance(termination_raw, str) else None
             # Success path. Token counts are estimated from text length until
             # `_anthropic_api.call_api` surfaces a `usage` envelope; callers
             # see `tokens_estimated=True` so cost numbers carry that caveat.
@@ -473,6 +590,21 @@ class AnthropicAPIAdapter:
             total_latency_ms = (self._clock() - start_total) * 1000.0
             tokens_in = _estimate_tokens(prompt) + _estimate_tokens(system)
             tokens_out = _estimate_tokens(raw)
+            if termination is not None and termination in NON_SCOREABLE_TERMINATIONS:
+                return _blocked_termination_result(
+                    fixture_id=fixture_id,
+                    variant=variant,
+                    run_index=run_index,
+                    model_id=model_id,
+                    attempt=attempt,
+                    latency_ms=latency_ms,
+                    total_latency_ms=total_latency_ms,
+                    tokens_in=tokens_in,
+                    tokens_out=tokens_out,
+                    termination=termination,
+                    category=_TERMINATION_ERROR_CATEGORIES[termination],
+                    fingerprint=fingerprint,
+                )
             _emit_log(
                 {
                     "fixture_id": fixture_id,
@@ -485,6 +617,7 @@ class AnthropicAPIAdapter:
                     "tokens_in": tokens_in,
                     "tokens_out": tokens_out,
                     "error_category": None,
+                    "termination": termination,
                 }
             )
             return APICallResult(
@@ -497,6 +630,7 @@ class AnthropicAPIAdapter:
                 attempts=attempt,
                 tokens_estimated=True,
                 system_fingerprint=fingerprint,
+                termination=termination,
             )
 
         # The entry guard pins `max_retries >= 1`, so the loop body runs at
