@@ -43,7 +43,7 @@ generated shims, event translation, or hook output:
 
 | Script | Purpose | Exit codes |
 |--------|---------|------------|
-| `scripts/dx_trigger.py` | Decides whether Gate 5 composes `dx-review`, from verified changed paths and DX effects. Emits the decision, journeys, and skip or activation reason as JSON. | `0` decision emitted, `2` config error (review-axis classifier missing or unloadable) |
+| `dx_trigger.py` (this skill's script directory) | Decides whether Gate 5 composes `dx-review`, from verified changed paths and DX effects. Emits the decision, journeys, and skip or activation reason as JSON. | `0` decision emitted, `2` config error (review-axis classifier missing or unloadable) |
 
 ## Step 0: Classify PR Type
 

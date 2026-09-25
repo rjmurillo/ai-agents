@@ -258,23 +258,23 @@ def classify_path(path: str, classifier: ModuleType) -> tuple[list[str], str | N
     return [], _internal_reason(segments, categories)
 
 
-def _decision_reason(result: dict[str, object]) -> str:
-    if result["unknown_effects"]:
-        return "activate - fail-closed: unknown effect " + ", ".join(result["unknown_effects"])
-    if (
-        not result["path_journeys"]
-        and not result["internal_paths"]
-        and not result["unclassified_paths"]
-    ):
+def _decision_reason(
+    journeys: list[str],
+    internal_paths: dict[str, str],
+    unclassified: list[str],
+    unknown: list[str],
+    any_path: bool,
+) -> str:
+    if unknown:
+        return "activate - fail-closed: unknown effect " + ", ".join(unknown)
+    if not any_path:
         return "activate - fail-closed: no changed paths supplied"
-    if result["unclassified_paths"]:
-        return "activate - fail-closed: not provably internal: " + ", ".join(
-            result["unclassified_paths"]
-        )
-    if result["journeys"]:
-        return "activate - developer journeys: " + ", ".join(result["journeys"])
+    if unclassified:
+        return "activate - fail-closed: not provably internal: " + ", ".join(unclassified)
+    if journeys:
+        return "activate - developer journeys: " + ", ".join(journeys)
     return "skip - every changed path is provably internal: " + "; ".join(
-        f"{path} ({why})" for path, why in result["internal_paths"].items()
+        f"{path} ({why})" for path, why in internal_paths.items()
     )
 
 
@@ -299,19 +299,21 @@ def decide(
     active = {journey for journeys in path_journeys.values() for journey in journeys}
     unknown = [effect for effect in effects if effect.strip().lower() not in EFFECTS]
     active.update(EFFECTS[e.strip().lower()] for e in effects if e.strip().lower() in EFFECTS)
-    fail_closed = bool(unknown or unclassified) or not (path_journeys or internal_paths)
-    result: dict[str, object] = {
-        "journeys": sorted(active, key=JOURNEYS.index),
+    any_path = bool(path_journeys or internal_paths or unclassified)
+    fail_closed = bool(unknown or unclassified) or not any_path
+    activate = fail_closed or bool(active)
+    ordered = sorted(active, key=JOURNEYS.index)
+    return {
+        "journeys": ordered,
         "path_journeys": path_journeys,
         "internal_paths": internal_paths,
         "unclassified_paths": unclassified,
         "unknown_effects": unknown,
         "fail_closed": fail_closed,
+        "activate": activate,
+        "decision": "activate" if activate else "skip",
+        "reason": _decision_reason(ordered, internal_paths, unclassified, unknown, any_path),
     }
-    result["activate"] = fail_closed or bool(active)
-    result["decision"] = "activate" if result["activate"] else "skip"
-    result["reason"] = _decision_reason(result)
-    return result
 
 
 def _build_parser() -> argparse.ArgumentParser:
