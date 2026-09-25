@@ -17,6 +17,11 @@ metadata:
       - untrusted-content-handling
     status: active
   argument-hint: Specify the PR number or review comments to address
+  routing:
+    role: front-door
+    invoker: autoplan
+    trigger: autoplan routes requests to respond to PR review threads to pr-comment-responder
+    user-facing: false
 ---
 # PR Comment Responder
 

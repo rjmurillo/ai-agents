@@ -6,6 +6,12 @@ description: Detect references to skills and scripts in structured artifacts (sp
   Exit Gate to block orphan refs pre-commit instead of paying iteration rounds in /pr-quality:all post-PR.
   Use when you say "scan for orphan refs", "validate orphan references", or "check skill catalog drift".
 license: MIT
+metadata:
+  routing:
+    role: lifecycle
+    invoker: test
+    trigger: test invokes orphan-ref-validator to reject references to entities that no longer exist
+    user-facing: false
 ---
 
 # orphan-ref-validator

@@ -21,6 +21,13 @@ allowed-tools:
   - Task
   - WebSearch
   - WebFetch
+metadata:
+  routing:
+    role: explicit-only
+    invoker: user
+    trigger: a user asks for a developer experience audit
+    user-facing: true
+    rationale: code-reviewer's agent text names dx-review only in passing, describing why that agent is dispatched, not as a route. Issue #5386 will wire dx-review into /test.
 ---
 
 # dx-review: Evidence-Based Developer Experience Audit

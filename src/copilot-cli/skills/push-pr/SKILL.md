@@ -9,6 +9,12 @@ allowed-tools: Bash(git checkout -b:*), Bash(git switch -c:*), Bash(git add:*), 
 # The Bash tool executor must sanitize arguments to prevent command injection (CWE-78).
 # Shell metacharacters (; && | etc.) should be escaped/rejected before execution.
 user-invocable: true
+metadata:
+  routing:
+    role: front-door
+    invoker: autoplan
+    trigger: autoplan routes push-only requests to push-pr
+    user-facing: true
 ---
 
 # Push PR

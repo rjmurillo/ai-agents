@@ -11,6 +11,11 @@ metadata:
   inputs: [scope-description, session-log, git-history]
   outputs: [retrospective-markdown-file]
   adr: ADR-008, ADR-017, ADR-106
+  routing:
+    role: nested-helper
+    invoker: retro
+    trigger: retro hands off to retrospective to run the analysis once the skeleton is filled
+    user-facing: false
 ---
 
 # Retrospective

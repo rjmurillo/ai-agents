@@ -19,6 +19,11 @@ metadata:
       - "architecture/decisions/ADR-*.md"
     events: [create, update, delete]
     auto_invoke: true
+  routing:
+    role: conditional-adjunct
+    invoker: ai-agents-change-control
+    trigger: ai-agents-change-control fires the adr-review debate gate on any ADR create or edit
+    user-facing: false
 ---
 
 # ADR Review

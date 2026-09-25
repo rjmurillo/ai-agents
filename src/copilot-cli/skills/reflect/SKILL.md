@@ -6,6 +6,11 @@ license: MIT
 metadata:
   timelessness: 8/10
   adr: ADR-017, ADR-106
+  routing:
+    role: front-door
+    invoker: autoplan
+    trigger: autoplan routes a received correction or lesson learned to reflect
+    user-facing: false
 ---
 
 # Reflect Skill

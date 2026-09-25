@@ -9,6 +9,12 @@ allowed-tools:
   - Write
 license: MIT
 user-invocable: true
+metadata:
+  routing:
+    role: nested-helper
+    invoker: spec-generator
+    trigger: spec-generator invokes requirements-interview to walk the design tree before analysis
+    user-facing: true
 ---
 
 # Requirements Interview (grill-me pattern)

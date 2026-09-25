@@ -8,6 +8,12 @@ metadata:
   pack: business-strategy
   jtbd_stages: [Discovery, Validation, Positioning, GoToMarket, Persuasion]
   source_pattern: getagentseal/founder-playbook (MIT)
+  routing:
+    role: explicit-only
+    invoker: user
+    trigger: a user asks to route a founder problem to a business framework
+    user-facing: true
+    rationale: No skill or agent composes business-strategy as a sub-step yet. Issue #5385 will wire it into a routing chain.
 ---
 
 # Business Strategy

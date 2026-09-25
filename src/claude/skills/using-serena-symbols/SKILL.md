@@ -3,6 +3,11 @@ name: using-serena-symbols
 description: Guidance for using Serena's LSP-powered symbol analysis. Use when you say "how do I find a symbol", "trace references for this method", "explore this file's structure", or when grep/text search would be imprecise. Do NOT use for memory guidance (use memory).
 license: MIT
 metadata:
+  routing:
+    role: conditional-adjunct
+    invoker: context-hub-setup
+    trigger: context-hub-setup lists using-serena-symbols as required once Serena is installed
+    user-facing: false
 version: 1.0.0
 ---
 

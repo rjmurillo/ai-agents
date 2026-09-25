@@ -3,6 +3,13 @@ name: windows-image-updater
 version: 1.0.0
 description: Automates Windows container image migration for OneBranch pipelines. Bumps AdoPipelineGeneration package, regenerates pipeline configs via ConfigGen, and verifies old image reference is removed. Use for LTSC2019 to LTSC2022 migration, container image updates, OneBranch pipeline image upgrades.
 license: MIT
+metadata:
+  routing:
+    role: explicit-only
+    invoker: user
+    trigger: a user asks to migrate a Windows container image for OneBranch pipelines
+    user-facing: true
+    rationale: No skill composes windows-image-updater as a sub-step; pipeline-validator only cites it as an example caller it watches for.
 ---
 
 # Windows Image Updater

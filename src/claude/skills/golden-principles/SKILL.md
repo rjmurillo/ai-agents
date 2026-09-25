@@ -3,6 +3,12 @@ name: golden-principles
 version: 1.0.0
 description: Scan repository for golden principle violations with agent-readable remediation. Enforces GP-001 through GP-008 from .agents/governance/golden-principles.md. Use when auditing compliance, preparing PRs, or running garbage collection scans.
 license: MIT
+metadata:
+  routing:
+    role: lifecycle
+    invoker: review
+    trigger: review invokes golden-principles as one of its four local quality axes
+    user-facing: false
 ---
 
 # Golden Principles

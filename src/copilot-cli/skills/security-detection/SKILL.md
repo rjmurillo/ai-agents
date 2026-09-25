@@ -3,6 +3,11 @@ name: security-detection
 description: Detect infrastructure and security-critical file changes to trigger security agent review recommendations ensuring proper security oversight for sensitive modifications. Use when you ask "did I touch security-critical files", "should the security agent review this". Detection only. Do NOT use to scan source for injection patterns (use security-scan).
 license: MIT
 metadata:
+  routing:
+    role: front-door
+    invoker: autoplan
+    trigger: autoplan routes did-I-touch-security-critical-files questions to security-detection
+    user-facing: false
 version: 1.0.0
 model: haiku
 model-rationale: cost. The 'haiku' rolling alias resolves via the platform model_tiers map to a tier priced below the sonnet-tier harness default; this unit is routing/mechanical work where the cheaper tier suffices (ADR-080 rule 3).

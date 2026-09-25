@@ -13,6 +13,12 @@ metadata:
     kind: specialized-implementation
     status: active
   complexity: advanced
+  routing:
+    role: explicit-only
+    invoker: user
+    trigger: a user asks to resolve merge conflicts
+    user-facing: true
+    rationale: Callers that mention merge-resolver route conflicts to the merge-resolver agent, not this skill; no skill or agent composes the skill itself.
 ---
 # Merge Resolver
 

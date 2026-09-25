@@ -6,6 +6,13 @@ license: MIT
 allowed-tools: Bash(date:*), Bash(git branch:*), Bash(python3 -m json.tool:*), Bash(python3 scripts/redact_secrets.py:*), Glob, Read, Edit, Write
 argument-hint: optional-short-label
 user-invocable: true
+metadata:
+  routing:
+    role: explicit-only
+    invoker: user
+    trigger: a user asks to write a checkpoint snapshot of decisions and progress
+    user-facing: true
+    rationale: No skill or agent composes checkpoint as a sub-step; inbound matches are the common word checkpoint in unrelated prose.
 ---
 
 # Checkpoint

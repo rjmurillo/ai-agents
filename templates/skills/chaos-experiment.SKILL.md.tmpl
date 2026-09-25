@@ -6,6 +6,11 @@ license: MIT
 user-invocable: true
 metadata:
   domains: [chaos-engineering, resilience, reliability, testing]
+  routing:
+    role: lifecycle
+    invoker: review
+    trigger: review invokes chaos-experiment when the change adds a new failure mode worth a game day
+    user-facing: true
 ---
 
 # Chaos Experiment Designer

@@ -6,6 +6,13 @@ license: MIT
 allowed-tools: Task, Skill, Read, Glob, Grep, Bash(python3 scripts/sync/detect_spec_drift.py*)
 argument-hint: spec-tier-or-empty
 user-invocable: true
+metadata:
+  routing:
+    role: explicit-only
+    invoker: user
+    trigger: a user asks to detect spec-to-code drift
+    user-facing: true
+    rationale: No skill composes sync as a sub-step; inbound matches are the unrelated uv sync command, not this skill.
 ---
 
 # Sync

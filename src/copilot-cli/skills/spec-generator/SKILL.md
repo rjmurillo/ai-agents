@@ -10,6 +10,11 @@ metadata:
     depends-on:
       - untrusted-content-handling
     status: active
+  routing:
+    role: lifecycle
+    invoker: spec
+    trigger: spec invokes spec-generator to emit the REQ, DESIGN, and TASK files
+    user-facing: true
 ---
 
 # Spec Generator Skill

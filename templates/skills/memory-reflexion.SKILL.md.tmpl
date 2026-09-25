@@ -14,6 +14,11 @@ metadata:
     kind: specialized-implementation
     status: active
   parent: memory
+  routing:
+    role: nested-helper
+    invoker: memory
+    trigger: memory routes a completed session recording request to the memory-reflexion sub-skill
+    user-facing: false
 ---
 
 # Memory Reflexion

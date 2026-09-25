@@ -3,6 +3,12 @@ name: ai-agents-failure-archaeology
 description: The chronicle of this repo's settled battles. Maps each major incident to symptom, root cause, evidence path, and the artifact that fixed it, so nobody re-fights a decided question. Use when you say `has this failed before`, `why does this rule exist`, `failure archaeology`, `what happened with issue 2205`. Do NOT use for triaging a live failure (use `ai-agents-debugging-playbook`) or for extracting learnings from the current session (use `retrospective`).
 version: 1.0.0
 license: MIT
+metadata:
+  routing:
+    role: conditional-adjunct
+    invoker: ai-agents-change-control
+    trigger: ai-agents-change-control points here for the deep history behind a settled incident
+    user-facing: false
 ---
 
 # ai-agents Failure Archaeology

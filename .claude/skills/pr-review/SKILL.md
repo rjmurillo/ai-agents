@@ -6,6 +6,13 @@ license: MIT
 allowed-tools: Bash(git:*), Bash(gh:*), Bash(python3:*), Bash(pwsh:*), Task, Skill, Read, Write, Edit, Glob, Grep, mcp__github__pull_request_read, mcp__github__list_pull_requests, mcp__github__issue_read, mcp__github__get_check_run, mcp__github__get_job_logs, mcp__github__add_issue_comment, mcp__github__add_reply_to_pull_request_comment, mcp__github__resolve_review_thread, mcp__github__unresolve_review_thread
 argument-hint: '<PR_NUMBERS> [--parallel --cleanup --dry-run]'
 user-invocable: true
+metadata:
+  routing:
+    role: explicit-only
+    invoker: user
+    trigger: a user asks to respond to PR review comments
+    user-facing: true
+    rationale: No skill or agent composes pr-review as a sub-step in canonical text; pr-autofix and pr-comment-responder only disambiguate toward it or reference an unrelated memory path.
 ---
 
 # PR Review

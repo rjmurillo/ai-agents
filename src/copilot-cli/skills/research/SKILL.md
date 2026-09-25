@@ -12,6 +12,11 @@ metadata:
     depends-on:
       - untrusted-content-handling
     status: active
+  routing:
+    role: front-door
+    invoker: autoplan
+    trigger: autoplan routes the research command to the research skill
+    user-facing: true
 ---
 
 # Research

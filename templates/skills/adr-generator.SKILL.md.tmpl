@@ -11,6 +11,11 @@ metadata:
     status: active
   inputs: [decision-description, context, alternatives]
   outputs: [adr-markdown-file]
+  routing:
+    role: front-door
+    invoker: autoplan
+    trigger: autoplan routes requests to document a decision to adr-generator
+    user-facing: true
 ---
 
 # ADR Generator

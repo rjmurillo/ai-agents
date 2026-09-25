@@ -3,6 +3,12 @@ name: taste-lints
 version: 1.0.0
 description: Use when you say `run taste lints`, `check file size`, or `lint taste invariants`. Custom lints with agent-readable remediation instructions for file size, naming conventions, structured logging, and complexity.
 license: MIT
+metadata:
+  routing:
+    role: lifecycle
+    invoker: review
+    trigger: review invokes taste-lints as one of its four local quality axes
+    user-facing: false
 ---
 
 # Taste Lints

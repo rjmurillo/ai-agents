@@ -3,6 +3,12 @@ name: slashcommandcreator
 description: Autonomous meta-skill for creating high-quality custom slash commands using 5-phase workflow with multi-agent validation and quality gates. Use when user requests new slash command, reusable prompt automation, or wants to convert repetitive workflows into documented commands.
 version: 1.0.0
 license: MIT
+metadata:
+  routing:
+    role: nested-helper
+    invoker: skillforge
+    trigger: skillforge hands off to slashcommandcreator to compose finished skills into a command
+    user-facing: false
 ---
 
 # SlashCommandCreator Skill

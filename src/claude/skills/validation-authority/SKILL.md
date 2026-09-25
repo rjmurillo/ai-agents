@@ -6,6 +6,12 @@ metadata:
   version: 1.0.0
   source: Session 366 retrospective
   id: Validation-Authority-001
+  routing:
+    role: explicit-only
+    invoker: user
+    trigger: a user asks how to treat an upstream validator as authoritative
+    user-facing: true
+    rationale: No skill or agent composes validation-authority as a sub-step yet. Issue #5387 will wire it in before validator edits.
 ---
 
 # Validation Authority
@@ -14,7 +20,8 @@ When integrating external validators (PSScriptAnalyzer, markdownlint, ESLint, et
 
 ## Triggers
 
-Activate when:
+Say `validation failed unexpectedly`, `should I change the validator`, or
+`is this validator authoritative`. Activate when:
 
 - Validation fails unexpectedly
 - Before modifying validator behavior or configuration

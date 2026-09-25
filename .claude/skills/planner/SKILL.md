@@ -3,6 +3,11 @@ name: planner
 description: Interactive planning and execution for complex tasks. Use when breaking down multi-step projects (planning) or executing approved plans through delegation (execution). Planning creates milestones with specifications; execution delegates to specialized agents. Use when you say "plan this feature", "create implementation plan", or "resume execution".
 license: MIT
 metadata:
+  routing:
+    role: conditional-adjunct
+    invoker: buy-vs-build-framework
+    trigger: buy-vs-build-framework routes to planner for post-decision execution planning
+    user-facing: false
 version: 1.0.0
 ---
 

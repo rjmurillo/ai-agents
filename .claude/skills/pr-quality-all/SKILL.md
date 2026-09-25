@@ -8,6 +8,13 @@ argument-hint: base-branch
 model: haiku
 model-rationale: cost. The 'haiku' rolling alias resolves via the platform model_tiers map to a tier priced below the sonnet-tier harness default; this unit is routing/mechanical work where the cheaper tier suffices (ADR-080 rule 3).
 user-invocable: true
+metadata:
+  routing:
+    role: explicit-only
+    invoker: user
+    trigger: a user asks to run all six PR quality axes before opening or updating a PR
+    user-facing: true
+    rationale: No skill composes pr-quality-all as a sub-step; pr-autofix and pr-review only disambiguate away from it.
 ---
 
 # PR Quality Gate: All Axes

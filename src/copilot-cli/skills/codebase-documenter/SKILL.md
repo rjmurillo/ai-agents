@@ -9,6 +9,12 @@ allowed-tools:
   - Grep
 description: "Scaffold project documentation (README, ARCHITECTURE, API, CODE_COMMENTS) from templates with documented standards. Use when bootstrapping docs for a new or under-documented codebase."
 license: MIT
+metadata:
+  routing:
+    role: conditional-adjunct
+    invoker: world-model-diagnostic
+    trigger: world-model-diagnostic points here for an engineering-org documentation pass after the diagnostic
+    user-facing: false
 ---
 
 # Codebase Documenter

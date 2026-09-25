@@ -3,6 +3,12 @@ name: ai-agents-validation-and-qa
 description: What counts as evidence in ai-agents and how to produce it. Covers the TESTING-RIGOR pos+neg+edge bar, test layout and collection reality, coverage proof commands, runtime-contract tests with negative controls, and ADR-034 QA skip semantics at session end. Use when you say `what counts as evidence`, `how do I test this change`, `run skill tests`, `can I skip QA`. Do NOT use for CI failure triage (use `ai-agents-debugging-playbook`) or measurement tooling (use `ai-agents-diagnostics-toolkit`).
 version: 1.0.0
 license: MIT
+metadata:
+  routing:
+    role: conditional-adjunct
+    invoker: ai-agents-build-and-env
+    trigger: ai-agents-build-and-env points here to learn what counts as test evidence and CI-equivalent gates
+    user-facing: false
 ---
 
 # ai-agents Validation and QA

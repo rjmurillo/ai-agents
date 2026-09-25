@@ -3,6 +3,12 @@ name: ai-agents-research-frontier
 description: "Three ranked open research programs for this repo, each with honest current-state evidence, first concrete steps, and a falsifiable milestone. Verified governance (ADR-069, proposed), cross-harness abstraction (ADR-072 proposed, ADR-068 accepted), and the self-improving loop (issue #1345). Use when you say `research frontier`, `open problems`, `what should we research next`. Do NOT use for how to run an experiment here (use `ai-agents-research-methodology`)."
 version: 1.0.0
 license: MIT
+metadata:
+  routing:
+    role: conditional-adjunct
+    invoker: ai-agents-research-methodology
+    trigger: ai-agents-research-methodology points here for the open research programs
+    user-facing: false
 ---
 
 # AI Agents Research Frontier

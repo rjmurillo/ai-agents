@@ -4,6 +4,11 @@ description: Detect CWE-78 (command injection) regex patterns in Python, PowerSh
 license: MIT
 metadata:
   version: 2.0.0
+  routing:
+    role: front-door
+    invoker: autoplan
+    trigger: autoplan routes command injection scan requests to security-scan
+    user-facing: false
 ---
 
 # Security Scan

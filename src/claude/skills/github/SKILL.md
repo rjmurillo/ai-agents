@@ -23,6 +23,11 @@ metadata:
       - Script Reference
       - Output Format
       - See Also
+  routing:
+    role: front-door
+    invoker: autoplan
+    trigger: autoplan routes PR, issue, label, and milestone operations to github
+    user-facing: false
 ---
 # GitHub Skill
 

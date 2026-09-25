@@ -2,6 +2,12 @@
 name: ai-agents-empirical-probe-toolkit
 description: Prove-it methods for this repo. Six recipes for runtime-contract probes, guard and threshold calibration, eval A/B, docs-vs-reality audits, reproduce-on-main CI triage, and negative-control test design, each with a worked example from repo history. Use when you say `probe the runtime contract`, `calibrate this guard`, `prove it empirically`. Do NOT use for the portability battle plan (use `ai-agents-portability-campaign`) or evidence standards (use `ai-agents-validation-and-qa`).
 version: 1.0.0
+metadata:
+  routing:
+    role: conditional-adjunct
+    invoker: ai-agents-validation-and-qa
+    trigger: ai-agents-validation-and-qa points here to probe an external tool's runtime behavior empirically
+    user-facing: false
 ---
 
 # AI Agents Empirical Probe Toolkit

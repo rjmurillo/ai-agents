@@ -7,6 +7,13 @@ argument-hint: "[pull-request|mode]"
 allowed-tools: Bash, Read, Edit, Write, Skill, github/pull_request_read, github/issue_read, github/get_check_run, github/get_job_logs
 size-exception: true
 user-invocable: true
+metadata:
+  routing:
+    role: explicit-only
+    invoker: user
+    trigger: a user asks to autofix or monitor open PRs
+    user-facing: true
+    rationale: No skill composes pr-autofix as a sub-step; pr-review's text only disambiguates away from it.
 ---
 
 # PR Autofix
