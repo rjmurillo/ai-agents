@@ -109,7 +109,7 @@ The 14 repeated whole-diff groups fall into two causes.
   shows the SHA is recorded only after the review ends. A push or second commit inside that
   window reviews the same diff again. INFERRED: five of the seven same-checkout pairs started
   4.5 to 43 seconds apart, which fits that race. The plugin log had rotated, so no pair can be
-  tied to a hook event. #5425 also reports that linked worktrees keep separate SHA records,
+  tied to a hook event. Upstream #5425 also reports that linked worktrees keep separate SHA records,
   which fits the cross-checkout pair.
 
 Inside each child session the diff is not paid once. The session re-reads its context
@@ -207,7 +207,7 @@ is unmeasured.
 | Inline diff (today) | Baseline | Baseline | None added | Keep |
 | Session-local artifact | Same or higher, plus a turn | Lower in the prompt, same in the tool result | Stale and cross-session reads; needs fallback | Reject |
 | Content-addressed artifact | Same or higher, plus a turn | Same as session-local | Needs identity, retention, and tamper checks, all modeled here | Reject |
-| Content-hash review dedupe | Removes a whole review per duplicate | Removes a whole child session per duplicate | Must key on capped diff text scoped by repo identity, claimed before the review starts | Adopt, upstream (#5425) |
+| Content-hash review dedupe | Removes a whole review per duplicate | Removes a whole child session per duplicate | Must key on capped diff text scoped by repo identity, claimed before the review starts | Adopt, upstream #5425 |
 | Resume investigate session for iter2 | Iter2 reads the diff from cache | Iter2 lands in the same transcript | Changes the iter2 isolation the plugin chose | Defer, upstream |
 
 ## Decision
