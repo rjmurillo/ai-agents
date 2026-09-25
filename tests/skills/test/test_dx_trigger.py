@@ -64,6 +64,15 @@ ACTIVATE_CASES = [
         ["src/copilot-cli/.claude-plugin/plugin.json"], "harness-interface", id="harness-manifest"
     ),
     pytest.param(["src/claude/hooks.json"], "harness-interface", id="harness-hooks-json"),
+    # The /test skill's own edit source: its "test." prefix is not a test file.
+    pytest.param(
+        ["templates/skills/test.SKILL.md.tmpl"], "harness-interface", id="harness-test-template"
+    ),
+    pytest.param(["docs/architecture/overview.md"], "user-docs", id="docs-architecture-overview"),
+    pytest.param([".agents/README.md"], "install-onboarding", id="internal-root-readme"),
+    pytest.param(
+        [".github/actions/setup/action.yml"], "contributor-workflow", id="composite-action"
+    ),
     pytest.param(["docs/user-guide.md"], "user-docs", id="docs-only-user-facing"),
     pytest.param(["CONTRIBUTING.md"], "contributor-workflow", id="contributor-guide"),
     pytest.param(["lefthook.yml"], "contributor-workflow", id="contributor-hooks"),
@@ -100,7 +109,11 @@ SKIP_CASES = [
         [".project-toolkit/specs/x.md"], "internal-only root .project-toolkit/", id="toolkit-root"
     ),
     pytest.param([".serena/project.yml"], "internal-only root .serena/", id="serena-root"),
-    pytest.param(["docs/architecture/overview.md"], "internal planning record", id="decision-doc"),
+    pytest.param(["docs/architecture/ADR-001-x.md"], "internal planning record", id="adr-file"),
+    pytest.param(["docs/decisions/0001-x.md"], "internal planning record", id="decisions-dir"),
+    pytest.param(
+        [".claude/skills/x/fixtures/SKILL.md"], "test or fixture only", id="fixture-skill"
+    ),
     pytest.param(["docs/planning/q3.md"], "internal planning record", id="roadmap-doc"),
     pytest.param([".github/workflows/ci.yml"], "CI or deploy pipeline file", id="ci-workflow"),
     pytest.param(["CODEOWNERS"], "repository metadata", id="codeowners"),
@@ -117,6 +130,13 @@ def test_internal_only_change_skips_with_reason(classifier, paths, why) -> None:
     assert result["internal_paths"] == {paths[0]: why}
     # The skip states why DX is not affected, naming the path and the evidence.
     assert result["reason"] == f"skip - every changed path is provably internal: {paths[0]} ({why})"
+
+
+def test_code_under_an_internal_root_is_not_provably_internal(classifier) -> None:
+    """Host repositories keep developer tooling under such roots."""
+    result = _decide(classifier, [".agents/tools/Get-PR.ps1"])
+    assert result["decision"] == "activate"
+    assert result["fail_closed"] is True
 
 
 def test_skip_reason_names_every_path(classifier) -> None:
@@ -195,7 +215,9 @@ def test_review_categories_drive_the_decision() -> None:
     make it skip.
     """
     as_agent = SimpleNamespace(classify_paths=lambda paths: (["agent-artifacts"], []))
-    as_test = SimpleNamespace(classify_paths=lambda paths: (["tests-or-fixtures"], []))
+    as_test = SimpleNamespace(
+        classify_paths=lambda paths: (["tests-or-fixtures", "executable-code"], [])
+    )
     assert mod.decide(["zz/plain.dat"], [], as_agent)["journeys"] == ["harness-interface"]
     assert mod.decide(["zz/plain.dat"], [], as_test)["decision"] == "skip"
 

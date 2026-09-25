@@ -73,8 +73,10 @@ _CATEGORY_JOURNEYS: dict[str, str] = {
 }
 
 # /review risk categories that are internal for DX when no journey matched.
+# decision-records is absent on purpose: it also covers any architecture/
+# directory, and an architecture overview is read by outside developers. Only
+# an ADR file or a decisions/ directory counts (see _is_decision_record).
 _INTERNAL_CATEGORIES: dict[str, str] = {
-    "decision-records": "internal planning record",
     "roadmap-or-spec-docs": "internal planning record",
     "ci-deploy-artifacts": "CI or deploy pipeline file",
 }
@@ -113,6 +115,9 @@ _CONTRIBUTOR_STEMS = frozenset(
     }
 )
 _CONTRIBUTOR_DIRECTORIES = frozenset({"issue_template"})
+# A composite action's manifest is an interface other workflows call.
+_CONTRIBUTOR_NAMES = frozenset({"action.yml", "action.yaml"})
+_TEST_DIRECTORIES = frozenset({"tests", "fixtures"})
 _HARNESS_NAMES = frozenset(
     {"plugin.json", "marketplace.json", "hooks.json", ".mcp.json", "mcp.json"}
 )
@@ -146,9 +151,9 @@ def _is_onboarding(segments: list[str]) -> bool:
 
 
 def _is_contributor(segments: list[str]) -> bool:
-    return _stem(segments[-1]) in _CONTRIBUTOR_STEMS or bool(
-        _CONTRIBUTOR_DIRECTORIES & set(segments[:-1])
-    )
+    if segments[-1] in _CONTRIBUTOR_NAMES or _stem(segments[-1]) in _CONTRIBUTOR_STEMS:
+        return True
+    return bool(_CONTRIBUTOR_DIRECTORIES & set(segments[:-1]))
 
 
 def _is_harness(segments: list[str]) -> bool:
@@ -180,16 +185,39 @@ def load_classifier(path: Path | None = None) -> ModuleType:
     return module
 
 
+def _is_decision_record(segments: list[str]) -> bool:
+    return segments[-1].startswith("adr-") or "decisions" in segments[:-1]
+
+
+def _is_test_only(segments: list[str], categories: Sequence[str]) -> bool:
+    """A test or fixture file, not merely a name the test predicate matches.
+
+    The review classifier also matches a ``test.`` filename prefix, which
+    catches ``templates/skills/test.SKILL.md.tmpl``, the edit source of the
+    ``/test`` skill itself. Require a tests or fixtures directory, or an
+    executable test module, before calling a path test-only.
+    """
+    if "tests-or-fixtures" not in categories:
+        return False
+    return bool(_TEST_DIRECTORIES & set(segments[:-1])) or "executable-code" in categories
+
+
+def _name_journeys(segments: list[str]) -> set[str]:
+    return {journey for journey, predicate in _PATH_JOURNEYS if predicate(segments)}
+
+
 def _journeys_for(segments: list[str], categories: Sequence[str]) -> list[str]:
     found = {_CATEGORY_JOURNEYS[c] for c in categories if c in _CATEGORY_JOURNEYS}
-    found.update(journey for journey, predicate in _PATH_JOURNEYS if predicate(segments))
-    planning = {"decision-records", "roadmap-or-spec-docs"} & set(categories)
+    found.update(_name_journeys(segments))
+    planning = "roadmap-or-spec-docs" in categories or _is_decision_record(segments)
     if "docs-and-instructions" in categories and not planning:
         found.add("user-docs")
     return sorted(found, key=JOURNEYS.index)
 
 
 def _internal_reason(segments: list[str], categories: Sequence[str]) -> str | None:
+    if _is_decision_record(segments):
+        return "internal planning record"
     for category in categories:
         if category in _INTERNAL_CATEGORIES:
             return _INTERNAL_CATEGORIES[category]
@@ -198,20 +226,32 @@ def _internal_reason(segments: list[str], categories: Sequence[str]) -> str | No
     return None
 
 
+def _is_internal_root_record(segments: list[str], categories: Sequence[str]) -> bool:
+    """A non-code record under a hidden internal root.
+
+    Code under such a root can be developer tooling in a host repository, and a
+    README or contributor guide there is read by developers, so neither is
+    provably internal.
+    """
+    root = segments[0]
+    if not (root.startswith(".") and root[1:] in _INTERNAL_ROOT_NAMES):
+        return False
+    return "executable-code" not in categories and not _name_journeys(segments)
+
+
 def classify_path(path: str, classifier: ModuleType) -> tuple[list[str], str | None]:
     """Return ``(journeys, internal_reason)`` for one changed path.
 
-    Tests and internal roots are checked first: a test under a ``skills/``
-    directory cannot change a developer workflow even though the review
-    classifier also calls it an agent artifact.
+    Tests and internal-root records are checked first: a test under a
+    ``skills/`` directory cannot change a developer workflow even though the
+    review classifier also calls it an agent artifact.
     """
     segments = _segments(path)
     categories, _unclassified = classifier.classify_paths([path])
-    if "tests-or-fixtures" in categories:
+    if _is_test_only(segments, categories):
         return [], "test or fixture only"
-    root = segments[0]
-    if root.startswith(".") and root[1:] in _INTERNAL_ROOT_NAMES:
-        return [], f"internal-only root {root}/"
+    if _is_internal_root_record(segments, categories):
+        return [], f"internal-only root {segments[0]}/"
     journeys = _journeys_for(segments, categories)
     if journeys:
         return journeys, None

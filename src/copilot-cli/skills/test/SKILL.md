@@ -131,7 +131,8 @@ Then compose `dx-review`. This gate keeps no DX checklist of its own:
    shell-expand the paths.
    `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/test/scripts/dx_trigger.py" --changed-path <path> --effect <name>`
    Effects: `cli-surface`, `public-api`, `onboarding-flow`, `agent-behavior`,
-   `user-task-docs`, `contributor-workflow`. The trigger reuses the `/review`
+   `user-task-docs`, `contributor-workflow`. Pass `contributor-workflow` when a
+   workflow file changes a `workflow_call` interface. The trigger reuses the `/review`
    risk classifier (`select_axes.py`), so do not re-derive the decision from
    prose. Exit `2` means the classifier could not load: report `VERDICT: ERROR`.
 2. **Skip.** On `"decision": "skip"`, do not invoke `dx-review`. Record
@@ -198,10 +199,10 @@ Synthesize into overall report:
 | Non-Functional | PASS/WARN/CRITICAL_FAIL | Count | file:line citations |
 | Security | PASS/WARN/CRITICAL_FAIL | Count | CWE references |
 | DevOps | PASS/WARN/CRITICAL_FAIL | Count | file:line citations |
-| DX | PASS/WARN/CRITICAL_FAIL | Count | `dx_trigger.py` reason, dx-review file:line citations |
+| DX | PASS/WARN/CRITICAL_FAIL/ERROR | Count | `dx_trigger.py` reason, dx-review file:line citations |
 | Observability | PASS/WARN/CRITICAL_FAIL | Count | file:line citations |
 
-**Overall verdict**: CRITICAL_FAIL if any gate fails. WARN if any gate warns. PASS if all gates pass.
+**Overall verdict**: CRITICAL_FAIL if any gate fails or reports ERROR (a gate that could not run proved nothing). WARN if any gate warns. PASS if all gates pass.
 
 > After reporting a completed requested result, remove any unsolicited offer, question, or invitation whose only function is to continue the interaction.
 

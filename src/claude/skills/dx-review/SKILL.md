@@ -61,7 +61,9 @@ tested and why.
 `dx_trigger.py` decision JSON, the changed paths, and the diff. Change-scope
 mode audits only the developer journeys the change touches, not the whole
 product. Every other rule in this skill still applies: evidence labels, command
-safety, TTHW, and both blocking gates.
+safety, TTHW, and both blocking gates. Skip Step 0: the diff is the target.
+When no user can approve a command (an unattended run), run no command, label
+evidence PARTIAL or INFERRED, and set TTHW to N/A with that reason.
 
 1. Name the reviewed user journey: the concrete task a developer completes
    through the changed surface, for example "install the plugin and run `/test`".
@@ -76,8 +78,9 @@ safety, TTHW, and both blocking gates.
    | `user-docs` | Getting Started, Documentation |
    | `contributor-workflow` | Dev Environment, Community, Documentation |
 
-   A fail-closed decision with no journey applies all eight dimensions. Mark
-   every other dimension `N/A` in the scorecard with a one-line rationale.
+   A decision with `"fail_closed": true` applies all eight dimensions, even
+   when some journeys matched, because part of the change is unclassified.
+   Mark every other dimension `N/A` in the scorecard with a one-line rationale.
 3. Cite the evidence source for each applicable dimension as `file:line` or the
    approved command, with its TESTED, PARTIAL, or INFERRED label.
 4. Rank findings CRITICAL, HIGH, MEDIUM, LOW, each with a `file:line` or command.
