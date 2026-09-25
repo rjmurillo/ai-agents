@@ -156,3 +156,18 @@ def test_serve_artifact_tool_reports_outcome_on_stderr(
     captured = capsys.readouterr()
     assert "read_diff_artifact ok" in captured.err
     assert "read_diff_artifact fallback reason=" in captured.err
+
+
+def test_produce_prompt_falls_back_to_inline_where_no_follow_writes_are_unsupported(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(sgda, "_NO_FOLLOW_WRITES_SUPPORTED", False)
+    touched = ["a.py"]
+    diff_files = [("a.py", "+x\n")]
+
+    prompt, outcome = sgdp.produce_prompt(
+        "referenced", tmp_path / "store", "a" * 64, "head1", touched, diff_files, ""
+    )
+
+    assert prompt == sgd.build_inline_prompt(touched, diff_files, "")
+    assert outcome.fallback_reason == "write_failed"

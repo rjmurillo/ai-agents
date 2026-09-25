@@ -13,6 +13,7 @@ for it to diverge from.
 from __future__ import annotations
 
 import contextlib
+import errno
 import hashlib
 import os
 import re
@@ -29,6 +30,14 @@ from pathlib import Path
 # defense in `resolve`: no digit-and-a-to-f string can encode `../`.
 _HEX64_RE = re.compile(r"^[0-9a-f]{64}$")
 _OWNER_ONLY_DIR_MODE = 0o700
+# Windows has no O_DIRECTORY or O_NOFOLLOW and no dir_fd support. Without them a
+# write cannot be pinned to the store directory, so the store refuses to write
+# and the producer falls back to the inline prompt.
+_NO_FOLLOW_WRITES_SUPPORTED = (
+    hasattr(os, "O_DIRECTORY")
+    and hasattr(os, "O_NOFOLLOW")
+    and {os.open, os.rename, os.unlink} <= os.supports_dir_fd
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -68,6 +77,8 @@ def _open_owner_only_dir(repo_dir_path: Path) -> int:
     where one appears after the check. A directory open to group or other users
     is refused rather than silently reused.
     """
+    if not _NO_FOLLOW_WRITES_SUPPORTED:
+        raise OSError(errno.ENOTSUP, "write_artifact: no-follow directory writes unsupported")
     repo_dir_path.mkdir(mode=_OWNER_ONLY_DIR_MODE, parents=True, exist_ok=True)
     if repo_dir_path.is_symlink():
         raise PermissionError(f"write_artifact: {repo_dir_path} is a symlink")

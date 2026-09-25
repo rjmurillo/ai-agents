@@ -263,3 +263,14 @@ def test_write_artifact_no_follow_open_blocks_a_symlink_swapped_in_after_the_che
         sgda.write_artifact(store_dir, repo_id, "head1", "private diff", ["f.py"], 0)
     assert list(outside.iterdir()) == []
 
+
+
+def test_write_artifact_raises_oserror_where_no_follow_writes_are_unsupported(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(sgda, "_NO_FOLLOW_WRITES_SUPPORTED", False)
+    store_dir = tmp_path / "store"
+
+    with pytest.raises(OSError, match="unsupported"):
+        sgda.write_artifact(store_dir, "f" * 64, "head1", "diff", ["f.py"], 0)
+    assert not store_dir.exists()
