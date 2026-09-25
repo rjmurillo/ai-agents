@@ -69,9 +69,23 @@ def payload_response(payload: dict[str, Any]) -> FakeUrlopenResponse:
     return FakeUrlopenResponse(json.dumps(payload).encode())
 
 
+class FakeTransport:
+    """Injectable transport seam. Mirrors the shape production transports set."""
+
+    def __init__(self, termination: str | None) -> None:
+        self.calls = 0
+        self.termination: str | None = termination
+        self.system_fingerprint: str | None = None
+
+    def __call__(self, prompt: str, model_id: str, system: str) -> str:
+        self.calls += 1
+        return "response text"
+
+
 __all__ = [
     "EVAL_DIR",
     "REPO_ROOT",
+    "FakeTransport",
     "FakeUrlopenResponse",
     "_anthropic_api",
     "_anthropic_response",
