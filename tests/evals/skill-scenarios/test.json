@@ -46,6 +46,31 @@
       "expected_signals": [],
       "expected_gate": "skip-rule-not-applicable",
       "rationale": "This asks for implementation, which the skill's description routes to build. It names no validation, no gate, and no finished change, so test should stay inactive."
+    },
+    {
+      "id": "S5",
+      "desc": "An internal-only diff skips the DX review with a stated reason",
+      "input": "My branch only changes tests/test_uploader.py and a retrospective note under .agents/retrospective/. Run the test gates. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "dx_trigger",
+        "DX REVIEW: SKIPPED",
+        "reason"
+      ],
+      "expected_gate": "test-gates",
+      "rationale": "Gate 5 runs dx_trigger.py before any DX work. A test file and an internal retrospective are provably internal, so the trigger decides skip and Gate 5 records DX REVIEW: SKIPPED with the reason naming each path. A generic responder either runs a DX checklist or skips silently; quoting the trigger's skip reason is attributable to the skill."
+    },
+    {
+      "id": "S6",
+      "desc": "A skill change activates dx-review in change-scope mode",
+      "input": "My diff edits a SKILL.md under .claude/skills/ and the plugin's hooks.json. Prove this works before I open the PR. Answer in 6 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "Gate 5",
+        "dx_trigger",
+        "dx-review",
+        "change-scope"
+      ],
+      "expected_gate": "test-gates",
+      "rationale": "A skill file and hooks.json are harness interfaces, so the trigger decides activate and Gate 5 composes dx-review in change-scope mode instead of running its own DX checklist. Naming the trigger and the dx-review composition is attributable to the skill rather than to generic DX advice."
     }
   ]
 }
