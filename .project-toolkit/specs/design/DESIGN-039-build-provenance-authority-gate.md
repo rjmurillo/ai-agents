@@ -98,8 +98,10 @@ Rules:
    changed `GENERATED` target needs its canonical source changed too.
    A changed mirror with no validation cue is outside this gate;
    `build_all.py --check` owns mirror parity for it.
-9. An activated trigger needs at least one record target, and each path the
-   trigger named needs a record target.
+9. `trigger` is the trigger's JSON object with `decision` `activate` or
+   `skip`. A `skip` that lists effects or targets is refused. An activated
+   trigger needs at least one record target, and each path it named needs a
+   record target.
 10. Paths compare after normalization (forward slashes, no `.` segments).
     One run reports every defect.
 

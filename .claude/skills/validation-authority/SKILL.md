@@ -141,8 +141,10 @@ checkout); the PR body carries the record's summary instead of a commit.
 Rules `validation_record.py` enforces:
 
 1. Every target needs `target`, `component`, `provenance`, and `authority`.
-   When the recorded trigger activated, the record needs at least one target,
-   and each path the trigger named needs a record target.
+   `trigger` holds the trigger's JSON object, and its `decision` is `activate`
+   or `skip`. A `skip` that lists effects or targets is a contradiction. When
+   the trigger activated, the record needs at least one target, and each path
+   the trigger named needs a record target.
 2. `UNKNOWN` category or `unknown` diagnosis is always a blocking defect: stop
    semantic edits and request ownership evidence.
 3. `GENERATED` needs `provenance.canonical_source`, and

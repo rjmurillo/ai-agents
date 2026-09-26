@@ -299,7 +299,14 @@ def _coverage_defects(
 
 def _trigger_defects(trigger: object, targets: list[Any]) -> list[str]:
     """An activated trigger needs a record target for each path it named."""
-    if not isinstance(trigger, dict) or trigger.get("decision") != "activate":
+    if not isinstance(trigger, dict):
+        return ["`trigger` must be the validation_trigger.py JSON object"]
+    decision = trigger.get("decision")
+    if decision not in ("activate", "skip"):
+        return ["trigger.decision must be `activate` or `skip`"]
+    if decision == "skip":
+        if trigger.get("effects") or trigger.get("targets"):
+            return ["trigger.decision `skip` contradicts its listed effects or targets"]
         return []
     if not targets:
         return ["the trigger activated but the record has no targets; record each target"]

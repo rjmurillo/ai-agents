@@ -125,3 +125,29 @@ def test_summary_counts_targets_by_category(tmp_path: Path) -> None:
     record_path.write_text(json.dumps(record), encoding="utf-8")
     summary = mod._summary(record, [], record_path)
     assert summary["categories"] == {"LOCAL": 2, "VENDOR": 1}
+
+
+def test_trigger_without_a_decision_is_refused() -> None:
+    """AC1: a record cannot skip the gate by dropping the trigger decision."""
+    errors = record_errors(make_record(trigger={}))
+    assert any("trigger.decision" in e for e in errors)
+
+
+def test_trigger_that_is_not_an_object_is_refused() -> None:
+    """AC1: the trigger field must hold the trigger's JSON object."""
+    errors = record_errors(make_record(make_target(), trigger="activate"))
+    assert any("`trigger` must be" in e for e in errors)
+
+
+def test_skip_decision_with_effects_is_refused() -> None:
+    """AC1: an effect always activates, so a skip that lists one is contradictory."""
+    trigger = {"decision": "skip", "effects": ["pass-fail-semantics"]}
+    errors = record_errors(make_record(trigger=trigger))
+    assert any("contradicts" in e for e in errors)
+
+
+def test_skip_decision_with_targets_is_refused() -> None:
+    """AC1: a path target always activates, so a skip that lists one is contradictory."""
+    trigger = {"decision": "skip", "targets": [{"path": "scripts/validation/check_x.py"}]}
+    errors = record_errors(make_record(trigger=trigger))
+    assert any("contradicts" in e for e in errors)
