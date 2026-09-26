@@ -13,6 +13,7 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -44,7 +45,7 @@ def _run(script: Path, cwd: Path, *args: str) -> subprocess.CompletedProcess[str
     )
 
 
-def _write_record(tmp_path: Path, record: dict) -> Path:
+def _write_record(tmp_path: Path, record: dict[str, Any]) -> Path:
     path = tmp_path / "record.json"
     path.write_text(json.dumps(record), encoding="utf-8")
     return path

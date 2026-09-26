@@ -123,7 +123,7 @@ def make_baseline_target(policy_source: str, **overrides: Any) -> dict[str, Any]
     return _merged(base, overrides)
 
 
-def make_record(*targets: dict[str, Any], trigger: Any = None) -> dict[str, Any]:
+def make_record(*targets: Any, trigger: Any = None) -> dict[str, Any]:
     return {
         "trigger": trigger if trigger is not None else {"decision": "activate"},
         "targets": list(targets),
@@ -136,4 +136,5 @@ def record_errors(
     repo_root: Path | None = None,
     trigger_module: Any = None,
 ) -> list[str]:
-    return mod.validate(record, changed_paths, repo_root, trigger_module)
+    errors: list[str] = mod.validate(record, changed_paths, repo_root, trigger_module)
+    return errors
