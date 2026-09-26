@@ -103,6 +103,7 @@ Need GitHub data?
 ├─ Copilot follow-up PRs → detect_copilot_followup_pr.py
 ├─ Validate PR description → validate_pr_description.py
 ├─ Issue info → get_issue_context.py
+├─ Issue parent, sub-issues, blockers, related → get_issue_relationships.py
 ├─ Merge readiness check → test_pr_merge_ready.py
 ├─ PR reports blocked/dirty and cause is unclear → why_pr_blocked.py
 ├─ Latest milestone → get_latest_semantic_milestone.py
@@ -118,6 +119,7 @@ Need GitHub data?
    ├─ Set issue milestone → set_issue_milestone.py
    ├─ Set PR/issue milestone (auto-detect) → set_item_milestone.py
    ├─ Assign issue → set_issue_assignee.py
+   ├─ Link issues (parent, sub-issue, blocked-by, blocking, relates-to) → set_issue_relationship.py
    ├─ Resolve threads → resolve_pr_review_thread.py
    ├─ Unresolve threads → unresolve_pr_review_thread.py
    ├─ Process AI triage → invoke_pr_comment_processing.py
@@ -212,6 +214,8 @@ scripts and `github_core` import with the anthropic SDK blocked.
 | `post_issue_comment.py` | Comments with idempotency | `--issue`, `--body`, `--marker` |
 | `invoke_copilot_assignment.py` | Synthesize context for Copilot | `--issue-number`, `--what-if` |
 | `set_issue_assignee.py` | Assign users to issues | `--issue`, `--assignees` |
+| `get_issue_relationships.py` | Native parent, sub-issues, blocked-by, blocking, relates-to | `--issue` |
+| `set_issue_relationship.py` | Add or remove a native issue link (idempotent) | `--issue`, `--relation`, `--target`, `--remove`, `--replace-parent`, `--dry-run` |
 
 ### Milestone Operations (`scripts/milestone/`)
 
@@ -362,6 +366,26 @@ Closes #123
 
 ---
 
+## Linking Issues to Each Other
+
+A `#123` in an issue body is text only. It sets no parent, no dependency, and
+no relation. Whenever an issue body names another issue as a parent, child,
+blocker, or context, add the native link with `set_issue_relationship.py`.
+
+| The text says | `--relation` |
+|---------------|--------------|
+| "Parent", "child of #N", "part of epic #N", "umbrella #N" | `parent` |
+| An epic lists its children | `sub-issue` |
+| "Blocked by #N", "depends on #N", or an epic's execution steps name #N | `blocked-by` |
+| "Blocks #N", "unblocks #N" | `blocking` |
+| Problem statement, context, "split out of #N", "follow-up to #N" | `relates-to` |
+
+After `new_issue.py`, link the new issue in the next call. Pull requests cannot
+be linked this way; use a closing keyword. Full decision rules, the audit
+procedure, and the MCP fallback: `references/issue-relationships.md`.
+
+---
+
 ## Anti-Patterns
 
 | Avoid | Why | Instead |
@@ -370,6 +394,8 @@ Closes #123
 | Raw `gh api` for comments | Doesn't preserve threading | Use `post_pr_comment_reply.py` |
 | Replying to thread expecting auto-resolve | Replies DON'T auto-resolve threads | Use `resolve_pr_review_thread.py` after reply |
 | Inline issue creation | Missing validation | Use `new_issue.py` |
+| "Blocked by #N" or "Parent: #N" in a body with no native link | GitHub shows no dependency, parent, or progress | Add the link with `set_issue_relationship.py` |
+| Raw `gh api graphql` for `addSubIssue`, `addBlockedBy`, `addRelatesTo` | No idempotency, no PR or parent-conflict guard | Use `set_issue_relationship.py` |
 | Multiple individual reactions | 88% slower | Use batch mode in `add_comment_reaction.py` |
 | Hardcoding owner/repo | Breaks in forks | Let scripts infer from `git remote` |
 | Ignoring exit codes | Missing error handling | Check exit codes per ADR-035 |
@@ -391,6 +417,7 @@ Closes #123
 | [copilot-synthesis-guide.md](references/copilot-synthesis-guide.md) | Copilot context synthesis |
 | [api-reference.md](references/api-reference.md) | Exit codes, API endpoints, troubleshooting |
 | [transport-routing.md](references/transport-routing.md) | Picking gh or the MCP tools, and the script-to-tool map |
+| [issue-relationships.md](references/issue-relationships.md) | Choosing parent, sub-issue, blocked-by, blocking, or relates-to |
 | `scripts/github_core/` | Shared Python helper functions |
 
 ---
