@@ -299,12 +299,12 @@ python3 scripts/score_vendor.py --help
 
 ## Templates
 
-All templates available in `templates/` directory:
+This skill ships no separate template files. Each phase worksheet lives in this document:
 
-- `core-vs-context-analysis.md` - Phase 1 classification worksheet
-- `tco-analysis.md` - Phase 2 TCO calculation worksheet
-- `decision-matrix.md` - Phase 3 multi-criteria scoring
-- `adr-buy-vs-build.md` - Phase 4 ADR template
+- Phase 1 classification worksheet: the Core vs Context grid and exit criteria in "Phase 1: Classify (Core vs Context)"
+- Phase 2 TCO worksheet: the cost category table in "Phase 2: Analyze (TCO + Capacity)", computed by `calculate_tco.py` (see Scripts)
+- Phase 3 decision matrix: the weighted dimension table in "Phase 3: Evaluate (Decision Matrix)", scored by `score_decision.py` (see Scripts)
+- Phase 4 ADR template: the "Deep Dive: ADR Template" section below
 
 ## Anti-Patterns
 
@@ -452,4 +452,4 @@ python3 scripts/check_reassessment_triggers.py \
 Deep-dive documentation in `references/` directory:
 
 - `references/PHASE1_ANALYSIS.md` - Core vs Context classification worksheet
-- `references/SKILL_SPEC.xml` - Full skill specification and template inventory
+- `references/SKILL_SPEC.xml` - Original skill specification. Its template and reference inventories list files that were never shipped.
