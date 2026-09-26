@@ -228,3 +228,19 @@ class TestMainWiring:
             "default_branch": "main",
         }
         assert mod.main(["--pr-number", "4", "--owner", "o", "--repo", "r", "--ci"]) == 0
+
+    @patch(_FETCH, return_value=set())
+    @patch("scripts.validation.pr_description.fetch_pr_data")
+    def test_bypass_label_cannot_hide_unlinked_claim(
+        self, fetch_pr: MagicMock, fetch_refs: MagicMock
+    ) -> None:
+        """The bypass label covers file-mention false positives, not open issues."""
+        fetch_pr.return_value = {
+            "title": "fix: x",
+            "body": "Fixes #7\n",
+            "files": [],
+            "labels": [{"name": "description-validation-bypass"}],
+            "base_ref": "main",
+            "default_branch": "main",
+        }
+        assert mod.main(["--pr-number", "4", "--owner", "o", "--repo", "r", "--ci"]) == 1

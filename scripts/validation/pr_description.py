@@ -1366,7 +1366,14 @@ def main(argv: list[str] | None = None) -> int:
     # style issues that the entire purpose of Issue #1923 is to mechanically
     # prevent; allowing the bypass label to suppress them silently would
     # defeat the rule. Dash criticals always block, before the bypass check.
-    dash_issue_types = {"Em/en-dash in PR title", "Em/en-dash in PR description"}
+    # An unlinked closing claim is not a file-mention false positive either:
+    # GitHub itself reports the link missing, and a body edit is the remedy
+    # (issue #3827).
+    dash_issue_types = {
+        "Em/en-dash in PR title",
+        "Em/en-dash in PR description",
+        "Closing keyword not linked by GitHub",
+    }
     has_dash_critical = any(
         i.severity == "CRITICAL" and i.issue_type in dash_issue_types for i in issues
     )
