@@ -452,4 +452,4 @@ python3 scripts/check_reassessment_triggers.py \
 Deep-dive documentation in `references/` directory:
 
 - `references/PHASE1_ANALYSIS.md` - Core vs Context classification worksheet
-- `references/SKILL_SPEC.xml` - Full skill specification, including the planned template inventory
+- `references/SKILL_SPEC.xml` - Original skill specification. Its template and reference inventories list files that were never shipped.
