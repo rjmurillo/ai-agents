@@ -24,7 +24,7 @@ on:
 jobs:
   validate-portability:
     name: Validate Vendor Portability
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     timeout-minutes: 3
     permissions:
       contents: read
@@ -106,7 +106,7 @@ jobs:
   # this gate in-process as "Legacy .agents Write Targets".
   validate-agents-write-targets:
     name: Validate .agents Write Targets
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     timeout-minutes: 3
     permissions:
       contents: read
