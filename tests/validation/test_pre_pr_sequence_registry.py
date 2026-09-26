@@ -62,6 +62,7 @@ EXPECTED_ORDER: tuple[str, ...] = (
     'Worktree Recipe Destinations',
     'Legacy .agents Write Targets',
     'Temp-filesystem Worktrees (advisory)',
+    'In-root Worktrees (advisory)',
     'Serena Memory Worktree Scope (advisory)',
     'Session End Validation',
     'Mypy Changed Files (ratchet)',

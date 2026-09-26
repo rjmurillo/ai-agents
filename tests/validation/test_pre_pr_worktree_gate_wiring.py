@@ -1,4 +1,4 @@
-"""Wiring tests for the two worktree gates in the pre-PR runner (issue #5111).
+"""Wiring tests for the worktree gates in the pre-PR runner (issues #5111, #4702).
 
 A gate's own unit tests prove the gate. They cannot prove any call site reached
 it, so a gate can pass every test it owns while `pre_pr` never calls it
@@ -27,12 +27,15 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 _VALIDATION_DIR = REPO_ROOT / "scripts" / "validation"
 if str(_VALIDATION_DIR) not in sys.path:
     sys.path.insert(0, str(_VALIDATION_DIR))
+import check_in_root_worktrees
 import check_tmp_worktrees
 import check_worktree_recipes
 import pre_pr_sequence
 
 RECIPE_GATE = "Worktree Recipe Destinations"
 TEMP_GATE = "Temp-filesystem Worktrees (advisory)"
+IN_ROOT_GATE = "In-root Worktrees (advisory)"
+GATES = (RECIPE_GATE, TEMP_GATE, IN_ROOT_GATE)
 
 
 class _State:
@@ -65,7 +68,7 @@ def _run_sequence(monkeypatch: pytest.MonkeyPatch) -> dict[str, bool]:
     # under test. Filtering the real _SEQUENCE (rather than building a fake one)
     # is what keeps this a wiring test: a gate removed from _SEQUENCE
     # disappears from the filter and the assertions below fail.
-    wanted = [gate for gate in pre_pr_sequence._SEQUENCE if gate.name in (RECIPE_GATE, TEMP_GATE)]
+    wanted = [gate for gate in pre_pr_sequence._SEQUENCE if gate.name in GATES]
     monkeypatch.setattr(pre_pr_sequence, "_SEQUENCE", tuple(wanted))
 
     args = argparse.Namespace(quick=False, skip_tests=False, verbose=False)
@@ -78,6 +81,7 @@ def test_both_worktree_gates_are_registered_in_the_sequence() -> None:
 
     assert RECIPE_GATE in names
     assert TEMP_GATE in names
+    assert IN_ROOT_GATE in names
 
 
 def test_the_sequence_runs_both_gates_and_they_pass_on_the_real_tree(
@@ -85,7 +89,7 @@ def test_the_sequence_runs_both_gates_and_they_pass_on_the_real_tree(
 ) -> None:
     verdicts = _run_sequence(monkeypatch)
 
-    assert verdicts == {RECIPE_GATE: True, TEMP_GATE: True}
+    assert verdicts == {RECIPE_GATE: True, TEMP_GATE: True, IN_ROOT_GATE: True}
 
 
 def test_the_recipe_gate_fails_the_sequence_when_a_prescription_is_bad(
@@ -122,3 +126,26 @@ def test_the_temp_gate_stays_advisory_inside_the_sequence(
     verdicts = _run_sequence(monkeypatch)
 
     assert verdicts[TEMP_GATE] is True
+
+
+def test_the_in_root_gate_runs_and_stays_advisory_inside_the_sequence(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    """The in-root gate reaches the checker and reports without failing the run."""
+    finding = check_in_root_worktrees.InRootWorktree(
+        path="/repo/.claude/worktrees/agent-x", parent="/repo", registered=True
+    )
+
+    def fake(root: Path) -> check_in_root_worktrees.InRootReport:
+        return check_in_root_worktrees.InRootReport(
+            repo_root=str(root), examined=1, registered_count=2, worktrees=[finding]
+        )
+
+    monkeypatch.setattr(check_in_root_worktrees, "build_report", fake)
+
+    verdicts = _run_sequence(monkeypatch)
+
+    assert verdicts[IN_ROOT_GATE] is True
+    assert "/repo/.claude/worktrees/agent-x" in capsys.readouterr().out, (
+        "pre_pr is not wired to the in-root checker"
+    )

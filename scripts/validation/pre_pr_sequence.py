@@ -49,6 +49,7 @@ from check_doc_interpreter_portability import validate_doc_interpreter_portabili
 from check_duplicate_test_helpers import validate_duplicate_test_helpers
 from check_generated_staleness import validate_generated_staleness
 from check_git_hook_health import validate_git_hook_health
+from check_in_root_worktrees import validate_in_root_worktrees
 from check_index_line_endings import validate_index_line_endings
 from check_nested_tests import validate_no_nested_tests
 from check_push_lock_paths import validate_push_lock_paths
@@ -291,7 +292,13 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # Never fails; see the validator's docstring for why machine state does not
     # get to block a push. Issue #5111.
     _Gate("Temp-filesystem Worktrees (advisory)", _root_only(validate_tmp_worktrees)),
-    # Advisory sibling of the gate above, same reasoning, different subject:
+    # Advisory sibling of the gate above, same reasoning, other half of the
+    # rule: worktrees inside a checkout of this repository, including the
+    # nested `.claude/worktrees/` copies the harness creates. Each one
+    # multiplies every recursive scan by one full checkout. Never fails; see the
+    # validator's docstring. Issue #4702.
+    _Gate("In-root Worktrees (advisory)", _root_only(validate_in_root_worktrees)),
+    # Advisory sibling of the Temp-filesystem gate, same reasoning, different subject:
     # an untracked .serena/memories/**/*.md file in another linked worktree,
     # the symptom of issue #5061 (Serena's MCP server resolves its project
     # root at activation time, not per call, so a worktree-scoped subagent's

@@ -132,6 +132,7 @@ finding or an absent tool underneath.
 |---|---|---|---|---|---|---|---|
 | `check_serena_memory_worktree_scope.py:373-384` | `validate_serena_memory_worktree_scope` | any finding, and separately `git worktree list` failing | unconditional `True` | ADVISORY | BOOLEAN | partial | DELIBERATE, "always returns True" |
 | `check_tmp_worktrees.py:305-318` | `validate_tmp_worktrees` | any finding, and separately `git worktree list` failing | unconditional `True` | ADVISORY | BOOLEAN | partial | DELIBERATE |
+| `check_in_root_worktrees.py:239-250` | `validate_in_root_worktrees` | any finding, and separately `git worktree list` failing | unconditional `True` | ADVISORY | BOOLEAN | partial | DELIBERATE, "always returns True" |
 | `checks_spec.py:361-397` | `validate_spec_contradiction` | any subprocess exit code, including the script being missing | `return True` at :397 | ADVISORY | BOOLEAN | yes | DELIBERATE, "the WARN output is the signal" |
 | `active_plan_closeout.py:159-176` | `validate_active_plan_closeout` | any closeable-plan warning | `return True` at :176 | ADVISORY | BOOLEAN | partial | DELIBERATE |
 | `checks_dash.py:144-175` | `validate_dash_prohibition` | base ref unresolved, or `git diff` fails | `return True` | ADVISORY on failure-to-run, BLOCKING on findings | BOOLEAN | yes | DELIBERATE, "fail open" stated |

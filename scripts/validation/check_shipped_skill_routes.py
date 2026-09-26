@@ -142,7 +142,9 @@ for ``.claude-plugin/plugin.json``. This repository keeps full working copies
 under ``.cache/worktrees/``, ``.claude/worktrees/`` and ``.wt/``, so a recursive
 glob matches dozens of throwaway roots and reports findings in trees nobody is
 shipping. For the same reason the per-root walk prunes those directory names,
-which keeps the whole check near 2.8s instead of ~11s.
+which keeps the whole check near 2.8s instead of ~11s. Those copies violate
+``universal.md`` MUST NOT 6, and ``check_in_root_worktrees.py`` reports them
+(issue #4702); the pruning stays as defense while any remain on a machine.
 
 Pruning is by name at every depth, exempting a directory directly under
 ``<root>/skills`` that carries a ``SKILL.md``. Pruning only at the walk root
@@ -197,6 +199,7 @@ SKILL_FILE = "SKILL.md"
 
 # Full working copies of this repository live under these directory names.
 # Descending into them multiplies the walk and reports drift in throwaway trees.
+# check_in_root_worktrees.py reports the in-root copies (issue #4702).
 PRUNED_DIRS = frozenset(
     {"worktrees", "node_modules", ".git", ".venv", "venv", "__pycache__"}
 )
