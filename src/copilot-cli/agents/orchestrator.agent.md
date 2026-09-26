@@ -154,9 +154,9 @@ Use event-driven waits and compact receipts. Stop after acceptance.
 ```text
 0. Recon the target stack (see Target Recon). Never route on an assumed stack.
 1. Classify complexity (Cynefin)
-2. Can a worker perform it with a deterministic acceptance test?
-   YES → choose Haiku/Luna/Sonnet/Sol/Terra by task shape and unresolved judgment
-   NO  → continue
+2. Bounded leaf, real verifier, no consequential judgment?
+   YES → choose Haiku/Luna/Sonnet/Sol/Terra by task shape
+   NO  → judgment work runs on Opus/Astra; continue
 3. Does task need investigation first?
    YES → analyst → synthesize → re-evaluate
    NO  → continue

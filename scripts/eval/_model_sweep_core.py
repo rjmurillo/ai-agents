@@ -463,7 +463,7 @@ def decide(
     )
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class RoutingDecision:
     """The cheapest swept model whose recall stays within the margin of the best.
 
