@@ -18,6 +18,7 @@ from __future__ import annotations
 import argparse
 import os
 import sys
+from typing import Any
 
 _plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
 _workspace = os.environ.get("GITHUB_WORKSPACE")
@@ -82,21 +83,22 @@ class IssueNotFoundError(RuntimeError):
     """The repository has no issue with the requested number."""
 
 
-def query_or_not_found(query: str, variables: dict, label: str) -> dict:
+def query_or_not_found(query: str, variables: dict[str, Any], label: str) -> dict[str, Any]:
     """Run a GraphQL query, mapping GitHub's unresolved-number error to not found.
 
     GitHub answers an unknown issue number with a GraphQL error ("Could not
     resolve to an issue"), not a null node, so gh_graphql raises.
     """
     try:
-        return gh_graphql(query, variables)
+        data: dict[str, Any] = gh_graphql(query, variables)
+        return data
     except RuntimeError as exc:
         if "Could not resolve to" in str(exc):
             raise IssueNotFoundError(f"{label} not found") from exc
         raise
 
 
-def _flatten(node: dict) -> dict:
+def _flatten(node: dict[str, Any]) -> dict[str, Any]:
     return {
         "number": node["number"],
         "title": node["title"],
@@ -106,7 +108,7 @@ def _flatten(node: dict) -> dict:
     }
 
 
-def fetch_relationships(owner: str, repo: str, number: int) -> dict:
+def fetch_relationships(owner: str, repo: str, number: int) -> dict[str, Any]:
     """Return the issue's node id and its native relationships.
 
     Raises:
@@ -121,7 +123,7 @@ def fetch_relationships(owner: str, repo: str, number: int) -> dict:
     issue = (data.get("repository") or {}).get("issue")
     if not issue:
         raise IssueNotFoundError(f"Issue #{number} not found in {owner}/{repo}")
-    result: dict = {
+    result: dict[str, Any] = {
         "id": issue["id"],
         "number": issue["number"],
         "title": issue["title"],
@@ -135,7 +137,7 @@ def fetch_relationships(owner: str, repo: str, number: int) -> dict:
     return result
 
 
-def _summary(rel: dict) -> str:
+def _summary(rel: dict[str, Any]) -> str:
     parent = f"#{rel['parent']['number']}" if rel["parent"] else "none"
     counts = ", ".join(f"{key} {rel[f'{key}_total']}" for _, key in LIST_FIELDS)
     return f"Issue #{rel['number']}: parent {parent}, {counts}"

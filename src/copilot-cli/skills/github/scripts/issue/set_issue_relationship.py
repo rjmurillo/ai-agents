@@ -32,6 +32,7 @@ import os
 import re
 import sys
 from dataclasses import dataclass
+from typing import Any
 
 _plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
 _workspace = os.environ.get("GITHUB_WORKSPACE")
@@ -162,14 +163,16 @@ def validate_request(args: argparse.Namespace) -> None:
         raise UsageError("--replace-parent applies only when adding parent or sub-issue links")
 
 
-def _linked_keys(relation: str, current: dict) -> set[str]:
+def _linked_keys(relation: str, current: dict[str, Any]) -> set[str]:
     if relation == "parent":
         parent = current["parent"]
         return {f"{parent['repository']}#{parent['number']}".lower()} if parent else set()
     return {f"{n['repository']}#{n['number']}".lower() for n in current[_CURRENT_KEY[relation]]}
 
 
-def _parent_conflict(relation: str, target: Target, current: dict, source_label: str) -> str:
+def _parent_conflict(
+    relation: str, target: Target, current: dict[str, Any], source_label: str
+) -> str:
     """Return the existing parent that blocks this add, or "" when none does."""
     if relation == "parent" and current["parent"]:
         return f"{current['parent']['repository']}#{current['parent']['number']}"
@@ -188,12 +191,14 @@ def _mutation_text(relation: str, remove: bool, replace_parent: bool) -> str:
     )
 
 
-def _mutation_ids(relation: str, source_id: str, target_id: str) -> dict:
+def _mutation_ids(relation: str, source_id: str, target_id: str) -> dict[str, Any]:
     source_is_first = _MUTATIONS[relation][4]
     return {"a": source_id, "b": target_id} if source_is_first else {"a": target_id, "b": source_id}
 
 
-def plan_action(args: argparse.Namespace, target: Target, current: dict, source_label: str) -> str:
+def plan_action(
+    args: argparse.Namespace, target: Target, current: dict[str, Any], source_label: str
+) -> str:
     """Decide what to do for one target without calling the API."""
     linked = target.key in _linked_keys(args.relation, current)
     if args.remove:
@@ -210,8 +215,8 @@ def plan_action(args: argparse.Namespace, target: Target, current: dict, source_
 
 
 def apply_target(
-    args: argparse.Namespace, target: Target, current: dict, source_label: str
-) -> dict:
+    args: argparse.Namespace, target: Target, current: dict[str, Any], source_label: str
+) -> dict[str, Any]:
     action = plan_action(args, target, current, source_label)
     row = {"target": target.label, "number": target.number, "action": action}
     if action not in ("link", "unlink"):
@@ -232,7 +237,7 @@ def apply_target(
     return row
 
 
-def run(args: argparse.Namespace, owner: str, repo: str) -> dict:
+def run(args: argparse.Namespace, owner: str, repo: str) -> dict[str, Any]:
     validate_request(args)
     source_label = f"{owner}/{repo}#{args.issue}"
     targets = [parse_target(t, owner, repo) for t in args.target]
