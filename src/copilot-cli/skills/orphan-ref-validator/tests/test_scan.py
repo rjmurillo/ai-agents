@@ -42,6 +42,7 @@ import pytest
 # a worktree under .claude/worktrees/ makes ".claude" appear in the absolute
 # path of src/copilot-cli files too, so checking for "src" + "copilot-cli" in
 # the relative path is the only discriminator that is stable across setups.
+# scripts/validation/check_in_root_worktrees.py reports such worktrees (#4702).
 _SCRIPT_DIR = Path(__file__).resolve().parent.parent / "scripts"
 _REPO_ROOT_FOR_KEY: Path | None = next(
     (p for p in _SCRIPT_DIR.parents if (p / ".git").exists() or (p / ".git").is_file()),

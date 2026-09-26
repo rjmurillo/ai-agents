@@ -64,7 +64,9 @@ VALID_EXTENSIONS = frozenset({".md", ".py", ".ps1", ".psm1"})
 # as the checkout grows. os.walk prunes by directory basename, so the bare
 # name "worktrees" prunes the .claude/worktrees subtree and ".worktrees"
 # prunes the top-level git-worktree root (a 40+ checkout tree; #2047/#2621). When the repo
-# grows, add hot directories here rather than widening the walk.
+# grows, add hot directories here rather than widening the walk. The worktree
+# names stay pruned while any in-root worktree exists on a machine;
+# scripts/validation/check_in_root_worktrees.py reports them (issue #4702).
 SKIP_DIRS = frozenset(
     {
         ".git",

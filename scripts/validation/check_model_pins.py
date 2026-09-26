@@ -345,6 +345,8 @@ def scan_units(repo_root: Path = _REPO_ROOT) -> list[Unit]:
         for path in sorted(repo_root.glob(glob)):
             if path.name in _DOC_EXAMPLE_NAMES:
                 continue
+            # Defensive: harness worktrees nest under .claude/worktrees/.
+            # check_in_root_worktrees.py reports them (issue #4702).
             if ".claude/worktrees/" in path.as_posix():
                 continue
             key = path.as_posix()
