@@ -88,10 +88,9 @@ upstream validator.
 3. For `baseline-update`, cite the existing policy that authorizes the
    refresh (`baseline_justification.policy_source`, a path that exists on
    disk), state the reason, and justify every added entry individually.
-4. Write the record to
-   `.project-toolkit/scratch/validation-authority-record.json` (see
-   "Validation Change Record" below) and run
-   `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/validation-authority/scripts/validation_record.py" --record .project-toolkit/scratch/validation-authority-record.json --changed-path <path>`
+4. Write the record to `<record-path>` (see "Validation Change Record" below
+   for where that resolves) and run
+   `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/validation-authority/scripts/validation_record.py" --record <record-path> --changed-path <path>`
    for every changed path. Exit `0` clears Phase 3 to edit the permitted
    locations; exit `1` names the blocking targets; exit `2` is a
    configuration error in the record or the invocation.
@@ -104,9 +103,11 @@ upstream validator.
 
 ## Validation Change Record
 
-The record `validation-authority` writes at
-`.project-toolkit/scratch/validation-authority-record.json` (git-ignored
-agent scratch space; the PR body carries the summary instead of a commit).
+`<record-path>` above means: resolve a scratch directory the way
+`paths.artifact_dir` does, take its `scratch/` subdirectory, then
+`validation-authority-record.json` inside it. That directory is agent PR
+scratch space in the consumer's own workspace (git-ignored in this repo's own
+checkout); the PR body carries the record's summary instead of a commit.
 
 ```json
 {

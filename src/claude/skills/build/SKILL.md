@@ -102,11 +102,11 @@ failing check first (issue #5387).
    `UNKNOWN`, and to find the canonical source for a `GENERATED` target.
 3. **Authorize.** Invoke `Skill(skill="validation-authority")` with the
    trigger output and the provenance findings. It writes one decision record
-   at `.project-toolkit/scratch/validation-authority-record.json` naming, for
-   every target, the owner, the diagnosis, and the one permitted change
-   location (see that skill's Validation Change Record contract).
+   naming, for every target, the owner, the diagnosis, and the one permitted
+   change location (see that skill's Validation Change Record contract for
+   where the record file resolves, `<record-path>` below).
 4. **Check.** Run the record validator:
-   `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/validation-authority/scripts/validation_record.py" --record .project-toolkit/scratch/validation-authority-record.json --changed-path <path>`
+   `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/validation-authority/scripts/validation_record.py" --record <record-path> --changed-path <path>`
    (repeat `--changed-path` for every path from step 1). Exit `0`: Phase 3 may
    edit only the location each target's `authority.permitted_change_location`
    names. Exit `1`: stop editing the named targets until the record is
