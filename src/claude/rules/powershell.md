@@ -38,6 +38,7 @@ adapted to that baseline. The repo's `PSScriptAnalyzer` settings win over this f
 
 - Start from `[CmdletBinding()]` and typed `param()`, then `begin`, `process`,
   `end` in order. Name `end` explicitly. No `filter` keyword.
+- Take `ValueFromPipelineByPropertyName` where practical, with `[Alias()]`.
 - Validate with attributes (`ValidateSet`, `ValidateRange`, `ValidatePattern`,
   `ValidateScript`, `ValidateNotNullOrEmpty`, `AllowNull`, ...), not body `if`s.
 - Declare `[OutputType()]`, one per parameter set when types differ. Any
@@ -45,7 +46,7 @@ adapted to that baseline. The repo's `PSScriptAnalyzer` settings win over this f
 - Avoid `[string]` or `[object]` on pipeline or set-choosing parameters:
   everything coerces to them. Forward values with at least the callee's type.
 - `[switch]`: no default, off means the common mode, two states only. Forward as
-  `-Other:$MySwitch`. Take `ValueFromPipelineByPropertyName` with `[Alias()]`.
+  `-Other:$MySwitch`.
 - Emit each result in `process {}`. No `return $obj`, no collecting for `end`.
 - State changes need `SupportsShouldProcess` and `ConfirmImpact`, a
   `$PSCmdlet.ShouldProcess()` gate, and `-WhatIf:$WhatIfPreference` passed down.
@@ -58,9 +59,11 @@ adapted to that baseline. The repo's `PSScriptAnalyzer` settings win over this f
 ## Output
 
 - Results go to the success stream. `Write-Verbose` for users, `Write-Debug`
-  for maintainers, `Write-Progress` only for ephemeral status.
-- `Write-Host` only in a `Show-` command or an interactive prompt; other uses
-  need a justified analyzer suppression. Never for data.
+  for maintainers, `Write-Warning` and `Write-Error` for problems,
+  `Write-Progress` only for ephemeral status.
+- `Write-Host` only in a `Show-` command or an interactive prompt. Where the
+  analyzer enforces `PSAvoidUsingWriteHost`, justify any suppression. Never
+  for data.
 - One object type per command. No strings mixed into object output.
 
 ## Help and Comments
