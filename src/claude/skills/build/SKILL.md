@@ -113,8 +113,8 @@ failing check first (issue #5387).
    corrected; an `UNKNOWN` category or an `unknown` diagnosis is blocking (fix
    the record, or escalate for ownership evidence, before any semantic edit).
    Exit `2`: configuration error in the record or the invocation; fix and
-   rerun. Carry the record path forward to `/test` Gate 4 and `/review` Stage
-   1, and copy the record summary into the PR body.
+   rerun. Carry the record path forward to `/test` Gate 4, and copy the
+   record summary into the PR body.
 
 ### Phase 3: Implement the slices
 

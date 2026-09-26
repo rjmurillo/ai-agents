@@ -83,7 +83,7 @@ def test_cli_exits_2_on_invalid_json(tmp_path: Path) -> None:
 
 
 def test_cli_reruns_the_changed_path_rules(tmp_path: Path) -> None:
-    """/test Gate 4 and /review Stage 1 re-run the record with --changed-path."""
+    """/test Gate 4 re-runs the record with --changed-path."""
     record_path = _write_record(tmp_path, make_record(make_vendor_target()))
     result = _run(
         _RECORD_SCRIPT,

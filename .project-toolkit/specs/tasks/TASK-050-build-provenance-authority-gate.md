@@ -31,7 +31,7 @@ tags:
    `.claude/skills/validation-authority/scripts/validation_record.py` until
    the tests pass.
 5. **Compose.** Add Phase 2b to the `build` template. Add the record check
-   to `test` Gate 4 and `review` Stage 1. Add the record contract to the
+   to `test` Gate 4. Add the record contract to the
    `validation-authority` template. Change both routing blocks.
 6. **Scenarios.** Add activation and skip scenarios to
    `tests/evals/skill-scenarios/build.json`.

@@ -39,8 +39,9 @@ first run did not see.
    lets Phase 3 edit only the permitted locations. Exit 1 stops edits to the
    named targets. Exit 2 is a configuration error.
 
-The build passes the record path to `/test` and `/review`, and copies the
-record summary into the PR body.
+The build passes the record path to `/test` Gate 4, and copies the record
+summary into the PR body. `/review` runs after `/test`, so it needs no second
+consume step.
 
 ## Trigger: `.claude/skills/build/scripts/validation_trigger.py`
 

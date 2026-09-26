@@ -7,7 +7,7 @@ a change can alter validation semantics. `validation-authority` writes one
 JSON decision record naming, for every validation target, who owns it, what
 category of code it is, and the single location Phase 3 may edit. This script
 checks that record before Phase 3 touches anything, and again whenever `/test`
-Gate 4 or `/review` Stage 1 receives the record path.
+Gate 4 receives the record path.
 
 The script is a pure function of the record and, optionally, the current
 changed-path list, so the same inputs always get the same result. It opens no

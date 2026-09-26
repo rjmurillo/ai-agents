@@ -46,7 +46,7 @@ agent edits code, and no step there checks ownership of a validator.
 ### Q4 Narrowest Wedge
 
 One deterministic trigger script, one decision-record validator, one new
-`build` phase, one consume step in `/test` and `/review`, and two routing
+`build` phase, one consume step in `/test`, and two routing
 changes. About four hours.
 
 ### Q5 Observation
@@ -109,8 +109,10 @@ A record holds `trigger` (the trigger output) and `targets`. Each target holds
 - `build` runs the trigger before Phase 3, and on activation composes
   `analysis-provenance`, then `validation-authority`, then the record check.
 - `validation-authority` owns the record contract and its validator.
-- `test` Gate 4 and `review` Stage 1 re-run the record check when a record
-  path is handed to them.
+- `test` Gate 4 re-runs the record check when a record path is handed to
+  it. `/review` runs after `/test` in the lifecycle, so it inherits that
+  result. `review.SKILL.md` has no byte room for a second consume step under
+  the 24576-byte skill limit.
 - `build/scripts/build_all.py` renders the mirrors.
 
 ## Failure modes
@@ -147,8 +149,8 @@ prints a JSON summary with target count, counts by category, and defects.
    existing policy source and a reason, and SHALL justify each added entry.
 6. IF provenance or diagnosis is unknown, THEN the validator SHALL exit 1
    with a blocking diagnostic.
-7. WHEN `/test` or `/review` receives a record path, THEY SHALL re-run the
-   record check against the current changed paths.
+7. WHEN `/test` receives a record path, IT SHALL re-run the record check
+   against the current changed paths.
 8. Tests SHALL cover a local validator change and a local configuration fix
    (positive), and a vendored validator, a generated mirror, an unjustified
    baseline refresh, an unknown owner, and an unrelated source change
