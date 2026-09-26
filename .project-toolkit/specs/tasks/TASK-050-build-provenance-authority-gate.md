@@ -42,13 +42,17 @@ tags:
 
 | Case | Paths or effects | Expected |
 |---|---|---|
-| Local validator change | `scripts/validation/check_x.py`, LOCAL record | activate, record exit 0 |
+| Local validator change | `scripts/validation/check_x.py`, LOCAL record | activate, record exit 0 <!-- orphan-ref-ignore --> |
 | Local config fix | `.markdownlint-cli2.yaml`, `local-config-defect` | activate, record exit 0 |
 | Vendored validator | `vendor/lint/rule.py` changed, VENDOR record | record exit 1 |
 | Generated mirror | `src/claude/skills/x/scripts/check_x.py` changed alone | record exit 1 |
 | Unjustified baseline refresh | `baseline-update` with no justification | record exit 1 |
 | Unknown owner | category `UNKNOWN` | record exit 1 |
 | Unrelated source change | `src/app/feature.py` | trigger skip |
+
+scripts/validation/check_x.py (row 1) is an illustrative example path used
+across this table, not a script this task creates; its ignore directive
+suppresses the orphan-ref-validator false positive it would otherwise raise.
 
 ## Risks
 
