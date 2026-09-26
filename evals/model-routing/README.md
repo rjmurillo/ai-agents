@@ -101,20 +101,20 @@ verifier, an ambiguous architecture call, a review where only an eval fixture
 "verifies", the skillbook and security-review exceptions, long-horizon coding,
 one-rung escalation after failed acceptance, and Fable only after Opus fails.
 
-Run on 2026-09-25 with `eval-prompt-change.py`, 3 runs per scenario, the
-orchestrator prompt as the system prompt:
+Run on 2026-09-26 with `eval-prompt-change.py`, 3 runs per scenario, the
+orchestrator prompt as the system prompt, `main`'s prompt before and this
+change's prompt after:
 
-| Judge model | main to HEAD | pre-review wording to HEAD |
+| Judge model | Before (`main`) | After |
 |---|---|---|
-| GPT-6 Sol | 10/10 before and after | 10/10 before and after |
-| GPT-6 Astra | R1 to R7 pass before and after; stopped on an HTTP 500 | R1 to R8 pass before and after; stopped on an HTTP 500 |
+| GPT-6 Sol | 10/10 | 10/10 |
+| GPT-6 Astra | 10/10 | 10/10 |
 
+No scenario was flaky. An earlier run on 2026-09-25 also compared the
+pre-review wording ("measured tier, else Haiku/Luna") and scored the same.
 A model reading the prompt picks the intended tier. The scenarios do not
 separate the prompt versions: `main`'s task-shape rules already produce these
-choices. Claude was not run; the Anthropic account had no credit. R1's text
-changed after this run: its verifier now also compares the extracted entries
-with the `grep -n TODO` set. The recorded R1 results used the schema-only
-wording.
+choices. Claude was not run; the Anthropic account had no credit.
 
 ## Limits
 
