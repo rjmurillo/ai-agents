@@ -5,10 +5,15 @@
 # catalog does not keep accumulating misclassification debt (the audit found
 # 42 percent of 23 agents were skill candidates).
 #
-# An agent scoring 2+ on c1 (slash-command Task invocation), c2 (>=70 percent
-# structured-reference body), and c3 (sibling skill in the same pipeline) fails
-# unless it carries 'isolation_required: true' in frontmatter OR the PR body
-# carries the token '[skill-discriminator: <rationale>]'.
+# Agents are scored 0-3 on c1 (slash-command Task invocation), c2 (>=70 percent
+# structured-reference body), and c3 (sibling skill in the same pipeline).
+# Every run reads the committed baseline in
+# scripts/validation/agent_skill_discriminator_baseline.json (Issue #4087).
+# A recorded agent fails only when its score rises above the recorded value.
+# An agent absent from the baseline fails at score 2+. Either failure clears
+# with 'isolation_required: true' in frontmatter OR the PR-body token
+# '[skill-discriminator: <rationale>]'. Pre-existing debt no longer fires on
+# PRs that cannot move the score.
 #
 # Logic lives in scripts/validation/check_agent_skill_discriminator.py per
 # ADR-006 (thin workflows) and ADR-042 (Python-first). Uses dorny/paths-filter
@@ -19,8 +24,9 @@ name: Agent-Skill Discriminator Check
 
 on:
   schedule:
-    # Weekly full-corpus audit: surfaces pre-existing skill-shaped agents that
-    # change-triggered mode never sees (Issue #4087). Runs Sunday 03:00 UTC.
+    # Weekly full-corpus audit: scores every agent, including ones no PR
+    # touched, and fails on drift above the baseline (Issue #4087).
+    # Runs Sunday 03:00 UTC.
     - cron: '0 3 * * 0'
   pull_request:
     types: [opened, synchronize, reopened, edited]
@@ -57,6 +63,7 @@ jobs:
               - 'templates/agents/**.shared.md'
               - 'scripts/validation/check_agent_skill_discriminator.py'
               - 'scripts/validation/agent_skill_discriminator_baseline.py'
+              - 'scripts/validation/agent_skill_discriminator_baseline.json'
               - 'scripts/validation/portability_*.py'
               - '.github/workflows/agent-skill-discriminator-check.yml'
 
@@ -100,12 +107,12 @@ jobs:
           PR_BODY: ${{ github.event.pull_request.body }}
           CHANGED_FILES: ${{ steps.changed.outputs.files }}
         run: |
-          python3 scripts/validation/check_agent_skill_discriminator.py
+          python3 scripts/validation/check_agent_skill_discriminator.py --baseline scripts/validation/agent_skill_discriminator_baseline.json
 
       - name: "Run discriminator check (full corpus, Issue #4087)"
         if: needs.check-paths.outputs.full-corpus == 'true'
         run: |
-          python3 scripts/validation/check_agent_skill_discriminator.py --all
+          python3 scripts/validation/check_agent_skill_discriminator.py --all --baseline scripts/validation/agent_skill_discriminator_baseline.json
 
   skip-discriminator:
     name: Skip discriminator (no agent changes)
