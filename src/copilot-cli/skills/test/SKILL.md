@@ -122,6 +122,9 @@ Output: `VERDICT: PASS|WARN|CRITICAL_FAIL` with findings array including CWE ref
 4. **Build reproducibility** - Deterministic builds, locked dependencies, no floating versions.
 5. **Artifact integrity** - Correct upload/download, retention policy, no sensitive data in artifacts.
 
+If `/build` handed over a provenance/authority record path (issue #5387), re-run it against the current changed paths before this gate's findings:
+`python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/validation-authority/scripts/validation_record.py" --record <record-path> --changed-path <path>` (repeat `--changed-path` for every path in this PR). Exit `1` is `CRITICAL_FAIL`: a target lost its permitted change location or gained an unrecorded one. Exit `2` is `ERROR`: fix the record or the invocation and rerun. No record path handed over: skip this step.
+
 Output: `VERDICT: PASS|WARN|CRITICAL_FAIL` with findings array.
 
 ## Gate 5: Developer Experience (DX)

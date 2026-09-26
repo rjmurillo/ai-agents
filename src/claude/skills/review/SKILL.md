@@ -4,6 +4,7 @@ version: 1.0.0
 description: Review before merge. Stage-1 spec-compliance gate, then risk-selected Stage-2 review axes from the canonical set. analyst always runs, callers can pin extra always-on axes, and explicit deep review runs the full 16-axis set. Run after /test. Do NOT invoke code-qualities-assessment, doc-accuracy, golden-principles, or taste-lints directly for a full review; review can select them when requested or when deep review is explicit.
 argument-hint: branch-or-pr-number
 allowed-tools: Task, Skill, Read, Glob, Grep, Bash(*)
+size-exception: true
 user-invocable: true
 license: MIT
 metadata:
@@ -20,6 +21,20 @@ metadata:
 ---
 
 # Review
+
+<!--
+size-exception rationale (issue #5387).
+
+What the check wants: skill_size blocks a SKILL.md over 24576 bytes and asks
+for progressive disclosure into references/.
+
+Why the idiomatic fix does not apply here: review.SKILL.md already sat at
+24571 of 24576 bytes before this change, with no slack for the REQ-041
+Stage-1 provenance-record re-run step this issue requires. The Stage-1
+process steps are one sequential procedure, not axis prompts, so splitting
+the file mid-procedure to save a few bytes would fragment one governance
+flow across files rather than clarify it.
+-->
 
 Review: $ARGUMENTS
 
@@ -84,6 +99,7 @@ Run axes sequentially. Each axis emits a verdict token (`PASS`, `WARN`, `CRITICA
 2. **Run the Stage-1 spec-compliance gate before the complexity classifier and all Stage-2 axes.** Load the canonical `spec-compliance` axis prompt via the "Path resolution" section above and invoke `Task(subagent_type="general-purpose")` with that prompt as the system instruction and the CONTEXT_MODE-prefixed diff plus any linked REQ/DESIGN/TASK docs (or PR-body acceptance criteria) as input. Extract its verdict with `extract_verdict`.
    - **CRITICAL_FAIL only**: short-circuit. Do NOT run the complexity classifier, the remaining axes, or any local skill axes. Mark all of them `SKIPPED` in the output table, set the FINAL VERDICT to the Stage-1 `CRITICAL_FAIL`, and emit only the Stage-1 findings. The author fixes the unmet criterion, then re-runs `/review`. UNKNOWN is NOT a short-circuit (see next bullet): a Stage-1 UNKNOWN means no spec or acceptance criteria could be located, so it must never suppress a real Stage-2 finding (e.g. a security or qa `CRITICAL_FAIL`).
    - **PASS, WARN, or UNKNOWN (INCONCLUSIVE)**: record the Stage-1 verdict and continue to step 3. A WARN or UNKNOWN here does not block Stage 2; it is merged alongside the other axes (per UNKNOWN handling, a Stage-1 UNKNOWN never overrides a real Stage-2 finding, and on an otherwise-PASS run it surfaces the one-line reason no spec or acceptance criteria could be located). The full FINAL VERDICT comes from `merge_verdicts` in step 7.
+   - **Provenance record (#5387)**: if handed a record path, re-run it as `/test` Gate 4 does; exit `1` merges `CRITICAL_FAIL`, exit `2` merges `UNKNOWN`.
 
 3. **Classify complexity tier**: Task(subagent_type="analyst"): Read `engineering-complexity-tiers.md` (resolved via the "Path resolution" section above) and the diff. Assess as Tier 1-5. Use this to calibrate axis depth.
 4. **Select the Stage-2 axes with `select_axes.py`, then run the canonical ones.** Pass every path from step 1 and every effect from the diff hunks. Pass each path as one argument. Never shell-expand Git-controlled paths. The selector is deterministic, so do not re-derive routing from prose. The co-located `resources/axis-selection.md` defines effects, risks, and output fields.

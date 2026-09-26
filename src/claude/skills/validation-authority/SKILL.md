@@ -7,11 +7,10 @@ metadata:
   source: Session 366 retrospective
   id: Validation-Authority-001
   routing:
-    role: explicit-only
-    invoker: user
-    trigger: a user asks how to treat an upstream validator as authoritative
+    role: conditional-adjunct
+    invoker: build
+    trigger: build Phase 2b writes the decision record after analysis-provenance classifies a validation target
     user-facing: true
-    rationale: "The DESIGN-037 long-tail resolver excludes explicit-only skills from intent matching; issue #5387 will define this skill's own adjunct trigger for a validator-change condition."
 ---
 
 # Validation Authority
@@ -65,6 +64,96 @@ in config comments
 | ESLint rule conflicts | Update `.eslintrc` | Override `no-console` for CLI tools |
 | Upstream tool has a bug | File issue upstream, add workaround in config | Pin tool version, suppress specific rule |
 | Tool default changed after upgrade | Review and align local config to new default | Update config after major version bump |
+
+## Adjunct Mode: Build Phase 2b (issue #5387)
+
+`/build` Phase 2b invokes this skill after `analysis-provenance` classifies
+every path `validation_trigger.py` flagged as a validation target. This mode
+writes the decision record; it does not replace the general decision-tree
+guidance above, which still applies whenever a human asks how to treat an
+upstream validator.
+
+1. For each target, combine `analysis-provenance`'s category, owner, and
+   evidence with a diagnosis of what actually happened:
+   `implementation-defect` (the local check has a real bug), `local-config-defect`
+   (only the project's own config needs to change), `stale-generated-output`
+   (a generated mirror drifted from its template or source), `baseline-update`
+   (a ratchet or baseline needs new entries), `upstream-defect` (the vendored
+   or upstream tool itself is wrong), or `unknown` (evidence is insufficient).
+2. Name the one `permitted_change_location` Phase 3 may edit. `GENERATED`
+   always permits only the canonical source, never the mirror. `VENDOR` and
+   `UPSTREAM` never permit the target itself; point at the local override or
+   config instead. `unknown` diagnosis or `UNKNOWN` category permits nothing:
+   the record blocks further semantic edits until ownership evidence exists.
+3. For `baseline-update`, cite the existing policy that authorizes the
+   refresh (`baseline_justification.policy_source`, a path that exists on
+   disk), state the reason, and justify every added entry individually.
+4. Write the record to
+   `.project-toolkit/scratch/validation-authority-record.json` (see
+   "Validation Change Record" below) and run
+   `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/validation-authority/scripts/validation_record.py" --record .project-toolkit/scratch/validation-authority-record.json --changed-path <path>`
+   for every changed path. Exit `0` clears Phase 3 to edit the permitted
+   locations; exit `1` names the blocking targets; exit `2` is a
+   configuration error in the record or the invocation.
+
+## Scripts
+
+| Script | Purpose | Exit codes |
+|--------|---------|------------|
+| `validation_record.py` (this skill's script directory) | Checks the Phase 2b decision record: field shape, provenance/authority rules, and changed-path coverage. Emits a JSON summary of target count, categories, and defects. | `0` record passed, `1` the record has defects, `2` config error (unreadable file, invalid JSON, or the sibling `build` trigger could not be loaded when `--changed-path` needed it) |
+
+## Validation Change Record
+
+The record `validation-authority` writes at
+`.project-toolkit/scratch/validation-authority-record.json` (git-ignored
+agent scratch space; the PR body carries the summary instead of a commit).
+
+```json
+{
+  "trigger": { "...": "the validation_trigger.py output, carried through unchanged" },
+  "targets": [
+    {
+      "target": "<path>",
+      "component": "<human label for the tool or config>",
+      "provenance": {
+        "category": "LOCAL | GENERATED | VENDOR | UPSTREAM | UNKNOWN",
+        "owner": "<non-empty>",
+        "evidence": "<non-empty>",
+        "canonical_source": "<required, and equal to permitted_change_location, when category is GENERATED>"
+      },
+      "authority": {
+        "contract": "<non-empty; the validator's own exit-code or pass/fail contract>",
+        "diagnosis": "implementation-defect | local-config-defect | stale-generated-output | baseline-update | upstream-defect | unknown",
+        "permitted_change_location": "<non-empty; never the target itself for VENDOR or UPSTREAM>",
+        "escalation": "<required, non-empty, when diagnosis is upstream-defect>"
+      },
+      "baseline_justification": {
+        "policy_source": "<path that must exist on disk; required when diagnosis is baseline-update>",
+        "reason": "<non-empty>",
+        "added_entries": [{ "justification": "<non-empty per entry>" }]
+      }
+    }
+  ]
+}
+```
+
+Rules `validation_record.py` enforces:
+
+1. Every target needs `target`, `component`, `provenance`, and `authority`.
+2. `UNKNOWN` category or `unknown` diagnosis is always a blocking defect: stop
+   semantic edits and request ownership evidence.
+3. `GENERATED` needs `provenance.canonical_source`, and
+   `authority.permitted_change_location` must equal it.
+4. `VENDOR` or `UPSTREAM`: `authority.permitted_change_location` must not
+   equal `target`. `upstream-defect` needs a non-empty `authority.escalation`.
+5. `baseline-update` needs `baseline_justification` with an existing
+   `policy_source`, a non-empty `reason`, and a non-empty `justification` on
+   every entry in `added_entries`.
+6. With `--changed-path` supplied: every path the sibling `build` trigger's
+   path cues alone would flag needs a record target; a `VENDOR` or `UPSTREAM`
+   target must not itself be a changed path; a changed `GENERATED` target
+   needs its canonical source changed too, never edited as a standalone
+   mirror.
 
 ## Anti-Patterns
 
