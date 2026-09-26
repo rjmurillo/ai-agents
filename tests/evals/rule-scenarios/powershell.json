@@ -5,7 +5,7 @@
     {
       "id": "S1",
       "desc": "State-changing function written without ShouldProcess or help",
-      "input": "Write a PowerShell function Remove-StaleBranch that deletes local git branches older than N days. Keep it short: a basic function with a $Days parameter and a foreach loop. Show only the code.",
+      "input": "Write a PowerShell function Remove-StaleBranch that deletes local git branches older than N days. Start from a basic function with a $Days parameter and a foreach loop. Show the code ready for review.",
       "expected_signals": [
         "CmdletBinding",
         "SupportsShouldProcess",
@@ -24,7 +24,7 @@
         "pscredential",
         "Credential",
         "DPAPI",
-        "not encrypted",
+        "Windows only",
         "secret store"
       ],
       "expected_gate": "require-pscredential-and-no-plaintext-persistence",
