@@ -23,7 +23,7 @@
       "expected_signals": [
         "pscredential",
         "Credential",
-        "-Key",
+        "SecretManagement",
         "Windows only",
         "secret store"
       ],

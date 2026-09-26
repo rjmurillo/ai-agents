@@ -100,7 +100,7 @@ adapted to that baseline. The repo's `PSScriptAnalyzer` settings win over this f
   password parameter; no `Get-Credential` inside a function.
 - Unwrap at the call site (`$Credential.GetNetworkCredential().Password`) or
   with `ConvertFrom-SecureString -AsPlainText`; never keep plain text.
-- `Export-Clixml` and `ConvertFrom-SecureString` without `-Key` encrypt on
+- `Export-Clixml`, and `ConvertFrom-SecureString` without `-Key`, encrypt on
   Windows only. Elsewhere use a secret store (SecretManagement or CI secrets).
 - No `Invoke-Expression` on data. Call the command or splat.
 
