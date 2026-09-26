@@ -69,7 +69,7 @@ EFFECTS: frozenset[str] = frozenset(
 )
 
 _VALIDATOR_CODE_DIR_NAMES = frozenset({"validators", "linters"})
-_VALIDATOR_STEM_PREFIXES = ("validate", "check", "lint", "scan")
+_VALIDATOR_STEM_PREFIXES = ("validat", "verify", "check", "lint", "scan")
 
 _VALIDATOR_CONFIG_EXACT = frozenset(
     {

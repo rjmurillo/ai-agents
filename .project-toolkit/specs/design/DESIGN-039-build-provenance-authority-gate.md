@@ -50,7 +50,7 @@ Path cues:
 
 | Cue | Match |
 |---|---|
-| `validator-code` | under `scripts/validation/`, a `validators` or `linters` directory, or a skill script whose stem starts with `validate`, `check`, `lint`, or `scan` |
+| `validator-code` | under `scripts/validation/`, a `validators` or `linters` directory, or a skill script whose stem starts with `validat` (validate, validation, validator), `verify`, `check`, `lint`, or `scan` |
 | `ratchet-or-baseline` | a file stem containing `ratchet` or `baseline` |
 | `validator-config` | a known linter or gate config file, for example `.markdownlint*`, `ruff.toml`, `.yamllint*`, `PSScriptAnalyzerSettings.psd1`, `.qualityrc.json`, `.pre-commit-config.yaml`, `lefthook.yml`, `.gitleaks.toml` |
 | `validation-fixture` | under `tests/validation/`, or a `fixtures` directory below a validation test root |

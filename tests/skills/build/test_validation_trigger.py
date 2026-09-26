@@ -133,6 +133,19 @@ def test_generated_validator_effect_promotes_a_generated_only_path() -> None:
             ".claude/skills/x/scripts/scan_foo.py", "validator-code", id="skill-script-scan"
         ),
         pytest.param(
+            ".claude/skills/x/scripts/validation_record.py",
+            "validator-code",
+            id="skill-script-validation",
+        ),
+        pytest.param(
+            ".claude/skills/x/scripts/validator_rules.py",
+            "validator-code",
+            id="skill-script-validator",
+        ),
+        pytest.param(
+            ".claude/skills/x/scripts/verify_claims.py", "validator-code", id="skill-script-verify"
+        ),
+        pytest.param(
             "scripts/validation/ratchet_totals.json", "ratchet-or-baseline", id="ratchet-file"
         ),
         pytest.param(
