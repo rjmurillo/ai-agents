@@ -327,7 +327,7 @@ def render_markdown(entries: list[dict[str, Any]], ladders: list[Ladder], margin
         f"best model on the same ladder by at most {margin:.2f}. A cheaper model "
         "is kept unless the measured gap exceeds the margin. `(gap unproven)` "
         "marks a verdict the corpus cannot prove: the lower bound of the paired "
-        "bootstrap CI on the gap (95%, Bonferroni-split across the cheaper "
+        "bootstrap CI on the gap (95%, Bonferroni-split across the non-best swept "
         "models) falls below the negative margin.",
         "",
         *_summary_lines(entries, ladders),

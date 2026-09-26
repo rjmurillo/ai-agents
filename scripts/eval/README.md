@@ -837,7 +837,7 @@ the verdict always names a model.
 
 The bootstrap CI does not gate that choice. It sets `resolved`: true when the
 lower end of a one-sided 95% paired bootstrap on the gap, Bonferroni-split
-across the cheaper models, stays at or above the negative margin. At 8 to 24
+across the non-best swept models, stays at or above the negative margin. At 8 to 24
 fixtures most gaps stay unresolved, so an unresolved verdict still routes down.
 With a single shared fixture no CI is computed and the verdict is unresolved.
 

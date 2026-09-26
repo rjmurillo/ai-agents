@@ -1,6 +1,6 @@
 # Model routing by agent and skill
 
-Lightest sufficient is the cheapest model whose mean recall trails the best model on the same ladder by at most 0.10. A cheaper model is kept unless the measured gap exceeds the margin. `(gap unproven)` marks a verdict the corpus cannot prove: the lower bound of the paired bootstrap CI on the gap (95%, Bonferroni-split across the cheaper models) falls below the negative margin.
+Lightest sufficient is the cheapest model whose mean recall trails the best model on the same ladder by at most 0.10. A cheaper model is kept unless the measured gap exceeds the margin. `(gap unproven)` marks a verdict the corpus cannot prove: the lower bound of the paired bootstrap CI on the gap (95%, Bonferroni-split across the non-best swept models) falls below the negative margin.
 
 | Kind | Subject | Fixtures | claude lightest | claude best | gpt6 lightest | gpt6 best |
 |---|---|---|---|---|---|---|
