@@ -213,6 +213,26 @@ class _GeneratedRoots:
         return repo_root is not None and _is_generated_skill_md(segments, repo_root)
 
 
+def classify_path(path: str, repo_root: Path) -> list[str]:
+    """Return the path cues matching ``path`` alone (see module docstring).
+
+    Used by ``validation-authority``'s ``validation_record.py`` to check
+    "every path the trigger would flag" (DESIGN-039 Record rule 8) without
+    duplicating the cue definitions in a second module.
+    """
+    roots = _GeneratedRoots.resolve(repo_root)
+    return _cues_for_path(path, roots, repo_root)
+
+
+def is_validation_target(path: str, repo_root: Path) -> bool:
+    """Return True when ``path`` alone, ignoring diff effects, needs a record entry.
+
+    Mirrors the non-effect half of :func:`decide`'s per-path activation rule:
+    a bare ``generated-output`` cue is not enough (AC4).
+    """
+    return bool(set(classify_path(path, repo_root)) & _VALIDATION_CUES)
+
+
 def _cues_for_path(path: str, roots: _GeneratedRoots, repo_root: Path | None) -> list[str]:
     segments = _segments(path)
     cues: list[str] = []
