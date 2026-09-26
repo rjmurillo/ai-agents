@@ -209,7 +209,7 @@ These artifacts use type prefixes for categorization without sequential numberin
 |---------|--------|---------|
 | Pattern | `Skill-[Category]-NNN.md` | `Skill-Build-001.md` |
 | Reference | `Skill-[Category]-NNN` | `Skill-Build-001` |
-| Location | `.agents/skills/` | `.agents/skills/Skill-Build-001.md` |
+| Location | `.project-toolkit/skills/` | `.project-toolkit/skills/Skill-Build-001.md` |
 
 ---
 

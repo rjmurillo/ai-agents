@@ -15,6 +15,6 @@
 [Dependencies]
 |`schemas/*.json` gate `skillbook/` JSON (`skillbook-validation.yml`); `tests/... (see: .project-toolkit/context/agents/details/dependencies.md)
 [Architecture]
-|Distinct trees: `skills/` (steering learnings), `skillbook/` (policy/tension/... (see: .project-toolkit/context/agents/details/architecture.md)
+|Distinct trees: `.project-toolkit/skills/` (skillbook learnings), `.project-t... (see: .project-toolkit/context/agents/details/architecture.md)
 [Commands]
 |(see detail file) (see: .project-toolkit/context/agents/details/commands.md)

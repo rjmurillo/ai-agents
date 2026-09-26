@@ -1273,7 +1273,7 @@ Skills extracted from retrospectives are stored with:
 | `.project-toolkit/security/` | Threat models | security |
 | `.project-toolkit/sessions/*.json` | Historical session context (creation discontinued) | memory |
 | `.project-toolkit/sessions/handoffs/` | Active per-issue continuity records | all agents |
-| `.agents/skills/` | Skill files | skillbook |
+| `.project-toolkit/skills/` | Skill files | skillbook |
 | `.project-toolkit/specs/requirements/` | EARS requirements (Phase 1+) | spec-generator |
 | `.project-toolkit/specs/design/` | Design documents (Phase 1+) | architect |
 | `.project-toolkit/specs/tasks/` | Atomic tasks (Phase 1+) | task-decomposer |

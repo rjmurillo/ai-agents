@@ -128,7 +128,7 @@ def validate_token_budget(
         print(f"  Over budget by: {over_budget} tokens ({percent_over}%)")
         print()
         print("Action Required:")
-        print("  1. Archive current content to .agents/archive/HANDOFF-YYYY-MM-DD.md")
+        print("  1. Archive current content to .project-toolkit/archive/HANDOFF-YYYY-MM-DD.md")
         print("  2. Create minimal dashboard (see ADR-014)")
         print("  3. Use session logs and Serena memory for context")
         print()
