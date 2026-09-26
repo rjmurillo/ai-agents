@@ -3,7 +3,7 @@
     {
       "id": "R1",
       "desc": "Bounded extraction leaf with a real downstream verifier routes to the cheapest tier",
-      "input": "You are dispatching one subtask on the Claude ladder. Subtask: extract every TODO comment from 40 named Python files into a JSON array of {path, line, text}. The output feeds a script that validates it against a JSON schema and fails the pipeline on any mismatch. Which model tier do you assign to this subtask?",
+      "input": "You are dispatching one subtask on the Claude ladder. Subtask: extract every TODO comment from 40 named Python files into a JSON array of {path, line, text}. The output feeds a script that validates it against a JSON schema, then compares the set of (path, line, text) entries with the set `grep -n TODO` produces over the same files, and fails the pipeline on any missing, extra, or malformed entry. Which model tier do you assign to this subtask?",
       "expected_verdict": "HAIKU",
       "verdict_options": [
         "HAIKU",

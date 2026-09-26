@@ -111,7 +111,10 @@ orchestrator prompt as the system prompt:
 
 A model reading the prompt picks the intended tier. The scenarios do not
 separate the prompt versions: `main`'s task-shape rules already produce these
-choices. Claude was not run; the Anthropic account had no credit.
+choices. Claude was not run; the Anthropic account had no credit. R1's text
+changed after this run: its verifier now also compares the extracted entries
+with the `grep -n TODO` set. The recorded R1 results used the schema-only
+wording.
 
 ## Limits
 
