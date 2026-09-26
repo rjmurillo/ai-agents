@@ -34,6 +34,30 @@
       "expected_signals": [],
       "expected_gate": "skip-rule-not-applicable",
       "rationale": "This asks for review of finished work, which the skill's description routes elsewhere. It names no slice, no plan step, and no implementation trigger, so build should stay inactive."
+    },
+    {
+      "id": "S4",
+      "desc": "A validator fix must clear the provenance/authority gate before editing",
+      "input": "The Gate 3 validator at scripts/validation/check_secrets.py flags a false positive on a test fixture. Fix the validator's regex and add a regression test. Answer in 6 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "provenance",
+        "authority",
+        "permitted"
+      ],
+      "expected_gate": "build-slice",
+      "rationale": "The path scripts/validation/check_secrets.py matches the validator-code path cue (issue #5387), so a response attributable to this skill runs Phase 2b before touching the file: classify provenance, get authorization, and name the one permitted change location. A generic responder edits the regex directly with no ownership check."
+    },
+    {
+      "id": "S5",
+      "desc": "An unrelated feature change skips the provenance/authority gate",
+      "input": "Implement milestone 2: add pagination to the /orders list endpoint in src/api/orders.py, with its regression test. Answer in 6 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "tier",
+        "pre-mortem",
+        "atomic"
+      ],
+      "expected_gate": "build-slice",
+      "rationale": "src/api/orders.py matches no validator path cue and carries no validation-semantics effect, so Phase 2b's trigger should report skip with a stated reason and the response moves straight to Phase 3, still showing the ordinary tier, pre-mortem, and atomic-commit signals without inventing a provenance record for an unrelated file."
     }
   ]
 }

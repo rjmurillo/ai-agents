@@ -6,9 +6,9 @@ license: MIT
 user-invocable: true
 metadata:
   routing:
-    role: nested-helper
-    invoker: spec-generator
-    trigger: spec-generator checks ownership before a spec proposes changing shared infrastructure
+    role: conditional-adjunct
+    invoker: build
+    trigger: build Phase 2b classifies each validation target's provenance before Phase 3 edits it
     user-facing: true
 ---
 

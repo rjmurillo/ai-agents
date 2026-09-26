@@ -49,6 +49,12 @@ translation:
 4. Do not repeat vendor research unless the pinned source ledger is stale or
    the task explicitly requires a contract refresh.
 
+## Scripts
+
+| Script | Purpose | Exit codes |
+|--------|---------|------------|
+| `validation_trigger.py` (this skill's script directory) | Decides whether Phase 2b composes `analysis-provenance` and `validation-authority`, from planned or verified changed paths and diff effects. Emits the decision, matched targets, and the skip or activation reason as JSON. | `0` decision emitted, `2` config error (no changed paths, or an unknown effect name) |
+
 ## Process
 
 ### Phase 1: Assess complexity
@@ -72,6 +78,43 @@ briefed. Capture the top 2-3 critical risks and their mitigations in the active
 plan or issue handoff. Risks surfaced by reviewers late in the cycle are usually
 knowable up front. A five-minute pre-mortem is cheaper than a ten-round bot
 review.
+
+### Phase 2b: Provenance and authority gate
+
+Before Phase 3 touches any file, decide whether this change can alter
+validation semantics: a validator, a generated mirror of one, a ratchet or
+baseline, a validator config file, or a validation test fixture. Phase 3 lets
+an implementer edit any file; nothing before this phase asks who owns the
+failing check first (issue #5387).
+
+1. **Decide.** Run the trigger with every planned or verified changed path,
+   each as its own argument, plus each effect you verified in the diff body.
+   Never shell-expand the paths.
+   `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/build/scripts/validation_trigger.py" --changed-path <path> --effect <name>`
+   Effects: `pass-fail-semantics`, `severity-change`, `baseline-update`,
+   `fixture-redefines-case`, `validator-config`, `vendored-logic`,
+   `generated-validator`. Exit `2` on an empty changed-path list or an unknown
+   effect name; fix the invocation and rerun. On `"decision": "skip"`, record
+   the trigger's `reason` in the plan or issue handoff and go to Phase 3.
+2. **Classify.** On `"decision": "activate"`, invoke
+   `skill: "analysis-provenance"` for each path in `"targets"` to
+   determine whether it is `LOCAL`, `GENERATED`, `VENDOR`, `UPSTREAM`, or
+   `UNKNOWN`, and to find the canonical source for a `GENERATED` target.
+3. **Authorize.** Invoke `skill: "validation-authority"` with the
+   trigger output and the provenance findings. It writes one decision record
+   naming, for every target, the owner, the diagnosis, and the one permitted
+   change location (see that skill's Validation Change Record contract for
+   where the record file resolves, `<record-path>` below).
+4. **Check.** Run the record validator:
+   `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/validation-authority/scripts/validation_record.py" --record <record-path> --changed-path <path>`
+   (repeat `--changed-path` for every path from step 1). Exit `0`: Phase 3 may
+   edit only the location each target's `authority.permitted_change_location`
+   names. Exit `1`: stop editing the named targets until the record is
+   corrected; an `UNKNOWN` category or an `unknown` diagnosis is blocking (fix
+   the record, or escalate for ownership evidence, before any semantic edit).
+   Exit `2`: configuration error in the record or the invocation; fix and
+   rerun. Carry the record path forward to `/test` Gate 4, and copy the
+   record summary into the PR body.
 
 ### Phase 3: Implement the slices
 
@@ -220,6 +263,7 @@ the rationale in the PR body or issue handoff and link to the follow-up issue.
 - [ ] Any guard or detector added in this build was run against the branch and observed firing
 - [ ] All four exit gates returned clean, or each finding has a documented out-of-scope rationale and a linked issue
 - [ ] Commits are atomic, with test and implementation committed together
+- [ ] Phase 2b trigger ran before any Phase 3 edit; on activation, the decision record passed `validation_record.py` before editing a validation target
 
 > After reporting a completed requested result, remove any unsolicited offer, question, or invitation whose only function is to continue the interaction.
 
@@ -233,6 +277,7 @@ the rationale in the PR body or issue handoff and link to the follow-up issue.
 | Coding before reading the surrounding patterns | Produces a second convention in a file that already had one | Read related files and test conventions first |
 | Premature abstraction | Three similar lines are cheaper to read and to delete than a wrong shared helper | Wait for the third case |
 | "I will fix it in review" | Moves work to the most expensive place to do it | Fix it now, or document the rationale and link the follow-up |
+| Editing whatever file makes a failing validator pass | Might edit a generated mirror, a vendored file, or an unjustified baseline instead of the true owner | Run Phase 2b first; edit only the record's `permitted_change_location` |
 
 ## Guardrails
 
