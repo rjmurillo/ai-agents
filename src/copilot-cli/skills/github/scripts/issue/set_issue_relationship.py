@@ -72,7 +72,8 @@ from github_core.output import (
 
 SCRIPT_NAME = "set_issue_relationship.py"
 RELATIONS = ("parent", "sub-issue", "blocked-by", "blocking", "relates-to")
-_TARGET_RE = re.compile(r"^(?:(?P<owner>[\w.-]+)/(?P<repo>[\w.-]+))?#?(?P<number>\d+)$")
+# "#" is required after owner/repo; without it "o/repo12" splits as repo1#2.
+_TARGET_RE = re.compile(r"^(?:(?P<owner>[\w.-]+)/(?P<repo>[\w.-]+)#|#)?(?P<number>\d+)$")
 
 TARGET_QUERY = """
 query($owner: String!, $repo: String!, $number: Int!) {
@@ -167,7 +168,13 @@ def _linked_keys(relation: str, current: dict[str, Any]) -> set[str]:
     if relation == "parent":
         parent = current["parent"]
         return {f"{parent['repository']}#{parent['number']}".lower()} if parent else set()
-    return {f"{n['repository']}#{n['number']}".lower() for n in current[_CURRENT_KEY[relation]]}
+    key = _CURRENT_KEY[relation]
+    if current[f"{key}_total"] > len(current[key]):
+        raise RuntimeError(
+            f"#{current['number']} has {current[f'{key}_total']} {key} links, more than one "
+            "page returns. Refusing to decide from a partial list."
+        )
+    return {f"{n['repository']}#{n['number']}".lower() for n in current[key]}
 
 
 def _parent_conflict(
@@ -215,9 +222,8 @@ def plan_action(
 
 
 def apply_target(
-    args: argparse.Namespace, target: Target, current: dict[str, Any], source_label: str
+    args: argparse.Namespace, target: Target, action: str, source_id: str
 ) -> dict[str, Any]:
-    action = plan_action(args, target, current, source_label)
     row = {"target": target.label, "number": target.number, "action": action}
     if action not in ("link", "unlink"):
         return row
@@ -227,7 +233,7 @@ def apply_target(
     try:
         gh_graphql(
             _mutation_text(args.relation, args.remove, args.replace_parent),
-            _mutation_ids(args.relation, current["id"], target.node_id),
+            _mutation_ids(args.relation, source_id, target.node_id),
         )
     except RuntimeError as exc:
         row["action"] = "failed"
@@ -245,7 +251,10 @@ def run(args: argparse.Namespace, owner: str, repo: str) -> dict[str, Any]:
         raise UsageError("An issue cannot be linked to itself")
     current = fetch_relationships(owner, repo, args.issue)
     resolved = [resolve_target(t) for t in targets]
-    results = [apply_target(args, t, current, source_label) for t in resolved]
+    # Plan every target before the first mutation, so a conflict on a later
+    # target stops the run with nothing changed.
+    plans = [(t, plan_action(args, t, current, source_label)) for t in resolved]
+    results = [apply_target(args, t, action, current["id"]) for t, action in plans]
     return {
         "issue": args.issue,
         "relation": args.relation,

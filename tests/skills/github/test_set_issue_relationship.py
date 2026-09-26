@@ -1082,3 +1082,40 @@ class TestSetIssueRelationshipFailures:
         result = _out(capsys)
         assert result["Error"]["Type"] == "ApiError"
         assert result["Error"]["Message"] == "upstream down"
+
+
+class TestReviewRegressions:
+    """Regressions for PR #5937 review findings."""
+
+    def test_cross_repo_target_without_hash_rejected(self, _import_module, capsys):
+        stub = GraphQLStub(source=_source_data())
+        argv = ["--issue", "5", "--relation", "relates-to", "--target", "o/r12"]
+        rc = _run(_import_module, [*argv, "--output-format", "json"], stub)
+        assert rc == 1
+        assert "Invalid target" in _out(capsys)["Error"]["Message"]
+        assert stub.mutation_calls == []
+
+    def test_truncated_link_list_refuses_to_decide(self, _import_module, capsys):
+        source = _source_data(relates_to=[_node(100)])
+        source["repository"]["issue"]["relatesTo"]["totalCount"] = 101
+        stub = GraphQLStub(source=source, targets={_target_key(200): _target_payload("T2", 200)})
+        argv = ["--issue", "5", "--relation", "relates-to", "--target", "200", "--remove"]
+        rc = _run(_import_module, [*argv, "--output-format", "json"], stub)
+        assert rc == 3
+        assert "partial list" in _out(capsys)["Error"]["Message"]
+        assert stub.mutation_calls == []
+
+    def test_conflict_on_later_target_runs_no_mutation(self, _import_module, capsys):
+        other_parent = {"number": 50, "repository": {"nameWithOwner": "o/r"}}
+        stub = GraphQLStub(
+            source=_source_data(),
+            targets={
+                _target_key(100): _target_payload("T1", 100),
+                _target_key(101): _target_payload("T2", 101, parent=other_parent),
+            },
+        )
+        argv = ["--issue", "5", "--relation", "sub-issue", "--target", "100", "101"]
+        rc = _run(_import_module, [*argv, "--output-format", "json"], stub)
+        assert rc == 1
+        assert "o/r#50" in _out(capsys)["Error"]["Message"]
+        assert stub.mutation_calls == []
