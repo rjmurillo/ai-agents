@@ -9,6 +9,8 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from test_lefthook_gate_config import LEFTHOOK_PATH, _iter_all_jobs
 
+MANIFEST = ".project-toolkit/context-output-manifest.json"
+
 
 class TestContextOutputGuard:
     def test_precommit_checks_the_complete_manifest(self) -> None:
@@ -20,7 +22,7 @@ class TestContextOutputGuard:
             if job.get("name") == "context-output-check"
         )
 
-        assert "--check --staged --manifest .project-toolkit/context-output-manifest.json" in job["run"]
+        assert f"--check --staged --manifest {MANIFEST}" in job["run"]
         assert "glob" not in job
         assert job["timeout"] == "5s"
         assert job["env"]["PYTHONDONTWRITEBYTECODE"] == "1"
@@ -34,7 +36,7 @@ class TestContextOutputGuard:
             if job.get("name") == "context-output-check"
         )
 
-        assert "--check --staged --manifest .project-toolkit/context-output-manifest.json" in job["run"]
+        assert f"--check --staged --manifest {MANIFEST}" in job["run"]
         assert job["timeout"] == "5s"
 
     def test_ci_guard_is_unfiltered_and_reaches_required_aggregators(self) -> None:
@@ -45,8 +47,6 @@ class TestContextOutputGuard:
 
         assert "needs" not in guard
         assert "if" not in guard
-        assert (
-            "--check --manifest .project-toolkit/context-output-manifest.json" in (guard["steps"][-1]["run"])
-        )
+        assert f"--check --manifest {MANIFEST}" in guard["steps"][-1]["run"]
         for aggregator in ("test-result", "skip-tests", "main-failure-alert"):
             assert "context-output-guard" in data["jobs"][aggregator]["needs"]

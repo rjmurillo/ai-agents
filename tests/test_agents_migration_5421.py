@@ -1,12 +1,13 @@
 """Verify the issue #5421 migration manifest against repository state.
 
 Issue #5421 gave every tracked ``.agents/**`` file at the post-#5420 baseline
-exactly one disposition. The manifest is temporary migration evidence. Delete
-this module together with the manifest once the migration has settled.
+exactly one disposition. The manifest (CSV) and its summary (JSON) are temporary
+migration evidence. Delete this module with both once the migration settles.
 """
 
 from __future__ import annotations
 
+import csv
 import json
 import subprocess
 from collections import Counter
@@ -15,7 +16,9 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-MANIFEST_PATH = REPO_ROOT / ".project-toolkit" / "analysis" / "5421-agents-migration-manifest.json"
+ANALYSIS = REPO_ROOT / ".project-toolkit" / "analysis"
+SUMMARY_PATH = ANALYSIS / "5421-agents-migration-summary.json"
+MANIFEST_PATH = ANALYSIS / "5421-agents-migration-manifest.csv"
 DISPOSITIONS = frozenset(
     {"MOVE", "RETAIN_CANONICAL", "RETAIN_HISTORY", "DELETE_OBSOLETE", "REHOME_CANONICAL"}
 )
@@ -31,12 +34,13 @@ def _git(*args: str) -> subprocess.CompletedProcess[str]:
 
 @pytest.fixture(scope="module")
 def manifest() -> dict:
-    return json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
+    return json.loads(SUMMARY_PATH.read_text(encoding="utf-8"))
 
 
 @pytest.fixture(scope="module")
-def entries(manifest: dict) -> list[dict]:
-    return manifest["entries"]
+def entries() -> list[dict]:
+    with MANIFEST_PATH.open(encoding="utf-8", newline="") as handle:
+        return list(csv.DictReader(handle))
 
 
 @pytest.fixture(scope="module")
@@ -57,7 +61,8 @@ def baseline_paths(manifest: dict) -> frozenset[str]:
 
 
 def test_accounting_balances(manifest: dict, entries: list[dict]) -> None:
-    counts = Counter(entry["disposition"] for entry in entries)
+    counts = Counter({disposition: 0 for disposition in DISPOSITIONS})
+    counts.update(entry["disposition"] for entry in entries)
     assert sum(counts.values()) == manifest["baseline_file_count"] == len(entries)
     assert dict(counts) == manifest["disposition_counts"]
 
@@ -71,9 +76,7 @@ def test_every_entry_has_one_known_disposition(entries: list[dict]) -> None:
 
 def test_every_entry_documents_rationale_and_owner(entries: list[dict]) -> None:
     missing = [
-        entry["old_path"]
-        for entry in entries
-        if not entry.get("rationale") or not entry.get("owner") or "consumers" not in entry
+        entry["old_path"] for entry in entries if not entry["rationale"] or not entry["owner"]
     ]
     assert missing == []
 

@@ -39,16 +39,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 _KEEP_DIRS = frozenset(
-    {
-        "governance",
-        "steering",
-        "schemas",
-        "templates",
-        "dictionaries",
-        "guides",
-        "hooks",
-        "archive",
-    }
+    {"governance", "steering", "schemas", "templates", "dictionaries", "guides", "hooks", "archive"}
 )
 
 # Top-level files that issue #5421 moved to ``.project-toolkit/`` unchanged.
@@ -130,9 +121,8 @@ def _agents_kind(match_text: str) -> str:
     if not segment[:1].isalnum() or _PATTERN_CHARS.intersection(segment):
         return "pattern"
     if "/" not in rest and "." in segment:
-        if segment in _MOVED_TOP_LEVEL_FILES:
-            return "stale"
-        return "keep"  # a bare top-level file reference, e.g. .agents/HANDOFF.md
+        # A bare top-level file reference, e.g. .agents/HANDOFF.md, unless moved.
+        return "stale" if segment in _MOVED_TOP_LEVEL_FILES else "keep"
     return "keep" if segment in _KEEP_DIRS else "stale"
 
 

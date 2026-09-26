@@ -1,0 +1,35 @@
+{
+  "issue": 5421,
+  "baseline_sha": "efd148e89bd1dea56da04f981c08e14448316ded",
+  "baseline_file_count": 1026,
+  "baseline_byte_count": 7019419,
+  "baseline_inventory": {
+    "AGENT-INSTRUCTIONS.md": 1,
+    "AGENT-SYSTEM.md": 1,
+    "AGENTS.md": 1,
+    "CLAUDE.md": 1,
+    "README.md": 1,
+    "archive/": 816,
+    "context-output-manifest.json": 1,
+    "context/": 125,
+    "dictionaries/": 1,
+    "governance/": 44,
+    "guides/": 4,
+    "hooks/": 4,
+    "pr-batch-review-session-2025-12-20.md": 1,
+    "recovery-hints.yaml": 1,
+    "schemas/": 7,
+    "skills/": 7,
+    "steering/": 7,
+    "templates/": 2,
+    "workflow-context.json": 1
+  },
+  "disposition_counts": {
+    "DELETE_OBSOLETE": 2,
+    "MOVE": 133,
+    "REHOME_CANONICAL": 0,
+    "RETAIN_CANONICAL": 72,
+    "RETAIN_HISTORY": 819
+  },
+  "manifest": ".project-toolkit/analysis/5421-agents-migration-manifest.csv"
+}
