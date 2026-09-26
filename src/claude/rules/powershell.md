@@ -47,7 +47,9 @@ adapted to that baseline. The repo's `PSScriptAnalyzer` settings win over this f
   everything coerces to them. Forward values with at least the callee's type.
 - `[switch]`: no default, off means the common mode, two states only. Forward as
   `-Other:$MySwitch`.
-- Emit each result in `process {}`. No `return $obj`, no collecting for `end`.
+- Emit each per-input result in `process {}`; do not collect them for `end`.
+  Only output that needs all input (a sort, a total) belongs in `end {}`. No
+  `return $obj`.
 - State changes need `SupportsShouldProcess` and `ConfirmImpact`, a
   `$PSCmdlet.ShouldProcess()` gate, and `-WhatIf:$WhatIfPreference` passed down.
   `ShouldContinue` needs a `-Force` bypass.
