@@ -20,7 +20,7 @@ class TestContextOutputGuard:
             if job.get("name") == "context-output-check"
         )
 
-        assert "--check --staged --manifest .agents/context-output-manifest.json" in job["run"]
+        assert "--check --staged --manifest .project-toolkit/context-output-manifest.json" in job["run"]
         assert "glob" not in job
         assert job["timeout"] == "5s"
         assert job["env"]["PYTHONDONTWRITEBYTECODE"] == "1"
@@ -34,7 +34,7 @@ class TestContextOutputGuard:
             if job.get("name") == "context-output-check"
         )
 
-        assert "--check --staged --manifest .agents/context-output-manifest.json" in job["run"]
+        assert "--check --staged --manifest .project-toolkit/context-output-manifest.json" in job["run"]
         assert job["timeout"] == "5s"
 
     def test_ci_guard_is_unfiltered_and_reaches_required_aggregators(self) -> None:
@@ -46,7 +46,7 @@ class TestContextOutputGuard:
         assert "needs" not in guard
         assert "if" not in guard
         assert (
-            "--check --manifest .agents/context-output-manifest.json" in (guard["steps"][-1]["run"])
+            "--check --manifest .project-toolkit/context-output-manifest.json" in (guard["steps"][-1]["run"])
         )
         for aggregator in ("test-result", "skip-tests", "main-failure-alert"):
             assert "context-output-guard" in data["jobs"][aggregator]["needs"]

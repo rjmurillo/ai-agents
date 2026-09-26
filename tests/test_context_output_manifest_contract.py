@@ -33,7 +33,7 @@ def stub_token_counter(monkeypatch: pytest.MonkeyPatch) -> None:
 class TestManifestContract:
     def test_committed_manifest_checks_every_declared_output(self):
         """The committed manifest guards the complete repository output set."""
-        manifest_path = REPO_ROOT / ".agents" / "context-output-manifest.json"
+        manifest_path = REPO_ROOT / ".project-toolkit" / "context-output-manifest.json"
 
         report = check_manifest(manifest_path, repo_root=REPO_ROOT)
 

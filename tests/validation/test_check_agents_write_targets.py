@@ -53,6 +53,21 @@ def test_stale_moved_subtree_reference_rejected(text: str) -> None:
     assert all(f.reason == checker._STALE_REASON for f in findings)
 
 
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Run the check against `.agents/context-output-manifest.json`.\n",
+        "See `.agents/context/tests/index.md`.\n",
+        "Learnings live in `.agents/skills/linting.md`.\n",
+    ],
+)
+def test_issue_5421_moved_subtree_reference_rejected(text: str) -> None:
+    """Issue #5421 moved the generated context and skills trees out of KEEP."""
+    findings = checker.scan_text("docs/example.md", text)
+    assert findings
+    assert all(f.reason == checker._STALE_REASON for f in findings)
+
+
 def test_stale_reference_in_project_toolkit_history_is_not_scanned() -> None:
     """A file under an excluded root is never read, so old refs inside it
     (kept for historical record) never reach scan_text at all."""
