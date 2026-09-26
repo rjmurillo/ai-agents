@@ -3,7 +3,9 @@
 
 Issue #5420 moved every agent write target from ``.agents/<sub>`` to
 ``.project-toolkit/<sub>``. ``.agents/`` keeps only read-only inputs: the KEEP
-subtrees below and its top-level files. Two independent findings:
+subtrees below and its top-level files. Issue #5421 then moved the generated
+``context`` and ``skills`` subtrees, so they left KEEP too. Two independent
+findings:
 
   (a) STALE ROOT: ``.agents/<sub>`` with ``<sub>`` outside KEEP, read or
       write, in slash, backslash, or Python join form. Globs and regexes are
@@ -37,19 +39,11 @@ from dataclasses import dataclass
 from pathlib import Path
 
 _KEEP_DIRS = frozenset(
-    {
-        "governance",
-        "steering",
-        "context",
-        "schemas",
-        "templates",
-        "dictionaries",
-        "guides",
-        "hooks",
-        "skills",
-        "archive",
-    }
+    {"governance", "steering", "schemas", "templates", "dictionaries", "guides", "hooks", "archive"}
 )
+
+# Top-level files that issue #5421 moved to ``.project-toolkit/`` unchanged.
+_MOVED_TOP_LEVEL_FILES = frozenset({"context-output-manifest.json"})
 
 _SCANNED_PREFIXES = (
     ".claude/",
@@ -127,7 +121,8 @@ def _agents_kind(match_text: str) -> str:
     if not segment[:1].isalnum() or _PATTERN_CHARS.intersection(segment):
         return "pattern"
     if "/" not in rest and "." in segment:
-        return "keep"  # a bare top-level file reference, e.g. .agents/HANDOFF.md
+        # A bare top-level file reference, e.g. .agents/HANDOFF.md, unless moved.
+        return "stale" if segment in _MOVED_TOP_LEVEL_FILES else "keep"
     return "keep" if segment in _KEEP_DIRS else "stale"
 
 

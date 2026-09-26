@@ -25,7 +25,7 @@ pre-merge-commit:
       run: >-
         uv run --frozen python
         .claude/skills/context-optimizer/scripts/extract_and_index.py
-        --check --staged --manifest .agents/context-output-manifest.json
+        --check --staged --manifest .project-toolkit/context-output-manifest.json
 
 pre-commit:
   piped: true
@@ -422,7 +422,7 @@ pre-commit:
             run: >-
               uv run --frozen python
               .claude/skills/context-optimizer/scripts/extract_and_index.py
-              --check --staged --manifest .agents/context-output-manifest.json
+              --check --staged --manifest .project-toolkit/context-output-manifest.json
             skip:
               - merge
 

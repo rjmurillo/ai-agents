@@ -463,10 +463,10 @@ Context:
 
 ### Skill File Organization
 
-Skills are organized in `.agents/skills/` by category:
+Skills are organized in `.project-toolkit/skills/` by category:
 
 ```text
-.agents/skills/
+.project-toolkit/skills/
 ├── README.md           # Skill system overview
 ├── agent-skills.md     # Agent prompt patterns
 ├── workflow-skills.md  # Workflow optimization

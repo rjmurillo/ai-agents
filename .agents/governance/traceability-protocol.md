@@ -284,7 +284,7 @@ related:
 Generate a traceability report:
 
 ```bash
-python3 scripts/validation/traceability.py --format markdown > .agents/reports/traceability-$(date +%F).md
+python3 scripts/validation/traceability.py --format markdown > .project-toolkit/reports/traceability-$(date +%F).md
 ```
 
 ## Integration with Workflows

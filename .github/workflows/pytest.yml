@@ -190,7 +190,7 @@ jobs:
         run: >-
           python3
           .claude/skills/context-optimizer/scripts/extract_and_index.py
-          --check --manifest .agents/context-output-manifest.json
+          --check --manifest .project-toolkit/context-output-manifest.json
 
   test:
     name: "pytest (${{ matrix.partition }})"

@@ -1,0 +1,77 @@
+{
+  "output_root": ".project-toolkit/context",
+  "entries": [
+    {
+      "source": ".agents/AGENTS.md",
+      "index": ".project-toolkit/context/agents/index.md",
+      "detail_dir": ".project-toolkit/context/agents/details",
+      "detail_ref": ".project-toolkit/context/agents/details"
+    },
+    {
+      "source": ".claude-mem/memories/AGENTS.md",
+      "index": ".project-toolkit/context/claude-mem-memories/index.md",
+      "detail_dir": ".project-toolkit/context/claude-mem-memories/details",
+      "detail_ref": ".project-toolkit/context/claude-mem-memories/details"
+    },
+    {
+      "source": ".claude/AGENTS.md",
+      "index": ".project-toolkit/context/claude/index.md",
+      "detail_dir": ".project-toolkit/context/claude/details",
+      "detail_ref": ".project-toolkit/context/claude/details"
+    },
+    {
+      "source": ".claude/hooks/AGENTS.md",
+      "index": ".project-toolkit/context/claude-hooks/index.md",
+      "detail_dir": ".project-toolkit/context/claude-hooks/details",
+      "detail_ref": ".project-toolkit/context/claude-hooks/details"
+    },
+    {
+      "source": ".github/AGENTS.md",
+      "index": ".project-toolkit/context/github/index.md",
+      "detail_dir": ".project-toolkit/context/github/details",
+      "detail_ref": ".project-toolkit/context/github/details"
+    },
+    {
+      "source": "AGENTS.md",
+      "index": ".project-toolkit/context/AGENTS-INDEX.md",
+      "detail_dir": ".project-toolkit/context/AGENTS-details",
+      "detail_ref": ".project-toolkit/context/AGENTS-details"
+    },
+    {
+      "source": "build/AGENTS.md",
+      "index": ".project-toolkit/context/build/index.md",
+      "detail_dir": ".project-toolkit/context/build/details",
+      "detail_ref": ".project-toolkit/context/build/details"
+    },
+    {
+      "source": "scripts/AGENTS.md",
+      "index": ".project-toolkit/context/scripts/index.md",
+      "detail_dir": ".project-toolkit/context/scripts/details",
+      "detail_ref": ".project-toolkit/context/scripts/details"
+    },
+    {
+      "source": "src/AGENTS.md",
+      "index": ".project-toolkit/context/src/index.md",
+      "detail_dir": ".project-toolkit/context/src/details",
+      "detail_ref": ".project-toolkit/context/src/details"
+    },
+    {
+      "source": "src/claude/AGENTS.md",
+      "index": ".project-toolkit/context/src-claude/index.md",
+      "detail_dir": ".project-toolkit/context/src-claude/details",
+      "detail_ref": ".project-toolkit/context/src-claude/details"
+    },
+    {
+      "source": "templates/AGENTS.md",
+      "index": ".project-toolkit/context/templates/index.md",
+      "detail_dir": ".project-toolkit/context/templates/details",
+      "detail_ref": ".project-toolkit/context/templates/details"
+    },
+    {
+      "source": "tests/AGENTS.md",
+      "index": ".project-toolkit/context/tests/index.md",
+      "detail_dir": ".project-toolkit/context/tests/details",
+      "detail_ref": ".project-toolkit/context/tests/details"
+    }
+  ]
+}
