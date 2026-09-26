@@ -122,6 +122,9 @@ Write operations:
 | `merge_pr.py` | `merge_pull_request` | |
 | `set_pr_auto_merge.py` | `enable_pr_auto_merge`, `disable_pr_auto_merge` | Present in some toolsets and not others. Check yours before relying on it, and treat the operation as unavailable rather than substituting a merge. |
 | `invoke_copilot_assignment.py` | `assign_copilot_to_issue` | |
+| `set_issue_relationship.py` with `parent` or `sub-issue` | `sub_issue_write` method `add` or `remove` | Pass `replace_parent` to move a child. Read the current links first; the tool is not idempotent. |
+| `set_issue_relationship.py` with `blocked-by` or `blocking` | `issue_dependency_write` method `add` or `remove`, `type` `blocked_by` or `blocking` | Behind the server's `issue-dependencies` feature flag. Check your toolset exposes it. |
+| `get_issue_relationships.py` | **Composite.** `issue_read` method `get_sub_issues`, plus `issue_dependency_read` methods `get_blocked_by` and `get_blocking` | No operation returns the parent or relates-to links. |
 
 ## Operations with no MCP equivalent
 
@@ -130,6 +133,8 @@ all, so report them as unavailable rather than reporting a PR failure:
 
 - Milestone **discovery** (`get_latest_semantic_milestone.py`). Nothing
   enumerates milestones, so the number cannot be looked up.
+- Issue **relates-to** links (`set_issue_relationship.py --relation
+  relates-to`). Name each pair you could not link.
 
 Two earlier entries here were wrong and are corrected rather than removed,
 because a false "unavailable" disables a path that works:
