@@ -58,6 +58,7 @@ import argparse
 import importlib.util
 import json
 import sys
+from collections import Counter
 from collections.abc import Sequence
 from pathlib import Path
 from types import ModuleType
@@ -82,6 +83,16 @@ _TRIGGER_RELATIVE = Path("build") / "scripts" / "validation_trigger.py"
 def _text(value: object) -> bool:
     """Return True when value is a string with non-space content."""
     return isinstance(value, str) and bool(value.strip())
+
+
+def _path_key(path: object) -> str:
+    """Return one spelling for a path: forward slashes, no empty or ``.`` segments.
+
+    Matches ``normalize_path`` in the sibling trigger, so ``./a/b.py`` and
+    ``a\\b.py`` name the same target here and there.
+    """
+    parts = str(path).replace("\\", "/").strip().split("/")
+    return "/".join(part for part in parts if part and part != ".")
 
 
 def load_trigger(path: Path | None = None) -> ModuleType:
@@ -149,7 +160,7 @@ def _generated_defects(
     if not _text(canonical_source):
         return [f"{where}: GENERATED provenance needs a non-empty provenance.canonical_source"]
     permitted = authority.get("permitted_change_location")
-    if permitted != canonical_source:
+    if _path_key(permitted) != _path_key(canonical_source):
         return [
             f"{where}: GENERATED authority.permitted_change_location must equal "
             f"provenance.canonical_source ({canonical_source!r}), got {permitted!r}"
@@ -162,7 +173,7 @@ def _vendor_or_upstream_defects(
 ) -> list[str]:
     """Check that a VENDOR or UPSTREAM target is not itself the edit location."""
     permitted = authority.get("permitted_change_location")
-    if permitted == target_path:
+    if _path_key(permitted) == _path_key(target_path):
         return [
             f"{where}: authority.permitted_change_location must not equal the target "
             f"({target_path!r}) for a VENDOR or UPSTREAM target"
@@ -173,8 +184,14 @@ def _vendor_or_upstream_defects(
 def _policy_source_defect(where: str, policy_source: object, repo_root: Path | None) -> list[str]:
     if not _text(policy_source):
         return [f"{where}: baseline_justification.policy_source must be a non-empty string"]
-    base = repo_root or Path.cwd()
-    if not (base / str(policy_source)).exists() and not Path(str(policy_source)).exists():
+    base = (repo_root or Path.cwd()).resolve()
+    candidate = (base / str(policy_source)).resolve()
+    if Path(str(policy_source)).is_absolute() or not candidate.is_relative_to(base):
+        return [
+            f"{where}: baseline_justification.policy_source must be a relative path "
+            f"inside the repository: {policy_source!r}"
+        ]
+    if not candidate.exists():
         return [f"{where}: baseline_justification.policy_source does not exist: {policy_source!r}"]
     return []
 
@@ -236,7 +253,12 @@ def _flagged_by_trigger(
     changed_paths: Sequence[str], repo_root: Path, trigger_module: ModuleType
 ) -> list[str]:
     """Return every changed path the trigger's path cues alone would flag."""
-    return [path for path in changed_paths if trigger_module.is_validation_target(path, repo_root)]
+    roots = trigger_module.resolve_generated_roots(repo_root)
+    return [
+        _path_key(path)
+        for path in changed_paths
+        if trigger_module.is_validation_target(path, repo_root, roots)
+    ]
 
 
 def _coverage_defects(
@@ -249,7 +271,7 @@ def _coverage_defects(
     if not changed_paths:
         return []
     defects: list[str] = []
-    by_path = {t["target"]: t for t in valid_targets}
+    by_path = {_path_key(t["target"]): t for t in valid_targets}
     if trigger_module is not None:
         flagged = _flagged_by_trigger(changed_paths, repo_root or Path.cwd(), trigger_module)
         for path in flagged:
@@ -257,22 +279,39 @@ def _coverage_defects(
                 defects.append(
                     f"changed path {path!r} matches a validation cue but has no record target"
                 )
-    changed_set = set(changed_paths)
+    changed_set = {_path_key(path) for path in changed_paths}
     for target in valid_targets:
         category = target["provenance"].get("category")
-        path = target["target"]
+        path = _path_key(target["target"])
         if category in ("VENDOR", "UPSTREAM") and path in changed_set:
             defects.append(
                 f"targets: {path!r} is VENDOR or UPSTREAM and must not be a changed path"
             )
         if category == "GENERATED" and path in changed_set:
             canonical = target["provenance"].get("canonical_source")
-            if canonical not in changed_set:
+            if _path_key(canonical) not in changed_set:
                 defects.append(
                     f"targets: {path!r} is GENERATED and was changed; its canonical source "
                     f"{canonical!r} must be changed too, not edited as a standalone mirror"
                 )
     return defects
+
+
+def _trigger_defects(trigger: object, targets: list[Any]) -> list[str]:
+    """An activated trigger needs a record target for each path it named."""
+    if not isinstance(trigger, dict) or trigger.get("decision") != "activate":
+        return []
+    if not targets:
+        return ["the trigger activated but the record has no targets; record each target"]
+    recorded = {_path_key(t.get("target")) for t in targets if isinstance(t, dict)}
+    named = trigger.get("targets")
+    named = named if isinstance(named, list) else []
+    paths = [_path_key(t["path"]) for t in named if isinstance(t, dict) and _text(t.get("path"))]
+    return [
+        f"trigger target {path!r} has no record target"
+        for path in sorted(set(paths))
+        if path not in recorded
+    ]
 
 
 def validate(
@@ -290,12 +329,14 @@ def validate(
     targets = record["targets"]
     if not isinstance(targets, list):
         return ["`targets` must be a list"]
-    defects: list[str] = []
+    defects = _trigger_defects(record["trigger"], targets)
+    valid_targets: list[dict[str, Any]] = []
     for index, target in enumerate(targets):
-        defects += _target_defects(index, target, repo_root)
-    if defects:
-        return defects
-    defects += _coverage_defects(targets, changed_paths, repo_root, trigger_module)
+        target_defects = _target_defects(index, target, repo_root)
+        defects += target_defects
+        if not target_defects:
+            valid_targets.append(target)
+    defects += _coverage_defects(valid_targets, changed_paths, repo_root, trigger_module)
     return defects
 
 
@@ -304,18 +345,16 @@ def _summary(record: object, defects: list[str], record_path: Path) -> dict[str,
     data = record if isinstance(record, dict) else {}
     targets = data.get("targets")
     targets = targets if isinstance(targets, list) else []
-    categories = sorted(
-        {
-            t["provenance"]["category"]
-            for t in targets
-            if isinstance(t, dict) and isinstance(t.get("provenance"), dict)
-        }
+    categories = Counter(
+        str(t["provenance"].get("category"))
+        for t in targets
+        if isinstance(t, dict) and isinstance(t.get("provenance"), dict)
     )
     return {
         "ok": not defects,
         "record": str(record_path),
         "targets": len(targets),
-        "categories": categories,
+        "categories": dict(sorted(categories.items())),
         "defects": defects,
     }
 

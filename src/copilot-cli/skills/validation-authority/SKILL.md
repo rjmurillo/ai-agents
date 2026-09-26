@@ -99,7 +99,7 @@ upstream validator.
 
 | Script | Purpose | Exit codes |
 |--------|---------|------------|
-| `validation_record.py` (this skill's script directory) | Checks the Phase 2b decision record: field shape, provenance/authority rules, and changed-path coverage. Emits a JSON summary of target count, categories, and defects. | `0` record passed, `1` the record has defects, `2` config error (unreadable file, invalid JSON, or the sibling `build` trigger could not be loaded when `--changed-path` needed it) |
+| `validation_record.py` (this skill's script directory) | Checks the Phase 2b decision record: field shape, provenance/authority rules, and changed-path coverage. Emits a JSON summary of target count, counts by category, and defects. | `0` record passed, `1` the record has defects, `2` config error (unreadable file, invalid JSON, or the sibling `build` trigger could not be loaded when `--changed-path` needed it) |
 
 ## Validation Change Record
 
@@ -129,7 +129,7 @@ checkout); the PR body carries the record's summary instead of a commit.
         "escalation": "<required, non-empty, when diagnosis is upstream-defect>"
       },
       "baseline_justification": {
-        "policy_source": "<path that must exist on disk; required when diagnosis is baseline-update>",
+        "policy_source": "<repository-relative path to an existing file; required when diagnosis is baseline-update>",
         "reason": "<non-empty>",
         "added_entries": [{ "justification": "<non-empty per entry>" }]
       }
@@ -141,20 +141,25 @@ checkout); the PR body carries the record's summary instead of a commit.
 Rules `validation_record.py` enforces:
 
 1. Every target needs `target`, `component`, `provenance`, and `authority`.
+   When the recorded trigger activated, the record needs at least one target,
+   and each path the trigger named needs a record target.
 2. `UNKNOWN` category or `unknown` diagnosis is always a blocking defect: stop
    semantic edits and request ownership evidence.
 3. `GENERATED` needs `provenance.canonical_source`, and
    `authority.permitted_change_location` must equal it.
 4. `VENDOR` or `UPSTREAM`: `authority.permitted_change_location` must not
    equal `target`. `upstream-defect` needs a non-empty `authority.escalation`.
-5. `baseline-update` needs `baseline_justification` with an existing
-   `policy_source`, a non-empty `reason`, and a non-empty `justification` on
+5. `baseline-update` needs `baseline_justification` with a `policy_source`
+   that is a relative path to an existing file inside the repository, a non-empty `reason`, and a non-empty `justification` on
    every entry in `added_entries`.
 6. With `--changed-path` supplied: every path the sibling `build` trigger's
    path cues alone would flag needs a record target; a `VENDOR` or `UPSTREAM`
    target must not itself be a changed path; a changed `GENERATED` target
    needs its canonical source changed too, never edited as a standalone
    mirror.
+7. Paths compare after normalization: `./a/b.py`, `a\\b.py`, and `a/b.py` are
+   the same target.
+8. One run reports every defect: field defects and coverage defects together.
 
 ## Anti-Patterns
 

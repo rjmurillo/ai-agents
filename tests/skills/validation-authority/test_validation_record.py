@@ -61,8 +61,8 @@ def test_upstream_target_with_escalation_passes() -> None:
 def test_baseline_update_with_an_existing_policy_source_passes(tmp_path: Path) -> None:
     policy = tmp_path / "policy.md"
     policy.write_text("baseline policy", encoding="utf-8")
-    record = make_record(make_baseline_target(str(policy)))
-    assert record_errors(record) == []
+    record = make_record(make_baseline_target("policy.md"))
+    assert record_errors(record, repo_root=tmp_path) == []
 
 
 def test_all_cases_together_pass(tmp_path: Path) -> None:
@@ -74,9 +74,9 @@ def test_all_cases_together_pass(tmp_path: Path) -> None:
         make_generated_target(),
         make_vendor_target(),
         make_upstream_target(),
-        make_baseline_target(str(policy)),
+        make_baseline_target("policy.md"),
     )
-    assert record_errors(record) == []
+    assert record_errors(record, repo_root=tmp_path) == []
 
 
 # TASK-050 fixture-table rows expecting a defect (record exit 1).

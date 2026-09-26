@@ -395,3 +395,33 @@ def test_main_prints_the_decision_as_json(capsys: pytest.CaptureFixture[str]) ->
     )
     payload = json.loads(capsys.readouterr().out)
     assert payload["decision"] == "activate"
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "./scripts/validation/check_x.py",
+        ".\\scripts\\validation\\check_x.py",
+        "scripts/./validation/check_x.py",
+    ],
+)
+def test_dot_and_backslash_spellings_are_normalized(path: str) -> None:
+    """AC3: a `./` or backslash spelling cannot hide a validator change."""
+    result = _decide([path])
+    assert result["decision"] == "activate"
+    assert result["targets"] == [
+        {"path": "scripts/validation/check_x.py", "cues": ["validator-code"]}
+    ]
+
+
+def test_generated_skill_md_found_from_a_subdirectory() -> None:
+    """AC4: the template lookup uses the root that holds build_all.py, not the cwd."""
+    cues = mod.classify_path(".claude/skills/build/SKILL.md", PROJECT_ROOT / ".claude")
+    assert "generated-output" in cues
+
+
+def test_resolved_roots_can_be_reused_across_paths() -> None:
+    """Callers resolve OWNED_PREFIXES once and pass the result to each check."""
+    roots = mod.resolve_generated_roots(PROJECT_ROOT)
+    assert mod.is_validation_target("scripts/validation/check_x.py", PROJECT_ROOT, roots)
+    assert not mod.is_validation_target("src/app/feature.py", PROJECT_ROOT, roots)

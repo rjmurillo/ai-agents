@@ -92,7 +92,18 @@ class TriggerConfigError(ValueError):
 
 
 def _segments(path: str) -> list[str]:
-    return [segment for segment in path.replace("\\", "/").strip().split("/") if segment]
+    parts = path.replace("\\", "/").strip().split("/")
+    return [segment for segment in parts if segment and segment != "."]
+
+
+def normalize_path(path: str) -> str:
+    """Return ``path`` with forward slashes and no empty or ``.`` segments.
+
+    ``./scripts/x.py``, ``.\\scripts\\x.py``, and ``scripts/./x.py`` all name
+    ``scripts/x.py``. A ``..`` segment is kept; this script never resolves a
+    caller-supplied path on disk.
+    """
+    return "/".join(_segments(path))
 
 
 def _stem(name: str) -> str:
@@ -166,7 +177,7 @@ def read_owned_prefixes(build_all_path: Path) -> tuple[str, ...]:
 
 
 def _matches_owned_prefix(path: str, owned_prefixes: tuple[str, ...]) -> bool:
-    normalized = path.replace("\\", "/")
+    normalized = normalize_path(path)
     for prefix in owned_prefixes:
         if prefix.endswith("/"):
             if normalized.startswith(prefix):
@@ -205,35 +216,40 @@ class _GeneratedRoots:
             return cls(None, (), f"OWNED_PREFIXES unreadable in {build_all_path}: {exc}")
         return cls(build_all_path, prefixes, None)
 
-    def is_generated(self, path: str, segments: list[str], repo_root: Path | None) -> bool:
+    def is_generated(self, path: str, segments: list[str]) -> bool:
         if self.source is None:
             return False
         if _matches_owned_prefix(path, self.prefixes):
             return True
-        return repo_root is not None and _is_generated_skill_md(segments, repo_root)
+        # build_all.py lives at <root>/build/scripts/, so parents[2] is <root>.
+        return _is_generated_skill_md(segments, self.source.parents[2])
 
 
-def classify_path(path: str, repo_root: Path) -> list[str]:
+def resolve_generated_roots(repo_root: Path) -> _GeneratedRoots:
+    """Resolve ``OWNED_PREFIXES`` once so a caller can reuse it for many paths."""
+    return _GeneratedRoots.resolve(repo_root)
+
+
+def classify_path(path: str, repo_root: Path, roots: _GeneratedRoots | None = None) -> list[str]:
     """Return the path cues matching ``path`` alone (see module docstring).
 
     Used by ``validation-authority``'s ``validation_record.py`` to check
     "every path the trigger would flag" (DESIGN-039 Record rule 8) without
     duplicating the cue definitions in a second module.
     """
-    roots = _GeneratedRoots.resolve(repo_root)
-    return _cues_for_path(path, roots, repo_root)
+    return _cues_for_path(path, roots or _GeneratedRoots.resolve(repo_root))
 
 
-def is_validation_target(path: str, repo_root: Path) -> bool:
+def is_validation_target(path: str, repo_root: Path, roots: _GeneratedRoots | None = None) -> bool:
     """Return True when ``path`` alone, ignoring diff effects, needs a record entry.
 
     Mirrors the non-effect half of :func:`decide`'s per-path activation rule:
     a bare ``generated-output`` cue is not enough (AC4).
     """
-    return bool(set(classify_path(path, repo_root)) & _VALIDATION_CUES)
+    return bool(set(classify_path(path, repo_root, roots)) & _VALIDATION_CUES)
 
 
-def _cues_for_path(path: str, roots: _GeneratedRoots, repo_root: Path | None) -> list[str]:
+def _cues_for_path(path: str, roots: _GeneratedRoots) -> list[str]:
     segments = _segments(path)
     cues: list[str] = []
     if _is_validator_code(segments):
@@ -244,13 +260,13 @@ def _cues_for_path(path: str, roots: _GeneratedRoots, repo_root: Path | None) ->
         cues.append("validator-config")
     if _is_validation_fixture(segments):
         cues.append("validation-fixture")
-    if roots.is_generated(path, segments, repo_root):
+    if roots.is_generated(path, segments):
         cues.append("generated-output")
     return cues
 
 
 def _normalize_paths(changed_paths: Sequence[str]) -> list[str]:
-    return [path for path in changed_paths if _segments(path)]
+    return [normalize_path(path) for path in changed_paths if _segments(path)]
 
 
 def _normalize_effects(effects: Sequence[str]) -> list[str]:
@@ -293,7 +309,7 @@ def decide(
     targets: list[dict[str, object]] = []
     skipped: list[str] = []
     for path in paths:
-        cues = _cues_for_path(path, roots, repo_root)
+        cues = _cues_for_path(path, roots)
         cue_set = set(cues)
         is_target = bool(cue_set & _VALIDATION_CUES) or (
             "generated-output" in cue_set and generated_effect

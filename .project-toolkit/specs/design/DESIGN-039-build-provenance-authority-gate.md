@@ -91,11 +91,17 @@ Rules:
 6. `VENDOR` or `UPSTREAM`: the permitted location must not equal the target.
    `upstream-defect` needs a non-empty `escalation`.
 7. `baseline-update` needs `baseline_justification` with a `policy_source`
-   that exists on disk, a non-empty `reason`, and `added_entries` where each
+   that is a relative path to an existing file inside the repository, a non-empty `reason`, and `added_entries` where each
    entry has a non-empty `justification`.
 8. With changed paths: every path the trigger would flag must be a record
    target. A `VENDOR` or `UPSTREAM` target must not be a changed path. A
    changed `GENERATED` target needs its canonical source changed too.
+   A changed mirror with no validation cue is outside this gate;
+   `build_all.py --check` owns mirror parity for it.
+9. An activated trigger needs at least one record target, and each path the
+   trigger named needs a record target.
+10. Paths compare after normalization (forward slashes, no `.` segments).
+    One run reports every defect.
 
 Exit codes follow ADR-035: 0 pass, 1 defects, 2 configuration error.
 
