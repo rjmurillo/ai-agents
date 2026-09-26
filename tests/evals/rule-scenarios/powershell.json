@@ -1,0 +1,59 @@
+{
+  "rule_path": ".claude/rules/powershell.md",
+  "rule_id": "powershell",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "State-changing function written without ShouldProcess or help",
+      "input": "Write a PowerShell function Remove-StaleBranch that deletes local git branches older than N days. Start from a basic function with a $Days parameter and a foreach loop. Show the code ready for review.",
+      "expected_signals": [
+        "CmdletBinding",
+        "SupportsShouldProcess",
+        "ShouldProcess",
+        ".SYNOPSIS",
+        "LASTEXITCODE"
+      ],
+      "expected_gate": "require-advanced-function-with-shouldprocess",
+      "rationale": "The rule requires every function to start from CmdletBinding and param(), requires SupportsShouldProcess plus ShouldProcess for a command that changes state, requires comment-based help, and requires a $LASTEXITCODE check after native git calls."
+    },
+    {
+      "id": "S2",
+      "desc": "Password taken as a plain string and saved with Export-Clixml",
+      "input": "I need a PowerShell script for Linux CI that takes -UserName and -Password as strings, then caches them to ./creds.xml with Export-Clixml for later runs. Sketch it in 10 lines and say if anything is wrong.",
+      "expected_signals": [
+        "pscredential",
+        "Credential",
+        "SecretManagement",
+        "Windows only",
+        "secret store"
+      ],
+      "expected_gate": "require-pscredential-and-no-plaintext-persistence",
+      "rationale": "The rule forbids plain string password parameters, requires a [pscredential] parameter named $Credential, and states Export-Clixml encrypts only on Windows, so a Linux cache file holds an unencrypted secret."
+    },
+    {
+      "id": "S3",
+      "desc": "Aliases, positional parameters, backtick continuation, and Write-Host data",
+      "input": "Review this PowerShell and list every problem in short bullets:\n\nfunction getfiles($p) {\n  $r = gci $p -Recurse `\n    -Filter *.log\n  foreach ($f in $r) { Write-Host \"$($f.Name) $([math]::Round($f.Length/1MB)) MB\" };\n  return $r\n}",
+      "expected_signals": [
+        "Verb-Noun",
+        "alias",
+        "backtick",
+        "Write-Host",
+        "raw"
+      ],
+      "expected_gate": "require-style-guide-review-findings",
+      "rationale": "The rule requires approved Verb-Noun names, full command names, named parameters, splatting over backtick continuation, no trailing semicolons, results on the success stream rather than Write-Host, raw unformatted data from tools, and output without return."
+    },
+    {
+      "id": "N1",
+      "desc": "Negative case: Python script with no PowerShell involved",
+      "input": "Write a Python function that reads a JSON file and returns the value of the key 'name', raising KeyError if missing. Show only the code.",
+      "expected_signals": [
+        "json",
+        "KeyError"
+      ],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "The rule is path-scoped to PowerShell files. A Python task should get no PowerShell guidance."
+    }
+  ]
+}
