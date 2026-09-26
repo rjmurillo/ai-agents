@@ -11,7 +11,7 @@ metadata:
     invoker: user
     trigger: a user asks how to treat an upstream validator as authoritative
     user-facing: true
-    rationale: Automatic routing would be noisy until issue #5387 defines the validator-change trigger; firing on every failing check would stall routine fixes.
+    rationale: "The DESIGN-037 long-tail resolver excludes explicit-only skills from intent matching; issue #5387 will define this skill's own adjunct trigger for a validator-change condition."
 ---
 
 # Validation Authority

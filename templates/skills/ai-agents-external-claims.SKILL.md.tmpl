@@ -5,11 +5,10 @@ license: MIT
 description: Verify external, vendor, and third-party claims (numbers, attributions, structure) against authoritative primary sources before they land in a repo artifact or external deliverable. Covers stake-holding sources, round-number tells, citation-chain drift, and the walk-the-gate-or-file-conservative discipline. Use when you say `verify an external claim`, `check a vendor number`, `is this stat real`, `validate a third-party citation`. Do NOT use for running an experiment (use `ai-agents-research-methodology`) or command-injection scanning (use `security-scan`).
 metadata:
   routing:
-    role: explicit-only
-    invoker: user
-    trigger: a user asks to verify an external, vendor, or third-party claim
+    role: conditional-adjunct
+    invoker: research
+    trigger: the research claim gate finds an external claim about to enter a durable artifact
     user-facing: true
-    rationale: Automatic routing would be noisy until issue #5388 defines when external claims enter a durable artifact; without that trigger it would fire on internal facts.
 ---
 
 # ai-agents External Claims
@@ -47,6 +46,8 @@ Any of these conditions in a claim about to enter a durable artifact:
 - **Stake-holding author**: vendor self-promotion, a founder pitch, an advocacy post quoting a competitor's unfavorable stat. The author benefits from the framing, so the framing is suspect until the primary source confirms it.
 - **Stat-of-a-stat chain**: source A cites source B citing source C. The deeper the chain, the higher the drift risk. Follow it to the origin.
 - **Downstream commitment**: the claim will land in an ADR, a retro, a Serena memory, a PR body, or an external artifact where "I will verify it later" does not survive the round trip.
+
+The `research` skill also invokes this skill at its claim gate, before each durable write. See Adjunct Mode below.
 
 If none of these fire, this skill does not apply. The front-gate has a real cost (one or two fetches); reserve it for claims where a wrong number would actually bite.
 
@@ -98,6 +99,111 @@ The anti-pattern this closes is "Reporting Without Acting": writing "would be N 
 - [ ] Every external number, attribution, or structural claim in the artifact is either verified against its primary source with an inline citation, or removed.
 - [ ] No conditional-caveat sentence ("would be X if", "likely Y pending", "could confirm with Z") names a verification path that was left unrun.
 
+## Adjunct Mode: The Research Claim Gate
+
+The `research` skill invokes this skill before it writes a durable artifact:
+the analysis document, the Serena memory, or the issue body. That is where a
+fetched page becomes a repository file, so the gate sits there, and a direct
+`/research` call passes through it too.
+
+### Activation
+
+Activation depends on what the text claims, not on the file type. Activate when
+the artifact will state any of these:
+
+| Category | Example |
+|----------|---------|
+| `vendor` | A product feature, capability, or behavior |
+| `api` | An external API, platform, or compatibility fact |
+| `statistic` | A benchmark, market figure, percentage, or count |
+| `legal` | A legal, regulatory, or standards assertion |
+| `project-status` | A third-party project's maintenance, security, or performance |
+| `comparative` | One external tool or service compared with another |
+
+Skip when every fact comes from this repository, its tests, or its versioned
+internal documents, and no sentence leans on an outside source. A skip still
+writes a ledger, with the reason.
+
+### The claim ledger
+
+Write one JSON ledger per artifact, since each artifact restates its own set
+of claims. Record one entry per atomic claim: one assertion, small enough that
+one source can confirm or refute it.
+
+```json
+{
+  "artifact": "{analysis-dir}/{topic-slug}.md",
+  "activation": {"decision": "activate", "reason": "vendor and statistic claims"},
+  "claims": [
+    {
+      "id": "C1",
+      "claim": "the draft sentence, as gathered",
+      "category": "statistic",
+      "time_sensitive": true,
+      "source": {"kind": "primary", "url": "https://...", "published": "2026-09-01",
+                 "accessed": "2026-09-25", "secondary_reason": null},
+      "confidence": "medium",
+      "disposition": "narrowed",
+      "final_wording": "As of 2026-09-25 the repository lists 987 stars",
+      "gap": "The source counts stars, not users."
+    }
+  ]
+}
+```
+
+| Field | Values |
+|-------|--------|
+| `source.kind` | `primary`, `secondary` (say why no primary exists), or `none` |
+| `confidence` | `high`, `medium`, `low`, `none` |
+| `disposition` | `verified`, `narrowed`, `qualified`, `removed` |
+
+The source kind bounds the rest:
+
+- `verified` needs a primary source and high or medium confidence.
+- A secondary source caps confidence at medium and cannot be `verified`.
+- Source kind `none` (browsing unavailable, or no authority found) allows only
+  `qualified` or `removed`. The run continues; it does not halt.
+- A kept time-sensitive claim says "as of" in its final wording and records
+  the source's publication or update date.
+- Anything short of `verified` records its gap.
+
+A search result snippet is not a source. Fetch the page it points to.
+
+### The gate
+
+Write the artifact to a draft file first. Run the validator on the ledger and
+the draft. Only when it exits 0, copy the draft's exact text to its final
+location and run the validator again on that file. The `artifact` field names
+that final location.
+
+```bash
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/ai-agents-external-claims/scripts/claim_ledger.py" \
+    --ledger "{analysis-dir}/{topic-slug}-analysis-claims.json" \
+    --artifact "{analysis-dir}/{topic-slug}-analysis.draft.md"
+```
+
+| Exit | Meaning | Next move |
+|------|---------|-----------|
+| 0 | The ledger passed | Copy the draft to its final location and recheck it |
+| 1 | Defects, listed in the JSON on stdout | Fix the ledger or the draft, then rerun |
+| 2 | A file is unreadable or the ledger is not JSON | Fix the input; do not write |
+
+With `--artifact`, the validator refuses a kept final wording that is missing
+from the draft, a removed claim that is still present, and a narrowed or
+qualified claim whose gathered sentence is still present. It also refuses a
+`skip` decision over a draft that cites an outside URL. So the artifact carries
+the checked wording, not the unreviewed draft. The JSON summary names the
+ledger and the draft, so a failure log says which gate failed.
+
+## Scripts
+
+| Script | Purpose | Exit codes |
+|--------|---------|------------|
+| `claim_ledger.py` | Validates a claim ledger, and with `--artifact` the artifact text, before a research write. Prints a sorted JSON summary. Reads local files only. | 0 pass, 1 defects, 2 unreadable input or bad arguments |
+
+The script ships in this skill's own script directory. The Adjunct Mode
+gate above shows the plugin-root invocation.
+
 ## Anti-Patterns
 
 | Anti-pattern | Why it bites | Correct move |
@@ -118,10 +224,11 @@ Before a claim from an external source enters a durable artifact:
 - [ ] Any stat-of-a-stat chain was followed to its origin, and any repo cross-claim is quoted verbatim with its path.
 - [ ] Stake-holding sources are flagged, and self-favorable claims are confirmed against a neutral source.
 - [ ] Every external number and attribution is cited inline or removed; no unrun verification is named as a caveat.
+- [ ] In research adjunct mode, the claim ledger passed `claim_ledger.py` against the draft before the write, and again against the written file.
 
 ## Provenance
 
-Issue #3068 requested a stewardship and knowledge-transfer skill library for this repo. Fourteen domain knowledge-packs plus `agent-harness-reference` shipped in PR #2831 as the `ai-agents-*` skill set. This skill adds the one named domain that set did not cover: verifying external and third-party claims against authoritative primary sources before ingest. It is a documentation knowledge-pack (structure-only, no runner scripts), modeled on `ai-agents-validation-and-qa`.
+Issue #3068 requested a stewardship and knowledge-transfer skill library for this repo. Fourteen domain knowledge-packs plus `agent-harness-reference` shipped in PR #2831 as the `ai-agents-*` skill set. This skill adds the one named domain that set did not cover: verifying external and third-party claims against authoritative primary sources before ingest. It began as a documentation knowledge-pack modeled on `ai-agents-validation-and-qa`. Issue #5388 added the research adjunct mode and its one validator script.
 
 Grounding sources, verified against the working tree:
 

@@ -6,10 +6,21 @@ license: MIT
 metadata:
   version: 1.0.0
   routing:
-    role: conditional-adjunct
-    invoker: spec-generator
-    trigger: spec-generator checks programming-advisor when the spec proposes a new external dependency
-    user-facing: false
+    role: front-door
+    invoker: autoplan
+    trigger: autoplan runs programming-advisor's prior-art discovery before spec for a new capability request
+    user-facing: true
+    intents:
+      - existing library
+      - existing solution
+      - prior art
+      - reinvent the wheel
+      - is there a package
+      - internal component reuse
+      - already library
+      - already package
+      - already saas
+      - already solves
 ---
 
 # Programming Advisor - "Reinventing the Wheel" Detector
@@ -24,6 +35,19 @@ metadata:
 | "build vs buy for X" | Tactical: generate cost comparison table; Strategic (>$50K, multi-year, partner/defer options): delegate to `buy-vs-build-framework` |
 | "check if X exists before building" | Run full wheel detection workflow |
 | "do we already have X" / "is there existing code for X in this repo" | Search internal prior-art first (leverage/extend), then external |
+
+## When to use / Do NOT use
+
+Use this skill: "is there a library for parsing YAML in Python", "do we already
+have a retry helper in this repo", "find an existing solution before writing a
+new rate limiter". Every one of these names one narrow, tactical, immediately
+buildable thing.
+
+Do NOT use this skill for: "should we build or buy a customer data platform,
+partner with a vendor, or defer the investment for two years" (strategic,
+multi-year, multi-option; use `buy-vs-build-framework` instead). The dividing
+line is time horizon and option count: one tactical answer stays here, a
+multi-option strategic trade-off with TCO goes to `buy-vs-build-framework`.
 
 ## Core Philosophy
 

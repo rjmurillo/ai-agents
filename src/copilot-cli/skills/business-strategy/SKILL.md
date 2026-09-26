@@ -9,11 +9,19 @@ metadata:
   jtbd_stages: [Discovery, Validation, Positioning, GoToMarket, Persuasion]
   source_pattern: getagentseal/founder-playbook (MIT)
   routing:
-    role: explicit-only
-    invoker: user
-    trigger: a user asks to route a founder problem to a business framework
+    role: front-door
+    invoker: autoplan
+    trigger: autoplan's long-tail resolver matches a founder business-strategy problem
     user-facing: true
-    rationale: Automatic routing would be noisy until issue #5385 adds a long-tail resolver; a broad business description would match unrelated product questions.
+    intents:
+      - business strategy
+      - business model
+      - competitive strategy
+      - founder problem
+      - business framework
+      - validate demand
+      - position product
+      - generate leads
 ---
 
 # Business Strategy

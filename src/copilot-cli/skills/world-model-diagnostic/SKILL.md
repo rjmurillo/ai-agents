@@ -5,11 +5,16 @@ description: Twenty-minute diagnostic mapping a team to a world-model paradigm (
 license: MIT
 metadata:
   routing:
-    role: explicit-only
-    invoker: user
-    trigger: a user asks to run the world model diagnostic
+    role: front-door
+    invoker: autoplan
+    trigger: autoplan's long-tail resolver matches a world-model or automated-judgment diagnostic
     user-facing: true
-    rationale: Automatic routing would be noisy until issue #5385 adds a long-tail resolver; its description overlaps ordinary debugging requests.
+    intents:
+      - world model diagnostic
+      - world model paradigm
+      - agent assumptions failing
+      - automate judgment audit
+      - boundary layer audit
 ---
 
 # World Model Diagnostic

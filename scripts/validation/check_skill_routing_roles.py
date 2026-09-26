@@ -182,6 +182,25 @@ def _deprecated_defects(rel: str, block: dict[str, object], role: str) -> list[s
     ]
 
 
+def _intents_defects(rel: str, block: dict[str, object], role: str) -> list[str]:
+    """Return defects for `intents` on the wrong role, or a malformed list.
+
+    REQ-039 criterion 11: `intents` is legal only on `front-door`, and must be
+    a non-empty list of non-empty strings when present.
+    """
+    if "intents" not in block:
+        return []
+    if role != "front-door":
+        return [f"{rel}: `intents` is only valid on role `front-door`, not `{role}`"]
+    intents = block["intents"]
+    if not isinstance(intents, list) or not intents:
+        return [f"{rel}: `intents` must be a non-empty list of non-empty strings"]
+    for item in intents:
+        if not isinstance(item, str) or not item.strip():
+            return [f"{rel}: `intents` item {item!r} must be a non-empty string"]
+    return []
+
+
 def _scenario_defect(rel: str, block: dict[str, object]) -> str | None:
     """Return the defect for a malformed `scenario` override, or None."""
     if "scenario" not in block:
@@ -212,6 +231,7 @@ def _block_defects(rel: str, front: dict[str, object], block: dict[str, object])
     defects.extend(_required_key_defects(rel, block, role))
     defects.extend(_explicit_only_defects(rel, block, role))
     defects.extend(_deprecated_defects(rel, block, role))
+    defects.extend(_intents_defects(rel, block, role))
     scenario_defect = _scenario_defect(rel, block)
     if scenario_defect:
         defects.append(scenario_defect)
