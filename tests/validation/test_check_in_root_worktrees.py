@@ -320,3 +320,86 @@ def test_module_runs_as_a_script(repo: Path) -> None:
 
     assert result.returncode == 0, result.stderr
     assert "0 in-root worktree(s)" in result.stdout
+
+
+# --- review round 1: submodules, missing directories, git failure exit ---------
+
+
+def test_a_submodule_is_not_reported_as_an_orphaned_worktree(tmp_path: Path) -> None:
+    """A submodule's `.git` file points under `.git/modules/`, not `worktrees/`."""
+    sub = tmp_path / "libfoo"
+    sub.mkdir()
+    (sub / ".git").write_text("gitdir: ../.git/modules/libfoo\n", encoding="utf-8")
+
+    report = checker.scan_repo_root(tmp_path, [str(tmp_path)], git_listing_failed=False)
+
+    assert report.worktrees == []
+    assert checker.is_linked_worktree_dir(sub) is False
+
+
+def test_a_windows_style_worktree_pointer_is_recognised(tmp_path: Path) -> None:
+    wt = tmp_path / "wt"
+    wt.mkdir()
+    (wt / ".git").write_text("gitdir: C:\\repo\\.git\\worktrees\\wt\n", encoding="utf-8")
+
+    assert checker.is_linked_worktree_dir(wt) is True
+
+
+def test_an_unreadable_pointer_is_not_a_linked_worktree(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    wt = make_worktree_dir(tmp_path, "wt")
+    monkeypatch.setattr(checker, "is_worktree_dir", lambda _p: True)
+    real_open = Path.open
+
+    def deny(self: Path, *args, **kwargs):
+        if self.name == ".git":
+            raise PermissionError("denied")
+        return real_open(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", deny)
+
+    assert checker.is_linked_worktree_dir(wt) is False
+
+
+def test_a_registered_worktree_with_a_missing_directory_gets_prune_advice(
+    repo: Path, tmp_path: Path
+) -> None:
+    gone = repo / ".claude" / "worktrees" / "gone"
+    _git(repo, "worktree", "add", "-q", "-b", "gone", str(gone))
+    gone.rename(tmp_path / "moved-away")
+
+    report = checker.build_report(repo)
+    text = checker.format_report(report)
+
+    assert [w.missing for w in report.worktrees] == [True]
+    assert "git worktree prune" in text
+
+
+def test_exists_counts_an_unanswerable_stat_as_present(monkeypatch: pytest.MonkeyPatch) -> None:
+    def boom(self: Path) -> bool:
+        raise PermissionError("denied")
+
+    monkeypatch.setattr(Path, "exists", boom)
+
+    assert checker._exists(Path("/anything")) is True
+
+
+def test_main_exits_three_when_git_fails_and_nothing_is_found(tmp_path: Path) -> None:
+    """A failed listing is unproved, not clean (tmp_path is not a repository)."""
+    assert checker.main(["--repo-root", str(tmp_path)]) == 3
+
+
+def test_main_exits_one_when_git_fails_but_an_orphan_is_found(tmp_path: Path) -> None:
+    make_worktree_dir(tmp_path / ".claude/worktrees", "agent-f")
+
+    assert checker.main(["--repo-root", str(tmp_path)]) == 1
+
+
+def test_findings_are_labelled_unverified_when_git_failed(tmp_path: Path) -> None:
+    make_worktree_dir(tmp_path / ".claude/worktrees", "agent-u")
+
+    text = checker.format_report(checker.build_report(tmp_path))
+
+    assert "unverified (git listing failed)" in text
+    assert "orphaned" not in text

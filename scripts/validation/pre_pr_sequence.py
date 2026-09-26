@@ -298,7 +298,7 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # multiplies every recursive scan by one full checkout. Never fails; see the
     # validator's docstring. Issue #4702.
     _Gate("In-root Worktrees (advisory)", _root_only(validate_in_root_worktrees)),
-    # Advisory sibling of the gate above, same reasoning, different subject:
+    # Advisory sibling of the Temp-filesystem gate, same reasoning, different subject:
     # an untracked .serena/memories/**/*.md file in another linked worktree,
     # the symptom of issue #5061 (Serena's MCP server resolves its project
     # root at activation time, not per call, so a worktree-scoped subagent's

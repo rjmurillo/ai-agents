@@ -22,7 +22,13 @@ TWO FINDINGS, TWO SOURCES. They do not overlap, which is why both run:
     catches the nested case the issue recorded.
   * Orphaned: a directory holding the `.git` file `git worktree add` writes,
     found inside this checkout, that git does not list. Issue #5111 showed
-    the admin record can be pruned while the directory survives.
+    the admin record can be pruned while the directory survives. A submodule
+    also gets a `.git` file, but its `gitdir:` points under `.git/modules/`,
+    so only a pointer under a `worktrees/` admin directory counts.
+
+A registered worktree whose directory is gone is reported as missing, with
+`git worktree prune` as the repair, because `git worktree move` needs the
+directory.
 
 Orphan scan scope is the direct children of the checkout root plus the direct
 children of each container in ``CONTAINER_DIRS``. Those are the places
@@ -36,6 +42,8 @@ EXIT CODES (ADR-035):
   0 - no in-root worktrees (prints the examined count)
   1 - at least one worktree inside a checkout of this repository
   2 - configuration error (an explicit --repo-root that is not a directory)
+  3 - external failure: `git worktree list` failed and the filesystem half
+      found nothing, so the registered half is unproved, not clean
 """
 
 from __future__ import annotations
@@ -76,6 +84,7 @@ class InRootWorktree:
     path: str
     parent: str
     registered: bool
+    missing: bool = False
 
 
 @dataclass
@@ -103,6 +112,31 @@ def _resolve(raw: str) -> Path | None:
         return None
 
 
+def _exists(path: Path) -> bool:
+    """True when ``path`` exists. An unanswerable stat counts as present."""
+    try:
+        return path.exists()
+    except OSError:
+        return True
+
+
+def is_linked_worktree_dir(candidate: Path) -> bool:
+    """True when ``candidate`` is a linked worktree, not a submodule.
+
+    Both carry a `.git` file starting `gitdir:`. A linked worktree points at
+    `<common dir>/worktrees/<name>`; a submodule points at
+    `<superproject>/.git/modules/<name>`.
+    """
+    if not is_worktree_dir(candidate):
+        return False
+    try:
+        with (candidate / ".git").open(encoding="utf-8", errors="replace") as handle:
+            target = handle.readline()[len("gitdir:") :].strip()
+    except OSError:
+        return False
+    return "/worktrees/" in target.replace("\\", "/")
+
+
 def _innermost_parent(path: Path, checkouts: list[Path]) -> Path | None:
     """Return the deepest checkout that strictly contains ``path``, if any."""
     containing = [c for c in checkouts if c != path and path.is_relative_to(c)]
@@ -125,7 +159,11 @@ def find_nested_registered(registered: list[str]) -> list[InRootWorktree]:
             continue
         parent = _innermost_parent(path, checkouts)
         if parent is not None:
-            found.append(InRootWorktree(path=raw, parent=str(parent), registered=True))
+            found.append(
+                InRootWorktree(
+                    path=raw, parent=str(parent), registered=True, missing=not _exists(path)
+                )
+            )
     return found
 
 
@@ -189,7 +227,7 @@ def scan_repo_root(
     for container in CONTAINER_DIRS:
         for entry in _child_dirs(repo_root / container, report):
             report.examined += 1
-            if not is_worktree_dir(entry) or _resolve(str(entry)) in known:
+            if not is_linked_worktree_dir(entry) or _resolve(str(entry)) in known:
                 continue
             report.worktrees.append(
                 InRootWorktree(path=str(entry), parent=str(repo_root), registered=False)
@@ -203,6 +241,17 @@ def build_report(repo_root: Path) -> InRootReport:
     return scan_repo_root(repo_root, registered, git_listing_failed)
 
 
+def _origin(worktree: InRootWorktree, git_listing_failed: bool) -> str:
+    """Label one finding by what is known about it."""
+    if worktree.missing:
+        return "registered, directory missing; run git worktree prune"
+    if worktree.registered:
+        return "registered"
+    if git_listing_failed:
+        return "unverified (git listing failed)"
+    return "orphaned (git does not know it)"
+
+
 def format_report(report: InRootReport) -> str:
     """Render the human-readable report. Always names the examined count."""
     lines: list[str] = []
@@ -212,7 +261,7 @@ def format_report(report: InRootReport) -> str:
             f"against {RULE_CITATION}:"
         )
         for worktree in report.worktrees:
-            origin = "registered" if worktree.registered else "orphaned (git does not know it)"
+            origin = _origin(worktree, report.git_listing_failed)
             lines.append(f"  {worktree.path} [{origin}, inside {worktree.parent}]")
         lines.append(
             "  Move each registered one with: git worktree move <path> <sibling path>. "
@@ -285,7 +334,9 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(asdict(report), indent=2))
     else:
         print(format_report(report))
-    return 1 if report.has_findings else 0
+    if report.has_findings:
+        return 1
+    return 3 if report.git_listing_failed else 0
 
 
 if __name__ == "__main__":
