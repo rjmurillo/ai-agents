@@ -302,8 +302,8 @@ python3 scripts/score_vendor.py --help
 This skill ships no separate template files. Each phase worksheet lives in this document:
 
 - Phase 1 classification worksheet: the Core vs Context grid and exit criteria in "Phase 1: Classify (Core vs Context)"
-- Phase 2 TCO worksheet: the cost category table in "Phase 2: Analyze (TCO + Capacity)", computed by `scripts/calculate_tco.py`
-- Phase 3 decision matrix: the weighted dimension table in "Phase 3: Evaluate (Decision Matrix)", scored by `scripts/score_decision.py`
+- Phase 2 TCO worksheet: the cost category table in "Phase 2: Analyze (TCO + Capacity)", computed by `calculate_tco.py` (see Scripts)
+- Phase 3 decision matrix: the weighted dimension table in "Phase 3: Evaluate (Decision Matrix)", scored by `score_decision.py` (see Scripts)
 - Phase 4 ADR template: the "Deep Dive: ADR Template" section below
 
 ## Anti-Patterns
