@@ -33,7 +33,7 @@ permissions:
 jobs:
   check-paths:
     name: Detect changes
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     timeout-minutes: 5
     outputs:
       should-verify: ${{ steps.determine.outputs.should-verify }}
@@ -69,7 +69,7 @@ jobs:
     name: Verify citations
     needs: check-paths
     if: needs.check-paths.outputs.should-verify == 'true'
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     timeout-minutes: 10
     steps:
       - name: Checkout code
@@ -90,7 +90,7 @@ jobs:
     name: Skip verification (no changes)
     needs: check-paths
     if: needs.check-paths.outputs.should-verify != 'true'
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     timeout-minutes: 1
     steps:
       - name: Checkout code

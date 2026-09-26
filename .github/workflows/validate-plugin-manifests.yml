@@ -26,7 +26,7 @@ permissions:
 jobs:
   check-paths:
     name: Check Changed Paths
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     permissions:
       contents: read
     outputs:
@@ -52,7 +52,7 @@ jobs:
     name: Validate Plugin Manifests
     needs: check-paths
     if: needs.check-paths.outputs.should-run-manifests == 'true'
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     permissions:
       contents: read
 
@@ -82,7 +82,7 @@ jobs:
     name: Validate Plugin Manifests (Skipped)
     needs: check-paths
     if: needs.check-paths.outputs.should-run-manifests != 'true'
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     permissions:
       contents: read
     steps:

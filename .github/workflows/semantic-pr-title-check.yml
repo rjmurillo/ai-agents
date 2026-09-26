@@ -22,7 +22,7 @@ concurrency:
 jobs:
   main:
     name: Validate PR title
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     timeout-minutes: 5
     steps:
       - name: Confirm pull request title gate passed before queue entry

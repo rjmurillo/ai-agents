@@ -26,7 +26,7 @@ jobs:
   analyze-metrics:
     name: Analyze PR Metrics
     # ADR-025: ARM runner for cost optimization
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     environment: bot-secrets
     timeout-minutes: 22
 

@@ -28,7 +28,7 @@ permissions:
 jobs:
   check-paths:
     name: Detect changes
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     timeout-minutes: 5
     outputs:
       should-run-compliance: ${{ steps.determine.outputs.should-run-compliance }}
@@ -65,7 +65,7 @@ jobs:
     name: Validate compliance
     needs: check-paths
     if: needs.check-paths.outputs.should-run-compliance == 'true'
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     timeout-minutes: 5
     steps:
       - name: Checkout code
@@ -94,7 +94,7 @@ jobs:
     name: Skip compliance (no changes)
     needs: check-paths
     if: needs.check-paths.outputs.should-run-compliance != 'true'
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     timeout-minutes: 1
     steps:
       - name: Checkout code
