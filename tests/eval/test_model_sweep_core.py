@@ -340,6 +340,7 @@ def test_paired_bootstrap_ci_bonferroni_widens_lower_bound():
     assert wide[0] <= narrow[0]
 
 
+
 def test_build_report_renders_null_cost_for_quota_billed_model():
     """A request-metered model serializes cost as null, never as 0.0.
 

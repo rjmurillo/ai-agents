@@ -73,6 +73,7 @@ def _args(**overrides):
         default_model=sweep.DEFAULT_MODEL,
         n_runs=3,
         min_effect=0.05,
+        routing_margin=sweep.DEFAULT_ROUTING_MARGIN,
         seed=42,
         provider=None,
         output=None,
@@ -442,6 +443,57 @@ def test_run_sweep_keep_pin_end_to_end(tmp_path, capsys):
     assert artifact["fixtures_sha"] == "fakesha"
 
 
+def test_run_sweep_reports_routing_block_and_route_line(tmp_path, capsys):
+    default_id = "claude-sonnet-5"
+    haiku_id = "claude-haiku-4-5"
+    opus_id = "claude-opus-5-5"
+    results = {
+        default_id: _result(default_id, 0.85),
+        haiku_id: _result(haiku_id, 0.80, cost_usd=0.01, error_count=0),
+        opus_id: _result(opus_id, 0.95, cost_usd=0.5, error_count=0),
+    }
+    runner = _FakeRunner(results)
+    output = tmp_path / "sweep.json"
+    args = _args(
+        models=f"{default_id},{haiku_id},{opus_id}",
+        default_model=default_id,
+        output=output,
+    )
+    rc = sweep.run_sweep(args, runner=runner)
+    out = capsys.readouterr().out
+    assert rc == sweep.EXIT_OK
+    assert "ROUTE " in out
+    artifact = json.loads(output.read_text(encoding="utf-8"))
+    assert "routing" in artifact
+    routing = artifact["routing"]
+    assert set(routing) == {
+        "lightest_sufficient_model",
+        "best_model",
+        "margin",
+        "resolved",
+        "candidates",
+        "reason",
+    }
+    assert routing["best_model"] in results
+    assert routing["lightest_sufficient_model"] in results
+    assert {row["model_id"] for row in routing["candidates"]} == set(results)
+
+
+@pytest.mark.parametrize("margin", [-0.1, float("nan")])
+def test_run_sweep_rejects_invalid_routing_margin_before_runner(capsys, margin):
+    priced = list(sweep.MODEL_PRICING_RATES_USD_PER_1K_TOKENS)[0]
+
+    class _NeverCalled:
+        def run(self, model_id):
+            raise AssertionError("runner must not be called on a config error")
+
+    args = _args(models=priced, default_model=priced, routing_margin=margin)
+    rc = sweep.run_sweep(args, runner=_NeverCalled())
+    err = capsys.readouterr().err
+    assert rc == sweep.EXIT_CONFIG
+    assert "--routing-margin" in err
+
+
 def test_run_sweep_artifact_write_failure_maps_to_external(tmp_path, capsys):
     priced = list(sweep.MODEL_PRICING_RATES_USD_PER_1K_TOKENS)
     if len(priced) < 2:
@@ -680,3 +732,34 @@ def test_parse_report_defaults_basis_to_usd_when_absent():
     result = sweep.parse_report(report, model_id="m1")
     assert result.cost_usd == 0.05
     assert result.cost_basis == "usd"
+
+
+def test_run_sweep_single_shared_fixture_keeps_verdict_and_writes_artifact(tmp_path, capsys):
+    """A one-fixture sweep still DROPs and writes; routing stays unresolved."""
+    default_id = "claude-sonnet-5"
+    haiku_id = "claude-haiku-4-5"
+    results = {
+        default_id: core.ModelResult(
+            model_id=default_id,
+            agent_recall=0.9,
+            per_fixture_agent_rates={"f0": [0.9]},
+            fixture_set_sha="fakesha",
+        ),
+        haiku_id: core.ModelResult(
+            model_id=haiku_id,
+            agent_recall=0.85,
+            per_fixture_agent_rates={"f0": [0.85]},
+            fixture_set_sha="fakesha",
+        ),
+    }
+    output = tmp_path / "sweep.json"
+    args = _args(models=f"{default_id},{haiku_id}", default_model=default_id, output=output)
+
+    rc = sweep.run_sweep(args, runner=_FakeRunner(results))
+
+    assert rc == sweep.EXIT_OK
+    assert "DROP_PIN" in capsys.readouterr().out
+    artifact = json.loads(output.read_text(encoding="utf-8"))
+    assert artifact["decision"] == "DROP_PIN"
+    assert artifact["routing"]["lightest_sufficient_model"] == haiku_id
+    assert artifact["routing"]["resolved"] is False

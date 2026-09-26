@@ -49,6 +49,13 @@ MODEL_PRICING_RATES_USD_PER_1K_TOKENS: dict[str, dict[str, float]] = {
     "claude-opus-5-5": {"input": 0.004, "output": 0.020},
     "claude-opus-5.5": {"input": 0.004, "output": 0.020},
     "claude-haiku-4-5": {"input": 0.001, "output": 0.005},
+    # GPT-6 rates from developers.openai.com/api/docs/models, re-read
+    # 2026-09-24: Astra $10/$50, Sol $2/$10, Luna $0.10/$0.50 per MTok. These
+    # ids are billed per token through the openai provider (OPENAI_API_KEY).
+    # No GPT-5.6 row: that page publishes no GPT-5.6 rate to verify against.
+    "gpt-6-astra": {"input": 0.010, "output": 0.050},
+    "gpt-6-sol": {"input": 0.002, "output": 0.010},
+    "gpt-6-luna": {"input": 0.0001, "output": 0.0005},
     # No row for gpt-5.6-sol on purpose (issue #3905). That id is reachable
     # only through the copilot-cli provider, which meters premium requests
     # rather than tokens, so no published per-token rate exists. A made-up

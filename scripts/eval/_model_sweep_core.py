@@ -28,6 +28,7 @@ Verdict semantics for Issue #2840:
 from __future__ import annotations
 
 import hashlib
+import math
 import random
 import statistics
 from dataclasses import dataclass
@@ -58,6 +59,7 @@ def _percentile(values: list[float], pct: float) -> float:
     frac = rank - lower
     return s[lower] + frac * (s[upper] - s[lower])
 
+
 SCHEMA_VERSION = "1"
 DEFAULT_MIN_EFFECT = 0.05
 DEFAULT_SEED = 42
@@ -66,6 +68,12 @@ DEFAULT_SEED = 42
 # resample draws the same fixture(s), so the CI collapses onto the point delta
 # and stops being evidence. Below this floor we never KEEP a pin.
 MIN_SHARED_FIXTURES = 2
+
+# Routing tolerance: a cheaper model may trail the best model by at most this
+# much mean recall and still count as sufficient. The CI at the same margin
+# only marks whether the corpus proves it (see RoutingDecision.resolved).
+DEFAULT_ROUTING_MARGIN = 0.10
+ROUTING_LOWER_PERCENTILE = 5.0
 
 DECISION_KEEP = "KEEP_PIN"
 DECISION_DROP = "DROP_PIN"
@@ -164,8 +172,7 @@ def refuse_degraded_results(results: list[ModelResult]) -> None:
             degraded.append(f"{result.model_id}: error_count={error_count}")
     if malformed:
         raise SweepDecisionError(
-            "model sweep report has invalid error_count values: "
-            + "; ".join(malformed)
+            "model sweep report has invalid error_count values: " + "; ".join(malformed)
         )
     if degraded:
         raise SweepDecisionError(
@@ -273,9 +280,7 @@ def _candidate_rng(seed: int, default_model: str, candidate_id: str) -> random.R
     of the order candidates appear in (e.g. the ``--models`` argument order),
     while staying fully reproducible for a given seed.
     """
-    digest = hashlib.sha256(
-        f"{seed}:{default_model}:{candidate_id}".encode()
-    ).digest()
+    digest = hashlib.sha256(f"{seed}:{default_model}:{candidate_id}".encode()).digest()
     return random.Random(int.from_bytes(digest[:8], "big"))
 
 
@@ -456,6 +461,149 @@ def decide(
             f"beats it, so no model pin is justified"
         ),
     )
+
+
+@dataclass(frozen=True, slots=True)
+class RoutingDecision:
+    """The cheapest swept model whose recall stays within the margin of the best.
+
+    The KEEP/DROP gate asks whether a pin beats the default. Routing asks the
+    opposite question: how far down the price ladder can work go before
+    acceptance drops? A model is sufficient when its mean recall trails the
+    best model by no more than ``margin``. The burden of proof sits on
+    escalation: a cheaper model is kept unless the measured gap exceeds the
+    margin.
+
+    ``resolved`` says whether the corpus is large enough to back the verdict.
+    It is True when the chosen model is the best one, or when the lower bound
+    of the paired bootstrap CI on ``chosen - best`` is at or above
+    ``-margin``, which proves non-inferiority instead of failing to find a gap.
+    """
+
+    lightest_sufficient_model: str
+    best_model: str
+    margin: float
+    resolved: bool
+    candidates: tuple[dict[str, object], ...]
+    reason: str
+
+
+def _list_price(model_id: str, prices: dict[str, dict[str, float]]) -> float:
+    """Input plus output list rate per 1K tokens; the price-ladder sort key."""
+    rate = prices.get(model_id)
+    if rate is None:
+        raise SweepDecisionError(
+            f"model {model_id!r} has no list price; routing needs a price "
+            "ladder, so add a verified rate before deciding"
+        )
+    return rate["input"] + rate["output"]
+
+
+def decide_routing(
+    results: list[ModelResult],
+    *,
+    prices: dict[str, dict[str, float]],
+    margin: float = DEFAULT_ROUTING_MARGIN,
+    seed: int = DEFAULT_SEED,
+) -> RoutingDecision:
+    """Pick the cheapest model whose recall stays within ``margin`` of the best.
+
+    Walks the swept models from cheapest to most expensive list price. Each
+    model's mean recall on the shared stable fixtures is compared with the
+    best model's. The first model that trails by no more than ``margin`` is
+    the lightest sufficient model; the best model always qualifies, so the
+    walk always ends with an answer.
+
+    Every non-best model also gets a paired bootstrap CI on ``model - best``,
+    Bonferroni-split across the non-best models (the family-wise guard
+    ``decide`` applies). A one-sided non-inferiority test (lower bound at or
+    above ``-margin``) is too strict to gate on at 8 to 24 fixtures: a 0.02
+    gap on 8 fixtures still yields a lower bound near -0.2. The CI therefore
+    sets ``resolved`` and is reported per model, but it does not gate.
+    """
+    if not results:
+        raise SweepDecisionError("no model results to route")
+    if not math.isfinite(margin) or margin < 0.0:
+        raise SweepDecisionError(f"routing margin must be finite and >= 0 (got {margin!r})")
+    refuse_degraded_results(results)
+    check_comparable(results)
+    ids = common_fixture_ids(results)
+    if not ids:
+        raise SweepDecisionError("no fixtures are shared and stable across all swept models")
+    best = rank(results, ids)[0]
+    ladder = sorted(results, key=lambda r: (_list_price(r.model_id, prices), r.model_id))
+    lower_percentile = ROUTING_LOWER_PERCENTILE / max(len(results) - 1, 1)
+    rows = [_routing_row(m, best, ids, prices, margin, seed, lower_percentile) for m in ladder]
+    chosen = next((row for row in rows if row["sufficient"]), None)
+    if chosen is None:
+        raise SweepDecisionError("no swept model qualified; margin must be >= 0")
+    chosen_id = str(chosen["model_id"])
+    resolved = bool(chosen["resolved"])
+    return RoutingDecision(
+        lightest_sufficient_model=chosen_id,
+        best_model=best.model_id,
+        margin=margin,
+        resolved=resolved,
+        candidates=tuple(rows),
+        reason=(
+            f"{chosen_id!r} is the cheapest swept model whose mean recall trails "
+            f"the best model {best.model_id!r} by at most {margin:.2f} over "
+            f"{len(ids)} shared stable fixtures; "
+            + ("non-inferiority proven" if resolved else "gap within noise, not proven")
+        ),
+    )
+
+
+def _routing_row(
+    model: ModelResult,
+    best: ModelResult,
+    ids: list[str],
+    prices: dict[str, dict[str, float]],
+    margin: float,
+    seed: int,
+    lower_percentile: float,
+) -> dict[str, object]:
+    """One ladder rung: recall, gap to the best model, and its CI."""
+    delta = mean_recall_on(model, ids) - mean_recall_on(best, ids)
+    row: dict[str, object] = {
+        "model_id": model.model_id,
+        "list_price_per_1k": round(_list_price(model.model_id, prices), 6),
+        "mean_recall": round(mean_recall_on(model, ids), 6),
+        "delta_vs_best": round(delta, 6),
+        "sufficient": delta >= -margin - 1e-9,
+    }
+    if model.model_id == best.model_id:
+        return {**row, "ci_low_vs_best": 0.0, "ci_high_vs_best": 0.0, "resolved": True}
+    if len(ids) < MIN_SHARED_FIXTURES:
+        # One shared fixture: the bootstrap collapses onto the point delta and
+        # proves nothing, so the verdict stands but stays unresolved.
+        return {**row, "ci_low_vs_best": None, "ci_high_vs_best": None, "resolved": False}
+    ci_low, ci_high = paired_bootstrap_ci(
+        model,
+        best,
+        ids,
+        rng=_candidate_rng(seed, best.model_id, model.model_id),
+        lower_percentile=lower_percentile,
+        upper_percentile=100.0 - lower_percentile,
+    )
+    return {
+        **row,
+        "ci_low_vs_best": round(ci_low, 6),
+        "ci_high_vs_best": round(ci_high, 6),
+        "resolved": ci_low >= -margin,
+    }
+
+
+def routing_report(decision: RoutingDecision) -> dict[str, object]:
+    """The ``routing`` block a sweep artifact carries."""
+    return {
+        "lightest_sufficient_model": decision.lightest_sufficient_model,
+        "best_model": decision.best_model,
+        "margin": decision.margin,
+        "resolved": decision.resolved,
+        "candidates": list(decision.candidates),
+        "reason": decision.reason,
+    }
 
 
 def build_report(

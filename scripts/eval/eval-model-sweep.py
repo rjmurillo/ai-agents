@@ -46,11 +46,14 @@ from typing import Any, Protocol
 from _eval_common import MODEL_PRICING_RATES_USD_PER_1K_TOKENS
 from _model_sweep_core import (
     DEFAULT_MIN_EFFECT,
+    DEFAULT_ROUTING_MARGIN,
     DEFAULT_SEED,
     ModelResult,
     SweepDecisionError,
     build_report,
     decide,
+    decide_routing,
+    routing_report,
 )
 
 EXIT_OK = 0
@@ -415,6 +418,16 @@ def _build_arg_parser() -> argparse.ArgumentParser:
             f"minimum recall lead over the default to justify a pin (default {DEFAULT_MIN_EFFECT})"
         ),
     )
+    parser.add_argument(
+        "--routing-margin",
+        type=float,
+        default=DEFAULT_ROUTING_MARGIN,
+        help=(
+            "largest mean-recall shortfall versus the best model that still "
+            "counts a cheaper model as sufficient; the bootstrap CI only marks "
+            f"whether the corpus proves it (default {DEFAULT_ROUTING_MARGIN})"
+        ),
+    )
     parser.add_argument("--seed", type=int, default=DEFAULT_SEED)
     parser.add_argument("--provider", default=None)
     parser.add_argument(
@@ -487,6 +500,13 @@ def run_sweep(args: argparse.Namespace, runner: ModelEvalRunner | None = None) -
         print(f"error: --n-runs must be >= 1 (got {args.n_runs})", file=sys.stderr)
         return EXIT_CONFIG
 
+    if not math.isfinite(args.routing_margin) or args.routing_margin < 0:
+        print(
+            f"error: --routing-margin must be a finite value >= 0 (got {args.routing_margin:g})",
+            file=sys.stderr,
+        )
+        return EXIT_CONFIG
+
     if not math.isfinite(args.child_timeout) or args.child_timeout <= 0:
         print(
             f"error: --child-timeout must be a finite value > 0 (got {args.child_timeout:g})",
@@ -530,6 +550,12 @@ def run_sweep(args: argparse.Namespace, runner: ModelEvalRunner | None = None) -
             min_effect=args.min_effect,
             seed=args.seed,
         )
+        routing = decide_routing(
+            results,
+            prices=MODEL_PRICING_RATES_USD_PER_1K_TOKENS,
+            margin=args.routing_margin,
+            seed=args.seed,
+        )
     except SweepDecisionError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return EXIT_CONFIG
@@ -542,10 +568,12 @@ def run_sweep(args: argparse.Namespace, runner: ModelEvalRunner | None = None) -
         min_effect=args.min_effect,
         seed=args.seed,
     )
+    report["routing"] = routing_report(routing)
     output = args.output or _default_output_path(args.agent)
     # Emit the verdict before persisting so an artifact-write failure does not
     # also cost the operator the KEEP/DROP result.
     print(f"{decision.decision}: {decision.reason}")
+    print(f"ROUTE {routing.lightest_sufficient_model}: {routing.reason}")
     try:
         output.parent.mkdir(parents=True, exist_ok=True)
         output.write_text(json.dumps(report, indent=2, sort_keys=True), encoding="utf-8")
