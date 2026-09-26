@@ -709,6 +709,13 @@ _INLINE_CODE_SPAN: re.Pattern[str] = re.compile(
     r"(?<!`)(`{3,})(?!`)(?:[^\n]|\n(?!\s*\n))+?(?<!`)\2(?!`)"
 )
 
+# HTML comment. GitHub renders it as nothing, so a closing keyword inside one
+# creates no link. The pull request template ships `Fixes #456` and
+# `Closes #123` inside comments; treating those as claims would fail every
+# templated body once the claims are compared against GitHub's own links.
+# An unclosed comment hides the rest of the body, so it runs to the end.
+_HTML_COMMENT: re.Pattern[str] = re.compile(r"<!--.*?(?:-->|\Z)", re.DOTALL)
+
 # Fenced code block: backtick or tilde fence with optional language tag.
 # CommonMark 0.31.2 section 4.5: an unclosed fence still opens a code block
 # that runs to the end of the containing block, not to nothing. The closing
@@ -829,6 +836,20 @@ def _code_spans_outside_fences(
     ]
 
 
+def _html_comments_outside_code(
+    body: str,
+    fenced_ranges: list[tuple[int, int]],
+    code_span_ranges: list[tuple[int, int]],
+) -> list[tuple[int, int]]:
+    """HTML comment ranges, excluding a `<!--` that is literal text in code."""
+    code_ranges = fenced_ranges + code_span_ranges
+    return [
+        comment
+        for comment in _span_ranges(body, _HTML_COMMENT)
+        if not _in_any_range(comment[0], code_ranges)
+    ]
+
+
 def validate_closing_links(
     body: str,
     base_ref: str = "",
@@ -864,11 +885,14 @@ def validate_closing_links(
     issues: list[Issue] = []
     fenced_ranges = _fenced_code_block_ranges(body)
     code_span_ranges = _code_spans_outside_fences(body, fenced_ranges)
+    comment_ranges = _html_comments_outside_code(body, fenced_ranges, code_span_ranges)
     non_default_base = bool(base_ref and default_branch and base_ref != default_branch)
 
     has_closing_keyword = False
     for m in _AUTO_CLOSE_KW.finditer(body):
         pos = m.start()
+        if _in_any_range(pos, comment_ranges):
+            continue
         full_kw = m.group(0)
         issue_num = m.group("number")
         has_closing_keyword = True
@@ -923,6 +947,140 @@ def validate_closing_links(
         )
 
     return issues
+
+
+# A closing target: ("owner/repo" lowercased, issue number).
+ClosingTarget = tuple[str, int]
+
+_CLOSING_REFERENCES_LIMIT = 100
+_CLOSING_REFERENCES_QUERY = (
+    "query($owner: String!, $name: String!, $number: Int!) {"
+    " repository(owner: $owner, name: $name) {"
+    " pullRequest(number: $number) {"
+    f" closingIssuesReferences(first: {_CLOSING_REFERENCES_LIMIT}) {{"
+    " totalCount nodes { number repository { nameWithOwner } } } } } }"
+)
+
+
+def extract_active_closing_claims(body: str, owner: str, repo: str) -> dict[ClosingTarget, str]:
+    """Map each closing claim GitHub should honor to the reference the author wrote.
+
+    A claim inside a fenced block, an inline code span, or an HTML comment is
+    not active: `validate_closing_links` already reports the first two, and
+    GitHub renders the third as nothing. A bare `#N` targets ``owner/repo``.
+    """
+    body = body.replace("\r\n", "\n").replace("\r", "\n")
+    fenced_ranges = _fenced_code_block_ranges(body)
+    code_span_ranges = _code_spans_outside_fences(body, fenced_ranges)
+    hidden = (
+        fenced_ranges
+        + code_span_ranges
+        + _html_comments_outside_code(body, fenced_ranges, code_span_ranges)
+    )
+    default_repo = f"{owner}/{repo}".lower()
+    claims: dict[ClosingTarget, str] = {}
+    for m in _AUTO_CLOSE_KW.finditer(body):
+        if _in_any_range(m.start(), hidden):
+            continue
+        written_repo = m.group("repo") or ""
+        target = ((written_repo or default_repo).lower(), int(m.group("number")))
+        claims.setdefault(target, f"{written_repo}#{m.group('number')}")
+    return claims
+
+
+def fetch_closing_references(pr_number: int, owner: str, repo: str) -> set[ClosingTarget]:
+    """Return the issues GitHub will close when the pull request merges.
+
+    ``closingIssuesReferences`` exists only in GraphQL. Raises RuntimeError
+    when the call fails or the answer is incomplete, so a caller can never
+    mistake an unread linkage for an empty one.
+    """
+    argv = [
+        "gh",
+        "api",
+        "graphql",
+        "-f",
+        f"query={_CLOSING_REFERENCES_QUERY}",
+        "-f",
+        f"owner={owner}",
+        "-f",
+        f"name={repo}",
+        "-F",
+        f"number={pr_number}",
+    ]
+    try:
+        result = subprocess.run(
+            argv, capture_output=True, encoding="utf-8", errors="replace", timeout=30
+        )
+    except FileNotFoundError as exc:
+        raise RuntimeError("gh CLI not found") from exc
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError("timed out querying closingIssuesReferences") from exc
+    if result.returncode != 0:
+        raise RuntimeError(f"closingIssuesReferences query failed: {result.stderr.strip()}")
+    try:
+        pull = json.loads(result.stdout)["data"]["repository"]["pullRequest"]
+        refs = pull["closingIssuesReferences"]
+        nodes = refs["nodes"]
+        total = int(refs["totalCount"])
+    except (json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
+        raise RuntimeError("closingIssuesReferences response had an unexpected shape") from exc
+    if total > len(nodes):
+        raise RuntimeError(
+            f"closingIssuesReferences returned {len(nodes)} of {total} linked issues"
+        )
+    return {(node["repository"]["nameWithOwner"].lower(), int(node["number"])) for node in nodes}
+
+
+def validate_closing_links_against_github(
+    pr_number: int,
+    owner: str,
+    repo: str,
+    body: str,
+    base_ref: str,
+    default_branch: str,
+) -> list[Issue]:
+    """Fail when the body claims an issue that GitHub did not link (issue #3827).
+
+    The regex checks in `validate_closing_links` model GitHub's Markdown
+    parsing; this check asks GitHub. A claim with no matching entry in
+    ``closingIssuesReferences`` leaves its issue open after merge, whatever
+    the cause: a keyword the parser does not see, a pull request number, or
+    an issue that does not exist. A non-default base links nothing by
+    design, and `validate_closing_links` already warns about that case.
+    """
+    claims = extract_active_closing_claims(body, owner, repo)
+    if not claims or (base_ref and default_branch and base_ref != default_branch):
+        return []
+    try:
+        linked = fetch_closing_references(pr_number, owner, repo)
+    except RuntimeError as exc:
+        return [
+            Issue(
+                severity="WARNING",
+                issue_type="Closing links not verified",
+                file="<pr-body>",
+                message=(
+                    f"Could not read GitHub's closing links for PR #{pr_number}: {exc}. "
+                    "Whether merging closes the claimed issues is unverified."
+                ),
+            )
+        ]
+    return [
+        Issue(
+            severity="CRITICAL",
+            issue_type="Closing keyword not linked by GitHub",
+            file="<pr-body>",
+            message=(
+                f"The description claims to close {written}, but GitHub did not "
+                "link it, so merging leaves it open. Check that the number is an "
+                "issue, not a pull request, and put the keyword on its own plain "
+                f"line: Fixes {written}"
+            ),
+        )
+        for target, written in claims.items()
+        if target not in linked
+    ]
 
 
 def validate_no_dashes(title: str, body: str) -> list[Issue]:
@@ -1180,6 +1338,11 @@ def main(argv: list[str] | None = None) -> int:
     base_branch: str = pr_data.get("base_ref", "") or ""
     default_branch: str = pr_data.get("default_branch", "main") or "main"
     issues.extend(validate_closing_links(description, base_branch, default_branch))
+    issues.extend(
+        validate_closing_links_against_github(
+            args.pr_number, owner, repo, description, base_branch, default_branch
+        )
+    )
 
     # Honor the bypass label only when CI mode would otherwise fail. The label
     # is the documented escape hatch for false-positive contextual references
@@ -1203,7 +1366,14 @@ def main(argv: list[str] | None = None) -> int:
     # style issues that the entire purpose of Issue #1923 is to mechanically
     # prevent; allowing the bypass label to suppress them silently would
     # defeat the rule. Dash criticals always block, before the bypass check.
-    dash_issue_types = {"Em/en-dash in PR title", "Em/en-dash in PR description"}
+    # An unlinked closing claim is not a file-mention false positive either:
+    # GitHub itself reports the link missing, and a body edit is the remedy
+    # (issue #3827).
+    dash_issue_types = {
+        "Em/en-dash in PR title",
+        "Em/en-dash in PR description",
+        "Closing keyword not linked by GitHub",
+    }
     has_dash_critical = any(
         i.severity == "CRITICAL" and i.issue_type in dash_issue_types for i in issues
     )
