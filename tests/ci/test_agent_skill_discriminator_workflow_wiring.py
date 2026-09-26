@@ -18,15 +18,18 @@ been deleted.
 
 from __future__ import annotations
 
+import shlex
 from pathlib import Path
 from typing import Any
 
 import yaml
 
-_REPO_ROOT = Path(__file__).resolve().parents[2]
-_WORKFLOW = (
-    _REPO_ROOT / ".github" / "workflows" / "agent-skill-discriminator-check.yml"
+from scripts.validation.agent_skill_discriminator_baseline import (
+    DEFAULT_BASELINE_NAME,
 )
+
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+_WORKFLOW = _REPO_ROOT / ".github" / "workflows" / "agent-skill-discriminator-check.yml"
 
 # Every first-party module the checker's own logic lives in. A change to any
 # one of them can move an agent's score, so a diff touching only that file
@@ -50,8 +53,7 @@ def _agent_filter_patterns() -> list[str]:
     filter_steps = [
         step
         for step in steps
-        if isinstance(step, dict)
-        and str(step.get("uses", "")).startswith("dorny/paths-filter@")
+        if isinstance(step, dict) and str(step.get("uses", "")).startswith("dorny/paths-filter@")
     ]
     assert len(filter_steps) == 1, (
         f"Expected exactly one dorny/paths-filter step in check-paths, found "
@@ -128,3 +130,66 @@ class TestAgentFilterCoversTheCheckerSources:
 
         assert ".claude/agents/**.md" in patterns
         assert "templates/agents/**.shared.md" in patterns
+
+
+_BASELINE = "scripts/validation/agent_skill_discriminator_baseline.json"
+_CHECKER = "scripts/validation/check_agent_skill_discriminator.py"
+
+
+def _checker_invocations() -> list[list[str]]:
+    """Argument vectors of every run step in the gate job that calls the checker.
+
+    Each ``run`` scalar is read from the parsed workflow and tokenized with
+    ``shlex``, so a flag surviving only in a comment does not count.
+    """
+    workflow = yaml.safe_load(_WORKFLOW.read_text(encoding="utf-8"))
+    steps = workflow["jobs"]["validate-discriminator"]["steps"]
+    invocations = []
+    for step in steps:
+        run = step.get("run") if isinstance(step, dict) else None
+        if not run:
+            continue
+        # Lines not naming the checker (shell continuations elsewhere in the
+        # job) are skipped before tokenizing; shlex rejects a trailing "\".
+        for line in str(run).splitlines():
+            if _CHECKER not in line:
+                continue
+            argv = shlex.split(line, comments=True)
+            if _CHECKER in argv:
+                invocations.append(argv)
+    return invocations
+
+
+class TestGateRunsAgainstTheCommittedBaseline:
+    """Issue #4087: the gate fails only on a score rise, not on old debt."""
+
+    def test_both_run_modes_invoke_the_checker(self) -> None:
+        """Control: the PR step and the scheduled full-corpus step both exist.
+
+        Without it, deleting a step would satisfy the baseline test below.
+        """
+        invocations = _checker_invocations()
+
+        assert len(invocations) == 2, invocations
+        assert sum("--all" in argv for argv in invocations) == 1, invocations
+
+    def test_every_checker_invocation_passes_the_baseline(self) -> None:
+        for argv in _checker_invocations():
+            assert "--baseline" in argv, (
+                f"{argv} runs the plain score>=2 threshold, so a PR touching "
+                "a pre-existing candidate fails for debt it did not cause."
+            )
+            assert argv[argv.index("--baseline") + 1] == _BASELINE, argv
+
+    def test_ci_reads_the_file_update_baseline_writes(self) -> None:
+        """``--update-baseline`` with no path writes the default name.
+
+        If CI read a different path, a refreshed baseline would never reach
+        the gate.
+        """
+        assert _BASELINE == f"scripts/validation/{DEFAULT_BASELINE_NAME}"
+        assert (_REPO_ROOT / _BASELINE).is_file()
+
+    def test_a_baseline_only_change_runs_the_gate(self) -> None:
+        """A PR that edits only the baseline must not get the skip job's tick."""
+        assert _BASELINE in _agent_filter_patterns()

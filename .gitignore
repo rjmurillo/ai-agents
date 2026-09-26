@@ -124,6 +124,7 @@ ENV/
 scripts/validation/.skill_md_portability_baseline.json.write-lock
 scripts/validation/.skill_md_exec_portability_baseline.json.write-lock
 scripts/validation/.skill_portability_baseline.json.write-lock
+scripts/validation/.agent_skill_discriminator_baseline.json.write-lock
 
 # IDE settings
 .idea/
