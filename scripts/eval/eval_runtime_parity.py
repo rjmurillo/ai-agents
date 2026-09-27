@@ -165,9 +165,15 @@ def build_argv(
     executable: str,
     model: str,
     fixture: Fixture,
+    workspace: Path | None = None,
 ) -> list[str]:
-    """Build a shell-free real CLI invocation for one fixture."""
+    """Build a shell-free real CLI invocation for one fixture.
+
+    A nested `cwd` narrows each CLI's file access to that directory, so the
+    workspace root is granted with `--add-dir` when a fixture sets one.
+    """
     model = harness_model_id(harness, model)
+    grant = ["--add-dir", str(workspace)] if workspace and fixture.cwd != "." else []
     if harness == "claude":
         return [
             executable,
@@ -188,13 +194,15 @@ def build_argv(
             "--no-session-persistence",
             "--model",
             model,
+            *grant,
             *_tool_args(fixture.tools, harness),
         ]
+    custom = fixture.instructions or fixture.path_local
     return [
         executable,
         "--agent",
         "parity",
-        *([] if fixture.instructions else ["--no-custom-instructions"]),
+        *([] if custom else ["--no-custom-instructions"]),
         *(["--no-ask-user"] if "question" not in fixture.tools else []),
         "--disable-builtin-mcps",
         "--no-remote",
@@ -207,6 +215,7 @@ def build_argv(
         model,
         "--prompt",
         fixture.prompt,
+        *grant,
         *_tool_args(fixture.tools, harness),
     ]
 
@@ -369,7 +378,7 @@ def _invoke_runtime(
 ]:
     prepare_workspace(fixture, harness, workspace, instructions=instructions, path_local=path_local)
     cwd = resolve_cwd(workspace, fixture.cwd)
-    argv = build_argv(harness, executable, model, fixture)
+    argv = build_argv(harness, executable, model, fixture, workspace)
     listing: list[object] | None = None
     if harness == "copilot" and (fixture.instructions or fixture.path_local):
         listing, failure = _verify_copilot_instruction_listing(
