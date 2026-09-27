@@ -39,7 +39,7 @@ def test_sentence_joins_capability_first_item() -> None:
     """The sentence extends an existing SHOULD item instead of adding one."""
     lines = [line for line in _read(SOURCE).splitlines() if SENTENCE in line]
     assert len(lines) == 1
-    assert lines[0].startswith("2. **Capability-first**.")
+    assert lines[0].startswith("2. **Capability-first, grounded reads**.")
 
 
 @pytest.mark.parametrize("relative", GENERATED_COPIES)
