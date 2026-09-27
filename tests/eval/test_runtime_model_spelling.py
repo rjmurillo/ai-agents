@@ -4,13 +4,21 @@ from __future__ import annotations
 
 import json
 import sys
+from pathlib import Path
 from types import ModuleType, SimpleNamespace
 
-import _anthropic_api
-import _providers
-import _runtime_grader
 import pytest
-from _runtime_output import comparison_verdict, harness_model_id, same_model
+
+# scripts/eval must be on sys.path so the sibling modules resolve when this
+# file is collected alone or first in a shard (mirrors test_anthropic_model_default.py).
+_EVAL_DIR = str(Path(__file__).resolve().parents[2] / "scripts" / "eval")
+if _EVAL_DIR not in sys.path:
+    sys.path.insert(0, _EVAL_DIR)
+
+import _anthropic_api  # noqa: E402
+import _providers  # noqa: E402
+import _runtime_grader  # noqa: E402
+from _runtime_output import comparison_verdict, harness_model_id, same_model  # noqa: E402
 
 
 @pytest.mark.parametrize(
