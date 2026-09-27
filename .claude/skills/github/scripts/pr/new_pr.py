@@ -52,6 +52,7 @@ def _load_sibling(name: str):
     spec.loader.exec_module(module)
     return module
 
+
 # validate_pr_description carries `_CONVENTIONAL_COMMIT_PATTERN`, which this
 # module re-exports below. Nothing else in this bundle imports from it (issue
 # #5368 deleted the sibling that used to), so load order among the three

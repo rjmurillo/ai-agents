@@ -29,9 +29,7 @@ _API_TARGET_REL = Path("scripts") / "github_core" / "api.py"
 # Issue #5368: _resolve_validation_base moved from new_pr_validations.py
 # (deleted, no production caller) into pr_validations.py, the module
 # new_pr.py actually calls run_validations from.
-_NEW_PR_TARGET_REL = (
-    Path(".claude") / "skills" / "github" / "scripts" / "pr" / "pr_validations.py"
-)
+_NEW_PR_TARGET_REL = Path(".claude") / "skills" / "github" / "scripts" / "pr" / "pr_validations.py"
 _BUILD_AI_TARGET_REL = Path("scripts") / "ci" / "build_ai_review_context.py"
 _TARGETS = (_API_TARGET_REL, _NEW_PR_TARGET_REL, _BUILD_AI_TARGET_REL)
 _BUILD_AI_TESTS = ["tests/test_build_ai_review_context.py"]
