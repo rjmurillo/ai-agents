@@ -1,6 +1,6 @@
 ---
 name: planner
-description: Interactive planning and execution for complex tasks. Use when breaking down multi-step projects (planning) or executing approved plans through delegation (execution). Planning creates milestones with specifications; execution delegates to specialized agents. Use when you say "plan this feature", "create implementation plan", or "resume execution".
+description: Script-driven plan-and-execute workflow with saved step state. planner.py drafts a plan file through forced reflection pauses and a technical-writer and quality-reviewer review; executor.py delegates each milestone of the approved file to specialized agents. Use when you say "run the planner workflow", "execute the plan at plans/X.md", "review the plan and pick up next item", or "resume execution". Do NOT use to decompose a spec into milestones and tasks in the lifecycle chain (use plan), or to log progress on a plan artifact (use execution-plans).
 license: MIT
 metadata:
   routing:
@@ -24,9 +24,11 @@ Two workflows for complex tasks:
 
 **Invoke planner.py** when user asks to:
 
-- "plan", "design", "architect" a feature
-- "review" an existing plan
-- Break down a complex task into milestones
+- "run the planner workflow" for a plan that needs forced reflection pauses
+- "review" an existing plan file before execution
+
+A request to break a spec into milestones and tasks, with no plan file and no
+executor run in view, belongs to the `plan` skill, not here.
 
 **Invoke executor.py** when user asks to:
 
@@ -66,8 +68,7 @@ Skip the planner skill when the task is:
 
 | Trigger Phrase | Operation |
 |----------------|-----------|
-| `plan this feature` | planner.py (planning phase) |
-| `create implementation plan` | planner.py (planning phase) |
+| `run the planner workflow` | planner.py (planning phase) |
 | `review the plan and pick up next item` | executor.py (execution phase) |
 | `execute the plan at plans/X.md` | executor.py (execution phase) |
 | `resume execution` | executor.py (continue from last step) |
