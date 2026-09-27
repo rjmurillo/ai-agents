@@ -1,4 +1,4 @@
-# PR Comment Responder Session – PR #806
+# PR Comment Responder Session: PR #806
 
 ## Session Info
 
@@ -40,12 +40,12 @@
 
 ## Work Log
 
-### PR Comment Response – PR #806
+### PR Comment Response: PR #806
 
 **Status**: In Progress
 
 **What was done**:
-- Initialized session following PR Comment Responder protocol (Phases 0–9)
+- Initialized session following PR Comment Responder protocol (Phases 0 to 9)
 - Artifacts will be stored under `.agents/pr-comments/PR-806/`
 - PR: #806 (rjmurillo/ai-agents)
 

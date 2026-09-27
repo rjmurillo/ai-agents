@@ -943,6 +943,70 @@ class TestArchiveGatedOnEvents:
         assert bundle["decisions"] == []
 
 
+class TestFindArchiveFile:
+    """Archive lookup reads only .agents/archive/sessions/ (#5599)."""
+
+    @pytest.fixture
+    def archive(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(extract_session_episode, "_repo_root", lambda: tmp_path)
+        sessions = tmp_path / ".agents" / "archive" / "sessions"
+        sessions.mkdir(parents=True)
+        return sessions
+
+    def test_resolves_file_in_sessions_dir(self, archive):
+        target = archive / "2026-01-07-session-131.md"
+        target.write_text("# log\n", encoding="utf-8")
+        found = extract_session_episode._find_archive_file("2026-01-07-session-131", "md")
+        assert found == target
+
+    def test_markdown_and_json_wrappers_pick_their_extension(self, archive):
+        md = archive / "2026-01-05-session-318.md"
+        js = archive / "2026-01-05-session-318.json"
+        md.write_text("# log\n", encoding="utf-8")
+        js.write_text("{}\n", encoding="utf-8")
+        assert extract_session_episode._find_archive_markdown("2026-01-05-session-318") == md
+        assert extract_session_episode._find_archive_json("2026-01-05-session-318") == js
+
+    def test_returns_none_when_no_file_matches(self, archive):
+        (archive / "2026-01-07-session-131.md").write_text("# log\n", encoding="utf-8")
+        assert extract_session_episode._find_archive_file("2026-01-07-session-999", "md") is None
+
+    def test_returns_none_when_only_other_extension_exists(self, archive):
+        (archive / "2026-01-07-session-131.md").write_text("# log\n", encoding="utf-8")
+        assert extract_session_episode._find_archive_file("2026-01-07-session-131", "json") is None
+
+    def test_returns_none_when_archive_dir_is_missing(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(extract_session_episode, "_repo_root", lambda: tmp_path)
+        assert extract_session_episode._find_archive_file("2026-01-07-session-131", "md") is None
+
+    def test_ignores_legacy_singular_directory(self, archive):
+        legacy = archive.parent / "session"
+        legacy.mkdir()
+        (legacy / "2026-01-07-session-131.md").write_text("# log\n", encoding="utf-8")
+        assert extract_session_episode._find_archive_file("2026-01-07-session-131", "md") is None
+
+    def test_shortest_name_wins_for_shared_prefix(self, archive):
+        short = archive / "2026-01-11-session-01-pr-869-review.md"
+        long = archive / "2026-01-11-session-01-from-legacy-session-dir.md"
+        short.write_text("# plural\n", encoding="utf-8")
+        long.write_text("# legacy\n", encoding="utf-8")
+        found = extract_session_episode._find_archive_file("2026-01-11-session-01", "md")
+        assert found == short
+
+    def test_glob_metacharacters_in_session_id_match_literally(self, archive):
+        (archive / "2026-01-07-session-1.md").write_text("# log\n", encoding="utf-8")
+        assert extract_session_episode._find_archive_file("2026-01-07-session-[0-9]", "md") is None
+        assert extract_session_episode._find_archive_file("2026-01-07-session-?", "md") is None
+
+    def test_equal_length_names_tie_break_by_name(self, archive):
+        first = archive / "2026-01-08-session-806-a.md"
+        second = archive / "2026-01-08-session-806-b.md"
+        second.write_text("# b\n", encoding="utf-8")
+        first.write_text("# a\n", encoding="utf-8")
+        found = extract_session_episode._find_archive_file("2026-01-08-session-806", "md")
+        assert found == first
+
+
 class TestDecisionVerbs:
     """Decision detection covers adopt/prioritize wording in signal fields (#2036, #2170).
 
