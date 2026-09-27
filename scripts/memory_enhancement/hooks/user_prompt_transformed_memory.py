@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Hook: user_prompt_transformed - Auto-recall relevant memories for Copilot CLI.
 
 Copilot CLI drops all output from config-file ``userPromptSubmitted`` hooks,
@@ -12,7 +11,8 @@ The only environment check skips recall inside the Copilot cloud agent. That
 agent runs unattended with pre-approved tools and reads .serena/memories from
 a checked-out branch (ADR-068 amendment for issue #4727).
 
-Hook Type: userPromptTransformed (Copilot CLI)
+Hook Type: userPromptTransformed (Copilot CLI). Imported by
+``invoke_memory_recall.py --copilot-transformed``; not run directly.
 Exit Codes:
     0 = always. Printing nothing leaves the model-facing content unchanged.
 """
@@ -61,7 +61,3 @@ def _read_payload() -> dict[str, object]:
     except (OSError, UnicodeDecodeError, json.JSONDecodeError):
         return {}
     return data if isinstance(data, dict) else {}
-
-
-if __name__ == "__main__":
-    sys.exit(main())
