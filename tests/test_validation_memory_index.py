@@ -378,6 +378,7 @@ class TestCheckIndexFormat:
         assert result.violation_lines == [1]
 
     def test_prose_between_rows_detected(self, tmp_path: Path) -> None:
+        """Regression guard: prose between rows fails before and after #4776."""
         index = tmp_path / "index.md"
         index.write_text(
             "| Keywords | File |\n"
