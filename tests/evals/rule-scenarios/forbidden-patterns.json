@@ -1,0 +1,54 @@
+{
+  "rule_id": "forbidden-patterns",
+  "skill_path": ".claude/skills/software-engineering-library/SKILL.md",
+  "reference_path": ".claude/skills/software-engineering-library/references/forbidden-patterns.md",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Outbound HTTP call with no timeout",
+      "input": "I'm adding a call to a third-party pricing API. The client library defaults to no timeout unless I pass one. Should I leave the default? Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "explicit timeout",
+        "no timeout",
+        "hang",
+        "bound"
+      ],
+      "expected_gate": "reject-outbound-call-without-timeout",
+      "rationale": "The blocklist forbids outbound calls with no explicit timeout: an unbounded call can hang the caller indefinitely and exhaust connection pools."
+    },
+    {
+      "id": "S2",
+      "desc": "Nested retries at multiple layers",
+      "input": "My HTTP client retries 3 times on failure, and the service layer that calls it also retries 3 times on top of that. Is this a good design? Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "nested retries",
+        "retry storm",
+        "multiple layers",
+        "single retry policy"
+      ],
+      "expected_gate": "reject-nested-retries",
+      "rationale": "The blocklist forbids nested retries at multiple layers: the multiplied attempt count can turn a transient blip into a retry storm against the dependency."
+    },
+    {
+      "id": "S3",
+      "desc": "Generic utils package as a design escape hatch",
+      "input": "I need a place to put a new date-formatting function and an unrelated string-sanitizing function. Should I add both to our existing utils package? Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "utils",
+        "escape hatch",
+        "cohesion",
+        "domain-named module"
+      ],
+      "expected_gate": "reject-generic-utils-package",
+      "rationale": "The blocklist forbids generic utils, helpers, common, or shared packages as design escape hatches: unrelated functions dumped in one module erase ownership and cohesion."
+    },
+    {
+      "id": "S4",
+      "desc": "Adding a documented feature flag with tests (negative case)",
+      "input": "I'm adding a new boolean config flag to toggle a fully-tested optional report column, with a default value and a test for both states. Is this fine? Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "A tested, documented config flag is ordinary configuration, not one of the blocklist's forbidden complexity or production patterns. The blocklist should not activate."
+    }
+  ]
+}

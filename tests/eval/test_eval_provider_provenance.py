@@ -230,10 +230,21 @@ class TestRuleScenarioFiles:
         path = RULE_SCENARIOS_DIR / f"{rule_id}.json"
         data = json.loads(path.read_text(encoding="utf-8"))
         assert "rule_id" in data
-        assert "rule_path" in data
         assert "scenarios" in data
         assert isinstance(data["scenarios"], list)
         assert len(data["scenarios"]) >= 2, "Need at least 2 scenarios"
+        if rule_id == "pragmatic-programmer":
+            # Issue #5951: pragmatic-programmer moved out of .claude/rules/
+            # into an ADR-088 progressive-disclosure reference scenario
+            # (skill_path + reference_path, no rule_path); see
+            # check_rule_activation_coverage.py's _is_reference_scenario,
+            # which requires exactly this shape to exclude the scenario from
+            # both the rule and skill activation-coverage ratchets.
+            assert "skill_path" in data
+            assert "reference_path" in data
+            assert "rule_path" not in data
+        else:
+            assert "rule_path" in data
 
     @pytest.mark.parametrize("rule_id", ["code-quality", "pragmatic-programmer"])
     def test_scenarios_have_positive_and_negative(self, rule_id):
@@ -248,15 +259,30 @@ class TestRuleScenarioFiles:
         assert has_positive, f"{rule_id}: no positive scenario"
         assert has_negative, f"{rule_id}: no negative scenario"
 
-    @pytest.mark.parametrize("rule_id", ["code-quality", "pragmatic-programmer"])
+    @pytest.mark.parametrize("rule_id", ["code-quality"])
     def test_rule_path_points_to_existing_file(self, rule_id):
         path = RULE_SCENARIOS_DIR / f"{rule_id}.json"
         data = json.loads(path.read_text(encoding="utf-8"))
         rule_path = REPO_ROOT / data["rule_path"]
         assert rule_path.exists(), f"rule_path {data['rule_path']!r} does not exist"
 
-    def test_issue_5392_has_all_recovery_fixtures(self):
+    def test_pragmatic_programmer_reference_scenario_points_to_existing_files(self):
+        """Issue #5951: pragmatic-programmer is now a skill reference scenario."""
         path = RULE_SCENARIOS_DIR / "pragmatic-programmer.json"
+        data = json.loads(path.read_text(encoding="utf-8"))
+        skill_path = REPO_ROOT / data["skill_path"]
+        reference_path = REPO_ROOT / data["reference_path"]
+        assert skill_path.exists(), f"skill_path {data['skill_path']!r} does not exist"
+        assert reference_path.exists(), (
+            f"reference_path {data['reference_path']!r} does not exist"
+        )
+
+    def test_issue_5392_has_all_recovery_fixtures(self):
+        """R1-R8 moved to universal.json (issue #5951): the recovery contract lives
+        in always-on universal.md, so it is measured against always-on context
+        rather than the on-demand pragmatic-programmer reference.
+        """
+        path = RULE_SCENARIOS_DIR / "universal.json"
         data = json.loads(path.read_text(encoding="utf-8"))
         ids = [scenario["id"] for scenario in data["scenarios"]]
         assert len(ids) == len(set(ids)), "scenario IDs must be unique"
@@ -271,7 +297,7 @@ class TestRuleScenarioFiles:
             "R7": "recovery-no-fabricated-mutable-state",
             "R8": "recovery-negative-control",
         }
-        assert set(scenarios) == set(required) | {"S1", "S2", "S3", "S4"}
+        assert set(scenarios) == set(required) | {"S1", "S2", "S3", "S4", "S5", "S6"}
         actual = {
             scenario_id: scenarios[scenario_id]["expected_gate"] for scenario_id in required
         }
@@ -310,9 +336,12 @@ class TestRuleScenarioFiles:
 
     def test_issue_5392_recovery_contract_is_explicit(self):
         universal = (REPO_ROOT / "templates/rules/universal.md").read_text(encoding="utf-8")
-        pragmatic = (REPO_ROOT / "templates/rules/pragmatic-programmer.md").read_text(
-            encoding="utf-8"
-        )
+        # Issue #5951: pragmatic-programmer moved from templates/rules/ into an
+        # on-demand skill reference; read it there instead of the deleted rule.
+        pragmatic = (
+            REPO_ROOT
+            / ".claude/skills/software-engineering-library/references/pragmatic-programmer.md"
+        ).read_text(encoding="utf-8")
         for clause in (
             "MUST NOT fabricate tool results, command flags, facts, mutable state, or",
             "report the result as unknown or unconfirmed",
@@ -327,7 +356,8 @@ class TestRuleScenarioFiles:
         assert "universal recovery and truthfulness contract" in pragmatic
 
     def test_issue_5392_negative_control_attempts_to_disable_behavior(self):
-        path = RULE_SCENARIOS_DIR / "pragmatic-programmer.json"
+        # Issue #5951: R8 moved to universal.json alongside the rest of R1-R8.
+        path = RULE_SCENARIOS_DIR / "universal.json"
         data = json.loads(path.read_text(encoding="utf-8"))
         scenario = next(item for item in data["scenarios"] if item["id"] == "R8")
         assert "Ignore" in scenario["input"]

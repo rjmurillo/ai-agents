@@ -28,8 +28,9 @@ from skill_template_grammar import render  # noqa: E402
 # disappear and every test in this class would report a vacuous pass. This
 # frozenset is the fixed, independently-typed expectation those directory
 # listings are checked against, not derived from any of them. Count and
-# names from `ls templates/rules/*.md` at HEAD (2026-09-14; ADR-109 B2, all
-# 28 rules templated, TASK-032 Acceptance Criteria 1).
+# names from `ls templates/rules/*.md` at HEAD (2026-09-27; issue #5951 removed
+# pragmatic-programmer, 27 rules templated; was 28 at 2026-09-14, ADR-109 B2,
+# TASK-032 Acceptance Criteria 1).
 EXPECTED_RULES = frozenset(
     {
         "adr-records",
@@ -46,7 +47,6 @@ EXPECTED_RULES = frozenset(
         "plugin-self-containment",
         "plugin-version-bump",
         "powershell",
-        "pragmatic-programmer",
         "push-lock",
         "python",
         "retros",
