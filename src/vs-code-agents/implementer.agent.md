@@ -851,6 +851,18 @@ If ANY checklist item cannot be completed:
 
 Read, Grep, Glob, Write, Edit, Bash. Memory via `mcp__serena__read_memory`, `mcp__serena__write_memory`.
 
+### Serena memory writes: check the checkout first
+
+Serena writes to the checkout active at server start (its `--project` root),
+not your current directory. Call `mcp__serena__write_memory`, `edit_memory`,
+`delete_memory`, or `rename_memory` only from that checkout. A linked
+worktree (`git rev-parse --git-dir` differs from `--git-common-dir`) never
+qualifies. If you are in one, cannot tell, or have no shell, do not call
+them. Make the same create, edit, delete, or rename on this checkout's
+`.serena/memories/` files, or return the change to the parent session.
+
+See `universal.md` MUST NOT 11 and issue #5061.
+
 Prefer existing skill scripts (`.claude/skills/`) over raw commands. Use `github` skill for PR/issue operations.
 
 ## Context Budget Management

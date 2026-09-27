@@ -34,6 +34,12 @@ Read .serena/memories/github/github-observations.md
 
 If Serena MCP is available:
 
+> Serena writes to the checkout active at server start, not your current
+> directory. In a linked git worktree, or when you cannot tell, do not call
+> Serena memory mutation tools. Make the same change to this checkout's
+> `.serena/memories/` files, or return it to the parent session
+> (`universal.md` MUST NOT 11, issue #5061).
+
 ```text
 mcp__serena__read_memory(memory_file_name="github/github-observations")
 mcp__serena__write_memory(memory_file_name="github/github-observations", memory_content="...")

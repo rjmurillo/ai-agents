@@ -14,6 +14,12 @@ When first-principles reasoning contradicts conventional wisdom on a question th
 - "I would have named it differently."
 - Cases where the conventional answer is right and you confirmed it.
 
+> Serena writes to the checkout active at server start, not your current
+> directory. In a linked git worktree, or when you cannot tell, do not call
+> Serena memory mutation tools. Make the same change to this checkout's
+> `.serena/memories/` files, or return it to the parent session
+> (`universal.md` MUST NOT 11, issue #5061).
+
 **Log format.** Write to Serena memory via `mcp__serena__write_memory` with name `decision-<short-slug>`. Body covers:
 
 1. **Question**: one sentence on the decision.

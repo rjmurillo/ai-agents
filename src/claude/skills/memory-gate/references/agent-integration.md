@@ -98,6 +98,12 @@ past = get_episodes(task="authentication", max_results=5)
 
 For direct MCP tool access:
 
+> Serena writes to the checkout active at server start, not your current
+> directory. In a linked git worktree, or when you cannot tell, do not call
+> Serena memory mutation tools. Make the same change to this checkout's
+> `.serena/memories/` files, or return it to the parent session
+> (`universal.md` MUST NOT 11, issue #5061).
+
 ```python
 # Serena (file-based, always available)
 mcp__serena__list_memories()

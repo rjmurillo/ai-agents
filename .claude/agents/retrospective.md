@@ -844,6 +844,18 @@ memory_file_name: "rootcause-{category}-{nnn}"
 content: "# Root Cause: {Category} #{NNN}\n\n**Description**: [What failed and why]\n**Frequency**: [How often this occurs]\n**Impact**: [Severity when it occurs]\n**Detection**: [How to identify this pattern]\n**Prevention**: [How to avoid it]\n**Source**: [PR/Issue/Session reference]\n\n## Related\n- Prevention skill: [skill-file-name]\n- Incident: [incident-ref]\n- Category: [category-name]"
 ```
 
+### Serena memory writes: check the checkout first
+
+Serena writes to the checkout active at server start (its `--project` root),
+not your current directory. Call `mcp__serena__write_memory`, `edit_memory`,
+`delete_memory`, or `rename_memory` only from that checkout. A linked
+worktree (`git rev-parse --git-dir` differs from `--git-common-dir`) never
+qualifies. If you are in one, cannot tell, or have no shell, do not call
+them. Make the same create, edit, delete, or rename on this checkout's
+`.serena/memories/` files, or return the change to the parent session.
+
+See `universal.md` MUST NOT 11 and issue #5061.
+
 ### Failure Prevention Matrix
 
 Maintain cumulative statistics across sessions:

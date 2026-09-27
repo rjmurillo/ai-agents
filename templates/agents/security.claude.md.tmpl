@@ -100,6 +100,8 @@ memory_file_name: "security-[component]"
 content: "# Security: [Component]\n\n**Statement**: ...\n\n**Evidence**: ...\n\n## Details\n\n..."
 ```
 
+{{> serena-worktree-write-guard}}
+
 > **Fallback**: If the Serena tools are unavailable, read `.serena/memories/` directly with the Read tool.
 
 {{> security-memory-protocol}}

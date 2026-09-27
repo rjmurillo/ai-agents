@@ -260,20 +260,11 @@ For each threat, document:
 
 **Risk**: Critical (High Likelihood x High Impact)
 
-**Mitigations**:
+**Mitigations** (all Mitigate):
 
-1. **Implement rate limiting** (Mitigate)
-   - Max 5 attempts per IP per minute
-   - Progressive delays after failures
-   - Status: Planned for Sprint 23
-
-2. **Add CAPTCHA after failures** (Mitigate)
-   - Trigger after 3 failed attempts
-   - Status: In progress
-
-3. **Enable MFA** (Mitigate)
-   - TOTP or WebAuthn
-   - Status: Blocked on product decision
+1. Rate limiting: 5 attempts per IP per minute, Sprint 23
+2. CAPTCHA after 3 failed attempts, in progress
+3. MFA (TOTP or WebAuthn), blocked on product decision
 
 **Residual Risk**: Medium (after mitigations applied)
 ```
@@ -410,6 +401,18 @@ mcp__serena__write_memory(
     content="Key threats: credential stuffing, session hijacking. STRIDE categories covered: spoofing, elevation of privilege."
 )
 ```
+
+### Serena memory writes: check the checkout first
+
+Serena writes to the checkout active at server start (its `--project` root),
+not your current directory. Call `mcp__serena__write_memory`, `edit_memory`,
+`delete_memory`, or `rename_memory` only from that checkout. A linked
+worktree (`git rev-parse --git-dir` differs from `--git-common-dir`) never
+qualifies. If you are in one, cannot tell, or have no shell, do not call
+them. Make the same create, edit, delete, or rename on this checkout's
+`.serena/memories/` files, or return the change to the parent session.
+
+See `universal.md` MUST NOT 11 and issue #5061.
 
 ---
 
