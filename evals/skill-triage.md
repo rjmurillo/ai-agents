@@ -6,7 +6,7 @@ Per-skill classification for the skills under `.claude/skills/`. Decides which s
 
 This triage covers every `.claude/skills/<name>/SKILL.md` present on `feat/evals-skill-coverage` at 2026-05-26. It extends the prior 15-skill triage (`.serena/memories/skills/triage-eval-2026-05-09.md`) to full skill coverage.
 
-A retired skill has its classification row removed, so the counts below track the surviving classification rather than the 2026-05-26 tree. Three rows have gone this way: `guard-maturity` (#5156), and `encode-repo-serena` and `serena-code-architecture` (#5624).
+A retired skill has its classification row removed, so the counts below track the surviving classification rather than the 2026-05-26 tree. Four rows have gone this way: `guard-maturity` (#5156), `encode-repo-serena` and `serena-code-architecture` (#5624), and `book-to-skill` (#5946).
 
 ## Two eval systems
 
@@ -26,9 +26,9 @@ A skill can carry both kinds of eval. Adding an `evals/<skill>-spike/` does not 
 | Category | Count | Action |
 |---|---|---|
 | Already covered | 12 | No new artifact. Cross-referenced below. |
-| Eval-worthy (deferred) | 37 | Original plan was to scaffold per-skill spikes; reverted (see baseline-report.md). Real fixture authoring will happen one spike at a time. |
+| Eval-worthy (deferred) | 36 | Original plan was to scaffold per-skill spikes; reverted (see baseline-report.md). Real fixture authoring will happen one spike at a time. |
 | Utility-skip | 18 | No scaffold. Mechanical or deterministic skill; agent-vs-baseline shape is wrong. |
-| **Total** | **67** | |
+| **Total** | **66** | |
 
 ### Decision rule
 
@@ -57,7 +57,7 @@ These skills appear in `tests/evals/skills/triage-prompts.json` with six prompts
 
 Note: prior triage also covered `doc-coverage`, `doc-sync`, `workflow`. Those skill directories were pruned. The `tests/evals/skills/triage-prompts.json` entries remain as deprecation trackers and are not in scope here.
 
-## Eval-worthy (37, scaffold)
+## Eval-worthy (36, scaffold)
 
 Each gets `evals/<skill>-spike/` with `README.md`, `fixtures/README.md`, `fixtures/.gitkeep`. Fixture authoring is left to the operator who owns the skill.
 
@@ -68,7 +68,6 @@ Each gets `evals/<skill>-spike/` with `README.md`, `fixtures/README.md`, `fixtur
 | adr-review | Multi-agent debate orchestration. Verdict quality varies with agent reasoning. |
 | analysis-provenance | Investigates code ownership. Conclusions depend on evidence gathering. |
 | analyze | Multi-step codebase analysis producing prioritized findings. Pure judgment skill. |
-| book-to-skill | Extracts method from a book and hands off to SkillForge. Extraction fidelity is judgment. |
 | buy-vs-build-framework | Strategic four-phase evaluation. Recommendation varies with reasoning. |
 | chaos-experiment | Designs chaos experiments. Hypothesis and injection-plan quality vary. |
 | chestertons-fence | Historical-context investigation. Conclusions depend on archaeology depth. |
