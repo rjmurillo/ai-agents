@@ -849,16 +849,12 @@ def validate_effective_context_ratchet(repo_root: Path) -> bool:
             "scripts/validation/effective_context.py not present (downstream install); "
             "no path-local ratchet to gate"
         )
-    exit_code, stdout, stderr = _run_subprocess(
-        [sys.executable, "-m", "scripts.validation.effective_context", "--ci"],
-        cwd=repo_root,
-    )
-    if exit_code != 0:
-        if stdout:
-            print(stdout)
-        if stderr:
-            print(stderr, file=sys.stderr)
-    return bool(exit_code == 0)
+    # Imported here, after the presence check, so a downstream install without
+    # the module still loads this file. The import is also the edge the script
+    # reachability guard follows; a `python -m` string is not.
+    from scripts.validation import effective_context
+
+    return effective_context.main(["--ci"], repo_root=repo_root) == 0
 
 
 def validate_rule_scope_declarations(repo_root: Path) -> bool:
