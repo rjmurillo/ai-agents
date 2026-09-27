@@ -46,7 +46,8 @@ _INLINE_CODE_RE = re.compile(r"`[^`]*`")
 # (`a@b.c`: the `@` is preceded by `a`), since a real import token is never
 # glued to the end of another word. `[\w./~-]+` covers the path characters
 # this repository's own imports use (letters, digits, `.`, `/`, `~`, `-`).
-_IMPORT_TOKEN_RE = re.compile(r"(?<!\w)@[\w./~-]+")
+# The last character cannot be a dot, so "See @BIG.md." yields "@BIG.md".
+_IMPORT_TOKEN_RE = re.compile(r"(?<!\w)@[\w./~-]*[\w/~-]")
 
 
 def extract_import_tokens(text: str) -> list[str]:

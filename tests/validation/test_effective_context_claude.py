@@ -309,6 +309,11 @@ class TestExtractImportTokens:
         """Claude Code expands `@path` wherever it appears in a line."""
         assert ecr.extract_import_tokens("See @AGENTS.md for details\n") == ["@AGENTS.md"]
 
+    def test_drops_sentence_punctuation_after_a_token(self) -> None:
+        """REQ-1: a sentence-final period is not part of the imported path."""
+        text = "See @BIG.md. Then @a/b.md, and (@c.md).\n"
+        assert ecr.extract_import_tokens(text) == ["@BIG.md", "@a/b.md", "@c.md"]
+
     def test_finds_multiple_tokens(self) -> None:
         text = "@one.md\ntext\n@two.md\n"
         assert ecr.extract_import_tokens(text) == ["@one.md", "@two.md"]
