@@ -38,6 +38,7 @@ rendered output" fallback the issue's spec allows in place of a full
 
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 
@@ -64,7 +65,7 @@ _SKILL_PARTIAL = _SKILLS_PARTIALS / "serena-worktree-write-guard.mustache"
 # carries this sentinel, proving the guard partial actually resolved there
 # rather than merely being named in a comment or unreachable branch.
 _SENTINEL = "checkout active at server start"
-_MUTATION_MARKERS = ("write_memory", "serena/write_memory")
+_MUTATION_MARKERS = ("write_memory", "edit_memory", "delete_memory", "rename_memory")
 
 # The Copilot orchestrator prompt sat at 29994 of the 30000-character host
 # limit enforced by tests/test_orchestrator_shared_contracts.py, so the guard
@@ -248,14 +249,27 @@ def test_positive_fixture_with_the_guard_passes_the_check(tmp_path: Path) -> Non
     assert _SENTINEL in rendered
 
 
+_REFERENCE_MUTATION = re.compile(r"mcp__serena__(write|edit|delete|rename)_memory")
 _SKILL_REFERENCES = sorted((_REPO_ROOT / ".claude" / "skills").glob("*/references/*.md"))
 
 
 @pytest.mark.parametrize(
     "reference",
-    [p for p in _SKILL_REFERENCES if "mcp__serena__write_memory" in p.read_text(encoding="utf-8")],
+    [p for p in _SKILL_REFERENCES if _REFERENCE_MUTATION.search(p.read_text(encoding="utf-8"))],
     ids=lambda p: f"{p.parent.parent.name}/{p.name}",
 )
-def test_skill_reference_carries_guard_wherever_it_calls_write_memory(reference: Path) -> None:
+def test_skill_reference_carries_guard_wherever_it_calls_a_mutation_tool(reference: Path) -> None:
     """Hand-maintained skill references have no partial pipeline, so they carry a short note."""
     assert _SENTINEL in reference.read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize("stem", _discover_agent_stems())
+def test_claude_agent_render_carries_the_guard_at_most_once(stem: str) -> None:
+    """One guard per prompt: a model reads the whole prompt, so repeats only cost tokens."""
+    template_path = _AGENTS_DIR / f"{stem}.claude.md.tmpl"
+    if not template_path.is_file():
+        pytest.skip(f"{stem} has no .claude.md.tmpl variant")
+
+    rendered = str(render(template_path, _AGENTS_PARTIALS))
+
+    assert rendered.count(_SENTINEL) <= 1

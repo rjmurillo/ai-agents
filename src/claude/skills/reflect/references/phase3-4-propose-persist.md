@@ -73,9 +73,10 @@ After user approval:
 
 1. **Serena MCP (canonical)**:
 
-   > Linked git worktree? Do not call Serena memory mutation tools there: Serena
-   > writes to the checkout active at server start. Write the file under this
-   > worktree's `.serena/memories/`, or return it to the parent session
+   > Serena writes to the checkout active at server start, not your current
+   > directory. In a linked git worktree, or when you cannot tell, do not call
+   > Serena memory mutation tools. Make the same change to this checkout's
+   > `.serena/memories/` files, or return it to the parent session
    > (`universal.md` MUST NOT 11, issue #5061).
 
    ```text

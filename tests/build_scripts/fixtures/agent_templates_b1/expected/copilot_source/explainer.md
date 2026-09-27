@@ -77,18 +77,17 @@ When uncertain: "Who will read this document?"
 
 Read, Grep, Glob, Write, WebSearch, WebFetch. Bash only for `gh issue create`. Memory via Serena (`mcp__serena__read_memory`, `mcp__serena__write_memory`).
 
-### Serena memory writes: check for a linked worktree first
+### Serena memory writes: check the checkout first
 
-Before calling `mcp__serena__write_memory`, `edit_memory`, `delete_memory`, or
-`rename_memory`, compare `git rev-parse --git-dir` with
-`git rev-parse --git-common-dir`. Different output means a linked worktree:
-Serena writes to the checkout active at server start, not this worktree. Do
-not call the mutation tools there. Instead write the file directly under
-this worktree's own `.serena/memories/<name>.md`, or return the memory name
-and content to the parent session in the handoff.
+Serena writes to the checkout active at server start (its `--project` root),
+not your current directory. Call `mcp__serena__write_memory`, `edit_memory`,
+`delete_memory`, or `rename_memory` only from that checkout. A linked
+worktree (`git rev-parse --git-dir` differs from `--git-common-dir`) never
+qualifies. If you are in one, cannot tell, or have no shell, do not call
+them. Make the same create, edit, delete, or rename on this checkout's
+`.serena/memories/` files, or return the change to the parent session.
 
-See `universal.md` MUST NOT 11 (no cross-checkout memory mutation from a
-linked worktree) and issue #5061.
+See `universal.md` MUST NOT 11 and issue #5061.
 
 ## Output Locations
 
