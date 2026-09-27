@@ -236,6 +236,11 @@ After report completion, update systems:
 
 ### Serena Update
 
+> Linked git worktree? Do not call Serena memory mutation tools there: Serena
+> writes to the checkout active at server start. Write the file under this
+> worktree's `.serena/memories/`, or return it to the parent session
+> (`universal.md` MUST NOT 11, issue #5061).
+
 ```python
 mcp__serena__write_memory(
     memory_file_name="documentary-[topic]-[date]",

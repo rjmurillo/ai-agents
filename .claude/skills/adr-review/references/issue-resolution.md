@@ -41,6 +41,11 @@ Deferred item: "ADR-007 needs reversibility assessment"
 
 **Surfacing setup**:
 
+> Linked git worktree? Do not call Serena memory mutation tools there: Serena
+> writes to the checkout active at server start. Write the file under this
+> worktree's `.serena/memories/`, or return it to the parent session
+> (`universal.md` MUST NOT 11, issue #5061).
+
 ```bash
 # 1. Link to parent ADR issue (if one exists)
 gh issue edit [deferred-issue] --add-label "adr-followup" --repo rjmurillo/ai-agents

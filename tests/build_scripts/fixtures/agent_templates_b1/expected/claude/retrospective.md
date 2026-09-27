@@ -1243,19 +1243,6 @@ memory_file_name: "backlog/retro-{YYYY-MM-DD}-items.md"
 content: "# Retrospective Backlog Items\n\n## Source\nSession: [session-ref]\n\n## Items\n\n| Item | Priority | Category | Status |\n|------|----------|----------|--------|\n| [Delta item] | P2/P3 | [Category] | pending |"
 ```
 
-### Serena memory writes: check for a linked worktree first
-
-Before calling `mcp__serena__write_memory`, `edit_memory`, `delete_memory`, or
-`rename_memory`, compare `git rev-parse --git-dir` with
-`git rev-parse --git-common-dir`. Different output means a linked worktree:
-Serena writes to the checkout active at server start, not this worktree. Do
-not call the mutation tools there. Instead write the file directly under
-this worktree's own `.serena/memories/<name>.md`, or return the memory name
-and content to the parent session in the handoff.
-
-See `universal.md` MUST NOT 11 (no cross-checkout memory mutation from a
-linked worktree) and issue #5061.
-
 **Delta Triage Template:**
 
 ````markdown
@@ -1358,19 +1345,6 @@ mcp__serena__write_memory
 memory_file_name: "{domain}-{description}"
 content: "# Skill: {Description}\n\n**Statement**: [Skill statement with context and evidence]\n\n**Evidence**: [Source reference]\n\n## Details\n\n..."
 ```
-
-### Serena memory writes: check for a linked worktree first
-
-Before calling `mcp__serena__write_memory`, `edit_memory`, `delete_memory`, or
-`rename_memory`, compare `git rev-parse --git-dir` with
-`git rev-parse --git-common-dir`. Different output means a linked worktree:
-Serena writes to the checkout active at server start, not this worktree. Do
-not call the mutation tools there. Instead write the file directly under
-this worktree's own `.serena/memories/<name>.md`, or return the memory name
-and content to the parent session in the handoff.
-
-See `universal.md` MUST NOT 11 (no cross-checkout memory mutation from a
-linked worktree) and issue #5061.
 
 **Update existing skills (add observations):**
 

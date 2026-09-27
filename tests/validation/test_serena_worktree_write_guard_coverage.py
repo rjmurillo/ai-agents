@@ -34,14 +34,6 @@ output: a template edit is caught here immediately, without requiring
 `build/scripts/build_all.py` to have run first. This is the "assert per
 rendered output" fallback the issue's spec allows in place of a full
 "reached through a template that includes it" graph.
-
-Stricter/looser than the file grep the spec's R2 describes as a starting
-point ("grep write_memory under templates/"): looser, because a template
-source file that merely reaches the string through an included partial is
-not itself required to hold `{{> serena-worktree-write-guard}}`, only the
-final rendered text is checked; stricter, because rendering resolves every
-partial transitively, so a guard added three partials deep still counts,
-which a single-file grep would miss.
 """
 
 from __future__ import annotations
@@ -122,8 +114,8 @@ def test_the_partial_states_the_invariant() -> None:
 def test_the_partial_has_no_em_or_en_dash() -> None:
     text = _AGENT_PARTIAL.read_text(encoding="utf-8")
 
-    assert "—" not in text
-    assert "–" not in text
+    assert "\u2014" not in text
+    assert "\u2013" not in text
 
 
 def test_the_partial_is_within_the_word_budget() -> None:
@@ -235,11 +227,22 @@ def test_positive_fixture_with_the_guard_passes_the_check(tmp_path: Path) -> Non
     )
     partials_dir = tmp_path / "partials"
     partials_dir.mkdir()
-    (partials_dir / "serena-worktree-write-guard.mustache").write_bytes(
-        _AGENT_PARTIAL.read_bytes()
-    )
+    (partials_dir / "serena-worktree-write-guard.mustache").write_bytes(_AGENT_PARTIAL.read_bytes())
 
     rendered = str(render(fixture, partials_dir))
 
     assert _mentions_mutation(rendered)
     assert _SENTINEL in rendered
+
+
+_SKILL_REFERENCES = sorted((_REPO_ROOT / ".claude" / "skills").glob("*/references/*.md"))
+
+
+@pytest.mark.parametrize(
+    "reference",
+    [p for p in _SKILL_REFERENCES if "mcp__serena__write_memory" in p.read_text(encoding="utf-8")],
+    ids=lambda p: f"{p.parent.parent.name}/{p.name}",
+)
+def test_skill_reference_carries_guard_wherever_it_calls_write_memory(reference: Path) -> None:
+    """Hand-maintained skill references have no partial pipeline, so they carry a short note."""
+    assert _SENTINEL in reference.read_text(encoding="utf-8")
