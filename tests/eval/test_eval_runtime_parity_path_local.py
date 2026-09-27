@@ -440,6 +440,45 @@ def test_verify_listing_passes_when_it_matches_instructions_union_path_local(
     assert result == listing
 
 
+def test_verify_listing_passes_when_a_path_local_guide_sits_outside_the_cwd_ancestry(
+    tmp_path: Path,
+) -> None:
+    """Coordinator finding: a sibling-directory guide installs but Copilot cannot list it here.
+
+    Before this fix, the preflight's expected set included every
+    `path_local` entry unconditionally, so a guide outside `cwd`'s
+    ancestor chain (Copilot's own discovery rule) made a correct, empty
+    listing look like a missing source and abort the run.
+    """
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    corpus = corpus_with_instructions(
+        tmp_path,
+        default_instructions=False,
+        path_local=["a/CLAUDE.md", "b/AGENTS.md"],
+        cwd="a",
+    )
+    fixture = runtime_parity.load_fixtures(corpus)[0]
+    # Copilot, run from cwd "a", lists only what its ancestor-chain rule
+    # reaches from there: "a/CLAUDE.md" itself, not the sibling "b/AGENTS.md".
+    listing = [{"sourcePath": "a/CLAUDE.md"}]
+    runner = mock.Mock(return_value=subprocess.CompletedProcess([], 0, json.dumps(listing), ""))
+
+    result, failure = parity._verify_copilot_instruction_listing(
+        fixture,
+        "copilot",
+        workspace,
+        workspace / "a",
+        runner,
+        30,
+        {},
+        {"a/CLAUDE.md": b"x", "b/AGENTS.md": b"y"},
+    )
+
+    assert failure is None
+    assert result == listing
+
+
 def test_verify_listing_fails_when_path_local_entry_is_extra(tmp_path: Path) -> None:
     workspace = tmp_path / "ws"
     workspace.mkdir()

@@ -293,7 +293,11 @@ def _verify_copilot_instruction_listing(
             raw_output=run.stdout,
             stderr=run.stderr,
         )
-    expected = set(instructions) | set(path_local) | _setup_discoverable_sources(fixture)
+    expected = (
+        set(instructions)
+        | _path_local_discoverable_by_copilot(fixture, path_local)
+        | _setup_discoverable_sources(fixture)
+    )
     _require_listed_sources(fixture.fixture_id, listing, expected)
     return listing, None
 
@@ -304,6 +308,42 @@ def _ancestor_dirs(cwd: str) -> frozenset[str]:
         return frozenset({""})
     parts = PurePosixPath(cwd).parts
     return frozenset("/".join(parts[:i]) for i in range(len(parts) + 1))
+
+
+# The one repository-root file Copilot CLI always lists regardless of cwd
+# (`_setup_discoverable_sources`'s own docstring; confirmed live there).
+_COPILOT_REPO_INSTRUCTIONS = ".github/copilot-instructions.md"
+
+
+def _path_local_discoverable_by_copilot(
+    fixture: Fixture, path_local: Mapping[str, bytes]
+) -> set[str]:
+    """`path_local` entries Copilot's own listing actually discovers for this cwd.
+
+    Coordinator finding: the preflight's expected set used to include
+    every `path_local` entry unconditionally. `install_path_local` writes
+    each entry verbatim at its own repository-relative path (on disk, it
+    exists), but Copilot CLI only lists an `AGENTS.md`/`CLAUDE.md` from the
+    repository root down to `cwd` (mirroring `_setup_discoverable_sources`'s
+    ancestor-chain filter) plus the one root `.github/copilot-instructions.md`.
+    A `path_local` guide outside that ancestry (a sibling directory's
+    `AGENTS.md`, say -- the fixture loader's own discoverable-guide
+    restriction in `_runtime_parity.py` no longer allows an arbitrary path,
+    but a sibling directory is still a legitimate guide shape) installs but
+    Copilot never lists it from this `cwd`; expecting it anyway made a
+    correct, empty listing look like a missing source and abort the run.
+    """
+    ancestors = _ancestor_dirs(fixture.cwd)
+    discovered: set[str] = set()
+    for relative in path_local:
+        if relative == _COPILOT_REPO_INSTRUCTIONS:
+            discovered.add(relative)
+            continue
+        posix = PurePosixPath(relative)
+        directory = "" if posix.parent == PurePosixPath(".") else posix.parent.as_posix()
+        if posix.name in ("AGENTS.md", "CLAUDE.md") and directory in ancestors:
+            discovered.add(relative)
+    return discovered
 
 
 def _setup_discoverable_sources(fixture: Fixture) -> set[str]:
