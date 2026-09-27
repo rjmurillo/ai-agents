@@ -82,6 +82,7 @@ from _runtime_parity import (
     score_assertions,
     verify_worktree_identity,
 )
+from _runtime_path_local_guides import COPILOT_REPO_INSTRUCTIONS_PATH
 
 EXIT_OK = 0
 EXIT_LOGIC = 1
@@ -310,11 +311,6 @@ def _ancestor_dirs(cwd: str) -> frozenset[str]:
     return frozenset("/".join(parts[:i]) for i in range(len(parts) + 1))
 
 
-# The one repository-root file Copilot CLI always lists regardless of cwd
-# (`_setup_discoverable_sources`'s own docstring; confirmed live there).
-_COPILOT_REPO_INSTRUCTIONS = ".github/copilot-instructions.md"
-
-
 def _path_local_discoverable_by_copilot(
     fixture: Fixture, path_local: Mapping[str, bytes]
 ) -> set[str]:
@@ -336,7 +332,7 @@ def _path_local_discoverable_by_copilot(
     ancestors = _ancestor_dirs(fixture.cwd)
     discovered: set[str] = set()
     for relative in path_local:
-        if relative == _COPILOT_REPO_INSTRUCTIONS:
+        if relative == COPILOT_REPO_INSTRUCTIONS_PATH:
             discovered.add(relative)
             continue
         posix = PurePosixPath(relative)

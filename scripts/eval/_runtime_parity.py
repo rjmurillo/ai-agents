@@ -10,6 +10,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+from _runtime_path_local_guides import COPILOT_REPO_INSTRUCTIONS_PATH, is_discoverable_guide
 from _runtime_workflow_assertions import (
     UNTRUSTED_PR_TITLE_EXPRESSION,
     workflow_avoids_untrusted_input_in_run,
@@ -208,46 +209,18 @@ def load_fixtures(path: Path) -> list[Fixture]:
     return fixtures
 
 
-# Security (issue #4880 bot review): `install_path_local`
-# (`scripts/eval/_runtime_path_local.py`) writes a `path_local` entry at its
-# own repository-relative path inside the fixture workspace, unprojected. A
-# fixture-declared entry naming an agent install path (for example
-# `.claude/agents/parity.md`) would overwrite the harness definition under
-# test after install, silently changing which agent the eval actually runs.
-# Both harnesses' path-local loading model discovers only three shapes: a
-# nested `AGENTS.md` or `CLAUDE.md` (either CLI, walking cwd's ancestors -
-# see `effective_context_sources.py`'s "nested" layer and this module's own
-# `_ancestor_dirs`/`_setup_discoverable_sources` in `eval_runtime_parity.py`)
-# or the one repository-root `.github/copilot-instructions.md` (Copilot
-# only). Anything else is not a "path-local guide" fixture; it is rejected
-# here, before install ever runs, rather than trusted as harmless data.
-_PATH_LOCAL_ALLOWED_BASENAMES = frozenset({"AGENTS.md", "CLAUDE.md"})
-_PATH_LOCAL_COPILOT_REPO_INSTRUCTIONS = ".github/copilot-instructions.md"
-
-
-def _require_discoverable_guide(item: str, field: str) -> None:
-    """Raise unless `item` is a file either CLI's path-local loading discovers."""
-    basename = Path(item).name
-    if item == _PATH_LOCAL_COPILOT_REPO_INSTRUCTIONS or basename in _PATH_LOCAL_ALLOWED_BASENAMES:
-        return
-    raise ParityConfigError(
-        f"{field} must name a discoverable guide (basename AGENTS.md or "
-        f"CLAUDE.md, or exactly {_PATH_LOCAL_COPILOT_REPO_INSTRUCTIONS}); "
-        f"got {item!r}"
-    )
-
-
 def _load_path_local(value: object, field: str) -> list[str]:
     """Validate a fixture's `path_local` list: strings, no duplicates, discoverable.
 
     Unlike `instructions` (deduped by basename because every entry installs
     under `.claude/rules/<basename>`), a `path_local` entry installs at its
-    own full repository-relative path for both harnesses, so only an exact
-    duplicate string collides. Each entry must also stay inside the
-    repository (checked first, via `_repo_relative_path`, so an escaping
-    path fails with that specific message rather than the discoverable-guide
-    one) and name a file a harness actually discovers by walking to it (see
-    `_require_discoverable_guide`), not an arbitrary repository path.
+    own full repository-relative path, so only an exact duplicate collides.
+    Each entry must also stay inside the repository (checked first, so an
+    escaping path fails with that specific message) and be a file a harness
+    actually discovers (`is_discoverable_guide`; issue #4880 bot review: an
+    arbitrary path would let a fixture silently overwrite an agent install
+    file, or any other repository file, after `install_path_local` writes
+    it verbatim).
     """
     raw = value if value is not None else []
     if not isinstance(raw, list) or not all(isinstance(item, str) for item in raw):
@@ -256,7 +229,12 @@ def _load_path_local(value: object, field: str) -> list[str]:
         raise ParityConfigError(f"{field} has duplicate paths")
     for item in raw:
         _repo_relative_path(item, field)
-        _require_discoverable_guide(item, field)
+        if not is_discoverable_guide(item):
+            raise ParityConfigError(
+                f"{field} must name a discoverable guide (basename AGENTS.md "
+                f"or CLAUDE.md, or exactly {COPILOT_REPO_INSTRUCTIONS_PATH}); "
+                f"got {item!r}"
+            )
     return raw
 
 
