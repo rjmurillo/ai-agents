@@ -24,6 +24,7 @@ RETIRED_PLANNER_TRIGGERS = ("plan this feature", "create implementation plan")
 TRIGGER_PHRASE_RE = re.compile(r'"([^"]+)"|`([^`]+)`')
 USE_TARGET_RE = re.compile(r"\(use ([a-z0-9-]+)")
 TRIGGER_ROW_RE = re.compile(r"^\| `([^`]+)` \|", re.MULTILINE)
+TRIGGERS_SECTION_RE = re.compile(r"^## Triggers\n(.*?)(?=^## |\Z)", re.MULTILINE | re.DOTALL)
 
 
 def _copies(name: str) -> list[str]:
@@ -49,10 +50,16 @@ def _redirects(description: str) -> str:
 
 
 def _trigger_phrases(relative_path: str) -> set[str]:
-    """Return quoted phrases before Do NOT use, plus Triggers table rows."""
+    """Return quoted phrases before Do NOT use, plus Triggers section rows."""
     description = _description(relative_path).split("Do NOT use", 1)[0]
     quoted = {a or b for a, b in TRIGGER_PHRASE_RE.findall(description)}
-    return quoted | set(TRIGGER_ROW_RE.findall(_text(relative_path)))
+    section = TRIGGERS_SECTION_RE.search(_text(relative_path))
+    rows = set(TRIGGER_ROW_RE.findall(section.group(1))) if section else set()
+    return quoted | rows
+
+
+def _lead_words(phrases: set[str]) -> set[str]:
+    return {phrase.split()[0].lower() for phrase in phrases}
 
 
 def _pairs(first: str, second: str) -> list[tuple[str, str]]:
@@ -94,6 +101,10 @@ def test_plan_and_planner_share_no_trigger_phrase(plan_path: str, planner_path: 
     assert planner_triggers, f"{planner_path} lists no triggers"
     shared = plan_triggers & planner_triggers
     assert not shared, f"{plan_path} and {planner_path} share {sorted(shared)}"
+    # The old overlap was "plan this feature" against "plan this work": same
+    # verb, different object. A shared lead verb is how that collision shows.
+    shared_verbs = _lead_words(plan_triggers) & _lead_words(planner_triggers)
+    assert not shared_verbs, f"{plan_path} and {planner_path} share verbs {sorted(shared_verbs)}"
 
 
 @pytest.mark.parametrize("path", _copies("autoplan"))

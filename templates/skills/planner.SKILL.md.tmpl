@@ -15,10 +15,16 @@ version: 1.0.0
 
 ## Purpose
 
-Two workflows for complex tasks:
+Two script-driven workflows that share saved step state:
 
-1. **Planning workflow** (planner.py): Create and review implementation plans
-2. **Execution workflow** (executor.py): Execute approved plans through delegation
+1. **Planning workflow** (planner.py): Draft a plan file through forced
+   reflection pauses, then run the technical-writer and quality-reviewer review
+2. **Execution workflow** (executor.py): Execute an approved plan file through
+   delegation, and resume it from the last saved step
+
+The `plan` skill owns lifecycle decomposition of a spec into milestones and
+tasks. Use this skill when that work needs script-managed state, a formal
+review pass, or delegated execution.
 
 ## Invocation Routing
 
@@ -42,7 +48,7 @@ executor run in view, belongs to the `plan` skill, not here.
 
 Use the planner skill when the task has:
 
-- Multiple milestones with dependencies
+- An approved plan file whose milestones need delegated execution
 - Architectural decisions requiring documentation
 - Migration steps that need coordination
 - Complexity that benefits from forced reflection pauses
