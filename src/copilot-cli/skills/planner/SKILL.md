@@ -1,12 +1,12 @@
 ---
 name: planner
-description: Script-guided plan-and-execute workflow run one numbered step at a time. planner.py drafts a plan through forced reflection pauses, then runs a technical-writer and quality-reviewer review of the plan file; executor.py delegates each milestone of an approved plan file to specialized agents and, on resume, reconciles the file against completed work. Use when you say "run the planner workflow", "execute the plan at plans/X.md", "pick up the next plan item", or "resume execution". Do NOT use to decompose a spec into milestones and tasks in the lifecycle chain (use plan), or to log progress on a plan artifact (use execution-plans).
+description: Script-guided plan-and-execute workflow run one numbered step at a time. planner.py drafts a plan through forced reflection pauses, then runs a technical-writer and quality-reviewer review of the plan file; executor.py delegates each milestone of an approved plan file to specialized agents and, on resume, reconciles the file against completed work. Use when you say "run the planner workflow", "review the plan file at plans/X.md", "execute the plan at plans/X.md", "pick up where the plan left off", or "resume execution". Do NOT use to decompose a spec into milestones and tasks in the lifecycle chain (use plan), or to log progress on a plan artifact (use execution-plans).
 license: MIT
 metadata:
   routing:
     role: front-door
     invoker: autoplan
-    trigger: autoplan routes execution, review, or resume of an approved plan file to planner
+    trigger: autoplan routes execution, review, or resume of a planner-written plan file to planner
     user-facing: true
 version: 1.0.0
 ---
@@ -43,7 +43,7 @@ executor run in view, belongs to the `plan` skill, not here.
 **Invoke executor.py** when user asks to:
 
 - "execute" or "implement" an approved plan file
-- "pick up" the next plan item, "resume", or "continue" execution
+- "pick up where the plan left off", "resume", or "continue" execution
 - Provides a plan file path for implementation
 
 ---
@@ -79,7 +79,8 @@ Skip the planner skill when the task is:
 | Trigger Phrase | Operation |
 |----------------|-----------|
 | `run the planner workflow` | planner.py (planning phase) |
-| `pick up the next plan item` | executor.py (execution phase) |
+| `review the plan file at plans/X.md` | planner.py (review phase) |
+| `pick up where the plan left off` | executor.py (reconcile, then continue) |
 | `execute the plan at plans/X.md` | executor.py (execution phase) |
 | `resume execution` | executor.py (reconcile the plan file against completed work) |
 

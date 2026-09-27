@@ -10,6 +10,7 @@ or mirror regression fails here.
 
 from __future__ import annotations
 
+import importlib.util
 import re
 from pathlib import Path
 
@@ -84,3 +85,21 @@ def test_plan_and_planner_share_no_trigger_phrase(plan_path: str, planner_path: 
     plan_verbs = {phrase.split()[0].lower() for phrase in plan_triggers}
     planner_verbs = {phrase.split()[0].lower() for phrase in planner_triggers}
     assert not plan_verbs & planner_verbs, f"{plan_path} and {planner_path} share a lead verb"
+
+
+@pytest.mark.parametrize("trigger", ["resume execution", "pick up where the plan left off"])
+def test_resume_triggers_make_the_executor_reconcile(trigger: str) -> None:
+    """A resume trigger must make executor.py check work already done first.
+
+    Without reconciliation, step 1 starts milestone execution and can run
+    completed milestones again (PR #5965 review).
+    """
+    spec = importlib.util.spec_from_file_location(
+        "planner_executor", REPO_ROOT / ".claude/skills/planner/scripts/executor.py"
+    )
+    executor = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(executor)
+
+    assert f"`{trigger}`" in _read("templates/skills/planner.SKILL.md.tmpl")[0], trigger
+    assert executor.detect_reconciliation_signals(trigger), trigger
+    assert not executor.detect_reconciliation_signals("pick up the next plan item")

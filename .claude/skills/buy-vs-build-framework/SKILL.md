@@ -67,9 +67,9 @@ Use [decision-critic](../decision-critic/SKILL.md) instead if:
 
 - Decision already made and you need validation/challenge
 
-Use [planner](../planner/SKILL.md) instead if:
+Use [plan](../plan/SKILL.md) instead if:
 
-- Sourcing decision already made, need execution plan
+- Sourcing decision already made, need milestones and tasks to build it
 
 ## Quick Reference
 
@@ -332,7 +332,7 @@ This skill ships no separate template files. Each phase worksheet lives in this 
 | [pre-mortem](../pre-mortem/SKILL.md) | Phase 3 risk identification |
 | [decision-critic](../decision-critic/SKILL.md) | Phase 4 validation |
 | [adr-review](../adr-review/SKILL.md) | Phase 4 multi-agent consensus |
-| [planner](../planner/SKILL.md) | Post-decision execution planning |
+| [plan](../plan/SKILL.md) | Post-decision milestone and task planning |
 
 <details>
 <summary><strong>Deep Dive: ADR Template</strong></summary>
