@@ -66,6 +66,14 @@ def test_path_local_rejects_an_arbitrary_repository_file(tmp_path: Path) -> None
         runtime_parity.load_fixtures(path)
 
 
+def test_path_local_rejects_a_guide_inside_the_isolated_profile(tmp_path: Path) -> None:
+    """REQ-9: a guide under `.parity-profile/` would overwrite the isolation sentinel."""
+    path = _corpus(tmp_path, {"path_local": [".parity-profile/claude/CLAUDE.md"]})
+
+    with pytest.raises(runtime_parity.ParityConfigError, match="discoverable guide"):
+        runtime_parity.load_fixtures(path)
+
+
 def test_path_local_accepts_a_nested_agents_md(tmp_path: Path) -> None:
     path = _corpus(tmp_path, {"path_local": [".github/AGENTS.md"]})
 

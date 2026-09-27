@@ -32,6 +32,10 @@ ALLOWED_BASENAMES = frozenset({"AGENTS.md", "CLAUDE.md"})
 COPILOT_REPO_INSTRUCTIONS_PATH = ".github/copilot-instructions.md"
 
 
+# `_runtime_harness.prepare_workspace` writes each CLI profile here.
+ISOLATED_PROFILE_DIR = ".parity-profile"
+
+
 def is_discoverable_guide(item: str) -> bool:
     """True when `item` is a file either CLI's path-local loading discovers.
 
@@ -39,7 +43,10 @@ def is_discoverable_guide(item: str) -> bool:
     the one repository-root `.github/copilot-instructions.md`. Anything
     else is not a "path-local guide" fixture, for example an agent install
     path (`.claude/agents/parity.md`) or an arbitrary repository file
-    (`README.md`).
+    (`README.md`), or a guide under the isolated CLI profile, which would
+    overwrite its sentinel file.
     """
-    basename = Path(item).name
-    return item == COPILOT_REPO_INSTRUCTIONS_PATH or basename in ALLOWED_BASENAMES
+    parts = Path(item).parts
+    if parts and parts[0] == ISOLATED_PROFILE_DIR:
+        return False
+    return item == COPILOT_REPO_INSTRUCTIONS_PATH or Path(item).name in ALLOWED_BASENAMES
