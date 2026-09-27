@@ -11,6 +11,7 @@ split test files; CLI, ratchet, and observe tests stay in
 
 from __future__ import annotations
 
+import subprocess
 import sys
 from pathlib import Path
 from unittest import mock
@@ -191,3 +192,140 @@ class TestRepoDirectAccessors:
         _commit_all(tmp_path, "v1")
         repo = ecr.Repo(tmp_path, "not-a-real-rev")
         assert repo.list_dir(".claude/rules") == []
+
+
+# --------------------------------------------------------------------------
+# Coordinator finding (post-rebase review): a `--rev` `git show` failure read
+# as "file absent" undercounted an inventory silently, and a
+# `subprocess.TimeoutExpired` on any of this class's `git` calls escaped as
+# an uncaught traceback instead of the ADR-035 exit-code-3 path every other
+# `git` failure in this package already takes. `read_bytes` now probes
+# existence with `git cat-file -e <rev>:<path>` first (the same probe
+# `check_adr_links.py:347`'s `baseline_entries_at_ref` already uses to keep
+# "absent at that rev" distinguishable from "present but unreadable"); a
+# non-zero `git show` after that probe confirmed existence is a real git
+# error, not absence. `_ls_tree` and `rev_is_valid` share the same
+# uncaught-timeout shape (subprocess.run to `git`, no `except
+# TimeoutExpired`), so they get the same timeout-to-GitUnavailableError fix
+# in the same diff; their existing non-zero-exit contract (`[]` / `False`)
+# is untouched, since neither conflates absence with failure the way
+# `read_bytes` did.
+# --------------------------------------------------------------------------
+
+
+def _fake_run_by_argv(responses: dict[str, object]) -> object:
+    """Return a `subprocess.run` stand-in keyed by the git subcommand (argv[1]).
+
+    ``responses[subcommand]`` is either a
+    :class:`~tests.validation._effective_context_helpers.FakeCompletedProcess`
+    or an exception instance to raise, so one fake can drive a ``cat-file``
+    call and a ``show``/``ls-tree``/``rev-parse`` call differently in the
+    same test.
+    """
+
+    def _run(argv: list[str], **_kwargs: object) -> object:
+        response = responses[argv[1]]
+        if isinstance(response, BaseException):
+            raise response
+        return response
+
+    return _run
+
+
+class TestReq2GitFailureHandling:
+    """Post-rebase finding: distinguish absent from failed, never let a timeout escape."""
+
+    def test_read_bytes_returns_none_for_a_path_absent_at_the_rev(self, tmp_path: Path) -> None:
+        """Real git, no mocking: a path introduced after ``old_sha`` is absent there."""
+        _init_git_repo(tmp_path)
+        _write(tmp_path, "CLAUDE.md", "root\n")
+        old_sha = _commit_all(tmp_path, "v1")
+        _write(tmp_path, "new-file.md", "new\n")
+        _commit_all(tmp_path, "v2")
+
+        repo = ecs.Repo(tmp_path, old_sha)
+        assert repo.read_bytes("new-file.md") is None
+
+    def test_read_bytes_returns_none_when_cat_file_reports_absent(self, tmp_path: Path) -> None:
+        """A `cat-file -e` non-zero exit is absence; `git show` must not even run."""
+        from tests.validation._effective_context_helpers import FakeCompletedProcess
+
+        run = mock.Mock(
+            side_effect=_fake_run_by_argv({"cat-file": FakeCompletedProcess(1, stderr="missing")})
+        )
+        with mock.patch.object(ecs.subprocess, "run", run):
+            repo = ecs.Repo(tmp_path, "deadbeef")
+            assert repo.read_bytes("gone.md") is None
+        assert run.call_count == 1, "git show must not run once cat-file said absent"
+
+    def test_read_bytes_raises_when_show_fails_after_cat_file_confirms_existence(
+        self, tmp_path: Path
+    ) -> None:
+        """`cat-file -e` says the blob exists, but `git show` still fails: a real git error."""
+        from tests.validation._effective_context_helpers import FakeCompletedProcess
+
+        run = mock.Mock(
+            side_effect=_fake_run_by_argv(
+                {
+                    "cat-file": FakeCompletedProcess(0),
+                    "show": FakeCompletedProcess(128, stderr="fatal: loose object corrupt"),
+                }
+            )
+        )
+        with mock.patch.object(ecs.subprocess, "run", run):
+            repo = ecs.Repo(tmp_path, "deadbeef")
+            with pytest.raises(ecs.GitUnavailableError, match="corrupt"):
+                repo.read_bytes("present.md")
+
+    def test_read_bytes_raises_on_cat_file_timeout(self, tmp_path: Path) -> None:
+        run = mock.Mock(side_effect=subprocess.TimeoutExpired(cmd="git", timeout=30))
+        with mock.patch.object(ecs.subprocess, "run", run):
+            repo = ecs.Repo(tmp_path, "deadbeef")
+            with pytest.raises(ecs.GitUnavailableError):
+                repo.read_bytes("present.md")
+
+    def test_read_bytes_raises_on_show_timeout(self, tmp_path: Path) -> None:
+        from tests.validation._effective_context_helpers import FakeCompletedProcess
+
+        run = mock.Mock(
+            side_effect=_fake_run_by_argv(
+                {
+                    "cat-file": FakeCompletedProcess(0),
+                    "show": subprocess.TimeoutExpired(cmd="git", timeout=30),
+                }
+            )
+        )
+        with mock.patch.object(ecs.subprocess, "run", run):
+            repo = ecs.Repo(tmp_path, "deadbeef")
+            with pytest.raises(ecs.GitUnavailableError):
+                repo.read_bytes("present.md")
+
+    def test_ls_tree_raises_on_timeout_instead_of_an_uncaught_traceback(
+        self, tmp_path: Path
+    ) -> None:
+        run = mock.Mock(side_effect=subprocess.TimeoutExpired(cmd="git", timeout=30))
+        with mock.patch.object(ecs.subprocess, "run", run):
+            repo = ecs.Repo(tmp_path, "deadbeef")
+            with pytest.raises(ecs.GitUnavailableError):
+                repo.list_dir(".claude/rules")
+
+    def test_rev_is_valid_raises_on_timeout_instead_of_an_uncaught_traceback(
+        self, tmp_path: Path
+    ) -> None:
+        run = mock.Mock(side_effect=subprocess.TimeoutExpired(cmd="git", timeout=30))
+        with mock.patch.object(ecs.subprocess, "run", run):
+            repo = ecs.Repo(tmp_path, "deadbeef")
+            with pytest.raises(ecs.GitUnavailableError):
+                repo.rev_is_valid()
+
+    def test_git_unavailable_error_is_importable_from_the_resolvers_re_export(self) -> None:
+        """`ecr.GitUnavailableError` (existing public import path) is the same type."""
+        assert ecr.GitUnavailableError is ecs.GitUnavailableError
+
+    def test_decode_strips_and_decodes_bytes_stderr(self) -> None:
+        """A real (unmocked) `git show` failure's `stderr` is `bytes`, not `str`."""
+        assert ecs._decode(b"  fatal: boom  \n") == "fatal: boom"
+
+    def test_decode_strips_str_stderr(self) -> None:
+        """A test double may hand back `str` directly; both shapes decode the same."""
+        assert ecs._decode("  fatal: boom  \n") == "fatal: boom"

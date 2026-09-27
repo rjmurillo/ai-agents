@@ -359,6 +359,9 @@ def _resolve_or_report(
     except UnsupportedApplyToError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return None, 2
+    except GitUnavailableError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return None, 3
     return results, None
 
 

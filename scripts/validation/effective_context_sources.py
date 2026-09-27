@@ -42,6 +42,7 @@ from scripts.validation.instruction_budget_globs import (
 )
 
 __all__ = [
+    "GitUnavailableError",
     "ImportProblem",
     "InvalidRevError",
     "LoadedFile",
@@ -54,8 +55,38 @@ __all__ = [
 ]
 
 
+def _decode(data: bytes | str) -> str:
+    """Return ``data`` as ``str``, stripped: a git ``stderr`` may be either.
+
+    ``Repo``'s ``git show`` call passes no ``text=True`` (it needs the raw
+    bytes of the file on success), so its ``stderr`` on failure is ``bytes``;
+    a test double may hand back a plain ``str`` instead. Decoding
+    defensively here, once, keeps :meth:`Repo.read_bytes`'s error message
+    formatting the same either way.
+    """
+    if isinstance(data, bytes):
+        return data.decode("utf-8", errors="replace").strip()
+    return data.strip()
+
+
 class InvalidRevError(ValueError):
     """``--rev`` does not name a commit git can resolve."""
+
+
+class GitUnavailableError(RuntimeError):
+    """``git`` is not on PATH, is not a repository here, or a command timed out.
+
+    Moved here from ``effective_context_resolvers`` (issue #4880 post-rebase
+    review finding): ``Repo``'s own ``--rev`` accessors now raise it too, so
+    the type has to live where ``Repo`` is defined, not in the module that
+    imports ``Repo`` from here (importing it back from
+    ``effective_context_resolvers`` would be circular).
+    ``effective_context_resolvers`` re-exports this name unchanged, so
+    ``ecr.GitUnavailableError`` (the existing public import path used by
+    ``effective_context.py`` and its tests) still resolves to this exact
+    type; :func:`~scripts.validation.effective_context_resolvers.discover_nested_directories`
+    raises it too, for the same reason (a broken ``git ls-files`` there).
+    """
 
 
 class TargetOutsideRepoError(ValueError):
@@ -111,21 +142,65 @@ class Repo:
         self._rev = rev
 
     def read_bytes(self, rel_path: str) -> bytes | None:
-        """Return the file's bytes, or ``None`` if it does not exist."""
+        """Return the file's bytes, or ``None`` if it does not exist at this rev.
+
+        A ``--rev`` read used to treat any non-zero ``git show`` exit as
+        "file absent", so a git failure unrelated to absence (a corrupt
+        object, a transient I/O error) silently undercounted an inventory
+        instead of raising. Existence is now probed first with ``git
+        cat-file -e <rev>:<path>`` (the same probe
+        ``check_adr_links.py``'s ``baseline_entries_at_ref`` uses to keep
+        "absent at that rev" distinguishable from "present but
+        unreadable"): a non-zero probe means absent, ``None``; a ``git
+        show`` that still fails after the probe confirmed existence is a
+        real git error, raised as :class:`GitUnavailableError` (ADR-035 exit
+        code 3 at the CLI), never returned as ``None``. Either command
+        timing out raises the same error instead of an uncaught
+        ``subprocess.TimeoutExpired`` traceback.
+        """
         if self._rev is None:
             candidate = self._root / rel_path
             if not candidate.is_file():
                 return None
             return candidate.read_bytes()
-        result = subprocess.run(
-            ["git", "show", f"{self._rev}:{rel_path}"],
-            cwd=self._root,
-            capture_output=True,
-            timeout=30,
-        )
-        if result.returncode != 0:
+        if not self._exists_at_rev(rel_path):
             return None
+        try:
+            result = subprocess.run(
+                ["git", "show", f"{self._rev}:{rel_path}"],
+                cwd=self._root,
+                capture_output=True,
+                timeout=30,
+            )
+        except subprocess.TimeoutExpired as exc:
+            msg = f"git show {self._rev}:{rel_path} timed out in {self._root}: {exc}"
+            raise GitUnavailableError(msg) from exc
+        if result.returncode != 0:
+            stderr = _decode(result.stderr)
+            msg = f"git show {self._rev}:{rel_path} exited {result.returncode}: {stderr}"
+            raise GitUnavailableError(msg)
         return result.stdout
+
+    def _exists_at_rev(self, rel_path: str) -> bool:
+        """True when ``rel_path`` is a blob at ``self._rev`` (``git cat-file -e``).
+
+        The one existence probe :meth:`read_bytes` trusts: a non-zero exit
+        here is ``git cat-file -e``'s documented contract for "not present at
+        this rev", so callers may treat it as absence. A timeout raises
+        rather than returning ``False``, because a hung probe is not
+        evidence of either presence or absence.
+        """
+        try:
+            result = subprocess.run(
+                ["git", "cat-file", "-e", f"{self._rev}:{rel_path}"],
+                cwd=self._root,
+                capture_output=True,
+                timeout=30,
+            )
+        except subprocess.TimeoutExpired as exc:
+            msg = f"git cat-file -e {self._rev}:{rel_path} timed out in {self._root}: {exc}"
+            raise GitUnavailableError(msg) from exc
+        return result.returncode == 0
 
     def is_dir(self, rel_path: str) -> bool:
         """True when ``rel_path`` names a directory (repo root if empty)."""
@@ -161,14 +236,26 @@ class Repo:
         excludes a subdirectory via ``is_file()``; ``is_dir`` only needs
         non-emptiness (a directory holding nothing but subdirectories is
         still a directory), so it does not filter by type.
+
+        A non-zero exit still yields ``[]`` (a bad rev already fails earlier
+        through :meth:`rev_is_valid`, so this method's own contract for a
+        git-level failure stays "empty listing", unchanged). Only a timeout
+        raises :class:`GitUnavailableError`: a hang is not evidence the
+        listing is empty, and letting it escape as an uncaught
+        ``subprocess.TimeoutExpired`` would be the same silent-traceback
+        shape :meth:`read_bytes` had.
         """
-        result = subprocess.run(
-            ["git", "ls-tree", rev, "--", pathspec],
-            cwd=self._root,
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
+        try:
+            result = subprocess.run(
+                ["git", "ls-tree", rev, "--", pathspec],
+                cwd=self._root,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+        except subprocess.TimeoutExpired as exc:
+            msg = f"git ls-tree {rev} -- {pathspec} timed out in {self._root}: {exc}"
+            raise GitUnavailableError(msg) from exc
         if result.returncode != 0:
             return []
         entries: list[tuple[str, str]] = []
@@ -180,17 +267,26 @@ class Repo:
         return entries
 
     def rev_is_valid(self) -> bool:
-        """True when ``self._rev`` names a commit git can resolve."""
+        """True when ``self._rev`` names a commit git can resolve.
+
+        A non-zero exit is ``False`` (an unresolvable rev, unchanged
+        contract); only a timeout raises :class:`GitUnavailableError`,
+        matching :meth:`_ls_tree`'s reasoning.
+        """
         if self._rev is None:
             return True
         if self._rev.startswith("-"):
             return False
-        result = subprocess.run(
-            ["git", "rev-parse", "--verify", "--quiet", f"{self._rev}^{{commit}}"],
-            cwd=self._root,
-            capture_output=True,
-            timeout=30,
-        )
+        try:
+            result = subprocess.run(
+                ["git", "rev-parse", "--verify", "--quiet", f"{self._rev}^{{commit}}"],
+                cwd=self._root,
+                capture_output=True,
+                timeout=30,
+            )
+        except subprocess.TimeoutExpired as exc:
+            msg = f"git rev-parse --verify {self._rev} timed out in {self._root}: {exc}"
+            raise GitUnavailableError(msg) from exc
         return result.returncode == 0
 
 

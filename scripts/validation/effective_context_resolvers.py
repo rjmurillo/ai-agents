@@ -49,6 +49,9 @@ from scripts.validation.effective_context_copilot import (
     resolve_copilot,
 )
 from scripts.validation.effective_context_sources import (
+    GitUnavailableError as GitUnavailableError,
+)
+from scripts.validation.effective_context_sources import (
     ImportProblem as ImportProblem,
 )
 from scripts.validation.effective_context_sources import (
@@ -169,10 +172,6 @@ _NESTED_INSTRUCTION_FILE_RE = re.compile(r"(^|/)(CLAUDE|AGENTS)\.md$")
 def _is_fixture_path(rel_path: str) -> bool:
     """True when any path segment is a fixture-tree marker, case-insensitive."""
     return any(part.lower() in _FIXTURE_SEGMENT_NAMES for part in rel_path.split("/"))
-
-
-class GitUnavailableError(RuntimeError):
-    """``git`` is not on PATH, is not a repository here, or timed out."""
 
 
 def discover_nested_directories(repo_root: Path) -> tuple[list[str], list[str]]:
