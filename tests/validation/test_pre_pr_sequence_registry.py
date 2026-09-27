@@ -128,6 +128,7 @@ EXPECTED_ORDER: tuple[str, ...] = (
     'Rule Scope Declarations (paths:)',
     'Capability Graph (metadata.capability)',
     'Skill Routing Roles (metadata.routing)',
+    'Path-Local Effective Context Ratchet',
 )
 
 QUICK_SKIPPED: frozenset[str] = frozenset(
