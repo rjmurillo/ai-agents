@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from unittest import mock
 
 import pytest
 
@@ -21,6 +22,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 import scripts.validation.effective_context_resolvers as ecr
+import scripts.validation.effective_context_sources as ecs
 from tests.validation._effective_context_helpers import _commit_all, _init_git_repo, _write
 
 # --------------------------------------------------------------------------
@@ -154,6 +156,13 @@ class TestRepoDirectAccessors:
     def test_rev_is_valid_true_when_rev_is_none(self, tmp_path: Path) -> None:
         repo = ecr.Repo(tmp_path, None)
         assert repo.rev_is_valid() is True
+
+    def test_rev_is_valid_refuses_an_option_shaped_rev(self, tmp_path: Path) -> None:
+        """REQ-4: a `--rev` that starts with `-` never reaches git (CWE-88)."""
+        repo = ecr.Repo(tmp_path, "--all")
+        with mock.patch.object(ecs.subprocess, "run") as run:
+            assert repo.rev_is_valid() is False
+        run.assert_not_called()
 
     def test_ls_tree_failure_returns_empty_listing(self, tmp_path: Path) -> None:
         """A `git ls-tree` failure (bad rev, at the low-level accessor) yields []."""

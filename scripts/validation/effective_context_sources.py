@@ -166,6 +166,8 @@ class Repo:
         """True when ``self._rev`` names a commit git can resolve."""
         if self._rev is None:
             return True
+        if self._rev.startswith("-"):
+            return False
         result = subprocess.run(
             ["git", "rev-parse", "--verify", "--quiet", f"{self._rev}^{{commit}}"],
             cwd=self._root,
