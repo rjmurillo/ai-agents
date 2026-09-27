@@ -25,11 +25,11 @@
     "workflow-context.json": 1
   },
   "disposition_counts": {
-    "DELETE_OBSOLETE": 2,
+    "DELETE_OBSOLETE": 330,
     "MOVE": 133,
-    "REHOME_CANONICAL": 0,
+    "REHOME_CANONICAL": 32,
     "RETAIN_CANONICAL": 72,
-    "RETAIN_HISTORY": 819
+    "RETAIN_HISTORY": 459
   },
   "manifest": ".project-toolkit/analysis/5421-agents-migration-manifest.csv"
 }
