@@ -45,3 +45,18 @@ def test_maps_the_ci_exit_code(
 def test_real_repository_passes_the_gate() -> None:
     """REQ-6: the committed ceilings hold for this repository."""
     assert validate_effective_context_ratchet(REPO_ROOT) is True
+
+
+@pytest.mark.parametrize(("exit_code", "shown"), [(0, False), (1, True)])
+def test_prints_the_report_only_on_failure(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], exit_code: int, shown: bool
+) -> None:
+    """REQ-6: a passing gate stays quiet; a failing gate shows the ratchet report."""
+
+    def _fake_main(argv: list[str] | None = None, *, repo_root: Path | None = None) -> int:
+        print("RATCHET REPORT")
+        return exit_code
+
+    monkeypatch.setattr(ec, "main", _fake_main)
+    validate_effective_context_ratchet(REPO_ROOT)
+    assert ("RATCHET REPORT" in capsys.readouterr().out) is shown

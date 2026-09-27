@@ -13,6 +13,8 @@ agent-drift, plus ``_find_latest_session_log``; re-exported by ``pre_pr``.
 
 from __future__ import annotations
 
+import contextlib
+import io
 import os
 import re
 import shutil
@@ -854,7 +856,12 @@ def validate_effective_context_ratchet(repo_root: Path) -> bool:
     # reachability guard follows; a `python -m` string is not.
     from scripts.validation import effective_context
 
-    return effective_context.main(["--ci"], repo_root=repo_root) == 0
+    report = io.StringIO()
+    with contextlib.redirect_stdout(report):
+        passed = effective_context.main(["--ci"], repo_root=repo_root) == 0
+    if not passed:
+        print(report.getvalue(), end="")
+    return passed
 
 
 def validate_rule_scope_declarations(repo_root: Path) -> bool:
