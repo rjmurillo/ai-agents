@@ -334,7 +334,8 @@ land in REQ-003 M3.
    type. Allowed keys per artifact:
    - `agents`: `sourceDir`, `outputDir`, `sourceSuffix`, `outputSuffix`,
      `excludeFilenames`
-   - `skills`: `sourceDir`, `outputDir`, `mode`
+   - `skills`: `sourceDir`, `outputDir`, `mode`, `excludeFilenames`,
+     `frontmatterDrop` (applied only on the translated Copilot copy)
    - `commands`: `sourceDir`, `outputDir`, `transform`, `appendFrontmatter`
    - `rules`: `sourceDir`, `outputDir`, `sourceSuffix`, `outputSuffix`,
      `frontmatterRemap`, `frontmatterDrop`, `skipIfNoPathScope`

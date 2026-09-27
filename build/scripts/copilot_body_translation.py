@@ -18,7 +18,7 @@ Runtime contract verified empirically against GitHub Copilot CLI 1.0.66-1
   - `mcp__github__<op>`        -> not a Copilot tool name; Copilot spells the
                                   same server `github/<op>` (`templates/toolsets.yaml`)
 
-The translation applies four transforms, all in place:
+The translation applies five transforms, all in place:
 
   1. `@file` includes -> a Copilot note (instructions load via the plugin tree).
   2. `$ARGUMENTS`      -> a conversation instruction (no argument vector).
@@ -31,6 +31,10 @@ The translation applies four transforms, all in place:
      `serena/find_symbol`. Transforms 1 to 3 skip frontmatter, so before this
      a Claude-only namespace was copied verbatim into the Copilot mirror and
      the grant named nothing the harness exposes (Copilot review on PR #5509).
+  5. Frontmatter keys the platform config lists in `artifacts.skills.
+     frontmatterDrop` -> dropped. Copilot CLI lists `model` and
+     `model-rationale`: its skills have no per-skill model field, and a bare
+     alias such as `haiku` is not a Copilot model id (ADR-111, issue #5606).
 
 Transform 3 rewrites each call where it sits (structural rework, #2743). The
 earlier design appended a reference table to sidestep the Step 0 / Step 9
@@ -49,6 +53,8 @@ import re
 from collections.abc import Callable
 from pathlib import Path
 
+import yaml
+
 _PLUGIN_MANIFEST_RELATIVE = Path(".claude-plugin") / "plugin.json"
 _DEFAULT_PLUGIN_NAME = "project-toolkit"
 
@@ -58,6 +64,7 @@ _FENCED_CODE_BLOCK_RE = re.compile(r"(```.*?```)", re.DOTALL)
 _INLINE_CODE_SPAN_RE = re.compile(r"(`+[^`\n]*`+)")
 
 _FRONTMATTER_RE = re.compile(r"\A(---\r?\n.*?\r?\n---\r?\n)(.*)\Z", re.DOTALL)
+_FRONTMATTER_FENCE_RE = re.compile(r"\A---\r?\n|^---\r?\n\Z", re.MULTILINE)
 
 # The `allowed-tools` value, which may wrap onto continuation lines in a YAML
 # block or list. Anchored at the key so no other frontmatter value is touched.
@@ -68,6 +75,10 @@ _FRONTMATTER_RE = re.compile(r"\A(---\r?\n.*?\r?\n---\r?\n)(.*)\Z", re.DOTALL)
 # touch one key. A YAML list under a key is indented, so nothing legitimate is
 # lost (Copilot review on PR #5509).
 _ALLOWED_TOOLS_LINE_RE = re.compile(r"^allowed-tools:.*(?:\n[ \t].*)*$", re.MULTILINE)
+# A top-level frontmatter key line, bare or quoted, with optional space before
+# the colon. Group 2 is the key name. Its value lines are found by
+# `_drop_key_lines`, not by this pattern.
+_TOP_LEVEL_KEY_RE = re.compile(r"""^(["']?)([^\s"':#][^"':]*?)\1[ \t]*:(?:[ \t]|$)""")
 # `mcp__<server>__<op>`; `<op>` is `*` for a whole-namespace grant. Hyphens are
 # legal in both halves and this repository uses them: `mcp__context7__` names
 # `resolve-library-id`, and `mcp__plugin_claude-mem_mcp-search__` hyphenates the
@@ -302,15 +313,91 @@ def translate_allowed_tools(frontmatter: str) -> str:
     )
 
 
-def translate_skill_file(content: str, skills_output_dir: Path) -> str:
+def drop_frontmatter_keys(frontmatter: str, keys: frozenset[str]) -> str:
+    """Remove the named top-level keys from fenced frontmatter (transform 5).
+
+    Claude Code switches to a skill's `model:` while the skill is active.
+    Copilot CLI skills have no per-skill model field: skill content is
+    injected into the running session. So the Copilot config drops the pin,
+    and it is never resolved to a versioned id (ADR-111, issue #5606).
+
+    Raises ValueError when the result does not parse to the input mapping
+    minus the named keys, so a bad cut fails the build instead of shipping.
+    """
+    if not keys:
+        return frontmatter
+    result = _drop_key_lines(frontmatter, keys)
+    _check_only_keys_dropped(frontmatter, result, keys)
+    return result
+
+
+def _is_dropped_key(text: str, keys: frozenset[str]) -> bool:
+    match = _TOP_LEVEL_KEY_RE.match(text)
+    return match is not None and match.group(2) in keys
+
+
+def _drop_key_lines(frontmatter: str, keys: frozenset[str]) -> str:
+    """Drop each named key line plus its value lines.
+
+    A value line is indented or an un-indented `- ` list item. Blank lines
+    inside a block scalar go with the value; blank lines before the next
+    top-level key are kept.
+    """
+    kept: list[str] = []
+    blanks: list[str] = []
+    dropping = False
+    for line in frontmatter.splitlines(keepends=True):
+        text = line.rstrip("\r\n")
+        if dropping and not text.strip():
+            blanks.append(line)
+            continue
+        if dropping and (text[:1] in (" ", "\t") or text.startswith("- ")):
+            blanks.clear()
+            continue
+        kept.extend(blanks)
+        blanks.clear()
+        dropping = _is_dropped_key(text, keys)
+        if not dropping:
+            kept.append(line)
+    kept.extend(blanks)
+    return "".join(kept)
+
+
+def _frontmatter_mapping(frontmatter: str) -> object:
+    return yaml.safe_load(_FRONTMATTER_FENCE_RE.sub("", frontmatter))
+
+
+def _check_only_keys_dropped(before: str, after: str, keys: frozenset[str]) -> None:
+    try:
+        original = _frontmatter_mapping(before)
+    except yaml.YAMLError:
+        return  # Source frontmatter is not YAML; the skill validators own that.
+    if not isinstance(original, dict):
+        return
+    expected = {k: v for k, v in original.items() if k not in keys}
+    try:
+        actual = _frontmatter_mapping(after)
+    except yaml.YAMLError as exc:
+        raise ValueError(f"dropping {sorted(keys)} broke SKILL.md frontmatter: {exc}") from exc
+    if (actual or {}) != expected:
+        raise ValueError(f"dropping {sorted(keys)} changed other SKILL.md frontmatter keys")
+
+
+def translate_skill_file(
+    content: str,
+    skills_output_dir: Path,
+    drop_keys: frozenset[str] = frozenset(),
+) -> str:
     """Translate a full SKILL.md (frontmatter + body), preserving frontmatter.
 
-    Only the `allowed-tools` line of the frontmatter is rewritten (transform 4);
-    every other key is passed through. When no frontmatter is present, the
+    In the frontmatter, the `allowed-tools` line is rewritten (transform 4)
+    and the `drop_keys` keys are removed (transform 5); every other key is
+    passed through. When no frontmatter is present, the
     whole content is treated as body.
     """
     match = _FRONTMATTER_RE.match(content)
     if match is None:
         return translate_body(content, skills_output_dir)
     frontmatter, body = match.group(1), match.group(2)
-    return translate_allowed_tools(frontmatter) + translate_body(body, skills_output_dir)
+    frontmatter = drop_frontmatter_keys(translate_allowed_tools(frontmatter), drop_keys)
+    return frontmatter + translate_body(body, skills_output_dir)

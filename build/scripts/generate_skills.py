@@ -177,6 +177,14 @@ def generate_skills(
     source_dir_str = str(stanza.get("sourceDir", ""))
     output_dir_str = str(stanza.get("outputDir", ""))
     excludes = set(stanza.get("excludeFilenames") or _DEFAULT_EXCLUDES)
+    raw_drop = stanza.get("frontmatterDrop") or []
+    if not isinstance(raw_drop, list) or not all(isinstance(k, str) for k in raw_drop):
+        print(
+            "Error: `artifacts.skills.frontmatterDrop` must be a list of strings",
+            file=sys.stderr,
+        )
+        return 2
+    frontmatter_drop = frozenset(raw_drop)
 
     try:
         source_dir, output_dir = _resolve_paths(repo_root, source_dir_str, output_dir_str)
@@ -222,6 +230,7 @@ def generate_skills(
             what_if=what_if,
             skills_output_dir=output_dir if is_copilot else None,
             plugin_skill_md=plugin_skill_md,
+            frontmatter_drop=frontmatter_drop,
         )
         total_written += written
         total_skipped += skipped

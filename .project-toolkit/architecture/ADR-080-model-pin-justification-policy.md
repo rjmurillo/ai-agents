@@ -1,10 +1,10 @@
 ---
 id: ADR-080
-status: accepted
+status: superseded
 date: 2026-07-11
 decision-makers: [rjmurillo]
 supersedes: []
-superseded-by: null
+superseded-by: ADR-111
 explainer: null
 implemented: true
 ---
@@ -13,7 +13,10 @@ implemented: true
 
 ## Status
 
-Accepted (approved by @rjmurillo on 2026-07-11, PR #3028).
+Superseded by ADR-111 (2026-09-27, issue #5606). Accepted (approved by
+@rjmurillo on 2026-07-11, PR #3028). ADR-111 restates this Decision and adds
+one clause to rule 3: a harness with no per-skill model field gets no skill
+`model:` pin. The Decision below keeps its original wording.
 
 Amended 2026-08-12. The Decision stands. The Context's cost model is narrowed
 and one cost it never stated is added. Read
@@ -461,7 +464,8 @@ which are not valid Copilot model ids, so their cheap-tier intent is discarded
 there in favour of the session default. Closing it means teaching the skill
 copier to resolve the alias, which mints a versioned id and reopens finding 1,
 or dropping rule 3's cost exception for skills. Either is a Decision change,
-tracked at **issue #5606**.
+tracked at **issue #5606**. ADR-111 closes it with a third option: the
+Copilot skill mirror drops `model:` and `model-rationale:`.
 
 `implemented: true` carries ADR-073's meaning, "flips true at first merged
 change", and gates amend-versus-supersede. It does not claim every consequence

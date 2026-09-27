@@ -131,6 +131,7 @@ def _copy_skill_tree(
     skills_output_dir: Path | None = None,
     plugin_skill_md: Path | None = None,
     skip_filenames: frozenset[Path] = frozenset(),
+    frontmatter_drop: frozenset[str] = frozenset(),
 ) -> tuple[int, int]:
     """Copy a single skill directory into ``target``.
 
@@ -169,6 +170,10 @@ def _copy_skill_tree(
     whose SKILL.md is owned exclusively by ``skill_templates.compile_all``
     and must never be touched by a plain byte-for-byte copy.
 
+    ``frontmatter_drop`` names top-level ``SKILL.md`` frontmatter keys the
+    translated copy omits (the platform config's ``frontmatterDrop``). It only
+    applies with ``skills_output_dir``, the translate branch (ADR-111).
+
     ``check``, when set, never writes either, but (unlike ``what_if``)
     counts every mismatch into ``written``: a caller running a staleness
     gate needs a number to escalate on, not just a printed intention. A
@@ -205,7 +210,7 @@ def _copy_skill_tree(
             if plugin_skill_md is not None and plugin_skill_md.is_file():
                 content_source = plugin_skill_md
             content = content_source.read_text(encoding="utf-8")
-            translated = translate_skill_file(content, skills_output_dir)
+            translated = translate_skill_file(content, skills_output_dir, frontmatter_drop)
             if _text_matches(dst_path, translated):
                 continue
             if check:

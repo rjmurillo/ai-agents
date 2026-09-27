@@ -204,6 +204,7 @@ artifacts:
     outputDir: "src/copilot-cli/skills"
     mode: "directory-copy"
     excludeFilenames: ["AGENTS.md", "CLAUDE.md", "merge-resolver"]
+    frontmatterDrop: ["model", "model-rationale"]   # ADR-111: Copilot skills have no per-skill model field
   rules:
     sourceDir: "src/claude/rules"   # ADR-109 B2: the plugin tree the compile renders; .claude/rules is its binplace
     outputDirs:

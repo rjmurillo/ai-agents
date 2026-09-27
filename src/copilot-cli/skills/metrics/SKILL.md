@@ -10,8 +10,6 @@ metadata:
     user-facing: true
     rationale: Automatic routing would be noisy. Usage collection is an operator task, and inbound matches are the common word metrics in unrelated prose.
 version: 1.0.0
-model: haiku
-model-rationale: cost. The 'haiku' rolling alias resolves via the platform model_tiers map to a tier priced below the sonnet-tier harness default; this unit is routing/mechanical work where the cheaper tier suffices (ADR-080 rule 3).
 ---
 
 # Agent Metrics Collection Utility
