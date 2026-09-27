@@ -184,6 +184,8 @@ CONSTRAINTS: [must/must-not]
 TIMEBOX: [if applicable]
 ```
 
+**Assigned todo IDs.** When a delegation assigns a todo ID from a task ledger, create or verify that row before dispatch. Require the worker to record `done` or `blocked` with an update that asserts exactly one affected row. Zero or several affected rows is a blocker, never success. When `.agents/AGENT-INSTRUCTIONS.md` exists, use the helper it names.
+
 Agents return deltas, changed paths, verifier output, acceptance status, and typed escalation status. Do not return transcripts. If an agent returns narrative prose when you need structured findings, reject and re-delegate with explicit format requirement.
 
 **Skill inheritance is harness-specific.** The Claude Code incident behind this note found that workers did not inherit the skills active in the parent session; it does not establish the same behavior in other harnesses. Where a worker does not inherit, naming the skill file costs less context than pasting its body into the prompt.

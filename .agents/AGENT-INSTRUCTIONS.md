@@ -90,6 +90,13 @@ Use the **table format** (not bullet lists) for validation to pass:
 2. Understand acceptance criteria
 3. Plan the implementation approach
 4. **If task involves agent prompt changes**: Complete Impact Analysis (see below)
+5. **If the task assigns a todo ID**: create or verify its ledger row first.
+   The command below is idempotent and prints `created:` or `exists:`.
+
+   ```bash
+   uv run --frozen python scripts/todo_db.py ensure .agents/todos.db <todo-id> "<title>"
+   uv run --frozen python scripts/todo_db.py status .agents/todos.db <todo-id> in_progress
+   ```
 
 **During task execution:**
 
@@ -104,6 +111,17 @@ Use the **table format** (not bullet lists) for validation to pass:
 2. Update the per-issue handoff when work remains open
 3. Store durable decisions in Serena memory
 4. Commit the documentation update
+5. **If the task assigned a todo ID**: record the outcome with the helper.
+   Do not run a bare `UPDATE todos`: a missing row makes it change zero rows
+   and report nothing.
+
+   ```bash
+   uv run --frozen python scripts/todo_db.py status .agents/todos.db <todo-id> done
+   uv run --frozen python scripts/todo_db.py status .agents/todos.db <todo-id> blocked
+   ```
+
+   Exit 1 means zero or several rows matched. Treat it as a blocker and report
+   it. For a missing row, run `ensure` and then `status` again.
 
 ### 3. Session Finalization
 
