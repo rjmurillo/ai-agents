@@ -748,7 +748,6 @@ def check_index_format(index_path: Path) -> FormatResult:
         return result
 
     lines = index_path.read_text(encoding="utf-8").split("\n")
-    table_header_found = False
 
     for line_number, line in enumerate(lines, start=1):
         trimmed = line.strip()
@@ -790,17 +789,15 @@ def check_index_format(index_path: Path) -> FormatResult:
 
         # Valid table row
         if re.match(r"^\|.*\|$", trimmed):
-            table_header_found = True
             continue
 
-        # Non-table content after table header
-        if table_header_found and not re.match(r"^\|.*\|$", trimmed):
-            result.passed = False
-            result.violation_lines.append(line_number)
-            result.issues.append(
-                f"Line {line_number}: Non-table content detected - "
-                f"'{trimmed}' (prohibited per ADR-017)"
-            )
+        # Any other content, before, between, or after table rows
+        result.passed = False
+        result.violation_lines.append(line_number)
+        result.issues.append(
+            f"Line {line_number}: Non-table content detected - "
+            f"'{trimmed}' (prohibited per ADR-017)"
+        )
 
     return result
 
@@ -1658,10 +1655,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--orphan-policy",
         choices=["strict", "ratchet"],
-        default="strict",
+        default=None,
         help=(
             "Orphan handling: strict fails on any orphan; ratchet reports "
-            "orphans while the separate count ratchet blocks growth"
+            "orphans while the separate count ratchet blocks growth "
+            "(default: ratchet with --ci, strict otherwise)"
         ),
     )
     return parser
@@ -1699,8 +1697,8 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     orphan_policy = args.orphan_policy
-    if args.ci and orphan_policy == "strict":
-        orphan_policy = "ratchet"
+    if orphan_policy is None:
+        orphan_policy = "ratchet" if args.ci else "strict"
 
     report = run_validation(
         target,

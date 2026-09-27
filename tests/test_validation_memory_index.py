@@ -355,6 +355,41 @@ class TestCheckIndexFormat:
         assert result.passed is False
         assert any("Non-table content detected" in i for i in result.issues)
 
+    def test_prose_before_table_detected(self, tmp_path: Path) -> None:
+        """Issue #4776: prose above the first row must fail, not pass."""
+        index = tmp_path / "index.md"
+        index.write_text(
+            "This is prose before the table which ADR-017 prohibits.\n\n"
+            "| Keywords | File |\n"
+            "|----------|------|\n"
+            "| alpha | skill |\n"
+        )
+        result = check_index_format(index)
+        assert result.passed is False
+        assert result.violation_lines == [1]
+        assert any("Non-table content detected" in i for i in result.issues)
+
+    def test_prose_without_table_detected(self, tmp_path: Path) -> None:
+        """Issue #4776: an index whose body is only prose must fail."""
+        index = tmp_path / "index.md"
+        index.write_text("content\n")
+        result = check_index_format(index)
+        assert result.passed is False
+        assert result.violation_lines == [1]
+
+    def test_prose_between_rows_detected(self, tmp_path: Path) -> None:
+        index = tmp_path / "index.md"
+        index.write_text(
+            "| Keywords | File |\n"
+            "|----------|------|\n"
+            "| alpha | skill-one |\n"
+            "stray prose\n"
+            "| beta | skill-two |\n"
+        )
+        result = check_index_format(index)
+        assert result.passed is False
+        assert result.violation_lines == [4]
+
     def test_empty_lines_between_rows_allowed(self, tmp_path: Path) -> None:
         index = tmp_path / "index.md"
         index.write_text(
@@ -2033,6 +2068,52 @@ class TestMain:
         exit_code = main(["--path", str(tmp_path / "missing")])
         assert exit_code == 0
 
+    @pytest.mark.parametrize(
+        ("extra_args", "expected_passed", "expected_exit"),
+        [
+            pytest.param(["--ci"], True, 0, id="ci-defaults-to-ratchet"),
+            pytest.param(
+                ["--ci", "--orphan-policy", "strict"], False, 1,
+                id="ci-honors-explicit-strict",
+            ),
+            pytest.param(
+                ["--ci", "--orphan-policy", "ratchet"], True, 0,
+                id="ci-honors-explicit-ratchet",
+            ),
+            pytest.param([], False, 0, id="local-defaults-to-strict"),
+            pytest.param(
+                ["--orphan-policy", "ratchet"], True, 0,
+                id="local-honors-explicit-ratchet",
+            ),
+        ],
+    )
+    def test_orphan_policy_resolution(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+        extra_args: list[str],
+        expected_passed: bool,
+        expected_exit: int,
+    ) -> None:
+        """Issue #4776: --ci must not override an explicit --orphan-policy.
+
+        Without --ci the script reports only and always exits 0, so the
+        resolved policy is observed through the JSON ``passed`` field.
+        """
+        import json
+        monkeypatch.delenv("CI", raising=False)
+        create_memory_structure(tmp_path, {
+            "memory-index.md": "| Keywords | File |\n|----------|------|\n",
+            "skills-orphaned.md": "content",
+        })
+        exit_code = main(
+            ["--path", str(tmp_path), "--format", "json", *extra_args]
+        )
+        data = json.loads(capsys.readouterr().out)
+        assert data["passed"] is expected_passed
+        assert exit_code == expected_exit
+
     def test_nonexistent_path_ci(self, tmp_path: Path) -> None:
         exit_code = main(["--path", str(tmp_path / "missing"), "--ci"])
         assert exit_code == 2
@@ -2153,7 +2234,10 @@ class TestMain:
                 "| second keywords: [second](skills-copilot-index.md)\n"
                 "| third keywords: [third](skills-copilot-index.md)\n"
             ),
-            "skills-copilot-index.md": "content",
+            "skills-copilot-index.md": (
+                "| Keywords | File |\n"
+                "|----------|------|\n"
+            ),
         })
 
         exit_code = main(["--path", str(tmp_path), "--ci"])
@@ -2169,7 +2253,10 @@ class TestMain:
                 "| second keywords: [second](skills-copilot-index.md)\n"
                 "| third keywords: [third](skills-copilot-index.md)\n"
             ),
-            "skills-copilot-index.md": "content",
+            "skills-copilot-index.md": (
+                "| Keywords | File |\n"
+                "|----------|------|\n"
+            ),
         })
 
         with patch(
