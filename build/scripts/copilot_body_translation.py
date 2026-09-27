@@ -1,10 +1,10 @@
 """Translate Claude Code conventions in a skill body for GitHub Copilot CLI.
 
-Issue #2743. Both the command-to-skill bridge (`generate_commands.py`) and
-the skill-tree mirror (`generate_skills.py`) emit `SKILL.md` bodies into the
-Copilot CLI plugin tree (`src/copilot-cli/skills/`). Those bodies are copied
-from `.claude/commands/*.md` and `.claude/skills/*/SKILL.md`, which use
-Claude Code conventions that Copilot CLI does NOT resolve.
+Issue #2743. The skill-tree mirror (`generate_skills.py`) emits `SKILL.md`
+bodies into the Copilot CLI plugin tree (`src/copilot-cli/skills/`). Those
+bodies are copied from `.claude/skills/*/SKILL.md`, which use Claude Code
+conventions that Copilot CLI does NOT resolve. The command-to-skill bridge
+that also called this module was retired with `.claude/commands/` (ADR-064).
 
 Runtime contract verified empirically against GitHub Copilot CLI 1.0.66-1
 (2026-06-27, recorded in Serena memory
@@ -303,9 +303,7 @@ def translate_allowed_tools(frontmatter: str) -> str:
     """Apply :func:`respell_mcp_tool_names` to the `allowed-tools` value only.
 
     `generate_skills.py` mirrors a whole `SKILL.md` as text, so its frontmatter
-    arrives as a string. `generate_commands.py` builds frontmatter as a dict and
-    calls the helper above on the value directly; both paths have to respell or
-    only half the Copilot tree is fixed.
+    arrives as a string.
     """
     return _ALLOWED_TOOLS_LINE_RE.sub(
         lambda line: respell_mcp_tool_names(line.group(0)),

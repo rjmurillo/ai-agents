@@ -124,7 +124,9 @@ def test_directory_copy_writes_skill_md_to_output(tmp_path: Path) -> None:
     _write_minimal_skill(skills_src, "alpha")
     _write_minimal_skill(skills_src, "beta")
 
-    cfg = _write_config(tmp_path, source_dir="skills_src", output_dir="skills_out")
+    cfg = _write_config(
+        tmp_path, source_dir="skills_src", output_dir="skills_out"
+    )
 
     rc = generate_skills.generate_skills(cfg, repo_root)
     assert rc == 0
@@ -263,7 +265,9 @@ def test_missing_artifacts_skills_returns_2(tmp_path: Path) -> None:
 def test_unsupported_mode_returns_2(tmp_path: Path) -> None:
     repo_root = tmp_path
     _write_minimal_skill(repo_root / "skills", "alpha")
-    cfg = _write_config(tmp_path, source_dir="skills", output_dir="out", mode="symlink")
+    cfg = _write_config(
+        tmp_path, source_dir="skills", output_dir="out", mode="symlink"
+    )
     assert generate_skills.generate_skills(cfg, repo_root) == 2
 
 
@@ -316,14 +320,12 @@ def test_what_if_does_not_write(tmp_path: Path) -> None:
 
 
 def test_main_missing_config_returns_2(tmp_path: Path) -> None:
-    rc = generate_skills.main(
-        [
-            "--config",
-            str(tmp_path / "nope.yaml"),
-            "--repo-root",
-            str(tmp_path),
-        ]
-    )
+    rc = generate_skills.main([
+        "--config",
+        str(tmp_path / "nope.yaml"),
+        "--repo-root",
+        str(tmp_path),
+    ])
     assert rc == 2
 
 
@@ -332,13 +334,7 @@ def test_main_invokes_generation(tmp_path: Path, argv: list[str]) -> None:
     repo_root = tmp_path
     _write_minimal_skill(repo_root / "skills", "alpha")
     cfg = _write_config(tmp_path, source_dir="skills", output_dir="out")
-    rc = generate_skills.main(
-        [
-            "--config",
-            str(cfg),
-            "--repo-root",
-            str(repo_root),
-            *argv,
-        ]
-    )
+    rc = generate_skills.main([
+        "--config", str(cfg), "--repo-root", str(repo_root), *argv,
+    ])
     assert rc == 0

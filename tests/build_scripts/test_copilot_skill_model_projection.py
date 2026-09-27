@@ -137,6 +137,12 @@ def test_cut_that_breaks_other_keys_raises() -> None:
         drop_frontmatter_keys("---\nmodel: {a: 1,\nb: 2}\nname: x\n---\n", _KEYS)
 
 
+def test_cut_that_leaves_unparseable_frontmatter_raises() -> None:
+    # The dropped key defines an anchor another key still references.
+    with pytest.raises(ValueError, match="broke SKILL.md frontmatter"):
+        drop_frontmatter_keys("---\nmodel: &a haiku\nname: *a\n---\n", _KEYS)
+
+
 def test_non_yaml_source_frontmatter_skips_equivalence_check() -> None:
     src = "---\nname: [unclosed\nmodel: haiku\n---\n"
     assert drop_frontmatter_keys(src, _KEYS) == "---\nname: [unclosed\n---\n"
@@ -184,6 +190,15 @@ def test_generator_without_drop_keeps_model(tmp_path: Path) -> None:
 def test_generator_rejects_malformed_drop(tmp_path: Path, drop: str) -> None:
     _skill(tmp_path)
     assert generate_skills.generate_skills(_config(tmp_path, drop), tmp_path) == 2
+
+
+def test_generator_reports_a_bad_cut_as_rc_1(tmp_path: Path, capsys) -> None:
+    skill = tmp_path / "src_skills" / "alpha"
+    skill.mkdir(parents=True)
+    (skill / "SKILL.md").write_text("---\nmodel: &a haiku\nname: *a\n---\nBody\n")
+    cfg = _config(tmp_path, "    frontmatterDrop: [model]\n")
+    assert generate_skills.generate_skills(cfg, tmp_path) == 1
+    assert "broke SKILL.md frontmatter" in capsys.readouterr().err
 
 
 # Committed tree -------------------------------------------------------------

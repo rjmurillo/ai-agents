@@ -74,3 +74,12 @@ Both seat agents re-read the revised ADR, this log, and the diff.
 Consensus: 6 of 6 Accept. The new P2 was fixed: the four reformat-only files
 were reverted. Security accepts one residual gap: frontmatter that is not
 valid YAML skips the guard, and the skill validators own that input.
+
+## Post-consensus edit
+
+The test-gate review found that rule 6 overclaimed: it read as if
+`check_model_pins.py` enforced rule 3's projection clause, but the scanner
+does not read generated mirrors. Rule 6 now names the checks that do:
+`tests/build_scripts/test_copilot_skill_model_projection.py` and
+`build_all.py --check`. The edit narrows a claim and changes no rule, so no
+new vote round ran.

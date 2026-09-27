@@ -120,7 +120,11 @@ Default every skill, agent, and command to the harness-inherited model.
 5. **Generators inject no default model.** Issue #5313 implemented this.
 6. **`scripts/validation/check_model_pins.py` enforces rules 1 to 3** over
    the authored trees in `--mode enforce`. Its baseline is drained to zero, so
-   a new non-compliant pin is a hard violation.
+   a new non-compliant pin is a hard violation. It does not scan generated
+   mirrors. Rule 3's projection clause is enforced by
+   `tests/build_scripts/test_copilot_skill_model_projection.py` and by
+   `build_all.py --check`, which fails when a mirror differs from its
+   regeneration.
 
 Rule 3's new clause is a skill rule. Generated agents are out of its scope:
 `build/generate_agents_common.py` still resolves `model_tier: haiku` to

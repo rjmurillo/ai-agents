@@ -210,7 +210,10 @@ def _copy_skill_tree(
             if plugin_skill_md is not None and plugin_skill_md.is_file():
                 content_source = plugin_skill_md
             content = content_source.read_text(encoding="utf-8")
-            translated = translate_skill_file(content, skills_output_dir, frontmatter_drop)
+            try:
+                translated = translate_skill_file(content, skills_output_dir, frontmatter_drop)
+            except ValueError as exc:
+                raise GenerateSkillsError(f"{content_source}: {exc}") from exc
             if _text_matches(dst_path, translated):
                 continue
             if check:

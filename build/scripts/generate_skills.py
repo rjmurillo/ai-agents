@@ -78,6 +78,63 @@ def _resolve_paths(repo_root: Path, source_dir: str, output_dir: str) -> tuple[P
     return repo_root / source_dir, repo_root / output_dir
 
 
+def _frontmatter_drop(stanza: dict[str, object]) -> frozenset[str]:
+    """Return the stanza's ``frontmatterDrop`` keys.
+
+    ADR-111: a harness with no per-skill model field lists the keys its
+    translated ``SKILL.md`` copy omits. An absent key means drop nothing.
+    Raises :class:`GenerateSkillsError` when the value is not a list of strings.
+    """
+    raw = stanza.get("frontmatterDrop") or []
+    if not isinstance(raw, list) or not all(isinstance(key, str) for key in raw):
+        raise GenerateSkillsError("`artifacts.skills.frontmatterDrop` must be a list of strings")
+    return frozenset(raw)
+
+
+def _copy_skills(
+    skills: list[Path],
+    output_dir: Path,
+    repo_root: Path,
+    *,
+    what_if: bool,
+    translate: bool,
+    frontmatter_drop: frozenset[str],
+) -> tuple[int, int]:
+    """Copy each skill tree into ``output_dir``; return ``(written, skipped)``.
+
+    ``translate`` selects the Copilot SKILL.md translation branch of
+    ``_copy_skill_tree``. Raises :class:`GenerateSkillsError` when a
+    translation refuses a skill (ADR-111's frontmatter-drop guard).
+    """
+    # ADR-109 B3: the plugin tree src/claude/skills/<name>/SKILL.md was just
+    # rendered by skill_templates.compile_all (the caller's compile step), so
+    # its bytes are fresher than .claude/skills/, which this platform's
+    # binplace step will not refresh until later in the pipeline. discover()
+    # names every skill with a template; a skill without one has no
+    # plugin-tree file, and _copy_skill_tree falls back to source / "SKILL.md".
+    templated = skill_templates.discover(repo_root)
+    total_written = 0
+    total_skipped = 0
+    for src in skills:
+        print(f"Processing: {src.name}")
+        plugin_skill_md = (
+            repo_root / "src" / "claude" / "skills" / src.name / "SKILL.md"
+            if src.name in templated
+            else None
+        )
+        written, skipped = _copy_skill_tree(
+            src,
+            output_dir / src.name,
+            what_if=what_if,
+            skills_output_dir=output_dir if translate else None,
+            plugin_skill_md=plugin_skill_md,
+            frontmatter_drop=frontmatter_drop,
+        )
+        total_written += written
+        total_skipped += skipped
+    return total_written, total_skipped
+
+
 def generate_skills(
     config_path: Path,
     repo_root: Path,
@@ -177,16 +234,9 @@ def generate_skills(
     source_dir_str = str(stanza.get("sourceDir", ""))
     output_dir_str = str(stanza.get("outputDir", ""))
     excludes = set(stanza.get("excludeFilenames") or _DEFAULT_EXCLUDES)
-    raw_drop = stanza.get("frontmatterDrop") or []
-    if not isinstance(raw_drop, list) or not all(isinstance(k, str) for k in raw_drop):
-        print(
-            "Error: `artifacts.skills.frontmatterDrop` must be a list of strings",
-            file=sys.stderr,
-        )
-        return 2
-    frontmatter_drop = frozenset(raw_drop)
 
     try:
+        frontmatter_drop = _frontmatter_drop(stanza)
         source_dir, output_dir = _resolve_paths(repo_root, source_dir_str, output_dir_str)
     except GenerateSkillsError as exc:
         print(f"Error: {exc}", file=sys.stderr)
@@ -205,35 +255,19 @@ def generate_skills(
         return 1
 
     is_copilot = str(cfg.get("provider", "")) == "copilot-cli"
-    # ADR-109 B3: the plugin tree src/claude/skills/<name>/SKILL.md was just
-    # rendered by skill_templates.compile_all above (this call's own
-    # compile_result), so its bytes are fresher than .claude/skills/, which
-    # this platform's binplace step will not refresh until later in the
-    # pipeline. discover() names every skill with a template; a skill
-    # without one has no plugin-tree file, and _copy_skill_tree falls back
-    # to source / "SKILL.md" for it.
-    templated = skill_templates.discover(repo_root)
     print(f"Found {len(skills)} skill(s)")
-    total_written = 0
-    total_skipped = 0
-    for src in skills:
-        target = output_dir / src.name
-        print(f"Processing: {src.name}")
-        plugin_skill_md = (
-            repo_root / "src" / "claude" / "skills" / src.name / "SKILL.md"
-            if src.name in templated
-            else None
-        )
-        written, skipped = _copy_skill_tree(
-            src,
-            target,
+    try:
+        total_written, total_skipped = _copy_skills(
+            skills,
+            output_dir,
+            repo_root,
             what_if=what_if,
-            skills_output_dir=output_dir if is_copilot else None,
-            plugin_skill_md=plugin_skill_md,
+            translate=is_copilot,
             frontmatter_drop=frontmatter_drop,
         )
-        total_written += written
-        total_skipped += skipped
+    except GenerateSkillsError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
     duration = time.monotonic() - start_time
 
     print()
