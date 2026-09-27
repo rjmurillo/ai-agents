@@ -15,7 +15,8 @@ from __future__ import annotations
 
 import json
 import subprocess
-from pathlib import Path
+import sys
+from pathlib import Path, PureWindowsPath
 from unittest import mock
 
 import pytest
@@ -150,7 +151,7 @@ def test_verify_listing_passes_when_a_path_local_guide_sits_outside_the_cwd_ance
 
 def test_path_local_rejects_a_non_canonical_spelling(tmp_path: Path) -> None:
     """REQ-9: `./AGENTS.md` would never match Copilot's listed `AGENTS.md`."""
-    for spelling in ("./AGENTS.md", "a//CLAUDE.md", "a/./CLAUDE.md"):
+    for spelling in ("./AGENTS.md", "a//CLAUDE.md", "a/./CLAUDE.md", "a\\AGENTS.md"):
         path = _corpus(tmp_path, {"path_local": [spelling]})
         with pytest.raises(runtime_parity.ParityConfigError, match="discoverable guide"):
             runtime_parity.load_fixtures(path)
@@ -169,3 +170,18 @@ def test_setup_installed_copilot_repo_instructions_are_expected_in_the_listing(
     )
     fixture = runtime_parity.load_fixtures(path)[0]
     assert ".github/copilot-instructions.md" in parity._setup_discoverable_sources(fixture)
+
+
+def test_backslash_path_is_refused_under_windows_path_semantics(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """REQ-9: `a\\AGENTS.md` must be refused even where `\\` is a separator.
+
+    On Windows, `Path("a\\AGENTS.md").name` is `AGENTS.md`, so a name check
+    alone would accept it, while the Copilot preflight reads the path as
+    POSIX and never matches it against the listing.
+    """
+    guides = sys.modules["_runtime_path_local_guides"]
+    monkeypatch.setattr(guides, "Path", PureWindowsPath)
+    assert guides.is_discoverable_guide("a\\AGENTS.md") is False
+    assert guides.is_discoverable_guide("a/AGENTS.md") is True

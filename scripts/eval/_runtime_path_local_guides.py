@@ -46,9 +46,10 @@ def is_discoverable_guide(item: str) -> bool:
     path (`.claude/agents/parity.md`) or an arbitrary repository file
     (`README.md`), or a guide under the isolated CLI profile, which would
     overwrite its sentinel file. A non-canonical spelling such as
-    `./AGENTS.md` is refused, because Copilot lists the canonical path.
+    `./AGENTS.md`, or any backslash separator, is refused, because Copilot
+    lists the canonical POSIX path.
     """
-    if posixpath.normpath(item) != item:
+    if "\\" in item or posixpath.normpath(item) != item:
         return False
     parts = Path(item).parts
     if parts and parts[0] == ISOLATED_PROFILE_DIR:
