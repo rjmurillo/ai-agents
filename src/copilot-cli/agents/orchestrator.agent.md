@@ -183,6 +183,7 @@ EXPECTED OUTPUT: [format, content requirements]
 SUCCESS CRITERIA: [how you will know it is done]
 CONSTRAINTS: [must/must-not]
 TIMEBOX: [if applicable]
+TODO: [ledger ID; ensure row; 1-row update]
 ```
 
 Agents return deltas, changed paths, verifier output, acceptance status, and typed escalation status. Do not return transcripts. If an agent returns narrative prose when you need structured findings, reject and re-delegate with explicit format requirement.
