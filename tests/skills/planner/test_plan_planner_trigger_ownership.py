@@ -97,6 +97,7 @@ def test_resume_triggers_make_the_executor_reconcile(trigger: str) -> None:
     spec = importlib.util.spec_from_file_location(
         "planner_executor", REPO_ROOT / ".claude/skills/planner/scripts/executor.py"
     )
+    assert spec is not None and spec.loader is not None
     executor = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(executor)
 
