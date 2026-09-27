@@ -94,10 +94,10 @@ def read_plugin_identity(root: Path) -> tuple[str | None, bool]:
     root with no manifest (ADR-109 B6) retries the twin
     ``../src/claude/.claude-plugin/plugin.json`` before reporting absent.
     """
-    data, error = _read_json_object(root / PLUGIN_MANIFEST_REL)
+    data, error = read_json_object(root / PLUGIN_MANIFEST_REL)
     if data is None and root.name == ".claude":
         twin = root.parent / "src" / "claude" / PLUGIN_MANIFEST_REL
-        twin_data, twin_error = _read_json_object(twin)
+        twin_data, twin_error = read_json_object(twin)
         if twin_data is not None:
             data, error = twin_data, twin_error
     if data is None:
@@ -422,7 +422,7 @@ def copilot_registrations(hooks: object) -> set[tuple[str, str, str]] | None:
     return found
 
 
-def _read_json_object(path: Path) -> tuple[dict[str, object] | None, str | None]:
+def read_json_object(path: Path) -> tuple[dict[str, object] | None, str | None]:
     """Parse one bounded JSON object file into ``(data, error)``; never both.
 
     Reads at most ``MAX_MANIFEST_BYTES + 1`` bytes and refuses anything larger,
@@ -468,7 +468,7 @@ def read_registrations(
     on its own; it becomes one only if a registration actually needs it, which
     `registrations` signals by returning None.
     """
-    data, error = _read_json_object(manifest)
+    data, error = read_json_object(manifest)
     if data is None:
         return None, error
 
@@ -477,7 +477,7 @@ def read_registrations(
     else:
         groups: object = None
         if dispatch is not None:
-            parsed, _ = _read_json_object(dispatch)
+            parsed, _ = read_json_object(dispatch)
             if parsed is not None:
                 groups = parsed.get("groups")
         found = registrations(data.get("hooks"), groups)
@@ -497,42 +497,4 @@ def root_registrations(
     return read_registrations(
         root / HOOKS_MANIFEST_REL, schema=schema, dispatch=root / DISPATCH_MANIFEST_REL
     )
-
-
-def install_registrations(
-    root: Path, schema: str
-) -> tuple[set[tuple[str, str, str]] | None, str | None]:
-    """Units an installed copy enforces, as its host would load them.
-
-    Claude Code reads plugin hooks from ``hooks/hooks.json`` unless
-    ``plugin.json`` names another location through its ``hooks`` field. The
-    plugins reference (https://code.claude.com/docs/en/plugins-reference,
-    "Standard layout") lists the default verbatim:
-
-        | Hooks | `hooks/hooks.json` | Hook configuration |
-
-    So a Claude install with neither file enforces no hooks. That is the
-    shipped layout since ADR-109 B4 (#5784) moved the empty manifest to the
-    plugin root, where Claude Code never reads it. Reporting those installs as
-    unreadable flagged every current install at session start (issue #5085).
-
-    Stricter/looser/different than canonical: only the Claude schema gets this
-    reading, and only for an absent file. A present but broken manifest, a
-    ``plugin.json`` that declares ``hooks``, and an unreadable ``plugin.json``
-    all stay errors. Copilot CLI also loads a root ``hooks.json``, so a missing
-    ``hooks/hooks.json`` there is not proof of zero hooks. The source side
-    keeps using `root_registrations`, so a checkout missing its own manifest
-    still fails loud.
-    """
-    found, error = root_registrations(root, schema)
-    if found is not None or schema != CLAUDE_SCHEMA:
-        return found, error
-    if (root / HOOKS_MANIFEST_REL).exists():
-        return found, error
-    plugin, plugin_error = _read_json_object(root / PLUGIN_MANIFEST_REL)
-    if plugin is None and not (plugin_error or "").startswith("no hook manifest"):
-        return found, error
-    if plugin is not None and "hooks" in plugin:
-        return found, error
-    return set(), None
 
