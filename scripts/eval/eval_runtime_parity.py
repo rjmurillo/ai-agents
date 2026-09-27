@@ -370,6 +370,8 @@ def _setup_discoverable_sources(fixture: Fixture) -> set[str]:
             discovered.add(relative)
         elif posix.name in ("AGENTS.md", "CLAUDE.md") and directory in ancestors:
             discovered.add(relative)
+        elif relative == COPILOT_REPO_INSTRUCTIONS_PATH:
+            discovered.add(relative)
     return discovered
 
 

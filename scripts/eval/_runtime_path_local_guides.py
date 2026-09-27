@@ -25,6 +25,7 @@ own `ParityConfigError` with whatever field name it has in scope).
 
 from __future__ import annotations
 
+import posixpath
 from pathlib import Path
 
 # The three shapes either harness's path-local loading model discovers.
@@ -44,8 +45,11 @@ def is_discoverable_guide(item: str) -> bool:
     else is not a "path-local guide" fixture, for example an agent install
     path (`.claude/agents/parity.md`) or an arbitrary repository file
     (`README.md`), or a guide under the isolated CLI profile, which would
-    overwrite its sentinel file.
+    overwrite its sentinel file. A non-canonical spelling such as
+    `./AGENTS.md` is refused, because Copilot lists the canonical path.
     """
+    if posixpath.normpath(item) != item:
+        return False
     parts = Path(item).parts
     if parts and parts[0] == ISOLATED_PROFILE_DIR:
         return False

@@ -146,3 +146,26 @@ def test_verify_listing_passes_when_a_path_local_guide_sits_outside_the_cwd_ance
 
     assert failure is None
     assert result == listing
+
+
+def test_path_local_rejects_a_non_canonical_spelling(tmp_path: Path) -> None:
+    """REQ-9: `./AGENTS.md` would never match Copilot's listed `AGENTS.md`."""
+    for spelling in ("./AGENTS.md", "a//CLAUDE.md", "a/./CLAUDE.md"):
+        path = _corpus(tmp_path, {"path_local": [spelling]})
+        with pytest.raises(runtime_parity.ParityConfigError, match="discoverable guide"):
+            runtime_parity.load_fixtures(path)
+
+
+def test_setup_installed_copilot_repo_instructions_are_expected_in_the_listing(
+    tmp_path: Path,
+) -> None:
+    """REQ-9: Copilot lists `.github/copilot-instructions.md` however it was installed."""
+    path = _corpus(
+        tmp_path,
+        {
+            "path_local": ["AGENTS.md"],
+            "setup_files": {".github/copilot-instructions.md": "repo rules\n"},
+        },
+    )
+    fixture = runtime_parity.load_fixtures(path)[0]
+    assert ".github/copilot-instructions.md" in parity._setup_discoverable_sources(fixture)
