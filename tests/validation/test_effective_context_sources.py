@@ -381,6 +381,41 @@ class TestReq2GitFailureHandling:
             with pytest.raises(ecs.GitUnavailableError):
                 repo.rev_is_valid()
 
+    # Coordinator finding: OSError (a missing `git` binary, `FileNotFoundError`
+    # among other subclasses) escaped uncaught from every one of this class's
+    # four `subprocess.run` calls, so the CLI could exit 1 (Python's own
+    # default for an unhandled exception) instead of ADR-035 exit code 3. All
+    # four now catch `(OSError, subprocess.TimeoutExpired)`, mirroring the
+    # timeout tests above one call site at a time.
+
+    def test_read_bytes_raises_when_git_binary_is_absent(self, tmp_path: Path) -> None:
+        run = mock.Mock(side_effect=FileNotFoundError("no such file or directory: 'git'"))
+        with mock.patch.object(ecs.subprocess, "run", run):
+            repo = ecs.Repo(tmp_path, "deadbeef")
+            with pytest.raises(ecs.GitUnavailableError):
+                repo.read_bytes("present.md")
+
+    def test_exists_at_rev_raises_when_git_binary_is_absent(self, tmp_path: Path) -> None:
+        run = mock.Mock(side_effect=FileNotFoundError("no such file or directory: 'git'"))
+        with mock.patch.object(ecs.subprocess, "run", run):
+            repo = ecs.Repo(tmp_path, "deadbeef")
+            with pytest.raises(ecs.GitUnavailableError):
+                repo._exists_at_rev("deadbeef", "whatever.md")
+
+    def test_ls_tree_raises_when_git_binary_is_absent(self, tmp_path: Path) -> None:
+        run = mock.Mock(side_effect=FileNotFoundError("no such file or directory: 'git'"))
+        with mock.patch.object(ecs.subprocess, "run", run):
+            repo = ecs.Repo(tmp_path, "deadbeef")
+            with pytest.raises(ecs.GitUnavailableError):
+                repo.list_dir(".claude/rules")
+
+    def test_rev_is_valid_raises_when_git_binary_is_absent(self, tmp_path: Path) -> None:
+        run = mock.Mock(side_effect=FileNotFoundError("no such file or directory: 'git'"))
+        with mock.patch.object(ecs.subprocess, "run", run):
+            repo = ecs.Repo(tmp_path, "deadbeef")
+            with pytest.raises(ecs.GitUnavailableError):
+                repo.rev_is_valid()
+
     def test_git_unavailable_error_is_importable_from_the_resolvers_re_export(self) -> None:
         """`ecr.GitUnavailableError` (existing public import path) is the same type."""
         assert ecr.GitUnavailableError is ecs.GitUnavailableError

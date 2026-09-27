@@ -147,7 +147,8 @@ class Repo:
         At a ``--rev``, :meth:`_exists_at_rev` decides absence first, so a
         missing path or a directory returns ``None``. A ``git show`` that
         still fails after that probe is a real git error and raises
-        :class:`GitUnavailableError` (exit 3 at the CLI), as does a timeout.
+        :class:`GitUnavailableError` (exit 3 at the CLI), as does a timeout
+        or a missing ``git`` binary.
         """
         if self._rev is None:
             candidate = self._root / rel_path
@@ -163,8 +164,8 @@ class Repo:
                 capture_output=True,
                 timeout=30,
             )
-        except subprocess.TimeoutExpired as exc:
-            msg = f"git show {self._rev}:{rel_path} timed out in {self._root}: {exc}"
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            msg = f"git show {self._rev}:{rel_path} failed in {self._root}: {exc}"
             raise GitUnavailableError(msg) from exc
         if result.returncode != 0:
             stderr = _decode(result.stderr)
@@ -194,7 +195,9 @@ class Repo:
         ``Repo`` accessor's contract; only a ``blob`` entry counts as
         existing, so a directory still reads as absent (:meth:`read_bytes`
         cannot return file bytes for one), the same outcome the earlier
-        ``cat-file -t`` probe gave for that case.
+        ``cat-file -t`` probe gave for that case. A timeout or a missing
+        ``git`` binary raises the same error, rather than escaping as an
+        uncaught exception.
         """
         try:
             result = subprocess.run(
@@ -206,8 +209,8 @@ class Repo:
                 errors="replace",
                 timeout=30,
             )
-        except subprocess.TimeoutExpired as exc:
-            msg = f"git ls-tree {rev} -- {rel_path} timed out in {self._root}: {exc}"
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            msg = f"git ls-tree {rev} -- {rel_path} failed in {self._root}: {exc}"
             raise GitUnavailableError(msg) from exc
         if result.returncode != 0:
             stderr = _decode(result.stderr)
@@ -258,10 +261,10 @@ class Repo:
         A non-zero exit still yields ``[]`` (a bad rev already fails earlier
         through :meth:`rev_is_valid`, so this method's own contract for a
         git-level failure stays "empty listing", unchanged). Only a timeout
-        raises :class:`GitUnavailableError`: a hang is not evidence the
-        listing is empty, and letting it escape as an uncaught
-        ``subprocess.TimeoutExpired`` would be the same silent-traceback
-        shape :meth:`read_bytes` had.
+        or a missing ``git`` binary raises :class:`GitUnavailableError`: a
+        hang or a missing binary is not evidence the listing is empty, and
+        letting either escape as an uncaught exception would be the same
+        silent-traceback shape :meth:`read_bytes` had.
         """
         try:
             result = subprocess.run(
@@ -273,8 +276,8 @@ class Repo:
                 errors="replace",
                 timeout=30,
             )
-        except subprocess.TimeoutExpired as exc:
-            msg = f"git ls-tree {rev} -- {pathspec} timed out in {self._root}: {exc}"
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            msg = f"git ls-tree {rev} -- {pathspec} failed in {self._root}: {exc}"
             raise GitUnavailableError(msg) from exc
         if result.returncode != 0:
             return []
@@ -290,8 +293,13 @@ class Repo:
         """True when ``self._rev`` names a commit git can resolve.
 
         A non-zero exit is ``False`` (an unresolvable rev, unchanged
-        contract); only a timeout raises :class:`GitUnavailableError`,
-        matching :meth:`_ls_tree`'s reasoning.
+        contract); only a timeout or a missing ``git`` binary raises
+        :class:`GitUnavailableError`, matching :meth:`_ls_tree`'s reasoning:
+        a coordinator finding noted this was the last of the four
+        ``subprocess.run`` calls in this class that let ``OSError``
+        (``git`` not on ``PATH``) escape as an uncaught exception instead
+        of this error, so the CLI could exit 1 (Python's default) instead
+        of the ADR-035 exit code 3 every other git failure here maps to.
         """
         if self._rev is None:
             return True
@@ -304,8 +312,8 @@ class Repo:
                 capture_output=True,
                 timeout=30,
             )
-        except subprocess.TimeoutExpired as exc:
-            msg = f"git rev-parse --verify {self._rev} timed out in {self._root}: {exc}"
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            msg = f"git rev-parse --verify {self._rev} failed in {self._root}: {exc}"
             raise GitUnavailableError(msg) from exc
         return result.returncode == 0
 
