@@ -68,7 +68,6 @@ Each gets `evals/<skill>-spike/` with `README.md`, `fixtures/README.md`, `fixtur
 | adr-review | Multi-agent debate orchestration. Verdict quality varies with agent reasoning. |
 | analysis-provenance | Investigates code ownership. Conclusions depend on evidence gathering. |
 | analyze | Multi-step codebase analysis producing prioritized findings. Pure judgment skill. |
-| book-to-skill | Extracts method from a book and hands off to SkillForge. Extraction fidelity is judgment. |
 | buy-vs-build-framework | Strategic four-phase evaluation. Recommendation varies with reasoning. |
 | chaos-experiment | Designs chaos experiments. Hypothesis and injection-plan quality vary. |
 | chestertons-fence | Historical-context investigation. Conclusions depend on archaeology depth. |

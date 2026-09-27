@@ -87,7 +87,6 @@ def _write_skill(
     ("request_text", "expected_skill"),
     [
         ("Evaluate our business model against a new competitive strategy.", "business-strategy"),
-        ("Turn the book Deep Work into a reusable skill.", "book-to-skill"),
         (
             "Diagnose why the agent's assumptions about the world model keep failing.",
             "world-model-diagnostic",

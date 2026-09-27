@@ -226,10 +226,9 @@ self-reference and resolves the rest of the request instead.
 
 Example specialists this step reaches that carry no table row above:
 `business-strategy` (a founder problem, a business model, or a competitive
-strategy question), `book-to-skill` (turn a named book into a reusable
-skill), `world-model-diagnostic` (why an agent's assumptions or model are
-failing), and `dx-review` (audit a CLI, API, or onboarding workflow for
-developer friction).
+strategy question), `world-model-diagnostic` (why an agent's assumptions or
+model are failing), and `dx-review` (audit a CLI, API, or onboarding workflow
+for developer friction).
 
 ### Phase 2c: Resolver ambiguity from a home-repo run
 

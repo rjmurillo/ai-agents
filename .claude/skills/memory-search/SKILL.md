@@ -5,7 +5,7 @@ description: Tier 1 semantic memory search across the Serena corpus with
   progressive disclosure and token-budget warnings. The focused search operation
   split out of the memory router per ADR-063. Use when you say `search memory`,
   `what do we know about X`, or `recall prior context`. Do NOT use to extract
-  session episodes or add citations (use memory or
+  session episodes (use memory-reflexion) or add citations (use
   memory-enhancement).
 license: MIT
 metadata:
