@@ -258,13 +258,10 @@ class Repo:
         non-emptiness (a directory holding nothing but subdirectories is
         still a directory), so it does not filter by type.
 
-        A non-zero exit still yields ``[]`` (a bad rev already fails earlier
-        through :meth:`rev_is_valid`, so this method's own contract for a
-        git-level failure stays "empty listing", unchanged). Only a timeout
-        or a missing ``git`` binary raises :class:`GitUnavailableError`: a
-        hang or a missing binary is not evidence the listing is empty, and
-        letting either escape as an uncaught exception would be the same
-        silent-traceback shape :meth:`read_bytes` had.
+        A non-zero exit, a timeout, or a missing ``git`` binary raises
+        :class:`GitUnavailableError`: none of them is evidence the directory
+        is empty, and an empty listing would undercount the inventory. A
+        directory absent at the rev exits 0 with no output, so it lists empty.
         """
         try:
             result = subprocess.run(
@@ -280,7 +277,11 @@ class Repo:
             msg = f"git ls-tree {rev} -- {pathspec} failed in {self._root}: {exc}"
             raise GitUnavailableError(msg) from exc
         if result.returncode != 0:
-            return []
+            msg = (
+                f"git ls-tree {rev} -- {pathspec} exited {result.returncode} "
+                f"in {self._root}: {result.stderr.strip()}"
+            )
+            raise GitUnavailableError(msg)
         entries: list[tuple[str, str]] = []
         for line in result.stdout.splitlines():
             metadata, _, name = line.partition("\t")

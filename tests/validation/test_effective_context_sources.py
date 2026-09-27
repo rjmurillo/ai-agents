@@ -198,13 +198,21 @@ class TestRepoDirectAccessors:
             assert repo.rev_is_valid() is False
         run.assert_not_called()
 
-    def test_ls_tree_failure_returns_empty_listing(self, tmp_path: Path) -> None:
-        """A `git ls-tree` failure (bad rev, at the low-level accessor) yields []."""
+    def test_ls_tree_failure_raises_instead_of_an_empty_listing(self, tmp_path: Path) -> None:
+        """REQ-2: a failed `git ls-tree` raises; an empty list would undercount rules."""
         _init_git_repo(tmp_path)
         _write(tmp_path, "CLAUDE.md", "root\n")
         _commit_all(tmp_path, "v1")
         repo = ecr.Repo(tmp_path, "not-a-real-rev")
-        assert repo.list_dir(".claude/rules") == []
+        with pytest.raises(ecs.GitUnavailableError, match="ls-tree"):
+            repo.list_dir(".claude/rules")
+
+    def test_ls_tree_of_a_missing_directory_is_empty(self, tmp_path: Path) -> None:
+        """REQ-2: a directory absent at the rev lists as empty, not as a failure."""
+        _init_git_repo(tmp_path)
+        _write(tmp_path, "CLAUDE.md", "root\n")
+        sha = _commit_all(tmp_path, "v1")
+        assert ecr.Repo(tmp_path, sha).list_dir(".claude/rules") == []
 
 
 # --------------------------------------------------------------------------
