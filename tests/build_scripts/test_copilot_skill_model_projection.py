@@ -19,6 +19,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(REPO_ROOT / "build" / "scripts"))
 
 import generate_skills  # noqa: E402
+import validate_templates_schema as vts  # noqa: E402
 from copilot_body_translation import translate_skill_file  # noqa: E402
 from frontmatter_key_drop import drop_frontmatter_keys  # noqa: E402
 
@@ -204,6 +205,29 @@ def test_generator_reports_a_bad_cut_as_rc_1(tmp_path: Path, capsys) -> None:
     cfg = _config(tmp_path, "    frontmatterDrop: [model]\n")
     assert generate_skills.generate_skills(cfg, tmp_path) == 1
     assert "broke SKILL.md frontmatter" in capsys.readouterr().err
+
+
+# Schema validator -----------------------------------------------------------
+
+
+def _schema_errors(tmp_path: Path, value: str) -> list[str]:
+    cfg = tmp_path / "platform.yaml"
+    cfg.write_text(
+        'schemaVersion: "1.0"\nprovider: "copilot-cli"\nartifacts:\n  skills:\n'
+        '    sourceDir: ".claude/skills"\n    outputDir: "src/copilot-cli/skills"\n'
+        f"    frontmatterDrop: {value}\n"
+    )
+    errors, _ = vts.validate_file(cfg)
+    return errors
+
+
+@pytest.mark.parametrize("value", ["null", '"model"', "[1]"])
+def test_schema_rejects_malformed_frontmatter_drop(tmp_path: Path, value: str) -> None:
+    assert any("frontmatterDrop" in e for e in _schema_errors(tmp_path, value))
+
+
+def test_schema_accepts_frontmatter_drop_string_list(tmp_path: Path) -> None:
+    assert _schema_errors(tmp_path, "[model, model-rationale]") == []
 
 
 # Committed tree -------------------------------------------------------------

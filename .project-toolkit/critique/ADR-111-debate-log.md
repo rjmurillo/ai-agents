@@ -88,3 +88,6 @@ The `/review` code-quality axis then flagged a cohesion drop in
 `copilot_body_translation.py`. The key-drop code moved to its own module,
 `build/scripts/frontmatter_key_drop.py`, and the Impact table names it. No
 rule changed.
+
+ADR-080's supersession note was shortened to keep the file at 500 lines,
+under the taste file-size ceiling. The note keeps the successor and scope.

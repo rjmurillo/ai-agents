@@ -481,30 +481,3 @@ def test_keep_internal_globs_for_trailing_slash_tolerated(tmp_path: Path) -> Non
     target = _write(tmp_path, _KEEP_TRAILING_SLASH)
     errors, _ = vts.validate_file(target)
     assert errors == [], f"unexpected errors: {errors}"
-
-
-@pytest.mark.parametrize("value", ["null", '"model"', "[1]"])
-def test_skills_frontmatter_drop_must_be_string_list(tmp_path: Path, value: str) -> None:
-    body = (
-        MINIMAL_VALID
-        + "artifacts:\n"
-        + "  skills:\n"
-        + '    sourceDir: ".claude/skills"\n'
-        + '    outputDir: "src/copilot-cli/skills"\n'
-        + f"    frontmatterDrop: {value}\n"
-    )
-    errors, _ = vts.validate_file(_write(tmp_path, body))
-    assert any("frontmatterDrop" in e for e in errors)
-
-
-def test_skills_frontmatter_drop_string_list_is_allowed(tmp_path: Path) -> None:
-    body = (
-        MINIMAL_VALID
-        + "artifacts:\n"
-        + "  skills:\n"
-        + '    sourceDir: ".claude/skills"\n'
-        + '    outputDir: "src/copilot-cli/skills"\n'
-        + "    frontmatterDrop: [model, model-rationale]\n"
-    )
-    errors, _ = vts.validate_file(_write(tmp_path, body))
-    assert errors == []
