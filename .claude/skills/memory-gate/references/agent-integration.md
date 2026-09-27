@@ -53,10 +53,10 @@ positional argument; there is no `--query` flag.
 
 ```bash
 # Basic search
-uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" "git hooks"
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" "git hooks"
 
 # With options
-uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" \
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" \
     "shell array handling" \
     --max-results 5 \
     --format json
@@ -259,7 +259,7 @@ The retrospective agent captures learnings:
 
 ```bash
 # Extract session episode
-result=$(uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/extract_session_episode.py" "[log]")
+result=$(python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/extract_session_episode.py" "[log]")
 
 ```
 
@@ -286,7 +286,7 @@ At session end, agents SHOULD:
 
 ```bash
 # 1. Extract episode from session log
-uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/extract_session_episode.py" "[log]"
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/extract_session_episode.py" "[log]"
 
 # 2. Store cross-session context
 mcp__serena__write_memory(memory_file_name="[relevant-memory]", content="...")
@@ -324,7 +324,7 @@ git commit -m "session: Extract episode and update memory"
 
 ```bash
 # Check if episode exists, extract if not
-uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/extract_session_episode.py" "[log]"
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/extract_session_episode.py" "[log]"
 ```
 
 ## Performance Considerations

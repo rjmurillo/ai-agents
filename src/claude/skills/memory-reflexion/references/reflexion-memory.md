@@ -343,7 +343,7 @@ Extracts episode data from session logs.
 **Syntax**:
 
 ```bash
-uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/extract_session_episode.py" <session-log-path> \
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/extract_session_episode.py" <session-log-path> \
     [--output-path DIR] [--force | --preserve] [--pending-stage]
 ```
 
@@ -368,7 +368,7 @@ uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/mem
 **Example**:
 
 ```bash
-uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/extract_session_episode.py" \
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/extract_session_episode.py" \
     .project-toolkit/sessions/2026-01-01-session-126.json
 
 # Output:
@@ -391,7 +391,7 @@ The retrospective agent auto-extracts episodes at session end:
 ```bash
 SESSION_LOG=".project-toolkit/sessions/${SESSION_ID}.json"
 
-uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/extract_session_episode.py" "$SESSION_LOG"
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/extract_session_episode.py" "$SESSION_LOG"
 ```
 
 ### With Session Protocol
@@ -414,7 +414,7 @@ before the discontinuation, or cherry-picked from an older one):
 `memory_router.search_memory` covers Serena only. The episode store is searched by the CLI wrapper:
 
 ```bash
-uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" "routing decision"
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" "routing decision"
 ```
 
 ## Use Cases

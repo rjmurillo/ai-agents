@@ -30,6 +30,7 @@
 
 - Cross-harness hook/event/Copilot-artifact change: read `agent-harness-reference` first, route through `ai-agents-portability-campaign`.
 - A retired ADR in a skill's `metadata.adr` fails the `Skill ADR Bindings` ratchet.
+- Plugin-root script invocations use `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/..."`, never `uv run python`; the script stays stdlib-only at import time. `check_plugin_root_interpreter.py` blocks both (issue #5949, `plugin-self-containment.md` MUST-4).
 - Skill-script subprocess text capture: `encoding="utf-8", errors="replace"`; count ratchet at baseline.
 - 110 of 111 ship to the Copilot CLI plugin; `merge-resolver` is excluded as repo-specific, and no shipped routing table may point at it.
 
