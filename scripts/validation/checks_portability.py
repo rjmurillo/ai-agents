@@ -208,3 +208,18 @@ def validate_hook_template_drift(repo_root: Path) -> bool:
     return _run_portability_validator(
         repo_root, "build/scripts/hook_templates.py", "", "--validate"
     )
+
+
+def validate_plugin_root_interpreter(repo_root: Path) -> bool:
+    """Fail when a plugin-root skill invocation is not bare ``python3`` (issue #5949).
+
+    Wraps ``scripts/validation/check_plugin_root_interpreter.py``, whose
+    module docstring is the canonical statement of the two rules it enforces:
+    the interpreter must be exactly ``python3`` (a vendored plugin install has
+    no ``uv`` lock file for ``uv run python`` to resolve), and the target
+    script's import closure must stay inside the standard library (that same
+    install's bare ``python3`` has installed nothing project-specific).
+    """
+    return _run_portability_validator(
+        repo_root, "scripts/validation/check_plugin_root_interpreter.py"
+    )
