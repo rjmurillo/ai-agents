@@ -76,3 +76,45 @@ ADR-088 was re-reviewed after the PR added explicit `autoplan` routing, post-inv
 ### Convergence
 
 All six roles accept or disagree-and-commit. No P0 or P1 blockers remain. ADR-088 can remain proposed in this PR. The acceptance transition should address the P2 notes or link them to their owning issue.
+
+## Round 3 Amendment Review (issue #5951)
+
+### Scope
+
+ADR-088 gains an "Amendment (issue #5951)" section. The always-on
+`pragmatic-programmer` rule moves to
+`software-engineering-library/references/pragmatic-programmer.md`, and the
+Forbidden Patterns blocklist plus the seven-point "Prefer designs that" list move
+from `unified-software-engineering.md` to `references/forbidden-patterns.md`.
+The code-extension budget ceilings ratchet from 99,000 to 86,000 bytes. ADR-061's
+two citations of `.claude/rules/pragmatic-programmer.md` are repointed to the
+new reference path so they do not dangle.
+
+### Agent Positions
+
+| Agent | Position | Notes |
+|-------|----------|-------|
+| architect | Accept | Applies ADR-088's own criterion: situational book depth moves, the every-task tiebreaker stays inline. Impact surfaces (mirrors, ADR-061 citations, scenarios, lossless fixtures) are complete. P2: cite where the 12,000-byte floor comes from. |
+| critic | Disagree-and-Commit | P0: the seven-point "Prefer designs that" list was deleted rather than relocated. P1: with the blocklist on demand, no always-on text forbids outbound calls without timeouts or nested retries. |
+| independent-thinker | Accept with reservation | The "model already knows this" premise matches the context-optimizer admission test, but byte savings do not prove retrieval. Reachability should be measured after merge. |
+
+### Key Issues Addressed
+
+- Critic P0: the seven-point list now lives in `references/forbidden-patterns.md`
+  under Primary Directive, and the amendment text records the relocation.
+- Critic P1: the trimmed always-on rule names the highest-risk production
+  patterns inline (no explicit timeout, nested or non-idempotent retries,
+  unbounded queues) and points to the full reference.
+- Architect P2: the amendment cites issue #5951 as the source of the
+  12,000-byte floor and records the 86 KB ceiling ratchet.
+- Independent-thinker reservation: `pragmatic-programmer` and
+  `forbidden-patterns` join `MOVED_REFERENCE_IDS` in the weekly activation
+  gate, so the existing consecutive-failure rollback alert covers them. The
+  R1-R8 recovery-contract scenarios move to `universal.json` because that
+  contract lives in always-on `universal.md`.
+
+### Convergence
+
+All three roles accept or disagree-and-commit after the fixes above. No P0 or
+P1 blockers remain. ADR-088 stays proposed, and ADR-061 needs only the citation
+repoint.

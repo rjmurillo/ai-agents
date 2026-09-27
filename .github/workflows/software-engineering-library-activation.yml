@@ -74,6 +74,7 @@ jobs:
           tests/evals/rule-scenarios/data-intensive-applications.json
           tests/evals/rule-scenarios/working-with-legacy-code.json
           tests/evals/rule-scenarios/pragmatic-programmer.json
+          tests/evals/rule-scenarios/forbidden-patterns.json
           tests/evals/rule-scenarios/universal.json
 
       - name: Run live activation eval
