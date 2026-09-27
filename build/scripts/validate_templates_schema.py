@@ -53,7 +53,7 @@ AGENTS_KEYS = {
     "outputSuffix",
     "excludeFilenames",
 }
-SKILLS_KEYS = {"sourceDir", "outputDir", "mode", "excludeFilenames"}
+SKILLS_KEYS = {"sourceDir", "outputDir", "mode", "excludeFilenames", "frontmatterDrop"}
 # `lib` only supports directory-copy today; no `mode` selector. If a
 # second mode (symlink, etc.) lands later, add `mode` to LIB_KEYS and
 # enforce it in `_build_lib`. Until then, an unused field is documentation
@@ -233,13 +233,17 @@ def _validate_command_resources(name: str, stanza: dict[str, object]) -> list[st
     return errors
 
 
-def _validate_exclude_filenames(name: str, stanza: dict[str, object]) -> list[str]:
-    if "excludeFilenames" not in stanza:
+def _validate_string_list(name: str, stanza: dict[str, object], key: str) -> list[str]:
+    if key not in stanza:
         return []
-    value = stanza["excludeFilenames"]
+    value = stanza[key]
     if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
-        return [f"`artifacts.{name}.excludeFilenames`: must be a list of strings"]
+        return [f"`artifacts.{name}.{key}`: must be a list of strings"]
     return []
+
+
+def _validate_exclude_filenames(name: str, stanza: dict[str, object]) -> list[str]:
+    return _validate_string_list(name, stanza, "excludeFilenames")
 
 
 def _validate_artifact_stanza(name: str, stanza: object) -> list[str]:
@@ -251,6 +255,9 @@ def _validate_artifact_stanza(name: str, stanza: object) -> list[str]:
     errors.extend(_validate_artifact_paths(name, stanza))
     if "excludeFilenames" in ARTIFACT_DISPATCH[name]:
         errors.extend(_validate_exclude_filenames(name, stanza))
+    if name == "skills":
+        # ADR-111: an explicit null would silently disable the projection.
+        errors.extend(_validate_string_list(name, stanza, "frontmatterDrop"))
     if name == "rules":
         errors.extend(_validate_rules_output_dirs(name, stanza))
         errors.extend(_validate_rules_keep_internal_globs(name, stanza))

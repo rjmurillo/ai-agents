@@ -9,8 +9,6 @@ metadata:
     trigger: autoplan routes did-I-touch-security-critical-files questions to security-detection
     user-facing: false
 version: 1.0.0
-model: haiku
-model-rationale: cost. The 'haiku' rolling alias resolves via the platform model_tiers map to a tier priced below the sonnet-tier harness default; this unit is routing/mechanical work where the cheaper tier suffices (ADR-080 rule 3).
 ---
 
 # Security Detection Utility

@@ -1,10 +1,10 @@
 """Translate Claude Code conventions in a skill body for GitHub Copilot CLI.
 
-Issue #2743. Both the command-to-skill bridge (`generate_commands.py`) and
-the skill-tree mirror (`generate_skills.py`) emit `SKILL.md` bodies into the
-Copilot CLI plugin tree (`src/copilot-cli/skills/`). Those bodies are copied
-from `.claude/commands/*.md` and `.claude/skills/*/SKILL.md`, which use
-Claude Code conventions that Copilot CLI does NOT resolve.
+Issue #2743. The skill-tree mirror (`generate_skills.py`) emits `SKILL.md`
+bodies into the Copilot CLI plugin tree (`src/copilot-cli/skills/`). Those
+bodies are copied from `.claude/skills/*/SKILL.md`, which use Claude Code
+conventions that Copilot CLI does NOT resolve. The command-to-skill bridge
+that also called this module was retired with `.claude/commands/` (ADR-064).
 
 Runtime contract verified empirically against GitHub Copilot CLI 1.0.66-1
 (2026-06-27, recorded in Serena memory
@@ -18,7 +18,7 @@ Runtime contract verified empirically against GitHub Copilot CLI 1.0.66-1
   - `mcp__github__<op>`        -> not a Copilot tool name; Copilot spells the
                                   same server `github/<op>` (`templates/toolsets.yaml`)
 
-The translation applies four transforms, all in place:
+The translation applies five transforms, all in place:
 
   1. `@file` includes -> a Copilot note (instructions load via the plugin tree).
   2. `$ARGUMENTS`      -> a conversation instruction (no argument vector).
@@ -31,6 +31,10 @@ The translation applies four transforms, all in place:
      `serena/find_symbol`. Transforms 1 to 3 skip frontmatter, so before this
      a Claude-only namespace was copied verbatim into the Copilot mirror and
      the grant named nothing the harness exposes (Copilot review on PR #5509).
+  5. Frontmatter keys the platform config lists in `artifacts.skills.
+     frontmatterDrop` -> dropped. Copilot CLI lists `model` and
+     `model-rationale`: its skills have no per-skill model field, and a bare
+     alias such as `haiku` is not a Copilot model id (ADR-111, issue #5606).
 
 Transform 3 rewrites each call where it sits (structural rework, #2743). The
 earlier design appended a reference table to sidestep the Step 0 / Step 9
@@ -49,6 +53,8 @@ import re
 from collections.abc import Callable
 from pathlib import Path
 
+from frontmatter_key_drop import drop_frontmatter_keys
+
 _PLUGIN_MANIFEST_RELATIVE = Path(".claude-plugin") / "plugin.json"
 _DEFAULT_PLUGIN_NAME = "project-toolkit"
 
@@ -58,6 +64,7 @@ _FENCED_CODE_BLOCK_RE = re.compile(r"(```.*?```)", re.DOTALL)
 _INLINE_CODE_SPAN_RE = re.compile(r"(`+[^`\n]*`+)")
 
 _FRONTMATTER_RE = re.compile(r"\A(---\r?\n.*?\r?\n---\r?\n)(.*)\Z", re.DOTALL)
+
 
 # The `allowed-tools` value, which may wrap onto continuation lines in a YAML
 # block or list. Anchored at the key so no other frontmatter value is touched.
@@ -292,9 +299,7 @@ def translate_allowed_tools(frontmatter: str) -> str:
     """Apply :func:`respell_mcp_tool_names` to the `allowed-tools` value only.
 
     `generate_skills.py` mirrors a whole `SKILL.md` as text, so its frontmatter
-    arrives as a string. `generate_commands.py` builds frontmatter as a dict and
-    calls the helper above on the value directly; both paths have to respell or
-    only half the Copilot tree is fixed.
+    arrives as a string.
     """
     return _ALLOWED_TOOLS_LINE_RE.sub(
         lambda line: respell_mcp_tool_names(line.group(0)),
@@ -302,15 +307,23 @@ def translate_allowed_tools(frontmatter: str) -> str:
     )
 
 
-def translate_skill_file(content: str, skills_output_dir: Path) -> str:
+def translate_skill_file(
+    content: str,
+    skills_output_dir: Path,
+    drop_keys: frozenset[str] = frozenset(),
+) -> str:
     """Translate a full SKILL.md (frontmatter + body), preserving frontmatter.
 
-    Only the `allowed-tools` line of the frontmatter is rewritten (transform 4);
-    every other key is passed through. When no frontmatter is present, the
+    In the frontmatter, the `allowed-tools` line is rewritten (transform 4)
+    and the `drop_keys` keys are removed (transform 5); every other key is
+    passed through. When no frontmatter is present, the
     whole content is treated as body.
     """
     match = _FRONTMATTER_RE.match(content)
     if match is None:
         return translate_body(content, skills_output_dir)
     frontmatter, body = match.group(1), match.group(2)
-    return translate_allowed_tools(frontmatter) + translate_body(body, skills_output_dir)
+    # str(...): mypy types this sibling sys.path import as Any, the same
+    # pre-existing gap generate_skills.py notes for its sibling imports.
+    kept = str(drop_frontmatter_keys(translate_allowed_tools(frontmatter), drop_keys))
+    return kept + translate_body(body, skills_output_dir)

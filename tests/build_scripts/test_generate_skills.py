@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 import pytest
+import yaml
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(REPO_ROOT / "build" / "scripts"))
@@ -36,6 +37,11 @@ _TRANSLATED_SKILL_TREE_MIRRORS = frozenset(
         "slashcommandcreator",
         "taste-lints",
     }
+)
+_COPILOT_SKILL_FRONTMATTER_DROP = frozenset(
+    yaml.safe_load((REPO_ROOT / "templates/platforms/copilot-cli.yaml").read_text())["artifacts"][
+        "skills"
+    ].get("frontmatterDrop", [])
 )
 _SKILL_ROUTE_RE = re.compile(
     r"^\|[^|\n]*\|\s*Skill:\s+([A-Za-z0-9][A-Za-z0-9-]*)",
@@ -140,7 +146,7 @@ def test_committed_skill_tree_mirror_matches_source_skill_md(skill_name: str) ->
 
     source_text = source.read_text(encoding="utf-8")
     expected = (
-        translate_skill_file(source_text, skills_output_dir)
+        translate_skill_file(source_text, skills_output_dir, _COPILOT_SKILL_FRONTMATTER_DROP)
         if skill_name in _TRANSLATED_SKILL_TREE_MIRRORS
         else source_text
     )
