@@ -291,6 +291,57 @@ class TestReq5UserLayer:
         result = ecr.resolve_effective_context(tmp_path, "target.py", "claude", include_user=True)
         assert ecr.ImportProblem("missing", "CLAUDE.md", "@~/missing.md") in result.problems
 
+    def test_self_referencing_tilde_import_is_recorded_as_a_cycle(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Coordinator finding: a `@~/...` chain revisiting itself is a cycle.
+
+        Before this fix, `_process_tilde_import` checked only `sink.seen`,
+        so a home file that imports itself was silently dropped with no
+        problem recorded, unlike a project file's identical shape
+        (`test_import_cycle_is_reported_and_not_followed`, above in this
+        file). Mirrors `_process_relative_import`'s ancestors check.
+        """
+        home = tmp_path / "home"
+        home.mkdir()
+        _write(home, "loop.md", "@~/loop.md\n")
+        monkeypatch.setattr(ecr.Path, "home", classmethod(lambda cls: home))
+        _write(tmp_path, "CLAUDE.md", "@~/loop.md\n")
+        _write(tmp_path, "target.py", "x\n")
+
+        result = ecr.resolve_effective_context(tmp_path, "target.py", "claude", include_user=True)
+
+        assert ecr.ImportProblem("cycle", "~/loop.md", "@~/loop.md") in result.problems
+        user_files = [f for f in result.files if f.layer == "user"]
+        assert len(user_files) == 1
+
+    def test_reused_tilde_import_across_two_walks_is_not_a_cycle(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A legitimate diamond (two files importing the same home file) stays silent.
+
+        Guards the inverse of the cycle fix above: `ancestors` resets per
+        top-level walk (root file, then each nested file), so a home file
+        two *different*, non-ancestor project files both import is still
+        deduplicated via `sink.seen` alone, not misreported as a cycle.
+        """
+        home = tmp_path / "home"
+        home.mkdir()
+        _write(home, "shared.md", "shared\n")
+        monkeypatch.setattr(ecr.Path, "home", classmethod(lambda cls: home))
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _write(repo, "CLAUDE.md", "@~/shared.md\n")
+        _write(repo, "a/CLAUDE.md", "@~/shared.md\n")
+        (repo / "a" / "b").mkdir(parents=True)
+        (repo / "a" / "b" / "target.py").write_text("x\n", encoding="utf-8")
+
+        result = ecr.resolve_effective_context(repo, "a/b/target.py", "claude", include_user=True)
+
+        assert result.problems == ()
+        user_files = [f for f in result.files if f.layer == "user"]
+        assert len(user_files) == 1
+
 
 # --------------------------------------------------------------------------
 # Supporting units: extract_import_tokens, malformed frontmatter, races.

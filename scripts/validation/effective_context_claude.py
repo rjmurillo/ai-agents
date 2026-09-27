@@ -150,18 +150,35 @@ def _process_relative_import(
     return candidate, data
 
 
-def _process_tilde_import(raw: str, rel_path: str, sink: _ImportSink) -> tuple[str, bytes] | None:
+def _process_tilde_import(
+    raw: str, rel_path: str, ancestors: tuple[str, ...], sink: _ImportSink
+) -> tuple[str, bytes] | None:
     """Resolve one ``@~/...`` token against the user's home directory.
+
+    Mirrors :func:`_process_relative_import`'s two-tier revisit handling
+    (coordinator finding: this used to check only ``sink.seen``, so a
+    ``@~/`` chain that revisited itself, for example a home file importing
+    itself, was silently dropped with no cycle recorded, unlike a project
+    import's identical shape). A ``key`` already in ``ancestors`` (this
+    walk's current tilde chain) is a cycle, recorded as an
+    :class:`ImportProblem`, matching project imports exactly. A ``key``
+    already in ``sink.seen`` from an earlier, non-cyclic path (two
+    different project files importing the same home file, a legitimate
+    diamond) is still deduplicated silently, matching
+    :func:`walk_claude_imports`'s documented contract.
 
     Returns ``(key, candidate_bytes)`` (``key`` is ``~/``-prefixed) to
     recurse into, or ``None`` when ``sink.tilde_read`` is unset
-    (``--include-user`` was not passed), the file is missing, or it was
-    already billed.
+    (``--include-user`` was not passed), the file is missing, is a cycle,
+    or was already billed.
     """
     if sink.tilde_read is None:
         return None
     home_rel = raw[3:]
     key = f"~/{home_rel}"
+    if key in ancestors:
+        sink.problems.append(ImportProblem("cycle", rel_path, raw))
+        return None
     if key in sink.seen:
         return None
     data = sink.tilde_read(home_rel)
@@ -216,11 +233,11 @@ def walk_claude_imports(
         text = content.decode("utf-8", errors="replace")
         for raw in extract_import_tokens(text):
             if raw.startswith("@~/"):
-                resolved = _process_tilde_import(raw, rel_path, sink)
+                resolved = _process_tilde_import(raw, rel_path, ancestors, sink)
                 if resolved is not None:
                     assert sink.tilde_read is not None  # _process_tilde_import gates on this
                     key, data = resolved
-                    _follow(key, data, depth + 1, (key,), sink.tilde_read, "user")
+                    _follow(key, data, depth + 1, (*ancestors, key), sink.tilde_read, "user")
                 continue
             resolved_relative = _process_relative_import(
                 raw, rel_path, ancestors, active_read, active_layer, sink
