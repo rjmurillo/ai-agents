@@ -84,6 +84,11 @@ It checks two things:
 Every ceiling is local and measured at the accepted state.
 Anthropic publishes no 25 KB, 200-line, or 50-line hard limit for these files, and no ceiling here claims one.
 
+Both maps were hand-typed until a post-rebase review found the gap: a one-byte edit to `src/AGENTS.md` cascades into every `src/*` entry, and nothing regenerated them.
+`--write-ceilings` on the same CLI closes it: it re-measures every frozen target and every directory `discover_nested_directories` finds, for both harnesses, and rewrites `scripts/validation/effective_context_ceilings.py` deterministically (sorted keys, one rendering function, so two runs against the same repository state produce byte-identical output).
+A maintainer runs it after the repository reaches the state that should set the new ceiling, reviews the diff like any other generated file, and commits it.
+`--ci`'s breach message and the missing-directory message both name `--write-ceilings` as the command that accepts a reviewed change.
+
 ## Behavior (real-harness fixtures)
 
 `scripts/eval/examples/path-local-parity-fixtures.json` holds three frozen tasks, all run from `.github/workflows` with the root and `.github/` instruction files installed:

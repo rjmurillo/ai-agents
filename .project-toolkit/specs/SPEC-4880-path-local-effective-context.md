@@ -167,7 +167,7 @@ M1 and M3 run in parallel.
 | Copilot quota blocks live runs | Medium | Medium | Record the exit code as NOT RUN; Claude runs still prove the Claude path |
 | Live fixture pass rate is noisy | Medium | Medium | Three trials per arm; report counts, not one verdict |
 | `applyTo` glob semantics differ from Python matching | Low | Medium | Reuse the glob matcher that the instruction budget already uses |
-| Ratchet blocks legitimate growth | Low | Low | Failure text names the command and the constant to raise |
+| Ratchet blocks legitimate growth | Low | Low | Run `--write-ceilings` to regenerate every ceiling from a fresh measurement, review the diff, and commit it. Failure text names the flag |
 
 ### Pre-mortem (run inline)
 

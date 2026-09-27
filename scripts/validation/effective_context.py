@@ -58,6 +58,7 @@ from scripts.validation.effective_context_resolvers import (
     resolve_base_directory,
     resolve_effective_context,
 )
+from scripts.validation.effective_context_write_ceilings import write_ceilings_module
 from scripts.validation.instruction_budget_globs import UnsupportedApplyToError
 
 
@@ -193,7 +194,10 @@ def _format_breach(target: str, harness: str, used: int, ceiling: int) -> str:
     return (
         f"{harness} {target}: path-local bytes {used} exceed ceiling {ceiling}. "
         "Run `uv run python -m scripts.validation.effective_context "
-        f"--target {target} --harness {harness}` to see the inventory."
+        f"--target {target} --harness {harness}` to see the inventory, or "
+        "`uv run python -m scripts.validation.effective_context "
+        "--write-ceilings` to accept a reviewed growth and regenerate every "
+        "ceiling."
     )
 
 
@@ -225,7 +229,9 @@ def _format_missing_ceiling(directory: str, harness: str) -> str:
     """One failure line for a discovered directory with no ceiling entry."""
     return (
         f"{harness} {directory}: no ceiling in PATH_LOCAL_DIRECTORY_CEILINGS. "
-        f'Add ("{directory}", "{harness}") with its measured path-local bytes.'
+        f'Add ("{directory}", "{harness}") with its measured path-local bytes, '
+        "or run `uv run python -m scripts.validation.effective_context "
+        "--write-ceilings` to regenerate every ceiling after reviewing the diff."
     )
 
 
@@ -298,6 +304,29 @@ def _run_ci(repo_root: Path) -> int:
     return 0
 
 
+def _run_write_ceilings(repo_root: Path) -> int:
+    """Re-measure every ceiling and rewrite ``effective_context_ceilings.py``.
+
+    ADR-035: 0 on a clean write, 3 when ``git`` fails or times out while
+    measuring the commit or enumerating tracked directories, 2 when a rule
+    or instructions file's frontmatter cannot be parsed while resolving a
+    target. Mirrors ``_run_ci``'s own exception mapping so a maintainer
+    sees the same exit code for the same underlying failure whether they ran
+    ``--ci`` or ``--write-ceilings``.
+    """
+    ceilings_path = repo_root / "scripts" / "validation" / "effective_context_ceilings.py"
+    try:
+        write_ceilings_module(repo_root, ceilings_path)
+    except GitUnavailableError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 3
+    except UnsupportedApplyToError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 2
+    print(f"Wrote {ceilings_path}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Report path-local effective instruction context per target path.",
@@ -322,6 +351,15 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "Check the frozen (target, harness) ceilings and the per-directory "
             "path-local ceiling; ignores --target/--harness."
+        ),
+    )
+    parser.add_argument(
+        "--write-ceilings",
+        action="store_true",
+        help=(
+            "Re-measure every frozen target and every instructed directory for "
+            "both harnesses and rewrite effective_context_ceilings.py; ignores "
+            "--target/--harness/--ci."
         ),
     )
     return parser
@@ -422,6 +460,9 @@ def main(argv: list[str] | None = None, *, repo_root: Path | None = None) -> int
     parser = build_parser()
     args = parser.parse_args(argv)
     repo_root = repo_root or _PROJECT_ROOT
+
+    if args.write_ceilings:
+        return _run_write_ceilings(repo_root)
 
     if args.ci:
         return _run_ci(repo_root)
