@@ -49,6 +49,7 @@ MODEL_ID_RE = re.compile(r"^claude-(opus|sonnet|haiku)-\d")
 # Add a name here when a hyphenated skill is retired or renamed, so lingering
 # references keep surfacing instead of going silent.
 KNOWN_RETIRED_KEBAB_SKILLS: frozenset[str] = frozenset({
+    "book-to-skill",
     "doc-coverage",
     "doc-sync",
     "encode-repo-serena",
