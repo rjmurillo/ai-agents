@@ -78,6 +78,8 @@ if _hook_dir not in sys.path:
 from plugin_hook_drift_model import (  # noqa: E402
     CLAUDE_SCHEMA,
     COPILOT_SCHEMA,
+    PLUGIN_MANIFEST_REL,
+    read_json_object,
     read_plugin_identity,
     root_registrations,
 )
@@ -264,6 +266,53 @@ def _describe(triples: set[tuple[str, str, str]]) -> tuple[str, ...]:
     )
 
 
+# The error `read_json_object` gives for FileNotFoundError, and only for it.
+_ABSENT_PREFIX = "no hook manifest"
+
+def install_registrations(
+    root: Path, schema: str
+) -> tuple[set[tuple[str, str, str]] | None, str | None]:
+    """Units an installed copy enforces, as its host would load them.
+
+    Claude Code reads plugin hooks from ``hooks/hooks.json`` unless
+    ``plugin.json`` names another location through its ``hooks`` field. The
+    plugins reference (https://code.claude.com/docs/en/plugins-reference,
+    "Standard layout") lists the default verbatim:
+
+        | Hooks | `hooks/hooks.json` | Hook configuration |
+
+    So a Claude install with neither file enforces no hooks. That is the
+    shipped layout since ADR-109 B4 (#5784) moved the empty manifest to the
+    plugin root, where Claude Code never reads it. Reporting those installs as
+    unreadable flagged every current install at session start (issue #5085).
+
+    Stricter/looser/different than canonical: only the Claude schema gets this
+    reading, and only for an absent file. A present but broken manifest, a
+    ``plugin.json`` that declares ``hooks``, and an unreadable ``plugin.json``
+    all stay errors. Copilot CLI also loads a root ``hooks.json``, so a missing
+    ``hooks/hooks.json`` there is not proof of zero hooks. The source side
+    keeps using `root_registrations`, so a checkout missing its own manifest
+    still fails loud.
+    """
+    found, error = root_registrations(root, schema)
+    if found is not None or schema != CLAUDE_SCHEMA:
+        return found, error
+    # Only FileNotFoundError yields this prefix. A present file that cannot be
+    # opened (PermissionError, NotADirectoryError) must stay unreadable.
+    if not (error or "").startswith(_ABSENT_PREFIX):
+        return found, error
+    plugin_path = root / PLUGIN_MANIFEST_REL
+    plugin, plugin_error = read_json_object(plugin_path)
+    if plugin is None and not (plugin_error or "").startswith(_ABSENT_PREFIX):
+        return None, plugin_error
+    if plugin is not None and "hooks" in plugin:
+        return None, (
+            f"plugin manifest {path_token(plugin_path)} declares a 'hooks' path "
+            "this check does not follow; not compared"
+        )
+    return set(), None
+
+
 def compare_install(
     surface_label: str,
     install_path: Path,
@@ -271,7 +320,7 @@ def compare_install(
     schema: str = CLAUDE_SCHEMA,
 ) -> InstallReport:
     """Compare one installed copy's enforced units against the source set."""
-    installed, error = root_registrations(install_path, schema)
+    installed, error = install_registrations(install_path, schema)
     if installed is None:
         return InstallReport(surface_label, install_path, (), (), error)
     return InstallReport(

@@ -94,10 +94,10 @@ def read_plugin_identity(root: Path) -> tuple[str | None, bool]:
     root with no manifest (ADR-109 B6) retries the twin
     ``../src/claude/.claude-plugin/plugin.json`` before reporting absent.
     """
-    data, error = _read_json_object(root / PLUGIN_MANIFEST_REL)
+    data, error = read_json_object(root / PLUGIN_MANIFEST_REL)
     if data is None and root.name == ".claude":
         twin = root.parent / "src" / "claude" / PLUGIN_MANIFEST_REL
-        twin_data, twin_error = _read_json_object(twin)
+        twin_data, twin_error = read_json_object(twin)
         if twin_data is not None:
             data, error = twin_data, twin_error
     if data is None:
@@ -422,7 +422,7 @@ def copilot_registrations(hooks: object) -> set[tuple[str, str, str]] | None:
     return found
 
 
-def _read_json_object(path: Path) -> tuple[dict[str, object] | None, str | None]:
+def read_json_object(path: Path) -> tuple[dict[str, object] | None, str | None]:
     """Parse one bounded JSON object file into ``(data, error)``; never both.
 
     Reads at most ``MAX_MANIFEST_BYTES + 1`` bytes and refuses anything larger,
@@ -468,7 +468,7 @@ def read_registrations(
     on its own; it becomes one only if a registration actually needs it, which
     `registrations` signals by returning None.
     """
-    data, error = _read_json_object(manifest)
+    data, error = read_json_object(manifest)
     if data is None:
         return None, error
 
@@ -477,7 +477,7 @@ def read_registrations(
     else:
         groups: object = None
         if dispatch is not None:
-            parsed, _ = _read_json_object(dispatch)
+            parsed, _ = read_json_object(dispatch)
             if parsed is not None:
                 groups = parsed.get("groups")
         found = registrations(data.get("hooks"), groups)
