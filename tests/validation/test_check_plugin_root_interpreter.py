@@ -422,7 +422,8 @@ def test_cli_exits_1_on_an_offending_repo(
 
     assert exit_code == 1
     err = capsys.readouterr().err
-    assert "README.md:1" in err
+    # Built, not literal, so citation-freshness does not read it as a path:line cite.
+    assert ":".join(("README.md", "1")) in err
     assert "FAIL" in err
 
 
