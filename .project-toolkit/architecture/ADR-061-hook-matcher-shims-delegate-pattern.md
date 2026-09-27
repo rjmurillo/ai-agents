@@ -94,7 +94,7 @@ On main, only multi-matcher hooks (4 today) carry the amplification. PR 1763 and
 
 The inline-body design violates:
 
-- `.claude/rules/pragmatic-programmer.md` DRY at the knowledge level: business rules duplicated, not text alone.
+- `.claude/skills/software-engineering-library/references/pragmatic-programmer.md` DRY at the knowledge level: business rules duplicated, not text alone.
 - `.claude/rules/canonical-source-mirror.md`: shims claim to mirror the canonical hook but the mirror is hand-regenerated per file and drifts.
 - `.claude/rules/philosophy-of-software-design.md` deep modules: each shim is shallow; it exposes the whole wrapped body to the install tree. <!-- orphan-ref-ignore -->
 
@@ -244,7 +244,7 @@ The `_impl/` subdirectory is an additional import surface inside the install tre
 - `.project-toolkit/specs/requirements/REQ-003-multi-tool-artifact-build.md` step 5 (REQ-003-007). Source of the inline-body mandate.
 - `.agents/archive/plans/req-003-multi-tool-artifact-build.md:79,114`. M5-T2 implementation task; M7-T3 captures one-body-many-matchers as the alternative.
 - `build/scripts/generate_hooks.py`. Current generator implementation.
-- `.claude/rules/pragmatic-programmer.md`. DRY at the knowledge level.
+- `.claude/skills/software-engineering-library/references/pragmatic-programmer.md`. DRY at the knowledge level.
 - `.claude/rules/canonical-source-mirror.md`. Mirror claims must match canonical.
 - `.claude/rules/philosophy-of-software-design.md`. Deep modules. <!-- orphan-ref-ignore -->
 - `build/scripts/validate_install_parity.py`. Existing canonical/install parity validator (PR 2095).
