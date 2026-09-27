@@ -37,7 +37,7 @@ jobs:
   test-install-and-config:
     name: Install CLI & Validate Config
     # CodeQL CLI does not provide ARM64 Linux binaries, must use x64
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
     permissions:
       contents: read
@@ -71,7 +71,7 @@ jobs:
   # Pattern 2: Run scan for a specific language
   test-scan-language:
     name: Scan Language (${{ matrix.language }})
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 20
     permissions:
       contents: read
@@ -117,7 +117,7 @@ jobs:
   # Pattern 3: Run scan with JSON output format
   test-scan-json-output:
     name: Scan with JSON Output
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 20
     permissions:
       contents: read
@@ -159,7 +159,7 @@ jobs:
     # !cancelled() still runs on failed and skipped dependencies.
     if: ${{ !cancelled() }}
     # Aggregate job can use ARM since it doesn't run CodeQL CLI
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     permissions:
       contents: read
 

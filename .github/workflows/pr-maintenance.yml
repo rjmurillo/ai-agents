@@ -30,7 +30,7 @@ env:
 jobs:
   # Job 1: Discover PRs needing attention
   discover-prs:
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     environment: bot-secrets
     timeout-minutes: 10
     permissions:
@@ -102,7 +102,7 @@ jobs:
   process-prs:
     needs: discover-prs
     if: needs.discover-prs.outputs.has-prs == 'true'
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     environment: bot-secrets
     # Budget: ceil(sum(3 * step timeout + 1.5) + 5) for 5, 10.
     timeout-minutes: 53
@@ -252,7 +252,7 @@ jobs:
   summarize:
     needs: [discover-prs, process-prs]
     if: always()
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     environment: bot-secrets
     timeout-minutes: 5
     permissions:

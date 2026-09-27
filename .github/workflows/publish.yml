@@ -32,7 +32,7 @@ concurrency:
 jobs:
   validate:
     name: Validate Package
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     permissions:
       contents: read
     steps:
@@ -74,7 +74,7 @@ jobs:
   publish:
     name: Publish to npm
     needs: validate
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     permissions:
       contents: read
       id-token: write

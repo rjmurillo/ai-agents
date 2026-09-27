@@ -17,7 +17,7 @@ on:
 # renaming one ahead of the ruleset blocks every PR (ci-scripts.md MUST 22).
 jobs:
   check-paths:
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     permissions:
       pull-requests: read
     outputs:
@@ -44,7 +44,7 @@ jobs:
               - 'scripts/eval/eval-prompt-change.py'
 
   validate-slash-commands:
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     environment: bot-secrets
     needs: check-paths
     if: needs.check-paths.outputs.spec_evals_changed == 'true'
@@ -92,7 +92,7 @@ jobs:
         run: python3 scripts/eval/eval-prompt-change.py --prompt .claude/skills/spec/SKILL.md --renamed-from .claude/commands/spec.md --scenarios tests/evals/spec-scenarios.json --base-ref "$BASE_REF"
 
   skip-validation:
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     needs: check-paths
     if: needs.check-paths.outputs.spec_evals_changed != 'true'
     permissions: {}

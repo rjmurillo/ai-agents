@@ -43,7 +43,7 @@ concurrency:
 jobs:
   label:
     name: Apply Labels
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     timeout-minutes: 2
 
     # Skip for bot PRs (Dependabot, GitHub Actions)

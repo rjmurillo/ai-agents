@@ -39,7 +39,7 @@ jobs:
   collect-metrics:
     name: Collect Agent Metrics
     # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
 
     steps:
       - name: Checkout repository
@@ -92,7 +92,7 @@ jobs:
   check-thresholds:
     name: Check Metric Thresholds
     # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     needs: collect-metrics
 
     steps:

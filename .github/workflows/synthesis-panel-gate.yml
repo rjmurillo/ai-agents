@@ -23,7 +23,7 @@ jobs:
   check-design-reviews:
     name: Synthesis Panel Gate
     # ADR-025: ARM runner for cost optimization
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     timeout-minutes: 5
 
     steps:

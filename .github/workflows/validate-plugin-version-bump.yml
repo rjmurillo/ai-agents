@@ -33,7 +33,7 @@ on:
 jobs:
   check-paths:
     name: Check Changed Paths
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     timeout-minutes: 5
     permissions:
       contents: read
@@ -73,7 +73,7 @@ jobs:
     name: Validate Plugin Version Bump
     needs: check-paths
     if: needs.check-paths.outputs.should-run-version-bump == 'true'
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     timeout-minutes: 15
     permissions:
       contents: read
@@ -123,7 +123,7 @@ jobs:
     name: Validate Plugin Version Bump (Skipped)
     needs: check-paths
     if: needs.check-paths.outputs.should-run-version-bump != 'true'
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     timeout-minutes: 5
     permissions:
       contents: read

@@ -41,7 +41,7 @@ jobs:
   check-paths:
     name: Agent Drift Detection
     # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     permissions:
       contents: read
     outputs:
@@ -113,7 +113,7 @@ jobs:
   # ─── Phase 2: Validate, only when relevant files changed ────────────────────
   validate:
     name: Agent Drift Detection
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     needs: check-paths
     # Run when validation is needed AND no bypass was requested
     if: |
@@ -195,7 +195,7 @@ jobs:
   # ─── Bypass warning, runs instead of validate when bypass is active ──────────
   bypass-warning:
     name: Agent Drift Detection
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     needs: check-paths
     if: |
       needs.check-paths.outputs.should-run-drift == 'true' &&
@@ -239,7 +239,7 @@ jobs:
     needs: check-paths
     if: needs.check-paths.outputs.should-run-drift != 'true'
     # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     permissions:
       contents: read
 

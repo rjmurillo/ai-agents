@@ -24,7 +24,7 @@ on:
 jobs:
   check-changes:
     name: Check for ADR Changes
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     timeout-minutes: 3
     permissions:
       contents: read
@@ -50,7 +50,7 @@ jobs:
     name: Validate ADR Number Uniqueness
     needs: check-changes
     if: needs.check-changes.outputs.should-run-adrs == 'true'
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     timeout-minutes: 3
     permissions:
       contents: read
@@ -93,7 +93,7 @@ jobs:
     name: Skip Validation (No ADR Changes)
     needs: check-changes
     if: needs.check-changes.outputs.should-run-adrs != 'true'
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     timeout-minutes: 1
     permissions:
       contents: read

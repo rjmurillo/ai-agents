@@ -45,7 +45,7 @@ jobs:
   check-paths:
     name: Check Changed Paths
     # ADR-055: ARM runner for cost optimization (37.5% savings vs x64)
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     permissions:
       contents: read
     outputs:
@@ -114,7 +114,7 @@ jobs:
     # CodeQL CLI does not provide ARM64 Linux binaries, must use x64
     # IMPORTANT: This job ALWAYS runs to satisfy required status checks,
     # but short-circuits steps when no scannable files are changed.
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 30
     permissions:
       security-events: write  # Required for SARIF upload to GitHub Security tab
@@ -177,7 +177,7 @@ jobs:
     needs: check-paths
     if: needs.check-paths.outputs.should-run-analysis != 'true'
     # ADR-055: ARM runner for cost optimization
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     permissions:
       contents: read
       checks: write
@@ -232,7 +232,7 @@ jobs:
     # live run with real findings fails exactly as before.
     if: ${{ !cancelled() && needs.check-paths.outputs.should-run-analysis == 'true' }}
     # ADR-055: ARM runner for cost optimization
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     permissions:
       contents: read
       security-events: read
