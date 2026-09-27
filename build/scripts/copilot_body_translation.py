@@ -323,5 +323,7 @@ def translate_skill_file(
     if match is None:
         return translate_body(content, skills_output_dir)
     frontmatter, body = match.group(1), match.group(2)
-    frontmatter = drop_frontmatter_keys(translate_allowed_tools(frontmatter), drop_keys)
-    return frontmatter + translate_body(body, skills_output_dir)
+    # str(...): mypy types this sibling sys.path import as Any, the same
+    # pre-existing gap generate_skills.py notes for its sibling imports.
+    kept = str(drop_frontmatter_keys(translate_allowed_tools(frontmatter), drop_keys))
+    return kept + translate_body(body, skills_output_dir)
