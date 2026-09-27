@@ -270,6 +270,8 @@ completeness scoring, and writing-style mechanics. Read
 `references/decision-procedure.md` before Phase 1: it is the six-step walk
 (scope constraint, search, lake or ocean, build, present and ask, stop at
 terminal) that used to live in the always-on builder-ethos rule.
+`references/golden-age.md` holds the task-compression table behind Boil the
+Lake; read it when sizing a build-vs-skip call.
 
 ### Phase 4: Final gate
 

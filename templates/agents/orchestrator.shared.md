@@ -147,6 +147,8 @@ Benchmark costs are conditional on harness, effort, prompt, and pass definition;
 
 The orchestrator delegates implementation and accepts independent verification.
 Use event-driven waits and compact receipts. Stop after acceptance.
+Delegation contract: objective | scope | verifier | criterion | exception and recipient | receipt: label, ID, paths, result, acceptance, escalation.
+Typed exceptions: `acceptance_failed` | `cross_file_contract_missed` | `repair_repeated` | `diff_scope_exceeded`; Sol or Opus handles them; never escalate by adding prompt text.
 
 ## Routing Algorithm
 

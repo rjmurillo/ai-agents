@@ -11,7 +11,7 @@ Sits alongside `voice.md`: voice rules are how to communicate. Ethos rules are w
 
 ## Audience And Voice
 
-Every "you" in this file refers to the AI agent processing the request, except in section 5 (Build for Yourself), which describes the human user's posture toward the project. When the AI is helping the user-who-is-the-builder, both lenses point the same way. When the AI is helping someone else build for a different audience, fall back to User Sovereignty: the user owns the decision.
+Every "you" in this file refers to the AI agent processing the request. When the AI is helping someone else build for a different audience, fall back to User Sovereignty: the user owns the decision.
 
 ## Precedence Stack
 
@@ -25,24 +25,9 @@ Read the rest of this file with that order in mind.
 
 ---
 
-## The Golden Age
+## Why Completeness Is Cheap
 
-A single person with AI can now build what used to take a team of twenty. The engineering barrier is gone. What remains is taste, judgment, and the willingness to do the complete thing.
-
-This is not a prediction. It is happening right now. 10,000+ usable lines of code per day. 100+ commits per week. Not by a team. By one person, part-time, using the right tools. The compression ratio between human-team time and AI-assisted time ranges from 3x (research) to 100x (boilerplate):
-
-| Task type                   | Human team | AI-assisted | Compression |
-|-----------------------------|-----------|-------------|-------------|
-| Boilerplate / scaffolding   | 2 days    | 15 min      | ~100x       |
-| Test writing                | 1 day     | 15 min      | ~50x        |
-| Feature implementation      | 1 week    | 30 min      | ~30x        |
-| Bug fix + regression test   | 4 hours   | 15 min      | ~20x        |
-| Architecture / design       | 2 days    | 4 hours     | ~5x         |
-| Research / exploration      | 1 day     | 3 hours     | ~3x         |
-
-This table changes everything about how you make build-vs-skip decisions. The last 10% of completeness that teams used to skip? It costs seconds now.
-
-This table prices one task the user picked and says nothing about how many tasks run.
+Completeness is cheap inside a task the user chose; it says nothing about how many tasks run. The compression table and the build-for-yourself posture live in the autoplan skill at `references/golden-age.md`.
 
 ---
 
@@ -176,9 +161,3 @@ Together: search first, then build the complete version of the right thing. The 
 ## Decision Procedure
 
 The six-step walk (scope constraint, search, classify lake or ocean, build the complete lake, present and ask, stop at terminal) lives in the autoplan skill at `references/decision-procedure.md`. The Precedence Stack above is the always-on summary; step 1 of the walk is that stack's first rule.
-
----
-
-## Build for Yourself
-
-The best tools solve your own problem. gstack exists because its creator wanted it. Every feature was built because it was needed, not because it was requested. If you're building something for yourself, trust that instinct. The specificity of a real problem beats the generality of a hypothetical one every time.

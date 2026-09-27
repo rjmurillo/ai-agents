@@ -24,16 +24,9 @@ surface, and a blocking validator refuses a command file under any plugin root.
 
 For non-trivial tasks: `Task(subagent_type="orchestrator", prompt="...")`
 
-## Memory Interface Decision Matrix
+## Memory
 
-| Scenario | Use | Why |
-|----------|-----|-----|
-| Quick CLI search | `/memory-search` slash command | Instant, no agent overhead |
-| Deep exploration | `context-gather` skill | Serena, Context7, DeepWiki, web |
-| Script automation | `search_memory.py` | Python CLI, testable, structured output |
-| Direct MCP (last resort) | `mcp__serena__read_memory` | Full control when abstractions fail |
-
-Start with cheapest option. Escalate only when cheaper option lacks capability.
+Start with `/memory-search`; the `memory` skill's router covers deeper tiers and `search_memory.py`. Raw `mcp__serena__read_memory` is the last resort.
 
 ## Path-scoped instructions
 
