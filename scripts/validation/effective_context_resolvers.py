@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import os
 import posixpath
+import re
 import subprocess
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -241,6 +242,80 @@ def _resolve_relative_import(base_dir: str, raw_token: str) -> str:
     return posixpath.normpath(joined)
 
 
+def _process_relative_import(
+    raw: str,
+    rel_path: str,
+    ancestors: tuple[str, ...],
+    active_read: Callable[[str], bytes | None],
+    active_layer: str,
+    seen: set[str],
+    problems: list[ImportProblem],
+    files: list[LoadedFile],
+) -> tuple[str, bytes] | None:
+    """Resolve one project-relative ``@import`` token.
+
+    Returns ``(candidate_path, candidate_bytes)`` to recurse into, or
+    ``None`` when the import escaped the repo, is a cycle, is missing, or was
+    already billed (each case is handled here so :func:`walk_claude_imports`
+    only has to branch on "recurse or not").
+    """
+    base_dir = posixpath.dirname(rel_path)
+    candidate = _resolve_relative_import(base_dir, raw[1:])
+    if candidate.startswith("..") or PurePosixPath(candidate).is_absolute():
+        problems.append(ImportProblem("outside_repo", rel_path, raw))
+        return None
+    if candidate in ancestors:
+        problems.append(ImportProblem("cycle", rel_path, raw))
+        return None
+    data = active_read(candidate)
+    if data is None:
+        problems.append(ImportProblem("missing", rel_path, raw))
+        return None
+    if candidate in seen:
+        return None
+    seen.add(candidate)
+    files.append(
+        LoadedFile(
+            layer=active_layer,
+            path=candidate,
+            size_bytes=len(data),
+            reason=f"import via {rel_path}",
+        )
+    )
+    return candidate, data
+
+
+def _process_tilde_import(
+    raw: str,
+    rel_path: str,
+    seen: set[str],
+    problems: list[ImportProblem],
+    files: list[LoadedFile],
+    tilde_read: Callable[[str], bytes | None] | None,
+) -> tuple[str, bytes] | None:
+    """Resolve one ``@~/...`` token against the user's home directory.
+
+    Returns ``(key, candidate_bytes)`` (``key`` is ``~/``-prefixed) to
+    recurse into, or ``None`` when ``tilde_read`` is unset (``--include-user``
+    was not passed), the file is missing, or it was already billed.
+    """
+    if tilde_read is None:
+        return None
+    home_rel = raw[3:]
+    key = f"~/{home_rel}"
+    if key in seen:
+        return None
+    data = tilde_read(home_rel)
+    if data is None:
+        problems.append(ImportProblem("missing", rel_path, raw))
+        return None
+    seen.add(key)
+    files.append(
+        LoadedFile(layer="user", path=key, size_bytes=len(data), reason=f"import via {rel_path}")
+    )
+    return key, data
+
+
 def walk_claude_imports(
     read_bytes: Callable[[str], bytes | None],
     start_rel: str,
@@ -268,11 +343,15 @@ def walk_claude_imports(
     through :data:`MAX_IMPORT_DEPTH` hops (depth 5) is still read and
     reported, matching the "max depth 5" observed loading model, but its own
     imports are never read: the chain is capped at 5 hops from the start
-    file, not 5 files total. A cycle
-    is a revisit of an ancestor in the *current* import chain, not merely a
-    file seen anywhere before; re-reaching an already-resolved file through a
-    second, non-cyclic path is silently deduplicated via ``seen`` instead of
-    reported as a problem.
+    file, not 5 files total. A cycle is a revisit of an ancestor in the
+    *current* import chain, not merely a file seen anywhere before;
+    re-reaching an already-resolved file through a second, non-cyclic path
+    is silently deduplicated via ``seen`` instead of reported as a problem.
+
+    Per-token resolution lives in :func:`_process_relative_import` and
+    :func:`_process_tilde_import`; this function only decides whether to
+    recurse into what they resolve, keeping its own branching (and mccabe
+    complexity) to the recursion shape alone.
     """
 
     def _follow(
@@ -285,54 +364,23 @@ def walk_claude_imports(
     ) -> None:
         if depth >= MAX_IMPORT_DEPTH:
             return
-        base_dir = posixpath.dirname(rel_path)
         text = content.decode("utf-8", errors="replace")
         for raw in extract_import_tokens(text):
             if raw.startswith("@~/"):
-                _follow_tilde(raw, rel_path, depth)
+                resolved = _process_tilde_import(raw, rel_path, seen, problems, files, tilde_read)
+                if resolved is not None:
+                    assert tilde_read is not None  # _process_tilde_import returns None otherwise
+                    key, data = resolved
+                    _follow(key, data, depth + 1, (key,), tilde_read, "user")
                 continue
-            candidate = _resolve_relative_import(base_dir, raw[1:])
-            if candidate.startswith("..") or PurePosixPath(candidate).is_absolute():
-                problems.append(ImportProblem("outside_repo", rel_path, raw))
-                continue
-            if candidate in ancestors:
-                problems.append(ImportProblem("cycle", rel_path, raw))
-                continue
-            data = active_read(candidate)
-            if data is None:
-                problems.append(ImportProblem("missing", rel_path, raw))
-                continue
-            if candidate in seen:
-                continue
-            seen.add(candidate)
-            files.append(
-                LoadedFile(
-                    layer=active_layer,
-                    path=candidate,
-                    size_bytes=len(data),
-                    reason=f"import via {rel_path}",
+            resolved_relative = _process_relative_import(
+                raw, rel_path, ancestors, active_read, active_layer, seen, problems, files
+            )
+            if resolved_relative is not None:
+                candidate, data = resolved_relative
+                _follow(
+                    candidate, data, depth + 1, (*ancestors, candidate), active_read, active_layer
                 )
-            )
-            _follow(candidate, data, depth + 1, (*ancestors, candidate), active_read, active_layer)
-
-    def _follow_tilde(raw: str, rel_path: str, depth: int) -> None:
-        if tilde_read is None:
-            return
-        home_rel = raw[3:]
-        key = f"~/{home_rel}"
-        if key in seen:
-            return
-        data = tilde_read(home_rel)
-        if data is None:
-            problems.append(ImportProblem("missing", rel_path, raw))
-            return
-        seen.add(key)
-        files.append(
-            LoadedFile(
-                layer="user", path=key, size_bytes=len(data), reason=f"import via {rel_path}"
-            )
-        )
-        _follow(key, data, depth + 1, (key,), tilde_read, "user")
 
     _follow(start_rel, start_content, 0, (start_rel,), read_bytes, layer)
 
@@ -534,6 +582,67 @@ def copilot_static_paths_unfiltered(repo: Repo, base_dir: str) -> set[str]:
     return paths
 
 
+def _copilot_root_files(repo: Repo) -> list[LoadedFile]:
+    """``.github/copilot-instructions.md`` plus repo-root ``AGENTS.md``/``CLAUDE.md``."""
+    files: list[LoadedFile] = []
+    root_bytes = repo.read_bytes(COPILOT_REPO_INSTRUCTIONS)
+    if root_bytes is not None:
+        files.append(LoadedFile("root", COPILOT_REPO_INSTRUCTIONS, len(root_bytes), "root file"))
+    for name in ("AGENTS.md", "CLAUDE.md"):
+        data = repo.read_bytes(name)
+        if data is not None:
+            files.append(LoadedFile("root", name, len(data), "root file"))
+    return files
+
+
+def _copilot_nested_files(repo: Repo, base_dir: str) -> list[LoadedFile]:
+    """``AGENTS.md``/``CLAUDE.md`` in each directory strictly below the repo root."""
+    files: list[LoadedFile] = []
+    for directory in directory_chain(base_dir):
+        for name in ("AGENTS.md", "CLAUDE.md"):
+            rel_path = f"{directory}/{name}"
+            data = repo.read_bytes(rel_path)
+            if data is not None:
+                files.append(LoadedFile("nested", rel_path, len(data), "nested file"))
+    return files
+
+
+def _copilot_scoped_files(repo: Repo, target: str) -> list[LoadedFile]:
+    """``.github/instructions/*.instructions.md`` whose ``applyTo`` matches ``target``.
+
+    No repository instructions file omits `applyTo` today (verified: zero of
+    27 `.github/instructions/*.instructions.md` files lack it). Absent an
+    observed case, a missing key scopes the file to nothing, matching
+    `instruction_budget_globs.parse_applyto`'s empty-set return for the same
+    shape, which the existing budget gate already treats as non-universal.
+    This is a documented assumption, not a probed fact about Copilot CLI.
+    """
+    files: list[LoadedFile] = []
+    for rel_path in all_copilot_instructions(repo):
+        data = repo.read_bytes(rel_path)
+        if data is None:
+            continue
+        text = data.decode("utf-8", errors="replace")
+        patterns = _parse_scope_patterns(text, "applyTo")
+        if patterns is None:
+            continue
+        if glob_matches(patterns, target):
+            files.append(LoadedFile("scoped", rel_path, len(data), "applyTo: matches target"))
+    return files
+
+
+def _copilot_user_file(include_user: bool) -> list[LoadedFile]:
+    """``$COPILOT_HOME/copilot-instructions.md``, default ``~/.copilot/...``."""
+    if not include_user:
+        return []
+    home = Path(os.environ.get(COPILOT_HOME_ENV) or (Path.home() / COPILOT_HOME_DEFAULT))
+    user_path = home / COPILOT_HOME_FILE
+    if not user_path.is_file():
+        return []
+    data = user_path.read_bytes()
+    return [LoadedFile("user", str(user_path), len(data), "user file")]
+
+
 def resolve_copilot(
     repo: Repo,
     base_dir: str,
@@ -559,73 +668,16 @@ def resolve_copilot(
     path-local ratchet (REQ-6), which sums the ``nested`` layer only, does
     not double-count the root ``AGENTS.md``/``CLAUDE.md`` bytes that are
     identical for every target as if they were per-directory growth.
+
+    Each layer is built by its own helper (``_copilot_root_files`` and
+    siblings) so this function is a flat concatenation, not a branch tree.
     """
-    files: list[LoadedFile] = []
-    root_bytes = repo.read_bytes(COPILOT_REPO_INSTRUCTIONS)
-    if root_bytes is not None:
-        files.append(
-            LoadedFile(
-                layer="root",
-                path=COPILOT_REPO_INSTRUCTIONS,
-                size_bytes=len(root_bytes),
-                reason="root file",
-            )
-        )
-    for name in ("AGENTS.md", "CLAUDE.md"):
-        data = repo.read_bytes(name)
-        if data is not None:
-            files.append(
-                LoadedFile(layer="root", path=name, size_bytes=len(data), reason="root file")
-            )
-
-    for directory in directory_chain(base_dir):
-        for name in ("AGENTS.md", "CLAUDE.md"):
-            rel_path = f"{directory}/{name}"
-            data = repo.read_bytes(rel_path)
-            if data is not None:
-                files.append(
-                    LoadedFile(
-                        layer="nested", path=rel_path, size_bytes=len(data), reason="nested file"
-                    )
-                )
-
-    for rel_path in all_copilot_instructions(repo):
-        data = repo.read_bytes(rel_path)
-        if data is None:
-            continue
-        text = data.decode("utf-8", errors="replace")
-        patterns = _parse_scope_patterns(text, "applyTo")
-        if patterns is None:
-            # No repository instructions file omits `applyTo` today (verified:
-            # zero of 27 `.github/instructions/*.instructions.md` files lack
-            # it). Absent an observed case, a missing key scopes the file to
-            # nothing, matching `instruction_budget_globs.parse_applyto`'s
-            # empty-set return for the same shape, which the existing budget
-            # gate already treats as non-universal. This is a documented
-            # assumption, not a probed fact about Copilot CLI.
-            continue
-        if glob_matches(patterns, target):
-            files.append(
-                LoadedFile(
-                    layer="scoped",
-                    path=rel_path,
-                    size_bytes=len(data),
-                    reason="applyTo: matches target",
-                )
-            )
-
-    if include_user:
-        home = Path(os.environ.get(COPILOT_HOME_ENV) or (Path.home() / COPILOT_HOME_DEFAULT))
-        user_path = home / COPILOT_HOME_FILE
-        if user_path.is_file():
-            data = user_path.read_bytes()
-            files.append(
-                LoadedFile(
-                    layer="user", path=str(user_path), size_bytes=len(data), reason="user file"
-                )
-            )
-
-    return files
+    return [
+        *_copilot_root_files(repo),
+        *_copilot_nested_files(repo, base_dir),
+        *_copilot_scoped_files(repo, target),
+        *_copilot_user_file(include_user),
+    ]
 
 
 @dataclass(frozen=True)
@@ -686,3 +738,66 @@ def resolve_effective_context(
     return EffectiveContextResult(
         target=target, harness=harness, files=tuple(files), problems=tuple(problems)
     )
+
+
+# Path segments that mark a fixture tree (issue #4880 AC7's "skip paths under
+# tests/**/fixtures/ or other fixture trees"). Matched case-insensitively
+# against every path segment, not just under `tests/`, so a fixture tree
+# anywhere in the repo is excluded, not only the one location the AC names as
+# an example. As of this module's first commit, zero of this repository's
+# `CLAUDE.md`/`AGENTS.md` files sit under such a segment (verified: `git
+# ls-files | grep -E '(^|/)(CLAUDE|AGENTS)\.md$' | grep -iE 'fixture'`
+# returns nothing), so the exclusion excludes zero paths today; it exists so
+# a future fixture tree cannot be ratcheted as if it were real instruction
+# content.
+_FIXTURE_SEGMENT_NAMES = frozenset({"fixtures", "fixture"})
+
+_NESTED_INSTRUCTION_FILE_RE = re.compile(r"(^|/)(CLAUDE|AGENTS)\.md$")
+
+
+def _is_fixture_path(rel_path: str) -> bool:
+    """True when any path segment is a fixture-tree marker, case-insensitive."""
+    return any(part.lower() in _FIXTURE_SEGMENT_NAMES for part in rel_path.split("/"))
+
+
+def discover_nested_directories(repo_root: Path) -> tuple[list[str], list[str]]:
+    """Every git-tracked directory with a nested ``CLAUDE.md``/``AGENTS.md``.
+
+    Backs issue #4880 AC7: the five frozen targets alone cannot catch growth
+    in a directory none of them happens to pass through (``.agents/``,
+    ``.claude/skills/``, a brand-new nested file elsewhere). This discovers
+    every such directory instead of naming them, so a new one is covered
+    automatically.
+
+    Working tree only, via ``git ls-files`` (no ``--rev``): this backs
+    ``--ci``, which always checks the working tree, matching
+    :data:`CEILINGS_BYTES`'s own frozen-target loop. The repository root is
+    excluded (it is the ``root`` layer, not ``nested``); an untracked file is
+    invisible, matching every other resolver in this module, which reads
+    repository content, not the working tree's scratch files; a path under a
+    fixture-tree segment is excluded and returned separately so the caller
+    can report what it skipped and why.
+
+    Returns ``([], [])`` when ``repo_root`` is not a git repository (or
+    ``git`` is unavailable), rather than raising: discovery degrades to "no
+    extra directories found," and the five frozen targets still ratchet.
+    """
+    result = subprocess.run(
+        ["git", "ls-files"], cwd=repo_root, capture_output=True, text=True, timeout=30
+    )
+    if result.returncode != 0:
+        return [], []
+    directories: set[str] = set()
+    excluded: list[str] = []
+    for line in result.stdout.splitlines():
+        rel_path = line.strip()
+        if not rel_path or not _NESTED_INSTRUCTION_FILE_RE.search(rel_path):
+            continue
+        directory = posixpath.dirname(rel_path)
+        if not directory:
+            continue
+        if _is_fixture_path(directory):
+            excluded.append(rel_path)
+            continue
+        directories.add(directory)
+    return sorted(directories), sorted(excluded)

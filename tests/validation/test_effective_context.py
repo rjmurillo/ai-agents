@@ -584,6 +584,136 @@ class TestReq7CeilingLabel:
 
 
 # --------------------------------------------------------------------------
+# Issue #4880 AC7: the ratchet must cover every instructed directory, not
+# only the five frozen targets. `--ci` enumerates every git-tracked
+# directory with a nested CLAUDE.md/AGENTS.md and checks it against
+# PATH_LOCAL_DIRECTORY_CEILING.
+# --------------------------------------------------------------------------
+
+
+class TestDiscoverNestedDirectories:
+    def test_finds_nested_directories_and_excludes_the_repo_root(self, tmp_path: Path) -> None:
+        _init_git_repo(tmp_path)
+        _write(tmp_path, "CLAUDE.md", "root\n")
+        _write(tmp_path, "AGENTS.md", "root\n")
+        _write(tmp_path, "a/CLAUDE.md", "x\n")
+        _write(tmp_path, "b/c/AGENTS.md", "x\n")
+        _commit_all(tmp_path, "v1")
+
+        directories, excluded = ecr.discover_nested_directories(tmp_path)
+        assert directories == ["a", "b/c"]
+        assert excluded == []
+
+    def test_excludes_fixture_tree_paths_and_reports_them(self, tmp_path: Path) -> None:
+        _init_git_repo(tmp_path)
+        _write(tmp_path, "CLAUDE.md", "root\n")
+        _write(tmp_path, "a/CLAUDE.md", "x\n")
+        _write(tmp_path, "tests/fixtures/CLAUDE.md", "should be excluded\n")
+        _write(tmp_path, "tests/Fixtures/nested/AGENTS.md", "also excluded, case-insensitive\n")
+        _commit_all(tmp_path, "v1")
+
+        directories, excluded = ecr.discover_nested_directories(tmp_path)
+        assert directories == ["a"]
+        assert excluded == [
+            "tests/Fixtures/nested/AGENTS.md",
+            "tests/fixtures/CLAUDE.md",
+        ]
+
+    def test_untracked_files_are_not_discovered(self, tmp_path: Path) -> None:
+        """Only git-tracked files count: an untracked nested file is invisible."""
+        _init_git_repo(tmp_path)
+        _write(tmp_path, "CLAUDE.md", "root\n")
+        _commit_all(tmp_path, "v1")
+        _write(tmp_path, "untracked/CLAUDE.md", "never committed\n")
+
+        directories, _excluded = ecr.discover_nested_directories(tmp_path)
+        assert directories == []
+
+    def test_returns_empty_outside_a_git_repository(self, tmp_path: Path) -> None:
+        _write(tmp_path, "a/CLAUDE.md", "x\n")
+        directories, excluded = ecr.discover_nested_directories(tmp_path)
+        assert directories == []
+        assert excluded == []
+
+
+class TestDirectoryCeiling:
+    def test_real_repository_passes_the_directory_ceiling(self) -> None:
+        ok, _report, failures, _excluded = ec.check_directory_ceiling(
+            REPO_ROOT, ec.PATH_LOCAL_DIRECTORY_CEILING
+        )
+        assert ok, failures
+
+    def test_synthetic_directory_growth_fails_and_names_everything(self, tmp_path: Path) -> None:
+        _init_git_repo(tmp_path)
+        _write(tmp_path, "CLAUDE.md", "root\n")
+        _write(tmp_path, "grown/CLAUDE.md", "x" * 500 + "\n")
+        _commit_all(tmp_path, "v1")
+
+        ok, report, failures, excluded = ec.check_directory_ceiling(tmp_path, 10)
+        assert ok is False
+        assert excluded == []
+        assert any("FAIL" in line and "grown" in line for line in report)
+        assert len(failures) == 2  # claude and copilot both breach
+        for line in failures:
+            assert "grown" in line
+            assert "exceed ceiling 10" in line
+            assert "--target grown --harness" in line
+
+    def test_directory_ceiling_pass_at_exact_boundary(self, tmp_path: Path) -> None:
+        _init_git_repo(tmp_path)
+        _write(tmp_path, "CLAUDE.md", "root\n")
+        nested_bytes = _write(tmp_path, "a/CLAUDE.md", "12345\n")
+        _commit_all(tmp_path, "v1")
+
+        ok, _report, failures, _excluded = ec.check_directory_ceiling(tmp_path, nested_bytes)
+        assert ok is True
+        assert failures == []
+
+    def test_ceiling_label_covers_the_directory_ceiling_too(self) -> None:
+        """The directory ceiling reuses the same local/measured/no-vendor label."""
+        assert ec.PATH_LOCAL_DIRECTORY_CEILING > 0
+        assert "local" in ec.CEILING_LABEL.lower()
+        assert "no vendor" in ec.CEILING_LABEL.lower()
+
+
+class TestCiIncludesDirectoryRatchet:
+    def test_ci_runs_the_real_directory_ratchet_and_exits_zero(self) -> None:
+        assert ec.main(["--ci"]) == 0
+
+    def test_ci_fails_and_names_directory_harness_bytes_ceiling_command(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        _init_git_repo(tmp_path)
+        _write(tmp_path, "CLAUDE.md", "root\n")
+        _write(tmp_path, "grown/CLAUDE.md", "x" * 500 + "\n")
+        _commit_all(tmp_path, "v1")
+        monkeypatch.setattr(ec, "CEILINGS_BYTES", {})
+        monkeypatch.setattr(ec, "PATH_LOCAL_DIRECTORY_CEILING", 10)
+
+        code = ec.main(["--ci"], repo_root=tmp_path)
+        assert code == 1
+        out = capsys.readouterr().out
+        assert "grown" in out
+        assert "claude" in out
+        assert "ceiling=" in out
+        assert "--target grown --harness claude" in out
+
+    def test_ci_reports_excluded_fixture_paths(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        _init_git_repo(tmp_path)
+        _write(tmp_path, "CLAUDE.md", "root\n")
+        _write(tmp_path, "tests/fixtures/CLAUDE.md", "excluded\n")
+        _commit_all(tmp_path, "v1")
+        monkeypatch.setattr(ec, "CEILINGS_BYTES", {})
+
+        code = ec.main(["--ci"], repo_root=tmp_path)
+        assert code == 0
+        out = capsys.readouterr().out
+        assert "tests/fixtures/CLAUDE.md" in out
+
+
+# --------------------------------------------------------------------------
 # Supporting resolver units: glob matching, directory chain, imports parsing,
 # base-directory resolution, malformed frontmatter, CLI plumbing.
 # --------------------------------------------------------------------------
@@ -838,6 +968,22 @@ class TestBoundaryBranches:
         user_files = [f for f in result.files if f.layer == "user"]
         assert len(user_files) == 1
         assert user_files[0].size_bytes == user_bytes
+
+    def test_copilot_user_layer_absent_when_the_home_file_does_not_exist(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """REQ-5: include_user=True with no user file present adds nothing."""
+        copilot_home = tmp_path / "empty-copilot-home"
+        copilot_home.mkdir()
+        monkeypatch.setenv(ecr.COPILOT_HOME_ENV, str(copilot_home))
+
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _write(repo, ".github/copilot-instructions.md", "x\n")
+        _write(repo, "target.py", "x = 1\n")
+
+        result = ecr.resolve_effective_context(repo, "target.py", "copilot", include_user=True)
+        assert not any(f.layer == "user" for f in result.files)
 
     def test_root_dot_target_resolves_to_empty_base_dir(self, tmp_path: Path) -> None:
         """`resolve_base_directory` folds a "." target to the empty root string."""

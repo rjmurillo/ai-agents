@@ -42,6 +42,7 @@ from scripts.validation.effective_context_resolvers import (
     Repo,
     TargetOutsideRepoError,
     copilot_static_paths_unfiltered,
+    discover_nested_directories,
     resolve_base_directory,
     resolve_effective_context,
 )
@@ -67,7 +68,9 @@ HARNESSES: tuple[str, ...] = ("claude", "copilot")
 # Anthropic and GitHub publish no 25 KB, 200-line, or 50-line hard limit for
 # CLAUDE.md or AGENTS.md; no vendor size limit is implied by any value below.
 # Lower a ceiling when the nested corpus shrinks; never raise one without
-# recording why in the same change.
+# recording why in the same change. This label covers both CEILINGS_BYTES
+# (per frozen target) and PATH_LOCAL_DIRECTORY_CEILING below (every other
+# instructed directory): both are local, measured, non-vendor ceilings.
 CEILING_LABEL: str = (
     "These are local, non-regression ceilings measured at the accepted "
     "state on the commit where they were set. No vendor (Anthropic, "
@@ -94,6 +97,28 @@ CEILINGS_BYTES: dict[tuple[str, str], int] = {
     ("src/claude/agents/analyst.md", "claude"): 3_183,
     ("src/claude/agents/analyst.md", "copilot"): 6_376,
 }
+
+# Issue #4880 AC7: the five frozen targets above cannot catch growth in a
+# directory none of them passes through. This single ceiling instead bounds
+# every git-tracked directory `discover_nested_directories` finds (any
+# directory with its own nested `CLAUDE.md`/`AGENTS.md`), for both harnesses.
+# One shared ceiling, not a per-directory dict, because the set of
+# directories itself grows automatically as the repository does; a per-entry
+# dict would need a new entry every time, defeating the point. Measured as
+# the maximum path-local byte total across every discovered directory and
+# both harnesses at this module's first commit: `.claude/hooks/PreCompact`
+# under Copilot, 11,369 bytes (verified via `resolve_effective_context`).
+# Claude's own total for that same directory is only 7,087: `.claude/CLAUDE.md`
+# is one of Claude's two ROOT files, so its nested-layer occurrence dedups
+# against the root layer and adds nothing there, and nothing in this chain
+# imports `.claude/AGENTS.md` for Claude at all. Copilot's root layer holds
+# only `.github/copilot-instructions.md` plus the repo-root `AGENTS.md`/
+# `CLAUDE.md`, so `.claude/CLAUDE.md` (544 bytes) and `.claude/AGENTS.md`
+# (3,738 bytes) are pure nested-layer additions for Copilot, on top of the
+# `.claude/hooks/AGENTS.md` and `.claude/hooks/PreCompact/CLAUDE.md` bytes
+# both harnesses already share. See CEILING_LABEL above: local, measured, no
+# vendor limit implied.
+PATH_LOCAL_DIRECTORY_CEILING: int = 11_369
 
 
 class CopilotUnavailableError(RuntimeError):
@@ -213,6 +238,19 @@ def _format_table(results: list[EffectiveContextResult]) -> str:
     return "\n".join(lines).rstrip()
 
 
+def _format_breach(target: str, harness: str, used: int, ceiling: int) -> str:
+    """One breach line, naming the target, harness, bytes, ceiling, and fix command.
+
+    Shared by :func:`check_ceilings` and :func:`check_directory_ceiling` so
+    both ratchets report a breach in the exact same shape.
+    """
+    return (
+        f"{harness} {target}: path-local bytes {used} exceed ceiling {ceiling}. "
+        "Run `uv run python -m scripts.validation.effective_context "
+        f"--target {target} --harness {harness}` to see the inventory."
+    )
+
+
 def check_ceilings(
     repo_root: Path, ceilings: dict[tuple[str, str], int]
 ) -> tuple[bool, list[str], list[str]]:
@@ -233,27 +271,59 @@ def check_ceilings(
             f"{status} {harness:<8} {target:<45} path_local={used:>7} ceiling={ceiling:>7}"
         )
         if used > ceiling:
-            failures.append(
-                f"{harness} {target}: path-local bytes {used} exceed ceiling {ceiling}. "
-                "Run `uv run python -m scripts.validation.effective_context "
-                f"--target {target} --harness {harness}` to see the inventory."
-            )
+            failures.append(_format_breach(target, harness, used, ceiling))
     return not failures, report, failures
 
 
+def check_directory_ceiling(
+    repo_root: Path, ceiling: int
+) -> tuple[bool, list[str], list[str], list[str]]:
+    """Check every AC7-discovered nested directory against one shared ceiling.
+
+    Unlike :func:`check_ceilings` (one ceiling per frozen target),
+    ``discover_nested_directories`` finds its own target set at call time, so
+    a new nested ``CLAUDE.md``/``AGENTS.md`` anywhere in the repository is
+    covered without a code change. Returns ``(ok, report_lines,
+    failure_lines, excluded_paths)``: ``excluded_paths`` are the files
+    ``discover_nested_directories`` skipped as fixture-tree content, reported
+    so a run states what it did not ratchet and why, not only what it did.
+    """
+    directories, excluded = discover_nested_directories(repo_root)
+    report: list[str] = []
+    failures: list[str] = []
+    for directory in directories:
+        for harness in HARNESSES:
+            result = resolve_effective_context(repo_root, directory, harness)
+            used = result.path_local_bytes
+            status = "PASS" if used <= ceiling else "FAIL"
+            report.append(
+                f"{status} {harness:<8} {directory:<45} path_local={used:>7} ceiling={ceiling:>7}"
+            )
+            if used > ceiling:
+                failures.append(_format_breach(directory, harness, used, ceiling))
+    return not failures, report, failures, excluded
+
+
 def _run_ci(repo_root: Path) -> int:
-    """Check all ten frozen (target, harness) ceilings (REQ-6)."""
+    """Check the frozen-target ceilings (REQ-6) and the directory ratchet (AC7)."""
     try:
-        ok, report, failures = check_ceilings(repo_root, CEILINGS_BYTES)
+        _ok, report, failures = check_ceilings(repo_root, CEILINGS_BYTES)
+        _dir_ok, dir_report, dir_failures, excluded = check_directory_ceiling(
+            repo_root, PATH_LOCAL_DIRECTORY_CEILING
+        )
     except UnsupportedApplyToError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 2
-    for line in report:
+    for line in (*report, *dir_report):
         print(line)
+    if excluded:
+        print()
+        print("Excluded as fixture-tree paths (not ratcheted): " + ", ".join(excluded))
     print()
-    if not ok:
+    all_failures = (*failures, *dir_failures)
+    if all_failures:
         print("FAIL: path-local effective-context ratchet breached.")
-        for line in failures:
+        for line in all_failures:
             print(line)
         return 1
     print("PASS: every path-local effective-context ceiling holds.")
@@ -286,6 +356,93 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _validate_cli_preconditions(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
+    """Raise via ``parser.error`` (ADR-035 exit 2) for a bad flag combination.
+
+    Split out of ``main`` purely to keep ``main`` under the complexity
+    ceiling: each check here was already an independent early-exit in the
+    same position, so splitting changes no observable behavior.
+    """
+    if not args.target or not args.harness:
+        parser.error("--target and --harness are required unless --ci is set")
+    if args.observe and args.rev:
+        parser.error("--observe cannot be combined with --rev")
+    if args.observe and args.harness == "claude":
+        parser.error("--observe requires --harness copilot or both")
+
+
+def _resolve_or_report(
+    repo_root: Path, args: argparse.Namespace
+) -> tuple[list[EffectiveContextResult] | None, int | None]:
+    """Resolve every requested harness. ``exit_code`` is set only on failure."""
+    try:
+        results = _resolve_for_harnesses(
+            repo_root, args.target, args.harness, rev=args.rev, include_user=args.include_user
+        )
+    except TargetOutsideRepoError as exc:
+        print(f"Error: target escapes the repository: {exc}", file=sys.stderr)
+        return None, 2
+    except InvalidRevError as exc:
+        print(f"Error: --rev does not resolve to a commit: {exc}", file=sys.stderr)
+        return None, 2
+    except UnsupportedApplyToError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return None, 2
+    return results, None
+
+
+def _run_observe_step(
+    repo_root: Path, args: argparse.Namespace
+) -> tuple[bool, list[str], list[str], int | None]:
+    """Run ``--observe`` when requested. ``exit_code`` is set only on failure.
+
+    Returns ``(ok, missing, extra, exit_code)``; when ``args.observe`` is
+    false, ``(True, [], [], None)`` (a no-op that never fails).
+    """
+    if not args.observe:
+        return True, [], [], None
+    static_repo = Repo(repo_root, None)
+    base_dir = resolve_base_directory(static_repo, args.target)
+    static_paths = copilot_static_paths_unfiltered(static_repo, base_dir)
+    try:
+        observe_ok, missing, extra = run_copilot_observe(repo_root, base_dir, static_paths)
+    except CopilotUnavailableError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return True, [], [], 3
+    return observe_ok, missing, extra, None
+
+
+def _print_output(
+    args: argparse.Namespace,
+    results: list[EffectiveContextResult],
+    observe_ok: bool,
+    observe_missing: list[str],
+    observe_extra: list[str],
+) -> None:
+    """Print the JSON or table report, plus the ``--observe`` summary."""
+    if args.json:
+        payload = _to_json(results)
+        if not args.observe:
+            print(json.dumps(payload, indent=2))
+            return
+        payload_observe: dict[str, object] = {
+            "match": observe_ok,
+            "missing": observe_missing,
+            "extra": observe_extra,
+        }
+        print(json.dumps({"results": payload, "observe": payload_observe}, indent=2))
+        return
+    print(_format_table(results))
+    if not args.observe:
+        return
+    print()
+    print("Copilot --observe: " + ("MATCH" if observe_ok else "MISMATCH"))
+    if observe_missing:
+        print(f"missing (static but not observed): {observe_missing}")
+    if observe_extra:
+        print(f"extra (observed but not static): {observe_extra}")
+
+
 def main(argv: list[str] | None = None, *, repo_root: Path | None = None) -> int:
     """CLI entry point. ``repo_root`` defaults to this repository (test hook)."""
     parser = build_parser()
@@ -295,62 +452,18 @@ def main(argv: list[str] | None = None, *, repo_root: Path | None = None) -> int
     if args.ci:
         return _run_ci(repo_root)
 
-    if not args.target or not args.harness:
-        parser.error("--target and --harness are required unless --ci is set")
-    if args.observe and args.rev:
-        parser.error("--observe cannot be combined with --rev")
-    if args.observe and args.harness == "claude":
-        parser.error("--observe requires --harness copilot or both")
+    _validate_cli_preconditions(args, parser)
 
-    try:
-        results = _resolve_for_harnesses(
-            repo_root, args.target, args.harness, rev=args.rev, include_user=args.include_user
-        )
-    except TargetOutsideRepoError as exc:
-        print(f"Error: target escapes the repository: {exc}", file=sys.stderr)
-        return 2
-    except InvalidRevError as exc:
-        print(f"Error: --rev does not resolve to a commit: {exc}", file=sys.stderr)
-        return 2
-    except UnsupportedApplyToError as exc:
-        print(f"Error: {exc}", file=sys.stderr)
-        return 2
+    results, exit_code = _resolve_or_report(repo_root, args)
+    if exit_code is not None:
+        return exit_code
+    assert results is not None  # exit_code is None only when results was set
 
-    observe_ok = True
-    observe_missing: list[str] = []
-    observe_extra: list[str] = []
-    if args.observe:
-        static_repo = Repo(repo_root, None)
-        base_dir = resolve_base_directory(static_repo, args.target)
-        static_paths = copilot_static_paths_unfiltered(static_repo, base_dir)
-        try:
-            observe_ok, observe_missing, observe_extra = run_copilot_observe(
-                repo_root, base_dir, static_paths
-            )
-        except CopilotUnavailableError as exc:
-            print(f"Error: {exc}", file=sys.stderr)
-            return 3
+    observe_ok, observe_missing, observe_extra, observe_exit = _run_observe_step(repo_root, args)
+    if observe_exit is not None:
+        return observe_exit
 
-    if args.json:
-        payload = _to_json(results)
-        if args.observe:
-            payload_observe: dict[str, object] = {
-                "match": observe_ok,
-                "missing": observe_missing,
-                "extra": observe_extra,
-            }
-            print(json.dumps({"results": payload, "observe": payload_observe}, indent=2))
-        else:
-            print(json.dumps(payload, indent=2))
-    else:
-        print(_format_table(results))
-        if args.observe:
-            print()
-            print("Copilot --observe: " + ("MATCH" if observe_ok else "MISMATCH"))
-            if observe_missing:
-                print(f"missing (static but not observed): {observe_missing}")
-            if observe_extra:
-                print(f"extra (observed but not static): {observe_extra}")
+    _print_output(args, results, observe_ok, observe_missing, observe_extra)
 
     if args.observe and not observe_ok:
         return 1
