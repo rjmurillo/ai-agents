@@ -26,8 +26,11 @@ from scripts.testing.mutation_workspace import (
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 
 _API_TARGET_REL = Path("scripts") / "github_core" / "api.py"
+# Issue #5368: _resolve_validation_base moved from new_pr_validations.py
+# (deleted, no production caller) into pr_validations.py, the module
+# new_pr.py actually calls run_validations from.
 _NEW_PR_TARGET_REL = (
-    Path(".claude") / "skills" / "github" / "scripts" / "pr" / "new_pr_validations.py"
+    Path(".claude") / "skills" / "github" / "scripts" / "pr" / "pr_validations.py"
 )
 _BUILD_AI_TARGET_REL = Path("scripts") / "ci" / "build_ai_review_context.py"
 _TARGETS = (_API_TARGET_REL, _NEW_PR_TARGET_REL, _BUILD_AI_TARGET_REL)
@@ -126,13 +129,17 @@ def _run_mutants(repo_root: Path) -> None:
         b"    return pr_base",
     )
 
-    # Inverted control: removing an unrelated comment must NOT kill the suite
+    # Inverted control: removing an unrelated docstring line must NOT kill
+    # the suite. Issue #5368 moved this function into pr_validations.py,
+    # which does not carry the dash-detection comment the original control
+    # targeted, so the control now targets a line from this function's own
+    # docstring instead: it documents behavior without affecting it.
     run_mutant(
         repo_root,
         _NEW_PR_TARGET_REL,
         _NEW_PR_TESTS,
-        "#4324: inverted control (remove a comment, must survive)",
-        b"# Uses Unicode escapes so this source does not contain the prohibited\n",
+        "#4324: inverted control (remove a docstring line, must survive)",
+        b"    The returned ref is used only for local validation; GitHub still receives\n",
         b"",
         must_die=False,
     )
