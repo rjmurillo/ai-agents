@@ -208,19 +208,55 @@ def load_fixtures(path: Path) -> list[Fixture]:
     return fixtures
 
 
+# Security (issue #4880 bot review): `install_path_local`
+# (`scripts/eval/_runtime_path_local.py`) writes a `path_local` entry at its
+# own repository-relative path inside the fixture workspace, unprojected. A
+# fixture-declared entry naming an agent install path (for example
+# `.claude/agents/parity.md`) would overwrite the harness definition under
+# test after install, silently changing which agent the eval actually runs.
+# Both harnesses' path-local loading model discovers only three shapes: a
+# nested `AGENTS.md` or `CLAUDE.md` (either CLI, walking cwd's ancestors -
+# see `effective_context_sources.py`'s "nested" layer and this module's own
+# `_ancestor_dirs`/`_setup_discoverable_sources` in `eval_runtime_parity.py`)
+# or the one repository-root `.github/copilot-instructions.md` (Copilot
+# only). Anything else is not a "path-local guide" fixture; it is rejected
+# here, before install ever runs, rather than trusted as harmless data.
+_PATH_LOCAL_ALLOWED_BASENAMES = frozenset({"AGENTS.md", "CLAUDE.md"})
+_PATH_LOCAL_COPILOT_REPO_INSTRUCTIONS = ".github/copilot-instructions.md"
+
+
+def _require_discoverable_guide(item: str, field: str) -> None:
+    """Raise unless `item` is a file either CLI's path-local loading discovers."""
+    basename = Path(item).name
+    if item == _PATH_LOCAL_COPILOT_REPO_INSTRUCTIONS or basename in _PATH_LOCAL_ALLOWED_BASENAMES:
+        return
+    raise ParityConfigError(
+        f"{field} must name a discoverable guide (basename AGENTS.md or "
+        f"CLAUDE.md, or exactly {_PATH_LOCAL_COPILOT_REPO_INSTRUCTIONS}); "
+        f"got {item!r}"
+    )
+
+
 def _load_path_local(value: object, field: str) -> list[str]:
-    """Validate a fixture's `path_local` list: strings, no duplicates.
+    """Validate a fixture's `path_local` list: strings, no duplicates, discoverable.
 
     Unlike `instructions` (deduped by basename because every entry installs
     under `.claude/rules/<basename>`), a `path_local` entry installs at its
     own full repository-relative path for both harnesses, so only an exact
-    duplicate string collides.
+    duplicate string collides. Each entry must also stay inside the
+    repository (checked first, via `_repo_relative_path`, so an escaping
+    path fails with that specific message rather than the discoverable-guide
+    one) and name a file a harness actually discovers by walking to it (see
+    `_require_discoverable_guide`), not an arbitrary repository path.
     """
     raw = value if value is not None else []
     if not isinstance(raw, list) or not all(isinstance(item, str) for item in raw):
         raise ParityConfigError(f"{field} must be an array of strings")
     if len(set(raw)) != len(raw):
         raise ParityConfigError(f"{field} has duplicate paths")
+    for item in raw:
+        _repo_relative_path(item, field)
+        _require_discoverable_guide(item, field)
     return raw
 
 

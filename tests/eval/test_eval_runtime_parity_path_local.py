@@ -108,6 +108,61 @@ def test_path_local_rejects_a_path_escaping_the_repository_root(tmp_path: Path) 
         runtime_parity.load_fixtures(path)
 
 
+# --- Discoverable-guide restriction (security, coordinator finding) --------
+
+
+def test_path_local_rejects_an_agent_install_path(tmp_path: Path) -> None:
+    """Security: a path_local entry naming an agent file would overwrite it on install.
+
+    install_path_local writes at the exact repository-relative path,
+    unprojected; a fixture-declared ".claude/agents/parity.md" would
+    silently replace the agent definition under test after install.
+    """
+    path = _corpus(tmp_path, {"path_local": [".claude/agents/parity.md"]})
+
+    with pytest.raises(runtime_parity.ParityConfigError, match="discoverable guide"):
+        runtime_parity.load_fixtures(path)
+
+
+def test_path_local_rejects_an_arbitrary_repository_file(tmp_path: Path) -> None:
+    path = _corpus(tmp_path, {"path_local": ["README.md"]})
+
+    with pytest.raises(runtime_parity.ParityConfigError, match="discoverable guide"):
+        runtime_parity.load_fixtures(path)
+
+
+def test_path_local_accepts_a_nested_agents_md(tmp_path: Path) -> None:
+    path = _corpus(tmp_path, {"path_local": [".github/AGENTS.md"]})
+
+    fixture = runtime_parity.load_fixtures(path)[0]
+
+    assert fixture.path_local == (".github/AGENTS.md",)
+
+
+def test_path_local_accepts_a_nested_claude_md(tmp_path: Path) -> None:
+    path = _corpus(tmp_path, {"path_local": ["a/b/CLAUDE.md"]})
+
+    fixture = runtime_parity.load_fixtures(path)[0]
+
+    assert fixture.path_local == ("a/b/CLAUDE.md",)
+
+
+def test_path_local_accepts_the_copilot_repo_instructions_file(tmp_path: Path) -> None:
+    path = _corpus(tmp_path, {"path_local": [".github/copilot-instructions.md"]})
+
+    fixture = runtime_parity.load_fixtures(path)[0]
+
+    assert fixture.path_local == (".github/copilot-instructions.md",)
+
+
+def test_path_local_rejects_a_copilot_instructions_file_outside_github(tmp_path: Path) -> None:
+    """Only the exact `.github/copilot-instructions.md` path is allowed."""
+    path = _corpus(tmp_path, {"path_local": ["a/copilot-instructions.md"]})
+
+    with pytest.raises(runtime_parity.ParityConfigError, match="discoverable guide"):
+        runtime_parity.load_fixtures(path)
+
+
 def test_cwd_rejects_an_absolute_path(tmp_path: Path) -> None:
     path = _corpus(tmp_path, {"cwd": "/etc"})
 
