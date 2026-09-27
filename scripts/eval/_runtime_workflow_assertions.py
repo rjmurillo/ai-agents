@@ -16,6 +16,8 @@ variant. This checks the parsed structure instead of matching text.
 
 from __future__ import annotations
 
+import re
+
 import yaml
 
 # The expression a workflow step must never read directly in `run:` (issue
@@ -36,38 +38,47 @@ def _job_steps(job: object) -> list[object]:
     return steps if isinstance(steps, list) else []
 
 
-def _step_untrusted_input_signals(step: object) -> tuple[bool, bool]:
-    """``(run_is_unsafe, env_is_safe)`` for one workflow step.
+_ENV_EXPRESSION = re.compile(r"\$\{\{\s*env\.([A-Za-z_][A-Za-z0-9_]*)\s*\}\}")
 
-    ``run_is_unsafe`` is true when the step's ``run`` string names the
-    untrusted expression directly. ``env_is_safe`` is true when the step's
-    ``env`` mapping has a value naming it instead (the safe indirection).
-    A non-mapping ``step`` (a malformed list entry) reports both false.
+
+def _tainted_env_names(scope: object) -> set[str]:
+    """Names in ``scope``'s ``env`` mapping whose value reads the untrusted expression."""
+    if not isinstance(scope, dict):
+        return set()
+    env = scope.get("env")
+    if not isinstance(env, dict):
+        return set()
+    return {
+        str(name)
+        for name, value in env.items()
+        if isinstance(value, str) and UNTRUSTED_PR_TITLE_EXPRESSION in value
+    }
+
+
+def _run_is_unsafe(step: object, tainted: set[str]) -> bool:
+    """True when ``run`` substitutes the title text into the shell command.
+
+    GitHub substitutes every ``${{ }}`` expression before the shell runs, so
+    ``${{ env.T }}`` for a tainted ``T`` is as unsafe as naming the title
+    directly. A plain ``$T`` shell reference is the safe form.
     """
-    if not isinstance(step, dict):
-        return False, False
-    run = step.get("run")
-    run_is_unsafe = isinstance(run, str) and UNTRUSTED_PR_TITLE_EXPRESSION in run
-    env = step.get("env")
-    env_is_safe = isinstance(env, dict) and any(
-        isinstance(value, str) and UNTRUSTED_PR_TITLE_EXPRESSION in value for value in env.values()
-    )
-    return run_is_unsafe, env_is_safe
+    run = step.get("run") if isinstance(step, dict) else None
+    if not isinstance(run, str):
+        return False
+    if UNTRUSTED_PR_TITLE_EXPRESSION in run:
+        return True
+    return any(name in tainted for name in _ENV_EXPRESSION.findall(run))
 
 
 def workflow_avoids_untrusted_input_in_run(content: str) -> bool:
-    """True when no step's ``run`` names the untrusted expression, and one does in ``env``.
+    """True when no step's ``run`` substitutes the title, and some ``env`` reads it.
 
     Parses with :func:`yaml.safe_load` rather than matching text, so the
     check does not depend on which YAML shape the model wrote: a single-line
-    ``- run: ...`` (no separate ``name:``), a multi-line ``run: |`` block
-    with the expression on a continuation line, and a quoted ``env:`` value
-    are all read the same way parsing does. Any malformed or unexpected
-    shape (invalid YAML, a document that is not a mapping, ``jobs`` that is
-    not a mapping) fails closed: ``False``, never treated as "no steps to
-    check." Per-step classification lives in
-    :func:`_step_untrusted_input_signals`, keeping this function's own
-    branching to the walk over jobs and steps.
+    ``- run: ...``, a multi-line ``run: |`` block, and a quoted ``env:``
+    value are all read the same way. ``env`` counts at workflow, job, and
+    step level. Any malformed or unexpected shape (invalid YAML, a document
+    that is not a mapping, ``jobs`` that is not a mapping) fails closed.
     """
     try:
         document = yaml.safe_load(content)
@@ -78,11 +89,14 @@ def workflow_avoids_untrusted_input_in_run(content: str) -> bool:
     jobs = document.get("jobs")
     if not isinstance(jobs, dict):
         return False
-    found_safe_env_reference = False
+    workflow_tainted = _tainted_env_names(document)
+    found_safe_env_reference = bool(workflow_tainted)
     for job in jobs.values():
+        job_tainted = workflow_tainted | _tainted_env_names(job)
+        found_safe_env_reference = found_safe_env_reference or bool(job_tainted)
         for step in _job_steps(job):
-            run_is_unsafe, env_is_safe = _step_untrusted_input_signals(step)
-            if run_is_unsafe:
+            tainted = job_tainted | _tainted_env_names(step)
+            if _run_is_unsafe(step, tainted):
                 return False
-            found_safe_env_reference = found_safe_env_reference or env_is_safe
+            found_safe_env_reference = found_safe_env_reference or bool(tainted)
     return found_safe_env_reference

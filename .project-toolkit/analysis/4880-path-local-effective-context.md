@@ -111,6 +111,7 @@ No fixture regressed.
 In the before arm, all three runs edited only the generated mirror.
 In the after arm, one run edited only the canonical `templates/rules/testing.md`.
 One run edited both files, and one edited only the mirror.
+A later, stricter `workflow_untrusted_input` check also rejects `${{ env.NAME }}` in `run:` for a name that reads the title. All six saved `greet.yml` outputs still pass it.
 Three trials per arm is a small sample, so read the last row as "no regression", not as a measured gain.
 
 Two harness defects surfaced on the way and are fixed in this branch:

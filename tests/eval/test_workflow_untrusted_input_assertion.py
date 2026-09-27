@@ -180,3 +180,77 @@ def test_untrusted_input_run_fixture_controls_discriminate() -> None:
     fixtures = parity.load_fixtures(_PATH_LOCAL_FIXTURES)
     fixture = next(f for f in fixtures if f.fixture_id == "untrusted-input-run")
     assert any(spec.kind == "workflow_untrusted_input" for spec in fixture.assertions)
+
+
+def test_env_expression_interpolated_into_run_fails(tmp_path: Path) -> None:
+    """REQ-10: `${{ env.T }}` in `run` substitutes the title text, so it is unsafe."""
+    workflow = (
+        "on: pull_request\n"
+        "jobs:\n"
+        "  greet:\n"
+        "    steps:\n"
+        "      - env:\n"
+        f"          T: ${{{{ {MARKER} }}}}\n"
+        '        run: echo "${{ env.T }}"\n'
+    )
+    assert _score(tmp_path, workflow) is False
+
+
+def test_job_level_env_indirection_passes(tmp_path: Path) -> None:
+    """REQ-10: a title read through job-level `env` and `$T` in `run` is safe."""
+    workflow = (
+        "on: pull_request\n"
+        "jobs:\n"
+        "  greet:\n"
+        "    env:\n"
+        f"      T: ${{{{ {MARKER} }}}}\n"
+        "    steps:\n"
+        '      - run: echo "$T"\n'
+    )
+    assert _score(tmp_path, workflow) is True
+
+
+def test_workflow_level_env_interpolated_into_run_fails(tmp_path: Path) -> None:
+    """REQ-10: a workflow-level `env` name interpolated with `${{ env.T }}` is unsafe."""
+    workflow = (
+        "on: pull_request\n"
+        "env:\n"
+        f"  T: ${{{{ {MARKER} }}}}\n"
+        "jobs:\n"
+        "  greet:\n"
+        "    steps:\n"
+        '      - run: echo "${{ env.T }}"\n'
+    )
+    assert _score(tmp_path, workflow) is False
+
+
+def test_unrelated_env_expression_in_run_passes(tmp_path: Path) -> None:
+    """REQ-10: `${{ env.OTHER }}` for a name that never reads the title stays safe."""
+    workflow = (
+        "on: pull_request\n"
+        "jobs:\n"
+        "  greet:\n"
+        "    env:\n"
+        f"      T: ${{{{ {MARKER} }}}}\n"
+        "      OTHER: fixed\n"
+        "    steps:\n"
+        '      - run: echo "${{ env.OTHER }} $T"\n'
+    )
+    assert _score(tmp_path, workflow) is True
+
+
+def test_malformed_jobs_and_steps_are_skipped(tmp_path: Path) -> None:
+    """REQ-10: a non-mapping job, a non-mapping step, and a step without `run` are skipped."""
+    workflow = (
+        "on: pull_request\n"
+        "jobs:\n"
+        "  broken: not-a-mapping\n"
+        "  greet:\n"
+        "    env:\n"
+        f"      T: ${{{{ {MARKER} }}}}\n"
+        "    steps:\n"
+        "      - just-a-string\n"
+        "      - name: no run here\n"
+        '      - run: echo "$T"\n'
+    )
+    assert _score(tmp_path, workflow) is True
