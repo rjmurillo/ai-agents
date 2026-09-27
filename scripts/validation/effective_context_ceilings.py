@@ -1,25 +1,18 @@
 """Ratchet ceilings for path-local effective context (issue #4880).
 
-Split out of ``effective_context.py``: this module's own ceiling data (ten
-frozen-target entries plus 124 per-directory, per-harness entries) pushed
-that module to 624 lines, past the taste-lints 500-line file-size ERROR
-threshold. Pure data plus the one shared label string; every check that
-reads these constants (``check_ceilings``, ``check_directory_ceiling``,
-``_run_ci``) stays in ``effective_context.py``, so a test that monkeypatches
-``effective_context.CEILINGS_BYTES`` or
-``effective_context.PATH_LOCAL_DIRECTORY_CEILINGS`` still reaches the same
-name those functions read: both are imported there under their own names,
-not re-derived, and the functions that consult them are defined in that
-same module, so the patched module-global is exactly what their own
-``__globals__`` lookup resolves.
+`uv run python -m scripts.validation.effective_context --write-ceilings`
+re-measures CEILINGS_BYTES and PATH_LOCAL_DIRECTORY_CEILINGS and rewrites
+this module. Review that diff like any code change. FROZEN_TARGETS,
+HARNESSES, and CEILING_LABEL come from the spec and are carried over.
+effective_context.py imports these names, so a test that monkeypatches
+them there reaches the functions that read them.
 """
 
 from __future__ import annotations
 
 # Frozen targets from SPEC-4880-path-local-effective-context.md, "Frozen
-# targets" table. Each exercises a different depth and a different nested
-# file combination (workflow under two directories, script under two, agent
-# template under three for Claude's src/ split).
+# targets" table. --write-ceilings never edits this tuple: adding or
+# removing a frozen target is a spec decision, not a measurement.
 FROZEN_TARGETS: tuple[str, ...] = (
     ".github/workflows/pr-validation.yml",
     "scripts/validation/pre_pr.py",
@@ -30,55 +23,31 @@ FROZEN_TARGETS: tuple[str, ...] = (
 
 HARNESSES: tuple[str, ...] = ("claude", "copilot")
 
-# These are LOCAL, NON-REGRESSION ceilings measured at the accepted state on
-# the commit where SPEC-4880 seeded them (this module's own first commit,
-# `git log -1 --format=%H -- scripts/validation/effective_context.py`).
-# Anthropic and GitHub publish no 25 KB, 200-line, or 50-line hard limit for
-# CLAUDE.md or AGENTS.md; no vendor size limit is implied by any value below.
-# Lower a ceiling when the nested corpus shrinks; never raise one without
-# recording why in the same change. This label covers both CEILINGS_BYTES
-# (per frozen target) and PATH_LOCAL_DIRECTORY_CEILINGS below (every other
-# instructed directory): both are local, measured, non-vendor ceilings.
 CEILING_LABEL: str = (
     "These are local, non-regression ceilings measured at the accepted "
     "state on the commit where they were set. No vendor (Anthropic, "
-    "GitHub) publishes a size limit for CLAUDE.md or AGENTS.md; no vendor "
-    "limit is implied by any ceiling value."
+    "GitHub) publishes a size limit for CLAUDE.md or AGENTS.md; no "
+    "vendor limit is implied by any ceiling value."
 )
 
+# Re-measured by --write-ceilings for every frozen target above, both
+# harnesses. Issue #4880 AC7: PATH_LOCAL_DIRECTORY_CEILINGS below covers
+# every OTHER git-tracked directory with a nested CLAUDE.md/AGENTS.md, so
+# growth outside the five frozen targets is caught too. See
+# CEILING_LABEL above: local, measured, no vendor limit implied.
 CEILINGS_BYTES: dict[tuple[str, str], int] = {
-    (".github/workflows/pr-validation.yml", "claude"): 5_190,
-    (".github/workflows/pr-validation.yml", "copilot"): 5_190,
-    ("scripts/validation/pre_pr.py", "claude"): 4_141,
-    ("scripts/validation/pre_pr.py", "copilot"): 4_141,
-    ("build/scripts/build_all.py", "claude"): 5_807,
-    ("build/scripts/build_all.py", "copilot"): 5_807,
-    ("templates/agents/analyst.shared.md", "claude"): 5_923,
-    ("templates/agents/analyst.shared.md", "copilot"): 5_923,
-    # Claude loads only `src/AGENTS.md` and `src/CLAUDE.md`: `src/claude/`
-    # has no `CLAUDE.md`, so Claude Code's own loading model (imports only
-    # follow from a `CLAUDE.md`) never reaches `src/claude/AGENTS.md`.
-    # Copilot's directory-chain rule needs no import, reads AGENTS.md/CLAUDE.md
-    # directly per directory, and so also counts `src/claude/AGENTS.md`. This
-    # asymmetry is why SPEC-4880 picked this target: it exercises the one
-    # place the two harnesses' nested layers genuinely diverge.
-    ("src/claude/agents/analyst.md", "claude"): 3_183,
-    ("src/claude/agents/analyst.md", "copilot"): 6_376,
+    (".github/workflows/pr-validation.yml", "claude"): 5190,
+    (".github/workflows/pr-validation.yml", "copilot"): 5190,
+    ("build/scripts/build_all.py", "claude"): 5807,
+    ("build/scripts/build_all.py", "copilot"): 5807,
+    ("scripts/validation/pre_pr.py", "claude"): 4141,
+    ("scripts/validation/pre_pr.py", "copilot"): 4141,
+    ("src/claude/agents/analyst.md", "claude"): 3183,
+    ("src/claude/agents/analyst.md", "copilot"): 6376,
+    ("templates/agents/analyst.shared.md", "claude"): 5923,
+    ("templates/agents/analyst.shared.md", "copilot"): 5923,
 }
 
-# Issue #4880 AC7: the five frozen targets above cannot catch growth in a
-# directory none of them passes through. This maps every git-tracked
-# directory `discover_nested_directories` finds (any directory with its own
-# nested `CLAUDE.md`/`AGENTS.md`) to its own measured ceiling, per harness,
-# rather than one shared ceiling: a shared ceiling could not tell a directory
-# that grew a little from one that grew to the shared limit, and it let any
-# directory regrow all the way up to the single highest-measured value
-# (`.claude/hooks/PreCompact` under Copilot, 11,369 bytes) without tripping.
-# Each value below is that directory's own measured path-local bytes at this
-# map's most recent update; a directory this repository grows that has no
-# entry here fails closed (`check_directory_ceiling` names it and this
-# constant), rather than passing silently or inheriting a neighbor's ceiling.
-# See CEILING_LABEL above: local, measured, no vendor limit implied.
 PATH_LOCAL_DIRECTORY_CEILINGS: dict[tuple[str, str], int] = {
     (".agents", "claude"): 3482,  # agents-write-target: historical -- dict key, not a path join
     (".agents", "copilot"): 3482,  # agents-write-target: historical -- dict key, not a path join
