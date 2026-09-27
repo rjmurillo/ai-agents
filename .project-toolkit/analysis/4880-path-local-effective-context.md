@@ -94,21 +94,41 @@ Anthropic publishes no 25 KB, 200-line, or 50-line hard limit for these files, a
 | `untrusted-input-run` | The pull request title reaches `run:` only through `env:` | Positive passes, negative fails |
 | `generated-instructions-edit` | A rule edit lands in `templates/rules/`, not the generated mirror | Positive passes, negative fails |
 
-Live runs on 2026-09-27 did not execute a model turn:
+### Claude Code results
 
-- Claude Code 2.1.283, `claude-sonnet-5`: every trial ended with the response `Credit balance is too low` (exit 3).
-- Copilot CLI 1.0.88: `session.error` with status 402, `quota_exceeded` (exit 3).
+Claude Code 2.1.283, `claude-sonnet-5`, three trials per arm, run on 2026-09-27 at commit `a2f1b1c39`.
+The before arm reads every installed instruction file from `2628d8c1` with `--instructions-ref`.
+The after arm reads them from the working tree.
+The CLI used its existing login through `CLAUDE_CODE_OAUTH_TOKEN`, so the isolated profile stayed isolated.
 
-This 1.0.88 is a different resolution than the 1.0.89 the `--observe` listing probes above used: `probe_version` reads the binary through the eval harness's own isolated profile (`runtime_env`), not the ambient shell's `copilot` the listing probes ran under. Recorded here as two separate, per-run facts rather than reconciled into one version, since no measurement in this session traced why the isolated profile resolved an older release.
+| Fixture | Before | After |
+|---|---:|---:|
+| `sha-pin-action` | 3/3 | 3/3 |
+| `untrusted-input-run` | 3/3 | 3/3 |
+| `generated-instructions-edit` | 0/3 | 1/3 |
 
-The before and after comparison is therefore NOT RUN.
-The command to run it once either account has quota:
+No fixture regressed.
+In the before arm, all three runs edited only the generated mirror.
+In the after arm, one run edited only the canonical `templates/rules/testing.md`.
+One run edited both files, and one edited only the mirror.
+Three trials per arm is a small sample, so read the last row as "no regression", not as a measured gain.
+
+Two harness defects surfaced on the way and are fixed in this branch:
+
+- A nested `cwd` limited Claude's file access to that directory, so the first live run failed on permissions in both arms. The evaluator now adds `--add-dir` with the workspace root.
+- Copilot received `--no-custom-instructions` for a fixture with only `path_local` files, which would have disabled the files under test.
+
+### Copilot CLI results
+
+NOT RUN. The isolated Copilot profile (CLI 1.0.88) returned `session.error` with status 402, `quota_exceeded`, before any model turn.
+This 1.0.88 differs from the 1.0.89 that the `--observe` listing probes used, because the eval harness resolves the binary through its own isolated profile.
+To run the Copilot arm once quota returns:
 
 ```bash
 uv run python scripts/eval/eval_runtime_parity.py \
   --fixtures scripts/eval/examples/path-local-parity-fixtures.json \
   --instructions-ref 2628d8c1282277ad39bc605eb6a31131eff2d77e \
-  --model claude-sonnet-5 --harnesses both \
+  --model claude-sonnet-5 --harnesses copilot \
   --output artifacts/runtime-parity/path-local/before.json \
   --workspace-root "$(mktemp -d)"
 ```

@@ -111,6 +111,7 @@ The metric is path-local bytes per target and harness, printed by the command an
 ## Deferred
 
 - A Claude membership probe through a live model call. Owner: a follow-up issue if the maintainer wants one.
+- The Copilot live arm of REQ-10. Copilot quota returned 402 on 2026-09-27. The command is in the analysis document. Owner: the maintainer, once quota returns.
 
 ## CVA summary
 
