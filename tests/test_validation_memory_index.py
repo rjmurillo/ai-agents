@@ -377,6 +377,21 @@ class TestCheckIndexFormat:
         assert result.passed is False
         assert result.violation_lines == [1]
 
+    def test_frontmatter_before_table_detected(self, tmp_path: Path) -> None:
+        """Issue #4776: a domain index is a pure table, with no frontmatter."""
+        index = tmp_path / "index.md"
+        index.write_text(
+            "---\n"
+            "title: skills\n"
+            "---\n"
+            "| Keywords | File |\n"
+            "|----------|------|\n"
+            "| alpha | skill |\n"
+        )
+        result = check_index_format(index)
+        assert result.passed is False
+        assert result.violation_lines == [1, 2, 3]
+
     def test_prose_between_rows_detected(self, tmp_path: Path) -> None:
         """Regression guard: prose between rows fails before and after #4776."""
         index = tmp_path / "index.md"
