@@ -158,10 +158,17 @@ def resolve_target(target: Target) -> Target:
 def validate_request(args: argparse.Namespace) -> None:
     if args.issue <= 0:
         raise UsageError("--issue must be a positive integer")
-    if args.relation == "parent" and len(args.target) != 1:
-        raise UsageError("--relation parent takes exactly one --target; an issue has one parent")
     if args.replace_parent and (args.remove or args.relation not in ("parent", "sub-issue")):
         raise UsageError("--replace-parent applies only when adding parent or sub-issue links")
+
+
+def unique_targets(texts: list[str], owner: str, repo: str) -> list[Target]:
+    """Parse targets and drop repeats, so 100, #100, and o/r#100 link once."""
+    unique: dict[str, Target] = {}
+    for text in texts:
+        target = parse_target(text, owner, repo)
+        unique.setdefault(target.key, target)
+    return list(unique.values())
 
 
 def _linked_keys(relation: str, current: dict[str, Any]) -> set[str]:
@@ -246,7 +253,9 @@ def apply_target(
 def run(args: argparse.Namespace, owner: str, repo: str) -> dict[str, Any]:
     validate_request(args)
     source_label = f"{owner}/{repo}#{args.issue}"
-    targets = [parse_target(t, owner, repo) for t in args.target]
+    targets = unique_targets(args.target, owner, repo)
+    if args.relation == "parent" and len(targets) != 1:
+        raise UsageError("--relation parent takes exactly one --target; an issue has one parent")
     if any(t.key == source_label.lower() for t in targets):
         raise UsageError("An issue cannot be linked to itself")
     current = fetch_relationships(owner, repo, args.issue)

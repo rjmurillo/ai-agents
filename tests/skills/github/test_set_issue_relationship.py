@@ -1119,3 +1119,18 @@ class TestReviewRegressions:
         assert rc == 1
         assert "o/r#50" in _out(capsys)["Error"]["Message"]
         assert stub.mutation_calls == []
+
+    def test_repeated_target_links_once(self, _import_module, capsys):
+        stub = GraphQLStub(source=_source_data(), targets={_target_key(100): _target_payload()})
+        argv = ["--issue", "5", "--relation", "blocked-by", "--target", "100", "#100", "o/r#100"]
+        rc = _run(_import_module, [*argv, "--output-format", "json"], stub)
+        assert rc == 0
+        assert len(stub.mutation_calls) == 1
+        assert [r["action"] for r in _out(capsys)["Data"]["results"]] == ["linked"]
+
+    def test_parent_repeated_target_counts_as_one(self, _import_module, capsys):
+        stub = GraphQLStub(source=_source_data(), targets={_target_key(100): _target_payload()})
+        argv = ["--issue", "5", "--relation", "parent", "--target", "100", "#100"]
+        rc = _run(_import_module, [*argv, "--output-format", "json"], stub)
+        assert rc == 0
+        assert len(stub.mutation_calls) == 1
