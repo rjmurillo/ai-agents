@@ -150,10 +150,10 @@ def _run_in_process_group(
 
 def _tool_args(tools: Sequence[str], harness: str) -> list[str]:
     if harness == "claude":
-        names = {"question": "AskUserQuestion", "write": "Edit"}
+        names = {"question": "AskUserQuestion", "read": "Read", "write": "Edit"}
         selected = [names[name] for name in tools]
         return ["--tools", ",".join(selected)] if selected else ["--tools", ""]
-    names = {"question": "ask_user", "write": "edit"}
+    names = {"question": "ask_user", "read": "view", "write": "edit"}
     selected = [names[name] for name in tools]
     args = [f"--available-tools={','.join(selected)}"]
     args.extend(f"--allow-tool={tool}" for tool in selected)

@@ -152,7 +152,7 @@ def test_fixture_rejects_agent_path_escape(tmp_path: Path) -> None:
 
 def test_fixture_rejects_unsupported_tool(tmp_path: Path) -> None:
     payload = json.loads(FIXTURES.read_text(encoding="utf-8"))
-    payload["fixtures"][0]["tools"] = ["read"]
+    payload["fixtures"][0]["tools"] = ["shell"]
     path = tmp_path / "fixtures.json"
     path.write_text(json.dumps(payload), encoding="utf-8")
 

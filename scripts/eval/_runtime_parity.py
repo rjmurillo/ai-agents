@@ -12,7 +12,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCHEMA_VERSION = 1
-SUPPORTED_TOOLS = frozenset({"question", "write"})
+SUPPORTED_TOOLS = frozenset({"question", "read", "write"})
 DETERMINISTIC_ASSERTION_KINDS = frozenset(
     {
         "regex",

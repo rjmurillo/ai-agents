@@ -442,3 +442,23 @@ def test_run_evaluation_launches_the_model_call_from_the_declared_cwd(
     assert code == parity.EXIT_OK
     workspace = tmp_path / "run" / "workspaces" / "resume-phase-3" / "claude"
     assert seen_cwd["claude"] == (workspace / ".github" / "workflows").resolve()
+
+
+def test_read_tool_maps_to_each_cli_read_tool() -> None:
+    """REQ-9: a `read` fixture tool exposes Claude `Read` and Copilot `view`.
+
+    Claude's Edit refuses a file the session has not read, and the path-local
+    fixtures need the model to open a sibling workflow before it edits.
+    """
+    assert parity._tool_args(["read", "write"], "claude") == ["--tools", "Read,Edit"]
+    assert parity._tool_args(["read", "write"], "copilot") == [
+        "--available-tools=view,edit",
+        "--allow-tool=view",
+        "--allow-tool=edit",
+    ]
+
+
+def test_loader_accepts_read_tool(tmp_path: Path) -> None:
+    """REQ-9: `read` is a supported fixture tool value."""
+    fixtures = runtime_parity.load_fixtures(_corpus(tmp_path, {"tools": ["read", "write"]}))
+    assert fixtures[0].tools == ("read", "write")
