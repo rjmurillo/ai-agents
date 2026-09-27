@@ -30,6 +30,17 @@ python:
   - '**/*.ps1'
   - '**/*.psm1'
   - '**/*.pyw'
+  # Issue #4880: a nested AGENTS.md/CLAUDE.md is a direct input to the
+  # path-local effective-context ratchet (test_effective_context_ratchet.py,
+  # test_effective_context_sources.py read its bytes). `**/*.md` below
+  # already classifies both as TEST_INPUT, so this repository is not
+  # currently skipping pytest on a nested-guide-only change; these two
+  # entries are named explicitly anyway, matching this file's own precedent
+  # (the "Canonical rules" comment just below) of keeping a named entry when
+  # a broader extension glob already covers it, so a future narrowing of
+  # `**/*.md` cannot silently drop this ratchet's own test inputs.
+  - '**/AGENTS.md'
+  - '**/CLAUDE.md'
   # Canonical rules and both generated instruction trees are
   # direct inputs to Python contract tests. They were named here
   # when the filter scoped Markdown to a curated set. It no longer

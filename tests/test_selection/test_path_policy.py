@@ -83,6 +83,35 @@ def test_runtime_read_markdown_classifies_as_test_input() -> None:
     assert pattern == ".claude/skills/**"
 
 
+@pytest.mark.parametrize(
+    "rel",
+    [
+        ".github/AGENTS.md",
+        "scripts/AGENTS.md",
+        "src/claude/AGENTS.md",
+        ".github/CLAUDE.md",
+        "scripts/CLAUDE.md",
+    ],
+)
+def test_nested_agents_or_claude_guide_classifies_as_test_input(rel: str) -> None:
+    """Issue #4880: a nested guide is a path-local ratchet test input.
+
+    `test_effective_context_ratchet.py` and `test_effective_context_sources.py`
+    read a nested `AGENTS.md`/`CLAUDE.md`'s bytes directly (the path-local
+    ratchet), so a PR that only grows one must still run pytest and that
+    ratchet test locally and in CI, not skip the whole matrix.
+    """
+    impact, pattern = path_policy.classify(rel)
+    assert impact is path_policy.Impact.TEST_INPUT
+    assert pattern in ("**/AGENTS.md", "**/CLAUDE.md")
+
+
+def test_root_agents_md_still_classifies_test_input_with_the_new_globs() -> None:
+    """The pre-existing bare `AGENTS.md`/`README.md` entries are not shadowed."""
+    impact, pattern = path_policy.classify("AGENTS.md")
+    assert impact is path_policy.Impact.TEST_INPUT
+
+
 def test_a_path_no_glob_names_classifies_as_unrelated() -> None:
     """Negative case: nothing in the policy covers it, so CI skips pytest.
 
