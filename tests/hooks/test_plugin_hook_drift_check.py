@@ -227,6 +227,8 @@ def test_compare_install_reports_the_other_direction_too(tmp_path) -> None:
 
 def test_compare_install_reports_an_unreadable_install_as_drift(tmp_path) -> None:
     install = _make_plugin_root(tmp_path / "install", None)
+    (install / "hooks").mkdir()
+    (install / "hooks" / "hooks.json").write_text("{not json", encoding="utf-8")
 
     report = drift.compare_install("Claude Code", install, set())
 

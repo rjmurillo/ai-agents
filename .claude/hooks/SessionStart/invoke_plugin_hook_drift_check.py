@@ -78,6 +78,7 @@ if _hook_dir not in sys.path:
 from plugin_hook_drift_model import (  # noqa: E402
     CLAUDE_SCHEMA,
     COPILOT_SCHEMA,
+    install_registrations,
     read_plugin_identity,
     root_registrations,
 )
@@ -271,7 +272,7 @@ def compare_install(
     schema: str = CLAUDE_SCHEMA,
 ) -> InstallReport:
     """Compare one installed copy's enforced units against the source set."""
-    installed, error = root_registrations(install_path, schema)
+    installed, error = install_registrations(install_path, schema)
     if installed is None:
         return InstallReport(surface_label, install_path, (), (), error)
     return InstallReport(
