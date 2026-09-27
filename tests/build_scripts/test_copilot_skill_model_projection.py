@@ -19,10 +19,8 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(REPO_ROOT / "build" / "scripts"))
 
 import generate_skills  # noqa: E402
-from copilot_body_translation import (  # noqa: E402
-    drop_frontmatter_keys,
-    translate_skill_file,
-)
+from copilot_body_translation import translate_skill_file  # noqa: E402
+from frontmatter_key_drop import drop_frontmatter_keys  # noqa: E402
 
 _OUT = Path("/nonexistent/skills")
 _KEYS = frozenset({"model", "model-rationale"})

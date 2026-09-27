@@ -83,3 +83,8 @@ does not read generated mirrors. Rule 6 now names the checks that do:
 `tests/build_scripts/test_copilot_skill_model_projection.py` and
 `build_all.py --check`. The edit narrows a claim and changes no rule, so no
 new vote round ran.
+
+The `/review` code-quality axis then flagged a cohesion drop in
+`copilot_body_translation.py`. The key-drop code moved to its own module,
+`build/scripts/frontmatter_key_drop.py`, and the Impact table names it. No
+rule changed.

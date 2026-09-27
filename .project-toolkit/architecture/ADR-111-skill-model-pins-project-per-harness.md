@@ -184,7 +184,8 @@ declared-projection shape ADR-107 prefers over an imperative transform.
 | --- | --- | --- | --- |
 | `templates/platforms/copilot-cli.yaml` | Direct | `artifacts.skills.frontmatterDrop: [model, model-rationale]` | Low |
 | `build/scripts/generate_skills.py` | Direct | Reads and validates `frontmatterDrop`; passes it to the copy | Low |
-| `build/scripts/copilot_body_translation.py` | Direct | `drop_frontmatter_keys` with a parse-and-compare guard | Low |
+| `build/scripts/frontmatter_key_drop.py` | Direct (new) | `drop_frontmatter_keys` with a parse-and-compare guard | Low |
+| `build/scripts/copilot_body_translation.py` | Direct | `translate_skill_file` takes `drop_keys` and calls the new module | Low |
 | `build/scripts/validate_templates_schema.py` | Direct | `frontmatterDrop` allowed on the skills stanza | Low |
 | `src/copilot-cli/skills/*/SKILL.md` | Generated | Seven files lose two lines each | Low |
 | `scripts/validation/check_model_pins.py` | None | Scans authored trees only; unchanged | Low |
@@ -192,7 +193,7 @@ declared-projection shape ADR-107 prefers over an imperative transform.
 
 ## Implementation Notes
 
-`drop_frontmatter_keys` drops a named top-level key, bare or quoted, plus its
+`drop_frontmatter_keys` (`build/scripts/frontmatter_key_drop.py`) drops a named top-level key, bare or quoted, plus its
 value lines: indented lines, un-indented `- ` list items, and blank lines
 inside a block scalar. It then parses the frontmatter before and after, and
 raises `ValueError` unless the result equals the input minus the named keys.
