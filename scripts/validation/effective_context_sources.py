@@ -154,7 +154,7 @@ class Repo:
             if not candidate.is_file():
                 return None
             return candidate.read_bytes()
-        if not self._exists_at_rev(rel_path):
+        if not self._exists_at_rev(self._rev, rel_path):
             return None
         try:
             result = subprocess.run(
@@ -172,18 +172,33 @@ class Repo:
             raise GitUnavailableError(msg)
         return result.stdout
 
-    def _exists_at_rev(self, rel_path: str) -> bool:
-        """True when ``rel_path`` is a blob at ``self._rev`` (``git cat-file -t``).
+    def _exists_at_rev(self, rev: str, rel_path: str) -> bool:
+        """True when ``rel_path`` names a blob (a file, not a tree) at ``rev``.
 
-        The one existence probe :meth:`read_bytes` trusts. A non-zero exit
-        means "not present at this rev". A tree (a directory) is also absent,
-        because ``git show`` of a tree prints a listing, not file bytes. A
-        timeout raises, because a hung probe proves neither presence nor
-        absence.
+        Takes ``rev`` as an explicit ``str`` argument, not ``self._rev``
+        directly (matching :meth:`_ls_tree`'s own signature): the one caller,
+        :meth:`read_bytes`, already narrowed ``self._rev`` to ``str`` in its
+        own ``if self._rev is None`` branch, and passing the narrowed value
+        keeps that narrowing visible to mypy across the method call.
+
+        Coordinator finding: an earlier ``git cat-file -t`` probe treated
+        ANY non-zero exit as absence, so a real git error (a broken
+        repository, an unreadable pack) undercounted an inventory the same
+        way an unguarded ``git show`` failure once did. ``git ls-tree
+        <rev> -- <rel_path>`` (argv list, ``--`` guards a leading-dash path,
+        matching :meth:`_ls_tree`) prints at most the one entry that
+        exactly matches ``rel_path``: a file's own ``blob`` line, a
+        directory's own ``tree`` line, or nothing when the path is absent.
+        Only empty stdout means absent; a non-zero exit is a real git error,
+        raised as :class:`GitUnavailableError`, matching every other
+        ``Repo`` accessor's contract; only a ``blob`` entry counts as
+        existing, so a directory still reads as absent (:meth:`read_bytes`
+        cannot return file bytes for one), the same outcome the earlier
+        ``cat-file -t`` probe gave for that case.
         """
         try:
             result = subprocess.run(
-                ["git", "cat-file", "-t", f"{self._rev}:{rel_path}"],
+                ["git", "ls-tree", rev, "--", rel_path],
                 cwd=self._root,
                 capture_output=True,
                 text=True,
@@ -192,9 +207,18 @@ class Repo:
                 timeout=30,
             )
         except subprocess.TimeoutExpired as exc:
-            msg = f"git cat-file -t {self._rev}:{rel_path} timed out in {self._root}: {exc}"
+            msg = f"git ls-tree {rev} -- {rel_path} timed out in {self._root}: {exc}"
             raise GitUnavailableError(msg) from exc
-        return result.returncode == 0 and result.stdout.strip() == "blob"
+        if result.returncode != 0:
+            stderr = _decode(result.stderr)
+            msg = f"git ls-tree {rev} -- {rel_path} exited {result.returncode}: {stderr}"
+            raise GitUnavailableError(msg)
+        stdout = result.stdout.strip()
+        if not stdout:
+            return False
+        metadata, _, _name = stdout.partition("\t")
+        fields = metadata.split(" ")
+        return len(fields) >= 2 and fields[1] == "blob"
 
     def is_dir(self, rel_path: str) -> bool:
         """True when ``rel_path`` names a directory (repo root if empty)."""

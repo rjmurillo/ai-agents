@@ -213,11 +213,15 @@ class TestRepoDirectAccessors:
 # `subprocess.TimeoutExpired` on any of this class's `git` calls escaped as
 # an uncaught traceback instead of the ADR-035 exit-code-3 path every other
 # `git` failure in this package already takes. `read_bytes` now probes
-# existence with `git cat-file -t <rev>:<path>` first and requires a blob, so
-# "absent at that rev" stays distinguishable from "present but unreadable"
-# and a directory never reads as file bytes; a
+# existence with `git ls-tree <rev> -- <path>` first and requires a `blob`
+# entry, so "absent at that rev" stays distinguishable from "present but
+# unreadable" and a directory never reads as file bytes; a
 # non-zero `git show` after that probe confirmed existence is a real git
-# error, not absence. `_ls_tree` and `rev_is_valid` share the same
+# error, not absence. A non-zero exit from the existence probe itself is
+# also a real git error now (an earlier `git cat-file -t` version treated
+# any such exit as absence, undercounting the same way an unguarded `git
+# show` failure once did); only empty `ls-tree` stdout means absent.
+# `_ls_tree` and `rev_is_valid` share the same
 # uncaught-timeout shape (subprocess.run to `git`, no `except
 # TimeoutExpired`), so they get the same timeout-to-GitUnavailableError fix
 # in the same diff; their existing non-zero-exit contract (`[]` / `False`)
@@ -231,8 +235,8 @@ def _fake_run_by_argv(responses: dict[str, object]) -> object:
 
     ``responses[subcommand]`` is either a
     :class:`~tests.validation._effective_context_helpers.FakeCompletedProcess`
-    or an exception instance to raise, so one fake can drive a ``cat-file``
-    call and a ``show``/``ls-tree``/``rev-parse`` call differently in the
+    or an exception instance to raise, so one fake can drive an existence
+    probe's ``ls-tree`` call and a content ``show`` call differently in the
     same test.
     """
 
@@ -259,28 +263,28 @@ class TestReq2GitFailureHandling:
         repo = ecs.Repo(tmp_path, old_sha)
         assert repo.read_bytes("new-file.md") is None
 
-    def test_read_bytes_returns_none_when_cat_file_reports_absent(self, tmp_path: Path) -> None:
-        """A `cat-file -t` non-zero exit is absence; `git show` must not even run."""
+    def test_read_bytes_returns_none_when_ls_tree_reports_absent(self, tmp_path: Path) -> None:
+        """`git ls-tree`'s empty stdout is absence; `git show` must not even run."""
         from tests.validation._effective_context_helpers import FakeCompletedProcess
 
         run = mock.Mock(
-            side_effect=_fake_run_by_argv({"cat-file": FakeCompletedProcess(1, stderr="missing")})
+            side_effect=_fake_run_by_argv({"ls-tree": FakeCompletedProcess(0, stdout="")})
         )
         with mock.patch.object(ecs.subprocess, "run", run):
             repo = ecs.Repo(tmp_path, "deadbeef")
             assert repo.read_bytes("gone.md") is None
-        assert run.call_count == 1, "git show must not run once cat-file said absent"
+        assert run.call_count == 1, "git show must not run once ls-tree said absent"
 
-    def test_read_bytes_raises_when_show_fails_after_cat_file_confirms_existence(
+    def test_read_bytes_raises_when_show_fails_after_ls_tree_confirms_existence(
         self, tmp_path: Path
     ) -> None:
-        """`cat-file -t` says a blob exists, but `git show` still fails: a real git error."""
+        """`git ls-tree` lists a blob, but `git show` still fails: a real git error."""
         from tests.validation._effective_context_helpers import FakeCompletedProcess
 
         run = mock.Mock(
             side_effect=_fake_run_by_argv(
                 {
-                    "cat-file": FakeCompletedProcess(0, stdout="blob\n"),
+                    "ls-tree": FakeCompletedProcess(0, stdout="100644 blob abc123\tpresent.md\n"),
                     "show": FakeCompletedProcess(128, stderr="fatal: loose object corrupt"),
                 }
             )
@@ -290,7 +294,7 @@ class TestReq2GitFailureHandling:
             with pytest.raises(ecs.GitUnavailableError, match="corrupt"):
                 repo.read_bytes("present.md")
 
-    def test_read_bytes_raises_on_cat_file_timeout(self, tmp_path: Path) -> None:
+    def test_read_bytes_raises_on_ls_tree_timeout(self, tmp_path: Path) -> None:
         run = mock.Mock(side_effect=subprocess.TimeoutExpired(cmd="git", timeout=30))
         with mock.patch.object(ecs.subprocess, "run", run):
             repo = ecs.Repo(tmp_path, "deadbeef")
@@ -303,7 +307,7 @@ class TestReq2GitFailureHandling:
         run = mock.Mock(
             side_effect=_fake_run_by_argv(
                 {
-                    "cat-file": FakeCompletedProcess(0, stdout="blob\n"),
+                    "ls-tree": FakeCompletedProcess(0, stdout="100644 blob abc123\tpresent.md\n"),
                     "show": subprocess.TimeoutExpired(cmd="git", timeout=30),
                 }
             )
@@ -312,6 +316,52 @@ class TestReq2GitFailureHandling:
             repo = ecs.Repo(tmp_path, "deadbeef")
             with pytest.raises(ecs.GitUnavailableError):
                 repo.read_bytes("present.md")
+
+    def test_exists_at_rev_true_for_a_blob_entry(self, tmp_path: Path) -> None:
+        """Direct coverage: an `ls-tree` line whose type field is `blob`."""
+        from tests.validation._effective_context_helpers import FakeCompletedProcess
+
+        run = mock.Mock(return_value=FakeCompletedProcess(0, stdout="100644 blob abc\tf.md\n"))
+        with mock.patch.object(ecs.subprocess, "run", run):
+            repo = ecs.Repo(tmp_path, "deadbeef")
+            assert repo._exists_at_rev("deadbeef", "f.md") is True
+
+    def test_exists_at_rev_false_for_a_tree_entry(self, tmp_path: Path) -> None:
+        """Direct coverage: an `ls-tree` line whose type field is `tree` (a directory)."""
+        from tests.validation._effective_context_helpers import FakeCompletedProcess
+
+        run = mock.Mock(return_value=FakeCompletedProcess(0, stdout="040000 tree abc\tdir\n"))
+        with mock.patch.object(ecs.subprocess, "run", run):
+            repo = ecs.Repo(tmp_path, "deadbeef")
+            assert repo._exists_at_rev("deadbeef", "dir") is False
+
+    def test_exists_at_rev_false_for_empty_output(self, tmp_path: Path) -> None:
+        """Direct coverage: `ls-tree` exits 0 with nothing listed -- absent."""
+        from tests.validation._effective_context_helpers import FakeCompletedProcess
+
+        run = mock.Mock(return_value=FakeCompletedProcess(0, stdout=""))
+        with mock.patch.object(ecs.subprocess, "run", run):
+            repo = ecs.Repo(tmp_path, "deadbeef")
+            assert repo._exists_at_rev("deadbeef", "nope.md") is False
+
+    def test_exists_at_rev_raises_on_nonzero_exit(self, tmp_path: Path) -> None:
+        """Direct coverage: a non-zero `ls-tree` exit is a real git error, not absence."""
+        from tests.validation._effective_context_helpers import FakeCompletedProcess
+
+        run = mock.Mock(
+            return_value=FakeCompletedProcess(128, stderr="fatal: not a valid object name")
+        )
+        with mock.patch.object(ecs.subprocess, "run", run):
+            repo = ecs.Repo(tmp_path, "deadbeef")
+            with pytest.raises(ecs.GitUnavailableError, match="not a valid object name"):
+                repo._exists_at_rev("deadbeef", "whatever.md")
+
+    def test_exists_at_rev_raises_on_timeout(self, tmp_path: Path) -> None:
+        run = mock.Mock(side_effect=subprocess.TimeoutExpired(cmd="git", timeout=30))
+        with mock.patch.object(ecs.subprocess, "run", run):
+            repo = ecs.Repo(tmp_path, "deadbeef")
+            with pytest.raises(ecs.GitUnavailableError):
+                repo._exists_at_rev("deadbeef", "whatever.md")
 
     def test_ls_tree_raises_on_timeout_instead_of_an_uncaught_traceback(
         self, tmp_path: Path
