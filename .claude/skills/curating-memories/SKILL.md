@@ -69,7 +69,7 @@ sweep to surface those files. It **proposes** a disposition per file and
 edits nothing; ratification is a separate, confirmed step.
 
 ```bash
-uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/curating-memories/scripts/supersession_sweep.py"
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/curating-memories/scripts/supersession_sweep.py"
 ```
 
 Add `--json` for machine-readable output, or `--root <dir>` to scan a

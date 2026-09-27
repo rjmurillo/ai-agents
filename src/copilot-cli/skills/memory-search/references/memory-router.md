@@ -65,7 +65,7 @@ parameters that selected between the stores.
 The query is a **positional** argument. There is no `--query` flag.
 
 ```bash
-uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" "git hooks" --format json
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" "git hooks" --format json
 ```
 
 Full option set:
@@ -234,7 +234,7 @@ The leading underscore marks it private; prefer the CLI `--serena-path` and
 Every path is local file I/O now, so latency is a function of corpus size
 rather than of a service being up.
 
-Measure with `uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/measure_memory_performance.py"`.
+Measure with `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/measure_memory_performance.py"`.
 
 ## Security
 
@@ -315,7 +315,7 @@ ls .serena/memories/*.md | head
 **Diagnosis**:
 
 ```bash
-time uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" "test"
+time python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" "test"
 ```
 
 **Solutions**:

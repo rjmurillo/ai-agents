@@ -31,8 +31,8 @@ Vocabulary, defined once: an "instrument" is a script whose output you read, not
 |---|---|---|
 | Description budget | How much standing context do skill descriptions cost? | `uv run python ./scripts/skill_description_budget.py` |
 | Skill size | Which SKILL.md files exceed the 300-warn / 500-block line limits? | `uv run python ./scripts/validation/skill_size.py` |
-| Orphan refs | Do specs, evals, and manifests reference entities that no longer exist? | `uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/orphan-ref-validator/scripts/scan.py"` |
-| Golden principles | Where does the repo violate GP-001..GP-005 mechanical rules? | `uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/golden-principles/scripts/scan_principles.py"` |
+| Orphan refs | Do specs, evals, and manifests reference entities that no longer exist? | `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/orphan-ref-validator/scripts/scan.py"` |
+| Golden principles | Where does the repo violate GP-001..GP-005 mechanical rules? | `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/golden-principles/scripts/scan_principles.py"` |
 | Agent drift | Do generated agent files match their templates? | `uv run python build/generate_agents.py --validate` |
 | Mirror drift | Do the 7 generated mirror trees match `.claude/` canonical sources? | `uv run python build/scripts/build_all.py --check` |
 | Lib drift | Do the lib plugin trees match `scripts/` canonical modules? | `uv run python build/scripts/build_all.py --check` |
@@ -116,8 +116,8 @@ Re-verify one-liners for every volatile fact:
 |---|---|
 | Description budget totals | `uv run python ./scripts/skill_description_budget.py` |
 | Skill size FAIL list | `uv run python ./scripts/validation/skill_size.py` |
-| Orphan-ref verdict and counts | `uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/orphan-ref-validator/scripts/scan.py"` (read last line) |
-| Golden-principles totals | `uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/golden-principles/scripts/scan_principles.py"` (read last line, expect exit 10 while baseline is red) |
+| Orphan-ref verdict and counts | `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/orphan-ref-validator/scripts/scan.py"` (read last line) |
+| Golden-principles totals | `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/golden-principles/scripts/scan_principles.py"` (read last line, expect exit 10 while baseline is red) |
 | Drift gates green | run all three gate commands from the Drift gates section of [`references/instrument-guides.md`](references/instrument-guides.md) |
 | Push guards and guard-maturity classifier removed under ADR-084 | `ls .claude/hooks/PreToolUse/` (no `push_guard_base.py` or `invoke_*_guard.py` should be present) and `ls -d .claude/skills/guard-maturity` (expect "No such file or directory"; issue #5154) |
 | Coverage pin forms | `grep -n "cov-fail-under" .github/workflows/pytest.yml` |
