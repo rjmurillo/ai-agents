@@ -23,7 +23,7 @@ These rules apply to every change in the active host repository.
 ## SHOULD
 
 1. **Retrieval-led reasoning**. SHOULD read the host project's constraint and architecture guidance when those documents exist, not rely on pre-training.
-2. **Capability-first**. SHOULD prefer an existing host capability over inline shell commands when one exists.
+2. **Capability-first, grounded reads**. SHOULD prefer an existing host capability over inline shell commands when one exists. Batch independent reads into one turn, and stop exploring once the answer is grounded in evidence.
 3. **Host conventions for scripts**. SHOULD use the project's documented language and tooling conventions for new scripts. MUST NOT create a new shell script when the project provides a supported alternative.
 4. **Minimal diff**. SHOULD NOT introduce unrelated refactors in a change. Keep the blast radius small.
 5. **Atomic commits (advisory)**. Keep each commit to one logical, reviewable change. Follow host guidance for file-count limits when it exists.
