@@ -1,7 +1,7 @@
 """Bind pre_pr's gate list to the Validate Vendor Portability job (issue #5670).
 
 Two canonical lists of the same validators exist and nothing joined them. The
-CI job ``.github/workflows/validate-vendor-portability.yml`` runs six, and the
+CI job ``.github/workflows/validate-vendor-portability.yml`` runs seven, and the
 ``_SEQUENCE`` in ``scripts/validation/pre_pr_sequence.py`` ran two. A branch
 could clear every local gate and still turn that job red, which is what
 happened on ``fix/4462-squash-merge-audit``: 65 of 65 gates green while
@@ -27,8 +27,8 @@ Negative controls, each verified to fail before shipping:
   ``test_gate_invokes_the_same_target_as_ci`` fails.
 - Mark a gate ``skip_when_quick=True``: ``test_mapped_gate_is_never_skipped``
   fails.
-- Add a seventh validator step to the workflow carrying ``if: always()``:
-  ``test_workflow_still_defines_six_validators``,
+- Add an eighth validator step to the workflow carrying ``if: always()``:
+  ``test_workflow_still_defines_seven_validators``,
   ``test_no_validator_step_is_conditional``, and
   ``test_every_workflow_validator_is_mapped`` all fail. Filtering steps on
   ``if`` rather than on shape would have made that step invisible, which is the
@@ -101,6 +101,10 @@ _EXPECTED: dict[str, tuple[str, str]] = {
         "Skill Contract Tests",
         "validate_skill_contract_tests",
     ),
+    "python3 scripts/validation/check_plugin_root_interpreter.py": (
+        "Plugin-Root Interpreter",
+        "validate_plugin_root_interpreter",
+    ),
 }
 
 
@@ -164,9 +168,9 @@ def _gate(name: str) -> Any:
     return matches[0]
 
 
-def test_workflow_still_defines_six_validators() -> None:
+def test_workflow_still_defines_seven_validators() -> None:
     """Anchor the count so a silently dropped CI step is visible here too."""
-    assert len(_workflow_validator_commands()) == 6
+    assert len(_workflow_validator_commands()) == 7
 
 
 def test_only_the_remediation_step_is_multi_line() -> None:

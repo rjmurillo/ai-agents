@@ -15,7 +15,9 @@ implemented: true
 ## Status
 
 Accepted (amended 2026-08-19 by ADR-097; the amendment immediately below
-retires every tool-use registration this record describes).
+retires every tool-use registration this record describes. Amended 2026-09-26
+for issue #4727: memory recall reaches Copilot CLI through a direct
+`userPromptTransformed` registration; see the second amendment below).
 
 **Amended 2026-08-19 (ADR-097): every tool-use registration this record
 describes is retired, and so is the generated Copilot dispatcher.** ADR-097
@@ -41,6 +43,54 @@ What survives unchanged: the consolidation decision itself, and the Claude-side
 dispatcher `invoke_dispatch_claude.py`, which still serves the two
 `SessionStart` groups in `.claude/settings.json`. ADR-085 Decision 5 reserved
 dispatcher removal for a new architecture decision; ADR-097 is that decision.
+
+**Amended 2026-09-26 (issue #4727): memory recall reaches Copilot CLI
+through a direct `userPromptTransformed` registration.** This is a reviewed
+exception to the branch-controlled prose policy. The GitHub hook reference,
+pinned at `github/docs` commit `419d2fd`, states that Copilot drops command
+and HTTP config-file `userPromptSubmitted` output. So the `.claude/settings.json`
+recall entry runs under Copilot and changes nothing. The documented channel is
+`userPromptTransformed`, whose `modifiedTransformedPrompt` field replaces the
+model-facing prompt.
+
+- `.github/hooks/memory-recall.json` registers one `userPromptTransformed`
+  entry. It runs `invoke_memory_recall.py --copilot-transformed`, which appends
+  the `<memory-context>` block to `transformedPrompt`. It prints nothing when
+  recall finds no match or the payload is unusable.
+- The event selects the host. The only variables read are the two cloud-agent
+  exclusion variables below; issue #5369 found no confirmed local host signal.
+- The file is hand-authored. The generator has no path to a Copilot-only event,
+  and binplace leaves unowned files in `.github/hooks/` untouched.
+- The exception covers memory recall only. The block carries the same
+  `.serena/memories` text Claude Code already receives on `UserPromptSubmit`.
+  SessionStart and PreCompact output stays discarded, and the dispatcher's
+  UserPromptSubmit discard policy is unchanged.
+- Residual risk: a branch that edits `.serena/memories` can put text in front
+  of the Copilot model, as it already can for Claude Code. Rollback is deleting
+  `.github/hooks/memory-recall.json`.
+- The Copilot channel is stickier than Claude Code's. The appended block becomes
+  part of the user's own turn, is saved in session history, and is replayed
+  unchanged on resume. Deleting a memory file does not clean an old session.
+- The Copilot cloud agent is excluded. It also fires `userPromptTransformed`,
+  runs unattended with pre-approved tools, and reads `.serena/memories` from a
+  checked-out branch that can be a pull request branch. That is the case the
+  prose policy exists to stop. The hook prints nothing when
+  `COPILOT_AGENT_PROMPT` or `GITHUB_COPILOT_API_TOKEN` is set, which the hook
+  reference documents as cloud-agent sandbox variables. If GitHub ever sets
+  them locally, recall goes silent; it does not leak.
+- A batched submission fires the event once per message, so each preceding
+  message gets its own memory block. Accepted as bounded: three results per
+  block.
+- Status: registered, delivery unverified. The first live check on Copilot CLI
+  1.0.89-1 was blocked by an exhausted request quota. `probe-evidence.md`
+  section 8 records the gap.
+- This amendment supersedes two statements below. Decision item 3 says
+  PreCompact and UserPromptSubmit have no documented config-file output
+  field. Implementation Notes says no output field is documented for the
+  dormant UserPromptSubmit adapter. The hook reference now says Copilot drops
+  that output. The discard policy they describe is unchanged.
+- Review: six roles, recorded in
+  `.project-toolkit/critique/ADR-068-4727-copilot-memory-recall-debate-log.md`.
 
 Accepted (2026-07-19). The implementation shipped before the decision record
 completed its lifecycle transition. The mandatory six-agent adr-review reached

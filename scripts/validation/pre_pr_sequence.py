@@ -80,6 +80,7 @@ from checks_plugin import (
 from checks_portability import (
     validate_agent_template_drift,
     validate_hook_template_drift,
+    validate_plugin_root_interpreter,
     validate_rule_template_drift,
     validate_skill_contract_tests,
     validate_skill_md_exec_portability,
@@ -378,7 +379,7 @@ _SEQUENCE: tuple[_Gate, ...] = (
     _Gate("Hook Template Drift", _root_only(validate_hook_template_drift)),
     _Gate("Spec ID Uniqueness", _root_only(validate_spec_id_uniqueness)),  # Issue #2068
     _Gate("Traceability", _root_only(validate_traceability)),
-    # The six gates below are the six validators the CI job
+    # The seven gates below are the seven validators the CI job
     # "Validate Vendor Portability" runs. They are kept together, and
     # tests/validation/test_pre_pr_covers_vendor_portability.py reads that
     # workflow and fails when the job gains a validator this sequence does not
@@ -396,6 +397,10 @@ _SEQUENCE: tuple[_Gate, ...] = (
     _Gate("Skill Markdown Exec Portability", _root_only(validate_skill_md_exec_portability)),
     # A SKILL.md resolver must not be able to select an out-of-repo copy.
     _Gate("Skill Resolver Anchoring", _root_only(validate_skill_resolver_anchoring)),
+    # A plugin-root skill invocation must be bare `python3` with a
+    # stdlib-only target; `uv run python` has no lock file to resolve in a
+    # vendored install (issue #5949).
+    _Gate("Plugin-Root Interpreter", _root_only(validate_plugin_root_interpreter)),
     # A documented exit code with no test binding it is prose, and prose
     # does not go red.
     _Gate("Skill Contract Tests", _root_only(validate_skill_contract_tests)),

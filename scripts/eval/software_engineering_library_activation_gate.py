@@ -26,6 +26,8 @@ MOVED_REFERENCE_IDS = (
     "philosophy-of-software-design",
     "data-intensive-applications",
     "working-with-legacy-code",
+    "pragmatic-programmer",
+    "forbidden-patterns",
 )
 
 OWNER = "agent-qa"

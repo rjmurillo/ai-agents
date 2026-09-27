@@ -38,9 +38,9 @@ ALWAYS_ON_SKILL_PATTERN: re.Pattern[str] = re.compile(
 # Non-regression ratchet ceilings in bytes, seeded just above current measured
 # values (see module docstring). Lower these as the corpus shrinks.
 DEFAULT_CEILINGS_BYTES: dict[str, int] = {
-    ".py": 99_000,
-    ".cs": 99_000,
-    ".ps1": 99_000,
+    ".py": 86_000,
+    ".cs": 86_000,
+    ".ps1": 86_000,
     # Held at 83,000 deliberately. The rescope in issue #4871 dropped the `.md`
     # corpus to 56,088 bytes, so a lower ceiling is measurable today, but #4871
     # gates the downward ratchet on behavior evidence this repository does not

@@ -91,6 +91,7 @@ EXPECTED_ORDER: tuple[str, ...] = (
     'Skill Markdown Portability',
     'Skill Markdown Exec Portability',
     'Skill Resolver Anchoring',
+    'Plugin-Root Interpreter',
     'Skill Contract Tests',
     'Skill Shell Detection',
     'Skill SKIP Clause Routing',

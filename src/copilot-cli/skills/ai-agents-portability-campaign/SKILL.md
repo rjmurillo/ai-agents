@@ -95,8 +95,10 @@ object. Failed-observer partial output is discarded. It does not merge
 adapters discard stdout and stderr. Their direct rollback tests preserve side
 effects but suppress both channels. PostToolUseFailure stays direct because
 exit-2 stdout becomes recovery
-context. Copilot documents no output field for UserPromptSubmit, so its stdout is
-redirected to stderr in dispatcher and direct rollback modes. Stderr is not a
+context. Copilot drops config-file UserPromptSubmit output, so its stdout is
+redirected to stderr in dispatcher and direct rollback modes. Memory recall uses
+the direct `userPromptTransformed` registration in
+`.github/hooks/memory-recall.json` instead (issue #4727). Stderr is not a
 documented model-context path. Every unclassified event stays direct until its
 host contract is reviewed.
 

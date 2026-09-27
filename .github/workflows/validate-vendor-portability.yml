@@ -54,6 +54,9 @@ jobs:
       - name: Check skill contract test binding
         run: python3 scripts/validation/check_skill_contract_tests.py
 
+      - name: "Check plugin-root skill invocations use bare python3 (issue #5949)"
+        run: python3 scripts/validation/check_plugin_root_interpreter.py
+
       - name: Show remediation on failure
         if: failure()
         run: |
@@ -97,7 +100,18 @@ jobs:
           echo "   Baseline: scripts/validation/skill_md_portability_baseline.json"
           echo "   Update:   python3 scripts/validation/check_skill_md_portability.py --update-baseline"
           echo ""
-          echo "See issues #2050 and #2838 for context."
+          echo "5. A plugin-root skill invocation used something other than bare"
+          echo "   python3 (e.g. 'uv run python'), or named a target with a"
+          echo "   non-stdlib import (issue #5949). A vendored plugin install has"
+          echo "   no uv lock file and no third-party dependencies installed."
+          echo "   Use the canonical form:"
+          # shellcheck disable=SC2016
+          echo '     python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/.../script.py"'
+          echo "   Or declare an intentional exception with the marker"
+          echo "     plugin-root-interpreter: <reason>"
+          echo "   No baseline: every offense fails."
+          echo ""
+          echo "See issues #2050, #2838, and #5949 for context."
 
   # Issue #5420: `.agents/` keeps only read-only canonical inputs, and agent
   # write targets live under `.project-toolkit/`. A separate job so the

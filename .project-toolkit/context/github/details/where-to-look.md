@@ -6,6 +6,6 @@
 | `agents/*.agent.md` (31) | Generated; do not hand-edit |
 | `agents/security/references/*.md` | Hand copy of `src/claude/security/references/`; edit both |
 | `instructions/*.instructions.md` | `generate_rules.py` from `src/claude/rules/` |
-| `hooks/` | Binplaced from `src/copilot-cli/hooks/`; `hooks.json` registers nothing |
+| `hooks/` | Binplaced from `src/copilot-cli/hooks/`; `hooks.json` registers nothing. `memory-recall.json` is hand-authored: Copilot memory recall on `userPromptTransformed` (issue #4727) |
 | `prompts/` (33) | 12 `pr-quality-gate-*.md` generated; 7 `pr-quality.*.prompt.md` hand-written, dot not hyphen |
 | `agents/pr-comment-responder.prompt.md` | Only `.prompt.md` under `agents/`; hand-maintained |

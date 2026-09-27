@@ -44,7 +44,7 @@ Commands below resolve the install root through `${COPILOT_PLUGIN_ROOT:-${CLAUDE
 ## Inputs
 
 ```text
-uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"/skills/orphan-ref-validator/scripts/scan.py \
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"/skills/orphan-ref-validator/scripts/scan.py \
     [--targets PATH ...] \
     [--include-adrs] \
     [--include-skill-descriptions] \
@@ -170,9 +170,9 @@ Use file-scope on M1-deletion specs and proposed-entity catalogs whose every ref
 Success criteria for the skill:
 
 - [ ] `uv run pytest .claude/skills/orphan-ref-validator/tests/ -q` reports all tests passed.
-- [ ] `uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"/skills/orphan-ref-validator/scripts/scan.py --help` exits 0 with the documented argparse output.
-- [ ] `uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"/skills/orphan-ref-validator/scripts/scan.py --targets missing.md` exits 2 with `VERDICT: ERROR`.
-- [ ] `uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"/skills/orphan-ref-validator/scripts/scan.py` from the repo root exits 0 with `VERDICT: PASS` on default tracked text targets.
+- [ ] `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"/skills/orphan-ref-validator/scripts/scan.py --help` exits 0 with the documented argparse output.
+- [ ] `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"/skills/orphan-ref-validator/scripts/scan.py --targets missing.md` exits 2 with `VERDICT: ERROR`.
+- [ ] `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"/skills/orphan-ref-validator/scripts/scan.py` from the repo root exits 0 with `VERDICT: PASS` on default tracked text targets.
 - [ ] `.claude/commands/build.md` Mandatory Exit Gates lists orphan-ref-validator as gate 4.
 
 ## Scripts
@@ -182,7 +182,7 @@ Success criteria for the skill:
 | `scripts/scan.py` | Main entrypoint. Argparse CLI, target resolution, walking, detection, envelope rendering, exit codes. |
 | `scripts/__init__.py` | Marks `scripts/` as a Python package so tests can import `from scripts.scan import ...`. |
 
-Invoke directly with `uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"/skills/orphan-ref-validator/scripts/scan.py [flags]`. Do not import the script from other modules; treat it as a CLI tool.
+Invoke directly with `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"/skills/orphan-ref-validator/scripts/scan.py [flags]`. Do not import the script from other modules; treat it as a CLI tool.
 
 ## Anti-Patterns
 
@@ -256,7 +256,7 @@ If `/build` exits with `VERDICT: CRITICAL_FAIL` from this skill, the recovery is
 1. Re-run with the human formatter to get a grep-able list of `path:line` findings:
 
    ```bash
-   uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"/skills/orphan-ref-validator/scripts/scan.py --output human
+   python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"/skills/orphan-ref-validator/scripts/scan.py --output human
    ```
 
 2. Confirm the finding is real before repairing it. This scanner has produced
@@ -286,7 +286,7 @@ If `/build` exits with `VERDICT: CRITICAL_FAIL` from this skill, the recovery is
 To find latent drift in surfaces that are opt-in by default:
 
 ```bash
-uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"/skills/orphan-ref-validator/scripts/scan.py \
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"/skills/orphan-ref-validator/scripts/scan.py \
     --include-adrs \
     --include-skill-descriptions \
     --output human
@@ -298,14 +298,14 @@ This adds `.project-toolkit/architecture/`, `docs/`, and every `.claude/skills/*
 
 ```bash
 # Default scan from repo root
-uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"/skills/orphan-ref-validator/scripts/scan.py
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"/skills/orphan-ref-validator/scripts/scan.py
 
 # Scan only one file
-uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"/skills/orphan-ref-validator/scripts/scan.py \
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"/skills/orphan-ref-validator/scripts/scan.py \
     --targets docs/skill-reference.md
 
 # Human summary
-uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"/skills/orphan-ref-validator/scripts/scan.py --output human
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"/skills/orphan-ref-validator/scripts/scan.py --output human
 ```
 
 ## Tests
@@ -331,7 +331,7 @@ debt. Two patterns avoid that:
 1. **Scope to the changed files** so the gate judges only what the PR touches:
 
    ```bash
-   uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"/skills/orphan-ref-validator/scripts/scan.py \
+   python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"/skills/orphan-ref-validator/scripts/scan.py \
        --targets $(git diff --name-only origin/main...HEAD)
    ```
 
@@ -348,12 +348,12 @@ then fails only on findings introduced after that snapshot:
 
 ```bash
 # Save the current full scan as the baseline (JSON envelope form).
-uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"/skills/orphan-ref-validator/scripts/scan.py \
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"/skills/orphan-ref-validator/scripts/scan.py \
     --include-adrs --include-skill-descriptions \
     --output json > orphan-ref-baseline.json
 
 # Later runs suppress the baselined findings; new ones still fail.
-uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"/skills/orphan-ref-validator/scripts/scan.py \
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"/skills/orphan-ref-validator/scripts/scan.py \
     --include-adrs --include-skill-descriptions \
     --baseline orphan-ref-baseline.json
 ```

@@ -4,7 +4,9 @@ Split out when round-5 coverage pushed ``test_check_generated_staleness.py``
 past the 500-line test file-size ceiling: the termination and budget tests
 now live in ``test_check_generated_staleness_termination.py``, and both
 modules build their fake repositories and env hygiene from here so the
-knowledge exists once (`.claude/rules/pragmatic-programmer.md`, DRY).
+knowledge exists once
+(`.claude/skills/software-engineering-library/references/pragmatic-programmer.md`,
+DRY).
 """
 
 from __future__ import annotations

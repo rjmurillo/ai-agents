@@ -32,9 +32,7 @@ MEMBERSHIP_MEMORY = (
     / "always-on-membership-lives-in-the-mirror.md"
 )
 
-BOOK_RULES = frozenset(
-    {"code-quality", "pragmatic-programmer", "unified-software-engineering"}
-)
+BOOK_RULES = frozenset({"code-quality", "unified-software-engineering"})
 
 _TABLE_HEADER = "| Form | Rules |"
 _ROW_NAME = re.compile(r"`([a-z0-9-]+)`")

@@ -1,7 +1,7 @@
 [.github/]
 |CI workflows plus generated Copilot mirrors, agents, prompts, and hook JSON f... (see: .project-toolkit/context/github/details/github.md)
 [Matters]
-|Generated, never hand-edit: `instructions/`, `agents/*.agent.md`, `hooks/`, a... (see: .project-toolkit/context/github/details/matters.md)
+|Generated, never hand-edit: `instructions/`, `agents/*.agent.md`, `hooks/` (e... (see: .project-toolkit/context/github/details/matters.md)
 [Entry points]
 |`workflows/pr-validation.yml`, job `Validate PR`: required check. PR body sha... (see: .project-toolkit/context/github/details/entry-points.md)
 [Where to look]

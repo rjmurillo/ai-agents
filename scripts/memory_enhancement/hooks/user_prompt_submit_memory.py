@@ -4,7 +4,9 @@
 Searches .serena/memories/ for content matching the user's prompt,
 ranks by confidence score, and injects top results via stdout.
 
-Hook Type: UserPromptSubmit
+Hook Type: UserPromptSubmit (Claude Code). Copilot CLI drops config-file
+UserPromptSubmit output, so it gets recall through
+``user_prompt_transformed_memory`` instead (issue #4727).
 Exit Codes:
     0 = always. Claude Code adds UserPromptSubmit stdout to the model's
         context, so recall needs no non-zero code. Exit code 2 on this
@@ -37,27 +39,28 @@ _MIN_QUERY_TERMS = 1
 
 def main() -> int:
     """Entry point for the user_prompt_submit hook."""
-    user_input = _read_user_input()
-    if not user_input:
-        return 0
-
-    query = _extract_query(user_input)
-    if not query:
-        return 0
-
-    repo_root = _find_repo_root()
-    if repo_root is None:
-        return 0
-
-    memories_dir = repo_root / ".serena" / "memories"
-    if not memories_dir.is_dir():
-        return 0
-
-    results = _search_and_format(query, memories_dir, repo_root)
+    results = recall_block(_read_user_input())
     if results:
         print(results)
 
     return 0
+
+
+def recall_block(user_input: str) -> str:
+    """Return the memory context block for a prompt, or empty string."""
+    query = _extract_query(user_input) if user_input else ""
+    if not query:
+        return ""
+
+    repo_root = _find_repo_root()
+    if repo_root is None:
+        return ""
+
+    memories_dir = repo_root / ".serena" / "memories"
+    if not memories_dir.is_dir():
+        return ""
+
+    return _search_and_format(query, memories_dir, repo_root)
 
 
 def _read_user_input() -> str:
@@ -109,7 +112,7 @@ def _find_repo_root(start: Path | None = None) -> Path | None:
 def _search_and_format(
     query: str, memories_dir: Path, repo_root: Path
 ) -> str:
-    """Search memories and format results for stderr injection.
+    """Search memories and format results as the memory context block.
 
     Args:
         query: Filtered search terms.
@@ -142,7 +145,7 @@ def _format_memory_context(results: list[SearchResult]) -> str:
         results: List of SearchResult objects.
 
     Returns:
-        Formatted string for stderr output.
+        The memory context block, written to stdout by the caller.
     """
     lines = [
         "<memory-context>",

@@ -1,7 +1,7 @@
 ---
 name: software-engineering-library
 version: 1.0.0
-description: Route software engineering design and discovered code-risk tasks to on-demand book references. Use for `architecture review`, `layer boundary change`, `dependency boundary`, `module interface shape`, `domain modeling`, `bounded context`, `refactoring`, `code smell`, `legacy code`, `low test coverage`, `old file`, `characterization test`, `external API calls`, `queues`, `retries`, `transactions`, `event ordering`, `data layer`, `storage design`, `consistency`, `schema evolution`, `timeout`, `circuit breaker`, `bulkhead`, and production resilience in .py, .cs, .ts, .tsx, .js, .ps1, .sql, and service design docs. Do NOT use for reinventing-the-wheel or build-vs-buy, use programming-advisor. Do NOT use for single-file maintainability scoring, use code-qualities-assessment. Do NOT use for CVA design, use cva-analysis.
+description: Route software engineering design and discovered code-risk tasks to on-demand book references. Use for `architecture review`, `layer boundary change`, `dependency boundary`, `module interface shape`, `domain modeling`, `bounded context`, `refactoring`, `code smell`, `legacy code`, `low test coverage`, `old file`, `characterization test`, `external API calls`, `queues`, `retries`, `transactions`, `event ordering`, `data layer`, `storage design`, `consistency`, `schema evolution`, `timeout`, `circuit breaker`, `bulkhead`, `DRY at the knowledge level`, `orthogonality`, `tracer bullet`, `broken windows`, `design by contract`, and a forbidden-patterns blocklist review in .py, .cs, .ts, .tsx, .js, .ps1, .sql, and service design docs. Do NOT use for reinventing-the-wheel or build-vs-buy, use programming-advisor. Do NOT use for single-file maintainability scoring, use code-qualities-assessment. Do NOT use for CVA design, use cva-analysis.
 license: MIT
 metadata:
   routing:
@@ -15,7 +15,7 @@ metadata:
 
 This skill routes software engineering design work to deeper book-derived references without loading them on every turn.
 
-For the everyday default, none loads on every turn and code-quality, pragmatic-programmer and unified-software-engineering load on code files; open a reference here only when the task needs that specific book's depth (start with one, add a second only when it changes a decision).
+For the everyday default, none loads on every turn and code-quality and unified-software-engineering load on code files; open a reference here only when the task needs that specific book's depth (start with one, add a second only when it changes a decision).
 
 ## Triggers
 
@@ -35,6 +35,8 @@ For the everyday default, none loads on every turn and code-quality, pragmatic-p
 - Use `references/working-with-legacy-code.md` when the code is hard to test, poorly covered, or needs seams and characterization tests before change.
 - Use `references/data-intensive-applications.md` when state, storage, schema evolution, consistency, ordering, or delivery semantics are central.
 - Use `references/release-it.md` when production resilience, timeouts, circuit breakers, bulkheads, retries, and operational failure modes are central.
+- Use `references/pragmatic-programmer.md` when DRY at the knowledge level, orthogonality, tracer-bullet delivery, automation, feedback loops, broken windows, or design by contract drive the decision.
+- Use `references/forbidden-patterns.md` when reviewing a diff or generating code against the design, architecture, data-and-production, or change-and-legacy blocklist.
 
 ## Task To Reference Router
 
@@ -47,6 +49,8 @@ For the everyday default, none loads on every turn and code-quality, pragmatic-p
 | Legacy code / seams / characterization tests | `references/working-with-legacy-code.md` |
 | Data systems / consistency / schema evolution | `references/data-intensive-applications.md` |
 | Production resilience / timeouts / bulkheads | `references/release-it.md` |
+| DRY at the knowledge level / orthogonality / tracer bullets / automation / feedback loops / broken windows / design by contract | `references/pragmatic-programmer.md` |
+| Reviewing a diff or generating code against the forbidden-patterns blocklist | `references/forbidden-patterns.md` |
 
 ## Process
 

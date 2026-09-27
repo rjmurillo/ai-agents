@@ -20,6 +20,8 @@ SCENARIOS = (
     "tests/evals/rule-scenarios/philosophy-of-software-design.json",
     "tests/evals/rule-scenarios/data-intensive-applications.json",
     "tests/evals/rule-scenarios/working-with-legacy-code.json",
+    "tests/evals/rule-scenarios/pragmatic-programmer.json",
+    "tests/evals/rule-scenarios/forbidden-patterns.json",
 )
 
 RESULTS_PATH = Path("activation-results.json")
