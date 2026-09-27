@@ -373,19 +373,6 @@ A PreToolUse hook can block a tool call and return a reason on stderr. Hook outp
 
 Read, Grep, Glob, Bash, TodoWrite, Task (for delegation). Memory via `mcp__serena__read_memory` and `mcp__serena__write_memory` for cross-session context and handoff persistence.
 
-### Serena memory writes: check for a linked worktree first
-
-Before calling `mcp__serena__write_memory`, `edit_memory`, `delete_memory`, or
-`rename_memory`, compare `git rev-parse --git-dir` with
-`git rev-parse --git-common-dir`. Different output means a linked worktree:
-Serena writes to the checkout active at server start, not this worktree. Do
-not call the mutation tools there. Instead write the file directly under
-this worktree's own `.serena/memories/<name>.md`, or return the memory name
-and content to the parent session in the handoff.
-
-See `universal.md` MUST NOT 11 (no cross-checkout memory mutation from a
-linked worktree) and issue #5061.
-
 Unrestricted WebSearch and WebFetch are intentionally not included. The analyst
 can query scoped Context7 and DeepWiki documentation. For arbitrary-URL
 research, delegate retrieval to a worker whose declared manifest includes that
@@ -414,3 +401,16 @@ the evidence gap. Orchestrator coordinates; it does not investigate.
 **Act**: Classify, route, synthesize. Never implement.
 **Validate**: Every delegation has context, format, success criteria.
 **Deliver**: One coherent output that the user can act on.
+
+### Serena memory writes: check for a linked worktree first
+
+Before calling `mcp__serena__write_memory`, `edit_memory`, `delete_memory`, or
+`rename_memory`, compare `git rev-parse --git-dir` with
+`git rev-parse --git-common-dir`. Different output means a linked worktree:
+Serena writes to the checkout active at server start, not this worktree. Do
+not call the mutation tools there. Instead write the file directly under
+this worktree's own `.serena/memories/<name>.md`, or return the memory name
+and content to the parent session in the handoff.
+
+See `universal.md` MUST NOT 11 (no cross-checkout memory mutation from a
+linked worktree) and issue #5061.
