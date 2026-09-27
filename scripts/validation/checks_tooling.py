@@ -13,8 +13,6 @@ agent-drift, plus ``_find_latest_session_log``; re-exported by ``pre_pr``.
 
 from __future__ import annotations
 
-import contextlib
-import io
 import os
 import re
 import shutil
@@ -851,17 +849,23 @@ def validate_effective_context_ratchet(repo_root: Path) -> bool:
             "scripts/validation/effective_context.py not present (downstream install); "
             "no path-local ratchet to gate"
         )
-    # Imported here, after the presence check, so a downstream install without
-    # the module still loads this file. The import is also the edge the script
-    # reachability guard follows; a `python -m` string is not.
-    from scripts.validation import effective_context
-
-    report = io.StringIO()
-    with contextlib.redirect_stdout(report):
-        passed = effective_context.main(["--ci"], repo_root=repo_root) == 0
-    if not passed:
-        print(report.getvalue(), end="")
-    return passed
+    # Named by path, not `python -m`: the script reachability guard follows a
+    # `.py` literal in an execution call. A subprocess, not an import, keeps
+    # this module from loading `scripts.validation` under a second name.
+    exit_code, stdout, stderr = _run_subprocess(
+        [
+            sys.executable,
+            str(repo_root / "scripts" / "validation" / "effective_context.py"),
+            "--ci",
+        ],
+        cwd=repo_root,
+    )
+    if exit_code != 0:
+        if stdout:
+            print(stdout)
+        if stderr:
+            print(stderr, file=sys.stderr)
+    return bool(exit_code == 0)
 
 
 def validate_rule_scope_declarations(repo_root: Path) -> bool:
