@@ -35,6 +35,8 @@ SKILL_PAIR_COPIES = (
         "src/copilot-cli/skills/context-optimizer/SKILL.md",
     ),
 )
+# One redirect concept per trigger phrase, worded so no phrase appears verbatim.
+REDIRECT_CONCEPTS = ("placement", "compression", "optimization", "indexing", "audits")
 QUOTED_PHRASE_RE = re.compile(r'"([^"]+)"')
 
 
@@ -69,3 +71,14 @@ def test_skillforge_and_context_optimizer_redirect_to_each_other(
 
     assert "(use context-optimizer)" in skillforge.split("Do NOT use", 1)[-1], skillforge_path
     assert "(use skillforge)" in optimizer.split("Do NOT use", 1)[-1], optimizer_path
+
+
+@pytest.mark.parametrize(("skillforge_path", "_optimizer_path"), SKILL_PAIR_COPIES)
+def test_skillforge_redirect_covers_every_moved_trigger(
+    skillforge_path: str, _optimizer_path: str
+) -> None:
+    """AC2: the redirect names a concept for each of the five moved triggers."""
+    redirect = _description(skillforge_path).split("Do NOT use", 1)[-1]
+
+    missing = [concept for concept in REDIRECT_CONCEPTS if concept not in redirect]
+    assert not missing, f"{skillforge_path} redirect omits {missing}"
