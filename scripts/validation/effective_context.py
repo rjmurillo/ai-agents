@@ -351,7 +351,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--ci",
         action="store_true",
-        help="Check all ten frozen (target, harness) ceilings; ignores --target/--harness.",
+        help=(
+            "Check the frozen (target, harness) ceilings and the per-directory "
+            "path-local ceiling; ignores --target/--harness."
+        ),
     )
     return parser
 
