@@ -1,15 +1,8 @@
----
-description: Pragmatic Programmer principles from Hunt and Thomas. Apply as a general engineering overlay on code changes. Reinforce DRY at the knowledge level, orthogonality, fast feedback, automation, tracer-bullet delivery, and the broken-windows discipline. Source adapted from ciembor/agent-rules-books (MIT).
-applyTo: '**/*.py,**/*.cs,**/*.ts,**/*.tsx,**/*.js,**/*.jsx,**/*.go,**/*.rs,**/*.java,**/*.rb,**/*.c,**/*.h,**/*.cpp,**/*.ps1,**/*.psm1,**/*.psd1,**/*.sh,**/*.sql'
----
-
 # The Pragmatic Programmer
 
 ## Purpose
 
-The active host follows **The Pragmatic Programmer** in the sense of Andrew Hunt and David Thomas: work pragmatically, take responsibility for quality, automate what is repetitive, and keep code and process adaptable.
-
-This file is a binding engineering policy for the active host.
+Andrew Hunt and David Thomas's **The Pragmatic Programmer**: work pragmatically, take responsibility for quality, automate what is repetitive, and keep code and process adaptable. Open this reference when a task calls for that depth (DRY at the knowledge level, orthogonality, tracer bullets, automation, feedback loops, broken windows, design by contract) rather than for the everyday code-quality baseline, which stays always-on in `code-quality.md` and `unified-software-engineering.md`.
 
 For deeper design decisions, apply the same engineering qualities directly: maximize cohesion, minimize coupling, preserve encapsulation, prioritize testability, and avoid redundant knowledge.
 
@@ -259,4 +252,8 @@ These principles bind across agent and tool boundaries in this repository, not j
 | Automation             | Repeated manual checks (lint, validation, session protocol gates) belong in hooks and CI, not in prose instructions repeated across files.                     |
 | Feedback loops         | Prefer cheap early signals (pre-commit hooks, fast unit tests, local lint) over late expensive surprises in CI or production.                                  |
 
-When you discover an instance where this rule is being violated, prefer a small focused fix on the path you are already touching over a broad cleanup. Note the deviation in the PR description so future readers see your reasoning.
+When you discover an instance where this reference is being violated, prefer a small focused fix on the path you are already touching over a broad cleanup. Note the deviation in the PR description so future readers see your reasoning.
+
+## Source
+
+Source adapted from ciembor/agent-rules-books (MIT). Moved from the always-on-on-code-files rule `templates/rules/pragmatic-programmer.md` into this on-demand reference (issue #5951), because the everyday code-quality baseline (`code-quality.md`, `unified-software-engineering.md`) already loads on every code edit; this book's deeper depth now loads only when the task needs it.
