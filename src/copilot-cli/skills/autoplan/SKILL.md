@@ -153,6 +153,7 @@ evidence (failing tests, widening diff), not on speculation.
 | Intent | Route |
 |--------|-------|
 | Build a feature, "add X" | Lifecycle chain per size tier above |
+| Execute, review, or resume a plan file the planner workflow wrote | Skill: planner (milestone decomposition stays with /plan) |
 | New capability (Context, module, scanner, validator, pipeline component) | Skill: programming-advisor prior-art discovery BEFORE /spec; add buy-vs-build-framework only for a strategic build, buy, partner, or defer decision, then the Feature chain |
 | Bug, error, "why is this broken" | Skill: analyze, then /build for the fix |
 | PR, issue, label, milestone ops | Skill: github |
