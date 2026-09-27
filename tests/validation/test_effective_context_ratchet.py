@@ -10,6 +10,7 @@ stay in ``test_effective_context.py``.
 from __future__ import annotations
 
 import json
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -160,7 +161,7 @@ class TestReq3Observe:
             ec.run_copilot_observe(tmp_path, "", set())
 
     @pytest.mark.skipif(
-        subprocess.run(["which", "copilot"], capture_output=True).returncode != 0,
+        shutil.which("copilot") is None,
         reason="copilot CLI not installed on this machine",
     )
     def test_observe_live_matches_for_every_frozen_target(self) -> None:
