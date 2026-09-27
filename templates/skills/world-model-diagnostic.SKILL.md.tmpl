@@ -220,6 +220,8 @@ A JSON variant of the same shape is acceptable when a downstream tool consumes t
 
 Save exactly three artifacts via the repo's memory tooling, unless the user declines. Use Serena `write_memory`. Key the entries by company slug so future runs can detect drift.
 
+{{> serena-worktree-write-guard}}
+
 ### 1. Intake Summary
 
 - Entry name: `diagnostic-{company-slug}-intake`

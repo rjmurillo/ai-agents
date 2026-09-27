@@ -214,6 +214,19 @@ mcp__plugin_serena_serena__find_symbol({
 3. **Use `depth: 0`** initially - expand to children only when exploring specific classes
 4. **Combine with Serena memory** - record important architectural findings with `mcp__serena__write_memory`
 
+### Serena memory writes: check for a linked worktree first
+
+Before calling `mcp__serena__write_memory`, `edit_memory`, `delete_memory`, or
+`rename_memory`, compare `git rev-parse --git-dir` with
+`git rev-parse --git-common-dir`. Different output means a linked worktree:
+Serena writes to the checkout active at server start, not this worktree. Do
+not call the mutation tools there. Instead write the file directly under
+this worktree's own `.serena/memories/<name>.md`, or return the memory name
+and content to the parent session in the handoff.
+
+See `universal.md` MUST NOT 11 (no cross-checkout memory mutation from a
+linked worktree) and issue #5061.
+
 ## Triggers
 
 | Trigger Phrase | Operation |

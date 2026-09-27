@@ -132,6 +132,8 @@ memory_file_name: "adr-[number]-[topic]"
 content: "# ADR-[Number]: [Title]\n\n**Statement**: ...\n\n**Evidence**: ...\n\n## Details\n\n..."
 ```
 
+{{> serena-worktree-write-guard}}
+
 ## Degraded Mode Protocol
 
 If a tool or service is unavailable, do not halt on first failure or retry indefinitely. Follow this protocol:

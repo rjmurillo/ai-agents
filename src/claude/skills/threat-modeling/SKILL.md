@@ -260,20 +260,11 @@ For each threat, document:
 
 **Risk**: Critical (High Likelihood x High Impact)
 
-**Mitigations**:
+**Mitigations** (all Mitigate):
 
-1. **Implement rate limiting** (Mitigate)
-   - Max 5 attempts per IP per minute
-   - Progressive delays after failures
-   - Status: Planned for Sprint 23
-
-2. **Add CAPTCHA after failures** (Mitigate)
-   - Trigger after 3 failed attempts
-   - Status: In progress
-
-3. **Enable MFA** (Mitigate)
-   - TOTP or WebAuthn
-   - Status: Blocked on product decision
+1. Rate limiting: 5 attempts per IP per minute, Sprint 23
+2. CAPTCHA after 3 failed attempts, in progress
+3. MFA (TOTP or WebAuthn), blocked on product decision
 
 **Residual Risk**: Medium (after mitigations applied)
 ```
@@ -410,6 +401,19 @@ mcp__serena__write_memory(
     content="Key threats: credential stuffing, session hijacking. STRIDE categories covered: spoofing, elevation of privilege."
 )
 ```
+
+### Serena memory writes: check for a linked worktree first
+
+Before calling `mcp__serena__write_memory`, `edit_memory`, `delete_memory`, or
+`rename_memory`, compare `git rev-parse --git-dir` with
+`git rev-parse --git-common-dir`. Different output means a linked worktree:
+Serena writes to the checkout active at server start, not this worktree. Do
+not call the mutation tools there. Instead write the file directly under
+this worktree's own `.serena/memories/<name>.md`, or return the memory name
+and content to the parent session in the handoff.
+
+See `universal.md` MUST NOT 11 (no cross-checkout memory mutation from a
+linked worktree) and issue #5061.
 
 ---
 

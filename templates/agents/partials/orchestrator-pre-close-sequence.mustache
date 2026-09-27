@@ -120,6 +120,8 @@ A PreToolUse hook can block a tool call and return a reason on stderr. Hook outp
 
 Read, Grep, Glob, Bash, TodoWrite, Task (for delegation). Memory via `mcp__serena__read_memory` and `mcp__serena__write_memory` for cross-session context and handoff persistence.
 
+{{> serena-worktree-write-guard}}
+
 Unrestricted WebSearch and WebFetch are intentionally not included. The analyst
 can query scoped Context7 and DeepWiki documentation. For arbitrary-URL
 research, delegate retrieval to a worker whose declared manifest includes that

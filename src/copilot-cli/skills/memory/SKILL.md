@@ -102,6 +102,21 @@ What do you need?
     └─► Start with memory-search (Tier 1), escalate if insufficient
 ```
 
+Before taking the "Store new factual knowledge directly" branch above:
+
+### Serena memory writes: check for a linked worktree first
+
+Before calling `mcp__serena__write_memory`, `edit_memory`, `delete_memory`, or
+`rename_memory`, compare `git rev-parse --git-dir` with
+`git rev-parse --git-common-dir`. Different output means a linked worktree:
+Serena writes to the checkout active at server start, not this worktree. Do
+not call the mutation tools there. Instead write the file directly under
+this worktree's own `.serena/memories/<name>.md`, or return the memory name
+and content to the parent session in the handoff.
+
+See `universal.md` MUST NOT 11 (no cross-checkout memory mutation from a
+linked worktree) and issue #5061.
+
 For deeper guidance on picking a tier, see
 [references/tier-selection-guide.md](references/tier-selection-guide.md).
 

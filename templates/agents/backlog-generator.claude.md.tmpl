@@ -37,6 +37,8 @@ memory_file_name: "backlog-planning-[area]"
 content: "# Backlog Planning: [Area]\n\n**Statement**: ...\n\n**Evidence**: ...\n\n## Details\n\n..."
 ```
 
+{{> serena-worktree-write-guard}}
+
 > **Fallback**: If Memory Router unavailable, read `.serena/memories/` directly with Read tool.
 
 {{> backlog-generator-memory-protocol}}
