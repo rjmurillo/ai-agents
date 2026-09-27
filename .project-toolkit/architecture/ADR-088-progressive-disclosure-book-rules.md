@@ -199,18 +199,29 @@ same progressive-disclosure decision to both:
   moved to
   `.claude/skills/software-engineering-library/references/forbidden-patterns.md`.
   `unified-software-engineering.md` stays always-on for code files, trimmed to
-  its Primary Directive and Conflict Resolution Rules tiebreaker, with a
-  pointer to the moved blocklist.
+  its one-line Primary Directive and Conflict Resolution Rules tiebreaker,
+  with a pointer to the moved blocklist that still names the highest-risk
+  production patterns inline (no timeout, nested or non-idempotent retries,
+  unbounded queues). The seven-point "Prefer designs that" list moved with the
+  blocklist into the same reference.
 
 `code-quality.md` and the trimmed `unified-software-engineering.md` remain the
 always-on-on-code-files baseline; no book-derived rule is always-on across every
 file type. `uv run python scripts/validation/instruction_budget.py` measured
-`.py` dropping from 95,877 to 82,569 bytes (a 13,308-byte drop, above the
-12,000-byte acceptance floor); `.cs` dropped from 94,499 to 81,191 bytes and
+`.py` dropping from 95,877 to about 82.8 KB (above the 12,000-byte
+acceptance floor that issue #5951 set); `.cs` dropped from 94,499 to 81,191 bytes and
 `.ps1` from 96,491 to 83,183 bytes, the same 13,308-byte drop on each, since
 the same two files (`pragmatic-programmer.md` fully removed, and
 `unified-software-engineering.md`'s Forbidden Patterns section removed) apply
-identically across the always-on-on-code-files corpus.
+identically across the always-on-on-code-files corpus. The `.py`, `.cs`, and
+`.ps1` ceilings in `scripts/validation/instruction_budget_constants.py` ratchet
+from 99,000 to 86,000 bytes in the same change, superseding the 99 KB figure
+above.
+
+The trade carries the same late-retrieval risk as the original decision. The
+weekly `software-engineering-library` activation gate now lists
+`pragmatic-programmer` and `forbidden-patterns` among its moved references, so a
+reference that stops activating raises the existing rollback alert.
 
 ## Related Decisions
 

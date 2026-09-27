@@ -81,7 +81,7 @@ Apply these rules when engineering principles appear to disagree.
 - If behavior must change, keep the behavior change distinct from structural cleanup where practical.
 - Use small, verified transformations instead of big-bang rewrites.
 
-Do not generate forbidden patterns (see `references/forbidden-patterns.md` in the `software-engineering-library` skill) unless explicitly required and justified in the PR description. When you encounter them in code you are not actively touching, leave them alone unless removing them is part of the task; track separately rather than expand scope.
+Do not generate forbidden patterns (see `references/forbidden-patterns.md` in the `software-engineering-library` skill) unless explicitly required and justified in the PR description. The highest-risk ones stay named here: outbound calls with no explicit timeout, retries nested at multiple layers or applied to non-idempotent or permanent failures, and unbounded queues, buffers, or pools. When you encounter them in code you are not actively touching, leave them alone unless removing them is part of the task; track separately rather than expand scope.
 
 ## Relationship to Other Rules
 

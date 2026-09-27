@@ -10,6 +10,18 @@ Cherry-picked from [agent-rules-books](https://github.com/ciembor/agent-rules-bo
 
 When uncertain, choose the option that makes the system easier to understand, safer to change, and more honest about its real constraints.
 
+Prefer designs that:
+
+1. reduce the number of facts a reader must hold at once
+2. put each business rule in one authoritative place
+3. keep volatile details behind stable boundaries
+4. make data ownership and consistency explicit
+5. survive partial failure, retries, and operational stress
+6. preserve behavior during structural change
+7. shorten feedback loops
+
+Reject designs that merely appear simpler by hiding complexity in callers, frameworks, databases, global state, queues, or operational assumptions.
+
 ## Complexity and Design
 
 - clever code that is hard to inspect
