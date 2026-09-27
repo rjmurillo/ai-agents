@@ -121,7 +121,7 @@ def _read_stdin() -> str:
         return ""
 
 
-def _parse_payload(raw: str) -> dict:
+def _parse_payload(raw: str) -> dict[str, object]:
     """Parse a JSON object payload, or return an empty dict."""
     try:
         data = json.loads(raw)
