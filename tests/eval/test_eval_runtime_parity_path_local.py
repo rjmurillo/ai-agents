@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import subprocess
 from pathlib import Path
+from typing import Any
 from unittest import mock
 
 import pytest
@@ -135,7 +136,7 @@ def test_cwd_rejects_a_non_string_value(tmp_path: Path) -> None:
 # --- Install location (REQ-9) ------------------------------------------------
 
 
-def _installed(fixture: runtime_parity.Fixture, ref: str | None = None) -> dict[str, bytes]:
+def _installed(fixture: Any, ref: str | None = None) -> dict[str, bytes]:
     return runtime_parity.resolve_instructions(fixture.path_local, ref)
 
 

@@ -9,6 +9,7 @@ received `--no-custom-instructions` for a fixture that declared only
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 from tests.eval._runtime_parity_test_support import parity, runtime_parity
 
@@ -17,11 +18,11 @@ PATH_LOCAL_FIXTURES = (
 )
 
 
-def _path_local_fixture() -> runtime_parity.Fixture:
+def _path_local_fixture() -> Any:
     return runtime_parity.load_fixtures(PATH_LOCAL_FIXTURES)[0]
 
 
-def _root_cwd_fixture() -> runtime_parity.Fixture:
+def _root_cwd_fixture() -> Any:
     return runtime_parity.load_fixtures(parity.DEFAULT_FIXTURES)[0]
 
 

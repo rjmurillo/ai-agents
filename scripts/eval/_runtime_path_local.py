@@ -43,4 +43,4 @@ def resolve_cwd(workspace: Path, cwd: str) -> Path:
     root, so a realistic `.github/` task needs a matching cwd, not the
     workspace root every fixture used before this field existed.
     """
-    return safe_workspace_file(workspace, cwd)
+    return Path(safe_workspace_file(workspace, cwd))
