@@ -23,7 +23,7 @@ import subprocess
 import sys
 import uuid
 from collections.abc import Callable, Mapping, Sequence
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import cast
 
 from _runtime_grader import GraderProtocol, grade_semantic_assertions, resolve_grader
@@ -284,8 +284,48 @@ def _verify_copilot_instruction_listing(
             raw_output=run.stdout,
             stderr=run.stderr,
         )
-    _require_listed_sources(fixture.fixture_id, listing, set(instructions) | set(path_local))
+    expected = set(instructions) | set(path_local) | _setup_discoverable_sources(fixture)
+    _require_listed_sources(fixture.fixture_id, listing, expected)
     return listing, None
+
+
+def _ancestor_dirs(cwd: str) -> frozenset[str]:
+    """POSIX directories from the repo root down to `cwd`, inclusive, `""` for root."""
+    if cwd in ("", "."):
+        return frozenset({""})
+    parts = PurePosixPath(cwd).parts
+    return frozenset("/".join(parts[:i]) for i in range(len(parts) + 1))
+
+
+def _setup_discoverable_sources(fixture: Fixture) -> set[str]:
+    """`setup_files` entries Copilot's own listing discovers unprompted.
+
+    `_require_listed_sources` compares the listing against
+    `instructions`/`path_local`, but Copilot CLI 1.0.89 lists every
+    `.github/instructions/*.instructions.md` file and every
+    `AGENTS.md`/`CLAUDE.md` from the repo root down to `cwd`, regardless of
+    which fixture field wrote it. Confirmed live in an isolated `mktemp -d`
+    git repo (no model call, no quota): a bare `git commit` of
+    `.github/instructions/testing.instructions.md`, with no
+    `instructions`/`path_local` fixture concept involved at all, still
+    listed `{"sourcePath": ".github/instructions/testing.instructions.md",
+    "location": "working-directory", ...}`; a root `.github/AGENTS.md` with
+    cwd `.github/workflows` listed `{"sourcePath": ".github/AGENTS.md",
+    "location": "repository", "type": "model", ...}`. A fixture such as
+    `generated-instructions-edit` (path-local-parity-fixtures.json) installs
+    `.github/instructions/testing.instructions.md` this way, on purpose, so
+    the model edits a real rule rather than one projected only for the test.
+    """
+    discovered: set[str] = set()
+    ancestors = _ancestor_dirs(fixture.cwd)
+    for relative in fixture.setup_files:
+        posix = PurePosixPath(relative)
+        directory = "" if posix.parent == PurePosixPath(".") else posix.parent.as_posix()
+        if directory == ".github/instructions" and posix.name.endswith(".instructions.md"):
+            discovered.add(relative)
+        elif posix.name in ("AGENTS.md", "CLAUDE.md") and directory in ancestors:
+            discovered.add(relative)
+    return discovered
 
 
 def _require_listed_sources(fixture_id: str, listing: list[object], installed: set[str]) -> None:

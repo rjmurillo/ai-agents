@@ -10,6 +10,11 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+from _runtime_workflow_assertions import (
+    UNTRUSTED_PR_TITLE_EXPRESSION,
+    workflow_avoids_untrusted_input_in_run,
+)
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCHEMA_VERSION = 1
 SUPPORTED_TOOLS = frozenset({"question", "read", "write"})
@@ -21,6 +26,7 @@ DETERMINISTIC_ASSERTION_KINDS = frozenset(
         "file_absent",
         "file_regex",
         "file_not_regex",
+        "workflow_untrusted_input",
     }
 )
 
@@ -146,6 +152,11 @@ def _load_assertion(value: object, field: str) -> AssertionSpec:
         return AssertionSpec(
             kind=kind,
             rubric=_string(raw.get("rubric"), f"{field}.rubric"),
+        )
+    if kind == "workflow_untrusted_input":
+        return AssertionSpec(
+            kind=kind,
+            path=_relative_path(raw.get("path"), f"{field}.path"),
         )
     raise ParityConfigError(f"{field}.kind is unsupported: {kind}")
 
@@ -315,6 +326,10 @@ def score_assertions(
         elif spec.kind == "file_not_regex":
             content = files.get(spec.path)
             passed = content is not None and re.search(spec.pattern, content) is None
+        elif spec.kind == "workflow_untrusted_input":
+            expected = f"no run: reads {UNTRUSTED_PR_TITLE_EXPRESSION} directly; env: does"
+            content = files.get(spec.path)
+            passed = content is not None and workflow_avoids_untrusted_input_in_run(content)
         results.append(
             {
                 "kind": spec.kind,

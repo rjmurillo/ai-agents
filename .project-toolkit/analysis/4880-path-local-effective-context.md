@@ -79,7 +79,7 @@ PR #5792 re-verified each line against the tree, so this work adds no content ed
 It checks two things:
 
 - Ten ceilings: the five frozen targets in both harnesses, each equal to its measured path-local bytes.
-- One ceiling for every git-tracked directory that holds a nested `CLAUDE.md` or `AGENTS.md` (62 today): 11,369 bytes, the measured maximum (`.claude/hooks/PreCompact`, Copilot).
+- One ceiling per directory and harness for every git-tracked directory that holds a nested `CLAUDE.md` or `AGENTS.md` (62 directories, 124 entries today), each equal to that directory's own measured path-local bytes. A single shared ceiling (the original design) let any directory regrow up to the highest-measured one (`.claude/hooks/PreCompact`, Copilot, 11,369 bytes) without tripping; a directory with no entry in the map fails closed instead of passing silently.
 
 Every ceiling is local and measured at the accepted state.
 Anthropic publishes no 25 KB, 200-line, or 50-line hard limit for these files, and no ceiling here claims one.
@@ -98,6 +98,8 @@ Live runs on 2026-09-27 did not execute a model turn:
 
 - Claude Code 2.1.283, `claude-sonnet-5`: every trial ended with the response `Credit balance is too low` (exit 3).
 - Copilot CLI 1.0.88: `session.error` with status 402, `quota_exceeded` (exit 3).
+
+This 1.0.88 is a different resolution than the 1.0.89 the `--observe` listing probes above used: `probe_version` reads the binary through the eval harness's own isolated profile (`runtime_env`), not the ambient shell's `copilot` the listing probes ran under. Recorded here as two separate, per-run facts rather than reconciled into one version, since no measurement in this session traced why the isolated profile resolved an older release.
 
 The before and after comparison is therefore NOT RUN.
 The command to run it once either account has quota:
