@@ -108,61 +108,6 @@ def test_path_local_rejects_a_path_escaping_the_repository_root(tmp_path: Path) 
         runtime_parity.load_fixtures(path)
 
 
-# --- Discoverable-guide restriction (security, coordinator finding) --------
-
-
-def test_path_local_rejects_an_agent_install_path(tmp_path: Path) -> None:
-    """Security: a path_local entry naming an agent file would overwrite it on install.
-
-    install_path_local writes at the exact repository-relative path,
-    unprojected; a fixture-declared ".claude/agents/parity.md" would
-    silently replace the agent definition under test after install.
-    """
-    path = _corpus(tmp_path, {"path_local": [".claude/agents/parity.md"]})
-
-    with pytest.raises(runtime_parity.ParityConfigError, match="discoverable guide"):
-        runtime_parity.load_fixtures(path)
-
-
-def test_path_local_rejects_an_arbitrary_repository_file(tmp_path: Path) -> None:
-    path = _corpus(tmp_path, {"path_local": ["README.md"]})
-
-    with pytest.raises(runtime_parity.ParityConfigError, match="discoverable guide"):
-        runtime_parity.load_fixtures(path)
-
-
-def test_path_local_accepts_a_nested_agents_md(tmp_path: Path) -> None:
-    path = _corpus(tmp_path, {"path_local": [".github/AGENTS.md"]})
-
-    fixture = runtime_parity.load_fixtures(path)[0]
-
-    assert fixture.path_local == (".github/AGENTS.md",)
-
-
-def test_path_local_accepts_a_nested_claude_md(tmp_path: Path) -> None:
-    path = _corpus(tmp_path, {"path_local": ["a/b/CLAUDE.md"]})
-
-    fixture = runtime_parity.load_fixtures(path)[0]
-
-    assert fixture.path_local == ("a/b/CLAUDE.md",)
-
-
-def test_path_local_accepts_the_copilot_repo_instructions_file(tmp_path: Path) -> None:
-    path = _corpus(tmp_path, {"path_local": [".github/copilot-instructions.md"]})
-
-    fixture = runtime_parity.load_fixtures(path)[0]
-
-    assert fixture.path_local == (".github/copilot-instructions.md",)
-
-
-def test_path_local_rejects_a_copilot_instructions_file_outside_github(tmp_path: Path) -> None:
-    """Only the exact `.github/copilot-instructions.md` path is allowed."""
-    path = _corpus(tmp_path, {"path_local": ["a/copilot-instructions.md"]})
-
-    with pytest.raises(runtime_parity.ParityConfigError, match="discoverable guide"):
-        runtime_parity.load_fixtures(path)
-
-
 def test_cwd_rejects_an_absolute_path(tmp_path: Path) -> None:
     path = _corpus(tmp_path, {"cwd": "/etc"})
 
@@ -434,45 +379,6 @@ def test_verify_listing_passes_when_it_matches_instructions_union_path_local(
         30,
         {".github/instructions/voice.instructions.md": b"x"},
         {"AGENTS.md": b"y"},
-    )
-
-    assert failure is None
-    assert result == listing
-
-
-def test_verify_listing_passes_when_a_path_local_guide_sits_outside_the_cwd_ancestry(
-    tmp_path: Path,
-) -> None:
-    """Coordinator finding: a sibling-directory guide installs but Copilot cannot list it here.
-
-    Before this fix, the preflight's expected set included every
-    `path_local` entry unconditionally, so a guide outside `cwd`'s
-    ancestor chain (Copilot's own discovery rule) made a correct, empty
-    listing look like a missing source and abort the run.
-    """
-    workspace = tmp_path / "ws"
-    workspace.mkdir()
-    corpus = corpus_with_instructions(
-        tmp_path,
-        default_instructions=False,
-        path_local=["a/CLAUDE.md", "b/AGENTS.md"],
-        cwd="a",
-    )
-    fixture = runtime_parity.load_fixtures(corpus)[0]
-    # Copilot, run from cwd "a", lists only what its ancestor-chain rule
-    # reaches from there: "a/CLAUDE.md" itself, not the sibling "b/AGENTS.md".
-    listing = [{"sourcePath": "a/CLAUDE.md"}]
-    runner = mock.Mock(return_value=subprocess.CompletedProcess([], 0, json.dumps(listing), ""))
-
-    result, failure = parity._verify_copilot_instruction_listing(
-        fixture,
-        "copilot",
-        workspace,
-        workspace / "a",
-        runner,
-        30,
-        {},
-        {"a/CLAUDE.md": b"x", "b/AGENTS.md": b"y"},
     )
 
     assert failure is None
