@@ -78,7 +78,6 @@ if _hook_dir not in sys.path:
 from plugin_hook_drift_model import (  # noqa: E402
     CLAUDE_SCHEMA,
     COPILOT_SCHEMA,
-    HOOKS_MANIFEST_REL,
     PLUGIN_MANIFEST_REL,
     read_json_object,
     read_plugin_identity,
@@ -267,6 +266,9 @@ def _describe(triples: set[tuple[str, str, str]]) -> tuple[str, ...]:
     )
 
 
+# The error `read_json_object` gives for FileNotFoundError, and only for it.
+_ABSENT_PREFIX = "no hook manifest"
+
 def install_registrations(
     root: Path, schema: str
 ) -> tuple[set[tuple[str, str, str]] | None, str | None]:
@@ -295,13 +297,19 @@ def install_registrations(
     found, error = root_registrations(root, schema)
     if found is not None or schema != CLAUDE_SCHEMA:
         return found, error
-    if (root / HOOKS_MANIFEST_REL).exists():
+    # Only FileNotFoundError yields this prefix. A present file that cannot be
+    # opened (PermissionError, NotADirectoryError) must stay unreadable.
+    if not (error or "").startswith(_ABSENT_PREFIX):
         return found, error
-    plugin, plugin_error = read_json_object(root / PLUGIN_MANIFEST_REL)
-    if plugin is None and not (plugin_error or "").startswith("no hook manifest"):
-        return found, error
+    plugin_path = root / PLUGIN_MANIFEST_REL
+    plugin, plugin_error = read_json_object(plugin_path)
+    if plugin is None and not (plugin_error or "").startswith(_ABSENT_PREFIX):
+        return None, plugin_error
     if plugin is not None and "hooks" in plugin:
-        return found, error
+        return None, (
+            f"plugin manifest {path_token(plugin_path)} declares a 'hooks' path "
+            "this check does not follow; not compared"
+        )
     return set(), None
 
 

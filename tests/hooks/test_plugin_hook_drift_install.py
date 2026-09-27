@@ -15,8 +15,11 @@ source checkout missing its own manifest.
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
+
+import pytest
 
 HOOKS_DIR = str(Path(__file__).resolve().parents[2] / ".claude" / "hooks" / "SessionStart")
 sys.path.insert(0, HOOKS_DIR)
@@ -112,7 +115,7 @@ def test_install_registrations_keeps_a_declared_hooks_path_an_error(tmp_path) ->
     found, error = drift.install_registrations(install, model.CLAUDE_SCHEMA)
 
     assert found is None
-    assert "no hook manifest" in (error or "")
+    assert "declares a 'hooks' path" in (error or "")
 
 
 def test_install_registrations_keeps_an_unreadable_plugin_manifest_an_error(tmp_path) -> None:
@@ -122,8 +125,52 @@ def test_install_registrations_keeps_an_unreadable_plugin_manifest_an_error(tmp_
 
     found, error = drift.install_registrations(install, model.CLAUDE_SCHEMA)
 
+    # The report names the broken plugin.json, not the absent hooks manifest.
     assert found is None
-    assert "no hook manifest" in (error or "")
+    assert "unreadable hook manifest" in (error or "")
+
+
+def test_install_registrations_keeps_a_non_object_plugin_manifest_an_error(tmp_path) -> None:
+    install = tmp_path / "install"
+    _write_json(install / ".claude-plugin" / "plugin.json", [])
+
+    found, error = drift.install_registrations(install, model.CLAUDE_SCHEMA)
+
+    assert found is None
+    assert "is not a JSON object" in (error or "")
+
+
+def test_install_registrations_keeps_a_hooks_file_in_place_of_the_directory_an_error(
+    tmp_path,
+) -> None:
+    # Opening hooks/hooks.json raises NotADirectoryError here, not
+    # FileNotFoundError, so the manifest is unreadable rather than absent.
+    install = _plugin_root(tmp_path / "install", None)
+    (install / "hooks").write_text("", encoding="utf-8")
+
+    found, error = drift.install_registrations(install, model.CLAUDE_SCHEMA)
+
+    assert found is None
+    assert "unreadable hook manifest" in (error or "")
+
+
+@pytest.mark.skipif(
+    sys.platform == "win32" or os.geteuid() == 0,
+    reason="POSIX permission bits do not deny access on Windows or for root",
+)
+def test_install_registrations_keeps_a_permission_denied_manifest_an_error(tmp_path) -> None:
+    # Path.exists() returns False on PermissionError, which is how an earlier
+    # draft read a present but blocked manifest as "no hooks".
+    install = _plugin_root(tmp_path / "install", {})
+    hooks_dir = install / "hooks"
+    hooks_dir.chmod(0)
+    try:
+        found, error = drift.install_registrations(install, model.CLAUDE_SCHEMA)
+    finally:
+        hooks_dir.chmod(0o755)
+
+    assert found is None
+    assert "unreadable hook manifest" in (error or "")
 
 
 def test_install_registrations_keeps_an_absent_copilot_manifest_an_error(tmp_path) -> None:
