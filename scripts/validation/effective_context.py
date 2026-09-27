@@ -125,6 +125,8 @@ def run_copilot_observe(
             cwd=cwd,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=60,
         )
     except FileNotFoundError as exc:

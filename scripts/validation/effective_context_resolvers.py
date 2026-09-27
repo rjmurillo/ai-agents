@@ -204,7 +204,13 @@ def discover_nested_directories(repo_root: Path) -> tuple[list[str], list[str]]:
     """
     try:
         result = subprocess.run(
-            ["git", "ls-files"], cwd=repo_root, capture_output=True, text=True, timeout=30
+            ["git", "ls-files"],
+            cwd=repo_root,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=30,
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         msg = f"git ls-files failed to run in {repo_root}: {exc}"

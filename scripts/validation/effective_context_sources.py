@@ -187,6 +187,8 @@ class Repo:
                 cwd=self._root,
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=30,
             )
         except subprocess.TimeoutExpired as exc:
@@ -243,6 +245,8 @@ class Repo:
                 cwd=self._root,
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=30,
             )
         except subprocess.TimeoutExpired as exc:
