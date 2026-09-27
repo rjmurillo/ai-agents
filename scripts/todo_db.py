@@ -67,7 +67,9 @@ class MissingTodoError(TodoRowCountError):
     """Raised when a todo row is absent and the operation requires it."""
 
     def __init__(self, todo_id: str) -> None:
-        super().__init__(todo_id, 0, f"todo row '{todo_id}' not found; run ensure (ensure_todo) first")
+        super().__init__(
+            todo_id, 0, f"todo row '{todo_id}' not found; run ensure (ensure_todo) first"
+        )
 
 
 class DuplicateTodoError(TodoRowCountError):
