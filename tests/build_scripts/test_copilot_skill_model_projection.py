@@ -184,7 +184,14 @@ def test_generator_without_drop_keeps_model(tmp_path: Path) -> None:
     assert "model: haiku" in out
 
 
-@pytest.mark.parametrize("drop", ["    frontmatterDrop: model\n", "    frontmatterDrop: [1]\n"])
+@pytest.mark.parametrize(
+    "drop",
+    [
+        "    frontmatterDrop: model\n",
+        "    frontmatterDrop: [1]\n",
+        "    frontmatterDrop: null\n",
+    ],
+)
 def test_generator_rejects_malformed_drop(tmp_path: Path, drop: str) -> None:
     _skill(tmp_path)
     assert generate_skills.generate_skills(_config(tmp_path, drop), tmp_path) == 2

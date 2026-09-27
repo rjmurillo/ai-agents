@@ -83,9 +83,10 @@ def _frontmatter_drop(stanza: dict[str, object]) -> frozenset[str]:
 
     ADR-111: a harness with no per-skill model field lists the keys its
     translated ``SKILL.md`` copy omits. An absent key means drop nothing.
-    Raises :class:`GenerateSkillsError` when the value is not a list of strings.
+    Raises :class:`GenerateSkillsError` when the value is not a list of
+    strings, including an explicit null, which would silently drop nothing.
     """
-    raw = stanza.get("frontmatterDrop") or []
+    raw = stanza.get("frontmatterDrop", [])
     if not isinstance(raw, list) or not all(isinstance(key, str) for key in raw):
         raise GenerateSkillsError("`artifacts.skills.frontmatterDrop` must be a list of strings")
     return frozenset(raw)
