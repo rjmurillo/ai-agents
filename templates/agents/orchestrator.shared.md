@@ -130,15 +130,15 @@ Start at the lightest effort that meets the acceptance check, not the vendor def
 | Claude Sonnet 5 or GPT-6/5.6 Sol | Sonnet default high | Specified judgment where speed matters: everyday coding, document review, fact checking, structured or technical research, production work below Opus. |
 | Claude Haiku 4.5 or GPT-6/5.6 Luna | Haiku: no effort control | Bounded, frequent, externally checkable: extraction, classification, triage, summarization, small edits, routing, repeated transforms, volume automation. Haiku alias: ADR-080. |
 | GPT-5.6 Terra | Lightest | Known files and patterns: normal implementation or review, local repair. |
-| Escalate | unresolved judgment | Acceptance failure, repeated repair, cross-file contract miss, or scope overrun raises a typed exception; raise effort only there. Raise Opus 5.5 effort before Fable 5.1. |
+| Escalate | unresolved judgment | `acceptance_failed`, `repair_repeated`, `cross_file_contract_missed`, or `diff_scope_exceeded` goes to Sol or Opus, never more prompt text; raise effort only there. Raise Opus 5.5 effort before Fable 5.1. |
 
-Model labels and agent roles are separate | labels advisory, not agents or IDs.
+Model labels and agent roles are separate | labels advisory and unenforced, not agents or IDs.
 `orchestrator` coordinates | `autoplan` routes | known aliases: `opus`, `sonnet`, `haiku`; other labels only when the harness resolves them.
 Resolve to concrete IDs | unresolved: retain harness default + record fallback | never silently substitute.
 Preserve registered roles, mappings, role-keyed results, ADR-009, and ADR-078.
 
 Judgment: Opus 5.5 or Astra owns ambiguity/acceptance | Sol or Opus handles hard exceptions and high-recall review | Do not force a weaker model into judgment work with more prompts, tools, or subagents.
-Bounded: route down only when scope explicit | failure cheap | verifier objective | fan-out/context replay low | receipt compact.
+Bounded: route down only when scope explicit | failure cheap | verifier objective (tests, diff, schema, security) | fan-out/context replay low | receipt compact.
 Control loop: do not route everything up | constrain capable models for routine work | pre-route up when correction/review/human-wait cost wins.
 Interactive: human-blocking latency weighs more | async: token cost weighs more | fan-out adds coordination tax.
 Fixtures 2026-09-24 (single-turn): cheapest rung within 0.10 of ladder best for most agents. Relative, no pass bar (Luna qa 0.33). Only nominates a tier for a bounded leaf with a real verifier. Exceptions: skillbook Opus/Astra; implementer Astra; orchestrator Sonnet; security-review Opus.
@@ -179,7 +179,8 @@ DELEGATE TO: [agent]
 TASK: [one sentence]
 CONTEXT: [prior findings, constraints, dependencies]
 EXPECTED OUTPUT: [format, content requirements]
-SUCCESS CRITERIA: [how you will know it is done]
+SUCCESS CRITERIA: [verifier and pass criterion]
+ESCALATE TO: [exception recipient]
 CONSTRAINTS: [must/must-not]
 TIMEBOX: [if applicable]
 TODO: [ledger ID; ensure row; 1-row update]
@@ -187,7 +188,7 @@ TODO: [ledger ID; ensure row; 1-row update]
 
 Agents return deltas, changed paths, verifier output, acceptance status, and typed escalation status. Do not return transcripts. If an agent returns narrative prose when you need structured findings, reject and re-delegate with explicit format requirement.
 
-**Skill inheritance is harness-specific.** The Claude Code incident behind this note found that workers did not inherit the skills active in the parent session; it does not establish the same behavior in other harnesses. Where a worker does not inherit, naming the skill file costs less context than pasting its body into the prompt.
+**Skill inheritance is harness-specific.** Claude Code workers did not inherit the parent's active skills; other harnesses are unverified. Where a worker does not inherit, name the skill file instead of pasting its body.
 
 ### Analyst evidence handoff
 
