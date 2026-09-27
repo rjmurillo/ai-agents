@@ -178,6 +178,19 @@ class TestRepoDirectAccessors:
         assert live == [".claude/rules/real.md"]
         assert at_rev == [".claude/rules/real.md"]
 
+    def test_read_bytes_at_a_rev_treats_a_directory_as_absent(self, tmp_path: Path) -> None:
+        """REQ-2: a path naming a tree at the rev reads as absent, as in the live tree.
+
+        `git show <rev>:<dir>` exits 0 with a tree listing, so without a type
+        check an `@dir` import would count that listing as file bytes.
+        """
+        _init_git_repo(tmp_path)
+        _write(tmp_path, "docs/inner.md", "body\n")
+        sha = _commit_all(tmp_path, "v1")
+
+        assert ecs.Repo(tmp_path, None).read_bytes("docs") is None
+        assert ecs.Repo(tmp_path, sha).read_bytes("docs") is None
+
     def test_rev_is_valid_refuses_an_option_shaped_rev(self, tmp_path: Path) -> None:
         """REQ-4: a `--rev` that starts with `-` never reaches git (CWE-88)."""
         repo = ecr.Repo(tmp_path, "--all")
@@ -200,9 +213,9 @@ class TestRepoDirectAccessors:
 # `subprocess.TimeoutExpired` on any of this class's `git` calls escaped as
 # an uncaught traceback instead of the ADR-035 exit-code-3 path every other
 # `git` failure in this package already takes. `read_bytes` now probes
-# existence with `git cat-file -e <rev>:<path>` first (the same probe
-# `check_adr_links.py:347`'s `baseline_entries_at_ref` already uses to keep
-# "absent at that rev" distinguishable from "present but unreadable"); a
+# existence with `git cat-file -t <rev>:<path>` first and requires a blob, so
+# "absent at that rev" stays distinguishable from "present but unreadable"
+# and a directory never reads as file bytes; a
 # non-zero `git show` after that probe confirmed existence is a real git
 # error, not absence. `_ls_tree` and `rev_is_valid` share the same
 # uncaught-timeout shape (subprocess.run to `git`, no `except
@@ -247,7 +260,7 @@ class TestReq2GitFailureHandling:
         assert repo.read_bytes("new-file.md") is None
 
     def test_read_bytes_returns_none_when_cat_file_reports_absent(self, tmp_path: Path) -> None:
-        """A `cat-file -e` non-zero exit is absence; `git show` must not even run."""
+        """A `cat-file -t` non-zero exit is absence; `git show` must not even run."""
         from tests.validation._effective_context_helpers import FakeCompletedProcess
 
         run = mock.Mock(
@@ -261,13 +274,13 @@ class TestReq2GitFailureHandling:
     def test_read_bytes_raises_when_show_fails_after_cat_file_confirms_existence(
         self, tmp_path: Path
     ) -> None:
-        """`cat-file -e` says the blob exists, but `git show` still fails: a real git error."""
+        """`cat-file -t` says a blob exists, but `git show` still fails: a real git error."""
         from tests.validation._effective_context_helpers import FakeCompletedProcess
 
         run = mock.Mock(
             side_effect=_fake_run_by_argv(
                 {
-                    "cat-file": FakeCompletedProcess(0),
+                    "cat-file": FakeCompletedProcess(0, stdout="blob\n"),
                     "show": FakeCompletedProcess(128, stderr="fatal: loose object corrupt"),
                 }
             )
@@ -290,7 +303,7 @@ class TestReq2GitFailureHandling:
         run = mock.Mock(
             side_effect=_fake_run_by_argv(
                 {
-                    "cat-file": FakeCompletedProcess(0),
+                    "cat-file": FakeCompletedProcess(0, stdout="blob\n"),
                     "show": subprocess.TimeoutExpired(cmd="git", timeout=30),
                 }
             )

@@ -144,19 +144,10 @@ class Repo:
     def read_bytes(self, rel_path: str) -> bytes | None:
         """Return the file's bytes, or ``None`` if it does not exist at this rev.
 
-        A ``--rev`` read used to treat any non-zero ``git show`` exit as
-        "file absent", so a git failure unrelated to absence (a corrupt
-        object, a transient I/O error) silently undercounted an inventory
-        instead of raising. Existence is now probed first with ``git
-        cat-file -e <rev>:<path>`` (the same probe
-        ``check_adr_links.py``'s ``baseline_entries_at_ref`` uses to keep
-        "absent at that rev" distinguishable from "present but
-        unreadable"): a non-zero probe means absent, ``None``; a ``git
-        show`` that still fails after the probe confirmed existence is a
-        real git error, raised as :class:`GitUnavailableError` (ADR-035 exit
-        code 3 at the CLI), never returned as ``None``. Either command
-        timing out raises the same error instead of an uncaught
-        ``subprocess.TimeoutExpired`` traceback.
+        At a ``--rev``, :meth:`_exists_at_rev` decides absence first, so a
+        missing path or a directory returns ``None``. A ``git show`` that
+        still fails after that probe is a real git error and raises
+        :class:`GitUnavailableError` (exit 3 at the CLI), as does a timeout.
         """
         if self._rev is None:
             candidate = self._root / rel_path
@@ -182,25 +173,26 @@ class Repo:
         return result.stdout
 
     def _exists_at_rev(self, rel_path: str) -> bool:
-        """True when ``rel_path`` is a blob at ``self._rev`` (``git cat-file -e``).
+        """True when ``rel_path`` is a blob at ``self._rev`` (``git cat-file -t``).
 
-        The one existence probe :meth:`read_bytes` trusts: a non-zero exit
-        here is ``git cat-file -e``'s documented contract for "not present at
-        this rev", so callers may treat it as absence. A timeout raises
-        rather than returning ``False``, because a hung probe is not
-        evidence of either presence or absence.
+        The one existence probe :meth:`read_bytes` trusts. A non-zero exit
+        means "not present at this rev". A tree (a directory) is also absent,
+        because ``git show`` of a tree prints a listing, not file bytes. A
+        timeout raises, because a hung probe proves neither presence nor
+        absence.
         """
         try:
             result = subprocess.run(
-                ["git", "cat-file", "-e", f"{self._rev}:{rel_path}"],
+                ["git", "cat-file", "-t", f"{self._rev}:{rel_path}"],
                 cwd=self._root,
                 capture_output=True,
+                text=True,
                 timeout=30,
             )
         except subprocess.TimeoutExpired as exc:
-            msg = f"git cat-file -e {self._rev}:{rel_path} timed out in {self._root}: {exc}"
+            msg = f"git cat-file -t {self._rev}:{rel_path} timed out in {self._root}: {exc}"
             raise GitUnavailableError(msg) from exc
-        return result.returncode == 0
+        return result.returncode == 0 and result.stdout.strip() == "blob"
 
     def is_dir(self, rel_path: str) -> bool:
         """True when ``rel_path`` names a directory (repo root if empty)."""
