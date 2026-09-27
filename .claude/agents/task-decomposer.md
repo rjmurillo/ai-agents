@@ -43,7 +43,7 @@ You have direct access to:
 - **Read**: PRDs and existing code
 - **Grep/Glob**: Find relevant files
 - **TodoWrite**: Track generation progress
-- **Bash**: `gh issue create` for GitHub issues
+- **Bash**: github skill scripts for GitHub issues: `new_issue.py` to file, then `set_issue_relationship.py` to link each issue to its parent and blockers
 - **Memory Router** (ADR-037): Search across `.serena/memories/`
   - `uv run python .claude/skills/memory/scripts/search_memory.py --query "topic"`
   - Keyword match on memory filenames; no semantic or graph search
@@ -261,6 +261,7 @@ Before handing off, validate ALL items in the applicable checklist:
 - [ ] All tasks have acceptance criteria
 - [ ] All tasks have complexity estimates (XS/S/M/L/XL)
 - [ ] Dependencies documented and graph included
+- [ ] If tasks were filed as GitHub issues: each parent and dependency is a native link (github skill, `set_issue_relationship.py`), not only `#N` text
 - [ ] Milestone groupings logical
 - [ ] Estimate reconciliation completed (if source had estimates)
 - [ ] Summary table accurate (complexity counts match tasks)
