@@ -107,19 +107,19 @@ class Repo:
     """
 
     def __init__(self, root: Path, rev: str | None) -> None:
-        self.root = root
-        self.rev = rev
+        self._root = root
+        self._rev = rev
 
     def read_bytes(self, rel_path: str) -> bytes | None:
         """Return the file's bytes, or ``None`` if it does not exist."""
-        if self.rev is None:
-            candidate = self.root / rel_path
+        if self._rev is None:
+            candidate = self._root / rel_path
             if not candidate.is_file():
                 return None
             return candidate.read_bytes()
         result = subprocess.run(
-            ["git", "show", f"{self.rev}:{rel_path}"],
-            cwd=self.root,
+            ["git", "show", f"{self._rev}:{rel_path}"],
+            cwd=self._root,
             capture_output=True,
             timeout=30,
         )
@@ -131,9 +131,9 @@ class Repo:
         """True when ``rel_path`` names a directory (repo root if empty)."""
         if not rel_path:
             return True
-        if self.rev is None:
-            return (self.root / rel_path).is_dir()
-        return bool(self._ls_tree(self.rev, rel_path.rstrip("/") + "/"))
+        if self._rev is None:
+            return (self._root / rel_path).is_dir()
+        return bool(self._ls_tree(self._rev, rel_path.rstrip("/") + "/"))
 
     def list_dir(self, rel_dir: str) -> list[str]:
         """Return repo-relative file paths directly inside ``rel_dir``.
@@ -141,19 +141,19 @@ class Repo:
         Non-recursive: only the two flat directories the harness resolvers
         read (``.claude/rules``, ``.github/instructions``) call this.
         """
-        if self.rev is None:
-            directory = self.root / rel_dir
+        if self._rev is None:
+            directory = self._root / rel_dir
             if not directory.is_dir():
                 return []
             return sorted(
                 f"{rel_dir}/{entry.name}" for entry in directory.iterdir() if entry.is_file()
             )
-        return sorted(self._ls_tree(self.rev, rel_dir.rstrip("/") + "/"))
+        return sorted(self._ls_tree(self._rev, rel_dir.rstrip("/") + "/"))
 
     def _ls_tree(self, rev: str, pathspec: str) -> list[str]:
         result = subprocess.run(
             ["git", "ls-tree", "--name-only", rev, "--", pathspec],
-            cwd=self.root,
+            cwd=self._root,
             capture_output=True,
             text=True,
             timeout=30,
@@ -163,12 +163,12 @@ class Repo:
         return [line for line in result.stdout.splitlines() if line]
 
     def rev_is_valid(self) -> bool:
-        """True when ``self.rev`` names a commit git can resolve."""
-        if self.rev is None:
+        """True when ``self._rev`` names a commit git can resolve."""
+        if self._rev is None:
             return True
         result = subprocess.run(
-            ["git", "rev-parse", "--verify", "--quiet", f"{self.rev}^{{commit}}"],
-            cwd=self.root,
+            ["git", "rev-parse", "--verify", "--quiet", f"{self._rev}^{{commit}}"],
+            cwd=self._root,
             capture_output=True,
             timeout=30,
         )
@@ -179,7 +179,7 @@ def resolve_base_directory(repo: Repo, target: str) -> str:
     """Return the target's directory, repo-relative POSIX, ``""`` for root.
 
     A target that is an existing directory (in the working tree, or in the
-    tree at ``repo.rev``) resolves to itself. Otherwise it resolves to its
+    tree at the rev ``repo`` was constructed with) resolves to itself. Otherwise it resolves to its
     parent, whether or not the file exists there yet (a ``--rev`` target may
     not exist at that commit). Raises :class:`TargetOutsideRepoError` for an
     absolute path or one that escapes the repository root through ``..``.

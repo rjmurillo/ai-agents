@@ -25,6 +25,9 @@ from scripts.validation.effective_context_claude import (
     _add_and_walk as _add_and_walk,
 )
 from scripts.validation.effective_context_claude import (
+    _ImportSink as _ImportSink,
+)
+from scripts.validation.effective_context_claude import (
     _resolve_claude_scoped as _resolve_claude_scoped,
 )
 from scripts.validation.effective_context_claude import (

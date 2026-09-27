@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import posixpath
 from collections.abc import Callable
+from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 
 from scripts.validation.effective_context_sources import (
@@ -68,15 +69,31 @@ def _resolve_relative_import(base_dir: str, raw_token: str) -> str:
     return posixpath.normpath(joined)
 
 
+@dataclass
+class _ImportSink:
+    """Mutable state one Claude import walk threads through every helper.
+
+    Bundles what stays the same across an entire ``walk_claude_imports``
+    recursion (``seen``, ``problems``, ``files``, ``tilde_read``) behind one
+    parameter, instead of each helper repeating all four in its own
+    signature. Not frozen: every field is mutated in place as imports
+    resolve. ``tilde_read`` resolves a ``~/...`` token against the user's
+    home directory; ``None`` means ``--include-user`` was not set.
+    """
+
+    seen: set[str] = field(default_factory=set)
+    problems: list[ImportProblem] = field(default_factory=list)
+    files: list[LoadedFile] = field(default_factory=list)
+    tilde_read: Callable[[str], bytes | None] | None = None
+
+
 def _process_relative_import(
     raw: str,
     rel_path: str,
     ancestors: tuple[str, ...],
     active_read: Callable[[str], bytes | None],
     active_layer: str,
-    seen: set[str],
-    problems: list[ImportProblem],
-    files: list[LoadedFile],
+    sink: _ImportSink,
 ) -> tuple[str, bytes] | None:
     """Resolve one project-relative ``@import`` token.
 
@@ -88,48 +105,42 @@ def _process_relative_import(
     base_dir = posixpath.dirname(rel_path)
     candidate = _resolve_relative_import(base_dir, raw[1:])
     if candidate.startswith("..") or PurePosixPath(candidate).is_absolute():
-        problems.append(ImportProblem("outside_repo", rel_path, raw))
+        sink.problems.append(ImportProblem("outside_repo", rel_path, raw))
         return None
     if candidate in ancestors:
-        problems.append(ImportProblem("cycle", rel_path, raw))
+        sink.problems.append(ImportProblem("cycle", rel_path, raw))
         return None
     data = active_read(candidate)
     if data is None:
-        problems.append(ImportProblem("missing", rel_path, raw))
+        sink.problems.append(ImportProblem("missing", rel_path, raw))
         return None
-    if candidate in seen:
+    if candidate in sink.seen:
         return None
-    seen.add(candidate)
-    files.append(LoadedFile(active_layer, candidate, len(data), f"import via {rel_path}"))
+    sink.seen.add(candidate)
+    sink.files.append(LoadedFile(active_layer, candidate, len(data), f"import via {rel_path}"))
     return candidate, data
 
 
-def _process_tilde_import(
-    raw: str,
-    rel_path: str,
-    seen: set[str],
-    problems: list[ImportProblem],
-    files: list[LoadedFile],
-    tilde_read: Callable[[str], bytes | None] | None,
-) -> tuple[str, bytes] | None:
+def _process_tilde_import(raw: str, rel_path: str, sink: _ImportSink) -> tuple[str, bytes] | None:
     """Resolve one ``@~/...`` token against the user's home directory.
 
     Returns ``(key, candidate_bytes)`` (``key`` is ``~/``-prefixed) to
-    recurse into, or ``None`` when ``tilde_read`` is unset (``--include-user``
-    was not passed), the file is missing, or it was already billed.
+    recurse into, or ``None`` when ``sink.tilde_read`` is unset
+    (``--include-user`` was not passed), the file is missing, or it was
+    already billed.
     """
-    if tilde_read is None:
+    if sink.tilde_read is None:
         return None
     home_rel = raw[3:]
     key = f"~/{home_rel}"
-    if key in seen:
+    if key in sink.seen:
         return None
-    data = tilde_read(home_rel)
+    data = sink.tilde_read(home_rel)
     if data is None:
-        problems.append(ImportProblem("missing", rel_path, raw))
+        sink.problems.append(ImportProblem("missing", rel_path, raw))
         return None
-    seen.add(key)
-    files.append(LoadedFile("user", key, len(data), f"import via {rel_path}"))
+    sink.seen.add(key)
+    sink.files.append(LoadedFile("user", key, len(data), f"import via {rel_path}"))
     return key, data
 
 
@@ -138,28 +149,24 @@ def walk_claude_imports(
     start_rel: str,
     start_content: bytes,
     layer: str,
-    seen: set[str],
-    problems: list[ImportProblem],
-    files: list[LoadedFile],
-    *,
-    tilde_read: Callable[[str], bytes | None] | None,
+    sink: _ImportSink,
 ) -> None:
     """Follow ``@`` imports from ``start_content``, appending discovered files.
 
-    ``seen`` is shared across every root/nested file in one resolution, so a
-    file imported twice is billed once. A project path is keyed by its own
-    POSIX path; a ``@~/...`` token is keyed ``~/``-prefixed so it cannot
-    collide with a project path of the same spelling. ``tilde_read`` is
-    ``None`` when ``--include-user`` was not set: such a token is left
-    unfollowed, not reported as a problem (a valid construct, just unresolved).
+    ``sink.seen`` is shared across every root/nested file in one resolution,
+    so a file imported twice is billed once. A project path is keyed by its
+    own POSIX path; a ``@~/...`` token is keyed ``~/``-prefixed so it cannot
+    collide with a project path of the same spelling. A ``@~/...`` token is
+    left unfollowed, not reported as a problem, when ``sink.tilde_read`` is
+    ``None`` (a valid construct, just unresolved).
 
     The starting file is depth 0. A file reached through
     :data:`MAX_IMPORT_DEPTH` hops (5) is still read, matching the observed
     "max depth 5" model, but its own imports are not: the chain caps at 5
     hops from the start file, not 5 files total. A cycle is a revisit of an
     ancestor in the *current* chain, not any file seen before; a second,
-    non-cyclic path to an already-resolved file is deduplicated via ``seen``
-    silently, not reported.
+    non-cyclic path to an already-resolved file is deduplicated via
+    ``sink.seen`` silently, not reported.
 
     Per-token resolution lives in :func:`_process_relative_import` and
     :func:`_process_tilde_import`; this function only decides whether to
@@ -180,14 +187,14 @@ def walk_claude_imports(
         text = content.decode("utf-8", errors="replace")
         for raw in extract_import_tokens(text):
             if raw.startswith("@~/"):
-                resolved = _process_tilde_import(raw, rel_path, seen, problems, files, tilde_read)
+                resolved = _process_tilde_import(raw, rel_path, sink)
                 if resolved is not None:
-                    assert tilde_read is not None  # _process_tilde_import returns None otherwise
+                    assert sink.tilde_read is not None  # _process_tilde_import gates on this
                     key, data = resolved
-                    _follow(key, data, depth + 1, (key,), tilde_read, "user")
+                    _follow(key, data, depth + 1, (key,), sink.tilde_read, "user")
                 continue
             resolved_relative = _process_relative_import(
-                raw, rel_path, ancestors, active_read, active_layer, seen, problems, files
+                raw, rel_path, ancestors, active_read, active_layer, sink
             )
             if resolved_relative is not None:
                 candidate, data = resolved_relative
@@ -209,22 +216,17 @@ def _add_and_walk(
     read_bytes: Callable[[str], bytes | None],
     rel_path: str,
     layer: str,
-    seen: set[str],
-    files: list[LoadedFile],
-    problems: list[ImportProblem],
-    tilde_read: Callable[[str], bytes | None] | None,
+    sink: _ImportSink,
 ) -> None:
     """Add ``rel_path`` if it exists and is unseen, then follow its imports."""
-    if rel_path in seen:
+    if rel_path in sink.seen:
         return
     data = read_bytes(rel_path)
     if data is None:
         return
-    seen.add(rel_path)
-    files.append(LoadedFile(layer, rel_path, len(data), f"{layer} file"))
-    walk_claude_imports(
-        read_bytes, rel_path, data, layer, seen, problems, files, tilde_read=tilde_read
-    )
+    sink.seen.add(rel_path)
+    sink.files.append(LoadedFile(layer, rel_path, len(data), f"{layer} file"))
+    walk_claude_imports(read_bytes, rel_path, data, layer, sink)
 
 
 def _resolve_claude_scoped(repo: Repo, target: str) -> list[LoadedFile]:
@@ -260,38 +262,33 @@ def resolve_claude(
     ``.claude/rules/*.md`` whose frontmatter ``paths:`` matches ``target``, or
     that carries no ``paths:`` key at all (always loaded). User (only with
     ``include_user``): ``~/.claude/CLAUDE.md`` plus imports, read live off
-    disk regardless of ``repo.rev`` because user config is not versioned.
+    disk regardless of ``repo``'s rev because user config is not versioned.
     """
-    seen: set[str] = set()
-    files: list[LoadedFile] = []
-    problems: list[ImportProblem] = []
     tilde_read = (lambda rel: _home_read(Path.home(), rel)) if include_user else None
+    sink = _ImportSink(tilde_read=tilde_read)
 
     for root_path in ("CLAUDE.md", ".claude/CLAUDE.md"):
-        _add_and_walk(repo.read_bytes, root_path, "root", seen, files, problems, tilde_read)
+        _add_and_walk(repo.read_bytes, root_path, "root", sink)
 
     for directory in directory_chain(base_dir):
-        _add_and_walk(
-            repo.read_bytes, f"{directory}/CLAUDE.md", "nested", seen, files, problems, tilde_read
-        )
+        _add_and_walk(repo.read_bytes, f"{directory}/CLAUDE.md", "nested", sink)
 
-    files.extend(_resolve_claude_scoped(repo, target))
+    sink.files.extend(_resolve_claude_scoped(repo, target))
 
     if include_user:
-        home_bytes = _home_read(Path.home(), "CLAUDE.md")
-        if home_bytes is not None:
-            key = "~/CLAUDE.md"
-            seen.add(key)
-            files.append(LoadedFile("user", key, len(home_bytes), "user root file"))
-            walk_claude_imports(
-                lambda rel: _home_read(Path.home(), rel),
-                "CLAUDE.md",
-                home_bytes,
-                "user",
-                seen,
-                problems,
-                files,
-                tilde_read=tilde_read,
-            )
+        _add_user_root(sink)
 
-    return files, problems
+    return sink.files, sink.problems
+
+
+def _add_user_root(sink: _ImportSink) -> None:
+    """Add ``~/.claude/CLAUDE.md`` (if present) and follow its imports."""
+    home_bytes = _home_read(Path.home(), "CLAUDE.md")
+    if home_bytes is None:
+        return
+    key = "~/CLAUDE.md"
+    sink.seen.add(key)
+    sink.files.append(LoadedFile("user", key, len(home_bytes), "user root file"))
+    walk_claude_imports(
+        lambda rel: _home_read(Path.home(), rel), "CLAUDE.md", home_bytes, "user", sink
+    )

@@ -294,12 +294,10 @@ class TestClaudeBoundaryBranches:
     def test_add_and_walk_is_a_no_op_when_rel_path_already_seen(self, tmp_path: Path) -> None:
         """`_add_and_walk`'s own dedup guard: a second call for the same path is inert."""
         _write(tmp_path, "CLAUDE.md", "root\n")
-        seen: set[str] = {"CLAUDE.md"}
-        files: list[ecr.LoadedFile] = []
-        problems: list[ecr.ImportProblem] = []
+        sink = ecr._ImportSink(seen={"CLAUDE.md"})
         repo = ecr.Repo(tmp_path, None)
-        ecr._add_and_walk(repo.read_bytes, "CLAUDE.md", "root", seen, files, problems, None)
-        assert files == []
+        ecr._add_and_walk(repo.read_bytes, "CLAUDE.md", "root", sink)
+        assert sink.files == []
 
     def test_malformed_yaml_syntax_fails_closed(self, tmp_path: Path) -> None:
         """Genuinely invalid YAML (not just a duplicate key) raises, not silently 0."""
