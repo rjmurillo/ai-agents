@@ -54,15 +54,15 @@ Start at the lightest effort that meets the acceptance check, not the vendor def
 | Claude Sonnet 5 or GPT-6/5.6 Sol | Sonnet default high | Specified judgment where speed matters: everyday coding, document review, fact checking, structured or technical research, production work below Opus. |
 | Claude Haiku 4.5 or GPT-6/5.6 Luna | Haiku: no effort control | Bounded, frequent, externally checkable: extraction, classification, triage, summarization, small edits, routing, repeated transforms, volume automation. Haiku alias: ADR-080. |
 | GPT-5.6 Terra | Lightest | Known files and patterns: normal implementation or review, local repair. |
-| Escalate | unresolved judgment | Acceptance failure, repeated repair, cross-file contract miss, or scope overrun raises a typed exception; raise effort only there. Raise Opus 5.5 effort before Fable 5.1. |
+| Escalate | unresolved judgment | `acceptance_failed`, `repair_repeated`, `cross_file_contract_missed`, or `diff_scope_exceeded` goes to Sol or Opus, never more prompt text; raise effort only there. Raise Opus 5.5 effort before Fable 5.1. |
 
-Model labels and agent roles are separate | labels advisory, not agents or IDs.
+Model labels and agent roles are separate | labels advisory and unenforced, not agents or IDs.
 `orchestrator` coordinates | `autoplan` routes | known aliases: `opus`, `sonnet`, `haiku`; other labels only when the harness resolves them.
 Resolve to concrete IDs | unresolved: retain harness default + record fallback | never silently substitute.
 Preserve registered roles, mappings, role-keyed results, ADR-009, and ADR-078.
 
 Judgment: Opus 5.5 or Astra owns ambiguity/acceptance | Sol or Opus handles hard exceptions and high-recall review | Do not force a weaker model into judgment work with more prompts, tools, or subagents.
-Bounded: route down only when scope explicit | failure cheap | verifier objective | fan-out/context replay low | receipt compact.
+Bounded: route down only when scope explicit | failure cheap | verifier objective (tests, diff, schema, security) | fan-out/context replay low | receipt compact.
 Control loop: do not route everything up | constrain capable models for routine work | pre-route up when correction/review/human-wait cost wins.
 Interactive: human-blocking latency weighs more | async: token cost weighs more | fan-out adds coordination tax.
 Fixtures 2026-09-24 (single-turn): cheapest rung within 0.10 of ladder best for most agents. Relative, no pass bar (Luna qa 0.33). Only nominates a tier for a bounded leaf with a real verifier. Exceptions: skillbook Opus/Astra; implementer Astra; orchestrator Sonnet; security-review Opus.
@@ -71,9 +71,6 @@ Benchmark costs are conditional on harness, effort, prompt, and pass definition;
 
 The orchestrator delegates implementation and accepts independent verification.
 Use event-driven waits and compact receipts. Stop after acceptance.
-Delegation contract: objective | scope | verifier | criterion | exception and recipient | receipt: label, ID, paths, result, acceptance, escalation.
-Typed exceptions: `acceptance_failed` | `cross_file_contract_missed` | `repair_repeated` | `diff_scope_exceeded`; Sol or Opus handles them; never escalate by adding prompt text.
-Verify every route with tests, diff review, schema checks, or security review; labels carry no automated enforcement.
 
 ## Routing Algorithm
 
