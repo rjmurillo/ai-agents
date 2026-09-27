@@ -1,13 +1,13 @@
 ---
 name: planner
-description: Script-driven plan-and-execute workflow with saved step state. planner.py drafts a plan file through forced reflection pauses and a technical-writer and quality-reviewer review; executor.py delegates each milestone of the approved file to specialized agents. Use when you say "run the planner workflow", "execute the plan at plans/X.md", "review the plan and pick up next item", or "resume execution". Do NOT use to decompose a spec into milestones and tasks in the lifecycle chain (use plan), or to log progress on a plan artifact (use execution-plans).
+description: Script-guided plan-and-execute workflow run one numbered step at a time. planner.py drafts a plan through forced reflection pauses, then runs a technical-writer and quality-reviewer review of the plan file; executor.py delegates each milestone of an approved plan file to specialized agents and, on resume, reconciles the file against completed work. Use when you say "run the planner workflow", "execute the plan at plans/X.md", "pick up the next plan item", or "resume execution". Do NOT use to decompose a spec into milestones and tasks in the lifecycle chain (use plan), or to log progress on a plan artifact (use execution-plans).
 license: MIT
 metadata:
   routing:
-    role: conditional-adjunct
-    invoker: buy-vs-build-framework
-    trigger: buy-vs-build-framework routes to planner for post-decision execution planning
-    user-facing: false
+    role: front-door
+    invoker: autoplan
+    trigger: autoplan routes execution, review, or resume of an approved plan file to planner
+    user-facing: true
 version: 1.0.0
 ---
 
@@ -15,15 +15,19 @@ version: 1.0.0
 
 ## Purpose
 
-Two script-driven workflows that share saved step state:
+Two script-guided workflows. Each script prints the guidance for one numbered
+step; the caller passes the step number and its thoughts on every call, and
+nothing is saved between calls:
 
-1. **Planning workflow** (planner.py): Draft a plan file through forced
-   reflection pauses, then run the technical-writer and quality-reviewer review
+1. **Planning workflow** (planner.py): Draft a plan through forced reflection
+   pauses, then run the technical-writer and quality-reviewer review of the
+   plan file
 2. **Execution workflow** (executor.py): Execute an approved plan file through
-   delegation, and resume it from the last saved step
+   delegation. On resume, step 1 reconciles the plan file against work already
+   done
 
 The `plan` skill owns lifecycle decomposition of a spec into milestones and
-tasks. Use this skill when that work needs script-managed state, a formal
+tasks. Use this skill when that work needs forced reflection pauses, a formal
 review pass, or delegated execution.
 
 ## Invocation Routing
@@ -31,15 +35,15 @@ review pass, or delegated execution.
 **Invoke planner.py** when user asks to:
 
 - "run the planner workflow" for a plan that needs forced reflection pauses
-- "review" an existing plan file before execution
+- "review" a written plan file before execution (review phase)
 
 A request to break a spec into milestones and tasks, with no plan file and no
 executor run in view, belongs to the `plan` skill, not here.
 
 **Invoke executor.py** when user asks to:
 
-- "execute", "implement", "run" a plan
-- "resume" or "continue" execution
+- "execute" or "implement" an approved plan file
+- "pick up" the next plan item, "resume", or "continue" execution
 - Provides a plan file path for implementation
 
 ---
@@ -67,7 +71,7 @@ Skip the planner skill when the task is:
 
 | Script | Purpose |
 |--------|---------|
-| `scripts/planner.py` | Planning and review workflow with step-based state management |
+| `scripts/planner.py` | Planning and review workflow, one numbered step per call |
 | `scripts/executor.py` | Execution workflow for approved plans with milestone delegation |
 
 ## Triggers
@@ -75,9 +79,9 @@ Skip the planner skill when the task is:
 | Trigger Phrase | Operation |
 |----------------|-----------|
 | `run the planner workflow` | planner.py (planning phase) |
-| `review the plan and pick up next item` | executor.py (execution phase) |
+| `pick up the next plan item` | executor.py (execution phase) |
 | `execute the plan at plans/X.md` | executor.py (execution phase) |
-| `resume execution` | executor.py (continue from last step) |
+| `resume execution` | executor.py (reconcile the plan file against completed work) |
 
 ---
 
@@ -87,7 +91,7 @@ Skip the planner skill when the task is:
 |-------|-----|---------|
 | Skipping review phase after planning | Misses quality/temporal issues | Always run review steps 1-2 before execution |
 | Starting execution without /clear | Context pollution from planning | User should /clear before execution workflow |
-| Manually following workflow steps | Script manages state and transitions | Run the script and follow its output |
+| Manually following workflow steps | Each step prints the guidance and the next command | Run the script and follow its output |
 | Planning single-step tasks | Overhead exceeds benefit | Implement directly without planner |
 | Editing plan during execution | Creates drift between plan and actions | Return to planning phase for changes |
 

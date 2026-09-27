@@ -21,7 +21,7 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 COPY_ROOTS = (".claude/skills", "src/claude/skills", "src/copilot-cli/skills")
 RETIRED_PLANNER_TRIGGERS = ("plan this feature", "create implementation plan")
 TRIGGER_PHRASE_RE = re.compile(r'"([^"]+)"|`([^`]+)`')
-TRIGGER_ROW_RE = re.compile(r"^\| `([^`]+)` \|", re.MULTILINE)
+BACKTICK_RE = re.compile(r"`([^`]+)`")
 TRIGGERS_SECTION_RE = re.compile(r"^## Triggers\n(.*?)(?=^## |\Z)", re.MULTILINE | re.DOTALL)
 
 
@@ -42,12 +42,12 @@ def _read(relative_path: str) -> tuple[str, str]:
 
 
 def _trigger_phrases(relative_path: str) -> set[str]:
-    """Return quoted phrases before Do NOT use, plus Triggers section rows."""
+    """Return quoted phrases before Do NOT use, plus Triggers section phrases."""
     text, description = _read(relative_path)
     quoted = TRIGGER_PHRASE_RE.findall(description.split("Do NOT use", 1)[0])
     section = TRIGGERS_SECTION_RE.search(text)
-    rows = TRIGGER_ROW_RE.findall(section.group(1)) if section else []
-    return {a or b for a, b in quoted} | set(rows)
+    listed = BACKTICK_RE.findall(section.group(1)) if section else []
+    return {a or b for a, b in quoted} | set(listed)
 
 
 @pytest.mark.parametrize("path", _copies("planner"))
