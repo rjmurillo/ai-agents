@@ -1611,21 +1611,18 @@ def _repo_root() -> Path:
 def _find_archive_file(session_id: str, extension: str) -> Path | None:
     """Find an archive file for a session ID with the given extension.
 
-    Searches both `.agents/archive/sessions/` and `.agents/archive/session/`
-    for files matching the session ID pattern. Returns the shortest-named match
-    (preferring exact matches) to ensure deterministic selection across platforms.
+    Searches `.agents/archive/sessions/` for files matching the session ID
+    pattern. Returns the shortest-named match (preferring exact matches) to
+    ensure deterministic selection across platforms.
     """
     base_archive = _repo_root() / ".agents" / "archive"
-    archive_dirs = [base_archive / "sessions", base_archive / "session"]
-    pattern = f"{session_id}*.{extension}"
-    for archive_dir in archive_dirs:
-        if not archive_dir.is_dir():
-            continue
-        matches = list(archive_dir.glob(pattern))
-        if matches:
-            matches.sort(key=lambda p: (len(p.name), p.name))
-            return matches[0]
-    return None
+    archive_dir = base_archive / "sessions"
+    if not archive_dir.is_dir():
+        return None
+    matches = sorted(
+        archive_dir.glob(f"{session_id}*.{extension}"), key=lambda p: (len(p.name), p.name)
+    )
+    return matches[0] if matches else None
 
 
 def _find_archive_markdown(session_id: str) -> Path | None:
