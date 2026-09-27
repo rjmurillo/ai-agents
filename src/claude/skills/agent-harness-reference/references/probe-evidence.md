@@ -342,7 +342,7 @@ sandbox variables; recall is skipped there. Issue #5369 records that the
 Not yet observed live: `userPromptTransformed` delivery on 1.0.89-1. The
 2026-09-26 attempt fired no hook, because the account had exceeded its monthly
 request quota before the prompt ran. The registered command is covered by
-`tests/test_memory_hook_copilot_registration.py`, which runs it as a
+`tests/test_memory_hook_copilot_command.py`, which runs it as a
 subprocess and parses its one JSON document.
 
 ## 9. Re-running a probe

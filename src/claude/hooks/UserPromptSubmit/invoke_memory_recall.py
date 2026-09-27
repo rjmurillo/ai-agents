@@ -22,6 +22,7 @@ References:
 
 from __future__ import annotations
 
+import importlib
 import os
 import sys
 from pathlib import Path
@@ -53,14 +54,17 @@ def main() -> int:
     # exits 0 having done nothing, which is the defect issue #4011 reports.
     reexec_under_project_venv(package_root.parent)
 
+    hook = (
+        "user_prompt_transformed_memory"
+        if COPILOT_TRANSFORMED_FLAG in sys.argv[1:]
+        else "user_prompt_submit_memory"
+    )
     try:
-        from memory_enhancement.hooks import user_prompt_submit_memory as recall
+        recall = importlib.import_module(f"memory_enhancement.hooks.{hook}")
     except ImportError:
         return 0
 
-    if COPILOT_TRANSFORMED_FLAG in sys.argv[1:]:
-        return recall.main_transformed()
-    return recall.main()
+    return int(recall.main())
 
 
 if __name__ == "__main__":

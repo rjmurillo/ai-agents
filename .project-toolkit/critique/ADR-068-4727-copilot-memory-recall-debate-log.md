@@ -51,8 +51,8 @@ that output is dropped and issue #5369 found `COPILOT_CLI` unconfirmed.
 
 ### Major Changes Made
 
-- `main_transformed()` prints nothing when `COPILOT_AGENT_PROMPT` or
-  `GITHUB_COPILOT_API_TOKEN` is set. The hook reference documents both as
+- The Copilot recall hook (`user_prompt_transformed_memory.main`) prints
+  nothing when `COPILOT_AGENT_PROMPT` or `GITHUB_COPILOT_API_TOKEN` is set. The hook reference documents both as
   cloud agent sandbox variables. Unit and subprocess tests cover it.
 - The amendment gained bullets for cloud exclusion, resume persistence,
   batched submissions, "registered, delivery unverified" status, and the two
