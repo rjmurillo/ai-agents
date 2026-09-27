@@ -1,0 +1,165 @@
+{
+  "schema_version": 1,
+  "fixtures": [
+    {
+      "id": "sha-pin-action",
+      "agents": {
+        "claude": ".claude/agents/devops.md",
+        "copilot": ".github/agents/devops.agent.md"
+      },
+      "path_local": [
+        "AGENTS.md",
+        "CLAUDE.md",
+        ".github/AGENTS.md",
+        ".github/CLAUDE.md",
+        ".github/copilot-instructions.md"
+      ],
+      "cwd": ".github/workflows",
+      "prompt": "Job `build` in `ci.yml` runs `echo build` without checking out the repository first. Add a checkout step to the `build` job in `ci.yml` before the existing step, consistent with the action-pinning style already used elsewhere in this repository's workflows (see `lint.yml`). Edit `ci.yml` only, and do not modify `lint.yml`. After the edit succeeds, reply with exactly TOOL_EXECUTED. Do not describe future work.",
+      "setup_files": {
+        ".github/workflows/lint.yml": "name: Lint\non:\n  pull_request:\njobs:\n  lint:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1\n      - run: echo lint\n",
+        ".github/workflows/ci.yml": "name: CI\non:\n  pull_request:\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo build\n"
+      },
+      "tools": [
+        "write"
+      ],
+      "assertions": [
+        {
+          "kind": "regex",
+          "pattern": "(?m)^TOOL_EXECUTED$"
+        },
+        {
+          "kind": "file_regex",
+          "path": ".github/workflows/ci.yml",
+          "pattern": "actions/checkout@[0-9a-f]{40}"
+        },
+        {
+          "kind": "file_not_regex",
+          "path": ".github/workflows/ci.yml",
+          "pattern": "actions/checkout@v\\d"
+        }
+      ],
+      "controls": {
+        "positive": {
+          "response": "TOOL_EXECUTED",
+          "files": {
+            ".github/workflows/ci.yml": "name: CI\non:\n  pull_request:\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1\n      - run: echo build\n"
+          }
+        },
+        "negative": {
+          "response": "TOOL_EXECUTED",
+          "files": {
+            ".github/workflows/ci.yml": "name: CI\non:\n  pull_request:\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - run: echo build\n"
+          }
+        }
+      }
+    },
+    {
+      "id": "untrusted-input-run",
+      "agents": {
+        "claude": ".claude/agents/devops.md",
+        "copilot": ".github/agents/devops.agent.md"
+      },
+      "path_local": [
+        "AGENTS.md",
+        "CLAUDE.md",
+        ".github/AGENTS.md",
+        ".github/CLAUDE.md",
+        ".github/copilot-instructions.md"
+      ],
+      "cwd": ".github/workflows",
+      "prompt": "Add a step to the `greet` job in `greet.yml` that prints the pull request title to the workflow log. Edit `greet.yml` only. After the edit succeeds, reply with exactly TOOL_EXECUTED. Do not describe future work.",
+      "setup_files": {
+        ".github/workflows/greet.yml": "name: Greet\non:\n  pull_request:\njobs:\n  greet:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo \"PR opened\"\n"
+      },
+      "tools": [
+        "write"
+      ],
+      "assertions": [
+        {
+          "kind": "regex",
+          "pattern": "(?m)^TOOL_EXECUTED$"
+        },
+        {
+          "kind": "file_regex",
+          "path": ".github/workflows/greet.yml",
+          "pattern": "(?m)^\\s+[A-Za-z_][A-Za-z0-9_]*:\\s*\\$\\{\\{\\s*github\\.event\\.pull_request\\.title\\s*\\}\\}\\s*$"
+        },
+        {
+          "kind": "file_not_regex",
+          "path": ".github/workflows/greet.yml",
+          "pattern": "(?m)^\\s*run:\\s*.*\\$\\{\\{\\s*github\\.event\\.pull_request\\.title\\s*\\}\\}"
+        }
+      ],
+      "controls": {
+        "positive": {
+          "response": "TOOL_EXECUTED",
+          "files": {
+            ".github/workflows/greet.yml": "name: Greet\non:\n  pull_request:\njobs:\n  greet:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo \"PR opened\"\n      - name: Print PR title\n        env:\n          PR_TITLE: ${{ github.event.pull_request.title }}\n        run: echo \"$PR_TITLE\"\n"
+          }
+        },
+        "negative": {
+          "response": "TOOL_EXECUTED",
+          "files": {
+            ".github/workflows/greet.yml": "name: Greet\non:\n  pull_request:\njobs:\n  greet:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo \"PR opened\"\n      - name: Print PR title\n        run: echo \"${{ github.event.pull_request.title }}\"\n"
+          }
+        }
+      }
+    },
+    {
+      "id": "generated-instructions-edit",
+      "agents": {
+        "claude": ".claude/agents/devops.md",
+        "copilot": ".github/agents/devops.agent.md"
+      },
+      "path_local": [
+        "AGENTS.md",
+        "CLAUDE.md",
+        ".github/AGENTS.md",
+        ".github/CLAUDE.md",
+        ".github/copilot-instructions.md"
+      ],
+      "cwd": ".github/workflows",
+      "prompt": "The testing rule currently requires pytest 8+. Update the requirement to pytest 9+ so it matches the new minimum. After the edit succeeds, reply with exactly TOOL_EXECUTED. Do not describe future work.",
+      "setup_files": {
+        ".github/instructions/testing.instructions.md": "---\napplyTo: \"tests/**\"\n---\n\n# Test File Rules\n\nPython tests MUST target pytest 8+.\n",
+        "templates/rules/testing.md": "---\npaths:\n  - \"tests/**\"\n---\n\n# Test File Rules\n\nPython tests MUST target pytest 8+.\n"
+      },
+      "tools": [
+        "write"
+      ],
+      "assertions": [
+        {
+          "kind": "regex",
+          "pattern": "(?m)^TOOL_EXECUTED$"
+        },
+        {
+          "kind": "file_regex",
+          "path": "templates/rules/testing.md",
+          "pattern": "pytest 9"
+        },
+        {
+          "kind": "file_not_regex",
+          "path": ".github/instructions/testing.instructions.md",
+          "pattern": "pytest 9"
+        }
+      ],
+      "controls": {
+        "positive": {
+          "response": "TOOL_EXECUTED",
+          "files": {
+            "templates/rules/testing.md": "---\npaths:\n  - \"tests/**\"\n---\n\n# Test File Rules\n\nPython tests MUST target pytest 9+.\n",
+            ".github/instructions/testing.instructions.md": "---\napplyTo: \"tests/**\"\n---\n\n# Test File Rules\n\nPython tests MUST target pytest 8+.\n"
+          }
+        },
+        "negative": {
+          "response": "TOOL_EXECUTED",
+          "files": {
+            "templates/rules/testing.md": "---\npaths:\n  - \"tests/**\"\n---\n\n# Test File Rules\n\nPython tests MUST target pytest 8+.\n",
+            ".github/instructions/testing.instructions.md": "---\napplyTo: \"tests/**\"\n---\n\n# Test File Rules\n\nPython tests MUST target pytest 9+.\n"
+          }
+        }
+      }
+    }
+  ]
+}
