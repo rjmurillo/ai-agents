@@ -832,12 +832,15 @@ def validate_instruction_budget(repo_root: Path) -> bool:
 
 
 def validate_effective_context_ratchet(repo_root: Path) -> bool:
-    """Gate path-local effective-context growth for five frozen targets (#4880).
+    """Gate path-local effective-context growth, frozen targets and every directory (#4880).
 
-    Runs the ten (target, harness) ceilings in
-    ``scripts.validation.effective_context.CEILINGS_BYTES``: a target's
-    nested ``AGENTS.md``/``CLAUDE.md`` bytes, per harness, must not exceed
-    the ceiling measured at the commit that set it (SPEC-4880). SKIP when the
+    Runs ``scripts.validation.effective_context --ci``'s two ratchets: the
+    ten (target, harness) ceilings in ``CEILINGS_BYTES`` (a target's nested
+    ``AGENTS.md``/``CLAUDE.md`` bytes, per harness, must not exceed the
+    ceiling measured at the commit that set it), and, per issue #4880 AC7,
+    ``PATH_LOCAL_DIRECTORY_CEILINGS``'s per-directory, per-harness entry for
+    every git-tracked directory ``discover_nested_directories`` finds with
+    its own nested guide, not only the five frozen targets. SKIP when the
     module is absent (downstream install without this repository's
     validation package).
     """

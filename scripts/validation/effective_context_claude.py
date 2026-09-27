@@ -10,6 +10,7 @@ scoping.
 from __future__ import annotations
 
 import posixpath
+import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
@@ -34,21 +35,34 @@ CLAUDE_RULES_DIR = ".claude/rules"
 
 _FENCE_MARKER = "```"
 
+# An inline code span (`` `...` ``) is stripped before matching, so an
+# example like `` `@foo.md` `` in prose is never read as a real import.
+_INLINE_CODE_RE = re.compile(r"`[^`]*`")
+
+# `@path` anywhere in a line, not only a whole line to itself: Claude Code
+# expands the token wherever it appears ("See @README for details" imports
+# `README` exactly as a standalone `@README` line would). The negative
+# lookbehind for a preceding word character excludes an email address's `@`
+# (`a@b.c`: the `@` is preceded by `a`), since a real import token is never
+# glued to the end of another word. `[\w./~-]+` covers the path characters
+# this repository's own imports use (letters, digits, `.`, `/`, `~`, `-`).
+_IMPORT_TOKEN_RE = re.compile(r"(?<!\w)@[\w./~-]+")
+
 
 def extract_import_tokens(text: str) -> list[str]:
-    """Return each ``@import`` token that occupies its own line.
+    """Return each ``@import`` token anywhere in a line, outside code.
 
-    Matches the form observed in every root/nested ``CLAUDE.md`` in this
-    repository (each has ``@AGENTS.md`` alone on its own line). A whole-line
-    match excludes an import inside inline code (a backtick opens the line,
-    so ``^@`` cannot match) with no separate scanner. A triple-backtick fence
-    toggles a skip on any line whose stripped form starts with it (a
-    language tag after the fence does not change this).
+    A triple-backtick fence toggles a skip on any line whose stripped form
+    starts with it (a language tag after the fence does not change this);
+    an inline code span is stripped from the remaining line before matching.
 
-    Stricter than "anywhere in the line": an ``@import`` embedded mid-sentence
-    is not recognized. No file in this repository does that; if one starts
-    to, this under-counts rather than over-counts, the safe direction for a
-    budget gate reused by a ratchet (REQ-6).
+    Broader than an earlier whole-line-only match: Claude Code expands an
+    ``@path`` token wherever it appears in a line, so under-counting a
+    mid-sentence import was itself a gap, not a safe direction. The
+    remaining risk runs the other way now: a ``@``-prefixed token that reads
+    like a path but Claude Code would not actually expand (for example a
+    social-media handle) would be over-counted. No such token appears in
+    this repository's own instruction files.
     """
     tokens: list[str] = []
     in_fence = False
@@ -59,8 +73,8 @@ def extract_import_tokens(text: str) -> list[str]:
             continue
         if in_fence:
             continue
-        if stripped.startswith("@") and " " not in stripped and "\t" not in stripped:
-            tokens.append(stripped)
+        visible = _INLINE_CODE_RE.sub("", line)
+        tokens.extend(_IMPORT_TOKEN_RE.findall(visible))
     return tokens
 
 
@@ -95,22 +109,36 @@ def _process_relative_import(
     active_layer: str,
     sink: _ImportSink,
 ) -> tuple[str, bytes] | None:
-    """Resolve one project-relative ``@import`` token.
+    """Resolve one relative ``@import`` token, project- or home-rooted.
 
     Returns ``(candidate_path, candidate_bytes)`` to recurse into, or
-    ``None`` when the import escaped the repo, is a cycle, is missing, or was
+    ``None`` when the import escaped its root, is a cycle, is missing, or was
     already billed (each case is handled here so :func:`walk_claude_imports`
     only has to branch on "recurse or not").
+
+    ``rel_path`` starting with ``~/`` means the current file is itself
+    home-rooted (reached via a ``@~/...`` token): the ``~/`` prefix is
+    stripped before computing the directory to join against, so a relative
+    import inside ``~/.claude/CLAUDE.md`` resolves under ``~/.claude/``, not
+    a literal ``<home>/~/...`` path (``active_read`` in that case is
+    ``sink.tilde_read``, which reads relative to the real home directory and
+    would fail on a literal ``~`` segment). The ``~/`` prefix is restored on
+    the returned candidate, so ``sink.seen`` keeps using the same ``~/``-keyed
+    form a project file's direct ``@~/...`` import uses, and the recursive
+    caller (:func:`walk_claude_imports`) re-detects ``is_home`` correctly one
+    level deeper.
     """
-    base_dir = posixpath.dirname(rel_path)
-    candidate = _resolve_relative_import(base_dir, raw[1:])
-    if candidate.startswith("..") or PurePosixPath(candidate).is_absolute():
+    is_home = rel_path.startswith("~/")
+    base_dir = posixpath.dirname(rel_path[len("~/") :] if is_home else rel_path)
+    joined = _resolve_relative_import(base_dir, raw[1:])
+    if joined.startswith("..") or PurePosixPath(joined).is_absolute():
         sink.problems.append(ImportProblem("outside_repo", rel_path, raw))
         return None
+    candidate = f"~/{joined}" if is_home else joined
     if candidate in ancestors:
         sink.problems.append(ImportProblem("cycle", rel_path, raw))
         return None
-    data = active_read(candidate)
+    data = active_read(joined)
     if data is None:
         sink.problems.append(ImportProblem("missing", rel_path, raw))
         return None
@@ -230,8 +258,19 @@ def _add_and_walk(
 
 
 def _resolve_claude_scoped(repo: Repo, target: str) -> list[LoadedFile]:
+    """Scoped ``.claude/rules/*.md`` files, in both the working tree and at a rev.
+
+    Filters to ``.md`` explicitly (matching ``all_copilot_instructions``'s
+    own ``.instructions.md`` filter) rather than treating every listed name
+    as a rule: ``Repo.list_dir`` returns every blob directly under the
+    directory, working tree or rev alike, and a non-Markdown file there
+    would otherwise be read and have its frontmatter parsed as if it were
+    one.
+    """
     files: list[LoadedFile] = []
     for rel_path in repo.list_dir(CLAUDE_RULES_DIR):
+        if not rel_path.endswith(".md"):
+            continue
         data = repo.read_bytes(rel_path)
         if data is None:
             continue
@@ -282,13 +321,19 @@ def resolve_claude(
 
 
 def _add_user_root(sink: _ImportSink) -> None:
-    """Add ``~/.claude/CLAUDE.md`` (if present) and follow its imports."""
-    home_bytes = _home_read(Path.home(), "CLAUDE.md")
+    """Add ``~/.claude/CLAUDE.md`` (if present) and follow its imports.
+
+    ``~/.claude/CLAUDE.md`` matches the loading model's own root layer row
+    (``~/.claude/CLAUDE.md`` plus imports), not a bare ``~/CLAUDE.md``.
+    ``key`` is passed as ``walk_claude_imports``'s ``start_rel`` (``~/``
+    prefix included), so :func:`_process_relative_import` detects
+    ``is_home`` immediately and resolves a relative import under
+    ``~/.claude/``, not the home directory's own root.
+    """
+    home_bytes = _home_read(Path.home(), ".claude/CLAUDE.md")
     if home_bytes is None:
         return
-    key = "~/CLAUDE.md"
+    key = "~/.claude/CLAUDE.md"
     sink.seen.add(key)
     sink.files.append(LoadedFile("user", key, len(home_bytes), "user root file"))
-    walk_claude_imports(
-        lambda rel: _home_read(Path.home(), rel), "CLAUDE.md", home_bytes, "user", sink
-    )
+    walk_claude_imports(lambda rel: _home_read(Path.home(), rel), key, home_bytes, "user", sink)

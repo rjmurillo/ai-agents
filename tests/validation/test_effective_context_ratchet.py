@@ -135,6 +135,30 @@ class TestReq3Observe:
         with pytest.raises(ec.CopilotUnavailableError):
             ec.run_copilot_observe(tmp_path, "", set())
 
+    def test_observe_raises_on_malformed_json_output(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """REQ-3 / ADR-035 exit 3: unparsable stdout is external, not a crash."""
+
+        def _fake_run(*_args: object, **_kwargs: object) -> FakeCompletedProcess:
+            return FakeCompletedProcess(0, stdout="not json")
+
+        monkeypatch.setattr(ec.subprocess, "run", _fake_run)
+        with pytest.raises(ec.CopilotUnavailableError, match="unparsable"):
+            ec.run_copilot_observe(tmp_path, "", set())
+
+    def test_observe_raises_when_an_entry_is_not_an_object(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """REQ-3 / ADR-035 exit 3: a non-object entry is malformed, not a crash."""
+
+        def _fake_run(*_args: object, **_kwargs: object) -> FakeCompletedProcess:
+            return FakeCompletedProcess(0, stdout=json.dumps(["not-an-object"]))
+
+        monkeypatch.setattr(ec.subprocess, "run", _fake_run)
+        with pytest.raises(ec.CopilotUnavailableError, match="unparsable"):
+            ec.run_copilot_observe(tmp_path, "", set())
+
     @pytest.mark.skipif(
         subprocess.run(["which", "copilot"], capture_output=True).returncode != 0,
         reason="copilot CLI not installed on this machine",
@@ -222,6 +246,18 @@ class TestReq7CeilingLabel:
 
 
 class TestDiscoverNestedDirectories:
+    def test_raises_when_git_binary_is_absent(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """ADR-035 exit 3: a missing `git` binary is external, not a silent pass."""
+
+        def _fake_run(*_args: object, **_kwargs: object) -> None:
+            raise FileNotFoundError("no such file")
+
+        monkeypatch.setattr(ecr.subprocess, "run", _fake_run)
+        with pytest.raises(ecr.GitUnavailableError):
+            ecr.discover_nested_directories(tmp_path)
+
     def test_finds_nested_directories_and_excludes_the_repo_root(self, tmp_path: Path) -> None:
         _init_git_repo(tmp_path)
         _write(tmp_path, "CLAUDE.md", "root\n")
@@ -259,17 +295,22 @@ class TestDiscoverNestedDirectories:
         directories, _excluded = ecr.discover_nested_directories(tmp_path)
         assert directories == []
 
-    def test_returns_empty_outside_a_git_repository(self, tmp_path: Path) -> None:
+    def test_raises_outside_a_git_repository(self, tmp_path: Path) -> None:
+        """`git ls-files` failing must not be silently read as "no directories".
+
+        A vacuous `([], [])` would let `check_directory_ceiling` pass with
+        zero directories checked, reporting green when the check never ran
+        at all.
+        """
         _write(tmp_path, "a/CLAUDE.md", "x\n")
-        directories, excluded = ecr.discover_nested_directories(tmp_path)
-        assert directories == []
-        assert excluded == []
+        with pytest.raises(ecr.GitUnavailableError):
+            ecr.discover_nested_directories(tmp_path)
 
 
 class TestDirectoryCeiling:
     def test_real_repository_passes_the_directory_ceiling(self) -> None:
         ok, _report, failures, _excluded = ec.check_directory_ceiling(
-            REPO_ROOT, ec.PATH_LOCAL_DIRECTORY_CEILING
+            REPO_ROOT, ec.PATH_LOCAL_DIRECTORY_CEILINGS
         )
         assert ok, failures
 
@@ -279,7 +320,8 @@ class TestDirectoryCeiling:
         _write(tmp_path, "grown/CLAUDE.md", "x" * 500 + "\n")
         _commit_all(tmp_path, "v1")
 
-        ok, report, failures, excluded = ec.check_directory_ceiling(tmp_path, 10)
+        ceilings = {("grown", "claude"): 10, ("grown", "copilot"): 10}
+        ok, report, failures, excluded = ec.check_directory_ceiling(tmp_path, ceilings)
         assert ok is False
         assert excluded == []
         assert any("FAIL" in line and "grown" in line for line in report)
@@ -289,26 +331,59 @@ class TestDirectoryCeiling:
             assert "exceed ceiling 10" in line
             assert "--target grown --harness" in line
 
+    def test_directory_missing_from_the_map_fails_and_names_the_constant(
+        self, tmp_path: Path
+    ) -> None:
+        """A newly discovered directory with no ceiling entry fails, not passes silently."""
+        _init_git_repo(tmp_path)
+        _write(tmp_path, "CLAUDE.md", "root\n")
+        _write(tmp_path, "new_dir/CLAUDE.md", "x\n")
+        _commit_all(tmp_path, "v1")
+
+        ok, _report, failures, _excluded = ec.check_directory_ceiling(tmp_path, {})
+        assert ok is False
+        assert len(failures) == 2  # claude and copilot both missing
+        for line in failures:
+            assert "new_dir" in line
+            assert "PATH_LOCAL_DIRECTORY_CEILINGS" in line
+
     def test_directory_ceiling_pass_at_exact_boundary(self, tmp_path: Path) -> None:
         _init_git_repo(tmp_path)
         _write(tmp_path, "CLAUDE.md", "root\n")
         nested_bytes = _write(tmp_path, "a/CLAUDE.md", "12345\n")
         _commit_all(tmp_path, "v1")
 
-        ok, _report, failures, _excluded = ec.check_directory_ceiling(tmp_path, nested_bytes)
+        ceilings = {("a", "claude"): nested_bytes, ("a", "copilot"): nested_bytes}
+        ok, _report, failures, _excluded = ec.check_directory_ceiling(tmp_path, ceilings)
         assert ok is True
         assert failures == []
 
     def test_ceiling_label_covers_the_directory_ceiling_too(self) -> None:
-        """The directory ceiling reuses the same local/measured/no-vendor label."""
-        assert ec.PATH_LOCAL_DIRECTORY_CEILING > 0
+        """The directory ceiling map reuses the same local/measured/no-vendor label."""
+        assert ec.PATH_LOCAL_DIRECTORY_CEILINGS
+        assert all(value >= 0 for value in ec.PATH_LOCAL_DIRECTORY_CEILINGS.values())
         assert "local" in ec.CEILING_LABEL.lower()
         assert "no vendor" in ec.CEILING_LABEL.lower()
+
+    def test_map_covers_every_discovered_directory_and_both_harnesses(self) -> None:
+        """Every directory `discover_nested_directories` finds has both harness entries."""
+        directories, _excluded = ecr.discover_nested_directories(REPO_ROOT)
+        for directory in directories:
+            assert (directory, "claude") in ec.PATH_LOCAL_DIRECTORY_CEILINGS
+            assert (directory, "copilot") in ec.PATH_LOCAL_DIRECTORY_CEILINGS
 
 
 class TestCiIncludesDirectoryRatchet:
     def test_ci_runs_the_real_directory_ratchet_and_exits_zero(self) -> None:
         assert ec.main(["--ci"]) == 0
+
+    def test_ci_exits_three_when_git_ls_files_fails(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """ADR-035: a broken `git ls-files` is an external error, not a silent pass."""
+        code = ec.main(["--ci"], repo_root=tmp_path)
+        assert code == 3
+        assert "git" in capsys.readouterr().err.lower()
 
     def test_ci_fails_and_names_directory_harness_bytes_ceiling_command(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
@@ -318,7 +393,9 @@ class TestCiIncludesDirectoryRatchet:
         _write(tmp_path, "grown/CLAUDE.md", "x" * 500 + "\n")
         _commit_all(tmp_path, "v1")
         monkeypatch.setattr(ec, "CEILINGS_BYTES", {})
-        monkeypatch.setattr(ec, "PATH_LOCAL_DIRECTORY_CEILING", 10)
+        monkeypatch.setattr(
+            ec, "PATH_LOCAL_DIRECTORY_CEILINGS", {("grown", "claude"): 10, ("grown", "copilot"): 10}
+        )
 
         code = ec.main(["--ci"], repo_root=tmp_path)
         assert code == 1

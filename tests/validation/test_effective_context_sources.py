@@ -157,6 +157,26 @@ class TestRepoDirectAccessors:
         repo = ecr.Repo(tmp_path, None)
         assert repo.rev_is_valid() is True
 
+    def test_list_dir_at_a_rev_excludes_a_subdirectory_entry(self, tmp_path: Path) -> None:
+        """`git ls-tree` at a rev must keep only blobs, matching `is_file()` in the live tree.
+
+        A bare `--name-only` listing cannot distinguish a file from a
+        subdirectory of the same listed name; without a type filter, a
+        subdirectory under a scanned rules/instructions directory would be
+        misread as a rule file.
+        """
+        _init_git_repo(tmp_path)
+        _write(tmp_path, "CLAUDE.md", "root\n")
+        _write(tmp_path, ".claude/rules/real.md", '---\npaths: ["**"]\n---\nbody\n')
+        _write(tmp_path, ".claude/rules/nested/inner.md", '---\npaths: ["**"]\n---\nbody\n')
+        sha = _commit_all(tmp_path, "v1")
+
+        live = ecs.Repo(tmp_path, None).list_dir(".claude/rules")
+        at_rev = ecs.Repo(tmp_path, sha).list_dir(".claude/rules")
+
+        assert live == [".claude/rules/real.md"]
+        assert at_rev == [".claude/rules/real.md"]
+
     def test_rev_is_valid_refuses_an_option_shaped_rev(self, tmp_path: Path) -> None:
         """REQ-4: a `--rev` that starts with `-` never reaches git (CWE-88)."""
         repo = ecr.Repo(tmp_path, "--all")

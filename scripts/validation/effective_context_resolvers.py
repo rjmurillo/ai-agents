@@ -72,6 +72,7 @@ from scripts.validation.effective_context_sources import (
 __all__ = [
     "COPILOT_HOME_ENV",
     "EffectiveContextResult",
+    "GitUnavailableError",
     "ImportProblem",
     "InvalidRevError",
     "LoadedFile",
@@ -170,6 +171,10 @@ def _is_fixture_path(rel_path: str) -> bool:
     return any(part.lower() in _FIXTURE_SEGMENT_NAMES for part in rel_path.split("/"))
 
 
+class GitUnavailableError(RuntimeError):
+    """``git`` is not on PATH, is not a repository here, or timed out."""
+
+
 def discover_nested_directories(repo_root: Path) -> tuple[list[str], list[str]]:
     """Every git-tracked directory with a nested ``CLAUDE.md``/``AGENTS.md``.
 
@@ -191,15 +196,23 @@ def discover_nested_directories(repo_root: Path) -> tuple[list[str], list[str]]:
     fixture-tree segment is excluded and returned separately so the caller
     can report what it skipped and why.
 
-    Returns ``([], [])`` when ``repo_root`` is not a git repository (or
-    ``git`` is unavailable), rather than raising: discovery degrades to "no
-    extra directories found," and the five frozen targets still ratchet.
+    Raises :class:`GitUnavailableError` (ADR-035 exit code 3) when ``git
+    ls-files`` fails or times out, rather than returning ``([], [])``: an
+    empty result the caller cannot tell apart from "no directories found"
+    would let :func:`~scripts.validation.effective_context.check_directory_ceiling`
+    pass with zero directories checked, reporting the ratchet green while it
+    never ran.
     """
-    result = subprocess.run(
-        ["git", "ls-files"], cwd=repo_root, capture_output=True, text=True, timeout=30
-    )
+    try:
+        result = subprocess.run(
+            ["git", "ls-files"], cwd=repo_root, capture_output=True, text=True, timeout=30
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        msg = f"git ls-files failed to run in {repo_root}: {exc}"
+        raise GitUnavailableError(msg) from exc
     if result.returncode != 0:
-        return [], []
+        msg = f"git ls-files exited {result.returncode} in {repo_root}: {result.stderr.strip()}"
+        raise GitUnavailableError(msg)
     directories: set[str] = set()
     excluded: list[str] = []
     for line in result.stdout.splitlines():

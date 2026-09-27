@@ -24,7 +24,12 @@ if str(REPO_ROOT) not in sys.path:
 
 import scripts.validation.effective_context as ec
 import scripts.validation.effective_context_resolvers as ecr
-from tests.validation._effective_context_helpers import FakeCompletedProcess, _write
+from tests.validation._effective_context_helpers import (
+    FakeCompletedProcess,
+    _commit_all,
+    _init_git_repo,
+    _write,
+)
 
 
 class TestOrchestratorDispatch:
@@ -61,11 +66,14 @@ class TestCliInjectedRepoRoot:
     def test_ci_prints_fail_and_exits_one_on_a_real_breach(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
     ) -> None:
+        _init_git_repo(tmp_path)
         _write(tmp_path, "CLAUDE.md", "root\n")
         _write(tmp_path, "a/CLAUDE.md", "a" * 100 + "\n")
         (tmp_path / "a" / "b").mkdir(parents=True)
         (tmp_path / "a" / "b" / "target.py").write_text("x\n", encoding="utf-8")
+        _commit_all(tmp_path, "v1")
         monkeypatch.setattr(ec, "CEILINGS_BYTES", {("a/b/target.py", "claude"): 1})
+        monkeypatch.setattr(ec, "PATH_LOCAL_DIRECTORY_CEILINGS", {})
         code = ec.main(["--ci"], repo_root=tmp_path)
         assert code == 1
         out = capsys.readouterr().out

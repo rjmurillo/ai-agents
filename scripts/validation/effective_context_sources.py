@@ -148,11 +148,22 @@ class Repo:
             return sorted(
                 f"{rel_dir}/{entry.name}" for entry in directory.iterdir() if entry.is_file()
             )
-        return sorted(self._ls_tree(self._rev, rel_dir.rstrip("/") + "/"))
+        entries = self._ls_tree(self._rev, rel_dir.rstrip("/") + "/")
+        return sorted(name for entry_type, name in entries if entry_type == "blob")
 
-    def _ls_tree(self, rev: str, pathspec: str) -> list[str]:
+    def _ls_tree(self, rev: str, pathspec: str) -> list[tuple[str, str]]:
+        """List ``(type, name)`` for every entry directly under ``pathspec`` at ``rev``.
+
+        Deliberately omits ``--name-only``: that flag drops the ``<mode>
+        <type> <sha>`` prefix, so a listed name cannot be told apart from a
+        same-named subdirectory (a git tree entry). ``list_dir`` keeps only
+        ``blob`` entries, matching its live-tree branch, which already
+        excludes a subdirectory via ``is_file()``; ``is_dir`` only needs
+        non-emptiness (a directory holding nothing but subdirectories is
+        still a directory), so it does not filter by type.
+        """
         result = subprocess.run(
-            ["git", "ls-tree", "--name-only", rev, "--", pathspec],
+            ["git", "ls-tree", rev, "--", pathspec],
             cwd=self._root,
             capture_output=True,
             text=True,
@@ -160,7 +171,13 @@ class Repo:
         )
         if result.returncode != 0:
             return []
-        return [line for line in result.stdout.splitlines() if line]
+        entries: list[tuple[str, str]] = []
+        for line in result.stdout.splitlines():
+            metadata, _, name = line.partition("\t")
+            fields = metadata.split(" ")
+            if name and len(fields) >= 2:
+                entries.append((fields[1], name))
+        return entries
 
     def rev_is_valid(self) -> bool:
         """True when ``self._rev`` names a commit git can resolve."""

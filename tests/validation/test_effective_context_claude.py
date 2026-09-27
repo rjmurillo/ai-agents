@@ -167,10 +167,10 @@ class TestReq5UserLayer:
     def test_include_user_adds_a_user_layer_file_excluded_from_totals(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """REQ-5: user CLAUDE.md is reported, but excluded from repo/path-local totals."""
+        """REQ-5: user ``~/.claude/CLAUDE.md`` is reported, excluded from other totals."""
         home = tmp_path / "home"
         home.mkdir()
-        user_bytes = _write(home, "CLAUDE.md", "user preferences, quite long text here\n")
+        user_bytes = _write(home, ".claude/CLAUDE.md", "user preferences, quite long text here\n")
         monkeypatch.setattr(ecr.Path, "home", classmethod(lambda cls: home))
 
         repo = tmp_path / "repo"
@@ -183,11 +183,36 @@ class TestReq5UserLayer:
 
         user_files = [f for f in with_user.files if f.layer == "user"]
         assert len(user_files) == 1
-        assert user_files[0].path == "~/CLAUDE.md"
+        assert user_files[0].path == "~/.claude/CLAUDE.md"
         assert user_files[0].size_bytes == user_bytes
         assert with_user.user_total_bytes == user_bytes
         assert with_user.repo_total_bytes == without_user.repo_total_bytes
         assert with_user.path_local_bytes == without_user.path_local_bytes
+
+    def test_user_root_relative_import_resolves_under_dot_claude(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A relative import inside ``~/.claude/CLAUDE.md`` resolves from ``~/.claude/``.
+
+        Regression for a bug where the join produced a literal ``home/~/x``
+        path instead of ``~/.claude/rules/extra.md``.
+        """
+        home = tmp_path / "home"
+        home.mkdir()
+        _write(home, ".claude/CLAUDE.md", "@rules/extra.md\n")
+        extra_bytes = _write(home, ".claude/rules/extra.md", "extra user rule\n")
+        monkeypatch.setattr(ecr.Path, "home", classmethod(lambda cls: home))
+
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _write(repo, "CLAUDE.md", "root\n")
+        _write(repo, "target.py", "x = 1\n")
+
+        result = ecr.resolve_effective_context(repo, "target.py", "claude", include_user=True)
+        user_paths = {f.path: f for f in result.files if f.layer == "user"}
+        assert user_paths.keys() == {"~/.claude/CLAUDE.md", "~/.claude/rules/extra.md"}
+        assert user_paths["~/.claude/rules/extra.md"].size_bytes == extra_bytes
+        assert result.problems == ()
 
     def test_include_user_false_never_reads_the_home_directory(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -280,16 +305,40 @@ class TestExtractImportTokens:
         text = "before\n```\n@AGENTS.md\n```\nafter\n"
         assert ecr.extract_import_tokens(text) == []
 
-    def test_ignores_import_embedded_mid_line(self) -> None:
-        assert ecr.extract_import_tokens("See @AGENTS.md for details.\n") == []
+    def test_finds_import_embedded_mid_line(self) -> None:
+        """Claude Code expands `@path` wherever it appears in a line."""
+        assert ecr.extract_import_tokens("See @AGENTS.md for details\n") == ["@AGENTS.md"]
 
     def test_finds_multiple_tokens(self) -> None:
         text = "@one.md\ntext\n@two.md\n"
         assert ecr.extract_import_tokens(text) == ["@one.md", "@two.md"]
 
+    def test_finds_multiple_tokens_on_one_line(self) -> None:
+        assert ecr.extract_import_tokens("@one.md and @two.md\n") == ["@one.md", "@two.md"]
+
+    def test_ignores_token_inside_an_inline_code_span(self) -> None:
+        assert ecr.extract_import_tokens("Use `@notrealimport.md` in code\n") == []
+
+    def test_ignores_email_address(self) -> None:
+        """A preceding word character (the email local part) excludes the `@`."""
+        assert ecr.extract_import_tokens("Contact a@b.c for help\n") == []
+
+    def test_finds_token_after_punctuation(self) -> None:
+        assert ecr.extract_import_tokens("(see @AGENTS.md)\n") == ["@AGENTS.md"]
+
 
 class TestClaudeBoundaryBranches:
     """Defensive branches: dedup guards, races, malformed YAML."""
+
+    def test_scoped_rules_ignore_a_non_markdown_file_in_the_rules_dir(self, tmp_path: Path) -> None:
+        """A non-``.md`` file under ``.claude/rules/`` is not read as a rule."""
+        _write(tmp_path, "CLAUDE.md", "root\n")
+        _write(tmp_path, ".claude/rules/real.md", '---\npaths: ["**"]\n---\nbody\n')
+        _write(tmp_path, ".claude/rules/README", "not a rule\n")
+        _write(tmp_path, "target.py", "x = 1\n")
+        result = ecr.resolve_effective_context(tmp_path, "target.py", "claude")
+        scoped_paths = {f.path for f in result.files if f.layer == "scoped"}
+        assert scoped_paths == {".claude/rules/real.md"}
 
     def test_add_and_walk_is_a_no_op_when_rel_path_already_seen(self, tmp_path: Path) -> None:
         """`_add_and_walk`'s own dedup guard: a second call for the same path is inert."""

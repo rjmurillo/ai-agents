@@ -36,8 +36,20 @@ _VALIDATION_PACKAGE_SENTINEL = _PROJECT_ROOT / "scripts" / "validation" / "model
 if _VALIDATION_PACKAGE_SENTINEL.is_file() and str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))  # pragma: no cover - already on path under pytest
 
+from scripts.validation.effective_context_ceilings import (
+    CEILING_LABEL as CEILING_LABEL,
+)
+from scripts.validation.effective_context_ceilings import (
+    CEILINGS_BYTES,
+    HARNESSES,
+    PATH_LOCAL_DIRECTORY_CEILINGS,
+)
+from scripts.validation.effective_context_ceilings import (
+    FROZEN_TARGETS as FROZEN_TARGETS,
+)
 from scripts.validation.effective_context_resolvers import (
     EffectiveContextResult,
+    GitUnavailableError,
     InvalidRevError,
     Repo,
     TargetOutsideRepoError,
@@ -47,78 +59,6 @@ from scripts.validation.effective_context_resolvers import (
     resolve_effective_context,
 )
 from scripts.validation.instruction_budget_globs import UnsupportedApplyToError
-
-# Frozen targets from SPEC-4880-path-local-effective-context.md, "Frozen
-# targets" table. Each exercises a different depth and a different nested
-# file combination (workflow under two directories, script under two, agent
-# template under three for Claude's src/ split).
-FROZEN_TARGETS: tuple[str, ...] = (
-    ".github/workflows/pr-validation.yml",
-    "scripts/validation/pre_pr.py",
-    "build/scripts/build_all.py",
-    "templates/agents/analyst.shared.md",
-    "src/claude/agents/analyst.md",
-)
-
-HARNESSES: tuple[str, ...] = ("claude", "copilot")
-
-# These are LOCAL, NON-REGRESSION ceilings measured at the accepted state on
-# the commit where SPEC-4880 seeded them (this module's own first commit,
-# `git log -1 --format=%H -- scripts/validation/effective_context.py`).
-# Anthropic and GitHub publish no 25 KB, 200-line, or 50-line hard limit for
-# CLAUDE.md or AGENTS.md; no vendor size limit is implied by any value below.
-# Lower a ceiling when the nested corpus shrinks; never raise one without
-# recording why in the same change. This label covers both CEILINGS_BYTES
-# (per frozen target) and PATH_LOCAL_DIRECTORY_CEILING below (every other
-# instructed directory): both are local, measured, non-vendor ceilings.
-CEILING_LABEL: str = (
-    "These are local, non-regression ceilings measured at the accepted "
-    "state on the commit where they were set. No vendor (Anthropic, "
-    "GitHub) publishes a size limit for CLAUDE.md or AGENTS.md; no vendor "
-    "limit is implied by any ceiling value."
-)
-
-CEILINGS_BYTES: dict[tuple[str, str], int] = {
-    (".github/workflows/pr-validation.yml", "claude"): 5_190,
-    (".github/workflows/pr-validation.yml", "copilot"): 5_190,
-    ("scripts/validation/pre_pr.py", "claude"): 4_141,
-    ("scripts/validation/pre_pr.py", "copilot"): 4_141,
-    ("build/scripts/build_all.py", "claude"): 5_807,
-    ("build/scripts/build_all.py", "copilot"): 5_807,
-    ("templates/agents/analyst.shared.md", "claude"): 5_923,
-    ("templates/agents/analyst.shared.md", "copilot"): 5_923,
-    # Claude loads only `src/AGENTS.md` and `src/CLAUDE.md`: `src/claude/`
-    # has no `CLAUDE.md`, so Claude Code's own loading model (imports only
-    # follow from a `CLAUDE.md`) never reaches `src/claude/AGENTS.md`.
-    # Copilot's directory-chain rule needs no import, reads AGENTS.md/CLAUDE.md
-    # directly per directory, and so also counts `src/claude/AGENTS.md`. This
-    # asymmetry is why SPEC-4880 picked this target: it exercises the one
-    # place the two harnesses' nested layers genuinely diverge.
-    ("src/claude/agents/analyst.md", "claude"): 3_183,
-    ("src/claude/agents/analyst.md", "copilot"): 6_376,
-}
-
-# Issue #4880 AC7: the five frozen targets above cannot catch growth in a
-# directory none of them passes through. This single ceiling instead bounds
-# every git-tracked directory `discover_nested_directories` finds (any
-# directory with its own nested `CLAUDE.md`/`AGENTS.md`), for both harnesses.
-# One shared ceiling, not a per-directory dict, because the set of
-# directories itself grows automatically as the repository does; a per-entry
-# dict would need a new entry every time, defeating the point. Measured as
-# the maximum path-local byte total across every discovered directory and
-# both harnesses at this module's first commit: `.claude/hooks/PreCompact`
-# under Copilot, 11,369 bytes (verified via `resolve_effective_context`).
-# Claude's own total for that same directory is only 7,087: `.claude/CLAUDE.md`
-# is one of Claude's two ROOT files, so its nested-layer occurrence dedups
-# against the root layer and adds nothing there, and nothing in this chain
-# imports `.claude/AGENTS.md` for Claude at all. Copilot's root layer holds
-# only `.github/copilot-instructions.md` plus the repo-root `AGENTS.md`/
-# `CLAUDE.md`, so `.claude/CLAUDE.md` (544 bytes) and `.claude/AGENTS.md`
-# (3,738 bytes) are pure nested-layer additions for Copilot, on top of the
-# `.claude/hooks/AGENTS.md` and `.claude/hooks/PreCompact/CLAUDE.md` bytes
-# both harnesses already share. See CEILING_LABEL above: local, measured, no
-# vendor limit implied.
-PATH_LOCAL_DIRECTORY_CEILING: int = 11_369
 
 
 class CopilotUnavailableError(RuntimeError):
@@ -172,8 +112,10 @@ def run_copilot_observe(
     file, before the `applyTo` filter, per REQ-3's own wording: "Copilot
     lists every instruction file; applyTo is applied at edit time").
 
-    Raises `CopilotUnavailableError` when the binary is absent or the call
-    times out (ADR-035 exit code 3).
+    Raises `CopilotUnavailableError` when the binary is absent, the call
+    times out, or a zero exit produced output this cannot parse as a JSON
+    array of objects (ADR-035 exit code 3 in every case, never an unhandled
+    exception mapping to Python's default exit 1).
     """
     cwd = repo_root / target_directory if target_directory else repo_root
     try:
@@ -193,12 +135,16 @@ def run_copilot_observe(
     if result.returncode != 0:
         msg = f"`copilot instruction list --json` exited {result.returncode}: {result.stderr}"
         raise CopilotUnavailableError(msg)
-    entries = json.loads(result.stdout)
-    observed = {
-        _normalize_source_path(repo_root, entry["sourcePath"])
-        for entry in entries
-        if entry.get("location") != "user" and entry.get("sourcePath")
-    }
+    try:
+        entries = json.loads(result.stdout)
+        observed = {
+            _normalize_source_path(repo_root, entry["sourcePath"])
+            for entry in entries
+            if entry.get("location") != "user" and entry.get("sourcePath")
+        }
+    except (json.JSONDecodeError, AttributeError, TypeError) as exc:
+        msg = f"`copilot instruction list --json` produced unparsable JSON: {exc}"
+        raise CopilotUnavailableError(msg) from exc
     missing = sorted(static_paths - observed)
     extra = sorted(observed - static_paths)
     return (not missing and not extra), missing, extra
@@ -275,24 +221,43 @@ def check_ceilings(
     return not failures, report, failures
 
 
-def check_directory_ceiling(
-    repo_root: Path, ceiling: int
-) -> tuple[bool, list[str], list[str], list[str]]:
-    """Check every AC7-discovered nested directory against one shared ceiling.
+def _format_missing_ceiling(directory: str, harness: str) -> str:
+    """One failure line for a discovered directory with no ceiling entry."""
+    return (
+        f"{harness} {directory}: no ceiling in PATH_LOCAL_DIRECTORY_CEILINGS. "
+        f'Add ("{directory}", "{harness}") with its measured path-local bytes.'
+    )
 
-    Unlike :func:`check_ceilings` (one ceiling per frozen target),
-    ``discover_nested_directories`` finds its own target set at call time, so
-    a new nested ``CLAUDE.md``/``AGENTS.md`` anywhere in the repository is
-    covered without a code change. Returns ``(ok, report_lines,
-    failure_lines, excluded_paths)``: ``excluded_paths`` are the files
-    ``discover_nested_directories`` skipped as fixture-tree content, reported
-    so a run states what it did not ratchet and why, not only what it did.
+
+def check_directory_ceiling(
+    repo_root: Path, ceilings: dict[tuple[str, str], int]
+) -> tuple[bool, list[str], list[str], list[str]]:
+    """Check every AC7-discovered nested directory against its own ceiling.
+
+    Unlike :func:`check_ceilings` (also one ceiling per (target, harness)
+    entry), ``discover_nested_directories`` finds its own target set at call
+    time, so a new nested ``CLAUDE.md``/``AGENTS.md`` anywhere in the
+    repository is covered without a code change to discovery; ``ceilings``
+    still needs a ``(directory, harness)`` entry for each one discovered.
+    A directory with no entry fails closed, naming the directory and this
+    constant, rather than passing silently or inheriting a neighbor's
+    ceiling (a single shared ceiling let any directory regrow all the way up
+    to the highest-measured one before tripping). Returns ``(ok,
+    report_lines, failure_lines, excluded_paths)``: ``excluded_paths`` are
+    the files ``discover_nested_directories`` skipped as fixture-tree
+    content, reported so a run states what it did not ratchet and why, not
+    only what it did.
     """
     directories, excluded = discover_nested_directories(repo_root)
     report: list[str] = []
     failures: list[str] = []
     for directory in directories:
         for harness in HARNESSES:
+            ceiling = ceilings.get((directory, harness))
+            if ceiling is None:
+                report.append(f"FAIL {harness:<8} {directory:<45} no ceiling entry")
+                failures.append(_format_missing_ceiling(directory, harness))
+                continue
             result = resolve_effective_context(repo_root, directory, harness)
             used = result.path_local_bytes
             status = "PASS" if used <= ceiling else "FAIL"
@@ -309,11 +274,14 @@ def _run_ci(repo_root: Path) -> int:
     try:
         _ok, report, failures = check_ceilings(repo_root, CEILINGS_BYTES)
         _dir_ok, dir_report, dir_failures, excluded = check_directory_ceiling(
-            repo_root, PATH_LOCAL_DIRECTORY_CEILING
+            repo_root, PATH_LOCAL_DIRECTORY_CEILINGS
         )
     except UnsupportedApplyToError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 2
+    except GitUnavailableError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 3
     for line in (*report, *dir_report):
         print(line)
     if excluded:
