@@ -6,14 +6,18 @@ That package lives under ``scripts/`` in this repository and does not ship
 with the plugin, so a consumer install resolves nothing here and the hook
 becomes a silent no-op.
 
-Hook Type: UserPromptSubmit (non-blocking, fail-open)
+Hook Type: UserPromptSubmit (non-blocking, fail-open). With
+``--copilot-transformed`` it serves Copilot CLI's ``userPromptTransformed``
+event instead, because Copilot drops config-file UserPromptSubmit output.
 Exit Codes:
-    0 = always. Matching memories go to stdout, which Claude Code adds to
-        the model context. Exit code 2 on this event would block prompt
+    0 = always. Claude Code adds the plain memory block on stdout to the
+        model context. Copilot CLI reads one ``modifiedTransformedPrompt``
+        object instead. Exit code 2 on UserPromptSubmit would block prompt
         processing and erase the user prompt, so this hook never blocks.
 
 References:
     - Issue #4011 (memory hooks were never registered)
+    - Issue #4727 (recall was inert under Copilot CLI)
 """
 
 from __future__ import annotations
@@ -23,6 +27,7 @@ import sys
 from pathlib import Path
 
 HOOK_NAME = "memory-recall"
+COPILOT_TRANSFORMED_FLAG = "--copilot-transformed"
 
 
 def _package_root() -> Path:
@@ -49,13 +54,13 @@ def main() -> int:
     reexec_under_project_venv(package_root.parent)
 
     try:
-        from memory_enhancement.hooks.user_prompt_submit_memory import (
-            main as recall_main,
-        )
+        from memory_enhancement.hooks import user_prompt_submit_memory as recall
     except ImportError:
         return 0
 
-    return recall_main()
+    if COPILOT_TRANSFORMED_FLAG in sys.argv[1:]:
+        return recall.main_transformed()
+    return recall.main()
 
 
 if __name__ == "__main__":
