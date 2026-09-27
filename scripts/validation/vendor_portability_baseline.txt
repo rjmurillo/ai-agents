@@ -12,7 +12,6 @@
 .claude/skills/adr-review/scripts/detect_adr_changes.py
 .claude/skills/chestertons-fence/scripts/investigate.py
 .claude/skills/github/scripts/pr/new_pr.py
-.claude/skills/github/scripts/pr/new_pr_validations.py
 .claude/skills/github/scripts/pr/pr_validations.py
 .claude/skills/github/scripts/pr/prepare_pr_body.py
 .claude/skills/golden-principles/scripts/scan_principles.py

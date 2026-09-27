@@ -46,6 +46,37 @@ def _git_env() -> dict[str, str]:
     }
 
 
+def _resolve_validation_base(pr_base: str, explicit: str = "") -> str:
+    """Return the git ref to use for local validation diffs.
+
+    The ``--base`` value names a branch on GitHub. In a linked worktree the
+    local ref may be stale, so prefer the corresponding remote-tracking ref.
+    The returned ref is used only for local validation; GitHub still receives
+    the bare ``pr_base`` value.
+
+    Moved here from the now-deleted ``new_pr_validations.py`` (issue #5368):
+    that module's own ``run_validations`` had no production caller, but
+    ``new_pr.py`` imported this one function from it directly, which made it
+    the only live symbol in an otherwise orphaned module.
+    """
+    if explicit:
+        return explicit
+
+    remote_ref = f"origin/{pr_base}"
+    result = subprocess.run(
+        ["git", "rev-parse", "--verify", remote_ref],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=10,
+        env=_git_env(),
+    )
+    if result.returncode == 0:
+        return remote_ref
+    return pr_base
+
+
 def validate_no_escaped_newlines(body_content: str) -> None:
     """Reject a body made from literal backslash-n sequences."""
     escaped_count = body_content.count("\\n")

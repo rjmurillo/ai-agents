@@ -52,11 +52,12 @@ def _load_sibling(name: str):
     spec.loader.exec_module(module)
     return module
 
-# Load validate_pr_description first: new_pr_validations imports from it,
-# and under -I mode the sibling directory is not on sys.path. Loading it
-# here puts it into sys.modules so the bare import succeeds.
+
+# validate_pr_description carries `_CONVENTIONAL_COMMIT_PATTERN`, which this
+# module re-exports below. Nothing else in this bundle imports from it (issue
+# #5368 deleted the sibling that used to), so load order among the three
+# siblings no longer matters; each is independent under -I mode.
 _validate_desc = _load_sibling("validate_pr_description")
-_validations = _load_sibling("new_pr_validations")
 _prepare = _load_sibling("prepare_pr_body")
 _pr_val = _load_sibling("pr_validations")
 
@@ -64,10 +65,10 @@ _pr_val = _load_sibling("pr_validations")
 # tests. The split is an internal reorganization, not an interface change.
 run_validations = _pr_val.run_validations
 validate_no_escaped_newlines = _pr_val.validate_no_escaped_newlines
-_DASH_RE = _validations._DASH_RE
-_SKILL_SCAN_EXTENSIONS = _validations._SKILL_SCAN_EXTENSIONS
-_git_env = _validations._git_env
-_resolve_validation_base = _validations._resolve_validation_base
+_DASH_RE = _pr_val._DASH_RE
+_SKILL_SCAN_EXTENSIONS = _pr_val._SKILL_SCAN_EXTENSIONS
+_git_env = _pr_val._git_env
+_resolve_validation_base = _pr_val._resolve_validation_base
 
 # Main's pr_validations.py adds warning/untrusted-repo infrastructure.
 # Re-export those symbols so test harnesses can import them from new_pr.
