@@ -993,6 +993,11 @@ class TestFindArchiveFile:
         found = extract_session_episode._find_archive_file("2026-01-11-session-01", "md")
         assert found == short
 
+    def test_glob_metacharacters_in_session_id_match_literally(self, archive):
+        (archive / "2026-01-07-session-1.md").write_text("# log\n", encoding="utf-8")
+        assert extract_session_episode._find_archive_file("2026-01-07-session-[0-9]", "md") is None
+        assert extract_session_episode._find_archive_file("2026-01-07-session-?", "md") is None
+
     def test_equal_length_names_tie_break_by_name(self, archive):
         first = archive / "2026-01-08-session-806-a.md"
         second = archive / "2026-01-08-session-806-b.md"

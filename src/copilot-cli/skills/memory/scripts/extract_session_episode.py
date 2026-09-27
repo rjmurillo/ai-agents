@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import argparse
 import copy
+import glob
 import json
 import os
 import re
@@ -1620,7 +1621,8 @@ def _find_archive_file(session_id: str, extension: str) -> Path | None:
     if not archive_dir.is_dir():
         return None
     matches = sorted(
-        archive_dir.glob(f"{session_id}*.{extension}"), key=lambda p: (len(p.name), p.name)
+        archive_dir.glob(f"{glob.escape(session_id)}*.{extension}"),
+        key=lambda p: (len(p.name), p.name),
     )
     return matches[0] if matches else None
 
