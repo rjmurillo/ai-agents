@@ -256,6 +256,7 @@ def test_resolve_ablation_resolves_path_local_once_for_both_harnesses(
         copilot_bin="copilot",
         timeout=30,
         dry_run=True,
+        runner=FixedResponseRunner("unused in dry run"),
     )
 
     assert code == parity.EXIT_OK
