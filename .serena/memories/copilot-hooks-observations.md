@@ -1,6 +1,6 @@
 # GitHub Copilot CLI Hook Contract
 
-Last updated: 2026-07-20
+Last updated: 2026-09-26
 
 ## Retrieval route
 
@@ -27,9 +27,11 @@ Do not repeat web research unless the reference skill's refresh rules apply.
   command-hook failures fail open. Every command-hook timeout fails open.
 - Exit-0 malformed JSON is ignored. Copilot parses one final JSON document per
   hook, so two concatenated decision objects are both lost.
-- SessionStart and PostToolUse document `additionalContext`. PreCompact and
-  UserPromptSubmitted document no config-file output field. Whether exit-0
-  stderr enters model context remains docs silent.
+- SessionStart and PostToolUse document `additionalContext`. PreCompact
+  documents no config-file output field. Copilot drops command and HTTP
+  config-file `userPromptSubmitted` output (hook reference at `github/docs`
+  `419d2fd`). `userPromptTransformed` documents `modifiedTransformedPrompt`.
+  Whether exit-0 stderr enters model context remains docs silent.
 - Cloud agent loads only default-branch `.github/hooks/*.json`. It does not
   load installed plugins or settings files.
 - The official changelog documents `PLUGIN_ROOT`, `COPILOT_PLUGIN_ROOT`, and
@@ -62,6 +64,12 @@ Do not repeat web research unless the reference skill's refresh rules apply.
 - Redirect successful UserPromptSubmit stdout to stderr in dispatcher and direct
   rollback modes. Do not invent an output field or depend on stderr reaching
   model context.
+- Memory recall reaches Copilot through `.github/hooks/memory-recall.json`, a
+  hand-authored `userPromptTransformed` registration. It appends the
+  `<memory-context>` block via `modifiedTransformedPrompt`. ADR-068 records it
+  as the one reviewed exception to the branch-controlled prose policy (issue
+  #4727). Do not detect the host with `COPILOT_CLI`; issue #5369 found it
+  unconfirmed.
 - Keep every unclassified event direct until its output and failure contracts
   are reviewed. Never default an unknown event to observe mode.
 - Current PostToolUse producers are plaintext diagnostics. A producer of

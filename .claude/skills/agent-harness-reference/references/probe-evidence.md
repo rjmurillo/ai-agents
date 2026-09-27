@@ -2,7 +2,7 @@
 
 # Probe Evidence Behind the Hook Contract
 
-Updated: 2026-08-08
+Updated: 2026-09-26
 
 This file records version-scoped runtime observations. Official behavior belongs
 in `official-hook-contracts.md`. Keep a probe here when the docs are silent, when
@@ -314,7 +314,38 @@ bounds the identity of named push-pr invocations; it is not a Python or shell
 sandbox. `test_dispatchers_allow_dynamic_launcher_that_never_names_the_script`
 pins that boundary so it stays a decision rather than a discovery.
 
-## 8. Re-running a probe
+## 8. UserPromptSubmit output on Copilot CLI (issue #4727)
+
+Observed on Copilot CLI 1.0.79-6, Linux, with a trusted folder and
+`--no-custom-instructions`. The hook was registered in `.claude/settings.json`.
+Two runs used the same file, event, and session shape, and only the output
+form changed.
+
+```text
+probe 5  plain <memory-context>ZQX9917</memory-context>  reached model: no
+probe 6  {"additionalContext":"KJV4408"}                 reached model: yes
+```
+
+Probe 6 is not a contract. The pinned hook reference at `419d2fd` states that
+command and HTTP config-file `userPromptSubmitted` hooks have their output
+dropped. Treat probe 6 as undocumented behavior that a later release may
+remove. The repository does not depend on it.
+
+The documented channel is `userPromptTransformed`, whose
+`modifiedTransformedPrompt` replaces the model-facing prompt. Memory recall
+uses it through `.github/hooks/memory-recall.json`. The event itself selects
+the host. The only variables read are `COPILOT_AGENT_PROMPT` and
+`GITHUB_COPILOT_API_TOKEN`, which the hook reference documents as cloud agent
+sandbox variables; recall is skipped there. Issue #5369 records that the
+`COPILOT_CLI` variable is not a confirmed host signal.
+
+Not yet observed live: `userPromptTransformed` delivery on 1.0.89-1. The
+2026-09-26 attempt fired no hook, because the account had exceeded its monthly
+request quota before the prompt ran. The registered command is covered by
+`tests/test_memory_hook_copilot_registration.py`, which runs it as a
+subprocess and parses its one JSON document.
+
+## 9. Re-running a probe
 
 Use `ai-agents-empirical-probe-toolkit` recipe 1.
 

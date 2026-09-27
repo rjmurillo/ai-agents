@@ -32,10 +32,14 @@ Design contract (the security-critical part):
   exactly the payload the host delivered (no #2290 schema mutation).
 - **Observer output translation.** Copilot parses at most one final JSON
   document per command hook. PostToolUse shim stdout is merged into one
-  ``additionalContext`` response. SessionStart, PreCompact, and UserPromptSubmit
-  stdout is captured and discarded (current producers include repository prose
-  that must not reach model-visible channels). Only successful observers
-  contribute; partial stdout from a failing observer is discarded.
+  ``additionalContext`` response. SessionStart and PreCompact stdout is
+  captured and discarded (current producers include repository prose that
+  must not reach model-visible channels). UserPromptSubmit stdout is captured
+  and discarded because Copilot drops config-file ``userPromptSubmitted``
+  output by documented contract; memory recall reaches Copilot through the
+  direct ``userPromptTransformed`` registration instead (issue #4727). Only
+  successful observers contribute; partial stdout from a failing observer is
+  discarded.
 - **Host-timeout residual.** ADR-068 records: "A `timeoutSec: 2` probe timed
   out and failed open, then executed the tool." A timeout can therefore allow
   a tool before later guards run.

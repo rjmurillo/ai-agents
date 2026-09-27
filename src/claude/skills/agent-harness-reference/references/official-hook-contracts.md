@@ -1,6 +1,6 @@
 # Official Hook Contracts
 
-Updated: 2026-08-13
+Updated: 2026-09-26
 
 This sidecar pins the official sources used by `agent-harness-reference`.
 Future agents should refresh these sources, not repeat an open-ended search.
@@ -28,6 +28,9 @@ DeepWiki cross-check:
   <https://docs.github.com/en/copilot/reference/hooks-reference>
 - Pinned hook reference source:
   <https://github.com/github/docs/blob/0b02cd6336f4eebda1e409b45a89dab5c2193d9a/content/copilot/reference/hooks-reference.md>
+- Pinned hook reference source for the `userPromptSubmitted` and
+  `userPromptTransformed` output rows (refreshed for issue #4727):
+  <https://github.com/github/docs/blob/419d2fdffc6188147565196fe9225be3c951fa6f/content/copilot/reference/hooks-reference.md>
 - Current cloud hook guide:
   <https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/customize-cloud-agent/use-hooks>
 - Pinned cloud hook guide source:
@@ -250,7 +253,7 @@ Source: hook reference, Progress messages.
 | SubagentStart | `additionalContext` |
 | PostToolUseFailure exit 2 | stdout is appended as `additionalContext` |
 | PreCompact | DOCS SILENT: no config-file output field is documented |
-| UserPromptSubmitted / UserPromptSubmit | DOCS SILENT: no config-file output field is documented |
+| UserPromptSubmitted / UserPromptSubmit | DROPPED: command and HTTP config-file output is dropped; `modifiedPrompt` is SDK-only |
 
 `suppressOutput` is not present in the official config-file hook reference.
 It appears in implementation-only SDK types. Status: DOCS SILENT for config
@@ -262,7 +265,12 @@ because current producers include branch-controlled repository prose that must
 not reach model-visible channels. Direct rollback commands suppress both stdout
 and stderr while retaining producer side effects. It also discards
 UserPromptSubmit stdout and stderr in dispatcher and direct rollback modes
-because no model-context field is documented and stderr reach is docs silent.
+because the host drops config-file output for that event and stderr reach is
+docs silent. Memory recall reaches Copilot through a direct repository
+registration instead: `.github/hooks/memory-recall.json` registers
+`userPromptTransformed` and appends the recall block through
+`modifiedTransformedPrompt`. That is a reviewed exception to the
+branch-controlled prose policy, recorded in ADR-068 (issue #4727).
 PostToolUseFailure remains a direct host registration so exit-2 stdout keeps its
 documented recovery-context behavior. Unclassified events also remain direct
 until reviewed. Partial output from failed consolidated observers is discarded

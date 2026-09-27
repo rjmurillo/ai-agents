@@ -123,7 +123,7 @@ both `hooks.json` and the referenced `plugin-*` dispatch group. Generated output
   stderr at the shell boundary while preserving producer side effects.
 - PostToolUseFailure remains direct because exit-2 stdout becomes recovery
   context and generic observe mode discards nonzero-shim output.
-- UserPromptSubmit has no documented config-file output field. The generated
+- Copilot drops config-file UserPromptSubmit output. The generated
   dispatcher and direct rollback commands send its successful stdout to stderr
   and emit no host JSON. Whether stderr enters model context remains docs
   silent.
