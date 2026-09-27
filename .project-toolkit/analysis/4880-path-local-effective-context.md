@@ -75,7 +75,7 @@ PR #5792 re-verified each line against the tree, so this work adds no content ed
 
 ## Ratchet
 
-`scripts/validation/effective_context.py --ci` runs in the pre-PR sequence, and `tests/validation/test_effective_context.py` runs it in the required Python test job.
+`scripts/validation/effective_context.py --ci` runs in the pre-PR sequence, and `tests/validation/test_effective_context_ratchet.py` runs it in the required Python test job.
 It checks two things:
 
 - Ten ceilings: the five frozen targets in both harnesses, each equal to its measured path-local bytes.
