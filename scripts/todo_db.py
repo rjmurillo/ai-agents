@@ -101,6 +101,8 @@ def _open_db(
 
 @contextmanager
 def _write_transaction(conn: sqlite3.Connection) -> Generator[None, None, None]:
+    if conn.in_transaction:
+        raise ValueError("connection already holds an open transaction; commit or roll back first")
     conn.execute("BEGIN IMMEDIATE")
     try:
         yield

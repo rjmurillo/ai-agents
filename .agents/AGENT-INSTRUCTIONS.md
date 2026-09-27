@@ -121,7 +121,9 @@ Use the **table format** (not bullet lists) for validation to pass:
    ```
 
    Exit 1 means zero or several rows matched. Treat it as a blocker and report
-   it. For a missing row, run `ensure` and then `status` again.
+   it. The message names the case. For `not found`, run `ensure` and then
+   `status` again. For `matched N rows`, do not retry: report the duplicate
+   rows so the ledger owner can repair them.
 
 ### 3. Session Finalization
 

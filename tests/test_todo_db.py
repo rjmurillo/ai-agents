@@ -346,3 +346,14 @@ class TestEnsureTodoWithConnection:
         assert exc.value.rowcount == 2
         assert conn.execute("SELECT COUNT(*) FROM todos").fetchone()[0] == 2
         conn.close()
+
+    def test_rejects_connection_with_open_transaction(self) -> None:
+        conn = _no_key_connection([("t1", "a")])
+        conn.execute("INSERT INTO todos VALUES ('t2', 'b', 'pending')")
+        assert conn.in_transaction is True
+        with pytest.raises(ValueError, match="open transaction"):
+            ensure_todo(conn, "t3", "Task three")
+        with pytest.raises(ValueError, match="open transaction"):
+            set_todo_status(conn, "t1", "done")
+        conn.rollback()
+        conn.close()
