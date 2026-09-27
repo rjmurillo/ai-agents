@@ -831,6 +831,43 @@ def validate_instruction_budget(repo_root: Path) -> bool:
     return bool(exit_code == 0)
 
 
+def validate_effective_context_ratchet(repo_root: Path) -> bool:
+    """Gate path-local effective-context growth, frozen targets and every directory (#4880).
+
+    Runs ``scripts.validation.effective_context --ci``'s two ratchets: the
+    ten (target, harness) ceilings in ``CEILINGS_BYTES`` (a target's nested
+    ``AGENTS.md``/``CLAUDE.md`` bytes, per harness, must not exceed the
+    ceiling measured at the commit that set it), and, per issue #4880 AC7,
+    ``PATH_LOCAL_DIRECTORY_CEILINGS``'s per-directory, per-harness entry for
+    every git-tracked directory ``discover_nested_directories`` finds with
+    its own nested guide, not only the five frozen targets. SKIP when the
+    module is absent (downstream install without this repository's
+    validation package).
+    """
+    if not (repo_root / "scripts" / "validation" / "effective_context.py").is_file():
+        raise MissingScriptSkip(
+            "scripts/validation/effective_context.py not present (downstream install); "
+            "no path-local ratchet to gate"
+        )
+    # Named by path, not `python -m`: the script reachability guard follows a
+    # `.py` literal in an execution call. A subprocess, not an import, keeps
+    # this module from loading `scripts.validation` under a second name.
+    exit_code, stdout, stderr = _run_subprocess(
+        [
+            sys.executable,
+            str(repo_root / "scripts" / "validation" / "effective_context.py"),
+            "--ci",
+        ],
+        cwd=repo_root,
+    )
+    if exit_code != 0:
+        if stdout:
+            print(stdout)
+        if stderr:
+            print(stderr, file=sys.stderr)
+    return bool(exit_code == 0)
+
+
 def validate_rule_scope_declarations(repo_root: Path) -> bool:
     """Refuse a `.claude/rules/*.md` scope key Claude Code ignores (issue #4871).
 

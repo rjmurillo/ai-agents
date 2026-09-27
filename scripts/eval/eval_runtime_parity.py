@@ -23,7 +23,7 @@ import subprocess
 import sys
 import uuid
 from collections.abc import Callable, Mapping, Sequence
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import cast
 
 from _runtime_grader import GraderProtocol, grade_semantic_assertions, resolve_grader
@@ -34,6 +34,7 @@ from _runtime_harness import (
     prepare_workspace,
     probe_version,
     require_isolated_workspace_root,
+    resolve_cwd,
     runtime_env,
 )
 from _runtime_output import (
@@ -81,6 +82,7 @@ from _runtime_parity import (
     score_assertions,
     verify_worktree_identity,
 )
+from _runtime_path_local_guides import COPILOT_REPO_INSTRUCTIONS_PATH
 
 EXIT_OK = 0
 EXIT_LOGIC = 1
@@ -149,10 +151,10 @@ def _run_in_process_group(
 
 def _tool_args(tools: Sequence[str], harness: str) -> list[str]:
     if harness == "claude":
-        names = {"question": "AskUserQuestion", "write": "Edit"}
+        names = {"question": "AskUserQuestion", "read": "Read", "write": "Edit"}
         selected = [names[name] for name in tools]
         return ["--tools", ",".join(selected)] if selected else ["--tools", ""]
-    names = {"question": "ask_user", "write": "edit"}
+    names = {"question": "ask_user", "read": "view", "write": "edit"}
     selected = [names[name] for name in tools]
     args = [f"--available-tools={','.join(selected)}"]
     args.extend(f"--allow-tool={tool}" for tool in selected)
@@ -164,9 +166,15 @@ def build_argv(
     executable: str,
     model: str,
     fixture: Fixture,
+    workspace: Path | None = None,
 ) -> list[str]:
-    """Build a shell-free real CLI invocation for one fixture."""
+    """Build a shell-free real CLI invocation for one fixture.
+
+    A nested `cwd` narrows each CLI's file access to that directory, so the
+    workspace root is granted with `--add-dir` when a fixture sets one.
+    """
     model = harness_model_id(harness, model)
+    grant = ["--add-dir", str(workspace)] if workspace and fixture.cwd != "." else []
     if harness == "claude":
         return [
             executable,
@@ -187,13 +195,15 @@ def build_argv(
             "--no-session-persistence",
             "--model",
             model,
+            *grant,
             *_tool_args(fixture.tools, harness),
         ]
+    custom = fixture.instructions or fixture.path_local
     return [
         executable,
         "--agent",
         "parity",
-        *([] if fixture.instructions else ["--no-custom-instructions"]),
+        *([] if custom else ["--no-custom-instructions"]),
         *(["--no-ask-user"] if "question" not in fixture.tools else []),
         "--disable-builtin-mcps",
         "--no-remote",
@@ -206,6 +216,7 @@ def build_argv(
         model,
         "--prompt",
         fixture.prompt,
+        *grant,
         *_tool_args(fixture.tools, harness),
     ]
 
@@ -233,9 +244,11 @@ def _verify_copilot_instruction_listing(
     fixture: Fixture,
     executable: str,
     workspace: Path,
+    cwd: Path,
     runner: Runner,
     timeout: float,
     instructions: Mapping[str, bytes],
+    path_local: Mapping[str, bytes],
 ) -> tuple[list[object] | None, dict[str, object] | None]:
     """Require `copilot instruction list --json` to name exactly the installed files.
 
@@ -243,13 +256,18 @@ def _verify_copilot_instruction_listing(
     `ERROR`, exit 3), returned as a failure record so sibling fixtures stay
     in the report. A listing with an unreadable entry, or one that differs
     from the installed set, is a config defect (exit 2): an extra source
-    leaked in, a missing source never loaded.
+    leaked in, a missing source never loaded. `cwd` (SPEC-4880 T7) is the
+    fixture's declared working directory: Copilot lists a different
+    ancestor-inherited `AGENTS.md`/`CLAUDE.md` set depending on where it
+    runs, so the listing command must run from the same directory the model
+    call does, while `env` still roots at `workspace` (`runtime_env` isolates
+    `COPILOT_HOME` and caches there, not at `cwd`).
     """
     argv = [executable, "instruction", "list", "--json"]
     try:
         run = runner(
             argv,
-            cwd=workspace,
+            cwd=cwd,
             env=runtime_env(workspace, "copilot"),
             capture_output=True,
             text=True,
@@ -276,8 +294,85 @@ def _verify_copilot_instruction_listing(
             raw_output=run.stdout,
             stderr=run.stderr,
         )
-    _require_listed_sources(fixture.fixture_id, listing, set(instructions))
+    expected = (
+        set(instructions)
+        | _path_local_discoverable_by_copilot(fixture, path_local)
+        | _setup_discoverable_sources(fixture)
+    )
+    _require_listed_sources(fixture.fixture_id, listing, expected)
     return listing, None
+
+
+def _ancestor_dirs(cwd: str) -> frozenset[str]:
+    """POSIX directories from the repo root down to `cwd`, inclusive, `""` for root."""
+    if cwd in ("", "."):
+        return frozenset({""})
+    parts = PurePosixPath(cwd).parts
+    return frozenset("/".join(parts[:i]) for i in range(len(parts) + 1))
+
+
+def _path_local_discoverable_by_copilot(
+    fixture: Fixture, path_local: Mapping[str, bytes]
+) -> set[str]:
+    """`path_local` entries Copilot's own listing actually discovers for this cwd.
+
+    Coordinator finding: the preflight's expected set used to include
+    every `path_local` entry unconditionally. `install_path_local` writes
+    each entry verbatim at its own repository-relative path (on disk, it
+    exists), but Copilot CLI only lists an `AGENTS.md`/`CLAUDE.md` from the
+    repository root down to `cwd` (mirroring `_setup_discoverable_sources`'s
+    ancestor-chain filter) plus the one root `.github/copilot-instructions.md`.
+    A `path_local` guide outside that ancestry (a sibling directory's
+    `AGENTS.md`, say -- the fixture loader's own discoverable-guide
+    restriction in `_runtime_parity.py` no longer allows an arbitrary path,
+    but a sibling directory is still a legitimate guide shape) installs but
+    Copilot never lists it from this `cwd`; expecting it anyway made a
+    correct, empty listing look like a missing source and abort the run.
+    """
+    ancestors = _ancestor_dirs(fixture.cwd)
+    discovered: set[str] = set()
+    for relative in path_local:
+        if relative == COPILOT_REPO_INSTRUCTIONS_PATH:
+            discovered.add(relative)
+            continue
+        posix = PurePosixPath(relative)
+        directory = "" if posix.parent == PurePosixPath(".") else posix.parent.as_posix()
+        if posix.name in ("AGENTS.md", "CLAUDE.md") and directory in ancestors:
+            discovered.add(relative)
+    return discovered
+
+
+def _setup_discoverable_sources(fixture: Fixture) -> set[str]:
+    """`setup_files` entries Copilot's own listing discovers unprompted.
+
+    `_require_listed_sources` compares the listing against
+    `instructions`/`path_local`, but Copilot CLI 1.0.89 lists every
+    `.github/instructions/*.instructions.md` file and every
+    `AGENTS.md`/`CLAUDE.md` from the repo root down to `cwd`, regardless of
+    which fixture field wrote it. Confirmed live in an isolated `mktemp -d`
+    git repo (no model call, no quota): a bare `git commit` of
+    `.github/instructions/testing.instructions.md`, with no
+    `instructions`/`path_local` fixture concept involved at all, still
+    listed `{"sourcePath": ".github/instructions/testing.instructions.md",
+    "location": "working-directory", ...}`; a root `.github/AGENTS.md` with
+    cwd `.github/workflows` listed `{"sourcePath": ".github/AGENTS.md",
+    "location": "repository", "type": "model", ...}`. A fixture such as
+    `generated-instructions-edit` (path-local-parity-fixtures.json) installs
+    `.github/instructions/testing.instructions.md` this way, on purpose, so
+    the model edits a real rule rather than one projected only for the test.
+    """
+    discovered: set[str] = set()
+    ancestors = _ancestor_dirs(fixture.cwd)
+    for relative in fixture.setup_files:
+        posix = PurePosixPath(relative)
+        directory = "" if posix.parent == PurePosixPath(".") else posix.parent.as_posix()
+        if directory == ".github/instructions" and posix.name.endswith(".instructions.md"):
+            discovered.add(relative)
+        elif posix.name in ("AGENTS.md", "CLAUDE.md") and directory in ancestors:
+            discovered.add(relative)
+        elif relative == COPILOT_REPO_INSTRUCTIONS_PATH:
+            discovered.add(relative)
+    return discovered
 
 
 def _require_listed_sources(fixture_id: str, listing: list[object], installed: set[str]) -> None:
@@ -312,25 +407,27 @@ def _invoke_runtime(
     runner: Runner,
     timeout: float,
     instructions: Mapping[str, bytes],
+    path_local: Mapping[str, bytes],
 ) -> tuple[
     subprocess.CompletedProcess[str] | None,
     list[str],
     dict[str, object] | None,
     list[object] | None,
 ]:
-    prepare_workspace(fixture, harness, workspace, instructions=instructions)
-    argv = build_argv(harness, executable, model, fixture)
+    prepare_workspace(fixture, harness, workspace, instructions=instructions, path_local=path_local)
+    cwd = resolve_cwd(workspace, fixture.cwd)
+    argv = build_argv(harness, executable, model, fixture, workspace)
     listing: list[object] | None = None
-    if harness == "copilot" and fixture.instructions:
+    if harness == "copilot" and (fixture.instructions or fixture.path_local):
         listing, failure = _verify_copilot_instruction_listing(
-            fixture, executable, workspace, runner, timeout, instructions
+            fixture, executable, workspace, cwd, runner, timeout, instructions, path_local
         )
         if failure is not None:
             return None, argv, failure, None
     try:
         run = runner(
             argv,
-            cwd=workspace,
+            cwd=cwd,
             env=runtime_env(workspace, harness),
             capture_output=True,
             text=True,
@@ -439,9 +536,18 @@ def _run_fixture(
     runner: Runner,
     timeout: float,
     instructions: Mapping[str, bytes],
+    path_local: Mapping[str, bytes],
 ) -> tuple[dict[str, object], int]:
     run, argv, failure, listing = _invoke_runtime(
-        fixture, harness, executable, model, workspace, runner, timeout, instructions
+        fixture,
+        harness,
+        executable,
+        model,
+        workspace,
+        runner,
+        timeout,
+        instructions,
+        path_local,
     )
     events = None
     if failure is None:
@@ -475,9 +581,7 @@ def _probe_versions(
     selected = ("claude", "copilot") if harnesses == "both" else (harnesses,)
     binaries = {"claude": claude_bin, "copilot": copilot_bin}
     return {
-        name: probe_version(
-            binaries[name], name, version_workspaces / name, runner, timeout
-        )
+        name: probe_version(binaries[name], name, version_workspaces / name, runner, timeout)
         for name in selected
     }
 
@@ -487,19 +591,24 @@ def _fixture_record(
 ) -> dict[str, object]:
     """Build the fixture-level report shell, keyed by harness (AC6).
 
-    `instructions` is `{"claude": {path: bytes}, "copilot": {path: bytes}}`
-    (see `_resolve_ablation`). The `instructions` field keeps its original
-    flat shape for Claude's canonical paths; `copilot_instructions` is new
-    and carries the same per-file hash record for Copilot's projected paths.
+    `instructions` is `{"claude": {path: bytes}, "copilot": {path: bytes},
+    "path_local": {path: bytes}}` (see `_resolve_ablation`). The
+    `instructions` field keeps its original flat shape for Claude's canonical
+    paths; `copilot_instructions` carries the same per-file hash record for
+    Copilot's projected paths; `path_local` (SPEC-4880 T7, REQ-9) carries one
+    record per `path_local` file, installed unprojected at the same path for
+    both harnesses.
     """
     claude_instructions = instructions.get("claude", {})
     copilot_instructions = instructions.get("copilot", {})
+    path_local = instructions.get("path_local", {})
     return {
         "id": fixture.fixture_id,
         "claude_agent_sha256": hash_installed_agent(fixture.claude_agent),
         "copilot_agent_sha256": hash_installed_agent(fixture.copilot_agent),
         "fixture_sha256": hashlib.sha256(fixture.prompt.encode("utf-8")).hexdigest(),
         "controls": _control_report(fixture),
+        "cwd": fixture.cwd,
         "instructions": [
             {"path": path, "sha256": hashlib.sha256(content).hexdigest()}
             for path, content in claude_instructions.items()
@@ -508,14 +617,16 @@ def _fixture_record(
             {"path": path, "sha256": hashlib.sha256(content).hexdigest()}
             for path, content in copilot_instructions.items()
         ],
+        "path_local": [
+            {"path": path, "sha256": hashlib.sha256(content).hexdigest()}
+            for path, content in path_local.items()
+        ],
     }
 
 
 def _needs_grader(fixtures: Sequence[Fixture]) -> bool:
     """True when any fixture carries a semantic assertion (AC8, AC9)."""
-    return any(
-        spec.kind == "semantic" for fixture in fixtures for spec in fixture.assertions
-    )
+    return any(spec.kind == "semantic" for fixture in fixtures for spec in fixture.assertions)
 
 
 def _apply_semantic_grading(
@@ -551,9 +662,7 @@ def _apply_semantic_grading(
     record["assertions"] = [
         item for item in existing if item.get("kind") != "semantic"
     ] + semantic_results
-    record["passed"] = bool(record["passed"]) and all(
-        item["passed"] for item in semantic_results
-    )
+    record["passed"] = bool(record["passed"]) and all(item["passed"] for item in semantic_results)
     return record, EXIT_OK
 
 
@@ -566,6 +675,7 @@ def _run_one_harness(
     runner: Runner,
     timeout: float,
     instructions: Mapping[str, bytes],
+    path_local: Mapping[str, bytes],
     grader: GraderProtocol | None,
     grader_model: str,
 ) -> tuple[dict[str, object], int, str | None]:
@@ -577,7 +687,15 @@ def _run_one_harness(
     can compare across harnesses.
     """
     record, code = _run_fixture(
-        fixture, harness, executable, model, workspace, runner, timeout, instructions
+        fixture,
+        harness,
+        executable,
+        model,
+        workspace,
+        runner,
+        timeout,
+        instructions,
+        path_local,
     )
     if code != EXIT_OK:
         return record, code, "ERROR"
@@ -604,6 +722,7 @@ def _run_fixture_pair(
     grader_model: str,
 ) -> tuple[dict[str, object], int, str | None]:
     record = _fixture_record(fixture, instructions)
+    path_local = instructions.get("path_local", {})
     claude, claude_code, claude_verdict = _run_one_harness(
         fixture,
         "claude",
@@ -613,6 +732,7 @@ def _run_fixture_pair(
         runner,
         timeout,
         instructions.get("claude", {}),
+        path_local,
         grader,
         grader_model,
     )
@@ -628,6 +748,7 @@ def _run_fixture_pair(
         runner,
         timeout,
         instructions.get("copilot", {}),
+        path_local,
         grader,
         grader_model,
     )
@@ -704,6 +825,7 @@ def _run_single_harness_fixtures(
             runner,
             timeout,
             instructions.get(harness, {}),
+            instructions.get("path_local", {}),
             grader,
             grader_model,
         )
@@ -731,7 +853,9 @@ def _resolve_ablation(
     Copilot run is selected (`--harnesses both` or `copilot`): a missing
     projection is a config error (AC2, raised by `resolve_instructions`
     itself, before any model call), and a Claude-only run should not pay for
-    a Copilot projection it will never install.
+    a Copilot projection it will never install. `path_local` (SPEC-4880 T7,
+    REQ-9) resolves once per fixture, at the SAME repository-relative paths
+    for both harnesses, since it needs no per-harness projection.
     """
     source_commit = resolve_source_commit()
     instructions_ref_sha = resolve_ref_sha(instructions_ref) if instructions_ref else None
@@ -747,6 +871,7 @@ def _resolve_ablation(
         instructions_by_fixture[fixture.fixture_id] = {
             "claude": resolve_instructions(fixture.instructions, instructions_ref_sha),
             "copilot": copilot_instructions,
+            "path_local": resolve_instructions(fixture.path_local, instructions_ref_sha),
         }
     return source_commit, instructions_ref_sha, instructions_by_fixture
 

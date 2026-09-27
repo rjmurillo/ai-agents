@@ -113,6 +113,7 @@ from checks_tooling import (
     validate_capability_graph_declarations,
     validate_ci_dependency_pins,
     validate_copilot_version_pin,
+    validate_effective_context_ratchet,
     validate_instruction_budget,
     validate_markdown_lint,
     validate_path_normalization,
@@ -560,6 +561,17 @@ _SEQUENCE: tuple[_Gate, ...] = (
     _Gate(
         "Skill Routing Roles (metadata.routing)",
         _root_only(validate_skill_routing_roles_declarations),
+    ),
+    # Non-regression ratchet on path-local effective context (SPEC-4880,
+    # issue #4880): the nested AGENTS.md/CLAUDE.md bytes a harness loads for
+    # five frozen targets, which the instruction-budget and rule-scope gates
+    # above cannot see because they measure the generated .github/
+    # instructions/ tree and .claude/rules/, not a directory's own AGENTS.md
+    # or CLAUDE.md. `.github/AGENTS.md` regrew from 5,008 to 24,932 bytes with
+    # no gate catching it; this is that gate.
+    _Gate(
+        "Path-Local Effective Context Ratchet",
+        _root_only(validate_effective_context_ratchet),
     ),
 )
 

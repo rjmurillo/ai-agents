@@ -30,7 +30,7 @@ def _verify(tmp_path: Path, runner: mock.Mock) -> tuple[object, object]:
         runtime_parity.load_fixtures(FIXTURES)[0], instructions=(".claude/rules/voice.md",)
     )
     return parity._verify_copilot_instruction_listing(
-        fixture, "copilot", tmp_path, runner, 30, INSTALLED
+        fixture, "copilot", tmp_path, tmp_path, runner, 30, INSTALLED, {}
     )
 
 
@@ -89,3 +89,73 @@ def test_listing_that_cannot_run_or_parse_is_a_failure_record(
     assert isinstance(failure, dict)
     assert message in failure["error"]
     assert failure["passed"] is False
+
+
+def test_setup_installed_instructions_file_is_expected_not_extra(tmp_path: Path) -> None:
+    """A `setup_files`-installed `.github/instructions/*.md` is not "extra".
+
+    `generated-instructions-edit` (path-local-parity-fixtures.json) installs
+    `.github/instructions/testing.instructions.md` via `setup_files`, not the
+    `instructions`/`path_local` fields; Copilot's real listing (confirmed
+    live, see test_copilot_lists_setup_installed_sources_live below) still
+    discovers it, since it walks `.github/instructions/` on disk regardless
+    of how the file arrived there.
+    """
+    fixture = dataclasses.replace(
+        runtime_parity.load_fixtures(FIXTURES)[0],
+        instructions=(),
+        setup_files={".github/instructions/testing.instructions.md": "---\napplyTo: x\n---\n"},
+    )
+    entries = [{"sourcePath": ".github/instructions/testing.instructions.md"}]
+    listing, failure = parity._verify_copilot_instruction_listing(
+        fixture, "copilot", tmp_path, tmp_path, _answer(json.dumps(entries)), 30, {}, {}
+    )
+    assert failure is None
+    assert listing == entries
+
+
+def test_setup_installed_agents_md_in_cwd_ancestor_is_expected(tmp_path: Path) -> None:
+    """A `setup_files` `AGENTS.md`/`CLAUDE.md` in the cwd's ancestor chain is expected too."""
+    fixture = dataclasses.replace(
+        runtime_parity.load_fixtures(FIXTURES)[0],
+        instructions=(),
+        cwd=".github/workflows",
+        setup_files={".github/AGENTS.md": "root guidance\n"},
+    )
+    entries = [{"sourcePath": ".github/AGENTS.md"}]
+    listing, failure = parity._verify_copilot_instruction_listing(
+        fixture, "copilot", tmp_path, tmp_path, _answer(json.dumps(entries)), 30, {}, {}
+    )
+    assert failure is None
+    assert listing == entries
+
+
+def test_setup_installed_agents_md_outside_cwd_ancestor_stays_extra(tmp_path: Path) -> None:
+    """An `AGENTS.md` outside the cwd's ancestor chain is not auto-expected."""
+    fixture = dataclasses.replace(
+        runtime_parity.load_fixtures(FIXTURES)[0],
+        instructions=(),
+        cwd=".github/workflows",
+        setup_files={"scripts/AGENTS.md": "unrelated guidance\n"},
+    )
+    entries = [{"sourcePath": "scripts/AGENTS.md"}]
+    with pytest.raises(parity.ParityConfigError, match="extra="):
+        parity._verify_copilot_instruction_listing(
+            fixture, "copilot", tmp_path, tmp_path, _answer(json.dumps(entries)), 30, {}, {}
+        )
+
+
+def test_setup_installed_non_instructions_file_under_instructions_dir_stays_extra(
+    tmp_path: Path,
+) -> None:
+    """A `.github/instructions/` file that is not `*.instructions.md` is not auto-expected."""
+    fixture = dataclasses.replace(
+        runtime_parity.load_fixtures(FIXTURES)[0],
+        instructions=(),
+        setup_files={".github/instructions/README.md": "not an instructions file\n"},
+    )
+    entries = [{"sourcePath": ".github/instructions/README.md"}]
+    with pytest.raises(parity.ParityConfigError, match="extra="):
+        parity._verify_copilot_instruction_listing(
+            fixture, "copilot", tmp_path, tmp_path, _answer(json.dumps(entries)), 30, {}, {}
+        )
