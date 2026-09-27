@@ -30,7 +30,7 @@ def _verify(tmp_path: Path, runner: mock.Mock) -> tuple[object, object]:
         runtime_parity.load_fixtures(FIXTURES)[0], instructions=(".claude/rules/voice.md",)
     )
     return parity._verify_copilot_instruction_listing(
-        fixture, "copilot", tmp_path, runner, 30, INSTALLED
+        fixture, "copilot", tmp_path, tmp_path, runner, 30, INSTALLED, {}
     )
 
 

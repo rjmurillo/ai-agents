@@ -14,7 +14,14 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 SCHEMA_VERSION = 1
 SUPPORTED_TOOLS = frozenset({"question", "write"})
 DETERMINISTIC_ASSERTION_KINDS = frozenset(
-    {"regex", "not_regex", "file_equals", "file_absent"}
+    {
+        "regex",
+        "not_regex",
+        "file_equals",
+        "file_absent",
+        "file_regex",
+        "file_not_regex",
+    }
 )
 
 
@@ -49,6 +56,8 @@ class Fixture:
     positive: Control
     negative: Control
     instructions: tuple[str, ...] = ()
+    path_local: tuple[str, ...] = ()
+    cwd: str = "."
 
 
 def _mapping(value: object, field: str) -> dict[str, object]:
@@ -83,14 +92,14 @@ def _relative_path(value: object, field: str) -> str:
     return path.as_posix()
 
 
-def _repo_relative_instruction(value: object, field: str) -> str:
-    """Validate a fixture instruction path stays inside the repository root.
+def _repo_relative_path(value: object, field: str) -> str:
+    """Validate a fixture `instructions` or `path_local` path stays inside the repo.
 
     Unlike `_repo_file`, this does not require the file to exist yet: an
     ablation baseline path (`--instructions-ref`) may resolve only at an
     older commit, not in the current working tree. Existence is checked
-    later, at instruction-resolution time, against whichever source is in
-    effect (see `resolve_instructions`).
+    later, at resolution time, against whichever source is in effect (see
+    `resolve_instructions`).
     """
     raw = _string(value, field)
     candidate = (REPO_ROOT / raw).resolve()
@@ -120,6 +129,17 @@ def _load_assertion(value: object, field: str) -> AssertionSpec:
     if kind == "file_absent":
         return AssertionSpec(
             kind=kind,
+            path=_relative_path(raw.get("path"), f"{field}.path"),
+        )
+    if kind in {"file_regex", "file_not_regex"}:
+        pattern = _string(raw.get("pattern"), f"{field}.pattern")
+        try:
+            re.compile(pattern)
+        except re.error as exc:
+            raise ParityConfigError(f"{field}.pattern is invalid: {exc}") from exc
+        return AssertionSpec(
+            kind=kind,
+            pattern=pattern,
             path=_relative_path(raw.get("path"), f"{field}.path"),
         )
     if kind == "semantic":
@@ -177,6 +197,22 @@ def load_fixtures(path: Path) -> list[Fixture]:
     return fixtures
 
 
+def _load_path_local(value: object, field: str) -> list[str]:
+    """Validate a fixture's `path_local` list: strings, no duplicates.
+
+    Unlike `instructions` (deduped by basename because every entry installs
+    under `.claude/rules/<basename>`), a `path_local` entry installs at its
+    own full repository-relative path for both harnesses, so only an exact
+    duplicate string collides.
+    """
+    raw = value if value is not None else []
+    if not isinstance(raw, list) or not all(isinstance(item, str) for item in raw):
+        raise ParityConfigError(f"{field} must be an array of strings")
+    if len(set(raw)) != len(raw):
+        raise ParityConfigError(f"{field} has duplicate paths")
+    return raw
+
+
 def _load_fixture(value: object, index: int) -> Fixture:
     field = f"fixtures[{index}]"
     raw = _mapping(value, field)
@@ -188,9 +224,7 @@ def _load_fixture(value: object, index: int) -> Fixture:
         raise ParityConfigError(f"{field}.tools must be an array of strings")
     unsupported_tools = sorted(set(tools_raw) - SUPPORTED_TOOLS)
     if unsupported_tools:
-        raise ParityConfigError(
-            f"{field}.tools contains unsupported values: {unsupported_tools}"
-        )
+        raise ParityConfigError(f"{field}.tools contains unsupported values: {unsupported_tools}")
     assertions_raw = raw.get("assertions")
     if not isinstance(assertions_raw, list) or not assertions_raw:
         raise ParityConfigError(f"{field}.assertions must be a non-empty array")
@@ -204,31 +238,30 @@ def _load_fixture(value: object, index: int) -> Fixture:
             f"{field}.instructions has duplicate file names; each installs to "
             ".claude/rules/<name> and one would overwrite another"
         )
+    path_local_raw = _load_path_local(raw.get("path_local", []), f"{field}.path_local")
+    cwd = _relative_path(raw.get("cwd", "."), f"{field}.cwd")
     return Fixture(
         fixture_id=_relative_path(raw.get("id"), f"{field}.id"),
         claude_agent=_repo_file(agents.get("claude"), f"{field}.agents.claude"),
-        copilot_agent=_repo_file(
-            agents.get("copilot"), f"{field}.agents.copilot"
-        ),
+        copilot_agent=_repo_file(agents.get("copilot"), f"{field}.agents.copilot"),
         prompt=_string(raw.get("prompt"), f"{field}.prompt"),
-        setup_files=_load_files(
-            raw.get("setup_files", {}), f"{field}.setup_files"
-        ),
+        setup_files=_load_files(raw.get("setup_files", {}), f"{field}.setup_files"),
         tools=tuple(tools_raw),
         assertions=tuple(
             _load_assertion(item, f"{field}.assertions[{assertion_index}]")
             for assertion_index, item in enumerate(assertions_raw)
         ),
-        positive=_load_control(
-            controls.get("positive"), f"{field}.controls.positive"
-        ),
-        negative=_load_control(
-            controls.get("negative"), f"{field}.controls.negative"
-        ),
+        positive=_load_control(controls.get("positive"), f"{field}.controls.positive"),
+        negative=_load_control(controls.get("negative"), f"{field}.controls.negative"),
         instructions=tuple(
-            _repo_relative_instruction(item, f"{field}.instructions[{index}]")
+            _repo_relative_path(item, f"{field}.instructions[{index}]")
             for index, item in enumerate(instructions_raw)
         ),
+        path_local=tuple(
+            _repo_relative_path(item, f"{field}.path_local[{position}]")
+            for position, item in enumerate(path_local_raw)
+        ),
+        cwd=cwd,
     )
 
 
@@ -276,6 +309,12 @@ def score_assertions(
             passed = files.get(spec.path) == spec.value
         elif spec.kind == "file_absent":
             passed = spec.path not in files
+        elif spec.kind == "file_regex":
+            content = files.get(spec.path)
+            passed = content is not None and re.search(spec.pattern, content) is not None
+        elif spec.kind == "file_not_regex":
+            content = files.get(spec.path)
+            passed = content is not None and re.search(spec.pattern, content) is None
         results.append(
             {
                 "kind": spec.kind,
@@ -302,13 +341,9 @@ def _validate_controls(fixture: Fixture) -> None:
         score_assertions(fixture, fixture.negative.response, fixture.negative.files)
     )
     if not all(result["passed"] for result in positive):
-        raise ParityConfigError(
-            f"fixture {fixture.fixture_id!r} positive control does not pass"
-        )
+        raise ParityConfigError(f"fixture {fixture.fixture_id!r} positive control does not pass")
     if all(result["passed"] for result in negative):
-        raise ParityConfigError(
-            f"fixture {fixture.fixture_id!r} negative control does not fail"
-        )
+        raise ParityConfigError(f"fixture {fixture.fixture_id!r} negative control does not fail")
 
 
 def _deterministic_results(
@@ -356,9 +391,7 @@ def resolve_ref_sha(ref: str) -> str:
     )
 
 
-def resolve_instructions(
-    paths: Sequence[str], ref: str | None
-) -> dict[str, bytes]:
+def resolve_instructions(paths: Sequence[str], ref: str | None) -> dict[str, bytes]:
     """Resolve fixture instruction bytes from the working tree or a git ref.
 
     `ref=None` reads the current working tree. Otherwise `ref` must be the
@@ -385,14 +418,10 @@ def _read_instruction(path: str, ref: str | None) -> bytes:
             check=False,
         )
     except (OSError, subprocess.SubprocessError) as exc:
-        raise ParityConfigError(
-            f"could not resolve {path!r} at ref {ref!r}: {exc}"
-        ) from exc
+        raise ParityConfigError(f"could not resolve {path!r} at ref {ref!r}: {exc}") from exc
     if run.returncode != 0:
         stderr = run.stderr.decode("utf-8", errors="replace").strip()
-        raise ParityConfigError(
-            f"instructions ref {ref!r} could not resolve {path!r}: {stderr}"
-        )
+        raise ParityConfigError(f"instructions ref {ref!r} could not resolve {path!r}: {stderr}")
     return run.stdout
 
 
@@ -431,9 +460,7 @@ def verify_worktree_identity() -> None:
             check=False,
         )
     except (OSError, subprocess.SubprocessError) as exc:
-        raise ParityConfigError(
-            f"could not resolve current worktree: {exc}"
-        ) from exc
+        raise ParityConfigError(f"could not resolve current worktree: {exc}") from exc
     if run.returncode != 0:
         raise ParityConfigError("current directory is not inside a git worktree")
     current_directory = Path.cwd().resolve()
@@ -441,6 +468,4 @@ def verify_worktree_identity() -> None:
     if not current_directory.is_relative_to(top_level):
         raise ParityConfigError("current directory is outside reported worktree")
     if top_level != REPO_ROOT:
-        raise ParityConfigError(
-            "current worktree does not contain this evaluator"
-        )
+        raise ParityConfigError("current worktree does not contain this evaluator")

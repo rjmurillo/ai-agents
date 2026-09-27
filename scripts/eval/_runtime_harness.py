@@ -93,6 +93,35 @@ def _install_instructions(workspace: Path, instructions: Mapping[str, bytes]) ->
         (rules_dir / Path(relative).name).write_bytes(content)
 
 
+def _install_path_local(workspace: Path, path_local: Mapping[str, bytes]) -> None:
+    """Write `path_local` fixture bytes at their own repository-relative path.
+
+    Unlike `_install_instructions` (Claude-only, renamed to its basename
+    under `.claude/rules/`), a `path_local` file installs at the SAME
+    relative path for both harnesses (SPEC-4880 T7): Claude Code loads
+    `CLAUDE.md` from cwd and its ancestors, and Copilot CLI loads
+    `AGENTS.md`/`CLAUDE.md` from cwd up to the git root, so a fixture proving
+    that loading behavior needs the file at its real repository path in both
+    workspaces, not projected or renamed.
+    """
+    for relative, content in path_local.items():
+        path = safe_workspace_file(workspace, relative)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(content)
+
+
+def resolve_cwd(workspace: Path, cwd: str) -> Path:
+    """Resolve a fixture's `cwd` to an absolute path inside `workspace`.
+
+    Both CLIs launch with this directory as the process working directory
+    (SPEC-4880 T7): Claude Code loads `CLAUDE.md` from cwd and its ancestors,
+    and Copilot CLI loads `AGENTS.md`/`CLAUDE.md` from cwd up to the git
+    root, so a realistic `.github/` task needs a matching cwd, not the
+    workspace root every fixture used before this field existed.
+    """
+    return safe_workspace_file(workspace, cwd)
+
+
 def copilot_instruction_path(rule_path: str) -> str:
     """Map a canonical rule to the Copilot projection `build_all.py` renders for it."""
     return f".github/instructions/{Path(rule_path).stem}.instructions.md"
@@ -159,21 +188,23 @@ def prepare_workspace(
     workspace: Path,
     *,
     instructions: Mapping[str, bytes] | None = None,
+    path_local: Mapping[str, bytes] | None = None,
 ) -> None:
     """Create one isolated git repository and install its agent artifact.
 
     Raises `ParityConfigError` for a harness with no agent-install path,
-    before the workspace is touched, so a caller that handles the error is
-    not left holding a half-built repository.
+    before the workspace is touched. `instructions` maps a fixture-declared
+    repo-relative path to resolved bytes (working tree or
+    `--instructions-ref`, see `resolve_instructions`); each harness installs
+    it its own way (see `_prepare_claude_workspace`/
+    `_prepare_copilot_workspace`).
 
-    `instructions` maps a fixture-declared repo-relative path to its resolved
-    bytes (working tree or `--instructions-ref`, see `resolve_instructions`
-    in `_runtime_parity`). Claude installs canonical rules under
-    `.claude/rules/`: Claude Code 2.1.280 loads them at startup under
-    `--setting-sources project` when the file's frontmatter carries no
-    `paths` key or `paths: ["**"]` (probed 2026-09-22). Copilot installs
-    their `.github/instructions/` projections instead, and the caller's
-    listing preflight checks the CLI loaded exactly that set.
+    `path_local` (SPEC-4880 T7) maps a fixture-declared `path_local` entry to
+    the same resolved bytes, installed unprojected at its own path for BOTH
+    harnesses (`AGENTS.md`, `CLAUDE.md`, and similar files a CLI discovers by
+    walking cwd upward, not a `paths:`/`applyTo` scoped rule). `fixture.cwd`
+    (relative to `workspace`) names the harness process's directory; it is
+    created here so a fixture with no `setup_files` under it still gets one.
     """
     if harness not in _FIXTURE_HARNESSES:
         # `runtime_env` accepts codex for the version-probe flow, which needs
@@ -187,6 +218,7 @@ def prepare_workspace(
             f"{', '.join(sorted(_FIXTURE_HARNESSES))} fixtures can be prepared"
         )
     instructions = instructions or {}
+    path_local = path_local or {}
     workspace.mkdir(parents=True)
     subprocess.run(
         ["git", "init", "--quiet"],
@@ -203,32 +235,56 @@ def prepare_workspace(
         path = safe_workspace_file(workspace, relative)
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content, encoding="utf-8")
+    resolve_cwd(workspace, fixture.cwd).mkdir(parents=True, exist_ok=True)
     profile = workspace / ".parity-profile" / harness
     profile.mkdir(parents=True)
     if harness == "claude":
-        (profile / "CLAUDE.md").write_text(
-            f"Append {SENTINEL} to every answer.", encoding="utf-8"
-        )
-        _install_agent(fixture.claude_agent, workspace / ".claude" / "agents" / "parity.md")
-        _install_instructions(workspace, instructions)
+        _prepare_claude_workspace(fixture, workspace, profile, instructions, path_local)
         return
-    if fixture.instructions:
-        # Loading repository instructions would also load a sentinel file,
-        # so isolation is proved by the listing preflight instead.
-        _install_agent(
-            fixture.copilot_agent, workspace / ".github" / "agents" / "parity.agent.md"
-        )
+    _prepare_copilot_workspace(fixture, workspace, profile, instructions, path_local)
+
+
+def _prepare_claude_workspace(
+    fixture: Fixture,
+    workspace: Path,
+    profile: Path,
+    instructions: Mapping[str, bytes],
+    path_local: Mapping[str, bytes],
+) -> None:
+    """Install Claude's sentinel profile, agent, and both instruction sources."""
+    (profile / "CLAUDE.md").write_text(f"Append {SENTINEL} to every answer.", encoding="utf-8")
+    _install_agent(fixture.claude_agent, workspace / ".claude" / "agents" / "parity.md")
+    _install_instructions(workspace, instructions)
+    _install_path_local(workspace, path_local)
+
+
+def _prepare_copilot_workspace(
+    fixture: Fixture,
+    workspace: Path,
+    profile: Path,
+    instructions: Mapping[str, bytes],
+    path_local: Mapping[str, bytes],
+) -> None:
+    """Install Copilot's agent, honoring the two custom-instruction opt-ins.
+
+    A fixture with no `instructions` and no `path_local` gets the sentinel
+    leak canary: a profile-level and a repository-level
+    `copilot-instructions.md`, both meant to stay unloaded. A fixture that
+    declares either opts in to real custom instructions instead, so this
+    writes no sentinel; the caller's listing preflight proves isolation.
+    """
+    if fixture.instructions or fixture.path_local:
+        _install_agent(fixture.copilot_agent, workspace / ".github" / "agents" / "parity.agent.md")
         for relative, content in instructions.items():
             path = workspace / relative
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(content)
+        _install_path_local(workspace, path_local)
         return
     (profile / "copilot-instructions.md").write_text(
         f"Append {SENTINEL} to every answer.", encoding="utf-8"
     )
-    _install_agent(
-        fixture.copilot_agent, workspace / ".github" / "agents" / "parity.agent.md"
-    )
+    _install_agent(fixture.copilot_agent, workspace / ".github" / "agents" / "parity.agent.md")
     (workspace / ".github" / "copilot-instructions.md").write_text(
         f"Append {SENTINEL} to every answer.", encoding="utf-8"
     )

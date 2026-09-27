@@ -423,6 +423,67 @@ An `--instructions-ref REF` flag resolves instruction bytes from
 (`--instructions-ref <commit before the rule landed>`). An unresolvable ref or
 path is a config error (exit 2), before any harness runs.
 
+### `path_local` and `cwd` (SPEC-4880 T7)
+
+A fixture's `path_local` field lists repo-relative files, such as `AGENTS.md`,
+`CLAUDE.md`, `.github/AGENTS.md`, `.github/CLAUDE.md`, or
+`.github/copilot-instructions.md`, that a CLI discovers by walking its working
+directory upward rather than through a `paths:`/`applyTo` scoped rule. Unlike
+`instructions`, a `path_local` file installs unprojected at its own path for
+BOTH harnesses, resolved through the same working-tree or `--instructions-ref`
+source. Paths must stay inside the repository and carry no duplicates; report
+provenance records one `{"path", "sha256"}` entry per file, the same way
+`instructions` does. A `path_local` fixture opts Copilot out of the
+`--no-custom-instructions` sentinel the same way an `instructions` fixture
+does, and the listing preflight's expected set becomes the union of both.
+
+A fixture's `cwd` field (default `.`, the workspace root) names the directory,
+relative to the workspace, both CLI processes launch from. Claude Code loads
+`CLAUDE.md` from cwd and its ancestors, and Copilot CLI loads
+`AGENTS.md`/`CLAUDE.md` from cwd up to the git root, so a fixture exercising a
+`.github/` task runs with `cwd: ".github/workflows"` to match that target's
+real local layer. The directory is created if a fixture's `setup_files`
+declare nothing under it. Assertion and `setup_files` paths stay
+workspace-root-relative regardless of `cwd`; only the two CLI processes (the
+model call and, for Copilot, the `instruction list --json` preflight) launch
+from `cwd`.
+
+```bash
+uv run python scripts/eval/eval_runtime_parity.py \
+  --fixtures scripts/eval/examples/path-local-parity-fixtures.json \
+  --dry-run
+
+# Ablation baseline: read path_local and instructions bytes from before #4880's
+# own measurement commit instead of the working tree.
+uv run python scripts/eval/eval_runtime_parity.py \
+  --fixtures scripts/eval/examples/path-local-parity-fixtures.json \
+  --instructions-ref 2628d8c1282277ad39bc605eb6a31131eff2d77e \
+  --model claude-opus-5-5 \
+  --harnesses claude \
+  --output artifacts/runtime-parity/path-local/report.json \
+  --workspace-root "$(mktemp -d)"
+```
+
+`scripts/eval/examples/path-local-parity-fixtures.json` (T8) ships three
+fixtures, all with `cwd: ".github/workflows"` and the five `path_local` files
+above, run through the `.claude/agents/devops.md` /
+`.github/agents/devops.agent.md` agent pair: `sha-pin-action` (an edited
+`ci.yml` must pin `actions/checkout` to a 40-hex commit sha, not a floating
+tag), `untrusted-input-run` (a pull request title printed to the log must go
+through an `env:` value, never interpolated directly in a `run:` line), and
+`generated-instructions-edit` (a rule change must land in
+`templates/rules/testing.md`, the canonical source, not
+`.github/instructions/testing.instructions.md`, its generated mirror). Every
+prompt stays neutral about which rule is under test. `--dry-run` validates
+each fixture's positive control passes and its negative control fails.
+
+Two assertion kinds added for T8, `file_regex` and `file_not_regex`, carry a
+`path` and a `pattern` and match the pattern against that workspace file's
+content (`file_equals`/`file_absent` require an exact match or absence;
+`regex`/`not_regex` match the CLI's chat response, not a file). Both are
+deterministic and read via the same `live_files` mechanism as
+`file_equals`/`file_absent`.
+
 An assertion kind `semantic` carries a `rubric` string and is graded by a
 model instead of a regex, through `scripts/eval/_runtime_grader.py` and the
 existing provider registry (`_runtime_grader.resolve_grader`, which adds the
