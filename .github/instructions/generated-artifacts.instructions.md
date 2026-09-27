@@ -86,9 +86,13 @@ as load-bearing as the artifact's bytes.
    branch-controlled repository prose.
    Their direct rollback commands suppress stdout and stderr while preserving
    side effects. It also suppresses UserPromptSubmit stdout and stderr because
-   the official config-file contract documents no output field for that event
-   and does not document stderr as a model-context channel. Direct rollback
-   commands preserve that channel choice.
+   the official config-file contract drops `userPromptSubmitted` output and
+   does not document stderr as a model-context channel. Direct rollback
+   commands preserve that channel choice. Memory recall is the one reviewed
+   exception to the prose policy: `.github/hooks/memory-recall.json` registers
+   `userPromptTransformed` directly and appends recall through the documented
+   `modifiedTransformedPrompt` field. It skips the Copilot cloud agent. Live
+   delivery is not yet verified (issue #4727, ADR-068).
    PostToolUseFailure and unclassified future events remain direct because their
    host output semantics have no reviewed generic merger. Do not invent or erase
    event semantics. Claude grouped gates may terminate only on a validated,

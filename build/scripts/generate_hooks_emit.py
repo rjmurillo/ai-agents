@@ -481,7 +481,7 @@ def _build_copilot_entry(
     stderr at the shell boundary. Their current producers still run and retain
     side effects, but branch-controlled prose cannot reach either host channel
     if dispatcher consolidation is disabled. UserPromptSubmit uses the same
-    suppression because the host documents no output field for that event and
+    suppression because the host drops config-file output for that event and
     does not document stderr as a model-context channel. Dispatcher mode replaces
     these entries with its event-specific capture policy.
     """

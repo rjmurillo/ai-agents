@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "hooks": {
+    "userPromptTransformed": [
+      {
+        "type": "command",
+        "cwd": ".",
+        "bash": "python3 -u .claude/hooks/UserPromptSubmit/invoke_memory_recall.py --copilot-transformed",
+        "powershell": "python -u .claude/hooks/UserPromptSubmit/invoke_memory_recall.py --copilot-transformed",
+        "timeoutSec": 10
+      }
+    ]
+  }
+}

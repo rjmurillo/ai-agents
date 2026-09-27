@@ -121,6 +121,10 @@ Re-verified 2026-09-01 against the tree, not carried forward from a prior count:
   this file used to carry (PostToolUse `observation_sync`, PostToolUseFailure
   `memory_capture`).
   These do not feed the vendored Copilot plugin generator.
+- Local Copilot registration, `.github/hooks/memory-recall.json`: one
+  `userPromptTransformed` entry for memory recall (issue #4727). Copilot drops
+  config-file `userPromptSubmitted` output, so the settings.json recall entry
+  is inert there. This file is hand-authored; the generator does not emit it.
 
 ### Event policy
 
@@ -136,7 +140,7 @@ rebuild the policy this table records, not inherit it.
 | PostToolUse | None | Retired (ADR-097): the consolidated observe dispatcher and its one source shim are deleted; a re-add rebuilds both from scratch |
 | PermissionRequest | None | Generic approve/deny translation stays tested; test-runner auto-approval is removed |
 | SessionStart | None | Supported observe/discard policy if a vendored source registration is added |
-| UserPromptSubmit | None | Supported observe/discard policy if a vendored source registration is added |
+| UserPromptSubmit | None (recall uses local `userPromptTransformed`) | Host drops config-file output; observe/discard policy if a vendored source registration is added |
 | PreCompact | None | Supported observe/discard policy if a vendored source registration is added |
 | Stop | None | Direct entries if added, one JSON decision per command |
 | SubagentStop | SubagentStop | Direct if a source registration is added |
