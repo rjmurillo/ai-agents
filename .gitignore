@@ -186,6 +186,7 @@ bun.lockb
 # truth and must not land in git. Only the .gitkeep seed is tracked so the
 # directory exists on a fresh clone.
 .project-toolkit/metrics/drift-events.jsonl
+.project-toolkit/metrics/gc-worktree-removals.jsonl
 
 # Model-sweep output (#3597). eval-model-sweep.py roots its artifacts at
 # REPO_ROOT, so every run drops directories and an aggregate report inside the

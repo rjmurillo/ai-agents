@@ -253,6 +253,29 @@ def _isolate_tmp_path_from_parent_git_repo(
     monkeypatch.setenv("GIT_CEILING_DIRECTORIES", value)
 
 
+@pytest.fixture(autouse=True)
+def _isolate_gc_worktree_audit_log(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Redirect the gc_worktrees durable audit log to a per-test temp path.
+
+    ``scripts.maintenance._gc_apply`` appends one JSONL line per real worktree
+    removal to ``.project-toolkit/metrics/gc-worktree-removals.jsonl`` under
+    this repository's own checkout (issue #4790), independent of whatever
+    repository a test's ``run_git`` stub or real-git sandbox targets. A test
+    that calls ``apply_removals`` without an explicit ``audit_log_path`` would
+    otherwise append into that real file on every run, including under xdist
+    workers writing concurrently. Patching the module-level default here
+    isolates every gc_worktrees test without touching each call site; a test
+    that passes its own ``audit_log_path`` is unaffected, since that argument
+    always wins over the default.
+    """
+    monkeypatch.setattr(
+        "scripts.maintenance._gc_apply._DEFAULT_AUDIT_LOG_PATH",
+        tmp_path / "gc-worktree-removals.jsonl",
+    )
+
+
 @pytest.fixture
 def external_tmp_path() -> Iterator[Path]:
     """Create a temp directory outside the checkout for path-boundary tests."""

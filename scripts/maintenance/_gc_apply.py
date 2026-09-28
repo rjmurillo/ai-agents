@@ -13,10 +13,21 @@ builder: the caller owns which repository is being re-read, and a test that
 forgets to supply one would otherwise scan the real machine.
 
 Related: Issue #2761 (worktree accumulation starves the markdown LSP).
+
+Every successful removal also appends one line to a durable, append-only
+audit log (``_DEFAULT_AUDIT_LOG_PATH``), distinct from the stdout report a
+caller may not have captured. Issue #4790: an untracked file vanished during
+autofix work and no removal record survived the process that ran, so a later
+session had nothing to check it against. The log is JSONL, one JSON object
+per removed path, so a later session can answer "what did GC remove and
+when" without having captured that run's output.
 """
 
 from __future__ import annotations
 
+import json
+from datetime import UTC, datetime
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -25,14 +36,49 @@ if TYPE_CHECKING:
 from scripts.maintenance import _gc_reasons, _gc_stale
 from scripts.maintenance.worktree_report import GcReport
 
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+_DEFAULT_AUDIT_LOG_PATH = _REPO_ROOT / ".project-toolkit" / "metrics" / "gc-worktree-removals.jsonl"
+
 
 def remove_worktree(path: str, run_git: Callable[..., str]) -> None:
     """Remove a worktree via ``git worktree remove``. Raises on failure."""
     run_git(["worktree", "remove", path])
 
 
+def _append_removal_record(
+    path: str,
+    branch: str | None,
+    head: str | None,
+    reason: str,
+    *,
+    log_path: Path,
+) -> None:
+    """Append one durable audit record for a worktree this run removed.
+
+    Append-only and never rewritten: readers scan forward, so a later
+    session can trust that a line present today stays present tomorrow.
+    The parent directory is created if missing so a fresh clone that has
+    not yet run GC does not fail the first removal on a missing directory.
+    """
+    record = {
+        "schemaVersion": 1,
+        "ts": datetime.now(UTC).isoformat(),
+        "path": path,
+        "branch": branch,
+        "head": head,
+        "reason": reason,
+    }
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    with log_path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(record, sort_keys=True) + "\n")
+
+
 def apply_removals(
-    report: GcReport, revalidate: Callable[[], GcReport], run_git: Callable[..., str]
+    report: GcReport,
+    revalidate: Callable[[], GcReport],
+    run_git: Callable[..., str],
+    *,
+    audit_log_path: Path | None = None,
 ) -> None:
     """Remove the candidates the plan named, after confirming they still qualify.
 
@@ -116,7 +162,13 @@ def apply_removals(
     on no evidence, so applying the plan can delete a directory a live process
     is sitting in. The dry run stays useful because the report discloses the
     gap; only the mutation is withheld.
+
+    ``audit_log_path`` overrides where the durable removal record is written;
+    tests supply a temp path so they never touch the real audit log.
+    Production callers omit it and get ``_DEFAULT_AUDIT_LOG_PATH``.
     """
+    log_path = audit_log_path if audit_log_path is not None else _DEFAULT_AUDIT_LOG_PATH
+
     if _refuses_to_mutate(report, report.remove_errors, "the plan"):
         return
 
@@ -179,6 +231,9 @@ def apply_removals(
             )
             return
         report.removed.append(decision.path)
+        _append_removal_record(
+            decision.path, decision.branch, decision.head, decision.reason, log_path=log_path
+        )
 
 
 def _head_of(path: str, run_git: Callable[..., str]) -> str | None:
