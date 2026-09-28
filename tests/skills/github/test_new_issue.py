@@ -340,6 +340,20 @@ class TestAgentEvidence:
         assert rc == 0
         assert "### Q3" in _body_arg(gh.find("issue", "create"))
 
+    def test_eventually_at_end_of_answer_is_a_hedge(self, capsys):
+        """AC-3: no text after the phrase means no technical-term exemption."""
+        rc, _ = _run(
+            ["--title", "T", "--source", "agent", "--blocked-by", BLOCKED_BY,
+             "--signal", "the fix lands eventually"]
+        )
+        assert rc == 2
+        assert "'eventually'" in _error(capsys)
+
+    def test_human_whitespace_answers_count_as_absent(self):
+        rc, gh = _run(["--title", "T", "--source", "human", "--blocked-by", "   "])
+        assert rc == 0
+        assert "--body" not in gh.find("issue", "create")
+
     def test_human_with_one_answer_exits_2(self, capsys):
         rc, _ = _run(["--title", "T", "--source", "human", "--blocked-by", BLOCKED_BY])
         assert rc == 2
@@ -400,6 +414,36 @@ class TestExistingStep0:
         rc, _ = _run(["--title", "T", "--body", body, "--source", "agent"])
         assert rc == 2
         assert _error(capsys) == "Step 0 ### Q5 contains hedge phrase 'we believe'"
+
+    def test_step0_5_heading_is_not_step0(self):
+        """AC-5: '## Step 0.5 Prior Art' is a different section."""
+        body = "## Step 0.5 Prior Art\n\nsearched memory\n"
+        rc, gh = _run(["--title", "T", "--body", body, *AGENT_ARGS])
+        assert rc == 0
+        assert _body_arg(gh.find("issue", "create")).count("## Step 0\n") == 1
+
+    def test_lowercase_step0_heading_counts(self, capsys):
+        """AC-4: a differently cased heading still blocks a duplicate block."""
+        body = STEP0_BODY.replace("## Step 0", "## step 0")
+        rc, _ = _run(["--title", "T", "--body", body, *AGENT_ARGS])
+        assert rc == 2
+        assert "already carries a Step 0 block" in _error(capsys)
+
+    @pytest.mark.parametrize(
+        "hidden",
+        [
+            "<!--\n## Step 0\n\n### Q3\n\nBob\n\n### Q5\n\nrun 1\n-->\n",
+            "```markdown\n## Step 0\n\n### Q3\n\nBob\n\n### Q5\n\nrun 1\n```\n",
+            "~~~\n## Step 0\n\n### Q3\n\nBob\n\n### Q5\n\nrun 1\n",
+        ],
+        ids=["html-comment", "backtick-fence", "unclosed-tilde-fence"],
+    )
+    def test_step0_hidden_from_rendering_does_not_count(self, capsys, hidden):
+        """AC-5: a Step 0 block GitHub would not render is not evidence."""
+        rc, gh = _run(["--title", "T", "--body", hidden, "--source", "agent"])
+        assert rc == 2
+        assert gh.calls == []
+        assert _error(capsys) == "--blocked-by is required when --source=agent"
 
     def test_q3_outside_step0_section_does_not_count(self, capsys):
         """AC-5: Q3 under a later level-2 heading is not Step 0 evidence."""

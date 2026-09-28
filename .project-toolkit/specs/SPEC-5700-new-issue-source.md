@@ -69,10 +69,14 @@ because the label is part of the create call.
 
 ## Integrations
 
-`gh label create` (idempotent ensure) and `gh issue create --label` (atomic).
-Failure modes: label ensure fails for a reason other than "already exists", so
-creation fails and no issue exists; create fails, so no issue exists. Caller
-labels still apply in a second call, as today.
+`gh label create` (best-effort ensure) and `gh issue create --label` (the
+fail-closed point). gh resolves label names before it sends the create
+mutation: in cli/cli `pkg/cmd/issue/create/create.go`, `AddMetadataToIssueParams`
+returns on error before `api.IssueCreate`, and `pkg/cmd/pr/shared/params.go`
+wraps a missing label as `could not add label: %w`. So an ensure failure other
+than "already exists" (no triage permission, timeout) is logged to stderr and
+the create call reports the missing label; no issue exists. Caller labels still
+apply in a second call, as today.
 
 ## Failure modes
 

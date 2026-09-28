@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import importlib.util
 import io
 import os
 import re
@@ -66,13 +67,27 @@ from github_core.output import (
 )
 from github_core.validation import escaped_newline_body_error
 
-# The redactor ships beside this script as a byte-identical copy of the spec
-# skill's redact_secrets.py, so an installed plugin needs no toolkit checkout.
-_issue_dir = os.path.dirname(os.path.abspath(__file__))
-if _issue_dir not in sys.path:
-    sys.path.insert(0, _issue_dir)
 
-from redact_secrets import redact
+def _load_bundled_redact():
+    """Load ``redact`` from the redact_secrets.py beside this script.
+
+    The file is a byte-identical copy of the spec skill's redactor, so an
+    installed plugin needs no toolkit checkout. Loading it by path, not by
+    module name, keeps a same-named module on sys.path from replacing it.
+    """
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "redact_secrets.py")
+    spec = importlib.util.spec_from_file_location("_new_issue_redact_secrets", path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Cannot load bundled redactor: {path}")
+    module = importlib.util.module_from_spec(spec)
+    # dataclasses resolves a class's module through sys.modules while the
+    # module body runs, so register it first.
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module.redact
+
+
+redact = _load_bundled_redact()
 
 _SOURCES = ("human", "agent")
 _SOURCE_LABELS = frozenset(f"source:{source}" for source in _SOURCES)
@@ -119,10 +134,20 @@ _HEDGE_PHRASES = (
 _HEDGE_TECHNICAL_SUFFIXES = {"eventually": frozenset({"consistent"})}
 _TRAILING_PUNCTUATION = ".,;:)!?"
 
-_STEP0_HEADING = re.compile(r"^##[ \t]+Step 0\b[^\n]*$", re.MULTILINE)
+# "Step 0" but not "Step 0.5" or "Step 01"; any case, as Markdown headings are.
+_STEP0_HEADING = re.compile(r"^##[ \t]+Step 0(?![.\w])[^\n]*$", re.MULTILINE | re.IGNORECASE)
 _LEVEL2_HEADING = re.compile(r"^##[ \t]", re.MULTILINE)
 _HEADING_LINE = re.compile(r"^[ \t]*#{1,6}[ \t]", re.MULTILINE)
 _STEP0_KEYS = ("Q3", "Q5")
+# HTML comments and fenced code blocks, closed or running to the end of the
+# body. GitHub renders neither as headings, so Step 0 text inside them is not
+# evidence a reader can see.
+_HIDDEN_MARKDOWN = re.compile(
+    r"<!--.*?(?:-->|\Z)|^[ \t]*(```|~~~).*?(?:^[ \t]*\1[^\n]*$|\Z)",
+    re.MULTILINE | re.DOTALL,
+)
+# Text after a hedge match that is inspected for the technical-term suffix.
+_SUFFIX_WINDOW = 64
 
 # Markers that confirm a real authentication failure in gh stderr. A transient
 # REST 5xx (the 503 "Unicorn" page in issue #3139) contains none of these, so
@@ -240,7 +265,10 @@ def _hedge_match(text: str) -> str | None:
     lowered = text.lower()
     for phrase in _HEDGE_PHRASES:
         matches = re.finditer(r"\b" + re.escape(phrase) + r"\b", lowered)
-        if any(not _is_technical_term(phrase, lowered[m.end() :]) for m in matches):
+        if any(
+            not _is_technical_term(phrase, lowered[m.end() : m.end() + _SUFFIX_WINDOW])
+            for m in matches
+        ):
             return phrase
     return None
 
@@ -258,11 +286,12 @@ def _answer_error(field: str, answer: str, required_when: str) -> str | None:
 
 
 def _step0_section(body: str) -> str | None:
-    """Return the text under the body's ``## Step 0`` heading, or None."""
-    heading = _STEP0_HEADING.search(body)
+    """Return the visible text under the body's ``## Step 0`` heading, or None."""
+    visible = _HIDDEN_MARKDOWN.sub("", body)
+    heading = _STEP0_HEADING.search(visible)
     if heading is None:
         return None
-    rest = body[heading.end() :]
+    rest = visible[heading.end() :]
     next_section = _LEVEL2_HEADING.search(rest)
     return rest[: next_section.start()] if next_section else rest
 
@@ -272,13 +301,13 @@ def _step0_answer(section: str, key: str) -> str:
     match = re.search(
         rf"^###[ \t]+{key}\b[^\n]*\n(.*?)(?=^[ \t]*#{{1,6}}[ \t]|\Z)",
         section,
-        re.MULTILINE | re.DOTALL,
+        re.MULTILINE | re.DOTALL | re.IGNORECASE,
     )
     return match.group(1).strip() if match else ""
 
 
 def _body_evidence_error(source: str, section: str, blocked_by: str, signal: str) -> str | None:
-    if blocked_by or signal:
+    if blocked_by.strip() or signal.strip():
         return "Body already carries a Step 0 block; drop --blocked-by and --signal."
     required_when = "--source=agent" if source == "agent" else "the body carries a Step 0 block"
     for key in _STEP0_KEYS:
@@ -295,7 +324,7 @@ def _render_step0(blocked_by: str, signal: str) -> str:
 
 
 def _flag_evidence(source: str, blocked_by: str, signal: str) -> tuple[str | None, str]:
-    if source != "agent" and not (blocked_by or signal):
+    if source != "agent" and not (blocked_by.strip() or signal.strip()):
         return None, ""
     answers = (("--blocked-by", blocked_by, "--signal"), ("--signal", signal, "--blocked-by"))
     for flag, answer, other_flag in answers:
