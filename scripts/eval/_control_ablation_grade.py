@@ -37,9 +37,10 @@ def _safe_file(workspace: Path, relative: str) -> Path:
     `eval_runtime_parity.py`'s fixture paths (CWE-22): `safe_workspace_file`.
     """
     try:
-        return safe_workspace_file(workspace, relative)
+        resolved: Path = safe_workspace_file(workspace, relative)
     except ParityConfigError as exc:
         raise ControlAblationConfigError(str(exc)) from exc
+    return resolved
 
 
 def _nested_git_env() -> dict[str, str]:

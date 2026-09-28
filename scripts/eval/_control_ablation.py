@@ -188,7 +188,9 @@ def _load_response_check(value: object, path: str) -> ResponseCheck:
         raise ControlAblationConfigError(f"{path}: unknown key(s) {sorted(unknown)}")
     kind = _require_str(raw.get("kind"), f"{path}.kind")
     if kind not in {"regex", "not_regex"}:
-        raise ControlAblationConfigError(f"{path}.kind must be 'regex' or 'not_regex', got {kind!r}")
+        raise ControlAblationConfigError(
+            f"{path}.kind must be 'regex' or 'not_regex', got {kind!r}"
+        )
     pattern = _require_str(raw.get("pattern"), f"{path}.pattern")
     try:
         re.compile(pattern)
@@ -233,7 +235,9 @@ def _load_task(value: object, index: int) -> Task:
         raise ControlAblationConfigError(f"{path}: missing key(s) {sorted(missing)}")
     case = _require_str(raw.get("case"), f"{path}.case")
     if case not in CASES:
-        raise ControlAblationConfigError(f"{path}.case is unknown: {case!r}; expected one of {sorted(CASES)}")
+        raise ControlAblationConfigError(
+            f"{path}.case is unknown: {case!r}; expected one of {sorted(CASES)}"
+        )
     external_marker_raw = raw.get("external_marker")
     external_marker = (
         None
@@ -255,10 +259,16 @@ def _load_task(value: object, index: int) -> Task:
         case=case,
         prompt=_require_str(raw.get("prompt"), f"{path}.prompt"),
         setup_files=setup_files,
-        allowed_paths=_require_str_list(raw.get("allowed_paths"), f"{path}.allowed_paths", allow_empty=False),
-        acceptance=_require_str_list(raw.get("acceptance"), f"{path}.acceptance", allow_empty=False),
+        allowed_paths=_require_str_list(
+            raw.get("allowed_paths"), f"{path}.allowed_paths", allow_empty=False
+        ),
+        acceptance=_require_str_list(
+            raw.get("acceptance"), f"{path}.acceptance", allow_empty=False
+        ),
         followup_files=followup_files,
-        followup=_require_str_list(raw.get("followup"), f"{path}.followup", allow_empty=False),
+        followup=_require_str_list(
+            raw.get("followup"), f"{path}.followup", allow_empty=False
+        ),
         external_marker=external_marker,
         response_checks=tuple(
             _load_response_check(item, f"{path}.response_checks[{item_index}]")
@@ -299,7 +309,9 @@ def load_tasks(payload: Mapping[str, Any]) -> list[Task]:
         tasks.append(task)
     missing_cases = CASES - seen_cases
     if missing_cases:
-        raise ControlAblationConfigError(f"task document is missing case(s) {sorted(missing_cases)}")
+        raise ControlAblationConfigError(
+            f"task document is missing case(s) {sorted(missing_cases)}"
+        )
     return tasks
 
 
@@ -361,7 +373,9 @@ def resolve_full_control(repo_root: Path) -> ControlFiles:
         try:
             files[relative] = candidate.read_text(encoding="utf-8", errors="replace")
         except OSError as exc:
-            raise ControlAblationConfigError(f"full control could not read {relative}: {exc}") from exc
+            raise ControlAblationConfigError(
+                f"full control could not read {relative}: {exc}"
+            ) from exc
     context_bytes = sum(len(content.encode("utf-8")) for content in files.values())
     return ControlFiles(name="full", files=files, context_bytes=context_bytes)
 
@@ -372,7 +386,9 @@ def resolve_control(name: str, repo_root: Path) -> ControlFiles:
         return ControlFiles(name="reduced", files={}, context_bytes=0)
     if name == "full":
         return resolve_full_control(repo_root)
-    raise ControlAblationConfigError(f"unknown control: {name!r}; expected one of {sorted(CONTROL_NAMES)}")
+    raise ControlAblationConfigError(
+        f"unknown control: {name!r}; expected one of {sorted(CONTROL_NAMES)}"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -587,9 +603,13 @@ def build_record(evidence: RunEvidence) -> dict[str, Any]:
         "durable": {
             "followup_validation": "PASS" if followup_passed else "FAIL",
             "objective_satisfied": (
-                "PASS" if response_checks_pass(evidence.task.response_checks, evidence.reply) else "FAIL"
+                "PASS"
+                if response_checks_pass(evidence.task.response_checks, evidence.reply)
+                else "FAIL"
             ),
-            "residual_defects": residual_defects(evidence.followup_exit_code, evidence.followup_output),
+            "residual_defects": residual_defects(
+                evidence.followup_exit_code, evidence.followup_output
+            ),
             "review_findings": 0,
             "rollback_events": rollback_events(evidence.bash_commands),
             "rework_minutes": 0,

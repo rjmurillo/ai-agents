@@ -139,7 +139,9 @@ def test_safe_file_refuses_a_path_escaping_the_workspace(tmp_path: Path) -> None
         grade.external_marker_exists(workspace, task)
 
 
-def test_run_acceptance_times_out_without_raising(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_run_acceptance_times_out_without_raising(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     workspace, task = _seeded(tmp_path)
     monkeypatch.setattr(grade, "GRADE_TIMEOUT", 0.01)
     slow_task = dataclasses.replace(

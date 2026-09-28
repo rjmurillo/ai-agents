@@ -14,8 +14,9 @@ if str(EVAL_DIR) not in sys.path:
 import _control_ablation as ablation  # noqa: E402
 import _control_ablation_grade as grade  # noqa: E402
 import _outcome_record as outcome  # noqa: E402
+import eval_control_ablation as cli  # noqa: E402
 
-__all__ = ["EVAL_DIR", "ablation", "grade", "make_task", "make_task_document", "outcome"]
+__all__ = ["EVAL_DIR", "ablation", "cli", "grade", "make_task", "make_task_document", "outcome"]
 
 
 def make_task(**overrides: object) -> dict[str, Any]:
@@ -53,7 +54,10 @@ def make_task(**overrides: object) -> dict[str, Any]:
             "known_good": {
                 "files": {
                     "calc/core.py": (
-                        "def add(a, b):\n    return a + b\n\n\ndef subtract(a, b):\n    return a - b\n"
+                        "def add(a, b):\n"
+                        "    return a + b\n\n\n"
+                        "def subtract(a, b):\n"
+                        "    return a - b\n"
                     )
                 },
                 "response": "Added subtract(a, b) to calc/core.py.",

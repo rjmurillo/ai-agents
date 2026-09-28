@@ -1044,6 +1044,87 @@ I/O and no model calls; `_eval_common.percentile` is the one shared
 percentile helper it and the model-sweep and report-aggregator cores all use
 (REQ-042 AC-11).
 
+## Reduced-Control Ablation
+
+`eval_control_ablation.py` answers the question the Durable Outcome Report
+needs data for: does a smaller control plane (fewer always-loaded rule and
+memory files) deliver at least as much accepted durable work as the full
+one, on the same code tasks, model, and retry/correction budget (REQ-043,
+DESIGN-041, issue #5768)? It runs a small corpus of code-change tasks under
+two controls, `full` (every file `control_plane_baseline.always_loaded`
+reports for `claude_code`, at their real repository-relative paths) and
+`reduced` (none), grades each run with real commands (never a model judge),
+and writes one `OutcomeRecord` per live run.
+
+`--dry-run` proves the grader itself works before any run costs anything:
+it applies each task's `known_good` and `known_bad` fix in place of a real
+agent turn, grades both with the task's real `acceptance` and `followup`
+commands, and exits 1 if any `known_good` is not `ACCEPTED_DURABLE` or any
+`known_bad` is. No model is called in a dry run, and no records are written
+to `records-<control>.jsonl`: AC-11 scopes that file to live runs, though
+every dry run's record still appears in `report.json`.
+
+```bash
+python3 scripts/eval/eval_control_ablation.py --dry-run \
+  --workspace-root "$(mktemp -d)" --output-dir /tmp/control-ablation-dry
+
+python3 scripts/eval/eval_control_ablation.py \
+  --controls full,reduced --repeats 3 --model claude-sonnet-5 \
+  --workspace-root "$(mktemp -d)" --output-dir OUT
+python3 scripts/eval/eval_durable_outcome.py \
+  --records OUT/records-reduced.jsonl --baseline OUT/records-full.jsonl
+```
+
+Flags: `--tasks` (default `scripts/eval/examples/control-ablation-tasks.json`,
+`schema_version: 1`, one task per #5768 case: `ambiguous_requirement`,
+`stale_resume`, `plausible_but_wrong`, `consequential_hold`,
+`hidden_regression`, each exactly once), `--controls` (comma-separated,
+default `full,reduced`), `--repeats` (default 1), `--model` (default
+`claude-sonnet-5`), `--workspace-root` (default a fresh `mktemp -d`;
+refused, live or dry, when it inherits ancestor instruction files a CLI
+would load, reusing `require_isolated_workspace_root`), `--output-dir`
+(default a timestamped directory under `artifacts/control-ablation/`),
+`--max-runs` (default 30; a live run whose `tasks x controls x repeats`
+exceeds this refuses, exit 2, before any model call), `--timeout` (seconds
+for the Claude CLI call itself; the acceptance and follow-up commands each
+get a separate fixed 120 seconds), and `--dry-run`.
+
+Runs interleave: for each task, for each repeat, for each control, so
+wall-clock drift cannot separate one control's runs from the other's. Each
+run seeds an isolated git repository with the task's `setup_files` and the
+resolved control's files, invokes Claude with `--permission-mode
+acceptEdits` and a Bash allowlist of `python3`, `git`, `ls`, `cat`, writes
+the task's `followup_files` only after the agent exits, then runs
+`acceptance` and `followup` for real (`PYTHONDONTWRITEBYTECODE=1`, so
+`python3 -m unittest` leaves no `__pycache__/` behind to confuse the
+changed-path measurement; any that still appear, along with stray `.pyc`
+files, are excluded from `scope_violations` and `produced_artifact`
+either way). A changed path outside the task's `allowed_paths` counts as a
+scope violation, excluding control files, follow-up files,
+`.parity-profile/`, `.runtime/`, `__pycache__/`, and `*.pyc`.
+
+Fields recorded by construction, because the run is unattended and has no
+reviewer: `durable.review_findings` and `durable.rework_minutes` (0, no
+reviewer), `economics.tool_cost_usd` and `economics.human_correction_minutes`
+(0, local commands only, no human). None of these are measurements of a
+human in the loop; the report states this so a reader does not mistake a
+zero for evidence.
+
+Exit codes: `0` ok. `1` a dry run's grader failed to discriminate a
+known-good fix from a known-bad one. `2` config: a malformed task file, an
+unknown control name, `tasks x controls x repeats` over `--max-runs`, or an
+unisolated `--workspace-root`. `3` external: the Claude CLI is missing or
+times out, its stream-json output does not parse, its result event carries
+no `total_cost_usd`, or its resolved model differs from the one requested;
+no record is written for that run, and the batch continues with the
+remaining runs.
+
+Claude auth for a live run is not handled by this CLI: `runtime_env`
+allowlists only `ANTHROPIC_API_KEY` and `CLAUDE_CODE_OAUTH_TOKEN` from the
+operator's own environment (REQ-043 open question, owner: rjmurillo). The
+five-arm live run (5 tasks x 2 controls x 3 repeats = 30) and its ledger
+entry are tracked separately (TASK-052 milestone 7).
+
 ## Held-Out-Gated Optimization
 
 `optimize-artifact.py` adds the piece the rest of this directory is missing: a

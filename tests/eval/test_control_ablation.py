@@ -218,7 +218,8 @@ def test_produced_artifact_ignores_pycache_byproducts() -> None:
     # Coordinator addendum to DESIGN-041 (2026-09-28): a __pycache__ or .pyc
     # byproduct never counts as evidence of a produced artifact, even when
     # it would otherwise match an allowed_paths glob.
-    assert ablation.produced_artifact(["calc/__pycache__/core.cpython-314.pyc"], ["calc/*"]) is False
+    pycache_path = "calc/__pycache__/core.cpython-314.pyc"
+    assert ablation.produced_artifact([pycache_path], ["calc/*"]) is False
     assert ablation.produced_artifact(["calc/core.pyc"], ["calc/*"]) is False
 
 
