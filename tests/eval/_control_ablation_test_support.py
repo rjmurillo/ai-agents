@@ -12,9 +12,10 @@ if str(EVAL_DIR) not in sys.path:
     sys.path.insert(0, str(EVAL_DIR))
 
 import _control_ablation as ablation  # noqa: E402
+import _control_ablation_grade as grade  # noqa: E402
 import _outcome_record as outcome  # noqa: E402
 
-__all__ = ["EVAL_DIR", "ablation", "make_task", "make_task_document", "outcome"]
+__all__ = ["EVAL_DIR", "ablation", "grade", "make_task", "make_task_document", "outcome"]
 
 
 def make_task(**overrides: object) -> dict[str, Any]:
@@ -24,7 +25,9 @@ def make_task(**overrides: object) -> dict[str, Any]:
         "case": "hidden_regression",
         "prompt": "Add a subtract(a, b) function to calc/core.py.",
         "setup_files": {
+            "calc/__init__.py": "",
             "calc/core.py": "def add(a, b):\n    return a + b\n",
+            "tests/__init__.py": "",
             "tests/test_core.py": (
                 "import unittest\nfrom calc.core import add\n\n"
                 "class TestAdd(unittest.TestCase):\n"
@@ -35,12 +38,13 @@ def make_task(**overrides: object) -> dict[str, Any]:
         "allowed_paths": ["calc/*.py", "tests/*.py"],
         "acceptance": ["python3", "-m", "unittest", "discover", "-s", "tests", "-t", "."],
         "followup_files": {
+            "followup/__init__.py": "",
             "followup/test_hidden.py": (
                 "import unittest\nfrom calc.core import subtract\n\n"
                 "class TestSubtract(unittest.TestCase):\n"
                 "    def test_subtract(self):\n"
-                "        self.assertEqual(subtract(5, 2), 3)\n"
-            )
+                "        self.assertEqual(subtract(10, 4), 6)\n"
+            ),
         },
         "followup": ["python3", "-m", "unittest", "discover", "-s", "followup", "-t", "."],
         "external_marker": None,

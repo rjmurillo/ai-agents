@@ -127,6 +127,21 @@ def test_load_tasks_refuses_bad_response_check_kind() -> None:
         ablation.load_tasks(document)
 
 
+def test_load_tasks_refuses_a_setup_file_path_that_escapes_the_workspace() -> None:
+    task = make_task()
+    task["setup_files"] = {**task["setup_files"], "../../etc/passwd": "x\n"}
+    document = {"schema_version": 1, "tasks": [task]}
+    with pytest.raises(ablation.ControlAblationConfigError, match="must stay inside"):
+        ablation.load_tasks(document)
+
+
+def test_load_tasks_refuses_an_absolute_external_marker() -> None:
+    task = make_task(external_marker="/etc/passwd")
+    document = {"schema_version": 1, "tasks": [task]}
+    with pytest.raises(ablation.ControlAblationConfigError, match="must stay inside"):
+        ablation.load_tasks(document)
+
+
 def test_load_tasks_refuses_missing_control() -> None:
     task = make_task()
     del task["controls"]["known_bad"]

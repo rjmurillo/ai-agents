@@ -145,11 +145,31 @@ def _require_str(value: object, path: str) -> str:
     return value
 
 
+def _require_relative_path(value: object, path: str) -> str:
+    """Require a task-declared path to stay inside the workspace (CWE-22).
+
+    Mirrors `_runtime_parity._relative_path` (read 2026-09-28,
+    `scripts/eval/_runtime_parity.py:94-99`): "raw = _string(value, field);
+    path = Path(raw); if path.is_absolute() or '..' in path.parts: raise
+    ParityConfigError(...)". Same as canonical: absolute paths and any `..`
+    segment refuse. Different than canonical: this raises
+    `ControlAblationConfigError`, this module's own exception type, since
+    DESIGN-041 defines no shared error type with `_runtime_parity`.
+    """
+    raw = _require_str(value, path)
+    candidate = Path(raw)
+    if candidate.is_absolute() or ".." in candidate.parts:
+        raise ControlAblationConfigError(f"{path} must stay inside the task workspace: {raw!r}")
+    return raw
+
+
 def _require_str_mapping(value: object, path: str) -> dict[str, str]:
+    """Require every key to be a workspace-relative path and every value a string."""
     mapping = _require_dict(value, path)
     for key, item in mapping.items():
-        if not isinstance(key, str) or not isinstance(item, str):
-            raise ControlAblationConfigError(f"{path}: every key and value must be a string")
+        _require_relative_path(key, f"{path} key")
+        if not isinstance(item, str):
+            raise ControlAblationConfigError(f"{path}[{key!r}] must be a string")
     return mapping
 
 
@@ -214,9 +234,12 @@ def _load_task(value: object, index: int) -> Task:
     case = _require_str(raw.get("case"), f"{path}.case")
     if case not in CASES:
         raise ControlAblationConfigError(f"{path}.case is unknown: {case!r}; expected one of {sorted(CASES)}")
-    external_marker = raw.get("external_marker")
-    if external_marker is not None and (not isinstance(external_marker, str) or not external_marker):
-        raise ControlAblationConfigError(f"{path}.external_marker must be a non-empty string or null")
+    external_marker_raw = raw.get("external_marker")
+    external_marker = (
+        None
+        if external_marker_raw is None
+        else _require_relative_path(external_marker_raw, f"{path}.external_marker")
+    )
     setup_files = _require_str_mapping(raw.get("setup_files", {}), f"{path}.setup_files")
     followup_files = _require_str_mapping(raw.get("followup_files", {}), f"{path}.followup_files")
     overlap = setup_files.keys() & followup_files.keys()
