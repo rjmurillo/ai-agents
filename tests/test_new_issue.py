@@ -36,10 +36,11 @@ def _completed(stdout: str = "", stderr: str = "", rc: int = 0):
 def test_create_issue_with_body(mock_run, capsys):
     mock_run.side_effect = [
         _completed(stdout="https://github.com/owner/repo\n"),  # remote
+        _completed(rc=0),  # label create (ensure source label)
         _completed(stdout="https://github.com/owner/repo/issues/99\n"),  # create
     ]
 
-    rc = main(["--title", "Bug: Something broke", "--body", "Steps to reproduce..."])
+    rc = main(["--source", "human", "--title", "Bug: Something broke", "--body", "Steps to reproduce..."])
     assert rc == 0
     output = json.loads(capsys.readouterr().out)
     assert output["Success"] is True
@@ -50,11 +51,12 @@ def test_create_issue_with_body(mock_run, capsys):
 def test_create_issue_with_labels(mock_run, capsys):
     mock_run.side_effect = [
         _completed(stdout="https://github.com/o/r\n"),  # remote
+        _completed(rc=0),  # label create (ensure source label)
         _completed(stdout="https://github.com/o/r/issues/5\n"),  # create
         _completed(rc=0),  # edit --add-label
     ]
 
-    rc = main(["--title", "Feature", "--labels", "enhancement,P2"])
+    rc = main(["--source", "human", "--title", "Feature", "--labels", "enhancement,P2"])
     assert rc == 0
     output = json.loads(capsys.readouterr().out)
     assert output["Data"]["issue_number"] == 5
@@ -76,11 +78,12 @@ def test_create_issue_with_labels(mock_run, capsys):
 def test_missing_label_emits_json_envelope_with_issue_number(mock_run, capsys):
     mock_run.side_effect = [
         _completed(stdout="https://github.com/o/r\n"),  # remote
+        _completed(rc=0),  # label create (ensure source label)
         _completed(stdout="https://github.com/o/r/issues/42\n"),  # create succeeds
         _completed(rc=1, stderr="could not add label: 'ci' not found"),  # label fails
     ]
 
-    rc = main(["--title", "Bug", "--labels", "bug,ci", "--output-format", "json"])
+    rc = main(["--source", "human", "--title", "Bug", "--labels", "bug,ci", "--output-format", "json"])
 
     assert rc == 3
     output = json.loads(capsys.readouterr().out)
@@ -96,7 +99,7 @@ def test_empty_title_fails(mock_run, capsys):
         _completed(stdout="https://github.com/o/r\n"),  # remote
     ]
 
-    rc = main(["--title", "   ", "--output-format", "json"])
+    rc = main(["--source", "human", "--title", "   ", "--output-format", "json"])
     assert rc == 2
     output = json.loads(capsys.readouterr().out)
     assert output["Success"] is False
@@ -107,15 +110,16 @@ def test_empty_title_fails(mock_run, capsys):
 def test_api_failure(mock_run, capsys):
     mock_run.side_effect = [
         _completed(stdout="https://github.com/o/r\n"),
+        _completed(rc=0),  # label create (ensure source label)
         _completed(rc=1, stderr="API error"),
     ]
 
-    rc = main(["--title", "Test", "--output-format", "json"])
+    rc = main(["--source", "human", "--title", "Test", "--output-format", "json"])
     assert rc == 3
     output = json.loads(capsys.readouterr().out)
     assert output["Success"] is False
     assert output["Error"]["Type"] == "ApiError"
-    create_kwargs = mock_run.call_args_list[1].kwargs
+    create_kwargs = mock_run.call_args_list[2].kwargs
     assert create_kwargs["encoding"] == "utf-8"
     assert create_kwargs["errors"] == "replace"
 
@@ -127,10 +131,11 @@ def test_body_file(mock_run, capsys, tmp_path):
 
     mock_run.side_effect = [
         _completed(stdout="https://github.com/o/r\n"),
+        _completed(rc=0),  # label create (ensure source label)
         _completed(stdout="https://github.com/o/r/issues/7\n"),
     ]
 
-    rc = main(["--title", "From file", "--body-file", str(body_file)])
+    rc = main(["--source", "human", "--title", "From file", "--body-file", str(body_file)])
     assert rc == 0
     output = json.loads(capsys.readouterr().out)
     assert output["Data"]["issue_number"] == 7
@@ -142,7 +147,7 @@ def test_body_file_not_found(mock_run, capsys):
         _completed(stdout="https://github.com/o/r\n"),
     ]
 
-    rc = main(["--title", "Test", "--body-file", "/nonexistent/file.md", "--output-format", "json"])
+    rc = main(["--source", "human", "--title", "Test", "--body-file", "/nonexistent/file.md", "--output-format", "json"])
     assert rc == 2
     output = json.loads(capsys.readouterr().out)
     assert output["Success"] is False
@@ -153,10 +158,11 @@ def test_body_file_not_found(mock_run, capsys):
 def test_create_timeout_emits_json_envelope(mock_run, capsys):
     mock_run.side_effect = [
         _completed(stdout="https://github.com/o/r\n"),  # remote
+        _completed(rc=0),  # label create (ensure source label)
         subprocess.TimeoutExpired(cmd=["gh", "issue", "create"], timeout=30),  # create hangs
     ]
 
-    rc = main(["--title", "Test", "--output-format", "json"])
+    rc = main(["--source", "human", "--title", "Test", "--output-format", "json"])
     assert rc == 3
     output = json.loads(capsys.readouterr().out)
     assert output["Success"] is False
@@ -168,11 +174,12 @@ def test_create_timeout_emits_json_envelope(mock_run, capsys):
 def test_label_edit_timeout_emits_json_envelope(mock_run, capsys):
     mock_run.side_effect = [
         _completed(stdout="https://github.com/o/r\n"),  # remote
+        _completed(rc=0),  # label create (ensure source label)
         _completed(stdout="https://github.com/o/r/issues/7\n"),  # create succeeds
         subprocess.TimeoutExpired(cmd=["gh", "issue", "edit"], timeout=30),  # edit hangs
     ]
 
-    rc = main(["--title", "Test", "--labels", "bug", "--output-format", "json"])
+    rc = main(["--source", "human", "--title", "Test", "--labels", "bug", "--output-format", "json"])
     assert rc == 3
     output = json.loads(capsys.readouterr().out)
     assert output["Success"] is False
@@ -186,10 +193,11 @@ def test_confirmed_invalid_credentials_exits_4(mock_run, capsys):
     # A real 401 from gh issue create still maps to AuthError exit 4.
     mock_run.side_effect = [
         _completed(stdout="https://github.com/o/r\n"),  # remote
+        _completed(rc=0),  # label create (ensure source label)
         _completed(rc=1, stderr="HTTP 401: Bad credentials (run 'gh auth login')"),  # create
     ]
 
-    rc = main(["--title", "Test", "--output-format", "json"])
+    rc = main(["--source", "human", "--title", "Test", "--output-format", "json"])
     assert rc == 4
     output = json.loads(capsys.readouterr().out)
     assert output["Success"] is False
@@ -202,10 +210,11 @@ def test_rest_503_on_create_exits_3_not_auth(mock_run, capsys):
     # AuthError, so a GitHub outage is not misreported as invalid credentials.
     mock_run.side_effect = [
         _completed(stdout="https://github.com/o/r\n"),  # remote
+        _completed(rc=0),  # label create (ensure source label)
         _completed(rc=1, stderr="HTTP 503: Service Unavailable"),  # create
     ]
 
-    rc = main(["--title", "Test", "--output-format", "json"])
+    rc = main(["--source", "human", "--title", "Test", "--output-format", "json"])
     assert rc == 3
     output = json.loads(capsys.readouterr().out)
     assert output["Success"] is False
@@ -217,10 +226,11 @@ def test_missing_gh_exits_4(mock_run, capsys):
     # gh not installed surfaces as FileNotFoundError from the create call.
     mock_run.side_effect = [
         _completed(stdout="https://github.com/o/r\n"),  # remote
+        _completed(rc=0),  # label create (ensure source label)
         FileNotFoundError("gh"),  # create: gh missing
     ]
 
-    rc = main(["--title", "Test", "--output-format", "json"])
+    rc = main(["--source", "human", "--title", "Test", "--output-format", "json"])
     assert rc == 4
     output = json.loads(capsys.readouterr().out)
     assert output["Success"] is False
@@ -233,7 +243,7 @@ def test_repo_resolve_failure_emits_json_envelope(mock_run, capsys):
         _completed(rc=1),  # git remote get-url origin fails → get_repo_info returns None
     ]
 
-    rc = main(["--title", "Test", "--output-format", "json"])
+    rc = main(["--source", "human", "--title", "Test", "--output-format", "json"])
     assert rc == 2
     output = json.loads(capsys.readouterr().out)
     assert output["Success"] is False
@@ -269,11 +279,12 @@ def test_rest_503_preflight_does_not_block_working_graphql_create(mock_run, caps
         {
             "gh auth status": _completed(rc=1, stderr="error validating token: HTTP 503"),
             "git": _completed(stdout="https://github.com/owner/repo\n"),
+            "gh label create": _completed(),
             "gh issue create": _completed(stdout="https://github.com/owner/repo/issues/321\n"),
         }
     )
 
-    rc = main(["--title", "Real incident", "--output-format", "json"])
+    rc = main(["--source", "human", "--title", "Real incident", "--output-format", "json"])
     assert rc == 0
     output = json.loads(capsys.readouterr().out)
     assert output["Success"] is True
