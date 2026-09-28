@@ -163,7 +163,7 @@
       },
       {
         "prompt": "Memory search returned nothing for plugin versioning rules. Is that an error, and what do I do next?",
-        "expected": "Not an error. Serena travels with the repo as plain markdown, so there is no service to be unreachable. An empty result returns a coverage note; broaden the query or read the index, then reason from first principles."
+        "expected": "Not an error. Serena travels with the repo as plain markdown, so there is no service to be unreachable. An empty result returns a coverage note; broaden the query or read the index."
       },
       {
         "prompt": "I need one fact from memory about ARM runner cost. Which skill handles that?",

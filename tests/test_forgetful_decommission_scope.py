@@ -57,10 +57,6 @@ EXEMPTIONS: dict[str, tuple[str, str]] = {
         REGISTRY,
         "baseline rows key on a historical PRD file name that contains the token",
     ),
-    "evals/memory-spike/fixtures/E002.json": (
-        RECORD,
-        "input to the scored 20260528T061135Z run, which records its fixture_sha",
-    ),
     "evals/memory-spike/runs/20260528T061135Z-94708c8e/runs.jsonl": (RECORD, _FROZEN_RUN),
     "evals/reports/adr-063-kill-gate-20260708/memory-search.json": (RECORD, _FROZEN_RUN),
     "evals/reports/skill-triage-20260509-135851/results.json": (RECORD, _FROZEN_RUN),
