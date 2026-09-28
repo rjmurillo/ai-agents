@@ -391,23 +391,18 @@ versions without sending a model request.
 
 ### Copilot BYOK passthrough (issue #5404)
 
-GitHub-routed Copilot quota exhausts (HTTP 402, see "Copilot: the
-client-label finding and BYOK" above), so `--harnesses copilot` and
-`--harnesses both` need the documented BYOK provider path to keep running at
-all. `runtime_env` in `_runtime_harness.py` passes six BYOK variables
+When GitHub-routed Copilot quota is exhausted (HTTP 402, see "Copilot: the
+client-label finding and BYOK" above), `--harnesses copilot` and
+`--harnesses both` can still run through the documented BYOK provider path. `runtime_env` in `_runtime_harness.py` passes six BYOK variables
 (`copilot help environment`, Copilot CLI 1.0.89) through to the Copilot
 subprocess: `COPILOT_PROVIDER_TYPE`, `COPILOT_PROVIDER_BASE_URL`,
 `COPILOT_PROVIDER_API_KEY`, `COPILOT_PROVIDER_BEARER_TOKEN`,
 `COPILOT_PROVIDER_MODEL_ID`, and `COPILOT_PROVIDER_WIRE_MODEL`. Claude and
 codex runs never see these variables.
 
-Two documented BYOK variables are excluded from the allowlist:
-`COPILOT_PROVIDER_API_KEY_COMMAND`, because the CLI docs say it runs a shell
-command to obtain the key and this allowlist exists to bound the *values*
-that cross into the subprocess, not hand it a new way to execute an ambient
-command; and `COPILOT_PROVIDER_HEADERS`, because it can carry a bearer
-credential under an arbitrary header name, and report.json (below) is
-generated from this same process's environment.
+Two documented BYOK variables stay out of the allowlist.
+`COPILOT_PROVIDER_API_KEY_COMMAND` runs an ambient shell command.
+`COPILOT_PROVIDER_HEADERS` can carry a credential under any header name.
 
 The report records how the run was routed, never a credential:
 
@@ -420,8 +415,8 @@ environment: `{"routing": "byok", "provider_type": ..., "base_url": ...}`
 when `COPILOT_PROVIDER_BASE_URL` is set and non-empty, `provider_type`
 defaulting to `openai` per the CLI docs when `COPILOT_PROVIDER_TYPE` is
 unset; otherwise `{"routing": "github"}`. It never records a key, token,
-model id, or header, so the field is safe to paste into an issue or a PR
-body. The field appears in `report.json` whenever `--harnesses` selects
+model id, or header. The base URL keeps only scheme, host, port, and path, so
+userinfo, a query, or a fragment never reaches the report. The field appears in `report.json` whenever `--harnesses` selects
 Copilot (`copilot` or `both`), in both a live run and a `--dry-run`, and is
 absent for `--harnesses claude`.
 

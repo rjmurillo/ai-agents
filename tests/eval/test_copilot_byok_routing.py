@@ -16,6 +16,8 @@ import json
 import subprocess
 from pathlib import Path
 
+import pytest
+
 from tests.eval._runtime_parity_test_support import FIXTURES, parity, runtime_harness
 
 BYOK_VARS = (
@@ -228,3 +230,16 @@ def test_report_records_github_routing_when_no_byok_vars_set(tmp_path: Path, mon
 
     assert code == parity.EXIT_OK
     assert report["copilot_routing"] == {"routing": "github"}
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("https://user:s3cret@gw.example:8443/v1?key=s3cret#s3cret", "https://gw.example:8443/v1"),
+        ("https://api.anthropic.com", "https://api.anthropic.com"),
+    ],
+)
+def test_copilot_routing_redacts_base_url_credentials(raw: str, expected: str) -> None:
+    routing = runtime_harness.copilot_routing({"COPILOT_PROVIDER_BASE_URL": raw})
+    assert routing["base_url"] == expected
+    assert "s3cret" not in json.dumps(routing)

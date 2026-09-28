@@ -27,6 +27,7 @@ import os
 import subprocess
 from collections.abc import Callable, Mapping
 from pathlib import Path
+from urllib.parse import urlsplit, urlunsplit
 
 from _runtime_parity import (
     Fixture,
@@ -300,21 +301,10 @@ def runtime_env(workspace: Path, harness: str) -> dict[str, str]:
     # `scripts/eval/README.md` does map codex to OPENAI_API_KEY, but for the
     # direct-API provider path in `_providers.py`, not for this CLI
     # subprocess.
-    # COPILOT_PROVIDER_TYPE, COPILOT_PROVIDER_BASE_URL, COPILOT_PROVIDER_API_KEY,
-    # COPILOT_PROVIDER_BEARER_TOKEN, COPILOT_PROVIDER_MODEL_ID, and
-    # COPILOT_PROVIDER_WIRE_MODEL are documented BYOK provider variables
-    # (`copilot help environment`, Copilot CLI 1.0.89). GitHub-routed Copilot
-    # quota exhausts (HTTP 402, observed 2026-09-24, see
-    # `scripts/eval/README.md` "Copilot: the client-label finding and BYOK"),
-    # so runtime parity needs this path to keep probing Copilot CLI at all.
-    # COPILOT_PROVIDER_API_KEY_COMMAND is excluded: the CLI docs say it runs a
-    # shell command to obtain the key, and this harness's allowlist exists to
-    # bound which *values* cross into the subprocess, not to hand the
-    # subprocess a new way to execute an ambient command. COPILOT_PROVIDER_HEADERS
-    # is excluded because it can carry a bearer credential under an arbitrary
-    # header name, and `copilot_routing` below writes provider fields straight
-    # into `report.json`; allowing it would risk a credential reaching that
-    # report surface through a field this harness does not inspect.
+    # Copilot BYOK provider variables (`copilot help environment`, Copilot CLI
+    # 1.0.89) let a run bypass GitHub-routed quota. Two documented ones stay
+    # out: COPILOT_PROVIDER_API_KEY_COMMAND runs an ambient shell command, and
+    # COPILOT_PROVIDER_HEADERS can carry a credential under any header name.
     authentication = {
         "claude": {"ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN"},
         "copilot": {
@@ -369,13 +359,23 @@ def copilot_routing(env: Mapping[str, str]) -> dict[str, str]:
     and non-empty; the CLI docs default `COPILOT_PROVIDER_TYPE` to `openai`
     when unset. Only `provider_type` and `base_url` are recorded: never the
     key, token, model id, or wire model, none of which any consumer of this
-    report needs to reproduce or interpret a run.
+    report needs to reproduce or interpret a run. The base URL keeps only its
+    scheme, host, port, and path, so userinfo, a query, or a fragment that
+    carries a credential never reaches the report.
     """
     base_url = env.get("COPILOT_PROVIDER_BASE_URL", "")
     if not base_url:
         return {"routing": "github"}
     provider_type = env.get("COPILOT_PROVIDER_TYPE") or DEFAULT_COPILOT_PROVIDER_TYPE
-    return {"routing": "byok", "provider_type": provider_type, "base_url": base_url}
+    return {"routing": "byok", "provider_type": provider_type, "base_url": _redacted_url(base_url)}
+
+
+def _redacted_url(url: str) -> str:
+    """Drop userinfo, query, and fragment from `url`."""
+    parts = urlsplit(url)
+    host = parts.hostname or ""
+    netloc = f"{host}:{parts.port}" if parts.port else host
+    return urlunsplit((parts.scheme, netloc, parts.path, "", ""))
 
 
 def probe_version(
