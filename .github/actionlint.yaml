@@ -1,0 +1,6 @@
+# actionlint v1.7.12 does not list the GitHub-hosted ubuntu-26.04 runners yet.
+# Declare them here so the runner-label rule accepts them.
+self-hosted-runner:
+  labels:
+    - ubuntu-26.04
+    - ubuntu-26.04-arm
