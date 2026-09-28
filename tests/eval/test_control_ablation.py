@@ -106,6 +106,20 @@ def test_load_tasks_refuses_empty_tasks_array() -> None:
         ablation.load_tasks({"schema_version": 1, "tasks": []})
 
 
+def test_load_tasks_accepts_empty_response_checks() -> None:
+    # REQ-043 AC-1 does not list an empty response_checks among the refusal
+    # cases (only allowed_paths must be non-empty); an empty list means no
+    # check is required, so objective_satisfied trivially passes. Real
+    # evidence: scripts/eval/examples/control-ablation-tasks.json's
+    # 'split-bill-cents' task ships response_checks: [].
+    document = make_task_document()
+    document["tasks"][0]["response_checks"] = []
+    tasks = ablation.load_tasks(document)
+    loaded = next(t for t in tasks if t.id == document["tasks"][0]["id"])
+    assert loaded.response_checks == ()
+    assert ablation.response_checks_pass(loaded.response_checks, "anything") is True
+
+
 def test_load_tasks_refuses_bad_response_check_kind() -> None:
     task = make_task(response_checks=[{"kind": "semantic", "pattern": "x"}])
     document = {"schema_version": 1, "tasks": [task]}

@@ -225,8 +225,8 @@ def _load_task(value: object, index: int) -> Task:
             f"{path}: followup_files overlaps setup_files at {sorted(overlap)}"
         )
     response_checks_raw = raw.get("response_checks")
-    if not isinstance(response_checks_raw, list) or not response_checks_raw:
-        raise ControlAblationConfigError(f"{path}.response_checks must be a non-empty array")
+    if not isinstance(response_checks_raw, list):
+        raise ControlAblationConfigError(f"{path}.response_checks must be an array")
     return Task(
         id=_require_str(raw.get("id"), f"{path}.id"),
         case=case,
