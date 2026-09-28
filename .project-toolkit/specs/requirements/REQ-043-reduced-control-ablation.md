@@ -182,8 +182,9 @@ this works is the dry run: 5 of 5 `known_good` accepted durable, 0 of 5
 
 ## Open questions
 
-- Claude auth for the isolated profile at live-run time. Owner: rjmurillo.
-  `runtime_env` passes only `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN`.
+None. Claude auth for the isolated profile was open; it is resolved by the
+opt-in `--claude-auth-file` flag (operator decision 2026-09-28: use the
+installed subscription CLIs, no extra API keys).
 
 ## CVA summary
 

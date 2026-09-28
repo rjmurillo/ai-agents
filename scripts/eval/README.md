@@ -1085,7 +1085,7 @@ refused, live or dry, when it inherits ancestor instruction files a CLI
 would load, reusing `require_isolated_workspace_root`), `--output-dir`
 (default a timestamped directory under `artifacts/control-ablation/`),
 `--max-runs` (default 30; a live run whose `tasks x controls x repeats`
-exceeds this refuses, exit 2, before any model call), `--timeout` (seconds
+exceeds this refuses, exit 2, before any model call), `--claude-auth-file` (see below), `--timeout` (seconds
 for the Claude CLI call itself; the acceptance and follow-up commands each
 get a separate fixed 120 seconds), and `--dry-run`.
 
@@ -1104,8 +1104,8 @@ scope violation, excluding control files, follow-up files,
 `.parity-profile/`, `.runtime/`, `__pycache__/`, and `*.pyc`.
 
 Fields recorded by construction, because the run is unattended and has no
-reviewer: `durable.review_findings` and `durable.rework_minutes` (0, no
-reviewer), `economics.tool_cost_usd` and `economics.human_correction_minutes`
+reviewer: `durable.review_findings` (0, no reviewer), `durable.rework_minutes` (0, no
+human rework), `economics.tool_cost_usd` and `economics.human_correction_minutes`
 (0, local commands only, no human). None of these are measurements of a
 human in the loop; the report states this so a reader does not mistake a
 zero for evidence.
@@ -1119,11 +1119,14 @@ no `total_cost_usd`, or its resolved model differs from the one requested;
 no record is written for that run, and the batch continues with the
 remaining runs.
 
-Claude auth for a live run is not handled by this CLI: `runtime_env`
-allowlists only `ANTHROPIC_API_KEY` and `CLAUDE_CODE_OAUTH_TOKEN` from the
-operator's own environment (REQ-043 open question, owner: rjmurillo). The
-five-arm live run (5 tasks x 2 controls x 3 repeats = 30) and its ledger
-entry are tracked separately (TASK-052 milestone 7).
+Claude auth: `runtime_env` points `CLAUDE_CONFIG_DIR` at an isolated profile
+with no login, and passes only `ANTHROPIC_API_KEY` and `CLAUDE_CODE_OAUTH_TOKEN`
+from the operator's environment. A subscription login needs
+`--claude-auth-file ~/.claude/.credentials.json`: the file is copied into each
+run's profile at mode `0600` for the duration of the Claude call only, then
+deleted before grading. Its contents are never written to a report. The agent
+under test can still read it while it runs, so keep live reports out of the
+repository.
 
 ## Held-Out-Gated Optimization
 

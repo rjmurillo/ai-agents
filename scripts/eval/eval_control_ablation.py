@@ -18,14 +18,18 @@ stream, missing cost, model mismatch).
 from __future__ import annotations
 
 import argparse
+import contextlib
 import datetime as dt
 import json
+import os
+import shutil
+import stat
 import subprocess
 import sys
 import tempfile
 import time
 import uuid
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from pathlib import Path
 from typing import TextIO
 
@@ -106,23 +110,58 @@ def _total_cost_usd(events: Sequence[Mapping[str, object]]) -> float | None:
     return None
 
 
+@contextlib.contextmanager
+def _claude_auth(source: Path | None, config_dir: Path) -> Iterator[None]:
+    """Copy an operator-supplied `.credentials.json` into one run's isolated profile.
+
+    `runtime_env` points CLAUDE_CONFIG_DIR at a profile with no login, and the
+    agent shim unsets ANTHROPIC_API_KEY, so a subscription CLI needs this copy
+    (probed 2026-09-28, Claude Code 2.1.283: a copied `.credentials.json`
+    authenticated with `apiKeySource: none`). Same shape as
+    `eval_harness_capability._install_codex_auth`: exclusive, no-follow create
+    at mode 0o600, contents never logged. The copy is deleted as soon as the
+    Claude call returns, before grading, so it never outlives that call.
+    """
+    if source is None:
+        yield
+        return
+    config_dir.mkdir(parents=True, exist_ok=True, mode=stat.S_IRWXU)
+    os.chmod(config_dir, stat.S_IRWXU)
+    target = config_dir / ".credentials.json"
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
+    fd = os.open(target, flags, stat.S_IRUSR | stat.S_IWUSR)
+    try:
+        with os.fdopen(fd, "wb") as dest, source.open("rb") as src:
+            shutil.copyfileobj(src, dest)
+        yield
+    finally:
+        target.unlink(missing_ok=True)
+
+
 def _invoke_claude(
-    workspace: Path, task: ablation.Task, model: str, timeout: float, runner: Runner
+    workspace: Path,
+    task: ablation.Task,
+    model: str,
+    timeout: float,
+    runner: Runner,
+    auth_file: Path | None = None,
 ) -> tuple[list[dict[str, object]], str, float, float, list[str]]:
     """Run one Claude CLI turn; raise `HarnessFailureError` for an AC-8 condition."""
     argv = _claude_argv(model, task.prompt)
+    env = runtime_env(workspace, "claude")
     started = time.monotonic()
-    result = runner(
-        argv,
-        cwd=workspace,
-        env=runtime_env(workspace, "claude"),
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        timeout=timeout,
-        check=False,
-    )
+    with _claude_auth(auth_file, Path(env["CLAUDE_CONFIG_DIR"])):
+        result = runner(
+            argv,
+            cwd=workspace,
+            env=env,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=timeout,
+            check=False,
+        )
     wall_seconds = time.monotonic() - started
     try:
         events = parse_events(result.stdout)
@@ -267,11 +306,12 @@ def _grade_live_run(
     harness_version: str,
     timeout: float,
     runner: Runner,
-) -> tuple[dict[str, object], list[str]]:
+    auth_file: Path | None,
+) -> tuple[dict[str, object], list[str], str]:
     """Run one task under one control/repeat; raise `HarnessFailureError` (AC-8)."""
     grade.seed_workspace(workspace, task, control.files)
     events, reply, cost, wall_seconds, argv = _invoke_claude(
-        workspace, task, model, timeout, runner
+        workspace, task, model, timeout, runner, auth_file
     )
     tools, _subagents = traces(events)
     grade.write_followup_files(workspace, task)
@@ -298,7 +338,7 @@ def _grade_live_run(
     )
     record = ablation.build_record(evidence)
     outcome_record.parse_record(record)  # AC-11: refuse before it is ever written
-    return record, argv
+    return record, argv, reply
 
 
 def _run_live(
@@ -311,6 +351,7 @@ def _run_live(
     workspace_root: Path,
     output_dir: Path,
     runner: Runner,
+    auth_file: Path | None = None,
 ) -> tuple[dict[str, object], int]:
     harness_version = probe_version(
         CLAUDE_EXECUTABLE, "claude", workspace_root / "_probe", runner, timeout
@@ -330,7 +371,7 @@ def _run_live(
                     workspace = workspace_root / f"{task.id}-{name}-{repeat}"
                     argv_for_report = redacted_argv(_claude_argv(model, task.prompt), "claude")
                     try:
-                        record, argv = _grade_live_run(
+                        record, argv, reply = _grade_live_run(
                             workspace,
                             task,
                             control,
@@ -339,6 +380,7 @@ def _run_live(
                             harness_version,
                             timeout,
                             runner,
+                            auth_file,
                         )
                     except (HarnessFailureError, subprocess.SubprocessError, OSError) as exc:
                         any_harness_failure = True
@@ -359,6 +401,7 @@ def _run_live(
                             "control": name,
                             "repeat": repeat,
                             "argv": redacted_argv(argv, "claude"),
+                            "reply": reply,
                             "record": record,
                         }
                     )
@@ -416,6 +459,15 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--output-dir", type=Path)
     parser.add_argument("--max-runs", type=int, default=DEFAULT_MAX_RUNS)
     parser.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT)
+    parser.add_argument(
+        "--claude-auth-file",
+        type=Path,
+        default=None,
+        help=(
+            "Opt-in: copy this Claude Code .credentials.json into each live run's "
+            "isolated CLAUDE_CONFIG_DIR for the duration of the Claude call."
+        ),
+    )
     parser.add_argument("--dry-run", action="store_true")
     return parser
 
@@ -433,6 +485,11 @@ def _run(
             f"{total_runs} runs (tasks x controls x repeats) exceeds --max-runs {args.max_runs}; "
             "refusing before any model call (AC-3)"
         )
+    auth_file = args.claude_auth_file.resolve() if args.claude_auth_file else None
+    if auth_file is not None and not auth_file.is_file():
+        raise ablation.ControlAblationConfigError(
+            f"--claude-auth-file {auth_file} is not a regular file"
+        )
     controls = {name: ablation.resolve_control(name, REPO_ROOT) for name in control_names}
     return _run_live(
         tasks,
@@ -443,6 +500,7 @@ def _run(
         workspace_root=workspace_root,
         output_dir=output_dir,
         runner=runner,
+        auth_file=auth_file,
     )
 
 
