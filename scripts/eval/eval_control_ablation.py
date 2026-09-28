@@ -28,24 +28,28 @@ from collections.abc import Iterator, Mapping, Sequence
 from pathlib import Path
 from typing import TextIO
 
-import _control_ablation as ablation
-import _control_ablation_claude as claude_run
-import _control_ablation_grade as grade
-import _control_ablation_tasks as ablation_tasks
-import _durable_outcome as durable_outcome
-import _outcome_record as outcome_record
-from _runtime_harness import probe_version, require_isolated_workspace_root
-from _runtime_output import (
-    redacted_argv,
-)
-from _runtime_parity import ParityConfigError
+# `_control_ablation` imports `scripts.metrics.control_plane_baseline`, so
+# running this file by path needs the repository root on sys.path
+# (tests/validation/test_validation_entry_point_imports.py).
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+import _control_ablation as ablation  # noqa: E402
+import _control_ablation_claude as claude_run  # noqa: E402
+import _control_ablation_grade as grade  # noqa: E402
+import _control_ablation_tasks as ablation_tasks  # noqa: E402
+import _durable_outcome as durable_outcome  # noqa: E402
+import _outcome_record as outcome_record  # noqa: E402
+from _runtime_harness import probe_version, require_isolated_workspace_root  # noqa: E402
+from _runtime_output import redacted_argv  # noqa: E402
+from _runtime_parity import ParityConfigError  # noqa: E402
 
 EXIT_OK = 0
 EXIT_LOGIC = 1
 EXIT_CONFIG = 2
 EXIT_EXTERNAL = 3
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_TASKS = Path(__file__).parent / "examples" / "control-ablation-tasks.json"
 DEFAULT_MODEL = "claude-sonnet-5"
 DEFAULT_TIMEOUT = 900.0
