@@ -30,6 +30,7 @@ from _runtime_grader import GraderProtocol, grade_semantic_assertions, resolve_g
 from _runtime_harness import (
     SENTINEL,
     copilot_instruction_path,
+    copilot_routing,
     hash_installed_agent,
     prepare_workspace,
     probe_version,
@@ -934,7 +935,7 @@ def _base_report(
     harnesses: str,
 ) -> dict[str, object]:
     """Build the report shell shared by dry-run and live evaluation."""
-    return {
+    report: dict[str, object] = {
         "schema_version": 1,
         "requested_model": model,
         "cli_versions": _probe_versions(
@@ -947,6 +948,12 @@ def _base_report(
         "instructions_ref": instructions_ref,
         "instructions_ref_sha": instructions_ref_sha,
     }
+    # copilot_routing never runs for a Claude-only selection: there is no
+    # Copilot CLI invocation for it to describe, mirroring the
+    # `resolve_copilot = harnesses != "claude"` gate in `_resolve_ablation`.
+    if harnesses != "claude":
+        report["copilot_routing"] = copilot_routing(os.environ)
+    return report
 
 
 def _non_empty_dir(path: Path) -> bool:
