@@ -937,6 +937,57 @@ Output is a JSON artifact (`--output`, default under
 cost, the winner, `recall_delta`, `ci95`, `cohens_d`, `best_candidate_*`, and
 the `decision`/`reason`.
 
+## Durable Outcome Report
+
+`eval_durable_outcome.py` answers a question pass-rate metrics do not: did an
+accepted result stay correct after integration, or did it only pass its first
+check (REQ-042, DESIGN-040)? A run that passes its deterministic check and
+then breaks on follow-up validation still counts as a success in a plain
+pass-rate report; this one classifies it `ACCEPTED_NOT_DURABLE` instead.
+
+The record is one JSON object per line (`_durable_outcome.OutcomeRecord`,
+`scripts/eval/_durable_outcome.py`): `task_id`, `repeat`, a `config` (model,
+harness, harness_version, context_bytes, retry_budget, reviewer, control),
+and five evidence sections (`capability`, `execution`, `durable`,
+`economics`, `risk`). See DESIGN-040 for the field-level types. Issue #5424's
+routing benchmark runner is the intended producer of this JSONL.
+
+```bash
+python3 scripts/eval/eval_durable_outcome.py --records RUN.jsonl
+python3 scripts/eval/eval_durable_outcome.py --records RUN.jsonl --baseline BASE.jsonl
+```
+
+`--records` alone prints a `ConfigurationReport`: per-task verdicts, the
+zero-success and all-success task lists, p10/p50/p90 of cost and correction
+time, and the headline. `--baseline` adds a matched `Comparison`: it refuses
+(exit 2) when the two files' RunConfigs differ in any field other than
+`control`, or when they cover different task sets, naming the differing
+field or the missing task ids. Otherwise it returns `BETTER`, `WORSE`, or
+`MIXED`. `BETTER` requires the candidate to have at least as many accepted
+durable tasks as the baseline, no higher cost per accepted durable task, and
+no task that drops from one or more durable accepts in the baseline to zero
+in the candidate; `WORSE` is the mirror.
+
+The headline, in order: **cost per accepted durable task** (all model and
+tool cost, including rejected runs, divided by the accepted durable count;
+`null` when that count is 0), **correction minutes per accepted durable
+task**, and **residual risk** (security findings, unapproved external
+actions, unsupported claims, and unresolved uncertainty, plus residual
+defects on accepted runs). Costs of rejected runs stay in the numerator: a
+failed attempt is part of the price of an eventual accepted result.
+
+Exit codes: `0` the report's status is `VERIFIED`, or, with `--baseline`, the
+comparison result is `BETTER` or `MIXED`. `1` the report's status is
+`UNVERIFIED`, or the comparison result is `WORSE` or `UNVERIFIED` (any
+missing evidence classifies `UNVERIFIED`, never a silent pass). `2` a
+malformed JSONL line (the error names the line number), a record that fails
+strict parsing, or a refused comparison.
+
+The pure core (`parse_record`, `classify`, `build_report`, `compare`) has no
+I/O and no model calls; `_eval_common.percentile` is the one shared
+percentile helper it and the model-sweep and report-aggregator cores all use
+(REQ-042 AC-11).
+
 ## Held-Out-Gated Optimization
 
 `optimize-artifact.py` adds the piece the rest of this directory is missing: a

@@ -33,32 +33,12 @@ import random
 import statistics
 from dataclasses import dataclass
 
+from _eval_common import percentile
 from _report_aggregator import (
     BOOTSTRAP_ITERATIONS,
     CI_LOWER_PERCENTILE,
     CI_UPPER_PERCENTILE,
 )
-
-
-def _percentile(values: list[float], pct: float) -> float:
-    """Linear-interpolation percentile (local copy; no numpy).
-
-    Duplicated from ``_report_aggregator`` deliberately: importing that
-    module's private ``_percentile`` coupled the sweep to an internal helper
-    that could change without a contract. The math is a stable, standard
-    definition, so an independent copy is safer than the private dependency.
-    """
-    if not values:
-        return 0.0
-    s = sorted(values)
-    if len(s) == 1:
-        return s[0]
-    rank = (pct / 100.0) * (len(s) - 1)
-    lower = int(rank)
-    upper = min(lower + 1, len(s) - 1)
-    frac = rank - lower
-    return s[lower] + frac * (s[upper] - s[lower])
-
 
 SCHEMA_VERSION = "1"
 DEFAULT_MIN_EFFECT = 0.05
@@ -244,8 +224,8 @@ def paired_bootstrap_ci(
         delta = sum(w_means[f] - d_means[f] for f in sample) / n
         deltas.append(delta)
     return (
-        _percentile(deltas, lower_percentile),
-        _percentile(deltas, upper_percentile),
+        percentile(deltas, lower_percentile),
+        percentile(deltas, upper_percentile),
     )
 
 
