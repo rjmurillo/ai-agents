@@ -134,9 +134,22 @@ when several sessions work one clone at once:
 
 | Hazard | Symptom | First command | Fix |
 |--------|---------|---------------|-----|
-| Stash is repo-wide | `git stash list` shows an entry you never made, or `git stash pop` conflicts on a file you never touched | `git stash list --format='%gd %gs'` and read the `WIP on <branch>` subject | Pop only an entry that names your branch, by index. After a conflicting pop, run `git restore --source=HEAD --staged --worktree -- <paths>` on the files it touched; a conflicting pop exits 1 and keeps the entry for its owner. Save your own work as a WIP commit on your branch instead of stashing |
-| Base goes stale in long runs | Gates or conflicts appear on files you never touched, after a local run was green | `git fetch origin main && git rev-list --left-right --count origin/main...HEAD` | A non-zero left count means `main` moved. `git merge origin/main`, regenerate, and re-run the failing gate. A fetch in any worktree moves `origin/main` for all of them but never moves your branch |
+| Stash is repo-wide | `git stash list` shows an entry you never made, or `git stash pop` conflicts on a file you never touched | `git stash list --format='%gd %gs'` and read the `WIP on <branch>` subject | Pop only an entry that names your branch, by index, onto a clean tree. Undo a foreign pop with the steps below. Save your own work as a WIP commit on your branch instead of stashing |
+| Base goes stale in long runs | Gates or conflicts appear on files you never touched, after a local run was green | `git fetch origin main && git rev-list --left-right --count origin/main...HEAD` | A non-zero left count means your branch lacks commits on `main`. `git merge origin/main`, regenerate, and re-run the failing gate. A fetch in any worktree moves `origin/main` for all of them but never moves your branch |
 | "Next free number" races | Two branches add the same sequential id (spec, ADR, record) and each passes alone | After `git merge origin/main`, re-run the id-uniqueness check | Renumber the unmerged side. Allocate the id after a fresh fetch, as late as possible before commit |
+
+**Undo a foreign pop.** Git refuses a pop over unstaged edits to the same
+path, but merges it into staged edits. Do not reset to `HEAD`; that discards
+your staged work. Record the entry first: `sha=$(git rev-parse 'stash@{N}')`.
+
+- Conflicting pop (exit 1, entry kept): for each `UU` path, run
+  `git checkout --ours -- <path> && git add -- <path>`. Stage 2 holds your
+  pre-pop version, staged edits included. Then reverse the paths it applied
+  cleanly: `git diff "$sha^1" "$sha" -- <paths> | git apply -R --index`.
+- Clean pop (exit 0): it dropped the owner's entry. Restore that first with
+  `git stash store -m restored <sha>`, taking `<sha>` from the
+  `Dropped refs/stash@{0} (<sha>)` line. Reverse it the same way; for a path
+  you had staged, drop `--index`.
 
 #### Recovery: Undo Mistakes with Reflog
 
