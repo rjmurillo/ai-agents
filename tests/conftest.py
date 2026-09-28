@@ -255,25 +255,25 @@ def _isolate_tmp_path_from_parent_git_repo(
 
 @pytest.fixture(autouse=True)
 def _isolate_gc_worktree_audit_log(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Redirect the gc_worktrees durable audit log to a per-test temp path.
+    """Redirect the gc_worktrees durable audit log away from any real checkout.
 
-    ``scripts.maintenance._gc_apply`` appends one JSONL line per real worktree
+    ``scripts.maintenance._gc_apply`` appends one JSONL line per worktree
     removal to ``.project-toolkit/metrics/gc-worktree-removals.jsonl`` under
-    this repository's own checkout (issue #4790), independent of whatever
-    repository a test's ``run_git`` stub or real-git sandbox targets. A test
-    that calls ``apply_removals`` without an explicit ``audit_log_path`` would
-    otherwise append into that real file on every run, including under xdist
-    workers writing concurrently. Patching the module-level default here
-    isolates every gc_worktrees test without touching each call site; a test
-    that passes its own ``audit_log_path`` is unaffected, since that argument
-    always wins over the default.
+    the plan's main worktree (issue #4790). A test that calls
+    ``apply_removals`` without an explicit ``audit_log_path`` would otherwise
+    write under whatever ``main_worktree`` its report names, including the
+    real clone. Patching the resolver here isolates every such test without
+    touching each call site; a test that passes its own ``audit_log_path`` is
+    unaffected, since that argument always wins.
+
+    The path sits in the session base temp directory, which pytest creates
+    once per session (once per xdist worker), so this fixture adds no
+    per-test directory to a suite of tens of thousands of tests.
     """
-    monkeypatch.setattr(
-        "scripts.maintenance._gc_apply._DEFAULT_AUDIT_LOG_PATH",
-        tmp_path / "gc-worktree-removals.jsonl",
-    )
+    log_path = tmp_path_factory.getbasetemp() / "gc-worktree-removals.jsonl"
+    monkeypatch.setattr("scripts.maintenance._gc_apply.audit_log_path_for", lambda _main: log_path)
 
 
 @pytest.fixture

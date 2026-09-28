@@ -15,8 +15,11 @@ forgets to supply one would otherwise scan the real machine.
 Related: Issue #2761 (worktree accumulation starves the markdown LSP).
 
 Every successful removal also appends one line to a durable, append-only
-audit log (``_DEFAULT_AUDIT_LOG_PATH``), distinct from the stdout report a
-caller may not have captured. Issue #4790: an untracked file vanished during
+audit log (``audit_log_path_for``), distinct from the stdout report a
+caller may not have captured. The log lives under the main worktree, never
+under the checkout the script runs from: ``git worktree remove`` deletes a
+linked worktree's gitignored files too, so a log kept there would be erased
+by the next GC run that removes that worktree. Issue #4790: an untracked file vanished during
 autofix work and no removal record survived the process that ran, so a later
 session had nothing to check it against. The log is JSONL, one JSON object
 per removed path, so a later session can answer "what did GC remove and
@@ -36,8 +39,12 @@ if TYPE_CHECKING:
 from scripts.maintenance import _gc_reasons, _gc_stale
 from scripts.maintenance.worktree_report import GcReport
 
-_REPO_ROOT = Path(__file__).resolve().parents[2]
-_DEFAULT_AUDIT_LOG_PATH = _REPO_ROOT / ".project-toolkit" / "metrics" / "gc-worktree-removals.jsonl"
+_AUDIT_LOG_RELATIVE = Path(".project-toolkit") / "metrics" / "gc-worktree-removals.jsonl"
+
+
+def audit_log_path_for(main_worktree: str) -> Path:
+    """The durable removal log for the repository whose main worktree is given."""
+    return Path(main_worktree) / _AUDIT_LOG_RELATIVE
 
 
 def remove_worktree(path: str, run_git: Callable[..., str]) -> None:
@@ -165,9 +172,17 @@ def apply_removals(
 
     ``audit_log_path`` overrides where the durable removal record is written;
     tests supply a temp path so they never touch the real audit log.
-    Production callers omit it and get ``_DEFAULT_AUDIT_LOG_PATH``.
+    Production callers omit it and get ``audit_log_path_for`` of the plan's
+    main worktree.
+
+    A failed audit write does not stop the run. The removal it describes has
+    already happened, so the failure is recorded in ``remove_errors`` (the
+    stdout report and exit code 2 still carry it) and the loop continues.
     """
-    log_path = audit_log_path if audit_log_path is not None else _DEFAULT_AUDIT_LOG_PATH
+    if audit_log_path is not None:
+        log_path = audit_log_path
+    else:
+        log_path = audit_log_path_for(report.main_worktree)
 
     if _refuses_to_mutate(report, report.remove_errors, "the plan"):
         return
@@ -231,9 +246,15 @@ def apply_removals(
             )
             return
         report.removed.append(decision.path)
-        _append_removal_record(
-            decision.path, decision.branch, decision.head, decision.reason, log_path=log_path
-        )
+        try:
+            _append_removal_record(
+                decision.path, decision.branch, decision.head, decision.reason, log_path=log_path
+            )
+        except OSError as exc:
+            report.remove_errors.append(
+                f"{decision.path}: removed, but the audit record was not written "
+                f"to {log_path}: {exc}"
+            )
 
 
 def _head_of(path: str, run_git: Callable[..., str]) -> str | None:
