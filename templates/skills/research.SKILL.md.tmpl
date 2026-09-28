@@ -145,8 +145,14 @@ ledger, because each one restates a different set of claims.
    python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/issue/new_issue.py" \
        --title "[Enhancement] Apply {TOPIC} to {integration-area}" \
        --body-file "{analysis-dir}/{topic-slug}-issue-body.md" \
-       --labels "enhancement,research-derived"
+       --labels "enhancement,research-derived" \
+       --source agent \
+       --blocked-by "{who is blocked, and on what}" \
+       --signal "{metric, log, run, or ticket that proves it}"
    ```
+
+   The user's approval to publish does not make this human-selected work, so
+   it files as `--source agent` with both Step 0 answers.
 
    That script's exit code is not a plain success signal. Read
    `references/degraded-mode.md` before reacting to a non-zero exit.

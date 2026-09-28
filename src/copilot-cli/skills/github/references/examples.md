@@ -143,8 +143,12 @@ python3 "$SCRIPTS_DIR/pr/set_pr_auto_merge.py" --pull-request 50 --disable
 
 ```bash
 SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts"
-# Create new issue
-python3 "$SCRIPTS_DIR/issue/new_issue.py" --title "Bug: Login fails" --body "Steps..." --labels "bug,P1"
+# Create new issue the user asked for
+python3 "$SCRIPTS_DIR/issue/new_issue.py" --title "Bug: Login fails" --body "Steps..." --labels "bug,P1" --source human
+
+# Create an issue an agent selected (Step 0 evidence required)
+python3 "$SCRIPTS_DIR/issue/new_issue.py" --title "Bug: Login fails" --body "Steps..." --source agent \
+    --blocked-by "Checkout team, blocked on login after deploy 412" --signal "auth 500s at 40/min since run 9981"
 
 # Create PR with validation
 python3 "$SCRIPTS_DIR/pr/new_pr.py" --title "feat: Add feature" --body "Description"
