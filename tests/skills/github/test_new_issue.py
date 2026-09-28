@@ -82,17 +82,19 @@ def _error(capsys) -> str:
     return data["Error"]["Message"]
 
 
+@pytest.fixture(autouse=True)
+def resolve_repo():
+    """Resolve every run to owner/repo without touching git or gh."""
+    with patch.object(mod, "resolve_repo_params") as mock_resolve:
+        info = MagicMock()
+        info.owner = "owner"
+        info.repo = "repo"
+        mock_resolve.return_value = info
+        yield mock_resolve
+
+
 class TestNewIssue:
     """Existing behavior, now under an explicit --source."""
-
-    @pytest.fixture(autouse=True)
-    def _mock_repo(self):
-        with patch.object(mod, "resolve_repo_params") as mock_resolve:
-            info = MagicMock()
-            info.owner = "owner"
-            info.repo = "repo"
-            mock_resolve.return_value = info
-            yield
 
     def test_create_basic_issue(self, capsys):
         rc, _ = _run(["--title", "Test Title", "--source", "human"])
@@ -150,24 +152,14 @@ class TestNewIssue:
 class TestSourceFlag:
     """AC-1, AC-8, AC-9: provenance is required, labeled atomically, validated first."""
 
-    @pytest.fixture(autouse=True)
-    def _mock_repo(self):
-        with patch.object(mod, "resolve_repo_params") as mock_resolve:
-            info = MagicMock()
-            info.owner = "owner"
-            info.repo = "repo"
-            mock_resolve.return_value = info
-            self.resolve = mock_resolve
-            yield
-
-    def test_missing_source_exits_2_before_any_call(self):
+    def test_missing_source_exits_2_before_any_call(self, resolve_repo):
         """AC-1: argparse refuses a missing --source."""
         gh = FakeGh()
         with patch("subprocess.run", side_effect=gh), pytest.raises(SystemExit) as exc:
             main(["--title", "x"])
         assert exc.value.code == 2
         assert gh.calls == []
-        self.resolve.assert_not_called()
+        resolve_repo.assert_not_called()
 
     def test_invalid_source_value_exits_2(self):
         """AC-1: only human or agent is accepted."""
@@ -228,32 +220,23 @@ class TestSourceFlag:
         assert rc == 0
         assert json.loads(capsys.readouterr().out)["Data"]["source"] == "agent"
 
-    def test_invalid_input_never_resolves_repo(self):
+    def test_invalid_input_never_resolves_repo(self, resolve_repo):
         """AC-9: validation runs before repository resolution."""
         rc, gh = _run(["--title", "T", "--source", "agent"])
         assert rc == 2
         assert gh.calls == []
-        self.resolve.assert_not_called()
+        resolve_repo.assert_not_called()
 
-    def test_empty_title_never_resolves_repo(self):
+    def test_empty_title_never_resolves_repo(self, resolve_repo):
         """AC-9: the title check moved ahead of repository resolution."""
         rc, gh = _run(["--title", "  ", "--source", "human"])
         assert rc == 2
         assert gh.calls == []
-        self.resolve.assert_not_called()
+        resolve_repo.assert_not_called()
 
 
 class TestAgentEvidence:
     """AC-2, AC-3, AC-7: agent-sourced issues carry Q3 and Q5."""
-
-    @pytest.fixture(autouse=True)
-    def _mock_repo(self):
-        with patch.object(mod, "resolve_repo_params") as mock_resolve:
-            info = MagicMock()
-            info.owner = "owner"
-            info.repo = "repo"
-            mock_resolve.return_value = info
-            yield
 
     def test_agent_appends_step0_block_with_verbatim_answers(self):
         """AC-7."""
@@ -366,15 +349,6 @@ class TestAgentEvidence:
 class TestExistingStep0:
     """AC-4, AC-5: a body that already carries Step 0 is validated and preserved."""
 
-    @pytest.fixture(autouse=True)
-    def _mock_repo(self):
-        with patch.object(mod, "resolve_repo_params") as mock_resolve:
-            info = MagicMock()
-            info.owner = "owner"
-            info.repo = "repo"
-            mock_resolve.return_value = info
-            yield
-
     def test_valid_body_step0_is_preserved_unchanged(self):
         """AC-5."""
         rc, gh = _run(["--title", "T", "--body", STEP0_BODY, "--source", "agent"])
@@ -437,15 +411,6 @@ class TestExistingStep0:
 
 class TestSourceLabelConflicts:
     """AC-6: at most one source label, matching --source."""
-
-    @pytest.fixture(autouse=True)
-    def _mock_repo(self):
-        with patch.object(mod, "resolve_repo_params") as mock_resolve:
-            info = MagicMock()
-            info.owner = "owner"
-            info.repo = "repo"
-            mock_resolve.return_value = info
-            yield
 
     def test_conflicting_source_label_exits_2(self, capsys):
         rc, gh = _run(["--title", "T", "--labels", "bug,source:human", *AGENT_ARGS])
