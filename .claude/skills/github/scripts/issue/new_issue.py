@@ -134,10 +134,16 @@ _HEDGE_PHRASES = (
 _HEDGE_TECHNICAL_SUFFIXES = {"eventually": frozenset({"consistent"})}
 _TRAILING_PUNCTUATION = ".,;:)!?"
 
-# "Step 0" but not "Step 0.5" or "Step 01"; any case, as Markdown headings are.
-_STEP0_HEADING = re.compile(r"^##[ \t]+Step 0(?![.\w])[^\n]*$", re.MULTILINE | re.IGNORECASE)
-_LEVEL2_HEADING = re.compile(r"^##[ \t]", re.MULTILINE)
-_HEADING_LINE = re.compile(r"^[ \t]*#{1,6}[ \t]", re.MULTILINE)
+# ATX headings may be indented up to three spaces and still render. Step 0
+# means "Step 0" but not "Step 0.5" or "Step 01", in any case.
+_STEP0_HEADING = re.compile(
+    r"^[ \t]{0,3}##[ \t]+Step 0(?![.\w])[^\n]*$", re.MULTILINE | re.IGNORECASE
+)
+# A level-1 or level-2 heading ends the Step 0 section.
+_SECTION_END = re.compile(r"^[ \t]{0,3}#{1,2}[ \t]", re.MULTILINE)
+# A heading of level 1 to 3 ends an answer, or could forge a Q3/Q5 subsection.
+_ANSWER_END_HEADING = r"^[ \t]{0,3}#{1,3}[ \t]"
+_HEADING_LINE = re.compile(_ANSWER_END_HEADING, re.MULTILINE)
 _STEP0_KEYS = ("Q3", "Q5")
 # HTML comments and fenced code blocks, closed or running to the end of the
 # body. GitHub renders neither as headings, so Step 0 text inside them is not
@@ -292,14 +298,14 @@ def _step0_section(body: str) -> str | None:
     if heading is None:
         return None
     rest = visible[heading.end() :]
-    next_section = _LEVEL2_HEADING.search(rest)
+    next_section = _SECTION_END.search(rest)
     return rest[: next_section.start()] if next_section else rest
 
 
 def _step0_answer(section: str, key: str) -> str:
     """Return the text under ``### <key>`` inside a Step 0 section."""
     match = re.search(
-        rf"^###[ \t]+{key}\b[^\n]*\n(.*?)(?=^[ \t]*#{{1,6}}[ \t]|\Z)",
+        rf"^[ \t]{{0,3}}###[ \t]+{key}\b[^\n]*\n(.*?)(?={_ANSWER_END_HEADING}|\Z)",
         section,
         re.MULTILINE | re.DOTALL | re.IGNORECASE,
     )
@@ -393,15 +399,17 @@ def _validate_request(args: argparse.Namespace, fmt: str) -> tuple[str, str] | i
     if isinstance(body, int):
         return body
 
+    # The escaped-newline check runs on the caller's body before the Step 0
+    # block is appended; the block's real newlines would otherwise mask it.
     label_error, caller_labels = _split_source_labels(args.labels, args.source)
     evidence_error, step0_block = _step0_evidence(
         args.source, body, args.blocked_by, args.signal
     )
-    if step0_block:
-        body = f"{body.rstrip()}\n\n{step0_block}" if body.strip() else step0_block
-    error = label_error or evidence_error or escaped_newline_body_error(body)
+    error = escaped_newline_body_error(body) or label_error or evidence_error
     if error:
         return _usage_error(error, fmt)
+    if step0_block:
+        body = f"{body.rstrip()}\n\n{step0_block}" if body.strip() else step0_block
     return body, caller_labels
 
 

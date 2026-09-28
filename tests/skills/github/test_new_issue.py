@@ -340,6 +340,14 @@ class TestAgentEvidence:
         assert rc == 0
         assert "### Q3" in _body_arg(gh.find("issue", "create"))
 
+    def test_escaped_newline_body_is_rejected_before_step0_append(self, capsys):
+        """AC-9: the appended block must not mask a literal backslash-n body."""
+        body = "## Source\\nRetrospective: s1\\n\\n## Problem\\nretro gate stalls"
+        rc, gh = _run(["--title", "T", "--body", body, *AGENT_ARGS])
+        assert rc == 2
+        assert gh.calls == []
+        assert "literal backslash-n" in _error(capsys)
+
     def test_eventually_at_end_of_answer_is_a_hedge(self, capsys):
         """AC-3: no text after the phrase means no technical-term exemption."""
         rc, _ = _run(
@@ -414,6 +422,26 @@ class TestExistingStep0:
         rc, _ = _run(["--title", "T", "--body", body, "--source", "agent"])
         assert rc == 2
         assert _error(capsys) == "Step 0 ### Q5 contains hedge phrase 'we believe'"
+
+    def test_indented_step0_heading_blocks_a_duplicate(self, capsys):
+        """AC-4: GitHub renders a heading indented up to three spaces."""
+        body = "  ## Step 0\n\n   ### Q3\n\nBob on CI\n\n### Q5\n\nrun 1 failed\n"
+        rc, _ = _run(["--title", "T", "--body", body, *AGENT_ARGS])
+        assert rc == 2
+        assert "already carries a Step 0 block" in _error(capsys)
+
+    def test_nested_heading_inside_q3_is_part_of_the_answer(self):
+        """AC-5: a level-4 heading does not end the Q3 answer."""
+        body = "## Step 0\n\n### Q3\n\n#### Detail\n\nBob on CI\n\n### Q5\n\nrun 1 failed\n"
+        rc, _ = _run(["--title", "T", "--body", body, "--source", "agent"])
+        assert rc == 0
+
+    def test_level1_heading_ends_the_step0_section(self, capsys):
+        """AC-5: Q3 and Q5 under a later '# ' heading are not Step 0 evidence."""
+        body = "## Step 0\n\nnone\n\n# Appendix\n\n### Q3\n\nBob\n\n### Q5\n\nrun 1\n"
+        rc, _ = _run(["--title", "T", "--body", body, "--source", "agent"])
+        assert rc == 2
+        assert "### Q3" in _error(capsys)
 
     def test_step0_5_heading_is_not_step0(self):
         """AC-5: '## Step 0.5 Prior Art' is a different section."""
