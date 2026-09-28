@@ -18,7 +18,7 @@ import subprocess
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 
-from _control_ablation import ControlAblationConfigError, Task
+from _control_ablation_tasks import ControlAblationConfigError, Task
 from _runtime_parity import ParityConfigError, safe_workspace_file
 
 #: DESIGN-041 "Task file": "Command timeouts are a fixed 120 seconds."
@@ -26,6 +26,12 @@ GRADE_TIMEOUT = 120.0
 
 _GIT_CONTEXT_VARIABLES = ("GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE")
 _SEED_COMMIT_MESSAGE = "control-ablation: seed"
+#: Pinned at seed time so grading diffs against the seed even when the agent
+#: commits its own work (a `HEAD` diff would then report nothing changed).
+SEED_REF = "refs/control-ablation/seed"
+#: Harness-owned directories. Excluded from the workspace's own git so an
+#: agent's `git add -A` cannot stage the isolated profile or its credentials.
+_EXCLUDED_FROM_GIT = (".parity-profile/", ".runtime/", "__pycache__/", "*.pyc")
 
 
 def _safe_file(workspace: Path, relative: str) -> Path:
@@ -92,6 +98,7 @@ def seed_workspace(workspace: Path, task: Task, control_files: Mapping[str, str]
     init = _run_git(["init", "--quiet"], workspace)
     if init.returncode != 0:
         raise RuntimeError(f"git init failed in {workspace}: {init.stderr.strip()}")
+    _exclude_harness_paths(workspace)
     _write_files(workspace, task.setup_files)
     _write_files(workspace, control_files)
     add = _run_git(["add", "-A"], workspace)
@@ -112,6 +119,16 @@ def seed_workspace(workspace: Path, task: Task, control_files: Mapping[str, str]
     )
     if commit.returncode != 0:
         raise RuntimeError(f"git commit failed in {workspace}: {commit.stderr.strip()}")
+    pin = _run_git(["update-ref", SEED_REF, "HEAD"], workspace)
+    if pin.returncode != 0:
+        raise RuntimeError(f"git update-ref failed in {workspace}: {pin.stderr.strip()}")
+
+
+def _exclude_harness_paths(workspace: Path) -> None:
+    exclude = workspace / ".git" / "info" / "exclude"
+    exclude.parent.mkdir(parents=True, exist_ok=True)
+    with exclude.open("a", encoding="utf-8") as handle:
+        handle.write("\n".join(_EXCLUDED_FROM_GIT) + "\n")
 
 
 def apply_control_files(workspace: Path, files: Mapping[str, str]) -> None:
@@ -136,11 +153,12 @@ def changed_paths(workspace: Path) -> tuple[str, ...]:
 
     Stages with `git add -A` first so a newly created (untracked) file is
     included; `git diff --name-only` alone only reports tracked changes.
+    Diffs against `SEED_REF`, not `HEAD`, so work the agent committed counts.
     """
     add = _run_git(["add", "-A"], workspace)
     if add.returncode != 0:
         raise RuntimeError(f"git add failed in {workspace}: {add.stderr.strip()}")
-    diff = _run_git(["diff", "--cached", "--name-only", "-z", "HEAD"], workspace)
+    diff = _run_git(["diff", "--cached", "--name-only", "-z", SEED_REF], workspace)
     if diff.returncode != 0:
         raise RuntimeError(f"git diff failed in {workspace}: {diff.stderr.strip()}")
     return tuple(path for path in diff.stdout.split("\0") if path)
@@ -152,13 +170,13 @@ def added_lines_by_python_path(
     """Return, per changed `.py` path, the concatenated `+`-prefixed diff lines.
 
     Requires `changed_paths` to have already staged the working tree (`git
-    add -A`); `git diff --cached` reads that staged state against `HEAD`.
+    add -A`); `git diff --cached` reads that staged state against `SEED_REF`.
     """
     added: dict[str, str] = {}
     for path in paths:
         if not path.endswith(".py"):
             continue
-        diff = _run_git(["diff", "--cached", "--", path], workspace)
+        diff = _run_git(["diff", "--cached", SEED_REF, "--", path], workspace)
         if diff.returncode != 0:
             continue
         lines = [

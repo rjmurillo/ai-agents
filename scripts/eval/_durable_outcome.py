@@ -332,19 +332,20 @@ def build_report(records: Sequence[OutcomeRecord]) -> dict[str, object]:
 # ---------------------------------------------------------------------------
 
 
-_COMPARISON_EXEMPT_FIELDS = frozenset({"control", "context_bytes"})
-
-
 def _require_configs_match_except_control(baseline: RunConfig, candidate: RunConfig) -> None:
     """Refuse a comparison whose configs differ outside `control`/`context_bytes`.
 
-    `context_bytes` is exempt alongside `control` (REQ-043 AC-10, DESIGN-041
-    "Comparison change"): the control determines the bytes loaded, so a
-    reduced control differs in `context_bytes` from the full control by
-    construction, and refusing on that field would refuse every ablation.
+    `context_bytes` is exempt only when `control` also differs (REQ-043 AC-10,
+    DESIGN-041 "Comparison change"): the control determines the bytes loaded,
+    so a reduced control differs in `context_bytes` by construction. Two runs
+    under the same control with different bytes loaded different instructions,
+    so that pair still refuses.
     """
+    exempt = {"control"}
+    if baseline.control != candidate.control:
+        exempt.add("context_bytes")
     for field in dataclasses.fields(RunConfig):
-        if field.name in _COMPARISON_EXEMPT_FIELDS:
+        if field.name in exempt:
             continue
         base_value = getattr(baseline, field.name)
         candidate_value = getattr(candidate, field.name)

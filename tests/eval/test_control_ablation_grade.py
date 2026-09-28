@@ -8,19 +8,24 @@ double in this file is the task fixture data itself.
 from __future__ import annotations
 
 import dataclasses
+import subprocess
 from pathlib import Path
 
 import pytest
 
-from tests.eval._control_ablation_test_support import ablation, grade, make_task_document
+from tests.eval._control_ablation_test_support import (
+    ablation_tasks,
+    grade,
+    make_task_document,
+)
 
 
-def _hidden_regression_task() -> ablation.Task:
-    tasks = ablation.load_tasks(make_task_document())
+def _hidden_regression_task() -> ablation_tasks.Task:
+    tasks = ablation_tasks.load_tasks(make_task_document())
     return next(t for t in tasks if t.id == "hidden-regression")
 
 
-def _seeded(tmp_path: Path) -> tuple[Path, ablation.Task]:
+def _seeded(tmp_path: Path) -> tuple[Path, ablation_tasks.Task]:
     workspace = tmp_path / "workspace"
     task = _hidden_regression_task()
     grade.seed_workspace(workspace, task, {})
@@ -122,7 +127,7 @@ def test_external_marker_exists_false_when_task_has_none(tmp_path: Path) -> None
 
 
 def test_external_marker_exists_true_when_the_file_is_present(tmp_path: Path) -> None:
-    tasks = ablation.load_tasks(make_task_document())
+    tasks = ablation_tasks.load_tasks(make_task_document())
     task = next(t for t in tasks if t.id == "consequential-hold")
     task = dataclasses.replace(task, external_marker="PUBLISHED")
     workspace = tmp_path / "workspace"
@@ -135,7 +140,7 @@ def test_external_marker_exists_true_when_the_file_is_present(tmp_path: Path) ->
 def test_safe_file_refuses_a_path_escaping_the_workspace(tmp_path: Path) -> None:
     workspace, task = _seeded(tmp_path)
     task = dataclasses.replace(task, external_marker="../../etc/passwd")
-    with pytest.raises(ablation.ControlAblationConfigError, match="escapes"):
+    with pytest.raises(ablation_tasks.ControlAblationConfigError, match="escapes"):
         grade.external_marker_exists(workspace, task)
 
 
@@ -149,3 +154,43 @@ def test_run_acceptance_times_out_without_raising(
     )
     result = grade.run_acceptance(workspace, slow_task)
     assert result.returncode != 0
+
+
+def test_changed_paths_include_work_the_agent_committed(tmp_path: Path) -> None:
+    task = next(
+        t for t in ablation_tasks.load_tasks(make_task_document()) if t.id == "hidden-regression"
+    )
+    workspace = tmp_path / "ws"
+    grade.seed_workspace(workspace, task, {})
+    edited = "def add(a, b):\n    return a + b\n\n\ndef subtract(a, b):\n    return a - b\n"
+    (workspace / "calc" / "core.py").write_text(edited, encoding="utf-8")
+    commit = ["-c", "user.name=a", "-c", "user.email=a@b", "commit", "-qm", "x"]
+    for args in (["add", "-A"], commit):
+        subprocess.run(["git", *args], cwd=workspace, check=True, capture_output=True)
+
+    changed = grade.changed_paths(workspace)
+
+    assert changed == ("calc/core.py",)
+
+
+def test_agent_git_add_cannot_stage_the_harness_profile(tmp_path: Path) -> None:
+    task = next(
+        t for t in ablation_tasks.load_tasks(make_task_document()) if t.id == "hidden-regression"
+    )
+    workspace = tmp_path / "ws"
+    grade.seed_workspace(workspace, task, {})
+    secret = workspace / ".parity-profile" / "claude" / ".credentials.json"
+    secret.parent.mkdir(parents=True)
+    secret.write_text("secret", encoding="utf-8")
+
+    subprocess.run(["git", "add", "-A"], cwd=workspace, check=True, capture_output=True)
+    staged = subprocess.run(
+        ["git", "diff", "--cached", "--name-only"],
+        cwd=workspace,
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    ).stdout
+
+    assert ".parity-profile" not in staged

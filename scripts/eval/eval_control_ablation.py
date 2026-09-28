@@ -18,33 +18,25 @@ stream, missing cost, model mismatch).
 from __future__ import annotations
 
 import argparse
-import contextlib
 import datetime as dt
 import json
-import os
-import shutil
-import stat
 import subprocess
 import sys
 import tempfile
-import time
 import uuid
-from collections.abc import Callable, Iterator, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import TextIO
 
 import _control_ablation as ablation
+import _control_ablation_claude as claude_run
 import _control_ablation_grade as grade
+import _control_ablation_tasks as ablation_tasks
 import _durable_outcome as durable_outcome
 import _outcome_record as outcome_record
-from _runtime_harness import probe_version, require_isolated_workspace_root, runtime_env
+from _runtime_harness import probe_version, require_isolated_workspace_root
 from _runtime_output import (
-    RuntimeOutputError,
-    claude_result,
-    parse_events,
     redacted_argv,
-    same_model,
-    traces,
 )
 from _runtime_parity import ParityConfigError
 
@@ -58,164 +50,11 @@ DEFAULT_TASKS = Path(__file__).parent / "examples" / "control-ablation-tasks.jso
 DEFAULT_MODEL = "claude-sonnet-5"
 DEFAULT_TIMEOUT = 900.0
 DEFAULT_MAX_RUNS = 30
-CLAUDE_EXECUTABLE = "claude"
 DRY_RUN_KINDS = ("known_good", "known_bad")
-
-Runner = Callable[..., subprocess.CompletedProcess[str]]
-
-
-class HarnessFailureError(RuntimeError):
-    """A live run's Claude invocation could not produce a usable record (AC-8)."""
+_HARNESS_ERRORS = (claude_run.HarnessFailureError, subprocess.SubprocessError, OSError)
 
 
-# ---------------------------------------------------------------------------
-# Claude invocation (DESIGN-041 "Run sequence (live)", step 2)
-# ---------------------------------------------------------------------------
 
-
-def _claude_argv(model: str, prompt: str) -> list[str]:
-    """Build the fixed argv DESIGN-041's run sequence specifies for step 2."""
-    return [
-        CLAUDE_EXECUTABLE,
-        "--print",
-        prompt,
-        "--setting-sources",
-        "project",
-        "--strict-mcp-config",
-        "--mcp-config",
-        '{"mcpServers":{}}',
-        "--permission-mode",
-        "acceptEdits",
-        "--output-format",
-        "stream-json",
-        "--verbose",
-        "--no-session-persistence",
-        "--model",
-        model,
-        "--tools",
-        "Read,Edit,Write,Glob,Grep,Bash",
-        "--allowedTools",
-        "Bash(python3:*),Bash(git:*),Bash(ls:*),Bash(cat:*)",
-    ]
-
-
-def _total_cost_usd(events: Sequence[Mapping[str, object]]) -> float | None:
-    for event in events:
-        if event.get("type") != "result":
-            continue
-        value = event.get("total_cost_usd")
-        if isinstance(value, bool) or not isinstance(value, (int, float)):
-            return None
-        return float(value)
-    return None
-
-
-@contextlib.contextmanager
-def _claude_auth(source: Path | None, config_dir: Path) -> Iterator[None]:
-    """Copy an operator-supplied `.credentials.json` into one run's isolated profile.
-
-    `runtime_env` points CLAUDE_CONFIG_DIR at a profile with no login, and the
-    agent shim unsets ANTHROPIC_API_KEY, so a subscription CLI needs this copy
-    (probed 2026-09-28, Claude Code 2.1.283: a copied `.credentials.json`
-    authenticated with `apiKeySource: none`). Same shape as
-    `eval_harness_capability._install_codex_auth`: exclusive, no-follow create
-    at mode 0o600, contents never logged. The copy is deleted as soon as the
-    Claude call returns, before grading, so it never outlives that call.
-    """
-    if source is None:
-        yield
-        return
-    config_dir.mkdir(parents=True, exist_ok=True, mode=stat.S_IRWXU)
-    os.chmod(config_dir, stat.S_IRWXU)
-    target = config_dir / ".credentials.json"
-    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
-    fd = os.open(target, flags, stat.S_IRUSR | stat.S_IWUSR)
-    try:
-        with os.fdopen(fd, "wb") as dest, source.open("rb") as src:
-            shutil.copyfileobj(src, dest)
-        yield
-    finally:
-        target.unlink(missing_ok=True)
-
-
-def _invoke_claude(
-    workspace: Path,
-    task: ablation.Task,
-    model: str,
-    timeout: float,
-    runner: Runner,
-    auth_file: Path | None = None,
-) -> tuple[list[dict[str, object]], str, float, float, list[str]]:
-    """Run one Claude CLI turn; raise `HarnessFailureError` for an AC-8 condition."""
-    argv = _claude_argv(model, task.prompt)
-    env = runtime_env(workspace, "claude")
-    started = time.monotonic()
-    with _claude_auth(auth_file, Path(env["CLAUDE_CONFIG_DIR"])):
-        result = runner(
-            argv,
-            cwd=workspace,
-            env=env,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=timeout,
-            check=False,
-        )
-    wall_seconds = time.monotonic() - started
-    try:
-        events = parse_events(result.stdout)
-    except RuntimeOutputError as exc:
-        raise HarnessFailureError(str(exc)) from exc
-    reply, resolved_model = claude_result(events)
-    if not same_model(resolved_model, model):
-        raise HarnessFailureError(
-            f"resolved model {resolved_model!r} does not match requested {model!r}"
-        )
-    cost = _total_cost_usd(events)
-    if cost is None:
-        raise HarnessFailureError("claude stream result event carries no total_cost_usd")
-    return events, reply, cost, wall_seconds, argv
-
-
-def _tool_results(events: Sequence[Mapping[str, object]]) -> list[Mapping[str, object]]:
-    """Return `tool_result` content blocks from Claude's user-role turns.
-
-    Claude Code's stream-json reports a completed tool call as a `user`-role
-    event whose `message.content` list carries a block with
-    `type: "tool_result"` and `is_error`. `_runtime_output.traces` extracts
-    `tool_use` call blocks (the request), not this result block, so this
-    stays local rather than widening that shared helper's contract.
-    """
-    results: list[Mapping[str, object]] = []
-    for event in events:
-        message = event.get("message")
-        if not isinstance(message, Mapping):
-            continue
-        content = message.get("content")
-        if not isinstance(content, list):
-            continue
-        for block in content:
-            if isinstance(block, Mapping) and block.get("type") == "tool_result":
-                results.append(block)
-    return results
-
-
-def _tool_failures(events: Sequence[Mapping[str, object]]) -> int:
-    return sum(1 for block in _tool_results(events) if block.get("is_error"))
-
-
-def _bash_commands(tools: Sequence[object]) -> tuple[str, ...]:
-    commands: list[str] = []
-    for tool in tools:
-        if not isinstance(tool, Mapping) or tool.get("name") != "Bash":
-            continue
-        tool_input = tool.get("input")
-        if isinstance(tool_input, Mapping):
-            command = tool_input.get("command")
-            if isinstance(command, str):
-                commands.append(command)
-    return tuple(commands)
 
 
 # ---------------------------------------------------------------------------
@@ -224,7 +63,7 @@ def _bash_commands(tools: Sequence[object]) -> tuple[str, ...]:
 
 
 def _grade_dry_run_control(
-    workspace: Path, task: ablation.Task, control: ablation.TaskControl
+    workspace: Path, task: ablation_tasks.Task, control: ablation_tasks.TaskControl
 ) -> ablation.RunEvidence:
     grade.seed_workspace(workspace, task, {})
     grade.apply_control_files(workspace, control.files)
@@ -241,7 +80,6 @@ def _grade_dry_run_control(
         reply=control.response,
         changed_paths=changed,
         added_lines_by_path=grade.added_lines_by_python_path(workspace, changed),
-        bash_commands=(),
         tool_failures=0,
         acceptance_exit_code=acceptance.returncode,
         followup_exit_code=followup.returncode,
@@ -253,7 +91,7 @@ def _grade_dry_run_control(
 
 
 def _run_dry_run(
-    tasks: Sequence[ablation.Task], workspace_root: Path
+    tasks: Sequence[ablation_tasks.Task], workspace_root: Path
 ) -> tuple[dict[str, object], int]:
     """AC-2: apply every task's known_good/known_bad controls, grade for real.
 
@@ -299,21 +137,20 @@ def _run_dry_run(
 
 def _grade_live_run(
     workspace: Path,
-    task: ablation.Task,
+    task: ablation_tasks.Task,
     control: ablation.ControlFiles,
     repeat: int,
     model: str,
     harness_version: str,
     timeout: float,
-    runner: Runner,
+    runner: claude_run.Runner,
     auth_file: Path | None,
 ) -> tuple[dict[str, object], list[str], str]:
-    """Run one task under one control/repeat; raise `HarnessFailureError` (AC-8)."""
+    """Run one task under one control/repeat; raise `claude_run.HarnessFailureError` (AC-8)."""
     grade.seed_workspace(workspace, task, control.files)
-    events, reply, cost, wall_seconds, argv = _invoke_claude(
+    events, reply, cost, wall_seconds, argv = claude_run.invoke_claude(
         workspace, task, model, timeout, runner, auth_file
     )
-    tools, _subagents = traces(events)
     grade.write_followup_files(workspace, task)
     acceptance = grade.run_acceptance(workspace, task)
     followup = grade.run_followup(workspace, task)
@@ -327,8 +164,7 @@ def _grade_live_run(
         reply=reply,
         changed_paths=changed,
         added_lines_by_path=grade.added_lines_by_python_path(workspace, changed),
-        bash_commands=_bash_commands(tools),
-        tool_failures=_tool_failures(events),
+        tool_failures=claude_run.tool_failures(events),
         acceptance_exit_code=acceptance.returncode,
         followup_exit_code=followup.returncode,
         followup_output=followup.stdout + "\n" + followup.stderr,
@@ -342,7 +178,7 @@ def _grade_live_run(
 
 
 def _run_live(
-    tasks: Sequence[ablation.Task],
+    tasks: Sequence[ablation_tasks.Task],
     controls: Mapping[str, ablation.ControlFiles],
     *,
     repeats: int,
@@ -350,11 +186,11 @@ def _run_live(
     timeout: float,
     workspace_root: Path,
     output_dir: Path,
-    runner: Runner,
+    runner: claude_run.Runner,
     auth_file: Path | None = None,
 ) -> tuple[dict[str, object], int]:
     harness_version = probe_version(
-        CLAUDE_EXECUTABLE, "claude", workspace_root / "_probe", runner, timeout
+        claude_run.CLAUDE_EXECUTABLE, "claude", workspace_root / "_probe", runner, timeout
     )
     writers: dict[str, TextIO] = {
         name: (output_dir / f"records-{name}.jsonl").open("a", encoding="utf-8")
@@ -369,7 +205,8 @@ def _run_live(
             for repeat in range(repeats):
                 for name, control in controls.items():
                     workspace = workspace_root / f"{task.id}-{name}-{repeat}"
-                    argv_for_report = redacted_argv(_claude_argv(model, task.prompt), "claude")
+                    planned_argv = claude_run.claude_argv(model, task.prompt)
+                    argv_for_report = redacted_argv(planned_argv, "claude")
                     try:
                         record, argv, reply = _grade_live_run(
                             workspace,
@@ -382,7 +219,7 @@ def _run_live(
                             runner,
                             auth_file,
                         )
-                    except (HarnessFailureError, subprocess.SubprocessError, OSError) as exc:
+                    except _HARNESS_ERRORS as exc:
                         any_harness_failure = True
                         runs.append(
                             {
@@ -420,10 +257,10 @@ def _run_live(
 def _requested_controls(raw: str) -> list[str]:
     names = [name.strip() for name in raw.split(",") if name.strip()]
     if not names:
-        raise ablation.ControlAblationConfigError("--controls must name at least one control")
+        raise ablation_tasks.ControlAblationConfigError("--controls must name at least one control")
     unknown = [name for name in names if name not in ablation.CONTROL_NAMES]
     if unknown:
-        raise ablation.ControlAblationConfigError(
+        raise ablation_tasks.ControlAblationConfigError(
             f"--controls names unknown control(s) {unknown}; "
             f"expected one of {sorted(ablation.CONTROL_NAMES)}"
         )
@@ -473,21 +310,21 @@ def _parser() -> argparse.ArgumentParser:
 
 
 def _run(
-    args: argparse.Namespace, workspace_root: Path, output_dir: Path, runner: Runner
+    args: argparse.Namespace, workspace_root: Path, output_dir: Path, runner: claude_run.Runner
 ) -> tuple[dict[str, object], int]:
-    tasks = ablation.load_tasks_file(args.tasks.resolve())
+    tasks = ablation_tasks.load_tasks_file(args.tasks.resolve())
     if args.dry_run:
         return _run_dry_run(tasks, workspace_root)
     control_names = _requested_controls(args.controls)
     total_runs = len(tasks) * len(control_names) * args.repeats
     if total_runs > args.max_runs:
-        raise ablation.ControlAblationConfigError(
+        raise ablation_tasks.ControlAblationConfigError(
             f"{total_runs} runs (tasks x controls x repeats) exceeds --max-runs {args.max_runs}; "
             "refusing before any model call (AC-3)"
         )
     auth_file = args.claude_auth_file.resolve() if args.claude_auth_file else None
     if auth_file is not None and not auth_file.is_file():
-        raise ablation.ControlAblationConfigError(
+        raise ablation_tasks.ControlAblationConfigError(
             f"--claude-auth-file {auth_file} is not a regular file"
         )
     controls = {name: ablation.resolve_control(name, REPO_ROOT) for name in control_names}
@@ -504,17 +341,17 @@ def _run(
     )
 
 
-def main(argv: Sequence[str] | None = None, *, runner: Runner = subprocess.run) -> int:
+def main(argv: Sequence[str] | None = None, *, runner: claude_run.Runner = subprocess.run) -> int:
     args = _parser().parse_args(argv)
     try:
         workspace_root = _resolve_workspace_root(args.workspace_root)
         output_dir = (args.output_dir.resolve() if args.output_dir else _default_output_dir())
         output_dir.mkdir(parents=True, exist_ok=True)
         report, code = _run(args, workspace_root, output_dir, runner)
-    except (ablation.ControlAblationConfigError, ParityConfigError) as exc:
+    except (ablation_tasks.ControlAblationConfigError, ParityConfigError) as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return EXIT_CONFIG
-    except (HarnessFailureError, OSError, RuntimeError, subprocess.SubprocessError) as exc:
+    except (*_HARNESS_ERRORS, RuntimeError) as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return EXIT_EXTERNAL
     report_path = output_dir / "report.json"

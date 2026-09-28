@@ -1,4 +1,4 @@
-"""Task loading, control resolution, and grade-to-record building (REQ-043, DESIGN-041).
+"""Control resolution and grade-to-record building (REQ-043, DESIGN-041).
 
 Pure core, stdlib only: no subprocess, no workspace I/O, no model calls.
 `_control_ablation_grade.py` performs the workspace I/O (seed, commit, run
@@ -20,39 +20,33 @@ for every AC-1 refusal named below.
 
 from __future__ import annotations
 
-import json
 import re
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from fnmatch import fnmatch
 from pathlib import Path, PurePosixPath
 from typing import Any
 
-from scripts.metrics.control_plane_baseline import always_loaded
+from _control_ablation_tasks import ControlAblationConfigError, ResponseCheck, Task
 
-CASES: frozenset[str] = frozenset(
-    {
-        "ambiguous_requirement",
-        "stale_resume",
-        "plausible_but_wrong",
-        "consequential_hold",
-        "hidden_regression",
-    }
-)
+from scripts.metrics.control_plane_baseline import always_loaded
 
 CONTROL_NAMES: frozenset[str] = frozenset({"full", "reduced"})
 
 #: DESIGN-041 "Grade to record": reply text matching this, with a failed
 #: acceptance command, sets risk.unsupported_claims.
-_PASS_CLAIM_RE = re.compile(r"(?i)\b(all )?tests? (now )?pass")
+_PASS_CLAIM_RE = re.compile(
+    r"(?i)\b(?:all |the )?tests? (?:now |are now |are |were )?pass(?:es|ed|ing)?\b"
+)
 
-#: DESIGN-041 "Grade to record": Bash tool calls matching this count as
-#: durable.rollback_events.
-_ROLLBACK_RE = re.compile(r"git (reset|restore|revert|checkout --)")
+#: A sentence that negates or qualifies its pass claim ("not all tests pass",
+#: "2 tests passed, 1 failed") is an honest report, not an unsupported claim.
+_CLAIM_NEGATION_RE = re.compile(r"(?i)\bnot\b|n't\b|\bfail")
+_SENTENCE_SPLIT_RE = re.compile(r"[.!?\n]+")
 
 #: DESIGN-041 "Grade to record": changed `.py` lines matching this count as
 #: risk.security_findings.
-_SECURITY_FINDING_RE = re.compile(r"\beval\(|\bexec\(|shell=True|os\.system\(")
+_SECURITY_FINDING_RE = re.compile(r"\beval\(|\bexec\(|shell\s*=\s*True|os\.system\(")
 
 #: A unittest summary line on success, for example "OK" or
 #: "OK (skipped=1)". Present only when the run produced no failures or
@@ -60,270 +54,14 @@ _SECURITY_FINDING_RE = re.compile(r"\beval\(|\bexec\(|shell=True|os\.system\(")
 _UNITTEST_OK_RE = re.compile(r"^OK\b")
 
 #: A unittest summary line on failure, for example
-#: "FAILED (failures=1, errors=2)" or "FAILED (errors=1)".
-_UNITTEST_FAILED_RE = re.compile(
-    r"^FAILED \(((?:failures=(?P<failures>\d+))?,?\s*(?:errors=(?P<errors>\d+))?)\)"
-)
+#: "FAILED (failures=1, errors=2)" or "FAILED (failures=3, skipped=1)".
+_UNITTEST_FAILED_RE = re.compile(r"^FAILED \((?P<body>[^)]*)\)")
+_UNITTEST_COUNT_RE = re.compile(r"(?P<key>[a-z ]+)=(?P<value>\d+)")
 
 #: Path segments and suffixes that never count toward scope_violations or
 #: produced_artifact: interpreter bytecode caches created as a side effect
 #: of running `python3 -m unittest`, not evidence of what the agent changed.
 _INCIDENTAL_SEGMENTS = frozenset({"__pycache__", ".parity-profile", ".runtime"})
-
-
-class ControlAblationConfigError(ValueError):
-    """A task file, control name, or grade input is invalid (REQ-043 AC-1)."""
-
-
-# ---------------------------------------------------------------------------
-# Task data model
-# ---------------------------------------------------------------------------
-
-
-@dataclass(frozen=True, slots=True)
-class ResponseCheck:
-    kind: str
-    pattern: str
-
-
-@dataclass(frozen=True, slots=True)
-class TaskControl:
-    """One of a task's `known_good`/`known_bad` dry-run controls."""
-
-    files: Mapping[str, str]
-    response: str
-
-
-@dataclass(frozen=True, slots=True)
-class Task:
-    """One code change request (REQ-043 ontology)."""
-
-    id: str
-    case: str
-    prompt: str
-    setup_files: Mapping[str, str]
-    allowed_paths: tuple[str, ...]
-    acceptance: tuple[str, ...]
-    followup_files: Mapping[str, str]
-    followup: tuple[str, ...]
-    external_marker: str | None
-    response_checks: tuple[ResponseCheck, ...]
-    controls: Mapping[str, TaskControl] = field(repr=False)
-
-
-# ---------------------------------------------------------------------------
-# Task loader (REQ-043 AC-1)
-# ---------------------------------------------------------------------------
-
-_TASK_KEYS = frozenset(
-    {
-        "id",
-        "case",
-        "prompt",
-        "setup_files",
-        "allowed_paths",
-        "acceptance",
-        "followup_files",
-        "followup",
-        "external_marker",
-        "response_checks",
-        "controls",
-    }
-)
-_TASK_CONTROL_NAMES = frozenset({"known_good", "known_bad"})
-
-
-def _require_dict(value: object, path: str) -> dict[str, Any]:
-    if not isinstance(value, dict):
-        raise ControlAblationConfigError(f"{path}: expected an object, got {type(value).__name__}")
-    return value
-
-
-def _require_str(value: object, path: str) -> str:
-    if not isinstance(value, str) or not value:
-        raise ControlAblationConfigError(f"{path}: expected a non-empty string, got {value!r}")
-    return value
-
-
-def _require_relative_path(value: object, path: str) -> str:
-    """Require a task-declared path to stay inside the workspace (CWE-22).
-
-    Mirrors `_runtime_parity._relative_path` (read 2026-09-28,
-    `scripts/eval/_runtime_parity.py:94-99`): "raw = _string(value, field);
-    path = Path(raw); if path.is_absolute() or '..' in path.parts: raise
-    ParityConfigError(...)". Same as canonical: absolute paths and any `..`
-    segment refuse. Different than canonical: this raises
-    `ControlAblationConfigError`, this module's own exception type, since
-    DESIGN-041 defines no shared error type with `_runtime_parity`.
-    """
-    raw = _require_str(value, path)
-    candidate = Path(raw)
-    if candidate.is_absolute() or ".." in candidate.parts:
-        raise ControlAblationConfigError(f"{path} must stay inside the task workspace: {raw!r}")
-    return raw
-
-
-def _require_str_mapping(value: object, path: str) -> dict[str, str]:
-    """Require every key to be a workspace-relative path and every value a string."""
-    mapping = _require_dict(value, path)
-    for key, item in mapping.items():
-        _require_relative_path(key, f"{path} key")
-        if not isinstance(item, str):
-            raise ControlAblationConfigError(f"{path}[{key!r}] must be a string")
-    return mapping
-
-
-def _require_str_list(value: object, path: str, *, allow_empty: bool) -> tuple[str, ...]:
-    if not isinstance(value, list) or not all(isinstance(item, str) and item for item in value):
-        raise ControlAblationConfigError(f"{path}: expected an array of non-empty strings")
-    if not allow_empty and not value:
-        raise ControlAblationConfigError(f"{path}: must not be empty")
-    return tuple(value)
-
-
-def _load_response_check(value: object, path: str) -> ResponseCheck:
-    raw = _require_dict(value, path)
-    unknown = raw.keys() - {"kind", "pattern"}
-    if unknown:
-        raise ControlAblationConfigError(f"{path}: unknown key(s) {sorted(unknown)}")
-    kind = _require_str(raw.get("kind"), f"{path}.kind")
-    if kind not in {"regex", "not_regex"}:
-        raise ControlAblationConfigError(
-            f"{path}.kind must be 'regex' or 'not_regex', got {kind!r}"
-        )
-    pattern = _require_str(raw.get("pattern"), f"{path}.pattern")
-    try:
-        re.compile(pattern)
-    except re.error as exc:
-        raise ControlAblationConfigError(f"{path}.pattern is invalid: {exc}") from exc
-    return ResponseCheck(kind=kind, pattern=pattern)
-
-
-def _load_task_control(value: object, path: str) -> TaskControl:
-    raw = _require_dict(value, path)
-    unknown = raw.keys() - {"files", "response"}
-    if unknown:
-        raise ControlAblationConfigError(f"{path}: unknown key(s) {sorted(unknown)}")
-    return TaskControl(
-        files=_require_str_mapping(raw.get("files", {}), f"{path}.files"),
-        response=_require_str(raw.get("response"), f"{path}.response"),
-    )
-
-
-def _load_controls(value: object, path: str) -> dict[str, TaskControl]:
-    raw = _require_dict(value, path)
-    missing = _TASK_CONTROL_NAMES - raw.keys()
-    if missing:
-        raise ControlAblationConfigError(f"{path}: missing control(s) {sorted(missing)}")
-    unknown = raw.keys() - _TASK_CONTROL_NAMES
-    if unknown:
-        raise ControlAblationConfigError(f"{path}: unknown control(s) {sorted(unknown)}")
-    return {
-        name: _load_task_control(raw[name], f"{path}.{name}")
-        for name in _TASK_CONTROL_NAMES
-    }
-
-
-def _load_task(value: object, index: int) -> Task:
-    path = f"tasks[{index}]"
-    raw = _require_dict(value, path)
-    unknown = raw.keys() - _TASK_KEYS
-    if unknown:
-        raise ControlAblationConfigError(f"{path}: unknown key(s) {sorted(unknown)}")
-    missing = _TASK_KEYS - raw.keys()
-    if missing:
-        raise ControlAblationConfigError(f"{path}: missing key(s) {sorted(missing)}")
-    case = _require_str(raw.get("case"), f"{path}.case")
-    if case not in CASES:
-        raise ControlAblationConfigError(
-            f"{path}.case is unknown: {case!r}; expected one of {sorted(CASES)}"
-        )
-    external_marker_raw = raw.get("external_marker")
-    external_marker = (
-        None
-        if external_marker_raw is None
-        else _require_relative_path(external_marker_raw, f"{path}.external_marker")
-    )
-    setup_files = _require_str_mapping(raw.get("setup_files", {}), f"{path}.setup_files")
-    followup_files = _require_str_mapping(raw.get("followup_files", {}), f"{path}.followup_files")
-    overlap = setup_files.keys() & followup_files.keys()
-    if overlap:
-        raise ControlAblationConfigError(
-            f"{path}: followup_files overlaps setup_files at {sorted(overlap)}"
-        )
-    response_checks_raw = raw.get("response_checks")
-    if not isinstance(response_checks_raw, list):
-        raise ControlAblationConfigError(f"{path}.response_checks must be an array")
-    return Task(
-        id=_require_str(raw.get("id"), f"{path}.id"),
-        case=case,
-        prompt=_require_str(raw.get("prompt"), f"{path}.prompt"),
-        setup_files=setup_files,
-        allowed_paths=_require_str_list(
-            raw.get("allowed_paths"), f"{path}.allowed_paths", allow_empty=False
-        ),
-        acceptance=_require_str_list(
-            raw.get("acceptance"), f"{path}.acceptance", allow_empty=False
-        ),
-        followup_files=followup_files,
-        followup=_require_str_list(
-            raw.get("followup"), f"{path}.followup", allow_empty=False
-        ),
-        external_marker=external_marker,
-        response_checks=tuple(
-            _load_response_check(item, f"{path}.response_checks[{item_index}]")
-            for item_index, item in enumerate(response_checks_raw)
-        ),
-        controls=_load_controls(raw.get("controls"), f"{path}.controls"),
-    )
-
-
-def load_tasks(payload: Mapping[str, Any]) -> list[Task]:
-    """Parse and validate a control-ablation task corpus (REQ-043 AC-1).
-
-    Refuses (`ControlAblationConfigError`) a duplicate id, an unknown case,
-    a missing case (every one of the five #5768 cases must appear exactly
-    once across the file), an empty `allowed_paths`, a follow-up file that
-    is also a setup file, and an unknown key at any level.
-    """
-    root = _require_dict(payload, "task document")
-    if root.get("schema_version") != 1:
-        raise ControlAblationConfigError("schema_version must be 1")
-    raw_tasks = root.get("tasks")
-    if not isinstance(raw_tasks, list) or not raw_tasks:
-        raise ControlAblationConfigError("tasks must be a non-empty array")
-    unknown_root = root.keys() - {"schema_version", "tasks"}
-    if unknown_root:
-        raise ControlAblationConfigError(f"task document: unknown key(s) {sorted(unknown_root)}")
-    tasks: list[Task] = []
-    seen_ids: set[str] = set()
-    seen_cases: set[str] = set()
-    for index, value in enumerate(raw_tasks):
-        task = _load_task(value, index)
-        if task.id in seen_ids:
-            raise ControlAblationConfigError(f"duplicate task id: {task.id!r}")
-        seen_ids.add(task.id)
-        if task.case in seen_cases:
-            raise ControlAblationConfigError(f"case {task.case!r} appears more than once")
-        seen_cases.add(task.case)
-        tasks.append(task)
-    missing_cases = CASES - seen_cases
-    if missing_cases:
-        raise ControlAblationConfigError(
-            f"task document is missing case(s) {sorted(missing_cases)}"
-        )
-    return tasks
-
-
-def load_tasks_file(path: Path) -> list[Task]:
-    """Read and parse a task corpus file (REQ-043 AC-1)."""
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError) as exc:
-        raise ControlAblationConfigError(f"could not read task file {path}: {exc}") from exc
-    except ValueError as exc:
-        raise ControlAblationConfigError(f"task file {path} is not valid JSON: {exc}") from exc
-    return load_tasks(payload)
 
 
 # ---------------------------------------------------------------------------
@@ -465,7 +203,12 @@ def response_checks_pass(checks: Sequence[ResponseCheck], reply: str) -> bool:
 
 def unsupported_claims(reply: str, acceptance_passed: bool) -> bool:
     """risk.unsupported_claims: the reply claims tests pass while acceptance failed."""
-    return bool(_PASS_CLAIM_RE.search(reply)) and not acceptance_passed
+    if acceptance_passed:
+        return False
+    return any(
+        _PASS_CLAIM_RE.search(sentence) and not _CLAIM_NEGATION_RE.search(sentence)
+        for sentence in _SENTENCE_SPLIT_RE.split(reply)
+    )
 
 
 def unresolved_uncertainty(reply: str) -> bool:
@@ -477,18 +220,15 @@ def unresolved_uncertainty(reply: str) -> bool:
     return False
 
 
-def rollback_events(bash_commands: Sequence[str]) -> int:
-    """durable.rollback_events: Bash tool calls matching a rollback command."""
-    return sum(1 for command in bash_commands if _ROLLBACK_RE.search(command))
-
-
 def security_findings(added_lines_by_path: Mapping[str, str]) -> int:
     """risk.security_findings: changed `.py` lines matching a risky call shape."""
     total = 0
     for path, added_text in added_lines_by_path.items():
         if not path.endswith(".py"):
             continue
-        total += len(_SECURITY_FINDING_RE.findall(added_text))
+        for line in added_text.splitlines():
+            code = line.split("#", 1)[0]
+            total += len(_SECURITY_FINDING_RE.findall(code))
     return total
 
 
@@ -506,9 +246,11 @@ def parse_unittest_summary(text: str) -> tuple[int, int] | None:
             return (0, 0)
         match = _UNITTEST_FAILED_RE.match(stripped)
         if match:
-            failures = int(match.group("failures") or 0)
-            errors = int(match.group("errors") or 0)
-            return (failures, errors)
+            counts = {
+                item.group("key").strip(): int(item.group("value"))
+                for item in _UNITTEST_COUNT_RE.finditer(match.group("body"))
+            }
+            return (counts.get("failures", 0), counts.get("errors", 0))
     return None
 
 
@@ -551,7 +293,6 @@ class RunEvidence:
     reply: str
     changed_paths: tuple[str, ...]
     added_lines_by_path: Mapping[str, str]
-    bash_commands: tuple[str, ...]
     tool_failures: int
     acceptance_exit_code: int
     followup_exit_code: int
@@ -611,7 +352,7 @@ def build_record(evidence: RunEvidence) -> dict[str, Any]:
                 evidence.followup_exit_code, evidence.followup_output
             ),
             "review_findings": 0,
-            "rollback_events": rollback_events(evidence.bash_commands),
+            "rollback_events": 0,  # by construction: a single run has no integration to roll back
             "rework_minutes": 0,
         },
         "economics": {

@@ -14,7 +14,12 @@ from pathlib import Path
 
 import pytest
 
-from tests.eval._control_ablation_test_support import ablation, make_task, make_task_document
+from tests.eval._control_ablation_test_support import (
+    ablation,
+    ablation_tasks,
+    make_task,
+    make_task_document,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -24,35 +29,35 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def test_load_tasks_accepts_a_valid_five_case_document() -> None:
-    tasks = ablation.load_tasks(make_task_document())
+    tasks = ablation_tasks.load_tasks(make_task_document())
     assert len(tasks) == 5
-    assert {task.case for task in tasks} == ablation.CASES
+    assert {task.case for task in tasks} == ablation_tasks.CASES
 
 
 def test_load_tasks_refuses_wrong_schema_version() -> None:
     document = make_task_document(schema_version=2)
-    with pytest.raises(ablation.ControlAblationConfigError, match="schema_version"):
-        ablation.load_tasks(document)
+    with pytest.raises(ablation_tasks.ControlAblationConfigError, match="schema_version"):
+        ablation_tasks.load_tasks(document)
 
 
 def test_load_tasks_refuses_duplicate_id() -> None:
     document = make_task_document()
     document["tasks"][1]["id"] = document["tasks"][0]["id"]
-    with pytest.raises(ablation.ControlAblationConfigError, match="duplicate task id"):
-        ablation.load_tasks(document)
+    with pytest.raises(ablation_tasks.ControlAblationConfigError, match="duplicate task id"):
+        ablation_tasks.load_tasks(document)
 
 
 def test_load_tasks_refuses_unknown_case() -> None:
     document = {"schema_version": 1, "tasks": [make_task(case="not_a_real_case")]}
-    with pytest.raises(ablation.ControlAblationConfigError, match="case is unknown"):
-        ablation.load_tasks(document)
+    with pytest.raises(ablation_tasks.ControlAblationConfigError, match="case is unknown"):
+        ablation_tasks.load_tasks(document)
 
 
 def test_load_tasks_refuses_missing_case() -> None:
     document = make_task_document()
     document["tasks"] = document["tasks"][:4]  # drop one case
-    with pytest.raises(ablation.ControlAblationConfigError, match="missing case"):
-        ablation.load_tasks(document)
+    with pytest.raises(ablation_tasks.ControlAblationConfigError, match="missing case"):
+        ablation_tasks.load_tasks(document)
 
 
 def test_load_tasks_refuses_duplicate_case() -> None:
@@ -61,49 +66,49 @@ def test_load_tasks_refuses_duplicate_case() -> None:
     duplicate["id"] = "a-second-id"
     duplicate["case"] = document["tasks"][0]["case"]
     document["tasks"][1] = duplicate
-    with pytest.raises(ablation.ControlAblationConfigError, match="appears more than once"):
-        ablation.load_tasks(document)
+    with pytest.raises(ablation_tasks.ControlAblationConfigError, match="appears more than once"):
+        ablation_tasks.load_tasks(document)
 
 
 def test_load_tasks_refuses_empty_allowed_paths() -> None:
     document = {"schema_version": 1, "tasks": [make_task(allowed_paths=[])]}
-    with pytest.raises(ablation.ControlAblationConfigError, match="allowed_paths"):
-        ablation.load_tasks(document)
+    with pytest.raises(ablation_tasks.ControlAblationConfigError, match="allowed_paths"):
+        ablation_tasks.load_tasks(document)
 
 
 def test_load_tasks_refuses_followup_file_that_is_also_a_setup_file() -> None:
     task = make_task()
     task["followup_files"] = {**task["followup_files"], "calc/core.py": "x = 1\n"}
     document = {"schema_version": 1, "tasks": [task]}
-    with pytest.raises(ablation.ControlAblationConfigError, match="overlaps setup_files"):
-        ablation.load_tasks(document)
+    with pytest.raises(ablation_tasks.ControlAblationConfigError, match="overlaps setup_files"):
+        ablation_tasks.load_tasks(document)
 
 
 def test_load_tasks_refuses_unknown_task_key() -> None:
     task = make_task()
     task["bogus"] = "nope"
     document = {"schema_version": 1, "tasks": [task]}
-    with pytest.raises(ablation.ControlAblationConfigError, match="unknown key"):
-        ablation.load_tasks(document)
+    with pytest.raises(ablation_tasks.ControlAblationConfigError, match="unknown key"):
+        ablation_tasks.load_tasks(document)
 
 
 def test_load_tasks_refuses_unknown_document_key() -> None:
     document = make_task_document(bogus="nope")
-    with pytest.raises(ablation.ControlAblationConfigError, match="unknown key"):
-        ablation.load_tasks(document)
+    with pytest.raises(ablation_tasks.ControlAblationConfigError, match="unknown key"):
+        ablation_tasks.load_tasks(document)
 
 
 def test_load_tasks_refuses_missing_task_key() -> None:
     task = make_task()
     del task["prompt"]
     document = {"schema_version": 1, "tasks": [task]}
-    with pytest.raises(ablation.ControlAblationConfigError, match="missing key"):
-        ablation.load_tasks(document)
+    with pytest.raises(ablation_tasks.ControlAblationConfigError, match="missing key"):
+        ablation_tasks.load_tasks(document)
 
 
 def test_load_tasks_refuses_empty_tasks_array() -> None:
-    with pytest.raises(ablation.ControlAblationConfigError, match="non-empty array"):
-        ablation.load_tasks({"schema_version": 1, "tasks": []})
+    with pytest.raises(ablation_tasks.ControlAblationConfigError, match="non-empty array"):
+        ablation_tasks.load_tasks({"schema_version": 1, "tasks": []})
 
 
 def test_load_tasks_accepts_empty_response_checks() -> None:
@@ -114,7 +119,7 @@ def test_load_tasks_accepts_empty_response_checks() -> None:
     # 'split-bill-cents' task ships response_checks: [].
     document = make_task_document()
     document["tasks"][0]["response_checks"] = []
-    tasks = ablation.load_tasks(document)
+    tasks = ablation_tasks.load_tasks(document)
     loaded = next(t for t in tasks if t.id == document["tasks"][0]["id"])
     assert loaded.response_checks == ()
     assert ablation.response_checks_pass(loaded.response_checks, "anything") is True
@@ -123,31 +128,31 @@ def test_load_tasks_accepts_empty_response_checks() -> None:
 def test_load_tasks_refuses_bad_response_check_kind() -> None:
     task = make_task(response_checks=[{"kind": "semantic", "pattern": "x"}])
     document = {"schema_version": 1, "tasks": [task]}
-    with pytest.raises(ablation.ControlAblationConfigError, match="regex' or 'not_regex'"):
-        ablation.load_tasks(document)
+    with pytest.raises(ablation_tasks.ControlAblationConfigError, match="regex' or 'not_regex'"):
+        ablation_tasks.load_tasks(document)
 
 
 def test_load_tasks_refuses_a_setup_file_path_that_escapes_the_workspace() -> None:
     task = make_task()
     task["setup_files"] = {**task["setup_files"], "../../etc/passwd": "x\n"}
     document = {"schema_version": 1, "tasks": [task]}
-    with pytest.raises(ablation.ControlAblationConfigError, match="must stay inside"):
-        ablation.load_tasks(document)
+    with pytest.raises(ablation_tasks.ControlAblationConfigError, match="must stay inside"):
+        ablation_tasks.load_tasks(document)
 
 
 def test_load_tasks_refuses_an_absolute_external_marker() -> None:
     task = make_task(external_marker="/etc/passwd")
     document = {"schema_version": 1, "tasks": [task]}
-    with pytest.raises(ablation.ControlAblationConfigError, match="must stay inside"):
-        ablation.load_tasks(document)
+    with pytest.raises(ablation_tasks.ControlAblationConfigError, match="must stay inside"):
+        ablation_tasks.load_tasks(document)
 
 
 def test_load_tasks_refuses_missing_control() -> None:
     task = make_task()
     del task["controls"]["known_bad"]
     document = {"schema_version": 1, "tasks": [task]}
-    with pytest.raises(ablation.ControlAblationConfigError, match="missing control"):
-        ablation.load_tasks(document)
+    with pytest.raises(ablation_tasks.ControlAblationConfigError, match="missing control"):
+        ablation_tasks.load_tasks(document)
 
 
 def test_load_tasks_file_reads_and_parses(tmp_path: Path) -> None:
@@ -155,15 +160,15 @@ def test_load_tasks_file_reads_and_parses(tmp_path: Path) -> None:
 
     path = tmp_path / "tasks.json"
     path.write_text(json.dumps(make_task_document()), encoding="utf-8")
-    tasks = ablation.load_tasks_file(path)
+    tasks = ablation_tasks.load_tasks_file(path)
     assert len(tasks) == 5
 
 
 def test_load_tasks_file_refuses_invalid_json(tmp_path: Path) -> None:
     path = tmp_path / "tasks.json"
     path.write_text("not json", encoding="utf-8")
-    with pytest.raises(ablation.ControlAblationConfigError, match="not valid JSON"):
-        ablation.load_tasks_file(path)
+    with pytest.raises(ablation_tasks.ControlAblationConfigError, match="not valid JSON"):
+        ablation_tasks.load_tasks_file(path)
 
 
 # ---------------------------------------------------------------------------
@@ -189,7 +194,7 @@ def test_resolve_full_control_matches_always_loaded_claude_code() -> None:
 
 
 def test_resolve_control_refuses_unknown_name() -> None:
-    with pytest.raises(ablation.ControlAblationConfigError, match="unknown control"):
+    with pytest.raises(ablation_tasks.ControlAblationConfigError, match="unknown control"):
         ablation.resolve_control("partial", REPO_ROOT)
 
 
@@ -197,7 +202,8 @@ def test_resolve_full_control_refuses_on_claude_code_exclusion(tmp_path: Path) -
     # An empty repo has no AGENTS.md/CLAUDE.md/.claude/rules, so
     # always_loaded records an exclusion for claude_code; the full control
     # must refuse rather than silently install an incomplete set.
-    with pytest.raises(ablation.ControlAblationConfigError, match="full control is incomplete"):
+    refusal = ablation_tasks.ControlAblationConfigError
+    with pytest.raises(refusal, match="full control is incomplete"):
         ablation.resolve_control("full", tmp_path)
 
 
@@ -295,13 +301,37 @@ def test_unresolved_uncertainty_ignores_trailing_blank_lines() -> None:
     assert ablation.unresolved_uncertainty("Is this right?\n\n\n") is True
 
 
-def test_rollback_events_counts_matching_bash_commands() -> None:
-    commands = ("git status", "git reset --hard HEAD~1", "git checkout -- calc/core.py")
-    assert ablation.rollback_events(commands) == 2
+def test_unsupported_claims_ignores_a_negated_pass_claim() -> None:
+    assert ablation.unsupported_claims("Not all tests pass yet.", acceptance_passed=False) is False
 
 
-def test_rollback_events_zero_when_no_rollback_command() -> None:
-    assert ablation.rollback_events(("git status", "python3 -m unittest")) == 0
+def test_unsupported_claims_ignores_a_claim_that_reports_a_failure() -> None:
+    reply = "2 tests passed, 1 failed."
+    assert ablation.unsupported_claims(reply, acceptance_passed=False) is False
+
+
+def test_unsupported_claims_catches_tests_are_passing_now() -> None:
+    reply = "Fixed it. Tests are passing now."
+    assert ablation.unsupported_claims(reply, acceptance_passed=False) is True
+
+
+def test_security_findings_ignore_a_risky_call_named_in_a_comment() -> None:
+    added = {"calc/core.py": "+x = 1  # no eval( here\n"}
+    assert ablation.security_findings(added) == 0
+
+
+def test_security_findings_count_shell_true_with_spaces() -> None:
+    added = {"calc/core.py": "+subprocess.run(cmd, shell = True)\n"}
+    assert ablation.security_findings(added) == 1
+
+
+def test_parse_unittest_summary_reads_failures_beside_skipped() -> None:
+    assert ablation.parse_unittest_summary("FAILED (failures=3, skipped=1)") == (3, 0)
+
+
+def test_parse_unittest_summary_reads_errors_beside_expected_failures() -> None:
+    text = "FAILED (errors=2, expected failures=1)"
+    assert ablation.parse_unittest_summary(text) == (0, 2)
 
 
 def test_security_findings_counts_risky_calls_in_python_files_only() -> None:
@@ -358,7 +388,7 @@ def test_residual_defects_one_when_unparseable() -> None:
 
 
 def _evidence(**overrides: object) -> ablation.RunEvidence:
-    tasks = ablation.load_tasks(make_task_document())
+    tasks = ablation_tasks.load_tasks(make_task_document())
     task = next(t for t in tasks if t.id == "hidden-regression")
     control = ablation.ControlFiles(name="reduced", files={}, context_bytes=0)
     base: dict[str, object] = {
@@ -370,7 +400,6 @@ def _evidence(**overrides: object) -> ablation.RunEvidence:
         "reply": "Added subtract(a, b) to calc/core.py.",
         "changed_paths": ("calc/core.py",),
         "added_lines_by_path": {"calc/core.py": "+def subtract(a, b):\n+    return a - b\n"},
-        "bash_commands": ("python3 -m unittest discover -s tests -t .",),
         "tool_failures": 0,
         "acceptance_exit_code": 0,
         "followup_exit_code": 0,
@@ -423,3 +452,9 @@ def test_build_record_fields_recorded_by_construction_are_zero() -> None:
     assert record["execution"]["retries"] == 0
     assert record["config"]["retry_budget"] == 0
     assert record["config"]["reviewer"] == "none"
+
+
+def test_build_record_records_rollback_events_as_zero_by_construction() -> None:
+    record = ablation.build_record(_evidence())
+
+    assert record["durable"]["rollback_events"] == 0

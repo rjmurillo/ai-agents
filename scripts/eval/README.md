@@ -1065,10 +1065,10 @@ to `records-<control>.jsonl`: AC-11 scopes that file to live runs, though
 every dry run's record still appears in `report.json`.
 
 ```bash
-python3 scripts/eval/eval_control_ablation.py --dry-run \
+uv run python scripts/eval/eval_control_ablation.py --dry-run \
   --workspace-root "$(mktemp -d)" --output-dir /tmp/control-ablation-dry
 
-python3 scripts/eval/eval_control_ablation.py \
+uv run python scripts/eval/eval_control_ablation.py \
   --controls full,reduced --repeats 3 --model claude-sonnet-5 \
   --workspace-root "$(mktemp -d)" --output-dir OUT
 python3 scripts/eval/eval_durable_outcome.py \
@@ -1094,7 +1094,9 @@ wall-clock drift cannot separate one control's runs from the other's. Each
 run seeds an isolated git repository with the task's `setup_files` and the
 resolved control's files, invokes Claude with `--permission-mode
 acceptEdits` and a Bash allowlist of `python3`, `git`, `ls`, `cat`, writes
-the task's `followup_files` only after the agent exits, then runs
+the task's `followup_files` only after the agent exits (changed paths are
+diffed against a ref pinned at seed time, so work the agent commits still
+counts), then runs
 `acceptance` and `followup` for real (`PYTHONDONTWRITEBYTECODE=1`, so
 `python3 -m unittest` leaves no `__pycache__/` behind to confuse the
 changed-path measurement; any that still appear, along with stray `.pyc`
@@ -1105,7 +1107,8 @@ scope violation, excluding control files, follow-up files,
 
 Fields recorded by construction, because the run is unattended and has no
 reviewer: `durable.review_findings` (0, no reviewer), `durable.rework_minutes` (0, no
-human rework), `economics.tool_cost_usd` and `economics.human_correction_minutes`
+human rework), `durable.rollback_events` (0, a single run has no integration step
+to roll back), `economics.tool_cost_usd` and `economics.human_correction_minutes`
 (0, local commands only, no human). None of these are measurements of a
 human in the loop; the report states this so a reader does not mistake a
 zero for evidence.
@@ -1121,12 +1124,14 @@ remaining runs.
 
 Claude auth: `runtime_env` points `CLAUDE_CONFIG_DIR` at an isolated profile
 with no login, and passes only `ANTHROPIC_API_KEY` and `CLAUDE_CODE_OAUTH_TOKEN`
-from the operator's environment. A subscription login needs
+from the operator's environment. This CLI moves `CLAUDE_CONFIG_DIR` to a
+sibling of the workspace, outside the agent's working tree, and the seed
+excludes `.parity-profile/` from the workspace's git. A subscription login needs
 `--claude-auth-file ~/.claude/.credentials.json`: the file is copied into each
 run's profile at mode `0600` for the duration of the Claude call only, then
 deleted before grading. Its contents are never written to a report. The agent
-under test can still read it while it runs, so keep live reports out of the
-repository.
+under test can still read it by absolute path while it runs, so keep live
+workspaces and reports out of the repository.
 
 ## Held-Out-Gated Optimization
 
