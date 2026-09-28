@@ -76,6 +76,10 @@ class TestClassifyCategory:
     def test_git_keywords(self) -> None:
         assert classify_category("Commit changes to branch") == "git-operations"
 
+    def test_archived_retired_backend_action_stays_memory(self) -> None:
+        # Session logs from before ADR-106 name the retired backend (#5574).
+        assert classify_category("Imported 30 learnings to Forgetful") == "memory"
+
     def test_default_category(self) -> None:
         assert classify_category("Something unrelated entirely") == "general"
 

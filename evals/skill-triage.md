@@ -6,7 +6,7 @@ Per-skill classification for the skills under `.claude/skills/`. Decides which s
 
 This triage covers every `.claude/skills/<name>/SKILL.md` present on `feat/evals-skill-coverage` at 2026-05-26. It extends the prior 15-skill triage (`.serena/memories/skills/triage-eval-2026-05-09.md`) to full skill coverage.
 
-A retired skill has its classification row removed, so the counts below track the surviving classification rather than the 2026-05-26 tree. Four rows have gone this way: `guard-maturity` (#5156), `encode-repo-serena` and `serena-code-architecture` (#5624), and `book-to-skill` (#5946).
+A retired skill has its classification row removed, so the counts below track the surviving classification rather than the 2026-05-26 tree. Six rows have gone this way: `guard-maturity` (#5156), `encode-repo-serena` and `serena-code-architecture` (#5624), `book-to-skill` (#5946), and `exploring-knowledge-graph` and the retired memory-backend skill (#5574).
 
 ## Two eval systems
 
@@ -25,10 +25,10 @@ A skill can carry both kinds of eval. Adding an `evals/<skill>-spike/` does not 
 
 | Category | Count | Action |
 |---|---|---|
-| Already covered | 12 | No new artifact. Cross-referenced below. |
+| Already covered | 10 | No new artifact. Cross-referenced below. |
 | Eval-worthy (deferred) | 36 | Original plan was to scaffold per-skill spikes; reverted (see baseline-report.md). Real fixture authoring will happen one spike at a time. |
 | Utility-skip | 18 | No scaffold. Mechanical or deterministic skill; agent-vs-baseline shape is wrong. |
-| **Total** | **66** | |
+| **Total** | **64** | |
 
 ### Decision rule
 
@@ -36,7 +36,7 @@ A skill is **eval-worthy** when its output is an agent-generated **judgment, fin
 
 This rule does not say utility skills are unimportant. It says agent-vs-baseline is the wrong measurement; their correctness is verified by unit tests, not by comparing two model variants.
 
-## Already covered (12)
+## Already covered (10)
 
 These skills appear in `tests/evals/skills/triage-prompts.json` with six prompts each. The 2026-05-09 triage scored them against a no-context baseline. No new artifact required.
 
@@ -45,7 +45,6 @@ These skills appear in `tests/evals/skills/triage-prompts.json` with six prompts
 | codebase-documenter | KEEP |
 | curating-memories | INVESTIGATE |
 | doc-accuracy | KEEP |
-| exploring-knowledge-graph | INVESTIGATE |
 | memory | DECOMPOSE |
 | memory-documentary | KEEP |
 | memory-enhancement | KEEP |
@@ -53,7 +52,6 @@ These skills appear in `tests/evals/skills/triage-prompts.json` with six prompts
 | session-log-fixer | KEEP |
 | session-migration | SUNSET (legacy migration) |
 | session-qa-eligibility | FOLD (into `session` umbrella) |
-| using-forgetful-memory | KEEP |
 
 Note: prior triage also covered `doc-coverage`, `doc-sync`, `workflow`. Those skill directories were pruned. The `tests/evals/skills/triage-prompts.json` entries remain as deprecation trackers and are not in scope here.
 

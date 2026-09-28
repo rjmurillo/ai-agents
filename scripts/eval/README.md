@@ -389,6 +389,62 @@ consequential choice handling, and QA rejection of 16 valid artifacts against
 49 promised. `--dry-run` validates paths, assertions, controls, and CLI
 versions without sending a model request.
 
+### Copilot BYOK passthrough (issue #5404)
+
+When GitHub-routed Copilot quota is exhausted (HTTP 402, see "Copilot: the
+client-label finding and BYOK" above), `--harnesses copilot` and
+`--harnesses both` can still run through the documented BYOK provider path. `runtime_env` in `_runtime_harness.py` passes six BYOK variables
+(`copilot help environment`, Copilot CLI 1.0.89) through to the Copilot
+subprocess: `COPILOT_PROVIDER_TYPE`, `COPILOT_PROVIDER_BASE_URL`,
+`COPILOT_PROVIDER_API_KEY`, `COPILOT_PROVIDER_BEARER_TOKEN`,
+`COPILOT_PROVIDER_MODEL_ID`, and `COPILOT_PROVIDER_WIRE_MODEL`. Claude and
+codex runs never see these variables.
+
+Two documented BYOK variables stay out of the allowlist.
+`COPILOT_PROVIDER_API_KEY_COMMAND` runs an ambient shell command.
+`COPILOT_PROVIDER_HEADERS` can carry a credential under any header name.
+
+The report records how the run was routed, never a credential:
+
+```json
+"copilot_routing": {"routing": "byok", "provider_type": "anthropic", "base_url": "https://api.anthropic.com"}
+```
+
+`copilot_routing` (`_runtime_harness.py`) is a pure function of the
+environment: `{"routing": "byok", "provider_type": ..., "base_url": ...}`
+when `COPILOT_PROVIDER_BASE_URL` is set and non-empty, `provider_type`
+defaulting to `openai` per the CLI docs when `COPILOT_PROVIDER_TYPE` is
+unset; otherwise `{"routing": "github"}`. It never records a key, token,
+model id, or header. The base URL keeps only its origin (scheme, host, port),
+so a credential in userinfo, path, query, or fragment never reaches the report. The field appears in `report.json` whenever `--harnesses` selects
+Copilot (`copilot` or `both`), in both a live run and a `--dry-run`, and is
+absent for `--harnesses claude`.
+
+BYOK evidence proves Copilot CLI instruction loading and behavior under the
+BYOK model. It does not prove anything about GitHub-routed models: BYOK
+replaces GitHub model routing for the run, the same limit noted above for
+`eval_harness_capability.py`.
+
+Example, BYOK Anthropic:
+
+```bash
+COPILOT_PROVIDER_TYPE=anthropic \
+COPILOT_PROVIDER_BASE_URL=https://api.anthropic.com \
+COPILOT_PROVIDER_API_KEY=<key> \
+uv run python scripts/eval/eval_runtime_parity.py \
+  --fixtures scripts/eval/examples/runtime-parity-fixtures.json \
+  --harnesses copilot \
+  --model claude-haiku-4-5 \
+  --output artifacts/runtime-parity/report.json \
+  --workspace-root "$(mktemp -d)"
+```
+
+`--model` still takes the Claude Code spelling (`claude-opus-5-5`, not
+`claude-opus-5.5`); the runner sends each harness its own spelling (see
+above). Model resolution for Copilot still reads `assistant.message.data.model`,
+which stays `CLIENT_ECHO` (the requested alias, not the provider's dated id)
+under BYOK the same way it does under GitHub routing.
+
 ### Instructions, semantic grading, and ablation (issue #5404)
 
 A fixture's `instructions` field lists repo-relative rule paths (for example
@@ -827,7 +883,7 @@ readable per-pair deltas and verdicts) and `REPORT.md` (prune/fold table).
 
 Note on the Issue #1932 Phase 1 pairs: `doc-coverage`, `doc-sync`, and
 `session-qa-eligibility` were deleted in the M1 catalog prune (commit
-`5c4729345`, #1942), and the knowledge-graph skill was retired in the Forgetful
+`5c4729345`, #1942), and the knowledge-graph skill was retired in the memory-backend
 decommission (#5574). The example file targets the one surviving overlapping
 pair (`memory-enhancement`/`curating-memories`). A pair naming a deleted skill
 is not inert: `eval-skill-overlap.py` resolves every pair member to a skill

@@ -63,7 +63,7 @@ Reference data for memory systems:
 | System | Priority | Location |
 |--------|----------|----------|
 | Serena | 1 | .serena/memories/ |
-| Forgetful | 2 | ~/.local/share/forgetful/ |
+| Claude-Mem | 2 | ~/.claude-mem/ |
 
 Always check memories before reasoning.
 Framework knowledge for session protocol.
