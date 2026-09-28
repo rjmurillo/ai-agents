@@ -1,6 +1,6 @@
 """Tests for scripts/eval/_durable_outcome.py (REQ-042, DESIGN-040).
 
-Behavior under test: OutcomeRecord parsing (AC-1), the classifier
+Behavior under test: the classifier
 (AC-2 to AC-4), the per-configuration report (AC-5, AC-6), the matched
 comparison (AC-7, AC-8), and the known-good / known-bad / five-case
 fixtures (AC-9, AC-10). Pure functions, so no mocking is needed.
@@ -9,281 +9,21 @@ fixtures (AC-9, AC-10). Pure functions, so no mocking is needed.
 from __future__ import annotations
 
 import json
-import sys
 from pathlib import Path
 from typing import Any
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts" / "eval"))
-
-import _durable_outcome as durable
+from tests.eval._durable_outcome_test_support import durable, make_config, make_record, outcome
 
 FIXTURES = Path(__file__).parent / "fixtures" / "durable_outcome"
 
 
-def _config(**overrides: object) -> dict[str, Any]:
-    base: dict[str, Any] = {
-        "model": "claude-sonnet-5",
-        "harness": "claude",
-        "harness_version": "2.3.1",
-        "context_bytes": 1000,
-        "retry_budget": 1,
-        "reviewer": "critic",
-        "control": "full",
-    }
-    base.update(overrides)
-    return base
-
-
-def _record(**overrides: object) -> dict[str, Any]:
-    """A minimal, fully-clean OutcomeRecord dict (classifies ACCEPTED_DURABLE)."""
-    base: dict[str, Any] = {
-        "task_id": "t1",
-        "repeat": 0,
-        "config": _config(),
-        "capability": {"attempted": True, "produced_artifact": True},
-        "execution": {
-            "deterministic_acceptance": "PASS",
-            "first_pass": "PASS",
-            "tool_failures": 0,
-            "retries": 0,
-            "scope_violations": 0,
-            "judge": "PASS",
-        },
-        "durable": {
-            "followup_validation": "PASS",
-            "objective_satisfied": "PASS",
-            "residual_defects": 0,
-            "review_findings": 0,
-            "rollback_events": 0,
-            "rework_minutes": 0,
-        },
-        "economics": {
-            "model_cost_usd": 0.5,
-            "tool_cost_usd": 0.0,
-            "wall_seconds": 100,
-            "human_correction_minutes": 0,
-        },
-        "risk": {
-            "security_findings": 0,
-            "unapproved_external_actions": 0,
-            "unsupported_claims": 0,
-            "unresolved_uncertainty": 0,
-        },
-    }
-    base.update(overrides)
-    return base
-
-
 def _classify_record(**section_overrides: dict[str, Any]) -> durable.Verdict:
-    data = _record()
+    data = make_record()
     for section, fields in section_overrides.items():
         data[section] = {**data[section], **fields}
-    return durable.classify(durable.parse_record(data))
-
-
-# ---------------------------------------------------------------------------
-# parse_record (REQ-042 AC-1)
-# ---------------------------------------------------------------------------
-
-
-def test_parses_a_valid_record() -> None:
-    record = durable.parse_record(_record())
-    assert record.task_id == "t1"
-    assert record.config.model == "claude-sonnet-5"
-    assert record.execution.judge is durable.Evidence.PASS
-
-
-def test_parses_record_with_judge_omitted() -> None:
-    data = _record()
-    data["execution"] = {k: v for k, v in data["execution"].items() if k != "judge"}
-    record = durable.parse_record(data)
-    assert record.execution.judge is None
-
-
-def test_parses_record_with_judge_explicit_null() -> None:
-    data = _record()
-    data["execution"] = {**data["execution"], "judge": None}
-    record = durable.parse_record(data)
-    assert record.execution.judge is None
-
-
-def test_refuses_non_dict_record() -> None:
-    with pytest.raises(durable.DurableOutcomeError, match="expected an object"):
-        durable.parse_record(["not", "a", "dict"])
-
-
-def test_refuses_unknown_top_level_key() -> None:
-    data = _record()
-    data["extra"] = 1
-    with pytest.raises(durable.DurableOutcomeError, match="unknown key"):
-        durable.parse_record(data)
-
-
-def test_refuses_missing_top_level_key() -> None:
-    data = _record()
-    del data["risk"]
-    with pytest.raises(durable.DurableOutcomeError, match="missing required key"):
-        durable.parse_record(data)
-
-
-def test_refuses_config_not_a_dict() -> None:
-    data = _record()
-    data["config"] = "not-a-dict"
-    with pytest.raises(durable.DurableOutcomeError, match="expected an object"):
-        durable.parse_record(data)
-
-
-def test_refuses_unknown_nested_key_in_config() -> None:
-    data = _record()
-    data["config"] = {**data["config"], "extra_field": "x"}
-    with pytest.raises(durable.DurableOutcomeError, match="unknown key"):
-        durable.parse_record(data)
-
-
-def test_refuses_missing_nested_key_in_config() -> None:
-    data = _record()
-    config = dict(data["config"])
-    del config["reviewer"]
-    data["config"] = config
-    with pytest.raises(durable.DurableOutcomeError, match="missing required key"):
-        durable.parse_record(data)
-
-
-def test_refuses_missing_key_in_execution_section() -> None:
-    data = _record()
-    execution = dict(data["execution"])
-    del execution["first_pass"]
-    data["execution"] = execution
-    with pytest.raises(durable.DurableOutcomeError, match="missing required key"):
-        durable.parse_record(data)
-
-
-def test_refuses_unknown_key_in_execution_section() -> None:
-    data = _record()
-    data["execution"] = {**data["execution"], "extra": 1}
-    with pytest.raises(durable.DurableOutcomeError, match="unknown key"):
-        durable.parse_record(data)
-
-
-def test_refuses_bad_evidence_enum() -> None:
-    data = _record()
-    data["execution"] = {**data["execution"], "deterministic_acceptance": "MAYBE"}
-    with pytest.raises(durable.DurableOutcomeError):
-        durable.parse_record(data)
-
-
-def test_refuses_non_string_evidence() -> None:
-    data = _record()
-    data["execution"] = {**data["execution"], "deterministic_acceptance": 1}
-    with pytest.raises(durable.DurableOutcomeError):
-        durable.parse_record(data)
-
-
-def test_refuses_negative_count() -> None:
-    data = _record()
-    data["durable"] = {**data["durable"], "residual_defects": -1}
-    with pytest.raises(durable.DurableOutcomeError):
-        durable.parse_record(data)
-
-
-def test_refuses_negative_money() -> None:
-    data = _record()
-    data["economics"] = {**data["economics"], "model_cost_usd": -0.1}
-    with pytest.raises(durable.DurableOutcomeError):
-        durable.parse_record(data)
-
-
-def test_refuses_bool_as_int_repeat() -> None:
-    data = _record()
-    data["repeat"] = True
-    with pytest.raises(durable.DurableOutcomeError):
-        durable.parse_record(data)
-
-
-def test_refuses_bool_as_int_count() -> None:
-    data = _record()
-    data["durable"] = {**data["durable"], "residual_defects": False}
-    with pytest.raises(durable.DurableOutcomeError):
-        durable.parse_record(data)
-
-
-def test_refuses_bool_as_number() -> None:
-    data = _record()
-    data["economics"] = {**data["economics"], "wall_seconds": True}
-    with pytest.raises(durable.DurableOutcomeError):
-        durable.parse_record(data)
-
-
-def test_refuses_non_number_economics_field() -> None:
-    data = _record()
-    data["economics"] = {**data["economics"], "model_cost_usd": "free"}
-    with pytest.raises(durable.DurableOutcomeError):
-        durable.parse_record(data)
-
-
-def test_refuses_non_int_count() -> None:
-    data = _record()
-    data["execution"] = {**data["execution"], "retries": "3"}
-    with pytest.raises(durable.DurableOutcomeError):
-        durable.parse_record(data)
-
-
-def test_refuses_wrong_type_for_string_field() -> None:
-    data = _record()
-    data["task_id"] = 123
-    with pytest.raises(durable.DurableOutcomeError):
-        durable.parse_record(data)
-
-
-def test_refuses_wrong_type_for_bool_field() -> None:
-    data = _record()
-    data["capability"] = {**data["capability"], "attempted": "yes"}
-    with pytest.raises(durable.DurableOutcomeError):
-        durable.parse_record(data)
-
-
-def test_refuses_empty_task_id() -> None:
-    data = _record()
-    data["task_id"] = ""
-    with pytest.raises(durable.DurableOutcomeError):
-        durable.parse_record(data)
-
-
-def test_refuses_empty_config_string_field() -> None:
-    data = _record()
-    data["config"] = {**data["config"], "harness": ""}
-    with pytest.raises(durable.DurableOutcomeError):
-        durable.parse_record(data)
-
-
-def test_allows_null_durable_count() -> None:
-    data = _record()
-    data["durable"] = {**data["durable"], "residual_defects": None}
-    record = durable.parse_record(data)
-    assert record.durable.residual_defects is None
-
-
-def test_allows_null_rework_minutes() -> None:
-    data = _record()
-    data["durable"] = {**data["durable"], "rework_minutes": None}
-    record = durable.parse_record(data)
-    assert record.durable.rework_minutes is None
-
-
-def test_refuses_negative_rework_minutes() -> None:
-    data = _record()
-    data["durable"] = {**data["durable"], "rework_minutes": -5}
-    with pytest.raises(durable.DurableOutcomeError):
-        durable.parse_record(data)
-
-
-def test_allows_null_risk_count() -> None:
-    data = _record()
-    data["risk"] = {**data["risk"], "security_findings": None}
-    record = durable.parse_record(data)
-    assert record.risk.security_findings is None
+    return durable.classify(outcome.parse_record(data))
 
 
 # ---------------------------------------------------------------------------
@@ -360,9 +100,9 @@ def test_judge_unverified_does_not_force_unverified() -> None:
 
 
 def test_judge_missing_defaults_to_accepted_durable() -> None:
-    data = _record()
+    data = make_record()
     data["execution"] = {k: v for k, v in data["execution"].items() if k != "judge"}
-    verdict = durable.classify(durable.parse_record(data))
+    verdict = durable.classify(outcome.parse_record(data))
     assert verdict is durable.Verdict.ACCEPTED_DURABLE
 
 
@@ -407,16 +147,16 @@ def test_fully_clean_record_is_accepted_durable() -> None:
 
 
 def test_build_report_requires_at_least_one_record() -> None:
-    with pytest.raises(durable.DurableOutcomeError, match="at least one record"):
+    with pytest.raises(outcome.DurableOutcomeError, match="at least one record"):
         durable.build_report([])
 
 
 def test_build_report_lists_per_task_verdicts() -> None:
     # REQ-042 AC-5
     records = [
-        durable.parse_record(_record(task_id="t1", repeat=0)),
-        durable.parse_record(_record(task_id="t1", repeat=1)),
-        durable.parse_record(_record(task_id="t2", repeat=0)),
+        outcome.parse_record(make_record(task_id="t1", repeat=0)),
+        outcome.parse_record(make_record(task_id="t1", repeat=1)),
+        outcome.parse_record(make_record(task_id="t2", repeat=0)),
     ]
     report = durable.build_report(records)
     by_task = {row["task_id"]: row for row in report["per_task"]}
@@ -428,16 +168,16 @@ def test_build_report_lists_per_task_verdicts() -> None:
 
 def test_build_report_zero_success_tasks() -> None:
     # REQ-042 AC-5
-    data = _record(task_id="t1")
+    data = make_record(task_id="t1")
     data["execution"] = {**data["execution"], "deterministic_acceptance": "FAIL"}
-    report = durable.build_report([durable.parse_record(data)])
+    report = durable.build_report([outcome.parse_record(data)])
     assert report["zero_success_tasks"] == ["t1"]
     assert report["all_success_tasks"] == []
 
 
 def test_build_report_all_success_tasks() -> None:
     # REQ-042 AC-5
-    report = durable.build_report([durable.parse_record(_record(task_id="t1"))])
+    report = durable.build_report([outcome.parse_record(make_record(task_id="t1"))])
     assert report["all_success_tasks"] == ["t1"]
     assert report["zero_success_tasks"] == []
 
@@ -446,9 +186,9 @@ def test_build_report_percentiles_of_cost() -> None:
     # REQ-042 AC-5: p10, p50, p90 of total cost.
     records = []
     for index, cost in enumerate([1.0, 2.0, 3.0, 4.0]):
-        data = _record(task_id=f"t{index}", repeat=0)
+        data = make_record(task_id=f"t{index}", repeat=0)
         data["economics"] = {**data["economics"], "model_cost_usd": cost}
-        records.append(durable.parse_record(data))
+        records.append(outcome.parse_record(data))
     report = durable.build_report(records)
     percentiles = report["cost_percentiles_usd"]
     assert percentiles["p50"] == 2.5
@@ -460,9 +200,9 @@ def test_build_report_percentiles_of_correction_time() -> None:
     # REQ-042 AC-5: p10, p50, p90 of correction time.
     records = []
     for index, minutes in enumerate([0.0, 10.0, 20.0, 30.0]):
-        data = _record(task_id=f"t{index}", repeat=0)
+        data = make_record(task_id=f"t{index}", repeat=0)
         data["economics"] = {**data["economics"], "human_correction_minutes": minutes}
-        records.append(durable.parse_record(data))
+        records.append(outcome.parse_record(data))
     report = durable.build_report(records)
     percentiles = report["correction_minutes_percentiles"]
     assert percentiles["p50"] == 15.0
@@ -470,83 +210,83 @@ def test_build_report_percentiles_of_correction_time() -> None:
 
 def test_build_report_headline_null_when_no_accepted_durable() -> None:
     # REQ-042 AC-6
-    data = _record()
+    data = make_record()
     data["execution"] = {**data["execution"], "deterministic_acceptance": "FAIL"}
-    report = durable.build_report([durable.parse_record(data)])
+    report = durable.build_report([outcome.parse_record(data)])
     assert report["headline"]["cost_per_accepted_durable_task_usd"] is None
     assert report["headline"]["correction_minutes_per_accepted_durable_task"] is None
 
 
 def test_build_report_headline_values_when_accepted_durable_present() -> None:
     # REQ-042 AC-6
-    report = durable.build_report([durable.parse_record(_record())])
+    report = durable.build_report([outcome.parse_record(make_record())])
     assert report["headline"]["cost_per_accepted_durable_task_usd"] == 0.5
     assert report["headline"]["correction_minutes_per_accepted_durable_task"] == 0.0
 
 
 def test_build_report_status_unverified_when_any_record_unverified() -> None:
     # REQ-042 AC-3, AC-6: one UNVERIFIED record makes the whole report UNVERIFIED.
-    good = _record(task_id="t1")
-    bad = _record(task_id="t2")
+    good = make_record(task_id="t1")
+    bad = make_record(task_id="t2")
     bad["durable"] = {**bad["durable"], "residual_defects": None}
-    report = durable.build_report([durable.parse_record(good), durable.parse_record(bad)])
+    report = durable.build_report([outcome.parse_record(good), outcome.parse_record(bad)])
     assert report["status"] == "UNVERIFIED"
 
 
 def test_build_report_refuses_mixed_config_within_file() -> None:
-    a = _record(task_id="t1")
-    b = _record(task_id="t2")
+    a = make_record(task_id="t1")
+    b = make_record(task_id="t2")
     b["config"] = {**b["config"], "model": "other-model"}
-    with pytest.raises(durable.DurableOutcomeError, match="different configurations"):
-        durable.build_report([durable.parse_record(a), durable.parse_record(b)])
+    with pytest.raises(outcome.DurableOutcomeError, match="different configurations"):
+        durable.build_report([outcome.parse_record(a), outcome.parse_record(b)])
 
 
 def test_build_report_refuses_mixed_config_reports_a_later_differing_field() -> None:
     # The first several RunConfig fields (model, harness, harness_version)
     # match; only `retry_budget` differs, so the field-finder must walk past
     # the matching ones before it reports the mismatch.
-    a = _record(task_id="t1")
-    b = _record(task_id="t2")
+    a = make_record(task_id="t1")
+    b = make_record(task_id="t2")
     b["config"] = {**b["config"], "retry_budget": 9}
-    with pytest.raises(durable.DurableOutcomeError, match="retry_budget"):
-        durable.build_report([durable.parse_record(a), durable.parse_record(b)])
+    with pytest.raises(outcome.DurableOutcomeError, match="retry_budget"):
+        durable.build_report([outcome.parse_record(a), outcome.parse_record(b)])
 
 
 def test_build_report_refuses_duplicate_task_repeat() -> None:
     records = [
-        durable.parse_record(_record(task_id="t1", repeat=0)),
-        durable.parse_record(_record(task_id="t1", repeat=0)),
+        outcome.parse_record(make_record(task_id="t1", repeat=0)),
+        outcome.parse_record(make_record(task_id="t1", repeat=0)),
     ]
-    with pytest.raises(durable.DurableOutcomeError, match="duplicate"):
+    with pytest.raises(outcome.DurableOutcomeError, match="duplicate"):
         durable.build_report(records)
 
 
 def test_rejected_run_cost_stays_in_numerator() -> None:
     # DESIGN-040 "Report": costs of rejected runs stay in the numerator.
-    accepted = _record(task_id="t1")
+    accepted = make_record(task_id="t1")
     accepted["economics"] = {**accepted["economics"], "model_cost_usd": 1.0}
-    rejected = _record(task_id="t2")
+    rejected = make_record(task_id="t2")
     rejected["execution"] = {**rejected["execution"], "deterministic_acceptance": "FAIL"}
     rejected["economics"] = {**rejected["economics"], "model_cost_usd": 9.0}
-    records = [durable.parse_record(accepted), durable.parse_record(rejected)]
+    records = [outcome.parse_record(accepted), outcome.parse_record(rejected)]
     report = durable.build_report(records)
     assert report["headline"]["cost_per_accepted_durable_task_usd"] == 10.0
 
 
 def test_build_report_residual_risk_includes_accepted_not_durable_defects() -> None:
-    data = _record()
+    data = make_record()
     data["durable"] = {**data["durable"], "followup_validation": "FAIL", "residual_defects": 2}
-    report = durable.build_report([durable.parse_record(data)])
+    report = durable.build_report([outcome.parse_record(data)])
     assert report["headline"]["residual_risk"] == 2
 
 
 def test_build_report_residual_risk_excludes_rejected_defects() -> None:
     # A REJECTED run's residual_defects field is not counted: the run never
     # produced an accepted result to have residual defects against.
-    data = _record()
+    data = make_record()
     data["execution"] = {**data["execution"], "deterministic_acceptance": "FAIL"}
     data["durable"] = {**data["durable"], "residual_defects": 5}
-    report = durable.build_report([durable.parse_record(data)])
+    report = durable.build_report([outcome.parse_record(data)])
     assert report["headline"]["residual_risk"] == 0
 
 
@@ -556,7 +296,7 @@ def test_build_report_residual_risk_excludes_rejected_defects() -> None:
 
 
 def _durable_record(task_id: str, control: str, cost: float = 1.0) -> dict[str, Any]:
-    data = _record(task_id=task_id, repeat=0, config=_config(control=control))
+    data = make_record(task_id=task_id, repeat=0, config=make_config(control=control))
     data["economics"] = {**data["economics"], "model_cost_usd": cost}
     return data
 
@@ -568,23 +308,23 @@ def _rejected_record(task_id: str, control: str, cost: float = 1.0) -> dict[str,
 
 
 def test_compare_requires_nonempty_each_side() -> None:
-    with pytest.raises(durable.DurableOutcomeError, match="at least one record"):
-        durable.compare([], [durable.parse_record(_durable_record("t1", "full"))])
+    with pytest.raises(outcome.DurableOutcomeError, match="at least one record"):
+        durable.compare([], [outcome.parse_record(_durable_record("t1", "full"))])
 
 
 def test_compare_refuses_differing_config_field() -> None:
-    baseline = [durable.parse_record(_durable_record("t1", "reduced"))]
+    baseline = [outcome.parse_record(_durable_record("t1", "reduced"))]
     candidate_data = _durable_record("t1", "full")
     candidate_data["config"] = {**candidate_data["config"], "harness": "codex"}
-    candidate = [durable.parse_record(candidate_data)]
-    with pytest.raises(durable.DurableOutcomeError, match="harness"):
+    candidate = [outcome.parse_record(candidate_data)]
+    with pytest.raises(outcome.DurableOutcomeError, match="harness"):
         durable.compare(baseline, candidate)
 
 
 def test_compare_allows_control_field_to_differ() -> None:
     # REQ-042 AC-7/ontology: matched when every field except `control` is equal.
-    baseline = [durable.parse_record(_durable_record("t1", "reduced"))]
-    candidate = [durable.parse_record(_durable_record("t1", "full"))]
+    baseline = [outcome.parse_record(_durable_record("t1", "reduced"))]
+    candidate = [outcome.parse_record(_durable_record("t1", "full"))]
     result = durable.compare(baseline, candidate)
     assert result["result"] == "MIXED"  # identical apart from control: a tie
 
@@ -592,26 +332,26 @@ def test_compare_allows_control_field_to_differ() -> None:
 def test_compare_refuses_differing_task_sets() -> None:
     # REQ-042 AC-7
     baseline = [
-        durable.parse_record(_durable_record("t1", "reduced")),
-        durable.parse_record(_durable_record("t2", "reduced")),
+        outcome.parse_record(_durable_record("t1", "reduced")),
+        outcome.parse_record(_durable_record("t2", "reduced")),
     ]
     candidate = [
-        durable.parse_record(_durable_record("t1", "full")),
-        durable.parse_record(_durable_record("t3", "full")),
+        outcome.parse_record(_durable_record("t1", "full")),
+        outcome.parse_record(_durable_record("t3", "full")),
     ]
-    with pytest.raises(durable.DurableOutcomeError, match="task sets differ"):
+    with pytest.raises(outcome.DurableOutcomeError, match="task sets differ"):
         durable.compare(baseline, candidate)
 
 
 def test_compare_returns_better() -> None:
     # REQ-042 AC-8: same durable count, lower cost, no zero-drop.
     baseline = [
-        durable.parse_record(_durable_record("t1", "reduced", cost=1.0)),
-        durable.parse_record(_durable_record("t2", "reduced", cost=1.0)),
+        outcome.parse_record(_durable_record("t1", "reduced", cost=1.0)),
+        outcome.parse_record(_durable_record("t2", "reduced", cost=1.0)),
     ]
     candidate = [
-        durable.parse_record(_durable_record("t1", "full", cost=0.5)),
-        durable.parse_record(_durable_record("t2", "full", cost=0.5)),
+        outcome.parse_record(_durable_record("t1", "full", cost=0.5)),
+        outcome.parse_record(_durable_record("t2", "full", cost=0.5)),
     ]
     result = durable.compare(baseline, candidate)
     assert result["result"] == "BETTER"
@@ -619,12 +359,12 @@ def test_compare_returns_better() -> None:
 
 def test_compare_returns_worse() -> None:
     baseline = [
-        durable.parse_record(_durable_record("t1", "reduced", cost=1.0)),
-        durable.parse_record(_durable_record("t2", "reduced", cost=1.0)),
+        outcome.parse_record(_durable_record("t1", "reduced", cost=1.0)),
+        outcome.parse_record(_durable_record("t2", "reduced", cost=1.0)),
     ]
     candidate = [
-        durable.parse_record(_durable_record("t1", "full", cost=2.0)),
-        durable.parse_record(_durable_record("t2", "full", cost=2.0)),
+        outcome.parse_record(_durable_record("t1", "full", cost=2.0)),
+        outcome.parse_record(_durable_record("t2", "full", cost=2.0)),
     ]
     result = durable.compare(baseline, candidate)
     assert result["result"] == "WORSE"
@@ -633,12 +373,12 @@ def test_compare_returns_worse() -> None:
 def test_compare_returns_mixed_on_a_tradeoff() -> None:
     # candidate: more accepted durable tasks, but a higher cost per task.
     baseline = [
-        durable.parse_record(_durable_record("t1", "reduced", cost=1.0)),
-        durable.parse_record(_rejected_record("t2", "reduced", cost=0.1)),
+        outcome.parse_record(_durable_record("t1", "reduced", cost=1.0)),
+        outcome.parse_record(_rejected_record("t2", "reduced", cost=0.1)),
     ]
     candidate = [
-        durable.parse_record(_durable_record("t1", "full", cost=1.0)),
-        durable.parse_record(_durable_record("t2", "full", cost=5.0)),
+        outcome.parse_record(_durable_record("t1", "full", cost=1.0)),
+        outcome.parse_record(_durable_record("t2", "full", cost=5.0)),
     ]
     result = durable.compare(baseline, candidate)
     assert result["result"] == "MIXED"
@@ -648,8 +388,8 @@ def test_compare_treats_a_zero_durable_baseline_as_cost_free() -> None:
     # When the baseline has zero accepted durable tasks, its headline cost is
     # None, so a candidate cannot be "more expensive" than it; the candidate
     # only has to avoid a zero-drop (there is nothing to drop from).
-    baseline = [durable.parse_record(_rejected_record("t1", "reduced"))]
-    candidate = [durable.parse_record(_durable_record("t1", "full"))]
+    baseline = [outcome.parse_record(_rejected_record("t1", "reduced"))]
+    candidate = [outcome.parse_record(_durable_record("t1", "full"))]
     result = durable.compare(baseline, candidate)
     assert result["result"] == "BETTER"
 
@@ -657,8 +397,8 @@ def test_compare_treats_a_zero_durable_baseline_as_cost_free() -> None:
 def test_compare_returns_unverified_when_either_side_unverified() -> None:
     baseline_data = _durable_record("t1", "reduced")
     baseline_data["durable"] = {**baseline_data["durable"], "residual_defects": None}
-    baseline = [durable.parse_record(baseline_data)]
-    candidate = [durable.parse_record(_durable_record("t1", "full"))]
+    baseline = [outcome.parse_record(baseline_data)]
+    candidate = [outcome.parse_record(_durable_record("t1", "full"))]
     result = durable.compare(baseline, candidate)
     assert result["result"] == "UNVERIFIED"
 
@@ -667,15 +407,15 @@ def test_compare_better_requires_no_zero_drop_even_with_better_average() -> None
     # REQ-042 AC-8: a lower average cost is not enough for BETTER when a task
     # that had >=1 durable accept in the baseline drops to zero.
     baseline = [
-        durable.parse_record(_durable_record("t1", "reduced", cost=1.0)),
-        durable.parse_record(_durable_record("t2", "reduced", cost=1.0)),
+        outcome.parse_record(_durable_record("t1", "reduced", cost=1.0)),
+        outcome.parse_record(_durable_record("t2", "reduced", cost=1.0)),
     ]
     candidate_t2_repeat1 = _durable_record("t2", "full", cost=0.05)
     candidate_t2_repeat1["repeat"] = 1
     candidate = [
-        durable.parse_record(_rejected_record("t1", "full", cost=0.05)),
-        durable.parse_record(_durable_record("t2", "full", cost=0.05)),
-        durable.parse_record(candidate_t2_repeat1),
+        outcome.parse_record(_rejected_record("t1", "full", cost=0.05)),
+        outcome.parse_record(_durable_record("t2", "full", cost=0.05)),
+        outcome.parse_record(candidate_t2_repeat1),
     ]
     result = durable.compare(baseline, candidate)
     assert result["result"] != "BETTER"
@@ -689,12 +429,12 @@ def test_compare_better_requires_no_zero_drop_even_with_better_average() -> None
 # ---------------------------------------------------------------------------
 
 
-def _load_fixture(name: str) -> list[durable.OutcomeRecord]:
+def _load_fixture(name: str) -> list[outcome.OutcomeRecord]:
     path = FIXTURES / name
     records = []
     for line in path.read_text(encoding="utf-8").splitlines():
         if line.strip():
-            records.append(durable.parse_record(json.loads(line)))
+            records.append(outcome.parse_record(json.loads(line)))
     return records
 
 

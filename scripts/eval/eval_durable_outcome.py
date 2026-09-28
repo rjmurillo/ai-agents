@@ -25,13 +25,8 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
-from _durable_outcome import (
-    DurableOutcomeError,
-    OutcomeRecord,
-    build_report,
-    compare,
-    parse_record,
-)
+from _durable_outcome import build_report, compare
+from _outcome_record import DurableOutcomeError, OutcomeRecord, parse_record
 
 EXIT_OK = 0
 EXIT_UNVERIFIED_OR_WORSE = 1

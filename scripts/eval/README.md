@@ -945,8 +945,8 @@ check (REQ-042, DESIGN-040)? A run that passes its deterministic check and
 then breaks on follow-up validation still counts as a success in a plain
 pass-rate report; this one classifies it `ACCEPTED_NOT_DURABLE` instead.
 
-The record is one JSON object per line (`_durable_outcome.OutcomeRecord`,
-`scripts/eval/_durable_outcome.py`): `task_id`, `repeat`, a `config` (model,
+The record is one JSON object per line (`_outcome_record.OutcomeRecord`,
+`scripts/eval/_outcome_record.py`): `task_id`, `repeat`, a `config` (model,
 harness, harness_version, context_bytes, retry_budget, reviewer, control),
 and five evidence sections (`capability`, `execution`, `durable`,
 `economics`, `risk`). See DESIGN-040 for the field-level types. Issue #5424's

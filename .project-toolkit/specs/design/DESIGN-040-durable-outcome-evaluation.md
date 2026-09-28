@@ -26,10 +26,13 @@ REQ-042 criteria 1 to 11.
 
 | File | Role |
 |---|---|
-| `scripts/eval/_durable_outcome.py` | Pure core: record parser, classifier, report, comparison |
+| `scripts/eval/_outcome_record.py` | Pure core: record contract and strict parser |
+| `scripts/eval/_durable_outcome.py` | Pure core: classifier, report, comparison |
 | `scripts/eval/eval_durable_outcome.py` | CLI: read JSONL, print JSON report, exit code |
 | `scripts/eval/_eval_common.py` | Gains public `percentile`, the one merged copy |
-| `tests/eval/test_durable_outcome.py` | Core tests |
+| `tests/eval/_durable_outcome_test_support.py` | Shared record builders for the tests |
+| `tests/eval/test_outcome_record.py` | Parser tests |
+| `tests/eval/test_durable_outcome.py` | Classifier, report, and comparison tests |
 | `tests/eval/test_eval_durable_outcome_cli.py` | CLI tests |
 | `tests/eval/fixtures/durable_outcome/*.jsonl` | Known-good, known-bad, and five-case fixtures |
 

@@ -15,74 +15,18 @@ from typing import Any
 
 import pytest
 
-EVAL_DIR = Path(__file__).resolve().parents[2] / "scripts" / "eval"
+from tests.eval._durable_outcome_test_support import EVAL_DIR, cli, make_config, make_record
+
 SCRIPT_PATH = EVAL_DIR / "eval_durable_outcome.py"
-
-sys.path.insert(0, str(EVAL_DIR))
-
-import eval_durable_outcome as cli  # noqa: E402
-
-
-def _config(**overrides: object) -> dict[str, Any]:
-    base: dict[str, Any] = {
-        "model": "claude-sonnet-5",
-        "harness": "claude",
-        "harness_version": "2.3.1",
-        "context_bytes": 1000,
-        "retry_budget": 1,
-        "reviewer": "critic",
-        "control": "full",
-    }
-    base.update(overrides)
-    return base
-
-
-def _record(**overrides: object) -> dict[str, Any]:
-    base: dict[str, Any] = {
-        "task_id": "t1",
-        "repeat": 0,
-        "config": _config(),
-        "capability": {"attempted": True, "produced_artifact": True},
-        "execution": {
-            "deterministic_acceptance": "PASS",
-            "first_pass": "PASS",
-            "tool_failures": 0,
-            "retries": 0,
-            "scope_violations": 0,
-            "judge": "PASS",
-        },
-        "durable": {
-            "followup_validation": "PASS",
-            "objective_satisfied": "PASS",
-            "residual_defects": 0,
-            "review_findings": 0,
-            "rollback_events": 0,
-            "rework_minutes": 0,
-        },
-        "economics": {
-            "model_cost_usd": 0.5,
-            "tool_cost_usd": 0.0,
-            "wall_seconds": 100,
-            "human_correction_minutes": 0,
-        },
-        "risk": {
-            "security_findings": 0,
-            "unapproved_external_actions": 0,
-            "unsupported_claims": 0,
-            "unresolved_uncertainty": 0,
-        },
-    }
-    base.update(overrides)
-    return base
 
 
 def _write_jsonl(path: Path, records: list[dict[str, Any]]) -> None:
     path.write_text("\n".join(json.dumps(r) for r in records) + "\n", encoding="utf-8")
 
 
-def test_main_exit_0_on_pass_report(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_main_exit_0_on_verified_report(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     records_path = tmp_path / "records.jsonl"
-    _write_jsonl(records_path, [_record()])
+    _write_jsonl(records_path, [make_record()])
 
     exit_code = cli.main(["--records", str(records_path)])
 
@@ -94,7 +38,7 @@ def test_main_exit_0_on_pass_report(tmp_path: Path, capsys: pytest.CaptureFixtur
 def test_main_exit_1_on_unverified_report(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    data = _record()
+    data = make_record()
     data["durable"] = {**data["durable"], "residual_defects": None}
     records_path = tmp_path / "records.jsonl"
     _write_jsonl(records_path, [data])
@@ -109,7 +53,7 @@ def test_main_exit_1_on_unverified_report(
 def test_main_skips_blank_lines(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     records_path = tmp_path / "records.jsonl"
     records_path.write_text(
-        "\n" + json.dumps(_record()) + "\n\n" + json.dumps(_record(task_id="t2")) + "\n\n",
+        "\n" + json.dumps(make_record()) + "\n\n" + json.dumps(make_record(task_id="t2")) + "\n\n",
         encoding="utf-8",
     )
 
@@ -124,7 +68,7 @@ def test_main_exit_2_on_malformed_json_names_line_number(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     records_path = tmp_path / "records.jsonl"
-    records_path.write_text(json.dumps(_record()) + "\n{not json\n", encoding="utf-8")
+    records_path.write_text(json.dumps(make_record()) + "\n{not json\n", encoding="utf-8")
 
     exit_code = cli.main(["--records", str(records_path)])
 
@@ -136,7 +80,7 @@ def test_main_exit_2_on_malformed_json_names_line_number(
 def test_main_exit_2_on_parse_refusal_names_line_number(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    bad = _record()
+    bad = make_record()
     bad["extra"] = 1
     records_path = tmp_path / "records.jsonl"
     _write_jsonl(records_path, [bad])
@@ -173,9 +117,9 @@ def test_main_exit_0_on_better_comparison(
 ) -> None:
     baseline_path = tmp_path / "baseline.jsonl"
     candidate_path = tmp_path / "candidate.jsonl"
-    baseline = _record(config=_config(control="reduced"))
+    baseline = make_record(config=make_config(control="reduced"))
     baseline["economics"] = {**baseline["economics"], "model_cost_usd": 1.0}
-    candidate = _record(config=_config(control="full"))
+    candidate = make_record(config=make_config(control="full"))
     candidate["economics"] = {**candidate["economics"], "model_cost_usd": 0.1}
     _write_jsonl(baseline_path, [baseline])
     _write_jsonl(candidate_path, [candidate])
@@ -194,9 +138,9 @@ def test_main_exit_1_on_worse_comparison(
 ) -> None:
     baseline_path = tmp_path / "baseline.jsonl"
     candidate_path = tmp_path / "candidate.jsonl"
-    baseline = _record(config=_config(control="reduced"))
+    baseline = make_record(config=make_config(control="reduced"))
     baseline["economics"] = {**baseline["economics"], "model_cost_usd": 0.1}
-    candidate = _record(config=_config(control="full"))
+    candidate = make_record(config=make_config(control="full"))
     candidate["economics"] = {**candidate["economics"], "model_cost_usd": 1.0}
     _write_jsonl(baseline_path, [baseline])
     _write_jsonl(candidate_path, [candidate])
@@ -216,8 +160,8 @@ def test_main_exit_0_on_mixed_comparison(
     baseline_path = tmp_path / "baseline.jsonl"
     candidate_path = tmp_path / "candidate.jsonl"
     # Identical apart from `control`: dominates both ways -> MIXED (a tie).
-    baseline = _record(config=_config(control="reduced"))
-    candidate = _record(config=_config(control="full"))
+    baseline = make_record(config=make_config(control="reduced"))
+    candidate = make_record(config=make_config(control="full"))
     _write_jsonl(baseline_path, [baseline])
     _write_jsonl(candidate_path, [candidate])
 
@@ -235,9 +179,9 @@ def test_main_exit_1_on_unverified_comparison(
 ) -> None:
     baseline_path = tmp_path / "baseline.jsonl"
     candidate_path = tmp_path / "candidate.jsonl"
-    baseline = _record(config=_config(control="reduced"))
+    baseline = make_record(config=make_config(control="reduced"))
     baseline["durable"] = {**baseline["durable"], "residual_defects": None}
-    candidate = _record(config=_config(control="full"))
+    candidate = make_record(config=make_config(control="full"))
     _write_jsonl(baseline_path, [baseline])
     _write_jsonl(candidate_path, [candidate])
 
@@ -255,8 +199,8 @@ def test_main_exit_2_on_comparison_config_mismatch(
 ) -> None:
     baseline_path = tmp_path / "baseline.jsonl"
     candidate_path = tmp_path / "candidate.jsonl"
-    baseline = _record(config=_config(control="reduced", harness="claude"))
-    candidate = _record(config=_config(control="full", harness="codex"))
+    baseline = make_record(config=make_config(control="reduced", harness="claude"))
+    candidate = make_record(config=make_config(control="full", harness="codex"))
     _write_jsonl(baseline_path, [baseline])
     _write_jsonl(candidate_path, [candidate])
 
@@ -273,8 +217,8 @@ def test_main_exit_2_on_comparison_task_set_mismatch(
 ) -> None:
     baseline_path = tmp_path / "baseline.jsonl"
     candidate_path = tmp_path / "candidate.jsonl"
-    baseline = _record(task_id="t1", config=_config(control="reduced"))
-    candidate = _record(task_id="t2", config=_config(control="full"))
+    baseline = make_record(task_id="t1", config=make_config(control="reduced"))
+    candidate = make_record(task_id="t2", config=make_config(control="full"))
     _write_jsonl(baseline_path, [baseline])
     _write_jsonl(candidate_path, [candidate])
 
@@ -290,7 +234,7 @@ def test_script_run_as_main_exits_0_on_pass_report(tmp_path: Path) -> None:
     # Drives the `if __name__ == "__main__":` guard through a real
     # subprocess, matching the process boundary an operator actually invokes.
     records_path = tmp_path / "records.jsonl"
-    _write_jsonl(records_path, [_record()])
+    _write_jsonl(records_path, [make_record()])
 
     completed = subprocess.run(
         [sys.executable, str(SCRIPT_PATH), "--records", str(records_path)],
