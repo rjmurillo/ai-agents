@@ -1099,7 +1099,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     script_dir = Path(__file__).resolve().parent
     repo_root = script_dir.parent.parent
 
-    claude_path = args.claude_path or (repo_root / "src" / "claude")
+    claude_path = args.claude_path or (repo_root / "src" / "claude" / "agents")
     vscode_path = args.vscode_path or (repo_root / "src" / "vs-code-agents")
 
     if not claude_path.is_dir():

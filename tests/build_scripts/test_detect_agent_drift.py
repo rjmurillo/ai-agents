@@ -13,6 +13,7 @@ blocks, install drift is advisory unless --fail-on-install-drift is set.
 from __future__ import annotations
 
 import importlib.util
+import json
 import sys
 from pathlib import Path
 
@@ -412,6 +413,29 @@ def test_main_skip_install_comparison_only_vendored(fake_repo: Path) -> None:
     )
 
     assert exit_code == 0
+
+
+def test_default_claude_path_compares_every_vendored_agent(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Issue #5789 AC1/AC2: a bare run compares every tracked vendored agent.
+
+    ADR-109 B1 moved the Claude agents to src/claude/agents/. A default that
+    still pointed at src/claude/ compared one non-agent file with no
+    counterpart, so the gate passed without comparing any agent.
+    """
+    expected = {
+        p.name.removesuffix(".agent.md")
+        for p in (REPO_ROOT / "src" / "vs-code-agents").glob("*.agent.md")
+    }
+
+    drift.main(["--skip-install-comparison", "--output-format", "json"])
+
+    results = json.loads(capsys.readouterr().out)["results"]
+    vendored = [r for r in results if r["comparison"] == "src-claude vs src-vscode"]
+    assert len(expected) >= 2
+    assert {r["agentName"] for r in vendored} == expected
+    assert [r["agentName"] for r in vendored if r["status"] == "NO COUNTERPART"] == []
 
 
 # --- Issue #2423: changed-files scoping for pre-push -------------------------
