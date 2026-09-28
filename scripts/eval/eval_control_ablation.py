@@ -24,7 +24,7 @@ import subprocess
 import sys
 import tempfile
 import uuid
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterator, Mapping, Sequence
 from pathlib import Path
 from typing import TextIO
 
@@ -177,6 +177,30 @@ def _grade_live_run(
     return record, argv, reply
 
 
+def _run_plan(
+    tasks: Sequence[ablation_tasks.Task],
+    repeats: int,
+    controls: Mapping[str, ablation.ControlFiles],
+) -> Iterator[tuple[ablation_tasks.Task, int, str, ablation.ControlFiles]]:
+    """DESIGN-041 "Run sequence (live)": for each task, each repeat, each control."""
+    for task in tasks:
+        for repeat in range(repeats):
+            for name, control in controls.items():
+                yield task, repeat, name, control
+
+
+def _failure_entry(
+    task: ablation_tasks.Task, name: str, repeat: int, model: str, exc: BaseException
+) -> dict[str, object]:
+    return {
+        "task_id": task.id,
+        "control": name,
+        "repeat": repeat,
+        "argv": redacted_argv(claude_run.claude_argv(model, task.prompt), "claude"),
+        "harness_failure": str(exc),
+    }
+
+
 def _run_live(
     tasks: Sequence[ablation_tasks.Task],
     controls: Mapping[str, ablation.ControlFiles],
@@ -199,49 +223,36 @@ def _run_live(
     runs: list[dict[str, object]] = []
     any_harness_failure = False
     try:
-        # DESIGN-041 "Run sequence (live)": "Runs interleave: for each task,
-        # for each repeat, for each control."
-        for task in tasks:
-            for repeat in range(repeats):
-                for name, control in controls.items():
-                    workspace = workspace_root / f"{task.id}-{name}-{repeat}"
-                    planned_argv = claude_run.claude_argv(model, task.prompt)
-                    argv_for_report = redacted_argv(planned_argv, "claude")
-                    try:
-                        record, argv, reply = _grade_live_run(
-                            workspace,
-                            task,
-                            control,
-                            repeat,
-                            model,
-                            harness_version,
-                            timeout,
-                            runner,
-                            auth_file,
-                        )
-                    except _HARNESS_ERRORS as exc:
-                        any_harness_failure = True
-                        runs.append(
-                            {
-                                "task_id": task.id,
-                                "control": name,
-                                "repeat": repeat,
-                                "argv": argv_for_report,
-                                "harness_failure": str(exc),
-                            }
-                        )
-                        continue
-                    writers[name].write(json.dumps(record) + "\n")
-                    runs.append(
-                        {
-                            "task_id": task.id,
-                            "control": name,
-                            "repeat": repeat,
-                            "argv": redacted_argv(argv, "claude"),
-                            "reply": reply,
-                            "record": record,
-                        }
-                    )
+        for task, repeat, name, control in _run_plan(tasks, repeats, controls):
+            try:
+                record, argv, reply = _grade_live_run(
+                    workspace_root / f"{task.id}-{name}-{repeat}",
+                    task,
+                    control,
+                    repeat,
+                    model,
+                    harness_version,
+                    timeout,
+                    runner,
+                    auth_file,
+                )
+            except _HARNESS_ERRORS as exc:
+                any_harness_failure = True
+                runs.append(_failure_entry(task, name, repeat, model, exc))
+                if isinstance(exc, claude_run.AuthExpiryError):
+                    break
+                continue
+            writers[name].write(json.dumps(record) + "\n")
+            runs.append(
+                {
+                    "task_id": task.id,
+                    "control": name,
+                    "repeat": repeat,
+                    "argv": redacted_argv(argv, "claude"),
+                    "reply": reply,
+                    "record": record,
+                }
+            )
     finally:
         for handle in writers.values():
             handle.close()
@@ -265,6 +276,21 @@ def _requested_controls(raw: str) -> list[str]:
             f"expected one of {sorted(ablation.CONTROL_NAMES)}"
         )
     return names
+
+
+def _select_tasks(
+    tasks: list[ablation_tasks.Task], raw: str | None
+) -> list[ablation_tasks.Task]:
+    """Keep only `--only-tasks` ids, in corpus order; an unknown id refuses."""
+    if raw is None:
+        return tasks
+    wanted = {item.strip() for item in raw.split(",") if item.strip()}
+    unknown = sorted(wanted - {task.id for task in tasks})
+    if not wanted or unknown:
+        raise ablation_tasks.ControlAblationConfigError(
+            f"--only-tasks names unknown or no task id(s): {unknown or raw!r}"
+        )
+    return [task for task in tasks if task.id in wanted]
 
 
 def _default_output_dir() -> Path:
@@ -305,6 +331,11 @@ def _parser() -> argparse.ArgumentParser:
             "isolated CLAUDE_CONFIG_DIR for the duration of the Claude call."
         ),
     )
+    parser.add_argument(
+        "--only-tasks",
+        default=None,
+        help="Comma-separated task ids to run; the rest of the corpus is skipped.",
+    )
     parser.add_argument("--dry-run", action="store_true")
     return parser
 
@@ -312,7 +343,7 @@ def _parser() -> argparse.ArgumentParser:
 def _run(
     args: argparse.Namespace, workspace_root: Path, output_dir: Path, runner: claude_run.Runner
 ) -> tuple[dict[str, object], int]:
-    tasks = ablation_tasks.load_tasks_file(args.tasks.resolve())
+    tasks = _select_tasks(ablation_tasks.load_tasks_file(args.tasks.resolve()), args.only_tasks)
     if args.dry_run:
         return _run_dry_run(tasks, workspace_root)
     control_names = _requested_controls(args.controls)

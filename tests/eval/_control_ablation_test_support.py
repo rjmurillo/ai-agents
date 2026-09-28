@@ -136,6 +136,7 @@ class FakeClaudeRunner:
         resolved_model: str | None = None,
         cost: float = 0.01,
         omit_cost: bool = False,
+        error_result: bool = False,
     ) -> None:
         self.by_prompt = {task.prompt: task for task in tasks}
         self.kind = kind
@@ -143,6 +144,7 @@ class FakeClaudeRunner:
         self.resolved_model = model if resolved_model is None else resolved_model
         self.cost = cost
         self.omit_cost = omit_cost
+        self.error_result = error_result
         self.calls: list[list[str]] = []
 
     def __call__(
@@ -182,6 +184,10 @@ class FakeClaudeRunner:
         }
         if not self.omit_cost:
             result_event["total_cost_usd"] = self.cost
+        if self.error_result:
+            result_event.update(
+                {"is_error": True, "result": "Failed to authenticate", "total_cost_usd": 0}
+            )
         events.append(result_event)
         stdout = "\n".join(json.dumps(event) for event in events) + "\n"
         return subprocess.CompletedProcess(args, 0, stdout=stdout, stderr="")

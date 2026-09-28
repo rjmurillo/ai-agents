@@ -18,7 +18,10 @@ from tests.eval._control_ablation_test_support import (
 # --claude-auth-file
 # ---------------------------------------------------------------------------
 
-AUTH_SECRET = '{"claudeAiOauth": {"accessToken": "fixture-secret-7731"}}'
+FAR_FUTURE_MS = 4_102_444_800_000  # 2100-01-01
+AUTH_SECRET = json.dumps(
+    {"claudeAiOauth": {"accessToken": "fixture-secret-7731", "expiresAt": FAR_FUTURE_MS}}
+)
 
 
 class AuthObservingRunner(FakeClaudeRunner):
@@ -114,3 +117,33 @@ def test_live_report_keeps_each_runs_reply(tmp_path: Path) -> None:
     report = json.loads((tmp_path / "out" / "report.json").read_text(encoding="utf-8"))
     replies = {run["reply"] for run in report["runs"]}
     assert replies == {task.controls["known_good"].response for task in tasks}
+
+
+def _print_calls(runner: FakeClaudeRunner) -> int:
+    return sum(1 for call in runner.calls if "--print" in call)
+
+
+def test_expiring_login_stops_the_batch_before_any_model_call(tmp_path: Path) -> None:
+    auth = tmp_path / "credentials.json"
+    soon_ms = 1_000  # 1970: already expired
+    auth.write_text(json.dumps({"claudeAiOauth": {"expiresAt": soon_ms}}), encoding="utf-8")
+    runner = FakeClaudeRunner(load_tasks(tmp_path))
+
+    code = cli.main(_live_args(tmp_path, "--claude-auth-file", str(auth)), runner=runner)
+
+    assert code == cli.EXIT_EXTERNAL
+    assert _print_calls(runner) == 0
+    report = json.loads((tmp_path / "out" / "report.json").read_text(encoding="utf-8"))
+    assert len(report["runs"]) == 1
+    assert "expires in" in report["runs"][0]["harness_failure"]
+
+
+def test_login_without_expiry_fails_closed(tmp_path: Path) -> None:
+    auth = tmp_path / "credentials.json"
+    auth.write_text(json.dumps({"claudeAiOauth": {}}), encoding="utf-8")
+    runner = FakeClaudeRunner(load_tasks(tmp_path))
+
+    code = cli.main(_live_args(tmp_path, "--claude-auth-file", str(auth)), runner=runner)
+
+    assert code == cli.EXIT_EXTERNAL
+    assert _print_calls(runner) == 0

@@ -1129,7 +1129,16 @@ sibling of the workspace, outside the agent's working tree, and the seed
 excludes `.parity-profile/` from the workspace's git. A subscription login needs
 `--claude-auth-file ~/.claude/.credentials.json`: the file is copied into each
 run's profile at mode `0600` for the duration of the Claude call only, then
-deleted before grading. Its contents are never written to a report. The agent
+deleted before grading. Before each call the CLI reads only the file's
+`claudeAiOauth.expiresAt`; when the login has less than the call timeout plus
+300 seconds left, or no readable expiry, the batch stops (exit 3) before the
+call. A copied login that expires mid-call makes the isolated CLI refresh it,
+which rotates the refresh token inside a copy that is then deleted and fails
+every later run (observed 2026-09-28). Run `claude` once to refresh, then
+rerun only the missing tasks with `--only-tasks id1,id2` into the same
+`--output-dir` (records append) and a fresh `--workspace-root`. A result event
+marked `is_error` is a harness failure with no record, never a rejected task.
+Its contents are never written to a report. The agent
 under test can still read it by absolute path while it runs, so keep live
 workspaces and reports out of the repository.
 

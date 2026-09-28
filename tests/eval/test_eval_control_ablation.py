@@ -340,3 +340,51 @@ def test_main_refuses_a_malformed_task_file(tmp_path: Path) -> None:
         ]
     )
     assert code == cli.EXIT_CONFIG
+
+
+def _live_reduced_args(tmp_path: Path, *extra: str) -> list[str]:
+    return [
+        "--tasks",
+        str(write_tasks(tmp_path)),
+        "--controls",
+        "reduced",
+        "--workspace-root",
+        str(tmp_path / "ws"),
+        "--output-dir",
+        str(tmp_path / "out"),
+        *extra,
+    ]
+
+
+def test_error_result_is_a_harness_failure_with_no_record(tmp_path: Path) -> None:
+    runner = FakeClaudeRunner(load_tasks(tmp_path), error_result=True)
+
+    code = cli.main(_live_reduced_args(tmp_path), runner=runner)
+
+    assert code == cli.EXIT_EXTERNAL
+    records = (tmp_path / "out" / "records-reduced.jsonl").read_text(encoding="utf-8")
+    assert records == ""
+    report = json.loads((tmp_path / "out" / "report.json").read_text(encoding="utf-8"))
+    assert all("claude result is an error" in run["harness_failure"] for run in report["runs"])
+
+
+def test_only_tasks_runs_just_the_named_tasks(tmp_path: Path) -> None:
+    tasks = load_tasks(tmp_path)
+    chosen = tasks[0].id
+
+    code = cli.main(
+        _live_reduced_args(tmp_path, "--only-tasks", chosen), runner=FakeClaudeRunner(tasks)
+    )
+
+    assert code == cli.EXIT_OK
+    report = json.loads((tmp_path / "out" / "report.json").read_text(encoding="utf-8"))
+    assert {run["task_id"] for run in report["runs"]} == {chosen}
+
+
+def test_only_tasks_refuses_an_unknown_id(tmp_path: Path) -> None:
+    runner = FakeClaudeRunner(load_tasks(tmp_path))
+
+    code = cli.main(_live_reduced_args(tmp_path, "--only-tasks", "no-such-task"), runner=runner)
+
+    assert code == cli.EXIT_CONFIG
+    assert runner.calls == []

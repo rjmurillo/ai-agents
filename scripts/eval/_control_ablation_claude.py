@@ -10,6 +10,7 @@ model than requested. `eval_control_ablation.py` owns the run loop.
 from __future__ import annotations
 
 import contextlib
+import json
 import os
 import shutil
 import stat
@@ -29,6 +30,21 @@ Runner = Callable[..., subprocess.CompletedProcess[str]]
 
 class HarnessFailureError(RuntimeError):
     """A live run's Claude invocation could not produce a usable record (AC-8)."""
+
+
+class AuthExpiryError(HarnessFailureError):
+    """The operator's login would expire during the call; the batch must stop.
+
+    A copied login whose access token expires mid-call makes the isolated CLI
+    refresh it. The refresh rotates the refresh token inside a copy that is
+    then deleted, so every later copy fails with "OAuth session expired"
+    (observed 2026-09-28: 20 of 30 runs). Stopping before the call keeps the
+    operator's own login out of that rotation.
+    """
+
+
+#: Margin beyond the call timeout, so the CLI never sees a near-expiry token.
+AUTH_EXPIRY_MARGIN_SECONDS = 300.0
 
 
 # ---------------------------------------------------------------------------
@@ -102,6 +118,37 @@ def claude_auth(source: Path | None, config_dir: Path) -> Iterator[None]:
         target.unlink(missing_ok=True)
 
 
+def require_unexpired_auth(
+    source: Path, timeout: float, now: Callable[[], float] = time.time
+) -> None:
+    """Raise `AuthExpiryError` unless `source` stays valid past this call.
+
+    Reads only `claudeAiOauth.expiresAt` (epoch milliseconds); never logs a
+    token. An unreadable or missing expiry fails closed.
+    """
+    try:
+        payload = json.loads(source.read_text(encoding="utf-8"))
+        expires_at = float(payload["claudeAiOauth"]["expiresAt"]) / 1000.0
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        raise AuthExpiryError(f"cannot read claudeAiOauth.expiresAt from {source}") from exc
+    remaining = expires_at - now()
+    if remaining < timeout + AUTH_EXPIRY_MARGIN_SECONDS:
+        raise AuthExpiryError(
+            f"login in {source} expires in {remaining:.0f}s, under the {timeout:.0f}s call "
+            f"timeout plus {AUTH_EXPIRY_MARGIN_SECONDS:.0f}s; run `claude` once to refresh it"
+        )
+
+
+def _require_success_result(events: Sequence[Mapping[str, object]], reply: str) -> None:
+    """A result event marked `is_error` is a harness failure, not a task attempt."""
+    for event in events:
+        if event.get("type") != "result":
+            continue
+        if event.get("is_error") is True or event.get("subtype") not in (None, "success"):
+            raise HarnessFailureError(f"claude result is an error: {reply[:200]!r}")
+        return
+
+
 def claude_config_dir(workspace: Path) -> Path:
     """Place the Claude profile beside the workspace, not inside it.
 
@@ -125,6 +172,8 @@ def invoke_claude(
     auth_file: Path | None = None,
 ) -> tuple[list[dict[str, object]], str, float, float, list[str]]:
     """Run one Claude CLI turn; raise `HarnessFailureError` for an AC-8 condition."""
+    if auth_file is not None:
+        require_unexpired_auth(auth_file, timeout)
     argv = claude_argv(model, task.prompt)
     env = runtime_env(workspace, "claude")
     env["CLAUDE_CONFIG_DIR"] = str(claude_config_dir(workspace))
@@ -147,6 +196,7 @@ def invoke_claude(
     except RuntimeOutputError as exc:
         raise HarnessFailureError(str(exc)) from exc
     reply, resolved_model = claude_result(events)
+    _require_success_result(events, reply)
     if not same_model(resolved_model, model):
         raise HarnessFailureError(
             f"resolved model {resolved_model!r} does not match requested {model!r}"
