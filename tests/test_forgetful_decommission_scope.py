@@ -116,6 +116,8 @@ def files_naming_token(repo: Path, scope: tuple[str, ...] = AC1_SCOPE) -> set[st
         cwd=repo,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         check=False,
     )
     if result.returncode not in (0, 1):
@@ -123,23 +125,21 @@ def files_naming_token(repo: Path, scope: tuple[str, ...] = AC1_SCOPE) -> set[st
     return set(result.stdout.splitlines())
 
 
-def unexempted(found: set[str], exemptions: dict[str, tuple[str, str]]) -> list[str]:
-    """Files that name the token without an exemption."""
-    return sorted(found - exemptions.keys())
+Audit = tuple[list[str], list[str]]
 
 
-def stale_exemptions(found: set[str], exemptions: dict[str, tuple[str, str]]) -> list[str]:
-    """Exempted files that no longer name the token."""
-    return sorted(exemptions.keys() - found)
+def audit(found: set[str], exemptions: dict[str, tuple[str, str]]) -> Audit:
+    """Return (files naming the token with no exemption, exemptions naming no file)."""
+    return sorted(found - exemptions.keys()), sorted(exemptions.keys() - found)
 
 
 @pytest.fixture(scope="module")
-def found() -> set[str]:
-    return files_naming_token(REPO_ROOT)
+def ac1_audit() -> Audit:
+    return audit(files_naming_token(REPO_ROOT), EXEMPTIONS)
 
 
-def test_no_unexempted_file_names_the_retired_backend(found: set[str]) -> None:
-    offenders = unexempted(found, EXEMPTIONS)
+def test_no_unexempted_file_names_the_retired_backend(ac1_audit: Audit) -> None:
+    offenders, _ = ac1_audit
     assert not offenders, (
         f"{offenders} name the retired memory backend. Rewrite the live text to "
         "point at Serena (ADR-106). Add an exemption only for an assertion needle, "
@@ -147,8 +147,8 @@ def test_no_unexempted_file_names_the_retired_backend(found: set[str]) -> None:
     )
 
 
-def test_every_exemption_is_still_needed(found: set[str]) -> None:
-    stale = stale_exemptions(found, EXEMPTIONS)
+def test_every_exemption_is_still_needed(ac1_audit: Audit) -> None:
+    _, stale = ac1_audit
     assert not stale, f"{stale} no longer name the token; delete their exemptions."
 
 
@@ -159,7 +159,7 @@ def test_every_exemption_names_a_known_class_and_a_reason(path: str) -> None:
     assert reason.strip(), path
 
 
-def test_scan_detects_a_mention_in_scope_and_ignores_one_outside(tmp_path: Path) -> None:
+def test_audit_flags_an_unexempted_mention_and_a_stale_exemption(tmp_path: Path) -> None:
     """Negative control: without it, a scan that stopped matching would pass."""
     git = shutil.which("git")
     assert git is not None
@@ -173,10 +173,6 @@ def test_scan_detects_a_mention_in_scope_and_ignores_one_outside(tmp_path: Path)
     hits = files_naming_token(tmp_path, ("scripts",))
 
     assert hits == {"scripts/live.py"}
-    assert unexempted(hits, {}) == ["scripts/live.py"]
-    assert unexempted(hits, {"scripts/live.py": (NEEDLE, "fixture")}) == []
-
-
-def test_stale_detection_reports_an_exemption_with_no_mention() -> None:
-    exemptions = {"a.py": (NEEDLE, "fixture"), "b.py": (RECORD, "fixture")}
-    assert stale_exemptions({"a.py"}, exemptions) == ["b.py"]
+    assert audit(hits, {}) == (["scripts/live.py"], [])
+    exempted = {"scripts/live.py": (NEEDLE, "x"), "gone.py": (RECORD, "x")}
+    assert audit(hits, exempted) == ([], ["gone.py"])
