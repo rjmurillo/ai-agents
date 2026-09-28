@@ -2,7 +2,7 @@
   {
     "id": "memory-01-recall",
     "query": "What do we know about the ARM64 build cache from prior sessions? Recall the prior context.",
-    "candidates": ["memory", "memory-enhancement", "memory-documentary", "using-forgetful-memory"],
+    "candidates": ["memory", "memory-enhancement", "memory-documentary"],
     "correct": "memory"
   },
   {
@@ -16,12 +16,6 @@
     "query": "Produce an evidence-based report investigating what happened with the orchestrator refactor across all our memory systems over time.",
     "candidates": ["memory", "memory-documentary", "memory-enhancement"],
     "correct": "memory-documentary"
-  },
-  {
-    "id": "memory-04-forgetful-guidance",
-    "query": "I'm unsure whether I should query Forgetful for an existing memory or create a new one. What's the right call?",
-    "candidates": ["using-forgetful-memory", "memory", "memory-enhancement"],
-    "correct": "using-forgetful-memory"
   },
   {
     "id": "context-01-gather",

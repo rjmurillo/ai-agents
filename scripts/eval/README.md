@@ -883,7 +883,7 @@ readable per-pair deltas and verdicts) and `REPORT.md` (prune/fold table).
 
 Note on the Issue #1932 Phase 1 pairs: `doc-coverage`, `doc-sync`, and
 `session-qa-eligibility` were deleted in the M1 catalog prune (commit
-`5c4729345`, #1942), and the knowledge-graph skill was retired in the Forgetful
+`5c4729345`, #1942), and the knowledge-graph skill was retired in the memory-backend
 decommission (#5574). The example file targets the one surviving overlapping
 pair (`memory-enhancement`/`curating-memories`). A pair naming a deleted skill
 is not inert: `eval-skill-overlap.py` resolves every pair member to a skill

@@ -1,5 +1,5 @@
 {
-  "_comment": "Issue #1949 (M4): pairwise overlap eval on the INVESTIGATE-tier pairs from the M1 triage. Pair 1: curating-memories x memory-enhancement (both maintain memory quality, content vs metadata facet). The original pair 2 was exploring-knowledge-graph x memory Tier-1; that skill was retired in the Forgetful decommission (#5574) and the pair is removed, because eval-skill-overlap.py hard-fails on a missing skill directory and the quarterly skill-overlap-eval.yml workflow runs this file. The completed M4 run is preserved at evals/reports/overlap-m4-overlap-1949-2026-06-17/. Prompts are the per-skill native prompts derived from each SKILL.md. Run live with: python3 scripts/eval/eval-skill-overlap.py --pairs scripts/eval/examples/overlap-pairs-issue-1949.json",
+  "_comment": "Issue #1949 (M4): pairwise overlap eval on the INVESTIGATE-tier pairs from the M1 triage. Pair 1: curating-memories x memory-enhancement (both maintain memory quality, content vs metadata facet). The original pair 2 was exploring-knowledge-graph x memory Tier-1; that skill was retired in the memory-backend decommission (#5574), so the pair and its memory prompt set are removed, because eval-skill-overlap.py hard-fails on a missing skill directory and the quarterly skill-overlap-eval.yml workflow runs this file. The completed M4 run is preserved at evals/reports/overlap-m4-overlap-1949-2026-06-17/. Prompts are the per-skill native prompts derived from each SKILL.md. Run live with: python3 scripts/eval/eval-skill-overlap.py --pairs scripts/eval/examples/overlap-pairs-issue-1949.json",
   "pairs": [
     ["curating-memories", "memory-enhancement"]
   ],
@@ -46,28 +46,6 @@
         "prompt": "How do reinforcement updates avoid double-counting when the enhancement pass runs twice on the same entry?",
         "expected": "Each update carries an idempotency key (entry id plus timestamp) so a replayed pass is a no-op. Confidence and link counts are at-least-once signals that must not accumulate on retry.",
         "owner": "memory-enhancement"
-      }
-    ],
-    "memory": [
-      {
-        "prompt": "What do we know about git hooks? Search memory for the relevant prior context.",
-        "expected": "Run a Tier-1 semantic search over Serena and Forgetful for 'git hooks' and return the ranked matching memory entries. This is a direct similarity lookup, not a graph traversal.",
-        "owner": "memory"
-      },
-      {
-        "prompt": "Recall prior context on the session protocol. Which memory operation should I use?",
-        "expected": "Use the memory skill's Tier-1 semantic search to retrieve entries matching 'session protocol'. For a flat recall query, semantic search is the right tier; deeper traversal is only needed when relations matter.",
-        "owner": "memory"
-      },
-      {
-        "prompt": "How do I check that the memory system is healthy before relying on a search?",
-        "expected": "Run the memory health check script. It verifies the Serena and Forgetful backends are reachable so a later search does not silently return empty due to a down dependency.",
-        "owner": "memory"
-      },
-      {
-        "prompt": "I need to replay what happened in a past session. Which memory tier covers that?",
-        "expected": "Tier 2 (episodic) replay covers session history; Tier 1 semantic search covers 'what do we know about X'. Pick the tier by whether you want a recorded session or a similarity match.",
-        "owner": "memory"
       }
     ]
   }
