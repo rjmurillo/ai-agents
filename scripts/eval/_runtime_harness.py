@@ -27,7 +27,7 @@ import os
 import subprocess
 from collections.abc import Callable, Mapping
 from pathlib import Path
-from urllib.parse import urlsplit, urlunsplit
+from urllib.parse import urlsplit
 
 from _runtime_parity import (
     Fixture,
@@ -360,8 +360,8 @@ def copilot_routing(env: Mapping[str, str]) -> dict[str, str]:
     when unset. Only `provider_type` and `base_url` are recorded: never the
     key, token, model id, or wire model, none of which any consumer of this
     report needs to reproduce or interpret a run. The base URL keeps only its
-    scheme, host, port, and path, so userinfo, a query, or a fragment that
-    carries a credential never reaches the report.
+    origin (scheme, host, port), so a credential in userinfo, path, query, or
+    fragment never reaches the report.
     """
     base_url = env.get("COPILOT_PROVIDER_BASE_URL", "")
     if not base_url:
@@ -371,11 +371,14 @@ def copilot_routing(env: Mapping[str, str]) -> dict[str, str]:
 
 
 def _redacted_url(url: str) -> str:
-    """Drop userinfo, query, and fragment from `url`."""
+    """Return the origin of `url`: scheme and raw authority without userinfo.
+
+    The raw authority keeps IPv6 brackets and never parses the port, so a
+    malformed port cannot raise while the report is built.
+    """
     parts = urlsplit(url)
-    host = parts.hostname or ""
-    netloc = f"{host}:{parts.port}" if parts.port else host
-    return urlunsplit((parts.scheme, netloc, parts.path, "", ""))
+    authority = parts.netloc.rpartition("@")[2]
+    return f"{parts.scheme}://{authority}" if parts.scheme else authority
 
 
 def probe_version(

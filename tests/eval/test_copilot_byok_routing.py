@@ -235,8 +235,13 @@ def test_report_records_github_routing_when_no_byok_vars_set(tmp_path: Path, mon
 @pytest.mark.parametrize(
     ("raw", "expected"),
     [
-        ("https://user:s3cret@gw.example:8443/v1?key=s3cret#s3cret", "https://gw.example:8443/v1"),
+        ("https://user:s3cret@gw.example:8443/v1?key=s3cret#s3cret", "https://gw.example:8443"),
+        ("https://gw.example/token/s3cret", "https://gw.example"),
         ("https://api.anthropic.com", "https://api.anthropic.com"),
+        ("http://[::1]:11434/v1", "http://[::1]:11434"),
+        ("https://[2001:db8::1]/v1", "https://[2001:db8::1]"),
+        ("https://gw.example:abc/v1", "https://gw.example:abc"),
+        ("gw.example", ""),
     ],
 )
 def test_copilot_routing_redacts_base_url_credentials(raw: str, expected: str) -> None:

@@ -415,8 +415,8 @@ environment: `{"routing": "byok", "provider_type": ..., "base_url": ...}`
 when `COPILOT_PROVIDER_BASE_URL` is set and non-empty, `provider_type`
 defaulting to `openai` per the CLI docs when `COPILOT_PROVIDER_TYPE` is
 unset; otherwise `{"routing": "github"}`. It never records a key, token,
-model id, or header. The base URL keeps only scheme, host, port, and path, so
-userinfo, a query, or a fragment never reaches the report. The field appears in `report.json` whenever `--harnesses` selects
+model id, or header. The base URL keeps only its origin (scheme, host, port),
+so a credential in userinfo, path, query, or fragment never reaches the report. The field appears in `report.json` whenever `--harnesses` selects
 Copilot (`copilot` or `both`), in both a live run and a `--dry-run`, and is
 absent for `--harnesses claude`.
 
