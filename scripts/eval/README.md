@@ -1017,8 +1017,8 @@ python3 scripts/eval/eval_durable_outcome.py --records RUN.jsonl --baseline BASE
 zero-success and all-success task lists, p10/p50/p90 of cost and correction
 time, and the headline. `--baseline` adds a matched `Comparison`: it refuses
 (exit 2) when the two files' RunConfigs differ in any field other than
-`control`, or when they cover different task sets, naming the differing
-field or the missing task ids. Otherwise it returns `BETTER`, `WORSE`, or
+`control` or `context_bytes`, or when they cover different task sets, naming
+the differing field or the missing task ids. Otherwise it returns `BETTER`, `WORSE`, or
 `MIXED`. `BETTER` requires the candidate to have at least as many accepted
 durable tasks as the baseline, no higher cost per accepted durable task, and
 no task that drops from one or more durable accepts in the baseline to zero

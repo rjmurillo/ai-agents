@@ -99,7 +99,7 @@ report prices the accepted durable task.
   capability, execution, durable, economics, risk.
 - **RunConfig**: model, harness, harness_version, context_bytes,
   retry_budget, reviewer, control. Two records are matched when every field
-  except `control` is equal.
+  except `control` and `context_bytes` is equal.
 - **Evidence**: `PASS`, `FAIL`, or `UNVERIFIED`. Missing evidence is
   `UNVERIFIED`, never `PASS`.
 - **Verdict**: `ACCEPTED_DURABLE`, `ACCEPTED_NOT_DURABLE`, `REJECTED`, or
@@ -162,8 +162,8 @@ human correction minutes per accepted durable task, and residual risk count.
    minutes per accepted durable task, and residual risk count, and shall be
    `null` when no task is accepted durable.
 7. When two configurations differ in any RunConfig field other than
-   `control`, cover different task sets, or run a task a different number
-   of times, the comparison shall refuse.
+   `control` or `context_bytes`, cover different task sets, or run a task a
+   different number of times, the comparison shall refuse.
 8. The comparison shall return `BETTER` only when the candidate has at least
    as many accepted durable tasks, no higher cost per accepted durable task,
    and no task that drops from one or more durable accepts to zero.
