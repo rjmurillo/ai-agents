@@ -11,7 +11,7 @@
 [Constraints]
 |Cross-harness change: read `agent-harness-reference` first, route through `ai... (see: .project-toolkit/context/src-claude/details/constraints.md)
 [Dangerous assumptions]
-|A green `detect_agent_drift.py` proves nothing about `src/vs-code-agents/` pa... (see: .project-toolkit/context/src-claude/details/dangerous-assumptions.md)
+|`git add` silences the `src/` staleness gate and proves nothing; commit. (see: .project-toolkit/context/src-claude/details/dangerous-assumptions.md)
 [Dependencies]
 |Marketplace entry `project-toolkit`, `source: ./src/claude` (B6); `.claude/` ... (see: .project-toolkit/context/src-claude/details/dependencies.md)
 [Architecture]
