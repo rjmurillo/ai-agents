@@ -179,12 +179,12 @@ def _grade_live_run(
 
 def _run_plan(
     tasks: Sequence[ablation_tasks.Task],
-    repeats: int,
+    repeats: range,
     controls: Mapping[str, ablation.ControlFiles],
 ) -> Iterator[tuple[ablation_tasks.Task, int, str, ablation.ControlFiles]]:
     """DESIGN-041 "Run sequence (live)": for each task, each repeat, each control."""
     for task in tasks:
-        for repeat in range(repeats):
+        for repeat in repeats:
             for name, control in controls.items():
                 yield task, repeat, name, control
 
@@ -205,7 +205,7 @@ def _run_live(
     tasks: Sequence[ablation_tasks.Task],
     controls: Mapping[str, ablation.ControlFiles],
     *,
-    repeats: int,
+    repeats: range,
     model: str,
     timeout: float,
     workspace_root: Path,
@@ -317,6 +317,12 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--tasks", type=Path, default=DEFAULT_TASKS)
     parser.add_argument("--controls", default="full,reduced")
     parser.add_argument("--repeats", type=int, default=1)
+    parser.add_argument(
+        "--start-repeat",
+        type=int,
+        default=0,
+        help="First repeat index, so a resumed batch never reuses a recorded (task, repeat).",
+    )
     parser.add_argument("--model", default=DEFAULT_MODEL)
     parser.add_argument("--workspace-root", type=Path)
     parser.add_argument("--output-dir", type=Path)
@@ -347,6 +353,10 @@ def _run(
     if args.dry_run:
         return _run_dry_run(tasks, workspace_root)
     control_names = _requested_controls(args.controls)
+    if args.start_repeat < 0 or args.repeats < 1:
+        raise ablation_tasks.ControlAblationConfigError(
+            "--start-repeat must be >= 0 and --repeats >= 1"
+        )
     total_runs = len(tasks) * len(control_names) * args.repeats
     if total_runs > args.max_runs:
         raise ablation_tasks.ControlAblationConfigError(
@@ -362,7 +372,7 @@ def _run(
     return _run_live(
         tasks,
         controls,
-        repeats=args.repeats,
+        repeats=range(args.start_repeat, args.start_repeat + args.repeats),
         model=args.model,
         timeout=args.timeout,
         workspace_root=workspace_root,

@@ -1135,7 +1135,7 @@ deleted before grading. Before each call the CLI reads only the file's
 call. A copied login that expires mid-call makes the isolated CLI refresh it,
 which rotates the refresh token inside a copy that is then deleted and fails
 every later run (observed 2026-09-28). Run `claude` once to refresh, then
-rerun only the missing tasks with `--only-tasks id1,id2` into the same
+rerun only the missing cells with `--only-tasks id1,id2` and `--start-repeat N` into the same
 `--output-dir` (records append) and a fresh `--workspace-root`. A result event
 marked `is_error` is a harness failure with no record, never a rejected task.
 Its contents are never written to a report. The agent

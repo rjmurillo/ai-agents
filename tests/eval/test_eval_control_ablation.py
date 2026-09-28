@@ -388,3 +388,23 @@ def test_only_tasks_refuses_an_unknown_id(tmp_path: Path) -> None:
 
     assert code == cli.EXIT_CONFIG
     assert runner.calls == []
+
+
+def test_start_repeat_offsets_every_recorded_repeat(tmp_path: Path) -> None:
+    code = cli.main(
+        _live_reduced_args(tmp_path, "--start-repeat", "1", "--repeats", "2"),
+        runner=FakeClaudeRunner(load_tasks(tmp_path)),
+    )
+
+    assert code == cli.EXIT_OK
+    lines = (tmp_path / "out" / "records-reduced.jsonl").read_text(encoding="utf-8").splitlines()
+    assert {json.loads(line)["repeat"] for line in lines} == {1, 2}
+
+
+def test_negative_start_repeat_refuses_before_any_model_call(tmp_path: Path) -> None:
+    runner = FakeClaudeRunner(load_tasks(tmp_path))
+
+    code = cli.main(_live_reduced_args(tmp_path, "--start-repeat", "-1"), runner=runner)
+
+    assert code == cli.EXIT_CONFIG
+    assert runner.calls == []
