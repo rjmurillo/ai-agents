@@ -67,6 +67,37 @@ def _format_contexts(contexts: Sequence[str]) -> str:
     return "\n".join(f"- `{context}`" for context in contexts)
 
 
+def _run_url() -> str:
+    server_url = os.environ.get("GITHUB_SERVER_URL", "https://github.com")
+    run_id = os.environ.get("GITHUB_RUN_ID", "")
+    if not run_id:
+        return "Local check"
+    return f"{server_url}/{REPOSITORY}/actions/runs/{run_id}"
+
+
+def step0_evidence(
+    added: Sequence[str],
+    removed: Sequence[str],
+) -> tuple[str, str]:
+    """Return the Step 0 Q3 and Q5 answers new_issue.py requires (issue #5700).
+
+    Q3 names who the drift blocks; Q5 cites this run and the exact contexts,
+    both derived from the comparison rather than fixed text.
+    """
+    blocked_by = (
+        f"Maintainers merging to {BRANCH} in {REPOSITORY}: the pinned "
+        f"REQUIRED_CONTEXTS no longer match the live ruleset gate."
+    )
+    signal = (
+        f"Run {_run_url()} compared ruleset {RULESET_ID}: "
+        f"{len(added)} required context(s) not pinned: "
+        f"{', '.join(added) or 'none'}; "
+        f"{len(removed)} pinned context(s) no longer required: "
+        f"{', '.join(removed) or 'none'}."
+    )
+    return blocked_by, signal
+
+
 def render_alert(
     live: set[str],
     pinned: set[str],
@@ -74,13 +105,7 @@ def render_alert(
     removed: Sequence[str],
 ) -> str:
     """Build the actionable issue body for a detected divergence."""
-    server_url = os.environ.get("GITHUB_SERVER_URL", "https://github.com")
-    run_id = os.environ.get("GITHUB_RUN_ID", "")
-    run_url = (
-        f"{server_url}/{REPOSITORY}/actions/runs/{run_id}"
-        if run_id
-        else "Local check"
-    )
+    run_url = _run_url()
     return f"""<!-- {ALERT_MARKER} -->
 ## Ruleset Required Context Drift
 
@@ -191,7 +216,11 @@ def _find_existing_alert() -> tuple[int, int | None]:
     return EXIT_OK, number
 
 
-def publish_alert(body: str) -> int:
+def publish_alert(
+    body: str,
+    added: Sequence[str],
+    removed: Sequence[str],
+) -> int:
     """Create one alert issue, or update its marked comment."""
     runner_temp = os.environ.get("RUNNER_TEMP")
     if not runner_temp:
@@ -211,6 +240,7 @@ def publish_alert(body: str) -> int:
 
     owner, repo = REPOSITORY.split("/", maxsplit=1)
     if issue_number is None:
+        blocked_by, signal = step0_evidence(added, removed)
         rc, _ = _run_issue_skill(
             "new_issue.py",
             [
@@ -224,6 +254,12 @@ def publish_alert(body: str) -> int:
                 str(body_path),
                 "--labels",
                 ALERT_LABELS,
+                "--source",
+                "agent",
+                "--blocked-by",
+                blocked_by,
+                "--signal",
+                signal,
             ],
         )
         return rc
@@ -270,7 +306,7 @@ def run(*, alert: bool) -> int:
     if not alert:
         return EXIT_DRIFT
 
-    publish_rc = publish_alert(body)
+    publish_rc = publish_alert(body, added, removed)
     return EXIT_DRIFT if publish_rc == EXIT_OK else publish_rc
 
 

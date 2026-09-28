@@ -82,7 +82,7 @@ def test_alert_is_published_before_drift_exit(
     monkeypatch.setattr(
         drift,
         "publish_alert",
-        lambda body: _capture(published, body),
+        lambda body, added, removed: _capture(published, body),
     )
 
     assert drift.main(["--alert"]) == drift.EXIT_DRIFT
@@ -166,7 +166,7 @@ def test_publish_alert_requires_runner_temp(
 ) -> None:
     monkeypatch.delenv("RUNNER_TEMP", raising=False)
 
-    assert drift.publish_alert("body") == drift.EXIT_CONFIG
+    assert drift.publish_alert("body", ("a",), ()) == drift.EXIT_CONFIG
 
 
 def test_bare_python_entrypoint_loads_with_workflow_pythonpath() -> None:
@@ -201,10 +201,36 @@ def test_publish_alert_creates_issue_with_github_skills(
     monkeypatch.setenv("RUNNER_TEMP", str(tmp_path))
     monkeypatch.setattr(drift, "_run_issue_skill", run_skill)
 
-    assert drift.publish_alert("alert body") == drift.EXIT_OK
+    assert drift.publish_alert("alert body", ("new-check",), ("old-check",)) == drift.EXIT_OK
     assert [name for name, _ in calls] == ["list_issues.py", "new_issue.py"]
-    assert "--body-file" in calls[1][1]
-    assert "--labels" in calls[1][1]
+    arguments = calls[1][1]
+    assert "--body-file" in arguments
+    assert "--labels" in arguments
+    # Issue #5700: unattended automation files as an agent with Step 0 evidence.
+    assert arguments[arguments.index("--source") + 1] == "agent"
+    blocked_by, signal = drift.step0_evidence(("new-check",), ("old-check",))
+    assert arguments[arguments.index("--blocked-by") + 1] == blocked_by
+    assert arguments[arguments.index("--signal") + 1] == signal
+
+
+def test_step0_evidence_names_the_blocked_merges_and_the_drift() -> None:
+    blocked_by, signal = drift.step0_evidence(("new-check",), ("old-a", "old-b"))
+
+    assert drift.BRANCH in blocked_by
+    assert drift.REPOSITORY in blocked_by
+    assert str(drift.RULESET_ID) in signal
+    assert "1 required context(s) not pinned: new-check" in signal
+    assert "2 pinned context(s) no longer required: old-a, old-b" in signal
+
+
+def test_step0_evidence_passes_the_issue_script_hedge_gate() -> None:
+    # The derived answers must clear new_issue.py's canonical hedge check, or
+    # every drift alert would exit 2 instead of filing.
+    from tests.skills.claude_skills_import import import_skill_script
+
+    new_issue = import_skill_script(".claude/skills/github/scripts/issue/new_issue.py")
+    for answer in drift.step0_evidence(("new-check",), ()):
+        assert new_issue._answer_error("answer", answer, "--source=agent") is None
 
 
 def test_publish_alert_updates_existing_issue_with_github_skills(
@@ -225,7 +251,7 @@ def test_publish_alert_updates_existing_issue_with_github_skills(
     monkeypatch.setenv("RUNNER_TEMP", str(tmp_path))
     monkeypatch.setattr(drift, "_run_issue_skill", run_skill)
 
-    assert drift.publish_alert("updated body") == drift.EXIT_OK
+    assert drift.publish_alert("updated body", ("a",), ()) == drift.EXIT_OK
     assert [name for name, _ in calls] == [
         "list_issues.py",
         "post_issue_comment.py",
