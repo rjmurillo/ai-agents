@@ -59,7 +59,7 @@ EXEMPTIONS: dict[str, tuple[str, str]] = {
     ),
     "evals/memory-spike/fixtures/E002.json": (
         RECORD,
-        "input to the scored 20260528T061135Z run; editing it desyncs that report",
+        "input to the scored 20260528T061135Z run, which records its fixture_sha",
     ),
     "evals/memory-spike/runs/20260528T061135Z-94708c8e/runs.jsonl": (RECORD, _FROZEN_RUN),
     "evals/reports/adr-063-kill-gate-20260708/memory-search.json": (RECORD, _FROZEN_RUN),
