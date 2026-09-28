@@ -228,7 +228,18 @@ class TestNewIssue:
             patch("new_issue.resolve_repo_params", return_value=_mock_repo()),
             patch("subprocess.run", return_value=proc),
         ):
-            rc = mod.main(["--source", "human", "--title", "My Title", "--body", "body text", "--labels", "bug"])
+            rc = mod.main(
+                [
+                    "--source",
+                    "human",
+                    "--title",
+                    "My Title",
+                    "--body",
+                    "body text",
+                    "--labels",
+                    "bug",
+                ]
+            )
         assert rc == 0
         result = json.loads(capsys.readouterr().out)
         assert result["Success"] is True

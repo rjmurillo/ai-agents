@@ -228,9 +228,9 @@ def test_step0_evidence_passes_the_issue_script_hedge_gate() -> None:
     # every drift alert would exit 2 instead of filing.
     from tests.skills.claude_skills_import import import_skill_script
 
-    new_issue = import_skill_script(".claude/skills/github/scripts/issue/new_issue.py")
+    new_issue: Any = import_skill_script(".claude/skills/github/scripts/issue/new_issue.py")
     for answer in drift.step0_evidence(("new-check",), ()):
-        assert new_issue._answer_error("answer", answer, "--source=agent") is None
+        assert new_issue.provenance.answer_error("answer", answer, "--source=agent") is None
 
 
 def test_publish_alert_updates_existing_issue_with_github_skills(

@@ -40,7 +40,16 @@ def test_create_issue_with_body(mock_run, capsys):
         _completed(stdout="https://github.com/owner/repo/issues/99\n"),  # create
     ]
 
-    rc = main(["--source", "human", "--title", "Bug: Something broke", "--body", "Steps to reproduce..."])
+    rc = main(
+        [
+            "--source",
+            "human",
+            "--title",
+            "Bug: Something broke",
+            "--body",
+            "Steps to reproduce...",
+        ]
+    )
     assert rc == 0
     output = json.loads(capsys.readouterr().out)
     assert output["Success"] is True
@@ -83,7 +92,18 @@ def test_missing_label_emits_json_envelope_with_issue_number(mock_run, capsys):
         _completed(rc=1, stderr="could not add label: 'ci' not found"),  # label fails
     ]
 
-    rc = main(["--source", "human", "--title", "Bug", "--labels", "bug,ci", "--output-format", "json"])
+    rc = main(
+        [
+            "--source",
+            "human",
+            "--title",
+            "Bug",
+            "--labels",
+            "bug,ci",
+            "--output-format",
+            "json",
+        ]
+    )
 
     assert rc == 3
     output = json.loads(capsys.readouterr().out)
@@ -147,7 +167,18 @@ def test_body_file_not_found(mock_run, capsys):
         _completed(stdout="https://github.com/o/r\n"),
     ]
 
-    rc = main(["--source", "human", "--title", "Test", "--body-file", "/nonexistent/file.md", "--output-format", "json"])
+    rc = main(
+        [
+            "--source",
+            "human",
+            "--title",
+            "Test",
+            "--body-file",
+            "/nonexistent/file.md",
+            "--output-format",
+            "json",
+        ]
+    )
     assert rc == 2
     output = json.loads(capsys.readouterr().out)
     assert output["Success"] is False
@@ -179,7 +210,18 @@ def test_label_edit_timeout_emits_json_envelope(mock_run, capsys):
         subprocess.TimeoutExpired(cmd=["gh", "issue", "edit"], timeout=30),  # edit hangs
     ]
 
-    rc = main(["--source", "human", "--title", "Test", "--labels", "bug", "--output-format", "json"])
+    rc = main(
+        [
+            "--source",
+            "human",
+            "--title",
+            "Test",
+            "--labels",
+            "bug",
+            "--output-format",
+            "json",
+        ]
+    )
     assert rc == 3
     output = json.loads(capsys.readouterr().out)
     assert output["Success"] is False
