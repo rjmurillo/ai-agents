@@ -8,8 +8,8 @@ of prior decisions and relevant documentation.
 
 This reference covers the multi-source strategy, the synthesis discipline, and
 the citation rules. It moved here from the retired knowledge-graph skill during
-the Forgetful decommission (#5574); `context-gather` was its only live consumer,
-and only one of its five sources was Forgetful.
+the memory-backend decommission (#5574); `context-gather` was its only live
+consumer, and only one of its five sources used the retired backend.
 
 ## Core Behavior
 
@@ -49,8 +49,8 @@ Search in this order. Stop when you have enough for the requested context.
 | 3 | DeepWiki repo docs | `mcp__deepwiki__ask_question`, `mcp__deepwiki__read_wiki_contents` | When researching an external open-source repo. |
 | 4 | WebSearch/WebFetch | `WebSearch`, `WebFetch` | Last resort for recent info not in other sources. |
 
-The table had a fifth source, Forgetful semantic search across all projects.
-It is removed with the Forgetful decommission (#5574), so cross-project recall
+The table had a fifth source, semantic search across all projects on a second
+memory backend. ADR-106 removed that backend (#5574), so cross-project recall
 is no longer available from any source in this list.
 
 ## Search Heuristics

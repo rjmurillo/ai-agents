@@ -137,7 +137,7 @@ _CATEGORY_KEYWORDS: dict[str, list[str]] = {
     "ci-infrastructure": ["workflow", "ci", "pipeline", "action", "deploy"],
     "documentation": ["doc", "readme", "adr", "markdown"],
     "git-operations": ["commit", "push", "merge", "branch", "rebase"],
-    "memory": ["memory", "serena", "forgetful", "knowledge"],
+    "memory": ["memory", "serena", "knowledge"],
     "pr-review": ["pr", "review", "comment", "thread"],
     "session": ["session", "log", "protocol", "validation"],
     "implementation": ["implement", "script", "code", "refactor", "fix"],

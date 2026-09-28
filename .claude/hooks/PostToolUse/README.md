@@ -16,7 +16,7 @@ PostToolUse hooks must never fail the primary operation. All errors should be lo
 
 | Hook | Purpose | File Types | Performance |
 |------|---------|------------|-------------|
-| `invoke_observation_sync.py` | **Retired by ADR-097.** Synced observation memories to Forgetful after `mcp__serena__write_memory` | N/A (tool matcher, not file-type) | Non-blocking |
+| `invoke_observation_sync.py` | **Retired by ADR-097.** Synced observation memories to the retired second memory backend after `mcp__serena__write_memory` | N/A (tool matcher, not file-type) | Non-blocking |
 
 ## Hook Input Format
 

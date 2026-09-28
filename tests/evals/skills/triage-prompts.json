@@ -125,15 +125,15 @@
     "memory": [
       {
         "prompt": "Explain the memory tiers per ADR-038 and which tool serves each.",
-        "expected": "Tier 0 Working (context window, host-managed). Tier 1 Semantic (Serena plus Forgetful search). Tier 2 Episodic (session replay). Tier 3 Causal was removed by ADR-089. Memory-first architecture: search before reasoning."
+        "expected": "Tier 0 Working (context window, host-managed). Tier 1 Semantic (Serena memory search via memory-search). Tier 2 Episodic (session replay via memory-reflexion). Tier 3 Causal was removed by ADR-089. Memory-first architecture: search before reasoning."
       },
       {
         "prompt": "I need to find prior decisions about ARM runner cost. Which tier?",
-        "expected": "Tier 1 Semantic. Search Serena memories with cost runner ARM keywords. Read matched memory file. Forgetful is fallback."
+        "expected": "Tier 1 Semantic. Search Serena memories with cost runner ARM keywords. Read matched memory file. An empty result returns a coverage note, not an error."
       },
       {
-        "prompt": "Difference between Serena and Forgetful in this tiered system?",
-        "expected": "Serena: project-scoped, LSP-aware, file-based memories under .serena/memories/. Forgetful: cross-project, semantic search via MCP. Both Tier 1."
+        "prompt": "Why is Serena the only memory backend in this tiered system?",
+        "expected": "ADR-106 made Serena the only store. Its memories are plain committed markdown under .serena/memories/, so they stay readable when the MCP layer is down. The second backend was removed because an MCP connection failure left no degraded mode."
       },
       {
         "prompt": "When does Tier 2 Episodic memory apply?",
@@ -151,7 +151,7 @@
     "memory-search": [
       {
         "prompt": "Search memory for prior decisions about ADR-007 and summarize the relevant constraints.",
-        "expected": "Use memory-search for Tier 1 semantic lookup. Run the shared search_memory.py workflow across Serena-first memory, with Forgetful as supplementary when reachable, then read only relevant index entries."
+        "expected": "Use memory-search for Tier 1 semantic lookup. Run the shared search_memory.py workflow over Serena memories, then read only relevant index entries."
       },
       {
         "prompt": "What do we know about git hook timeout failures from prior sessions?",
@@ -162,8 +162,8 @@
         "expected": "Use memory-search to recall prior context. Start with focused Tier 1 search and progressive disclosure, then read only matching memories before reasoning about the validator."
       },
       {
-        "prompt": "Forgetful is unreachable. How should I still search memory for plugin versioning rules?",
-        "expected": "Use memory-search with the lexical-only fallback. Serena remains canonical and travels with the repo; losing Forgetful returns a coverage note, not a hard failure."
+        "prompt": "Memory search returned nothing for plugin versioning rules. Is that an error, and what do I do next?",
+        "expected": "Not an error. Serena travels with the repo as plain markdown, so there is no service to be unreachable. An empty result returns a coverage note; broaden the query or read the index, then reason from first principles."
       },
       {
         "prompt": "I need one fact from memory about ARM runner cost. Which skill handles that?",
@@ -203,11 +203,11 @@
     "memory-documentary": [
       {
         "prompt": "Generate a documentary on how this repo decided to use Python over PowerShell for new scripts.",
-        "expected": "Search all 4 memory systems (Claude-Mem, Forgetful, Serena, DeepWiki), .agents/ artifacts, GitHub issues. Cite ADR-042. Investigative-journalism style with citation chain."
+        "expected": "Search all 3 memory systems (Claude-Mem, Serena, DeepWiki), .agents/ artifacts, GitHub issues. Cite ADR-042. Investigative-journalism style with citation chain."
       },
       {
         "prompt": "What memory sources does the documentary search?",
-        "expected": "Claude-Mem, Forgetful, Serena, DeepWiki, .agents/ artifacts, GitHub issues. Six sources with full citation chain."
+        "expected": "Claude-Mem, Serena, DeepWiki, .agents/ artifacts, GitHub issues. Five sources with full citation chain."
       },
       {
         "prompt": "Output style for the documentary skill?",
@@ -250,32 +250,6 @@
       {
         "prompt": "What triggers a memory health check?",
         "expected": "Periodic curation, manual audit, or reflect skill output. Skill scans citations, validates code refs, surfaces low-confidence entries."
-      }
-    ],
-    "using-forgetful-memory": [
-      {
-        "prompt": "How should I structure a new Forgetful memory entry?",
-        "expected": "Apply Zettelkasten atomic memory principles. One concept per entry. Linked to related entries via slugs. Importance score reflects frequency of intended retrieval."
-      },
-      {
-        "prompt": "When should I create a Forgetful memory vs query existing?",
-        "expected": "Always query first. Create only when no existing entry covers the concept atomically. Prevents fragmentation."
-      },
-      {
-        "prompt": "Importance scoring in Forgetful, how is it computed?",
-        "expected": "Reflects expected retrieval frequency and breadth of applicability. Cross-project memories higher importance. Single-incident memories lower."
-      },
-      {
-        "prompt": "Can I use Forgetful for cross-project knowledge?",
-        "expected": "Yes. Forgetful is cross-project by design. Serena is project-scoped. Choose Forgetful for patterns reusable beyond this repo."
-      },
-      {
-        "prompt": "What is the atomicity test for a memory?",
-        "expected": "One concept, one entry. If you need 'and' to summarize, split. Each entry must be independently meaningful and retrievable."
-      },
-      {
-        "prompt": "Why is Forgetful unavailable in this session per ADR-007?",
-        "expected": "Session start hook reported Forgetful unavailable. Use Serena instead. ADR-007 mandates memory-first; Serena fills the Tier 1 role when Forgetful is offline."
       }
     ],
     "curating-memories": [
