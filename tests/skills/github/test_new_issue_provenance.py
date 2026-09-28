@@ -259,6 +259,23 @@ class TestExistingStep0:
         assert rc == 2
         assert _error(capsys) == "--blocked-by is required when --source=agent"
 
+    def test_backtick_in_info_string_is_not_a_fence_opener(self):
+        """AC-5: CommonMark rejects a backtick fence whose info string has a backtick."""
+        body = "```py`extra\n## Step 0\n\n### Q3\n\nBob on CI\n\n### Q5\n\nrun 1 failed\n"
+        rc, _ = _run(["--title", "T", "--body", body, "--source", "agent"])
+        assert rc == 0
+
+    def test_secret_hidden_in_a_comment_inside_step0_is_refused(self, capsys):
+        """AC-5: the raw body is published, so hidden text is scanned too."""
+        token = "ghp_" + "C" * 36
+        body = STEP0_BODY.replace(
+            "run 123 failed 4 times today", f"run 123 failed <!-- {token} -->"
+        )
+        rc, gh = _run(["--title", "T", "--body", body, "--source", "agent"])
+        assert rc == 2
+        assert gh.calls == []
+        assert "carries a secret-shaped value" in _error(capsys)
+
     def test_body_step0_secret_is_refused_not_published(self, capsys):
         """AC-5 and the redaction rule: body evidence is preserved, so it must be clean."""
         token = "ghp_" + "B" * 36

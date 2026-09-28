@@ -102,11 +102,12 @@ _STEP0_ANSWERS = {
 # body. GitHub renders neither as headings, so Step 0 text inside them is not
 # evidence a reader can see.
 # Per CommonMark, a fence closes only on a line holding a run of the same
-# character at least as long as the opener, followed by nothing but spaces.
+# character at least as long as the opener, followed by nothing but spaces,
+# and a backtick fence's info string may not contain a backtick.
 _HIDDEN_MARKDOWN = re.compile(
     r"<!--.*?(?:-->|\Z)"
-    r"|^[ \t]{0,3}(?P<fence>(?P<char>[`~])(?P=char){2,})[^\n]*\n"
-    r".*?(?:^[ \t]{0,3}(?P=fence)(?P=char)*[ \t]*$|\Z)",
+    r"|^[ \t]{0,3}(?P<ticks>`{3,})[^`\n]*\n.*?(?:^[ \t]{0,3}(?P=ticks)`*[ \t]*$|\Z)"
+    r"|^[ \t]{0,3}(?P<tildes>~{3,})[^\n]*\n.*?(?:^[ \t]{0,3}(?P=tildes)~*[ \t]*$|\Z)",
     re.MULTILINE | re.DOTALL,
 )
 # Text after a hedge match that is inspected for the technical-term suffix.
@@ -160,7 +161,23 @@ def _step0_answer(section: str, key: str) -> str:
     return match.group(1).strip() if match else ""
 
 
-def _body_evidence_error(source: str, section: str, blocked_by: str, signal: str) -> str | None:
+def _raw_step0_regions(body: str) -> list[str]:
+    """Return the raw text under every Step 0 heading, hidden Markdown included.
+
+    The body is published unchanged, so a secret in a comment or fence inside
+    a Step 0 block reaches the issue even though the parser never reads it.
+    """
+    regions = []
+    for heading in _STEP0_HEADING.finditer(body):
+        rest = body[heading.end() :]
+        end = _SECTION_END.search(rest)
+        regions.append(rest[: end.start()] if end else rest)
+    return regions
+
+
+def _body_evidence_error(
+    source: str, body: str, section: str, blocked_by: str, signal: str
+) -> str | None:
     if blocked_by.strip() or signal.strip():
         return "Body already carries a Step 0 block; drop --blocked-by and --signal."
     required_when = "--source=agent" if source == "agent" else "the body carries a Step 0 block"
@@ -168,6 +185,10 @@ def _body_evidence_error(source: str, section: str, blocked_by: str, signal: str
         field = f"Step 0 ### {key}"
         answer = _step0_answer(section, key)
         error = answer_error(field, answer, required_when) or _secret_error(field, answer)
+        if error:
+            return error
+    for region in _raw_step0_regions(body):
+        error = _secret_error("Step 0 block", region)
         if error:
             return error
     return None
@@ -207,7 +228,7 @@ def step0_evidence(source: str, body: str, blocked_by: str, signal: str) -> tupl
     """
     section = _step0_section(body)
     if section is not None:
-        return _body_evidence_error(source, section, blocked_by, signal), ""
+        return _body_evidence_error(source, body, section, blocked_by, signal), ""
     return _flag_evidence(source, blocked_by, signal)
 
 
