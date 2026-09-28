@@ -219,8 +219,11 @@ def test_step0_evidence_names_the_blocked_merges_and_the_drift() -> None:
     assert drift.BRANCH in blocked_by
     assert drift.REPOSITORY in blocked_by
     assert str(drift.RULESET_ID) in signal
-    assert "1 required context(s) not pinned: new-check" in signal
-    assert "2 pinned context(s) no longer required: old-a, old-b" in signal
+    assert "1 required context(s) not pinned" in signal
+    assert "2 pinned context(s) no longer required" in signal
+    # Context names live in the issue body; free-form names in Q5 could trip
+    # the hedge gate and drop the alert (PR #5980 review).
+    assert "new-check" not in signal
 
 
 def test_step0_evidence_passes_the_issue_script_hedge_gate() -> None:
@@ -229,7 +232,7 @@ def test_step0_evidence_passes_the_issue_script_hedge_gate() -> None:
     from tests.skills.claude_skills_import import import_skill_script
 
     new_issue: Any = import_skill_script(".claude/skills/github/scripts/issue/new_issue.py")
-    for answer in drift.step0_evidence(("new-check",), ()):
+    for answer in drift.step0_evidence(("probably-flaky-check",), ("eventually-sync",)):
         assert new_issue.provenance.answer_error("answer", answer, "--source=agent") is None
 
 

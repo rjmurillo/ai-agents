@@ -400,7 +400,8 @@ Blank answers, canonical hedge phrases, and conflicting `source:*` labels exit
 2 before any GitHub call. The script creates the `source:human` or
 `source:agent` label when the repository lacks it, and passes it to
 `gh issue create` itself, so a label failure creates no issue. Flag evidence
-is redacted before it is published.
+is redacted before it is published; a body Step 0 answer that carries a secret
+is refused, since the body is published unchanged.
 
 The check covers this script only. The GitHub MCP `issue_write` tool, raw
 `gh issue create`, and workflow steps that call the API bypass it.

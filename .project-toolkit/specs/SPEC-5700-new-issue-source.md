@@ -91,7 +91,9 @@ apply in a second call, as today.
 Trust boundary: the script runs under the caller's token, so the label is an
 assertion, not authentication. Input validation runs before any network call.
 Evidence flags pass through a byte-identical copy of `scripts/redact_secrets.py`
-(default profile) before publication.
+(`redact_ci_sink`: token shapes plus `key=value` credential assignments) before
+publication. Step 0 answers already in the body are published unchanged, so an
+answer with a secret shape is refused rather than rewritten.
 
 ## Observability
 

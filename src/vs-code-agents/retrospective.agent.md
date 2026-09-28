@@ -1253,7 +1253,7 @@ refuses the call without the Step 0 answers `--blocked-by` and `--signal`:
 ```bash
 uv run python .claude/skills/github/scripts/issue/new_issue.py \
     --title "[Retrospective] Delta item description" \
-    --body "## Source\nRetrospective: [session-ref]\n\n## Problem\n[Delta item detail]\n\n## Proposed Solution\n[If known]" \
+    --body-file "[path to the issue body: Source, Problem, Proposed Solution]" \
     --labels "enhancement,source:retrospective,priority:{PRIORITY}" \
     --source agent \
     --blocked-by "[Who is blocked, and on what]" \

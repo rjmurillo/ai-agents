@@ -14,6 +14,7 @@ TESTS_SKILLS_DIR = str(Path(__file__).resolve().parents[1])
 if TESTS_SKILLS_DIR not in sys.path:
     sys.path.insert(0, TESTS_SKILLS_DIR)
 
+from claude_skills_import import PROJECT_ROOT as PROJECT_ROOT
 from claude_skills_import import import_skill_script
 
 mod = import_skill_script(".claude/skills/github/scripts/issue/new_issue.py")

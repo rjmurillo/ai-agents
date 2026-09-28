@@ -6,11 +6,11 @@ Acceptance criteria (AC-N) refer to .project-toolkit/specs/SPEC-5700-new-issue-s
 import importlib.util
 
 import pytest
-from claude_skills_import import PROJECT_ROOT
 
 from .new_issue_harness import (
     AGENT_ARGS,
     BLOCKED_BY,
+    PROJECT_ROOT,
     SIGNAL,
     STEP0_BODY,
     _body_arg,
@@ -106,6 +106,15 @@ class TestAgentEvidence:
         assert rc == 2
         assert gh.calls == []
         assert _error(capsys) == "--blocked-by must not contain a Markdown heading line"
+
+    def test_credential_assignment_in_evidence_is_redacted(self):
+        """AC-7: key=value secrets are redacted, not only known token shapes."""
+        rc, gh = _run(
+            ["--title", "T", "--source", "agent", "--blocked-by", BLOCKED_BY,
+             "--signal", "run 9 logged password=hunter2secret at startup"]
+        )
+        assert rc == 0
+        assert "hunter2secret" not in _body_arg(gh.find("issue", "create"))
 
     def test_evidence_is_redacted_before_publication(self):
         """AC-7: the bundled redactor runs over flag evidence."""
@@ -228,6 +237,38 @@ class TestExistingStep0:
         rc, _ = _run(["--title", "T", "--body", body, "--source", "agent"])
         assert rc == 2
         assert "### Q3" in _error(capsys)
+
+    def test_numbered_subquestion_is_not_q3(self, capsys):
+        """AC-5: '### Q3.5' is a different subsection, not the Q3 answer."""
+        body = "## Step 0\n\n### Q3.5\n\nBob on CI\n\n### Q5\n\nrun 1 failed\n"
+        rc, _ = _run(["--title", "T", "--body", body, "--source", "agent"])
+        assert rc == 2
+        assert _error(capsys) == "Step 0 ### Q3 is required when --source=agent"
+
+    def test_shorter_inner_fence_does_not_close_a_longer_fence(self, capsys):
+        """AC-5: CommonMark closes a fence only with an equal or longer run."""
+        body = "````\n```\n## Step 0\n\n### Q3\n\nBob\n\n### Q5\n\nrun 1\n````\n"
+        rc, _ = _run(["--title", "T", "--body", body, "--source", "agent"])
+        assert rc == 2
+        assert _error(capsys) == "--blocked-by is required when --source=agent"
+
+    def test_info_string_line_does_not_close_a_fence(self, capsys):
+        """AC-5: a fence line followed by text is content, not a closer."""
+        body = "```\n```python\n## Step 0\n\n### Q3\n\nBob\n\n### Q5\n\nrun 1\n"
+        rc, _ = _run(["--title", "T", "--body", body, "--source", "agent"])
+        assert rc == 2
+        assert _error(capsys) == "--blocked-by is required when --source=agent"
+
+    def test_body_step0_secret_is_refused_not_published(self, capsys):
+        """AC-5 and the redaction rule: body evidence is preserved, so it must be clean."""
+        token = "ghp_" + "B" * 36
+        body = STEP0_BODY.replace("run 123 failed 4 times today", f"run 123 leaked {token}")
+        rc, gh = _run(["--title", "T", "--body", body, "--source", "agent"])
+        assert rc == 2
+        assert gh.calls == []
+        message = _error(capsys)
+        assert message.startswith("Step 0 ### Q5 carries a secret-shaped value")
+        assert token not in message
 
     def test_step0_5_heading_is_not_step0(self):
         """AC-5: '## Step 0.5 Prior Art' is a different section."""

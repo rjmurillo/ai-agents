@@ -17,8 +17,8 @@ import subprocess
 import sys
 
 
-def _load_bundled_redact():
-    """Load ``redact`` from the redact_secrets.py beside this script.
+def _load_bundled_redactor():
+    """Load the redact_secrets.py module beside this script.
 
     The file is a byte-identical copy of the spec skill's redactor, so an
     installed plugin needs no toolkit checkout. Loading it by path, not by
@@ -33,10 +33,10 @@ def _load_bundled_redact():
     # module body runs, so register it first.
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
-    return module.redact
+    return module
 
 
-redact = _load_bundled_redact()
+_redactor = _load_bundled_redactor()
 
 
 SOURCES = ("human", "agent")
@@ -90,11 +90,23 @@ _SECTION_END = re.compile(r"^[ \t]{0,3}#{1,2}[ \t]", re.MULTILINE)
 _ANSWER_END_HEADING = r"^[ \t]{0,3}#{1,3}[ \t]"
 _HEADING_LINE = re.compile(_ANSWER_END_HEADING, re.MULTILINE)
 _STEP0_KEYS = ("Q3", "Q5")
+# "### Q3" but not "### Q3.5"; precompiled so no search call builds a pattern.
+_STEP0_ANSWERS = {
+    key: re.compile(
+        r"^[ \t]{0,3}###[ \t]+" + key + r"(?![.\w])[^\n]*\n(.*?)(?=" + _ANSWER_END_HEADING + r"|\Z)",
+        re.MULTILINE | re.DOTALL | re.IGNORECASE,
+    )
+    for key in _STEP0_KEYS
+}
 # HTML comments and fenced code blocks, closed or running to the end of the
 # body. GitHub renders neither as headings, so Step 0 text inside them is not
 # evidence a reader can see.
+# Per CommonMark, a fence closes only on a line holding a run of the same
+# character at least as long as the opener, followed by nothing but spaces.
 _HIDDEN_MARKDOWN = re.compile(
-    r"<!--.*?(?:-->|\Z)|^[ \t]*(```|~~~).*?(?:^[ \t]*\1[^\n]*$|\Z)",
+    r"<!--.*?(?:-->|\Z)"
+    r"|^[ \t]{0,3}(?P<fence>(?P<char>[`~])(?P=char){2,})[^\n]*\n"
+    r".*?(?:^[ \t]{0,3}(?P=fence)(?P=char)*[ \t]*$|\Z)",
     re.MULTILINE | re.DOTALL,
 )
 # Text after a hedge match that is inspected for the technical-term suffix.
@@ -144,11 +156,7 @@ def _step0_section(body: str) -> str | None:
 
 def _step0_answer(section: str, key: str) -> str:
     """Return the text under ``### <key>`` inside a Step 0 section."""
-    match = re.search(
-        rf"^[ \t]{{0,3}}###[ \t]+{key}\b[^\n]*\n(.*?)(?={_ANSWER_END_HEADING}|\Z)",
-        section,
-        re.MULTILINE | re.DOTALL | re.IGNORECASE,
-    )
+    match = _STEP0_ANSWERS[key].search(section)
     return match.group(1).strip() if match else ""
 
 
@@ -157,15 +165,25 @@ def _body_evidence_error(source: str, section: str, blocked_by: str, signal: str
         return "Body already carries a Step 0 block; drop --blocked-by and --signal."
     required_when = "--source=agent" if source == "agent" else "the body carries a Step 0 block"
     for key in _STEP0_KEYS:
-        error = answer_error(f"Step 0 ### {key}", _step0_answer(section, key), required_when)
+        field = f"Step 0 ### {key}"
+        answer = _step0_answer(section, key)
+        error = answer_error(field, answer, required_when) or _secret_error(field, answer)
         if error:
             return error
     return None
 
 
+def _secret_error(field: str, answer: str) -> str | None:
+    """Refuse body evidence that carries a secret; the body is published as-is."""
+    reasons = _redactor.redact_ci_sink(answer).reasons
+    if not reasons:
+        return None
+    return f"{field} carries a secret-shaped value ({reasons[0]}); remove it before filing"
+
+
 def _render_step0(blocked_by: str, signal: str) -> str:
-    q3 = redact(blocked_by.strip()).text
-    q5 = redact(signal.strip()).text
+    q3 = _redactor.redact_ci_sink(blocked_by.strip()).text
+    q5 = _redactor.redact_ci_sink(signal.strip()).text
     return f"## Step 0\n\n### Q3\n\n{q3}\n\n### Q5\n\n{q5}\n"
 
 
