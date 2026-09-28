@@ -191,6 +191,7 @@ def test_agent_git_add_cannot_stage_the_harness_profile(tmp_path: Path) -> None:
         capture_output=True,
         text=True,
         encoding="utf-8",
+        errors="replace",
     ).stdout
 
     assert ".parity-profile" not in staged

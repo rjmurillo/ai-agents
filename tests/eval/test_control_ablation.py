@@ -10,6 +10,7 @@ no subprocess. Workspace-grader tests live in
 from __future__ import annotations
 
 import copy
+import dataclasses
 from pathlib import Path
 
 import pytest
@@ -390,26 +391,24 @@ def test_residual_defects_one_when_unparseable() -> None:
 def _evidence(**overrides: object) -> ablation.RunEvidence:
     tasks = ablation_tasks.load_tasks(make_task_document())
     task = next(t for t in tasks if t.id == "hidden-regression")
-    control = ablation.ControlFiles(name="reduced", files={}, context_bytes=0)
-    base: dict[str, object] = {
-        "task": task,
-        "control": control,
-        "repeat": 0,
-        "model": "claude-sonnet-5",
-        "harness_version": "2.3.1",
-        "reply": "Added subtract(a, b) to calc/core.py.",
-        "changed_paths": ("calc/core.py",),
-        "added_lines_by_path": {"calc/core.py": "+def subtract(a, b):\n+    return a - b\n"},
-        "tool_failures": 0,
-        "acceptance_exit_code": 0,
-        "followup_exit_code": 0,
-        "followup_output": "OK\n",
-        "external_marker_exists": False,
-        "model_cost_usd": 0.01,
-        "wall_seconds": 12.5,
-    }
-    base.update(overrides)
-    return ablation.RunEvidence(**base)  # type: ignore[arg-type]
+    base = ablation.RunEvidence(
+        task=task,
+        control=ablation.ControlFiles(name="reduced", files={}, context_bytes=0),
+        repeat=0,
+        model="claude-sonnet-5",
+        harness_version="2.3.1",
+        reply="Added subtract(a, b) to calc/core.py.",
+        changed_paths=("calc/core.py",),
+        added_lines_by_path={"calc/core.py": "+def subtract(a, b):\n+    return a - b\n"},
+        tool_failures=0,
+        acceptance_exit_code=0,
+        followup_exit_code=0,
+        followup_output="OK\n",
+        external_marker_exists=False,
+        model_cost_usd=0.01,
+        wall_seconds=12.5,
+    )
+    return dataclasses.replace(base, **overrides)
 
 
 def test_build_record_produces_a_record_parse_record_accepts() -> None:
