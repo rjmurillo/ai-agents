@@ -137,7 +137,9 @@ _CATEGORY_KEYWORDS: dict[str, list[str]] = {
     "ci-infrastructure": ["workflow", "ci", "pipeline", "action", "deploy"],
     "documentation": ["doc", "readme", "adr", "markdown"],
     "git-operations": ["commit", "push", "merge", "branch", "rebase"],
-    "memory": ["memory", "serena", "knowledge"],
+    # "forgetful" is retired (ADR-106), but archived session logs still name it,
+    # so it keeps classifying those historical actions as memory work.
+    "memory": ["memory", "serena", "forgetful", "knowledge"],
     "pr-review": ["pr", "review", "comment", "thread"],
     "session": ["session", "log", "protocol", "validation"],
     "implementation": ["implement", "script", "code", "refactor", "fix"],
