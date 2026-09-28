@@ -408,3 +408,47 @@ def test_negative_start_repeat_refuses_before_any_model_call(tmp_path: Path) -> 
 
     assert code == cli.EXIT_CONFIG
     assert runner.calls == []
+
+
+def test_nonzero_claude_exit_is_a_harness_failure_with_no_record(tmp_path: Path) -> None:
+    runner = FakeClaudeRunner(load_tasks(tmp_path), returncode=1)
+
+    code = cli.main(_live_reduced_args(tmp_path), runner=runner)
+
+    assert code == cli.EXIT_EXTERNAL
+    assert (tmp_path / "out" / "records-reduced.jsonl").read_text(encoding="utf-8") == ""
+
+
+def test_rerun_into_an_output_dir_that_holds_the_cell_refuses(tmp_path: Path) -> None:
+    tasks = load_tasks(tmp_path)
+    assert cli.main(_live_reduced_args(tmp_path), runner=FakeClaudeRunner(tasks)) == cli.EXIT_OK
+    runner = FakeClaudeRunner(tasks)
+
+    rerun_args = [
+        "--tasks",
+        str(write_tasks(tmp_path)),
+        "--controls",
+        "reduced",
+        "--workspace-root",
+        str(tmp_path / "ws2"),
+        "--output-dir",
+        str(tmp_path / "out"),
+    ]
+
+    code = cli.main(rerun_args, runner=runner)
+
+    assert code == cli.EXIT_CONFIG
+    assert runner.calls == []
+
+
+def test_an_agent_edit_at_a_followup_path_counts_as_a_scope_violation(tmp_path: Path) -> None:
+    tasks = load_tasks(tmp_path)
+    task = next(t for t in tasks if t.followup_files)
+    hidden = next(iter(task.followup_files))
+    runner = FakeClaudeRunner(tasks, extra_files={hidden: "# agent wrote this\n"})
+
+    code = cli.main(_live_reduced_args(tmp_path, "--only-tasks", task.id), runner=runner)
+
+    assert code == cli.EXIT_OK
+    line = (tmp_path / "out" / "records-reduced.jsonl").read_text(encoding="utf-8").splitlines()[0]
+    assert json.loads(line)["execution"]["scope_violations"] >= 1

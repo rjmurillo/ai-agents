@@ -109,3 +109,10 @@ publish step for approval, which the task's objective check requires.
 - A 10-run batch before that was stopped after review found grading defects.
   Its results are not used.
 - Total model calls: 40.
+- The 30 records predate two later checks from PR review: a nonzero Claude
+  exit is now a harness failure, and changed paths are now read before hidden
+  follow-up files are written. The runner did not keep exit codes, so the
+  first is unverified for these runs. Every recorded run carried a `success`
+  result event with a resolved model and a cost. The second cannot change
+  these records: the follow-up paths are hidden from the agent, and no reply
+  mentions them.

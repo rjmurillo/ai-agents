@@ -55,7 +55,12 @@ DEFAULT_MODEL = "claude-sonnet-5"
 DEFAULT_TIMEOUT = 900.0
 DEFAULT_MAX_RUNS = 30
 DRY_RUN_KINDS = ("known_good", "known_bad")
-_HARNESS_ERRORS = (claude_run.HarnessFailureError, subprocess.SubprocessError, OSError)
+_HARNESS_ERRORS = (
+    claude_run.HarnessFailureError,
+    grade.WorkspaceError,
+    subprocess.SubprocessError,
+    OSError,
+)
 
 
 
@@ -71,10 +76,11 @@ def _grade_dry_run_control(
 ) -> ablation.RunEvidence:
     grade.seed_workspace(workspace, task, {})
     grade.apply_control_files(workspace, control.files)
-    acceptance = grade.run_acceptance(workspace, task)
-    grade.write_followup_files(workspace, task)
-    followup = grade.run_followup(workspace, task)
     changed = grade.changed_paths(workspace)
+    added_lines = grade.added_lines_by_python_path(workspace, changed)
+    grade.write_followup_files(workspace, task)
+    acceptance = grade.run_acceptance(workspace, task)
+    followup = grade.run_followup(workspace, task)
     return ablation.RunEvidence(
         task=task,
         control=ablation.ControlFiles(name="dry-run", files={}, context_bytes=0),
@@ -83,7 +89,7 @@ def _grade_dry_run_control(
         harness_version="dry-run",
         reply=control.response,
         changed_paths=changed,
-        added_lines_by_path=grade.added_lines_by_python_path(workspace, changed),
+        added_lines_by_path=added_lines,
         tool_failures=0,
         acceptance_exit_code=acceptance.returncode,
         followup_exit_code=followup.returncode,
@@ -155,10 +161,13 @@ def _grade_live_run(
     events, reply, cost, wall_seconds, argv = claude_run.invoke_claude(
         workspace, task, model, timeout, runner, auth_file
     )
+    # Measure the agent's changes before hidden follow-up files exist, so an
+    # agent edit at a follow-up path is not overwritten out of the diff.
+    changed = grade.changed_paths(workspace)
+    added_lines = grade.added_lines_by_python_path(workspace, changed)
     grade.write_followup_files(workspace, task)
     acceptance = grade.run_acceptance(workspace, task)
     followup = grade.run_followup(workspace, task)
-    changed = grade.changed_paths(workspace)
     evidence = ablation.RunEvidence(
         task=task,
         control=control,
@@ -167,7 +176,7 @@ def _grade_live_run(
         harness_version=harness_version,
         reply=reply,
         changed_paths=changed,
-        added_lines_by_path=grade.added_lines_by_python_path(workspace, changed),
+        added_lines_by_path=added_lines,
         tool_failures=claude_run.tool_failures(events),
         acceptance_exit_code=acceptance.returncode,
         followup_exit_code=followup.returncode,
@@ -297,6 +306,34 @@ def _select_tasks(
     return [task for task in tasks if task.id in wanted]
 
 
+def _refuse_recorded_cells(
+    output_dir: Path,
+    control_names: Sequence[str],
+    tasks: Sequence[ablation_tasks.Task],
+    repeats: range,
+) -> None:
+    """Refuse a batch that would append a (task, repeat) its records already hold.
+
+    Records append, so a rerun into the same `--output-dir` would duplicate a
+    cell and `eval_durable_outcome.py` would refuse the file. Resume with
+    `--only-tasks` and `--start-repeat` instead.
+    """
+    planned = {(task.id, repeat) for task in tasks for repeat in repeats}
+    for name in control_names:
+        path = output_dir / f"records-{name}.jsonl"
+        if not path.is_file():
+            continue
+        recorded = {
+            (row["task_id"], row["repeat"])
+            for row in map(json.loads, path.read_text(encoding="utf-8").splitlines())
+        }
+        clash = sorted(planned & recorded)
+        if clash:
+            raise ablation_tasks.ControlAblationConfigError(
+                f"{path} already records {clash}; use a new --output-dir or --start-repeat"
+            )
+
+
 def _default_output_dir() -> Path:
     stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     run_id = f"{stamp}-{uuid.uuid4().hex[:8]}"
@@ -372,11 +409,13 @@ def _run(
         raise ablation_tasks.ControlAblationConfigError(
             f"--claude-auth-file {auth_file} is not a regular file"
         )
+    repeats = range(args.start_repeat, args.start_repeat + args.repeats)
+    _refuse_recorded_cells(output_dir, control_names, tasks, repeats)
     controls = {name: ablation.resolve_control(name, REPO_ROOT) for name in control_names}
     return _run_live(
         tasks,
         controls,
-        repeats=range(args.start_repeat, args.start_repeat + args.repeats),
+        repeats=repeats,
         model=args.model,
         timeout=args.timeout,
         workspace_root=workspace_root,

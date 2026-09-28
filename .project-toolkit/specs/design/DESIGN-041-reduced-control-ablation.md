@@ -19,7 +19,23 @@ tags:
 
 # DESIGN-041: Reduced-control ablation runner on the runtime-parity modules
 
-## Modules
+## Design Overview
+
+One CLI runs a five-task corpus under two controls on Claude Code and writes
+one REQ-042 `OutcomeRecord` per run. Each run gets a fresh git workspace
+seeded with the task and the control's files. Claude runs in `--print` mode
+with an isolated profile. Grading uses real commands: the task's acceptance
+command, then hidden follow-up tests written only after the agent exits.
+`eval_durable_outcome.py --baseline` compares the two record files. A dry
+run replaces the agent with each task's known-good and known-bad fix to prove
+the graders discriminate before any spend.
+
+Trust boundary: the task file is trusted repository data, like a test
+fixture. Its `acceptance` and `followup` commands run under the operator's
+environment (minus `GIT_*`). Point `--tasks` only at a file you would run as
+a test.
+
+## Component Details
 
 | File | Role |
 |---|---|
@@ -79,9 +95,14 @@ are a fixed 120 seconds.
    --output-format stream-json --verbose --no-session-persistence --model M
    --tools Read,Edit,Write,Glob,Grep,Bash
    --allowedTools Bash(python3:*),Bash(git:*),Bash(ls:*),Bash(cat:*)`
-   under `runtime_env(workspace, "claude")`.
-3. After exit, write `followup_files`, run `acceptance`, then `followup`.
-4. Build the record.
+   under `runtime_env(workspace, "claude")`, with `CLAUDE_CONFIG_DIR` moved
+   beside the workspace. A nonzero exit, an `is_error` result, a missing
+   `total_cost_usd`, or a model mismatch is a harness failure: no record.
+3. After exit, read changed paths against the seed ref, then write
+   `followup_files`, run `acceptance`, then `followup`. Reading changes first
+   keeps an agent edit at a follow-up path in the diff.
+4. Build the record. With `--claude-auth-file`, the login's string values are
+   redacted from the reply before it reaches the report or stdout.
 
 Runs interleave: for each task, for each repeat, for each control.
 
@@ -131,11 +152,12 @@ states this so a reader does not take them for measurements of a human.
 ## Comparison change
 
 `_durable_outcome._require_configs_match_except_control` skips
-`context_bytes` as well as `control`. Rationale: the control determines the
-bytes loaded, so any reduced control differs in `context_bytes` by
-construction, and the current rule refuses every ablation. REQ-042's ontology
-line and DESIGN-040's refusal line change to "except `control` and
-`context_bytes`".
+`context_bytes` when `control` also differs. Rationale: the control determines
+the bytes loaded, so any reduced control differs in `context_bytes` by
+construction, and the old rule refused every ablation. Two runs under the same
+control with different bytes loaded different instructions, so that pair still
+refuses. REQ-042's ontology line and AC-7, and DESIGN-040's refusal line, say
+the same.
 
 ## Outputs
 

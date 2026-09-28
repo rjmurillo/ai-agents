@@ -235,19 +235,26 @@ def test_scope_violations_counts_paths_outside_allowed() -> None:
         ["calc/core.py", "README.md"],
         ["calc/*.py"],
         control_files={},
-        followup_files={},
     )
     assert count == 1
 
 
-def test_scope_violations_excludes_control_and_followup_files() -> None:
+def test_scope_violations_excludes_control_files() -> None:
     count = ablation.scope_violations(
-        ["AGENTS.md", "followup/test_hidden.py"],
+        ["AGENTS.md"],
         ["calc/*.py"],
         control_files={"AGENTS.md": "..."},
-        followup_files={"followup/test_hidden.py": "..."},
     )
     assert count == 0
+
+
+def test_scope_violations_counts_an_agent_edit_at_a_followup_path() -> None:
+    count = ablation.scope_violations(
+        ["followup/test_hidden.py"],
+        ["calc/*.py"],
+        control_files={},
+    )
+    assert count == 1
 
 
 def test_scope_violations_excludes_pycache_and_profile_paths() -> None:
@@ -261,7 +268,6 @@ def test_scope_violations_excludes_pycache_and_profile_paths() -> None:
         ],
         ["calc/*.py"],
         control_files={},
-        followup_files={},
     )
     assert count == 0
 
@@ -457,3 +463,11 @@ def test_build_record_records_rollback_events_as_zero_by_construction() -> None:
     record = ablation.build_record(_evidence())
 
     assert record["durable"]["rollback_events"] == 0
+
+
+def test_loader_refuses_a_path_inside_dot_git() -> None:
+    document = make_task_document()
+    document["tasks"][0]["setup_files"][".git/config"] = "[core]\nbare = true\n"
+
+    with pytest.raises(ablation_tasks.ControlAblationConfigError, match=".git"):
+        ablation_tasks.load_tasks(document)

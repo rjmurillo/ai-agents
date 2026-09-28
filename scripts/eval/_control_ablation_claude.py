@@ -139,6 +139,32 @@ def require_unexpired_auth(
         )
 
 
+_REDACTED = "[REDACTED]"
+_MIN_SECRET_LENGTH = 16
+
+
+def redact_credentials(text: str, source: Path) -> str:
+    """Replace every string value of `source`'s `claudeAiOauth` object in `text`.
+
+    The agent under test can read the copied login by absolute path, so a reply
+    may carry a token. Replies reach `report.json` and stdout; this is the last
+    point before either. Values shorter than 16 characters (scopes, plan names)
+    are not secrets and are left alone.
+    """
+    try:
+        oauth = json.loads(source.read_text(encoding="utf-8")).get("claudeAiOauth", {})
+    except (OSError, ValueError, AttributeError):
+        return text
+    secrets = (
+        value
+        for value in (oauth.values() if isinstance(oauth, dict) else ())
+        if isinstance(value, str) and len(value) >= _MIN_SECRET_LENGTH
+    )
+    for secret in secrets:
+        text = text.replace(secret, _REDACTED)
+    return text
+
+
 def _require_success_result(events: Sequence[Mapping[str, object]], reply: str) -> None:
     """A result event marked `is_error` is a harness failure, not a task attempt."""
     for event in events:
@@ -191,11 +217,15 @@ def invoke_claude(
             check=False,
         )
     wall_seconds = time.monotonic() - started
+    if result.returncode != 0:
+        raise HarnessFailureError(f"claude exited {result.returncode}")
     try:
         events = parse_events(result.stdout)
     except RuntimeOutputError as exc:
         raise HarnessFailureError(str(exc)) from exc
     reply, resolved_model = claude_result(events)
+    if auth_file is not None:
+        reply = redact_credentials(reply, auth_file)
     _require_success_result(events, reply)
     if not same_model(resolved_model, model):
         raise HarnessFailureError(

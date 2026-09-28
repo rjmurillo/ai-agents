@@ -34,6 +34,10 @@ SEED_REF = "refs/control-ablation/seed"
 _EXCLUDED_FROM_GIT = (".parity-profile/", ".runtime/", "__pycache__/", "*.pyc")
 
 
+class WorkspaceError(RuntimeError):
+    """A git step in one run's workspace failed; that run gets no record."""
+
+
 def _safe_file(workspace: Path, relative: str) -> Path:
     """Resolve a task-file-declared relative path inside `workspace`, or refuse.
 
@@ -97,13 +101,13 @@ def seed_workspace(workspace: Path, task: Task, control_files: Mapping[str, str]
     workspace.mkdir(parents=True, exist_ok=True)
     init = _run_git(["init", "--quiet"], workspace)
     if init.returncode != 0:
-        raise RuntimeError(f"git init failed in {workspace}: {init.stderr.strip()}")
+        raise WorkspaceError(f"git init failed in {workspace}: {init.stderr.strip()}")
     _exclude_harness_paths(workspace)
     _write_files(workspace, task.setup_files)
     _write_files(workspace, control_files)
     add = _run_git(["add", "-A"], workspace)
     if add.returncode != 0:
-        raise RuntimeError(f"git add failed in {workspace}: {add.stderr.strip()}")
+        raise WorkspaceError(f"git add failed in {workspace}: {add.stderr.strip()}")
     commit = _run_git(
         [
             "-c",
@@ -118,10 +122,10 @@ def seed_workspace(workspace: Path, task: Task, control_files: Mapping[str, str]
         workspace,
     )
     if commit.returncode != 0:
-        raise RuntimeError(f"git commit failed in {workspace}: {commit.stderr.strip()}")
+        raise WorkspaceError(f"git commit failed in {workspace}: {commit.stderr.strip()}")
     pin = _run_git(["update-ref", SEED_REF, "HEAD"], workspace)
     if pin.returncode != 0:
-        raise RuntimeError(f"git update-ref failed in {workspace}: {pin.stderr.strip()}")
+        raise WorkspaceError(f"git update-ref failed in {workspace}: {pin.stderr.strip()}")
 
 
 def _exclude_harness_paths(workspace: Path) -> None:
@@ -157,10 +161,10 @@ def changed_paths(workspace: Path) -> tuple[str, ...]:
     """
     add = _run_git(["add", "-A"], workspace)
     if add.returncode != 0:
-        raise RuntimeError(f"git add failed in {workspace}: {add.stderr.strip()}")
+        raise WorkspaceError(f"git add failed in {workspace}: {add.stderr.strip()}")
     diff = _run_git(["diff", "--cached", "--name-only", "-z", SEED_REF], workspace)
     if diff.returncode != 0:
-        raise RuntimeError(f"git diff failed in {workspace}: {diff.stderr.strip()}")
+        raise WorkspaceError(f"git diff failed in {workspace}: {diff.stderr.strip()}")
     return tuple(path for path in diff.stdout.split("\0") if path)
 
 
@@ -189,13 +193,16 @@ def added_lines_by_python_path(
 
 
 def _command_env() -> dict[str, str]:
-    """Inherit the ambient environment, forcing no bytecode cache writes.
+    """Inherit the ambient environment minus GIT_*, forcing no bytecode cache writes.
+
+    Task commands may call `git`; an inherited `GIT_DIR` or `GIT_WORK_TREE`
+    from a hook or worktree shell would point them at the parent repository.
 
     `PYTHONDONTWRITEBYTECODE=1` (coordinator addendum, 2026-09-28) keeps
     `python3 -m unittest` from creating `__pycache__/` directories that
     would otherwise need filtering out of every changed-path measurement.
     """
-    return {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
+    return {**_nested_git_env(), "PYTHONDONTWRITEBYTECODE": "1"}
 
 
 def _run_command(

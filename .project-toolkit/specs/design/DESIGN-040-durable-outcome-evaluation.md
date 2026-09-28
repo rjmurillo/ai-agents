@@ -101,8 +101,8 @@ the price of an accepted result.
 
 ## Comparison
 
-Refuse (exit 2) when the configs differ in any field except `control` or
-`context_bytes`, the task sets differ, or a task has a different repeat
+Refuse (exit 2) when the configs differ in any field except `control`, differ
+in `context_bytes` while sharing a `control`, the task sets differ, or a task has a different repeat
 count on each side. Extra
 repeats would add durable accepts without a better success rate. The cost
 gate compares unrounded values; the report rounds only for display. Otherwise return `BETTER`, `WORSE`, or `MIXED`, or

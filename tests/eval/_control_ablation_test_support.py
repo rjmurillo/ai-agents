@@ -137,6 +137,9 @@ class FakeClaudeRunner:
         cost: float = 0.01,
         omit_cost: bool = False,
         error_result: bool = False,
+        returncode: int = 0,
+        reply: str | None = None,
+        extra_files: dict[str, str] | None = None,
     ) -> None:
         self.by_prompt = {task.prompt: task for task in tasks}
         self.kind = kind
@@ -145,6 +148,9 @@ class FakeClaudeRunner:
         self.cost = cost
         self.omit_cost = omit_cost
         self.error_result = error_result
+        self.returncode = returncode
+        self.reply = reply
+        self.extra_files = extra_files or {}
         self.calls: list[list[str]] = []
 
     def __call__(
@@ -158,7 +164,7 @@ class FakeClaudeRunner:
         task = self.by_prompt[prompt]
         control = task.controls[self.kind]
         workspace = Path(str(kwargs["cwd"]))
-        for relative, content in control.files.items():
+        for relative, content in {**control.files, **self.extra_files}.items():
             path = workspace / relative
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(content, encoding="utf-8")
@@ -180,7 +186,7 @@ class FakeClaudeRunner:
         result_event: dict[str, object] = {
             "type": "result",
             "subtype": "success",
-            "result": control.response,
+            "result": control.response if self.reply is None else self.reply,
         }
         if not self.omit_cost:
             result_event["total_cost_usd"] = self.cost
@@ -190,7 +196,7 @@ class FakeClaudeRunner:
             )
         events.append(result_event)
         stdout = "\n".join(json.dumps(event) for event in events) + "\n"
-        return subprocess.CompletedProcess(args, 0, stdout=stdout, stderr="")
+        return subprocess.CompletedProcess(args, self.returncode, stdout=stdout, stderr="")
 
 
 def write_tasks(tmp_path: Path) -> Path:

@@ -163,10 +163,8 @@ def produced_artifact(changed_paths: Sequence[str], allowed_paths: Sequence[str]
     )
 
 
-def _excluded_from_scope(
-    path: str, control_files: Mapping[str, str], followup_files: Mapping[str, str]
-) -> bool:
-    return _is_incidental_path(path) or path in control_files or path in followup_files
+def _excluded_from_scope(path: str, control_files: Mapping[str, str]) -> bool:
+    return _is_incidental_path(path) or path in control_files
 
 
 def scope_violations(
@@ -174,18 +172,18 @@ def scope_violations(
     allowed_paths: Sequence[str],
     *,
     control_files: Mapping[str, str],
-    followup_files: Mapping[str, str],
 ) -> int:
     """execution.scope_violations (DESIGN-041 "Grade to record").
 
     Counts a changed path outside `allowed_paths`, excluding control files,
-    follow-up files, `.parity-profile/`, `.runtime/`, and bytecode caches
-    (`__pycache__/`, `*.pyc`; coordinator addendum, 2026-09-28).
+    `.parity-profile/`, `.runtime/`, and bytecode caches. Changed paths are
+    measured before hidden follow-up files are written, so an agent edit at a
+    follow-up path still counts.
     """
     return sum(
         1
         for path in changed_paths
-        if not _excluded_from_scope(path, control_files, followup_files)
+        if not _excluded_from_scope(path, control_files)
         and not matches_allowed(path, allowed_paths)
     )
 
@@ -337,7 +335,6 @@ def build_record(evidence: RunEvidence) -> dict[str, Any]:
                 evidence.changed_paths,
                 evidence.task.allowed_paths,
                 control_files=evidence.control.files,
-                followup_files=evidence.task.followup_files,
             ),
             "judge": None,
         },

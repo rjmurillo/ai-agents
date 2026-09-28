@@ -195,3 +195,27 @@ def test_agent_git_add_cannot_stage_the_harness_profile(tmp_path: Path) -> None:
     ).stdout
 
     assert ".parity-profile" not in staged
+
+
+def test_command_env_drops_inherited_git_location_variables(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("GIT_DIR", "/elsewhere/.git")
+    monkeypatch.setenv("GIT_WORK_TREE", "/elsewhere")
+
+    env = grade._command_env()
+
+    assert "GIT_DIR" not in env
+    assert "GIT_WORK_TREE" not in env
+    assert env["PYTHONDONTWRITEBYTECODE"] == "1"
+
+
+def test_a_failed_git_step_raises_workspace_error(tmp_path: Path) -> None:
+    task = next(
+        t for t in ablation_tasks.load_tasks(make_task_document()) if t.id == "hidden-regression"
+    )
+    blocker = tmp_path / "ws"
+    blocker.write_text("not a directory", encoding="utf-8")
+
+    with pytest.raises((grade.WorkspaceError, OSError)):
+        grade.seed_workspace(blocker, task, {})

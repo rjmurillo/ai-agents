@@ -116,6 +116,8 @@ def _require_relative_path(value: object, path: str) -> str:
     candidate = Path(raw)
     if candidate.is_absolute() or ".." in candidate.parts:
         raise ControlAblationConfigError(f"{path} must stay inside the task workspace: {raw!r}")
+    if ".git" in candidate.parts:
+        raise ControlAblationConfigError(f"{path} must not write inside .git: {raw!r}")
     return raw
 
 

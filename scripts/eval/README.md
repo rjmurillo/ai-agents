@@ -1017,7 +1017,8 @@ python3 scripts/eval/eval_durable_outcome.py --records RUN.jsonl --baseline BASE
 zero-success and all-success task lists, p10/p50/p90 of cost and correction
 time, and the headline. `--baseline` adds a matched `Comparison`: it refuses
 (exit 2) when the two files' RunConfigs differ in any field other than
-`control` or `context_bytes`, or when they cover different task sets, naming
+`control` (`context_bytes` may differ only when `control` does), or when they
+cover different task sets, naming
 the differing field or the missing task ids. Otherwise it returns `BETTER`, `WORSE`, or
 `MIXED`. `BETTER` requires the candidate to have at least as many accepted
 durable tasks as the baseline, no higher cost per accepted durable task, and
@@ -1137,7 +1138,13 @@ which rotates the refresh token inside a copy that is then deleted and fails
 every later run (observed 2026-09-28). Run `claude` once to refresh, then
 rerun only the missing cells with `--only-tasks id1,id2` and `--start-repeat N` into the same
 `--output-dir` (records append) and a fresh `--workspace-root`. A result event
-marked `is_error` is a harness failure with no record, never a rejected task.
+marked `is_error`, or a nonzero exit, is a harness failure with no record,
+never a rejected task. A batch refuses (exit 2) to append a `(task, repeat)`
+its `--output-dir` already records. With `--claude-auth-file`, the login's
+string values are redacted from each reply before the report or stdout sees
+it. The task file is trusted repository data: its `acceptance` and
+`followup` commands run under your environment (minus `GIT_*`), so pass
+`--tasks` only a file you would run as a test.
 Its contents are never written to a report. The agent
 under test can still read it by absolute path while it runs, so keep live
 workspaces and reports out of the repository.

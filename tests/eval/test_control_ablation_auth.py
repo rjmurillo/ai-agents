@@ -147,3 +147,16 @@ def test_login_without_expiry_fails_closed(tmp_path: Path) -> None:
 
     assert code == cli.EXIT_EXTERNAL
     assert _print_calls(runner) == 0
+
+
+def test_a_reply_that_echoes_the_token_is_redacted(tmp_path: Path) -> None:
+    auth = tmp_path / "credentials.json"
+    auth.write_text(AUTH_SECRET, encoding="utf-8")
+    runner = FakeClaudeRunner(load_tasks(tmp_path), reply="token is fixture-secret-7731")
+
+    code = cli.main(_live_args(tmp_path, "--claude-auth-file", str(auth)), runner=runner)
+
+    assert code == cli.EXIT_OK
+    report = (tmp_path / "out" / "report.json").read_text(encoding="utf-8")
+    assert "fixture-secret-7731" not in report
+    assert "[REDACTED]" in report
