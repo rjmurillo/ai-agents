@@ -38,7 +38,7 @@ _FAILING_COMPARISON_RESULTS = frozenset({"WORSE", "UNVERIFIED"})
 def _read_text(path: Path) -> str:
     try:
         return path.read_text(encoding="utf-8")
-    except OSError as exc:
+    except (OSError, UnicodeError) as exc:
         raise DurableOutcomeError(f"cannot read {path}: {exc}") from exc
 
 

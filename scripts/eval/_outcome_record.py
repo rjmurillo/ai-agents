@@ -13,6 +13,7 @@ comparison live in `_durable_outcome.py`.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from enum import Enum
 
@@ -215,6 +216,9 @@ def _require_nonneg_int_or_none(value: object, path: str) -> int | None:
 def _require_nonneg_number(value: object, path: str) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise DurableOutcomeError(f"{path}: expected a non-negative number, got {value!r}")
+    # json.loads accepts NaN and Infinity, and NaN < 0 is False.
+    if not math.isfinite(value):
+        raise DurableOutcomeError(f"{path}: expected a finite number, got {value!r}")
     if value < 0:
         raise DurableOutcomeError(f"{path}: expected a non-negative number, got {value!r}")
     return float(value)

@@ -33,6 +33,7 @@ REQ-042 criteria 1 to 11.
 | `tests/eval/_durable_outcome_test_support.py` | Shared record builders for the tests |
 | `tests/eval/test_outcome_record.py` | Parser tests |
 | `tests/eval/test_durable_outcome.py` | Classifier, report, and comparison tests |
+| `tests/eval/test_durable_outcome_fixtures.py` | Known-good, known-bad, and five-case fixture tests |
 | `tests/eval/test_eval_durable_outcome_cli.py` | CLI tests |
 | `tests/eval/fixtures/durable_outcome/*.jsonl` | Known-good, known-bad, and five-case fixtures |
 
@@ -65,8 +66,8 @@ non-negative numbers. A count may be `null`, which means not measured.
 
 ## Classifier order
 
-1. `deterministic_acceptance` is `FAIL`, or `capability.attempted` is false:
-   `REJECTED`.
+1. `deterministic_acceptance` is `FAIL`, or `capability.attempted` or
+   `capability.produced_artifact` is false: `REJECTED`.
 2. Any required evidence is `UNVERIFIED`, or any durable or risk count is
    `null`: `UNVERIFIED`.
 3. `judge` is `FAIL`: `REJECTED`. The judge only downgrades.
@@ -100,8 +101,10 @@ the price of an accepted result.
 
 ## Comparison
 
-Refuse (exit 2) when the configs differ in any field except `control`, or
-the task sets differ. Otherwise return `BETTER`, `WORSE`, or `MIXED`, or
+Refuse (exit 2) when the configs differ in any field except `control`, the
+task sets differ, or a task has a different repeat count on each side. Extra
+repeats would add durable accepts without a better success rate. The cost
+gate compares unrounded values; the report rounds only for display. Otherwise return `BETTER`, `WORSE`, or `MIXED`, or
 `UNVERIFIED` when either side is `UNVERIFIED`. `BETTER` needs all of: more
 or equal accepted durable tasks, equal or lower cost per accepted durable
 task, and no task that falls from one or more durable accepts to zero.

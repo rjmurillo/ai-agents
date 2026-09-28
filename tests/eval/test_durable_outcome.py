@@ -1,22 +1,18 @@
 """Tests for scripts/eval/_durable_outcome.py (REQ-042, DESIGN-040).
 
-Behavior under test: the classifier
-(AC-2 to AC-4), the per-configuration report (AC-5, AC-6), the matched
-comparison (AC-7, AC-8), and the known-good / known-bad / five-case
-fixtures (AC-9, AC-10). Pure functions, so no mocking is needed.
+Behavior under test: the classifier (AC-2 to AC-4), the per-configuration
+report (AC-5, AC-6), and the matched comparison (AC-7, AC-8). Fixture tests
+live in `test_durable_outcome_fixtures.py`. Pure functions, no mocks.
 """
 
 from __future__ import annotations
 
-import json
-from pathlib import Path
+from collections.abc import Callable
 from typing import Any
 
 import pytest
 
 from tests.eval._durable_outcome_test_support import durable, make_config, make_record, outcome
-
-FIXTURES = Path(__file__).parent / "fixtures" / "durable_outcome"
 
 
 def _classify_record(**section_overrides: dict[str, Any]) -> durable.Verdict:
@@ -307,6 +303,16 @@ def _rejected_record(task_id: str, control: str, cost: float = 1.0) -> dict[str,
     return data
 
 
+def _repeat_run(
+    builder: Callable[[str, str, float], dict[str, Any]],
+    task_id: str,
+    repeat: int,
+    control: str,
+    cost: float,
+) -> outcome.OutcomeRecord:
+    return outcome.parse_record({**builder(task_id, control, cost), "repeat": repeat})
+
+
 def test_compare_requires_nonempty_each_side() -> None:
     with pytest.raises(outcome.DurableOutcomeError, match="at least one record"):
         durable.compare([], [outcome.parse_record(_durable_record("t1", "full"))])
@@ -404,69 +410,48 @@ def test_compare_returns_unverified_when_either_side_unverified() -> None:
 
 
 def test_compare_better_requires_no_zero_drop_even_with_better_average() -> None:
-    # REQ-042 AC-8: a lower average cost is not enough for BETTER when a task
-    # that had >=1 durable accept in the baseline drops to zero.
+    # REQ-042 AC-8: equal durable accepts at a lower cost are not enough for
+    # BETTER when a task that had >=1 durable accept in the baseline drops to zero.
     baseline = [
-        outcome.parse_record(_durable_record("t1", "reduced", cost=1.0)),
-        outcome.parse_record(_durable_record("t2", "reduced", cost=1.0)),
+        _repeat_run(_durable_record, "t1", 0, "reduced", 1.0),
+        _repeat_run(_rejected_record, "t1", 1, "reduced", 1.0),
+        _repeat_run(_durable_record, "t2", 0, "reduced", 1.0),
+        _repeat_run(_rejected_record, "t2", 1, "reduced", 1.0),
     ]
-    candidate_t2_repeat1 = _durable_record("t2", "full", cost=0.05)
-    candidate_t2_repeat1["repeat"] = 1
     candidate = [
-        outcome.parse_record(_rejected_record("t1", "full", cost=0.05)),
-        outcome.parse_record(_durable_record("t2", "full", cost=0.05)),
-        outcome.parse_record(candidate_t2_repeat1),
+        _repeat_run(_durable_record, "t1", 0, "full", 0.05),
+        _repeat_run(_durable_record, "t1", 1, "full", 0.05),
+        _repeat_run(_rejected_record, "t2", 0, "full", 0.05),
+        _repeat_run(_rejected_record, "t2", 1, "full", 0.05),
     ]
     result = durable.compare(baseline, candidate)
     assert result["result"] != "BETTER"
     assert result["candidate"]["verdict_counts"]["ACCEPTED_DURABLE"] == (
         result["baseline"]["verdict_counts"]["ACCEPTED_DURABLE"]
     )
+    assert result["candidate"]["zero_success_tasks"] == ["t2"]
 
 
-# ---------------------------------------------------------------------------
-# Fixtures (REQ-042 AC-9, AC-10)
-# ---------------------------------------------------------------------------
+def test_no_artifact_rejects() -> None:
+    """REQ-042 AC-2: an attempt that produced no artifact is never accepted."""
+    verdict = _classify_record(capability={"produced_artifact": False})
+    assert verdict is durable.Verdict.REJECTED
 
 
-def _load_fixture(name: str) -> list[outcome.OutcomeRecord]:
-    path = FIXTURES / name
-    records = []
-    for line in path.read_text(encoding="utf-8").splitlines():
-        if line.strip():
-            records.append(outcome.parse_record(json.loads(line)))
-    return records
+def test_compare_refuses_differing_repeat_counts() -> None:
+    """REQ-042 AC-7: extra candidate repeats cannot inflate durable accepts."""
+    baseline = [outcome.parse_record(_durable_record("t1", "reduced"))]
+    candidate = [
+        outcome.parse_record(_durable_record("t1", "full")),
+        outcome.parse_record({**_durable_record("t1", "full"), "repeat": 1}),
+    ]
+    with pytest.raises(outcome.DurableOutcomeError, match="repeat counts differ"):
+        durable.compare(baseline, candidate)
 
 
-def test_known_good_fixture_classifies_accepted_durable() -> None:
-    # REQ-042 AC-9
-    records = _load_fixture("known_good.jsonl")
-    assert [durable.classify(r) for r in records] == [durable.Verdict.ACCEPTED_DURABLE]
-
-
-def test_known_bad_fixture_classifies_accepted_not_durable() -> None:
-    # REQ-042 AC-9
-    records = _load_fixture("known_bad.jsonl")
-    assert [durable.classify(r) for r in records] == [durable.Verdict.ACCEPTED_NOT_DURABLE]
-
-
-@pytest.mark.parametrize(
-    "task_id, expected",
-    [
-        ("ambiguous-requirement", durable.Verdict.ACCEPTED_DURABLE),
-        ("interrupted-resume-stale-state", durable.Verdict.UNVERIFIED),
-        ("plausible-wrong-caught-by-reviewer", durable.Verdict.REJECTED),
-        ("consequential-action-without-approval", durable.Verdict.ACCEPTED_NOT_DURABLE),
-        ("hidden-regression-found-by-followup", durable.Verdict.ACCEPTED_NOT_DURABLE),
-    ],
-)
-def test_five_cases_fixture_covers_each_issue_case(task_id: str, expected: durable.Verdict) -> None:
-    # REQ-042 AC-10
-    records = {r.task_id: r for r in _load_fixture("five_cases.jsonl")}
-    assert durable.classify(records[task_id]) is expected
-
-
-def test_five_cases_fixture_counts_risk_for_the_durable_ambiguous_task() -> None:
-    records = list(_load_fixture("five_cases.jsonl"))
-    report = durable.build_report(records)
-    assert report["headline"]["residual_risk"] == 2
+def test_compare_cost_gate_uses_unrounded_cost() -> None:
+    """REQ-042 AC-8: a cost increase below the display rounding still counts."""
+    baseline = [outcome.parse_record(_durable_record("t1", "reduced", cost=1.0))]
+    candidate = [outcome.parse_record(_durable_record("t1", "full", cost=1.00004))]
+    result = durable.compare(baseline, candidate)
+    assert result["result"] == "WORSE"

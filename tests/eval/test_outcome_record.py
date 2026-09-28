@@ -210,3 +210,16 @@ def test_allows_null_risk_count() -> None:
     data["risk"] = {**data["risk"], "security_findings": None}
     record = outcome.parse_record(data)
     assert record.risk.security_findings is None
+
+
+@pytest.mark.parametrize("value", [float("nan"), float("inf")])
+@pytest.mark.parametrize(
+    ("section", "field"),
+    [("economics", "model_cost_usd"), ("durable", "rework_minutes")],
+)
+def test_refuses_nonfinite_number(section: str, field: str, value: float) -> None:
+    """REQ-042 data-model invariant 1: NaN and Infinity from JSONL are refused."""
+    data = make_record()
+    data[section] = {**data[section], field: value}
+    with pytest.raises(outcome.DurableOutcomeError, match="finite"):
+        outcome.parse_record(data)

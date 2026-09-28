@@ -115,7 +115,7 @@ acceptance, never upgrade a deterministic `FAIL` or `UNVERIFIED`.
 
 See DESIGN-040 for field-level types. Invariants:
 
-1. Every numeric count and cost is a non-negative number.
+1. Every numeric count and cost is a finite, non-negative number.
 2. Unknown keys are refused, so the contract cannot drift silently.
 3. `task_id` plus `repeat` is unique per configuration.
 
@@ -162,7 +162,8 @@ human correction minutes per accepted durable task, and residual risk count.
    minutes per accepted durable task, and residual risk count, and shall be
    `null` when no task is accepted durable.
 7. When two configurations differ in any RunConfig field other than
-   `control`, or cover different task sets, the comparison shall refuse.
+   `control`, cover different task sets, or run a task a different number
+   of times, the comparison shall refuse.
 8. The comparison shall return `BETTER` only when the candidate has at least
    as many accepted durable tasks, no higher cost per accepted durable task,
    and no task that drops from one or more durable accepts to zero.

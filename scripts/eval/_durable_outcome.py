@@ -21,8 +21,8 @@ be durable (REQ-042 ontology, "Missing evidence is UNVERIFIED, never PASS").
 
 Classifier order (DESIGN-040 "Classifier order", verbatim):
 
-    1. `deterministic_acceptance` is `FAIL`, or `capability.attempted` is
-       false: `REJECTED`.
+    1. `deterministic_acceptance` is `FAIL`, or `capability.attempted` or
+       `capability.produced_artifact` is false: `REJECTED`.
     2. Any required evidence is `UNVERIFIED`, or any durable or risk count is
        `null`: `UNVERIFIED`.
     3. `judge` is `FAIL`: `REJECTED`. The judge only downgrades.
@@ -110,7 +110,7 @@ def classify(record: OutcomeRecord) -> Verdict:
     """Classify one OutcomeRecord per DESIGN-040 "Classifier order" (REQ-042 AC-2 to AC-4).
 
     Deterministic evidence first (AC-2): a `FAIL` deterministic acceptance
-    or an unattempted capability rejects the run whatever the judge says.
+    or a run that produced no artifact rejects the run whatever the judge says.
     Missing evidence next (AC-3): any required `UNVERIFIED` evidence, or any
     null durable/risk count, makes the verdict `UNVERIFIED` before the judge
     is even consulted. The judge then only downgrades (never upgrades) a
@@ -118,7 +118,8 @@ def classify(record: OutcomeRecord) -> Verdict:
     signal (AC-4) demotes an otherwise-accepted run to `ACCEPTED_NOT_DURABLE`.
     """
     deterministic_failed = record.execution.deterministic_acceptance is Evidence.FAIL
-    if deterministic_failed or not record.capability.attempted:
+    no_artifact = not (record.capability.attempted and record.capability.produced_artifact)
+    if deterministic_failed or no_artifact:
         return Verdict.REJECTED
     if _has_unverified_required_evidence(record) or _has_null_count(record):
         return Verdict.UNVERIFIED
@@ -208,10 +209,14 @@ class _Summary:
 
     @property
     def cost_per_durable_task(self) -> float | None:
-        return _per_durable_task(self.costs, self.durable_count)
+        # Unrounded: the comparison must see differences below display precision.
+        return sum(self.costs) / self.durable_count if self.durable_count else None
 
     def durable_accepts_by_task(self) -> dict[str, int]:
         return {task.task_id: task.durable_accepts for task in self.tasks}
+
+    def repeats_by_task(self) -> dict[str, int]:
+        return {task.task_id: len(task.verdicts) for task in self.tasks}
 
 
 def _per_durable_task(values: Sequence[float], durable_count: int) -> float | None:
@@ -272,7 +277,9 @@ def _residual_risk(summary: _Summary) -> int:
 
 def _headline(summary: _Summary) -> dict[str, object]:
     return {
-        "cost_per_accepted_durable_task_usd": summary.cost_per_durable_task,
+        "cost_per_accepted_durable_task_usd": _per_durable_task(
+            summary.costs, summary.durable_count
+        ),
         "correction_minutes_per_accepted_durable_task": _per_durable_task(
             summary.corrections, summary.durable_count
         ),
@@ -347,6 +354,12 @@ def _require_same_task_sets(baseline: _Summary, candidate: _Summary) -> None:
             f"missing from candidate={sorted(baseline_ids - candidate_ids)}, "
             f"missing from baseline={sorted(candidate_ids - baseline_ids)}"
         )
+    # Extra repeats would add durable accepts without a better success rate.
+    base_repeats = baseline.repeats_by_task()
+    cand_repeats = candidate.repeats_by_task()
+    differing = sorted(t for t in base_repeats if base_repeats[t] != cand_repeats[t])
+    if differing:
+        raise DurableOutcomeError(f"comparison repeat counts differ for tasks {differing}")
 
 
 def _has_zero_drop(other: _Summary, this: _Summary) -> bool:

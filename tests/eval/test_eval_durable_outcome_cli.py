@@ -247,3 +247,15 @@ def test_script_run_as_main_exits_0_on_pass_report(tmp_path: Path) -> None:
 
     assert completed.returncode == cli.EXIT_OK
     assert json.loads(completed.stdout)["status"] == "VERIFIED"
+
+
+def test_main_exit_2_on_invalid_utf8(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    records_path = tmp_path / "records.jsonl"
+    records_path.write_bytes(b"\xff\xfe not utf-8\n")
+
+    exit_code = cli.main(["--records", str(records_path)])
+
+    assert exit_code == cli.EXIT_INPUT_ERROR
+    assert "cannot read" in capsys.readouterr().err
