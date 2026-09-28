@@ -126,6 +126,18 @@ packages already appear installed and leaves the stale shebangs unrewritten),
 `--extra dev` keeps pytest/ruff/mypy in the repaired venv, and `--frozen`
 reproduces `uv.lock` without re-resolving so the result matches CI.
 
+**Shared-state caveat:** every worktree shares one `.git`. Only `HEAD` and the
+other pseudorefs, the index, the working tree, `refs/bisect/*`,
+`refs/worktree/*`, and `refs/rewritten/*` belong to one worktree. Every branch,
+every tag, `refs/remotes/*`, and `refs/stash` are shared. Three traps follow
+when several sessions work one clone at once:
+
+| Hazard | Symptom | First command | Fix |
+|--------|---------|---------------|-----|
+| Stash is repo-wide | `git stash list` shows an entry you never made, or `git stash pop` conflicts on a file you never touched | `git stash list --format='%gd %gs'` and read the `WIP on <branch>` subject | Pop only an entry that names your branch, by index. After a conflicting pop, run `git restore --source=HEAD --staged --worktree -- <paths>` on the files it touched; a conflicting pop exits 1 and keeps the entry for its owner. Save your own work as a WIP commit on your branch instead of stashing |
+| Base goes stale in long runs | Gates or conflicts appear on files you never touched, after a local run was green | `git fetch origin main && git rev-list --left-right --count origin/main...HEAD` | A non-zero left count means `main` moved. `git merge origin/main`, regenerate, and re-run the failing gate. A fetch in any worktree moves `origin/main` for all of them but never moves your branch |
+| "Next free number" races | Two branches add the same sequential id (spec, ADR, record) and each passes alone | After `git merge origin/main`, re-run the id-uniqueness check | Renumber the unmerged side. Allocate the id after a fresh fetch, as late as possible before commit |
+
 #### Recovery: Undo Mistakes with Reflog
 
 ```bash
@@ -188,6 +200,7 @@ verified bundle before `git worktree remove`.
 | `--force` without `--force-with-lease` | Overwrites teammates' work | Always `--force-with-lease` |
 | Bisecting on dirty working tree | Checkout fails with uncommitted changes | Commit or stash first |
 | Orphaned worktrees | Consume disk space silently | Remove after use |
+| `git stash` with several live worktrees | One stash stack serves every worktree; `pop` takes the newest entry, whoever made it | WIP commit on your own branch |
 | Treating a dirty worktree as owned | Freezes issues whose worktree a fleet wipe orphaned | Measure file age and list files (`references/worktree-triage.md`) |
 | Removing a worktree before anchoring its tip | Drops commits nothing else references | `git update-ref refs/salvage/<slug> <sha>` and bundle first |
 | No backup before complex rebase | No recovery path if rebase fails | Create safety branch first |
