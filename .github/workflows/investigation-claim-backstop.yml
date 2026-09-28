@@ -30,7 +30,7 @@ jobs:
   validate-claims:
     name: Validate Investigation Claims
     # ADR-025: ARM runner for cost optimization
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     timeout-minutes: 5
     if: github.actor != 'dependabot[bot]' && github.actor != 'github-actions[bot]'
 
@@ -95,6 +95,7 @@ jobs:
           # of those as a command-substitution attempt. Keeping the heredoc
           # quoted ("<<'EOF'") keeps that text fully literal; printf handles
           # the one line that needs the SHA interpolated.
+          # shellcheck disable=SC2016 # backticks are markdown, not command substitution
           printf '## Investigation-Only Claim Violation\n\nAs of commit `%s`, this PR contained session logs claiming `SKIPPED: investigation-only` while the associated commits included files outside the investigation allowlist. If the PR has since changed, verify the current diff rather than relying on this comment alone; it is not automatically updated or cleared.\n\n' "${HEAD_SHA:0:12}" > "${RUNNER_TEMP:-.}/comment.md"
           cat <<'EOF' >> "${RUNNER_TEMP:-.}/comment.md"
           **Per ADR-034**, investigation-only sessions may only commit:

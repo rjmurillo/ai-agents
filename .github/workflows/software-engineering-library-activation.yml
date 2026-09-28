@@ -30,7 +30,7 @@ jobs:
   activation-gate:
     name: Evaluate software-engineering-library activation
     # Owner: agent-qa. Cadence: weekly Monday 06:30 UTC plus PR dry-run wiring.
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     environment: bot-secrets
     timeout-minutes: 90
 

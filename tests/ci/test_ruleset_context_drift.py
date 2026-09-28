@@ -248,7 +248,7 @@ def test_workflow_runs_the_detector_on_schedule_and_manual_dispatch() -> None:
         "cancel-in-progress": False,
     }
     assert job["permissions"] == {"contents": "read", "issues": "write"}
-    assert job["runs-on"] == "ubuntu-24.04-arm"
+    assert job["runs-on"] == "ubuntu-26.04-arm"
     assert drift._format_contexts(()) == "- None"
     assert any(
         step.get("run")

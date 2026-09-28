@@ -30,7 +30,7 @@ jobs:
   check-paths:
     name: Check Paths
     # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     permissions:
       contents: read
     outputs:
@@ -85,7 +85,7 @@ jobs:
   validate:
     name: Validate Generated Files
     # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     needs: check-paths
     permissions:
       contents: read

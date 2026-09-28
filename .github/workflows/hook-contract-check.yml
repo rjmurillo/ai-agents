@@ -32,7 +32,7 @@ permissions:
 jobs:
   check-paths:
     name: Detect hook changes
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     timeout-minutes: 5
     outputs:
       should-run-hooks: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.hooks }}
@@ -60,7 +60,7 @@ jobs:
     name: Validate hook contracts
     needs: check-paths
     if: needs.check-paths.outputs.should-run-hooks == 'true'
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     timeout-minutes: 5
     steps:
       - name: Checkout code
@@ -79,7 +79,7 @@ jobs:
     name: Skip hook contracts (no hook changes)
     needs: check-paths
     if: needs.check-paths.outputs.should-run-hooks != 'true'
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     timeout-minutes: 1
     steps:
       - name: Checkout code

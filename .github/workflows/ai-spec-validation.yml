@@ -57,7 +57,7 @@ jobs:
   debounce:
     name: Debounce Workflow
     if: (github.event_name == 'workflow_dispatch' && inputs.enable_debouncing == true) || (github.event_name == 'pull_request' && vars.ENABLE_DEBOUNCE == 'true')
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     environment: bot-secrets
     steps:
       - name: Checkout repository
@@ -72,7 +72,7 @@ jobs:
 
   check-paths:
     name: Check Changed Paths
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     environment: bot-secrets
     needs: debounce
     if: github.event_name != 'merge_group' && always() && (needs.debounce.result == 'success' || needs.debounce.result == 'skipped')
@@ -101,7 +101,7 @@ jobs:
     # would otherwise cause this job to be skipped even when check-paths succeeds
     if: github.event_name != 'merge_group' && always() && needs.check-paths.result == 'success'
     # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     environment: bot-secrets
     # Budget: ceil(sum(3 * step timeout + 1.5) + 5) for 3, 3.
     timeout-minutes: 26

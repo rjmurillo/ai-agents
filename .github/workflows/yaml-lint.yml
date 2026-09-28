@@ -27,7 +27,7 @@ jobs:
   check-paths:
     name: Check Changed Paths
     # ADR-025: ARM runner for cost optimization
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     permissions:
       contents: read
     outputs:
@@ -51,7 +51,7 @@ jobs:
     name: YAML Lint
     needs: check-paths
     if: needs.check-paths.outputs.yaml-changed == 'true'
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     permissions:
       contents: read
     steps:
@@ -67,7 +67,7 @@ jobs:
     needs: check-paths
     if: needs.check-paths.outputs.yaml-changed != 'true'
     # ADR-025: ARM runner for cost optimization
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     permissions:
       contents: read
     steps:
