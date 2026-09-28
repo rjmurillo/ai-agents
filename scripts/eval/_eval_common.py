@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import os
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from typing import Any, TypeVar
 
 from _billing_matrix import quota_billed_provider_names
@@ -181,6 +181,27 @@ def cost_basis(provider: str | None) -> str:
     """
     selected = (provider or os.environ.get("EVAL_PROVIDER") or "anthropic").strip().lower()
     return "requests" if selected in QUOTA_BILLED_PROVIDERS else "usd"
+
+
+def percentile(values: Sequence[float], pct: float) -> float:
+    """Linear-interpolation percentile of `values` at `pct` (0 to 100). No numpy.
+
+    Returns 0.0 for an empty sequence and the sole value for a single-element
+    sequence. This is the one merged copy (REQ-042 AC-11) of the two
+    formerly-private ``_percentile`` helpers in ``_model_sweep_core.py`` and
+    ``_report_aggregator.py``; both call sites now import this function
+    instead of keeping their own copy.
+    """
+    if not values:
+        return 0.0
+    ordered = sorted(values)
+    if len(ordered) == 1:
+        return ordered[0]
+    rank = (pct / 100.0) * (len(ordered) - 1)
+    lower = int(rank)
+    upper = min(lower + 1, len(ordered) - 1)
+    frac = rank - lower
+    return ordered[lower] + frac * (ordered[upper] - ordered[lower])
 
 
 def require_str_or_none(value: object, field: str) -> str | None:

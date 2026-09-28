@@ -28,6 +28,7 @@ from _eval_common import (
     MODEL_PRICING_RATES_USD_PER_1K_TOKENS,
     PRICING_RATE_AS_OF,
     cost_basis,
+    percentile,
 )
 from _plan_runner import UnsupportedModelError
 
@@ -267,20 +268,6 @@ def _recall_from_grouped(
     return passed / total
 
 
-def _percentile(values: list[float], pct: float) -> float:
-    """Linear interpolation percentile. Avoids pulling in numpy."""
-    if not values:
-        return 0.0
-    s = sorted(values)
-    if len(s) == 1:
-        return s[0]
-    rank = (pct / 100.0) * (len(s) - 1)
-    lower = int(rank)
-    upper = min(lower + 1, len(s) - 1)
-    frac = rank - lower
-    return s[lower] + frac * (s[upper] - s[lower])
-
-
 def pairwise_bootstrap_ci(
     grouped: dict[tuple[str, str], list[RunRecord]],
     fixture_ids: list[str],
@@ -309,8 +296,8 @@ def pairwise_bootstrap_ci(
         recall_b = _recall_from_grouped(grouped, variant_b, fixture_ids=sample)
         deltas.append(recall_a - recall_b)
     return (
-        _percentile(deltas, CI_LOWER_PERCENTILE),
-        _percentile(deltas, CI_UPPER_PERCENTILE),
+        percentile(deltas, CI_LOWER_PERCENTILE),
+        percentile(deltas, CI_UPPER_PERCENTILE),
     )
 
 
