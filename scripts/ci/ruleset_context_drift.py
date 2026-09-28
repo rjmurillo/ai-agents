@@ -81,19 +81,19 @@ def step0_evidence(
 ) -> tuple[str, str]:
     """Return the Step 0 Q3 and Q5 answers new_issue.py requires (issue #5700).
 
-    Q3 names who the drift blocks; Q5 cites this run and the exact contexts,
+    Q3 names who the drift blocks; Q5 cites this run and the drift counts,
     both derived from the comparison rather than fixed text.
     """
     blocked_by = (
         f"Maintainers merging to {BRANCH} in {REPOSITORY}: the pinned "
         f"REQUIRED_CONTEXTS no longer match the live ruleset gate."
     )
+    # Counts only: the body lists the context names, and a free-form name
+    # holding a hedge word would make new_issue.py refuse the alert.
     signal = (
         f"Run {_run_url()} compared ruleset {RULESET_ID}: "
-        f"{len(added)} required context(s) not pinned: "
-        f"{', '.join(added) or 'none'}; "
-        f"{len(removed)} pinned context(s) no longer required: "
-        f"{', '.join(removed) or 'none'}."
+        f"{len(added)} required context(s) not pinned; "
+        f"{len(removed)} pinned context(s) no longer required."
     )
     return blocked_by, signal
 
