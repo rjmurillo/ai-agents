@@ -17,8 +17,16 @@ Token estimate: chars / 4, the heuristic the issue itself used to report
 run in bare CI with no extra install, and a 4-chars-per-token estimate is good
 enough to trend the aggregate and gate growth.
 
+Budget file mode (issue #5762): `--budget-file scripts/skill_description_budget.json`
+measures every shipped skill root named in the file, `.claude/skills` and
+`src/copilot-cli/skills`, against that root's `max_total_chars`, so a description
+added only to the Copilot tree cannot bypass the gate. The budgets are a local
+engineering ratchet set just above the measured corpus. They are not a measured
+limit of any model host. Raising one needs a reviewed reason in the same PR;
+lowering one is always fine.
+
 Exit codes (AGENTS.md): 0 ok (and within budget if one is set), 1 over budget,
-2 config (bad root / no skills found).
+2 config (bad root / no skills found / bad budget file).
 """
 
 from __future__ import annotations
@@ -199,6 +207,16 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         help="Fail (exit 1) when the estimated corpus tokens exceed this.",
     )
     parser.add_argument(
+        "--budget-file",
+        type=Path,
+        default=None,
+        help=(
+            "JSON file mapping each shipped skill root to its max_total_chars. "
+            "Measures every root and fails when any exceeds its budget. "
+            "Replaces --root and the --max-total-* flags."
+        ),
+    )
+    parser.add_argument(
         "--output-format",
         choices=("human", "json"),
         default="human",
@@ -219,13 +237,71 @@ def _over_budget(report: BudgetReport, args: argparse.Namespace) -> str | None:
     return None
 
 
+class BudgetFileError(ValueError):
+    """The budget file is missing, unparseable, or has an invalid entry."""
+
+
+def load_root_budgets(path: Path) -> dict[str, int]:
+    """Return `{root: max_total_chars}` from a budget file, or raise BudgetFileError."""
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise BudgetFileError(f"cannot read budget file {path}: {exc}") from exc
+    roots = data.get("roots") if isinstance(data, dict) else None
+    if not isinstance(roots, dict) or not roots:
+        raise BudgetFileError(f"budget file {path} needs a non-empty 'roots' object")
+    budgets: dict[str, int] = {}
+    for root, entry in roots.items():
+        limit = entry.get("max_total_chars") if isinstance(entry, dict) else None
+        if not isinstance(limit, int) or isinstance(limit, bool) or limit <= 0:
+            raise BudgetFileError(f"root {root!r} needs a positive integer 'max_total_chars'")
+        budgets[root] = limit
+    return budgets
+
+
+def _check_root(root: Path, label: str, budget: int, *, top: int) -> tuple[str, bool]:
+    """Measure one root against its budget. Returns (report text, within budget)."""
+    report = measure_corpus(root)
+    status = "OK" if report.total_chars <= budget else "OVER BUDGET"
+    lines = [
+        f"[{status}] {label}: {report.count} skill(s), {report.total_chars} chars "
+        f"(~{report.total_tokens} est. tokens), budget {budget} chars "
+        f"(~{estimate_tokens(budget)} est. tokens)",
+    ]
+    if report.total_chars > budget:
+        lines.append(f"  over by {report.total_chars - budget} chars; largest contributors:")
+        lines.extend(f"    {s.chars:>5} chars  {s.name}" for s in report.top(top))
+    return "\n".join(lines), report.total_chars <= budget
+
+
+def run_budget_file(path: Path, *, top: int) -> int:
+    """Gate every root in a budget file. Relative roots resolve against the repo root."""
+    try:
+        budgets = load_root_budgets(path)
+    except BudgetFileError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return EXIT_CONFIG
+    failed = False
+    for label, budget in budgets.items():
+        root = _REPO_ROOT / label
+        if not root.is_dir() or not any(root.glob("*/SKILL.md")):
+            print(f"error: budget root {label} has no skills at {root}", file=sys.stderr)
+            return EXIT_CONFIG
+        text, within = _check_root(root, label, budget, top=top)
+        print(text, file=sys.stderr if not within else sys.stdout)
+        failed = failed or not within
+    return EXIT_OVER_BUDGET if failed else EXIT_OK
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv if argv is not None else sys.argv[1:])
-    if not args.root.is_dir():
-        print(f"error: --root {args.root} is not a directory", file=sys.stderr)
-        return EXIT_CONFIG
     if args.top < 0:
         print(f"error: --top must be non-negative, got {args.top}", file=sys.stderr)
+        return EXIT_CONFIG
+    if args.budget_file is not None:
+        return run_budget_file(args.budget_file, top=args.top)
+    if not args.root.is_dir():
+        print(f"error: --root {args.root} is not a directory", file=sys.stderr)
         return EXIT_CONFIG
 
     report = measure_corpus(args.root)
