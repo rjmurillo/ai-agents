@@ -84,8 +84,8 @@ that tier carry `source: "Episodes"`.
 ### Python Import
 
 `memory_core` is a package under the skill, not an installed distribution. Add
-the skill directory to `sys.path` first. The `skills/memory/tests/conftest.py`
-file in this tree does exactly this.
+the skill directory to `sys.path` first. The `tests/skills/memory/conftest.py`
+file does exactly this.
 
 ```python
 import os
