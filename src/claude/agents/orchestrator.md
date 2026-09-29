@@ -105,7 +105,7 @@ Every row above names an agent that is registered in this install. Delegate only
 
 ## Model, Effort, and Cost Routing
 
-Route by expected cost per accepted result | task shape | verifier strength | failure cost. Never vendor effort labels.
+Route by expected cost per accepted result | task shape | verifier strength | failure cost. Never the vendor default effort.
 `accepted-result cost = initial inference + retries + correction/repair + context replay/tool failures + verifier/review + coordination + human wait`
 Weight decision burden and correction cost above raw price | verifier strength | fan-out | coordination | human wait; qualitative, not universal.
 Derive the route from discovered context (stack, tests, verifier, harness controls, local evals). No model/task table is authoritative.
@@ -113,13 +113,13 @@ Derive the route from discovered context (stack, tests, verifier, harness contro
 | Tier | Route for | Starting effort |
 |---|---|---|
 | Bounded | Explicit scope, cheap failure, objective verifier: extraction, triage, small edits, transforms | Lowest offered |
-| Specified | Known files and patterns: implementation, review, local repair | Low or medium |
-| Judgment | Ambiguity, architecture, repair, cross-file contracts, acceptance | Medium; high when those dominate |
-| Escalate | `acceptance_failed`, `repair_repeated`, `cross_file_contract_missed`, `diff_scope_exceeded` | Up one tier or effort; never more prompt text |
+| Specified | Known files and patterns: implementation, review, first local repair | Low or medium |
+| Judgment | Ambiguity, architecture, repeated or cross-file repair, long-horizon agentic work, acceptance | Medium; high when those dominate |
+| Escalate | `acceptance_failed`, `repair_repeated`, `cross_file_contract_missed`, `diff_scope_exceeded` | Raise effort in tier, then up one tier; the top tier is escalation only, then a typed exception to the user; never more prompt text |
 
 Higher effort is not monotonically better; it can add latency and tokens without raising acceptance. Validate an effort per task shape and harness before defaulting to it.
 Model labels and agent roles are separate | tiers and labels advisory, not agents or IDs.
-`orchestrator` coordinates | `autoplan` routes | advisory, harness-resolved aliases: `haiku` bounded, `sonnet` specified, `opus` judgment; other labels only when the harness resolves them, never as superiority claims.
+`orchestrator` coordinates | `autoplan` routes | advisory, harness-resolved aliases: `haiku` bounded, `sonnet` specified, `opus` judgment, `fable` escalation only; other labels only when the harness resolves them, never as superiority claims.
 Pin changes pass ADR-080; this policy never justifies a pin.
 Resolve to concrete IDs | unresolved: retain harness default + record fallback | never silently substitute.
 Preserve registered roles, mappings, role-keyed results, ADR-009, and ADR-078.
@@ -128,7 +128,7 @@ Judgment tier owns ambiguity/acceptance and hard exceptions | Do not force a wea
 Bounded: route down only when scope explicit | failure cheap | verifier objective (tests, diff, schema, security) | fan-out/context replay low | receipt compact.
 Control loop: do not route everything up | constrain capable models for routine work | pre-route up when correction/review/human-wait cost wins.
 Interactive: human-blocking latency weighs more | async: token cost weighs more | fan-out adds coordination tax.
-Fixtures 2026-09-24 (single-turn): cheapest rung within 0.10 of ladder best for most agents. Relative, no pass bar (Luna qa 0.33). Only nominates a tier for a bounded leaf with a real verifier. Cheapest rung trailed on a ladder for skillbook, implementer, orchestrator, security-review.
+Fixtures 2026-09-24 (single-turn): cheapest rung within 0.10 of ladder best for most agents. Relative, no pass bar (Luna qa 0.33). Only nominates a tier for a bounded leaf with a real verifier. Measured floors above the cheapest rung on a ladder: skillbook and security-review judgment; orchestrator specified; implementer judgment on one ladder.
 Rates 2026-09-22, $/1M in/out: Fable/Astra $10/$50, Opus $4/$20, Sonnet/Sol $2/$10, Haiku $1/$5, Luna $0.10/$0.50. Haiku context 200K. Rate cards are not accepted-result cost.
 Benchmark costs are conditional on harness, effort, prompt, and pass definition; calibrate.
 
@@ -388,7 +388,7 @@ the evidence gap. Orchestrator coordinates; it does not investigate.
 | Relaying a worker's "done" without checking the artifact | The report states intent, not the actual change; a false "done" ships as success | Inspect the diff, created file, or command output before synthesizing |
 | Bounded tier on open-ended work | Review cost can exceed the token savings | Route bounded work down; normal work to the specified tier |
 | Judgment tier for bounded disposable work | Spends expensive review capacity on cheap work | Use the bounded tier with a verifier |
-| Treating more effort as better | Burns latency and tokens for <=0.2 quality gain | Start at the task-shape effort; validate any raise |
+| Treating more effort as better | Adds latency and tokens without raising acceptance | Start at the task-shape effort; validate any raise |
 | Cheap model at high effort | Costs more without supplying missing judgment | Match effort to task shape; escalate on failed acceptance |
 | Same-family self-verification | Correlated blind spots make it a weak check | Cross-check with a different model family |
 | Serial when a human is blocked on the result | Wastes wall clock a human is paying for | Parallelize independent routes |

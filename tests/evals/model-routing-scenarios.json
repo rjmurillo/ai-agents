@@ -24,7 +24,7 @@
         "OPUS",
         "FABLE"
       ],
-      "rationale": "Classification at volume with an objective check is the Haiku 4.5 / Luna shape in the routing table."
+      "rationale": "Classification at volume with an objective check is the bounded-tier shape; the `haiku` alias resolves the bounded tier."
     },
     {
       "id": "R3",
@@ -37,7 +37,7 @@
         "OPUS",
         "FABLE"
       ],
-      "rationale": "Ambiguous, consequential judgment with no verifier keeps task-shape routing: Opus 5.5 is the default frontier. Fable is escalation only."
+      "rationale": "Ambiguous, consequential judgment with no verifier keeps task-shape routing to the judgment tier (`opus`). The top tier is escalation only."
     },
     {
       "id": "R4",
@@ -48,7 +48,7 @@
         "HAIKU",
         "HIGHER"
       ],
-      "rationale": "Fixture evidence only nominates a tier for a bounded leaf with a real verifier. With no verifier, task shape governs, and the guidance sends high-recall review to Sonnet or Opus, never to the fixture-nominated Haiku."
+      "rationale": "Fixture evidence only nominates a tier for a bounded leaf with a real verifier. With no verifier, task shape governs, and review with no objective check is not bounded work, so it does not go to the fixture-nominated Haiku."
     },
     {
       "id": "R5",
@@ -61,7 +61,7 @@
         "OPUS",
         "FABLE"
       ],
-      "rationale": "skillbook is a measured exception: the cheapest rungs trailed by more than the margin, so it routes to Opus 5.5 on Claude."
+      "rationale": "skillbook has a measured floor above the cheapest rung: the judgment tier (`opus`) on Claude. The schema validator checks shape, not the judgment the task needs."
     },
     {
       "id": "R6",
@@ -74,7 +74,7 @@
         "OPUS",
         "FABLE"
       ],
-      "rationale": "security-review is a measured exception that routes to Opus 5.5 on Claude."
+      "rationale": "security-review has a measured floor at the judgment tier (`opus`) on Claude. CodeQL is a separate check, not a verifier of the review's findings."
     },
     {
       "id": "R7",
@@ -87,7 +87,7 @@
         "OPUS",
         "FABLE"
       ],
-      "rationale": "Long-running agentic coding is the Opus 5.5 default-frontier shape; the single-turn fixture evidence does not cover tool loops."
+      "rationale": "Long-horizon agentic work is a judgment-tier shape (`opus`); the single-turn fixture evidence does not cover tool loops."
     },
     {
       "id": "R8",
@@ -100,7 +100,7 @@
         "OPUS",
         "FABLE"
       ],
-      "rationale": "Repeated acceptance failure raises a typed exception at the unresolved surface. The next rung for specified work is Sonnet 5; repeating Haiku ignores the failure and jumping to Fable skips Opus."
+      "rationale": "Repeated acceptance failure raises a typed exception. Escalation raises effort in tier, then moves up one tier: bounded to specified (`sonnet`). Repeating Haiku ignores the failure and jumping to Fable skips tiers."
     },
     {
       "id": "R9",
@@ -113,7 +113,7 @@
         "OPUS",
         "FABLE"
       ],
-      "rationale": "Fable 5.1 is escalation only, after higher-effort Opus fails on highest-stakes architecture."
+      "rationale": "The judgment tier already failed at its highest effort, so escalation moves up one tier to the escalation-only top tier (`fable`)."
     },
     {
       "id": "R10",
@@ -126,7 +126,7 @@
         "OPUS",
         "FABLE"
       ],
-      "rationale": "Opus 5.5 is the default frontier; Fable 5.1 is reserved for escalation after Opus fails."
+      "rationale": "High-stakes work starts at the judgment tier (`opus`); the top tier (`fable`) is escalation only, after the judgment tier fails at raised effort."
     }
   ]
 }
