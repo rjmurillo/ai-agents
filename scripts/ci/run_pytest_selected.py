@@ -70,7 +70,6 @@ _PARTITION_FULL_ARGS: dict[str, list[str]] = {
         "tests/e2e",
         "tests/eval",
         "tests/evals",
-        "tests/eval_scenarios",
         "tests/external_signals",
         "tests/fixtures",
         "tests/hooks",

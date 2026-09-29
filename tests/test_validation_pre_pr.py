@@ -87,6 +87,14 @@ def _sequence_with_passing_corpus_gates() -> tuple[Any, ...]:
         # tests/validation/test_check_skill_adr_bindings.py and its registration
         # in tests/validation/test_skill_adr_bindings_wiring.py.
         "Skill ADR Bindings (ratchet)",
+        # Pipes a malformed envelope through the validator CLI with
+        # `subprocess.run` and requires a non-zero exit. TestMain patches
+        # `subprocess.run` with `_healthy_git_run`, which answers every call
+        # with exit 0, so the CLI appears to accept the malformed envelope and
+        # the gate correctly reports it. Mock artifact, not a real acceptance.
+        # The gate's behavior is covered in
+        # tests/validation/test_check_skill_output_envelopes.py.
+        "Skill Output Envelope",
         # Spawns `build/scripts/build_all.py --check` against the real
         # repository root. That child is not mocked: the gate reaches it
         # through `subprocess.Popen`
@@ -134,7 +142,7 @@ def _healthy_git_run(*args: Any, **_kwargs: Any) -> Any:
     argv = args[0] if args else []
     if "symbolic-ref" in argv:
         stdout = "origin/main"
-    elif "rev-parse" in argv:
+    elif "rev-parse" in argv or "merge-base" in argv:
         stdout = "0" * 40
     else:
         stdout = ""

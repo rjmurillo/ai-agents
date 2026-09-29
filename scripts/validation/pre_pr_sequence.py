@@ -58,12 +58,27 @@ from check_serena_memory_worktree_scope import (
     validate_serena_memory_worktree_scope,
 )
 from check_skill_adr_bindings import validate_skill_adr_bindings
+from check_skill_output_envelopes import validate_skill_output_envelopes
 from check_skill_tree_layout import validate_skill_tree_layout
 from check_subprocess_encoding import validate_subprocess_encoding
 from check_test_tree_writes import validate_test_tree_writes
 from check_tmp_worktrees import validate_tmp_worktrees
 from check_unreachable_code import validate_unreachable_code
 from check_worktree_recipes import validate_worktree_recipes
+from checks_ci_parity import (
+    validate_adr_uniqueness,
+    validate_agent_registry,
+    validate_agent_skill_discriminator,
+    validate_hook_contracts,
+    validate_passive_context_budget,
+    validate_placeholder_identity,
+    validate_plugin_frontmatter_self_containment,
+    validate_python3_entrypoints,
+    validate_security_suppressions_diff,
+    validate_sha_pinning,
+    validate_skillbook,
+    validate_tracked_conflict_markers,
+)
 from checks_coverage import (
     validate_review_marker,
 )
@@ -393,6 +408,27 @@ _SEQUENCE: tuple[_Gate, ...] = (
     _Gate("Hook Template Drift", _root_only(validate_hook_template_drift)),
     _Gate("Spec ID Uniqueness", _root_only(validate_spec_id_uniqueness)),  # Issue #2068
     _Gate("Traceability", _root_only(validate_traceability)),
+    # The gates below run the validators that pull-request workflows run and
+    # this sequence did not (issue #5676): a branch cleared every local gate and
+    # then failed `Validate Generated Files` or `Validate PR`, both required.
+    # tests/validation/test_pre_pr_covers_workflow_validators.py reads every
+    # pull-request workflow and fails when one runs a validator that neither a
+    # gate here nor that test's exemption table accounts for.
+    _Gate("Agent Registry", _root_only(validate_agent_registry)),
+    _Gate(
+        "Plugin Frontmatter Self-Containment",
+        _root_only(validate_plugin_frontmatter_self_containment),
+    ),
+    _Gate("Python3 Entrypoints", _root_only(validate_python3_entrypoints)),
+    _Gate("GitHub Actions SHA Pinning", _root_only(validate_sha_pinning)),
+    _Gate("ADR Number Uniqueness", _root_only(validate_adr_uniqueness)),
+    _Gate("Agent-Skill Discriminator", _root_only(validate_agent_skill_discriminator)),
+    _Gate("Hook Contracts", _root_only(validate_hook_contracts)),
+    _Gate("Passive Context Budget", _root_only(validate_passive_context_budget)),
+    _Gate("Skillbook Validation", _root_only(validate_skillbook)),
+    _Gate("Placeholder Identity", _root_only(validate_placeholder_identity)),
+    _Gate("Tracked Conflict Markers", _root_only(validate_tracked_conflict_markers)),
+    _Gate("Security Suppressions Diff", _root_only(validate_security_suppressions_diff)),
     # The seven gates below are the seven validators the CI job
     # "Validate Vendor Portability" runs. They are kept together, and
     # tests/validation/test_pre_pr_covers_vendor_portability.py reads that
@@ -437,6 +473,10 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # inside it: Skill Memory References pins that it runs immediately after
     # Skill SKIP Clause Routing.
     _Gate("Commands Retired (ADR-064)", _root_only(validate_commands_retired)),
+    # Builds envelopes with the real skill-output producers and asks
+    # scripts/validate_skill_output.py to accept each, then proves the validator
+    # still rejects a malformed one. Until issue #5299 no gate ran that validator.
+    _Gate("Skill Output Envelope", _root_only(validate_skill_output_envelopes)),
     # Block new test files colocated in customer-shipped skill dirs. Issue #4838.
     _Gate("Colocated Skill Tests", _root_only(validate_colocated_skill_tests)),
     # Ratchet (issue #3457). Fails when a rule or skill has no activation

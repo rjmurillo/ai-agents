@@ -63,7 +63,7 @@
         "concurrency_limit": {
           "status": "UNVERIFIED",
           "evidence": "backend",
-          "detail": "Three concurrent gpt-6-luna children were requested, and at most 2 child responses overlapped (codex-0.156.0/concurrency-3-requested.trace.log). The backend reports parallel_tool_calls=false, so the parent issues one spawn per response. The limit control is -c agents.max_threads=N and it is enforced: with N=1 a second concurrent spawn failed with 'collab spawn failed: agent thread limit reached' (codex-0.156.0/thread-limit-1.trace.log). The root thread is not counted, and N=0 is rejected with 'agents.max_concurrent_threads_per_session must be at least 1'. A limit of 3 was not reached, so it stays UNVERIFIED.",
+          "detail": "Three concurrent gpt-6-luna children were requested, and at most 2 child responses overlapped (codex-0.156.0/concurrency-3-requested.trace.log). The backend reports parallel_tool_calls=false, so the parent issues one spawn per response. The limit control is -c agents.max_threads=N and it is enforced: with N=1 a second concurrent spawn failed with 'collab spawn failed: agent thread limit reached' (codex-0.156.0/thread-limit-1.trace.log). The root thread is not counted, and N=0 is rejected with 'agents.max_concurrent_threads_per_session must be at least 1'. A limit of 3 was not reached, so it stays UNVERIFIED. Recorded rollouts add a bound from another version: at codex-cli 0.154.0, 3 refused spawns ('collab spawn failed: agent thread limit reached') after 6 child threads had run at once put the limit between 6 and 6 child threads (tests/eval/fixtures/harness_capability/codex-0.154.0-rollouts/, read by scripts/eval/_codex_rollout.py). The capture is not from the pinned 0.156.0, and whether agents.max_threads was set for that session is not recorded, so the cell stays UNVERIFIED.",
           "value": 2,
           "probe_command": "RUST_LOG=tungstenite::protocol=trace codex exec --json --skip-git-repo-check --ephemeral --ignore-user-config --ignore-rules -s read-only -m gpt-5.6-sol -c model_reasoning_effort=medium 'Spawn 3 subagents using model gpt-6-luna with reasoning effort high. Spawn all three before waiting on any of them. Subagent N must write a 250-word paragraph about the number N and then reply with only the digit N. After all three finish, reply with their digits joined by commas. Do not run shell commands.' ; limit check: RUST_LOG=tungstenite::protocol=trace codex exec --json --skip-git-repo-check --ephemeral --ignore-user-config --ignore-rules -c agents.max_threads=1 -s read-only -m gpt-5.6-sol -c model_reasoning_effort=low 'Spawn subagent task_name a (fork_turns none, message '\"'\"'Write 300 words about rivers, then reply A'\"'\"'). Immediately, before waiting, spawn subagent task_name b (fork_turns none, message '\"'\"'Reply B'\"'\"'). Then wait for both. Reply with each result or the exact spawn error text for any spawn that failed. Do not run shell commands.'",
           "date": "2026-09-24"
@@ -110,9 +110,10 @@
         },
         "context_reset_observability": {
           "status": "UNVERIFIED",
-          "evidence": "none",
-          "detail": "No compaction, reset, or restart was triggered, and no such event appeared in any codex --json stream from these probes.",
-          "value": null
+          "evidence": "backend",
+          "detail": "0.154.0 recorded 1 compaction(s), 0 failed, 0 truncation(s). Capture is from 0.154.0; the matrix pins 0.156.0, so it is not evidence for that version. Codex writes a top-level 'compacted' rollout record when it compacts (tests/eval/fixtures/harness_capability/codex-0.154.0-rollouts/compaction.rollout.jsonl); no rollout from 0.156.0 holds one.",
+          "value": null,
+          "probe_command": "python3 scripts/eval/eval_recorded_capabilities.py --captures scripts/eval/examples/harness-capability-recorded-captures.json"
         },
         "sol_ultra": {
           "status": "UNVERIFIED",
@@ -122,7 +123,19 @@
           "probe_command": "RUST_LOG=tungstenite::protocol=trace codex exec --json --skip-git-repo-check --ephemeral --ignore-user-config --ignore-rules -s read-only -m gpt-6-sol -c model_reasoning_effort=ultra 'Reply with the single word OK.'",
           "date": "2026-09-24"
         }
-      }
+      },
+      "pending_live_probes": [
+        {
+          "scope": "codex concurrency_limit at 0.156.0",
+          "blocker": "Needs a paid model call on 0.156.0 with agents.max_threads set, in which the parent spawns more children than the cap without waiting. The limit is a per-invocation setting, so a capture verifies only with the configured value stated. The 0.156.0 run peaked at 2 of 3 because the backend reports parallel_tool_calls=false. Rollouts are only written without --ephemeral. The prompt is untested.",
+          "command": "RUST_LOG=tungstenite::protocol=trace codex exec --json --skip-git-repo-check --ignore-user-config --ignore-rules -s read-only -m gpt-5.6-sol -c model_reasoning_effort=low -c agents.max_threads=3 'Spawn 5 subagents one after another with fork_turns none, each told to write 300 words about a river and then reply with its index. Do not wait on any before spawning all 5. Reply with each spawn result or the exact spawn error.' ; then add the parent and child rollouts under CODEX_HOME/sessions to the concurrency_limit entry of scripts/eval/examples/harness-capability-recorded-captures.json with \"configured_max_threads\": 3 and run python3 scripts/eval/eval_recorded_capabilities.py --captures scripts/eval/examples/harness-capability-recorded-captures.json"
+        },
+        {
+          "scope": "codex context_reset_observability at 0.156.0",
+          "blocker": "Needs a paid model call on 0.156.0 that compacts. The codex 0.157.1 binary contains the config key model_auto_compact_token_limit; its effect under codex exec is untested. Rollouts are only written without --ephemeral.",
+          "command": "RUST_LOG=tungstenite::protocol=trace codex exec --json --skip-git-repo-check --ignore-user-config --ignore-rules -s read-only -m gpt-5.6-sol -c model_reasoning_effort=low -c model_auto_compact_token_limit=2000 'Read every file under the current directory and summarise each in one line.' ; then add the new rollout under CODEX_HOME/sessions to the context_reset_observability entry of scripts/eval/examples/harness-capability-recorded-captures.json and run python3 scripts/eval/eval_recorded_capabilities.py --captures scripts/eval/examples/harness-capability-recorded-captures.json"
+        }
+      ]
     },
     {
       "harness": "copilot",
@@ -231,9 +244,10 @@
         },
         "context_reset_observability": {
           "status": "UNVERIFIED",
-          "evidence": "none",
-          "detail": "No compaction, reset, or restart was triggered, and no such event appeared in any Copilot stream from these probes.",
-          "value": null
+          "evidence": "backend",
+          "detail": "1.0.79-9 recorded 1 compaction(s), 0 failed, 0 truncation(s). Capture is from 1.0.79-9; the matrix pins 1.0.89-1, so it is not evidence for that version. Copilot writes session.compaction_start and session.compaction_complete to events.jsonl (tests/eval/fixtures/harness_capability/copilot-1.0.79-9/compaction.events.jsonl) and session.truncation when it drops messages without a summary (tests/eval/fixtures/harness_capability/copilot-1.0.74-0/truncation.events.jsonl). No 1.0.89-1 session has compacted.",
+          "value": null,
+          "probe_command": "python3 scripts/eval/eval_recorded_capabilities.py --captures scripts/eval/examples/harness-capability-recorded-captures.json"
         },
         "sol_ultra": {
           "status": "UNSUPPORTED",
@@ -243,7 +257,19 @@
           "probe_command": "copilot -p 'Reply OK.' --output-format json --model gpt-5.6-sol --reasoning-effort ultra",
           "date": "2026-09-24"
         }
-      }
+      },
+      "pending_live_probes": [
+        {
+          "scope": "copilot GitHub-routed model_override, effort_override, subagent_support, and parent_child_override for Sol, Luna, and Terra",
+          "blocker": "HTTP 402 'You have exceeded your monthly quota' on every GitHub-routed model (tests/eval/fixtures/harness_capability/copilot-1.0.89/quota-402.stdout.jsonl). The cells above were observed through the documented BYOK Anthropic provider, so GitHub-routed Sol, Luna, and Terra are unobserved.",
+          "command": "python3 scripts/eval/eval_harness_capability.py --behavioral-probes scripts/eval/examples/harness-capability-probes.json"
+        },
+        {
+          "scope": "copilot context_reset_observability at 1.0.89-1",
+          "blocker": "No 1.0.89-1 session has compacted. Copilot compacts when the context window fills, so the capture needs a long session on 1.0.89-1; its events.jsonl is under ~/.copilot/session-state/<session-id>/.",
+          "command": "add that events.jsonl to the context_reset_observability entry of scripts/eval/examples/harness-capability-recorded-captures.json and run python3 scripts/eval/eval_recorded_capabilities.py --captures scripts/eval/examples/harness-capability-recorded-captures.json"
+        }
+      ]
     }
   ]
 }
