@@ -114,17 +114,6 @@
             }
           }
         },
-        "forgetfulMemoriesCreated": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "properties": {
-              "id": {"type": "integer"},
-              "title": {"type": "string"},
-              "importance": {"type": "integer", "minimum": 1, "maximum": 10}
-            }
-          }
-        },
         "decisions": {
           "type": "array",
           "items": {
