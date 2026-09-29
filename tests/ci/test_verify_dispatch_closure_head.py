@@ -9,6 +9,7 @@ from unittest import mock
 
 import pytest
 
+from scripts.ci import verify_dispatch_closure as vdc
 from tests.ci.dispatch_closure_helpers import (  # noqa: F401
     CONFIG,
     GATE,
@@ -18,7 +19,6 @@ from tests.ci.dispatch_closure_helpers import (  # noqa: F401
     rev,
     run,
     upstream_with_pr,
-    vdc,
     write,
 )
 
