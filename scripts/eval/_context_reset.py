@@ -54,11 +54,16 @@ class ResetObservation:
     compactions: int
     failed_compactions: int
     truncations: int
+    captured_on: str
 
     @property
-    def events(self) -> int:
-        """Total context-loss events seen, failed compactions included."""
-        return self.compactions + self.failed_compactions + self.truncations
+    def resets(self) -> int:
+        """Context resets that happened: successful compactions plus truncations.
+
+        A failed compaction is an attempt that left the context as it was, so
+        it is reported but is not evidence that a reset is observable.
+        """
+        return self.compactions + self.truncations
 
 
 def _event(line: str, number: int) -> Mapping[str, object]:
@@ -74,6 +79,13 @@ def _event(line: str, number: int) -> Mapping[str, object]:
 def _data(event: Mapping[str, object]) -> Mapping[str, object]:
     data = event.get("data")
     return data if isinstance(data, dict) else {}
+
+
+def _session_date(event: Mapping[str, object]) -> str:
+    stamp = event.get("timestamp")
+    if not isinstance(stamp, str) or len(stamp) < 10:
+        raise ContextResetError("session.start has no timestamp")
+    return stamp[:10]
 
 
 def _session_version(event: Mapping[str, object]) -> str:
@@ -97,6 +109,7 @@ def observe_copilot_events(lines: Iterable[str]) -> ResetObservation:
     count with no runtime identity cannot be tied to a version and is refused.
     """
     version: str | None = None
+    captured_on = ""
     compactions = failed = truncations = 0
     for number, line in enumerate(lines, start=1):
         if not line.strip():
@@ -107,6 +120,7 @@ def observe_copilot_events(lines: Iterable[str]) -> ResetObservation:
             if kind != "session.start":
                 raise ContextResetError("first event must be session.start")
             version = _session_version(event)
+            captured_on = _session_date(event)
         elif kind == "session.compaction_complete":
             if _compaction_succeeded(event):
                 compactions += 1
@@ -116,10 +130,11 @@ def observe_copilot_events(lines: Iterable[str]) -> ResetObservation:
             truncations += 1
     if version is None:
         raise ContextResetError("event stream is empty")
-    return ResetObservation("copilot", version, compactions, failed, truncations)
+    return ResetObservation("copilot", version, compactions, failed, truncations, captured_on)
 
 
 def observe_codex_rollout(rollout: Rollout) -> ResetObservation:
     """Count compactions in a parsed Codex rollout (larger of record or event)."""
     compactions = max(rollout.compacted_records, rollout.context_compacted_events)
-    return ResetObservation("codex", rollout.cli_version, compactions, 0, 0)
+    captured_on = rollout.started_at.date().isoformat()
+    return ResetObservation("codex", rollout.cli_version, compactions, 0, 0, captured_on)

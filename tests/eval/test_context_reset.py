@@ -32,6 +32,7 @@ def test_recorded_copilot_compaction_is_counted_with_its_version() -> None:
 
     assert (observed.harness, observed.cli_version) == ("copilot", "1.0.79-9")
     assert (observed.compactions, observed.failed_compactions, observed.truncations) == (1, 0, 0)
+    assert observed.captured_on == "2026-08-11"
 
 
 def test_recorded_copilot_truncation_is_counted_apart_from_compaction() -> None:
@@ -40,7 +41,8 @@ def test_recorded_copilot_truncation_is_counted_apart_from_compaction() -> None:
     )
 
     assert (observed.compactions, observed.truncations) == (0, 1)
-    assert observed.events == 1
+    assert observed.resets == 1
+    assert observed.captured_on == "2026-07-27"
 
 
 def test_recorded_codex_rollout_counts_its_compaction() -> None:
@@ -49,6 +51,7 @@ def test_recorded_codex_rollout_counts_its_compaction() -> None:
     observed = context_reset.observe_codex_rollout(parsed)
 
     assert (observed.harness, observed.cli_version, observed.compactions) == ("codex", "0.154.0", 1)
+    assert observed.captured_on == parsed.started_at.date().isoformat()
 
 
 # --- Copilot parsing -----------------------------------------------------------
@@ -60,7 +63,13 @@ def test_a_failed_compaction_is_not_a_compaction() -> None:
     )
 
     assert (observed.compactions, observed.failed_compactions) == (1, 1)
-    assert observed.events == 2
+    assert observed.resets == 1
+
+
+def test_a_failed_compaction_alone_is_not_a_reset() -> None:
+    observed = context_reset.observe_copilot_events([session_start(), _complete(False)])
+
+    assert (observed.failed_compactions, observed.resets) == (1, 0)
 
 
 def test_a_started_compaction_that_never_completes_is_not_counted() -> None:
@@ -68,11 +77,11 @@ def test_a_started_compaction_that_never_completes_is_not_counted() -> None:
 
     observed = context_reset.observe_copilot_events([session_start(), start])
 
-    assert observed.events == 0
+    assert observed.resets == 0
 
 
 def test_a_quiet_session_has_no_events() -> None:
-    assert context_reset.observe_copilot_events([session_start(), "", "  "]).events == 0
+    assert context_reset.observe_copilot_events([session_start(), "", "  "]).resets == 0
 
 
 @pytest.mark.parametrize(
@@ -84,6 +93,7 @@ def test_a_quiet_session_has_no_events() -> None:
         ([_complete(True)], "first event must be session.start"),
         ([line({"type": "session.start", "data": {}})], "copilotVersion"),
         ([line({"type": "session.start"})], "copilotVersion"),
+        ([line({"type": "session.start", "data": {"copilotVersion": "1"}})], "timestamp"),
         ([line({"type": "session.start", "data": {"copilotVersion": " "}})], "copilotVersion"),
         ([session_start(), _complete("yes")], "boolean"),
         ([session_start(), line({"type": "session.compaction_complete"})], "boolean"),

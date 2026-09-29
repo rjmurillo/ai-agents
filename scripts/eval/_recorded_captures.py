@@ -8,11 +8,15 @@ and routes them.
 Plan entry shapes (paths resolve against the plan file's directory):
 
     {"harness": "codex", "capability": "concurrency_limit",
-     "parent": "<rollout>", "children": ["<rollout>", ...]}
+     "parent": "<rollout>", "children": ["<rollout>", ...],
+     "configured_max_threads": <int, optional>}
     {"harness": "codex", "capability": "context_reset_observability",
      "rollout": "<rollout>"}
     {"harness": "copilot", "capability": "context_reset_observability",
      "events": "<events.jsonl>"}
+
+`configured_max_threads` states the `-c agents.max_threads=N` the captured
+session ran with. Leave it out when unknown: the cell then cannot verify.
 
 Only a `VERIFIED` result replaces a matrix cell. Any other result is reported
 under `recorded_captures` and leaves the checked-in cell alone, so a capture
@@ -42,6 +46,10 @@ from _offline_capability import classify_context_reset, classify_spawn_ceiling
 
 _RESET = "context_reset_observability"
 _CEILING = "concurrency_limit"
+REGENERATE_COMMAND = (
+    "python3 scripts/eval/eval_recorded_capabilities.py "
+    "--captures scripts/eval/examples/harness-capability-recorded-captures.json"
+)
 _SUPPORTED = {("codex", _CEILING), ("codex", _RESET), ("copilot", _RESET)}
 
 
@@ -100,17 +108,26 @@ def _path(base: Path, value: object, field: str) -> Path:
     return (base / value).resolve()
 
 
+def _configured(value: object) -> int | None:
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        raise CapturePlanError("configured_max_threads must be a positive integer")
+    return value
+
+
 def _ceiling_capture(
     entry: Mapping[str, object], record: HarnessCapabilityRecord, base: Path
 ) -> RecordedCapture:
     children = entry.get("children")
     if not isinstance(children, list) or not children:
         raise CapturePlanError("children must be a non-empty array of paths")
+    configured = _configured(entry.get("configured_max_threads"))
     parent_path = _path(base, entry.get("parent"), "parent")
     child_paths = [_path(base, value, "children[]") for value in children]
     parent = load_rollout(parent_path)
     ceiling = spawn_ceiling(parent, [load_rollout(child) for child in child_paths])
-    cell = classify_spawn_ceiling(ceiling, record)
+    cell = classify_spawn_ceiling(ceiling, record, configured)
     return RecordedCapture(
         record.harness, _CEILING, cell, tuple(p.name for p in [parent_path, *child_paths])
     )
@@ -154,18 +171,39 @@ def derive_captures(
     return captures
 
 
+def _with_provenance(capture: RecordedCapture) -> Capability:
+    """Give a verified cell the sources and regenerating command other cells carry."""
+    sources = ", ".join(capture.sources)
+    return replace(
+        capture.cell,
+        detail=f"{capture.cell.detail} Sources: {sources}.",
+        probe_command=REGENERATE_COMMAND,
+    )
+
+
+def _without_owed(record: HarnessCapabilityRecord, capability: str) -> HarnessCapabilityRecord:
+    """Drop the pending live probes a verified capability no longer owes."""
+    prefix = f"{record.harness} {capability}"
+    kept = tuple(p for p in record.pending_live_probes if not p.scope.startswith(prefix))
+    return replace(record, pending_live_probes=kept)
+
+
 def apply_verified(
     records: Sequence[HarnessCapabilityRecord], captures: Sequence[RecordedCapture]
 ) -> list[HarnessCapabilityRecord]:
-    """Return records with each `VERIFIED` capture written into its cell."""
+    """Return records with each `VERIFIED` capture written into its cell.
+
+    The written cell carries its sources, capture date, and regenerating
+    command, and the capability's pending live probes are dropped.
+    """
     updated = list(records)
     for capture in captures:
         if capture.cell.status is not CapabilityStatus.VERIFIED:
             continue
         for index, record in enumerate(updated):
             if record.harness == capture.harness:
-                cells = {**record.capabilities, capture.capability: capture.cell}
-                revised = replace(record, capabilities=cells)
+                cells = {**record.capabilities, capture.capability: _with_provenance(capture)}
+                revised = _without_owed(replace(record, capabilities=cells), capture.capability)
                 validate_record(revised)
                 updated[index] = revised
     return updated

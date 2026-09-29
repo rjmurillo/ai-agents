@@ -65,6 +65,7 @@ def test_recorded_capture_bounds_the_limit_at_exactly_six() -> None:
     assert ceiling is not None
     assert (ceiling.lower_bound, ceiling.upper_bound, ceiling.refusals) == (6, 6, 3)
     assert ceiling.exact
+    assert ceiling.captured_on == "2026-09-10"
 
 
 def test_recorded_compaction_counts_the_record() -> None:
@@ -180,13 +181,36 @@ def test_malformed_rollouts_fail_closed(lines: list[str], message: str) -> None:
         rollout.parse_rollout(lines)
 
 
-def test_task_complete_without_a_start_is_refused() -> None:
-    lines = rollout_lines("t", start=T0, end=T1)
-    done = {"type": "task_complete"}
-    lines.append(line({"timestamp": T2, "type": "event_msg", "payload": done}))
+def _with_events(*kinds: str) -> rollout.Rollout:
+    lines = [rollout_lines("t", start=T0, end=T3)[0]]
+    for stamp, kind in zip((T0, T1, T2, T3), kinds, strict=False):
+        payload = {"type": kind}
+        lines.append(line({"timestamp": stamp, "type": "event_msg", "payload": payload}))
+    return rollout.parse_rollout(lines)
 
-    with pytest.raises(rollout.RolloutError, match="without a matching"):
-        rollout.parse_rollout(lines)
+
+def test_task_complete_without_a_start_is_unbalanced() -> None:
+    assert _with_events("task_complete").turns_balanced is False
+
+
+def test_a_late_start_cannot_rebalance_an_early_complete() -> None:
+    parsed = _with_events("task_complete", "task_started")
+
+    assert parsed.turns_balanced is False
+    assert parsed.turn_spans == ()
+
+
+def test_a_start_inside_an_open_turn_is_unbalanced() -> None:
+    parsed = _with_events("task_started", "task_started", "task_complete")
+
+    assert parsed.turns_balanced is False
+
+
+def test_sequential_turns_give_one_span_each() -> None:
+    parsed = _with_events("task_started", "task_complete", "task_started", "task_complete")
+
+    assert parsed.turns_balanced is True
+    assert len(parsed.turn_spans) == 2
 
 
 def test_an_unclosed_turn_is_recorded_as_unbalanced() -> None:
@@ -211,6 +235,21 @@ def test_touching_spans_do_not_overlap() -> None:
     children = [_child("a", T0, T1), _child("b", T1, T2)]
 
     assert rollout.peak_running_children(children) == 1
+
+
+def test_idle_time_between_turns_is_not_counted() -> None:
+    idle = rollout.parse_rollout(
+        rollout_lines("a", start=T0, end=T3, parent="p", turns=((T0, T1), (T2, T3)))
+    )
+    between = _child("b", "2026-09-10T02:14:00.000Z", "2026-09-10T02:16:00.000Z")
+
+    assert rollout.peak_running_children([idle, between]) == 1
+
+
+def test_a_child_that_never_ran_a_turn_measures_nothing() -> None:
+    bare = rollout.parse_rollout(rollout_lines("a", start=T0, end=T1, parent="p", turns=()))
+
+    assert rollout.peak_running_children([bare]) is None
 
 
 def test_no_children_measure_nothing() -> None:

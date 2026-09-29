@@ -11,6 +11,7 @@ import json
 import shutil
 from dataclasses import replace
 from pathlib import Path
+from typing import Any, cast
 
 import pytest
 
@@ -100,15 +101,82 @@ def test_an_unwritable_output_is_an_external_failure(tmp_path: Path) -> None:
 # --- Applying a verified capture -----------------------------------------------
 
 
-def test_a_capture_at_the_pinned_version_replaces_the_cell(tmp_path: Path) -> None:
+def _plan_with_configured(tmp_path: Path, configured: object) -> Path:
+    """Copy the default plan with absolute paths and a stated session cap."""
+    document = json.loads(PLAN.read_text(encoding="utf-8"))
+    document["captures"][0]["configured_max_threads"] = configured
+    for entry in document["captures"]:
+        for key in ("parent", "rollout", "events"):
+            if key in entry:
+                entry[key] = str((PLAN.parent / entry[key]).resolve())
+        if "children" in entry:
+            entry["children"] = [str((PLAN.parent / c).resolve()) for c in entry["children"]]
+    path = tmp_path / "plan.json"
+    path.write_text(json.dumps(document), encoding="utf-8")
+    return path
+
+
+def _harness(report: dict[str, object], name: str) -> dict[str, Any]:
+    harnesses = cast("list[dict[str, Any]]", report["harnesses"])
+    return next(h for h in harnesses if h["harness"] == name)
+
+
+def _codex(report: dict[str, object]) -> dict[str, Any]:
+    return _harness(report, "codex")
+
+
+def test_a_capture_at_the_pinned_version_replaces_the_context_reset_cell(tmp_path: Path) -> None:
     matrix = _matrix_at(tmp_path, codex="codex-cli 0.154.0")
 
     report = recorded_cli.run(matrix, PLAN)
 
-    codex = next(h for h in report["harnesses"] if h["harness"] == "codex")
-    assert codex["capabilities"]["concurrency_limit"]["status"] == "VERIFIED"
-    assert codex["capabilities"]["concurrency_limit"]["value"] == 6
-    assert codex["capabilities"]["context_reset_observability"]["status"] == "VERIFIED"
+    cell = _codex(report)["capabilities"]["context_reset_observability"]
+    assert cell["status"] == "VERIFIED"
+    assert cell["date"] == "2026-09-17"
+
+
+def test_an_unstated_session_cap_leaves_the_concurrency_cell_unverified(tmp_path: Path) -> None:
+    matrix = _matrix_at(tmp_path, codex="codex-cli 0.154.0")
+
+    report = recorded_cli.run(matrix, PLAN)
+
+    assert _codex(report)["capabilities"]["concurrency_limit"]["status"] == "UNVERIFIED"
+
+
+def test_a_stated_session_cap_verifies_with_provenance(tmp_path: Path) -> None:
+    matrix = _matrix_at(tmp_path, codex="codex-cli 0.154.0")
+
+    report = recorded_cli.run(matrix, _plan_with_configured(tmp_path, 6))
+
+    cell = _codex(report)["capabilities"]["concurrency_limit"]
+    assert (cell["status"], cell["value"], cell["date"]) == ("VERIFIED", 6, "2026-09-10")
+    assert "Sources: parent.rollout.jsonl, child-1.rollout.jsonl" in cell["detail"]
+    assert cell["probe_command"] == captures.REGENERATE_COMMAND
+
+
+def test_a_stated_session_cap_that_the_peak_missed_stays_unverified(tmp_path: Path) -> None:
+    matrix = _matrix_at(tmp_path, codex="codex-cli 0.154.0")
+
+    report = recorded_cli.run(matrix, _plan_with_configured(tmp_path, 5))
+
+    assert _codex(report)["capabilities"]["concurrency_limit"]["status"] == "UNVERIFIED"
+
+
+def test_verified_capabilities_stop_owing_their_live_probe(tmp_path: Path) -> None:
+    matrix = _matrix_at(tmp_path, codex="codex-cli 0.154.0")
+
+    report = recorded_cli.run(matrix, _plan_with_configured(tmp_path, 6))
+
+    assert "pending_live_probes" not in _codex(report)
+
+
+def test_an_unverified_capture_keeps_the_probe_it_would_have_replaced(tmp_path: Path) -> None:
+    matrix = _matrix_at(tmp_path, codex="codex-cli 0.154.0")
+
+    report = recorded_cli.run(matrix, PLAN)
+
+    scopes = [p["scope"] for p in _codex(report)["pending_live_probes"]]
+    assert scopes == ["codex concurrency_limit at 0.156.0"]
 
 
 def test_a_verified_capture_does_not_touch_the_other_harness(tmp_path: Path) -> None:
@@ -116,7 +184,7 @@ def test_a_verified_capture_does_not_touch_the_other_harness(tmp_path: Path) -> 
 
     report = recorded_cli.run(matrix, PLAN)
 
-    copilot = next(h for h in report["harnesses"] if h["harness"] == "copilot")
+    copilot = _harness(report, "copilot")
     assert copilot["capabilities"]["context_reset_observability"]["status"] == "UNVERIFIED"
 
 
@@ -125,7 +193,7 @@ def test_the_copilot_capture_verifies_at_its_own_pin(tmp_path: Path) -> None:
 
     report = recorded_cli.run(matrix, PLAN)
 
-    copilot = next(h for h in report["harnesses"] if h["harness"] == "copilot")
+    copilot = _harness(report, "copilot")
     assert copilot["capabilities"]["context_reset_observability"]["status"] == "VERIFIED"
 
 
@@ -143,6 +211,18 @@ def test_the_copilot_capture_verifies_at_its_own_pin(tmp_path: Path) -> None:
         [{"harness": "codex", "capability": "concurrency_limit", "parent": "p", "children": []}],
         [{"harness": "codex", "capability": "concurrency_limit", "children": ["c"]}],
         [{"harness": "codex", "capability": "context_reset_observability"}],
+        *[
+            [
+                {
+                    "harness": "codex",
+                    "capability": "concurrency_limit",
+                    "parent": "p",
+                    "children": ["c"],
+                    "configured_max_threads": bad,
+                }
+            ]
+            for bad in (0, -1, True, "6", 2.5)
+        ],
         [{"harness": "copilot", "capability": "context_reset_observability", "events": ""}],
         [
             {
@@ -272,7 +352,7 @@ def test_every_owed_live_probe_names_its_blocker_and_command() -> None:
 def test_the_report_carries_the_owed_probes() -> None:
     report = capability.build_report(capability.load_matrix(MATRIX))
 
-    copilot = next(h for h in report["harnesses"] if h["harness"] == "copilot")
+    copilot = _harness(report, "copilot")
     assert copilot["pending_live_probes"][0]["scope"].startswith("copilot GitHub-routed")
 
 

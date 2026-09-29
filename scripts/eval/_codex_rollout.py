@@ -25,17 +25,23 @@ The refusal text is `collab spawn failed: agent thread limit reached`, the
 string `codex-0.156.0/thread-limit-1.trace.log` also shows for
 `-c agents.max_threads=1`.
 
-What the ceiling bounds mean (both are sound, neither is an estimate):
+What the ceiling bounds mean:
 
-* lower bound: the most children whose turns were provably running at once.
-  Each was admitted, so the limit is at least that many.
-* upper bound: at a refused spawn, the runtime held at least `limit` live
-  threads. Live threads never exceed the children the parent had spawned by
-  then, so `limit <= children spawned before the refusal`.
+* lower bound (sound): the most children with a turn open at the same
+  instant, from `task_started` to `task_complete`. A thread mid-turn is live,
+  and each was admitted, so the limit is at least that many. Idle time between
+  turns is never counted: whether an idle thread holds a slot is not shown by
+  any file here.
+* upper bound (informational only): at a refused spawn, the runtime held at
+  least `limit` live threads, and this reader counts the supplied children
+  spawned by then. Grandchildren or threads whose files were not supplied also
+  hold slots, so this can read too low. It never decides a status.
 
-When the bounds meet, the limit is exact for that capture. A child that
-finished its turn may still be a live thread, so "running" is only ever used
-for the lower bound and "spawned" only for the upper bound.
+The limit is a per-invocation setting (`-c agents.max_threads=N`), so a
+capture whose configured value is unknown shows that session's cap, not the
+runtime's. `_offline_capability.classify_spawn_ceiling` verifies only when the
+operator states the configured value and the capture admitted exactly that many
+children before refusing one more.
 
 Stricter/looser/different than canonical: the runtime owns the limit and no
 in-tree source states it; this reader infers it from recorded behavior and
@@ -70,6 +76,7 @@ class Rollout:
     started_at: datetime
     ended_at: datetime
     turns_balanced: bool
+    turn_spans: tuple[tuple[datetime, datetime], ...]
     compacted_records: int
     context_compacted_events: int
     spawn_refusals: tuple[datetime, ...]
@@ -83,6 +90,7 @@ class SpawnCeiling:
     lower_bound: int
     upper_bound: int
     refusals: int
+    captured_on: str
 
     @property
     def exact(self) -> bool:
@@ -166,7 +174,9 @@ class _Tally:
 
     compacted: int = 0
     context_events: int = 0
-    open_turns: int = 0
+    balanced: bool = True
+    turn_started: datetime | None = None
+    turn_spans: list[tuple[datetime, datetime]] = field(default_factory=list)
     refusals: list[datetime] = field(default_factory=list)
 
     def count(self, record: Mapping[str, object], stamp: datetime) -> None:
@@ -178,11 +188,23 @@ class _Tally:
         elif is_event and kind == "context_compacted":
             self.context_events += 1
         elif is_event and kind == "task_started":
-            self.open_turns += 1
+            self._start_turn(stamp)
         elif is_event and kind == "task_complete":
-            self.open_turns -= 1
+            self._end_turn(stamp)
         elif _is_refusal(record):
             self.refusals.append(stamp)
+
+    def _start_turn(self, stamp: datetime) -> None:
+        if self.turn_started is not None:
+            self.balanced = False
+        self.turn_started = stamp
+
+    def _end_turn(self, stamp: datetime) -> None:
+        if self.turn_started is None:
+            self.balanced = False
+            return
+        self.turn_spans.append((self.turn_started, stamp))
+        self.turn_started = None
 
 
 def parse_rollout(lines: Iterable[str]) -> Rollout:
@@ -204,15 +226,14 @@ def parse_rollout(lines: Iterable[str]) -> Rollout:
             raise RolloutError("first record must be session_meta")
     if meta is None or last is None:
         raise RolloutError("rollout is empty")
-    if tally.open_turns < 0:
-        raise RolloutError("task_complete without a matching task_started")
     return Rollout(
         thread_id=_text(meta.get("id"), "session_meta.id"),
         parent_thread_id=_parent_id(meta),
         cli_version=_text(meta.get("cli_version"), "session_meta.cli_version"),
         started_at=_parse_time(meta.get("timestamp"), "session_meta.timestamp"),
         ended_at=last,
-        turns_balanced=tally.open_turns == 0,
+        turns_balanced=tally.balanced and tally.turn_started is None,
+        turn_spans=tuple(tally.turn_spans),
         compacted_records=tally.compacted,
         context_compacted_events=tally.context_events,
         spawn_refusals=tuple(tally.refusals),
@@ -229,17 +250,21 @@ def load_rollout(path: Path) -> Rollout:
 
 
 def peak_running_children(children: Sequence[Rollout]) -> int | None:
-    """Return the most children running at once, or `None` if unmeasurable.
+    """Return the most children with a turn open at once, or `None`.
 
-    A child whose turns never all closed has not shown when it stopped, so the
-    peak among the rest could be a false low (the same rule
+    Counts turn spans only, never a file's whole lifetime. Returns `None` for
+    a child whose turns do not pair up cleanly, and when no child ran a turn:
+    a span that never closed has not shown when it stopped, so the peak among
+    the rest could be a false low (the rule
     `_capability_topology.max_concurrent_children` applies). At an equal
     instant an end sorts before a start: touching spans do not overlap.
     """
     if not children or not all(child.turns_balanced for child in children):
         return None
-    edges = [(child.started_at, 1) for child in children]
-    edges += [(child.ended_at, -1) for child in children]
+    spans = [span for child in children for span in child.turn_spans]
+    if not spans:
+        return None
+    edges = [(start, 1) for start, _ in spans] + [(end, -1) for _, end in spans]
     depth = peak = 0
     for _, step in sorted(edges, key=lambda edge: (edge[0], edge[1])):
         depth += step
@@ -274,4 +299,5 @@ def spawn_ceiling(parent: Rollout, children: Sequence[Rollout]) -> SpawnCeiling 
         lower_bound=lower,
         upper_bound=upper,
         refusals=len(parent.spawn_refusals),
+        captured_on=parent.started_at.date().isoformat(),
     )

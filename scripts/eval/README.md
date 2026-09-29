@@ -271,10 +271,13 @@ uv run python scripts/eval/eval_recorded_capabilities.py \
   --captures scripts/eval/examples/harness-capability-recorded-captures.json
 ```
 
-`_codex_rollout.py` bounds the child-thread limit from a parent that had a
-spawn refused: the peak children running at once is the lower bound, and the
-children spawned before the refusal is the upper bound. `_context_reset.py`
-counts compactions and truncations. A capture replaces a matrix cell only when
+`_codex_rollout.py` reads a parent and its children. The peak children with a
+turn open at once is a sound lower bound. The children spawned before a refused
+spawn is an informational upper bound, since threads without a supplied file
+also hold slots. The limit is a per-invocation setting, so a plan entry may
+state `configured_max_threads`; without it the cell cannot verify.
+`_context_reset.py` counts successful compactions and truncations (a failed
+compaction alone is not a reset). A capture replaces a matrix cell only when
 it is `VERIFIED`, which needs the runtime version the matrix pins. The checked-in
 captures come from codex-cli 0.154.0 and Copilot 1.0.79-9, so both cells stay
 UNVERIFIED and the matrix lists the live run each would need under

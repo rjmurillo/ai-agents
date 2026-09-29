@@ -10,18 +10,21 @@ and stays `UNVERIFIED` with the versions named, because "a contract without a
 version is not a contract" (`.claude/skills/ai-agents-empirical-probe-toolkit/SKILL.md`).
 
 Evidence kind: both inputs are the runtime's own persisted event stream, the
-`BACKEND` class `EvidenceKind` names ("runtime event stream"). No config value
-is read, so nothing here can promote a label to a measurement.
+`BACKEND` class `EvidenceKind` names ("runtime event stream"). The one value the
+operator supplies, `configured_max_threads`, can only withhold `VERIFIED`: it
+grants nothing unless the recorded peak of running children equals it.
 
 Stricter/looser/different than canonical: `apply_behavioral_probe` in
 `_harness_capability.py` upgrades a cell from a live probe result. These
-classifiers upgrade from a file a past run left behind, so the capture date is
-the file's, not today's, and `probe_command` names how to regenerate it.
+classifiers upgrade from a file a past run left behind, so the cell's date is the
+capture's, not today's. `_recorded_captures.apply_verified` adds the sources and
+the command that regenerates the cell.
 """
 
 from __future__ import annotations
 
 import re
+from functools import partial
 
 from _codex_rollout import SpawnCeiling
 from _context_reset import ResetObservation
@@ -59,12 +62,19 @@ def _mismatch(record: HarnessCapabilityRecord, observed: str) -> str:
 
 
 def classify_spawn_ceiling(
-    ceiling: SpawnCeiling | None, record: HarnessCapabilityRecord
+    ceiling: SpawnCeiling | None,
+    record: HarnessCapabilityRecord,
+    configured_max_threads: int | None = None,
 ) -> Capability:
     """Classify `concurrency_limit` from a rollout-derived ceiling.
 
-    `VERIFIED` needs a refusal, bounds that meet, and a capture from the
-    record's pinned version. Otherwise `UNVERIFIED`, with the reason.
+    The limit is a per-invocation setting (`-c agents.max_threads=N`), so a
+    capture proves only what that session's cap did. `VERIFIED` therefore needs
+    all of: a refused spawn, a capture from the record's pinned version, the
+    operator stating the configured value, and a peak of running children equal
+    to it. Then the runtime admitted exactly that many and refused one more,
+    which is enforcement observed rather than echoed. Anything else is
+    `UNVERIFIED`, with the reason. The rollout's upper bound never decides.
     """
     if ceiling is None:
         return Capability(
@@ -74,20 +84,26 @@ def classify_spawn_ceiling(
         )
     bounds = f"between {ceiling.lower_bound} and {ceiling.upper_bound} child threads"
     seen = f"{ceiling.refusals} refused spawn(s) on {ceiling.cli_version} bound the limit {bounds}."
+    unverified = partial(Capability, CapabilityStatus.UNVERIFIED, EvidenceKind.BACKEND)
     if not _pinned(record, ceiling.cli_version):
-        return Capability(
-            CapabilityStatus.UNVERIFIED,
-            EvidenceKind.BACKEND,
-            f"{seen} {_mismatch(record, ceiling.cli_version)}",
-            value=None,
+        return unverified(f"{seen} {_mismatch(record, ceiling.cli_version)}")
+    if configured_max_threads is None:
+        return unverified(
+            f"{seen} The session's agents.max_threads is not recorded, so this is that "
+            "session's cap and not evidence of the runtime's limit."
         )
-    if not ceiling.exact:
-        return Capability(CapabilityStatus.UNVERIFIED, EvidenceKind.BACKEND, seen)
+    if ceiling.lower_bound != configured_max_threads:
+        return unverified(
+            f"{seen} The session configured agents.max_threads={configured_max_threads}, "
+            f"but {ceiling.lower_bound} children ran at once."
+        )
     return Capability(
         CapabilityStatus.VERIFIED,
         EvidenceKind.BACKEND,
-        f"{seen} The bounds meet.",
-        value=ceiling.lower_bound,
+        f"With agents.max_threads={configured_max_threads}, {ceiling.lower_bound} children "
+        f"ran at once and {ceiling.refusals} further spawn(s) were refused.",
+        value=configured_max_threads,
+        date=ceiling.captured_on,
     )
 
 
@@ -97,15 +113,23 @@ def classify_context_reset(
     """Classify `context_reset_observability` from a recorded session.
 
     Raises `ValueError` when the observation belongs to another harness, which
-    is a caller bug and must not read as a capability of this one.
+    is a caller bug and must not read as a capability of this one. A failed
+    compaction alone does not verify: it changed nothing the harness could
+    later be observed to have reset.
     """
     if observation.harness != record.harness:
         raise ValueError(f"observation is for {observation.harness}, record is {record.harness}")
-    if observation.events == 0:
+    if observation.resets == 0:
+        attempts = (
+            f" {observation.failed_compactions} compaction attempt(s) failed."
+            if observation.failed_compactions
+            else ""
+        )
         return Capability(
             CapabilityStatus.UNVERIFIED,
             EvidenceKind.NONE,
-            f"The {observation.cli_version} capture holds no compaction or truncation event.",
+            f"The {observation.cli_version} capture holds no successful compaction or "
+            f"truncation.{attempts}",
         )
     seen = (
         f"{observation.cli_version} recorded {observation.compactions} compaction(s), "
@@ -117,4 +141,6 @@ def classify_context_reset(
             EvidenceKind.BACKEND,
             f"{seen} {_mismatch(record, observation.cli_version)}",
         )
-    return Capability(CapabilityStatus.VERIFIED, EvidenceKind.BACKEND, seen)
+    return Capability(
+        CapabilityStatus.VERIFIED, EvidenceKind.BACKEND, seen, date=observation.captured_on
+    )
