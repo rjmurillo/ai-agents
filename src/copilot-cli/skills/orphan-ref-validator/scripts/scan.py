@@ -71,6 +71,7 @@ if __package__ in (None, ""):
     from counts import (
         enumerate_sibling_artifacts,
         enumerate_skills,
+        skills_dir,
     )
     from envelope import (
         Finding,
@@ -112,6 +113,7 @@ else:
     from .counts import (
         enumerate_sibling_artifacts,
         enumerate_skills,
+        skills_dir,
     )
     from .envelope import (
         Finding,
@@ -505,7 +507,7 @@ def _resolves_in_named_skill(script_ref: str, repo_root: Path, line: str) -> boo
     """
     for match in SKILL_TYPED_REF_RE.finditer(line):
         name = next((g for g in match.groupdict().values() if g), None)
-        skill_path = repo_root / ".claude" / "skills" / name / script_ref if name else None
+        skill_path = skills_dir(repo_root) / name / script_ref if name else None
         if skill_path is not None and _exists_under_repo(repo_root, skill_path):
             return True
     return False
