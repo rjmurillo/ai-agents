@@ -90,6 +90,7 @@ def test_script_runs_as_a_process_and_exits_0() -> None:
         capture_output=True,
         text=True,
         encoding="utf-8",
+        errors="replace",
         check=False,
         timeout=120,
     )
