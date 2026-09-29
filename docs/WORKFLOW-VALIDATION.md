@@ -228,7 +228,8 @@ Validation failed with 1 error(s)
 
 Issue #5067 asked for a per-check audit of the local pre-PR sequence against CI.
 This section replaces the pre-#5132 figures ("about 20 checks", "5 ratchets").
-Measured 2026-09-29 against `origin/main` at `6d49acc33`.
+Measured 2026-09-29 against `origin/main` at `6d49acc33`, the base of the branch that
+added this section.
 
 Method: the 79 gates in `_SEQUENCE` (`scripts/validation/pre_pr_sequence.py`) were
 listed by importing the module. Each gate's implementation was matched against
@@ -299,7 +300,8 @@ Examples are `Nested Test Detection`, `Sync Registry Provenance`, and `Agent
 Drift Detection`. They run only through `pre_pr.py`, so a hook-skipping push
 reaches CI without them.
 
-Total: 32 same-script duplicates across both tables (8 plus 24), against the
+Total: 32 same-script duplicate check pairs across both tables (8 plus 24; the
+workflow YAML pair is a pre-commit hook, not a `_SEQUENCE` gate), against the
 "about 20 plus 5 ratchets" figure the issue carried from before #5132. Six of the
 nine registered ratchets run in both pre-push and `pr-validation.yml`, not five.
 

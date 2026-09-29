@@ -140,8 +140,8 @@ Rationale:
 - The repository owner's KEEP rule for skills and agents (epic #5456, comment of
   2026-09-11) holds while a skill exists. Removing a command family breaks
   muscle memory and external docs that name it, and the owner reverted an earlier
-  full removal for that reason.
-- The cost the issue targeted is gone. No workflow runs the review axes: PR #5132
+  full removal for that reason (issue #5067, comment of 2026-09-04).
+- The cost the issue targeted is gone. No workflow runs the review axes against a diff: PR #5132
   deleted `ai-pr-quality-gate.yml`. Keeping the seven skills adds no CI compute.
 - `pr-comment-responder` routes to this skill (see `metadata.routing`), and it is
   the one-verdict, pre-push view. `/review` stays the pre-merge gate and writes
