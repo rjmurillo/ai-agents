@@ -140,3 +140,33 @@ def test_no_resolvable_base_ref_skips_the_comparison(tmp_path):
     _set_baseline(baseline, 0)
 
     assert _plain_run(tmp_path, baseline) == EXIT_OK
+
+
+def test_missing_merge_base_is_a_config_error_not_a_tip_comparison(tmp_path, capsys):
+    _, baseline = _repo(tmp_path, parse_count=3)
+    _git(tmp_path, "checkout", "-q", "--orphan", "unrelated")
+    _set_baseline(baseline, 3)
+    _commit(tmp_path, "history with no shared ancestor")
+    _git(tmp_path, "checkout", "-q", "main")
+    _set_baseline(baseline, 0)
+    _commit(tmp_path, "main lowers the ceiling")
+    _git(tmp_path, "checkout", "-q", "unrelated")
+
+    assert _plain_run(tmp_path, baseline) == EXIT_CONFIG
+    assert "no merge base" in capsys.readouterr().err
+
+
+def test_exported_git_dir_of_another_checkout_does_not_redirect_the_fork_point(
+    tmp_path, monkeypatch
+):
+    other = tmp_path / "other"
+    other.mkdir()
+    _repo(other, parse_count=1)
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    adr_dir, baseline = _repo(repo)
+    (adr_dir / "ADR-002-bad.md").write_text(_BAD_FRONTMATTER, encoding="utf-8")
+    _set_baseline(baseline, 1)
+    monkeypatch.setenv("GIT_DIR", str(other / ".git"))
+
+    assert _plain_run(repo, baseline) == EXIT_REGRESSION

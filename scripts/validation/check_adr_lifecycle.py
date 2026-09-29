@@ -120,7 +120,7 @@ import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from scripts.ci.count_ratchet import baseline_absent_at_ref
+from scripts.ci.count_ratchet import baseline_absent_at_ref, git_environment
 from scripts.utils.markdown_parser import blank_non_prose_block_lines
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
@@ -959,6 +959,13 @@ def _base_ref_refusal(
         return None
     _refresh_remote_base(base_ref, repo_root)
     fork = _fork_point(repo_root, base_ref)
+    if fork is None:
+        return (
+            EXIT_CONFIG,
+            f"[CONFIG] no merge base between HEAD and {base_ref}, so the baseline "
+            "cannot be compared with its fork point. Fetch enough history "
+            f"(git fetch --unshallow, or deepen the clone) and rerun.",
+        )
     if baseline_absent_at_ref(repo_root, fork, baseline_path):
         return None
     base_counts = _counts_at_ref(repo_root, fork, baseline_path)
@@ -983,17 +990,23 @@ def _base_ref_refusal(
     )
 
 
-def _fork_point(repo_root: Path, base_ref: str) -> str:
-    """Merge base of HEAD and ``base_ref``, or ``base_ref`` when none resolves.
+def _fork_point(repo_root: Path, base_ref: str) -> str | None:
+    """Merge base of HEAD and ``base_ref``, or None when git cannot name one.
 
     The ref tip moves when the base branch lowers its baseline after this
     branch forked; comparing to the tip would call that a raise by this branch.
+    A shallow checkout can hold both refs but not their shared ancestor, so a
+    missing fork is reported, never replaced with the tip. The environment is
+    stripped of ``GIT_*`` because an exported ``GIT_DIR`` (set by ``git push``
+    for a linked worktree) beats ``-C`` and would read another checkout's HEAD.
     """
     exit_code, stdout, _stderr = _run_subprocess(
-        ["git", "-C", str(repo_root), "merge-base", "HEAD", base_ref], timeout=10
+        ["git", "-C", str(repo_root), "merge-base", "HEAD", base_ref],
+        timeout=10,
+        env=git_environment(),
     )
     revision = stdout.strip()
-    return revision if exit_code == 0 and revision else base_ref
+    return revision if exit_code == 0 and revision else None
 
 
 def _counts_at_ref(repo_root: Path, ref: str, baseline_path: Path) -> dict[str, int] | None:
@@ -1022,6 +1035,7 @@ def _counts_at_ref(repo_root: Path, ref: str, baseline_path: Path) -> dict[str, 
     exit_code, stdout, _stderr = _run_subprocess(
         ["git", "-C", str(repo_root), "show", f"{ref}:{rel}"],
         timeout=10,
+        env=git_environment(),
     )
     if exit_code != 0:
         return None
