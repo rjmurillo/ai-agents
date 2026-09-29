@@ -89,7 +89,7 @@ See `scripts/get_applicable_steering.py` for the Python implementation.
 Run pytest to verify pattern matching:
 
 ```bash
-pytest .claude/skills/steering-matcher/tests/
+uv run pytest tests/skills/steering-matcher/ -q
 ```
 
 ## Anti-Patterns
