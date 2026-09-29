@@ -32,12 +32,16 @@ from pathlib import Path
 
 import yaml
 
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(_REPO_ROOT))
+
+from scripts.validation.frontmatter_split import split_leading_frontmatter  # noqa: E402
+
 EXIT_OK = 0
 EXIT_OVER_BUDGET = 1
 EXIT_CONFIG = 2
 
 _CHARS_PER_TOKEN = 4
-_FRONTMATTER_DELIM = "---"
 
 
 def estimate_tokens(chars: int) -> int:
@@ -51,19 +55,14 @@ def extract_frontmatter(text: str) -> dict[str, object] | None:
     Returns the parsed mapping, or None when the file has no frontmatter or the
     block does not parse to a mapping. A malformed block is a skip, not a crash:
     the instrument degrades gracefully over a corpus it does not control.
+
+    The fence search is shared with the other stdlib-only scripts through
+    `split_leading_frontmatter`; this function only adds the YAML load, because
+    this script already depends on PyYAML and the CI step installs nothing else.
     """
-    if not text.startswith(_FRONTMATTER_DELIM):
+    block, _ = split_leading_frontmatter(text)
+    if not block:
         return None
-    lines = text.splitlines()
-    # Find the closing delimiter after the opening one on line 0.
-    end = None
-    for index in range(1, len(lines)):
-        if lines[index].strip() == _FRONTMATTER_DELIM:
-            end = index
-            break
-    if end is None:
-        return None
-    block = "\n".join(lines[1:end])
     try:
         parsed = yaml.safe_load(block)
     except yaml.YAMLError:
@@ -149,8 +148,7 @@ def to_json(report: BudgetReport, *, top: int) -> dict[str, object]:
         "total_tokens_est": report.total_tokens,
         "chars_per_token": _CHARS_PER_TOKEN,
         "top": [
-            {"name": s.name, "chars": s.chars, "tokens_est": s.tokens}
-            for s in report.top(top)
+            {"name": s.name, "chars": s.chars, "tokens_est": s.tokens} for s in report.top(top)
         ],
     }
 
@@ -163,8 +161,7 @@ def to_human(report: BudgetReport, *, top: int) -> str:
     ]
     if report.skills_without_description:
         lines.append(
-            f"  {report.skills_without_description} skill(s) had no parseable "
-            f"description (skipped)"
+            f"  {report.skills_without_description} skill(s) had no parseable description (skipped)"
         )
     if report.skills:
         lines.append(f"Top {min(top, report.count)} by description length:")
@@ -213,10 +210,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
 def _over_budget(report: BudgetReport, args: argparse.Namespace) -> str | None:
     """Return a human reason when a budget is set and exceeded, else None."""
     if args.max_total_chars is not None and report.total_chars > args.max_total_chars:
-        return (
-            f"corpus is {report.total_chars} chars, over the "
-            f"{args.max_total_chars}-char budget"
-        )
+        return f"corpus is {report.total_chars} chars, over the {args.max_total_chars}-char budget"
     if args.max_total_tokens is not None and report.total_tokens > args.max_total_tokens:
         return (
             f"corpus is ~{report.total_tokens} est. tokens, over the "
