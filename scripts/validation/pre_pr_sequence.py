@@ -69,6 +69,7 @@ from checks_ci_parity import (
     validate_adr_uniqueness,
     validate_agent_registry,
     validate_agent_skill_discriminator,
+    validate_closure_manifest,
     validate_hook_contracts,
     validate_passive_context_budget,
     validate_placeholder_identity,
@@ -426,6 +427,10 @@ _SEQUENCE: tuple[_Gate, ...] = (
     _Gate("Hook Contracts", _root_only(validate_hook_contracts)),
     _Gate("Passive Context Budget", _root_only(validate_passive_context_budget)),
     _Gate("Skillbook Validation", _root_only(validate_skillbook)),
+    # Advisory: the typed dependency closure of every pinned required context
+    # (ADR-101 Phase 1, issue #5245). Prints the summary and any unresolved edge,
+    # never fails; the job that binds runs from the default branch.
+    _Gate("Closure Manifest (advisory)", _root_only(validate_closure_manifest)),
     _Gate("Placeholder Identity", _root_only(validate_placeholder_identity)),
     _Gate("Tracked Conflict Markers", _root_only(validate_tracked_conflict_markers)),
     _Gate("Security Suppressions Diff", _root_only(validate_security_suppressions_diff)),
