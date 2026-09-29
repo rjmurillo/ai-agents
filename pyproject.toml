@@ -208,7 +208,6 @@ disallow_any_generics = false
 module = [
     "scripts.validate_skill_installation",
     "scripts.validate_skill_output",
-    "scripts.measure_context_retrieval_metrics",
     "scripts.analyze_pr_failure",
     "scripts.utils.markdown_parser",
     "scripts.validation.hook_contracts",

@@ -710,11 +710,13 @@ def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
         "stage-memory-cross-references",
         "extract-session-episodes",
         "memory-size",
-        "adr-review-policy",
         "taste-advisory",
     }
     pure_jobs = {
         "action-pin-policy",
+        # ADR-101 Application A: the policy owns the merge case itself
+        # (`_merge_authored_adr_paths`), so lefthook must not skip it.
+        "adr-review-policy",
         "python-check",
         "workflow-validation",
         "actionlint",
