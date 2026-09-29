@@ -1349,7 +1349,8 @@ Execution --> Reflection --> Skill Update --> Improved Execution
 When retrospective is complete:
 
 1. Save retrospective document to `.project-toolkit/retrospective/`
-2. Return learnings and recommended skill updates to orchestrator
+2. Return learnings, recommended skill updates, and the `Findings for the owner`
+   table (Blocker rows first) to orchestrator
 3. Recommend orchestrator routes to skillbook for skill persistence (if applicable)
 
 ## Handoff Options (Recommendations for Orchestrator)

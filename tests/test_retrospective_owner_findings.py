@@ -103,10 +103,6 @@ def _findings_rows(text: str, heading: str) -> list[list[str]]:
     return rows
 
 
-def _invalid_classes(rows: list[list[str]]) -> list[str]:
-    return [row[3] for row in rows if row[3] not in CLASSES]
-
-
 @pytest.mark.parametrize("rel", AGENT_SURFACES + SKILL_SURFACES)
 def test_no_issue_or_backlog_routing(rel: str) -> None:
     assert _forbidden_hits(_read(rel)) == []
@@ -136,6 +132,8 @@ def test_agent_surfaces_keep_learning_persistence(rel: str) -> None:
     storage = storage.split("### Failure Prevention Matrix", maxsplit=1)[0]
     assert "mcp__serena__write_memory" in storage
     assert "backlog/" not in storage
+    handoff = " ".join(text.split("## Handoff Protocol", maxsplit=1)[1].split())
+    assert "the `Findings for the owner` table (Blocker rows first) to orchestrator" in handoff
 
 
 @pytest.mark.parametrize("rel", ARTIFACT_SURFACES)
@@ -185,24 +183,7 @@ def test_empty_findings_table_is_valid() -> None:
     assert _findings_rows(empty, "#### Findings for the owner") == []
 
 
-@pytest.mark.parametrize("cls", CLASSES)
-def test_each_class_is_accepted(cls: str) -> None:
-    table = (
-        "#### Findings for the owner\n\n"
-        f"{FINDINGS_HEADER}\n|---|---|---|---|\n"
-        f"| Gap | a.py:1 | Fix it | {cls} |\n"
-    )
-    rows = _findings_rows(table, "#### Findings for the owner")
-    assert _invalid_classes(rows) == []
-
-
-def test_priority_scale_is_rejected_as_class() -> None:
-    table = (
-        "#### Findings for the owner\n\n"
-        f"{FINDINGS_HEADER}\n|---|---|---|---|\n"
-        "| Gap | a.py:1 | File it | P0 |\n"
-    )
-    assert _invalid_classes(_findings_rows(table, "#### Findings for the owner")) == ["P0"]
+# Parser and scanner self-tests: negative controls for the helpers above, not product coverage.
 
 
 def test_drifted_header_is_rejected() -> None:
