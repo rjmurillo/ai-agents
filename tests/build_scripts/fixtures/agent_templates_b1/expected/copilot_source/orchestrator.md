@@ -117,7 +117,7 @@ Every row above names an agent that is registered in this install. Delegate only
 
 ## Model, Effort, and Cost Routing
 
-Route by expected cost per accepted result | task shape | verifier strength | failure cost. Never the vendor default effort.
+Route by expected cost per accepted result | task shape | verifier strength | failure cost. Derive effort from task shape; do not inherit the vendor default.
 `accepted-result cost = initial inference + retries + correction/repair + context replay/tool failures + verifier/review + coordination + human wait`
 Weight decision burden and correction cost above raw price | verifier strength | fan-out | coordination | human wait; qualitative, not universal.
 Derive the route from discovered context (stack, tests, verifier, harness controls, local evals). No model/task table is authoritative.
@@ -131,7 +131,7 @@ Derive the route from discovered context (stack, tests, verifier, harness contro
 
 Higher effort is not monotonically better; it can add latency and tokens without raising acceptance. Validate an effort per task shape and harness before defaulting to it.
 Model labels and agent roles are separate | tiers and labels advisory, not agents or IDs.
-`orchestrator` coordinates | `autoplan` routes | advisory, harness-resolved aliases: `haiku` bounded, `sonnet` specified, `opus` judgment, `fable` escalation only; other labels only when the harness resolves them, never as superiority claims.
+`orchestrator` coordinates | `autoplan` routes | advisory, harness-resolved aliases: `haiku` bounded (no effort control), `sonnet` specified, `opus` judgment, `fable` escalation only; other labels only when the harness resolves them, never as superiority claims.
 Pin changes pass ADR-080; this policy never justifies a pin.
 Resolve to concrete IDs | unresolved: retain harness default + record fallback | never silently substitute.
 Preserve registered roles, mappings, role-keyed results, ADR-009, and ADR-078.
