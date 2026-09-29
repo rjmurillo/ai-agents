@@ -236,7 +236,7 @@ def validate_lefthook_installed(repo_root: Path) -> bool:
     on Windows they demonstrably differ.
     ``tests/test_lefthook_integration.py::test_install_resets_legacy_hooks_path``
     records that Lefthook 2.1.10 generates the default Windows template, which
-    omits the configured ``uv run --frozen lefthook`` runner and resolves
+    omits the configured ``lefthook_runner.py`` runner and resolves
     Lefthook through ``PATH``. So on Windows ``lefthook version`` through uv can
     pass while the shim resolves a different binary, or none. Closing that needs
     a Windows probe with the uv runtime present and the ``PATH`` binary absent,
