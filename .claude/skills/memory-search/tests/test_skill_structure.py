@@ -5,7 +5,7 @@ search operation into a focused `memory-search` sub-skill while `memory`
 remains the thin router. These tests pin the contract the sub-skill must honor:
 
 - SKILL.md exists with required frontmatter (name, version, description).
-- The skill stays under the 500-line ceiling (.claude/skills/CLAUDE.md).
+- The skill stays under the 500-line ceiling (.claude/skills/skillforge/references/skill-development-conventions.md).
 - The description names the search operation and 3 to 5 backtick triggers.
 - The skill points callers at the canonical search_memory.py script.
 - Vendor-install hygiene (issue #1948 AC8 shape): the sub-skill body carries no

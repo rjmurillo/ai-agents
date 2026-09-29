@@ -115,6 +115,7 @@ EXPECTED_ORDER: tuple[str, ...] = (
     'Agent Drift Detection',
     'Agent Content Parity (.claude/agents vs src/claude)',
     'Agent Tree Frontmatter (.claude/agents)',
+    'Skill Tree Layout (.claude/skills)',
     'Plugin Version Bump',
     'Hook Anchoring (Claude + Copilot)',
     'Copilot Agent Frontmatter',

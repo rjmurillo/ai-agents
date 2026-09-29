@@ -7,7 +7,7 @@ while `memory` remains the thin router. ADR-070 pins the gate as a BLOCKING step
 these tests pin the contract the sub-skill must honor:
 
 - SKILL.md exists with required frontmatter (name, description).
-- The skill stays under the 500-line ceiling (.claude/skills/CLAUDE.md).
+- The skill stays under the 500-line ceiling (.claude/skills/skillforge/references/skill-development-conventions.md).
 - The description names the gate operation and 3 to 5 backtick triggers.
 - The skill points callers at the canonical search_memory.py script (it does not
   reimplement Tier 1 search).
