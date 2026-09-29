@@ -84,7 +84,7 @@ See `scripts/get_applicable_steering.py` for the Python implementation.
 
 ## Testing
 
-Run pytest to verify pattern matching:
+Run pytest from a repository checkout to verify pattern matching (tests do not ship in plugin installs):
 
 ```bash
 uv run pytest tests/skills/steering-matcher/ -q

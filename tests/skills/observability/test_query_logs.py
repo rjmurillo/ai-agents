@@ -309,52 +309,56 @@ class TestFormatTable:
 
 
 class TestMainCLI:
-    def test_missing_file(self):
+    def test_missing_file(self, monkeypatch):
         mod = _load_module()
-        sys.argv = ["query_logs.py", "/nonexistent/file.jsonl"]
+        monkeypatch.setattr(sys, "argv", ["query_logs.py", "/nonexistent/file.jsonl"])
         assert mod.main() == 1
 
-    def test_json_output(self):
+    def test_json_output(self, monkeypatch):
         mod = _load_module()
         path = _write_jsonl(_sample_events())
         try:
-            sys.argv = ["query_logs.py", str(path), "--output", "json"]
+            monkeypatch.setattr(sys, "argv", ["query_logs.py", str(path), "--output", "json"])
             assert mod.main() == 0
         finally:
             os.unlink(path)
 
-    def test_table_output(self):
+    def test_table_output(self, monkeypatch):
         mod = _load_module()
         path = _write_jsonl(_sample_events())
         try:
-            sys.argv = ["query_logs.py", str(path), "--output", "table"]
+            monkeypatch.setattr(sys, "argv", ["query_logs.py", str(path), "--output", "table"])
             assert mod.main() == 0
         finally:
             os.unlink(path)
 
-    def test_summary_sessions_output(self):
+    def test_summary_sessions_output(self, monkeypatch):
         mod = _load_module()
         path = _write_jsonl(_sample_events())
         try:
-            sys.argv = ["query_logs.py", str(path), "--output", "summary-sessions"]
+            monkeypatch.setattr(
+                sys, "argv", ["query_logs.py", str(path), "--output", "summary-sessions"]
+            )
             assert mod.main() == 0
         finally:
             os.unlink(path)
 
-    def test_summary_tools_output(self):
+    def test_summary_tools_output(self, monkeypatch):
         mod = _load_module()
         path = _write_jsonl(_sample_events())
         try:
-            sys.argv = ["query_logs.py", str(path), "--output", "summary-tools"]
+            monkeypatch.setattr(
+                sys, "argv", ["query_logs.py", str(path), "--output", "summary-tools"]
+            )
             assert mod.main() == 0
         finally:
             os.unlink(path)
 
-    def test_filter_flags(self):
+    def test_filter_flags(self, monkeypatch):
         mod = _load_module()
         path = _write_jsonl(_sample_events())
         try:
-            sys.argv = [
+            monkeypatch.setattr(sys, "argv", [
                 "query_logs.py",
                 str(path),
                 "--event-type",
@@ -362,7 +366,7 @@ class TestMainCLI:
                 "--errors-only",
                 "--output",
                 "json",
-            ]
+            ])
             assert mod.main() == 0
         finally:
             os.unlink(path)

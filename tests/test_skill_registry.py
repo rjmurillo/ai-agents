@@ -42,8 +42,8 @@ def skill_tree(tmp_path: Path) -> Path:
         "description: Analyzes code quality metrics\n"
         "---\n\n# Alpha\n"
     )
-    tests_dir = alpha / "tests"
-    tests_dir.mkdir()
+    tests_dir = tmp_path / "tests" / "skills" / "alpha-skill"
+    tests_dir.mkdir(parents=True)
     (tests_dir / "test_alpha.py").touch()
 
     # Skill with minimal frontmatter
@@ -158,7 +158,7 @@ class TestScanSkill:
         assert result.model == ""
 
     def test_detects_no_tests(self, skill_tree: Path) -> None:
-        """Reports has_tests=False when no tests directory exists."""
+        """Reports has_tests=False when tests/skills/<name>/ does not exist."""
         skill_dir = skill_tree / "beta-tool"
         result = scan_skill(skill_dir, skill_tree.parent.parent)
         assert result.has_tests is False
