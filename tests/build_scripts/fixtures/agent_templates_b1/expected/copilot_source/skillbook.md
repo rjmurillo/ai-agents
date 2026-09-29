@@ -118,7 +118,7 @@ Update flow:
 
 1. Identify target domain index (`.serena/memories/skills-{domain}-index.md`)
 2. Add new row in keyword-alphabetical order
-3. Validate: `scripts/Validate-MemoryIndex.ps1` (if available)
+3. Validate the index with the memory index validator (if available)
 
 ## Domain-to-Index Mapping
 
