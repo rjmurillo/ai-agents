@@ -59,7 +59,9 @@ from pathlib import Path
 
 # ADR-047 keeps this bootstrap inline because imports need sys.path first.
 _plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
-if _plugin_root and os.path.isdir(os.path.join(_plugin_root, "lib", "hook_utilities")):
+if _plugin_root and os.path.isfile(
+    os.path.join(_plugin_root, "lib", "hook_utilities", "commonmark_containers.py")
+):
     _lib_dir = os.path.join(_plugin_root, "lib")
 else:
     _lib_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "lib"))

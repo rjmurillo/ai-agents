@@ -78,6 +78,19 @@ def test_plugin_root_without_lib_falls_through_to_script_relative_lib(
     assert result.returncode == 0, result.stderr
 
 
+def test_foreign_lib_with_hook_utilities_but_no_scanner_falls_through(
+    script_rel: str, tmp_path: Path
+) -> None:
+    """A foreign root can ship its own ``lib/hook_utilities`` without the scanner."""
+    foreign = tmp_path / "foreign-extension"
+    (foreign / "lib" / "hook_utilities").mkdir(parents=True)
+    (foreign / "lib" / "hook_utilities" / "__init__.py").write_text("", encoding="utf-8")
+
+    result = _run(PLUGIN_TREE / script_rel, tmp_path, {"CLAUDE_PLUGIN_ROOT": str(foreign)})
+
+    assert result.returncode == 0, result.stderr
+
+
 def test_unset_plugin_root_uses_script_relative_lib(script_rel: str, tmp_path: Path) -> None:
     result = _run(PLUGIN_TREE / script_rel, tmp_path, {})
     assert result.returncode == 0, result.stderr
