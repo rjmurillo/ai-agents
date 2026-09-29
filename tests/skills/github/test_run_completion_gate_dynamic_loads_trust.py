@@ -228,7 +228,9 @@ class TestCommandTrustIntegration:
         assert rc == 2
         assert not marker.exists()
 
-    def test_approval_lets_an_unresolvable_load_proceed(self, repo: Path) -> None:
+    def test_approval_lets_an_unresolvable_load_proceed(
+        self, repo: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         marker = repo / "ran.txt"
         script = write(
             repo,
@@ -253,6 +255,7 @@ class TestCommandTrustIntegration:
 
         assert rc == 0
         assert marker.exists()
+        assert "Untrusted entries" in capsys.readouterr().err
 
     def test_the_halt_message_names_the_dynamic_load_route(
         self, repo: Path, capsys: pytest.CaptureFixture[str]

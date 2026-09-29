@@ -1754,10 +1754,18 @@ def _resolve_module_file(dotted: str, roots: list[Path], toplevel: Path) -> str 
 # function reference passed uncalled (``map(__import__, ...)``),
 # ``builtins.exec``, ``ExtensionFileLoader``, ``SourcelessFileLoader``,
 # ``spec_from_loader``, ``zipimport``, ``pkgutil``, ``pickle``, ``marshal``,
-# ``ctypes``, ``python -c`` in a subprocess, ``sys.modules`` injection, and a
-# wrong-case literal on a case-insensitive filesystem. Each is a way for
-# trusted, honestly written code to load a PR file; none appears in the
-# closure of the shipped config (measured below; issue 6032).
+# ``ctypes``, a subprocess that launches a file (``[sys.executable, "-I",
+# script]``, the shape ``pr_validations.py``, ``wait_for_unresolved_zero.py``
+# and ``get_pr_check_logs.py`` use) or runs ``python -c``, ``sys.modules``
+# injection, and a wrong-case literal on a case-insensitive filesystem. Each is
+# a way for trusted, honestly written code to run a PR file. The measurement
+# below covers the RECOGNISED call names only: it says the closure of the
+# shipped config holds no recognised dynamic load, not that it holds no route
+# in this list (issue 6032 tracks the list).
+#
+# ``run_module`` is recognised but never resolved: it runs a package's
+# ``__main__.py``, which the module-file resolver does not return, so it always
+# halts.
 #
 # ``new_pr.py`` itself falls on the unresolvable side: its ``_load_sibling``
 # builds the path from a parameter (``with_name(f"{name}.py")``), which needs
@@ -1771,7 +1779,7 @@ def _resolve_module_file(dotted: str, roots: list[Path], toplevel: Path) -> str 
 # Left as a named residual, not decided here: ``sys.path`` entries built at
 # runtime. Every shipped verifier edits ``sys.path`` for ``.claude/lib``,
 # which ``_import_roots`` models, so flagging the call would halt them all.
-_MODULE_LOADS = frozenset({"__import__", "import_module", "run_module"})
+_MODULE_LOADS = frozenset({"__import__", "import_module"})
 _FILE_LOADS: dict[str, tuple[int, str]] = {
     "spec_from_file_location": (1, "location"),
     "SourceFileLoader": (1, "path"),
@@ -1891,15 +1899,33 @@ def _scope_table(scope: ast.AST) -> dict[str, ast.AST | None]:
         return table
     if isinstance(scope, ast.FunctionDef | ast.AsyncFunctionDef | ast.Lambda):
         _bind_parameters(table, scope.args)
-    if isinstance(scope, ast.Lambda):
-        body: list[ast.AST] = [scope.body]
-    elif isinstance(scope, ast.Module | ast.FunctionDef | ast.AsyncFunctionDef):
-        body = list(scope.body)
-    else:
-        return table
+    body: list[ast.AST] = (
+        [scope.body] if isinstance(scope, ast.Lambda) else list(getattr(scope, "body", []))
+    )
     for node in _iter_scope(body):
         _bind_statement(table, node)
     return table
+
+
+def _names_bound_outside_a_scope_table(tree: ast.AST) -> set[str]:
+    """Names bound in ways a per-scope table cannot place, gathered file-wide.
+
+    ``global`` and ``nonlocal`` rebind a name from inside a function, a walrus
+    inside a comprehension binds the enclosing function's scope, and match
+    captures bind through patterns. Each is rare in a verifier, so the name is
+    simply ambiguous everywhere instead of modelled.
+    """
+    found: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Global | ast.Nonlocal):
+            found.update(node.names)
+        elif isinstance(node, ast.NamedExpr) and isinstance(node.target, ast.Name):
+            found.add(node.target.id)
+        elif isinstance(node, ast.MatchAs | ast.MatchStar) and node.name:
+            found.add(node.name)
+        elif isinstance(node, ast.MatchMapping) and node.rest:
+            found.add(node.rest)
+    return found
 
 
 class _Scopes:
@@ -1912,6 +1938,7 @@ class _Scopes:
             for child in ast.iter_child_nodes(parent):
                 self._parents[child] = parent
         self._tables: dict[ast.AST, dict[str, ast.AST | None]] = {}
+        self._ambiguous = _names_bound_outside_a_scope_table(tree)
 
     def _enclosing(self, node: ast.AST) -> ast.AST:
         current = self._parents.get(node)
@@ -1919,10 +1946,33 @@ class _Scopes:
             current = self._parents.get(current)
         return current if current is not None else self._tree
 
+    def _evaluated_in_another_scope(self, node: ast.AST) -> bool:
+        """True when ``node`` sits where Python evaluates it outside its nearest scope.
+
+        A class body has its own bindings this table ignores. A decorator, a
+        default, an annotation or a return annotation of a function is evaluated
+        in the scope around the function, not inside it. Names read there are
+        not resolved: the load stays unresolvable.
+        """
+        child = node
+        parent = self._parents.get(child)
+        while parent is not None and not isinstance(parent, ast.Module):
+            if isinstance(parent, ast.ClassDef) and child in parent.body:
+                return True
+            if isinstance(parent, ast.FunctionDef | ast.AsyncFunctionDef) and child not in parent.body:
+                return True
+            if isinstance(parent, ast.FunctionDef | ast.AsyncFunctionDef | ast.Lambda):
+                return False
+            child, parent = parent, self._parents.get(parent)
+        return False
+
     def lookup_at(self, node: ast.AST) -> _Lookup:
         """A lookup function for names read at ``node``."""
+        elsewhere = self._evaluated_in_another_scope(node)
 
         def lookup(name: str) -> ast.AST | None:
+            if elsewhere or name in self._ambiguous:
+                return None
             scope = self._enclosing(node)
             while True:
                 table = self._tables.setdefault(scope, _scope_table(scope))
@@ -1956,7 +2006,9 @@ def _derive_file_path(
     if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Div):
         left = _derive_file_path(node.left, script, lookup, depth + 1)
         right = _string_constant(node.right)
-        return None if left is None or right is None else left / right
+        if left is None or right is None or _has_dotdot(right):
+            return None
+        return left / right
     if isinstance(node, ast.Attribute) and node.attr == "parent":
         base = _derive_file_path(node.value, script, lookup, depth + 1)
         return None if base is None else base.parent
@@ -2009,11 +2061,23 @@ def _derive_from_call(
     return None
 
 
+def _has_dotdot(literal: str) -> bool:
+    """True when a path literal climbs with a ``..`` segment.
+
+    Rejected at every step rather than on the final path: ``resolve`` is modelled
+    as identity, so ``(base / "..").resolve().parent`` would otherwise evaluate
+    to a different directory than the one Python loads from.
+    """
+    return ".." in literal.replace("\\", "/").split("/")
+
+
 def _apply_path_method(base: Path, name: str, args: list[ast.expr]) -> Path | None:
     parts = [_string_constant(arg) for arg in args]
     if not parts or any(part is None for part in parts):
         return None
     literals = [part for part in parts if part is not None]
+    if any(_has_dotdot(part) for part in literals):
+        return None
     try:
         if name == "with_name" and len(literals) == 1:
             return base.with_name(literals[0])
@@ -2029,6 +2093,8 @@ def _load_from_call(
 ) -> _DynamicLoad | None:
     """Classify one call as a dynamic load, or None when it is not one."""
     name = _call_name(node)
+    if name == "run_module":
+        return _DynamicLoad(node.lineno, name, None, None)
     if name in _MODULE_LOADS:
         module = _string_constant(_call_argument(node, 0, "name"))
         if module is not None and not module.startswith("."):
@@ -2060,11 +2126,13 @@ def _is_inert_code(code: str | None) -> bool:
         tree = ast.parse(code)
     except (SyntaxError, ValueError, RecursionError):
         return False
+    if _shadows_a_path_name(tree):
+        return False
     for node in ast.walk(tree):
         if isinstance(node, ast.Import | ast.ImportFrom):
             return False
         if isinstance(node, ast.Call) and (
-            _call_name(node) in _MODULE_LOADS | set(_FILE_LOADS) | {"exec", "eval"}
+            _call_name(node) in _MODULE_LOADS | set(_FILE_LOADS) | {"exec", "eval", "run_module"}
         ):
             return False
     return True
@@ -2089,6 +2157,10 @@ def _binds_guarded_name(node: ast.AST) -> bool:
         return isinstance(node.ctx, ast.Store) and node.id in _GUARDED_NAMES
     if isinstance(node, ast.arg):
         return node.arg in _GUARDED_NAMES
+    if isinstance(node, ast.ExceptHandler | ast.MatchAs | ast.MatchStar):
+        return (node.name or "") in _GUARDED_NAMES
+    if isinstance(node, ast.MatchMapping):
+        return (node.rest or "") in _GUARDED_NAMES
     return False
 
 
@@ -2159,10 +2231,10 @@ def _resolve_dynamic_target(
         return _resolve_module_file(load.module, roots, toplevel)
     if load.path is None:
         return None
-    if ".." in load.path.parts or load.path.suffix != ".py":
-        # A `..` segment is lexically collapsed here but followed by the kernel
-        # after a symlink, so the two can disagree. A non-Python target is not
-        # scanned for its own imports or loads.
+    if load.path.suffix != ".py":
+        # A non-Python target is not scanned for its own imports or loads. A
+        # `..` segment never reaches here: `_has_dotdot` refuses it at every
+        # step of the derivation.
         return None
     candidate = load.path
     if not candidate.is_file() or not _is_within(candidate, toplevel):
@@ -2527,7 +2599,7 @@ def _enforce_command_trust(
     print(
         f"WARNING: executing completion-gate verifier files that are not "
         f"trusted against {trust_anchor_ref} (--approve-untrusted-config "
-        f"given). Untrusted files:\n{listing}",
+        f"given). Untrusted entries:\n{listing}",
         file=sys.stderr,
     )
     return trust, None

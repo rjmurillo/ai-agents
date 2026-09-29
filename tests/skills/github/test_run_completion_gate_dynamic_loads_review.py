@@ -57,11 +57,14 @@ class TestSecurityReviewFindings:
             tmp_path,
             "verify.py",
             "from importlib.machinery import SourceFileLoader\nfrom pathlib import Path\n"
-            "SourceFileLoader('x', str(Path(__file__).parent / 'data.txt'))\n",
+            "SourceFileLoader('x', Path(__file__).parent / 'data.txt')\n",
         )
         write(tmp_path, "data.txt", "print(1)\n")
 
-        assert len(gate._unresolvable_dynamic_sites(["verify.py"], tmp_path)) == 1
+        sites = gate._unresolvable_dynamic_sites(["verify.py"], tmp_path)
+
+        assert len(sites) == 1
+        assert "SourceFileLoader" in sites[0]
 
     @pytest.mark.parametrize(
         "preamble",
@@ -247,3 +250,147 @@ class TestSecurityReviewFindings:
         assert "\u2028" not in rendered
         assert "\u2029" not in rendered
         assert rendered == "a.py\\n  b.py\\r\\u2028c.py\\u2029"
+
+
+class TestConfirmationPassFindings:
+    """The confirmation pass over the final revision, each case with its fix."""
+
+    @pytest.mark.parametrize(
+        "expression",
+        [
+            '(Path(__file__).parent / "..").resolve().parent / "x.py"',
+            'Path(__file__).parent / "a/../x.py"',
+            'Path(__file__).parent.joinpath("..", "x.py")',
+            'Path(__file__).parent.with_name("../x.py")',
+            'os.path.join(os.path.dirname(__file__), "..", "x.py")',
+        ],
+    )
+    def test_a_dotdot_anywhere_in_the_derivation_is_unresolvable(
+        self, tmp_path: Path, expression: str
+    ) -> None:
+        write(
+            tmp_path,
+            "sub/verify.py",
+            f"import importlib.util, os\nfrom pathlib import Path\n"
+            f"importlib.util.spec_from_file_location('x', {expression})\n",
+        )
+        write(tmp_path, "x.py", "")
+        write(tmp_path, "sub/x.py", "")
+
+        assert len(gate._unresolvable_dynamic_sites(["sub/verify.py"], tmp_path)) == 1
+
+    @pytest.mark.parametrize(
+        ("literal", "climbs"),
+        [
+            ("..", True),
+            ("a/../b", True),
+            ("a\\..\\b", True),
+            ("../b", True),
+            ("a/..b/c", False),
+            ("..hidden", False),
+            ("a/b.py", False),
+            ("", False),
+        ],
+    )
+    def test_dotdot_detection_is_by_segment(self, literal: str, climbs: bool) -> None:
+        assert gate._has_dotdot(literal) is climbs
+
+    def test_run_module_is_recognised_and_never_resolved(self, tmp_path: Path) -> None:
+        write(tmp_path, "verify.py", "import runpy\nrunpy.run_module('pkg')\n")
+        write(tmp_path, "pkg/__init__.py", "")
+        write(tmp_path, "pkg/__main__.py", "")
+
+        sites = gate._unresolvable_dynamic_sites(["verify.py"], tmp_path)
+
+        assert len(sites) == 1
+        assert "run_module" in sites[0]
+
+    @pytest.mark.parametrize(
+        "rebinding",
+        [
+            "def rebind():\n    global target\n    target = other\n",
+            "def outer():\n    target = 1\n    def inner():\n        nonlocal target\n"
+            "        target = other\n",
+            "match value:\n    case target:\n        pass\n",
+            "match value:\n    case [*target]:\n        pass\n",
+            "match value:\n    case {'k': 1, **target}:\n        pass\n",
+            "[(target := p) for p in items]\n",
+        ],
+    )
+    def test_bindings_a_scope_table_cannot_place_make_the_name_ambiguous_everywhere(
+        self, tmp_path: Path, rebinding: str
+    ) -> None:
+        write(
+            tmp_path,
+            "verify.py",
+            "import importlib.util\nfrom pathlib import Path\n"
+            "target = Path(__file__).parent / 'sibling.py'\n"
+            + rebinding
+            + "importlib.util.spec_from_file_location('x', target)\n",
+        )
+        write(tmp_path, "sibling.py", "")
+
+        assert len(gate._unresolvable_dynamic_sites(["verify.py"], tmp_path)) == 1
+
+    @pytest.mark.parametrize(
+        "site",
+        [
+            "class C:\n    attr = importlib.util.spec_from_file_location('x', target)\n",
+            "def f(p=importlib.util.spec_from_file_location('x', target)):\n    pass\n",
+            "def f(p: importlib.util.spec_from_file_location('x', target)):\n    pass\n",
+            "def f() -> importlib.util.spec_from_file_location('x', target):\n    pass\n",
+            "@importlib.util.spec_from_file_location('x', target)\ndef f():\n    pass\n",
+        ],
+    )
+    def test_a_name_read_where_python_uses_another_scope_is_not_resolved(
+        self, tmp_path: Path, site: str
+    ) -> None:
+        write(
+            tmp_path,
+            "verify.py",
+            "import importlib.util\nfrom pathlib import Path\n"
+            "target = Path(__file__).parent / 'sibling.py'\n" + site,
+        )
+        write(tmp_path, "sibling.py", "")
+
+        assert len(gate._unresolvable_dynamic_sites(["verify.py"], tmp_path)) == 1
+
+    def test_a_class_body_load_with_no_names_still_resolves(self, tmp_path: Path) -> None:
+        write(
+            tmp_path,
+            "verify.py",
+            "import importlib.util\nfrom pathlib import Path\n"
+            "class C:\n    spec = importlib.util.spec_from_file_location(\n"
+            "        'x', Path(__file__).parent / 'sibling.py')\n",
+        )
+        write(tmp_path, "sibling.py", "")
+
+        assert gate._unresolvable_dynamic_sites(["verify.py"], tmp_path) == []
+
+    @pytest.mark.parametrize(
+        "code",
+        [
+            "__file__ = '/x/y.py'",
+            "Path = object",
+            "class Path: pass",
+            "try:\n    pass\nexcept OSError as Path:\n    pass",
+        ],
+    )
+    def test_constant_code_that_rebinds_a_guarded_name_is_not_inert(
+        self, tmp_path: Path, code: str
+    ) -> None:
+        write(tmp_path, "verify.py", f"exec({code!r})\n")
+
+        assert len(gate._unresolvable_dynamic_sites(["verify.py"], tmp_path)) == 1
+
+    def test_an_except_or_match_binding_of_path_refuses_derivation(self, tmp_path: Path) -> None:
+        write(
+            tmp_path,
+            "verify.py",
+            "import importlib.util\nfrom pathlib import Path as P\n"
+            "try:\n    pass\nexcept OSError as Path:\n    pass\n"
+            "importlib.util.spec_from_file_location('x', P(__file__).parent / 'sibling.py')\n",
+        )
+        write(tmp_path, "sibling.py", "")
+
+        assert len(gate._unresolvable_dynamic_sites(["verify.py"], tmp_path)) == 1
