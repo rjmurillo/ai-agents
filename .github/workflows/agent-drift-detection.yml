@@ -79,8 +79,15 @@ jobs:
           filters: |
             agents:
               - 'templates/**'
+              - 'docs/agent-catalog.md'
               - 'src/vs-code-agents/**'
               - 'src/copilot-cli/**'
+              - 'src/claude/**'
+              - '.claude/**'
+              - '.github/agents/**'
+              - '.github/instructions/**'
+              - '.github/prompts/**'
+              - '.github/workflows/**'
               - 'build/generate_agents.py'
               - 'build/scripts/build_all.py'
               - 'build/scripts/check_plugin_manifest_parity.py'
