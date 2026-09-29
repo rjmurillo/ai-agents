@@ -2,8 +2,9 @@
 
 Contracts against things outside this module, split out from
 test_prose_lint.py the way the fence suite splits its own.
-`TestCommonMarkOracle` and `TestCommonMarkFuzz` check the masking against `markdown-it-py`, a CommonMark reference
-implementation and a declared dependency of this repository.
+`TestCommonMarkOracle` and `TestCommonMarkFuzz` check the masking against
+`markdown-it-py`, a CommonMark reference implementation and a declared
+dependency of this repository.
 
 They answer to external contracts rather than to this scanner's own detector
 behaviour, which is what makes them a separate file rather than a longer one.
