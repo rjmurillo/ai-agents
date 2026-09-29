@@ -11,16 +11,23 @@ Coverage:
 
 - positive: a clean scan is `PASS` and names its base, scope, and file count.
 - negative: an unresolved base ref and a failed `git diff` are not `PASS`, the
-  `git_hook_policy.py branch-dashes` handler exits 1 for both, and `pre_pr`
-  records them as blocking.
+  `git_hook_policy.py branch-dashes` handler exits 3 for the first (BLOCKED, an
+  external dependency, remedy `git fetch origin main`) and 1 for the second
+  (UNKNOWN), the mapping `evidence.exit_code_for` gives `pre_pr.py`, and
+  `pre_pr` records both as blocking.
 - edge: no markdown on the branch is `PASS` with `examined=0`, and an unreadable
   file lowers `examined` instead of counting as checked.
-- boundary: real git repositories, not mocked subprocess, for the two
-  not-run cases, so the exit code is decided by what git actually returned.
+- boundary: real git repositories, not mocked subprocess, decide both not-run
+  cases end to end. The `git diff` failure test pins the resolver to a base
+  that names no revision and lets the real `git diff` exit 128. The
+  unresolved-base-ref boundary test pins nothing: a `git clone --origin
+  upstream` checkout on a branch with no upstream misses every candidate the
+  real resolver tries. The other tests pin the resolver to choose a base.
 """
 
 from __future__ import annotations
 
+import subprocess
 import sys
 from pathlib import Path
 from unittest.mock import patch
@@ -33,7 +40,7 @@ from scripts.validation.evidence import (
     EvidenceState,
     default_pre_pr_policy,
 )
-from tests.ci.count_ratchet_git_harness import commit_all, git_stdout, init_repo
+from tests.ci.count_ratchet_git_harness import commit_all, git_checked, git_stdout, init_repo
 
 _VALIDATION_DIR = Path(__file__).resolve().parents[2] / "scripts" / "validation"
 if str(_VALIDATION_DIR) not in sys.path:
@@ -55,6 +62,28 @@ def _repo_with(tmp_path: Path, files: dict[str, str]) -> Path:
     init_repo(repo)
     (repo / "README.md").write_text("base\n", encoding="utf-8")
     commit_all(repo, "base")
+    for relpath, text in files.items():
+        target = repo / relpath
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(text, encoding="utf-8")
+    commit_all(repo, "branch work")
+    return repo
+
+
+def _clone_without_origin(tmp_path: Path, files: dict[str, str]) -> Path:
+    """A clone whose only remote is `upstream`, on a branch that adds ``files``."""
+    source = tmp_path / "source"
+    source.mkdir()
+    init_repo(source)
+    (source / "README.md").write_text("base\n", encoding="utf-8")
+    commit_all(source, "base")
+    repo = tmp_path / "clone"
+    subprocess.run(
+        ["git", "clone", "-q", "--origin", "upstream", str(source), str(repo)], check=True
+    )
+    git_checked(repo, "config", "user.email", "t@example.com")
+    git_checked(repo, "config", "user.name", "t")
+    git_checked(repo, "checkout", "-q", "-b", "feature")
     for relpath, text in files.items():
         target = repo / relpath
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -94,11 +123,34 @@ class TestScanThatCannotRunIsNotAPass:
         repo = _repo_with(tmp_path, {"docs/guide.md": f"one{EM_DASH}two\n"})
         _pin_base(monkeypatch, lambda _root: None)
 
-        assert _run_handler(repo) == 1
+        assert _run_handler(repo) == 3
 
         err = capsys.readouterr().err
         assert "[BLOCKED]" in err
         assert f"reason={REASON_BASE_REF_UNRESOLVED}" in err
+
+    def test_real_checkout_with_no_base_ref_is_blocked_with_no_pinning(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Nothing is monkeypatched: the real resolver returns None here.
+
+        `git clone --origin upstream` leaves no `origin/main`, no
+        `refs/remotes/origin/HEAD`, and, on a new branch, no `@{u}`; the
+        remote is a local path, so `gh pr view` has no GitHub host to ask.
+        """
+        monkeypatch.delenv("GH_REPO", raising=False)  # gh would otherwise skip the remotes
+        repo = _clone_without_origin(tmp_path, {"docs/guide.md": f"one{EM_DASH}two\n"})
+        assert checks_dash._resolve_branch_base_ref(repo) is None
+
+        outcome = checks_dash.validate_dash_prohibition(repo)
+
+        assert outcome.state is EvidenceState.BLOCKED
+        assert outcome.reason == REASON_BASE_REF_UNRESOLVED
+        assert _run_handler(repo) == 3
+        assert f"reason={REASON_BASE_REF_UNRESOLVED}" in capsys.readouterr().err
 
     def test_failed_git_diff_is_unknown_and_fails_the_handler(
         self,

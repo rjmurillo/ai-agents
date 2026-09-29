@@ -7943,18 +7943,27 @@ def _handle_branch_dashes(args: argparse.Namespace) -> int:
     """
     from checks_dash import validate_dash_prohibition
 
-    from scripts.validation.evidence import coerce_outcome, default_pre_pr_policy
+    from scripts.validation.evidence import (
+        aggregate,
+        coerce_outcome,
+        default_pre_pr_policy,
+        exit_code_for,
+    )
 
+    policy = default_pre_pr_policy()
     outcome = coerce_outcome(
         "validate_dash_prohibition", validate_dash_prohibition(_repo_root(args))
     )
-    if default_pre_pr_policy().accepts(outcome):
+    if policy.accepts(outcome):
         return 0
     # A scan that did not run (BLOCKED, UNKNOWN) blocks the push exactly as a
     # violation does: the printed violation block covers FAIL, this line covers
-    # the states that carry no violation list (issue #5636).
+    # the states that carry no violation list (issue #5636). The exit code comes
+    # from the same reduction pre_pr.py uses, so an unresolved base ref exits 3
+    # (external dependency, remedy `git fetch origin main`) and not 1 (a defect
+    # in the diff); ci-scripts.md MUST 4.
     print(outcome.summary_line(), file=sys.stderr)
-    return 1
+    return exit_code_for(aggregate("branch-dashes", [outcome], policy=policy))
 
 
 def _handle_staged_action_pins(args: argparse.Namespace) -> int:
