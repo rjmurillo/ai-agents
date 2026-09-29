@@ -3,7 +3,6 @@
   "files": {
     ".claude/agents/analyst.md": 1,
     ".claude/agents/architect.md": 2,
-    ".claude/agents/backlog-generator.md": 1,
     ".claude/agents/code-reviewer.md": 2,
     ".claude/agents/code-simplifier.md": 0,
     ".claude/agents/comment-analyzer.md": 0,
@@ -34,7 +33,6 @@
     ".claude/agents/type-design-analyzer.md": 1,
     "templates/agents/analyst.shared.md": 1,
     "templates/agents/architect.shared.md": 2,
-    "templates/agents/backlog-generator.shared.md": 1,
     "templates/agents/code-reviewer.shared.md": 2,
     "templates/agents/code-simplifier.shared.md": 0,
     "templates/agents/comment-analyzer.shared.md": 0,

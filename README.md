@@ -387,7 +387,7 @@ flowchart LR
 
 ### Agent Catalog
 
-The Copilot CLI bundle adds the `backlog-generator` agent; both bundles include all the other agents. `spec-generator` is now a skill (issue #2001), available in both bundles. Both bundles share the same templates.
+Both bundles include every agent. `spec-generator` is now a skill (issue #2001), available in both bundles. Both bundles share the same templates.
 
 | Agent | Purpose | Output | Bundle |
 |-------|---------|--------|--------|
@@ -413,7 +413,6 @@ The Copilot CLI bundle adds the `backlog-generator` agent; both bundles include 
 | **issue-feature-review** | Feature-request triage on GitHub issues | Constructive verdict with next steps | both |
 | **merge-resolver** | Resolve git/PR merge conflicts | Pattern-based resolution plan | both |
 | **negotiation** | Offer analysis and counter-proposals | Value-gap analysis with RADAR protocol | both |
-| **backlog-generator** | Proactive task discovery when idle | Sized tasks from project state analysis | Copilot CLI only |
 
 See [AGENTS.md](AGENTS.md) for detailed agent documentation.
 

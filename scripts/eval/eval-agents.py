@@ -423,24 +423,6 @@ PROMPTS: dict[str, list[dict[str, Any]]] = {
             "complexity": "complex",
         },
     ],
-    "backlog-generator": [
-        {
-            "prompt": "The project has 3 open PRs (2 bug fixes, 1 feature), 5 open issues (3 bugs, 1 feature request, 1 improvement), and the CI is green. Generate backlog items.",
-            "expected": "3-5 actionable items. Sized (S/M/L). Prioritized by impact. Should address: unresolved bugs, blocked PRs, improvement opportunities from code health. Each item is pick-up-and-go ready.",
-        },
-        {
-            "prompt": "All PRs are merged, no open issues, CI is green, but test coverage is at 45%. Generate work.",
-            "expected": "Coverage improvement tasks: identify uncovered critical paths, not just line coverage. Technical debt items from recent commits. Documentation gaps. Performance baseline establishment.",
-        },
-        {
-            "prompt": "We have 10 open issues, 5 are stale (>30 days). Agent slots are idle. What should we work on?",
-            "expected": "Triage stale issues (close or re-prioritize). Generate fresh items from: code health analysis, dependency updates, security audit findings. Don't just restate the open issues.",
-        },
-        {
-            "prompt": "The last 3 PRs all touched the same 2 files. No issues mention this area. Generate backlog items.",
-            "expected": "Hotspot analysis: high churn files likely need refactoring. Generate: extract shared logic, add tests for the hot area, consider architectural review of that module. Proactive, not reactive.",
-        },
-    ],
     "retrospective": [
         {
             "prompt": "Last sprint: shipped 2 features, missed 1 deadline, had 1 production incident (30 min downtime), resolved 5 bugs. Run the retro.",
