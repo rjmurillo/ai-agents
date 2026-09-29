@@ -1,0 +1,6 @@
+{"timestamp":"2026-09-17T13:56:55.149Z","type":"session_meta","payload":{"id":"01a0af93-8df1-73d3-878f-1e37661705c5","timestamp":"2026-09-17T13:34:38.081Z","cli_version":"0.154.0","source":"cli"}}
+{"timestamp":"2026-09-17T13:56:55.149Z","type":"event_msg","payload":{"type":"task_started","turn_id":"01a0afa7-f414-7f62-af9e-15fea9b175ec","started_at":1789653415}}
+{"timestamp":"2026-09-17T13:56:55.518Z","type":"turn_context","payload":{"turn_id":"01a0afa7-f414-7f62-af9e-15fea9b175ec","model":"gpt-5.6-luna","effort":"max"}}
+{"timestamp":"2026-09-17T14:12:24.650Z","type":"compacted","payload":{"message":"","replacement_history":[]}}
+{"timestamp":"2026-09-17T14:12:24.653Z","type":"turn_context","payload":{"turn_id":"01a0afa7-f414-7f62-af9e-15fea9b175ec","model":"gpt-5.6-luna","effort":"max"}}
+{"timestamp":"2026-09-17T14:34:30.835Z","type":"event_msg","payload":{"type":"task_complete","turn_id":"01a0afa7-f414-7f62-af9e-15fea9b175ec","completed_at":1789655670,"duration_ms":2255715}}

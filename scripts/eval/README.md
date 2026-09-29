@@ -186,6 +186,7 @@ Copilot equivalent.
 | `eval_model_routing.py` | Roll per-model sweep reports for many agents and skills into `evals/model-routing/` routing tables. | #5883, #5889 |
 | `eval_runtime_parity.py` | Run the same fixture through real Claude and Copilot CLIs with isolated agent profiles, resolved-model checks, traces, and deterministic controls. | #4853 |
 | `eval_harness_capability.py` | Run fail-closed live capability probes from a shell-free JSON plan and derive the #5422 arm matrix. | #5423 |
+| `eval_recorded_capabilities.py` | Classify recorded Codex rollouts and Copilot event files offline for `concurrency_limit` and `context_reset_observability`. | #5423 |
 | `optimize-artifact.py` | Held-out-gated edit loop for agents, rules, and hooks. Splits tasks, bounds how many times an edit may be measured against the held-out group, and applies patches. A budgeted comparison, not an access boundary; see the seam section below. Core in `_optimizer_core.py`, scorer adapters in `_optimizer_adapters.py`. | #3422 |
 | `eval_billing_matrix.py` | Print the harness x billing matrix and report which cells this machine can reach. `--json` for a machine-readable form, `--require-ready` to exit 3 as a precondition step. | Complementary |
 | `_anthropic_api.py` | Shared API utilities (key loading, API calls). | N/A |
@@ -258,6 +259,27 @@ and concurrency measurements. The CLI writes a report, never the checked-in
 matrix. Missing commands, failed runs, and incomplete event streams remain
 UNVERIFIED. Verified model and effort values require backend attribution and
 a live runtime version for the same harness.
+
+### Recorded captures: concurrency ceiling and context reset
+
+Two cells need no live call when a past run left files behind. Codex writes one
+rollout per thread under `CODEX_HOME/sessions`, and Copilot writes
+`events.jsonl` under `~/.copilot/session-state/<id>/`.
+
+```bash
+uv run python scripts/eval/eval_recorded_capabilities.py \
+  --captures scripts/eval/examples/harness-capability-recorded-captures.json
+```
+
+`_codex_rollout.py` bounds the child-thread limit from a parent that had a
+spawn refused: the peak children running at once is the lower bound, and the
+children spawned before the refusal is the upper bound. `_context_reset.py`
+counts compactions and truncations. A capture replaces a matrix cell only when
+it is `VERIFIED`, which needs the runtime version the matrix pins. The checked-in
+captures come from codex-cli 0.154.0 and Copilot 1.0.79-9, so both cells stay
+UNVERIFIED and the matrix lists the live run each would need under
+`pending_live_probes`. The fixtures are trimmed real files: ids and timestamps
+stay, prompts, paths, and summaries are removed.
 
 ### Codex backend evidence requires a stderr trace
 
