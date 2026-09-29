@@ -2004,6 +2004,39 @@ _TRUSTED_BINDINGS = {
 }
 
 
+_GUARDED_NAMES = frozenset(_TRUSTED_BINDINGS) | {"__file__"}
+
+
+def _binds_guarded_name(node: ast.AST) -> bool:
+    """True when ``node`` binds a guarded name by definition, store or parameter."""
+    if isinstance(node, ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef):
+        return node.name in _GUARDED_NAMES
+    if isinstance(node, ast.Name):
+        return isinstance(node.ctx, ast.Store) and node.id in _GUARDED_NAMES
+    if isinstance(node, ast.arg):
+        return node.arg in _GUARDED_NAMES
+    return False
+
+
+def _imports_guarded_name_from_elsewhere(node: ast.AST) -> bool:
+    """True when an import binds a guarded name from a module other than its own."""
+    if isinstance(node, ast.ImportFrom):
+        module = node.module or ""
+        return any(
+            (alias.asname or alias.name) in _GUARDED_NAMES
+            and module not in _TRUSTED_BINDINGS.get(alias.asname or alias.name, ())
+            for alias in node.names
+        )
+    if isinstance(node, ast.Import):
+        return any(
+            (alias.asname or alias.name.split(".")[0]) in _GUARDED_NAMES
+            and alias.name.split(".")[0]
+            not in _TRUSTED_BINDINGS.get(alias.asname or alias.name.split(".")[0], ())
+            for alias in node.names
+        )
+    return False
+
+
 def _shadows_a_path_name(tree: ast.AST) -> bool:
     """True when the file rebinds ``Path``, ``os`` or ``__file__`` to something else.
 
@@ -2013,29 +2046,10 @@ def _shadows_a_path_name(tree: ast.AST) -> bool:
     computed target differ from the runtime target, so the derivation is
     refused for the whole file.
     """
-    guarded = set(_TRUSTED_BINDINGS) | {"__file__"}
-    for node in ast.walk(tree):
-        if isinstance(node, ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef):
-            if node.name in guarded:
-                return True
-        elif isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store):
-            if node.id in guarded:
-                return True
-        elif isinstance(node, ast.arg) and node.arg in guarded:
-            return True
-        elif isinstance(node, ast.ImportFrom):
-            for alias in node.names:
-                bound = alias.asname or alias.name
-                if bound in guarded and (node.module or "") not in _TRUSTED_BINDINGS.get(bound, ()):
-                    return True
-        elif isinstance(node, ast.Import):
-            for alias in node.names:
-                bound = alias.asname or alias.name.split(".")[0]
-                if bound in guarded and alias.name.split(".")[0] not in _TRUSTED_BINDINGS.get(
-                    bound, (),
-                ):
-                    return True
-    return False
+    return any(
+        _binds_guarded_name(node) or _imports_guarded_name_from_elsewhere(node)
+        for node in ast.walk(tree)
+    )
 
 
 def _dynamic_loads(source: bytes, script: Path) -> list[_DynamicLoad]:
