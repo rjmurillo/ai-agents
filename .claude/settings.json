@@ -59,7 +59,6 @@
             "Bash(gh secret *)",
             "Bash(gh variable set*)",
             "Bash(gh variable delete*)",
-            "Bash(gh auth token*)",
             "Bash(gh pr merge *--admin*)",
             "Bash(gh api *-X DELETE*)",
             "Bash(gh api *-XDELETE*)",

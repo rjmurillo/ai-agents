@@ -86,7 +86,6 @@ REPOSITORY_AND_CREDENTIAL = (
     "gh secret delete TOKEN",
     "gh variable set NAME --body x",
     "gh variable delete NAME",
-    "gh auth token",
     "gh pr merge 12 --squash --admin",
     "gh api -X DELETE repos/o/r/git/refs/heads/main",
     "gh api -XDELETE repos/o/r/issues/comments/1",
@@ -103,7 +102,7 @@ EVASION_SHAPES = (
     "timeout 30 rm -rf build",
     "nohup gh repo delete o/r --yes",
     "git status && git push -f origin feat/x",
-    "cd /tmp; gh auth token",
+    "cd /tmp; gh secret set TOKEN --body x",
 )
 
 # Legitimate neighbors. Each sits next to a rule above and is work this
@@ -132,6 +131,8 @@ NEIGHBORS = (
     "gh label list",
     "gh variable list",
     "gh auth status",
+    # The GOTCHAS.md pre-push recipe provisions the Copilot token this way.
+    'COPILOT_GITHUB_TOKEN="$(gh auth token)" git push origin HEAD:feat/x',
     "gh pr merge 12 --squash --match-head-commit abc123",
     "gh api repos/o/r",
     "gh api repos/o/r/rules/branches/main",
@@ -149,6 +150,8 @@ KNOWN_GAPS = (
     "LEFTHOOK=0 git commit -m fix",
     "git -c core.hooksPath=/dev/null commit -m fix",
     "find build -delete",
+    "git push --force-with-lease=feat/x origin feat/x",
+    "gh auth token",
     "gh api repos/o/r/git/refs/heads/x -X PATCH -f sha=abc -F force=true",
 )
 

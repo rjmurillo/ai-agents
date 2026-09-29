@@ -11,6 +11,12 @@ Matcher contract, from https://code.claude.com/docs/en/permissions:
 - Compound commands split on `&&`, `||`, `;`, `|`, `|&`, `&`, and newlines, and
   a rule "must match each subcommand independently".
 - A fixed wrapper set is stripped before matching.
+
+Not modeled: Claude Code also applies deny rules to commands nested in
+`$(...)` substitution, subshells, and loops. This model sees only the
+top-level subcommands, so it can report a nested command as allowed that the
+harness denies. Assertions that a command is NOT denied are therefore only
+sound for commands with no nesting that holds a denied pattern.
 """
 
 from __future__ import annotations

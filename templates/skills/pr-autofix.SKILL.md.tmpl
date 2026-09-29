@@ -894,7 +894,9 @@ python3 "$SCRIPTS_DIR/get_pr_checks.py" --pull-request {pr} | \
 run_pr_mutation_if_live python3 "$SCRIPTS_DIR/set_pr_auto_merge.py" --pull-request {pr} --enable --merge-method SQUASH
 
 # Direct merge: already-CLEAN fallback or UNSTABLE state with documented non-required failures.
-run_pr_mutation_if_live python3 "$SCRIPTS_DIR/merge_pr.py" --pull-request {pr} --strategy squash
+# Pin the merge to the head read at triage; a moved head is refused (ADR-112).
+run_pr_mutation_if_live python3 "$SCRIPTS_DIR/merge_pr.py" --pull-request {pr} --strategy squash \
+  --expected-head-sha "$EXPECTED_HEAD_SHA"
 ```
 
 ### Merge path by `mergeStateStatus`

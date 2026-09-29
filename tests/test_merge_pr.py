@@ -1675,3 +1675,75 @@ class TestAuditRecord:
         assert env["Data"]["audit"]["target"]["head_sha"] == _HEAD
         assert env["Data"]["audit"]["actor"] is None
         assert env["Data"]["audit"]["rollback"] is None
+
+
+class _BlockedThenRest(_FakeGh):
+    """GraphQL merge refuses as BLOCKED; the REST PUT behaves as configured."""
+
+    def __init__(self, *, rest, **kwargs):
+        super().__init__(merge=_completed(rc=1, stderr="Pull request is BLOCKED"), **kwargs)
+        self.rest = rest
+
+    def __call__(self, cmd, **kwargs):
+        if list(cmd[:4]) == ["gh", "api", "-X", "PUT"]:
+            self.calls.append(list(cmd))
+            if isinstance(self.rest, BaseException):
+                raise self.rest
+            return self.rest
+        return super().__call__(cmd, **kwargs)
+
+
+class TestRestPathTimeouts:
+    """Issue #5767 review: a hung REST PUT must reach the readback, not a traceback."""
+
+    def test_rest_timeout_then_merged_is_recovered_success(self, capsys):
+        fake = _BlockedThenRest(rest=subprocess.TimeoutExpired(["gh"], 60))
+        code, env = _run_main(fake, [], capsys)
+        assert code == 0
+        assert env["Data"]["recovered"] is True
+        assert "REST merge" in env["Data"]["audit"]["original_error"]
+
+    def test_rest_timeout_then_open_exits_3_as_timeout(self, capsys):
+        fake = _BlockedThenRest(
+            rest=subprocess.TimeoutExpired(["gh"], 60), readback=_OPEN_READBACK,
+        )
+        code, env = _run_main(fake, [], capsys)
+        assert code == 3
+        assert env["Error"]["Type"] == "Timeout"
+
+    def test_pr_is_merged_returns_false_on_timeout(self):
+        with patch("subprocess.run", side_effect=subprocess.TimeoutExpired(["gh"], 60)):
+            assert _mod._pr_is_merged(50, "o/r") is False
+
+
+class TestRollbackHint:
+    """The audit rollback hint must be a command that works for the strategy."""
+
+    _SHA = "c0ffee" * 6 + "c0ff"
+
+    def test_merge_commit_needs_mainline_parent(self):
+        assert _mod._rollback_hint("merge", self._SHA) == f"git revert -m 1 {self._SHA}"
+
+    def test_squash_reverts_the_single_commit(self):
+        assert _mod._rollback_hint("squash", self._SHA) == f"git revert {self._SHA}"
+
+    def test_rebase_names_every_landed_commit(self):
+        hint = _mod._rollback_hint("rebase", self._SHA)
+        assert hint is not None
+        assert "each commit" in hint
+
+    def test_no_merge_commit_gives_no_hint(self):
+        assert _mod._rollback_hint("squash", None) is None
+
+
+class TestRefusalAudit:
+    def test_head_mismatch_refusal_carries_audit(self, capsys):
+        fake = _FakeGh(state=_pr_state(head=_OTHER_HEAD))
+        code, env = _run_main(fake, ["--expected-head-sha", _HEAD], capsys)
+        assert code == 1
+        assert env["Data"]["audit"]["action"] == "none"
+        assert _OTHER_HEAD in env["Data"]["audit"]["result"]
+
+    def test_already_merged_carries_audit(self, capsys):
+        _, env = _run_main(_FakeGh(state=_pr_state("MERGED")), [], capsys)
+        assert env["Data"]["audit"]["result"] == "already merged; no merge call"

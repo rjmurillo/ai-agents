@@ -423,14 +423,23 @@ def _rest_merge(
         cmd += ["-f", f"commit_title={subject}"]
     if body:
         cmd += ["-f", f"commit_message={body}"]
-    return subprocess.run(
-        cmd,
-        capture_output=True,
-        encoding="utf-8",
-        errors="replace",
-        timeout=60,
-        check=False,
-    )
+    try:
+        return subprocess.run(
+            cmd,
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=_MERGE_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as exc:
+        # Issue #5767: the PUT may have landed; the readback decides.
+        raise _MergeFailureError(
+            f"REST merge for PR #{pr} timed out after {_MERGE_TIMEOUT_SECONDS}s "
+            f"({exc}); outcome unknown",
+            3,
+            "Timeout",
+        ) from exc
 
 
 def _pr_is_merged(pr: int, repo_flag: str) -> bool:
@@ -442,14 +451,17 @@ def _pr_is_merged(pr: int, repo_flag: str) -> bool:
     PR's state instead of inferring it.  Any query failure returns False so an
     unverified merge is never reported as a success.
     """
-    result = subprocess.run(
-        ["gh", "pr", "view", str(pr), "--repo", repo_flag, "--json", "state"],
-        capture_output=True,
-        encoding="utf-8",
-        errors="replace",
-        timeout=60,
-        check=False,
-    )
+    try:
+        result = subprocess.run(
+            ["gh", "pr", "view", str(pr), "--repo", repo_flag, "--json", "state"],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=60,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        return False
     if result.returncode != 0:
         return False
     try:
@@ -597,6 +609,21 @@ def _actor(readback: dict[str, Any] | None) -> str | None:
     return None
 
 
+def _rollback_hint(strategy: str, merge_commit: str | None) -> str | None:
+    """Return the command a human runs to undo a landed merge, or None.
+
+    A merge commit has two parents, so its revert needs ``-m 1``. A rebase
+    merge lands several commits and has no single commit to revert.
+    """
+    if not merge_commit:
+        return None
+    if strategy == "merge":
+        return f"git revert -m 1 {merge_commit}"
+    if strategy == "squash":
+        return f"git revert {merge_commit}"
+    return f"revert each commit the rebase merge landed, ending at {merge_commit}"
+
+
 def _build_audit(
     ctx: _MergeContext,
     action: str,
@@ -617,7 +644,7 @@ def _build_audit(
         "action": action,
         "approval": _APPROVAL,
         "result": result,
-        "rollback": f"git revert {merge_commit}" if merged and merge_commit else None,
+        "rollback": _rollback_hint(ctx.strategy, merge_commit) if merged else None,
         "residual_risk": _RESIDUAL_RISK,
     }
     if original_error:
@@ -758,7 +785,7 @@ def _resolve_strategy(
 
 
 def _require_expected_head(
-    pr_data: dict[str, Any], expected: str, pr: int, output_format: str,
+    pr_data: dict[str, Any], expected: str, ctx: _MergeContext,
 ) -> None:
     """Exit 1 when the PR head is not the reviewed SHA (wrong target or stale)."""
     if not expected:
@@ -767,17 +794,20 @@ def _require_expected_head(
     if actual.lower() == expected.lower():
         return
     _emit_error(
-        f"PR #{pr} head does not match the reviewed commit: expected "
+        f"PR #{ctx.pr} head does not match the reviewed commit: expected "
         f"{expected}, actual {actual or 'unknown'}. Wrong PR or the branch "
         "moved after review; no merge attempted.",
         1,
         "InvalidParams",
-        output_format,
-        pr,
+        ctx.output_format,
+        ctx.pr,
+        audit=_build_audit(ctx, "none", f"refused: head is {actual or 'unknown'}"),
     )
 
 
-def _emit_already_merged(pr: int, output_format: str) -> int:
+def _emit_already_merged(ctx: _MergeContext) -> int:
+    """Report an already merged PR without a second merge call (retry-safe)."""
+    pr = ctx.pr
     write_skill_output(
         {
             "pull_request": pr,
@@ -785,8 +815,9 @@ def _emit_already_merged(pr: int, output_format: str) -> int:
             "state": "MERGED",
             "action": "none",
             "message": "PR already merged",
+            "audit": _build_audit(ctx, "none", "already merged; no merge call"),
         },
-        output_format=output_format,
+        output_format=ctx.output_format,
         human_summary=f"PR #{pr} already merged",
         status="PASS",
         script_name=_SCRIPT_NAME,
@@ -815,10 +846,22 @@ def main(argv: list[str] | None = None) -> int:
     validate_strategy(args.strategy, repo_settings, repo_flag, output_format)
 
     pr_data = _fetch_pr_state(pr, repo_flag, output_format)
-    _require_expected_head(pr_data, args.expected_head_sha, pr, output_format)
+    # Issue #5767: pin the merge to the reviewed head. An explicit expected SHA
+    # wins; otherwise pin to the head just fetched.
+    head_sha = args.expected_head_sha or str(pr_data.get("headRefOid") or "")
+    ctx = _MergeContext(
+        pr=pr,
+        repo_flag=repo_flag,
+        head_sha=head_sha,
+        strategy=args.strategy,
+        delete_branch=args.delete_branch,
+        auto=args.auto,
+        output_format=output_format,
+    )
+    _require_expected_head(pr_data, args.expected_head_sha, ctx)
 
     if pr_data.get("state") == "MERGED":
-        return _emit_already_merged(pr, output_format)
+        return _emit_already_merged(ctx)
 
     if pr_data.get("state") == "CLOSED":
         _emit_error(
@@ -834,18 +877,6 @@ def main(argv: list[str] | None = None) -> int:
     if not args.auto:
         _reject_unknown_merge_state(pr_data, pr, output_format)
 
-    # Issue #5767: pin the merge to the reviewed head. An explicit expected SHA
-    # wins; otherwise pin to the head just fetched.
-    head_sha = args.expected_head_sha or str(pr_data.get("headRefOid") or "")
-    ctx = _MergeContext(
-        pr=pr,
-        repo_flag=repo_flag,
-        head_sha=head_sha,
-        strategy=args.strategy,
-        delete_branch=args.delete_branch,
-        auto=args.auto,
-        output_format=output_format,
-    )
     try:
         merge_result = _run_merge(_build_merge_args(args, pr, repo_flag, head_sha), pr)
         if merge_result.returncode != 0:
