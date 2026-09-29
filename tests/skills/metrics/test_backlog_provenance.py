@@ -7,7 +7,7 @@ import json
 import os
 import subprocess
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -17,32 +17,15 @@ import pytest
 TESTS_SKILLS_DIR = str(Path(__file__).resolve().parents[1])
 if TESTS_SKILLS_DIR not in sys.path:
     sys.path.insert(0, TESTS_SKILLS_DIR)
+TESTS_METRICS_DIR = str(Path(__file__).resolve().parent)
+if TESTS_METRICS_DIR not in sys.path:
+    sys.path.insert(0, TESTS_METRICS_DIR)
 
+from backlog_test_helpers import ENDPOINT, NOW, START, record
 from claude_skills_import import import_skill_script
 
+rep = import_skill_script(".claude/skills/metrics/backlog_provenance_report.py")
 mod = import_skill_script(".claude/skills/metrics/backlog_provenance.py")
-
-NOW = datetime(2026, 9, 29, 12, 0, 0, tzinfo=timezone.utc)
-START = NOW - timedelta(days=7)
-ENDPOINT = "repos/o/r/issues?state=all&since=x&per_page=100"
-
-
-def record(number, minutes_ago=60.0, title="A feature", login="owner", labels=(), pr=False):
-    created = NOW - timedelta(minutes=minutes_ago)
-    data = {
-        "number": number,
-        "title": title,
-        "user": {"login": login},
-        "created_at": created.strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "labels": [{"name": name} for name in labels],
-    }
-    if pr:
-        data["pull_request"] = {"url": "x"}
-    return data
-
-
-def issue(number, at, login="owner", title="t", labels=()):
-    return mod.Issue(number, title, login, at, frozenset(labels))
 
 
 def pages(*page_lists):
@@ -59,160 +42,6 @@ def collect(*page_lists, start=START, end=NOW):
     return mod.collect_backlog(
         ENDPOINT, start, end, fetcher=pages(*page_lists), pacer=lambda _s: None
     )
-
-
-class TestParseTimestamp:
-    def test_parses_z_suffix(self):
-        assert mod.parse_timestamp("2026-09-29T12:00:00Z") == NOW
-
-    @pytest.mark.parametrize("value", [None, "", 5, "not-a-date", "2026-09-29T12:00:00"])
-    def test_rejects_bad_values(self, value):
-        with pytest.raises(mod.ReportError) as err:
-            mod.parse_timestamp(value)
-        assert err.value.exit_code == 3
-
-
-class TestParseRecord:
-    def test_reads_fields_and_lowercases_labels(self):
-        parsed = mod.parse_record(record(7, labels=("Source:Agent", "bug")))
-        assert parsed.number == 7
-        assert parsed.login == "owner"
-        assert parsed.labels == frozenset({"source:agent", "bug"})
-
-    def test_empty_labels_list_is_valid(self):
-        raw = record(1)
-        raw["labels"] = []
-        assert mod.parse_record(raw).labels == frozenset()
-
-    def test_null_title_becomes_empty(self):
-        raw = record(1)
-        raw["title"] = None
-        assert mod.parse_record(raw).title == ""
-
-    @pytest.mark.parametrize("labels", [None, "source:agent", {"name": "x"}])
-    def test_malformed_labels_abort_with_exit_3(self, labels):
-        raw = record(1)
-        raw["labels"] = labels
-        with pytest.raises(mod.ReportError, match="malformed labels") as err:
-            mod.parse_record(raw)
-        assert err.value.exit_code == 3
-
-    @pytest.mark.parametrize("user", [None, "owner", {}, {"login": ""}, {"login": 5}])
-    def test_missing_author_aborts_with_exit_3(self, user):
-        raw = record(1)
-        raw["user"] = user
-        with pytest.raises(mod.ReportError, match="no author login") as err:
-            mod.parse_record(raw)
-        assert err.value.exit_code == 3
-
-    @pytest.mark.parametrize("bad", ["text", None, {"number": "1"}, {"number": True}, {}])
-    def test_rejects_malformed_records(self, bad):
-        with pytest.raises(mod.ReportError) as err:
-            mod.parse_record(bad)
-        assert err.value.exit_code == 3
-
-    def test_ignores_non_dict_labels(self):
-        raw = record(1)
-        raw["labels"] = ["plain", {"name": "source:human"}]
-        assert mod.parse_record(raw).labels == frozenset({"source:human"})
-
-
-class TestClassifyProvenance:
-    @pytest.mark.parametrize(
-        ("labels", "bucket"),
-        [
-            (("source:human",), "human-only"),
-            (("source:agent",), "agent-only"),
-            (("source:human", "source:agent"), "conflict"),
-            ((), "unknown"),
-            (("bug",), "unknown"),
-        ],
-    )
-    def test_buckets(self, labels, bucket):
-        assert mod.classify_provenance(issue(1, NOW, labels=labels)) == bucket
-
-    def test_author_does_not_change_bucket(self):
-        assert mod.classify_provenance(issue(1, NOW, login="rjmurillo")) == "unknown"
-
-
-class TestIsMachinery:
-    @pytest.mark.parametrize(
-        "title",
-        [
-            "Ratchet drifts",
-            "LEFTHOOK config",
-            "fix hooks",
-            "pre_pr gate",
-            "ADR review",
-            "pr-autofix",
-        ],
-    )
-    def test_matches_terms_case_insensitively(self, title):
-        assert mod.is_machinery(issue(1, NOW, title=title))
-
-    @pytest.mark.parametrize(
-        "title", ["ADR-042 supersede", "hook-based check", "memory-search fails", "fix ADR."]
-    )
-    def test_hyphen_and_punctuation_neighbours_match(self, title):
-        assert mod.is_machinery(issue(1, NOW, title=title))
-
-    @pytest.mark.parametrize("title", ["Address feedback", "Add dark mode", "gateway timeout", ""])
-    def test_whole_word_only(self, title):
-        assert not mod.is_machinery(issue(1, NOW, title=title))
-
-    def test_area_validation_label(self):
-        assert mod.is_machinery(issue(1, NOW, title="Add dark mode", labels=("area-validation",)))
-
-
-class TestFindBursts:
-    def test_three_within_ten_minutes_is_a_burst(self):
-        items = [issue(n, NOW + timedelta(minutes=n * 4)) for n in (1, 2, 3)]
-        assert mod.find_bursts(items) == [[1, 2, 3]]
-
-    def test_two_issues_are_not_a_burst(self):
-        items = [issue(n, NOW + timedelta(minutes=n)) for n in (1, 2)]
-        assert mod.find_bursts(items) == []
-
-    def test_exactly_ten_minutes_from_first_is_inside(self):
-        items = [
-            issue(1, NOW),
-            issue(2, NOW + timedelta(minutes=5)),
-            issue(3, NOW + timedelta(minutes=10)),
-        ]
-        assert mod.find_bursts(items) == [[1, 2, 3]]
-
-    def test_one_second_past_ten_minutes_is_outside(self):
-        items = [
-            issue(1, NOW),
-            issue(2, NOW + timedelta(minutes=5)),
-            issue(3, NOW + timedelta(minutes=10, seconds=1)),
-        ]
-        assert mod.find_bursts(items) == []
-
-    def test_different_logins_do_not_combine(self):
-        items = [issue(1, NOW, "a"), issue(2, NOW, "b"), issue(3, NOW, "a")]
-        assert mod.find_bursts(items) == []
-
-    def test_overlapping_windows_assign_each_issue_once(self):
-        # 0,5,10 form one burst; 15 and 20 start a new group of two, not a burst.
-        items = [issue(n, NOW + timedelta(minutes=m)) for n, m in enumerate((0, 5, 10, 15, 20), 1)]
-        assert mod.find_bursts(items) == [[1, 2, 3]]
-
-    def test_two_bursts_from_one_login(self):
-        first = [issue(n, NOW + timedelta(minutes=n)) for n in (1, 2, 3)]
-        later = [issue(n, NOW + timedelta(hours=2, minutes=n)) for n in (4, 5, 6)]
-        assert mod.find_bursts(first + later) == [[1, 2, 3], [4, 5, 6]]
-
-    def test_empty_input(self):
-        assert mod.find_bursts([]) == []
-
-
-class TestShare:
-    def test_ratio(self):
-        assert mod.share(1, 3) == 0.3333
-
-    def test_zero_total_is_none_not_zero(self):
-        assert mod.share(0, 0) is None
 
 
 class TestCollectBacklog:
@@ -341,76 +170,6 @@ class TestFetchPage:
             with pytest.raises(mod.ReportError) as err:
                 mod.fetch_page(ENDPOINT, 1)
         assert err.value.exit_code == 4
-
-
-def make_report(records, days=7):
-    backlog = collect(records)
-    return mod.build_report(backlog, "o", "r", ENDPOINT, NOW - timedelta(days=days), NOW, NOW)
-
-
-class TestBuildReport:
-    def test_mixed_batch_with_burst(self):
-        report = make_report(
-            [
-                record(1, 100, "Add feature", labels=("source:human",)),
-                record(2, 50, "Ratchet drift", labels=("source:agent",)),
-                record(3, 48, "Validator gap", labels=("source:agent",)),
-                record(4, 46, "Hook fails", labels=("source:agent",)),
-                record(5, 30, "Both labels", labels=("source:human", "source:agent")),
-                record(6, 20, "No label"),
-            ]
-        )
-        assert report["total"] == 6
-        counts = {name: report["provenance"][name]["count"] for name in mod.BUCKETS}
-        assert counts == {"human-only": 1, "agent-only": 3, "conflict": 1, "unknown": 1}
-        assert sum(counts.values()) == report["total"]
-        assert report["provenance"]["agent-only"]["issues"] == [2, 3, 4]
-        assert report["machinery_heuristic"]["issues"] == [2, 3, 4]
-        assert report["bursts"]["groups"] == [[2, 3, 4]]
-        assert report["completeness"]["complete"] is True
-
-    def test_empty_window_reports_zero_counts_and_null_shares(self):
-        report = make_report([])
-        assert report["total"] == 0
-        assert all(report["provenance"][name]["count"] == 0 for name in mod.BUCKETS)
-        assert all(report["provenance"][name]["share"] is None for name in mod.BUCKETS)
-        assert report["machinery_heuristic"]["share"] is None
-        assert report["bursts"]["count"] == 0
-
-    def test_json_serializable(self):
-        json.dumps(make_report([record(1)]))
-
-
-class TestRenderMarkdown:
-    def test_contains_table_and_completeness(self):
-        text = mod.render_markdown(make_report([record(1, labels=("source:agent",))]))
-        assert "| agent-only | 1 | 100.0% |" in text
-        assert "Read complete: 1 page(s)" in text
-        assert "Limitations:" in text
-
-    def test_empty_prints_na_not_zero_percent(self):
-        text = mod.render_markdown(make_report([]))
-        assert "| unknown | 0 | N/A |" in text
-        assert "Machinery share (heuristic): 0 (N/A)" in text
-        assert "0.0%" not in text
-
-
-class TestOutputEquivalence:
-    def test_markdown_table_matches_json_counts(self):
-        report = make_report(
-            [
-                record(1, labels=("source:human",)),
-                record(2, labels=("source:agent",)),
-                record(3, labels=("source:agent",)),
-                record(4),
-            ]
-        )
-        text = mod.render_markdown(report)
-        for name in mod.BUCKETS:
-            entry = report["provenance"][name]
-            row = f"| {name} | {entry['count']} | {mod._percent(entry['share'])} |"
-            assert row in text
-        assert f"New issues in window: {report['total']}" in text
 
 
 class TestResolveWindow:

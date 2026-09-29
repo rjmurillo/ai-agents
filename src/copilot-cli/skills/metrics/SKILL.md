@@ -98,10 +98,11 @@ python .claude/skills/metrics/collect_metrics.py --since 90 --output markdown
 python .claude/skills/metrics/collect_metrics.py --output json
 
 # Backlog provenance of issues created in the last 7 days (Markdown)
-python .claude/skills/metrics/backlog_provenance.py --days 7
+SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/metrics"
+python "$SCRIPTS_DIR/backlog_provenance.py" --days 7
 
 # Same report as JSON, for an explicit UTC interval ending 2026-09-29 (exclusive)
-python .claude/skills/metrics/backlog_provenance.py --days 29 --until 2026-09-29T00:00:00Z --output-format json
+python "$SCRIPTS_DIR/backlog_provenance.py" --days 29 --until 2026-09-29T00:00:00Z --output-format json
 ```
 
 ## Metrics Collected
