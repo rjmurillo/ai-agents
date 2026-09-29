@@ -35,10 +35,12 @@ def _rows(plan: Any, arm: str, scenario: str = BOUNDED) -> dict[str, Any]:
 
 
 def _doc_with_override(arm: str, override: dict[str, Any]) -> dict[str, Any]:
+    """Override `arm` on copilot. C and D must track A, so an A override covers them too."""
     document = config_dict()
-    next(s for s in document["strategies"] if s["arm"] == arm)["harness_overrides"] = {
-        "copilot": override
-    }
+    tied = {"A", "C", "D"} if arm == "A" else {arm}
+    for item in document["strategies"]:
+        if item["arm"] in tied:
+            item["harness_overrides"] = {"copilot": override}
     return document
 
 

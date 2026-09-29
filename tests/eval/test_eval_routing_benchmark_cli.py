@@ -334,6 +334,7 @@ def test_authorized_live_run_writes_one_result_per_planned_row(
     lines = [json.loads(line) for line in output.read_text(encoding="utf-8").splitlines()]
     assert exit_code == cli.EXIT_OK and capsys.readouterr().out == ""
     assert len(lines) == 2 * 6 * 2
+    assert len(scripted_live.created) == len(lines)
     assert sorted(set(scripted_live.created)) == ["codex", "copilot"]
     assert {line["harness"]["name"] for line in lines} == {"codex", "copilot"}
     assert all(line["status"] == "ACCEPTED" and line["harness"]["version"] for line in lines)

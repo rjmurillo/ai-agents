@@ -1125,8 +1125,10 @@ named. Nothing is normalized away.
 `--live` is the only way to spend. It needs a credential in the environment for
 every planned harness, taken from `HARNESS_AUTH_ENV` in `_runtime_harness.py`.
 Without one the run exits 4 before a process starts. The live backend runs one
-harness process per invocation and records observed model and effort as
-unverified, because it does not yet read backend evidence. It has not run
+harness process per invocation, one at a time, so fan-out workers never overlap.
+Each planned row gets a fresh scratch copy of its scenario. It records observed
+model and effort as unverified, because it does not yet read backend evidence,
+and it hashes the plan file for the arm F handoff. It has not run
 against a real harness; its tests use a fake process runner.
 
 Exit codes: `0` a plan with at least one planned row, or a live run with no

@@ -55,7 +55,8 @@ def test_a_new_model_needs_no_code_change() -> None:
 
 def test_a_harness_override_resolves_per_harness() -> None:
     document = config_dict()
-    _strategy_doc(document, "A")["harness_overrides"] = {"copilot": {"max_concurrency": 2}}
+    for arm in ("A", "C", "D"):
+        _strategy_doc(document, arm)["harness_overrides"] = {"copilot": {"max_concurrency": 2}}
 
     config = parse(document)
 
@@ -246,3 +247,11 @@ def test_load_config_reads_the_checked_in_example() -> None:
 
     assert len(config_mod.load_config(path).strategies) == 6
     assert json.loads(path.read_text(encoding="utf-8"))["schema_version"] == 1
+
+
+def test_a_harness_override_on_c_alone_breaks_the_held_constant_rule() -> None:
+    document = config_dict()
+    _strategy_doc(document, "C")["harness_overrides"] = {"copilot": {"max_concurrency": 2}}
+
+    with pytest.raises(RoutingConfigError, match="arm C on copilot: C differs from A in max_conc"):
+        parse(document)

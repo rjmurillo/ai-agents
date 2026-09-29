@@ -454,6 +454,11 @@ def check_config_invariants(config: BenchmarkConfig) -> None:
                 f"arm {arm} needs arm A in the same config for the held-constant comparison"
             )
         elif arm in by_arm:
-            problems += [f"arm {arm}: {p}" for p in _cd_problems(by_arm["A"], by_arm[arm])]
+            for harness in config.harnesses:
+                held = _cd_problems(
+                    config.strategy_for("A", harness.harness),
+                    config.strategy_for(arm, harness.harness),
+                )
+                problems += [f"arm {arm} on {harness.harness}: {p}" for p in held]
     if problems:
         raise RoutingConfigError("; ".join(problems))

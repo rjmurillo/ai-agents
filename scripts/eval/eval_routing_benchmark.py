@@ -103,14 +103,18 @@ def _run_live(
 ) -> int:
     results: list[dict[str, object]] = []
     failed = False
-    for harness in sorted({row.harness for row in plan.planned}):
-        with LiveBackend(harness) as backend:
-            for row in (r for r in plan.planned if r.harness == harness):
-                result = run_planned(
-                    row, config.strategy_for(row.arm, harness), scenarios[row.scenario_id], backend
-                )
-                failed = failed or result.status is RunStatus.HARNESS_FAILED
-                results.append(result_to_dict(result))
+    for row in plan.planned:
+        # A fresh backend per row gives each arm its own scratch copy of the scenario,
+        # so no arm starts from another arm's edits.
+        with LiveBackend(row.harness) as backend:
+            result = run_planned(
+                row,
+                config.strategy_for(row.arm, row.harness),
+                scenarios[row.scenario_id],
+                backend,
+            )
+        failed = failed or result.status is RunStatus.HARNESS_FAILED
+        results.append(result_to_dict(result))
     output.write_text("".join(json.dumps(item) + "\n" for item in results), encoding="utf-8")
     return EXIT_HARNESS_FAILURE if failed else EXIT_OK
 

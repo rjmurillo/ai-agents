@@ -429,3 +429,31 @@ def test_dag_correction_request_targets_the_role_that_implements() -> None:
     assert (plan_fresh.role, plan_fresh.session_id, plan_fresh.fresh_context) == (
         "implementer", "implementer", False
     )  # fmt: skip
+
+
+def test_a_pair_must_be_one_scenario_and_arm_on_two_harnesses() -> None:
+    codex_a = _run("A", "codex")
+    other_arm = _run("C", "codex")
+    other_scenario = _run("A", "copilot", scenario_id="RB-04-scope-expansion")
+
+    for other in (codex_a, other_arm, other_scenario):
+        verdict = run_mod.compare_pair(codex_a, other)
+        assert verdict.status == "INCOMPARABLE"
+        assert verdict.reasons == ("not_a_pair_of_harness_runs",)
+    assert run_mod.compare_pair(codex_a, _run("A", "copilot")).status == "MATCHED"
+
+
+def test_cost_uses_the_model_backend_evidence_says_ran() -> None:
+    models = (*MODELS, "gpt-6-sol", "gpt-6-luna")
+    records = [make_record("codex", models=models), make_record("copilot", models=models)]
+    document = replace_strategy_models("gpt-6-sol")
+    swapped = Script(overrides={"agent-implement": {"observed_model": "gpt-6-luna"}})
+    echo = Script(overrides={"agent-implement": {"evidence": cap.EvidenceKind.CLIENT_ECHO}})
+
+    honored = _run("E", document=document, records=records)
+    mismatch = _run("E", document=document, records=records, script=swapped)
+    unknown = _run("E", document=document, records=records, script=echo)
+
+    assert honored.total_cost_usd == pytest.approx((1000 * 0.002 + 500 * 0.010) / 1000)
+    assert mismatch.total_cost_usd == pytest.approx((1000 * 0.0001 + 500 * 0.0005) / 1000)
+    assert unknown.total_cost_usd is None

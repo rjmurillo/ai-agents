@@ -233,3 +233,57 @@ def test_a_live_run_records_unverified_routes_and_no_invented_telemetry(
 
 def test_live_backend_is_not_the_scripted_fake() -> None:
     assert not issubclass(live_mod.LiveBackend, backend_mod.ScriptedBackend)
+
+
+def _requests(arm: str) -> dict[str, Any]:
+    strategy = parse(config_dict()).strategy_for(arm, "codex")
+    return {r.invocation_id: r for r in dag_mod.build_requests(strategy, _scenario())}
+
+
+class PlanWriter(FakeRunner):
+    """Writes a plan file when it runs the planning prompt."""
+
+    def __call__(self, argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        if "implementation-plan.md" in argv[-1]:
+            (Path(kwargs["cwd"]) / "implementation-plan.md").write_text("the plan", "utf-8")
+        return super().__call__(argv, **kwargs)
+
+
+def test_the_plan_file_is_hashed_and_does_not_count_as_a_scope_violation() -> None:
+    scenario = _scenario()
+    requests = _requests("F")
+
+    with live_mod.LiveBackend("codex", runner=PlanWriter(apply_solution=True)) as backend:
+        plan = backend.invoke(requests["planner-plan"], scenario)
+        implement = backend.invoke(requests["implementer-implement"], scenario)
+        graded = backend.grade(scenario, 0)
+
+    assert plan.artifact_sha and plan.artifact_sha == implement.consumed_artifact_sha
+    assert graded.verdict.value == "PASS" and "implementation-plan.md" not in graded.changed_paths
+
+
+def test_a_live_plan_handoff_passes_and_a_missing_plan_is_reported() -> None:
+    config = parse(config_dict())
+    plan = plan_mod.build_plan(config, matched_records(), scenarios())
+    row = next(r for r in plan.rows if (r.arm, r.harness, r.scenario_id) == ("F", "codex", BOUNDED))
+    strategy = config.strategy_for("F", "codex")
+
+    with live_mod.LiveBackend("codex", runner=PlanWriter(apply_solution=True)) as backend:
+        written = run_mod.run_planned(row, strategy, _scenario(), backend)
+    with live_mod.LiveBackend("codex", runner=FakeRunner(apply_solution=True)) as backend:
+        absent = run_mod.run_planned(row, strategy, _scenario(), backend)
+
+    assert written.violations == ()
+    assert absent.violations == ("handoff_missing:planner-plan",)
+
+
+def test_a_file_that_is_not_the_plan_still_counts_as_a_change() -> None:
+    scenario = _scenario()
+    request = _requests("E")["agent-implement"]
+
+    with live_mod.LiveBackend("codex", runner=FakeRunner(apply_solution=True)) as backend:
+        backend.invoke(request, scenario)
+        (Path(backend._workdirs[scenario.scenario_id]) / "notes.md").write_text("x", "utf-8")
+        graded = backend.grade(scenario, 0)
+
+    assert "notes.md" in graded.scope_violations

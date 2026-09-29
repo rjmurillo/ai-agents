@@ -165,12 +165,21 @@ def materialize(scenario: Scenario, destination: Path, *overlays: str) -> None:
         _write_overlay(scenario.fixture_dir(name), destination)
 
 
-def changed_paths(scenario: Scenario, workdir: Path) -> tuple[str, ...]:
-    """Paths added, modified, or deleted in `workdir` relative to `initial/`."""
+def changed_paths(
+    scenario: Scenario, workdir: Path, ignore: frozenset[str] = frozenset()
+) -> tuple[str, ...]:
+    """Paths added, modified, or deleted in `workdir` relative to `initial/`.
+
+    `ignore` names paths that are expected run artifacts, such as a plan file.
+    """
     before = fixture_manifest(scenario.fixture_dir("initial"))
     after = manifest(workdir)
     return tuple(
-        sorted(path for path in before.keys() | after.keys() if before.get(path) != after.get(path))
+        sorted(
+            path
+            for path in before.keys() | after.keys()
+            if before.get(path) != after.get(path) and path not in ignore
+        )
     )
 
 
@@ -230,8 +239,10 @@ def run_validation(validation: Validation, workdir: Path) -> tuple[CommandResult
     )
 
 
-def grade(scenario: Scenario, workdir: Path) -> GradeResult:
+def grade(scenario: Scenario, workdir: Path, ignore: frozenset[str] = frozenset()) -> GradeResult:
     """Grade `workdir` against `scenario`. `workdir` itself is left untouched.
+
+    `ignore` excludes expected run artifacts from the changed-path diff.
 
     The scratch copy keeps symlinks as links (it never follows one). The scope
     verdict and the validation run both read that copy, so they see the same
@@ -249,7 +260,7 @@ def grade(scenario: Scenario, workdir: Path) -> GradeResult:
             symlinks=True,
             ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
         )
-        changed = changed_paths(scenario, scratch)
+        changed = changed_paths(scenario, scratch, ignore)
         violations = scope_violations(scenario, changed)
         missing = missing_expected(scenario, changed)
         links = _symlinks(scratch)

@@ -40,6 +40,7 @@ from _routing_result import (
     FailureKind,
     InvocationRecord,
     InvocationRequest,
+    Observation,
     RunResult,
     RunStatus,
     Validation,
@@ -60,13 +61,28 @@ class PairVerdict:
 
 def _record(request: InvocationRequest, backend: Backend, scenario: Scenario) -> InvocationRecord:
     seen = backend.invoke(request, scenario)
+    model_verdict = value_verdict(request.model, seen.observed_model, seen.evidence)
     return InvocationRecord(
         request=request,
         observation=seen,
-        model_verdict=value_verdict(request.model, seen.observed_model, seen.evidence),
+        model_verdict=model_verdict,
         effort_verdict=value_verdict(request.effort, seen.observed_effort, seen.evidence),
-        cost_usd=estimate_cost_usd(request.model, seen.input_tokens, seen.output_tokens),
+        cost_usd=_cost(request, seen, model_verdict),
     )
+
+
+def _cost(request: InvocationRequest, seen: Observation, verdict: Verdict) -> float | None:
+    """Price the model that backend evidence says ran. Unknown billing model: no cost."""
+    if verdict is Verdict.HONORED:
+        billed: str | None = request.model
+    elif verdict is Verdict.MISMATCH:
+        billed = seen.observed_model
+    else:
+        billed = None
+    if billed is None:
+        return None
+    cost: float | None = estimate_cost_usd(billed, seen.input_tokens, seen.output_tokens)
+    return cost
 
 
 def _harness_failed(record: InvocationRecord) -> bool:
@@ -300,7 +316,8 @@ def _isolation_state(result: RunResult) -> tuple[bool | None, ...]:
 def compare_pair(first: RunResult, second: RunResult) -> PairVerdict:
     """Decide whether two runs of one arm on two harnesses are a matched comparison.
 
-    `INCOMPARABLE`: a harness failure means the task outcome is unknown.
+    `INCOMPARABLE`: the runs are not one scenario and arm on two harnesses, or a
+    harness failure means the task outcome is unknown.
     `UNMATCHED`: the plan was not matched, a run broke a contract, or an
     observed difference (concurrency, sandbox, context, reviewer isolation,
     handoff) prevents a causal comparison. Reasons name each difference; none
@@ -309,6 +326,10 @@ def compare_pair(first: RunResult, second: RunResult) -> PairVerdict:
     `MATCHED`: none of the above.
     """
     telemetry = first.telemetry_available and second.telemetry_available
+    if (first.scenario_id, first.arm) != (second.scenario_id, second.arm) or (
+        first.harness == second.harness
+    ):
+        return PairVerdict("INCOMPARABLE", ("not_a_pair_of_harness_runs",), telemetry)
     failed = [r.harness for r in (first, second) if r.status is RunStatus.HARNESS_FAILED]
     if failed:
         return PairVerdict(

@@ -24,8 +24,17 @@ What this backend does not do, by design: it reads no backend evidence, so
 `observed_model` and `observed_effort` are `None` with `EvidenceKind.NONE`, and
 every live invocation is recorded `UNVERIFIED` rather than assumed honored.
 Token counts are `None`. It runs invocations one at a time, so a live run
-proves no concurrency behavior. Reading backend frames is the follow-up the
-capability probes already implement per harness.
+proves no concurrency behavior and fan-out workers never overlap. Reading
+backend frames is the follow-up the capability probes already implement per
+harness.
+
+Plan handoff: after a planning invocation the backend hashes the plan file in the
+scratch copy, and before the implementation invocation it hashes the file again.
+That records the artifact present when the fresh process started. It is not proof
+the implementer read it. The plan file is excluded from the scope diff.
+
+The CLI builds a new backend for every planned row, so each arm starts from the
+scenario's initial state.
 
 STATUS: this path has not run against a real harness. Its tests inject a fake
 process runner.
@@ -33,6 +42,7 @@ process runner.
 
 from __future__ import annotations
 
+import hashlib
 import subprocess
 import tempfile
 import time
@@ -43,6 +53,8 @@ from typing import Any
 
 from _capability_probes import TRUSTED_REQUEST_TEMPLATES
 from _harness_capability import EvidenceKind
+from _routing_backend import IMPLEMENT_INVOCATION_ID, PLAN_INVOCATION_ID
+from _routing_config import HANDOFF_ARTIFACT
 from _routing_grader import GradeResult, grade, materialize
 from _routing_result import SESSION_MARKER_FRESH, FailureKind, InvocationRequest, Observation
 from _routing_scenario import Scenario
@@ -177,12 +189,22 @@ class LiveBackend:
         code = int(completed.returncode)
         return code, "" if code == 0 else f"exit code {code}"
 
+    def _plan_sha(self, workdir: Path) -> str | None:
+        """SHA-256 of the plan artifact on disk now, or `None` when there is none."""
+        path = workdir / HANDOFF_ARTIFACT
+        return hashlib.sha256(path.read_bytes()).hexdigest() if path.is_file() else None
+
     def invoke(self, request: InvocationRequest, scenario: Scenario) -> Observation:
         argv = live_argv(
             self._harness, request.model, request.effort, role_prompt(request, scenario)
         )
+        workdir = self._workdir(scenario)
+        consumed = (
+            self._plan_sha(workdir) if request.invocation_id == IMPLEMENT_INVOCATION_ID else None
+        )
         start = time.monotonic()
-        code, detail = self._run(argv, self._workdir(scenario))
+        code, detail = self._run(argv, workdir)
+        produced = self._plan_sha(workdir) if request.invocation_id == PLAN_INVOCATION_ID else None
         return Observation(
             session_id=request.session_id,
             start_offset_seconds=start - self._started,
@@ -194,7 +216,9 @@ class LiveBackend:
             context_markers=(SESSION_MARKER_FRESH,) if request.fresh_context else (),
             failure=None if code == 0 else FailureKind.HARNESS,
             failure_detail=detail,
+            artifact_sha=produced,
+            consumed_artifact_sha=consumed,
         )
 
     def grade(self, scenario: Scenario, round_index: int) -> GradeResult:
-        return grade(scenario, self._workdir(scenario))
+        return grade(scenario, self._workdir(scenario), ignore=frozenset({HANDOFF_ARTIFACT}))
