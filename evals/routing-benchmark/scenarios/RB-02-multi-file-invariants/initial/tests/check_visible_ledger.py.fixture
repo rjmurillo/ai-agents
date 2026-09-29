@@ -1,0 +1,22 @@
+import unittest
+
+from ledger import Entry, Ledger
+
+
+class VisibleLedgerChecks(unittest.TestCase):
+    def test_deposit_and_withdrawal_move_the_balance(self) -> None:
+        ledger = Ledger()
+        ledger.add(Entry("deposit", 1000))
+        ledger.add(Entry("withdrawal", 400))
+        self.assertEqual(ledger.balance_cents(), 600)
+
+    def test_refund_adds_to_the_balance(self) -> None:
+        ledger = Ledger()
+        ledger.add(Entry("deposit", 1000))
+        withdrawal = ledger.add(Entry("withdrawal", 400))
+        ledger.add(Entry("refund", 150, ref=withdrawal))
+        self.assertEqual(ledger.balance_cents(), 750)
+
+
+if __name__ == "__main__":
+    unittest.main()
