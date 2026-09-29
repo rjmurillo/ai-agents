@@ -7,6 +7,16 @@ metadata:
   role: executor
 # Runs the review contract in fresh context with read-only tools, apart from the implementer.
 isolation_required: true
+tools:
+  - Read
+  - Grep
+  - Glob
+  - mcp__github__pull_request_read
+  - mcp__github__get_file_contents
+  - mcp__github__issue_read
+  - mcp__serena__find_symbol
+  - mcp__serena__find_referencing_symbols
+  - mcp__serena__get_symbols_overview
 argument-hint: Point to the diff, PR, or files to review; defaults to current working changes
 ---
 
@@ -79,7 +89,7 @@ Review doctrine lives in the contract, so this agent is kept only as an executio
 
 - **Independent context**: `dx-review`'s Review Gate and the `/review` step 4c correctness pass dispatch this agent as a separate subagent. Any subagent gives fresh context, so this supports the agent but does not require it.
 - **Model selection**: pinned to `haiku` with a recorded cost rationale. Not measured, so it does not justify the agent on its own.
-- **Tool restriction**: the Copilot, VS Code, and GitHub projections list read and search tools only, holding the read-only promise on three harnesses.
+- **Tool restriction**: every projection lists read and search tools only. The Claude projection grants no Bash, Edit, or Write, so the read-only promise holds on all four harnesses (ADR-112).
 - **Handoff identity**: `dx-review` pins this agent's subagent type by name in a test, so callers that need this exact identity keep a stable target.
 
 ## Memory Protocol
