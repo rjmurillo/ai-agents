@@ -14,6 +14,11 @@ from unittest.mock import patch
 
 import pytest
 
+from scripts.validation.evidence import (
+    REASON_BASE_REF_UNRESOLVED,
+    REASON_DIFF_FAILED,
+    EvidenceState,
+)
 from scripts.validation.pre_pr import main, validate_dash_prohibition, validate_markdown_lint
 
 
@@ -196,10 +201,14 @@ class TestValidateMarkdownLint:
 class TestValidateDashProhibition:
     """Tests for the branch-wide em/en-dash check."""
 
-    def test_returns_true_when_no_base_ref_resolves(self, tmp_path: Path) -> None:
+    def test_blocks_when_no_base_ref_resolves(self, tmp_path: Path) -> None:
 
-        # tmp_path is not a git repo; no ref will resolve.
-        assert validate_dash_prohibition(tmp_path) is True
+        # tmp_path is not a git repo; no ref will resolve. The scan cannot
+        # run, so the gate must not report the value a clean scan reports
+        # (issue #5636).
+        outcome = validate_dash_prohibition(tmp_path)
+        assert outcome.state is EvidenceState.BLOCKED
+        assert outcome.reason == REASON_BASE_REF_UNRESOLVED
 
     def test_returns_true_for_clean_branch(self, tmp_path: Path) -> None:
 
@@ -210,7 +219,7 @@ class TestValidateDashProhibition:
                 (0, "README.md\n", ""),  # git diff
                 (0, "clean content\n", ""),  # git show
             ]
-            assert validate_dash_prohibition(tmp_path) is True
+            assert validate_dash_prohibition(tmp_path).state is EvidenceState.PASS
 
     def test_returns_false_on_em_dash(self, tmp_path: Path) -> None:
 
@@ -225,7 +234,7 @@ class TestValidateDashProhibition:
                 (0, "doc.md\n", ""),  # git diff
                 (0, f"prose with {chr(0x2014)} em-dash\n", ""),  # git show
             ]
-            assert validate_dash_prohibition(tmp_path) is False
+            assert validate_dash_prohibition(tmp_path).state is EvidenceState.FAIL
 
     def test_returns_false_on_en_dash(self, tmp_path: Path) -> None:
 
@@ -236,7 +245,7 @@ class TestValidateDashProhibition:
                 (0, "range.md\n", ""),
                 (0, f"range 1{chr(0x2013)}10\n", ""),
             ]
-            assert validate_dash_prohibition(tmp_path) is False
+            assert validate_dash_prohibition(tmp_path).state is EvidenceState.FAIL
 
     def test_skips_vendored_paths(self, tmp_path: Path) -> None:
 
@@ -247,7 +256,7 @@ class TestValidateDashProhibition:
              patch("checks_dash._run_subprocess") as mock_run:
             mock_ref.return_value = "origin/main"
             mock_run.return_value = (0, "node_modules/pkg/README.md\n", "")
-            assert validate_dash_prohibition(tmp_path) is True
+            assert validate_dash_prohibition(tmp_path).state is EvidenceState.PASS
 
     def test_skips_test_fixtures_dir(self, tmp_path: Path) -> None:
 
@@ -258,7 +267,7 @@ class TestValidateDashProhibition:
              patch("checks_dash._run_subprocess") as mock_run:
             mock_ref.return_value = "origin/main"
             mock_run.return_value = (0, "tests/hooks/fixtures/dash_violations.md\n", "")
-            assert validate_dash_prohibition(tmp_path) is True
+            assert validate_dash_prohibition(tmp_path).state is EvidenceState.PASS
 
     def test_includes_github_instructions_tree(self, tmp_path: Path) -> None:
         """REQ-006-AC4: .github/instructions/ is NOT excluded."""
@@ -270,16 +279,18 @@ class TestValidateDashProhibition:
                 (0, ".github/instructions/universal.instructions.md\n", ""),
                 (0, f"prose {chr(0x2014)} dash\n", ""),
             ]
-            assert validate_dash_prohibition(tmp_path) is False
+            assert validate_dash_prohibition(tmp_path).state is EvidenceState.FAIL
 
-    def test_returns_true_when_git_diff_fails(self, tmp_path: Path) -> None:
-        """Fail open on git subprocess failure (do not block on infra issues)."""
+    def test_reports_unknown_when_git_diff_fails(self, tmp_path: Path) -> None:
+        """A failed `git diff` is UNKNOWN, not a pass (issue #5636)."""
 
         with patch("checks_dash._resolve_branch_base_ref") as mock_ref, \
              patch("checks_dash._run_subprocess") as mock_run:
             mock_ref.return_value = "origin/main"
             mock_run.return_value = (128, "", "fatal: bad revision")
-            assert validate_dash_prohibition(tmp_path) is True
+            outcome = validate_dash_prohibition(tmp_path)
+            assert outcome.state is EvidenceState.UNKNOWN
+            assert outcome.reason == REASON_DIFF_FAILED
 
     def test_reads_head_content_not_working_tree(self, tmp_path: Path) -> None:
         """`_find_dash_violations` reads HEAD via `git show`, not the working tree.
@@ -301,7 +312,7 @@ class TestValidateDashProhibition:
             ]
             # No file at tmp_path/doc.md (working tree). Function should
             # still detect the violation because it reads HEAD content.
-            assert validate_dash_prohibition(tmp_path) is False
+            assert validate_dash_prohibition(tmp_path).state is EvidenceState.FAIL
 
 
 # ---------------------------------------------------------------------------

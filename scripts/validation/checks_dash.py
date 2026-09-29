@@ -18,10 +18,30 @@ import sys
 from pathlib import Path
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
+_REPO_ROOT = _SCRIPT_DIR.parents[1]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
 if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
-from checks_common import _resolve_branch_base_ref, _run_subprocess  # noqa: E402
+from checks_common import (  # noqa: E402
+    _resolve_branch_base_ref,
+    _run_subprocess,
+    classify_subprocess_failure,
+)
+
+# The typed evidence contract (issue #5635). PACKAGE path, matching
+# checks_mypy.py: a flat ``import evidence`` and a package
+# ``import scripts.validation.evidence`` yield two distinct ``EvidenceState``
+# enums, and the runner resolves the package one.
+from scripts.validation.evidence import (  # noqa: E402
+    REASON_BASE_REF_UNRESOLVED,
+    REASON_DIFF_FAILED,
+    CheckOutcome,
+)
+
+_DASH_GATE = "validate_dash_prohibition"
+_DASH_SCOPE = "markdown files changed on the branch"
 
 # Compiled detection regex. Uses Unicode escape sequences so this source
 # file does not contain U+2014 or U+2013 itself (Issue #1923, REQ-006).
@@ -57,16 +77,31 @@ def _is_vendored(path: str) -> bool:
     return any(path.startswith(prefix) for prefix in _VENDORED_PREFIXES)
 
 
-def _branch_markdown_files(repo_root: Path) -> list[str] | None:
-    """Resolve branch base and return non-vendored markdown paths to scan.
+def _branch_markdown_files(
+    repo_root: Path,
+) -> tuple[str, list[str]] | CheckOutcome:
+    """Resolve branch base and return ``(base_ref, non-vendored markdown paths)``.
 
-    Returns None when the scan cannot run (no base ref or git diff failure);
-    callers treat None as fail-open (pass without scanning).
+    Returns a ``CheckOutcome`` when the scan cannot run: ``BLOCKED`` when no
+    base ref resolves, ``UNKNOWN`` when ``git diff`` fails. Both used to be a
+    printed warning followed by a pass, so a blocking gate that examined
+    nothing reported the same value as one that examined a clean branch
+    (issue #5636). ``checks_mypy.validate_mypy_changed_files`` reports the same
+    two conditions the same way.
     """
     base_ref = _resolve_branch_base_ref(repo_root)
     if base_ref is None:
-        print("[WARNING] Em/en-dash branch scan skipped: no base ref resolved")
-        return None
+        print("[BLOCKED] Em/en-dash branch scan: no base ref resolved")
+        return CheckOutcome.blocked(
+            _DASH_GATE,
+            reason=REASON_BASE_REF_UNRESOLVED,
+            scope=_DASH_SCOPE,
+            detail=(
+                "no base ref resolved, so the changed-file set could not be "
+                "computed and no markdown file was scanned; run "
+                "`git fetch origin main` and retry"
+            ),
+        )
 
     exit_code, stdout, stderr = _run_subprocess(
         [
@@ -81,12 +116,17 @@ def _branch_markdown_files(repo_root: Path) -> list[str] | None:
         timeout=30,
     )
     if exit_code != 0:
-        print(
-            f"[WARNING] Em/en-dash branch scan skipped: git diff failed: {stderr}",
+        reason = classify_subprocess_failure(exit_code, stderr, default=REASON_DIFF_FAILED)
+        print(f"[UNKNOWN] Em/en-dash branch scan: git diff failed ({reason}): {stderr.strip()}")
+        return CheckOutcome.unknown(
+            _DASH_GATE,
+            reason=reason,
+            revision=f"{base_ref}...HEAD",
+            scope=_DASH_SCOPE,
+            detail=f"git diff exited {exit_code}, so the changed-file set is unknown",
         )
-        return None
 
-    return [
+    return base_ref, [
         p for p in stdout.splitlines() if p.endswith(".md") and not _is_vendored(p)
     ]
 
@@ -153,7 +193,7 @@ def _print_dash_violations(violations: list[tuple[str, int]]) -> None:
     )
 
 
-def validate_dash_prohibition(repo_root: Path) -> bool:
+def validate_dash_prohibition(repo_root: Path) -> CheckOutcome:
     """Branch-wide em/en-dash check (Issue #1923, REQ-006-AC7).
 
     Catches U+2014 (em-dash) and U+2013 (en-dash) in any *.md file
@@ -166,31 +206,59 @@ def validate_dash_prohibition(repo_root: Path) -> bool:
     intentionally contain dashes to exercise the detection logic.
     .github/instructions/ is NOT skipped (REQ-006-AC4).
 
-    Returns True (pass) when no violations are found OR when the scan
-    cannot run (fail open). Returns False on any violation.
+    Returns typed evidence (issue #5636). ``PASS`` means the scan ran against
+    the named base and found nothing, with ``examined`` counting the files
+    read. ``FAIL`` means a violation. ``BLOCKED`` (no base ref) and
+    ``UNKNOWN`` (``git diff`` failed) mean the scan did not run, and neither
+    is accepted by the pre-PR policy: this gate is a blocking pre-push job, and
+    a gate that examined nothing must not report what a clean scan reports.
+    A file that lists in the diff but cannot be read at HEAD is still dropped
+    from the scan, visibly (see :func:`_find_dash_violations`), and the
+    outcome's ``examined`` excludes it.
     """
-    candidate_paths = _branch_markdown_files(repo_root)
-    if candidate_paths is None:
-        return True
+    target = _branch_markdown_files(repo_root)
+    if isinstance(target, CheckOutcome):
+        return target
+    base_ref, candidate_paths = target
+    revision = f"{base_ref}...HEAD"
+
     if not candidate_paths:
         print("[PASS] Em/en-dash prohibition (no markdown files on branch)")
-        return True
+        return CheckOutcome.passed(
+            _DASH_GATE, revision=revision, scope=_DASH_SCOPE, examined=0
+        )
 
     violations, skipped = _find_dash_violations(repo_root, candidate_paths)
+    examined = len(candidate_paths) - len(skipped)
     if violations:
         _print_dash_violations(violations)
-        return False
+        return CheckOutcome.failed(
+            _DASH_GATE,
+            reason="dash.violation",
+            revision=revision,
+            scope=_DASH_SCOPE,
+            examined=examined,
+            findings=len(violations),
+            detail=f"{len(violations)} line(s) carry U+2014 or U+2013",
+        )
 
     if skipped:
-        examined = len(candidate_paths) - len(skipped)
         print(
             f"[PASS] Em/en-dash prohibition ({examined} of "
             f"{len(candidate_paths)} markdown file(s) checked; "
             f"{len(skipped)} unreadable at HEAD, skipped)",
         )
-        return True
+        return CheckOutcome.passed(
+            _DASH_GATE,
+            revision=revision,
+            scope=_DASH_SCOPE,
+            examined=examined,
+            detail=f"{len(skipped)} of {len(candidate_paths)} file(s) unreadable at HEAD, skipped",
+        )
 
     print(
         f"[PASS] Em/en-dash prohibition ({len(candidate_paths)} markdown file(s) checked)",
     )
-    return True
+    return CheckOutcome.passed(
+        _DASH_GATE, revision=revision, scope=_DASH_SCOPE, examined=examined
+    )

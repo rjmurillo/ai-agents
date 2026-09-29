@@ -7934,8 +7934,8 @@ def _handle_branch_dashes(args: argparse.Namespace) -> int:
     Delegates to the one authoritative implementation,
     ``checks_dash.validate_dash_prohibition``, which owns the detection regex
     and the vendored/fixture carve-out. This handler adds only the exit-code
-    translation, so the fast-stage job and ``pre_pr.py`` cannot disagree about
-    what a violation is.
+    translation, through the same policy ``pre_pr.py`` applies, so the
+    fast-stage job and ``pre_pr.py`` cannot disagree about what blocks.
 
     Imported inside the handler rather than at module scope: every other
     subcommand of this module pays for a top-level import, and none of them
@@ -7943,7 +7943,18 @@ def _handle_branch_dashes(args: argparse.Namespace) -> int:
     """
     from checks_dash import validate_dash_prohibition
 
-    return 0 if validate_dash_prohibition(_repo_root(args)) else 1
+    from scripts.validation.evidence import coerce_outcome, default_pre_pr_policy
+
+    outcome = coerce_outcome(
+        "validate_dash_prohibition", validate_dash_prohibition(_repo_root(args))
+    )
+    if default_pre_pr_policy().accepts(outcome):
+        return 0
+    # A scan that did not run (BLOCKED, UNKNOWN) blocks the push exactly as a
+    # violation does: the printed violation block covers FAIL, this line covers
+    # the states that carry no violation list (issue #5636).
+    print(outcome.summary_line(), file=sys.stderr)
+    return 1
 
 
 def _handle_staged_action_pins(args: argparse.Namespace) -> int:
