@@ -42,7 +42,7 @@ Every change belongs to at least one class. A mixed change inherits the union of
 | Git hook configuration | `lefthook.yml` | Named-job validation and relevant validator tests |
 | Claude lifecycle hook | `.claude/hooks/**`, hook generators | Dual-registration sync; runtime-contract tests; `scripts/validation/validate_hook_anchoring.py` |
 | Workflow | `.github/workflows/*.yml` | No logic in YAML (ADR-006); SHA-pinned actions; run changed workflows before push (AGENTS.md Always list) |
-| ADR / governance | Any `ADR-*.md` create or edit | Fires the `adr-review` multi-agent debate gate (AGENTS.md "ADR Review"); governance changes need human approval plus an ADR |
+| ADR / governance | Any `ADR-*.md` create or edit | Fires the `adr-review` debate gate (AGENTS.md "ADR Review": full panel only for executable enforcement or a rule other gates read, else a reduced panel; the debate log is required either way); governance changes need human approval plus an ADR |
 
 The OPERATIVE investigation-only allowlist is the enforcement module `scripts/modules/investigation_allowlist.py` (docstring: "Single source of truth for investigation artifact path patterns"; consumed by `validate_session_json.py`, the session skill, and `validate_investigation_claims.py`). It allows 8 patterns as of 2026-07-30 (display form from `get_investigation_allowlist_display()`):
 
