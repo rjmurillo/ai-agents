@@ -262,8 +262,9 @@ def _enrich_review_findings(
     ``finding_index`` counts findings across all sections of one review, in
     document order, starting at 0. Returns the findings, the count
     mismatches, the keys seen, the keys whose entry was rejected, and how
-    many findings in this review carry an accepted disposition (the caller
-    ignores that count for stale reviews and caps it at the declared count).
+    many accepted dispositions count, capped per section at that section's
+    declared count so surplus parsed findings in one section cannot cancel
+    missing findings in another (the caller ignores it for stale reviews).
     """
     review_id = review.get("id")
     commit_id = review.get("commit_id")
@@ -274,6 +275,7 @@ def _enrich_review_findings(
     rejected: list[dict[str, Any]] = []
     dispositioned = 0
     for section_index, section in enumerate(sections):
+        section_dispositioned = 0
         if section["declared_count"] != section["parsed_count"]:
             mismatches.append(
                 {
@@ -292,7 +294,7 @@ def _enrich_review_findings(
                 rejected.append({"key": key, "reason": error})
             accepted = key in dispositions and not error
             if accepted:
-                dispositioned += 1
+                section_dispositioned += 1
             findings.append(
                 {
                     **finding,
@@ -311,6 +313,7 @@ def _enrich_review_findings(
                     ),
                 }
             )
+        dispositioned += min(section_dispositioned, section["declared_count"])
     return {
         "findings": findings,
         "mismatches": mismatches,
@@ -387,7 +390,7 @@ def build_report(
         seen_keys |= enriched["seen_keys"]
         rejected.extend(enriched["rejected"])
         if active_state != "stale":
-            dispositioned_count += min(enriched["dispositioned"], declared_count)
+            dispositioned_count += enriched["dispositioned"]
 
     rejected.extend(
         {"key": key, "reason": "no such review finding"}

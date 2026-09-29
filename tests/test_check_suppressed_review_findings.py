@@ -477,3 +477,15 @@ def test_dispositions_beyond_the_declared_count_cannot_go_negative() -> None:
     assert report["parsed_finding_count"] == 3
     assert report["dispositioned_suppressed_count"] == 1
     assert report["undispositioned_suppressed_count"] == 1
+
+
+def test_surplus_in_one_section_cannot_cancel_missing_in_another() -> None:
+    body = (
+        "<details>\n<summary>Suppressed comments (1)</summary>\n"
+        "**a.py:1**\n* A\n**b.py:2**\n* B\n</details>\n"
+        "<details>\n<summary>Suppressed comments (1)</summary>\n</details>"
+    )
+    report = _report([_review(11, body)], {"11:0": _GOOD, "11:1": _GOOD})
+    assert report["parsed_finding_count"] == 2
+    assert report["dispositioned_suppressed_count"] == 1
+    assert report["undispositioned_suppressed_count"] == 1
