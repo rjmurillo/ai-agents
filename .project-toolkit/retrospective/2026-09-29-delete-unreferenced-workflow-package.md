@@ -16,4 +16,3 @@
 
 ## Learning
 - An engine with tests but no caller still costs CI time and reader attention.
-- The generator prefilled this file with text from an unrelated session. Rewrite it before commit.
