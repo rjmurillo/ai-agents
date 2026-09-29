@@ -218,6 +218,24 @@ names put ``<repo>/.claude/lib`` on ``sys.path`` and import
 the boundary left the CVSS 8.8 path open with every named script
 byte-identical to the trusted ref (PR #5146 security review, F-1).
 
+Dynamic loads are inside the boundary too (ADR-101 Application B, issue
+#5245). A load through ``importlib.import_module``, ``__import__``,
+``importlib.util.spec_from_file_location``, ``SourceFileLoader`` or ``runpy``
+whose target is a string literal, or a path built only from ``__file__`` and
+string literals, is resolved: the target joins the closure and is
+byte-verified like any imported module. A recognised load that cannot be
+resolved that way, and an ``exec`` or ``eval`` of anything but inert constant
+code, fails closed: the gate halts as untrusted (exit 2), naming
+``file:line``, and a human who inspected the listing can approve it.
+Recognition is a denylist of call names, sound because a PR-rewritten
+verifier already halts on the byte comparison; the comment above
+``_MODULE_LOADS`` lists what it does not recognise. ``new_pr.py`` loading
+``pr_validations.py`` through a computed path is the case this was decided
+against. It falls on the fail-closed side and is not reachable from any
+verifier the shipped config names (14 named scripts, 34 files, zero dynamic
+loads, measured 2026-09-29). The reasoning, and the constructs it does not
+recognise, sit in the comment above ``_MODULE_LOADS``.
+
 The closure was chosen over verifying the containing directory
 because a directory rule halts on any sibling change, including files
 no criterion loads, and that is what trains an operator to pass
@@ -232,10 +250,13 @@ the config, every tracked work-tree file its commands name, and that
 closure's statically-resolvable work-tree imports are the trusted ref's
 copies. What remains outside, and is covered by neither field:
 
-  * **Dynamically resolved imports.** ``importlib`` by computed name,
-    an ``exec`` of file contents, a ``sys.path`` entry built at runtime
-    from a value this module does not model, or a C extension loaded by
-    path. The closure is static, so it cannot see these.
+  * **A ``sys.path`` entry built at runtime** from a value this module does
+    not model, or a C extension loaded by path. Every shipped verifier edits
+    ``sys.path`` for ``.claude/lib``, which the closure models, so flagging
+    the call would halt them all. Dynamic loads by a recognised call are no
+    longer in this list: they resolve or halt. Unrecognised routes (aliases,
+    ``getattr``, ``pickle``, ``ctypes`` and the rest listed above
+    ``_MODULE_LOADS``) remain outside it.
   * **Untracked work-tree files.** Recorded, not compared. PR content
     arrives through a checkout and is therefore tracked, so this is a
     scoping decision rather than a gap in coverage of PR content. A
@@ -288,7 +309,7 @@ import shlex
 import subprocess
 import sys
 import unicodedata
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Any, NamedTuple
 
@@ -539,6 +560,16 @@ _DISPATCHER_PATH = Path(__file__).resolve()
 _TRUSTED_REF_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/@^~{}-]*$")
 
 _GIT_TIMEOUT_SECONDS = 30
+
+def _one_line(text: str) -> str:
+    """Escape the line breaks a file name could use to forge extra listing lines."""
+    return (
+        text.replace("\n", "\\n")
+        .replace("\r", "\\r")
+        .replace("\u2028", "\\u2028")
+        .replace("\u2029", "\\u2029")
+    )
+
 
 def _escape_terminal_controls(text: str) -> str:
     """Render PR-controlled text safely for the approving human's terminal.
@@ -1668,8 +1699,10 @@ def _relative_import_root(script: Path, level: int, toplevel: Path) -> list[Path
     return [base] if _is_within(base, toplevel) else []
 
 
-def _resolve_module_file(dotted: str, roots: list[Path], toplevel: Path) -> str | None:
-    """Work-tree-relative path of ``dotted``, or None when not in the tree.
+def _resolve_module_root(
+    dotted: str, roots: list[Path], toplevel: Path,
+) -> tuple[Path, str] | None:
+    """``(root, work-tree-relative path)`` of ``dotted``, or None when not in the tree.
 
     A name that resolves nowhere in the work tree is standard library or
     an installed dependency: not PR content, so not this boundary's
@@ -1688,8 +1721,595 @@ def _resolve_module_file(dotted: str, roots: list[Path], toplevel: Path) -> str 
                 continue
             if _first_symlinked_component(candidate, toplevel) is not None:
                 continue
-            return candidate.relative_to(toplevel).as_posix()
+            return root, candidate.relative_to(toplevel).as_posix()
     return None
+
+
+def _resolve_module_file(dotted: str, roots: list[Path], toplevel: Path) -> str | None:
+    """Work-tree-relative path of ``dotted``, or None when not in the tree."""
+    resolved = _resolve_module_root(dotted, roots, toplevel)
+    return None if resolved is None else resolved[1]
+
+
+def _module_files(dotted: str, roots: list[Path], toplevel: Path) -> list[str]:
+    """The files executing ``import dotted`` runs: its ancestor initializers, then the module.
+
+    Importing ``a.b.c`` runs ``a/__init__.py`` and ``a/b/__init__.py`` before
+    ``a/b/c.py``, so a pull request that rewrites an initializer runs code under a
+    trusted verdict unless the initializer is in the closure too. An ancestor with
+    no ``__init__.py`` is a namespace package and contributes nothing. An ancestor
+    initializer reached through a symlink is not followed, like any other symlink.
+    """
+    resolved = _resolve_module_root(dotted, roots, toplevel)
+    if resolved is None:
+        return []
+    root, module = resolved
+    parts = [part for part in dotted.split(".") if part]
+    files: list[str] = []
+    for depth in range(1, len(parts)):
+        initializer = root.joinpath(*parts[:depth], "__init__.py")
+        if not initializer.is_file() or not _is_within(initializer, toplevel):
+            continue
+        if _first_symlinked_component(initializer, toplevel) is not None:
+            continue
+        files.append(initializer.relative_to(toplevel).as_posix())
+    if module not in files:
+        files.append(module)
+    return files
+
+
+# Dynamic-load constructs the static import pass cannot see (ADR-101
+# Application B, issue #5245). The decision, taken against the one concrete
+# case the ADR names, ``new_pr.py`` loading ``pr_validations.py`` through
+# ``importlib.util.spec_from_file_location`` to keep ``python3 -I`` isolation:
+#
+#   * A load whose target is a literal, or a path built only from ``__file__``
+#     and string literals, is RESOLVED. The target joins the closure, so it is
+#     byte-verified and its own imports are followed. The isolation idiom
+#     survives: ``spec_from_file_location("x", Path(__file__).resolve().parent
+#     / "x.py")`` costs the file nothing and gains verification.
+#   * A load this scanner recognises and cannot resolve is UNRESOLVABLE and
+#     fails closed. The gate halts with the same untrusted outcome as a
+#     diverged file (exit 2, approvable by a human who inspected the listing),
+#     naming file and line.
+#
+# What "recognises" means, stated plainly because an earlier draft of this
+# comment overclaimed. Detection is a DENYLIST of call names over each file's
+# own text: ``import_module``, ``__import__``, ``run_module``, ``run_path``,
+# ``spec_from_file_location``, ``SourceFileLoader``, and ``exec``/``eval`` of
+# anything but inert constant code. It is not a proof that no load exists, and
+# it does not need to be, because of one premise: a PR cannot edit a verifier
+# without diverging from the trusted ref, and the byte comparison halts on
+# that. So this scanner's job is the UNMODIFIED, trusted verifier that loads a
+# file the PR did edit. Trusted code is written in the open. Code the PR
+# rewrote to hide a load behind an alias is already caught as a divergence.
+#
+# Not recognised, named so nobody reads the list as complete: an alias
+# (``m = importlib.import_module; m(x)``), ``getattr(importlib, name)(x)``, a
+# function reference passed uncalled (``map(__import__, ...)``),
+# ``builtins.exec``, ``ExtensionFileLoader``, ``SourcelessFileLoader``,
+# ``spec_from_loader``, ``zipimport``, ``pkgutil``, ``pickle``, ``marshal``,
+# ``ctypes``, a subprocess that launches a file (``[sys.executable, "-I",
+# script]``, the shape ``pr_validations.py``, ``wait_for_unresolved_zero.py``
+# and ``get_pr_check_logs.py`` use) or runs ``python -c``, ``sys.modules``
+# injection, and a wrong-case literal on a case-insensitive filesystem. Each is
+# a way for trusted, honestly written code to run a PR file. The measurement
+# below covers the RECOGNISED call names only: it says the closure of the
+# shipped config holds no recognised dynamic load, not that it holds no route
+# in this list (issue 6032 tracks the list).
+#
+# Matching is by the LAST name of the call and ignores the receiver, so an
+# unrelated object's ``.run_path()`` or ``.import_module()`` halts too. That
+# fails closed, and narrowing it to the ``runpy`` and ``importlib`` receivers
+# would widen the alias blind spot above, so it is left as it is.
+#
+# ``run_module`` is recognised but never resolved: it runs a package's
+# ``__main__.py``, which the module-file resolver does not return, so it always
+# halts.
+#
+# ``new_pr.py`` itself falls on the unresolvable side: its ``_load_sibling``
+# builds the path from a parameter (``with_name(f"{name}.py")``), which needs
+# call-site constant propagation to resolve, and that would be a second,
+# unverified trust computation. It is not reachable from any verifier the
+# shipped ``pr-review-config.yaml`` names (measured 2026-09-29: 14 named
+# scripts, 34 files in the closure, zero dynamic-load sites), so nothing halts
+# today. If a dispatched verifier ever reaches such a load, the gate halts
+# and the owner chooses between a literal path and an explicit approval.
+#
+# Left as a named residual, not decided here: ``sys.path`` entries built at
+# runtime. Every shipped verifier edits ``sys.path`` for ``.claude/lib``,
+# which ``_import_roots`` models, so flagging the call would halt them all.
+_MODULE_LOADS = frozenset({"__import__", "import_module"})
+_FILE_LOADS: dict[str, tuple[int, str]] = {
+    "spec_from_file_location": (1, "location"),
+    "SourceFileLoader": (1, "path"),
+    "run_path": (0, "path_name"),
+}
+_PATH_CONSTRUCTORS = frozenset({"Path", "PurePath", "abspath", "realpath", "normpath"})
+
+
+class _DynamicLoad(NamedTuple):
+    """One dynamic-load site: where it is and what it resolves to, if anything."""
+
+    line: int
+    kind: str
+    module: str | None  # dotted name when the load names a module literally
+    path: Path | None  # absolute file when the load names a file derivably
+
+
+def _call_name(node: ast.Call) -> str:
+    func = node.func
+    if isinstance(func, ast.Attribute):
+        return func.attr
+    if isinstance(func, ast.Name):
+        return func.id
+    return ""
+
+
+def _string_constant(node: ast.AST | None) -> str | None:
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return node.value
+    return None
+
+
+def _call_argument(node: ast.Call, position: int, keyword: str) -> ast.AST | None:
+    if len(node.args) > position:
+        return node.args[position]
+    for kw in node.keywords:
+        if kw.arg == keyword:
+            return kw.value
+    return None
+
+
+_COMPREHENSIONS = (ast.ListComp, ast.SetComp, ast.DictComp, ast.GeneratorExp)
+_SCOPE_NODES = (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda, *_COMPREHENSIONS)
+_Lookup = Callable[[str], "ast.AST | None"]
+
+
+def _iter_scope(nodes: list[ast.AST]) -> Iterator[ast.AST]:
+    """Every node of one scope's own statements, without entering a nested scope."""
+    stack = list(nodes)
+    while stack:
+        node = stack.pop()
+        yield node
+        if isinstance(node, (*_SCOPE_NODES, ast.ClassDef)):
+            continue
+        stack.extend(ast.iter_child_nodes(node))
+
+
+def _bind(table: dict[str, ast.AST | None], name: str, value: ast.AST | None) -> None:
+    """Record a binding. A second binding, or one with no simple value, is ambiguous."""
+    table[name] = value if name not in table else None
+
+
+def _bind_targets(table: dict[str, ast.AST | None], target: ast.AST) -> None:
+    for node in ast.walk(target):
+        if isinstance(node, ast.Name):
+            table[node.id] = None
+
+
+def _bind_statement(table: dict[str, ast.AST | None], node: ast.AST) -> None:
+    """Record the names one statement-level node binds."""
+    if isinstance(node, ast.Assign):
+        for target in node.targets:
+            if isinstance(target, ast.Name):
+                _bind(table, target.id, node.value)
+            else:
+                _bind_targets(table, target)
+    elif isinstance(node, ast.AnnAssign):
+        if isinstance(node.target, ast.Name) and node.value is not None:
+            _bind(table, node.target.id, node.value)
+    elif isinstance(node, ast.AugAssign | ast.NamedExpr | ast.For | ast.AsyncFor):
+        _bind_targets(table, node.target)
+    elif isinstance(node, ast.withitem) and node.optional_vars is not None:
+        _bind_targets(table, node.optional_vars)
+    else:
+        _bind_named(table, node)
+
+
+def _bind_named(table: dict[str, ast.AST | None], node: ast.AST) -> None:
+    """Record handler names, imports and definitions: names with no simple value."""
+    if isinstance(node, ast.ExceptHandler) and node.name:
+        table[node.name] = None
+    elif isinstance(node, ast.Import | ast.ImportFrom):
+        for alias in node.names:
+            table[(alias.asname or alias.name).split(".")[0]] = None
+    elif isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef):
+        table[node.name] = None
+
+
+def _bind_parameters(table: dict[str, ast.AST | None], args: ast.arguments) -> None:
+    for arg in (*args.posonlyargs, *args.args, *args.kwonlyargs, args.vararg, args.kwarg):
+        if arg is not None:
+            table[arg.arg] = None
+
+
+def _scope_table(scope: ast.AST) -> dict[str, ast.AST | None]:
+    """Names bound in ``scope``, each mapped to its single simple value or None.
+
+    None means the name is bound in a way this cannot follow: assigned more than
+    once, augmented, unpacked, a parameter, a loop or ``with`` target, a walrus,
+    an except-handler name, an import, or a definition. A load that reads such a
+    name stays unresolvable.
+    """
+    table: dict[str, ast.AST | None] = {}
+    if isinstance(scope, _COMPREHENSIONS):
+        for generator in scope.generators:
+            _bind_targets(table, generator.target)
+        return table
+    if isinstance(scope, ast.FunctionDef | ast.AsyncFunctionDef | ast.Lambda):
+        _bind_parameters(table, scope.args)
+    body: list[ast.AST] = (
+        [scope.body] if isinstance(scope, ast.Lambda) else list(getattr(scope, "body", []))
+    )
+    for node in _iter_scope(body):
+        _bind_statement(table, node)
+    return table
+
+
+def _names_bound_outside_a_scope_table(tree: ast.AST) -> set[str]:
+    """Names bound in ways a per-scope table cannot place, gathered file-wide.
+
+    ``global`` and ``nonlocal`` rebind a name from inside a function, a walrus
+    inside a comprehension binds the enclosing function's scope, and match
+    captures bind through patterns. Each is rare in a verifier, so the name is
+    simply ambiguous everywhere instead of modelled.
+    """
+    found: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Global | ast.Nonlocal):
+            found.update(node.names)
+        elif isinstance(node, ast.NamedExpr) and isinstance(node.target, ast.Name):
+            found.add(node.target.id)
+        elif isinstance(node, ast.MatchAs | ast.MatchStar) and node.name:
+            found.add(node.name)
+        elif isinstance(node, ast.MatchMapping) and node.rest:
+            found.add(node.rest)
+    return found
+
+
+class _Scopes:
+    """Resolves a name the way Python does: the nearest enclosing scope that binds it."""
+
+    def __init__(self, tree: ast.Module) -> None:
+        self._tree = tree
+        self._parents: dict[ast.AST, ast.AST] = {}
+        for parent in ast.walk(tree):
+            for child in ast.iter_child_nodes(parent):
+                self._parents[child] = parent
+        self._tables: dict[ast.AST, dict[str, ast.AST | None]] = {}
+        self._ambiguous = _names_bound_outside_a_scope_table(tree)
+
+    def _enclosing(self, node: ast.AST) -> ast.AST:
+        current = self._parents.get(node)
+        while current is not None and not isinstance(current, (*_SCOPE_NODES, ast.Module)):
+            current = self._parents.get(current)
+        return current if current is not None else self._tree
+
+    def _evaluated_in_another_scope(self, node: ast.AST) -> bool:
+        """True when ``node`` sits where Python evaluates it outside its nearest scope.
+
+        A class body has its own bindings this table ignores. A decorator, a
+        default, an annotation or a return annotation of a function is evaluated
+        in the scope around the function, not inside it. Names read there are
+        not resolved: the load stays unresolvable.
+        """
+        child = node
+        parent = self._parents.get(child)
+        while parent is not None and not isinstance(parent, ast.Module):
+            if isinstance(parent, ast.ClassDef) and child in parent.body:
+                return True
+            if isinstance(parent, ast.FunctionDef | ast.AsyncFunctionDef) and child not in parent.body:
+                return True
+            if isinstance(parent, ast.FunctionDef | ast.AsyncFunctionDef | ast.Lambda):
+                return False
+            child, parent = parent, self._parents.get(parent)
+        return False
+
+    def lookup_at(self, node: ast.AST) -> _Lookup:
+        """A lookup function for names read at ``node``."""
+        elsewhere = self._evaluated_in_another_scope(node)
+
+        def lookup(name: str) -> ast.AST | None:
+            if elsewhere or name in self._ambiguous:
+                return None
+            scope = self._enclosing(node)
+            while True:
+                table = self._tables.setdefault(scope, _scope_table(scope))
+                if name in table:
+                    return table[name]
+                if scope is self._tree:
+                    return None
+                scope = self._enclosing(scope)
+
+        return lookup
+
+
+def _derive_file_path(
+    node: ast.AST, script: Path, lookup: _Lookup | None, depth: int = 0,
+) -> Path | None:
+    """Evaluate ``node`` when it is built only from ``__file__`` and literals.
+
+    Returns None for anything else: a parameter, an f-string, an attribute
+    read, a call this function does not model. A partial answer is never
+    returned, so one unmodelled step makes the whole load unresolvable.
+    ``lookup`` resolves a name at the load site and is None when the file
+    rebinds ``Path``, ``os`` or ``__file__``, which refuses every derivation in it.
+    """
+    if depth > 12 or lookup is None:
+        return None
+    if isinstance(node, ast.Name):
+        if node.id == "__file__":
+            return script
+        value = lookup(node.id)
+        return None if value is None else _derive_file_path(value, script, lookup, depth + 1)
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Div):
+        left = _derive_file_path(node.left, script, lookup, depth + 1)
+        right = _string_constant(node.right)
+        if left is None or right is None or _has_dotdot(right):
+            return None
+        return left / right
+    if isinstance(node, ast.Attribute) and node.attr == "parent":
+        base = _derive_file_path(node.value, script, lookup, depth + 1)
+        return None if base is None else base.parent
+    if isinstance(node, ast.Subscript):
+        return _derive_from_parents(node, script, lookup, depth)
+    if isinstance(node, ast.Call):
+        return _derive_from_call(node, script, lookup, depth)
+    return None
+
+
+def _derive_from_parents(
+    node: ast.Subscript, script: Path, lookup: _Lookup | None, depth: int,
+) -> Path | None:
+    """``X.parents[N]`` with a literal non-negative ``N``."""
+    target = node.value
+    index = node.slice
+    if not (isinstance(target, ast.Attribute) and target.attr == "parents"):
+        return None
+    if not (isinstance(index, ast.Constant) and isinstance(index.value, int)):
+        return None
+    base = _derive_file_path(target.value, script, lookup, depth + 1)
+    if base is None or index.value < 0:
+        return None
+    try:
+        return base.parents[index.value]
+    except IndexError:
+        return None
+
+
+def _derive_from_call(
+    node: ast.Call, script: Path, lookup: _Lookup | None, depth: int,
+) -> Path | None:
+    func = node.func
+    name = _call_name(node)
+    if name in _PATH_CONSTRUCTORS or name == "dirname":
+        if len(node.args) != 1:
+            return None
+        base = _derive_file_path(node.args[0], script, lookup, depth + 1)
+        if base is None:
+            return None
+        return base.parent if name == "dirname" else base
+    if isinstance(func, ast.Attribute) and name in {"resolve", "absolute"} and not node.args:
+        return _derive_file_path(func.value, script, lookup, depth + 1)
+    if isinstance(func, ast.Attribute) and name in {"with_name", "with_suffix", "joinpath"}:
+        base = _derive_file_path(func.value, script, lookup, depth + 1)
+        return None if base is None else _apply_path_method(base, name, node.args)
+    if name == "join" and node.args:
+        base = _derive_file_path(node.args[0], script, lookup, depth + 1)
+        return None if base is None else _apply_path_method(base, "joinpath", node.args[1:])
+    return None
+
+
+def _has_dotdot(literal: str) -> bool:
+    """True when a path literal climbs with a ``..`` segment.
+
+    Rejected at every step rather than on the final path: ``resolve`` is modelled
+    as identity, so ``(base / "..").resolve().parent`` would otherwise evaluate
+    to a different directory than the one Python loads from.
+    """
+    return ".." in literal.replace("\\", "/").split("/")
+
+
+def _apply_path_method(base: Path, name: str, args: list[ast.expr]) -> Path | None:
+    parts = [_string_constant(arg) for arg in args]
+    if not parts or any(part is None for part in parts):
+        return None
+    literals = [part for part in parts if part is not None]
+    if any(_has_dotdot(part) for part in literals):
+        return None
+    try:
+        if name == "with_name" and len(literals) == 1:
+            return base.with_name(literals[0])
+        if name == "with_suffix" and len(literals) == 1:
+            return base.with_suffix(literals[0])
+    except ValueError:
+        return None
+    return base.joinpath(*literals) if name == "joinpath" else None
+
+
+def _load_from_call(
+    node: ast.Call, script: Path, lookup: _Lookup | None,
+) -> _DynamicLoad | None:
+    """Classify one call as a dynamic load, or None when it is not one."""
+    name = _call_name(node)
+    if name == "run_module":
+        return _DynamicLoad(node.lineno, name, None, None)
+    if name in _MODULE_LOADS:
+        module = _string_constant(_call_argument(node, 0, "name"))
+        if module is not None and not module.startswith("."):
+            return _DynamicLoad(node.lineno, name, module, None)
+        return _DynamicLoad(node.lineno, name, None, None)
+    if name in _FILE_LOADS:
+        position, keyword = _FILE_LOADS[name]
+        target = _call_argument(node, position, keyword)
+        path = None if target is None else _derive_file_path(target, script, lookup)
+        return _DynamicLoad(node.lineno, name, None, path)
+    if name in {"exec", "eval"} and isinstance(node.func, ast.Name):
+        if node.args and _is_inert_code(_string_constant(node.args[0])):
+            return None
+        return _DynamicLoad(node.lineno, name, None, None)
+    return None
+
+
+def _is_inert_code(code: str | None) -> bool:
+    """True for constant source that imports nothing and loads nothing.
+
+    A string constant handed to ``exec`` is code the closure never parses, so
+    ``exec("import sibling")`` loads a file with no edge. Constant code is
+    therefore inert only when it parses and its own tree holds no import and no
+    call this scanner treats as a load.
+    """
+    if code is None:
+        return False
+    try:
+        tree = ast.parse(code)
+    except (SyntaxError, ValueError, RecursionError):
+        return False
+    if _shadows_a_path_name(tree):
+        return False
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import | ast.ImportFrom):
+            return False
+        if isinstance(node, ast.Call) and (
+            _call_name(node) in _MODULE_LOADS | set(_FILE_LOADS) | {"exec", "eval", "run_module"}
+        ):
+            return False
+    return True
+
+
+_TRUSTED_BINDINGS = {
+    "Path": {"pathlib"},
+    "PurePath": {"pathlib"},
+    "os": {"os"},
+    "pathlib": {"pathlib"},
+}
+
+
+_GUARDED_NAMES = frozenset(_TRUSTED_BINDINGS) | {"__file__"}
+
+
+def _binds_guarded_name(node: ast.AST) -> bool:
+    """True when ``node`` binds a guarded name by definition, store or parameter."""
+    if isinstance(node, ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef):
+        return node.name in _GUARDED_NAMES
+    if isinstance(node, ast.Name):
+        return isinstance(node.ctx, ast.Store) and node.id in _GUARDED_NAMES
+    if isinstance(node, ast.arg):
+        return node.arg in _GUARDED_NAMES
+    if isinstance(node, ast.ExceptHandler | ast.MatchAs | ast.MatchStar):
+        return (node.name or "") in _GUARDED_NAMES
+    if isinstance(node, ast.MatchMapping):
+        return (node.rest or "") in _GUARDED_NAMES
+    return False
+
+
+def _imports_guarded_name_from_elsewhere(node: ast.AST) -> bool:
+    """True when an import binds a guarded name from a module other than its own."""
+    if isinstance(node, ast.ImportFrom):
+        module = node.module or ""
+        return any(
+            (alias.asname or alias.name) in _GUARDED_NAMES
+            and module not in _TRUSTED_BINDINGS.get(alias.asname or alias.name, ())
+            for alias in node.names
+        )
+    if isinstance(node, ast.Import):
+        return any(
+            (alias.asname or alias.name.split(".")[0]) in _GUARDED_NAMES
+            and alias.name.split(".")[0]
+            not in _TRUSTED_BINDINGS.get(alias.asname or alias.name.split(".")[0], ())
+            for alias in node.names
+        )
+    return False
+
+
+def _shadows_a_path_name(tree: ast.AST) -> bool:
+    """True when the file rebinds ``Path``, ``os`` or ``__file__`` to something else.
+
+    The evaluator trusts those names to mean ``pathlib.Path``, ``os`` and the
+    file's own path. A file that defines its own ``Path`` class, assigns
+    ``__file__``, or imports one of them from another module could make the
+    computed target differ from the runtime target, so the derivation is
+    refused for the whole file.
+    """
+    return any(
+        _binds_guarded_name(node) or _imports_guarded_name_from_elsewhere(node)
+        for node in ast.walk(tree)
+    )
+
+
+def _dynamic_loads(source: bytes, script: Path) -> list[_DynamicLoad]:
+    """Every dynamic-load site in ``source``, in line order.
+
+    A file that does not parse yields none: it cannot execute, so it loads
+    nothing. A file too deeply nested for the parser is different, because the
+    parser gave up on a file the interpreter may still run, so it is reported
+    as one unresolvable load rather than as clean.
+    """
+    try:
+        tree = ast.parse(source)
+    except (SyntaxError, ValueError):
+        return []
+    except (RecursionError, MemoryError):
+        return [_DynamicLoad(1, "unparseable", None, None)]
+    scopes = None if _shadows_a_path_name(tree) else _Scopes(tree)
+    found: list[_DynamicLoad] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call):
+            lookup = None if scopes is None else scopes.lookup_at(node)
+            load = _load_from_call(node, script, lookup)
+            if load is not None:
+                found.append(load)
+    return sorted(found, key=lambda load: load.line)
+
+
+def _resolve_dynamic_target(
+    load: _DynamicLoad, roots: list[Path], toplevel: Path,
+) -> list[str]:
+    """Work-tree-relative files a resolvable load runs, or [] when it names none."""
+    if load.module is not None:
+        return _module_files(load.module, roots, toplevel)
+    if load.path is None:
+        return []
+    if load.path.suffix != ".py":
+        # A non-Python target is not scanned for its own imports or loads. A
+        # `..` segment never reaches here: `_has_dotdot` refuses it at every
+        # step of the derivation.
+        return []
+    candidate = load.path
+    if not candidate.is_file() or not _is_within(candidate, toplevel):
+        return []
+    if _first_symlinked_component(candidate, toplevel) is not None:
+        return []
+    return [candidate.relative_to(toplevel).as_posix()]
+
+
+def _unresolvable_dynamic_sites(rel_paths: list[str], toplevel: Path) -> list[str]:
+    """``path:line: message`` for every dynamic load in ``rel_paths`` that fails closed.
+
+    A file load is unresolvable when its path is computed, names a file that
+    is absent or outside the work tree, or reaches a symlink. A module load by
+    a computed or relative name is unresolvable. A module named literally that
+    resolves nowhere in the tree is standard library or an installed package,
+    which is not PR content, so it is not reported.
+    """
+    sites: list[str] = []
+    for rel in rel_paths:
+        if not rel.endswith(".py"):
+            continue
+        script = toplevel / rel
+        try:
+            source = script.read_bytes()
+        except OSError:
+            continue
+        roots = _import_roots(script, toplevel)
+        for load in _dynamic_loads(source, script):
+            if load.module is not None:
+                continue
+            if load.path is not None and _resolve_dynamic_target(load, roots, toplevel):
+                continue
+            sites.append(f"{rel}:{load.line}: unresolvable dynamic load ({load.kind})")
+    return sites
 
 
 def _expand_import_closure(rel_paths: list[str], toplevel: Path) -> list[str]:
@@ -1709,9 +2329,13 @@ def _expand_import_closure(rel_paths: list[str], toplevel: Path) -> list[str]:
     closure covers what actually executes and nothing else, so a PR that
     edits an unrelated script in the same directory still runs clean.
 
-    Best-effort by construction. Dynamic imports, ``importlib`` by
-    computed name, and ``sys.path`` entries this function does not model
-    are not covered; see the module docstring's scope section.
+    Importing ``a.b.c`` runs ``a/__init__.py`` and ``a/b/__init__.py`` first, so
+    every ancestor initializer joins the closure with the module (see
+    :func:`_module_files`). Literal dynamic loads join it too (see ``_dynamic_loads``). Loads
+    this function cannot resolve are reported by
+    :func:`_unresolvable_dynamic_sites`, not silently dropped here.
+    ``sys.path`` entries this function does not model are not covered; see
+    the module docstring's scope section.
     """
     seen = list(rel_paths)
     queue = [path for path in rel_paths if path.endswith(".py")]
@@ -1729,11 +2353,15 @@ def _expand_import_closure(rel_paths: list[str], toplevel: Path) -> list[str]:
                 if level == 0
                 else _relative_import_root(script, level, toplevel)
             )
-            found = _resolve_module_file(dotted, roots, toplevel)
-            if found is None or found in seen:
-                continue
-            seen.append(found)
-            queue.append(found)
+            for found in _module_files(dotted, roots, toplevel):
+                if found not in seen:
+                    seen.append(found)
+                    queue.append(found)
+        for load in _dynamic_loads(source, script):
+            for found in _resolve_dynamic_target(load, absolute_roots, toplevel):
+                if found not in seen:
+                    seen.append(found)
+                    queue.append(found)
     return seen
 
 
@@ -1922,6 +2550,7 @@ def _verify_command_trust(
         ]
 
         untrusted = list(escaping) + nested
+        untrusted.extend(_unresolvable_dynamic_sites(checked, toplevel))
         errors: list[str] = []
         for rel_path in checked:
             is_trusted, error = _verify_worktree_file_trust(
@@ -1988,14 +2617,16 @@ def _enforce_command_trust(
 
     # Paths come from the PR-controlled config, so escape them before
     # printing (Trojan Source, CVE-2021-42574), same as the config diff.
-    listing = _escape_terminal_controls(
-        "\n".join(f"  {path}" for path in trust.untrusted_files),
+    listing = "\n".join(
+        f"  {_escape_terminal_controls(_one_line(path))}" for path in trust.untrusted_files
     )
     if not approved:
         print(
             f"HALT: completion-gate verifier files differ from "
-            f"{trust_anchor_ref} or are absent there; no criterion command was "
-            f"executed. Untrusted files:\n{listing}",
+            f"{trust_anchor_ref} or are absent there, or a verifier loads code "
+            f"by a route the closure cannot resolve (an entry of the form "
+            f"path:line: unresolvable dynamic load); no criterion command was "
+            f"executed. Untrusted entries:\n{listing}",
             file=sys.stderr,
         )
         print(
@@ -2008,7 +2639,7 @@ def _enforce_command_trust(
     print(
         f"WARNING: executing completion-gate verifier files that are not "
         f"trusted against {trust_anchor_ref} (--approve-untrusted-config "
-        f"given). Untrusted files:\n{listing}",
+        f"given). Untrusted entries:\n{listing}",
         file=sys.stderr,
     )
     return trust, None
