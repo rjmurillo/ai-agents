@@ -1017,7 +1017,7 @@ def test_runtime_configuration_validates_with_pinned_lefthook() -> None:
         check=False,
     )
 
-    assert config["lefthook"] == "uv run --frozen lefthook"
+    assert config["lefthook"] == "python3 scripts/validation/lefthook_runner.py"
     assert config["output"] is False
     assert version.stdout.splitlines()[0] == _pinned_lefthook_version()
     assert validated.returncode == 0
@@ -1237,14 +1237,13 @@ def test_install_resets_legacy_hooks_path(tmp_path: Path) -> None:
         return
 
     explicit_override = 'if test -n "$LEFTHOOK_BIN"'
-    configured_call = 'uv run --frozen lefthook "$@"'
-    path_fallback = "elif lefthook -h >/dev/null 2>&1"
-
+    configured_call = 'python3 scripts/validation/lefthook_runner.py "$@"'
     assert explicit_override in hook_shim
     assert configured_call in hook_shim
-    assert path_fallback in hook_shim
     assert hook_shim.index(explicit_override) < hook_shim.index(configured_call)
-    assert hook_shim.index(configured_call) < hook_shim.index(path_fallback)
+    # The shim's own `elif test -n "<runner>"` guard is always true, so the
+    # fallback chain lives in the runner. Behavior is pinned in
+    # tests/test_lefthook_runner.py (issue #5431).
 
 
 @pytest.mark.parametrize("hook_name", ["pre-commit", "pre-push"])
