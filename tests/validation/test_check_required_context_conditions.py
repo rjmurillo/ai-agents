@@ -528,7 +528,8 @@ class TestHardening:
         anchors = "\n".join(f"          {line}" for line in levels)
         body = (
             "on: pull_request\njobs:\n  gate:\n    name: Run Python Tests\n"
-            "    steps:\n      - name: Bomb\n        id: bomb\n        run: echo hi\n        with:\n"
+            "    steps:\n      - name: Bomb\n        id: bomb\n        run: echo hi\n"
+            "        with:\n"
             + anchors
             + "\n        if: github.actor == 'a'\n"
         )
