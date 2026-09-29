@@ -1377,6 +1377,14 @@ _MERGE_STATE_TIERS: dict[str, str] = {
 }
 
 
+def _has_ci_failures(result: dict[str, Any]) -> bool:
+    """True when a required check failed or a non-required failure is undisposed."""
+    return (
+        len(result.get("FailedRequiredChecks") or []) > 0
+        or len(result.get("UndisposedNonRequiredFailures") or []) > 0
+    )
+
+
 def classify_tier(result: dict[str, Any], *, is_bot: bool = False) -> str:
     """Return the canonical tier for a merge-readiness result.
 
@@ -1424,10 +1432,7 @@ def classify_tier(result: dict[str, Any], *, is_bot: bool = False) -> str:
     if merge_state in _MERGE_STATE_TIERS:
         return _MERGE_STATE_TIERS[merge_state]
 
-    has_ci_failures = (
-        len(result.get("FailedRequiredChecks") or []) > 0
-        or len(result.get("UndisposedNonRequiredFailures") or []) > 0
-    )
+    has_ci_failures = _has_ci_failures(result)
     has_threads = (result.get("UnresolvedThreads") or 0) > 0
 
     # BLOCKED with no CI failure and no thread has no work this loop can do:
