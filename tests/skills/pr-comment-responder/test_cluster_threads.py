@@ -55,7 +55,7 @@ def _write_repo_threads_file(name: str, payload: object) -> tuple[str, Path]:
     return absolute_path.name, absolute_path
 
 
-def _thread(thread_id: str, path: str, body: str) -> dict:
+def _thread(thread_id: str, path: str, body: str) -> dict[str, str]:
     """Build a canonical flat thread dict (transform_review_thread shape)."""
     return {"thread_id": thread_id, "path": path, "first_comment_body": body}
 
@@ -106,8 +106,8 @@ _EVIDENCE_DRIFT_BODIES = [
 ]
 
 
-def _build_pr_1897_round7_threads() -> list[dict]:
-    threads: list[dict] = []
+def _build_pr_1897_round7_threads() -> list[dict[str, str]]:
+    threads: list[dict[str, str]] = []
     for index, body in enumerate(_ASYMMETRY_BODIES):
         threads.append(_thread(f"asym-{index}", f"templates/agents/file_{index}.md", body))
     for index, body in enumerate(_HARMFUL_BODIES):
