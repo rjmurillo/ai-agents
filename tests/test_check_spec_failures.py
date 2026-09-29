@@ -327,7 +327,8 @@ class TestStepOutcome:
             [sys.executable, str(_SCRIPTS_DIR / "check_spec_failures.py"),
              "--trace-verdict", "PASS", "--completeness-verdict", "PASS",
              "--trace-outcome", "failure"],
-            capture_output=True, text=True, encoding="utf-8", check=False,
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
+            check=False,
         )
         assert result.returncode == 1
         assert "did not complete" in result.stdout
