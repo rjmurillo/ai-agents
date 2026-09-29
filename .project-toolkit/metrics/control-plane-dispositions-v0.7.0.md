@@ -1025,8 +1025,11 @@ Gates 1 and 2 still hold against the pinned baseline. Gate 1's margin fell
 from 5 to 1. Abort-if clause 1 says the release aborts if canonical owners
 "grow during the subtraction release". They grew 407 to 411 between the two
 re-measurements, while staying below the baseline. The owner ruled the six
-validators behind that growth `KEEP`; a separate ruling on the clause itself
-has not been recorded.
+validators behind that growth `KEEP`, and on 2026-09-28 ruled that the clause
+is read against the pinned baseline, as gates 1 and 2 are (decision D12).
+Against `53ffe92c2` owners fell 412 to 411 and always-loaded tokens fell for
+every harness, so the clause is not tripped. The margin is one owner: any new
+owner before release close fails gate 1.
 
 ### Validators added since `4e0e8eec8`
 
