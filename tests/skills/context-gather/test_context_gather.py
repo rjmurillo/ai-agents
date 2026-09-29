@@ -245,7 +245,7 @@ class TestStructure:
         )
 
     def test_trigger_phrase_count_in_range(self, skill_content: str) -> None:
-        """`.claude/skills/CLAUDE.md` mandates 3-5 trigger phrases per skill."""
+        """The skill development conventions mandate 3-5 trigger phrases per skill."""
         triggers_section = skill_content.split("## Triggers")[1]
         next_section = triggers_section.find("\n## ")
         if next_section != -1:
@@ -254,7 +254,7 @@ class TestStructure:
         count = len(backtick_phrases)
         assert 3 <= count <= 5, (
             f"Triggers section has {count} backtick-wrapped phrases; "
-            f"`.claude/skills/CLAUDE.md` requires 3-5"
+            f"`.claude/skills/skillforge/references/skill-development-conventions.md` requires 3-5"
         )
 
     def test_triggers_backtick_wrapped(self, skill_content: str) -> None:

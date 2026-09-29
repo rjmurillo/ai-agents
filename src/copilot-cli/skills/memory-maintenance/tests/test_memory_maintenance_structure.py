@@ -7,7 +7,7 @@ graph-density, and benchmarking maintenance operations into a focused
 tests pin the contract the sub-skill must honor:
 
 - SKILL.md exists with required frontmatter (name, description).
-- The skill stays under the 500-line ceiling (.claude/skills/CLAUDE.md).
+- The skill stays under the 500-line ceiling (.claude/skills/skillforge/references/skill-development-conventions.md).
 - The description names the maintenance operations and 3 to 5 backtick triggers.
 - The skill points callers at the canonical maintenance scripts (it does not
   reimplement them). The scripts stay in the memory skill tree.
