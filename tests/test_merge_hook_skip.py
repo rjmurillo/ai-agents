@@ -1,10 +1,17 @@
 """Tests for hook skip-during-merge configuration.
 
-Verifies that taste-advisory and adr-review-policy both carry ``skip: merge``
-in lefthook.yml so that merge commits importing large base-branch trees do not
-trigger false authored-file violations.
+Verifies that taste-advisory carries ``skip: merge`` in lefthook.yml so that
+merge commits importing large base-branch trees do not trigger false
+authored-file violations, and that adr-review-policy does not.
 
-Relates to: issue #4307, issue #4308.
+adr-review-policy dropped the structural skip under ADR-101 Application A
+(issue #5245). Lefthook's ``skip: merge`` exempted every merge commit,
+including branch-authored ADR edits carried in one. The policy itself now owns
+the merge case: ``check_adr_review_policy`` calls ``_merge_authored_adr_paths``,
+which exempts only ADR paths whose bytes arrive from MERGE_HEAD. The behavior
+is pinned in tests/validation/test_git_hook_policy_causal_restore.py.
+
+Relates to: issue #4307, issue #4308, issue #5245.
 """
 
 from __future__ import annotations
@@ -62,24 +69,28 @@ class TestTasteAdvisorySkipsMerge:
         assert isinstance(skip, list), "skip must be a list, not a scalar"
 
 
-class TestAdrReviewPolicySkipsMerge:
-    """adr-review-policy must not fire during a merge commit."""
+class TestAdrReviewPolicyRunsOnMerge:
+    """adr-review-policy must fire during a merge commit (ADR-101 Application A)."""
 
-    def test_skip_merge_present(self) -> None:
+    def test_no_skip_merge(self) -> None:
         config = _load()
         jobs = _job_map(config, "pre-commit")
         job = jobs["adr-review-policy"]
-        skip = cast(list[object], job.get("skip", []))
-        assert "merge" in skip, (
-            "adr-review-policy is missing 'skip: merge'; it will block merge commits "
-            "that touch ADR files inherited from main (issue #4307)"
+        skip = job.get("skip", [])
+        assert isinstance(skip, list), "skip must be a list when present"
+        assert "merge" not in skip, (
+            "adr-review-policy carries 'skip: merge'; lefthook then exempts every merge "
+            "commit, including branch-authored ADR edits. The policy already exempts "
+            "main-side ADR paths itself (issue #5245)"
         )
 
-    def test_skip_is_list(self) -> None:
+    def test_job_is_still_wired(self) -> None:
         config = _load()
         jobs = _job_map(config, "pre-commit")
-        skip = cast(list[object], jobs["adr-review-policy"].get("skip", []))
-        assert isinstance(skip, list), "skip must be a list, not a scalar"
+        run = str(jobs["adr-review-policy"]["run"])
+        assert "git_hook_policy.py adr-review" in run, (
+            "adr-review-policy no longer runs the adr-review policy subcommand"
+        )
 
 
 class TestNegativeControl:

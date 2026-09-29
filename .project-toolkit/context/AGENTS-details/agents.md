@@ -8,4 +8,4 @@ Gates|S init/handoff/resume/memory/git|P `pre_pr.py`/no BLOCKING/security/style|
 **Autonomy Guardrail**: tiers ADR-112|irreversible->human|ambiguous minimal+flag
 **Never**: Secrets|New bash scripts|YAML logic|Raw `gh`|Force-push|No-verify|Internal refs|Scratch
 Block|artifact->test|security->fix/owner|conflict->resolve|validation->pre-PR
-Skills|route autoplan|no skill -> autoplan|multi -> orchestrator|conflict -> GitHub/merge-resolver|CI ladder|new cap buy-vs-build|agent-harness-reference|ai-agents-portability-campaign|ADR review
+Skills|route autoplan|no skill -> autoplan|multi -> orchestrator|conflict -> GitHub/merge-resolver|CI ladder|new cap buy-vs-build|agent-harness-reference|ai-agents-portability-campaign|ADR review: full panel only when the change touches executable enforcement or a rule other gates read; prose/metadata-only -> reduced panel (architect+critic)
