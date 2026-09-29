@@ -3,7 +3,24 @@
 Marker parsing and rendering, reset-signal detection, and the ACT/ESCALATE
 decision. No I/O: `check_pr_round_cap.py` owns the `gh` calls and the CLI, and
 re-exports these names so its tests and callers keep one import path.
-See that script's docstring for the storage and reset design.
+See that script's docstring for the storage design.
+
+Wall-clock reset (issue #5477). The budget measures time the loop has been
+working, not calendar age, so it restarts on these signals (the round counter
+keeps its semantics except under the explicit operator reset):
+
+    1. Head SHA advance: the PR head differs from the SHA stored with the
+       prior state, so the prior rounds' work landed. Clock restarts only.
+    2. Reopen: a ``reopened`` timeline event newer than the latest state
+       marker, by a non-bot actor with write access (a PR author can reopen
+       a PR they closed themselves). Clock restarts only.
+    3. Operator reset, either ``--reset`` or a ``/pr-autofix continue`` line in
+       a comment from an OWNER or COLLABORATOR newer than the latest
+       state marker. Clock and round counter both restart.
+
+Plain comments do not reset: reviewers and bots comment constantly, so a
+generic comment signal would keep a runaway loop alive. A forged reset needs
+write access and at worst grants more rounds, never a silent bypass.
 """
 
 from __future__ import annotations

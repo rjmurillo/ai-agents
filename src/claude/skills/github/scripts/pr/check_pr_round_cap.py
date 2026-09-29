@@ -28,22 +28,10 @@ lease's verified-comment-author bookkeeping and trusts the latest marker
 carrying this script's own hidden-comment prefix, which only pr-autofix
 posts.
 
-Wall-clock reset (issue #5477). The budget measures time the loop has been
-working, not calendar age, so it restarts on these signals (the round counter
-keeps its semantics except under the explicit operator reset):
-
-    1. Head SHA advance: the PR head differs from the SHA stored with the
-       prior state, so the prior rounds' work landed. Clock restarts only.
-    2. Reopen: a ``reopened`` timeline event newer than the latest state
-       marker, by a non-bot actor with write access (a PR author can reopen
-       a PR they closed themselves). Clock restarts only.
-    3. Operator reset, either ``--reset`` or a ``/pr-autofix continue`` line in
-       a comment from an OWNER or COLLABORATOR newer than the latest
-       state marker. Clock and round counter both restart.
-
-Plain comments do not reset: reviewers and bots comment constantly, so a
-generic comment signal would keep a runaway loop alive. A forged reset needs
-write access and at worst grants more rounds, never a silent bypass.
+Wall-clock reset (issue #5477): the budget restarts on head SHA advance, a
+reopen by a maintainer, or an operator reset (`--reset` or a
+`/pr-autofix continue` comment). The signals are specified in
+`github_core/round_cap.py`.
 
 The pure logic (markers, reset detection, ACT/ESCALATE decision) lives in
 `github_core/round_cap.py`; this script owns the `gh` I/O and the CLI.
