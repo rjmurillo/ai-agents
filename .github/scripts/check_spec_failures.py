@@ -2,10 +2,16 @@
 """Check spec validation verdicts and fail the workflow if needed.
 
 Exit codes: 0 when both checks ran and none failed. 1 when either check
-failed, or when either check did not run because of an infrastructure
-failure (fail closed, issue #5738).
+failed, when either check did not run because of an infrastructure failure
+(fail closed, issue #5738), or when either check left no evidence that it
+completed: a step outcome other than success, or an empty verdict (fail
+closed, issue #5636). The two review steps carry continue-on-error so a crash
+cannot skip the report steps; this script is the fail-closed adapter that
+reads the outcome the workflow would otherwise discard.
 
 Input env vars (used as defaults for CLI args):
+    TRACE_OUTCOME              - steps.<id>.outcome of the traceability step
+    COMPLETENESS_OUTCOME       - steps.<id>.outcome of the completeness step
     TRACE_VERDICT              - Verdict from traceability check
     COMPLETENESS_VERDICT       - Verdict from completeness check
     TRACE_INFRA_FAILURE        - Whether trace failure was infrastructure-related
@@ -45,10 +51,31 @@ INFRA_FAILURE_ERROR = (
     "limits, and network connectivity."
 )
 
+INCOMPLETE_ERROR = (
+    "::error::Spec validation left no evidence that a required check "
+    "completed, so this check fails closed. Re-run this workflow and read "
+    "the review step log for the crash."
+)
+
 
 def _is_infra_failure(flag: str, _findings: str = "") -> bool:
     """Return True only when the structured infrastructure flag is set."""
     return flag.lower() in ("true", "1", "yes")
+
+
+def _incomplete_reason(outcome: str, verdict: str) -> str:
+    """Return why a check left no evidence of completing, or "" when it did.
+
+    A step that crashes under continue-on-error reports outcome "failure" or
+    "cancelled" and leaves its verdict output empty. An empty outcome is
+    treated as unknown, not as success, so only the verdict can clear it.
+    """
+    outcome = outcome.strip().lower()
+    if outcome and outcome != "success":
+        return f"step outcome was '{outcome}'"
+    if not verdict.strip():
+        return "no verdict was recorded"
+    return ""
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -77,6 +104,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="Whether completeness failure was infrastructure-related",
     )
     parser.add_argument(
+        "--trace-outcome",
+        default=os.environ.get("TRACE_OUTCOME", ""),
+        help="steps.<id>.outcome of the traceability step",
+    )
+    parser.add_argument(
+        "--completeness-outcome",
+        default=os.environ.get("COMPLETENESS_OUTCOME", ""),
+        help="steps.<id>.outcome of the completeness step",
+    )
+    parser.add_argument(
         "--trace-findings",
         default=os.environ.get("TRACE_FINDINGS", ""),
         help="Findings text from traceability check",
@@ -99,6 +136,12 @@ def main(argv: list[str] | None = None) -> int:
         args.completeness_infra_failure, args.completeness_findings
     )
 
+    trace_gap = "" if trace_infra else _incomplete_reason(args.trace_outcome, trace)
+    completeness_gap = (
+        "" if completeness_infra
+        else _incomplete_reason(args.completeness_outcome, completeness)
+    )
+
     if trace_infra:
         print(
             "::error::Traceability check did not run due to infrastructure failure."
@@ -111,6 +154,12 @@ def main(argv: list[str] | None = None) -> int:
         )
         completeness = ""
 
+    if trace_gap:
+        print(f"::error::Traceability check did not complete: {trace_gap}.")
+
+    if completeness_gap:
+        print(f"::error::Completeness check did not complete: {completeness_gap}.")
+
     if spec_validation_failed(trace, completeness):
         print(
             "::error::Spec validation failed"
@@ -120,6 +169,10 @@ def main(argv: list[str] | None = None) -> int:
 
     if trace_infra or completeness_infra:
         print(INFRA_FAILURE_ERROR)
+        return 1
+
+    if trace_gap or completeness_gap:
+        print(INCOMPLETE_ERROR)
         return 1
 
     print("Spec validation passed")

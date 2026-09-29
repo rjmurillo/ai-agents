@@ -226,6 +226,10 @@ jobs:
       - name: Check for Failures
         if: steps.should-run.outputs.skip != 'true' && steps.spec-ref.outputs.has_specs == 'true'
         env:
+          # continue-on-error hides a crashed review step from the job. The
+          # outcome is the only signal that survives it (issue #5636).
+          TRACE_OUTCOME: ${{ steps.trace.outcome }}
+          COMPLETENESS_OUTCOME: ${{ steps.completeness.outcome }}
           TRACE_VERDICT: ${{ steps.trace.outputs.verdict }}
           COMPLETENESS_VERDICT: ${{ steps.completeness.outputs.verdict }}
           TRACE_INFRA_FAILURE: ${{ steps.trace.outputs['infrastructure-failure'] }}
