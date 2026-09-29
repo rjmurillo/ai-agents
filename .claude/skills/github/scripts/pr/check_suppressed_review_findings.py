@@ -286,7 +286,7 @@ def _enrich_review_findings(
         for finding in section["findings"]:
             key = f"{review_id}:{len(findings)}"
             seen_keys.add(key)
-            entry = dispositions.get(key)
+            entry: Any = dispositions.get(key)
             error = _disposition_error(entry) if key in dispositions else ""
             if error:
                 rejected.append({"key": key, "reason": error})
