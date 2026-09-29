@@ -49,6 +49,21 @@ class TestLoadWorkflows:
         with pytest.raises(WorkflowLoadError, match="bad.yml"):
             load_workflows(tmp_path)
 
+    @pytest.mark.parametrize(
+        "body",
+        [
+            "when: 2001-13-45\n",
+            "x: " + "[" * 4000 + "]" * 4000 + "\n",
+        ],
+    )
+    def test_yaml_that_raises_outside_yaml_error_still_fails_closed(
+        self, tmp_path: Path, body: str
+    ) -> None:
+        write_workflow(tmp_path, "odd.yml", body)
+
+        with pytest.raises(WorkflowLoadError, match="odd.yml"):
+            load_workflows(tmp_path)
+
     def test_a_non_mapping_top_level_raises(self, tmp_path: Path) -> None:
         write_workflow(tmp_path, "list.yml", "- a\n- b\n")
 
@@ -179,7 +194,9 @@ class TestPrePrGate:
 
         assert validate_required_context_conditions(tmp_path) is True
 
-        assert "bad.yml" in capsys.readouterr().err
+        err = capsys.readouterr().err
+        assert "bad.yml" in err
+        assert "NOT EXAMINED" in err
 
     def test_gate_returns_true_when_there_is_no_workflow_directory(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
@@ -211,10 +228,13 @@ class TestRealCorpus:
         documents = load_workflows(REPO_ROOT / ".github" / "workflows")
         findings, _ = lint(documents, REQUIRED_CONTEXTS)
 
-        flagged = {(f.workflow, f.context) for f in findings}
+        flagged = {f.context for f in findings}
 
-        assert ("validate-paths.yml", "Validate Path Normalization") in flagged
-        assert ("validate-generated-agents.yml", "Validate Generated Files") in flagged
-        assert ("pr-validation.yml", "Validate PR") in flagged
-        assert ("semantic-pr-title-check.yml", "Validate PR title") in flagged
-        assert ("codeql-analysis.yml", "Analyze (python)") in flagged
+        assert {
+            "Validate Path Normalization",
+            "Validate Generated Files",
+            "Validate PR",
+            "Validate PR title",
+            "Analyze (python)",
+            "Analyze (actions)",
+        } <= flagged

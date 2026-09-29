@@ -47,14 +47,26 @@ What this lint does not see, so a clean run is not read as more than it is:
     selects, or a checked-in Python module that reads the event itself.
   - A condition in a job the producing job depends on. Only the producing job's
     own steps and job `if:` are read.
+  - A job-level `if:` on `github.event_name` or `github.actor`. Only
+    `needs.<job>.outputs` is flagged at job level, though a job skipped by an
+    event or actor term reports success the same way.
+  - A workflow-level `on.<event>.paths` or `paths-ignore` filter, which decides
+    whether the whole workflow runs and so is the syntactic form of the same
+    gate.
+  - A job that calls a reusable workflow (`uses:`). It has no steps here, so it
+    reads as clean whatever the called workflow does.
+  - Any spelling the patterns below do not name, for example
+    `github.event.sender.login`.
 
 Job identity mirrors `scripts/github_core/workflow_event_subscriptions.py`,
 `declared_required_contexts`, whose docstring states the contract:
 
-    "Matching is exact against WorkflowSubscriptions.job_names and by prefix
-    against WorkflowSubscriptions.job_name_prefixes. Prefix matching is confined
-    to the expression-bearing names on purpose: applying it to literal names
-    would let a job called `Validate PR` claim `Validate PR title`"
+    Matching is exact against :attr:`WorkflowSubscriptions.job_names` and by
+    prefix against :attr:`WorkflowSubscriptions.job_name_prefixes`. Prefix
+    matching is confined to the expression-bearing names on purpose: applying it
+    to literal names would let a job called ``Validate PR`` claim
+    ``Validate PR title``, inflating every manifest with contexts the workflow
+    cannot publish.
 
 A job is named by its `name:` when it declares one and by its job id otherwise,
 which is the string branch protection matches. Different from that module: it
@@ -76,7 +88,7 @@ import argparse
 import re
 import sys
 from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -103,14 +115,27 @@ _EXPRESSION_MARKER = "${{"
 # expression language, so both spellings are matched. `GITHUB_EVENT_NAME` and
 # `GITHUB_ACTOR` are the environment spellings of the same two values; a step
 # body reads them without an expression, which is how the relocation happens.
+# The expression language is case-insensitive for context and property names, so
+# `github.Actor` and `NEEDS.x.OUTPUTS` are the same reads and are matched too.
+# `GITHUB_TRIGGERING_ACTOR` and `github.triggering_actor` are the actor of a
+# re-run, which is a different value but the same kind of outside source.
+_FLAGS = re.IGNORECASE
 _NEEDS_OUTPUTS = re.compile(
-    r"\bneeds(?:\.[A-Za-z0-9_-]+|\[\s*['\"][^'\"]+['\"]\s*\])\.outputs\b"
+    r"\bneeds(?:\.[A-Za-z0-9_-]+|\[\s*['\"][^'\"]+['\"]\s*\])\.outputs\b", _FLAGS
 )
 _EVENT_NAME = re.compile(
-    r"\bgithub(?:\.event_name|\[\s*['\"]event_name['\"]\s*\])|\bGITHUB_EVENT_NAME\b"
+    r"\bgithub(?:\.event_name|\[\s*['\"]event_name['\"]\s*\])|\bGITHUB_EVENT_NAME\b",
+    _FLAGS,
 )
-_ACTOR = re.compile(r"\bgithub(?:\.actor|\[\s*['\"]actor['\"]\s*\])|\bGITHUB_ACTOR\b")
-_STEP_OUTPUT = re.compile(r"\bsteps\.([A-Za-z0-9_-]+)\.outputs\b")
+_ACTOR = re.compile(
+    r"\bgithub(?:\.(?:triggering_)?actor|\[\s*['\"](?:triggering_)?actor['\"]\s*\])"
+    r"|\bGITHUB_(?:TRIGGERING_)?ACTOR\b",
+    _FLAGS,
+)
+_STEP_OUTPUT = re.compile(
+    r"\bsteps(?:\.([A-Za-z0-9_-]+)|\[\s*['\"]([^'\"]+)['\"]\s*\])\.outputs\b", _FLAGS
+)
+_ENV_READ = re.compile(r"\benv\.([A-Za-z0-9_]+)\b", _FLAGS)
 
 _SOURCES: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("needs.*.outputs", _NEEDS_OUTPUTS),
@@ -153,6 +178,7 @@ class ProducingJob:
     job_id: str
     context: str
     body: Mapping[str, Any]
+    workflow_env: Mapping[str, Any] = field(default_factory=dict)
 
 
 def load_workflows(workflow_dir: Path) -> dict[str, Mapping[str, Any]]:
@@ -167,12 +193,17 @@ def load_workflows(workflow_dir: Path) -> dict[str, Mapping[str, Any]]:
     for path in sorted([*workflow_dir.glob("*.yml"), *workflow_dir.glob("*.yaml")]):
         try:
             loaded = yaml.safe_load(path.read_text(encoding="utf-8"))
-        except (OSError, UnicodeDecodeError, yaml.YAMLError) as exc:
+        except (OSError, UnicodeDecodeError, ValueError, RecursionError, yaml.YAMLError) as exc:
             raise WorkflowLoadError(f"cannot parse {path.name}: {exc}") from exc
         if not isinstance(loaded, Mapping):
             raise WorkflowLoadError(f"cannot parse {path.name}: top level is not a mapping")
         documents[path.name] = loaded
     return documents
+
+
+def _mapping(container: Mapping[str, Any], key: str) -> Mapping[str, Any]:
+    value = container.get(key)
+    return value if isinstance(value, Mapping) else {}
 
 
 def _check_run_label(job_id: str, body: Mapping[str, Any]) -> str:
@@ -187,6 +218,10 @@ def _contexts_for_label(label: str, contexts: Iterable[str]) -> list[str]:
     if marker == -1:
         return [context for context in contexts if context == label]
     prefix = label[:marker]
+    if not prefix:
+        # `name: ${{ matrix.x }}` names nothing statically, and an empty prefix
+        # would claim every pinned context.
+        return []
     return [context for context in contexts if context.startswith(prefix)]
 
 
@@ -205,8 +240,40 @@ def producing_jobs(
                 continue
             label = _check_run_label(str(job_id), body)
             for context in _contexts_for_label(label, pinned):
-                found.append(ProducingJob(workflow, str(job_id), context, body))
+                found.append(
+                    ProducingJob(workflow, str(job_id), context, body, _mapping(document, "env"))
+                )
     return found
+
+
+# `yaml.safe_load` expands an alias into a shared reference, so a small file can
+# describe a structure whose `str()` is exponentially large. Walk the scalars
+# under a node budget and a depth cap instead of stringifying the container.
+_MAX_NODES = 10_000
+_MAX_DEPTH = 32
+
+
+def _text(value: object) -> str:
+    """Join the scalar leaves of ``value`` into one string, bounded in work done.
+
+    A bare boolean or number is a valid `if:` value in YAML. It references
+    nothing, so it is coerced to text rather than skipped as a type error.
+    """
+    parts: list[str] = []
+    stack: list[tuple[object, int]] = [(value, 0)]
+    budget = _MAX_NODES
+    while stack and budget > 0:
+        node, depth = stack.pop()
+        budget -= 1
+        if isinstance(node, Mapping):
+            if depth < _MAX_DEPTH:
+                stack.extend((child, depth + 1) for child in node.values())
+        elif isinstance(node, list):
+            if depth < _MAX_DEPTH:
+                stack.extend((child, depth + 1) for child in node)
+        else:
+            parts.append(str(node))
+    return "\n".join(parts)
 
 
 def _sources_in(text: str, sources: Sequence[tuple[str, re.Pattern[str]]]) -> list[str]:
@@ -216,9 +283,7 @@ def _sources_in(text: str, sources: Sequence[tuple[str, re.Pattern[str]]]) -> li
 def _condition_sources(
     condition: object, sources: Sequence[tuple[str, re.Pattern[str]]]
 ) -> list[str]:
-    # A bare boolean or number is a valid `if:` value in YAML. It references
-    # nothing, so it is coerced to text rather than skipped as a type error.
-    return _sources_in(str(condition), sources)
+    return _sources_in(_text(condition), sources)
 
 
 def _step_label(index: int, step: Mapping[str, Any]) -> str:
@@ -239,18 +304,50 @@ def _steps(producer: ProducingJob) -> list[tuple[int, Mapping[str, Any]]]:
 
 
 def _step_body_text(step: Mapping[str, Any]) -> str:
-    parts = [str(step[key]) for key in _STEP_BODY_KEYS if key in step]
-    return "\n".join(parts)
+    return "\n".join(_text(step[key]) for key in _STEP_BODY_KEYS if key in step)
 
 
-def _step_source_map(steps: Sequence[tuple[int, Mapping[str, Any]]]) -> dict[str, list[str]]:
+def _tainted_env(producer: ProducingJob) -> dict[str, list[str]]:
+    """Map each workflow-level or job-level env name to the sources its value reads.
+
+    A step that reads `env.NAME` inherits those sources: the outside value
+    reached it through the environment instead of through the step's own text.
+    A job-level definition wins over a workflow-level one, as it does at run time.
+    """
+    tainted: dict[str, list[str]] = {}
+    for scope in (producer.workflow_env, _mapping(producer.body, "env")):
+        for name, value in scope.items():
+            sources = _sources_in(_text(value), _SOURCES)
+            if sources:
+                tainted[str(name)] = sources
+            else:
+                tainted.pop(str(name), None)
+    return tainted
+
+
+def _env_sources(text: str, tainted_env: Mapping[str, list[str]]) -> list[str]:
+    found: list[str] = []
+    for match in _ENV_READ.finditer(text):
+        for source in tainted_env.get(match.group(1), []):
+            if source not in found:
+                found.append(source)
+    return found
+
+
+def _step_source_map(
+    steps: Sequence[tuple[int, Mapping[str, Any]]], tainted_env: Mapping[str, list[str]]
+) -> dict[str, list[str]]:
     """Map each step id to the outside sources its own body reads."""
     found: dict[str, list[str]] = {}
     for _, step in steps:
         ident = step.get("id")
         if not isinstance(ident, str) or not ident:
             continue
-        sources = _sources_in(_step_body_text(step), _SOURCES)
+        text = _step_body_text(step)
+        sources = _sources_in(text, _SOURCES)
+        for source in _env_sources(text, tainted_env):
+            if source not in sources:
+                sources.append(source)
         if sources:
             found[ident] = sources
     return found
@@ -258,7 +355,8 @@ def _step_source_map(steps: Sequence[tuple[int, Mapping[str, Any]]]) -> dict[str
 
 def _step_findings(producer: ProducingJob) -> list[Finding]:
     steps = _steps(producer)
-    tainted = _step_source_map(steps)
+    tainted_env = _tainted_env(producer)
+    tainted = _step_source_map(steps, tainted_env)
     findings: list[Finding] = []
     for index, step in steps:
         if "if" not in step:
@@ -276,7 +374,9 @@ def _step_findings(producer: ProducingJob) -> list[Finding]:
                     label,
                 )
             )
-        findings.extend(_relocated_findings(producer, label, step["if"], tainted))
+        findings.extend(
+            _relocated_findings(producer, label, step["if"], tainted, tainted_env)
+        )
     return findings
 
 
@@ -285,11 +385,13 @@ def _relocated_findings(
     label: str,
     condition: object,
     tainted: Mapping[str, list[str]],
+    tainted_env: Mapping[str, list[str]],
 ) -> list[Finding]:
+    text = _text(condition)
     findings: list[Finding] = []
     seen: set[str] = set()
-    for match in _STEP_OUTPUT.finditer(str(condition)):
-        ident = match.group(1)
+    for match in _STEP_OUTPUT.finditer(text):
+        ident = match.group(1) or match.group(2)
         if ident in seen or ident not in tainted:
             continue
         seen.add(ident)
@@ -301,6 +403,18 @@ def _relocated_findings(
                 producer.job_id,
                 f"step `if:` reads steps.{ident}.outputs, and step `{ident}` reads "
                 f"{', '.join(tainted[ident])}",
+                label,
+            )
+        )
+    env_sources = _env_sources(text, tainted_env)
+    if env_sources:
+        findings.append(
+            Finding(
+                KIND_RELOCATED,
+                producer.context,
+                producer.workflow,
+                producer.job_id,
+                f"step `if:` reads an env value that is set from {', '.join(env_sources)}",
                 label,
             )
         )
@@ -418,7 +532,7 @@ def validate_required_context_conditions(repo_root: Path) -> bool:
     try:
         findings, summary = run(repo_root / ".github" / "workflows")
     except WorkflowLoadError as exc:
-        print(f"required-context-conditions: {exc}", file=sys.stderr)
+        print(f"required-context-conditions: NOT EXAMINED: {exc}", file=sys.stderr)
         return True
     for line in grouped_lines(findings):
         print(f"required-context-conditions: {line}")
