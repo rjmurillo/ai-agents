@@ -124,6 +124,7 @@ EXPECTED_ORDER: tuple[str, ...] = (
     'Workflow Local Run',
     'Review Marker (SHA-bound /review)',
     'Instruction Budget (always-on)',
+    'Instruction Bytes (per-fixture)',
     'Always-on Corpus Claims',
     'Rule Scope Declarations (paths:)',
     'Capability Graph (metadata.capability)',
