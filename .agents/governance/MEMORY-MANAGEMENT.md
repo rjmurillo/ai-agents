@@ -62,7 +62,7 @@ This document describes the unified memory management workflow across two memory
 
 ### During Session
 
-Update project memories for cross-session context
+Update Serena project memories for cross-session context.
 
 ```python
 mcp__serena__write_memory(
@@ -537,7 +537,7 @@ npx tsx scripts/search-memories.ts "[expected topic]"
 
 **Export when**:
 
-- Session created 5+ Serena memories
+- Session produced 5+ notable observations
 - Significant architectural decisions documented
 - Frustration patterns identified
 - Testing strategies developed
@@ -586,7 +586,6 @@ transcript instead:
 Before exporting, verify:
 
 - [ ] Each Serena memory covers one concept
-- [ ] Memories have importance 7+ (only export high-value learnings)
 - [ ] Privacy review completed (no secrets, paths, PII)
 - [ ] Naming follows convention (YYYY-MM-DD-session-NNN-topic.json)
 - [ ] Export path documented in the per-issue handoff or transcript

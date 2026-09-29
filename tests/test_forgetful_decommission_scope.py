@@ -49,9 +49,14 @@ HISTORY_PREFIXES = (
     ".project-toolkit/analysis/",
     ".project-toolkit/critique/",
     ".project-toolkit/qa/",
-    ".project-toolkit/specs/",
+    ".project-toolkit/specs/PRD-",
+    ".project-toolkit/specs/STATUS.md",
+    ".project-toolkit/specs/design/",
+    ".project-toolkit/specs/interviews/",
+    ".project-toolkit/specs/requirements/REQ-",
+    ".project-toolkit/specs/tasks/",
     ".project-toolkit/security/",
-    ".project-toolkit/memory/",
+    ".project-toolkit/memory/episodes/",
     ".project-toolkit/retrospective/",
     ".project-toolkit/audit/",
     ".project-toolkit/audits/",
@@ -129,7 +134,14 @@ Audit = tuple[list[str], list[str]]
 
 def is_history(path: str, prefixes: tuple[str, ...] = HISTORY_PREFIXES) -> bool:
     """Return True when *path* sits in a record tree allowed to name the token."""
-    return any(path.startswith(prefix) for prefix in prefixes)
+    return any(_matches(path, prefix) for prefix in prefixes)
+
+
+def _matches(path: str, prefix: str) -> bool:
+    """A prefix ending in `.md` names one file; any other prefix matches by start."""
+    if prefix.endswith(".md"):
+        return path == prefix
+    return path.startswith(prefix)
 
 
 def audit(
@@ -202,6 +214,8 @@ def test_history_prefix_exempts_records_but_not_live_files() -> None:
     assert not is_history(".agents/governance/MEMORY-MANAGEMENT.md")
     assert not is_history(".project-toolkit/testing/prompt-eval-methodology.md")
     assert not is_history("README.md")
+    assert not is_history("CHANGELOG.md.bak")
+    assert not is_history(".project-toolkit/specs/requirements/EARS-TEMPLATE.md")
     assert audit({"README.md": 1}, {}) == (["README.md"], [])
     assert audit({".agents/archive/x.md": 4}, {}) == ([], [])
 
@@ -211,6 +225,6 @@ def test_every_history_prefix_is_still_needed() -> None:
     counts = mention_counts(REPO_ROOT)
     unused = [
         prefix for prefix in HISTORY_PREFIXES
-        if prefix != "CHANGELOG.md" and not any(p.startswith(prefix) for p in counts)
+        if prefix != "CHANGELOG.md" and not any(is_history(p, (prefix,)) for p in counts)
     ]
     assert not unused, f"{unused} match no tracked file naming the token; remove them."

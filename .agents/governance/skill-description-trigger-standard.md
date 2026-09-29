@@ -66,7 +66,7 @@ description: Research external topics, create comprehensive analysis, determine
 | Mistake | Why It Fails | Fix |
 |---------|--------------|-----|
 | "Handles memory operations" | No trigger keywords, vague | "Search and manage memories across Serena. Use when needing past context or creating new memories." |
-| "Populates Serena via LSP" | Too technical, no when | "Encode codebase into searchable knowledge graph. Use when onboarding to repository or refreshing project understanding." |
+| "Populates the index via LSP" | Too technical, no when | "Encode codebase into searchable knowledge graph. Use when onboarding to repository or refreshing project understanding." |
 | "Collects metrics" | No use case | "Collect agent usage metrics from git history. Use when measuring agent adoption or system health over time." |
 
 ### SKIP Clause for Sibling Families

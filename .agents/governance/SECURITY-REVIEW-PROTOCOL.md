@@ -224,11 +224,9 @@ function Test-SafeFilePath {
 
 ## Memory Integration
 
-False negatives are stored as Serena project memories.
-
 ### Serena (Project Memory)
 
-Enables project-specific RCA retrieval:
+False negatives are stored as Serena project memories, which enable project-specific RCA retrieval:
 
 ```text
 .serena/memories/security-false-negative-cwe-22-pr752.md
