@@ -3,7 +3,10 @@
 
 A finding fixed by a change that is not a commit, such as a PR description
 edit, never moves the head SHA, so it stays active. Record it in a tracked
-``--dispositions-file`` instead of pushing a no-op commit::
+``--dispositions-file`` instead of pushing a no-op commit. The registry must
+be tracked and the completion gate compares it to the trusted ref, so it takes
+effect once the entry is merged to the trusted branch, not from the PR it
+waives::
 
     {"5091206987:0": {"disposition": "addressed-by-pr-metadata",
                       "reason": "PR body now says Refs #4725"}}
@@ -259,7 +262,8 @@ def _enrich_review_findings(
     ``finding_index`` counts findings across all sections of one review, in
     document order, starting at 0. Returns the findings, the count
     mismatches, the keys seen, the keys whose entry was rejected, and how
-    many findings in an active or unknown review are dispositioned.
+    many findings in this review carry an accepted disposition (the caller
+    ignores that count for stale reviews and caps it at the declared count).
     """
     review_id = review.get("id")
     commit_id = review.get("commit_id")
@@ -287,7 +291,7 @@ def _enrich_review_findings(
             if error:
                 rejected.append({"key": key, "reason": error})
             accepted = key in dispositions and not error
-            if accepted and active_state != "stale":
+            if accepted:
                 dispositioned += 1
             findings.append(
                 {
@@ -382,7 +386,8 @@ def build_report(
         mismatches.extend(enriched["mismatches"])
         seen_keys |= enriched["seen_keys"]
         rejected.extend(enriched["rejected"])
-        dispositioned_count += enriched["dispositioned"]
+        if active_state != "stale":
+            dispositioned_count += min(enriched["dispositioned"], declared_count)
 
     rejected.extend(
         {"key": key, "reason": "no such review finding"}

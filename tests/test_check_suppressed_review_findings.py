@@ -469,3 +469,11 @@ def test_main_passes_registry_through_and_reports_dispositioned(capsys, tmp_path
     assert rc == 0
     assert output["active_suppressed_count"] == 1
     assert output["undispositioned_suppressed_count"] == 0
+
+
+def test_dispositions_beyond_the_declared_count_cannot_go_negative() -> None:
+    body = "<summary>Suppressed comments (1)</summary>\n**a.py:1**\n* A\n**b.py:2**\n* B"
+    report = _report([_review(11, body), _review(12, _BODY_ONE)], {"11:0": _GOOD, "11:1": _GOOD})
+    assert report["parsed_finding_count"] == 3
+    assert report["dispositioned_suppressed_count"] == 1
+    assert report["undispositioned_suppressed_count"] == 1

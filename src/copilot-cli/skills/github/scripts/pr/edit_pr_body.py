@@ -126,7 +126,7 @@ def fetch_current_body(owner: str, repo: str, pr: int) -> str | None:
         # gh's actual diagnostic when it lands there instead of stderr;
         # this three-way fallback mirrors
         # get_pr_reviews.py:138, get_pr_reviewers.py:333,
-        # check_suppressed_review_findings.py:119,131, and
+        # check_suppressed_review_findings.py:122,134, and
         # get_thread_conversation_history.py:116, all in this same
         # skill/pr/ directory (Copilot review on PR #5283, correcting
         # an earlier version of this comment that cited a two-way
