@@ -112,6 +112,20 @@ def _shipped_merge_ready_predicate() -> str:
     )
 
 
+@pytest.fixture(autouse=True)
+def _clear_plugin_root_env(monkeypatch):
+    """Keep the suite hermetic against the plugin-root variables a hook sets.
+
+    The pre-push ``workflow-local-test`` job exports ``COPILOT_PLUGIN_ROOT``
+    and ``CLAUDE_PLUGIN_ROOT``. With either set, ``_install_trusted_root``
+    calls ``_consumer_work_tree``, which consumes one of the faked
+    ``subprocess.run`` responses (issue #6025). Tests that need a value set it
+    themselves after this fixture runs.
+    """
+    monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
+    monkeypatch.delenv("CLAUDE_PLUGIN_ROOT", raising=False)
+
+
 def _make_proc(stdout: str = "", stderr: str = "", returncode: int = 0):
     return subprocess.CompletedProcess(
         args=[], returncode=returncode, stdout=stdout, stderr=stderr,

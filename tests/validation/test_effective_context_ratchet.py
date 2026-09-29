@@ -10,6 +10,7 @@ stay in ``test_effective_context.py``.
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -30,6 +31,10 @@ from tests.validation._effective_context_helpers import (
     _init_git_repo,
     _write,
 )
+
+# The live observe test depends on the installed Copilot CLI's behavior, not on
+# the diff under test, so it must not gate a push (issue #6025). Opt in here.
+LIVE_OBSERVE_ENV = "EFFECTIVE_CONTEXT_LIVE_OBSERVE"
 
 # --------------------------------------------------------------------------
 # REQ-3: --observe compares the static Copilot set with a live listing.
@@ -160,6 +165,27 @@ class TestReq3Observe:
         with pytest.raises(ec.CopilotUnavailableError, match="unparsable"):
             ec.run_copilot_observe(tmp_path, "", set())
 
+    def test_observe_closes_stdin_of_the_copilot_call(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Issue #6025: the CLI hangs on an open stdin pipe, so pass DEVNULL."""
+        seen: dict[str, object] = {}
+
+        def _fake_run(*_args: object, **kwargs: object) -> FakeCompletedProcess:
+            seen.update(kwargs)
+            return FakeCompletedProcess(0, stdout="[]")
+
+        monkeypatch.setattr(ec.subprocess, "run", _fake_run)
+        ec.run_copilot_observe(tmp_path, "", set())
+        assert seen["stdin"] == subprocess.DEVNULL
+
+    @pytest.mark.skipif(
+        os.environ.get(LIVE_OBSERVE_ENV) != "1",
+        reason=(
+            f"opt-in machine-state test: set {LIVE_OBSERVE_ENV}=1 to run the live "
+            "`copilot instruction list` comparison (issue #6025)"
+        ),
+    )
     @pytest.mark.skipif(
         shutil.which("copilot") is None,
         reason="copilot CLI not installed on this machine",
