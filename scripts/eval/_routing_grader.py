@@ -233,15 +233,14 @@ def run_validation(validation: Validation, workdir: Path) -> tuple[CommandResult
 def grade(scenario: Scenario, workdir: Path) -> GradeResult:
     """Grade `workdir` against `scenario`. `workdir` itself is left untouched.
 
-    The scratch copy keeps symlinks as links (it never follows one), then the
-    copy is checked for links. A link anywhere is a scope violation and ends
+    The scratch copy keeps symlinks as links (it never follows one). The scope
+    verdict and the validation run both read that copy, so they see the same
+    files even if a driver is still writing. A link anywhere in the copy is a
+    scope violation and ends
     grading before hidden files or commands are added. Checking the copy, not
     the source, closes the window in which a still-running driver could add a
     link between a check and a copy.
     """
-    changed = changed_paths(scenario, workdir)
-    violations = scope_violations(scenario, changed)
-    missing = missing_expected(scenario, changed)
     with tempfile.TemporaryDirectory(prefix="routing-grade-") as scratch_name:
         scratch = Path(scratch_name) / "work"
         shutil.copytree(
@@ -250,6 +249,9 @@ def grade(scenario: Scenario, workdir: Path) -> GradeResult:
             symlinks=True,
             ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
         )
+        changed = changed_paths(scenario, scratch)
+        violations = scope_violations(scenario, changed)
+        missing = missing_expected(scenario, changed)
         links = _symlinks(scratch)
         if links:
             found = tuple(f"symlink:{path}" for path in links)
