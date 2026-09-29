@@ -20,15 +20,20 @@ Any failed or malformed page aborts the run with exit 3. Partial counts are
 never published as complete. Pull-request records are excluded and records are
 deduplicated by immutable issue number.
 
-Burst rule (shared with #5704 through ``find_bursts``): per login, sort
+Burst rule (``find_bursts`` is a standalone function, intended for reuse by
+#5704, which does not import it yet): per login, sort
 creation times, then greedily start a burst at the earliest unassigned issue
 and take every later issue within 10 minutes of that start. A group of 3 or
 more issues is a burst and each issue belongs to at most one burst.
 
-Different than ``list_issues.py``: it uses ``gh api`` pagination with fail-closed
-semantics instead of a capped ``gh issue list`` call, since a cap is not
-pagination. It also defaults to Markdown on every terminal and redirect
-(``github_core.output`` "auto" switches to JSON when stdout is redirected).
+Different than ``list_issues.py`` and than issue #5702 step 5: it runs a manual
+page loop over ``gh api`` with fail-closed semantics instead of a capped
+``gh issue list`` call, since a cap is not pagination. It defines its own
+``--output-format`` (markdown or json) instead of ``add_output_format_arg``,
+because ``github_core.output`` "auto" switches to JSON when stdout is
+redirected and the issue requires a deterministic default. A page whose records
+are all repeats aborts the run with exit 3, so a shifting page boundary can
+cost a retry but never a silent miscount.
 
 EXIT CODES (ADR-035):
     0 - Report produced from a complete read
@@ -53,11 +58,8 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 _plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
-_workspace = os.environ.get("GITHUB_WORKSPACE")
 if _plugin_root and os.path.isdir(os.path.join(_plugin_root, "lib", "github_core")):
     _lib_dir = os.path.join(_plugin_root, "lib")
-elif _workspace:
-    _lib_dir = os.path.join(_workspace, ".claude", "lib")
 else:
     _lib_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "lib"))
 if not os.path.isdir(_lib_dir):
@@ -98,15 +100,16 @@ MACHINERY_TERMS = (
     "gate",
     "drift",
 )
-# Whole-word match with an optional plural, so "adr" does not match "address"
-# and "hooks" still counts. Canonical rule text: issue #5702 step 4, "matches
+# Whole-word match with an optional plural, so "adr" does not match "address",
+# "hooks" still counts, and hyphen or dot neighbours ("ADR-042", "hook-based")
+# still match. Canonical rule text: issue #5702 step 4, "matches
 # any of validation, validator, ratchet, hook, lefthook, adr, pre_pr, pre-push,
 # pr-autofix, memory, gate, drift, or if its labels include area-validation".
 # Stricter than canonical: the issue does not say word-bounded; the term list
 # pairs "hook" with "lefthook" and "validation" with "validator", which only
 # makes sense when matching is word-bounded.
 _MACHINERY_RE = re.compile(
-    r"(?<![\w-])(?:" + "|".join(re.escape(term) for term in MACHINERY_TERMS) + r")s?(?![\w-])",
+    r"\b(?:" + "|".join(re.escape(term) for term in MACHINERY_TERMS) + r")s?\b",
     re.IGNORECASE,
 )
 BUCKETS = ("human-only", "agent-only", "conflict", "unknown")
@@ -171,20 +174,30 @@ def parse_record(record: object) -> Issue:
     number = record.get("number")
     if isinstance(number, bool) or not isinstance(number, int):
         raise ReportError(f"Issue record has no integer number: {number!r}", 3, "ApiError")
-    labels = frozenset(
-        str(label.get("name", "")).lower()
-        for label in (record.get("labels") or [])
-        if isinstance(label, dict)
-    )
-    user = record.get("user")
-    login = user.get("login", "") if isinstance(user, dict) else ""
     return Issue(
         number=number,
         title=str(record.get("title") or ""),
-        login=str(login),
+        login=_login(record, number),
         created_at=parse_timestamp(record.get("created_at")),
-        labels=labels,
+        labels=_label_names(record, number),
     )
+
+
+def _label_names(record: dict[str, Any], number: int) -> frozenset[str]:
+    labels = record.get("labels")
+    if not isinstance(labels, list):
+        raise ReportError(f"Issue {number} has malformed labels: {labels!r}", 3, "ApiError")
+    return frozenset(
+        str(label.get("name", "")).lower() for label in labels if isinstance(label, dict)
+    )
+
+
+def _login(record: dict[str, Any], number: int) -> str:
+    user = record.get("user")
+    login = user.get("login") if isinstance(user, dict) else None
+    if not isinstance(login, str) or not login:
+        raise ReportError(f"Issue {number} has no author login", 3, "ApiError")
+    return login
 
 
 def classify_provenance(issue: Issue) -> str:
@@ -466,6 +479,13 @@ def resolve_window(days: int, until: str, now: datetime) -> tuple[datetime, date
     """Return [start, end) in UTC, or raise ReportError (exit 2)."""
     if days < 1:
         raise ReportError(f"--days must be at least 1, got {days}", 2, "InvalidParams")
+    try:
+        return _window_bounds(days, until, now)
+    except OverflowError as exc:
+        raise ReportError(f"--days or --until is out of range: {exc}", 2, "InvalidParams") from exc
+
+
+def _window_bounds(days: int, until: str, now: datetime) -> tuple[datetime, datetime]:
     if not until:
         return now - timedelta(days=days), now
     try:

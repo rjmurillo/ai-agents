@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from datetime import datetime, timedelta, timezone
@@ -78,13 +79,31 @@ class TestParseRecord:
         assert parsed.login == "owner"
         assert parsed.labels == frozenset({"source:agent", "bug"})
 
-    def test_missing_user_and_labels(self):
-        parsed = mod.parse_record(
-            {"number": 1, "title": None, "created_at": "2026-09-29T11:00:00Z", "labels": None}
-        )
-        assert parsed.login == ""
-        assert parsed.title == ""
-        assert parsed.labels == frozenset()
+    def test_empty_labels_list_is_valid(self):
+        raw = record(1)
+        raw["labels"] = []
+        assert mod.parse_record(raw).labels == frozenset()
+
+    def test_null_title_becomes_empty(self):
+        raw = record(1)
+        raw["title"] = None
+        assert mod.parse_record(raw).title == ""
+
+    @pytest.mark.parametrize("labels", [None, "source:agent", {"name": "x"}])
+    def test_malformed_labels_abort_with_exit_3(self, labels):
+        raw = record(1)
+        raw["labels"] = labels
+        with pytest.raises(mod.ReportError, match="malformed labels") as err:
+            mod.parse_record(raw)
+        assert err.value.exit_code == 3
+
+    @pytest.mark.parametrize("user", [None, "owner", {}, {"login": ""}, {"login": 5}])
+    def test_missing_author_aborts_with_exit_3(self, user):
+        raw = record(1)
+        raw["user"] = user
+        with pytest.raises(mod.ReportError, match="no author login") as err:
+            mod.parse_record(raw)
+        assert err.value.exit_code == 3
 
     @pytest.mark.parametrize("bad", ["text", None, {"number": "1"}, {"number": True}, {}])
     def test_rejects_malformed_records(self, bad):
@@ -129,6 +148,12 @@ class TestIsMachinery:
         ],
     )
     def test_matches_terms_case_insensitively(self, title):
+        assert mod.is_machinery(issue(1, NOW, title=title))
+
+    @pytest.mark.parametrize(
+        "title", ["ADR-042 supersede", "hook-based check", "memory-search fails", "fix ADR."]
+    )
+    def test_hyphen_and_punctuation_neighbours_match(self, title):
         assert mod.is_machinery(issue(1, NOW, title=title))
 
     @pytest.mark.parametrize("title", ["Address feedback", "Add dark mode", "gateway timeout", ""])
@@ -222,6 +247,11 @@ class TestCollectBacklog:
         raw = record(1)
         raw["state"] = "closed"
         assert len(collect([raw]).issues) == 1
+
+    def test_reads_until_the_empty_page_across_three_pages(self):
+        backlog = collect([record(1)], [record(2)], [record(3)])
+        assert [item.number for item in backlog.issues] == [1, 2, 3]
+        assert backlog.stats.pages == 3
 
     def test_empty_first_page_yields_empty_backlog(self):
         backlog = collect()
@@ -365,6 +395,24 @@ class TestRenderMarkdown:
         assert "0.0%" not in text
 
 
+class TestOutputEquivalence:
+    def test_markdown_table_matches_json_counts(self):
+        report = make_report(
+            [
+                record(1, labels=("source:human",)),
+                record(2, labels=("source:agent",)),
+                record(3, labels=("source:agent",)),
+                record(4),
+            ]
+        )
+        text = mod.render_markdown(report)
+        for name in mod.BUCKETS:
+            entry = report["provenance"][name]
+            row = f"| {name} | {entry['count']} | {mod._percent(entry['share'])} |"
+            assert row in text
+        assert f"New issues in window: {report['total']}" in text
+
+
 class TestResolveWindow:
     def test_defaults_to_now(self):
         start, end = mod.resolve_window(7, "", NOW)
@@ -379,6 +427,20 @@ class TestResolveWindow:
     def test_rejects_non_positive_days(self, days):
         with pytest.raises(mod.ReportError) as err:
             mod.resolve_window(days, "", NOW)
+        assert err.value.exit_code == 2
+
+    @pytest.mark.parametrize(
+        ("days", "until"),
+        [
+            (10**9, ""),
+            (10**12, ""),
+            (1, "0001-01-01T00:00:00+00:00"),
+            (10**6, "2026-09-29T00:00:00Z"),
+        ],
+    )
+    def test_overflow_is_a_config_error_not_a_traceback(self, days, until):
+        with pytest.raises(mod.ReportError, match="out of range") as err:
+            mod.resolve_window(days, until, NOW)
         assert err.value.exit_code == 2
 
     @pytest.mark.parametrize("until", ["yesterday", "2026-09-29T12:00:00"])
@@ -446,6 +508,20 @@ class TestMain:
     def test_auth_failure_exits_4(self):
         assert run_main([], auth=False) == 4
 
+    def test_json_mode_failure_prints_error_envelope_and_no_data(self, capsys):
+        boom = mod.ReportError("Failed to read page 2", 3, "ApiError")
+        result = SimpleNamespace(status=mod.GhAuthStatus.AUTHENTICATED, detail="")
+        with (
+            patch.object(mod, "check_gh_auth", return_value=result),
+            patch.object(mod, "fetch_page", side_effect=[[record(1, minutes_ago=1)], boom]),
+            patch.object(mod.time, "sleep"),
+        ):
+            code = mod.main(["--owner", "o", "--repo", "r", "--output-format", "json"])
+        assert code == 3
+        envelope = json.loads(capsys.readouterr().out)
+        assert envelope["Success"] is False
+        assert envelope["Data"] is None
+
     def test_api_failure_exits_3_and_prints_no_report(self, capsys):
         boom = mod.ReportError("Failed to read page 2", 3, "ApiError")
         result = SimpleNamespace(status=mod.GhAuthStatus.AUTHENTICATED, detail="")
@@ -471,17 +547,14 @@ REPO_LIB = Path(__file__).resolve().parents[3] / ".claude" / "lib"
 
 
 class TestLibResolution:
-    """The module locates github_core from a plugin root, a workspace, or its own tree."""
+    """The module locates github_core from a plugin root or its own tree."""
 
-    def _load(self, monkeypatch, plugin_root="", workspace=""):
+    def _load(self, monkeypatch, plugin_root=""):
         monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
-        monkeypatch.delenv("GITHUB_WORKSPACE", raising=False)
         if plugin_root:
             monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", plugin_root)
         else:
             monkeypatch.delenv("CLAUDE_PLUGIN_ROOT", raising=False)
-        if workspace:
-            monkeypatch.setenv("GITHUB_WORKSPACE", workspace)
         return import_skill_script(SCRIPT_PATH, "backlog_provenance_probe")
 
     def test_plugin_root_with_lib_is_used(self, monkeypatch, tmp_path):
@@ -489,14 +562,21 @@ class TestLibResolution:
         loaded = self._load(monkeypatch, plugin_root=str(tmp_path))
         assert loaded._lib_dir == str(tmp_path / "lib")
 
-    def test_workspace_lib_is_used(self, monkeypatch):
-        workspace = REPO_LIB.parents[1]
-        loaded = self._load(monkeypatch, workspace=str(workspace))
+    def test_own_tree_lib_is_the_fallback(self, monkeypatch):
+        loaded = self._load(monkeypatch)
+        assert loaded._lib_dir == str(REPO_LIB)
+
+    def test_plugin_root_without_lib_falls_through_to_own_tree(self, monkeypatch, tmp_path):
+        loaded = self._load(monkeypatch, plugin_root=str(tmp_path))
         assert loaded._lib_dir == str(REPO_LIB)
 
     def test_missing_lib_exits_2(self, monkeypatch, tmp_path, capsys):
+        real_isdir = os.path.isdir
+        monkeypatch.setattr(
+            os.path, "isdir", lambda p: False if str(p).endswith("lib") else real_isdir(p)
+        )
         with pytest.raises(SystemExit) as err:
-            self._load(monkeypatch, workspace=str(tmp_path))
+            self._load(monkeypatch)
         assert err.value.code == 2
         assert "Plugin lib directory not found" in capsys.readouterr().err
 

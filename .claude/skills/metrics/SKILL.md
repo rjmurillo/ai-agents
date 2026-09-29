@@ -130,7 +130,7 @@ score productivity, and it never files, labels, or closes an issue.
 - The read pages until an empty page. Any failed or malformed page exits 3 and no partial report prints. Pull requests are excluded and issues are deduplicated by number.
 - Markdown is the default on every terminal and redirect. Empty ratios print `N/A`, or `null` in JSON.
 
-Baseline, reproducible with `--days 29 --until 2026-09-29T00:00:00Z` (UTC, all issue states, retrieved 2026-09-29): 212 issues created 2026-08-31 through 2026-09-28. All 212 are `unknown` because no `source:*` label existed yet on that history. 70 (33.0%) match the machinery heuristic and 16 bursts cover 79 issues. Reconciled against the GitHub search API `created:2026-08-31..2026-09-28` count of 212. The earlier epic figure of 405 issues created in 30 days (2026-09-10 snapshot, about 9 in 10 machinery by title) is a historical claim. It used a different title rule and window, so it is not comparable to this run. The weekly review line in `.agents/governance/COST-GOVERNANCE.md` cites this script's output.
+Baseline, reproducible with `--days 29 --until 2026-09-29T00:00:00Z` (UTC, all issue states, retrieved 2026-09-29): 212 issues created 2026-08-31 through 2026-09-28. All 212 are `unknown` because no `source:*` label existed yet on that history. 87 (41.0%) match the machinery heuristic and 16 bursts cover 79 issues. Reconciled against the GitHub search API `created:2026-08-31..2026-09-28` count of 212. The earlier epic figure of 405 issues created in 30 days (2026-09-10 snapshot, about 9 in 10 machinery by title) is a historical claim. It used a different title rule and window, so it is not comparable to this run. The weekly cost-governance review cites this script's output.
 
 ## Detection Patterns
 
