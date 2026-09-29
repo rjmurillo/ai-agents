@@ -1891,7 +1891,12 @@ def _scope_table(scope: ast.AST) -> dict[str, ast.AST | None]:
         return table
     if isinstance(scope, ast.FunctionDef | ast.AsyncFunctionDef | ast.Lambda):
         _bind_parameters(table, scope.args)
-    body = scope.body if isinstance(scope.body, list) else [scope.body]
+    if isinstance(scope, ast.Lambda):
+        body: list[ast.AST] = [scope.body]
+    elif isinstance(scope, ast.Module | ast.FunctionDef | ast.AsyncFunctionDef):
+        body = list(scope.body)
+    else:
+        return table
     for node in _iter_scope(body):
         _bind_statement(table, node)
     return table
