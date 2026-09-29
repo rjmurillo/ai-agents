@@ -1,10 +1,10 @@
 ---
-applyTo: tests/**,**/*.Tests.ps1,**/tests/**,.claude/skills/**/tests/**,.project-toolkit/security/benchmarks/**,.claude/rules/testing.md
+applyTo: tests/**,**/*.Tests.ps1,**/tests/**,.project-toolkit/security/benchmarks/**,.claude/rules/testing.md
 ---
 
 # Test File Rules
 
-Tests under `tests/`, skill `tests/` directories, and `.project-toolkit/security/benchmarks/` enforce correctness and catch regressions. They are not decoration.
+Tests under `tests/` (including `tests/skills/<name>/`) and `.project-toolkit/security/benchmarks/` enforce correctness and catch regressions. They are not decoration.
 
 ## MUST
 
