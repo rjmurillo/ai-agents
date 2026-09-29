@@ -32,11 +32,12 @@ import pytest
 
 CONSTANTS_PATH = "scripts/validation/instruction_budget_constants.py"
 CEILING_NAME = "DEFAULT_CEILINGS_BYTES"
+FIXTURE_CEILING_NAME = "FIXTURE_CEILINGS_BYTES"
 BASE_REF = "origin/main"
 
 
-def extract_ceilings(source: str) -> dict[str, int]:
-    """Return the ``DEFAULT_CEILINGS_BYTES`` mapping declared in ``source``.
+def extract_ceilings(source: str, name: str = CEILING_NAME) -> dict[str, int]:
+    """Return the ``name`` mapping declared in ``source`` (default ``DEFAULT_CEILINGS_BYTES``).
 
     Parses rather than imports. Raises ``ValueError`` when the assignment is
     absent or is not a literal mapping, so a silently-empty result can never be
@@ -51,18 +52,18 @@ def extract_ceilings(source: str) -> dict[str, int]:
             targets = [node.target]
         else:
             continue
-        if not any(isinstance(t, ast.Name) and t.id == CEILING_NAME for t in targets):
+        if not any(isinstance(t, ast.Name) and t.id == name for t in targets):
             continue
         if node.value is None:
             break
         try:
             value = ast.literal_eval(node.value)
         except (ValueError, SyntaxError) as exc:
-            raise ValueError(f"{CEILING_NAME} is not a literal mapping") from exc
+            raise ValueError(f"{name} is not a literal mapping") from exc
         if not isinstance(value, dict):
-            raise ValueError(f"{CEILING_NAME} is not a mapping")
+            raise ValueError(f"{name} is not a mapping")
         return {str(k): int(v) for k, v in value.items()}
-    raise ValueError(f"{CEILING_NAME} not found")
+    raise ValueError(f"{name} not found")
 
 
 def find_raised_ceilings(
@@ -184,4 +185,46 @@ class TestTheShippedCeilingsDidNotRise:
         head_source = (_repo_root() / CONSTANTS_PATH).read_text(encoding="utf-8")
         ceilings = extract_ceilings(head_source)
         assert ceilings
+        assert all(v > 0 for v in ceilings.values())
+
+
+class TestExtractNamedCeilings:
+    def test_reads_the_named_mapping_and_ignores_the_default_one(self) -> None:
+        source = (
+            f"{CEILING_NAME} = {{'.md': 1}}\n"
+            f"{FIXTURE_CEILING_NAME} = {{'F1': 2}}\n"
+        )
+        assert extract_ceilings(source, FIXTURE_CEILING_NAME) == {"F1": 2}
+        assert extract_ceilings(source) == {".md": 1}
+
+    def test_a_missing_named_mapping_raises(self) -> None:
+        with pytest.raises(ValueError, match=f"{FIXTURE_CEILING_NAME} not found"):
+            extract_ceilings(f"{CEILING_NAME} = {{'.md': 1}}\n", FIXTURE_CEILING_NAME)
+
+
+class TestTheShippedFixtureCeilingsDidNotRise:
+    """Issue #5400: the per-fixture activated-bytes ceilings are a ratchet too."""
+
+    def test_no_fixture_ceiling_rose_against_the_base_ref(self) -> None:
+        base_source = _base_source()
+        if base_source is None:
+            pytest.skip(f"{BASE_REF}:{CONSTANTS_PATH} is not available")
+        try:
+            base = extract_ceilings(base_source, FIXTURE_CEILING_NAME)
+        except ValueError:
+            pytest.skip(f"{FIXTURE_CEILING_NAME} does not exist at {BASE_REF} yet")
+        head_source = (_repo_root() / CONSTANTS_PATH).read_text(encoding="utf-8")
+        raised = find_raised_ceilings(base, extract_ceilings(head_source, FIXTURE_CEILING_NAME))
+        assert not raised, (
+            "A fixture ceiling was raised: "
+            + ", ".join(f"{fid} {was} -> {now}" for fid, was, now in raised)
+            + f". {FIXTURE_CEILING_NAME} is a non-regression ratchet and may only fall. "
+            "Reclaim bytes from the skills, agents, or rules that fixture loads. If a "
+            "raise is genuinely justified, say why in the commit body (issue #5400)."
+        )
+
+    def test_the_shipped_fixture_ceilings_parse(self) -> None:
+        head_source = (_repo_root() / CONSTANTS_PATH).read_text(encoding="utf-8")
+        ceilings = extract_ceilings(head_source, FIXTURE_CEILING_NAME)
+        assert set(ceilings) == {"F1", "F2", "F3", "F4", "F5", "F6"}
         assert all(v > 0 for v in ceilings.values())
