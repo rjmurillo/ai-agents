@@ -26,8 +26,10 @@ _SCRIPT_DIR = Path(__file__).resolve().parent
 if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
+from checks_changed_paths import _changed_paths_since_base  # noqa: E402
 from checks_common import (  # noqa: E402
     MissingScriptSkip,
+    _refresh_remote_base,
     _resolve_default_base_ref,
     _run_subprocess,
 )
@@ -39,12 +41,18 @@ def _run_workflow_validator(repo_root: Path, relative: str, *args: str, module: 
     """Run one validator the way its workflow does and report a clean exit.
 
     ``module`` selects the ``-m`` form for a validator the workflow runs as a
-    module. ``cwd`` is the repository root, as in CI. A missing script raises
-    :class:`MissingScriptSkip`, so a downstream install without the validator
-    reports SKIP rather than a misleading FAIL.
+    module. ``cwd`` is the repository root, as in CI.
+
+    A missing script is a FAIL where this repository's workflows are present,
+    because CI would still invoke it and fail: a branch that deletes a validator
+    without editing the workflow must not read clean. Where no workflows exist
+    (a downstream install), it raises :class:`MissingScriptSkip` instead.
     """
     script = repo_root / relative
     if not script.exists():
+        if (repo_root / ".github" / "workflows").is_dir():
+            print(f"[FAIL] {relative} is missing, but the workflows in this repository run it")
+            return False
         raise MissingScriptSkip(f"{relative} not present")
     target = ["-m", module] if module else [str(script)]
     exit_code, stdout, stderr = _run_subprocess([sys.executable, *target, *args], cwd=repo_root)
@@ -59,6 +67,12 @@ def _base_ref_or_skip(repo_root: Path, label: str) -> str:
     base_ref = _resolve_default_base_ref(repo_root)
     if base_ref is None:
         raise MissingScriptSkip(f"{label} needs a base ref and none resolved")
+    # CI fetches the current base before it diffs. A stale local origin/<branch>
+    # changes which files and suppressions count as new, so refresh it here. A
+    # failed fetch warns and proceeds, as check_adr_lifecycle does offline.
+    refresh_error = _refresh_remote_base(base_ref, repo_root)
+    if refresh_error:
+        print(f"[WARNING] {label}: could not refresh {base_ref} ({refresh_error}); using cache")
     return base_ref
 
 
@@ -85,11 +99,19 @@ def validate_adr_uniqueness(repo_root: Path) -> bool:
 
 
 def validate_agent_skill_discriminator(repo_root: Path) -> bool:
-    """Fail when an agent lacks a discriminator against a skill (whole corpus)."""
+    """Fail when a changed agent lacks a discriminator against a skill.
+
+    Scoped to the files changed since the base, as the pull-request job is. The
+    changed set includes untracked and unstaged files, so a new agent is scored
+    before its first commit; ``--all`` enumerates only what HEAD tracks and would
+    miss it. Without a resolvable base it scores the whole corpus instead.
+    """
+    changed = _changed_paths_since_base(repo_root, "agent-skill discriminator")
+    scope = ["--all"] if changed is None else ["--changed-files", *changed]
     return _run_workflow_validator(
         repo_root,
         "scripts/validation/check_agent_skill_discriminator.py",
-        "--all",
+        *scope,
         "--baseline",
         "scripts/validation/agent_skill_discriminator_baseline.json",
     )
