@@ -19,37 +19,13 @@ Exit codes follow ADR-035:
 
 from __future__ import annotations
 
-import importlib.util
 import json
-import subprocess
-import sys
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+from round_cap_harness import MainHarness, _mod
 
-# ---------------------------------------------------------------------------
-# Import the script via importlib (not a package), matching
-# tests/test_check_pr_live_state.py's pattern for the sibling gate script.
-# ---------------------------------------------------------------------------
-_SCRIPTS_DIR = (
-    Path(__file__).resolve().parents[3]
-    / ".claude" / "skills" / "github" / "scripts" / "pr"
-)
-
-
-def _import_script(name: str):
-    spec = importlib.util.spec_from_file_location(name, _SCRIPTS_DIR / f"{name}.py")
-    assert spec is not None
-    assert spec.loader is not None
-    mod = importlib.util.module_from_spec(spec)
-    sys.modules[name] = mod
-    spec.loader.exec_module(mod)
-    return mod
-
-
-_mod = _import_script("check_pr_round_cap")
 main = _mod.main
 build_parser = _mod.build_parser
 evaluate_round_cap = _mod.evaluate_round_cap
@@ -59,9 +35,6 @@ render_escalation_comment = _mod.render_escalation_comment
 select_latest_state = _mod.select_latest_state
 RoundCapStoreError = _mod.RoundCapStoreError
 
-
-def _completed(stdout: str = "", stderr: str = "", rc: int = 0):
-    return subprocess.CompletedProcess(args=[], returncode=rc, stdout=stdout, stderr=stderr)
 
 
 # ---------------------------------------------------------------------------
@@ -218,27 +191,7 @@ class TestMarkerRoundTrip:
 # ---------------------------------------------------------------------------
 
 
-class TestMain:
-    def _patch_common(self, list_comments_result=None, list_comments_error=None):
-        patches = [
-            patch("check_pr_round_cap.assert_gh_authenticated"),
-            patch(
-                "check_pr_round_cap.resolve_repo_params",
-                return_value=_mod.RepoInfo(owner="o", repo="r"),
-            ),
-        ]
-        if list_comments_error is not None:
-            list_patch = patch(
-                "check_pr_round_cap._list_comments", side_effect=list_comments_error,
-            )
-        else:
-            list_patch = patch(
-                "check_pr_round_cap._list_comments",
-                return_value=list_comments_result or [],
-            )
-        patches.append(list_patch)
-        return patches
-
+class TestMain(MainHarness):
     def test_first_round_acts_and_exits_zero(self, capsys):
         patches = self._patch_common(list_comments_result=[])
         with patches[0], patches[1], patches[2], \
@@ -332,8 +285,8 @@ class TestMain:
         assert rc == 1
         out = json.loads(capsys.readouterr().out)
         assert out["Data"]["escalation_posted"] is False
-        # Only the state marker is posted; the escalation note is skipped.
-        assert post_mock.call_count == 1
+        # Issue #5477: a repeat blocked call is silent, no state marker either.
+        assert post_mock.call_count == 0
 
     def test_comment_fetch_failure_emits_json_error_envelope_and_exits_three(self, capsys):
         patches = self._patch_common(
