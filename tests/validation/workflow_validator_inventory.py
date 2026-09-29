@@ -180,15 +180,16 @@ def _spawn_recorder(spawned: list[Any]) -> Iterator[None]:
             spawned.append(argv)
             super().__init__(argv, *args, **kwargs)
 
-    saved = {
-        name: getattr(subprocess, name)
-        for name in ("run", "call", "check_call", "check_output", "Popen")
+    replacements: dict[str, Any] = {
+        "run": run,
+        "call": call,
+        "check_call": call,
+        "check_output": check_output,
+        "Popen": Popen,
     }
-    subprocess.run = run  # type: ignore[assignment]
-    subprocess.call = call  # type: ignore[assignment]
-    subprocess.check_call = call  # type: ignore[assignment]
-    subprocess.check_output = check_output  # type: ignore[assignment]
-    subprocess.Popen = Popen  # type: ignore[assignment,misc]
+    saved = {name: getattr(subprocess, name) for name in replacements}
+    for name, replacement in replacements.items():
+        setattr(subprocess, name, replacement)
     try:
         yield
     finally:
