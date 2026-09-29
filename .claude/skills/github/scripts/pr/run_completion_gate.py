@@ -218,6 +218,21 @@ names put ``<repo>/.claude/lib`` on ``sys.path`` and import
 the boundary left the CVSS 8.8 path open with every named script
 byte-identical to the trusted ref (PR #5146 security review, F-1).
 
+Dynamic loads are inside the boundary too (ADR-101 Application B, issue
+#5245). A load through ``importlib.import_module``, ``__import__``,
+``importlib.util.spec_from_file_location``, ``SourceFileLoader`` or ``runpy``
+whose target is a string literal, or a path built only from ``__file__`` and
+string literals, is resolved: the target joins the closure and is
+byte-verified like any imported module. A load that cannot be resolved that
+way, and an ``exec`` or ``eval`` of anything but a string constant, fails
+closed: the gate halts as untrusted (exit 2), naming ``file:line``, and a
+human who inspected the listing can approve it. ``new_pr.py`` loading
+``pr_validations.py`` through a computed path is the case this was decided
+against. It falls on the fail-closed side and is not reachable from any
+verifier the shipped config names (14 named scripts, 29 files, zero dynamic
+loads, measured 2026-09-29). The reasoning sits in the comment above
+``_MODULE_LOADS``.
+
 The closure was chosen over verifying the containing directory
 because a directory rule halts on any sibling change, including files
 no criterion loads, and that is what trains an operator to pass
@@ -232,10 +247,11 @@ the config, every tracked work-tree file its commands name, and that
 closure's statically-resolvable work-tree imports are the trusted ref's
 copies. What remains outside, and is covered by neither field:
 
-  * **Dynamically resolved imports.** ``importlib`` by computed name,
-    an ``exec`` of file contents, a ``sys.path`` entry built at runtime
-    from a value this module does not model, or a C extension loaded by
-    path. The closure is static, so it cannot see these.
+  * **A ``sys.path`` entry built at runtime** from a value this module does
+    not model, or a C extension loaded by path. Every shipped verifier edits
+    ``sys.path`` for ``.claude/lib``, which the closure models, so flagging
+    the call would halt them all. Dynamic loads are no longer in this list:
+    they resolve or halt (see above).
   * **Untracked work-tree files.** Recorded, not compared. PR content
     arrives through a checkout and is therefore tracked, so this is a
     scoping decision rather than a gap in coverage of PR content. A
@@ -1692,6 +1708,260 @@ def _resolve_module_file(dotted: str, roots: list[Path], toplevel: Path) -> str 
     return None
 
 
+# Dynamic-load constructs the static import pass cannot see (ADR-101
+# Application B, issue #5245). The decision, taken against the one concrete
+# case the ADR names, ``new_pr.py`` loading ``pr_validations.py`` through
+# ``importlib.util.spec_from_file_location`` to keep ``python3 -I`` isolation:
+#
+#   * A load whose target is a literal, or a path built only from ``__file__``
+#     and string literals, is RESOLVED. The target joins the closure, so it is
+#     byte-verified and its own imports are followed. The isolation idiom
+#     survives: ``spec_from_file_location("x", Path(__file__).resolve().parent
+#     / "x.py")`` costs the file nothing and gains verification.
+#   * Any other load is UNRESOLVABLE and fails closed. The gate halts with the
+#     same untrusted outcome as a diverged file (exit 2, approvable by a human
+#     who inspected the listing), naming file and line.
+#
+# ``new_pr.py`` itself falls on the unresolvable side: its ``_load_sibling``
+# builds the path from a parameter (``with_name(f"{name}.py")``), which needs
+# call-site constant propagation to resolve, and that would be a second,
+# unverified trust computation. It is not reachable from any verifier the
+# shipped ``pr-review-config.yaml`` names (measured 2026-09-29: 14 named
+# scripts, 29 files in the closure, zero dynamic-load sites), so nothing halts
+# today. If a dispatched verifier ever reaches such a load, the gate halts
+# and the owner chooses between a literal path and an explicit approval.
+#
+# Left as a named residual, not decided here: ``sys.path`` entries built at
+# runtime. Every shipped verifier edits ``sys.path`` for ``.claude/lib``,
+# which ``_import_roots`` models, so flagging the call would halt them all.
+_MODULE_LOADS = frozenset({"__import__", "import_module", "run_module"})
+_FILE_LOADS: dict[str, tuple[int, str]] = {
+    "spec_from_file_location": (1, "location"),
+    "SourceFileLoader": (1, "path"),
+    "run_path": (0, "path_name"),
+}
+_PATH_CONSTRUCTORS = frozenset({"Path", "PurePath", "abspath", "realpath", "normpath"})
+
+
+class _DynamicLoad(NamedTuple):
+    """One dynamic-load site: where it is and what it resolves to, if anything."""
+
+    line: int
+    kind: str
+    module: str | None  # dotted name when the load names a module literally
+    path: Path | None  # absolute file when the load names a file derivably
+
+
+def _call_name(node: ast.Call) -> str:
+    func = node.func
+    if isinstance(func, ast.Attribute):
+        return func.attr
+    if isinstance(func, ast.Name):
+        return func.id
+    return ""
+
+
+def _string_constant(node: ast.AST | None) -> str | None:
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return node.value
+    return None
+
+
+def _call_argument(node: ast.Call, position: int, keyword: str) -> ast.AST | None:
+    if len(node.args) > position:
+        return node.args[position]
+    for kw in node.keywords:
+        if kw.arg == keyword:
+            return kw.value
+    return None
+
+
+def _single_assignments(tree: ast.AST) -> dict[str, ast.AST]:
+    """Names assigned exactly once in the module, mapped to that value.
+
+    A name assigned more than once, or rebound by an augmented assignment,
+    is ambiguous. It is left out, so a load that reads it stays unresolvable.
+    """
+    seen: dict[str, list[ast.AST]] = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign):
+            for target in node.targets:
+                if isinstance(target, ast.Name):
+                    seen.setdefault(target.id, []).append(node.value)
+        elif isinstance(node, ast.AugAssign) and isinstance(node.target, ast.Name):
+            seen.setdefault(node.target.id, []).extend([node.value, node.value])
+    return {name: values[0] for name, values in seen.items() if len(values) == 1}
+
+
+def _derive_file_path(
+    node: ast.AST, script: Path, names: dict[str, ast.AST], depth: int = 0,
+) -> Path | None:
+    """Evaluate ``node`` when it is built only from ``__file__`` and literals.
+
+    Returns None for anything else: a parameter, an f-string, an attribute
+    read, a call this function does not model. A partial answer is never
+    returned, so one unmodelled step makes the whole load unresolvable.
+    """
+    if depth > 12:
+        return None
+    if isinstance(node, ast.Name):
+        if node.id == "__file__":
+            return script
+        value = names.get(node.id)
+        return None if value is None else _derive_file_path(value, script, names, depth + 1)
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Div):
+        left = _derive_file_path(node.left, script, names, depth + 1)
+        right = _string_constant(node.right)
+        return None if left is None or right is None else left / right
+    if isinstance(node, ast.Attribute) and node.attr == "parent":
+        base = _derive_file_path(node.value, script, names, depth + 1)
+        return None if base is None else base.parent
+    if isinstance(node, ast.Subscript):
+        return _derive_from_parents(node, script, names, depth)
+    if isinstance(node, ast.Call):
+        return _derive_from_call(node, script, names, depth)
+    return None
+
+
+def _derive_from_parents(
+    node: ast.Subscript, script: Path, names: dict[str, ast.AST], depth: int,
+) -> Path | None:
+    """``X.parents[N]`` with a literal non-negative ``N``."""
+    target = node.value
+    index = node.slice
+    if not (isinstance(target, ast.Attribute) and target.attr == "parents"):
+        return None
+    if not (isinstance(index, ast.Constant) and isinstance(index.value, int)):
+        return None
+    base = _derive_file_path(target.value, script, names, depth + 1)
+    if base is None or index.value < 0:
+        return None
+    try:
+        return base.parents[index.value]
+    except IndexError:
+        return None
+
+
+def _derive_from_call(
+    node: ast.Call, script: Path, names: dict[str, ast.AST], depth: int,
+) -> Path | None:
+    func = node.func
+    name = _call_name(node)
+    if name in _PATH_CONSTRUCTORS or name == "dirname":
+        if len(node.args) != 1:
+            return None
+        base = _derive_file_path(node.args[0], script, names, depth + 1)
+        if base is None:
+            return None
+        return base.parent if name == "dirname" else base
+    if isinstance(func, ast.Attribute) and name in {"resolve", "absolute"} and not node.args:
+        return _derive_file_path(func.value, script, names, depth + 1)
+    if isinstance(func, ast.Attribute) and name in {"with_name", "with_suffix", "joinpath"}:
+        base = _derive_file_path(func.value, script, names, depth + 1)
+        return None if base is None else _apply_path_method(base, name, node.args)
+    if name == "join" and node.args:
+        base = _derive_file_path(node.args[0], script, names, depth + 1)
+        return None if base is None else _apply_path_method(base, "joinpath", node.args[1:])
+    return None
+
+
+def _apply_path_method(base: Path, name: str, args: list[ast.expr]) -> Path | None:
+    parts = [_string_constant(arg) for arg in args]
+    if not parts or any(part is None for part in parts):
+        return None
+    literals = [part for part in parts if part is not None]
+    try:
+        if name == "with_name" and len(literals) == 1:
+            return base.with_name(literals[0])
+        if name == "with_suffix" and len(literals) == 1:
+            return base.with_suffix(literals[0])
+    except ValueError:
+        return None
+    return base.joinpath(*literals) if name == "joinpath" else None
+
+
+def _load_from_call(
+    node: ast.Call, script: Path, names: dict[str, ast.AST],
+) -> _DynamicLoad | None:
+    """Classify one call as a dynamic load, or None when it is not one."""
+    name = _call_name(node)
+    if name in _MODULE_LOADS:
+        module = _string_constant(_call_argument(node, 0, "name"))
+        if module is not None and not module.startswith("."):
+            return _DynamicLoad(node.lineno, name, module, None)
+        return _DynamicLoad(node.lineno, name, None, None)
+    if name in _FILE_LOADS:
+        position, keyword = _FILE_LOADS[name]
+        target = _call_argument(node, position, keyword)
+        path = None if target is None else _derive_file_path(target, script, names)
+        return _DynamicLoad(node.lineno, name, None, path)
+    if name in {"exec", "eval"} and isinstance(node.func, ast.Name):
+        if node.args and _string_constant(node.args[0]) is not None:
+            return None
+        return _DynamicLoad(node.lineno, name, None, None)
+    return None
+
+
+def _dynamic_loads(source: bytes, script: Path) -> list[_DynamicLoad]:
+    """Every dynamic-load site in ``source``, in line order; [] if unparseable."""
+    try:
+        tree = ast.parse(source)
+    except (SyntaxError, ValueError):
+        return []
+    names = _single_assignments(tree)
+    found: list[_DynamicLoad] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call):
+            load = _load_from_call(node, script, names)
+            if load is not None:
+                found.append(load)
+    return sorted(found, key=lambda load: load.line)
+
+
+def _resolve_dynamic_target(
+    load: _DynamicLoad, roots: list[Path], toplevel: Path,
+) -> str | None:
+    """Work-tree-relative file a resolvable load names, or None."""
+    if load.module is not None:
+        return _resolve_module_file(load.module, roots, toplevel)
+    if load.path is None:
+        return None
+    candidate = Path(os.path.normpath(load.path))
+    if not candidate.is_file() or not _is_within(candidate, toplevel):
+        return None
+    if _first_symlinked_component(candidate, toplevel) is not None:
+        return None
+    return candidate.relative_to(toplevel).as_posix()
+
+
+def _unresolvable_dynamic_sites(rel_paths: list[str], toplevel: Path) -> list[str]:
+    """``path:line: message`` for every dynamic load in ``rel_paths`` that fails closed.
+
+    A file load is unresolvable when its path is computed, names a file that
+    is absent or outside the work tree, or reaches a symlink. A module load by
+    a computed or relative name is unresolvable. A module named literally that
+    resolves nowhere in the tree is standard library or an installed package,
+    which is not PR content, so it is not reported.
+    """
+    sites: list[str] = []
+    for rel in rel_paths:
+        if not rel.endswith(".py"):
+            continue
+        script = toplevel / rel
+        try:
+            source = script.read_bytes()
+        except OSError:
+            continue
+        roots = _import_roots(script, toplevel)
+        for load in _dynamic_loads(source, script):
+            if load.module is not None:
+                continue
+            if load.path is not None and _resolve_dynamic_target(load, roots, toplevel):
+                continue
+            sites.append(f"{rel}:{load.line}: unresolvable dynamic load ({load.kind})")
+    return sites
+
+
 def _expand_import_closure(rel_paths: list[str], toplevel: Path) -> list[str]:
     """``rel_paths`` plus every work-tree module they transitively import.
 
@@ -1709,9 +1979,11 @@ def _expand_import_closure(rel_paths: list[str], toplevel: Path) -> list[str]:
     closure covers what actually executes and nothing else, so a PR that
     edits an unrelated script in the same directory still runs clean.
 
-    Best-effort by construction. Dynamic imports, ``importlib`` by
-    computed name, and ``sys.path`` entries this function does not model
-    are not covered; see the module docstring's scope section.
+    Literal dynamic loads join the closure (see ``_dynamic_loads``). Loads
+    this function cannot resolve are reported by
+    :func:`_unresolvable_dynamic_sites`, not silently dropped here.
+    ``sys.path`` entries this function does not model are not covered; see
+    the module docstring's scope section.
     """
     seen = list(rel_paths)
     queue = [path for path in rel_paths if path.endswith(".py")]
@@ -1730,6 +2002,12 @@ def _expand_import_closure(rel_paths: list[str], toplevel: Path) -> list[str]:
                 else _relative_import_root(script, level, toplevel)
             )
             found = _resolve_module_file(dotted, roots, toplevel)
+            if found is None or found in seen:
+                continue
+            seen.append(found)
+            queue.append(found)
+        for load in _dynamic_loads(source, script):
+            found = _resolve_dynamic_target(load, absolute_roots, toplevel)
             if found is None or found in seen:
                 continue
             seen.append(found)
@@ -1922,6 +2200,7 @@ def _verify_command_trust(
         ]
 
         untrusted = list(escaping) + nested
+        untrusted.extend(_unresolvable_dynamic_sites(checked, toplevel))
         errors: list[str] = []
         for rel_path in checked:
             is_trusted, error = _verify_worktree_file_trust(
