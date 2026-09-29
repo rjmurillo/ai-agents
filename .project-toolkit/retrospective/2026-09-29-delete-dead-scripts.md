@@ -17,4 +17,3 @@
 
 ## Learning
 - Deleting a module means checking its plugin mirrors and test guards too.
-- The generator prefilled this file with text from an unrelated session. Rewrite it before commit.
