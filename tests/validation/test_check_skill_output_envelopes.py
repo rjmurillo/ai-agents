@@ -55,14 +55,14 @@ def test_every_validator_error_type_is_exercised_with_and_without_extra() -> Non
 
 
 def test_a_producer_that_drops_error_type_is_reported() -> None:
-    def broken(message: str, exit_code: int, **kwargs: object) -> str:
+    def broken(message: str, exit_code: int, **kwargs: object) -> None:
         envelope = {
             "Success": False,
             "Data": None,
             "Error": {"Message": message, "Code": exit_code},
             "Metadata": {"Script": "x", "Version": "1", "Timestamp": "2026-01-01T00:00:00Z"},
         }
-        return json.dumps(envelope)
+        print(json.dumps(envelope))
 
     problems = gate.find_problems(
         REPO_ROOT, _producer_with(write_skill_error=broken), real_validator
@@ -71,8 +71,8 @@ def test_a_producer_that_drops_error_type_is_reported() -> None:
 
 
 def test_a_producer_that_drops_the_data_key_is_reported() -> None:
-    def broken(data: object, **kwargs: object) -> str:
-        return json.dumps({"Success": True, "Error": None, "Metadata": {}})
+    def broken(data: object, **kwargs: object) -> None:
+        print(json.dumps({"Success": True, "Error": None, "Metadata": {}}))
 
     problems = gate.find_problems(
         REPO_ROOT, _producer_with(write_skill_output=broken), real_validator
@@ -97,7 +97,51 @@ def test_a_validator_that_accepts_everything_is_caught_by_the_negative_control(
         "import sys\nsys.exit(0)\n", encoding="utf-8"
     )
     problems = gate.find_problems(tmp_path, real_producer, real_validator)
-    assert "validator CLI accepted an error envelope with no Error.Type" in problems
+    assert "validator CLI did not reject an error envelope with no Error.Type" in problems
+
+
+def test_a_validator_that_crashes_does_not_pass_the_negative_control(tmp_path: Path) -> None:
+    """A non-zero exit that is not the validation-failure exit is not a rejection."""
+    (tmp_path / "scripts").mkdir()
+    (tmp_path / "scripts" / "validate_skill_output.py").write_text(
+        "import sys\nsys.exit(2)\n", encoding="utf-8"
+    )
+    problems = gate.find_problems(tmp_path, real_producer, real_validator)
+    assert "validator CLI did not reject an error envelope with no Error.Type" in problems
+
+
+def test_a_validator_that_rejects_for_another_reason_does_not_pass(tmp_path: Path) -> None:
+    (tmp_path / "scripts").mkdir()
+    (tmp_path / "scripts" / "validate_skill_output.py").write_text(
+        "import sys\nprint('[FAIL] Invalid JSON')\nsys.exit(1)\n", encoding="utf-8"
+    )
+    problems = gate.find_problems(tmp_path, real_producer, real_validator)
+    assert "validator CLI did not reject an error envelope with no Error.Type" in problems
+
+
+def test_a_producer_that_prints_nothing_is_reported() -> None:
+    """Consumers read stdout, so a producer that only returns JSON is broken."""
+
+    def silent(*_args: object, **_kwargs: object) -> str:
+        return "{}"
+
+    problems = gate.find_problems(
+        REPO_ROOT,
+        _producer_with(write_skill_output=silent, write_skill_error=silent),
+        real_validator,
+    )
+    assert any("producer stdout is not one JSON envelope" in problem for problem in problems)
+
+
+def test_load_ignores_modules_cached_from_another_checkout(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    foreign = ModuleType("scripts.github_core.output")
+    foreign.__file__ = str(tmp_path / "elsewhere" / "output.py")
+    monkeypatch.setitem(sys.modules, "scripts.github_core.output", foreign)
+    producer, _validator = gate._load(REPO_ROOT)
+    assert producer is not foreign
+    assert Path(str(producer.__file__)).resolve().is_relative_to(REPO_ROOT)
 
 
 def test_the_wrapper_skips_when_the_validator_is_absent(tmp_path: Path) -> None:
