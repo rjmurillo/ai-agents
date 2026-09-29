@@ -269,7 +269,7 @@ def test_budget_file_missing_root_is_config_error(tmp_path, monkeypatch, capsys)
     )
 
     assert budget.main(["--budget-file", str(path)]) == budget.EXIT_CONFIG
-    assert "has no skills" in capsys.readouterr().err
+    assert "is not a directory" in capsys.readouterr().err
 
 
 def test_budget_file_unreadable_is_config_error(tmp_path, capsys):
@@ -334,3 +334,29 @@ def test_workflow_blocks_and_covers_both_roots():
         "'scripts/skill_description_budget.json'",
     ):
         assert glob in text
+
+
+def test_budget_file_root_without_described_skills_is_config_error(tmp_path, monkeypatch, capsys):
+    path = _budget_repo(tmp_path, monkeypatch, {_ROOT_CLAUDE: 10})
+    _write_skill(tmp_path / _ROOT_COPILOT, "bare", None)
+    path.write_text(
+        json.dumps({"roots": {_ROOT_COPILOT: {"max_total_chars": 10}}}), encoding="utf-8"
+    )
+
+    assert budget.main(["--budget-file", str(path)]) == budget.EXIT_CONFIG
+    assert "has no skills with a description" in capsys.readouterr().err
+
+
+def test_budget_file_json_output_lists_every_root(tmp_path, monkeypatch, capsys):
+    path = _budget_repo(tmp_path, monkeypatch, {_ROOT_CLAUDE: 10, _ROOT_COPILOT: 5})
+
+    code = budget.main(["--budget-file", str(path), "--output-format", "json"])
+
+    assert code == budget.EXIT_OVER_BUDGET
+    payload = json.loads(capsys.readouterr().out)
+    by_root = {entry["root"]: entry for entry in payload}
+    assert by_root[_ROOT_CLAUDE]["within_budget"] is True
+    assert by_root[_ROOT_COPILOT]["within_budget"] is False
+    assert by_root[_ROOT_COPILOT]["budget_chars"] == 5
+    assert by_root[_ROOT_COPILOT]["total_chars"] == 10
+    assert by_root[_ROOT_COPILOT]["budget_tokens_est"] == 2

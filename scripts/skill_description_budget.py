@@ -259,37 +259,71 @@ def load_root_budgets(path: Path) -> dict[str, int]:
     return budgets
 
 
-def _check_root(root: Path, label: str, budget: int, *, top: int) -> tuple[str, bool]:
-    """Measure one root against its budget. Returns (report text, within budget)."""
-    report = measure_corpus(root)
-    status = "OK" if report.total_chars <= budget else "OVER BUDGET"
+@dataclass(frozen=True)
+class RootResult:
+    """One skill root measured against its budget."""
+
+    label: str
+    budget: int
+    report: BudgetReport
+
+    @property
+    def within(self) -> bool:
+        return self.report.total_chars <= self.budget
+
+
+def _root_to_human(result: RootResult, *, top: int) -> str:
+    report = result.report
+    status = "OK" if result.within else "OVER BUDGET"
     lines = [
-        f"[{status}] {label}: {report.count} skill(s), {report.total_chars} chars "
-        f"(~{report.total_tokens} est. tokens), budget {budget} chars "
-        f"(~{estimate_tokens(budget)} est. tokens)",
+        f"[{status}] {result.label}: {report.count} skill(s), {report.total_chars} chars "
+        f"(~{report.total_tokens} est. tokens), budget {result.budget} chars "
+        f"(~{estimate_tokens(result.budget)} est. tokens)",
     ]
-    if report.total_chars > budget:
-        lines.append(f"  over by {report.total_chars - budget} chars; largest contributors:")
+    if not result.within:
+        lines.append(f"  over by {report.total_chars - result.budget} chars; largest contributors:")
         lines.extend(f"    {s.chars:>5} chars  {s.name}" for s in report.top(top))
-    return "\n".join(lines), report.total_chars <= budget
+    return "\n".join(lines)
 
 
-def run_budget_file(path: Path, *, top: int) -> int:
+def _root_to_json(result: RootResult, *, top: int) -> dict[str, object]:
+    payload = to_json(result.report, top=top)
+    payload.update(
+        root=result.label,
+        budget_chars=result.budget,
+        budget_tokens_est=estimate_tokens(result.budget),
+        within_budget=result.within,
+    )
+    return payload
+
+
+def _measure_roots(budgets: dict[str, int]) -> list[RootResult]:
+    """Measure every root, or raise BudgetFileError when a root has no described skills."""
+    results: list[RootResult] = []
+    for label, budget in budgets.items():
+        root = _REPO_ROOT / label
+        if not root.is_dir():
+            raise BudgetFileError(f"budget root {label} is not a directory at {root}")
+        report = measure_corpus(root)
+        if report.count == 0:
+            raise BudgetFileError(f"budget root {label} has no skills with a description")
+        results.append(RootResult(label=label, budget=budget, report=report))
+    return results
+
+
+def run_budget_file(path: Path, *, top: int, output_format: str = "human") -> int:
     """Gate every root in a budget file. Relative roots resolve against the repo root."""
     try:
-        budgets = load_root_budgets(path)
+        results = _measure_roots(load_root_budgets(path))
     except BudgetFileError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return EXIT_CONFIG
-    failed = False
-    for label, budget in budgets.items():
-        root = _REPO_ROOT / label
-        if not root.is_dir() or not any(root.glob("*/SKILL.md")):
-            print(f"error: budget root {label} has no skills at {root}", file=sys.stderr)
-            return EXIT_CONFIG
-        text, within = _check_root(root, label, budget, top=top)
-        print(text, file=sys.stderr if not within else sys.stdout)
-        failed = failed or not within
+    failed = any(not r.within for r in results)
+    if output_format == "json":
+        print(json.dumps([_root_to_json(r, top=top) for r in results], indent=2, sort_keys=True))
+    else:
+        for r in results:
+            print(_root_to_human(r, top=top), file=sys.stdout if r.within else sys.stderr)
     return EXIT_OVER_BUDGET if failed else EXIT_OK
 
 
@@ -299,7 +333,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: --top must be non-negative, got {args.top}", file=sys.stderr)
         return EXIT_CONFIG
     if args.budget_file is not None:
-        return run_budget_file(args.budget_file, top=args.top)
+        return run_budget_file(args.budget_file, top=args.top, output_format=args.output_format)
     if not args.root.is_dir():
         print(f"error: --root {args.root} is not a directory", file=sys.stderr)
         return EXIT_CONFIG
