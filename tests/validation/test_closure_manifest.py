@@ -405,3 +405,28 @@ class TestOtherShapes:
         code = cm.main(["--root", str(tmp_path), "--gate-root", str(tmp_path / "nowhere")])
 
         assert code == cm.EXIT_OK
+
+
+class TestRecordedValueIsBounded:
+    def test_an_alias_bomb_is_truncated_not_expanded(self) -> None:
+        import yaml
+
+        bomb = "a: &a [x, x, x, x, x, x, x, x, x]\n"
+        prev = "a"
+        for i in range(9):
+            name = f"l{i}"
+            refs = ", ".join([f"*{prev}"] * 9)
+            bomb += f"{name}: &{name} [{refs}]\n"
+            prev = name
+        manifest = cm.Manifest()
+
+        cm._record(manifest, "k", yaml.safe_load(bomb))
+
+        assert "<truncated>" in manifest.recorded["k"] or len(manifest.recorded["k"]) <= 4000
+
+    def test_a_small_value_is_recorded_exactly(self) -> None:
+        manifest = cm.Manifest()
+
+        cm._record(manifest, "k", {"b": [1, 2], "a": "x"})
+
+        assert manifest.recorded["k"] == '{"a": "x", "b": [1, 2]}'

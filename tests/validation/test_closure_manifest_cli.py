@@ -115,10 +115,13 @@ class TestMain:
         assert code == cm.EXIT_CONFIG
         assert "ERROR" in capsys.readouterr().err
 
-    def test_a_directory_that_is_not_a_repository_is_a_config_error(self, tmp_path: Path) -> None:
+    def test_a_tree_with_no_git_directory_is_walked_and_fails_closed(self, tmp_path: Path) -> None:
         (tmp_path / ".github" / "workflows").mkdir(parents=True)
 
-        assert cm.main(["--root", str(tmp_path)]) == cm.EXIT_CONFIG
+        assert cm.main(["--root", str(tmp_path)]) == cm.EXIT_FAILED
+
+    def test_a_root_with_no_workflow_directory_is_a_config_error(self, tmp_path: Path) -> None:
+        assert cm.main(["--root", str(tmp_path / "missing")]) == cm.EXIT_CONFIG
 
     def test_non_ascii_text_in_a_finding_is_escaped_not_raised(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]

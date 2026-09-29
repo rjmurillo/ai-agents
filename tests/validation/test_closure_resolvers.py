@@ -48,6 +48,38 @@ def tree(tmp_path: Path) -> RepoTree:
 
 
 class TestRepoTree:
+    def test_a_tree_without_git_is_walked_and_skips_symlinks(self, tmp_path: Path) -> None:
+        (tmp_path / "d").mkdir()
+        (tmp_path / "d" / "a.py").write_text("1\n", encoding="utf-8")
+        (tmp_path / "link.py").symlink_to(tmp_path / "d" / "a.py")
+
+        loaded = RepoTree.from_root(tmp_path)
+
+        assert loaded.has("d/a.py")
+        assert not loaded.has("link.py")
+
+    def test_a_checkout_uses_git_not_the_walk(self, tmp_path: Path) -> None:
+        make_repo(tmp_path, {"a.py": "1\n"}, with_gate=False)
+        (tmp_path / "untracked.py").write_text("2\n", encoding="utf-8")
+
+        loaded = RepoTree.from_root(tmp_path)
+
+        assert loaded.has("a.py")
+        assert not loaded.has("untracked.py")
+
+    def test_a_hook_configured_in_the_measured_repo_does_not_run(self, tmp_path: Path) -> None:
+        make_repo(tmp_path, {"a.py": "1\n"}, with_gate=False)
+        marker = tmp_path / "ran"
+        hooks = tmp_path / "hooks"
+        hooks.mkdir()
+        (hooks / "fsmonitor").write_text(f"#!/bin/sh\ntouch {marker}\n", encoding="utf-8")
+        (hooks / "fsmonitor").chmod(0o755)
+        git(tmp_path, "config", "core.fsmonitor", str(hooks / "fsmonitor"))
+
+        RepoTree.from_git(tmp_path)
+
+        assert not marker.exists()
+
     def test_tracked_files_only(self, tmp_path: Path) -> None:
         make_repo(tmp_path, {"a.py": "1\n"}, with_gate=False)
         (tmp_path / "untracked.py").write_text("2\n", encoding="utf-8")
@@ -76,6 +108,11 @@ class TestRepoTree:
 
 
 class TestTokens:
+    def test_text_past_the_bound_is_not_scanned(self) -> None:
+        text = "scripts/a.py " + "x" * 300_000 + " scripts/late.py"
+
+        assert tokens_in(text) == ["scripts/a.py"]
+
     @pytest.mark.parametrize(
         ("text", "expected"),
         [

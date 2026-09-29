@@ -1668,7 +1668,9 @@ def _imported_module_names(source: bytes) -> list[tuple[int, str]]:
     """
     try:
         tree = ast.parse(source)
-    except (SyntaxError, ValueError):
+    except (SyntaxError, ValueError, RecursionError, MemoryError):
+        # A file the parser gave up on still reaches the dynamic-load scan, which
+        # reports it as one unresolvable site, so the gate halts instead of crashing.
         return []
     found: list[tuple[int, str]] = []
     for node in ast.walk(tree):

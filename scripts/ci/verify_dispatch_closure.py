@@ -37,7 +37,8 @@ human approves it.
 
 EXIT CODES (ADR-035):
   0 - the head's dispatch closure is byte-identical to the base ref
-  1 - files differ, are removed or new, or a dynamic load cannot be resolved
+  1 - files differ, are removed or new, a symlink was added, or a dynamic load
+      cannot be resolved
   2 - configuration: a tree, the base config or the dispatcher cannot be read
 """
 
@@ -81,17 +82,19 @@ class Report:
     changed: list[str] = field(default_factory=list)
     removed: list[str] = field(default_factory=list)
     added: list[str] = field(default_factory=list)
+    symlinks: list[str] = field(default_factory=list)
     unresolved: list[str] = field(default_factory=list)
 
     @property
     def clean(self) -> bool:
-        return not (self.changed or self.removed or self.added or self.unresolved)
+        return not (self.changed or self.removed or self.added or self.symlinks or self.unresolved)
 
     def to_json(self) -> dict[str, Any]:
         return {
             "examined": self.examined,
             "changed": sorted(self.changed),
             "removed": sorted(self.removed),
+            "symlinks": sorted(self.symlinks),
             "added": sorted(self.added),
             "unresolved": sorted(self.unresolved),
         }
@@ -156,12 +159,66 @@ def _named_files(gate: ModuleType, config: dict[str, Any], tree: Path) -> list[s
     return [*named, *escaping]
 
 
-def verify(tool_root: Path, head_root: Path, base_ref: str) -> Report:
+def _blob_id(tool_root: Path, ref: str, path: str) -> str | None:
+    """The object id of ``path`` at ``ref`` in the base checkout, or None if absent."""
+    result = subprocess.run(
+        ["git", *_INERT_GIT, "rev-parse", "--verify", "--quiet", f"{ref}:{path}"],
+        cwd=tool_root,
+        capture_output=True,
+        text=True,
+        errors="replace",
+        check=False,
+    )
+    return result.stdout.strip() if result.returncode == 0 else None
+
+
+def _symlinks_in_tree(root: Path) -> set[str]:
+    found: set[str] = set()
+    for directory, names, files in os.walk(root, followlinks=False):
+        for name in [*names, *files]:
+            full = Path(directory) / name
+            if full.is_symlink():
+                found.add(full.relative_to(root).as_posix())
+    return found
+
+
+def _base_symlinks(tool_root: Path, base_ref: str) -> set[str]:
+    listing = subprocess.run(
+        ["git", *_INERT_GIT, "ls-tree", "-r", "-z", base_ref],
+        cwd=tool_root,
+        capture_output=True,
+        check=False,
+    )
+    entries = listing.stdout.decode("utf-8", errors="replace").split("\0")
+    return {e.split("\t", 1)[1] for e in entries if e.startswith("120000 ") and "\t" in e}
+
+
+def _differs(
+    tool_root: Path, base_ref: str, head_root: Path, head_sha: str | None, path: str
+) -> bool | None:
+    """True when the head's ``path`` differs from the base, None when the base has none.
+
+    With a head SHA the comparison is by blob id, so a `.gitattributes` in the
+    head that selects a built-in conversion cannot make the bytes written to the
+    scratch tree equal the base's while the committed blob differs.
+    """
+    base_id = _blob_id(tool_root, base_ref, path)
+    if base_id is None:
+        return None
+    if head_sha is not None:
+        return _blob_id(tool_root, head_sha, path) != base_id
+    base_bytes = _base_blob(tool_root, base_ref, path)
+    return base_bytes != (head_root / path).read_bytes()
+
+
+def verify(tool_root: Path, head_root: Path, base_ref: str, head_sha: str | None = None) -> Report:
     """Compare the head's dispatch closure with ``base_ref`` without running head code.
 
     The roots are the files the BASE config names, in the base tree, plus the
     dispatcher and the config. A root the head deletes is reported as removed: a
-    pull request that deletes the gate must not read as a clean closure.
+    pull request that deletes the gate must not read as a clean closure. A symlink
+    the head adds anywhere is reported: the local gate fails closed on any
+    symlink, and a symlink with the target's bytes compares equal to the target.
     """
     gate = _load_gate(tool_root)
     config = _base_config(tool_root)
@@ -177,19 +234,24 @@ def verify(tool_root: Path, head_root: Path, base_ref: str) -> Report:
         if not (head_root / path).is_file() and _base_blob(tool_root, base_ref, path) is not None
     )
     for path in closure:
-        base_bytes = _base_blob(tool_root, base_ref, path)
-        if base_bytes is None:
+        differs = _differs(tool_root, base_ref, head_root, head_sha, path)
+        if differs is None:
             report.added.append(path)
-        elif base_bytes != (head_root / path).read_bytes():
+        elif differs:
             report.changed.append(path)
+    report.symlinks.extend(
+        sorted(_symlinks_in_tree(head_root) - _base_symlinks(tool_root, base_ref))
+    )
     report.unresolved.extend(gate._unresolvable_dynamic_sites(closure, head_root))
     return report
 
 
-# Git configuration that makes reading untrusted objects inert. No hook can run,
-# no filesystem monitor is started, and no attributes file changes what gets
-# written. The tree's own `.gitattributes` cannot name a filter driver, because a
-# driver is defined in configuration and none is configured.
+# Git configuration that makes reading untrusted objects inert. No hook can run
+# and no filesystem monitor is started. A `.gitattributes` in the head tree cannot
+# name a filter driver, because a driver is defined in configuration and none is
+# configured. It can still select the built-in conversions (`text`, `eol`,
+# `ident`), which change the bytes written to the scratch tree, so a head SHA is
+# compared by blob id and never by those written bytes.
 _INERT_GIT = ("-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false")
 _HEAD_MARKER = "refs/pull/{number}/head"
 
@@ -228,6 +290,7 @@ def materialize_head(
         tool_root,
         "fetch",
         "--no-tags",
+        "--no-recurse-submodules",
         "--depth=1",
         remote,
         _HEAD_MARKER.format(number=pull_number),
@@ -272,6 +335,17 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _plain(line: str) -> str:
+    """ASCII with every control character escaped.
+
+    A head file name reaches this output through a literal dynamic load. A line
+    feed followed by `::error::` or `::stop-commands::` would start a workflow
+    command at the beginning of a log line, so a name is never printed raw.
+    """
+    ascii_line = line.encode("ascii", "backslashreplace").decode("ascii")
+    return re.sub(r"[\x00-\x1f\x7f]", lambda m: f"\\x{ord(m.group()):02x}", ascii_line)
+
+
 def _print(report: Report, as_json: bool) -> None:
     if as_json:
         print(json.dumps(report.to_json(), indent=2))
@@ -279,24 +353,23 @@ def _print(report: Report, as_json: bool) -> None:
     print(
         f"dispatch-closure: {report.examined} files examined; {len(report.changed)} differ, "
         f"{len(report.removed)} removed, {len(report.added)} not in the base ref, "
-        f"{len(report.unresolved)} unresolved loads"
+        f"{len(report.symlinks)} new symlinks, {len(report.unresolved)} unresolved loads"
     )
     for label, items in (
         ("DIFFERS", report.changed),
         ("REMOVED", report.removed),
+        ("SYMLINK", report.symlinks),
         ("NEW", report.added),
         ("UNRESOLVED", report.unresolved),
     ):
         for item in sorted(items):
-            print(
-                f"dispatch-closure: {label} {item}".encode("ascii", "backslashreplace").decode(
-                    "ascii"
-                )
-            )
+            print(_plain(f"dispatch-closure: {label} {item}"))
 
 
 def _head_root(args: argparse.Namespace, scratch: Path) -> Path:
     if args.head_root is not None:
+        if args.head_sha is not None:
+            raise DispatchClosureError("give --head-root or --head-sha, not both")
         return Path(args.head_root).resolve()
     if args.head_sha is None or args.pull_number is None:
         raise DispatchClosureError("give --head-root, or --head-sha with --pull-number")
@@ -312,9 +385,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         with tempfile.TemporaryDirectory(prefix="dispatch-closure-") as scratch:
             head_root = _head_root(args, Path(scratch))
-            report = verify(args.tool_root.resolve(), head_root, args.base_ref)
+            report = verify(args.tool_root.resolve(), head_root, args.base_ref, args.head_sha)
     except (DispatchClosureError, OSError) as exc:
-        print(f"ERROR: {exc}", file=sys.stderr)
+        print(_plain(f"ERROR: {exc}"), file=sys.stderr)
         return EXIT_CONFIG
     _print(report, args.json)
     return EXIT_OK if report.clean or args.advisory else EXIT_DIFFERS

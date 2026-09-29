@@ -29,7 +29,10 @@ verified one would otherwise look the same. What a P1 run cannot observe at all,
 `core.hooksPath` and live ruleset state, is named under `unobservable`.
 
 The import resolver is loaded from this tool's own tree, never from the tree being
-measured, so pointing `--root` at a pull request's head reads that head as data.
+measured, so pointing `--root` at a pull request's head reads that head as data. The
+one command run inside the measured root is `git ls-files`, under a configuration with
+no hook and no filesystem monitor; a tree with no `.git` directory, such as one
+`verify_dispatch_closure.py` wrote, is walked instead and runs no git at all.
 
 Scope, stated so a clean run is not read as more than it is. Resolution reads
 tracked files only, so an untracked file is out of scope by the same decision the
@@ -125,8 +128,32 @@ _STEP_FIELDS = ("if", "env", "shell", "working-directory", "continue-on-error", 
 _WORKFLOW_FIELDS = ("on", "permissions", "env", "defaults", "concurrency")
 
 
+_MAX_RECORDED_NODES = 2_000
+
+
+def _bounded(value: object) -> object:
+    """A copy of ``value`` with at most `_MAX_RECORDED_NODES` nodes, else a marker.
+
+    `yaml.safe_load` shares an aliased node instead of copying it, so serialising the
+    result can expand a few kilobytes of YAML into gigabytes. Copy under a budget.
+    """
+    budget = [_MAX_RECORDED_NODES]
+
+    def copy(node: object, depth: int) -> object:
+        budget[0] -= 1
+        if budget[0] < 0 or depth > 32:
+            return "<truncated>"
+        if isinstance(node, Mapping):
+            return {str(k): copy(v, depth + 1) for k, v in node.items()}
+        if isinstance(node, list):
+            return [copy(v, depth + 1) for v in node]
+        return node
+
+    return copy(value, 0)
+
+
 def _record(manifest: Manifest, key: str, value: object) -> None:
-    manifest.recorded[key] = json.dumps(value, sort_keys=True, default=str)[:4000]
+    manifest.recorded[key] = json.dumps(_bounded(value), sort_keys=True, default=str)[:4000]
 
 
 def _job_chain(job_id: str, jobs: Mapping[str, Any]) -> list[str]:
@@ -311,7 +338,7 @@ def build_manifest(root: Path, gate_root: Path | None = None) -> Manifest:
     tree this module lives in, so measuring a checkout never runs that checkout's
     code.
     """
-    tree = RepoTree.from_git(root)
+    tree = RepoTree.from_root(root)
     manifest = Manifest()
     walker = _Walker(tree, manifest)
     documents = load_workflows(root / ".github" / "workflows")

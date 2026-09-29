@@ -18,6 +18,7 @@ reference and is skipped.
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
 from collections.abc import Iterable, Mapping
@@ -64,9 +65,36 @@ class RepoTree:
     tracked: frozenset[str]
 
     @classmethod
+    def from_root(cls, root: Path) -> RepoTree:
+        """The tracked files of a checkout, or every regular file of a tree with no `.git`.
+
+        A tree written from the object store (see `verify_dispatch_closure`) has no
+        `.git`, and every file in it is tracked by construction, so it is walked.
+        """
+        if (root / ".git").exists():
+            return cls.from_git(root)
+        found: list[str] = []
+        for directory, _, files in os.walk(root, followlinks=False):
+            for name in files:
+                full = Path(directory) / name
+                if not full.is_symlink():
+                    found.append(full.relative_to(root).as_posix())
+        return cls(root, frozenset(found))
+
+    @classmethod
     def from_git(cls, root: Path) -> RepoTree:
+        # An inert configuration: no hook, no filesystem monitor. `--root` can name a
+        # tree whose own `.git/config` an attacker wrote, and `git ls-files` runs in it.
         result = subprocess.run(
-            ["git", "ls-files", "-z"],
+            [
+                "git",
+                "-c",
+                "core.hooksPath=/dev/null",
+                "-c",
+                "core.fsmonitor=false",
+                "ls-files",
+                "-z",
+            ],
             cwd=root,
             capture_output=True,
             check=False,
@@ -101,9 +129,15 @@ def _repo_rooted(token: str) -> bool:
     return token.startswith("./") or token.split("/", maxsplit=1)[0] in REPO_ROOT_DIRS
 
 
+# The token pattern backtracks on a long run of path characters with no slash, so
+# the text it scans is bounded. A `run:` block longer than this is not a script
+# that names files.
+_MAX_TEXT = 200_000
+
+
 def tokens_in(text: str) -> list[str]:
     """Path-like tokens in ``text``, computed values excluded."""
-    return [m.group(1) for m in _TOKEN.finditer(text) if "${{" not in m.group(1)]
+    return [m.group(1) for m in _TOKEN.finditer(text[:_MAX_TEXT]) if "${{" not in m.group(1)]
 
 
 def resolve_tokens(
