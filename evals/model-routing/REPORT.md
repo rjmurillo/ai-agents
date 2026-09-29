@@ -1,5 +1,7 @@
 # Model routing by agent and skill
 
+> Retirement note (issue #5701): the `backlog-generator` agent was retired. Its rows below are the recorded results of that run and are preserved unchanged for history. The recommended models for it no longer apply.
+
 Lightest sufficient is the cheapest model whose mean recall trails the best model on the same ladder by at most 0.10. A cheaper model is kept unless the measured gap exceeds the margin. `(gap unproven)` marks a verdict the corpus cannot prove: the lower bound of the paired bootstrap CI on the gap (95%, Bonferroni-split across the non-best swept models) falls below the negative margin.
 
 | Kind | Subject | Fixtures | claude lightest | claude best | gpt6 lightest | gpt6 best |
