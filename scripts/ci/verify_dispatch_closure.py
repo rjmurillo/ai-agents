@@ -165,7 +165,7 @@ def _blob_id(tool_root: Path, ref: str, path: str) -> str | None:
         ["git", *_INERT_GIT, "rev-parse", "--verify", "--quiet", f"{ref}:{path}"],
         cwd=tool_root,
         capture_output=True,
-        text=True,
+        encoding="utf-8",
         errors="replace",
         check=False,
     )
@@ -264,7 +264,7 @@ def _git(cwd: Path, *args: str, env: dict[str, str] | None = None) -> str:
         ["git", *_INERT_GIT, *args],
         cwd=cwd,
         capture_output=True,
-        text=True,
+        encoding="utf-8",
         errors="replace",
         check=False,
         env={**(os.environ if env is None else env), **_NO_SYSTEM_CONFIG},
