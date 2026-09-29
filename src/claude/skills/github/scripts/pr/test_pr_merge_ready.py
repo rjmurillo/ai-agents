@@ -595,8 +595,9 @@ def _merge_state_status(pr: dict) -> str:
 # `HAS_HOOKS` for the same reason, so the two definitions of the enum value in
 # this repository agree.
 #
-# Everything outside this set is refused rather than attempted.  BEHIND, DIRTY,
-# and BLOCKED route to their own repair tiers; any other value (UNKNOWN, a
+# Everything outside this set is refused rather than attempted.  BEHIND and DIRTY
+# route to their own repair tiers, and BLOCKED does too unless it carries a CI
+# failure or thread (issue #5549); any other value (UNKNOWN, a
 # missing value, or one GitHub adds later) reaches the terminal `UNSUPPORTED`
 # tier.  That refusal is deliberately conservative, not a claim that GitHub
 # would reject the merge: pr-autofix has no verified path for those states, so
@@ -1373,7 +1374,6 @@ _TIER_ORDER = (
 _MERGE_STATE_TIERS: dict[str, str] = {
     "BEHIND": "BEHIND",
     "DIRTY": "DIRTY",
-    "BLOCKED": "BLOCKED",
 }
 
 
@@ -1396,8 +1396,11 @@ def classify_tier(result: dict[str, Any], *, is_bot: bool = False) -> str:
     --------
     Every ``mergeStateStatus`` GitHub can report reaches exactly one tier, and
     no value reaches ``T1`` unless the caller has a merge path for it (issue
-    #4899 reopen). ``BEHIND``, ``BLOCKED``, and ``DIRTY`` take their own
-    merge-path tiers from :data:`_MERGE_STATE_TIERS`. The three states
+    #4899 reopen). ``BEHIND`` and ``DIRTY`` take their own merge-path tiers
+    from :data:`_MERGE_STATE_TIERS`. ``BLOCKED`` takes its own tier only when
+    the PR has no CI failure and no unresolved thread; with either, it reaches
+    the work tiers (``T2``, ``T3``, ``T4``, ``T5``) but never ``T1``, because
+    ``CanMerge`` is false for it (issue #5549). The three states
     ``pr-autofix.md`` names a merge script for, :data:`_SUPPORTED_MERGE_STATES`
     (``CLEAN``, ``HAS_HOOKS``, ``UNSTABLE``), reach ``T1`` when ``CanMerge`` is
     true and a work tier (``T2``, ``T3``, ``T4``, ``T5``) otherwise. Every
@@ -1421,29 +1424,42 @@ def classify_tier(result: dict[str, Any], *, is_bot: bool = False) -> str:
     if merge_state in _MERGE_STATE_TIERS:
         return _MERGE_STATE_TIERS[merge_state]
 
-    # --- States with no merge path (terminal) ---
-    # Outside both the executable allowlist and the merge-path table above:
-    # UNKNOWN, a missing value, or a value GitHub adds later.  Returned before
-    # the work tiers, so an unsupported state with threads does not classify T3
-    # ("Walk full thread lifecycle, then merge") for a state this script has no
-    # merge path for, and one with CI failures does not classify T2.
-    if merge_state not in _SUPPORTED_MERGE_STATES:
-        return "UNSUPPORTED"
-
-    # --- Work-needed tiers ---
     has_ci_failures = (
         len(result.get("FailedRequiredChecks") or []) > 0
         or len(result.get("UndisposedNonRequiredFailures") or []) > 0
     )
     has_threads = (result.get("UnresolvedThreads") or 0) > 0
 
+    # BLOCKED with no CI failure and no thread has no work this loop can do:
+    # it is waiting on a gate outside the loop (issue #5549).  BLOCKED with a
+    # failure or thread falls through to the work tiers, because in a
+    # repository that requires thread resolution and passing checks, those are
+    # exactly what GitHub reports as BLOCKED.
+    if merge_state == "BLOCKED" and not (has_ci_failures or has_threads):
+        return "BLOCKED"
+
+    # --- States with no merge path (terminal) ---
+    # Outside both the executable allowlist and the merge-path table above:
+    # UNKNOWN, a missing value, or a value GitHub adds later.  Returned before
+    # the work tiers, so an unsupported state with threads does not classify T3
+    # ("Walk full thread lifecycle, then merge") for a state this script has no
+    # merge path for, and one with CI failures does not classify T2.
+    # BLOCKED is not in _SUPPORTED_MERGE_STATES on purpose: that set feeds
+    # CanMerge, and a BLOCKED PR must stay unmergeable (issue #5549).  Here it
+    # is admitted to the work tiers only, read at call time so the allowlist
+    # stays the single source of the executable states.
+    if merge_state not in _SUPPORTED_MERGE_STATES and merge_state != "BLOCKED":
+        return "UNSUPPORTED"
+
+    # --- Work-needed tiers ---
     # T5: bot PRs with any issue
     if is_bot and (has_ci_failures or has_threads):
         return "T5"
 
     # T1: merge-ready.  Only _SUPPORTED_MERGE_STATES reach this far, so this
     # arm covers CLEAN, HAS_HOOKS, and UNSTABLE-with-dispositions.
-    if result.get("CanMerge"):
+    # BLOCKED is excluded even if a caller passes CanMerge=True (issue #5549).
+    if result.get("CanMerge") and merge_state in _SUPPORTED_MERGE_STATES:
         return "T1"
 
     # T4/T2/T3: classify by failure type
