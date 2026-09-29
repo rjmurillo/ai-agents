@@ -7,13 +7,13 @@ import shutil
 import subprocess
 import sys
 from collections.abc import Iterator
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from pathlib import Path
 from typing import IO
 
 GIT_COMMAND_TIMEOUT_SECONDS = 30
 MARKER_DIRECTORY_NAME = "mutation-active"
-SCRATCH_DIRECTORY = Path(".pytest_cache") / "mutation-worktrees"
+SCRATCH_DIRECTORY_SUFFIX = ".mutation-worktrees"
 _WORKTREE_LOCK_NAME = "mutation-worktrees.lock"
 _GIT_ENVIRONMENT_KEYS = {
     "GIT_ALTERNATE_OBJECT_DIRECTORIES",
@@ -291,9 +291,25 @@ def relative_target(repo_root: Path, target: Path | str) -> Path:
     return relative
 
 
+def scratch_directory(repo_root: Path) -> Path:
+    """Return the external scratch directory, a sibling of the checkout.
+
+    Worktrees must never live under the clone (universal.md MUST NOT 6): every
+    recursive filesystem walk of the clone would multiply its findings.
+    """
+    root = repo_root.resolve()
+    return root.parent / f"{root.name}{SCRATCH_DIRECTORY_SUFFIX}"
+
+
 def add_worktree(repo_root: Path, scratch_root: Path) -> None:
+    root = repo_root.resolve()
+    if scratch_root.resolve().is_relative_to(root):
+        raise MutationWorkspaceError(
+            f"refusing to create mutation worktree inside the clone {root}: {scratch_root}"
+        )
     scratch_root.parent.mkdir(parents=True, exist_ok=True)
     with _serialized_worktree_state(repo_root):
+        run_git(repo_root, "worktree", "prune")
         result = run_git(
             repo_root,
             "worktree",
@@ -310,7 +326,7 @@ def add_worktree(repo_root: Path, scratch_root: Path) -> None:
 
 def remove_worktree(repo_root: Path, scratch_root: Path) -> None:
     scratch = scratch_root.resolve()
-    allowed_root = (repo_root / SCRATCH_DIRECTORY).resolve()
+    allowed_root = scratch_directory(repo_root)
     if scratch == allowed_root or not scratch.is_relative_to(allowed_root):
         raise MutationWorkspaceError(
             f"refusing to remove mutation worktree outside {allowed_root}: {scratch}"
@@ -331,6 +347,8 @@ def remove_worktree(repo_root: Path, scratch_root: Path) -> None:
             raise MutationWorkspaceError(
                 f"mutation worktree cleanup is incomplete: {scratch}"
             )
+        with suppress(OSError):
+            allowed_root.rmdir()
 
 
 def registered_worktrees(repo_root: Path) -> set[Path]:

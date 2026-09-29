@@ -18,13 +18,13 @@ from scripts.testing.mutation_harness import MutationEntry, MutationRunner
 from scripts.testing.mutation_workspace import (
     EXIT_BLOCKED,
     EXIT_OK,
-    SCRATCH_DIRECTORY,
     MutationWorkspaceError,
     check_markers,
     isolated_mutation_worktree,
     marker_directory,
     recover_marker,
     recover_markers,
+    scratch_directory,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -241,13 +241,61 @@ def test_remove_worktree_clears_fresh_registration_when_directory_missing(
     tmp_path: Path,
 ) -> None:
     repo, _target = _create_repository(tmp_path / "repo")
-    scratch = repo / SCRATCH_DIRECTORY / "missing-worktree"
+    scratch = scratch_directory(repo) / "missing-worktree"
     mutation_workspace_git.add_worktree(repo, scratch)
     shutil.rmtree(scratch)
 
     mutation_workspace_git.remove_worktree(repo, scratch)
 
     assert scratch not in mutation_workspace_git.registered_worktrees(repo)
+
+
+def test_scratch_directory_is_a_sibling_outside_the_clone(tmp_path: Path) -> None:
+    repo, _target = _create_repository(tmp_path / "repo")
+
+    scratch = scratch_directory(repo)
+
+    assert scratch.parent == repo.parent
+    assert not scratch.is_relative_to(repo)
+
+
+def test_add_worktree_refuses_a_target_inside_the_clone(tmp_path: Path) -> None:
+    repo, _target = _create_repository(tmp_path / "repo")
+    inside = repo / ".pytest_cache" / "mutation-worktrees" / "inside"
+
+    with pytest.raises(MutationWorkspaceError, match="inside the clone"):
+        mutation_workspace_git.add_worktree(repo, inside)
+
+    assert not inside.exists()
+    assert inside.resolve() not in mutation_workspace_git.registered_worktrees(repo)
+
+
+def test_add_worktree_prunes_a_stale_registration_from_a_prior_run(
+    tmp_path: Path,
+) -> None:
+    repo, _target = _create_repository(tmp_path / "repo")
+    stale = scratch_directory(repo) / "stale"
+    mutation_workspace_git.add_worktree(repo, stale)
+    shutil.rmtree(stale)
+    fresh = scratch_directory(repo) / "fresh"
+
+    mutation_workspace_git.add_worktree(repo, fresh)
+
+    registered = mutation_workspace_git.registered_worktrees(repo)
+    assert stale.resolve() not in registered
+    assert fresh.resolve() in registered
+    mutation_workspace_git.remove_worktree(repo, fresh)
+
+
+def test_normal_run_leaves_no_registered_scratch_worktree(tmp_path: Path) -> None:
+    repo, target = _create_repository(tmp_path / "repo")
+
+    with isolated_mutation_worktree(repo, [target]) as workspace:
+        scratch = workspace.root
+        assert scratch.parent == scratch_directory(repo)
+
+    assert scratch.resolve() not in mutation_workspace_git.registered_worktrees(repo)
+    assert not scratch_directory(repo).exists()
 
 
 def test_cleanup_removes_scratch_and_preserves_body_error_after_active_drift(
@@ -301,7 +349,7 @@ def test_recovery_refuses_changed_active_target(capsys: pytest.CaptureFixture[st
     marker_root = marker_directory(REPO_ROOT)
     marker_root.mkdir(parents=True, exist_ok=True)
     marker = marker_root / "test-modified-source.json"
-    scratch = (REPO_ROOT / SCRATCH_DIRECTORY / "test-modified-source").resolve()
+    scratch = (scratch_directory(REPO_ROOT) / "test-modified-source").resolve()
     marker.write_text(
         json.dumps(
             {
