@@ -232,7 +232,7 @@ verifier already halts on the byte comparison; the comment above
 ``_MODULE_LOADS`` lists what it does not recognise. ``new_pr.py`` loading
 ``pr_validations.py`` through a computed path is the case this was decided
 against. It falls on the fail-closed side and is not reachable from any
-verifier the shipped config names (14 named scripts, 29 files, zero dynamic
+verifier the shipped config names (14 named scripts, 34 files, zero dynamic
 loads, measured 2026-09-29). The reasoning, and the constructs it does not
 recognise, sit in the comment above ``_MODULE_LOADS``.
 
@@ -1699,8 +1699,10 @@ def _relative_import_root(script: Path, level: int, toplevel: Path) -> list[Path
     return [base] if _is_within(base, toplevel) else []
 
 
-def _resolve_module_file(dotted: str, roots: list[Path], toplevel: Path) -> str | None:
-    """Work-tree-relative path of ``dotted``, or None when not in the tree.
+def _resolve_module_root(
+    dotted: str, roots: list[Path], toplevel: Path,
+) -> tuple[Path, str] | None:
+    """``(root, work-tree-relative path)`` of ``dotted``, or None when not in the tree.
 
     A name that resolves nowhere in the work tree is standard library or
     an installed dependency: not PR content, so not this boundary's
@@ -1719,8 +1721,41 @@ def _resolve_module_file(dotted: str, roots: list[Path], toplevel: Path) -> str 
                 continue
             if _first_symlinked_component(candidate, toplevel) is not None:
                 continue
-            return candidate.relative_to(toplevel).as_posix()
+            return root, candidate.relative_to(toplevel).as_posix()
     return None
+
+
+def _resolve_module_file(dotted: str, roots: list[Path], toplevel: Path) -> str | None:
+    """Work-tree-relative path of ``dotted``, or None when not in the tree."""
+    resolved = _resolve_module_root(dotted, roots, toplevel)
+    return None if resolved is None else resolved[1]
+
+
+def _module_files(dotted: str, roots: list[Path], toplevel: Path) -> list[str]:
+    """The files executing ``import dotted`` runs: its ancestor initializers, then the module.
+
+    Importing ``a.b.c`` runs ``a/__init__.py`` and ``a/b/__init__.py`` before
+    ``a/b/c.py``, so a pull request that rewrites an initializer runs code under a
+    trusted verdict unless the initializer is in the closure too. An ancestor with
+    no ``__init__.py`` is a namespace package and contributes nothing. An ancestor
+    initializer reached through a symlink is not followed, like any other symlink.
+    """
+    resolved = _resolve_module_root(dotted, roots, toplevel)
+    if resolved is None:
+        return []
+    root, module = resolved
+    parts = [part for part in dotted.split(".") if part]
+    files: list[str] = []
+    for depth in range(1, len(parts)):
+        initializer = root.joinpath(*parts[:depth], "__init__.py")
+        if not initializer.is_file() or not _is_within(initializer, toplevel):
+            continue
+        if _first_symlinked_component(initializer, toplevel) is not None:
+            continue
+        files.append(initializer.relative_to(toplevel).as_posix())
+    if module not in files:
+        files.append(module)
+    return files
 
 
 # Dynamic-load constructs the static import pass cannot see (ADR-101
@@ -1763,6 +1798,11 @@ def _resolve_module_file(dotted: str, roots: list[Path], toplevel: Path) -> str 
 # shipped config holds no recognised dynamic load, not that it holds no route
 # in this list (issue 6032 tracks the list).
 #
+# Matching is by the LAST name of the call and ignores the receiver, so an
+# unrelated object's ``.run_path()`` or ``.import_module()`` halts too. That
+# fails closed, and narrowing it to the ``runpy`` and ``importlib`` receivers
+# would widen the alias blind spot above, so it is left as it is.
+#
 # ``run_module`` is recognised but never resolved: it runs a package's
 # ``__main__.py``, which the module-file resolver does not return, so it always
 # halts.
@@ -1772,7 +1812,7 @@ def _resolve_module_file(dotted: str, roots: list[Path], toplevel: Path) -> str 
 # call-site constant propagation to resolve, and that would be a second,
 # unverified trust computation. It is not reachable from any verifier the
 # shipped ``pr-review-config.yaml`` names (measured 2026-09-29: 14 named
-# scripts, 29 files in the closure, zero dynamic-load sites), so nothing halts
+# scripts, 34 files in the closure, zero dynamic-load sites), so nothing halts
 # today. If a dispatched verifier ever reaches such a load, the gate halts
 # and the owner chooses between a literal path and an explicit approval.
 #
@@ -2225,23 +2265,23 @@ def _dynamic_loads(source: bytes, script: Path) -> list[_DynamicLoad]:
 
 def _resolve_dynamic_target(
     load: _DynamicLoad, roots: list[Path], toplevel: Path,
-) -> str | None:
-    """Work-tree-relative file a resolvable load names, or None."""
+) -> list[str]:
+    """Work-tree-relative files a resolvable load runs, or [] when it names none."""
     if load.module is not None:
-        return _resolve_module_file(load.module, roots, toplevel)
+        return _module_files(load.module, roots, toplevel)
     if load.path is None:
-        return None
+        return []
     if load.path.suffix != ".py":
         # A non-Python target is not scanned for its own imports or loads. A
         # `..` segment never reaches here: `_has_dotdot` refuses it at every
         # step of the derivation.
-        return None
+        return []
     candidate = load.path
     if not candidate.is_file() or not _is_within(candidate, toplevel):
-        return None
+        return []
     if _first_symlinked_component(candidate, toplevel) is not None:
-        return None
-    return candidate.relative_to(toplevel).as_posix()
+        return []
+    return [candidate.relative_to(toplevel).as_posix()]
 
 
 def _unresolvable_dynamic_sites(rel_paths: list[str], toplevel: Path) -> list[str]:
@@ -2289,7 +2329,9 @@ def _expand_import_closure(rel_paths: list[str], toplevel: Path) -> list[str]:
     closure covers what actually executes and nothing else, so a PR that
     edits an unrelated script in the same directory still runs clean.
 
-    Literal dynamic loads join the closure (see ``_dynamic_loads``). Loads
+    Importing ``a.b.c`` runs ``a/__init__.py`` and ``a/b/__init__.py`` first, so
+    every ancestor initializer joins the closure with the module (see
+    :func:`_module_files`). Literal dynamic loads join it too (see ``_dynamic_loads``). Loads
     this function cannot resolve are reported by
     :func:`_unresolvable_dynamic_sites`, not silently dropped here.
     ``sys.path`` entries this function does not model are not covered; see
@@ -2311,17 +2353,15 @@ def _expand_import_closure(rel_paths: list[str], toplevel: Path) -> list[str]:
                 if level == 0
                 else _relative_import_root(script, level, toplevel)
             )
-            found = _resolve_module_file(dotted, roots, toplevel)
-            if found is None or found in seen:
-                continue
-            seen.append(found)
-            queue.append(found)
+            for found in _module_files(dotted, roots, toplevel):
+                if found not in seen:
+                    seen.append(found)
+                    queue.append(found)
         for load in _dynamic_loads(source, script):
-            found = _resolve_dynamic_target(load, absolute_roots, toplevel)
-            if found is None or found in seen:
-                continue
-            seen.append(found)
-            queue.append(found)
+            for found in _resolve_dynamic_target(load, absolute_roots, toplevel):
+                if found not in seen:
+                    seen.append(found)
+                    queue.append(found)
     return seen
 
 
