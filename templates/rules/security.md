@@ -48,9 +48,6 @@ metadata:
 
 # Security File Rules
 
-<!-- vendor-portability: contributor-facing rule for the rjmurillo/ai-agents repo itself;
-     it names scripts/validation/lefthook_runner.py because that path is the subject of MUST 8 -->
-
 These paths hold threat models, benchmarks, workflows, and hooks that protect the supply chain. Changes need evidence, not opinion.
 
 ## MUST
@@ -65,7 +62,7 @@ These paths hold threat models, benchmarks, workflows, and hooks that protect th
    that does not run MUST produce a blocking verdict. Infrastructure failure is
    not a security pass. Issue #4777 records the failure where ten missing
    reviews produced a green required check.
-8. **Keep hook fallback logic in `scripts/validation/lefthook_runner.py`**.
+8. **Keep hook fallback logic in the `lefthook_runner.py` validation script**.
    Lefthook wraps the configured `lefthook:` runner in `test -n "<literal>"`,
    which is always true, so a fallback written in `lefthook.yml` or in the
    generated shim never runs. Put every fallback inside the runner (PR #5988).
