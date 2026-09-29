@@ -134,7 +134,7 @@ def _healthy_git_run(*args: Any, **_kwargs: Any) -> Any:
     argv = args[0] if args else []
     if "symbolic-ref" in argv:
         stdout = "origin/main"
-    elif "rev-parse" in argv:
+    elif "rev-parse" in argv or "merge-base" in argv:
         stdout = "0" * 40
     else:
         stdout = ""
