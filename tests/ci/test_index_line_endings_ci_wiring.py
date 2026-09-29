@@ -39,11 +39,11 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW = REPO_ROOT / ".github/workflows/pytest.yml"
 SCRIPT = "scripts/validation/check_index_line_endings.py"
 
-# Two jobs carry this name and they are mutually exclusive: `test-result` when
-# the change touched Python, `skip-tests` when it did not. Branch protection
-# watches the name, so whichever one runs is the required check, and both have
-# to gate on the guard. Selected by name rather than by id, so a third leg
-# added later is covered the day it appears.
+# `test-result` is the only job that carries this name (ADR-101 requirement 1
+# removed the `skip-tests` pass-through). Branch protection watches the name,
+# so the job that renders it is the required check and has to gate on the
+# guard. Selected by name rather than by id, so a second leg added later is
+# covered the day it appears.
 REQUIRED_CHECK_NAME = "Run Python Tests"
 
 
@@ -129,11 +129,11 @@ def test_every_required_check_leg_requires_the_gate_job(job_id: str) -> None:
     """The guard's own context is not required; the aggregator's is.
 
     So a leg that reports `Run Python Tests` without waiting on the guard
-    reports success over a red guard. `test-result` and `skip-tests` are
-    mutually exclusive on `python-changed`, and `skip-tests` is the leg that
-    runs on exactly the change this gate exists for: a CRLF blob under a
-    non-Python path. Gating only `test-result` therefore left the reported
-    bypass open one level up from where it was found.
+    reports success over a red guard. Before ADR-101 requirement 1 a second
+    same-named leg, `skip-tests`, ran on exactly the change this gate exists
+    for: a CRLF blob under a non-Python path. Gating only `test-result` left
+    the reported bypass open one level up from where it was found, which is why
+    the test still runs over every job that renders the name.
     """
     gate_ids = set(_gate_jobs())
     job = _required_check_jobs()[job_id]

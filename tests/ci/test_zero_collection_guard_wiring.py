@@ -341,14 +341,13 @@ def test_the_required_pytest_context_checks_the_guard_result() -> None:
     """A failed guard MUST fail the "Run Python Tests" required context.
 
     Copilot review round 4 (PR #5344): ``zero-collection-guard`` runs
-    unconditionally, but neither aggregator job that publishes the "Run
-    Python Tests" required context (``test-result`` when Python inputs
-    changed, ``skip-tests`` when they did not) named it. The guard could
-    therefore fail while the required context still reported success.
-    Both aggregators now depend on ``zero-collection-guard`` and gate their
-    own success on its result via ``require_job_results.py``.
+    unconditionally, but the aggregator jobs that published the "Run Python
+    Tests" required context did not name it, so the guard could fail while the
+    context still reported success. ADR-101 requirement 1 collapsed those two
+    jobs into ``test-result`` alone, which depends on ``zero-collection-guard``
+    and gates its own success on its result via ``require_job_results.py``.
     """
-    for job_name in ("test-result", "skip-tests"):
+    for job_name in ("test-result",):
         job = _workflow_job(job_name)
         assert job["name"] == "Run Python Tests"
         assert "zero-collection-guard" in job["needs"], (

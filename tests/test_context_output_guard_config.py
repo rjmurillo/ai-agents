@@ -48,5 +48,6 @@ class TestContextOutputGuard:
         assert "needs" not in guard
         assert "if" not in guard
         assert f"--check --manifest {MANIFEST}" in guard["steps"][-1]["run"]
-        for aggregator in ("test-result", "skip-tests", "main-failure-alert"):
+        assert "skip-tests" not in data["jobs"]
+        for aggregator in ("test-result", "main-failure-alert"):
             assert "context-output-guard" in data["jobs"][aggregator]["needs"]
