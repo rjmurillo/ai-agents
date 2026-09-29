@@ -196,7 +196,7 @@ scripts and `github_core` import with the anthropic SDK blocked.
 | `new_pr.py` | Create PR with validation | `--title`, `--body`, `--base` |
 | `validate_pr_description.py` | Validate PR description | `--title`, `--body`, `--body-file`, `--fail-on-violation` |
 | `close_pr.py` | Close PR with comment | `--pull-request`, `--comment` |
-| `merge_pr.py` | Merge with strategy | `--pull-request`, `--strategy`, `--delete-branch`, `--auto` |
+| `merge_pr.py` | Merge pinned to the reviewed head, then read back and audited (ADR-112) | `--pull-request`, `--expected-head-sha`, `--strategy`, `--delete-branch`, `--auto` |
 | `audit_closing_claims.py` | Fleet audit of open-PR closing claims: extracts closing keywords from PR bodies, commit messages, and auto-merge overrides; classifies Markdown context (body) and plain-text context (commits/overrides); flags a claim unsupported when it can reach the eventual squash commit without a matching active body claim (exit 1). Needs a token with administration read: reachability depends on the repository's `squash_merge_commit_message` setting, which GitHub omits for anyone else, and the audit exits 3 rather than reporting a clean fleet it cannot verify | `--state open`, `--artifact`, `--resume-from`, `--output-format {json,human,auto}` |
 | `edit_pr_body.py` | Edit a PR body with a SHA-256 stale-write guard | `--pull-request`, `--body`/`--body-file`, `--expected-hash`, `--dry-run` |
 

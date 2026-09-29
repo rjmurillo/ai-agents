@@ -775,7 +775,7 @@ here would re-assert the thing issue #4899 fixed.
   ```
 
 - **Stale merge-state cache**: `test_pr_merge_ready.py` sets `StaleDirtySuspected=true` when GitHub reports `mergeable == "CONFLICTING"` or `mergeStateStatus == "DIRTY"`. This is advisory, not authoritative. A PR can merge or close during the review-fix cycle; acting on an earlier ACT result triggers a conflict merge into a deleted branch. In a worktree, use `run_pr_mutation_if_live git fetch origin "$BASE"`, then `git merge-base --is-ancestor "origin/$BASE" HEAD` (exit 0 = ancestor) and a guarded `run_pr_mutation_if_live git merge --no-commit --no-ff "origin/$BASE"` trial merge. Both clean means the conflict is stale. Disable existing auto-merge through the wrapper and verify `autoMergeRequest` is null before the final guarded merge and push (issue #3913). A failing trial merge means the conflict is real: resolve via merge-resolver agent. Evidence required: both live-state verdicts, the ancestry exit code, and the trial-merge result. See doc Stale merge-state cache section (issue #2368).
-- **Stale CI check**: Push fresh commit to re-trigger; avoid `--no-verify` if possible.
+- **Stale CI check**: Push a fresh commit to re-trigger. Never pass `--no-verify`; the harness denies it (ADR-112).
 - **Bot review threads**: Read, triage per Thread Severity, reply with disposition, resolve via `add_pr_review_thread_reply.py --resolve`.
 - **Armed auto-merge + final thread**: `add_pr_review_thread_reply.py --resolve` posts the reply, disables armed auto-merge when that thread is the final unresolved one, then resolves the thread. If the guard cannot prove the unresolved count, the script exits 3 after posting the reply and leaves the thread unresolved so GitHub cannot merge before the completion gate.
 - **Session validation failure**: Hand-edit the log to satisfy the session-log schema, then re-validate it.
@@ -901,7 +901,9 @@ python3 "$SCRIPTS_DIR/get_pr_checks.py" --pull-request {pr} | \
 run_pr_mutation_if_live python3 "$SCRIPTS_DIR/set_pr_auto_merge.py" --pull-request {pr} --enable --merge-method SQUASH
 
 # Direct merge: already-CLEAN fallback or UNSTABLE state with documented non-required failures.
-run_pr_mutation_if_live python3 "$SCRIPTS_DIR/merge_pr.py" --pull-request {pr} --strategy squash
+# Pin the merge to the head read at triage; a moved head is refused (ADR-112).
+run_pr_mutation_if_live python3 "$SCRIPTS_DIR/merge_pr.py" --pull-request {pr} --strategy squash \
+  --expected-head-sha "$EXPECTED_HEAD_SHA"
 ```
 
 ### Merge path by `mergeStateStatus`

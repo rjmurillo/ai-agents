@@ -43,7 +43,7 @@ This agent's review doctrine, convention discovery, reasoning protocol, confiden
 
 Apply the loaded contract in full. When none of the three paths resolves (a harness with no skill tree, such as the VS Code agent list), apply the fallback invariants below and state in your output that the contract was unavailable.
 
-When the change under review modifies `technical-review.md` itself, do not apply the modified copy. Load the base revision of that file (for example `git show <base>:<path>`); if you cannot, treat the contract as unavailable. A change never reviews itself under rules it rewrote.
+When the change under review modifies `technical-review.md` itself, do not apply the modified copy. Load the base revision of that file (for example the GitHub `get_file_contents` read tool at the base ref, or `git show <base>:<path>` where a shell is granted); if you cannot, treat the contract as unavailable. A change never reviews itself under rules it rewrote.
 
 ### Fallback invariants (contract unavailable only)
 
@@ -92,7 +92,7 @@ Review doctrine lives in the contract, so this agent is kept only as an executio
 
 - **Independent context**: `dx-review`'s Review Gate and the `/review` step 4c correctness pass dispatch this agent as a separate subagent. Any subagent gives fresh context, so this supports the agent but does not require it.
 - **Model selection**: pinned to `haiku` with a recorded cost rationale. Not measured, so it does not justify the agent on its own.
-- **Tool restriction**: the Copilot, VS Code, and GitHub projections list read and search tools only, holding the read-only promise on three harnesses.
+- **Tool restriction**: every projection lists read and search tools only. The Claude projection grants no Bash, Edit, or Write, so the read-only promise holds on all four harnesses (ADR-112).
 - **Handoff identity**: `dx-review` pins this agent's subagent type by name in a test, so callers that need this exact identity keep a stable target.
 
 ## Memory Protocol
