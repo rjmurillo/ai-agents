@@ -160,7 +160,8 @@ MUTATING_GIT_THE_PROMPT_FORBIDS = (
     "git push origin HEAD",
     # The lease form pr-autofix runs: pinned to an observed SHA. The bare
     # `--force-with-lease` form is denied by the ADR-112 consequential tier.
-    "git push --force-with-lease=refs/heads/feat/x:0123456789abcdef0123456789abcdef01234567 origin HEAD:refs/heads/feat/x",
+    "git push --force-with-lease=refs/heads/feat/x:"
+    "0123456789abcdef0123456789abcdef01234567 origin HEAD:refs/heads/feat/x",
     "git checkout -- README.md",
     "git checkout -b feat/thing",
     "git reset --hard HEAD",

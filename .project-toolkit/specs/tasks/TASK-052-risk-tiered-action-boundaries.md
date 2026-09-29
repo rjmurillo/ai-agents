@@ -8,6 +8,7 @@ complexity: M
 source: issue-5767
 related:
   - REQ-043
+  - DESIGN-041
   - ADR-112
 created: 2026-09-28
 updated: 2026-09-28
@@ -16,7 +17,7 @@ author: plan
 
 # TASK-052: Implement risk-tiered action boundaries
 
-Implements REQ-043. Four slices, each shippable and tested alone.
+Implements REQ-043 through DESIGN-041. Four slices, each shippable and tested alone.
 
 ## Slice 1: Consequential-tier deny rules (AC 3)
 

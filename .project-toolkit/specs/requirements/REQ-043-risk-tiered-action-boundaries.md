@@ -7,6 +7,7 @@ priority: P1
 category: security
 source: issue-5767
 related:
+  - DESIGN-041
   - TASK-052
   - ADR-112
   - ADR-097
