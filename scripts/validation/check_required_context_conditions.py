@@ -52,6 +52,9 @@ What this lint does not see, so a clean run is not read as more than it is:
     reports success the same way.
   - A workflow-level `on.<event>.paths` or `paths-ignore` filter, the
     syntactic form of the same gate.
+  - A job named only by an expression: reported as `unattributed-job`, never
+    linted, unlike `declared_required_contexts`, which assumes it may produce
+    every context.
   - A job that calls a reusable workflow (`uses:`): no steps here, so it reads
     as clean. Or any spelling the patterns do not name, such as
     `github.event.sender.login`.
@@ -100,6 +103,7 @@ from required_context_types import (  # noqa: E402
     KIND_PRODUCERS,
     KIND_RELOCATED,
     KIND_STEP,
+    KIND_UNATTRIBUTED,
     KIND_UNSCANNED,
     Finding,
     ProducingJob,
@@ -117,6 +121,7 @@ __all__ = [
     "KIND_PRODUCERS",
     "KIND_RELOCATED",
     "KIND_STEP",
+    "KIND_UNATTRIBUTED",
     "KIND_UNSCANNED",
     "Finding",
     "ProducingJob",
@@ -228,13 +233,45 @@ def _producer_count_findings(
     return findings
 
 
+def _unattributed_jobs(documents: Mapping[str, Mapping[str, Any]]) -> list[Finding]:
+    """Jobs whose name is an expression with no literal prefix.
+
+    Different from `declared_required_contexts`, which treats such a name as a
+    possible producer of every pinned context (the safe direction for a
+    readiness gate that only asks what a run might publish). This lint attributes
+    findings to a context, and claiming every pinned context for one unnamed job
+    would attach findings to contexts it may not produce and inflate the
+    producer counts. The job is not linted; it is reported here so a producer
+    hidden behind such a name is a finding rather than an absence.
+    """
+    found: list[Finding] = []
+    for workflow, document in documents.items():
+        jobs = mapping(document, "jobs")
+        for job_id, body in jobs.items():
+            if not isinstance(body, Mapping):
+                continue
+            label = _check_run_label(str(job_id), body)
+            if label.startswith(_EXPRESSION_MARKER):
+                found.append(
+                    Finding(
+                        KIND_UNATTRIBUTED,
+                        "-",
+                        workflow,
+                        str(job_id),
+                        "job name is an expression with no literal prefix, so it may "
+                        "produce any pinned context and is not linted",
+                    )
+                )
+    return found
+
+
 def lint(
     documents: Mapping[str, Mapping[str, Any]], contexts: Iterable[str]
 ) -> tuple[list[Finding], list[ProducingJob]]:
     """Return every finding plus the producing jobs that were examined."""
     pinned = list(contexts)
     producers = producing_jobs(documents, pinned)
-    findings: list[Finding] = []
+    findings: list[Finding] = _unattributed_jobs(documents)
     for producer in producers:
         try:
             with scan_budget():

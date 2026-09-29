@@ -15,6 +15,7 @@ KIND_RELOCATED = "relocated-condition"
 KIND_JOB = "job-condition"
 KIND_PRODUCERS = "producer-count"
 KIND_UNSCANNED = "unscanned"
+KIND_UNATTRIBUTED = "unattributed-job"
 
 
 class WorkflowLoadError(Exception):
