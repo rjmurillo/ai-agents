@@ -204,7 +204,7 @@
 
 [Related]
 |feedback retrieval: [memory/memory-001-feedback-retrieval](memory/memory-001-feedback-retrieval.md) (578)
-|memory architecture serena-primary: [memory/memory-architecture-serena-primary](memory/memory-architecture-serena-primary.md) (485)
+|memory architecture serena-primary: [memory/memory-architecture-serena-primary](memory/memory-architecture-serena-primary.md) (497)
 |decomposition thresholds: [memory/memory-size-001-decomposition-thresholds](memory/memory-size-001-decomposition-thresholds.md) (961)
 |fragmentation tech-debt: [memory/memory-system-fragmentation-tech-debt](memory/memory-system-fragmentation-tech-debt.md) (940)
 |serena subdirectory convention nested read_memory rglob enumeration: [memory/serena-memory-subdirectory-convention](memory/serena-memory-subdirectory-convention.md) (1298)
