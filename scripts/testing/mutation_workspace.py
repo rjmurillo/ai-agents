@@ -39,6 +39,7 @@ _add_worktree = mutation_workspace_git.add_worktree
 _git_root = mutation_workspace_git.git_root
 _relative_target = mutation_workspace_git.relative_target
 _remove_worktree = mutation_workspace_git.remove_worktree
+_unlock_stale_worktree = mutation_workspace_git.unlock_stale_worktree
 _require_git_stdout = mutation_workspace_git.require_git_stdout
 _run_git = mutation_workspace_git.run_git
 
@@ -455,6 +456,7 @@ def recover_marker(
         targets = _read_target_snapshots(payload, resolved_marker)
         _require_active_targets_unchanged(root, targets)
         scratch = _scratch_root_from_marker(root, payload, resolved_marker)
+        _unlock_stale_worktree(root, scratch, resolved_marker.stat().st_mtime)
         _remove_worktree(root, scratch)
         resolved_marker.unlink(missing_ok=True)
         print(f"recovered mutation workspace: {scratch}", file=output)
