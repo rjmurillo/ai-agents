@@ -223,15 +223,18 @@ Dynamic loads are inside the boundary too (ADR-101 Application B, issue
 ``importlib.util.spec_from_file_location``, ``SourceFileLoader`` or ``runpy``
 whose target is a string literal, or a path built only from ``__file__`` and
 string literals, is resolved: the target joins the closure and is
-byte-verified like any imported module. A load that cannot be resolved that
-way, and an ``exec`` or ``eval`` of anything but a string constant, fails
-closed: the gate halts as untrusted (exit 2), naming ``file:line``, and a
-human who inspected the listing can approve it. ``new_pr.py`` loading
+byte-verified like any imported module. A recognised load that cannot be
+resolved that way, and an ``exec`` or ``eval`` of anything but inert constant
+code, fails closed: the gate halts as untrusted (exit 2), naming
+``file:line``, and a human who inspected the listing can approve it.
+Recognition is a denylist of call names, sound because a PR-rewritten
+verifier already halts on the byte comparison; the comment above
+``_MODULE_LOADS`` lists what it does not recognise. ``new_pr.py`` loading
 ``pr_validations.py`` through a computed path is the case this was decided
 against. It falls on the fail-closed side and is not reachable from any
 verifier the shipped config names (14 named scripts, 29 files, zero dynamic
-loads, measured 2026-09-29). The reasoning sits in the comment above
-``_MODULE_LOADS``.
+loads, measured 2026-09-29). The reasoning, and the constructs it does not
+recognise, sit in the comment above ``_MODULE_LOADS``.
 
 The closure was chosen over verifying the containing directory
 because a directory rule halts on any sibling change, including files
@@ -250,8 +253,10 @@ copies. What remains outside, and is covered by neither field:
   * **A ``sys.path`` entry built at runtime** from a value this module does
     not model, or a C extension loaded by path. Every shipped verifier edits
     ``sys.path`` for ``.claude/lib``, which the closure models, so flagging
-    the call would halt them all. Dynamic loads are no longer in this list:
-    they resolve or halt (see above).
+    the call would halt them all. Dynamic loads by a recognised call are no
+    longer in this list: they resolve or halt. Unrecognised routes (aliases,
+    ``getattr``, ``pickle``, ``ctypes`` and the rest listed above
+    ``_MODULE_LOADS``) remain outside it.
   * **Untracked work-tree files.** Recorded, not compared. PR content
     arrives through a checkout and is therefore tracked, so this is a
     scoping decision rather than a gap in coverage of PR content. A
@@ -555,6 +560,16 @@ _DISPATCHER_PATH = Path(__file__).resolve()
 _TRUSTED_REF_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/@^~{}-]*$")
 
 _GIT_TIMEOUT_SECONDS = 30
+
+def _one_line(text: str) -> str:
+    """Escape the line breaks a file name could use to forge extra listing lines."""
+    return (
+        text.replace("\n", "\\n")
+        .replace("\r", "\\r")
+        .replace("\u2028", "\\u2028")
+        .replace("\u2029", "\\u2029")
+    )
+
 
 def _escape_terminal_controls(text: str) -> str:
     """Render PR-controlled text safely for the approving human's terminal.
@@ -1718,9 +1733,31 @@ def _resolve_module_file(dotted: str, roots: list[Path], toplevel: Path) -> str 
 #     byte-verified and its own imports are followed. The isolation idiom
 #     survives: ``spec_from_file_location("x", Path(__file__).resolve().parent
 #     / "x.py")`` costs the file nothing and gains verification.
-#   * Any other load is UNRESOLVABLE and fails closed. The gate halts with the
-#     same untrusted outcome as a diverged file (exit 2, approvable by a human
-#     who inspected the listing), naming file and line.
+#   * A load this scanner recognises and cannot resolve is UNRESOLVABLE and
+#     fails closed. The gate halts with the same untrusted outcome as a
+#     diverged file (exit 2, approvable by a human who inspected the listing),
+#     naming file and line.
+#
+# What "recognises" means, stated plainly because an earlier draft of this
+# comment overclaimed. Detection is a DENYLIST of call names over each file's
+# own text: ``import_module``, ``__import__``, ``run_module``, ``run_path``,
+# ``spec_from_file_location``, ``SourceFileLoader``, and ``exec``/``eval`` of
+# anything but inert constant code. It is not a proof that no load exists, and
+# it does not need to be, because of one premise: a PR cannot edit a verifier
+# without diverging from the trusted ref, and the byte comparison halts on
+# that. So this scanner's job is the UNMODIFIED, trusted verifier that loads a
+# file the PR did edit. Trusted code is written in the open. Code the PR
+# rewrote to hide a load behind an alias is already caught as a divergence.
+#
+# Not recognised, named so nobody reads the list as complete: an alias
+# (``m = importlib.import_module; m(x)``), ``getattr(importlib, name)(x)``, a
+# function reference passed uncalled (``map(__import__, ...)``),
+# ``builtins.exec``, ``ExtensionFileLoader``, ``SourcelessFileLoader``,
+# ``spec_from_loader``, ``zipimport``, ``pkgutil``, ``pickle``, ``marshal``,
+# ``ctypes``, ``python -c`` in a subprocess, ``sys.modules`` injection, and a
+# wrong-case literal on a case-insensitive filesystem. Each is a way for
+# trusted, honestly written code to load a PR file; none appears in the
+# closure of the shipped config (measured below; issue 6032).
 #
 # ``new_pr.py`` itself falls on the unresolvable side: its ``_load_sibling``
 # builds the path from a parameter (``with_name(f"{name}.py")``), which needs
@@ -1788,21 +1825,54 @@ def _single_assignments(tree: ast.AST) -> dict[str, ast.AST]:
             for target in node.targets:
                 if isinstance(target, ast.Name):
                     seen.setdefault(target.id, []).append(node.value)
-        elif isinstance(node, ast.AugAssign) and isinstance(node.target, ast.Name):
-            seen.setdefault(node.target.id, []).extend([node.value, node.value])
+                else:
+                    _mark_ambiguous(seen, target)
+        elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+            if node.value is not None:
+                seen.setdefault(node.target.id, []).append(node.value)
+        elif isinstance(node, ast.AugAssign):
+            _mark_ambiguous(seen, node.target)
+        else:
+            _mark_other_bindings(seen, node)
     return {name: values[0] for name, values in seen.items() if len(values) == 1}
 
 
+def _mark_ambiguous(seen: dict[str, list[ast.AST]], target: ast.AST) -> None:
+    """Record every name bound by ``target`` as bound in a way this cannot follow."""
+    for node in ast.walk(target):
+        if isinstance(node, ast.Name):
+            seen.setdefault(node.id, []).extend([node, node])
+
+
+def _mark_other_bindings(seen: dict[str, list[ast.AST]], node: ast.AST) -> None:
+    """Mark names bound by parameters, loops, ``with``, walrus and comprehensions.
+
+    A module-level ``target = ...`` does not describe a function parameter of
+    the same name, and the walk is not scope-aware, so any such binding makes
+    the name ambiguous and a load that reads it stays unresolvable.
+    """
+    if isinstance(node, ast.arg):
+        seen.setdefault(node.arg, []).extend([node, node])
+    elif isinstance(node, ast.For | ast.AsyncFor | ast.comprehension):
+        _mark_ambiguous(seen, node.target)
+    elif isinstance(node, ast.withitem) and node.optional_vars is not None:
+        _mark_ambiguous(seen, node.optional_vars)
+    elif isinstance(node, ast.NamedExpr):
+        _mark_ambiguous(seen, node.target)
+
+
 def _derive_file_path(
-    node: ast.AST, script: Path, names: dict[str, ast.AST], depth: int = 0,
+    node: ast.AST, script: Path, names: dict[str, ast.AST] | None, depth: int = 0,
 ) -> Path | None:
     """Evaluate ``node`` when it is built only from ``__file__`` and literals.
 
     Returns None for anything else: a parameter, an f-string, an attribute
     read, a call this function does not model. A partial answer is never
     returned, so one unmodelled step makes the whole load unresolvable.
+    ``names`` is None when the file rebinds ``Path``, ``os`` or ``__file__``,
+    which refuses every derivation in it.
     """
-    if depth > 12:
+    if depth > 12 or names is None:
         return None
     if isinstance(node, ast.Name):
         if node.id == "__file__":
@@ -1824,7 +1894,7 @@ def _derive_file_path(
 
 
 def _derive_from_parents(
-    node: ast.Subscript, script: Path, names: dict[str, ast.AST], depth: int,
+    node: ast.Subscript, script: Path, names: dict[str, ast.AST] | None, depth: int,
 ) -> Path | None:
     """``X.parents[N]`` with a literal non-negative ``N``."""
     target = node.value
@@ -1843,7 +1913,7 @@ def _derive_from_parents(
 
 
 def _derive_from_call(
-    node: ast.Call, script: Path, names: dict[str, ast.AST], depth: int,
+    node: ast.Call, script: Path, names: dict[str, ast.AST] | None, depth: int,
 ) -> Path | None:
     func = node.func
     name = _call_name(node)
@@ -1881,7 +1951,7 @@ def _apply_path_method(base: Path, name: str, args: list[ast.expr]) -> Path | No
 
 
 def _load_from_call(
-    node: ast.Call, script: Path, names: dict[str, ast.AST],
+    node: ast.Call, script: Path, names: dict[str, ast.AST] | None,
 ) -> _DynamicLoad | None:
     """Classify one call as a dynamic load, or None when it is not one."""
     name = _call_name(node)
@@ -1896,19 +1966,93 @@ def _load_from_call(
         path = None if target is None else _derive_file_path(target, script, names)
         return _DynamicLoad(node.lineno, name, None, path)
     if name in {"exec", "eval"} and isinstance(node.func, ast.Name):
-        if node.args and _string_constant(node.args[0]) is not None:
+        if node.args and _is_inert_code(_string_constant(node.args[0])):
             return None
         return _DynamicLoad(node.lineno, name, None, None)
     return None
 
 
+def _is_inert_code(code: str | None) -> bool:
+    """True for constant source that imports nothing and loads nothing.
+
+    A string constant handed to ``exec`` is code the closure never parses, so
+    ``exec("import sibling")`` loads a file with no edge. Constant code is
+    therefore inert only when it parses and its own tree holds no import and no
+    call this scanner treats as a load.
+    """
+    if code is None:
+        return False
+    try:
+        tree = ast.parse(code)
+    except (SyntaxError, ValueError, RecursionError):
+        return False
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import | ast.ImportFrom):
+            return False
+        if isinstance(node, ast.Call) and (
+            _call_name(node) in _MODULE_LOADS | set(_FILE_LOADS) | {"exec", "eval"}
+        ):
+            return False
+    return True
+
+
+_TRUSTED_BINDINGS = {
+    "Path": {"pathlib"},
+    "PurePath": {"pathlib"},
+    "os": {"os"},
+    "pathlib": {"pathlib"},
+}
+
+
+def _shadows_a_path_name(tree: ast.AST) -> bool:
+    """True when the file rebinds ``Path``, ``os`` or ``__file__`` to something else.
+
+    The evaluator trusts those names to mean ``pathlib.Path``, ``os`` and the
+    file's own path. A file that defines its own ``Path`` class, assigns
+    ``__file__``, or imports one of them from another module could make the
+    computed target differ from the runtime target, so the derivation is
+    refused for the whole file.
+    """
+    guarded = set(_TRUSTED_BINDINGS) | {"__file__"}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef):
+            if node.name in guarded:
+                return True
+        elif isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store):
+            if node.id in guarded:
+                return True
+        elif isinstance(node, ast.arg) and node.arg in guarded:
+            return True
+        elif isinstance(node, ast.ImportFrom):
+            for alias in node.names:
+                bound = alias.asname or alias.name
+                if bound in guarded and (node.module or "") not in _TRUSTED_BINDINGS.get(bound, ()):
+                    return True
+        elif isinstance(node, ast.Import):
+            for alias in node.names:
+                bound = alias.asname or alias.name.split(".")[0]
+                if bound in guarded and alias.name.split(".")[0] not in _TRUSTED_BINDINGS.get(
+                    bound, (),
+                ):
+                    return True
+    return False
+
+
 def _dynamic_loads(source: bytes, script: Path) -> list[_DynamicLoad]:
-    """Every dynamic-load site in ``source``, in line order; [] if unparseable."""
+    """Every dynamic-load site in ``source``, in line order.
+
+    A file that does not parse yields none: it cannot execute, so it loads
+    nothing. A file too deeply nested for the parser is different, because the
+    parser gave up on a file the interpreter may still run, so it is reported
+    as one unresolvable load rather than as clean.
+    """
     try:
         tree = ast.parse(source)
     except (SyntaxError, ValueError):
         return []
-    names = _single_assignments(tree)
+    except (RecursionError, MemoryError):
+        return [_DynamicLoad(1, "unparseable", None, None)]
+    names = None if _shadows_a_path_name(tree) else _single_assignments(tree)
     found: list[_DynamicLoad] = []
     for node in ast.walk(tree):
         if isinstance(node, ast.Call):
@@ -1926,7 +2070,12 @@ def _resolve_dynamic_target(
         return _resolve_module_file(load.module, roots, toplevel)
     if load.path is None:
         return None
-    candidate = Path(os.path.normpath(load.path))
+    if ".." in load.path.parts or load.path.suffix != ".py":
+        # A `..` segment is lexically collapsed here but followed by the kernel
+        # after a symlink, so the two can disagree. A non-Python target is not
+        # scanned for its own imports or loads.
+        return None
+    candidate = load.path
     if not candidate.is_file() or not _is_within(candidate, toplevel):
         return None
     if _first_symlinked_component(candidate, toplevel) is not None:
@@ -2267,14 +2416,16 @@ def _enforce_command_trust(
 
     # Paths come from the PR-controlled config, so escape them before
     # printing (Trojan Source, CVE-2021-42574), same as the config diff.
-    listing = _escape_terminal_controls(
-        "\n".join(f"  {path}" for path in trust.untrusted_files),
+    listing = "\n".join(
+        f"  {_escape_terminal_controls(_one_line(path))}" for path in trust.untrusted_files
     )
     if not approved:
         print(
             f"HALT: completion-gate verifier files differ from "
-            f"{trust_anchor_ref} or are absent there; no criterion command was "
-            f"executed. Untrusted files:\n{listing}",
+            f"{trust_anchor_ref} or are absent there, or a verifier loads code "
+            f"by a route the closure cannot resolve (an entry of the form "
+            f"path:line: unresolvable dynamic load); no criterion command was "
+            f"executed. Untrusted entries:\n{listing}",
             file=sys.stderr,
         )
         print(
