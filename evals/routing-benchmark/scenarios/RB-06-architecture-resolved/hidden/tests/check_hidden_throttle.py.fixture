@@ -1,0 +1,47 @@
+import unittest
+
+from throttle import RateLimiter
+
+
+class HiddenThrottleChecks(unittest.TestCase):
+    def setUp(self) -> None:
+        self.now = [0.0]
+        self.limiter = RateLimiter(2, 10.0, lambda: self.now[0])
+
+    def _allow_at(self, moment: float, client: str = "a") -> bool:
+        self.now[0] = moment
+        return self.limiter.allow(client)
+
+    def test_the_counter_resets_when_the_fixed_window_rolls_over(self) -> None:
+        self.assertTrue(self._allow_at(5.0))
+        self.assertTrue(self._allow_at(6.0))
+        self.assertFalse(self._allow_at(9.0))
+        self.assertTrue(self._allow_at(10.0))
+        self.assertTrue(self._allow_at(11.0))
+        self.assertFalse(self._allow_at(12.0))
+
+    def test_windows_align_to_multiples_of_the_window_length(self) -> None:
+        self.assertTrue(self._allow_at(19.0))
+        self.assertTrue(self._allow_at(19.5))
+        self.assertTrue(self._allow_at(20.0))
+
+    def test_clients_are_counted_separately(self) -> None:
+        self.assertTrue(self._allow_at(1.0, "a"))
+        self.assertTrue(self._allow_at(1.0, "a"))
+        self.assertFalse(self._allow_at(1.0, "a"))
+        self.assertTrue(self._allow_at(1.0, "b"))
+
+    def test_denied_calls_do_not_stop_a_new_window_from_admitting_calls(self) -> None:
+        self.assertTrue(self._allow_at(1.0))
+        self.assertTrue(self._allow_at(2.0))
+        self.assertFalse(self._allow_at(3.0))
+        self.assertTrue(self._allow_at(10.0))
+
+    def test_invalid_configuration_raises(self) -> None:
+        for limit, window in ((0, 10.0), (1, 0.0), (-1, 5.0)):
+            with self.assertRaises(ValueError):
+                RateLimiter(limit, window, lambda: 0.0)
+
+
+if __name__ == "__main__":
+    unittest.main()

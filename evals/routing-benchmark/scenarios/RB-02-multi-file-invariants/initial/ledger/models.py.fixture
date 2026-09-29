@@ -1,0 +1,13 @@
+"""Entry model. SIGN maps each entry kind to its effect on the balance."""
+
+from dataclasses import dataclass
+
+SIGN = {"deposit": 1, "withdrawal": -1}
+KINDS = tuple(SIGN)
+
+
+@dataclass(frozen=True)
+class Entry:
+    kind: str
+    cents: int
+    ref: int | None = None

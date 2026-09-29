@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "id": "RB-03-investigate-before-edit",
+  "category": "investigate_before_edit",
+  "difficulty": "fallback_reasoning",
+  "title": "Performance gate passes although the ETL report lists a slower row",
+  "requirement": "The performance gate exits 0 when the ETL comparison lists a slower, interesting row and fail_on_regression is on. Read evidence/failure-report.txt, find the cause, and fix it so the gate exits 1 for that input. Keep the rule that a clean ETL comparison marks a benchmark regression as noise.",
+  "allowed_scope": {"paths": ["perfgate/*.py", "tests/check_visible_gate.py"]},
+  "expected_changed_paths": ["perfgate/*.py"],
+  "invariants": [
+    "a clean ETL comparison still marks a benchmark regression as noise",
+    "the gate decides from EtlResult fields and never parses the report text",
+    "a failed ETL comparison falls back to the benchmark verdict"
+  ],
+  "acceptance_criteria": [
+    "compare_etl reports a slower, interesting row as a regression",
+    "compare_etl ignores faster rows and rows that are not interesting",
+    "decide exits 1 for an ETL regression when fail_on_regression is on",
+    "decide still exits 0 for a benchmark regression that a clean ETL comparison contradicts"
+  ],
+  "validation": {
+    "commands": [["python", "-m", "unittest", "discover", "-s", "tests", "-p", "check_*.py"]],
+    "timeout_seconds": 60
+  },
+  "grading": {"method": "deterministic"},
+  "reset": {"method": "fresh_copy", "notes": "Copy initial/ into an empty directory; delete that directory after grading."},
+  "provenance": {
+    "kind": "adapted",
+    "source": "evals/oneshot-vs-shipped/corpus/perfdiff-1265.json",
+    "reference": "rjmurillo/moq.analyzers issue 1265. Only the meaningful invariant is kept (an ETL verdict must reach the gate without hiding benchmark regressions), re-expressed as a small Python package. The shipped fix is not copied."
+  }
+}

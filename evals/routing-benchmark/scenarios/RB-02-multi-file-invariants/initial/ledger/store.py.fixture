@@ -1,0 +1,19 @@
+"""In-memory ledger. Amounts are positive integer cents."""
+
+from ledger.models import KINDS, SIGN, Entry
+
+
+class Ledger:
+    def __init__(self) -> None:
+        self.entries: list[Entry] = []
+
+    def add(self, entry: Entry) -> int:
+        if entry.kind not in KINDS:
+            raise ValueError(f"unknown entry kind {entry.kind!r}")
+        if isinstance(entry.cents, bool) or not isinstance(entry.cents, int) or entry.cents <= 0:
+            raise ValueError("cents must be a positive integer")
+        self.entries.append(entry)
+        return len(self.entries) - 1
+
+    def balance_cents(self) -> int:
+        return sum(SIGN[entry.kind] * entry.cents for entry in self.entries)

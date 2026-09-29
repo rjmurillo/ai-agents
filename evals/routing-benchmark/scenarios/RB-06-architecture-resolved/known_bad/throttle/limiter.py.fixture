@@ -1,0 +1,24 @@
+"""Per-client rate limiting for the export endpoint."""
+
+from collections import defaultdict, deque
+from collections.abc import Callable
+
+
+class RateLimiter:
+    def __init__(self, limit: int, window_seconds: float, clock: Callable[[], float]) -> None:
+        if limit < 1 or window_seconds <= 0:
+            raise ValueError("limit must be at least 1 and window_seconds must be positive")
+        self._limit = limit
+        self._window = window_seconds
+        self._clock = clock
+        self._calls: dict[str, deque[float]] = defaultdict(deque)
+
+    def allow(self, client_id: str) -> bool:
+        now = self._clock()
+        calls = self._calls[client_id]
+        while calls and now - calls[0] >= self._window:
+            calls.popleft()
+        if len(calls) >= self._limit:
+            return False
+        calls.append(now)
+        return True

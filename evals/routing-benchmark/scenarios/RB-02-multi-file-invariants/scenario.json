@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "id": "RB-02-multi-file-invariants",
+  "category": "multi_file_invariants",
+  "difficulty": "fallback_reasoning",
+  "title": "Add refund entries to the ledger without breaking report consistency",
+  "requirement": "Add a `refund` entry kind to the `ledger` package. A refund adds its amount to the balance and must reference an existing withdrawal by entry index through `Entry.ref`. Refunds against one withdrawal may not total more than that withdrawal. `summarize` reports `refund_cents`, and its `balance_cents` must include refunds.",
+  "allowed_scope": {"paths": ["ledger/*.py"]},
+  "expected_changed_paths": ["ledger/models.py", "ledger/store.py", "ledger/report.py"],
+  "invariants": [
+    "summarize(ledger)['balance_cents'] equals ledger.balance_cents() for every ledger state",
+    "amounts stay positive integer cents",
+    "a rejected entry leaves the ledger unchanged",
+    "refunds against one withdrawal never total more than that withdrawal"
+  ],
+  "acceptance_criteria": [
+    "A refund raises the balance in the store and in the report",
+    "The report lists refund_cents",
+    "A refund with no reference, a missing reference, or a non-withdrawal reference raises ValueError",
+    "A refund that would push total refunds past the withdrawal raises ValueError and changes nothing"
+  ],
+  "validation": {
+    "commands": [["python", "-m", "unittest", "discover", "-s", "tests", "-p", "check_*.py"]],
+    "timeout_seconds": 60
+  },
+  "grading": {"method": "deterministic"},
+  "reset": {"method": "fresh_copy", "notes": "Copy initial/ into an empty directory; delete that directory after grading."},
+  "provenance": {
+    "kind": "synthetic",
+    "reason": "The invariant that a report total must agree with the store total across files needs a small executable multi-file package. No existing in-tree fixture is a runnable Python package with a cross-file invariant."
+  }
+}

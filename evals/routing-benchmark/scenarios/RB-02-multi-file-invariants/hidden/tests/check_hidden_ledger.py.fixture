@@ -1,0 +1,52 @@
+import unittest
+
+from ledger import Entry, Ledger, summarize
+
+
+def _ledger_with_withdrawal() -> tuple[Ledger, int]:
+    ledger = Ledger()
+    ledger.add(Entry("deposit", 1000))
+    return ledger, ledger.add(Entry("withdrawal", 400))
+
+
+class HiddenLedgerChecks(unittest.TestCase):
+    def test_report_lists_refunds_and_a_balance_that_includes_them(self) -> None:
+        ledger, withdrawal = _ledger_with_withdrawal()
+        ledger.add(Entry("refund", 150, ref=withdrawal))
+        report = summarize(ledger)
+        self.assertEqual(report["refund_cents"], 150)
+        self.assertEqual(report["balance_cents"], 750)
+
+    def test_report_balance_always_equals_ledger_balance(self) -> None:
+        ledger, withdrawal = _ledger_with_withdrawal()
+        ledger.add(Entry("refund", 100, ref=withdrawal))
+        ledger.add(Entry("refund", 200, ref=withdrawal))
+        self.assertEqual(summarize(ledger)["balance_cents"], ledger.balance_cents())
+
+    def test_refunds_against_one_withdrawal_may_not_exceed_it(self) -> None:
+        ledger, withdrawal = _ledger_with_withdrawal()
+        ledger.add(Entry("refund", 300, ref=withdrawal))
+        with self.assertRaises(ValueError):
+            ledger.add(Entry("refund", 101, ref=withdrawal))
+
+    def test_a_rejected_refund_leaves_the_ledger_unchanged(self) -> None:
+        ledger, withdrawal = _ledger_with_withdrawal()
+        before = (len(ledger.entries), ledger.balance_cents())
+        with self.assertRaises(ValueError):
+            ledger.add(Entry("refund", 401, ref=withdrawal))
+        self.assertEqual((len(ledger.entries), ledger.balance_cents()), before)
+
+    def test_a_refund_must_reference_an_existing_withdrawal(self) -> None:
+        ledger, _ = _ledger_with_withdrawal()
+        for ref in (None, 0, 99, -1):
+            with self.assertRaises(ValueError):
+                ledger.add(Entry("refund", 10, ref=ref))
+
+    def test_a_refund_may_use_the_whole_withdrawal(self) -> None:
+        ledger, withdrawal = _ledger_with_withdrawal()
+        ledger.add(Entry("refund", 400, ref=withdrawal))
+        self.assertEqual(ledger.balance_cents(), 1000)
+
+
+if __name__ == "__main__":
+    unittest.main()
