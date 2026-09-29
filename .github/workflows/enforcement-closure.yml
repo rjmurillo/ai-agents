@@ -1,0 +1,127 @@
+name: Enforcement Closure
+
+# ADR-101 Phase 1, integrity closure (issue #5245). Two jobs, both P1: every
+# trigger below runs this file as it stands on the default branch, so a pull
+# request cannot rewrite the job that reports on it.
+#
+#   closure-manifest  Computes the typed dependency closure of every pinned
+#                     required context and fails when an edge cannot be resolved.
+#                     schedule and workflow_dispatch only.
+#   dispatch-closure  Verifies the completion gate's dispatch closure for a pull
+#                     request from the base ref. The gate checks itself from
+#                     inside the tree a pull request controls; this job does not.
+#
+# The pull request head is checked out into `pr-head` and read as data by
+# scripts/ci/verify_dispatch_closure.py. Nothing in this workflow imports,
+# executes or runs a hook from `pr-head`, and the job holds no secret and only
+# `contents: read`. Any step added to the dispatch-closure job that runs a file
+# from `pr-head` breaks that property.
+#
+# Neither job is a required context. Pinning one needs the publisher App that
+# ADR-101 requirement 2 describes, so today each is a report, not a gate.
+
+on:
+  schedule:
+    - cron: '0 8 * * 1'
+  workflow_dispatch:
+  pull_request_target:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: enforcement-closure-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  closure-manifest:
+    name: Compute enforcement closure manifest
+    if: github.event_name != 'pull_request_target'
+    runs-on: ubuntu-26.04-arm
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup code environment
+        uses: ./.github/actions/setup-code-env
+        with:
+          gh-token: ${{ secrets.GITHUB_TOKEN }}
+          enable-pester: false
+          enable-git-hooks: false
+
+      # Exits 1 on an unresolved edge: an omitted edge and a verified one would
+      # otherwise look the same in the output.
+      - name: Emit the closure manifest
+        run: >-
+          uv run --frozen python scripts/validation/closure_manifest.py
+          --output "$RUNNER_TEMP/closure-manifest.json"
+
+      # Advisory: files the computed closure names that no CODEOWNERS entry owns.
+      - name: Report CODEOWNERS coverage of the closure
+        if: ${{ !cancelled() }}
+        run: >-
+          uv run --frozen python scripts/validation/closure_manifest.py
+          --check-codeowners --advisory
+
+      - name: Upload the closure manifest
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: closure-manifest
+          path: ${{ runner.temp }}/closure-manifest.json
+          if-no-files-found: ignore
+          retention-days: 7
+
+  dispatch-closure:
+    name: Verify dispatch closure against base
+    if: github.event_name == 'pull_request_target'
+    runs-on: ubuntu-26.04-arm
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
+      # No `ref:`: pull_request_target checks out the base branch tip, which is
+      # the tree this job's own code comes from.
+      - name: Check out the base
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The head, by immutable SHA, into its own directory. Data only.
+      - name: Check out the pull request head as data
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: pr-head
+          persist-credentials: false
+
+      - name: Setup code environment
+        uses: ./.github/actions/setup-code-env
+        with:
+          gh-token: ${{ secrets.GITHUB_TOKEN }}
+          enable-pester: false
+          enable-git-hooks: false
+
+      # Reports, and exits 1 on a difference: a legitimate verifier change reports
+      # here exactly as it halts the local gate until a human approves it.
+      - name: Compare the head's dispatch closure with the base
+        run: >-
+          uv run --frozen python scripts/ci/verify_dispatch_closure.py
+          --tool-root . --head-root pr-head --base-ref HEAD
