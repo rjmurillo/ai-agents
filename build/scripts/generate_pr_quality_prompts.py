@@ -42,6 +42,10 @@ from collections.abc import Sequence
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+sys.path.insert(0, str(REPO_ROOT))
+
+from scripts.validation.frontmatter_split import split_leading_frontmatter  # noqa: E402
+
 CANONICAL_DIR = REPO_ROOT / ".claude" / "skills" / "review" / "references"
 GENERATED_DIR = REPO_ROOT / ".github" / "prompts"
 
@@ -73,19 +77,6 @@ _STRIP_FRONTMATTER_KEYS: frozenset[str] = frozenset({"name", "role", "version", 
 
 class GeneratePromptsError(Exception):
     """Domain error for canonical-to-CI transform."""
-
-
-def _split_frontmatter(text: str) -> tuple[str, str]:
-    """Split a markdown file into (frontmatter, body).
-
-    Returns ("", text) when no frontmatter is present.
-    """
-    if not text.startswith("---\n"):
-        return "", text
-    end_idx = text.find("\n---\n", 4)
-    if end_idx == -1:
-        return "", text
-    return text[4:end_idx], text[end_idx + 5 :]
 
 
 def _strip_keys_from_frontmatter(frontmatter: str, keys: frozenset[str]) -> str:
@@ -169,7 +160,7 @@ def transform(canonical_text: str, role: str) -> str:
         When canonical file is missing required frontmatter keys
         (`name`, `role`, `version`, `description`). PR #1965 cluster T.
     """
-    frontmatter, body = _split_frontmatter(canonical_text)
+    frontmatter, body = split_leading_frontmatter(canonical_text)
     if not frontmatter:
         # PR #1965 cluster X1 (loQ): canonical files MUST have frontmatter.
         # Skipping validation when frontmatter is absent let malformed files
