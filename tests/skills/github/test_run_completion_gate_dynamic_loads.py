@@ -358,3 +358,98 @@ class TestPathDerivationEdges:
         write(tmp_path, "verify.py", "import runpy\nrunpy.run_path()\n")
 
         assert len(gate._unresolvable_dynamic_sites(["verify.py"], tmp_path)) == 1
+
+
+class TestPackageInitializers:
+    """Importing a.b.c runs a/__init__.py and a/b/__init__.py first (a confirmation finding)."""
+
+    def _package(self, root: Path) -> None:
+        write(root, "pkg/__init__.py", "")
+        write(root, "pkg/sub/__init__.py", "")
+        write(root, "pkg/sub/leaf.py", "X = 1\n")
+
+    def test_a_static_import_of_a_nested_module_adds_every_ancestor_initializer(
+        self, tmp_path: Path
+    ) -> None:
+        self._package(tmp_path)
+        write(tmp_path, "verify.py", "import pkg.sub.leaf\n")
+
+        assert closure(tmp_path, "verify.py") == [
+            "verify.py",
+            "pkg/__init__.py",
+            "pkg/sub/__init__.py",
+            "pkg/sub/leaf.py",
+        ]
+
+    def test_a_dynamic_import_of_a_nested_module_adds_every_ancestor_initializer(
+        self, tmp_path: Path
+    ) -> None:
+        self._package(tmp_path)
+        write(
+            tmp_path,
+            "verify.py",
+            "import importlib\nimportlib.import_module('pkg.sub.leaf')\n",
+        )
+
+        assert closure(tmp_path, "verify.py") == [
+            "verify.py",
+            "pkg/__init__.py",
+            "pkg/sub/__init__.py",
+            "pkg/sub/leaf.py",
+        ]
+
+    def test_a_namespace_ancestor_with_no_initializer_adds_nothing(self, tmp_path: Path) -> None:
+        write(tmp_path, "ns/inner/__init__.py", "")
+        write(tmp_path, "ns/inner/mod.py", "X = 1\n")
+        write(tmp_path, "verify.py", "import ns.inner.mod\n")
+
+        assert closure(tmp_path, "verify.py") == [
+            "verify.py",
+            "ns/inner/__init__.py",
+            "ns/inner/mod.py",
+        ]
+
+    def test_a_top_level_module_has_no_ancestors(self, tmp_path: Path) -> None:
+        write(tmp_path, "verify.py", "import solo\n")
+        write(tmp_path, "solo.py", "X = 1\n")
+
+        assert closure(tmp_path, "verify.py") == ["verify.py", "solo.py"]
+
+    def test_a_symlinked_initializer_is_not_followed(
+        self, tmp_path: Path, tmp_path_factory: pytest.TempPathFactory
+    ) -> None:
+        outside = tmp_path_factory.mktemp("outside")
+        real = outside / "init.py"
+        real.write_text("", encoding="utf-8")
+        (tmp_path / "pkg").mkdir()
+        (tmp_path / "pkg" / "__init__.py").symlink_to(real)
+        write(tmp_path, "pkg/leaf.py", "X = 1\n")
+        write(tmp_path, "verify.py", "import pkg.leaf\n")
+
+        assert closure(tmp_path, "verify.py") == ["verify.py", "pkg/leaf.py"]
+
+    def test_an_initializer_already_in_the_closure_is_not_listed_twice(
+        self, tmp_path: Path
+    ) -> None:
+        self._package(tmp_path)
+        write(tmp_path, "verify.py", "import pkg\nimport pkg.sub.leaf\n")
+
+        listed = closure(tmp_path, "verify.py")
+
+        assert len(listed) == len(set(listed))
+        assert "pkg/__init__.py" in listed
+
+    def test_a_module_that_is_its_own_package_initializer_is_listed_once(
+        self, tmp_path: Path
+    ) -> None:
+        write(tmp_path, "pkg/__init__.py", "X = 1\n")
+        write(tmp_path, "verify.py", "import pkg\n")
+
+        assert closure(tmp_path, "verify.py") == ["verify.py", "pkg/__init__.py"]
+
+    def test_the_resolver_wrappers_agree_on_a_plain_module(self, tmp_path: Path) -> None:
+        write(tmp_path, "solo.py", "X = 1\n")
+
+        assert gate._resolve_module_file("solo", [tmp_path], tmp_path) == "solo.py"
+        assert gate._resolve_module_file("absent", [tmp_path], tmp_path) is None
+        assert gate._module_files("absent", [tmp_path], tmp_path) == []
