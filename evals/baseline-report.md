@@ -2,6 +2,8 @@
 
 Baseline measurement: do current agent prompts beat a naive baseline on a held-out corpus? Aggregate run across 18 agent spikes on fixtures derived from rjmurillo/moq.analyzers, dotnet/runtime, and rjmurillo/ai-agents public PRs and issues.
 
+> Retirement note (issue #5701): the `backlog-generator` agent was retired. Its rows below are the recorded results of that run and are preserved unchanged for history. The agent no longer ships in any bundle.
+
 ## Date
 
 2026-05-28
