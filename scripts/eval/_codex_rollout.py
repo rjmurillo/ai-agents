@@ -48,7 +48,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
@@ -160,39 +160,51 @@ def _is_refusal(record: Mapping[str, object]) -> bool:
     return SPAWN_LIMIT_REFUSAL in _output_text(payload)
 
 
+@dataclass(slots=True)
+class _Tally:
+    """Running counts while one rollout is read."""
+
+    compacted: int = 0
+    context_events: int = 0
+    open_turns: int = 0
+    refusals: list[datetime] = field(default_factory=list)
+
+    def count(self, record: Mapping[str, object], stamp: datetime) -> None:
+        """Fold one non-meta record into the tally."""
+        kind = _payload(record).get("type")
+        is_event = record.get("type") == "event_msg"
+        if record.get("type") == "compacted":
+            self.compacted += 1
+        elif is_event and kind == "context_compacted":
+            self.context_events += 1
+        elif is_event and kind == "task_started":
+            self.open_turns += 1
+        elif is_event and kind == "task_complete":
+            self.open_turns -= 1
+        elif _is_refusal(record):
+            self.refusals.append(stamp)
+
+
 def parse_rollout(lines: Iterable[str]) -> Rollout:
     """Parse one rollout, failing closed on anything it cannot account for."""
     meta: Mapping[str, object] | None = None
     last: datetime | None = None
-    open_turns = 0
-    compacted = 0
-    context_events = 0
-    refusals: list[datetime] = []
+    tally = _Tally()
     for number, line in enumerate(lines, start=1):
         if not line.strip():
             continue
         record = _record(line, number)
         stamp = _parse_time(record.get("timestamp"), f"line {number} timestamp")
         last = stamp if last is None else max(last, stamp)
-        if meta is None:
-            if record.get("type") != "session_meta":
-                raise RolloutError("first record must be session_meta")
+        if meta is not None:
+            tally.count(record, stamp)
+        elif record.get("type") == "session_meta":
             meta = _payload(record)
-            continue
-        kind = _payload(record).get("type")
-        if record.get("type") == "compacted":
-            compacted += 1
-        elif record.get("type") == "event_msg" and kind == "context_compacted":
-            context_events += 1
-        elif record.get("type") == "event_msg" and kind == "task_started":
-            open_turns += 1
-        elif record.get("type") == "event_msg" and kind == "task_complete":
-            open_turns -= 1
-        elif _is_refusal(record):
-            refusals.append(stamp)
+        else:
+            raise RolloutError("first record must be session_meta")
     if meta is None or last is None:
         raise RolloutError("rollout is empty")
-    if open_turns < 0:
+    if tally.open_turns < 0:
         raise RolloutError("task_complete without a matching task_started")
     return Rollout(
         thread_id=_text(meta.get("id"), "session_meta.id"),
@@ -200,10 +212,10 @@ def parse_rollout(lines: Iterable[str]) -> Rollout:
         cli_version=_text(meta.get("cli_version"), "session_meta.cli_version"),
         started_at=_parse_time(meta.get("timestamp"), "session_meta.timestamp"),
         ended_at=last,
-        turns_balanced=open_turns == 0,
-        compacted_records=compacted,
-        context_compacted_events=context_events,
-        spawn_refusals=tuple(refusals),
+        turns_balanced=tally.open_turns == 0,
+        compacted_records=tally.compacted,
+        context_compacted_events=tally.context_events,
+        spawn_refusals=tuple(tally.refusals),
     )
 
 

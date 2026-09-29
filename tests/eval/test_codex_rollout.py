@@ -21,14 +21,17 @@ T2 = "2026-09-10T02:20:00.000Z"
 T3 = "2026-09-10T02:30:00.000Z"
 
 
-def _parse(**kwargs: object) -> rollout.Rollout:
-    return rollout.parse_rollout(rollout_lines("t", **kwargs))  # type: ignore[arg-type]
+def _parse(*, start: str, end: str, balanced: bool = True) -> rollout.Rollout:
+    return rollout.parse_rollout(rollout_lines("t", start=start, end=end, balanced=balanced))
 
 
-def _child(thread_id: str, start: str, end: str, **kwargs: object) -> rollout.Rollout:
-    return rollout.parse_rollout(
-        rollout_lines(thread_id, start=start, end=end, parent="p", **kwargs)  # type: ignore[arg-type]
+def _child(
+    thread_id: str, start: str, end: str, *, version: str = "0.154.0", balanced: bool = True
+) -> rollout.Rollout:
+    lines = rollout_lines(
+        thread_id, start=start, end=end, parent="p", version=version, balanced=balanced
     )
+    return rollout.parse_rollout(lines)
 
 
 def _recorded() -> tuple[rollout.Rollout, list[rollout.Rollout]]:
@@ -314,3 +317,12 @@ def test_a_tool_output_with_no_text_is_not_a_refusal() -> None:
     lines.append(line({"timestamp": T1, "type": "response_item", "payload": empty}))
 
     assert rollout.parse_rollout(lines).spawn_refusals == ()
+
+
+def test_refusals_at_the_same_instant_bound_once() -> None:
+    kids = [_child("a", T0, T1), _child("b", T0, T1)]
+
+    ceiling = rollout.spawn_ceiling(_parent(T1, T1), kids)
+
+    assert ceiling is not None
+    assert (ceiling.lower_bound, ceiling.upper_bound, ceiling.refusals) == (2, 2, 2)
