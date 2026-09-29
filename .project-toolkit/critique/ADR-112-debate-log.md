@@ -127,3 +127,27 @@ replaces a second vote.
 - Deny set: `gh auth token` removed.
 - ADR-112: gaps G8 and G9 added, G2 widened, section 4 narrowed.
 
+
+## Round 3 Summary: pull request bot review
+
+Devin and CodeRabbit reviewed PR #5986. The author disposed of each thread.
+
+### Key Issues Addressed
+
+| Finding | Disposition |
+|---|---|
+| Lease recipe reads the tracking ref at push time | Fixed: the SHA is captured before the rebase |
+| Refusal paths skip the readback | Fixed: conflict and head-moved errors go through the readback |
+| Armed auto-merge after an error reported as failure | Fixed: reported as queued |
+| Missing head SHA leaves the merge unpinned | Fixed: refused with exit 3 |
+| `MERGED` readback not checked against the pinned head | Fixed: a different or missing head is unverified, exit 3 |
+| Conflict and CLOSED refusals lack audit | Fixed |
+| Auto-merge path not head-pinned | Recorded as gap G10 |
+| code-reviewer base-revision read needs a read-only route | Fixed: the GitHub read tool at the base ref |
+
+### Agent Positions
+
+| Agent | Position |
+|---|---|
+| Round 1 seats | Unchanged; no re-vote |
+| Author | All bot findings fixed or recorded as G10 |

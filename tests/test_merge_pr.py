@@ -44,6 +44,10 @@ validate_strategy = _mod.validate_strategy
 # ---------------------------------------------------------------------------
 
 
+# One head SHA shared by every fixture, so the readback matches the pin.
+_FIXTURE_HEAD = "a" * 40
+
+
 def _completed(stdout: str = "", stderr: str = "", rc: int = 0):
     return subprocess.CompletedProcess(args=[], returncode=rc, stdout=stdout, stderr=stderr)
 
@@ -61,7 +65,7 @@ def _readback(
         "mergeCommit": {"oid": merge_commit} if state == "MERGED" else None,
         "mergedBy": {"login": merged_by} if state == "MERGED" else None,
         "autoMergeRequest": {"enabledBy": {"login": "octocat"}} if auto else None,
-        "headRefOid": "abc123def456",
+        "headRefOid": _FIXTURE_HEAD,
     })
 
 
@@ -193,7 +197,7 @@ class TestMain:
     def test_merge_success(self, capsys):
         state_json = json.dumps({
             "state": "OPEN", "mergeable": "MERGEABLE",
-            "mergeStateStatus": "CLEAN", "headRefName": "feature",
+            "mergeStateStatus": "CLEAN", "headRefName": "feature", "headRefOid": _FIXTURE_HEAD,
         })
         def _side_effect(cmd, **kwargs):
             if _is_readback(cmd):
@@ -226,7 +230,7 @@ class TestMain:
         """HAS_HOOKS is accepted as a mergeable state like CLEAN."""
         state_json = json.dumps({
             "state": "OPEN", "mergeable": "MERGEABLE",
-            "mergeStateStatus": "HAS_HOOKS", "headRefName": "feature",
+            "mergeStateStatus": "HAS_HOOKS", "headRefName": "feature", "headRefOid": _FIXTURE_HEAD,
         })
         def _side_effect(cmd, **kwargs):
             if _is_readback(cmd):
@@ -256,7 +260,7 @@ class TestMain:
     def test_auto_merge(self, capsys):
         state_json = json.dumps({
             "state": "OPEN", "mergeable": "MERGEABLE",
-            "mergeStateStatus": "BLOCKED", "headRefName": "feature",
+            "mergeStateStatus": "BLOCKED", "headRefName": "feature", "headRefOid": _FIXTURE_HEAD,
         })
         def _side_effect(cmd, **kwargs):
             if _is_readback(cmd):
@@ -311,7 +315,7 @@ class TestMain:
     def test_not_mergeable_exits_6(self):
         state_json = json.dumps({
             "state": "OPEN", "mergeable": "CONFLICTING",
-            "mergeStateStatus": "DIRTY", "headRefName": "feature",
+            "mergeStateStatus": "DIRTY", "headRefName": "feature", "headRefOid": _FIXTURE_HEAD,
         })
         call_count = 0
 
@@ -340,7 +344,7 @@ class TestMain:
     def test_blocked_policy_without_auto_exits_6(self):
         state_json = json.dumps({
             "state": "OPEN", "mergeable": "MERGEABLE",
-            "mergeStateStatus": "BLOCKED", "headRefName": "feature",
+            "mergeStateStatus": "BLOCKED", "headRefName": "feature", "headRefOid": _FIXTURE_HEAD,
         })
         call_count = 0
 
@@ -369,7 +373,7 @@ class TestMain:
     def test_blocked_policy_with_auto_succeeds(self, capsys):
         state_json = json.dumps({
             "state": "OPEN", "mergeable": "MERGEABLE",
-            "mergeStateStatus": "BLOCKED", "headRefName": "feature",
+            "mergeStateStatus": "BLOCKED", "headRefName": "feature", "headRefOid": _FIXTURE_HEAD,
         })
         call_count = 0
 
@@ -416,7 +420,7 @@ class TestUnknownMergeStateRejection:
     def test_unknown_mergeable_without_auto_exits_3(self, capsys):
         state_json = json.dumps({
             "state": "OPEN", "mergeable": "UNKNOWN",
-            "mergeStateStatus": "CLEAN", "headRefName": "feature",
+            "mergeStateStatus": "CLEAN", "headRefName": "feature", "headRefOid": _FIXTURE_HEAD,
         })
         calls = []
 
@@ -448,7 +452,7 @@ class TestUnknownMergeStateRejection:
     def test_unknown_merge_state_status_without_auto_exits_3(self, capsys):
         state_json = json.dumps({
             "state": "OPEN", "mergeable": "MERGEABLE",
-            "mergeStateStatus": "UNKNOWN", "headRefName": "feature",
+            "mergeStateStatus": "UNKNOWN", "headRefName": "feature", "headRefOid": _FIXTURE_HEAD,
         })
 
         def _side_effect(*args, **kwargs):
@@ -472,7 +476,7 @@ class TestUnknownMergeStateRejection:
         """--auto defers to GitHub's gate; UNKNOWN must not block it."""
         state_json = json.dumps({
             "state": "OPEN", "mergeable": "UNKNOWN",
-            "mergeStateStatus": "UNKNOWN", "headRefName": "feature",
+            "mergeStateStatus": "UNKNOWN", "headRefName": "feature", "headRefOid": _FIXTURE_HEAD,
         })
         call_count = 0
 
@@ -502,7 +506,7 @@ class TestUnknownMergeStateRejection:
         """READY (MERGEABLE/CLEAN) still merges directly; no false block."""
         state_json = json.dumps({
             "state": "OPEN", "mergeable": "MERGEABLE",
-            "mergeStateStatus": "CLEAN", "headRefName": "feature",
+            "mergeStateStatus": "CLEAN", "headRefName": "feature", "headRefOid": _FIXTURE_HEAD,
         })
         call_count = 0
 
@@ -748,7 +752,7 @@ class TestDefaultStrategyIntegration:
         }
         state_json = json.dumps({
             "state": "OPEN", "mergeable": "MERGEABLE",
-            "mergeStateStatus": "CLEAN", "headRefName": "feature",
+            "mergeStateStatus": "CLEAN", "headRefName": "feature", "headRefOid": _FIXTURE_HEAD,
         })
         merge_calls = []
 
@@ -781,7 +785,7 @@ class TestDefaultStrategyIntegration:
             "state": "OPEN",
             "mergeable": "MERGEABLE",
             "mergeStateStatus": "CLEAN",
-            "headRefName": "feature",
+            "headRefName": "feature", "headRefOid": _FIXTURE_HEAD,
         }
         with patch(
             "merge_pr.assert_gh_authenticated",
@@ -836,7 +840,7 @@ class TestSuccessEnvelope:
     def test_merge_success_uses_envelope(self, capsys):
         state_json = json.dumps({
             "state": "OPEN", "mergeable": "MERGEABLE",
-            "mergeStateStatus": "CLEAN", "headRefName": "feature",
+            "mergeStateStatus": "CLEAN", "headRefName": "feature", "headRefOid": _FIXTURE_HEAD,
         })
         call_count = 0
 
@@ -918,7 +922,7 @@ class TestErrorEnvelope:
     def test_not_mergeable_uses_envelope(self, capsys):
         state_json = json.dumps({
             "state": "OPEN", "mergeable": "CONFLICTING",
-            "mergeStateStatus": "DIRTY", "headRefName": "feature",
+            "mergeStateStatus": "DIRTY", "headRefName": "feature", "headRefOid": _FIXTURE_HEAD,
         })
         call_count = 0
 
@@ -956,7 +960,7 @@ class TestMainAdditional:
     def test_merge_generic_failure_exits_3(self):
         state_json = json.dumps({
             "state": "OPEN", "mergeable": "MERGEABLE",
-            "mergeStateStatus": "CLEAN", "headRefName": "feature",
+            "mergeStateStatus": "CLEAN", "headRefName": "feature", "headRefOid": _FIXTURE_HEAD,
         })
         call_count = 0
 
@@ -985,7 +989,7 @@ class TestMainAdditional:
     def test_conflicts_keyword_exits_6(self):
         state_json = json.dumps({
             "state": "OPEN", "mergeable": "CONFLICTING",
-            "mergeStateStatus": "DIRTY", "headRefName": "feature",
+            "mergeStateStatus": "DIRTY", "headRefName": "feature", "headRefOid": _FIXTURE_HEAD,
         })
         call_count = 0
 
@@ -1014,7 +1018,7 @@ class TestMainAdditional:
     def test_delete_branch_flag(self, capsys):
         state_json = json.dumps({
             "state": "OPEN", "mergeable": "MERGEABLE",
-            "mergeStateStatus": "CLEAN", "headRefName": "feature",
+            "mergeStateStatus": "CLEAN", "headRefName": "feature", "headRefOid": _FIXTURE_HEAD,
         })
         calls = []
 
@@ -1061,7 +1065,7 @@ class TestMainAdditional:
     def test_subject_and_body_passed(self, capsys):
         state_json = json.dumps({
             "state": "OPEN", "mergeable": "MERGEABLE",
-            "mergeStateStatus": "CLEAN", "headRefName": "feature",
+            "mergeStateStatus": "CLEAN", "headRefName": "feature", "headRefOid": _FIXTURE_HEAD,
         })
         calls = []
 
@@ -1106,7 +1110,7 @@ class TestRestRetryOnBlocked:
     _STATE = json.dumps({
         "state": "OPEN", "mergeable": "MERGEABLE",
         "mergeStateStatus": "BLOCKED", "headRefName": "feature",
-        "headRefOid": "abc123def456",
+        "headRefOid": _FIXTURE_HEAD,
     })
 
     def _make_side_effect(
@@ -1144,7 +1148,7 @@ class TestRestRetryOnBlocked:
         )
 
     def test_blocked_retries_rest_and_succeeds(self, capsys):
-        rest_body = json.dumps({"merged": True, "sha": "abc123def456"})
+        rest_body = json.dumps({"merged": True, "sha": _FIXTURE_HEAD})
         side, calls = self._make_side_effect(
             "BLOCKED by branch protection", rest_rc=0, rest_stdout=rest_body,
         )
@@ -1176,7 +1180,7 @@ class TestRestRetryOnBlocked:
         assert len(calls) == 4
 
     def test_blocked_rest_uses_head_sha(self):
-        rest_body = json.dumps({"merged": True, "sha": "abc123def456"})
+        rest_body = json.dumps({"merged": True, "sha": _FIXTURE_HEAD})
         side, calls = self._make_side_effect(
             "BLOCKED by branch protection", rest_rc=0, rest_stdout=rest_body,
         )
@@ -1186,7 +1190,7 @@ class TestRestRetryOnBlocked:
              patch("subprocess.run", side_effect=side):
             main(["--pull-request", "50", "--strategy", "squash"])
         rest_cmd = calls[2]
-        assert any("abc123def456" in str(part) for part in rest_cmd)
+        assert any(_FIXTURE_HEAD in str(part) for part in rest_cmd)
 
     def test_not_mergeable_does_not_retry(self):
         """'not mergeable' errors must not trigger a REST retry."""
@@ -1208,8 +1212,9 @@ class TestRestRetryOnBlocked:
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "50"])
         assert exc.value.code == 6
-        # Only two calls: state fetch and gh pr merge, no REST retry
-        assert len(calls) == 2
+        # State fetch, gh pr merge, then the readback; never a REST retry.
+        assert not any(c[:2] == ["gh", "api"] for c in calls)
+        assert len(calls) == 3
 
     def test_auto_does_not_retry_on_blocked(self):
         """--auto bypasses BLOCKED handling; no REST retry."""
@@ -1257,7 +1262,7 @@ class TestRestRetryOnStack:
     _STATE = json.dumps({
         "state": "OPEN", "mergeable": "MERGEABLE",
         "mergeStateStatus": "CLEAN", "headRefName": "feature",
-        "headRefOid": "abc123def456",
+        "headRefOid": _FIXTURE_HEAD,
     })
 
     def _make_side_effect(
@@ -1292,7 +1297,7 @@ class TestRestRetryOnStack:
     def test_stack_error_retries_rest_and_succeeds(self, capsys):
         """REST reporting merged=true needs no state confirmation."""
         side, calls = self._make_side_effect(
-            rest_rc=0, rest_stdout=json.dumps({"merged": True, "sha": "abc123def456"}),
+            rest_rc=0, rest_stdout=json.dumps({"merged": True, "sha": _FIXTURE_HEAD}),
         )
         rc = self._run(side, ["--pull-request", "5470", "--strategy", "squash"])
         assert rc == 0
@@ -1310,13 +1315,13 @@ class TestRestRetryOnStack:
         rest_cmd = [str(part) for part in calls[2]]
         assert "PUT" in rest_cmd
         assert any("pulls/5470/merge" in part for part in rest_cmd)
-        assert any("abc123def456" in part for part in rest_cmd)
+        assert any(_FIXTURE_HEAD in part for part in rest_cmd)
 
     def test_async_response_without_merged_flag_confirms_state(self, capsys):
         """An async accept omits merged=true; the PR state settles it."""
         side, calls = self._make_side_effect(
             rest_rc=0,
-            rest_stdout=json.dumps({"sha": "abc123def456"}),
+            rest_stdout=json.dumps({"sha": _FIXTURE_HEAD}),
             view_state=json.dumps({"state": "MERGED"}),
         )
         rc = self._run(side, ["--pull-request", "5470", "--strategy", "squash"])
@@ -1340,7 +1345,7 @@ class TestRestRetryOnStack:
         """REST accepted but the PR is still open: report failure, not success."""
         side, _ = self._make_side_effect(
             rest_rc=0,
-            rest_stdout=json.dumps({"sha": "abc123def456"}),
+            rest_stdout=json.dumps({"sha": _FIXTURE_HEAD}),
             view_state=json.dumps({"state": "OPEN"}),
             readback=_OPEN_READBACK,
         )
@@ -1353,7 +1358,7 @@ class TestRestRetryOnStack:
         """A failed confirmation query must never be read as merged."""
         side, _ = self._make_side_effect(
             rest_rc=0,
-            rest_stdout=json.dumps({"sha": "abc123def456"}),
+            rest_stdout=json.dumps({"sha": _FIXTURE_HEAD}),
             view_rc=1,
             readback=_OPEN_READBACK,
         )
@@ -1495,28 +1500,36 @@ class TestHeadPinning:
         merge = fake.merge_calls()[0]
         assert merge[merge.index("--match-head-commit") + 1] == _HEAD
 
-    def test_no_pin_when_head_unknown(self, capsys):
+    def test_unknown_head_is_refused_without_a_merge_call(self, capsys):
+        """No head SHA means nothing to pin, so the merge fails closed."""
         state = json.dumps({
             "state": "OPEN", "mergeable": "MERGEABLE", "mergeStateStatus": "CLEAN",
         })
         fake = _FakeGh(state=state)
         code, env = _run_main(fake, [], capsys)
-        assert code == 0
-        assert "--match-head-commit" not in fake.merge_calls()[0]
-        assert env["Data"]["audit"]["target"]["head_sha"] is None
+        assert code == 3
+        assert fake.merge_calls() == []
+        assert env["Data"]["audit"]["result"] == "refused: head SHA unknown"
 
     @pytest.mark.parametrize("text", [
         "Head branch was modified. Review and try the merge again.",
         "the head commit changed",
     ])
     def test_head_moved_refusal_exits_6_without_rest_retry(self, text, capsys):
-        fake = _FakeGh(merge=_completed(rc=1, stderr=text))
+        fake = _FakeGh(merge=_completed(rc=1, stderr=text), readback=_OPEN_READBACK)
         code, env = _run_main(fake, [], capsys)
         assert code == 6
         assert "head moved" in env["Error"]["Message"]
         assert _HEAD in env["Error"]["Message"]
-        assert env["Data"]["audit"]["result"].startswith("refused")
+        assert env["Data"]["audit"]["result"] == "failed"
         assert not any(c[:2] == ["gh", "api"] for c in fake.calls)
+
+    def test_head_moved_error_after_a_landed_merge_is_recovered(self, capsys):
+        """gh can report an error after the merge landed; readback decides."""
+        fake = _FakeGh(merge=_completed(rc=1, stderr="Head branch was modified"))
+        code, env = _run_main(fake, [], capsys)
+        assert code == 0
+        assert env["Data"]["recovered"] is True
 
 
 class TestReadback:
@@ -1632,11 +1645,32 @@ class TestPartialFailureRecovery:
         assert env["Error"]["Type"] == "Timeout"
         assert "outcome unknown" in env["Error"]["Message"]
 
-    def test_conflict_failure_skips_readback(self, capsys):
-        fake = _FakeGh(merge=_completed(rc=1, stderr="not mergeable"))
-        code, _ = _run_main(fake, [], capsys)
+    def test_conflict_failure_reads_back_and_exits_6_when_open(self, capsys):
+        fake = _FakeGh(merge=_completed(rc=1, stderr="not mergeable"), readback=_OPEN_READBACK)
+        code, env = _run_main(fake, [], capsys)
         assert code == 6
-        assert not any(_is_readback(c) for c in fake.calls)
+        assert any(_is_readback(c) for c in fake.calls)
+        assert env["Data"]["audit"]["result"] == "failed"
+
+    def test_auto_failure_with_armed_request_is_queued(self, capsys):
+        """An armed auto-merge request after an error is queued, not failed."""
+        fake = _FakeGh(merge=_completed(rc=1, stderr="network reset"), readback=_AUTO_READBACK)
+        code, env = _run_main(fake, ["--auto"], capsys)
+        assert code == 0
+        assert env["Data"]["action"] == "auto-merge-enabled"
+        assert env["Data"]["recovered"] is True
+
+    def test_merged_readback_with_a_different_head_is_unverified(self, capsys):
+        other = json.loads(_MERGED_READBACK) | {"headRefOid": _OTHER_HEAD}
+        fake = _FakeGh(readback=json.dumps(other))
+        code, env = _run_main(fake, [], capsys)
+        assert code == 3
+        assert "does not match the pinned head" in env["Error"]["Message"]
+
+    def test_merged_readback_with_no_head_is_unverified(self, capsys):
+        missing = json.loads(_MERGED_READBACK) | {"headRefOid": None}
+        code, _ = _run_main(_FakeGh(readback=json.dumps(missing)), [], capsys)
+        assert code == 3
 
 
 class TestRetryDuplication:
@@ -1737,6 +1771,11 @@ class TestRollbackHint:
 
 
 class TestRefusalAudit:
+    def test_closed_refusal_carries_audit(self, capsys):
+        code, env = _run_main(_FakeGh(state=_pr_state("CLOSED")), [], capsys)
+        assert code == 6
+        assert env["Data"]["audit"]["result"] == "refused: PR is closed"
+
     def test_head_mismatch_refusal_carries_audit(self, capsys):
         fake = _FakeGh(state=_pr_state(head=_OTHER_HEAD))
         code, env = _run_main(fake, ["--expected-head-sha", _HEAD], capsys)

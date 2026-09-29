@@ -489,18 +489,17 @@ def _handle_merge_failure(
     pr = ctx.pr
     output = merge_result.stderr or merge_result.stdout
     lowered = output.lower()
+    # Refusals still go through the readback: gh can report an error after the
+    # merge landed, and a landed merge must not be reported as refused.
     if any(kw in lowered for kw in _HEAD_MOVED_KEYWORDS):
-        _emit_error(
+        raise _MergeFailureError(
             f"PR #{pr} head moved after review; refusing the stale target "
             f"(pinned {ctx.head_sha or 'none'}): {output}",
             6,
             "General",
-            ctx.output_format,
-            pr,
-            audit=_build_audit(ctx, "merge", "refused: head moved after review"),
         )
     if any(kw in output for kw in ("not mergeable", "cannot be merged", "conflicts")):
-        _emit_error(f"PR #{pr} is not mergeable: {output}", 6, "General", ctx.output_format, pr)
+        raise _MergeFailureError(f"PR #{pr} is not mergeable: {output}", 6, "General")
     is_stack = any(kw in output for kw in _STACK_KEYWORDS)
     if not ctx.auto and (is_stack or any(kw in output for kw in _BLOCKED_KEYWORDS)):
         # GraphQL refused with a BLOCKED policy or stack error; retry via REST once.
@@ -657,8 +656,26 @@ def _emit_merge_success(
     readback: dict[str, Any],
     original_error: str | None,
 ) -> int:
-    """Emit the success envelope for a readback that shows MERGED or queued."""
+    """Emit the success envelope for a readback that shows MERGED or queued.
+
+    The readback head must equal the pinned head. A missing or different head
+    means GitHub merged or queued something other than what was reviewed, so
+    the result is reported as unverified (exit 3), never as success.
+    """
     pr = ctx.pr
+    readback_head = str(readback.get("headRefOid") or "")
+    if readback_head.lower() != ctx.head_sha.lower():
+        _emit_error(
+            f"PR #{pr} readback head {readback_head or 'unknown'} does not match "
+            f"the pinned head {ctx.head_sha}; merge result is unverified",
+            3,
+            "ApiError",
+            ctx.output_format,
+            pr,
+            audit=_build_audit(
+                ctx, "merge", "unverified: readback head differs", readback, original_error,
+            ),
+        )
     merged = readback.get("state") == "MERGED"
     recovered = original_error is not None
     if merged:
@@ -737,6 +754,15 @@ def _recover_or_fail(ctx: _MergeContext, failure: _MergeFailureError) -> int:
     """
     readback = _read_back(ctx.pr, ctx.repo_flag)
     if readback is not None and readback.get("state") == "MERGED":
+        return _emit_merge_success(ctx, readback, failure.message)
+    if (
+        readback is not None
+        and ctx.auto
+        and readback.get("state") == "OPEN"
+        and readback.get("autoMergeRequest")
+    ):
+        # The auto-merge request is armed despite the error; report it as
+        # queued so a caller does not retry into a duplicate request.
         return _emit_merge_success(ctx, readback, failure.message)
     note = ""
     if readback is None:
@@ -870,6 +896,18 @@ def main(argv: list[str] | None = None) -> int:
             "General",
             output_format,
             pr,
+            audit=_build_audit(ctx, "none", "refused: PR is closed"),
+        )
+
+    if not head_sha:
+        _emit_error(
+            f"PR #{pr} head SHA is unknown, so the merge cannot be pinned to a "
+            "reviewed commit; no merge attempted",
+            3,
+            "ApiError",
+            output_format,
+            pr,
+            audit=_build_audit(ctx, "none", "refused: head SHA unknown"),
         )
 
     # Issue #2637: reject UNKNOWN mergeability on a direct merge. --auto is

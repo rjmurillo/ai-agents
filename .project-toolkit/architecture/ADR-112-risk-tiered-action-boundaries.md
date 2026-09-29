@@ -135,8 +135,10 @@ Only a script sees both the intent and the result. `merge_pr.py` now:
 - reads the PR back after every attempt and reports `merged` only on
   `state: MERGED`, `auto-merge-enabled` only with an `autoMergeRequest`, and
   exit 3 otherwise;
-- treats a failed or timed-out command followed by a `MERGED` readback as a
-  recovered success, not a failure;
+- refuses when it has no head SHA to pin;
+- treats a failed, refused, or timed-out command followed by a `MERGED`
+  readback as a recovered success, and an armed auto-merge request as queued;
+- reports success only when the readback head equals the pinned head;
 - returns `action: none` for an already merged PR, so a retry never merges
   twice;
 - emits an audit record on every result, refusals included: actor, target,
@@ -225,6 +227,10 @@ nothing pins it.
   audit record names the command a human runs, so there is no failed-rollback
   code path to test; the pinned lease in `safe_push_pr_branch.py` records the
   prior remote SHA as the recovery point.
+- **G10. Auto-merge is not head-pinned.** `set_pr_auto_merge.py` arms
+  GitHub auto-merge, which merges whatever head passes checks. A push after
+  the request lands is merged without a new review of that head, unless the
+  repository requires review on the new push.
 
 ## Rationale
 
