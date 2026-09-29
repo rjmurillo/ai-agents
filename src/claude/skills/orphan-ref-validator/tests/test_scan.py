@@ -2459,3 +2459,124 @@ class TestDocumentationMayQuoteARouteWithoutBecomingOne:
             "second Skill: `zzzsecondskill` here\n",
         )
         assert _skill_names(scan([docs], fake_repo)) == {"zzzsecondskill"}
+
+
+CITATION_BLOCK = (
+    "Treat them as citations, not local paths or commands to run:\n"
+    "\n"
+    "```text\n"
+    "- `scripts/memory/gone.py`\n"
+    "```\n"
+)
+
+
+class TestCitationBlocksAreNotPathClaims:
+    """Issue #5872: a fenced block labeled as citations names history."""
+
+    def test_labeled_block_yields_no_script_finding(self, fake_repo):
+        target = fake_repo / "docs" / "cite.md"
+        write(target, CITATION_BLOCK)
+        result = scan([target], fake_repo)
+        assert [f for f in result.findings if f.kind == "script_path"] == []
+
+    def test_labeled_block_refs_are_reported_as_suppressed(self, fake_repo):
+        target = fake_repo / "docs" / "cite.md"
+        write(target, CITATION_BLOCK)
+        result = scan([target], fake_repo)
+        assert [
+            (s.referenced_entity, s.reason) for s in result.directive_suppressed
+        ] == [("scripts/memory/gone.py", "citation block")]
+
+    def test_unlabeled_fence_still_flags(self, fake_repo):
+        target = fake_repo / "docs" / "plain.md"
+        write(target, "Run these:\n\n```text\n- `scripts/memory/gone.py`\n```\n")
+        result = scan([target], fake_repo)
+        assert [f.referenced_entity for f in result.findings] == [
+            "scripts/memory/gone.py"
+        ]
+
+    def test_ref_after_the_block_still_flags(self, fake_repo):
+        target = fake_repo / "docs" / "after.md"
+        write(target, CITATION_BLOCK + "\nRun `scripts/memory/other.py` now.\n")
+        result = scan([target], fake_repo)
+        assert [f.referenced_entity for f in result.findings] == [
+            "scripts/memory/other.py"
+        ]
+
+    def test_label_must_be_the_last_prose_before_the_fence(self, fake_repo):
+        target = fake_repo / "docs" / "far.md"
+        write(
+            target,
+            "Treat them as citations, not local paths.\n\n"
+            "Something else entirely.\n\n"
+            "```text\n- `scripts/memory/gone.py`\n```\n",
+        )
+        result = scan([target], fake_repo)
+        assert [f.referenced_entity for f in result.findings] == [
+            "scripts/memory/gone.py"
+        ]
+
+    def test_tilde_fence_and_mismatched_closer(self, fake_repo):
+        target = fake_repo / "docs" / "tilde.md"
+        write(
+            target,
+            "These are citations, not paths:\n"
+            "~~~\n"
+            "`scripts/a.py`\n"
+            "```\n"
+            "`scripts/b.py`\n"
+            "~~~\n"
+            "`scripts/c.py`\n",
+        )
+        result = scan([target], fake_repo)
+        assert [f.referenced_entity for f in result.findings] == ["scripts/c.py"]
+
+
+class TestRoutingRoleValuesAreNotSkillNames:
+    """Issue #5872: `front-door` in "a `front-door` skill" is a role value."""
+
+    @pytest.mark.parametrize(
+        "token", ["front-door", "explicit-only", "deprecated", "lifecycle"]
+    )
+    def test_role_value_beside_word_skill_is_ignored(self, fake_repo, token):
+        target = fake_repo / "docs" / "roles.md"
+        write(target, f"An `{token}` skill must be user-facing.\n")
+        result = scan([target], fake_repo)
+        assert [f for f in result.findings if f.kind == "skill_name"] == []
+
+    def test_real_skill_named_like_a_role_still_resolves(self, fake_repo):
+        write(fixture_catalog(fake_repo) / "lifecycle" / "SKILL.md", "# stub\n")
+        target = fake_repo / "docs" / "roles.md"
+        write(target, "Use the `lifecycle` skill.\n")
+        result = scan([target], fake_repo)
+        assert [f for f in result.findings if f.kind == "skill_name"] == []
+
+    def test_other_missing_skill_still_flags(self, fake_repo):
+        target = fake_repo / "docs" / "gone.md"
+        write(target, "Use the `ghost` skill.\n")
+        result = scan([target], fake_repo)
+        assert [f.referenced_entity for f in result.findings] == ["ghost"]
+
+
+class TestScriptNamedInASkillResolvesThere:
+    """Issue #5872: "`scripts/x.py` in the `owner` skill" names its owner."""
+
+    def test_script_in_named_skill_resolves(self, fake_repo):
+        write(fixture_catalog(fake_repo) / "alpha-skill" / "scripts" / "run.py", "#\n")
+        target = fake_repo / "docs" / "req.md"
+        write(target, "- `scripts/run.py` in the `alpha-skill` skill.\n")
+        result = scan([target], fake_repo)
+        assert [f for f in result.findings if f.kind == "script_path"] == []
+
+    def test_script_missing_from_named_skill_flags(self, fake_repo):
+        target = fake_repo / "docs" / "req.md"
+        write(target, "- `scripts/run.py` in the `alpha-skill` skill.\n")
+        result = scan([target], fake_repo)
+        assert [f.referenced_entity for f in result.findings] == ["scripts/run.py"]
+
+    def test_script_without_a_named_skill_flags(self, fake_repo):
+        write(fixture_catalog(fake_repo) / "alpha-skill" / "scripts" / "run.py", "#\n")
+        target = fake_repo / "docs" / "req.md"
+        write(target, "- `scripts/run.py` is used.\n")
+        result = scan([target], fake_repo)
+        assert [f.referenced_entity for f in result.findings] == ["scripts/run.py"]

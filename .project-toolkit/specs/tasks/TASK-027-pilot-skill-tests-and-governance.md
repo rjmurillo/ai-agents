@@ -17,6 +17,8 @@ author: spec
 
 # TASK-027: Eight pilot templates, six partials, rendered files, mirrors, contract tests (A2)
 
+<!-- orphan-ref-ignore-file -->
+
 ## Done definition
 
 - `templates/skills/{sync,test,spec,ship,research,plan,checkpoint,build}.SKILL.md.tmpl` exist: each is the current `SKILL.md` with the `@CLAUDE.md` line deleted and the `{{> slug}}` lines from the DESIGN-024 placement table inserted at the named steps.

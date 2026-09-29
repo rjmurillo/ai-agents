@@ -18,6 +18,8 @@ tags:
 
 # TASK-026: Implement ADR-100 items 2-4 (advisory demotion)
 
+<!-- orphan-ref-ignore-file -->
+
 ## Objective
 
 Deliver ADR-100 items 2, 3, and 4 in one combined change, satisfying

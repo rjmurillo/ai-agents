@@ -18,6 +18,8 @@ author: spec
 
 # TASK-033: Remaining 93 skills templated in batches, pilot-scope pin retired (B3)
 
+<!-- orphan-ref-ignore-file -->
+
 ## Objective
 
 Template the 93 skills not yet covered by ADR-108's pilot (measured 2026-09-11: `find .claude/skills -maxdepth 2 -name SKILL.md | wc -l` returns 111, `ls templates/skills/*.tmpl | wc -l` returns 18, so 93 remain), in batches, under one tracking issue, until `discover()` on the real tree matches the full 111-skill set and the pilot-scope pin is deleted. This task also gives skills the `src/claude/` plugin tree ADR-109 section 2 names but B1 does not deliver: `skill_templates.compile_all`'s render target moves from `.claude/skills/<name>/SKILL.md` directly to `src/claude/skills/<name>/SKILL.md`, and the binplace step copies that plugin tree into `.claude/skills/`, closing the same two-hop gap every other migrated class already closes. It also adds the twelve `pr-quality-gate-*.md` prompt files as a manifest row, since their source (`.claude/skills/review/references`) and compile step (`build/scripts/generate_pr_quality_prompts.py`) are both skill-derived and no other task's scope names them.

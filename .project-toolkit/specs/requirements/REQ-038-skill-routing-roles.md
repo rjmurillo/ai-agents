@@ -52,7 +52,7 @@ hours of implementation plus classification of the catalog.
 Measured on `main` at `95383d276` on 2026-09-24: 111 skill templates under
 `templates/skills/`. Six have no exact-name reference from any other skill
 template, skill reference file, or agent body: `ai-agents-external-claims`,
-`book-to-skill`, `business-strategy`, `context-hub-setup`,
+`book-to-skill`, `business-strategy`, `context-hub-setup`, <!-- orphan-ref-ignore -->
 `validation-authority`, and `world-model-diagnostic`. Only 25 skills have an
 activation scenario under `tests/evals/skill-scenarios/`.
 

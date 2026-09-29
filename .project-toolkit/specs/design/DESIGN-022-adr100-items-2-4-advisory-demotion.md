@@ -17,6 +17,8 @@ tags:
 
 # DESIGN-022: ADR-100 items 2-4, demote scope and atomic-commit gates to advisory
 
+<!-- orphan-ref-ignore-file -->
+
 ## Requirements Addressed
 
 - REQ-023: ADR-100 items 2-4, demote scope and atomic-commit gates to advisory

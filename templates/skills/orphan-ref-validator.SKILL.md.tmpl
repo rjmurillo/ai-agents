@@ -156,6 +156,12 @@ Place file-scope directives below the YAML frontmatter (if any) and well within 
 
 Script references on example-placeholder lines are ignored automatically. This covers lines that start with `Example:`, `e.g.`, or `For example`, plus prose examples that document an intentionally absent helper.
 
+A fenced block whose last prose line before the fence says "citations, not local paths" is a citation block. The scanner skips its references and reports them under `directive_suppressed` with reason `citation block`. Rule templates use this for historical evidence lists (issue #5872).
+
+Backticked skill routing-role values (`front-door`, `explicit-only`, `conditional-adjunct`, `lifecycle`, `nested-helper`, `deprecated`) are category words, not skill names. A line like "a `front-door` skill" produces no `skill_name` finding unless a skill with that name exists. A script cited as "`scripts/x.py` in the `owner` skill" also resolves against that skill's directory.
+
+Specs under `.project-toolkit/specs/` stay in scope. A spec that records files a later PR deleted carries a file-scope directive, so live specs keep their orphan checks (issue #5872).
+
 Use file-scope on M1-deletion specs and proposed-entity catalogs whose every reference is intentional history. Use line-scope for one-off references that document an absence (for example, "the script `scripts/validation/manifest_counts.py` was not created").
 
 ### Phase 4: Resolve and Verdict

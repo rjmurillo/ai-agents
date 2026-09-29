@@ -17,6 +17,8 @@ author: spec
 
 # TASK-025: Skill template compile pipeline, guard allowlist, drift gate, tests (A1)
 
+<!-- orphan-ref-ignore-file -->
+
 ## Done definition
 
 - `build/scripts/skill_templates.py` implements `discover`, `owned_targets`, `check_grammar`, `render`, `compile_all` per DESIGN-024, standard library plus `chevron`. A NO-REGEN skip (in-file token or `.noregen` sidecar) leaves the file unchanged, is reported at WARN in both write and validate mode, and exits 1 in every mode (ADR-108 section 4).

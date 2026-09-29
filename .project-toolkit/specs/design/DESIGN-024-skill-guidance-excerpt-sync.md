@@ -22,6 +22,8 @@ tags:
 
 # DESIGN-024: Mustache-compiled pilot skills under a template-owned class
 
+<!-- orphan-ref-ignore-file -->
+
 ## Decision history
 
 Two designs were drafted on 2026-09-11. The first kept `.claude/skills/<name>/SKILL.md` hand-maintained and pinned HTML-comment-fenced spans to excerpt files with a validator; it needed no policy change. The owner chose the second (decision D1, plan `5706-skill-guidance-excerpts`): the design in issue #5706, templates as canonical, rendered into `.claude/skills/`, which needs ADR-108 to amend ADR-107 property 1 and REQ-003-010. This document describes the chosen design. The declined alternative is kept at the end for the record.

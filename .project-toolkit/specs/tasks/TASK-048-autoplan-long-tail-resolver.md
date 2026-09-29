@@ -24,7 +24,7 @@ tags:
    `check_skill_routing_roles.py`. Write the failing tests first.
 2. **Resolver.** Write `tests/skills/autoplan/test_resolve_route.py`, then
    `.claude/skills/autoplan/scripts/resolve_route.py`.
-3. **Catalog.** Reclassify `business-strategy`, `book-to-skill`,
+3. **Catalog.** Reclassify `business-strategy`, `book-to-skill`, <!-- orphan-ref-ignore -->
    `world-model-diagnostic`, `dx-review`, and `programming-advisor`. Add
    intents to them and to `buy-vs-build-framework`. Quote the two remaining
    truncated rationales.

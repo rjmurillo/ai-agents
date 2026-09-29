@@ -16,6 +16,8 @@ author: spec
 
 # TASK-031: Agents composed from paired Claude/Copilot templates, src/claude/ layout move, binplace manifest introduced (B1)
 
+<!-- orphan-ref-ignore-file -->
+
 ## Objective
 
 Introduce two NEW templates per agent, `templates/agents/<stem>.claude.md.tmpl` and `templates/agents/<stem>.copilot.md.tmpl`, for every one of the 31 agents, composed from shared partials under `templates/agents/partials/`, with any Claude-only section confined to the `.claude.md.tmpl` variant. The existing `templates/agents/<stem>.shared.md` is NOT replaced: it stays exactly as it is today, unchanged, as the sole source `src/vs-code-agents/` renders from (ADR-109 section 5, untouched seam). Render the Claude variant into `src/claude/agents/<stem>.md` for the first time (retiring `src/claude/`'s hand-maintained status) losslessly against today's content, repoint the Copilot mirror (`.github/agents/`, `src/copilot-cli/agents/`) to render from the Copilot variant losslessly against today's output, and introduce the binplace manifest under `templates/platforms/` that every later class's PR extends with its own row.
