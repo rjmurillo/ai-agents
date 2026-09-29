@@ -95,18 +95,32 @@ class TestPrivilege:
 
 
 class TestHeadIsData:
-    def _head_checkout(self, document: dict[Any, Any]) -> dict[str, Any]:
-        steps = _steps(document, "dispatch-closure")
-        return next(s for s in steps if s.get("with", {}).get("path") == "pr-head")
+    def test_no_step_checks_the_pull_request_head_out(self, document: dict[Any, Any]) -> None:
+        for job in _jobs(document):
+            for step in _steps(document, job):
+                if not str(step.get("uses", "")).startswith("actions/checkout@"):
+                    continue
+                inputs = step.get("with", {})
+                assert "ref" not in inputs, (job, step.get("name"))
+                assert "repository" not in inputs, (job, step.get("name"))
+                assert "path" not in inputs, (job, step.get("name"))
 
-    def test_the_head_is_checked_out_by_immutable_sha_into_its_own_directory(
+    def test_the_head_is_named_by_the_events_sha_and_number_through_env_not_interpolation(
         self, document: dict[Any, Any]
     ) -> None:
-        checkout = self._head_checkout(document)["with"]
+        step = next(
+            s
+            for s in _steps(document, "dispatch-closure")
+            if "verify_dispatch_closure" in str(s.get("run", ""))
+        )
 
-        assert checkout["ref"] == "${{ github.event.pull_request.head.sha }}"
-        assert checkout["repository"] == "${{ github.event.pull_request.head.repo.full_name }}"
-        assert checkout["path"] == "pr-head"
+        assert step["env"] == {
+            "PR_NUMBER": "${{ github.event.pull_request.number }}",
+            "HEAD_SHA": "${{ github.event.pull_request.head.sha }}",
+        }
+        assert "${{" not in step["run"]
+        assert '--head-sha "$HEAD_SHA"' in step["run"]
+        assert '--pull-number "$PR_NUMBER"' in step["run"]
 
     def test_neither_checkout_persists_credentials(self, document: dict[Any, Any]) -> None:
         for job in _jobs(document):
@@ -114,48 +128,32 @@ class TestHeadIsData:
                 if str(step.get("uses", "")).startswith("actions/checkout@"):
                     assert step["with"]["persist-credentials"] is False, (job, step.get("name"))
 
-    def test_the_base_checkout_names_no_ref_so_it_is_the_base_tip(
+    def test_the_base_is_checked_out_before_the_local_setup_action_runs(
         self, document: dict[Any, Any]
     ) -> None:
-        steps = _steps(document, "dispatch-closure")
-        base = next(s for s in steps if s.get("name") == "Check out the base")
+        names = [s.get("name") for s in _steps(document, "dispatch-closure")]
 
-        assert "ref" not in base["with"]
-        assert "repository" not in base["with"]
+        assert names.index("Check out the base") < names.index("Setup code environment")
 
-    def test_the_base_checkout_comes_first_so_local_actions_resolve_from_the_base(
+    def test_no_step_runs_from_a_head_directory_or_sets_defaults(
         self, document: dict[Any, Any]
     ) -> None:
-        steps = _steps(document, "dispatch-closure")
-        names = [s.get("name") for s in steps]
-
-        assert names.index("Check out the base") < names.index(
-            "Check out the pull request head as data"
-        )
-        assert names.index("Check out the pull request head as data") < names.index(
-            "Setup code environment"
-        )
-
-    def test_no_step_runs_from_inside_the_head_or_executes_a_file_of_it(
-        self, document: dict[Any, Any]
-    ) -> None:
+        assert "defaults" not in _jobs(document)["dispatch-closure"]
         for step in _steps(document, "dispatch-closure"):
             assert "working-directory" not in step, step.get("name")
-            assert "defaults" not in _jobs(document)["dispatch-closure"]
-            run = str(step.get("run", ""))
-            executed = re.findall(r"(?:python3?|uv run[^\n]*python|bash|sh|node)\s+(\S+)", run)
-            assert not any(token.startswith("pr-head") for token in executed), run
 
-    def test_the_only_use_of_the_head_path_is_as_an_argument_to_the_verifier(
+    def test_the_tool_and_the_comparison_ref_are_the_base_checkout(
         self, document: dict[Any, Any]
     ) -> None:
-        runs = [str(s.get("run", "")) for s in _steps(document, "dispatch-closure") if s.get("run")]
-        mentioning = [run for run in runs if "pr-head" in run]
+        run = next(
+            str(s["run"])
+            for s in _steps(document, "dispatch-closure")
+            if "verify_dispatch_closure" in str(s.get("run", ""))
+        )
 
-        assert len(mentioning) == 1
-        assert "scripts/ci/verify_dispatch_closure.py" in mentioning[0]
-        assert "--head-root pr-head" in mentioning[0]
-        assert "--tool-root ." in mentioning[0]
+        assert "--tool-root ." in run
+        assert "--base-ref HEAD" in run
+        assert "scripts/ci/verify_dispatch_closure.py" in run
 
 
 class TestManifestJob:

@@ -11,11 +11,12 @@ name: Enforcement Closure
 #                     request from the base ref. The gate checks itself from
 #                     inside the tree a pull request controls; this job does not.
 #
-# The pull request head is checked out into `pr-head` and read as data by
-# scripts/ci/verify_dispatch_closure.py. Nothing in this workflow imports,
-# executes or runs a hook from `pr-head`, and the job holds no secret and only
-# `contents: read`. Any step added to the dispatch-closure job that runs a file
-# from `pr-head` breaks that property.
+# The pull request head is never checked out here. scripts/ci/verify_dispatch_closure.py
+# fetches the commit named in the event by SHA and writes its tracked files from
+# the object store into a scratch directory, then reads them as data. Nothing in
+# this workflow imports, executes or runs a hook from the head, and the job holds
+# no secret and only `contents: read`. A step added to the dispatch-closure job
+# that runs a file from the head, or checks the head out, breaks that property.
 #
 # Neither job is a required context. Pinning one needs the publisher App that
 # ADR-101 requirement 2 describes, so today each is a report, not a gate.
@@ -96,20 +97,15 @@ jobs:
         with:
           egress-policy: audit
 
-      # No `ref:`: pull_request_target checks out the base branch tip, which is
-      # the tree this job's own code comes from.
+      # No `ref:` and no `repository:`: pull_request_target checks out the base
+      # branch tip, which is the tree this job's own code comes from. The pull
+      # request head is never checked out by this workflow. The script fetches
+      # its commit by the SHA in the event and writes the tracked files from the
+      # object store into a scratch directory, so nothing of the head sits in
+      # the workspace beside the code that reads it.
       - name: Check out the base
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          persist-credentials: false
-
-      # The head, by immutable SHA, into its own directory. Data only.
-      - name: Check out the pull request head as data
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          repository: ${{ github.event.pull_request.head.repo.full_name }}
-          ref: ${{ github.event.pull_request.head.sha }}
-          path: pr-head
           persist-credentials: false
 
       - name: Setup code environment
@@ -122,6 +118,10 @@ jobs:
       # Reports, and exits 1 on a difference: a legitimate verifier change reports
       # here exactly as it halts the local gate until a human approves it.
       - name: Compare the head's dispatch closure with the base
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: >-
           uv run --frozen python scripts/ci/verify_dispatch_closure.py
-          --tool-root . --head-root pr-head --base-ref HEAD
+          --tool-root . --base-ref HEAD
+          --pull-number "$PR_NUMBER" --head-sha "$HEAD_SHA"

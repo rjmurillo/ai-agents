@@ -15,7 +15,9 @@ itself closes that. This module runs the same verification from the base ref:
   * the resolver code is loaded from THIS tree, the base checkout the workflow
     ran from, never from the head;
   * the head is a separate work tree read as data (`ast` and `git cat-file`),
-    never imported and never executed;
+    never imported and never executed. `--head-sha` writes it from the object
+    store with `checkout-index`, so no workflow checkout of pull request code is
+    needed;
   * the roots are the base ref's own config, the dispatcher script, and every
     file the base config's commands name, expanded through the head's static
     import closure and its resolvable dynamic loads;
@@ -45,8 +47,11 @@ import argparse
 import contextlib
 import importlib.util
 import json
+import os
+import re
 import subprocess
 import sys
+import tempfile
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -181,13 +186,81 @@ def verify(tool_root: Path, head_root: Path, base_ref: str) -> Report:
     return report
 
 
+# Git configuration that makes reading untrusted objects inert. No hook can run,
+# no filesystem monitor is started, and no attributes file changes what gets
+# written. The tree's own `.gitattributes` cannot name a filter driver, because a
+# driver is defined in configuration and none is configured.
+_INERT_GIT = ("-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false")
+_HEAD_MARKER = "refs/pull/{number}/head"
+
+
+def _git(cwd: Path, *args: str, env: dict[str, str] | None = None) -> str:
+    result = subprocess.run(
+        ["git", *_INERT_GIT, *args],
+        cwd=cwd,
+        capture_output=True,
+        text=True,
+        errors="replace",
+        check=False,
+        env=env,
+    )
+    if result.returncode != 0:
+        raise DispatchClosureError(f"git {args[0]} failed: {result.stderr.strip()[:300]}")
+    return result.stdout.strip()
+
+
+def materialize_head(
+    tool_root: Path, pull_number: int, head_sha: str, dest: Path, remote: str = "origin"
+) -> None:
+    """Write the pull request head's tracked files into ``dest`` without a checkout.
+
+    The head SHA comes from the event payload. It is fetched through the pull
+    request ref and the fetched commit must be that SHA: if the branch moved
+    between the event and this run the check aborts rather than verify a revision
+    nobody named. Files are written from the object store with `checkout-index`,
+    which honours no `export-ignore` (unlike `git archive`, where the head's own
+    `.gitattributes` could omit a module from the closure) and runs no hook or
+    filter. No `.git` directory lands in ``dest``.
+    """
+    if _rev(head_sha) is None:
+        raise DispatchClosureError(f"head SHA {head_sha!r} is not a full commit id")
+    _git(
+        tool_root,
+        "fetch",
+        "--no-tags",
+        "--depth=1",
+        remote,
+        _HEAD_MARKER.format(number=pull_number),
+    )
+    fetched = _git(tool_root, "rev-parse", "FETCH_HEAD")
+    if fetched != head_sha:
+        raise DispatchClosureError(
+            f"pull request head moved: event named {head_sha}, the ref is now {fetched}"
+        )
+    dest.mkdir(parents=True, exist_ok=True)
+    index = dest.parent / f"{dest.name}.index"
+    env = {**os.environ, "GIT_INDEX_FILE": str(index)}
+    _git(tool_root, "read-tree", head_sha, env=env)
+    _git(tool_root, "checkout-index", "--all", "--force", f"--prefix={dest}/", env=env)
+    index.unlink(missing_ok=True)
+
+
+def _rev(value: str) -> str | None:
+    return value if re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", value) else None
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n", maxsplit=1)[0])
     parser.add_argument(
         "--tool-root", type=Path, default=Path.cwd(), help="Base checkout (default: cwd)."
     )
+    parser.add_argument("--head-root", type=Path, help="Pull request head work tree.")
     parser.add_argument(
-        "--head-root", type=Path, required=True, help="Pull request head work tree."
+        "--head-sha", help="Head commit to fetch and read as data; needs --pull-number."
+    )
+    parser.add_argument("--pull-number", type=int, help="Pull request number for --head-sha.")
+    parser.add_argument(
+        "--remote", default="origin", help="Remote to fetch the head from (default: origin)."
     )
     parser.add_argument(
         "--base-ref", default="HEAD", help="Ref in the base checkout to compare against."
@@ -222,10 +295,24 @@ def _print(report: Report, as_json: bool) -> None:
             )
 
 
+def _head_root(args: argparse.Namespace, scratch: Path) -> Path:
+    if args.head_root is not None:
+        return Path(args.head_root).resolve()
+    if args.head_sha is None or args.pull_number is None:
+        raise DispatchClosureError("give --head-root, or --head-sha with --pull-number")
+    head = scratch / "head"
+    materialize_head(
+        Path(args.tool_root).resolve(), args.pull_number, args.head_sha, head, args.remote
+    )
+    return head
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
-        report = verify(args.tool_root.resolve(), args.head_root.resolve(), args.base_ref)
+        with tempfile.TemporaryDirectory(prefix="dispatch-closure-") as scratch:
+            head_root = _head_root(args, Path(scratch))
+            report = verify(args.tool_root.resolve(), head_root, args.base_ref)
     except (DispatchClosureError, OSError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return EXIT_CONFIG

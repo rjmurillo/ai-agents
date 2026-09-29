@@ -12,6 +12,7 @@ import subprocess
 import sys
 import textwrap
 from pathlib import Path
+from typing import Any
 
 import pytest
 import yaml
@@ -316,3 +317,137 @@ class TestTheRepositoryItself:
 
         assert report.examined > 20
         assert report.unresolved == []
+
+
+def _upstream_with_pr(base: Path, edit: dict[str, str], attributes: str = "") -> tuple[Path, str]:
+    """A repository holding the base history plus one commit at refs/pull/1/head."""
+    upstream = base.parent / "upstream"
+    subprocess.run(
+        ["git", "clone", "-q", str(base), str(upstream)], capture_output=True, check=True
+    )
+    _git(upstream, "config", "user.email", "t@example.invalid")
+    _git(upstream, "config", "user.name", "t")
+    for relative, body in edit.items():
+        _write(upstream, relative, body)
+    if attributes:
+        (upstream / ".gitattributes").write_text(attributes, encoding="utf-8")
+    _git(upstream, "add", "-A")
+    _git(upstream, "commit", "-q", "-m", "pull request")
+    sha = _rev(upstream)
+    _git(upstream, "update-ref", "refs/pull/1/head", sha)
+    return upstream, sha
+
+
+class TestMaterializeHead:
+    def test_the_head_is_written_from_the_object_store_with_no_git_directory(
+        self, trees: tuple[Path, Path], tmp_path: Path
+    ) -> None:
+        base, _ = trees
+        upstream, sha = _upstream_with_pr(base, {HELPER: "X = 99\n"})
+        dest = tmp_path / "out"
+
+        vdc.materialize_head(base, 1, sha, dest, remote=str(upstream))
+
+        assert (dest / HELPER).read_text(encoding="utf-8") == "X = 99\n"
+        assert not (dest / ".git").exists()
+        assert not (tmp_path / "out.index").exists()
+
+    def test_export_ignore_in_the_heads_gitattributes_cannot_hide_a_file(
+        self, trees: tuple[Path, Path], tmp_path: Path
+    ) -> None:
+        base, _ = trees
+        upstream, sha = _upstream_with_pr(
+            base, {HELPER: "X = 99\n"}, attributes=f"{HELPER} export-ignore\n"
+        )
+        dest = tmp_path / "out"
+
+        vdc.materialize_head(base, 1, sha, dest, remote=str(upstream))
+
+        assert (dest / HELPER).is_file()
+
+    def test_a_head_that_moved_since_the_event_aborts(
+        self, trees: tuple[Path, Path], tmp_path: Path
+    ) -> None:
+        base, _ = trees
+        upstream, _sha = _upstream_with_pr(base, {HELPER: "X = 99\n"})
+
+        with pytest.raises(vdc.DispatchClosureError, match="head moved"):
+            vdc.materialize_head(base, 1, "a" * 40, tmp_path / "out", remote=str(upstream))
+
+    @pytest.mark.parametrize("sha", ["", "HEAD", "abc", "A" * 40, "--upload-pack=x", "a" * 39])
+    def test_a_malformed_sha_is_refused_before_any_git_call(
+        self, trees: tuple[Path, Path], tmp_path: Path, sha: str
+    ) -> None:
+        base, _ = trees
+
+        with pytest.raises(vdc.DispatchClosureError, match="not a full commit id"):
+            vdc.materialize_head(base, 1, sha, tmp_path / "out")
+
+    def test_a_missing_pull_request_ref_is_a_configuration_error(
+        self, trees: tuple[Path, Path], tmp_path: Path
+    ) -> None:
+        base, _ = trees
+        upstream, sha = _upstream_with_pr(base, {HELPER: "X = 99\n"})
+
+        with pytest.raises(vdc.DispatchClosureError, match="fetch failed"):
+            vdc.materialize_head(base, 7, sha, tmp_path / "out", remote=str(upstream))
+
+    def test_every_git_call_reading_the_head_carries_the_inert_configuration(
+        self, trees: tuple[Path, Path], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        base, _ = trees
+        upstream, sha = _upstream_with_pr(base, {HELPER: "X = 99\n"})
+        calls: list[list[str]] = []
+        real = subprocess.run
+
+        def record(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+            calls.append(list(argv))
+            return real(argv, **kwargs)
+
+        monkeypatch.setattr(vdc.subprocess, "run", record)
+
+        vdc.materialize_head(base, 1, sha, tmp_path / "out", remote=str(upstream))
+
+        git_calls = [c for c in calls if c[0] == "git"]
+        assert [c[c.index("core.fsmonitor=false") - 1] for c in git_calls] == ["-c"] * len(
+            git_calls
+        )
+        assert all("core.hooksPath=/dev/null" in c for c in git_calls)
+        assert {c[5] for c in git_calls} == {"fetch", "rev-parse", "read-tree", "checkout-index"}
+
+    def test_main_verifies_a_head_it_fetched_itself(
+        self, trees: tuple[Path, Path], capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        base, _ = trees
+        upstream, sha = _upstream_with_pr(base, {HELPER: "X = 99\n"})
+
+        code = vdc.main(
+            [
+                "--tool-root",
+                str(base),
+                "--head-sha",
+                sha,
+                "--pull-number",
+                "1",
+                "--remote",
+                str(upstream),
+                "--json",
+            ]
+        )
+
+        assert code == vdc.EXIT_DIFFERS
+        assert json.loads(capsys.readouterr().out)["changed"] == [HELPER]
+
+    @pytest.mark.parametrize(
+        "extra",
+        [[], ["--head-sha", "a" * 40], ["--pull-number", "1"]],
+    )
+    def test_main_needs_a_head_root_or_a_sha_and_a_number(
+        self, trees: tuple[Path, Path], extra: list[str], capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        base, _ = trees
+
+        code = vdc.main(["--tool-root", str(base), *extra])
+
+        assert code == vdc.EXIT_CONFIG
+        assert "give --head-root" in capsys.readouterr().err
