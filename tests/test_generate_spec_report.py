@@ -372,7 +372,7 @@ class TestMainInfraFailure:
         assert "Final Verdict: FAIL" in report
         assert "Final Verdict: INFRA_FAILURE" not in report
         assert "does not block merge" not in report
-        assert "blocks merge." in report
+        assert "and it\n> blocks merge." in report
 
     def test_one_sided_infra_failure_yields_infra_failure_not_pass(
         self, tmp_path, monkeypatch
