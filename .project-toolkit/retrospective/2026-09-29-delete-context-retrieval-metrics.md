@@ -17,4 +17,3 @@
 
 ## Learning
 - A metrics script whose input field no producer writes measures nothing.
-- The generator prefilled this file with text from an unrelated session. Rewrite it before commit.
