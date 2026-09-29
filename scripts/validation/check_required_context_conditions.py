@@ -85,7 +85,7 @@ import argparse
 import sys
 from collections.abc import Iterable, Mapping, Sequence
 from pathlib import Path
-from typing import Any
+from typing import Any, TextIO
 
 import yaml
 
@@ -93,7 +93,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from required_context_sources import ScanTruncatedError  # noqa: E402
+from required_context_sources import ScanTruncatedError, scan_budget  # noqa: E402
 from required_context_steps import job_findings, step_findings  # noqa: E402
 from required_context_types import (  # noqa: E402
     KIND_JOB,
@@ -237,8 +237,9 @@ def lint(
     findings: list[Finding] = []
     for producer in producers:
         try:
-            findings.extend(job_findings(producer))
-            findings.extend(step_findings(producer))
+            with scan_budget():
+                findings.extend(job_findings(producer))
+                findings.extend(step_findings(producer))
         except ScanTruncatedError as exc:
             findings.append(
                 Finding(
@@ -251,6 +252,16 @@ def lint(
             )
     findings.extend(_producer_count_findings(producers, pinned))
     return findings, producers
+
+
+def _say(line: str, stream: TextIO | None = None) -> None:
+    """Print ``line`` as ASCII, escaping anything else.
+
+    A workflow, job or step name is untrusted text. A lone surrogate or a
+    character the console cannot encode would raise out of `print` and turn an
+    advisory report into a traceback, so it is escaped instead.
+    """
+    print(line.encode("ascii", "backslashreplace").decode("ascii"), file=stream or sys.stdout)
 
 
 def grouped_lines(findings: Sequence[Finding]) -> list[str]:
@@ -303,11 +314,11 @@ def validate_required_context_conditions(repo_root: Path) -> bool:
     try:
         findings, summary = run(repo_root / ".github" / "workflows")
     except (WorkflowLoadError, RecursionError, ValueError, TypeError) as exc:
-        print(f"required-context-conditions: NOT EXAMINED: {exc}", file=sys.stderr)
+        _say(f"required-context-conditions: NOT EXAMINED: {exc}", sys.stderr)
         return True
     for line in grouped_lines(findings):
-        print(f"required-context-conditions: {line}")
-    print(summary)
+        _say(f"required-context-conditions: {line}")
+    _say(summary)
     return True
 
 
@@ -337,12 +348,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         findings, summary = run(args.workflows_dir)
     except (WorkflowLoadError, RecursionError, ValueError, TypeError) as exc:
-        print(f"ERROR: {exc}", file=sys.stderr)
+        _say(f"ERROR: {exc}", sys.stderr)
         return EXIT_CONFIG
     lines = [f.render() for f in findings] if args.verbose else grouped_lines(findings)
     for line in lines:
-        print(line)
-    print(summary)
+        _say(line)
+    _say(summary)
     if findings and not args.advisory:
         return EXIT_FINDINGS
     return EXIT_OK

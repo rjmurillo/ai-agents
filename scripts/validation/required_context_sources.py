@@ -14,7 +14,9 @@ the caller keeps its own dependency surface.
 from __future__ import annotations
 
 import re
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterator, Mapping, Sequence
+from contextlib import contextmanager
+from contextvars import ContextVar
 from typing import Any
 
 # Bracket forms (`needs['job'].outputs`) are equivalent to dotted access in the
@@ -26,16 +28,24 @@ from typing import Any
 # `GITHUB_TRIGGERING_ACTOR` and `github.triggering_actor` are the actor of a
 # re-run, which is a different value but the same kind of outside source.
 FLAGS = re.IGNORECASE
+# `needs.*.outputs` is the object-filter spelling the ADR itself uses. A whole
+# context dumped with `toJSON(needs)` or `toJSON(github)`, and a computed index
+# such as `github[format('event_{0}', 'name')]`, reach the same values without
+# naming them, so they count as reads of every source they could expose.
+_DUMP_NEEDS = r"|\btoJSON\(\s*needs\b|\bneeds\[\s*(?!['\"\s])"
+_DUMP_GITHUB = r"|\btoJSON\(\s*github\b|\bgithub\[\s*(?!['\"\s])"
 NEEDS_OUTPUTS = re.compile(
-    r"\bneeds(?:\.[A-Za-z0-9_-]+|\[\s*['\"][^'\"]+['\"]\s*\])\.outputs\b", FLAGS
+    r"\bneeds(?:\.[A-Za-z0-9_*-]+|\[\s*['\"][^'\"]+['\"]\s*\])\.outputs\b" + _DUMP_NEEDS,
+    FLAGS,
 )
 EVENT_NAME = re.compile(
-    r"\bgithub(?:\.event_name\b|\[\s*['\"]event_name['\"]\s*\])|\bGITHUB_EVENT_NAME\b",
+    r"\bgithub(?:\.event_name\b|\[\s*['\"]event_name['\"]\s*\])|\bGITHUB_EVENT_NAME\b"
+    + _DUMP_GITHUB,
     FLAGS,
 )
 ACTOR = re.compile(
     r"\bgithub(?:\.(?:triggering_)?actor\b|\[\s*['\"](?:triggering_)?actor['\"]\s*\])"
-    r"|\bGITHUB_(?:TRIGGERING_)?ACTOR\b",
+    r"|\bGITHUB_(?:TRIGGERING_)?ACTOR\b" + _DUMP_GITHUB,
     FLAGS,
 )
 STEP_OUTPUT = re.compile(
@@ -44,11 +54,16 @@ STEP_OUTPUT = re.compile(
 # A read of an environment value, in the spellings a step body uses: the
 # expression forms `env.NAME` and `env['NAME']`, and the shell forms `$NAME`,
 # `${NAME}` and PowerShell's `$env:NAME`.
+_NAME = r"([A-Za-z_][A-Za-z0-9_]*)"
 ENV_READ = re.compile(
-    r"\benv\.([A-Za-z_][A-Za-z0-9_]*)\b"
-    r"|\benv\[\s*['\"]([A-Za-z_][A-Za-z0-9_]*)['\"]\s*\]"
-    r"|\$env:([A-Za-z_][A-Za-z0-9_]*)"
-    r"|\$\{?([A-Za-z_][A-Za-z0-9_]*)",
+    rf"\benv\.{_NAME}\b"
+    rf"|\benv\[\s*['\"]{_NAME}['\"]\s*\]"
+    rf"|\$\{{env:{_NAME}\}}"
+    rf"|\$env:{_NAME}"
+    rf"|\$\{{?{_NAME}"
+    rf"|\bprintenv\s+{_NAME}"
+    rf"|\bos\.environ(?:\.get)?\s*[\[(]\s*['\"]{_NAME}['\"]"
+    rf"|\bgetenv\(\s*['\"]{_NAME}['\"]",
     FLAGS,
 )
 
@@ -70,6 +85,23 @@ MAX_NODES = 10_000
 MAX_DEPTH = 32
 
 
+_BUDGET: ContextVar[list[int] | None] = ContextVar("required_context_scan_budget", default=None)
+
+
+@contextmanager
+def scan_budget() -> Iterator[None]:
+    """Share one node budget across every `text()` call inside the block.
+
+    Without it the cap is per call, and a document that aliases one large
+    anchor many times costs the cap multiplied by the alias count.
+    """
+    token = _BUDGET.set([MAX_NODES])
+    try:
+        yield
+    finally:
+        _BUDGET.reset(token)
+
+
 class ScanTruncatedError(Exception):
     """A value exceeded the scan budget, so part of it was never read.
 
@@ -86,12 +118,12 @@ def text(value: object) -> str:
     """
     parts: list[str] = []
     stack: list[tuple[object, int]] = [(value, 0)]
-    budget = MAX_NODES
+    budget = _BUDGET.get() or [MAX_NODES]
     while stack:
-        if budget <= 0:
+        if budget[0] <= 0:
             raise ScanTruncatedError(f"more than {MAX_NODES} nodes")
         node, depth = stack.pop()
-        budget -= 1
+        budget[0] -= 1
         if isinstance(node, Mapping | list):
             if depth >= MAX_DEPTH:
                 raise ScanTruncatedError(f"nesting deeper than {MAX_DEPTH}")
