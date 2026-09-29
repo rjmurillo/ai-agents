@@ -32,7 +32,7 @@ Out of scope: relocating `scripts/{hook_utilities,github_core,ai_review_common}/
 
 ## Acceptance Criteria
 
-- [ ] `test -f scripts/sync_plugin_lib.py` exits nonzero after this task lands; `git log --oneline -- scripts/sync_plugin_lib.py | head -1` shows a deletion commit.
+- [x] `test -f scripts/sync_plugin_lib.py` exits nonzero after this task lands; `git log --oneline -- scripts/sync_plugin_lib.py | head -1` shows a deletion commit.
 - [ ] `git diff --exit-code -- src/claude/lib src/copilot-cli/lib .claude/lib` exits 0 after `uv run python build/scripts/build_all.py` runs on a clean checkout in one invocation (no second script required).
 - [ ] `uv run python build/scripts/build_all.py --check` exits 2 after a hand edit to any file under `.claude/lib/`, `src/claude/lib/`, or `src/copilot-cli/lib/`, and the hand edit is still present afterward.
 - [ ] The three packages' relative-import rewrite (`IMPORT_CONVERSIONS`, unchanged regex table) still produces byte-identical `.claude/lib/<pkg>/` output to what `scripts/sync_plugin_lib.py` produced before this task, verified by diffing a pre-migration snapshot against the post-migration output for all three packages.

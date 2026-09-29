@@ -54,7 +54,7 @@ jobs:
               - 'src/claude/**'
               - '.claude-plugin/marketplace.json'
               - '.github/plugin/marketplace.json'
-              - '.claude/.claude-plugin/plugin.json'
+              - 'src/claude/.claude-plugin/plugin.json'
               - 'build/generate_agents.py'
               - 'build/generate_agents_common.py'
               - 'build/generate_agent_catalog.py'
@@ -205,19 +205,6 @@ jobs:
           PUSH_BEFORE_SHA: ${{ github.event_name == 'push' && github.event.before || '' }}
         run: |
           uv run python scripts/validation/run_install_parity_ci.py
-
-      - name: Plugin lib sync check (M7-T1)
-        if: steps.should-run.outputs.skip != 'true'
-        # `scripts/hook_utilities/` and `scripts/github_core/` are the
-        # canonical sources; `.claude/lib/` carries plugin-distributed
-        # copies with relative imports. The sync script has a --check
-        # mode that exits 1 on any drift between source and copy.
-        # Without this gate, a contributor could add a function to
-        # scripts/hook_utilities/ without running the sync script and
-        # the lib copy would silently fall behind.
-        run: |
-          echo "Running sync_plugin_lib.py --check..."
-          uv run python scripts/sync_plugin_lib.py --check
 
       - name: "Plugin manifest description count check (Issue #3651)"
         if: steps.should-run.outputs.skip != 'true'
