@@ -19,7 +19,9 @@ from check_required_context_conditions import (
     KIND_RELOCATED,
     KIND_STEP,
     KIND_UNSCANNED,
+    lint,
     load_workflows,
+    main,
     producing_jobs,
 )
 
@@ -326,3 +328,122 @@ class TestSecondReviewFindings:
             "x",
             "y",
         ]
+
+
+class TestThirdReviewFindings:
+    """The third security pass: spellings, shell reads, a shared budget, printing."""
+
+    @pytest.mark.parametrize(
+        "condition",
+        [
+            "needs.*.outputs.go == 'true'",
+            "contains(toJSON(needs), 'x')",
+            "toJSON( NEEDS ) != ''",
+        ],
+    )
+    def test_the_object_filter_and_a_whole_needs_dump_read_other_jobs(
+        self, tmp_path: Path, condition: str
+    ) -> None:
+        steps = f"      - name: Guarded\n        if: {condition}\n        run: echo hi\n"
+
+        findings, _ = lint_one(tmp_path, job_body(steps=steps))
+
+        assert kinds(findings) == [KIND_STEP]
+        assert "needs.*.outputs" in findings[0].detail
+
+    @pytest.mark.parametrize(
+        "condition",
+        [
+            "contains(toJSON(github), 'push')",
+            "github[format('event_{0}', 'name')] == 'push'",
+            "github[ inputs.key ] == 'x'",
+        ],
+    )
+    def test_a_github_dump_or_computed_index_reads_the_event_and_actor(
+        self, tmp_path: Path, condition: str
+    ) -> None:
+        steps = f"      - name: Guarded\n        if: {condition}\n        run: echo hi\n"
+
+        findings, _ = lint_one(tmp_path, job_body(steps=steps))
+
+        assert kinds(findings) == [KIND_STEP]
+        assert "github.event_name" in findings[0].detail
+        assert "github.actor" in findings[0].detail
+
+    @pytest.mark.parametrize(
+        "condition",
+        ["github['ref'] == 'main'", "needs['check'].result == 'success'"],
+    )
+    def test_a_literal_index_of_another_property_is_not_a_dump(
+        self, tmp_path: Path, condition: str
+    ) -> None:
+        steps = f"      - name: Fine\n        if: {condition}\n        run: echo hi\n"
+
+        findings, _ = lint_one(tmp_path, job_body(steps=steps))
+
+        assert findings == []
+
+    @pytest.mark.parametrize(
+        "read",
+        [
+            "printenv EVENT",
+            "python -c \"import os; print(os.environ['EVENT'])\"",
+            "python -c \"import os; print(os.environ.get('EVENT'))\"",
+            "node -e \"console.log(getenv('EVENT'))\"",
+            "echo ${env:EVENT}",
+        ],
+    )
+    def test_more_shell_and_language_env_reads_carry_the_taint(
+        self, tmp_path: Path, read: str
+    ) -> None:
+        findings, _ = lint_one(tmp_path, ENV_JOB % read)
+
+        assert kinds(findings) == [KIND_RELOCATED]
+
+    def test_the_node_budget_is_shared_across_one_jobs_scans(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Each value is small; together they exceed the budget."""
+        monkeypatch.setattr(sources, "MAX_NODES", 12)
+        steps = "".join(
+            f"      - id: s{i}\n        run: echo {i}\n        env:\n"
+            "          A: 1\n          B: 2\n          C: 3\n"
+            for i in range(4)
+        )
+
+        findings, _ = lint_one(tmp_path, job_body(steps=steps))
+
+        assert kinds(findings) == [KIND_UNSCANNED]
+
+    def test_a_fresh_budget_starts_for_each_producing_job(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(sources, "MAX_NODES", 12)
+        workflows = tmp_path / "workflows"
+        one = "on: push\njobs:\n  {j}:\n    name: {n}\n    steps:\n" + "".join(
+            f"      - id: s{i}\n        run: echo {i}\n" for i in range(2)
+        )
+        write_workflow(workflows, "a.yml", one.format(j="a", n="A"))
+        write_workflow(workflows, "b.yml", one.format(j="b", n="B"))
+
+        findings, _ = lint(load_workflows(workflows), ("A", "B"))
+
+        assert findings == []
+
+    def test_a_name_that_cannot_be_encoded_is_escaped_not_raised(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        workflows = tmp_path / "workflows"
+        body = (
+            "on: pull_request\njobs:\n  gate:\n    name: Run Python Tests\n    steps:\n"
+            '      - name: "bad \\uD800 name \\u00e9"\n'
+            "        if: github.actor == 'a'\n        run: echo 1\n"
+        )
+        write_workflow(workflows, "wf.yml", body)
+
+        code = main(["--workflows-dir", str(workflows), "--verbose", "--advisory"])
+
+        out = capsys.readouterr().out
+        assert code == 0
+        assert out.isascii()
+        assert "\\ud800" in out
