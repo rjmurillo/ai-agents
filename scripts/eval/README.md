@@ -1094,6 +1094,51 @@ command exits 0. Judge dimensions are stored and never read.
 Exit codes: `0` every control held. `1` a control failed. `2` the corpus is
 invalid. The JSON report states how many scenarios were examined.
 
+## Routing Benchmark Runner
+
+`eval_routing_benchmark.py` plans the #5422 routing experiment and runs it only
+when told to (issue #5424, REQ-045, DESIGN-043). Strategy arms A to F and the
+harness dimension come from one JSON config, so a new model, effort,
+concurrency ceiling, or reviewer needs no code change. The example is
+`scripts/eval/examples/routing-benchmark-config.json`; its values are
+placeholders for the owner to set, not a routing policy.
+
+```bash
+uv run python scripts/eval/eval_routing_benchmark.py            # dry run, zero spend
+uv run python scripts/eval/eval_routing_benchmark.py --live --output RESULTS.jsonl
+```
+
+The dry run loads the config, the #5423 capability matrix, and the #5425
+corpus. It expands strategy x scenario x harness and prints each row with its
+eligibility class, why a row was rejected, and which harness pairs are matched.
+It makes no model call and starts no process. Only `ELIGIBLE_MATCHED` and
+`ELIGIBLE_UNMATCHED` rows are planned. `UNSUPPORTED` and `UNVERIFIED` rows are
+rejected with the reason, and so is a model or effort the harness was never
+seen running.
+
+A pair of harnesses is matched only when both are `ELIGIBLE_MATCHED` and the
+semantic contract is equal: scenario state, task text, grader, routes, work
+packages, concurrency, correction budget, reviewer, fresh-context boundary, and
+handoff artifact. Any difference makes the pair `UNMATCHED` with the field
+named. Nothing is normalized away.
+
+`--live` is the only way to spend. It needs a credential in the environment for
+every planned harness, taken from `HARNESS_AUTH_ENV` in `_runtime_harness.py`.
+Without one the run exits 4 before a process starts. The live backend runs one
+harness process per invocation and records observed model and effort as
+unverified, because it does not yet read backend evidence. It has not run
+against a real harness; its tests use a fake process runner.
+
+Exit codes: `0` a plan with at least one planned row, or a live run with no
+harness failure. `1` nothing is plannable. `2` invalid input. `3` a live run hit
+a harness failure. `4` `--live` without credentials.
+
+The deterministic fake, `_routing_backend.ScriptedBackend`, grades with the real
+corpus and detects model and effort mismatch, silent inheritance from the
+parent, a concurrency ceiling breach, broken reviewer isolation, a fresh-context
+or artifact handoff mismatch, and a harness failure kept apart from a task
+failure. Unknown telemetry stays `None` and is never written as zero.
+
 ## Held-Out-Gated Optimization
 
 `optimize-artifact.py` adds the piece the rest of this directory is missing: a
