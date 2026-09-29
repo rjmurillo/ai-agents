@@ -315,7 +315,7 @@ print('OK')
 | Syntax error in module | Check Python syntax |
 
 `memory_core` is a package inside the skill, not an installed distribution.
-`.claude/skills/memory/tests/conftest.py` shows the canonical import setup.
+`tests/skills/memory/conftest.py` shows the canonical import setup.
 
 ## Directory Structure Issues
 

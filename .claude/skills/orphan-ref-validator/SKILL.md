@@ -175,7 +175,7 @@ Use file-scope on M1-deletion specs and proposed-entity catalogs whose every ref
 
 Success criteria for the skill:
 
-- [ ] `uv run pytest .claude/skills/orphan-ref-validator/tests/ -q` reports all tests passed.
+- [ ] In a repository checkout, `uv run pytest tests/skills/orphan-ref-validator/ -q` reports all tests passed. Plugin installs do not ship tests.
 - [ ] `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"/skills/orphan-ref-validator/scripts/scan.py --help` exits 0 with the documented argparse output.
 - [ ] `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"/skills/orphan-ref-validator/scripts/scan.py --targets missing.md` exits 2 with `VERDICT: ERROR`.
 - [ ] `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"/skills/orphan-ref-validator/scripts/scan.py` from the repo root exits 0 with `VERDICT: PASS` on default tracked text targets.
@@ -316,8 +316,10 @@ python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"/skills/orphan-r
 
 ## Tests
 
+The suite lives in the source repository and does not ship in plugin installs. From a checkout:
+
 ```bash
-uv run pytest .claude/skills/orphan-ref-validator/tests/ -q
+uv run pytest tests/skills/orphan-ref-validator/ -q
 ```
 
 Coverage target is 80 percent line coverage on `scan.py`. Cases cover positive and negative detection for each kind, the ADR-056 envelope shape, vendored-install scenarios, and edge cases (empty file, mixed living-and-dead refs, large files, secret files).
