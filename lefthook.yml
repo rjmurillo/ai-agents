@@ -239,8 +239,6 @@ pre-commit:
             run: uv run --frozen python scripts/validation/git_hook_policy.py adr-review {staged_files}
             glob:
               - ".project-toolkit/architecture/ADR-*.md"
-            skip:
-              - merge
 
           - name: taste-advisory
             timeout: 5m
