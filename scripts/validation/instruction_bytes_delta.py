@@ -38,7 +38,7 @@ def resolve_ref(repo_root: Path, ref: str) -> str:
     result = subprocess.run(
         ["git", "-C", str(repo_root), "rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}"],
         capture_output=True,
-        text=True,
+        encoding="utf-8",
         errors="replace",
         check=False,
         timeout=_GIT_TIMEOUT_SECONDS,
