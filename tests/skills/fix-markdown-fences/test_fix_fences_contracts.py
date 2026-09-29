@@ -5,8 +5,8 @@ Contracts against things outside this module, listed rather than counted
 because the count still said two after a third class landed.
 `TestCommonMarkOracle` checks the list-container model against `markdown-it-py`,
 a CommonMark reference implementation. `TestScannerParity` holds the two
-duplicated scanners to one behaviour and one source, and pins the curated case
-inventory. `TestVendoredInvocation` used to be named here and is not: it moved
+scanners to one shared container class and one terminator set, and pins the
+curated case inventory. `TestVendoredInvocation` used to be named here and is not: it moved
 to test_fix_fences_vendoring.py when this file crossed the size ceiling, and
 naming it here described coverage this module does not have.
 
@@ -103,14 +103,14 @@ class TestCommonMarkOracle:
         This mirrors the loop in `fix_fences.find_fence_defects`, including its
         container-close branch:
 
-            if open_fence is not None and _container_closed(line.text, fence_base):
+            if open_fence is not None and container_closed(line.text, fence_base):
                 open_fence = None  # the item holding the block ended
 
-        its valid-close test, which is `_is_blank` and NOT `str.strip()`,
+        its valid-close test, which is `is_blank` and NOT `str.strip()`,
         because a closing fence may be followed only by spaces and tabs, and
         the malformed-closer transition that follows it:
 
-            if _is_blank(match.group("info")):
+            if is_blank(match.group("info")):
                 open_fence = None
                 continue
 
@@ -121,7 +121,7 @@ class TestCommonMarkOracle:
         A hand-written mirror can drift from what it mirrors, which is the
         whole reason this comment names the branches. It drifted twice. It
         kept `str.strip()` for one commit after production moved to
-        `_is_blank`. And it omitted the re-scan above entirely, so on a
+        `is_blank`. And it omitted the re-scan above entirely, so on a
         malformed closer it left the OLD opener active where production opens
         a new one. That second drift is the more dangerous shape, because it
         made this mirror AGREE with the reference parser on documents where
@@ -132,12 +132,12 @@ class TestCommonMarkOracle:
         that matters by driving the public repair path instead.
         """
         lines = mod._split_lines(text)
-        containers = mod._ListContainers()
+        containers = mod.ListContainers()
         open_fence = None
         fence_base = 0
         inside: set[int] = set()
         for index, line in enumerate(lines):
-            if open_fence is not None and mod._container_closed(line.text, fence_base):
+            if open_fence is not None and mod.container_closed(line.text, fence_base):
                 open_fence = None  # the item holding the block ended
             if open_fence is None:
                 open_fence = mod._scan_open(line.text, containers)
@@ -150,7 +150,7 @@ class TestCommonMarkOracle:
             match = mod._closes(line.text, open_fence, containers)
             if match is None:
                 continue
-            if mod._is_blank(match.group("info")):
+            if mod.is_blank(match.group("info")):
                 open_fence = None
                 continue
             open_fence = mod._scan_open(line.text, containers)

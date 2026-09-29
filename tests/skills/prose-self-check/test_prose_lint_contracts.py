@@ -2,9 +2,7 @@
 
 Contracts against things outside this module, split out from
 test_prose_lint.py the way the fence suite splits its own.
-`TestSiblingBoundCitation` replays the verbatim quote in prose_lint.py against
-the sibling file it cites. `TestCommonMarkOracle` and `TestCommonMarkFuzz`
-check the masking against `markdown-it-py`, a CommonMark reference
+`TestCommonMarkOracle` and `TestCommonMarkFuzz` check the masking against `markdown-it-py`, a CommonMark reference
 implementation and a declared dependency of this repository.
 
 They answer to external contracts rather than to this scanner's own detector
@@ -13,7 +11,6 @@ behaviour, which is what makes them a separate file rather than a longer one.
 
 from __future__ import annotations
 
-import re
 import sys
 from pathlib import Path
 
@@ -36,10 +33,6 @@ from commonmark_fence_fuzz import FUZZ_BASELINE, FUZZ_DOCUMENTS, random_document
 
 mod = import_skill_script(".claude/skills/prose-self-check/scripts/prose_lint.py")
 
-PROJECT_ROOT = Path(__file__).resolve().parents[3]
-
-CITATION = re.compile(r"^# `(?P<path>[^`]+)` lines (?P<first>\d+)-(?P<last>\d+), verbatim:$")
-
 
 def _masked_lines(text: str) -> set[int]:
     """Return 0-indexed non-blank lines prose_lint blanks as fenced code."""
@@ -53,93 +46,6 @@ def _masked_lines(text: str) -> set[int]:
         for index, line in enumerate(source)
         if line != "" and index < len(masked) and masked[index] == ""
     }
-
-
-def extract_citation(source_lines: list[str]) -> tuple[str, int, int, list[str]]:
-    """Return (path, first, last, quoted lines) from a verbatim-citation comment.
-
-    The comment shape is a citation line, a bare `#`, the quoted lines each
-    prefixed with `# `, then a closing bare `#`.
-    """
-    for index, line in enumerate(source_lines):
-        match = CITATION.match(line)
-        if match is None:
-            continue
-        cursor = index + 1
-        assert source_lines[cursor] == "#", "citation must be followed by a bare '#'"
-        cursor += 1
-        quoted: list[str] = []
-        while source_lines[cursor] != "#":
-            assert source_lines[cursor].startswith("# "), source_lines[cursor]
-            quoted.append(source_lines[cursor][2:])
-            cursor += 1
-        return match["path"], int(match["first"]), int(match["last"]), quoted
-    raise AssertionError("no verbatim citation found")
-
-
-class TestSiblingBoundCitation:
-    """The verbatim quote of the sibling scanner's bound stays replayable.
-
-    `canonical-source-mirror.md` requires the claim to cite a path and quote the
-    contract verbatim. A hand-written line range goes stale the moment either
-    file moves, which it did once in review. This pins both.
-    """
-
-    SCRIPT = PROJECT_ROOT / ".claude" / "skills" / "prose-self-check" / "scripts" / "prose_lint.py"
-
-    def _cited(self) -> tuple[str, int, int, list[str]]:
-        return extract_citation(self.SCRIPT.read_text(encoding="utf-8").splitlines())
-
-    def test_sibling_bound_quote_matches_its_source(self) -> None:
-        rel, first, last, quoted = self._cited()
-        target = PROJECT_ROOT / ".claude" / rel
-        assert target.is_file(), f"cited path does not resolve: {target}"
-        actual = target.read_text(encoding="utf-8").splitlines()[first - 1 : last]
-        assert quoted == actual, (
-            f"citation drifted from {rel}:{first}-{last}\nquoted: {quoted}\nactual: {actual}"
-        )
-
-    def test_cited_path_is_plugin_root_relative(self) -> None:
-        # A `.claude/` prefix resolves to nothing in the src/copilot-cli mirror
-        # this file ships into, so the citation must be relative to the root.
-        rel, _, _, _ = self._cited()
-        assert not rel.startswith((".claude/", "src/")), rel
-        assert rel.startswith("skills/"), rel
-
-    def test_quote_is_the_load_bearing_bound(self) -> None:
-        _, _, _, quoted = self._cited()
-        body = "\n".join(quoted)
-        assert "def over_indented" in body
-        assert "_MAX_FENCE_INDENT" in body
-
-    def test_the_bound_itself_matches_and_not_only_the_expression(self) -> None:
-        """The quote references the constant; it does not define it.
-
-        `over_indented` reads `_MAX_FENCE_INDENT`, so changing the sibling's
-        definition from 3 to 4 leaves the three quoted lines byte-identical.
-        The citation pin would stay green while the comment's claim, "Same
-        bound as the sibling fence scanner", became false and this scanner
-        silently kept the old value. A quote of an expression cannot pin the
-        value the expression reads, so the value is compared directly.
-        """
-        sibling = import_skill_script(
-            ".claude/skills/fix-markdown-fences/scripts/fix_fences.py"
-        )
-        assert mod._MAX_FENCE_INDENT == sibling._MAX_FENCE_INDENT, (
-            "the two scanners no longer share the bound this file claims to share: "
-            f"prose_lint has {mod._MAX_FENCE_INDENT}, "
-            f"fix_fences has {sibling._MAX_FENCE_INDENT}"
-        )
-
-    def test_pin_fails_when_the_range_drifts(self) -> None:
-        # Negative control: shift the cited range by one and the pin must break.
-        rel, first, last, quoted = self._cited()
-        shifted = (
-            (PROJECT_ROOT / ".claude" / rel)
-            .read_text(encoding="utf-8")
-            .splitlines()[first : last + 1]
-        )
-        assert quoted != shifted, "the pin cannot detect drift on this input"
 
 
 class TestCommonMarkOracle:
