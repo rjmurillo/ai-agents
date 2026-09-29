@@ -116,6 +116,7 @@ from checks_tooling import (
     validate_copilot_version_pin,
     validate_effective_context_ratchet,
     validate_instruction_budget,
+    validate_instruction_bytes,
     validate_markdown_lint,
     validate_path_normalization,
     validate_planning_artifacts,
@@ -542,6 +543,10 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # language-universal .github/instructions/*.instructions.md files, so the
     # always-on corpus cannot grow silently on a new all-language rule.
     _Gate("Instruction Budget (always-on)", _root_only(validate_instruction_budget)),
+    # Per-fixture activated-bytes ratchet (issue #5400): the bytes each of six
+    # scripted routing scenarios loads, including skill and agent capability
+    # dependencies. The gate above sees only always-on bytes per language.
+    _Gate("Instruction Bytes (per-fixture)", _root_only(validate_instruction_bytes)),
     # Pins the numeric claims in model-context-doctrine.md to live measurements.
     # The budget gate above checks a ceiling; this gate checks the exact figures
     # (byte counts, file counts, multipliers) stated in the doctrine doc, so a

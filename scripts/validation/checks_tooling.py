@@ -831,6 +831,40 @@ def validate_instruction_budget(repo_root: Path) -> bool:
     return bool(exit_code == 0)
 
 
+def validate_instruction_bytes(repo_root: Path) -> bool:
+    """Gate per-fixture activated instruction bytes (Issue #5400).
+
+    Runs ``scripts.validation.instruction_bytes --ci``: for each of six scripted
+    routing fixtures, the bytes of always-on files, path-scoped rules, skill and
+    agent entrypoints, and their capability dependencies must stay under the
+    ceiling in ``FIXTURE_CEILINGS_BYTES``. SKIP when the module or the canonical
+    ``templates/`` tree is absent (downstream install).
+    """
+    module = repo_root / "scripts" / "validation" / "instruction_bytes.py"
+    if not module.is_file() or not (repo_root / "templates").is_dir():
+        raise MissingScriptSkip(
+            "instruction_bytes.py or templates/ not present (downstream install); "
+            "no fixture ceilings to gate"
+        )
+    exit_code, stdout, stderr = _run_subprocess(
+        [
+            sys.executable,
+            "-m",
+            "scripts.validation.instruction_bytes",
+            "--ci",
+            "--path",
+            str(repo_root),
+        ],
+        cwd=repo_root,
+    )
+    if exit_code != 0:
+        if stdout:
+            print(stdout)
+        if stderr:
+            print(stderr, file=sys.stderr)
+    return bool(exit_code == 0)
+
+
 def validate_effective_context_ratchet(repo_root: Path) -> bool:
     """Gate path-local effective-context growth, frozen targets and every directory (#4880).
 
