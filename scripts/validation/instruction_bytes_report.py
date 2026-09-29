@@ -52,11 +52,21 @@ def _delta_lines(delta: dict[str, Any]) -> list[str]:
     if delta["changed_paths"]:
         lines.append("  changed canonical paths (largest first)")
         lines.extend(f"    {r['delta']:>+9}  {r['path']}" for r in delta["changed_paths"])
+    if delta["unmeasured_at_base"]:
+        lines.append(f"  not measurable at base: {', '.join(delta['unmeasured_at_base'])}")
     lines.extend(
         f"  WARN: {name} grew by more than {delta['threshold_bytes']} bytes"
         for name in delta["material_growth"]
     )
     return lines
+
+
+def _findings_lines(report: dict[str, Any]) -> list[str]:
+    """List report-level findings, then each fixture's, so a partial measurement is visible."""
+    lines = [f"  {finding}" for finding in report["findings"]]
+    for fid, data in sorted(report["fixtures"].items()):
+        lines.extend(f"  {fid}: {finding}" for finding in data.get("findings", []))
+    return ["Findings", *lines] if lines else []
 
 
 def format_table(report: dict[str, Any]) -> str:
@@ -80,6 +90,9 @@ def format_table(report: dict[str, Any]) -> str:
         _fixture_lines(report["fixtures"]),
         _contributor_lines("Top canonical contributors", canonical["top_contributors"]),
     ]
+    findings = _findings_lines(report)
+    if findings:
+        sections.append(findings)
     if "delta" in report:
         sections.append(_delta_lines(report["delta"]))
     if report["ceiling_breaches"]:

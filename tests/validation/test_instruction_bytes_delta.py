@@ -10,6 +10,7 @@ from typing import IO, Any
 
 import pytest
 
+from scripts.validation import instruction_bytes_delta as delta
 from scripts.validation.instruction_bytes_delta import (
     DEFAULT_GROWTH_THRESHOLD_BYTES,
     GitError,
@@ -173,6 +174,16 @@ class TestResolveRef:
         with pytest.raises(GitError, match="does not resolve to a commit"):
             resolve_ref(tmp_path, "no-such-branch")
 
+    def test_a_hung_git_is_a_git_error(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def hang(*_args: Any, **_kwargs: Any) -> subprocess.CompletedProcess[str]:
+            raise subprocess.TimeoutExpired(cmd="git", timeout=1)
+
+        monkeypatch.setattr(delta.subprocess, "run", hang)
+        with pytest.raises(GitError, match="timed out"):
+            resolve_ref(tmp_path, "HEAD")
+
     def test_a_valid_ref_resolves_to_the_commit_sha(self, tmp_path: Path) -> None:
         init_git(tmp_path)
         write(tmp_path, "a.md", "x\n")
@@ -185,19 +196,24 @@ class TestResolveRef:
 
 
 class TestMaterializeBase:
-    def test_extracts_markdown_and_templates_only(self, tmp_path: Path) -> None:
+    def test_extracts_markdown_templates_and_partials_only(self, tmp_path: Path) -> None:
         repo, dest = tmp_path / "repo", tmp_path / "dest"
         repo.mkdir()
         dest.mkdir()
         init_git(repo)
         write(repo, "docs/a.md", "doc\n")
         write(repo, "templates/skills/x.SKILL.md.tmpl", "tmpl\n")
+        write(repo, "templates/agents/partials/p.mustache", "partial\n")
         write(repo, "scripts/run.py", "print(1)\n")
         write(repo, "data.json", "{}\n")
         sha = commit_all(repo)
         materialize_base(repo, sha, dest)
         found = sorted(p.relative_to(dest).as_posix() for p in dest.rglob("*") if p.is_file())
-        assert found == ["docs/a.md", "templates/skills/x.SKILL.md.tmpl"]
+        assert found == [
+            "docs/a.md",
+            "templates/agents/partials/p.mustache",
+            "templates/skills/x.SKILL.md.tmpl",
+        ]
 
     def test_reads_the_revision_not_the_working_tree(self, tmp_path: Path) -> None:
         repo, dest = tmp_path / "repo", tmp_path / "dest"
@@ -249,6 +265,29 @@ class TestMaterializeBase:
         dest = tmp_path / "dest"
         dest.mkdir()
         with pytest.raises(GitError, match="fatal: simulated failure"):
+            materialize_base(tmp_path, "0" * 40, dest)
+
+    def test_a_hung_git_archive_is_killed_and_reported(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        real_popen = subprocess.Popen
+        script = (
+            "import sys, tarfile, time\n"
+            "tarfile.open(fileobj=sys.stdout.buffer, mode='w|').close()\n"
+            "sys.stdout.flush()\n"
+            "time.sleep(30)\n"
+        )
+
+        def fake_popen(
+            _args: list[str], stdout: int | IO[bytes] | None, stderr: int | IO[bytes] | None
+        ) -> subprocess.Popen[bytes]:
+            return real_popen([sys.executable, "-c", script], stdout=stdout, stderr=stderr)
+
+        monkeypatch.setattr(subprocess, "Popen", fake_popen)
+        monkeypatch.setattr(delta, "_GIT_TIMEOUT_SECONDS", 0.3)
+        dest = tmp_path / "dest"
+        dest.mkdir()
+        with pytest.raises(GitError, match="git archive .* timed out"):
             materialize_base(tmp_path, "0" * 40, dest)
 
     def test_the_head_is_untouched_by_materializing(self, tmp_path: Path) -> None:

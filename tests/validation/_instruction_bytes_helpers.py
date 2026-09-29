@@ -7,6 +7,7 @@ from pathlib import Path
 
 from scripts.validation.instruction_bytes_fixtures import Fixture
 
+_GIT_TIMEOUT_SECONDS = 120
 FIXTURE = Fixture("T1", "synthetic", "pkg/mod.py", ("alpha",), ("scout",))
 
 
@@ -93,6 +94,7 @@ def git(root: Path, *args: str) -> str:
         text=True,
         errors="replace",
         check=True,
+        timeout=_GIT_TIMEOUT_SECONDS,
     )
     return result.stdout.strip()
 

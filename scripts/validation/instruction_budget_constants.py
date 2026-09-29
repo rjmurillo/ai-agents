@@ -56,17 +56,18 @@ DEFAULT_CEILINGS_BYTES: dict[str, int] = {
 
 # Per-fixture activated-bytes ratchet for `instruction_bytes` (issue #5400).
 # Each value is the bytes a scripted routing scenario loads on the Claude Code
-# path: always-on files, path-scoped rules, skill and agent entrypoints, and
-# their capability dependencies. F1..F6 are defined in
-# `instruction_bytes_fixtures.FIXTURES`. Seeded just above the measured bytes,
-# the same way DEFAULT_CEILINGS_BYTES is. Lower a ceiling when a fixture
-# shrinks; never raise one without recording why in the same change.
-# `test_instruction_ceiling_ratchet.py` blocks a raise against origin/main.
+# path: harness context for the edited path (root and nested guides, scoped
+# rules), always-on skills, skill and agent entrypoints, and their capability
+# dependencies. F1..F6 are defined in `instruction_bytes_fixtures.FIXTURES`.
+# Seeded just above the measured bytes, the same way DEFAULT_CEILINGS_BYTES is.
+# Lower a ceiling when a fixture shrinks; never raise one without recording why
+# in the same change. `test_instruction_ceiling_ratchet.py` blocks a raise
+# against origin/main.
 FIXTURE_CEILINGS_BYTES: dict[str, int] = {
-    "F1": 254_000,
-    "F2": 197_000,
-    "F3": 51_000,
+    "F1": 276_000,
+    "F2": 220_000,
+    "F3": 69_000,
     "F4": 90_000,
-    "F5": 94_000,
-    "F6": 102_000,
+    "F5": 112_000,
+    "F6": 120_000,
 }

@@ -1,9 +1,9 @@
 """Base/head delta for the instruction-context byte report (issue #5400).
 
 ``materialize_base`` reads a git revision without checking it out: it streams
-``git archive`` into a caller-owned directory and keeps only ``.md`` and
-``.tmpl`` members, the only file types the measurement reads. ``compute_delta``
-is pure over two report dicts so it can be tested without git.
+``git archive`` into a caller-owned directory and keeps only ``.md``, ``.tmpl``,
+and ``.mustache`` members, the only file types the measurement reads.
+``compute_delta`` is pure over two report dicts so it can be tested without git.
 """
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ __all__ = [
 ]
 
 DEFAULT_GROWTH_THRESHOLD_BYTES = 2_000
-_MEASURED_SUFFIXES = (".md", ".tmpl")
+_MEASURED_SUFFIXES = (".md", ".tmpl", ".mustache")
 _GIT_TIMEOUT_SECONDS = 120
 
 
@@ -35,21 +35,24 @@ def resolve_ref(repo_root: Path, ref: str) -> str:
     """Resolve ``ref`` to a commit SHA. A leading dash is refused (CWE-88)."""
     if ref.startswith("-") or not ref.strip():
         raise GitError(f"refusing base ref {ref!r}")
-    result = subprocess.run(
-        ["git", "-C", str(repo_root), "rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}"],
-        capture_output=True,
-        encoding="utf-8",
-        errors="replace",
-        check=False,
-        timeout=_GIT_TIMEOUT_SECONDS,
-    )
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(repo_root), "rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}"],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+            timeout=_GIT_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise GitError(f"git rev-parse for {ref!r} timed out") from exc
     if result.returncode != 0:
         raise GitError(f"base ref {ref!r} does not resolve to a commit")
     return result.stdout.strip()
 
 
 def materialize_base(repo_root: Path, sha: str, dest: Path) -> None:
-    """Extract the Markdown and template files of commit ``sha`` into ``dest``.
+    """Extract the Markdown, template, and partial files of commit ``sha`` into ``dest``.
 
     The tar streams from ``git archive`` so the whole revision is never held in
     memory or written to disk; only the measured file types are extracted.
@@ -69,7 +72,13 @@ def materialize_base(repo_root: Path, sha: str, dest: Path) -> None:
             raise GitError(f"git archive {sha} produced no readable tar: {exc}") from exc
         finally:
             stream.close()
-        if proc.wait(timeout=_GIT_TIMEOUT_SECONDS) != 0:
+        try:
+            returncode = proc.wait(timeout=_GIT_TIMEOUT_SECONDS)
+        except subprocess.TimeoutExpired as exc:
+            proc.kill()
+            proc.wait()
+            raise GitError(f"git archive {sha} timed out") from exc
+        if returncode != 0:
             stderr_file.seek(0)
             message = stderr_file.read().decode("utf-8", errors="replace").strip()
             raise GitError(f"git archive {sha} failed: {message}")

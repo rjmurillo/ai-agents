@@ -51,6 +51,7 @@ from scripts.validation.instruction_bytes_delta import (
 )
 from scripts.validation.instruction_bytes_fixtures import (
     FIXTURES,
+    SOURCES,
     FixtureResult,
     load_always_on,
     load_graph,
@@ -66,10 +67,7 @@ ESTIMATOR = "scripts.validation.token_budget.estimate_token_count"
 
 def _fixture_entry(result: FixtureResult, top: int) -> dict[str, Any]:
     files = result.files
-    by_source = {
-        s: sum(f.size_bytes for f in files if f.source == s)
-        for s in ("always-on", "path-scoped-rule", "entrypoint", "dependency")
-    }
+    by_source = {s: sum(f.size_bytes for f in files if f.source == s) for s in SOURCES}
     ceiling = FIXTURE_CEILINGS_BYTES.get(result.fixture.fixture_id)
     return {
         "name": result.fixture.name,
@@ -93,12 +91,12 @@ def build_report(repo_root: Path, top: int = 10, tolerate_missing: bool = False)
     PR that introduces a skill a fixture names can still be compared.
     """
     canonical, generated = measure_corpus(repo_root)
-    always_on, findings = load_always_on(repo_root)
+    always_on = load_always_on(repo_root)
     graph = load_graph(repo_root)
     fixtures: dict[str, Any] = {}
     for fixture in FIXTURES:
         try:
-            result = measure_fixture(repo_root, fixture, graph, always_on["claude_code"]["files"])
+            result = measure_fixture(repo_root, fixture, graph, always_on)
         except CorpusError as exc:
             if not tolerate_missing:
                 raise
@@ -121,10 +119,10 @@ def build_report(repo_root: Path, top: int = 10, tolerate_missing: bool = False)
         },
         "always_on": {
             harness: {"files": len(data["files"]), "bytes": data["bytes"], "tokens": data["tokens"]}
-            for harness, data in always_on.items()
+            for harness, data in always_on.harnesses.items()
         },
         "fixtures": fixtures,
-        "findings": sorted(findings + list(graph.defects)),
+        "findings": sorted([*always_on.findings, *graph.defects]),
     }
 
 

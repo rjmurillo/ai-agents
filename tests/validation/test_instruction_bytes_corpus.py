@@ -25,6 +25,10 @@ class TestReadSized:
         assert sized.size_bytes > len("café → ok\n")
         assert sized.estimated_tokens > 0
 
+    def test_invalid_utf8_is_counted_as_its_raw_bytes(self, tmp_path: Path) -> None:
+        (tmp_path / "raw.md").write_bytes(b"ok \xff\xfe bad\n")
+        assert read_sized(tmp_path, "raw.md").size_bytes == 10
+
     def test_empty_file_is_zero_bytes_and_zero_tokens(self, tmp_path: Path) -> None:
         write(tmp_path, "empty.md", "")
         sized = read_sized(tmp_path, "empty.md")
@@ -65,11 +69,37 @@ class TestCanonicalFiles:
         assert len(groups["skills"]) == 4
         assert len(groups["agents"]) == 1
 
-    def test_per_harness_agent_templates_are_not_counted(self, tmp_path: Path) -> None:
+    def test_per_harness_agent_templates_and_partials_are_authored_and_counted(
+        self, tmp_path: Path
+    ) -> None:
         build_repo(tmp_path)
         write(tmp_path, "templates/agents/scout.claude.md.tmpl", "x" * 500)
-        paths = [f.path for f in canonical_files(tmp_path)["agents"]]
-        assert paths == ["templates/agents/scout.shared.md"]
+        write(tmp_path, "templates/agents/partials/shared.mustache", "y" * 100)
+        write(tmp_path, "templates/skills/partials/skill.mustache", "z" * 100)
+        groups = canonical_files(tmp_path)
+        assert [f.path for f in groups["agents"]] == [
+            "templates/agents/partials/shared.mustache",
+            "templates/agents/scout.claude.md.tmpl",
+            "templates/agents/scout.shared.md",
+        ]
+        assert "templates/skills/partials/skill.mustache" in [f.path for f in groups["skills"]]
+
+    def test_a_directory_under_templates_is_not_counted_as_a_file(self, tmp_path: Path) -> None:
+        build_repo(tmp_path)
+        (tmp_path / "templates/agents/empty-dir").mkdir()
+        assert all(f.size_bytes >= 0 for f in canonical_files(tmp_path)["agents"])
+        assert "templates/agents/empty-dir" not in [
+            f.path for f in canonical_files(tmp_path)["agents"]
+        ]
+
+    def test_hook_and_platform_config_is_not_instruction_text(self, tmp_path: Path) -> None:
+        build_repo(tmp_path)
+        write(tmp_path, "templates/hooks/Stop/hook.json", "{}" * 100)
+        write(tmp_path, "templates/toolsets.yaml", "a: 1\n")
+        paths = [f.path for files in canonical_files(tmp_path).values() for f in files]
+        assert not any(
+            p.startswith("templates/hooks") or p.endswith("toolsets.yaml") for p in paths
+        )
 
     def test_generated_mirrors_never_enter_canonical(self, tmp_path: Path) -> None:
         build_repo(tmp_path)

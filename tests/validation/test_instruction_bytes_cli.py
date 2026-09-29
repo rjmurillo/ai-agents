@@ -168,6 +168,15 @@ class TestBaseRefDelta:
         assert delta["base_sha"] == base_sha
         assert "fixtures.T1.bytes" in delta["material_growth"]
 
+    def test_an_unchanged_tree_shows_zero_delta_even_with_partials(
+        self, repo: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        write(repo, "templates/agents/partials/shared.mustache", "p" * 300)
+        base_sha = self._commit_base(repo)
+        delta = _json(repo, "--base-ref", base_sha, capsys=capsys)["delta"]
+        assert [m for m in delta["metrics"] if m["delta"] != 0] == []
+        assert delta["changed_paths"] == []
+
     def test_the_threshold_flag_silences_a_small_growth(
         self, repo: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
@@ -292,6 +301,7 @@ class TestRendering:
                 "D": {"name": "broken", "error": "skill `x` has no file"},
             },
             "ceiling_breaches": [],
+            "findings": [],
         }
 
     def test_fixture_statuses_render_pass_fail_na_and_error(self) -> None:
@@ -315,6 +325,7 @@ class TestRendering:
             "metrics": [{"name": "m", "base": 1, "head": 1, "delta": 0}],
             "changed_paths": [],
             "material_growth": [],
+            "unmeasured_at_base": [],
         }
         assert "no change" in format_table(report)
 
@@ -327,10 +338,36 @@ class TestRendering:
             "metrics": [{"name": "fixtures.A.bytes", "base": 1, "head": 20, "delta": 19}],
             "changed_paths": [{"path": "templates/a.md", "base": 1, "head": 20, "delta": 19}],
             "material_growth": ["fixtures.A.bytes"],
+            "unmeasured_at_base": [],
         }
         out = format_table(report)
         assert "+19  templates/a.md" in out
         assert "WARN: fixtures.A.bytes grew by more than 7 bytes" in out
+
+    def test_delta_names_fixtures_that_could_not_be_measured_at_base(self) -> None:
+        report = self._report()
+        report["delta"] = {
+            "base_ref": "main",
+            "base_sha": "a" * 40,
+            "threshold_bytes": 7,
+            "metrics": [],
+            "changed_paths": [],
+            "material_growth": [],
+            "unmeasured_at_base": ["fixtures.F9.bytes", "fixtures.F9.tokens"],
+        }
+        assert "not measurable at base: fixtures.F9.bytes, fixtures.F9.tokens" in format_table(
+            report
+        )
+
+    def test_findings_render_report_level_then_per_fixture(self) -> None:
+        report = self._report()
+        report["findings"] = ["always-on x: missing y"]
+        report["fixtures"]["A"]["findings"] = ["skill `s` has no capability block"]
+        out = format_table(report)
+        assert "Findings\n  always-on x: missing y\n  A: skill `s` has no capability block" in out
+
+    def test_no_findings_renders_no_findings_section(self) -> None:
+        assert "Findings" not in format_table(self._report())
 
     def test_ceiling_breaches_render_a_fail_block(self) -> None:
         report = self._report()

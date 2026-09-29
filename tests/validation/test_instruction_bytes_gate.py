@@ -2,14 +2,18 @@
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 from unittest.mock import patch
 
-import checks_common
-import checks_tooling
 import pytest
 
-from scripts.validation import pre_pr  # noqa: F401  (puts scripts/validation on sys.path)
+_VALIDATION = Path(__file__).resolve().parents[2] / "scripts" / "validation"
+if str(_VALIDATION) not in sys.path:
+    sys.path.insert(0, str(_VALIDATION))
+
+import checks_common
+import checks_tooling
 
 
 def _repo(root: Path, *, module: bool = True, templates: bool = True) -> Path:

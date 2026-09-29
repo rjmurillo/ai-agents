@@ -1,61 +1,52 @@
 """Per-fixture activated instruction bytes for F1 through F6 (issue #5400).
 
 A fixture is a stable, declared routing scenario: one representative edited path
-(decides which path-scoped rules load) plus the skill and agent entrypoints the
-scenario routes to. The entrypoints are declared here, never inferred from text.
-Their dependencies are read from the ``metadata.capability.depends-on`` block
-that ADR-110 (issue #5396) put in each artifact's frontmatter, resolved to
-canonical owners with ``check_capability_graph.build_owner_index`` and followed
-transitively.
+plus the skill and agent entrypoints the scenario routes to. The entrypoints are
+declared here, never inferred from text.
 
-Measured surface: the Claude Code load path. Always-on files come from
-``control_plane_baseline.always_loaded()["claude_code"]``, the existing counter.
-Activated skills, agents, and rules are the rendered copies under ``.claude/``,
-which is what the harness reads. The capability declaration sits in the
-canonical template; the projection repeats it (ADR-110 section 3).
+What one fixture loads, on the Claude Code path:
 
-Different than canonical: ``.claude/rules`` ``paths`` are matched with the same
-Copilot-style glob compiler ``instruction_budget_globs`` uses for the always-on
-budget, and ``control_plane_baseline`` already applies that compiler to Claude
-rules. Claude Code's own matcher is not modeled here, so a path-scoped rule count
-is an estimate of the Claude Code load, not an observation of it.
+* **Harness context** for the edited path, from ``effective_context_claude.resolve_claude``
+  (the #4880 model): root ``CLAUDE.md`` files and their ``@`` imports, nested
+  ``CLAUDE.md`` down the edited file's directory chain, and every
+  ``.claude/rules`` file whose ``paths`` match the path or that has none. A
+  fixture with no edited path resolves against the repository root.
+* **Always-on skills**: a skill whose frontmatter ``description`` declares
+  unconditional loading, found by ``instruction_budget.load_instruction_files``
+  (issue #4871).
+* **Entrypoints**: the fixture's skills and agents, as rendered under ``.claude/``.
+* **Dependencies**: each entrypoint's ``metadata.capability.depends-on`` names,
+  resolved to canonical owners (ADR-110, issue #5396) and followed transitively.
+
+Different than the issue text: a fixture with no edited path loads the same root
+context as the always-on measurement. Claude Code's real load also depends on which
+files the model reads at run time, which a static fixture cannot know. Nested
+``@`` imports are followed to the depth ``resolve_claude`` follows them.
 
 An entrypoint with no capability block counts as itself only and is named in the
-fixture's ``findings``. A ``depends-on`` name with no canonical owner is also a
-finding; ``check_capability_graph`` is the gate that refuses it.
+fixture's ``findings``. A dependency whose loaded copy is missing raises
+``CorpusError``: dropping it would lower the total without a signal.
 """
 
 from __future__ import annotations
 
-import importlib
-import re
-import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-import yaml
-
-# Bare-name imports for scripts/validation siblings: see instruction_bytes_corpus
-# for why the per-file mypy gate needs one module name per file.
-_VALIDATION_DIR = str(Path(__file__).resolve().parent)
-if _VALIDATION_DIR not in sys.path:
-    sys.path.insert(0, _VALIDATION_DIR)
-
-from check_capability_graph import (  # noqa: E402
-    NAME_RE,
-    Node,
-    _frontmatter,
-    build_owner_index,
-    collect_nodes,
-)
-from instruction_budget_globs import _glob_to_regex, _vscode_effective_glob  # noqa: E402
-
-from scripts.validation.instruction_bytes_corpus import CorpusError, read_sized  # noqa: E402
-from scripts.validation.instruction_bytes_types import ActivatedFile  # noqa: E402
+from scripts.metrics.control_plane_baseline import always_loaded
+from scripts.validation.effective_context_claude import resolve_claude
+from scripts.validation.effective_context_sources import Repo, resolve_base_directory
+from scripts.validation.instruction_budget import load_instruction_files
+from scripts.validation.instruction_bytes_corpus import CorpusError, read_sized
+from scripts.validation.instruction_bytes_graph import Capability, Graph, name_pattern
+from scripts.validation.instruction_bytes_graph import load_graph as _load_graph
+from scripts.validation.instruction_bytes_types import ActivatedFile
 
 __all__ = [
     "FIXTURES",
+    "SOURCES",
+    "AlwaysOn",
     "Fixture",
     "FixtureResult",
     "Graph",
@@ -64,7 +55,9 @@ __all__ = [
     "measure_fixture",
 ]
 
-_RULES_DIR = ".claude/rules"
+SOURCES = ("root", "nested", "scoped-rule", "always-on-skill", "entrypoint", "dependency")
+_LAYER_SOURCE = {"root": "root", "nested": "nested", "scoped": "scoped-rule"}
+_ALWAYS_ON_SKILL_ACTIVATION = "skill-description"
 
 
 @dataclass(frozen=True)
@@ -101,12 +94,12 @@ FIXTURES: tuple[Fixture, ...] = (
 
 
 @dataclass(frozen=True)
-class Graph:
-    """The capability graph one measurement reads: nodes by path, owners by name."""
+class AlwaysOn:
+    """Always-loaded context: the report section per harness, and the always-on skill paths."""
 
-    nodes: dict[str, Node]
-    owners: dict[str, Node]
-    defects: tuple[str, ...]
+    harnesses: dict[str, dict[str, Any]]
+    skills: tuple[str, ...]
+    findings: tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -116,27 +109,43 @@ class FixtureResult:
     findings: tuple[str, ...]
 
 
-def load_always_on(repo_root: Path) -> tuple[dict[str, dict[str, Any]], list[str]]:
-    """Return the existing always-loaded measurement per harness, plus its exclusions."""
-    # control_plane_baseline imports the globs module under its package name, so a
-    # static import here would put one file under two names in the per-file mypy run.
-    baseline = importlib.import_module("scripts.metrics.control_plane_baseline")
-    exclusions: list[dict[str, str]] = []
-    try:
-        loaded: dict[str, dict[str, Any]] = baseline.always_loaded(repo_root, exclusions)
-    except ValueError as exc:  # UnsupportedApplyToError subclasses ValueError
-        raise CorpusError(f"always-on measurement failed: {exc}") from exc
-    return loaded, [f"always-on {e['dimension']}: {e['reason']}" for e in exclusions]
-
-
 def load_graph(repo_root: Path) -> Graph:
     """Read the capability graph once. A tree the gate cannot read fails closed."""
     try:
-        nodes, defects = collect_nodes(repo_root)
-    except Exception as exc:  # TreeError lives in a module loaded under a second name.
-        raise CorpusError(f"capability graph unreadable: {exc}") from exc
-    owners, owner_findings = build_owner_index(nodes)
-    return Graph({n.path: n for n in nodes}, owners, tuple(sorted(defects + owner_findings)))
+        return _load_graph(repo_root)
+    except ValueError as exc:
+        raise CorpusError(str(exc)) from exc
+
+
+def load_always_on(repo_root: Path) -> AlwaysOn:
+    """Return always-loaded context per harness, from the existing counters.
+
+    Workspace files and universal rules come from
+    ``control_plane_baseline.always_loaded``. Always-on skills come from
+    ``instruction_budget.load_instruction_files`` and join the ``claude_code``
+    entry only, because they live under ``.claude/skills``.
+    """
+    exclusions: list[dict[str, str]] = []
+    try:
+        loaded: dict[str, dict[str, Any]] = always_loaded(repo_root, exclusions)
+        skill_paths = tuple(
+            sorted(
+                f.name
+                for f in load_instruction_files(repo_root)
+                if f.activation == _ALWAYS_ON_SKILL_ACTIVATION
+            )
+        )
+    except ValueError as exc:  # UnsupportedApplyToError and MalformedSkillFrontmatterError
+        raise CorpusError(f"always-on measurement failed: {exc}") from exc
+    claude = loaded["claude_code"]
+    sized = [read_sized(repo_root, p) for p in skill_paths if p not in claude["files"]]
+    loaded["claude_code"] = {
+        "files": sorted([*claude["files"], *(s.path for s in sized)]),
+        "bytes": claude["bytes"] + sum(s.size_bytes for s in sized),
+        "tokens": claude["tokens"] + sum(s.estimated_tokens for s in sized),
+    }
+    findings = tuple(f"always-on {e['dimension']}: {e['reason']}" for e in exclusions)
+    return AlwaysOn(loaded, skill_paths, findings)
 
 
 def _canonical_path(kind: str, name: str) -> str:
@@ -162,59 +171,24 @@ def _loaded_from_canonical(path: str) -> str | None:
         name = path.removeprefix("templates/agents/").removesuffix(".shared.md")
         return _loaded_path("agent", name)
     if path.startswith("templates/rules/"):
-        return f"{_RULES_DIR}/{path.removeprefix('templates/rules/')}"
+        return f".claude/rules/{path.removeprefix('templates/rules/')}"
     return None
-
-
-def _rule_globs(text: str, rel: str) -> list[str]:
-    try:
-        front = _frontmatter(text)
-    except (ValueError, yaml.YAMLError) as exc:
-        raise CorpusError(f"{rel}: frontmatter cannot be parsed: {exc}") from exc
-    raw = front.get("paths")
-    if isinstance(raw, str):
-        return [raw]
-    if isinstance(raw, list):
-        return [p for p in raw if isinstance(p, str)]
-    return []
-
-
-def _path_scoped_rules(repo_root: Path, edited_path: str | None, skip: set[str]) -> list[str]:
-    """Return ``.claude/rules`` files whose ``paths`` match ``edited_path``."""
-    rules_dir = repo_root / _RULES_DIR
-    if edited_path is None or not rules_dir.is_dir():
-        return []
-    probe = f"/{edited_path}"
-    matched: list[str] = []
-    for path in sorted(rules_dir.glob("*.md")):
-        rel = path.relative_to(repo_root).as_posix()
-        if rel in skip:
-            continue
-        globs = _rule_globs(path.read_text(encoding="utf-8", errors="replace"), rel)
-        if any(regex.match(probe) for regex in _compile_globs(globs, rel)):
-            matched.append(rel)
-    return matched
-
-
-def _compile_globs(globs: list[str], rel: str) -> list[re.Pattern[str]]:
-    """Compile a rule's ``paths`` globs. An unsupported glob fails closed."""
-    try:
-        return [_glob_to_regex(_vscode_effective_glob(g)) for g in globs]
-    except ValueError as exc:  # UnsupportedApplyToError subclasses ValueError
-        raise CorpusError(f"{rel}: {exc}") from exc
 
 
 def _entrypoints(fixture: Fixture) -> list[tuple[str, str]]:
     entries = [("skill", n) for n in fixture.skills] + [("agent", n) for n in fixture.agents]
+    pattern = name_pattern()
     for _, name in entries:
-        if NAME_RE.match(name) is None:
+        if pattern.match(name) is None:
             raise CorpusError(f"fixture {fixture.fixture_id}: invalid artifact name `{name}`")
     return entries
 
 
-def _dependency_closure(entry_nodes: list[Node], graph: Graph, findings: list[str]) -> list[Node]:
+def _dependency_closure(
+    entry_nodes: list[Capability], graph: Graph, findings: list[str]
+) -> list[Capability]:
     """Follow ``depends-on`` transitively to canonical owners, in path order."""
-    found: dict[str, Node] = {}
+    found: dict[str, Capability] = {}
     pending = [(node.path, dep) for node in entry_nodes for dep in node.depends_on]
     while pending:
         origin, dep = pending.pop()
@@ -229,8 +203,10 @@ def _dependency_closure(entry_nodes: list[Node], graph: Graph, findings: list[st
     return [found[p] for p in sorted(found)]
 
 
-def _entry_nodes(entries: list[tuple[str, str]], graph: Graph, findings: list[str]) -> list[Node]:
-    nodes: list[Node] = []
+def _entry_nodes(
+    entries: list[tuple[str, str]], graph: Graph, findings: list[str]
+) -> list[Capability]:
+    nodes: list[Capability] = []
     for kind, name in entries:
         node = graph.nodes.get(_canonical_path(kind, name))
         if node is None:
@@ -240,14 +216,22 @@ def _entry_nodes(entries: list[tuple[str, str]], graph: Graph, findings: list[st
     return nodes
 
 
-def measure_fixture(
-    repo_root: Path, fixture: Fixture, graph: Graph, always_on: list[str]
-) -> FixtureResult:
-    """Sum the bytes one fixture loads: always-on, path-scoped rules, entrypoints, dependencies.
+def _harness_context(repo_root: Path, target: str) -> tuple[list[tuple[str, str]], list[str]]:
+    """Return ``(source, path)`` pairs Claude Code loads for ``target``, plus import problems."""
+    repo = Repo(repo_root, None)
+    try:
+        base_dir = resolve_base_directory(repo, target)
+        loaded, problems = resolve_claude(repo, base_dir, target, include_user=False)
+    except ValueError as exc:
+        raise CorpusError(f"cannot resolve Claude Code context for `{target}`: {exc}") from exc
+    pairs = [(_LAYER_SOURCE[f.layer], f.path) for f in loaded]
+    return pairs, [f"@ import {p.kind}: {p.target} in {p.location}" for p in problems]
 
-    ``always_on`` is the Claude Code always-loaded file list, computed once by the
-    caller so six fixtures do not re-read the same files.
-    """
+
+def measure_fixture(
+    repo_root: Path, fixture: Fixture, graph: Graph, always_on: AlwaysOn
+) -> FixtureResult:
+    """Sum the bytes one fixture loads. Each file counts once, under its first source."""
     findings: list[str] = []
     seen: dict[str, ActivatedFile] = {}
 
@@ -257,10 +241,12 @@ def measure_fixture(
         sized = read_sized(repo_root, rel)
         seen[rel] = ActivatedFile(sized.path, sized.size_bytes, sized.estimated_tokens, source)
 
-    for rel in always_on:
-        add(rel, "always-on")
-    for rel in _path_scoped_rules(repo_root, fixture.edited_path, set(seen)):
-        add(rel, "path-scoped-rule")
+    context, problems = _harness_context(repo_root, fixture.edited_path or "")
+    findings.extend(problems)
+    for source, rel in context:
+        add(rel, source)
+    for rel in always_on.skills:
+        add(rel, "always-on-skill")
     entries = _entrypoints(fixture)
     for kind, name in entries:
         loaded = _loaded_path(kind, name)
@@ -270,7 +256,8 @@ def measure_fixture(
     for owner in _dependency_closure(_entry_nodes(entries, graph, findings), graph, findings):
         owner_loaded = _loaded_from_canonical(owner.path)
         if owner_loaded is None or not (repo_root / owner_loaded).is_file():
-            findings.append(f"{owner.path}: no loaded copy to measure")
-            continue
+            raise CorpusError(
+                f"fixture {fixture.fixture_id}: dependency {owner.path} has no loaded copy"
+            )
         add(owner_loaded, "dependency")
     return FixtureResult(fixture, tuple(seen.values()), tuple(findings))
