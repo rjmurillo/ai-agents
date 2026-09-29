@@ -93,7 +93,6 @@ This matrix routes work to an agent by capability; it does not set models. An in
 |-------|---------|-----------|
 | **analyst** | Research, root cause, feasibility | Already have enough context |
 | **architect** | ADRs, design review, patterns | Implementation details |
-| **backlog-generator** | Proactive backlog discovery | Existing PRD to decompose |
 | **critic** | Plan validation, pre-merge review | No plan to review |
 | **debug** | Runtime failures, bug triage | Requirements are unclear |
 | **dependency-auditor** | Dependency CVEs, package health | First-party code risk |

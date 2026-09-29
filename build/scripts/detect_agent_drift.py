@@ -210,8 +210,6 @@ KNOWN_MISSING_SECTIONS: frozenset[tuple[str, str, str]] = frozenset(
         ("architect", "Strategic Architecture Principles", "src-claude vs src-vscode"),
         ("architect", "Strategic Knowledge Available", ".claude/agents vs .github/agents"),
         ("architect", "Strategic Knowledge Available", "src-claude vs src-vscode"),
-        ("backlog-generator", "Claude Code Tools", ".claude/agents vs .github/agents"),
-        ("backlog-generator", "Claude Code Tools", "src-claude vs src-vscode"),
         ("code-reviewer", "Claude Code Tools", ".claude/agents vs .github/agents"),
         ("code-reviewer", "Claude Code Tools", "src-claude vs src-vscode"),
         ("code-reviewer", "Tool Use", ".claude/agents vs .github/agents"),

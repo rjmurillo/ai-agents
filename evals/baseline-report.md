@@ -6,6 +6,8 @@ Baseline measurement: do current agent prompts beat a naive baseline on a held-o
 
 2026-05-28
 
+> Retirement note (issue #5701, epic #5698): the `backlog-generator` agent was retired after this run. Its rows in the aggregate matrix, the "Lose lean" summary line, and the disposition table below are the recorded results and are left unchanged. Its fixtures, report, and run log stay under `evals/backlog-generator-spike/`. The disposition "KEEP, audit" no longer applies.
+
 ## Aggregate matrix (18 agents)
 
 | Agent | Fixtures | Agent | Baseline | Delta | 95% CI | Verdict | Cost |
