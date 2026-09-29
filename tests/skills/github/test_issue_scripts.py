@@ -228,7 +228,18 @@ class TestNewIssue:
             patch("new_issue.resolve_repo_params", return_value=_mock_repo()),
             patch("subprocess.run", return_value=proc),
         ):
-            rc = mod.main(["--title", "My Title", "--body", "body text", "--labels", "bug"])
+            rc = mod.main(
+                [
+                    "--source",
+                    "human",
+                    "--title",
+                    "My Title",
+                    "--body",
+                    "body text",
+                    "--labels",
+                    "bug",
+                ]
+            )
         assert rc == 0
         result = json.loads(capsys.readouterr().out)
         assert result["Success"] is True
@@ -242,10 +253,11 @@ class TestNewIssue:
             patch("new_issue.resolve_repo_params", return_value=_mock_repo()),
             patch("subprocess.run", return_value=proc) as mock_run,
         ):
-            mod.main(["--title", "No Body"])
+            mod.main(["--source", "human", "--title", "No Body"])
         cmd = mock_run.call_args[0][0]
         assert "--body" not in cmd
-        assert "--label" not in cmd
+        # Only the source label rides in the create call (issue #5700).
+        assert cmd.count("--label") == 1
 
     def test_api_error_exits_3(self, capsys):
         mod = self._import()
@@ -254,7 +266,7 @@ class TestNewIssue:
             patch("new_issue.resolve_repo_params", return_value=_mock_repo()),
             patch("subprocess.run", return_value=proc),
         ):
-            rc = mod.main(["--title", "title", "--output-format", "json"])
+            rc = mod.main(["--source", "human", "--title", "title", "--output-format", "json"])
         assert rc == 3
         result = json.loads(capsys.readouterr().out)
         assert result["Success"] is False
@@ -267,7 +279,7 @@ class TestNewIssue:
             patch("new_issue.resolve_repo_params", return_value=_mock_repo()),
             patch("subprocess.run", return_value=proc),
         ):
-            rc = mod.main(["--title", "title", "--output-format", "json"])
+            rc = mod.main(["--source", "human", "--title", "title", "--output-format", "json"])
         assert rc == 3
         result = json.loads(capsys.readouterr().out)
         assert result["Success"] is False
@@ -278,7 +290,7 @@ class TestNewIssue:
         with (
             patch("new_issue.resolve_repo_params", return_value=_mock_repo()),
         ):
-            rc = mod.main(["--title", "   ", "--output-format", "json"])
+            rc = mod.main(["--source", "human", "--title", "   ", "--output-format", "json"])
         assert rc == 2
         result = json.loads(capsys.readouterr().out)
         assert result["Success"] is False
@@ -291,6 +303,8 @@ class TestNewIssue:
         ):
             rc = mod.main(
                 [
+                    "--source",
+                    "human",
                     "--title",
                     "T",
                     "--body-file",
@@ -315,6 +329,8 @@ class TestNewIssue:
         ):
             rc = mod.main(
                 [
+                    "--source",
+                    "human",
                     "--title",
                     "Title",
                     "--body-file",

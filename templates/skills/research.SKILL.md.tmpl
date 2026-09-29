@@ -145,8 +145,15 @@ ledger, because each one restates a different set of claims.
    python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/issue/new_issue.py" \
        --title "[Enhancement] Apply {TOPIC} to {integration-area}" \
        --body-file "{analysis-dir}/{topic-slug}-issue-body.md" \
-       --labels "enhancement,research-derived"
+       --labels "enhancement,research-derived" \
+       --source agent
    ```
+
+   The user's approval to publish does not make this human-selected work, so
+   it files as `--source agent`. Put the Step 0 answers in the body file before
+   the claim gate runs: a `## Step 0` section with `### Q3` (who is blocked, and
+   on what) and `### Q5` (the metric, log, run, or ticket that proves it). The
+   gate then checks every claim the issue publishes.
 
    That script's exit code is not a plain success signal. Read
    `references/degraded-mode.md` before reacting to a non-zero exit.

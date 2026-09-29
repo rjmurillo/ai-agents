@@ -206,7 +206,7 @@ scripts and `github_core` import with the anthropic SDK blocked.
 |--------|---------|----------------|
 | `get_issue_context.py` | Issue metadata (no comments) | `--issue` |
 | `get_issue_comments.py` | Issue comment thread (discourse) | `--issue`, `--limit` |
-| `new_issue.py` | Create new issue | `--title`, `--body`, `--labels` |
+| `new_issue.py` | Create new issue; `--source` required, agent needs Step 0 | `--title`, `--body`, `--labels`, `--source`, `--blocked-by`, `--signal` |
 | `close_issue.py` | Close with optional comment (`--verify-claims` aborts on a cited commit/PR the remote disproves, exit 1, and separately on one it could not check, exit 3 or 4) | `--issue`, `--reason`, `--comment`, `--verify-claims` |
 | `reopen_issue.py` | Reopen with optional comment | `--issue`, `--comment` |
 | `set_issue_labels.py` | Apply labels (auto-create) | `--issue`, `--labels`, `--priority` |
@@ -383,6 +383,28 @@ blocker, or context, add the native link with `set_issue_relationship.py`.
 After `new_issue.py`, link the new issue in the next call. Pull requests cannot
 be linked this way; use a closing keyword. Full decision rules, the audit
 procedure, and the MCP fallback: `references/issue-relationships.md`.
+
+### Issue Provenance
+
+`new_issue.py` requires `--source`, which records who selected the work:
+
+- `human`: an explicit human request selected this issue. An owner login, a
+  human-started session, or a user approving publication does not qualify.
+- `agent`: anything an agent chose. It also needs Step 0 evidence:
+  `--blocked-by` (who is blocked, and on what) and `--signal` (the metric, log,
+  run, or ticket that proves it). A body that already carries a `## Step 0`
+  block with `### Q3` and `### Q5` supplies the evidence instead; passing both
+  is an error.
+
+Blank answers, canonical hedge phrases, and conflicting `source:*` labels exit
+2 before any GitHub call. The script creates the `source:human` or
+`source:agent` label when the repository lacks it, and passes it to
+`gh issue create` itself, so a label failure creates no issue. The script
+redacts flag evidence before it publishes it. It refuses a body Step 0 block
+that carries a secret, because it publishes the body unchanged.
+
+The check covers this script only. The GitHub MCP `issue_write` tool, raw
+`gh issue create`, and workflow steps that call the API bypass it.
 
 ---
 

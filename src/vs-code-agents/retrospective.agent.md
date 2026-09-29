@@ -1246,13 +1246,18 @@ Process Delta items to capture actionable improvements. Delta items represent ch
 
 **P0/P1 Issue Creation:**
 
-Use the GitHub skill to create issues for high-priority items:
+Use the GitHub skill to create issues for high-priority items. A retrospective
+run selects this work, so it files as `--source agent`, and `new_issue.py`
+refuses the call without the Step 0 answers `--blocked-by` and `--signal`:
 
 ```bash
 uv run python .claude/skills/github/scripts/issue/new_issue.py \
     --title "[Retrospective] Delta item description" \
-    --body "## Source\nRetrospective: [session-ref]\n\n## Problem\n[Delta item detail]\n\n## Proposed Solution\n[If known]" \
-    --labels "enhancement,source:retrospective,priority:{PRIORITY}"
+    --body-file "[path to the issue body: Source, Problem, Proposed Solution]" \
+    --labels "enhancement,source:retrospective,priority:{PRIORITY}" \
+    --source agent \
+    --blocked-by "[Who is blocked, and on what]" \
+    --signal "[Metric, log, run, or ticket that proves it]"
 ```
 
 **P2/P3 Backlog Memory Storage:**
