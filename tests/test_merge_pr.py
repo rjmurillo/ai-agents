@@ -48,6 +48,38 @@ def _completed(stdout: str = "", stderr: str = "", rc: int = 0):
     return subprocess.CompletedProcess(args=[], returncode=rc, stdout=stdout, stderr=stderr)
 
 
+def _readback(
+    state: str = "MERGED",
+    *,
+    auto: bool = False,
+    merge_commit: str = "c0ffee" * 6 + "c0ff",
+    merged_by: str = "octocat",
+) -> str:
+    """JSON for the post-merge `gh pr view --json state,mergeCommit,...` query."""
+    return json.dumps({
+        "state": state,
+        "mergeCommit": {"oid": merge_commit} if state == "MERGED" else None,
+        "mergedBy": {"login": merged_by} if state == "MERGED" else None,
+        "autoMergeRequest": {"enabledBy": {"login": "octocat"}} if auto else None,
+        "headRefOid": "abc123def456",
+    })
+
+
+_MERGED_READBACK = _readback("MERGED")
+_OPEN_READBACK = _readback("OPEN")
+_AUTO_READBACK = _readback("OPEN", auto=True)
+
+
+def _is_readback(cmd) -> bool:
+    """True for the post-merge readback query (asks for mergeCommit)."""
+    return list(cmd[:3]) == ["gh", "pr", "view"] and "mergeCommit" in " ".join(cmd)
+
+
+def _merge_cmd(calls) -> list[str]:
+    """Return the recorded `gh pr merge` argv."""
+    return next(list(c) for c in calls if list(c[:3]) == ["gh", "pr", "merge"])
+
+
 # Default settings allowing all merge methods
 _ALL_METHODS_ALLOWED = {
     "allow_merge_commit": True,
@@ -164,6 +196,8 @@ class TestMain:
             "mergeStateStatus": "CLEAN", "headRefName": "feature",
         })
         def _side_effect(cmd, **kwargs):
+            if _is_readback(cmd):
+                return _completed(stdout=_MERGED_READBACK, rc=0)
             if cmd[:3] == ["gh", "pr", "view"]:
                 return _completed(stdout=state_json, rc=0)
             if cmd[:3] == ["gh", "pr", "merge"]:
@@ -195,6 +229,8 @@ class TestMain:
             "mergeStateStatus": "HAS_HOOKS", "headRefName": "feature",
         })
         def _side_effect(cmd, **kwargs):
+            if _is_readback(cmd):
+                return _completed(stdout=_MERGED_READBACK, rc=0)
             if cmd[:3] == ["gh", "pr", "view"]:
                 return _completed(stdout=state_json, rc=0)
             if cmd[:3] == ["gh", "pr", "merge"]:
@@ -223,6 +259,8 @@ class TestMain:
             "mergeStateStatus": "BLOCKED", "headRefName": "feature",
         })
         def _side_effect(cmd, **kwargs):
+            if _is_readback(cmd):
+                return _completed(stdout=_AUTO_READBACK, rc=0)
             if cmd[:3] == ["gh", "pr", "view"]:
                 return _completed(stdout=state_json, rc=0)
             if cmd[:3] == ["gh", "pr", "merge"]:
@@ -340,7 +378,7 @@ class TestMain:
             call_count += 1
             if call_count == 1:
                 return _completed(stdout=state_json, rc=0)
-            return _completed(rc=0)
+            return _completed(stdout=_AUTO_READBACK, rc=0)
 
         with patch(
             "merge_pr.assert_gh_authenticated",
@@ -443,7 +481,7 @@ class TestUnknownMergeStateRejection:
             call_count += 1
             if call_count == 1:
                 return _completed(stdout=state_json, rc=0)
-            return _completed(rc=0)
+            return _completed(stdout=_AUTO_READBACK, rc=0)
 
         with patch(
             "merge_pr.assert_gh_authenticated",
@@ -473,7 +511,7 @@ class TestUnknownMergeStateRejection:
             call_count += 1
             if call_count == 1:
                 return _completed(stdout=state_json, rc=0)
-            return _completed(rc=0)
+            return _completed(stdout=_MERGED_READBACK, rc=0)
 
         with patch(
             "merge_pr.assert_gh_authenticated",
@@ -718,7 +756,7 @@ class TestDefaultStrategyIntegration:
             merge_calls.append(args[0] if args else kwargs.get("args", []))
             if len(merge_calls) == 1:
                 return _completed(stdout=state_json, rc=0)
-            return _completed(rc=0)
+            return _completed(stdout=_MERGED_READBACK, rc=0)
 
         with patch(
             "merge_pr.assert_gh_authenticated",
@@ -735,7 +773,7 @@ class TestDefaultStrategyIntegration:
         output = json.loads(capsys.readouterr().out)
         assert output["Success"] is True
         assert output["Data"]["strategy"] == "squash"
-        merge_cmd = merge_calls[-1]
+        merge_cmd = _merge_cmd(merge_calls)
         assert "--squash" in merge_cmd
 
     def test_explicit_strategy_skips_settings_discovery(self):
@@ -755,7 +793,7 @@ class TestDefaultStrategyIntegration:
         ) as settings, patch(
             "merge_pr._fetch_pr_state", return_value=pr_data,
         ), patch(
-            "subprocess.run", return_value=_completed(),
+            "subprocess.run", return_value=_completed(stdout=_MERGED_READBACK),
         ), patch(
             "merge_pr.write_skill_output",
         ):
@@ -807,7 +845,7 @@ class TestSuccessEnvelope:
             call_count += 1
             if call_count == 1:
                 return _completed(stdout=state_json, rc=0)
-            return _completed(rc=0)
+            return _completed(stdout=_MERGED_READBACK, rc=0)
 
         with patch(
             "merge_pr.assert_gh_authenticated",
@@ -984,7 +1022,7 @@ class TestMainAdditional:
             calls.append(args[0] if args else kwargs.get("args", []))
             if len(calls) == 1:
                 return _completed(stdout=state_json, rc=0)
-            return _completed(rc=0)
+            return _completed(stdout=_MERGED_READBACK, rc=0)
 
         with patch(
             "merge_pr.assert_gh_authenticated",
@@ -999,7 +1037,7 @@ class TestMainAdditional:
         ):
             rc = main(["--pull-request", "50", "--delete-branch"])
         assert rc == 0
-        merge_cmd = calls[-1]
+        merge_cmd = _merge_cmd(calls)
         assert "--delete-branch" in merge_cmd
         output = json.loads(capsys.readouterr().out)
         assert output["Data"]["branch_deleted"] is True
@@ -1031,7 +1069,7 @@ class TestMainAdditional:
             calls.append(args[0] if args else kwargs.get("args", []))
             if len(calls) == 1:
                 return _completed(stdout=state_json, rc=0)
-            return _completed(rc=0)
+            return _completed(stdout=_MERGED_READBACK, rc=0)
 
         with patch(
             "merge_pr.assert_gh_authenticated",
@@ -1050,7 +1088,7 @@ class TestMainAdditional:
                 "--body", "Custom body",
             ])
         assert rc == 0
-        merge_cmd = calls[-1]
+        merge_cmd = _merge_cmd(calls)
         assert "--subject" in merge_cmd
         assert "Custom subject" in merge_cmd
         assert "--body" in merge_cmd
@@ -1071,7 +1109,13 @@ class TestRestRetryOnBlocked:
         "headRefOid": "abc123def456",
     })
 
-    def _make_side_effect(self, graphql_fail_stderr: str, rest_rc: int, rest_stdout: str = ""):
+    def _make_side_effect(
+        self,
+        graphql_fail_stderr: str,
+        rest_rc: int,
+        rest_stdout: str = "",
+        readback: str = _MERGED_READBACK,
+    ):
         """Return a side_effect callable with call-order tracking."""
         calls = []
 
@@ -1084,7 +1128,10 @@ class TestRestRetryOnBlocked:
             if len(calls) == 2:
                 return _completed(rc=1, stderr=graphql_fail_stderr)
             # call 2: gh api -X PUT (REST retry)
-            return _completed(rc=rest_rc, stdout=rest_stdout)
+            if len(calls) == 3:
+                return _completed(rc=rest_rc, stdout=rest_stdout)
+            # call 3: post-merge readback
+            return _completed(stdout=readback, rc=0)
 
         return _side, calls
 
@@ -1110,12 +1157,13 @@ class TestRestRetryOnBlocked:
         out = json.loads(capsys.readouterr().out)
         assert out["Data"]["state"] == "MERGED"
         assert out["Data"]["action"] == "merged"
-        # Three subprocess calls: state fetch, gh pr merge, gh api REST
-        assert len(calls) == 3
+        # Four subprocess calls: state fetch, gh pr merge, gh api REST, readback
+        assert len(calls) == 4
 
     def test_blocked_rest_also_fails_exits_6(self):
         side, calls = self._make_side_effect(
             "BLOCKED by branch protection", rest_rc=1, rest_stdout="",
+            readback=_OPEN_READBACK,
         )
         with patch("merge_pr.assert_gh_authenticated"), \
              patch("merge_pr.resolve_repo_params", return_value=RepoInfo(owner="o", repo="r")), \
@@ -1124,7 +1172,8 @@ class TestRestRetryOnBlocked:
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "50"])
         assert exc.value.code == 6
-        assert len(calls) == 3
+        # State fetch, gh pr merge, REST, recovery readback (still OPEN).
+        assert len(calls) == 4
 
     def test_blocked_rest_uses_head_sha(self):
         rest_body = json.dumps({"merged": True, "sha": "abc123def456"})
@@ -1168,6 +1217,8 @@ class TestRestRetryOnBlocked:
 
         def _side(cmd, **kwargs):
             calls.append(cmd)
+            if _is_readback(cmd):
+                return _completed(stdout=_AUTO_READBACK, rc=0)
             if "view" in cmd:
                 return _completed(stdout=self._STATE, rc=0)
             return _completed(rc=0)
@@ -1178,8 +1229,8 @@ class TestRestRetryOnBlocked:
              patch("subprocess.run", side_effect=_side):
             rc = main(["--pull-request", "50", "--auto"])
         assert rc == 0
-        # Only two calls: state fetch and gh pr merge; no REST retry
-        assert len(calls) == 2
+        # State fetch, gh pr merge, readback; no REST retry
+        assert len(calls) == 3
 
 
 # ---------------------------------------------------------------------------
@@ -1209,7 +1260,10 @@ class TestRestRetryOnStack:
         "headRefOid": "abc123def456",
     })
 
-    def _make_side_effect(self, rest_rc, rest_stdout="", view_state=None, view_rc=0):
+    def _make_side_effect(
+        self, rest_rc, rest_stdout="", view_state=None, view_rc=0,
+        readback=_MERGED_READBACK,
+    ):
         """Sequence the state fetch, the GraphQL refusal, REST, and the state re-read."""
         calls = []
 
@@ -1221,7 +1275,9 @@ class TestRestRetryOnStack:
                 return _completed(rc=1, stderr=_STACK_ERROR)
             if len(calls) == 3:
                 return _completed(rc=rest_rc, stdout=rest_stdout)
-            # call 4: gh pr view --json state, the merged-state confirmation
+            if _is_readback(cmd):
+                return _completed(stdout=readback, rc=0)
+            # gh pr view --json state, the merged-state confirmation
             return _completed(rc=view_rc, stdout=view_state or "")
 
         return _side, calls
@@ -1242,8 +1298,8 @@ class TestRestRetryOnStack:
         assert rc == 0
         out = json.loads(capsys.readouterr().out)
         assert out["Data"]["state"] == "MERGED"
-        # State fetch, GraphQL merge, REST PUT. No confirmation call needed.
-        assert len(calls) == 3
+        # State fetch, GraphQL merge, REST PUT, readback. No confirmation call needed.
+        assert len(calls) == 4
 
     def test_stack_error_routes_to_rest_put_endpoint(self):
         """The retry must hit the REST endpoint the GraphQL error names."""
@@ -1267,8 +1323,8 @@ class TestRestRetryOnStack:
         assert rc == 0
         out = json.loads(capsys.readouterr().out)
         assert out["Data"]["state"] == "MERGED"
-        # The fourth call is the merged-state confirmation.
-        assert len(calls) == 4
+        # Confirmation query (call 4) plus the post-merge readback (call 5).
+        assert len(calls) == 5
 
     def test_async_response_with_unparseable_body_confirms_state(self):
         """A non-JSON body is not evidence of failure; confirm the state."""
@@ -1278,7 +1334,7 @@ class TestRestRetryOnStack:
             view_state=json.dumps({"state": "MERGED"}),
         )
         assert self._run(side, ["--pull-request", "5470", "--strategy", "squash"]) == 0
-        assert len(calls) == 4
+        assert len(calls) == 5
 
     def test_async_accept_that_did_not_merge_exits_6(self, capsys):
         """REST accepted but the PR is still open: report failure, not success."""
@@ -1286,6 +1342,7 @@ class TestRestRetryOnStack:
             rest_rc=0,
             rest_stdout=json.dumps({"sha": "abc123def456"}),
             view_state=json.dumps({"state": "OPEN"}),
+            readback=_OPEN_READBACK,
         )
         with pytest.raises(SystemExit) as exc:
             self._run(side, ["--pull-request", "5470", "--strategy", "squash"])
@@ -1298,6 +1355,7 @@ class TestRestRetryOnStack:
             rest_rc=0,
             rest_stdout=json.dumps({"sha": "abc123def456"}),
             view_rc=1,
+            readback=_OPEN_READBACK,
         )
         with pytest.raises(SystemExit) as exc:
             self._run(side, ["--pull-request", "5470", "--strategy", "squash"])
@@ -1305,7 +1363,9 @@ class TestRestRetryOnStack:
 
     def test_stack_rest_failure_exits_6_and_names_the_stack(self, capsys):
         """A failed REST retry surfaces the stack cause, not a protection hint."""
-        side, _ = self._make_side_effect(rest_rc=1, rest_stdout="")
+        side, _ = self._make_side_effect(
+            rest_rc=1, rest_stdout="", readback=_OPEN_READBACK,
+        )
         with pytest.raises(SystemExit) as exc:
             self._run(side, ["--pull-request", "5470", "--strategy", "squash"])
         assert exc.value.code == 6
@@ -1315,9 +1375,303 @@ class TestRestRetryOnStack:
 
     def test_auto_does_not_retry_rest_on_stack_error(self):
         """--auto keeps its existing no-retry behavior for stack errors too."""
-        side, calls = self._make_side_effect(rest_rc=0, rest_stdout="")
+        side, calls = self._make_side_effect(
+            rest_rc=0, rest_stdout="", readback=_OPEN_READBACK,
+        )
         with pytest.raises(SystemExit) as exc:
             self._run(side, ["--pull-request", "5470", "--auto"])
         assert exc.value.code == 3
-        # State fetch and gh pr merge only; no REST retry.
-        assert len(calls) == 2
+        # State fetch, gh pr merge, recovery readback; no REST retry.
+        assert len(calls) == 3
+
+
+# ---------------------------------------------------------------------------
+# Tests: action boundaries (issue #5767, REQ-043)
+# ---------------------------------------------------------------------------
+
+_HEAD = "a" * 40
+_OTHER_HEAD = "b" * 40
+
+
+def _pr_state(state: str = "OPEN", head: str = _HEAD) -> str:
+    return json.dumps({
+        "state": state, "mergeable": "MERGEABLE",
+        "mergeStateStatus": "CLEAN", "headRefName": "feature",
+        "headRefOid": head,
+    })
+
+
+class _FakeGh:
+    """Route subprocess.run by gh subcommand and record every argv.
+
+    merge: CompletedProcess, or an exception instance to raise.
+    readback: stdout string, or None for a failing readback query.
+    """
+
+    def __init__(self, *, state=None, merge=None, readback=_MERGED_READBACK):
+        self.state = state if state is not None else _pr_state()
+        self.merge = merge if merge is not None else _completed(rc=0)
+        self.readback = readback
+        self.calls: list[list[str]] = []
+
+    def __call__(self, cmd, **kwargs):
+        self.calls.append(list(cmd))
+        if _is_readback(cmd):
+            if self.readback is None:
+                return _completed(rc=1, stderr="boom")
+            return _completed(stdout=self.readback)
+        if list(cmd[:3]) == ["gh", "pr", "view"]:
+            return _completed(stdout=self.state)
+        if list(cmd[:3]) == ["gh", "pr", "merge"]:
+            if isinstance(self.merge, BaseException):
+                raise self.merge
+            return self.merge
+        raise AssertionError(f"unexpected command: {cmd!r}")
+
+    def merge_calls(self) -> list[list[str]]:
+        return [c for c in self.calls if c[:3] == ["gh", "pr", "merge"]]
+
+
+def _run_main(fake: _FakeGh, argv: list[str], capsys):
+    """Run main() against fake; return (exit_code, envelope)."""
+    code = 0
+    with patch("merge_pr.assert_gh_authenticated"), patch(
+        "merge_pr.resolve_repo_params", return_value=RepoInfo(owner="o", repo="r"),
+    ), patch(
+        "merge_pr.get_allowed_merge_methods", return_value=_ALL_METHODS_ALLOWED,
+    ), patch("subprocess.run", side_effect=fake):
+        try:
+            code = main(["--pull-request", "50", "--strategy", "squash", *argv])
+        except SystemExit as exc:
+            code = int(exc.code or 0)
+    return code, json.loads(capsys.readouterr().out)
+
+
+class TestExpectedHeadSha:
+    def test_invalid_sha_exits_1_without_any_gh_call(self, capsys):
+        fake = _FakeGh()
+        code, env = _run_main(fake, ["--expected-head-sha", "not-a-sha"], capsys)
+        assert code == 1
+        assert env["Error"]["Type"] == "InvalidParams"
+        assert fake.calls == []
+
+    def test_short_sha_rejected(self, capsys):
+        code, env = _run_main(_FakeGh(), ["--expected-head-sha", "abc123"], capsys)
+        assert code == 1
+        assert env["Error"]["Type"] == "InvalidParams"
+
+    def test_mismatch_exits_1_and_never_merges(self, capsys):
+        fake = _FakeGh(state=_pr_state(head=_OTHER_HEAD))
+        code, env = _run_main(fake, ["--expected-head-sha", _HEAD], capsys)
+        assert code == 1
+        assert env["Error"]["Type"] == "InvalidParams"
+        assert _HEAD in env["Error"]["Message"]
+        assert _OTHER_HEAD in env["Error"]["Message"]
+        assert fake.merge_calls() == []
+
+    def test_missing_head_on_pr_fails_closed(self, capsys):
+        state = json.dumps({
+            "state": "OPEN", "mergeable": "MERGEABLE", "mergeStateStatus": "CLEAN",
+        })
+        fake = _FakeGh(state=state)
+        code, env = _run_main(fake, ["--expected-head-sha", _HEAD], capsys)
+        assert code == 1
+        assert "unknown" in env["Error"]["Message"]
+        assert fake.merge_calls() == []
+
+    def test_match_is_case_insensitive_and_pins_expected_sha(self, capsys):
+        fake = _FakeGh()
+        code, _ = _run_main(fake, ["--expected-head-sha", _HEAD.upper()], capsys)
+        assert code == 0
+        merge = fake.merge_calls()[0]
+        assert merge[merge.index("--match-head-commit") + 1] == _HEAD.upper()
+
+
+class TestHeadPinning:
+    def test_match_head_commit_uses_fetched_head_by_default(self, capsys):
+        fake = _FakeGh()
+        code, _ = _run_main(fake, [], capsys)
+        assert code == 0
+        merge = fake.merge_calls()[0]
+        assert merge[merge.index("--match-head-commit") + 1] == _HEAD
+
+    def test_no_pin_when_head_unknown(self, capsys):
+        state = json.dumps({
+            "state": "OPEN", "mergeable": "MERGEABLE", "mergeStateStatus": "CLEAN",
+        })
+        fake = _FakeGh(state=state)
+        code, env = _run_main(fake, [], capsys)
+        assert code == 0
+        assert "--match-head-commit" not in fake.merge_calls()[0]
+        assert env["Data"]["audit"]["target"]["head_sha"] is None
+
+    @pytest.mark.parametrize("text", [
+        "Head branch was modified. Review and try the merge again.",
+        "the head commit changed",
+    ])
+    def test_head_moved_refusal_exits_6_without_rest_retry(self, text, capsys):
+        fake = _FakeGh(merge=_completed(rc=1, stderr=text))
+        code, env = _run_main(fake, [], capsys)
+        assert code == 6
+        assert "head moved" in env["Error"]["Message"]
+        assert _HEAD in env["Error"]["Message"]
+        assert env["Data"]["audit"]["result"].startswith("refused")
+        assert not any(c[:2] == ["gh", "api"] for c in fake.calls)
+
+
+class TestReadback:
+    def test_merged_reports_commit_actor_and_rollback(self, capsys):
+        fake = _FakeGh()
+        code, env = _run_main(fake, [], capsys)
+        assert code == 0
+        data = env["Data"]
+        assert data["action"] == "merged"
+        assert data["recovered"] is False
+        assert data["readback"]["state"] == "MERGED"
+        assert data["readback"]["merge_commit"] == "c0ffee" * 6 + "c0ff"
+        assert data["readback"]["merged_by"] == "octocat"
+        assert data["audit"]["rollback"] == f"git revert {'c0ffee' * 6 + 'c0ff'}"
+
+    def test_auto_queued_is_pending_and_says_not_merged(self, capsys):
+        fake = _FakeGh(readback=_AUTO_READBACK)
+        code, env = _run_main(fake, ["--auto"], capsys)
+        assert code == 0
+        data = env["Data"]
+        assert data["state"] == "PENDING"
+        assert data["action"] == "auto-merge-enabled"
+        assert "NOT merged" in data["message"]
+        assert data["audit"]["rollback"] is None
+        assert data["audit"]["actor"] == "octocat"
+
+    def test_success_exit_but_open_without_queue_exits_3(self, capsys):
+        fake = _FakeGh(readback=_OPEN_READBACK)
+        code, env = _run_main(fake, [], capsys)
+        assert code == 3
+        assert env["Success"] is False
+        assert "readback shows state=OPEN" in env["Error"]["Message"]
+
+    def test_success_exit_but_closed_exits_3(self, capsys):
+        fake = _FakeGh(readback=_readback("CLOSED"))
+        code, env = _run_main(fake, [], capsys)
+        assert code == 3
+        assert "state=CLOSED" in env["Error"]["Message"]
+
+    def test_auto_but_open_without_queue_exits_3(self, capsys):
+        fake = _FakeGh(readback=_OPEN_READBACK)
+        code, _ = _run_main(fake, ["--auto"], capsys)
+        assert code == 3
+
+    @pytest.mark.parametrize("readback", ["not json", "[]"])
+    def test_unparseable_readback_exits_3(self, readback, capsys):
+        code, env = _run_main(_FakeGh(readback=readback), [], capsys)
+        assert code == 3
+        assert "unverified" in env["Error"]["Message"]
+
+    def test_readback_query_failure_exits_3_never_success(self, capsys):
+        code, env = _run_main(_FakeGh(readback=None), [], capsys)
+        assert code == 3
+        assert env["Success"] is False
+        assert env["Error"]["Type"] == "ApiError"
+
+    def test_readback_timeout_exits_3(self, capsys):
+        base = _FakeGh()
+
+        def _side(cmd, **kwargs):
+            if _is_readback(cmd):
+                raise subprocess.TimeoutExpired(cmd, 30)
+            return base(cmd, **kwargs)
+
+        with patch("merge_pr.assert_gh_authenticated"), patch(
+            "merge_pr.resolve_repo_params", return_value=RepoInfo(owner="o", repo="r"),
+        ), patch("subprocess.run", side_effect=_side):
+            with pytest.raises(SystemExit) as exc:
+                main(["--pull-request", "50", "--strategy", "squash"])
+        assert exc.value.code == 3
+        assert json.loads(capsys.readouterr().out)["Success"] is False
+
+
+class TestPartialFailureRecovery:
+    def test_merge_fails_but_readback_merged_is_recovered_success(self, capsys):
+        fake = _FakeGh(merge=_completed(rc=1, stderr="network reset"))
+        code, env = _run_main(fake, [], capsys)
+        assert code == 0
+        data = env["Data"]
+        assert data["action"] == "merged"
+        assert data["recovered"] is True
+        assert "network reset" in data["audit"]["original_error"]
+
+    def test_merge_fails_and_readback_open_reports_original_error(self, capsys):
+        fake = _FakeGh(
+            merge=_completed(rc=1, stderr="network reset"), readback=_OPEN_READBACK,
+        )
+        code, env = _run_main(fake, [], capsys)
+        assert code == 3
+        assert "network reset" in env["Error"]["Message"]
+        assert env["Data"]["audit"]["result"] == "failed"
+
+    def test_merge_fails_and_readback_fails_reports_original_error(self, capsys):
+        fake = _FakeGh(merge=_completed(rc=1, stderr="network reset"), readback=None)
+        code, env = _run_main(fake, [], capsys)
+        assert code == 3
+        assert "unverified" in env["Error"]["Message"]
+        assert "unverified" in env["Data"]["audit"]["result"]
+
+    def test_timeout_then_merged_is_recovered_success(self, capsys):
+        fake = _FakeGh(merge=subprocess.TimeoutExpired(["gh"], 60))
+        code, env = _run_main(fake, [], capsys)
+        assert code == 0
+        assert env["Data"]["recovered"] is True
+        assert "timed out" in env["Data"]["audit"]["original_error"]
+
+    def test_timeout_then_open_exits_3(self, capsys):
+        fake = _FakeGh(
+            merge=subprocess.TimeoutExpired(["gh"], 60), readback=_OPEN_READBACK,
+        )
+        code, env = _run_main(fake, [], capsys)
+        assert code == 3
+        assert env["Error"]["Type"] == "Timeout"
+        assert "outcome unknown" in env["Error"]["Message"]
+
+    def test_conflict_failure_skips_readback(self, capsys):
+        fake = _FakeGh(merge=_completed(rc=1, stderr="not mergeable"))
+        code, _ = _run_main(fake, [], capsys)
+        assert code == 6
+        assert not any(_is_readback(c) for c in fake.calls)
+
+
+class TestRetryDuplication:
+    def test_already_merged_makes_no_merge_call(self, capsys):
+        fake = _FakeGh(state=_pr_state("MERGED"))
+        code, env = _run_main(fake, [], capsys)
+        assert code == 0
+        assert env["Data"]["action"] == "none"
+        assert fake.merge_calls() == []
+        assert not any(c[:2] == ["gh", "api"] for c in fake.calls)
+
+    def test_already_merged_with_wrong_expected_sha_is_refused(self, capsys):
+        fake = _FakeGh(state=_pr_state("MERGED", head=_OTHER_HEAD))
+        code, _ = _run_main(fake, ["--expected-head-sha", _HEAD], capsys)
+        assert code == 1
+        assert fake.merge_calls() == []
+
+
+class TestAuditRecord:
+    def test_success_audit_has_required_fields(self, capsys):
+        _, env = _run_main(_FakeGh(), [], capsys)
+        audit = env["Data"]["audit"]
+        assert set(audit) >= {
+            "actor", "target", "action", "approval", "result", "rollback",
+            "residual_risk",
+        }
+        assert audit["actor"] == "octocat"
+        assert audit["target"] == {"repo": "o/r", "pull_request": 50, "head_sha": _HEAD}
+        assert audit["approval"] == "repository branch protection (server-enforced)"
+        assert audit["result"] == "merged"
+        assert audit["residual_risk"]
+        assert "original_error" not in audit
+
+    def test_error_envelope_carries_audit(self, capsys):
+        _, env = _run_main(_FakeGh(readback=_OPEN_READBACK), [], capsys)
+        assert env["Data"]["audit"]["target"]["head_sha"] == _HEAD
+        assert env["Data"]["audit"]["actor"] is None
+        assert env["Data"]["audit"]["rollback"] is None
