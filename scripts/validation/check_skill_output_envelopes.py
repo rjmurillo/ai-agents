@@ -45,6 +45,11 @@ from pathlib import Path
 from types import ModuleType
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
+_REPO_ROOT = _SCRIPT_DIR.parents[1]
+# checks_common imports scripts.* (absolute), so the repository root must be
+# importable when this runs as a plain script, the way CI and the docs invoke it.
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
 if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
@@ -183,7 +188,7 @@ def validate_skill_output_envelopes(repo_root: Path) -> bool:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--repo-root", type=Path, default=Path(__file__).resolve().parents[2])
+    parser.add_argument("--repo-root", type=Path, default=_REPO_ROOT)
     args = parser.parse_args(argv)
     repo_root = args.repo_root.resolve()
     if not repo_root.is_dir():
