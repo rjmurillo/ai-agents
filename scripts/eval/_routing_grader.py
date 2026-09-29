@@ -233,20 +233,27 @@ def run_validation(validation: Validation, workdir: Path) -> tuple[CommandResult
 def grade(scenario: Scenario, workdir: Path) -> GradeResult:
     """Grade `workdir` against `scenario`. `workdir` itself is left untouched.
 
-    A symlink anywhere in `workdir` is a scope violation and ends grading before
-    any copy or command runs, so a link cannot bring a host file into the
-    scratch tree.
+    The scratch copy keeps symlinks as links (it never follows one), then the
+    copy is checked for links. A link anywhere is a scope violation and ends
+    grading before hidden files or commands are added. Checking the copy, not
+    the source, closes the window in which a still-running driver could add a
+    link between a check and a copy.
     """
     changed = changed_paths(scenario, workdir)
     violations = scope_violations(scenario, changed)
     missing = missing_expected(scenario, changed)
-    links = _symlinks(workdir)
-    if links:
-        found = tuple(f"symlink:{path}" for path in links)
-        return GradeResult(Verdict.FAIL, changed, (*violations, *found), missing, ())
     with tempfile.TemporaryDirectory(prefix="routing-grade-") as scratch_name:
         scratch = Path(scratch_name) / "work"
-        shutil.copytree(workdir, scratch, ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
+        shutil.copytree(
+            workdir,
+            scratch,
+            symlinks=True,
+            ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
+        )
+        links = _symlinks(scratch)
+        if links:
+            found = tuple(f"symlink:{path}" for path in links)
+            return GradeResult(Verdict.FAIL, changed, (*violations, *found), missing, ())
         _write_overlay(scenario.fixture_dir("hidden"), scratch)
         results = run_validation(scenario.validation, scratch)
     passed = not violations and not missing and all(result.passed for result in results)

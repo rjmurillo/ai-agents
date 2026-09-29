@@ -20,8 +20,8 @@
   "architecture": {
     "question": "Which counting scheme should the limiter use: fixed window, recent-call log, or shared-store token bucket?",
     "context_path": "docs/decision-context.md",
-    "resolved_decision": "Use an in-process fixed-window counter per client. The window index is floor(clock() / window_seconds). The count resets when the index changes. A denied call does not count toward the limit.",
-    "driver_contract": "Implement RateLimiter as a fixed-window counter kept in process memory. Window index is floor(clock() / window_seconds), so windows align to multiples of window_seconds. Keep one (window index, count) pair per client. When the index changes the count restarts at zero. A denied call does not increase the count. Raise ValueError when limit is below 1 or window_seconds is not positive. Read time only from the clock argument. Do not add modules, a shared store, or a call log."
+    "resolved_decision": "Use an in-process fixed-window counter per client. The window index is floor(clock() / window_seconds). The count resets when the index changes.",
+    "driver_contract": "Implement RateLimiter as a fixed-window counter kept in process memory. Window index is floor(clock() / window_seconds), so windows align to multiples of window_seconds. Keep one (window index, count) pair per client. When the index changes the count restarts at zero. Raise ValueError when limit is below 1 or window_seconds is not positive. Read time only from the clock argument. Do not add modules, a shared store, or a call log."
   },
   "validation": {
     "commands": [["python", "-m", "unittest", "discover", "-s", "tests", "-p", "check_*.py"]],
