@@ -761,8 +761,7 @@ class TestRepositoryConfigContract:
             _make_proc(
                 stdout=json.dumps(
                     {
-                        "active_suppressed_count": 0,
-                        "unknown_suppressed_count": 0,
+                        "undispositioned_suppressed_count": 0,
                         "fetched_pages_complete": True,
                     },
                 ),
