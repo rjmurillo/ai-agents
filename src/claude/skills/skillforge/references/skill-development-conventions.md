@@ -5,7 +5,7 @@
 ## Matters
 
 - `SKILL.md` renders from `templates/skills/<name>.SKILL.md.tmpl` plus `partials/*.mustache`, all 111: edit the template and regenerate, in the `rjmurillo/ai-agents` repository. Render map: `templates/AGENTS.md`.
-- `<skill>/scripts/`, `references/`, `templates/`, `tests/` stay hand-edited here; the build mirrors them into both plugin trees. Exception: `review/scripts/validate_review_marker.py` (rendered from `scripts/validation/`, binplaced). `review/references/*.md` is hand-edited but sources the PR-quality prompts; regenerate after editing (`build_all` skips it).
+- a skill's scripts, `references/`, `templates/`, and `tests/` directories stay hand-edited here; the build mirrors them into both plugin trees. Exception: `review/scripts/validate_review_marker.py` (rendered from the validation scripts package, binplaced). `review/references/*.md` is hand-edited but sources the PR-quality prompts; regenerate after editing (`build_all` skips it).
 - `model:` usually absent; the other valid state is `model: haiku` plus `model-rationale:` (ADR-080). `sonnet` and `opus` need a rationale pricing below the harness default; versioned ids always fail. The local gate warns; `pr-validation.yml` runs `--mode enforce`.
 - Size: two blocking ceilings, lines (warn 300, block 500) and bytes (warn 12,288, block 24,576). `size-exception: true` plus an HTML rationale comment (first 40 lines, 200+ chars) declares a justified overage.
 
@@ -53,10 +53,4 @@
 
 ## Commands
 
-Repository-only, from the `rjmurillo/ai-agents` root:
-
-```bash
-uv run python scripts/validation/skill_size.py --staged-only --ci
-uv run python scripts/validation/check_colocated_skill_tests.py --staged-only
-uv run python scripts/validation/pre_pr.py
-```
+Repository-only gates, run from the `rjmurillo/ai-agents` root: `skill_size.py --staged-only --ci`, `check_colocated_skill_tests.py --staged-only`, and `pre_pr.py`, all in the validation scripts package.
