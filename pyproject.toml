@@ -208,9 +208,7 @@ disallow_any_generics = false
 module = [
     "scripts.validate_skill_installation",
     "scripts.validate_skill_output",
-    "scripts.validate_quality_gate_output",
     "scripts.analyze_pr_failure",
-    "scripts.pr_branch_mapping",
     "scripts.utils.markdown_parser",
     "scripts.validation.hook_contracts",
 ]

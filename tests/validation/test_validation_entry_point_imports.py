@@ -90,7 +90,7 @@ def test_the_scan_finds_entry_points() -> None:
     entry_points = _entry_points()
 
     assert len(entry_points) >= 250
-    assert SCRIPTS_DIR / "issue_triage.py" in entry_points
+    assert SCRIPTS_DIR / "validation" / "pre_pr.py" in entry_points
 
 
 @pytest.mark.parametrize("script", _entry_points(), ids=_entry_point_ids())
