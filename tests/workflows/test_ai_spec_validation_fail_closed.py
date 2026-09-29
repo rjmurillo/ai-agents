@@ -66,3 +66,10 @@ def test_gate_runs_whenever_a_review_step_runs() -> None:
     for step_id in _REVIEW_STEP_IDS:
         review_if = str(_step_by_id(step_id)["if"])
         assert review_if == gate_if, f"{step_id} and the gate use different conditions"
+
+
+def test_gate_is_scoped_to_runs_that_have_specs() -> None:
+    """The gate must not run, and must not fail, when no spec was referenced."""
+    gate_if = str(_gate_step()["if"])
+    assert "steps.should-run.outputs.skip != 'true'" in gate_if
+    assert "steps.spec-ref.outputs.has_specs == 'true'" in gate_if

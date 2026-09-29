@@ -73,6 +73,9 @@ def _incomplete_reason(outcome: str, verdict: str) -> str:
     outcome = outcome.strip().lower()
     if outcome and outcome != "success":
         return f"step outcome was '{outcome}'"
+    # Outcome success with no verdict means the review action reported success
+    # without parsing a verdict. That is an action defect, and passing on it
+    # would be the false green this gate exists to prevent.
     if not verdict.strip():
         return "no verdict was recorded"
     return ""
