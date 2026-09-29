@@ -48,6 +48,9 @@ metadata:
 
 # Security File Rules
 
+<!-- vendor-portability: contributor-facing rule for the rjmurillo/ai-agents repo itself;
+     it names scripts/validation/lefthook_runner.py because that path is the subject of MUST 8 -->
+
 These paths hold threat models, benchmarks, workflows, and hooks that protect the supply chain. Changes need evidence, not opinion.
 
 ## MUST
