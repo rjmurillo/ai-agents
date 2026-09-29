@@ -172,3 +172,16 @@ def validate_security_suppressions_diff(repo_root: Path) -> bool:
         "--base-ref",
         base_ref,
     )
+
+
+def validate_closure_manifest(repo_root: Path) -> bool:
+    """Advisory: compute the enforcement closure and report unresolved edges.
+
+    Runs the command the scheduled `Enforcement Closure` job runs, with
+    `--advisory` so it prints the summary and any unresolved edge without failing:
+    the manifest is P0 code here, and the job that binds runs from the default
+    branch. ADR-101 Phase 1, issue #5245.
+    """
+    return _run_workflow_validator(
+        repo_root, "scripts/validation/closure_manifest.py", "--advisory"
+    )

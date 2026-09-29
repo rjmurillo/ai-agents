@@ -96,6 +96,7 @@ EXPECTED_ORDER: tuple[str, ...] = (
     'Hook Contracts',
     'Passive Context Budget',
     'Skillbook Validation',
+    'Closure Manifest (advisory)',
     'Placeholder Identity',
     'Tracked Conflict Markers',
     'Security Suppressions Diff',

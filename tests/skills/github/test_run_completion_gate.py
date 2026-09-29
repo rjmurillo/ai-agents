@@ -3432,6 +3432,11 @@ class TestImportClosureBranches:
     def test_unparseable_source_yields_no_imports(self):
         assert _dispatcher._imported_module_names(b"def (:\n") == []
 
+    def test_source_too_deeply_nested_to_parse_yields_no_imports(self):
+        source = ("(" * 100_000 + ")" * 100_000 + "\nimport os\n").encode()
+
+        assert _dispatcher._imported_module_names(source) == []
+
     def test_source_with_null_byte_yields_no_imports(self):
         # ast.parse raises ValueError, not SyntaxError, on embedded nulls.
         assert _dispatcher._imported_module_names(b"x = '\x00'\n") == []
