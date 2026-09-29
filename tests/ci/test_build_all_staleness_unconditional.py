@@ -81,4 +81,4 @@ def test_required_validate_job_waits_on_and_reflects_the_staleness_job() -> None
     assert "!cancelled()" in str(validate.get("if", ""))
     gate = validate["steps"][0]
     assert f"needs.{staleness_name}.result" in yaml.safe_dump(gate)
-    assert "exit 1" in gate["run"]
+    assert "exit" in gate["run"]

@@ -131,10 +131,16 @@ jobs:
           PATHS_RESULT: ${{ needs.check-paths.result }}
           STALENESS_RESULT: ${{ needs.build-all-staleness.result }}
         run: |
-          if [ "$PATHS_RESULT" != "success" ] || [ "$STALENESS_RESULT" != "success" ]; then
-            echo "::error::check-paths=$PATHS_RESULT build-all-staleness=$STALENESS_RESULT"
-            exit 1
+          failed=0
+          if [ "$PATHS_RESULT" != "success" ]; then
+            echo "::error::check-paths result: $PATHS_RESULT"
+            failed=1
           fi
+          if [ "$STALENESS_RESULT" != "success" ]; then
+            echo "::error::build-all-staleness result: $STALENESS_RESULT"
+            failed=1
+          fi
+          exit "$failed"
 
       - name: Check if validation needed
         id: should-run
