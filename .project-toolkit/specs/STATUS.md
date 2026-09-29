@@ -9,7 +9,7 @@
 
 | Spec | Status | Tracking | Implementation |
 |------|--------|----------|----------------|
-| [PRD-memory-enhancement-layer-for-serena-forgetful.md](./PRD-memory-enhancement-layer-for-serena-forgetful.md) | 🟢 Active (v0.3.0) | [#990](https://github.com/rjmurillo/ai-agents/issues/990) | Planned |
+| [PRD-memory-enhancement-layer-for-serena-forgetful.md](./PRD-memory-enhancement-layer-for-serena-forgetful.md) | 🔴 Superseded (ADR-106) | [#990](https://github.com/rjmurillo/ai-agents/issues/990) | Planned |
 | [agent-orchestration-mcp-spec.md](./agent-orchestration-mcp-spec.md) | 🔵 Draft | TBD | Not Started |
 | [session-state-mcp-spec.md](./session-state-mcp-spec.md) | 🔵 Draft | TBD | Not Started |
 | [skill-catalog-mcp-spec.md](./skill-catalog-mcp-spec.md) | 🔵 Draft | TBD | Not Started |
@@ -39,7 +39,7 @@
 
 | Spec | Status | Target Version |
 |------|--------|----------------|
-| [PRD-memory-enhancement-layer-for-serena-forgetful.md](./PRD-memory-enhancement-layer-for-serena-forgetful.md) | 🟢 Active | v0.3.0 |
+| [PRD-memory-enhancement-layer-for-serena-forgetful.md](./PRD-memory-enhancement-layer-for-serena-forgetful.md) | 🔴 Superseded | v0.3.0 |
 
 ### Technical Specifications
 
@@ -90,7 +90,7 @@
 
 ### PRDs (Product Requirements)
 - Format: `PRD-{feature-name}.md`
-- Example: `PRD-memory-enhancement-layer-for-serena-forgetful.md`
+- Example: `PRD-agent-skill-classification-audit.md`
 - Contains: Problem statement, goals, user stories, success metrics
 
 ### Technical Specs
