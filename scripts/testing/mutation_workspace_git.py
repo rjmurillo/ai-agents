@@ -19,6 +19,7 @@ SCRATCH_DIRECTORY_SUFFIX = ".mutation-worktrees"
 # this location. Recovery must clear them; creation never uses it.
 LEGACY_SCRATCH_DIRECTORY = Path(".pytest_cache") / "mutation-worktrees"
 _WORKTREE_LOCK_NAME = "mutation-worktrees.lock"
+STALE_LOCK_REASON = "initializing"
 _GIT_ENVIRONMENT_KEYS = {
     "GIT_ALTERNATE_OBJECT_DIRECTORIES",
     "GIT_CEILING_DIRECTORIES",
@@ -356,13 +357,24 @@ def add_worktree(repo_root: Path, scratch_root: Path) -> None:
         )
 
 
-def remove_worktree(repo_root: Path, scratch_root: Path) -> None:
+def _require_scratch_path(repo_root: Path, scratch_root: Path, action: str) -> Path:
     scratch = scratch_root.resolve()
     allowed_roots = allowed_scratch_roots(repo_root)
     if not any(scratch != root and scratch.is_relative_to(root) for root in allowed_roots):
         raise MutationWorkspaceError(
-            f"refusing to remove mutation worktree outside {allowed_roots[0]}: {scratch}"
+            f"refusing to {action} mutation worktree outside {allowed_roots[0]}: {scratch}"
         )
+    return scratch
+
+
+def _unlock_hint(stderr: str, scratch: Path) -> str:
+    if "locked" not in stderr:
+        return ""
+    return f" (if no process holds it, run `git worktree unlock {scratch}`)"
+
+
+def remove_worktree(repo_root: Path, scratch_root: Path) -> None:
+    scratch = _require_scratch_path(repo_root, scratch_root, "remove")
 
     with _serialized_worktree_state(repo_root):
         registered = _registered_worktrees_unlocked(repo_root)
@@ -371,6 +383,7 @@ def remove_worktree(repo_root: Path, scratch_root: Path) -> None:
             if result.returncode != 0:
                 raise MutationWorkspaceError(
                     f"git worktree remove failed for {scratch}: {result.stderr.strip()}"
+                    f"{_unlock_hint(result.stderr, scratch)}"
                 )
         elif scratch.exists():
             shutil.rmtree(scratch)
@@ -381,6 +394,41 @@ def remove_worktree(repo_root: Path, scratch_root: Path) -> None:
             )
         with suppress(OSError):
             scratch.parent.rmdir()
+
+
+def _lock_reason_unlocked(repo_root: Path, scratch: Path) -> str | None:
+    result = run_git(repo_root, "worktree", "list", "--porcelain", "-z")
+    if result.returncode != 0:
+        raise MutationWorkspaceError(
+            f"cannot list registered worktrees: {result.stderr.strip()}"
+        )
+    current: Path | None = None
+    for field in result.stdout.split("\0"):
+        if field.startswith("worktree "):
+            current = Path(field.removeprefix("worktree ")).resolve()
+        elif field.startswith("locked") and current == scratch:
+            return field.removeprefix("locked").strip()
+    return None
+
+
+def unlock_stale_worktree(repo_root: Path, scratch_root: Path) -> bool:
+    """Unlock a scratch worktree that an interrupted ``git worktree add`` left locked.
+
+    Git holds the lock with reason ``initializing`` while it populates a new
+    worktree and clears it on success, so the reason persists only after the
+    process died mid-setup. Any other lock, or a path outside the harness's
+    scratch roots, is left alone. Returns True when a lock was cleared.
+    """
+    scratch = _require_scratch_path(repo_root, scratch_root, "unlock")
+    with _serialized_worktree_state(repo_root):
+        if _lock_reason_unlocked(repo_root, scratch) != STALE_LOCK_REASON:
+            return False
+        result = run_git(repo_root, "worktree", "unlock", str(scratch))
+        if result.returncode != 0:
+            raise MutationWorkspaceError(
+                f"git worktree unlock failed for {scratch}: {result.stderr.strip()}"
+            )
+    return True
 
 
 def registered_worktrees(repo_root: Path) -> set[Path]:
