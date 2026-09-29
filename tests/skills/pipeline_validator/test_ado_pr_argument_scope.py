@@ -140,8 +140,9 @@ def _tracked_markdown() -> tuple[Path, ...]:
     """Return every git-tracked markdown path, relative to the repo root.
 
     Tracked files rather than a filesystem walk, because a walk is not hermetic here. The
-    mutation-test harness materializes whole copies of the repo under
-    ``.pytest_cache/mutation-worktrees/<hash>/``, and those copies appear and disappear
+    mutation-test harness used to materialize whole copies of the repo under
+    ``.pytest_cache/mutation-worktrees/<hash>/`` (now a sibling of the checkout, issue
+    #5611), and such copies appear and disappear
     while the suite runs. Under ``pytest -n 4`` this module scanned another test's scratch
     tree mid-write: the guard passed in isolation and failed the full parallel suite at the
     pre-push gate. Asking git for tracked files sees authored documentation only, which is
@@ -273,9 +274,10 @@ class TestIdScopedCommandsRejectProjectFlags:
     def test_scan_is_hermetic_under_parallel_runs(self) -> None:
         """The scan must never reach a scratch tree another test is writing.
 
-        Regression: a filesystem walk picked up `.pytest_cache/mutation-worktrees/<hash>/`
-        copies of the whole repo, so this module passed alone and failed the full
-        `pytest -n 4` suite at the pre-push gate. Every scanned path must be tracked.
+        Regression: a filesystem walk picked up the former in-clone
+        `.pytest_cache/mutation-worktrees/<hash>/` copies of the whole repo, so this
+        module passed alone and failed the full `pytest -n 4` suite at the pre-push
+        gate. Every scanned path must be tracked.
         """
         scanned = ado_doc_paths()
         assert scanned, "scan must find the documents that exist"
