@@ -10,76 +10,31 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
-import textwrap
 from pathlib import Path
-from typing import Any
 
 import pytest
 import yaml
 
-_REPO_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(_REPO_ROOT))
-from scripts.ci import verify_dispatch_closure as vdc  # noqa: E402
-
-GATE = vdc.GATE
-CONFIG = vdc.CONFIG
-VERIFIER = ".claude/skills/demo/scripts/verify.py"
-HELPER = ".claude/skills/demo/scripts/helper.py"
-
-
-def _git(root: Path, *args: str) -> None:
-    subprocess.run(
-        ["git", "-c", "commit.gpgsign=false", *args],
-        cwd=root,
-        capture_output=True,
-        text=True,
-        errors="replace",
-        check=True,
-    )
-
-
-def _write(root: Path, relative: str, body: str) -> Path:
-    path = root / relative
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(textwrap.dedent(body), encoding="utf-8")
-    return path
-
-
-@pytest.fixture
-def trees(tmp_path: Path) -> tuple[Path, Path]:
-    base = tmp_path / "base"
-    base.mkdir()
-    _git(base, "init", "-q")
-    _git(base, "config", "user.email", "t@example.invalid")
-    _git(base, "config", "user.name", "t")
-    gate = base / GATE
-    gate.parent.mkdir(parents=True, exist_ok=True)
-    gate.write_bytes((_REPO_ROOT / GATE).read_bytes())
-    config = {
-        "scripts": {"claude_code": {"go": f"python3 {VERIFIER} --pull-request {{number}}"}},
-        "completion_criteria": [],
-    }
-    _write(base, CONFIG, yaml.safe_dump(config))
-    _write(base, VERIFIER, "import helper\n")
-    _write(base, HELPER, "X = 1\n")
-    _write(base, "README.md", "unrelated\n")
-    _git(base, "add", "-A")
-    _git(base, "commit", "-q", "-m", "base")
-    head = tmp_path / "head"
-    _git(base, "worktree", "add", "--detach", str(head), "HEAD")
-    return base, head
-
-
-def _run(trees: tuple[Path, Path]) -> vdc.Report:
-    base, head = trees
-    return vdc.verify(base, head, "HEAD")
+from tests.ci.dispatch_closure_helpers import (  # noqa: F401
+    CONFIG,
+    GATE,
+    HELPER,
+    REPO_ROOT,
+    VERIFIER,
+    git,
+    rev,
+    run,
+    upstream_with_pr,
+    vdc,
+    write,
+)
 
 
 class TestVerify:
     def test_an_identical_head_is_clean_and_reports_what_it_examined(
         self, trees: tuple[Path, Path]
     ) -> None:
-        report = _run(trees)
+        report = run(trees)
 
         # The dispatcher, its config, the verifier the config names, and the
         # module that verifier imports.
@@ -94,7 +49,7 @@ class TestVerify:
         with (head / path).open("a", encoding="utf-8") as handle:
             handle.write("\n# edited by the pull request\n")
 
-        report = _run(trees)
+        report = run(trees)
 
         assert path in report.changed
         assert not report.clean
@@ -106,7 +61,7 @@ class TestVerify:
         _, head = trees
         (head / path).unlink()
 
-        report = _run(trees)
+        report = run(trees)
 
         assert path in report.removed
         assert not report.clean
@@ -115,16 +70,16 @@ class TestVerify:
         _, head = trees
         (head / "README.md").write_text("edited\n", encoding="utf-8")
 
-        assert _run(trees).clean
+        assert run(trees).clean
 
     def test_a_new_module_the_verifier_now_imports_is_reported_as_added(
         self, trees: tuple[Path, Path]
     ) -> None:
         _, head = trees
         (head / VERIFIER).write_text("import helper\nimport extra\n", encoding="utf-8")
-        _write(head, ".claude/skills/demo/scripts/extra.py", "Y = 2\n")
+        write(head, ".claude/skills/demo/scripts/extra.py", "Y = 2\n")
 
-        report = _run(trees)
+        report = run(trees)
 
         assert ".claude/skills/demo/scripts/extra.py" in report.added
         assert VERIFIER in report.changed
@@ -133,7 +88,7 @@ class TestVerify:
         _, head = trees
         (head / VERIFIER).write_text("import sys\n__import__(sys.argv[1])\n", encoding="utf-8")
 
-        report = _run(trees)
+        report = run(trees)
 
         assert any("unresolvable dynamic load" in item for item in report.unresolved)
 
@@ -146,12 +101,12 @@ class TestVerify:
             "importlib.util.spec_from_file_location('m', Path(__file__).parent / 'dyn.py')\n"
         )
         (base / VERIFIER).write_text(loader, encoding="utf-8")
-        _write(base, ".claude/skills/demo/scripts/dyn.py", "Z = 1\n")
-        _git(base, "add", "-A")
-        _git(base, "commit", "-q", "-m", "dynamic")
+        write(base, ".claude/skills/demo/scripts/dyn.py", "Z = 1\n")
+        git(base, "add", "-A")
+        git(base, "commit", "-q", "-m", "dynamic")
         (head / VERIFIER).write_text(loader, encoding="utf-8")
-        _write(head, ".claude/skills/demo/scripts/dyn.py", "Z = 1\n")
-        _git(head, "checkout", "--detach", "-q", "--force", _rev(base))
+        write(head, ".claude/skills/demo/scripts/dyn.py", "Z = 1\n")
+        git(head, "checkout", "--detach", "-q", "--force", rev(base))
         (head / ".claude/skills/demo/scripts/dyn.py").write_text("Z = 99\n", encoding="utf-8")
 
         report = vdc.verify(base, head, "HEAD")
@@ -169,7 +124,7 @@ class TestVerify:
             encoding="utf-8",
         )
 
-        report = _run(trees)
+        report = run(trees)
 
         assert not marker.exists()
         assert GATE in report.changed
@@ -182,12 +137,6 @@ class TestVerify:
         report = vdc.verify(base, head, "refs/heads/nowhere")
 
         assert VERIFIER in report.added
-
-
-def _rev(root: Path) -> str:
-    return subprocess.run(
-        ["git", "rev-parse", "HEAD"], cwd=root, capture_output=True, text=True, check=True
-    ).stdout.strip()
 
 
 class TestErrors:
@@ -295,7 +244,7 @@ class TestMain:
         result = subprocess.run(
             [
                 sys.executable,
-                str(_REPO_ROOT / "scripts/ci/verify_dispatch_closure.py"),
+                str(REPO_ROOT / "scripts/ci/verify_dispatch_closure.py"),
                 "--tool-root",
                 str(base),
                 "--head-root",
@@ -313,290 +262,7 @@ class TestMain:
 
 class TestTheRepositoryItself:
     def test_this_checkout_against_its_own_head_is_clean(self) -> None:
-        report = vdc.verify(_REPO_ROOT, _REPO_ROOT, "HEAD")
+        report = vdc.verify(REPO_ROOT, REPO_ROOT, "HEAD")
 
         assert report.examined > 20
         assert report.unresolved == []
-
-
-def _upstream_with_pr(base: Path, edit: dict[str, str], attributes: str = "") -> tuple[Path, str]:
-    """A repository holding the base history plus one commit at refs/pull/1/head."""
-    upstream = base.parent / "upstream"
-    subprocess.run(
-        ["git", "clone", "-q", str(base), str(upstream)], capture_output=True, check=True
-    )
-    _git(upstream, "config", "user.email", "t@example.invalid")
-    _git(upstream, "config", "user.name", "t")
-    for relative, body in edit.items():
-        _write(upstream, relative, body)
-    if attributes:
-        (upstream / ".gitattributes").write_text(attributes, encoding="utf-8")
-    _git(upstream, "add", "-A")
-    _git(upstream, "commit", "-q", "-m", "pull request")
-    sha = _rev(upstream)
-    _git(upstream, "update-ref", "refs/pull/1/head", sha)
-    return upstream, sha
-
-
-class TestMaterializeHead:
-    def test_the_head_is_written_from_the_object_store_with_no_git_directory(
-        self, trees: tuple[Path, Path], tmp_path: Path
-    ) -> None:
-        base, _ = trees
-        upstream, sha = _upstream_with_pr(base, {HELPER: "X = 99\n"})
-        dest = tmp_path / "out"
-
-        vdc.materialize_head(base, 1, sha, dest, remote=str(upstream))
-
-        assert (dest / HELPER).read_text(encoding="utf-8") == "X = 99\n"
-        assert not (dest / ".git").exists()
-        assert not (tmp_path / "out.index").exists()
-
-    def test_export_ignore_in_the_heads_gitattributes_cannot_hide_a_file(
-        self, trees: tuple[Path, Path], tmp_path: Path
-    ) -> None:
-        base, _ = trees
-        upstream, sha = _upstream_with_pr(
-            base, {HELPER: "X = 99\n"}, attributes=f"{HELPER} export-ignore\n"
-        )
-        dest = tmp_path / "out"
-
-        vdc.materialize_head(base, 1, sha, dest, remote=str(upstream))
-
-        assert (dest / HELPER).is_file()
-
-    def test_a_head_that_moved_since_the_event_aborts(
-        self, trees: tuple[Path, Path], tmp_path: Path
-    ) -> None:
-        base, _ = trees
-        upstream, _sha = _upstream_with_pr(base, {HELPER: "X = 99\n"})
-
-        with pytest.raises(vdc.DispatchClosureError, match="head moved"):
-            vdc.materialize_head(base, 1, "a" * 40, tmp_path / "out", remote=str(upstream))
-
-    @pytest.mark.parametrize("sha", ["", "HEAD", "abc", "A" * 40, "--upload-pack=x", "a" * 39])
-    def test_a_malformed_sha_is_refused_before_any_git_call(
-        self, trees: tuple[Path, Path], tmp_path: Path, sha: str
-    ) -> None:
-        base, _ = trees
-
-        with pytest.raises(vdc.DispatchClosureError, match="not a full commit id"):
-            vdc.materialize_head(base, 1, sha, tmp_path / "out")
-
-    def test_a_missing_pull_request_ref_is_a_configuration_error(
-        self, trees: tuple[Path, Path], tmp_path: Path
-    ) -> None:
-        base, _ = trees
-        upstream, sha = _upstream_with_pr(base, {HELPER: "X = 99\n"})
-
-        with pytest.raises(vdc.DispatchClosureError, match="fetch failed"):
-            vdc.materialize_head(base, 7, sha, tmp_path / "out", remote=str(upstream))
-
-    def test_every_git_call_reading_the_head_carries_the_inert_configuration(
-        self, trees: tuple[Path, Path], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        base, _ = trees
-        upstream, sha = _upstream_with_pr(base, {HELPER: "X = 99\n"})
-        calls: list[list[str]] = []
-        real = subprocess.run
-
-        def record(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
-            calls.append(list(argv))
-            return real(argv, **kwargs)
-
-        monkeypatch.setattr(vdc.subprocess, "run", record)
-
-        vdc.materialize_head(base, 1, sha, tmp_path / "out", remote=str(upstream))
-
-        git_calls = [c for c in calls if c[0] == "git"]
-        assert [c[c.index("core.fsmonitor=false") - 1] for c in git_calls] == ["-c"] * len(
-            git_calls
-        )
-        assert all("core.hooksPath=/dev/null" in c for c in git_calls)
-        assert {c[5] for c in git_calls} == {"fetch", "rev-parse", "read-tree", "checkout-index"}
-
-    def test_main_verifies_a_head_it_fetched_itself(
-        self, trees: tuple[Path, Path], capsys: pytest.CaptureFixture[str]
-    ) -> None:
-        base, _ = trees
-        upstream, sha = _upstream_with_pr(base, {HELPER: "X = 99\n"})
-
-        code = vdc.main(
-            [
-                "--tool-root",
-                str(base),
-                "--head-sha",
-                sha,
-                "--pull-number",
-                "1",
-                "--remote",
-                str(upstream),
-                "--json",
-            ]
-        )
-
-        assert code == vdc.EXIT_DIFFERS
-        assert json.loads(capsys.readouterr().out)["changed"] == [HELPER]
-
-    @pytest.mark.parametrize(
-        "extra",
-        [[], ["--head-sha", "a" * 40], ["--pull-number", "1"]],
-    )
-    def test_main_needs_a_head_root_or_a_sha_and_a_number(
-        self, trees: tuple[Path, Path], extra: list[str], capsys: pytest.CaptureFixture[str]
-    ) -> None:
-        base, _ = trees
-
-        code = vdc.main(["--tool-root", str(base), *extra])
-
-        assert code == vdc.EXIT_CONFIG
-        assert "give --head-root" in capsys.readouterr().err
-
-
-class TestSecurityReviewFindings:
-    """Findings from the security review of this change, each with its fix."""
-
-    def test_a_symlink_the_head_adds_is_reported_even_when_its_bytes_match(
-        self, trees: tuple[Path, Path]
-    ) -> None:
-        _, head = trees
-        (head / "alias.py").symlink_to(head / HELPER)
-
-        report = _run(trees)
-
-        assert report.symlinks == ["alias.py"]
-        assert not report.clean
-
-    def test_a_symlink_the_base_already_has_is_not_reported(self, trees: tuple[Path, Path]) -> None:
-        base, head = trees
-        (base / "existing_link.py").symlink_to("README.md")
-        _git(base, "add", "-A")
-        _git(base, "commit", "-q", "-m", "link")
-        _git(head, "checkout", "--detach", "-q", "--force", _rev(base))
-
-        assert _run(trees).symlinks == []
-
-    def test_a_dispatched_file_replaced_by_a_symlink_to_identical_bytes_is_reported(
-        self, trees: tuple[Path, Path]
-    ) -> None:
-        _, head = trees
-        original = (head / HELPER).read_bytes()
-        (head / HELPER).unlink()
-        (head / "elsewhere.py").write_bytes(original)
-        (head / HELPER).symlink_to(head / "elsewhere.py")
-
-        assert HELPER in _run(trees).symlinks
-
-    def test_the_output_never_prints_a_control_character_raw(
-        self, capsys: pytest.CaptureFixture[str]
-    ) -> None:
-        report = vdc.Report(
-            examined=1, changed=["a.py\n::error::forged"], unresolved=["b\r\x1b[31m"]
-        )
-
-        vdc._print(report, as_json=False)
-
-        out = capsys.readouterr().out
-        assert "::error::forged" in out
-        assert all(not line.startswith("::") for line in out.splitlines())
-        assert "\x1b" not in out
-        assert "\r" not in out
-
-    @pytest.mark.parametrize(
-        ("raw", "escaped"),
-        [
-            ("a\nb", "a\\x0ab"),
-            ("tab\there", "tab\\x09here"),
-            ("del\x7f", "del\\x7f"),
-            ("caf\u00e9", "caf\\xe9"),
-        ],
-    )
-    def test_plain_escapes_controls_and_non_ascii(self, raw: str, escaped: str) -> None:
-        assert vdc._plain(raw) == escaped
-
-    def test_a_head_gitattributes_eol_conversion_cannot_fake_a_change_or_hide_one(
-        self, trees: tuple[Path, Path], capsys: pytest.CaptureFixture[str]
-    ) -> None:
-        """Compared by blob id, an eol attribute in the head changes neither answer."""
-        base, _ = trees
-        upstream, sha = _upstream_with_pr(base, {}, attributes=f"{HELPER} text eol=crlf\n")
-
-        code = vdc.main(
-            [
-                "--tool-root",
-                str(base),
-                "--head-sha",
-                sha,
-                "--pull-number",
-                "1",
-                "--remote",
-                str(upstream),
-                "--json",
-            ]
-        )
-
-        assert code == vdc.EXIT_OK
-        assert json.loads(capsys.readouterr().out)["changed"] == []
-
-    def test_a_real_edit_is_still_reported_by_blob_id(
-        self, trees: tuple[Path, Path], capsys: pytest.CaptureFixture[str]
-    ) -> None:
-        base, _ = trees
-        upstream, sha = _upstream_with_pr(base, {HELPER: "X = 2\n"})
-
-        vdc.main(
-            [
-                "--tool-root",
-                str(base),
-                "--head-sha",
-                sha,
-                "--pull-number",
-                "1",
-                "--remote",
-                str(upstream),
-                "--json",
-                "--advisory",
-            ]
-        )
-
-        assert json.loads(capsys.readouterr().out)["changed"] == [HELPER]
-
-    def test_head_root_and_head_sha_together_are_refused(
-        self, trees: tuple[Path, Path], capsys: pytest.CaptureFixture[str]
-    ) -> None:
-        base, head = trees
-
-        code = vdc.main(
-            [
-                "--tool-root",
-                str(base),
-                "--head-root",
-                str(head),
-                "--head-sha",
-                "a" * 40,
-                "--pull-number",
-                "1",
-            ]
-        )
-
-        assert code == vdc.EXIT_CONFIG
-        assert "not both" in capsys.readouterr().err
-
-    def test_the_fetch_declines_to_recurse_into_submodules(
-        self, trees: tuple[Path, Path], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        base, _ = trees
-        upstream, sha = _upstream_with_pr(base, {HELPER: "X = 99\n"})
-        seen: list[list[str]] = []
-        real = subprocess.run
-
-        def record(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
-            seen.append(list(argv))
-            return real(argv, **kwargs)
-
-        monkeypatch.setattr(vdc.subprocess, "run", record)
-
-        vdc.materialize_head(base, 1, sha, tmp_path / "out", remote=str(upstream))
-
-        fetch = next(c for c in seen if "fetch" in c)
-        assert "--no-recurse-submodules" in fetch
