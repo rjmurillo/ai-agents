@@ -610,7 +610,7 @@ and push enforcement runs through Lefthook, `pre_pr.py`, and CI under ADR-084.
 No `PreToolUse`, `PostToolUse`, `PermissionRequest`, or `PostToolUseFailure`
 hook is registered. ADR-097 retired all five, including
 `invoke_observation_sync.py`, which previously synced Serena observations to
-Forgetful on this event. Every surviving hook fires once per session or per
+a second memory backend on this event. Every surviving hook fires once per session or per
 turn, never once per tool call.
 
 **Diagnosability:** Hook errors print to stderr (visible in the harness output)
