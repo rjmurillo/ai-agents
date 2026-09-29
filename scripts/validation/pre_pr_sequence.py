@@ -57,6 +57,7 @@ from check_serena_memory_worktree_scope import (
     validate_serena_memory_worktree_scope,
 )
 from check_skill_adr_bindings import validate_skill_adr_bindings
+from check_skill_output_envelopes import validate_skill_output_envelopes
 from check_skill_tree_layout import validate_skill_tree_layout
 from check_subprocess_encoding import validate_subprocess_encoding
 from check_test_tree_writes import validate_test_tree_writes
@@ -461,6 +462,10 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # inside it: Skill Memory References pins that it runs immediately after
     # Skill SKIP Clause Routing.
     _Gate("Commands Retired (ADR-064)", _root_only(validate_commands_retired)),
+    # Builds envelopes with the real skill-output producers and asks
+    # scripts/validate_skill_output.py to accept each, then proves the validator
+    # still rejects a malformed one. Until issue #5299 no gate ran that validator.
+    _Gate("Skill Output Envelope", _root_only(validate_skill_output_envelopes)),
     # Block new test files colocated in customer-shipped skill dirs. Issue #4838.
     _Gate("Colocated Skill Tests", _root_only(validate_colocated_skill_tests)),
     # Ratchet (issue #3457). Fails when a rule or skill has no activation
