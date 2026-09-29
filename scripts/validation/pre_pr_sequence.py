@@ -53,6 +53,7 @@ from check_in_root_worktrees import validate_in_root_worktrees
 from check_index_line_endings import validate_index_line_endings
 from check_nested_tests import validate_no_nested_tests
 from check_push_lock_paths import validate_push_lock_paths
+from check_required_context_conditions import validate_required_context_conditions
 from check_serena_memory_worktree_scope import (
     validate_serena_memory_worktree_scope,
 )
@@ -334,6 +335,16 @@ _SEQUENCE: tuple[_Gate, ...] = (
     _Gate("Mypy Changed Files (ratchet)", _root_only(validate_mypy_changed_files)),
     _Gate("Markdown Linting", _root_only(validate_markdown_lint)),
     _Gate("Workflow YAML Validation", _root_only(validate_workflow_yaml)),
+    # Advisory lint over the workflows that produce a pinned required context
+    # (ADR-101 requirement 1). Reports a step or job `if:` that reads another
+    # job's output, the event name or the actor, and a pinned context with no
+    # producer or more than one. Never fails: it is P0 code the gated pull
+    # request can edit, and the live corpus carries findings this gate does not
+    # own. See the module docstring for what it cannot see. Issue #5245.
+    _Gate(
+        "Required-Context Conditions (advisory)",
+        _root_only(validate_required_context_conditions),
+    ),
     # Fails when the pinned @github/copilot version is missing, unparseable, or
     # known-bad (0.0.397). Issue #2630.
     _Gate("Copilot CLI Version Pin", _root_only(validate_copilot_version_pin)),
