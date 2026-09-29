@@ -7,6 +7,7 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 from collections.abc import Iterator
 from contextlib import contextmanager, suppress
 from pathlib import Path
@@ -407,22 +408,42 @@ def _lock_reason_unlocked(repo_root: Path, scratch: Path) -> str | None:
         if field.startswith("worktree "):
             current = Path(field.removeprefix("worktree ")).resolve()
         elif field.startswith("locked") and current == scratch:
-            return field.removeprefix("locked").strip()
+            # ``--porcelain`` trims the reason, so read the lock file for the exact text.
+            raw = _raw_lock_reason(scratch)
+            return raw if raw is not None else field.removeprefix("locked").strip()
     return None
 
 
-def unlock_stale_worktree(repo_root: Path, scratch_root: Path) -> bool:
+def _raw_lock_reason(scratch: Path) -> str | None:
+    try:
+        pointer = (scratch / ".git").read_text(encoding="utf-8").strip()
+        admin_dir = Path(pointer.removeprefix("gitdir:").strip())
+        return (admin_dir / "locked").read_text(encoding="utf-8").removesuffix("\n")
+    except OSError:
+        return None
+
+
+def unlock_stale_worktree(repo_root: Path, scratch_root: Path, marker_mtime: float) -> bool:
     """Unlock a scratch worktree that an interrupted ``git worktree add`` left locked.
 
     Git holds the lock with reason ``initializing`` while it populates a new
     worktree and clears it on success, so the reason persists only after the
     process died mid-setup. Any other lock, or a path outside the harness's
-    scratch roots, is left alone. Returns True when a lock was cleared.
+    scratch roots, is left alone. The marker is written just before the add, and
+    ``run_git`` kills any git child after ``GIT_COMMAND_TIMEOUT_SECONDS``, so a
+    marker younger than that may still belong to a live git process that
+    outlived a SIGKILLed harness. Returns True when a lock was cleared.
     """
     scratch = _require_scratch_path(repo_root, scratch_root, "unlock")
     with _serialized_worktree_state(repo_root):
         if _lock_reason_unlocked(repo_root, scratch) != STALE_LOCK_REASON:
             return False
+        age = time.time() - marker_mtime
+        if age < GIT_COMMAND_TIMEOUT_SECONDS:
+            raise MutationWorkspaceError(
+                f"worktree {scratch} is still initializing; its marker is {age:.0f}s old, "
+                f"retry after {GIT_COMMAND_TIMEOUT_SECONDS}s"
+            )
         result = run_git(repo_root, "worktree", "unlock", str(scratch))
         if result.returncode != 0:
             raise MutationWorkspaceError(

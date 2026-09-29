@@ -456,7 +456,7 @@ def recover_marker(
         targets = _read_target_snapshots(payload, resolved_marker)
         _require_active_targets_unchanged(root, targets)
         scratch = _scratch_root_from_marker(root, payload, resolved_marker)
-        _unlock_stale_worktree(root, scratch)
+        _unlock_stale_worktree(root, scratch, resolved_marker.stat().st_mtime)
         _remove_worktree(root, scratch)
         resolved_marker.unlink(missing_ok=True)
         print(f"recovered mutation workspace: {scratch}", file=output)

@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import subprocess
+import time
 from pathlib import Path
 
 import pytest
@@ -42,7 +44,9 @@ def _create_repository(path: Path) -> tuple[Path, Path]:
     return path, target
 
 
-def _write_marker_for(repo: Path, target: Path, scratch: Path, name: str) -> Path:
+def _write_marker_for(
+    repo: Path, target: Path, scratch: Path, name: str, *, age_seconds: float = 3600
+) -> Path:
     marker_root = marker_directory(repo)
     marker_root.mkdir(parents=True, exist_ok=True)
     marker = marker_root / f"{name}.json"
@@ -63,6 +67,8 @@ def _write_marker_for(repo: Path, target: Path, scratch: Path, name: str) -> Pat
         ),
         encoding="utf-8",
     )
+    aged = time.time() - age_seconds
+    os.utime(marker, (aged, aged))
     return marker
 
 
@@ -140,7 +146,7 @@ def test_unlock_stale_worktree_never_touches_a_worktree_outside_scratch(
     )
 
     with pytest.raises(MutationWorkspaceError, match="outside"):
-        mutation_workspace_git.unlock_stale_worktree(repo, outside)
+        mutation_workspace_git.unlock_stale_worktree(repo, outside, 0.0)
 
     listing = subprocess.run(
         ["git", "worktree", "list", "--porcelain"],
@@ -159,6 +165,35 @@ def test_unlock_stale_worktree_reports_false_for_an_unlocked_worktree(
     scratch = scratch_directory(repo) / "plain"
     mutation_workspace_git.add_worktree(repo, scratch)
 
-    assert mutation_workspace_git.unlock_stale_worktree(repo, scratch) is False
+    assert mutation_workspace_git.unlock_stale_worktree(repo, scratch, 0.0) is False
 
     mutation_workspace_git.remove_worktree(repo, scratch)
+
+
+def test_recover_waits_while_the_initializing_marker_is_young(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo, target = _create_repository(tmp_path / "repo")
+    scratch = _add_locked_worktree(repo, "young", "initializing")
+    marker = _write_marker_for(repo, target, scratch, "young", age_seconds=1)
+
+    assert mutation_workspace.main(["recover", "--repo-root", str(repo)]) == EXIT_BLOCKED
+
+    assert "still initializing" in capsys.readouterr().err
+    assert marker.exists()
+    assert scratch.exists()
+    subprocess.run(["git", "worktree", "unlock", str(scratch)], cwd=repo, check=True)
+
+
+def test_recover_keeps_a_lock_reason_that_only_contains_initializing(
+    tmp_path: Path,
+) -> None:
+    repo, target = _create_repository(tmp_path / "repo")
+    scratch = _add_locked_worktree(repo, "padded", " initializing ")
+    marker = _write_marker_for(repo, target, scratch, "padded")
+
+    assert mutation_workspace.main(["recover", "--repo-root", str(repo)]) == EXIT_BLOCKED
+
+    assert marker.exists()
+    assert scratch.exists()
+    subprocess.run(["git", "worktree", "unlock", str(scratch)], cwd=repo, check=True)
