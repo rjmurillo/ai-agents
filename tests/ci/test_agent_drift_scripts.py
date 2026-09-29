@@ -94,7 +94,7 @@ class TestShowDriftFailure:
 
         assert not any("generate_agents.py" in str(c) for c in calls_made)
 
-    def test_runs_mirror_scripts_on_lib_mirror_failure(self) -> None:
+    def test_runs_build_all_on_lib_mirror_failure(self) -> None:
         calls_made: list[list] = []
 
         def fake_run(cmd, **kwargs):
@@ -104,7 +104,7 @@ class TestShowDriftFailure:
         with patch("subprocess.run", side_effect=fake_run):
             sdf.show_drift_failure("success", "failure", "success")
 
-        assert any("sync_plugin_lib.py" in str(c) for c in calls_made)
+        assert not any("sync_plugin_lib.py" in str(c) for c in calls_made)
         assert any("build_all.py" in str(c) for c in calls_made)
 
     def test_shows_changed_files(self, capsys: pytest.CaptureFixture) -> None:

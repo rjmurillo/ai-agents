@@ -84,7 +84,7 @@ jobs:
               - 'build/generate_agents.py'
               - 'build/scripts/build_all.py'
               - 'build/scripts/check_plugin_manifest_parity.py'
-              - 'scripts/sync_plugin_lib.py'
+              - 'build/scripts/lib_mirror.py'
               - 'scripts/ai_review_common/**'
               - 'scripts/github_core/**'
               - 'scripts/hook_utilities/**'

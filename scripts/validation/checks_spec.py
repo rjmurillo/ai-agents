@@ -285,7 +285,7 @@ def validate_skill_memory_references(repo_root: Path) -> bool:
 def validate_sync_registry(repo_root: Path) -> bool:
     """Enforce that every shared lib package is registered for sync (Issue #1909).
 
-    `scripts/sync_plugin_lib.py:SYNC_PAIRS` lists the shared packages copied
+    `build/scripts/lib_mirror.py:SYNC_PAIRS` lists the shared packages copied
     into `.claude/lib/` for plugin distribution. A new lib package added
     without a SYNC_PAIRS entry silently misses the sync and crashes a shimmed
     hook at install time. This gate fails when a package under the source roots

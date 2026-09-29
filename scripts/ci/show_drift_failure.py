@@ -22,7 +22,6 @@ EXIT_OK = 0
 EXIT_USAGE = 2
 
 _GENERATE_SCRIPT = "build/generate_agents.py"
-_MIRROR_SCRIPT = "scripts/sync_plugin_lib.py"
 _BUILD_SCRIPT = "build/scripts/build_all.py"
 
 _REMEDIATION_GUIDE = """\
@@ -75,7 +74,6 @@ def show_drift_failure(
         _run([sys.executable, _GENERATE_SCRIPT])
 
     if lib_mirror_conclusion == "failure":
-        _run([sys.executable, _MIRROR_SCRIPT])
         _run([sys.executable, _BUILD_SCRIPT])
 
     result = subprocess.run(
