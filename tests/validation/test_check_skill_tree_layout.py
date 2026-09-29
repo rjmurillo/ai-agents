@@ -106,6 +106,7 @@ def test_empty_tree_fails_instead_of_passing(tmp_path, capsys):
 
     assert gate.validate_skill_tree_layout(repo) is False
     assert "skill tree is empty" in capsys.readouterr().err
+    assert gate.main([str(repo)]) == 2
 
 
 def test_invalid_root_is_config_error(tmp_path):

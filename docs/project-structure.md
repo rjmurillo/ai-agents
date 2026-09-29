@@ -18,7 +18,7 @@ Root map: what to edit, what is generated, what to skip. `AGENTS.md` owns protoc
 |---|---|
 | `templates/{agents,rules,skills,hooks}/` | Source for all five classes; `settings` from `hooks/settings.tmpl` |
 | `scripts/{hook_utilities,github_core,ai_review_common}` | Plugin lib source; rendered by `build_all.py` (`build/AGENTS.md`) |
-| `{.agents,.claude,.claude/hooks,.github,build,scripts,src,src/claude,templates,tests}/AGENTS.md`, `.claude/skills/CLAUDE.md`, `.claude-mem/memories/AGENTS.md` | Per-directory guides |
+| `{.agents,.claude,.claude/hooks,.github,build,scripts,src,src/claude,templates,tests}/AGENTS.md`, `.claude-mem/memories/AGENTS.md` | Per-directory guides |
 | `docs/{skill-reference,agent-governance,task-classification-guide,when-to-use,orchestrator-routing-algorithm,search-dont-load,SKILL-AUTHORING,agent-metrics}.md` | Agent-facing; no guide owns `docs/` |
 
 ## Skip

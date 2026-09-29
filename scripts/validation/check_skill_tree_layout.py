@@ -61,21 +61,8 @@ def find_non_skill_entries(repo_root: Path) -> list[tuple[Path, str]]:
     return findings
 
 
-def validate_skill_tree_layout(repo_root: Path) -> bool:
-    """Return True when every child of ``.claude/skills/`` is a skill directory.
-
-    Entry point matching the ``validate_*(repo_root) -> bool`` contract used by
-    ``pre_pr.py``.
-    """
-    try:
-        findings = find_non_skill_entries(repo_root)
-    except FileNotFoundError as exc:
-        print(f"[FAIL] {exc}", file=sys.stderr)
-        return False
-
-    if not findings:
-        return True
-
+def _report(findings: list[tuple[Path, str]]) -> None:
+    """Print the failure report for a non-empty findings list."""
     print(
         f"[FAIL] {len(findings)} entry(ies) directly under {SKILL_TREE.as_posix()}/ "
         "are not skills. The Claude Code plugin loader registers a loose Markdown "
@@ -91,7 +78,23 @@ def validate_skill_tree_layout(repo_root: Path) -> bool:
         "read exemptions. Refs issue #5503.",
         file=sys.stderr,
     )
-    return False
+
+
+def validate_skill_tree_layout(repo_root: Path) -> bool:
+    """Return True when every child of ``.claude/skills/`` is a skill directory.
+
+    Entry point matching the ``validate_*(repo_root) -> bool`` contract used by
+    ``pre_pr.py``.
+    """
+    try:
+        findings = find_non_skill_entries(repo_root)
+    except FileNotFoundError as exc:
+        print(f"[FAIL] {exc}", file=sys.stderr)
+        return False
+
+    if findings:
+        _report(findings)
+    return not findings
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -104,7 +107,15 @@ def main(argv: list[str] | None = None) -> int:
     if not (repo_root / SKILL_TREE).is_dir():
         print(f"[FAIL] Missing skill tree: {repo_root / SKILL_TREE}", file=sys.stderr)
         return 2
-    return 0 if validate_skill_tree_layout(repo_root) else 1
+    try:
+        findings = find_non_skill_entries(repo_root)
+    except FileNotFoundError as exc:
+        print(f"[FAIL] {exc}", file=sys.stderr)
+        return 2
+    if findings:
+        _report(findings)
+        return 1
+    return 0
 
 
 if __name__ == "__main__":
