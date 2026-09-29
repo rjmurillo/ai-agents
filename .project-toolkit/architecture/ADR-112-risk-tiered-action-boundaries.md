@@ -14,8 +14,9 @@ review-by: 2027-03-28
 
 ## Status
 
-Proposed (2026-09-28, issue #5767, child of epic #5456). Implemented in the
-same change. Requirement: REQ-043. Tasks: TASK-052.
+Proposed. The record was filed on 2026-09-28 for issue #5767, a child of
+epic #5456. It is implemented in the same change. Requirement: REQ-043.
+Tasks: TASK-052.
 
 ## Date
 
@@ -200,7 +201,8 @@ nothing pins it.
 - **G2. Command-text matching.** Deny rules match text, so equivalent
   spellings pass: `git push origin :branch` (remote delete),
   `git commit -anm` (combined flags), `LEFTHOOK=0 git commit`,
-  `git -c core.hooksPath=...`, `find -delete`, and a forced ref update through
+  `git -c core.hooksPath=...`, `find -delete`, `rm` with extra or reordered
+flags (`rm -rfv`, `rm -vrf`, `rm build -rf`), and a forced ref update through
   `gh api ... -X PATCH -F force=true`, and a lease pinned to a ref but not a
   SHA (`--force-with-lease=<ref>`). The server ruleset covers `main`; other
   branches rely on CI detection. `gh auth token` stays allowed because the

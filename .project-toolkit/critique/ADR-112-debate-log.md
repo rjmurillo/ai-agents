@@ -151,3 +151,19 @@ Devin and CodeRabbit reviewed PR #5986. The author disposed of each thread.
 |---|---|
 | Round 1 seats | Unchanged; no re-vote |
 | Author | All bot findings fixed or recorded as G10 |
+
+## Round 4 Summary: CodeRabbit full review
+
+### Key Issues Addressed
+
+| Finding | Disposition |
+|---|---|
+| `rm -rfv`, `rm -vrf`, and `rm build -rf` pass the deny set | Recorded in G2 and pinned in `KNOWN_GAPS`. A glob cannot match flag tokens without denying ordinary commands such as `rm -f a-r-f b` |
+| Status paragraph renders badly in the ADR index | Fixed: it opens with `Proposed.` |
+
+### Agent Positions
+
+| Agent | Position |
+|---|---|
+| Round 1 seats | Unchanged; no re-vote |
+| Author | Both findings addressed |
