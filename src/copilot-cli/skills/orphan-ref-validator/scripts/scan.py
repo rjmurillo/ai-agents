@@ -96,8 +96,6 @@ if __package__ in (None, ""):
     )
     from patterns import (
         FILE_IGNORE_DIRECTIVE_RE,
-        is_explicit_skill_route,
-        owner_skills_for_script,
         extract_all_reference_candidates,
         extract_citation_block_refs,
         extract_directive_suppressed_refs,
@@ -108,6 +106,8 @@ if __package__ in (None, ""):
         extract_skill_refs,
         extract_skill_script_refs,
         extract_typed_skill_refs,
+        is_explicit_skill_route,
+        owner_skills_for_script,
     )
     from walking import collect_walk_targets
 else:
@@ -139,8 +139,6 @@ else:
     )
     from .patterns import (
         FILE_IGNORE_DIRECTIVE_RE,
-        is_explicit_skill_route,
-        owner_skills_for_script,
         extract_all_reference_candidates,
         extract_citation_block_refs,
         extract_directive_suppressed_refs,
@@ -151,6 +149,8 @@ else:
         extract_skill_refs,
         extract_skill_script_refs,
         extract_typed_skill_refs,
+        is_explicit_skill_route,
+        owner_skills_for_script,
     )
     from .walking import collect_walk_targets
 
