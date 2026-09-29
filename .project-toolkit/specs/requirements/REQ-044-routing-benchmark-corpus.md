@@ -66,7 +66,7 @@ the #5424 runner and stays open on the issue.
 
 | ID | Criterion | Status |
 |---|---|---|
-| AC-1 | The loader covers exactly six categories and refuses a missing one. | MET |
+| AC-1 | The loader covers exactly six categories, one scenario each, and refuses a missing or repeated one. | MET |
 | AC-2 | Each scenario has scope, invariants, criteria, commands, and reset. | MET |
 | AC-3 | Scenarios name no model, and the loader refuses a model name. | MET |
 | AC-4 | Grading is deterministic and a judge dimension cannot override it. | MET |

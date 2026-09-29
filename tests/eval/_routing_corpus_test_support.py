@@ -12,6 +12,7 @@ EVAL_DIR = Path(__file__).resolve().parents[2] / "scripts" / "eval"
 if str(EVAL_DIR) not in sys.path:
     sys.path.insert(0, str(EVAL_DIR))
 
+import _routing_fixtures as fixtures_mod  # noqa: E402
 import _routing_grader as grader  # noqa: E402
 import _routing_scenario as scenario_mod  # noqa: E402
 import eval_routing_corpus as cli  # noqa: E402
@@ -37,6 +38,7 @@ __all__ = [
     "cli",
     "copy_corpus",
     "edit_scenario",
+    "fixtures_mod",
     "grader",
     "read_scenario",
     "scenario_mod",

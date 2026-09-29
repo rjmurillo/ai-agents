@@ -25,33 +25,22 @@ root, or an answer-key leak into `initial/` raises `RoutingCorpusError`.
 from __future__ import annotations
 
 import json
-import re
+from collections import Counter
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path, PurePosixPath
 from typing import TypeVar
 
+from _routing_fixtures import RoutingCorpusError, fixture_files
+from _routing_hygiene import check_model_neutral, check_no_answer_leak
+
 _E = TypeVar("_E", bound=Enum)
 
 SCHEMA_VERSION = 1
-FIXTURE_SUFFIX = ".fixture"
 SCENARIO_FILE = "scenario.json"
 FIXTURE_DIRS: tuple[str, ...] = ("initial", "hidden", "known_good", "known_bad")
 MIN_TIMEOUT_SECONDS = 1
 MAX_TIMEOUT_SECONDS = 300
-LEAK_MIN_LINE_CHARS = 30
-
-# Model and harness names must never appear in driver-visible text (#5425
-# "Do not put model-specific prompt scaffolding inside the scenario").
-_MODEL_NAME_PATTERN = re.compile(
-    r"(?<![A-Za-z0-9])(sol|luna|terra|gpt|claude|opus|sonnet|haiku|codex|copilot|gemini"
-    r"|llama|anthropic|openai)(?![A-Za-z0-9])",
-    re.IGNORECASE,
-)
-
-
-class RoutingCorpusError(ValueError):
-    """A scenario, fixture, or corpus is invalid. Never degrades to a default."""
 
 
 class Category(str, Enum):
@@ -331,85 +320,6 @@ def parse_scenario(data: object, root: Path) -> Scenario:
     )
 
 
-def fixture_files(directory: Path) -> dict[str, Path]:
-    """Map logical relative posix path to file for one fixture directory.
-
-    The `.fixture` suffix is stripped from the logical path. A file without
-    the suffix raises, so live source cannot hide inside a fixture tree. A
-    symlink raises too, so a fixture cannot pull in a file from outside it.
-    """
-    files: dict[str, Path] = {}
-    for path in sorted(directory.rglob("*")):
-        if path.is_symlink():
-            raise RoutingCorpusError(f"{path}: fixture trees may not contain symlinks")
-        if not path.is_file():
-            continue
-        relative = path.relative_to(directory).as_posix()
-        if not relative.endswith(FIXTURE_SUFFIX):
-            raise RoutingCorpusError(f"{path}: fixture file must end with {FIXTURE_SUFFIX}")
-        files[relative[: -len(FIXTURE_SUFFIX)]] = path
-    return files
-
-
-def _read_fixture_text(path: Path) -> str:
-    try:
-        return path.read_text(encoding="utf-8")
-    except (OSError, UnicodeError) as exc:
-        raise RoutingCorpusError(f"{path}: cannot read fixture as UTF-8: {exc}") from exc
-
-
-def _driver_visible_text(scenario: Scenario) -> list[tuple[str, str]]:
-    fields: list[tuple[str, str]] = [
-        ("title", scenario.title),
-        ("requirement", scenario.requirement),
-    ]
-    fields += [("invariants", item) for item in scenario.invariants]
-    fields += [("acceptance_criteria", item) for item in scenario.acceptance_criteria]
-    if scenario.architecture is not None:
-        fields.append(("architecture.driver_contract", scenario.architecture.driver_contract))
-    for logical, path in fixture_files(scenario.fixture_dir("initial")).items():
-        fields.append((f"initial/{logical}", _read_fixture_text(path)))
-    return fields
-
-
-def _check_model_neutral(scenario: Scenario) -> None:
-    for label, text in _driver_visible_text(scenario):
-        match = _MODEL_NAME_PATTERN.search(text)
-        if match:
-            raise RoutingCorpusError(
-                f"{scenario.scenario_id}: {label} names {match.group(0)!r}; "
-                "scenarios must stay model-agnostic"
-            )
-
-
-def _check_no_answer_leak(scenario: Scenario) -> None:
-    """Refuse a known-good line that already appears in driver-visible text.
-
-    Lines the same file already holds in `initial/` are unchanged context, not
-    part of the answer, so they are skipped.
-    """
-    initial = fixture_files(scenario.fixture_dir("initial"))
-    initial_texts = {logical: _read_fixture_text(path) for logical, path in initial.items()}
-    visible = "\n".join(initial_texts.values()) + "\n" + scenario.requirement
-    for logical, path in fixture_files(scenario.fixture_dir("known_good")).items():
-        unchanged = set(initial_texts.get(logical, "").splitlines())
-        for line in _read_fixture_text(path).splitlines():
-            stripped = line.strip()
-            if line in unchanged or len(stripped) < LEAK_MIN_LINE_CHARS:
-                continue
-            if stripped in visible:
-                raise RoutingCorpusError(
-                    f"{scenario.scenario_id}: known_good/{logical} line {stripped!r} "
-                    "already appears in driver-visible text (answer-key leak)"
-                )
-    if scenario.architecture is not None:
-        decision = scenario.architecture.resolved_decision.casefold()
-        if decision in visible.casefold():
-            raise RoutingCorpusError(
-                f"{scenario.scenario_id}: resolved_decision text appears in driver-visible text"
-            )
-
-
 def _check_fixtures(scenario: Scenario) -> None:
     for name in FIXTURE_DIRS:
         if not scenario.fixture_dir(name).is_dir():
@@ -469,8 +379,8 @@ def load_scenario(directory: Path) -> Scenario:
     scenario = parse_scenario(raw, directory)
     _check_fixtures(scenario)
     _check_category_fields(scenario)
-    _check_model_neutral(scenario)
-    _check_no_answer_leak(scenario)
+    check_model_neutral(scenario)
+    check_no_answer_leak(scenario)
     return scenario
 
 
@@ -478,7 +388,9 @@ def load_corpus(root: Path) -> list[Scenario]:
     """Load every scenario under `root`, then check corpus-level rules.
 
     Each directory name must equal its scenario id. The corpus must hold no
-    duplicate id and every category in `Category`.
+    duplicate id, every category in `Category`, and exactly one scenario per
+    category (#5425: one primary scenario per category keeps the paid matrix
+    bounded).
     """
     if not root.is_dir():
         raise RoutingCorpusError(f"{root}: corpus root is not a directory")
@@ -493,7 +405,14 @@ def load_corpus(root: Path) -> list[Scenario]:
             raise RoutingCorpusError(
                 f"{scenario.root}: directory name must equal scenario id {scenario.scenario_id!r}"
             )
-    missing = {item for item in Category} - {scenario.category for scenario in scenarios}
+    counts = Counter(scenario.category for scenario in scenarios)
+    missing = {item for item in Category} - counts.keys()
     if missing:
         raise RoutingCorpusError(f"missing required categories {sorted(c.value for c in missing)}")
+    crowded = sorted(category.value for category, count in counts.items() if count > 1)
+    if crowded:
+        raise RoutingCorpusError(
+            f"one primary scenario per category keeps the paid matrix bounded, "
+            f"got more in {crowded}"
+        )
     return scenarios

@@ -18,6 +18,7 @@ from tests.eval._routing_corpus_test_support import (
     SCOPE,
     copy_corpus,
     edit_scenario,
+    fixtures_mod,
     read_scenario,
     scenario_mod,
 )
@@ -258,7 +259,7 @@ def test_model_word_inside_a_longer_word_is_not_a_model_name(corpus: Path) -> No
 
 
 def test_known_good_line_visible_to_the_driver_is_an_answer_leak(corpus: Path) -> None:
-    answer = '    return _NON_ALNUM.sub("-", text.lower()).strip("-")'
+    answer = '    return _NON_ALNUM.sub("-", text).strip("-").lower()'
     target = corpus / BOUNDED / "initial" / "slugger" / "__init__.py.fixture"
     target.write_text(target.read_text("utf-8") + f"# hint\n#{answer}\n", encoding="utf-8")
 
@@ -336,7 +337,7 @@ def test_fixture_files_strip_the_suffix_and_reject_unreadable_text(tmp_path: Pat
 
     assert list(files) == ["a/m.py"]
     with pytest.raises(RoutingCorpusError, match="cannot read fixture"):
-        scenario_mod._read_fixture_text(files["a/m.py"])
+        fixtures_mod.read_fixture_text(files["a/m.py"])
 
 
 def test_a_symlink_inside_a_fixture_tree_is_refused(corpus: Path) -> None:
@@ -346,3 +347,33 @@ def test_a_symlink_inside_a_fixture_tree_is_refused(corpus: Path) -> None:
 
     with pytest.raises(RoutingCorpusError, match="symlinks"):
         scenario_mod.load_scenario(corpus / BOUNDED)
+
+
+def test_a_second_scenario_in_one_category_is_refused(corpus: Path) -> None:
+    shutil.copytree(corpus / BOUNDED, corpus / "RB-07-second-bounded")
+    edit_scenario(corpus, "RB-07-second-bounded", id="RB-07-second-bounded")
+
+    with pytest.raises(RoutingCorpusError, match="one primary scenario per category.*bounded"):
+        scenario_mod.load_corpus(corpus)
+
+
+@pytest.mark.parametrize("field", ["invariants", "acceptance_criteria"])
+def test_known_good_line_in_driver_visible_metadata_is_an_answer_leak(
+    corpus: Path, field: str
+) -> None:
+    answer = 'return _NON_ALNUM.sub("-", text).strip("-").lower()'
+    edit_scenario(corpus, BOUNDED, **{field: ["Keep it short.", answer]})
+
+    with pytest.raises(RoutingCorpusError, match="answer-key leak"):
+        scenario_mod.load_scenario(corpus / BOUNDED)
+
+
+def test_known_good_line_in_the_driver_contract_is_an_answer_leak(corpus: Path) -> None:
+    data = read_scenario(corpus, ARCHITECTURE)
+    data["architecture"]["driver_contract"] += (
+        " Use window_index = int(self._clock() // self._window)."
+    )
+    edit_scenario(corpus, ARCHITECTURE, architecture=data["architecture"])
+
+    with pytest.raises(RoutingCorpusError, match="answer-key leak"):
+        scenario_mod.load_scenario(corpus / ARCHITECTURE)

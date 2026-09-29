@@ -19,6 +19,7 @@ uv run python scripts/eval/eval_routing_corpus.py
 | RB-06-architecture-resolved | architecture_resolved | ordinary_bounded | synthetic |
 
 Difficulty is declared before any run and is never reclassified after results.
+The loader allows one scenario per category, which keeps the paid matrix bounded.
 
 Each scenario directory holds `scenario.json`, `initial/` (driver-visible),
 `hidden/` (grader-only), `known_good/`, and `known_bad/`. Files inside those

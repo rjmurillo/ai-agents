@@ -26,7 +26,9 @@ REQ-044 criteria 1 to 9.
 | File | Role |
 |---|---|
 | `evals/routing-benchmark/scenarios/<id>/` | One scenario: `scenario.json`, `initial/`, `hidden/`, `known_good/`, `known_bad/`. |
-| `scripts/eval/_routing_scenario.py` | Strict parser and corpus loader. |
+| `scripts/eval/_routing_scenario.py` | Strict parser and corpus loader. One scenario per category. |
+| `scripts/eval/_routing_hygiene.py` | Model-name scan and answer-key leak check over driver-visible text. |
+| `scripts/eval/_routing_fixtures.py` | Fixture tree primitives and the corpus error type. |
 | `scripts/eval/_routing_grader.py` | Materialize, diff, grade, and control checks. |
 | `scripts/eval/eval_routing_corpus.py` | CLI that loads the corpus and runs every control. |
 
@@ -38,6 +40,9 @@ ignore fixture code. Materializing strips the suffix.
 `hidden/` holds grader-only acceptance files. The grader overlays them on a
 scratch copy, so a driver never sees them and the driver directory is not
 modified.
+
+A symlink in a driver directory or a fixture tree is refused, and grading
+ends before any copy or command runs, so a link cannot pull a host file in.
 
 A verdict is PASS only when no changed path is out of scope, every expected
 path changed, and every validation command exits 0. Judge dimensions are

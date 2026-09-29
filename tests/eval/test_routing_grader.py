@@ -332,3 +332,40 @@ def test_materialize_refuses_an_overlay_name_that_is_not_a_control_fixture(tmp_p
         with pytest.raises(ValueError, match="unknown overlay"):
             grader.materialize(item, tmp_path / "work", name)
     assert not (tmp_path / "work").exists()
+
+
+def test_a_symlink_in_the_driver_directory_fails_grading_without_following_it(
+    tmp_path: Path,
+) -> None:
+    item = _load(REAL_CORPUS, BOUNDED)
+    workdir = tmp_path / "work"
+    grader.materialize(item, workdir, "known_good")
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "host.txt").write_text("host secret", encoding="utf-8")
+    (workdir / "leak.txt").symlink_to(outside / "host.txt")
+    (workdir / "leakdir").symlink_to(outside, target_is_directory=True)
+
+    result = grader.grade(item, workdir)
+
+    assert result.verdict is grader.Verdict.FAIL
+    assert "symlink:leak.txt" in result.scope_violations
+    assert "symlink:leakdir" in result.scope_violations
+    assert result.commands == ()
+    assert grader.manifest(workdir)["leak.txt"] == "symlink"
+
+
+def test_a_known_good_that_lowercases_before_filtering_is_rejected_by_the_hidden_checks(
+    corpus: Path,
+) -> None:
+    target = corpus / BOUNDED / "known_good" / "slugger" / "core.py.fixture"
+    target.write_text(
+        '"""Text helpers."""\n\nimport re\n\n_NON_ALNUM = re.compile(r"[^a-z0-9]+")\n\n\n'
+        'def slugify(text: str) -> str:\n    return _NON_ALNUM.sub("-", text.lower()).strip("-")\n',
+        encoding="utf-8",
+    )
+
+    result = grader.grade_overlay(_load(corpus, BOUNDED), "known_good")
+
+    assert result.verdict is grader.Verdict.FAIL
+    assert "letters_that_lowercase_into_ascii" in result.output

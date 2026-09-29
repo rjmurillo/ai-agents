@@ -13,6 +13,10 @@ class HiddenSlugifyChecks(unittest.TestCase):
     def test_non_ascii_letters_count_as_separators(self) -> None:
         self.assertEqual(slugify("Café au lait"), "caf-au-lait")
 
+    def test_letters_that_lowercase_into_ascii_are_still_separators(self) -> None:
+        self.assertEqual(slugify("\u212a"), "")
+        self.assertEqual(slugify("\u0130stanbul"), "stanbul")
+
     def test_digits_are_kept(self) -> None:
         self.assertEqual(slugify("Release 2 Notes"), "release-2-notes")
 

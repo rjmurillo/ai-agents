@@ -14,8 +14,12 @@ override a failing deterministic criterion.
 
 Validation commands run without a shell. The first argv element `python` is
 replaced by `sys.executable`, the environment is a small allowlist, and each
-command has a timeout. The commands execute driver-written code, so callers
-run this on benchmark scratch directories only.
+command has a timeout. The commands execute driver-written code with the
+grader's own privileges. Nothing here isolates that code at the operating
+system level: the environment allowlist limits inherited secrets, and the
+scratch copy limits what the code finds in the working directory. Callers run
+this on benchmark scratch directories only, inside whatever sandbox already
+contains the driver.
 
 Glob semantics: `fnmatch.fnmatchcase` on posix relative paths. `*` also
 matches `/`, so `pkg/*.py` covers `pkg/sub/mod.py`.
@@ -104,12 +108,31 @@ def _digest(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def _symlinks(root: Path) -> tuple[str, ...]:
+    """Relative posix paths of every symlink under `root`, without following any."""
+    found: list[str] = []
+    for current, directories, files in os.walk(root, followlinks=False):
+        base = Path(current)
+        for name in (*directories, *files):
+            if (base / name).is_symlink():
+                found.append((base / name).relative_to(root).as_posix())
+    return tuple(sorted(found))
+
+
 def manifest(root: Path) -> dict[str, str]:
-    """Map relative posix path to sha256 for every real file under `root`."""
+    """Map relative posix path to sha256 for every regular file under `root`.
+
+    A symlink is never read: it maps to the literal digest `symlink`, so a link
+    to a host file cannot pull that file into the grade.
+    """
     result: dict[str, str] = {}
     for path in sorted(root.rglob("*")):
         relative = path.relative_to(root)
-        if path.is_file() and not _is_ignored(relative):
+        if _is_ignored(relative):
+            continue
+        if path.is_symlink():
+            result[relative.as_posix()] = "symlink"
+        elif path.is_file():
             result[relative.as_posix()] = _digest(path)
     return result
 
@@ -208,10 +231,19 @@ def run_validation(validation: Validation, workdir: Path) -> tuple[CommandResult
 
 
 def grade(scenario: Scenario, workdir: Path) -> GradeResult:
-    """Grade `workdir` against `scenario`. `workdir` itself is left untouched."""
+    """Grade `workdir` against `scenario`. `workdir` itself is left untouched.
+
+    A symlink anywhere in `workdir` is a scope violation and ends grading before
+    any copy or command runs, so a link cannot bring a host file into the
+    scratch tree.
+    """
     changed = changed_paths(scenario, workdir)
     violations = scope_violations(scenario, changed)
     missing = missing_expected(scenario, changed)
+    links = _symlinks(workdir)
+    if links:
+        found = tuple(f"symlink:{path}" for path in links)
+        return GradeResult(Verdict.FAIL, changed, (*violations, *found), missing, ())
     with tempfile.TemporaryDirectory(prefix="routing-grade-") as scratch_name:
         scratch = Path(scratch_name) / "work"
         shutil.copytree(workdir, scratch, ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
