@@ -72,6 +72,10 @@ BLOCKER_RULE = (
 OPTIONAL_RULE = "It does not reopen completed work."
 EMPTY_RULE = "An empty table is valid."
 OWNER_DECIDES = "The owner reads the table and decides what becomes an issue."
+BLOCKER_BEFORE_FILTER = (
+    "Check for a Blocker before filtering. If evidence falsifies a frozen acceptance "
+    "criterion or mandatory policy, keep it as a Blocker."
+)
 LEARNING_PERSISTENCE_ANCHORS = ("### Memory Storage Pattern", "## Memory Protocol")
 
 SCRIPT = ROOT / ".claude/skills/retrospective/scripts/run_retrospective.py"
@@ -129,6 +133,8 @@ def test_triage_prose_emits_owner_table_with_four_classes(rel: str) -> None:
     assert prose.count(OPTIONAL_RULE) == 2
     assert EMPTY_RULE in prose
     assert OWNER_DECIDES in prose
+    assert BLOCKER_BEFORE_FILTER in prose.replace("**", "")
+    assert prose.index("Check for a Blocker before filtering") < prose.index("drop items")
 
 
 @pytest.mark.parametrize("rel", AGENT_FILES)

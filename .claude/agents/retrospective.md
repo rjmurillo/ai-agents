@@ -1209,8 +1209,11 @@ backlog growth.
 **Triage Protocol:**
 
 1. **Review each Delta item** from the +/Delta output
-2. **Classify as actionable** if it matches a category above; drop items that
-   are not actionable or duplicate an existing item
+2. **Check for a Blocker before filtering.** If evidence falsifies a frozen
+   acceptance criterion or mandatory policy, keep it as a Blocker. If it
+   duplicates an existing item, cite that item instead of dropping the
+   Blocker. Classify every other item as actionable if it matches a category
+   above; drop items that are not actionable or duplicate an existing item
 3. **Assign a class** from the frozen completion contract of the work under
    review, not from severity. Test the classes in this order (see the
    `avoiding-manufactured-work` skill):
