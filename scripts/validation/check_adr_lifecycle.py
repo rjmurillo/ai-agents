@@ -938,6 +938,64 @@ def read_baseline(path: Path) -> dict[str, int] | str:
     return _parse_baseline_payload(text, str(path))
 
 
+def _base_ref_refusal(
+    repo_root: Path, baseline_path: Path, candidate: dict[str, int], writing: bool
+) -> tuple[int, str] | None:
+    """Return ``(exit_code, message)`` when ``candidate`` raises a check above the base ref.
+
+    ``candidate`` is the counts a run would record (``--write-baseline``) or
+    the counts already committed (a plain run). Both must be no higher than
+    the baseline recorded at the fork point, or a branch launders its own
+    regression by editing the ceiling (issue #5270). Returns None when the
+    comparison is skipped: the baseline lies outside the repository, no ref
+    resolves, or the baseline does not exist at the base ref yet (bootstrap).
+    """
+    try:
+        baseline_path.resolve().relative_to(repo_root.resolve())
+    except ValueError:
+        return None
+    base_ref = _resolve_default_base_ref(repo_root)
+    if base_ref is None:
+        return None
+    _refresh_remote_base(base_ref, repo_root)
+    fork = _fork_point(repo_root, base_ref)
+    if baseline_absent_at_ref(repo_root, fork, baseline_path):
+        return None
+    base_counts = _counts_at_ref(repo_root, fork, baseline_path)
+    if base_counts is None:
+        return (
+            EXIT_CONFIG,
+            f"[CONFIG] could not read the baseline {baseline_path} at {base_ref} "
+            "to verify it is not raised above the base ref",
+        )
+    raised = sorted(name for name in CHECKS if candidate[name] > base_counts[name])
+    if not raised:
+        return None
+    tag, code, lead = (
+        ("CONFIG", EXIT_CONFIG, "--write-baseline would raise")
+        if writing
+        else ("FAIL", EXIT_REGRESSION, "the committed baseline raises")
+    )
+    return (
+        code,
+        f"[{tag}] {lead} {', '.join(raised)} above {base_ref}'s recorded baseline. The baseline "
+        "may only fall; fix the regression instead of recording it.",
+    )
+
+
+def _fork_point(repo_root: Path, base_ref: str) -> str:
+    """Merge base of HEAD and ``base_ref``, or ``base_ref`` when none resolves.
+
+    The ref tip moves when the base branch lowers its baseline after this
+    branch forked; comparing to the tip would call that a raise by this branch.
+    """
+    exit_code, stdout, _stderr = _run_subprocess(
+        ["git", "-C", str(repo_root), "merge-base", "HEAD", base_ref], timeout=10
+    )
+    revision = stdout.strip()
+    return revision if exit_code == 0 and revision else base_ref
+
+
 def _counts_at_ref(repo_root: Path, ref: str, baseline_path: Path) -> dict[str, int] | None:
     """Per-check counts recorded at ``ref``, or None when unreadable.
 
@@ -1119,12 +1177,9 @@ def run(
         # could tell a mistaken B from an intentional one without breaking
         # every test above that intentionally points --repo-root at an
         # unrelated tmp_path fixture.
-        if repo_root_is_default and not Path.cwd().resolve().is_relative_to(
-            repo_root.resolve()
-        ):
+        if repo_root_is_default and not Path.cwd().resolve().is_relative_to(repo_root.resolve()):
             print(
-                f"[CONFIG] current directory is outside repo root {repo_root}: "
-                f"{Path.cwd()}",
+                f"[CONFIG] current directory is outside repo root {repo_root}: {Path.cwd()}",
                 file=sys.stderr,
             )
             return EXIT_CONFIG
@@ -1156,34 +1211,10 @@ def run(
         # outright rather than reporting "absent" (Copilot would have caught
         # this as a false CONFIG failure had a test not already covered the
         # case), so this is checked before asking git anything.
-        baseline_in_repo = True
-        try:
-            baseline_path.resolve().relative_to(repo_root.resolve())
-        except ValueError:
-            baseline_in_repo = False
-        base_ref = _resolve_default_base_ref(repo_root) if baseline_in_repo else None
-        if base_ref is not None:
-            _refresh_remote_base(base_ref, repo_root)
-            if not baseline_absent_at_ref(repo_root, base_ref, baseline_path):
-                base_counts = _counts_at_ref(repo_root, base_ref, baseline_path)
-                if base_counts is None:
-                    print(
-                        f"[CONFIG] could not read the baseline {baseline_path} "
-                        f"at {base_ref} to verify --write-baseline is not "
-                        "raising a check above it",
-                        file=sys.stderr,
-                    )
-                    return EXIT_CONFIG
-                raised = sorted(name for name in CHECKS if counts[name] > base_counts[name])
-                if raised:
-                    print(
-                        f"[CONFIG] --write-baseline would raise "
-                        f"{', '.join(raised)} above {base_ref}'s recorded "
-                        f"baseline. The baseline may only fall; fix the "
-                        "regression instead of recording it.",
-                        file=sys.stderr,
-                    )
-                    return EXIT_CONFIG
+        refusal = _base_ref_refusal(repo_root, baseline_path, counts, writing=True)
+        if refusal is not None:
+            print(refusal[1], file=sys.stderr)
+            return refusal[0]
         write_baseline(baseline_path, counts)
         print(
             f"[OK] Wrote {baseline_path} from {len(violations)} violation(s) "
@@ -1197,6 +1228,11 @@ def run(
     if isinstance(baseline, str):
         print(f"[CONFIG] {baseline}", file=sys.stderr)
         return EXIT_CONFIG
+
+    refusal = _base_ref_refusal(repo_root, baseline_path, baseline, writing=False)
+    if refusal is not None:
+        print(refusal[1], file=sys.stderr)
+        return refusal[0]
 
     regressed, at_zero = _report(counts, baseline)
     if at_zero:
