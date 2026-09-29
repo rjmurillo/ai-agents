@@ -66,3 +66,19 @@ def test_staleness_job_does_not_reference_filter_outputs() -> None:
 
 def test_filtered_validate_job_no_longer_runs_the_check() -> None:
     assert "validate" not in _jobs_running_check()
+
+
+def test_required_validate_job_waits_on_and_reflects_the_staleness_job() -> None:
+    """`Validate Generated Files` is a required check, so it must go red with the new job.
+
+    Without this, a stale tree fails only the new, unrequired job and merges.
+    A skipped required check reads as success, so the job also has to run when
+    its dependency failed, and its first step has to turn that failure red.
+    """
+    (staleness_name,) = _jobs_running_check()
+    validate = _jobs()["validate"]
+    assert staleness_name in _needs(validate)
+    assert "!cancelled()" in str(validate.get("if", ""))
+    gate = validate["steps"][0]
+    assert f"needs.{staleness_name}.result" in yaml.safe_dump(gate)
+    assert "exit 1" in gate["run"]

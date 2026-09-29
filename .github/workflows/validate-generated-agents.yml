@@ -117,11 +117,25 @@ jobs:
     name: Validate Generated Files
     # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
     runs-on: ubuntu-26.04-arm
-    needs: check-paths
+    # `Validate Generated Files` is a required status check. It must go red when
+    # the unconditional staleness job fails, so it waits for that job and runs
+    # even when the job failed (a skipped required check reads as success).
+    needs: [check-paths, build-all-staleness]
+    if: ${{ !cancelled() }}
     permissions:
       contents: read
 
     steps:
+      - name: Require upstream jobs
+        env:
+          PATHS_RESULT: ${{ needs.check-paths.result }}
+          STALENESS_RESULT: ${{ needs.build-all-staleness.result }}
+        run: |
+          if [ "$PATHS_RESULT" != "success" ] || [ "$STALENESS_RESULT" != "success" ]; then
+            echo "::error::check-paths=$PATHS_RESULT build-all-staleness=$STALENESS_RESULT"
+            exit 1
+          fi
+
       - name: Check if validation needed
         id: should-run
         env:
