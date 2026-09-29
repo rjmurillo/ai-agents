@@ -3,7 +3,7 @@
 Pin the contract the skill must honor:
 
 - SKILL.md exists with required frontmatter (name, version, description, license).
-- The skill stays under the 500-line ceiling (.claude/skills/CLAUDE.md).
+- The skill stays under the 500-line ceiling (.claude/skills/skillforge/references/skill-development-conventions.md).
 - The description names the audit and carries 3 to 5 backtick triggers.
 - The skill encodes all four audit layers (lexical, structural, distributional,
   semantic).

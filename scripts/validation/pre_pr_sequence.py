@@ -57,6 +57,7 @@ from check_serena_memory_worktree_scope import (
     validate_serena_memory_worktree_scope,
 )
 from check_skill_adr_bindings import validate_skill_adr_bindings
+from check_skill_tree_layout import validate_skill_tree_layout
 from check_subprocess_encoding import validate_subprocess_encoding
 from check_test_tree_writes import validate_test_tree_writes
 from check_tmp_worktrees import validate_tmp_worktrees
@@ -495,6 +496,12 @@ _SEQUENCE: tuple[_Gate, ...] = (
     _Gate(
         "Agent Tree Frontmatter (.claude/agents)",
         _root_only(validate_agent_tree_frontmatter),
+    ),
+    # A loose file directly under .claude/skills/ registers as a skill named after
+    # the file (issue #5503, CLAUDE.md registered as skill "CLAUDE").
+    _Gate(
+        "Skill Tree Layout (.claude/skills)",
+        _root_only(validate_skill_tree_layout),
     ),
     # A source change requires a plugin.json bump (issue #2118).
     _Gate("Plugin Version Bump", _root_only(validate_plugin_version_bump)),
