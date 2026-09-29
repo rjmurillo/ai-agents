@@ -13,21 +13,13 @@ This script follows `check_pr_live_state.py`'s shape (issue #2455): a
 machine-checked JSON envelope pr-autofix branches on, not another sentence
 in a SKILL.md.
 
-Storage decision (Search Before Building, Layer 1): the retired autofix lease
-(ADR-076) already solved "small per-PR state that survives a session
-restart" with a hidden-marker PR comment instead of counting commits or
-writing a file. This script reuses that shape:
-
-    1. A squash-merge, rebase, or force-push (all routine in this repo's
-       pr-autofix flow) destroys commit history a counter would replay; a
-       PR comment survives all three because it lives on the issue
-       timeline, not the ref graph.
-    2. Commit counting needs a git checkout and a commit-naming convention;
-       a comment marker needs only the GitHub API, matching
-       `check_pr_live_state.py`'s read-path design.
-    3. A fourth ad-hoc storage scheme repeats the failure
-       `.claude/rules/push-lock.md` documents for lock files (three
-       incompatible schemes coexisting silently). Reuse avoids a second.
+Storage decision: the retired autofix lease (ADR-076) solved "small per-PR
+state that survives a session restart" with a hidden-marker PR comment. This
+script reuses that shape. A squash-merge, rebase, or force-push destroys the
+commit history a counter would replay, while a comment lives on the issue
+timeline. It needs only the GitHub API, like `check_pr_live_state.py`, and a
+fourth ad-hoc storage scheme repeats the failure `.claude/rules/push-lock.md`
+documents for lock files.
 
 Unlike the lease, this marker carries no security weight: a forged or
 duplicated marker at worst causes a premature ESCALATE (fail-safe), never a
@@ -42,8 +34,9 @@ keeps its semantics except under the explicit operator reset):
 
     1. Head SHA advance: the PR head differs from the SHA stored with the
        prior state, so the prior rounds' work landed. Clock restarts only.
-    2. Reopen: a non-bot ``reopened`` timeline event newer than the latest
-       state marker. Clock restarts only.
+    2. Reopen: a ``reopened`` timeline event newer than the latest state
+       marker, by a non-bot actor with write access (a PR author can reopen
+       a PR they closed themselves). Clock restarts only.
     3. Operator reset, either ``--reset`` or a ``/pr-autofix continue`` line in
        a comment from an OWNER or COLLABORATOR newer than the latest
        state marker. Clock and round counter both restart.
@@ -66,6 +59,7 @@ import argparse
 import json
 import logging
 import os
+import re
 import subprocess
 import sys
 import time
@@ -183,6 +177,29 @@ def _fetch_head_sha(owner: str, repo: str, pr_number: int) -> str:
     if not sha:
         raise RoundCapStoreError("head sha read returned empty output")
     return sha
+
+
+_LOGIN_PATTERN = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$")
+_WRITE_PERMISSIONS = frozenset({"admin", "maintain", "write"})
+
+
+def _actor_has_write_access(owner: str, repo: str, login: str) -> bool:
+    """True when *login* has write access. Fails safe: any error means False.
+
+    The login is validated against GitHub's username shape before it reaches
+    the API path (CWE-22): a crafted value must not add path segments.
+    """
+    if not _LOGIN_PATTERN.match(login):
+        return False
+    endpoint = f"repos/{owner}/{repo}/collaborators/{login}/permission"
+    try:
+        permission = _run_gh_read([endpoint, "--jq", ".permission"], "permission read")
+    except RoundCapStoreError as exc:
+        logger.warning(
+            "op=round_cap_permission_failed error=%s", safe_log_str(str(exc)),
+        )
+        return False
+    return permission.strip() in _WRITE_PERMISSIONS
 
 
 def _parse_paginated_json_arrays(raw_stdout: str) -> list[dict[str, Any]]:
@@ -388,19 +405,34 @@ def _load_comments_or_exit(
 
 def _persist_verdict(
     owner: str, repo: str, pr_number: int, comments: list[dict[str, Any]],
-    result: dict[str, Any], args: argparse.Namespace, output_format: str,
+    prior_state: dict[str, Any] | None, result: dict[str, Any],
+    args: argparse.Namespace, output_format: str,
 ) -> bool:
-    """Post the state marker and, on a fresh ESCALATE, the human note.
+    """Post the state marker and, when missing, the human escalation note.
 
-    Returns whether the escalation note was posted. A blocked call stays silent
-    on the second and later attempts: when the verdict is ESCALATE and this
-    state already has an escalation notice, another state marker only grows
-    the timeline (issue #5477).
+    Returns whether the escalation note was posted. A blocked call stays
+    silent on the second and later attempts (issue #5477): with no reset, an
+    ESCALATE whose state is already recorded as escalated, or already has a
+    notice, writes no state marker. The notice is retried on its own when it
+    is missing, so a failed notice post does not turn into marker spam.
     """
     escalating = result["action"] == "ESCALATE"
-    noted = escalating and escalation_already_posted(comments, result["state"]["first_seen"])
-    if noted and result["reset_reason"] is None:
+    reset = result["reset_reason"] is not None
+    first_seen = result["state"]["first_seen"]
+    noted = escalating and escalation_already_posted(
+        comments, first_seen, allow_legacy=not reset,
+    )
+    recorded = escalating and (prior_state or {}).get("escalated") is True
+    if not (escalating and not reset and (noted or recorded)):
+        _post_state_marker(owner, repo, pr_number, result, output_format)
+    if not escalating or noted:
         return False
+    return _post_escalation_note(owner, repo, pr_number, result, args)
+
+
+def _post_state_marker(
+    owner: str, repo: str, pr_number: int, result: dict[str, Any], output_format: str,
+) -> None:
     try:
         _post_comment(owner, repo, pr_number, render_state_marker(result["state"]))
     except RoundCapStoreError as exc:
@@ -408,9 +440,6 @@ def _persist_verdict(
             f"Failed to persist round-cap state comment: {exc}", 3, "ApiError",
             output_format, pr_number, owner, repo,
         )
-    if not escalating or noted:
-        return False
-    return _post_escalation_note(owner, repo, pr_number, result, args)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -429,14 +458,17 @@ def main(argv: list[str] | None = None) -> int:
     now = datetime.now(UTC)
     head_sha = _optional_head_sha(owner, repo, pr_number)
     events = _optional_events(owner, repo, pr_number, prior_state, args.reset)
-    reset = detect_reset(comments, events, args.reset)
+    reset = detect_reset(
+        comments, events, args.reset,
+        can_reopen_reset=lambda login: _actor_has_write_access(owner, repo, login),
+    )
     result = evaluate_round_cap(
         prior_state, now, args.max_rounds, args.max_hours,
         head_sha=head_sha, reset=reset,
     )
 
     escalation_posted = _persist_verdict(
-        owner, repo, pr_number, comments, result, args, output_format,
+        owner, repo, pr_number, comments, prior_state, result, args, output_format,
     )
 
     output = {

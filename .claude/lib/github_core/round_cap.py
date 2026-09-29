@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
@@ -73,9 +74,10 @@ def select_latest_state(
 
     GitHub's issue-comments endpoint returns comments in ascending
     chronological order, so the latest matching marker is the last one
-    found scanning forward. Bounded to the newest 100 comments so a PR
-    with a very long history cannot turn this into an unbounded scan
-    (same defensive bound the retired autofix lease used for MAX_SCAN).
+    found scanning forward. Scans the whole list the caller fetched: a
+    blocked PR stops refreshing its marker (issue #5477), so a newest-100
+    cutoff would lose the marker after 100 unrelated comments and restart the
+    counter at round one.
     """
     found = _latest_marker_comment(comments, prefix)
     return found[1] if found else None
@@ -85,31 +87,32 @@ def _latest_marker_comment(
     comments: list[dict[str, Any]], prefix: str,
 ) -> tuple[int, dict[str, Any]] | None:
     """Return (index into *comments*, payload) of the newest matching marker."""
-    start = max(len(comments) - 100, 0)
     latest: tuple[int, dict[str, Any]] | None = None
-    for offset, comment in enumerate(comments[start:]):
+    for index, comment in enumerate(comments):
         parsed = parse_marker(comment.get("body") or "", prefix)
         if parsed is not None:
-            latest = (start + offset, parsed)
+            latest = (index, parsed)
     return latest
 
 
 def escalation_already_posted(
-    comments: list[dict[str, Any]], first_seen: str,
+    comments: list[dict[str, Any]], first_seen: str, allow_legacy: bool = True,
 ) -> bool:
     """True when an escalation notice already exists for this state.
 
     A notice is for the same state when its payload ``first_seen`` equals the
     current one, so a reset (new ``first_seen``) earns a fresh notice. A
-    legacy notice without ``first_seen`` (posted before issue #5477) matches
-    any state, which keeps the old post-once behavior for those PRs.
+    legacy notice without ``first_seen`` (posted before issue #5477) describes
+    the state that existed before any reset, so it matches only when
+    *allow_legacy* is True. Callers pass False once a reset produced a new
+    state, so a legacy notice never silences a post-reset escalation.
     """
-    for comment in comments[-100:]:
+    for comment in comments:
         payload = parse_marker(comment.get("body") or "", ESCALATION_MARKER)
         if payload is None:
             continue
         recorded = payload.get("first_seen")
-        if recorded is None or recorded == first_seen:
+        if recorded == first_seen or (recorded is None and allow_legacy):
             return True
     return False
 
@@ -118,6 +121,7 @@ def detect_reset(
     comments: list[dict[str, Any]],
     events: list[dict[str, Any]],
     operator_flag: bool,
+    can_reopen_reset: Callable[[str], bool] | None = None,
 ) -> Reset | None:
     """Return the strongest reset signal newer than the latest state marker.
 
@@ -135,7 +139,9 @@ def detect_reset(
         if _is_operator_continue(comment):
             return Reset("operator comment /pr-autofix continue", restart_rounds=True)
     marker_time = comments[index].get("created_at")
-    if isinstance(marker_time, str) and _reopened_after(events, marker_time):
+    if isinstance(marker_time, str) and _reopened_after(
+        events, marker_time, can_reopen_reset,
+    ):
         return Reset("human reopen")
     return None
 
@@ -149,15 +155,24 @@ def _is_operator_continue(comment: dict[str, Any]) -> bool:
     return bool(_RESET_COMMAND.search(comment.get("body") or ""))
 
 
-def _reopened_after(events: list[dict[str, Any]], marker_time: str) -> bool:
+def _reopened_after(
+    events: list[dict[str, Any]],
+    marker_time: str,
+    can_reopen_reset: Callable[[str], bool] | None,
+) -> bool:
+    if can_reopen_reset is None:
+        return False
     for event in events:
         if event.get("event") != "reopened":
             continue
         actor = event.get("actor") or {}
         created = event.get("created_at")
+        login = actor.get("login")
         if actor.get("type") == "Bot" or not isinstance(created, str):
             continue
-        if created > marker_time:  # same-format UTC ISO 8601 strings sort chronologically
+        if not isinstance(login, str) or created <= marker_time:
+            continue  # same-format UTC ISO 8601 strings sort chronologically
+        if can_reopen_reset(login):
             return True
     return False
 
@@ -249,6 +264,10 @@ def evaluate_round_cap(
     recorded_sha = head_sha or stored_sha
     if recorded_sha:
         new_state["head_sha"] = recorded_sha
+    if action == "ESCALATE":
+        # Lets a later blocked call see the state is already recorded as
+        # escalated, even when the human-readable notice failed to post.
+        new_state["escalated"] = True
     return {
         "state": new_state,
         "action": action,

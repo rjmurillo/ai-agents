@@ -49,6 +49,10 @@ def _escalation_comment(first_seen):
     return {"body": body}
 
 
+def _trust_all(_login):
+    return True
+
+
 def posted_sink(posted):
     def _sink(_owner, _repo, _pr, body):
         posted.append({"body": body})
@@ -126,8 +130,31 @@ class TestDetectReset:
     def test_reopen_after_marker_resets_clock_only(self):
         events = [{"event": "reopened", "created_at": "2026-09-02T01:00:00Z",
                    "actor": {"login": "h", "type": "User"}}]
-        reset = _mod.detect_reset([_marker_comment(_state())], events, False)
+        reset = _mod.detect_reset(
+            [_marker_comment(_state())], events, False, can_reopen_reset=_trust_all,
+        )
         assert reset == _mod.Reset("human reopen")
+
+    def test_reopen_by_actor_without_write_access_is_ignored(self):
+        events = [{"event": "reopened", "created_at": "2026-09-02T01:00:00Z",
+                   "actor": {"login": "author", "type": "User"}}]
+        reset = _mod.detect_reset(
+            [_marker_comment(_state())], events, False, can_reopen_reset=lambda _l: False,
+        )
+        assert reset is None
+
+    def test_reopen_ignored_when_no_trust_callable_given(self):
+        events = [{"event": "reopened", "created_at": "2026-09-02T01:00:00Z",
+                   "actor": {"login": "h", "type": "User"}}]
+        assert _mod.detect_reset([_marker_comment(_state())], events, False) is None
+
+    def test_reopen_without_actor_login_is_ignored(self):
+        events = [{"event": "reopened", "created_at": "2026-09-02T01:00:00Z",
+                   "actor": {"type": "User"}}]
+        reset = _mod.detect_reset(
+            [_marker_comment(_state())], events, False, can_reopen_reset=_trust_all,
+        )
+        assert reset is None
 
     def test_reopen_before_marker_is_consumed(self):
         events = [{"event": "reopened", "created_at": "2026-09-01T01:00:00Z",
@@ -262,8 +289,10 @@ class TestMainReset(MainHarness):
         rc, data, post_mock = self._run(capsys, comments, head_sha="sha-2")
         assert rc == 1
         assert data["reset_reason"] == "head sha advanced"
-        assert post_mock.call_count == 1  # state marker only, no second notice
-        assert _mod._STATE_MARKER in post_mock.call_args.args[3]
+        # Post-reset state earns a fresh marker and a fresh notice; the legacy
+        # notice describes the pre-reset state only.
+        assert post_mock.call_count == 2
+        assert data["escalation_posted"] is True
 
     def test_reopen_after_escalation_acts(self, capsys):
         comments = [
@@ -271,10 +300,66 @@ class TestMainReset(MainHarness):
             _escalation_comment(_OLD),
         ]
         events = [{"event": "reopened", "created_at": "2026-09-02T01:00:00Z",
-                   "actor": {"type": "User"}}]
-        rc, data, _ = self._run(capsys, comments, events=events)
+                   "actor": {"login": "maint", "type": "User"}}]
+        with patch("check_pr_round_cap._actor_has_write_access", return_value=True):
+            rc, data, _ = self._run(capsys, comments, events=events)
         assert rc == 0
         assert data["reset_reason"] == "human reopen"
+
+    def test_reopen_by_actor_without_write_access_stays_blocked(self, capsys):
+        comments = [
+            _marker_comment(_state(round_no=3)),
+            _escalation_comment(_OLD),
+        ]
+        events = [{"event": "reopened", "created_at": "2026-09-02T01:00:00Z",
+                   "actor": {"login": "author", "type": "User"}}]
+        with patch("check_pr_round_cap._actor_has_write_access", return_value=False):
+            rc, data, post_mock = self._run(capsys, comments, events=events)
+        assert rc == 1
+        assert data["reset_reason"] is None
+        assert post_mock.call_count == 0
+
+    def test_marker_older_than_100_comments_still_counts(self, capsys):
+        """A blocked PR stops refreshing its marker, so it must stay findable."""
+        stale = _state(round_no=4, first_seen=_NOW)
+        comments = [_marker_comment(stale)] + [{"body": "noise"}] * 150
+        rc, data, _ = self._run(capsys, comments)
+        assert rc == 1
+        assert data["round"] == 5
+        assert "round cap" in data["reason"]
+
+    def test_failed_notice_post_does_not_repost_state_marker(self, capsys):
+        """Notice failure must not turn each blocked call into marker spam."""
+        timeline = [_marker_comment(_state(round_no=1))]
+        markers = 0
+        for _ in range(3):
+            posted = []
+
+            def _post(_o, _r, _n, body, posted=posted):
+                if _mod._ESCALATION_MARKER in body:
+                    raise RoundCapStoreError("rejected")
+                posted.append({"body": body})
+
+            patches = self._patch_common(list_comments_result=list(timeline))
+            with patches[0], patches[1], patches[2], patch(
+                "check_pr_round_cap._post_comment", side_effect=_post,
+            ):
+                rc = main([
+                    "--pull-request", "7", "--max-rounds", "5", "--max-hours", "4",
+                    "--output-format", "json",
+                ])
+            capsys.readouterr()
+            self.teardown_method()
+            assert rc == 1
+            markers += len(posted)
+            timeline.extend(posted)
+        assert markers == 1
+
+    def test_escalated_flag_recorded_in_state(self):
+        result = evaluate_round_cap(_state(), _NOW, 5, 4.0, head_sha="sha-1")
+        assert result["state"]["escalated"] is True
+        acting = evaluate_round_cap(None, _NOW, 5, 4.0)
+        assert "escalated" not in acting["state"]
 
     def test_reset_flag_restarts_rounds_and_clock(self, capsys):
         comments = [_marker_comment(_state(round_no=9))]
@@ -299,6 +384,26 @@ class TestMainReset(MainHarness):
         data = json.loads(capsys.readouterr().out)["Data"]
         assert rc == 1  # stale budget, no reset evidence: still escalates
         assert data["reset_reason"] is None
+
+
+class TestActorWriteAccess:
+    @pytest.mark.parametrize("permission,expected", [
+        ("admin\n", True), ("maintain", True), ("write", True),
+        ("read", False), ("triage", False), ("", False),
+    ])
+    def test_permission_levels(self, permission, expected):
+        with patch("subprocess.run", return_value=_completed(stdout=permission)):
+            assert _mod._actor_has_write_access("o", "r", "someone") is expected
+
+    @pytest.mark.parametrize("login", ["", "../admin", "a/b", "-x", "a b", "x" * 40])
+    def test_malformed_login_never_reaches_the_api(self, login):
+        with patch("subprocess.run") as run_mock:
+            assert _mod._actor_has_write_access("o", "r", login) is False
+        run_mock.assert_not_called()
+
+    def test_api_failure_fails_safe(self):
+        with patch("subprocess.run", return_value=_completed(stderr="404", rc=1)):
+            assert _mod._actor_has_write_access("o", "r", "someone") is False
 
 
 class TestGhReaders:
