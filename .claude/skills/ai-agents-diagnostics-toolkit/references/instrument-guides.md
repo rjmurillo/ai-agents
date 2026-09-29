@@ -135,7 +135,6 @@ uv run python ./scripts/eval/eval-agent-vs-baseline.py --agent <name> --fixtures
 | Golden principles | 7912 files, 109 errors, 92 warnings, exit 10 | Red on main |
 | Agent drift | `VALIDATION PASSED`, exit 0 | Green |
 | Mirror drift (`build_all.py --check`) | exit 0 | Green |
-| Plugin lib drift | `All plugin lib copies are in sync.`, exit 0 | Green |
 
 Two instruments read red on main: golden principles (exit 10) and the description budget in gate mode (exit 1). Guard telemetry and maturity tiers is no longer in this list: it was retired entirely under ADR-084 (issue #5154), not merely feed-starved. Every other instrument is green.
 

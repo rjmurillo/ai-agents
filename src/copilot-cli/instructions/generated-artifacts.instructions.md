@@ -172,9 +172,7 @@ binplaces every class this rule file covers, lib included. `build_all.py
 --check` verifies all of it is byte-identical to what the templates and lib
 sources render, in one pass; a drift anywhere is exit 2.
 
-The old standalone sync entry point survives only as a thin, deprecated shim
-over the same `lib_mirror` logic, kept alive for the one CI workflow step
-that still calls it directly. Do not add a new caller of it: call
+The old standalone sync entry point is retired (issue #5790). Call
 `build_all.py` (or, for lib-specific logic in a script, `lib_mirror.py`)
 instead.
 
