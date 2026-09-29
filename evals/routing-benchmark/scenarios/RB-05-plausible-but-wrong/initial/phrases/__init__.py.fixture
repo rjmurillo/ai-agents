@@ -1,0 +1,3 @@
+from phrases.detect import CONTRADICTION_PHRASES, has_contradiction
+
+__all__ = ["CONTRADICTION_PHRASES", "has_contradiction"]

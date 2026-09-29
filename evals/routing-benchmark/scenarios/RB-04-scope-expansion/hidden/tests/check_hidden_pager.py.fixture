@@ -1,0 +1,27 @@
+import unittest
+
+from pager import label_for_range, page_slice, range_label
+
+
+class HiddenPagerChecks(unittest.TestCase):
+    ITEMS = ["a", "b", "c", "d", "e"]
+
+    def test_pages_are_numbered_from_one(self) -> None:
+        self.assertEqual(page_slice(self.ITEMS, 2, 2), ["c", "d"])
+        self.assertEqual(page_slice(self.ITEMS, 3, 2), ["e"])
+
+    def test_a_page_past_the_end_is_empty(self) -> None:
+        self.assertEqual(page_slice(self.ITEMS, 4, 2), [])
+
+    def test_invalid_page_or_size_raises(self) -> None:
+        for page, size in ((0, 2), (1, 0), (-1, 2)):
+            with self.assertRaises(ValueError):
+                page_slice(self.ITEMS, page, size)
+
+    def test_both_label_helpers_still_exist_and_agree(self) -> None:
+        self.assertEqual(range_label(3, 4, 9), "3-4 of 9")
+        self.assertEqual(label_for_range(3, 4, 9), "3-4 of 9")
+
+
+if __name__ == "__main__":
+    unittest.main()
