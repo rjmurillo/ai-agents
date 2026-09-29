@@ -18,10 +18,13 @@ from unittest import mock
 SCRIPTS_DIR = (
     Path(__file__).resolve().parents[3] / ".claude" / "skills" / "skillforge" / "scripts"
 )
-if str(SCRIPTS_DIR) not in sys.path:
-    sys.path.insert(0, str(SCRIPTS_DIR))
-
+# skillforge/scripts holds a frontmatter.py that shadows the PyPI package, so
+# restore sys.path once the import is done.
+_SAVED_SYS_PATH = list(sys.path)
+sys.path.insert(0, str(SCRIPTS_DIR))
 from package_skill import package_skill
+
+sys.path[:] = _SAVED_SYS_PATH
 
 
 @contextlib.contextmanager

@@ -12,9 +12,13 @@ import sys
 from pathlib import Path
 
 _SCRIPT_DIR = Path(__file__).resolve().parents[3] / ".claude" / "skills" / "skillforge" / "scripts"
+# skillforge/scripts holds a frontmatter.py that shadows the PyPI package, so
+# restore sys.path once the import is done.
+_SAVED_SYS_PATH = list(sys.path)
 sys.path.insert(0, str(_SCRIPT_DIR))
-
 from _constants import ALLOWED_PROPERTIES, OPTIONAL_PROPERTIES
+
+sys.path[:] = _SAVED_SYS_PATH
 
 
 class TestAllowedProperties:

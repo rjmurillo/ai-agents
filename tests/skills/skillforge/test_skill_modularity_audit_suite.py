@@ -15,6 +15,9 @@ import pytest
 _PROJECT_ROOT = Path(__file__).resolve().parents[3]
 _SKILLFORGE_ROOT = _PROJECT_ROOT / ".claude" / "skills" / "skillforge"
 _SCRIPT_DIR = _SKILLFORGE_ROOT / "scripts"
+# skillforge/scripts holds a frontmatter.py that shadows the PyPI package, so
+# restore sys.path once the imports are done.
+_SAVED_SYS_PATH = list(sys.path)
 sys.path.insert(0, str(_SCRIPT_DIR))
 sys.path.insert(0, str(_PROJECT_ROOT))
 
@@ -31,6 +34,8 @@ from skill_modularity_audit import (
     has_size_exception,
     main,
 )
+
+sys.path[:] = _SAVED_SYS_PATH
 
 
 class TestHasSizeException:
