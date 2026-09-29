@@ -193,5 +193,5 @@ The skill run is complete when:
 - [ ] `--judge` was included only after explicit user opt-in.
 - [ ] Results name the fastest, cheapest, and (if judged) highest-quality model,
       with errors and their remediation surfaced.
-- [ ] `python3 -m pytest .claude/skills/benchmark-models/tests` passes (the
+- [ ] `uv run pytest tests/skills/benchmark-models/ -q` passes (the
       driver carries unit tests at 100% coverage).
