@@ -25,6 +25,13 @@ def document() -> dict[Any, Any]:
     return loaded
 
 
+def _triggers(document: dict[Any, Any]) -> dict[str, Any]:
+    """The trigger block. YAML 1.1 files a bare `on` key under True."""
+    triggers = document["on"] if "on" in document else document[True]
+    assert isinstance(triggers, dict)
+    return triggers
+
+
 def _jobs(document: dict[Any, Any]) -> dict[str, dict[str, Any]]:
     return document["jobs"]
 
@@ -38,14 +45,14 @@ class TestTriggers:
         self, document: dict[Any, Any]
     ) -> None:
         # YAML 1.1 files a bare `on` key under True.
-        triggers = document.get("on", document.get(True))
+        triggers = _triggers(document)
 
         assert set(triggers) == {"schedule", "workflow_dispatch", "pull_request_target"}
 
     def test_no_trigger_runs_the_head_definition_of_the_workflow(
         self, document: dict[Any, Any]
     ) -> None:
-        triggers = document.get("on", document.get(True))
+        triggers = _triggers(document)
 
         assert "pull_request" not in triggers
         assert "push" not in triggers
