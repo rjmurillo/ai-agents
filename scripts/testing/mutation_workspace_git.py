@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import os
 import shutil
 import subprocess
@@ -14,6 +15,9 @@ from typing import IO
 GIT_COMMAND_TIMEOUT_SECONDS = 30
 MARKER_DIRECTORY_NAME = "mutation-active"
 SCRATCH_DIRECTORY_SUFFIX = ".mutation-worktrees"
+# Markers written before scratch worktrees moved out of the clone still name
+# this location. Recovery must clear them; creation never uses it.
+LEGACY_SCRATCH_DIRECTORY = Path(".pytest_cache") / "mutation-worktrees"
 _WORKTREE_LOCK_NAME = "mutation-worktrees.lock"
 _GIT_ENVIRONMENT_KEYS = {
     "GIT_ALTERNATE_OBJECT_DIRECTORIES",
@@ -291,25 +295,53 @@ def relative_target(repo_root: Path, target: Path | str) -> Path:
     return relative
 
 
-def scratch_directory(repo_root: Path) -> Path:
-    """Return the external scratch directory, a sibling of the checkout.
+def enclosing_checkout(path: Path) -> Path | None:
+    """Return the nearest ancestor of ``path`` (or ``path``) that holds a ``.git`` entry."""
+    resolved = path.resolve()
+    for candidate in (resolved, *resolved.parents):
+        if (candidate / ".git").exists():
+            return candidate
+    return None
 
-    Worktrees must never live under the clone (universal.md MUST NOT 6): every
-    recursive filesystem walk of the clone would multiply its findings.
+
+def scratch_directory(repo_root: Path) -> Path:
+    """Return the external scratch directory for ``repo_root``.
+
+    Worktrees must never live under any clone (universal.md MUST NOT 6): every
+    recursive filesystem walk of the clone would multiply its findings. The
+    default is a sibling of the checkout. A checkout nested inside another
+    checkout would put that sibling inside the outer clone, so it falls back
+    to ``~/worktrees``.
     """
     root = repo_root.resolve()
-    return root.parent / f"{root.name}{SCRATCH_DIRECTORY_SUFFIX}"
+    sibling = root.parent / f"{root.name}{SCRATCH_DIRECTORY_SUFFIX}"
+    if enclosing_checkout(root.parent) is None:
+        return sibling
+    digest = hashlib.sha256(str(root).encode("utf-8")).hexdigest()[:8]
+    return Path.home() / "worktrees" / f"{root.name}-{digest}{SCRATCH_DIRECTORY_SUFFIX}"
+
+
+def allowed_scratch_roots(repo_root: Path) -> tuple[Path, ...]:
+    """Return every directory recovery may remove a scratch worktree from."""
+    return (
+        scratch_directory(repo_root),
+        (repo_root / LEGACY_SCRATCH_DIRECTORY).resolve(),
+    )
 
 
 def add_worktree(repo_root: Path, scratch_root: Path) -> None:
-    root = repo_root.resolve()
-    if scratch_root.resolve().is_relative_to(root):
+    enclosing = enclosing_checkout(scratch_root.parent)
+    if enclosing is not None:
         raise MutationWorkspaceError(
-            f"refusing to create mutation worktree inside the clone {root}: {scratch_root}"
+            f"refusing to create mutation worktree inside the clone {enclosing}: {scratch_root}"
         )
     scratch_root.parent.mkdir(parents=True, exist_ok=True)
     with _serialized_worktree_state(repo_root):
-        run_git(repo_root, "worktree", "prune")
+        pruned = run_git(repo_root, "worktree", "prune")
+        if pruned.returncode != 0:
+            raise MutationWorkspaceError(
+                f"git worktree prune failed: {pruned.stderr.strip()}"
+            )
         result = run_git(
             repo_root,
             "worktree",
@@ -326,10 +358,10 @@ def add_worktree(repo_root: Path, scratch_root: Path) -> None:
 
 def remove_worktree(repo_root: Path, scratch_root: Path) -> None:
     scratch = scratch_root.resolve()
-    allowed_root = scratch_directory(repo_root)
-    if scratch == allowed_root or not scratch.is_relative_to(allowed_root):
+    allowed_roots = allowed_scratch_roots(repo_root)
+    if not any(scratch != root and scratch.is_relative_to(root) for root in allowed_roots):
         raise MutationWorkspaceError(
-            f"refusing to remove mutation worktree outside {allowed_root}: {scratch}"
+            f"refusing to remove mutation worktree outside {allowed_roots[0]}: {scratch}"
         )
 
     with _serialized_worktree_state(repo_root):
@@ -348,7 +380,7 @@ def remove_worktree(repo_root: Path, scratch_root: Path) -> None:
                 f"mutation worktree cleanup is incomplete: {scratch}"
             )
         with suppress(OSError):
-            allowed_root.rmdir()
+            scratch.parent.rmdir()
 
 
 def registered_worktrees(repo_root: Path) -> set[Path]:

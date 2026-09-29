@@ -31,6 +31,7 @@ if str(_REPO_ROOT) not in sys.path:
 from scripts.testing import mutation_workspace_git  # noqa: E402
 
 scratch_directory = mutation_workspace_git.scratch_directory
+_allowed_scratch_roots = mutation_workspace_git.allowed_scratch_roots
 MutationWorkspaceError = mutation_workspace_git.MutationWorkspaceError
 marker_directory = mutation_workspace_git.marker_directory
 tracked_repository_path = mutation_workspace_git.tracked_repository_path
@@ -424,10 +425,10 @@ def _scratch_root_from_marker(repo_root: Path, payload: dict[str, Any], marker: 
     if not isinstance(raw_path, str) or not raw_path:
         raise MutationWorkspaceError(f"marker scratch worktree is invalid: {marker}")
     scratch = Path(raw_path).resolve()
-    allowed_root = scratch_directory(repo_root)
-    if not scratch.is_relative_to(allowed_root):
+    allowed_roots = _allowed_scratch_roots(repo_root)
+    if not any(scratch.is_relative_to(root) for root in allowed_roots):
         raise MutationWorkspaceError(
-            f"marker scratch worktree is outside {allowed_root}: {scratch}"
+            f"marker scratch worktree is outside {allowed_roots[0]}: {scratch}"
         )
     return scratch
 
