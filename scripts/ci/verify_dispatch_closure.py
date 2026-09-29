@@ -253,6 +253,9 @@ def verify(tool_root: Path, head_root: Path, base_ref: str, head_sha: str | None
 # `ident`), which change the bytes written to the scratch tree, so a head SHA is
 # compared by blob id and never by those written bytes.
 _INERT_GIT = ("-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false")
+# A system or global gitconfig can register a filter driver (git-lfs) that
+# `checkout-index` would run on head blobs when the head's .gitattributes names it.
+_NO_SYSTEM_CONFIG = {"GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null"}
 _HEAD_MARKER = "refs/pull/{number}/head"
 
 
@@ -264,7 +267,7 @@ def _git(cwd: Path, *args: str, env: dict[str, str] | None = None) -> str:
         text=True,
         errors="replace",
         check=False,
-        env=env,
+        env={**(os.environ if env is None else env), **_NO_SYSTEM_CONFIG},
     )
     if result.returncode != 0:
         raise DispatchClosureError(f"git {args[0]} failed: {result.stderr.strip()[:300]}")

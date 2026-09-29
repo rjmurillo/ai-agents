@@ -275,3 +275,20 @@ class TestSecurityReviewFindings:
         seen = [list(c.args[0]) for c in spy.call_args_list]
         fetch = next(c for c in seen if "fetch" in c)
         assert "--no-recurse-submodules" in fetch
+
+
+class TestNoSystemGitConfig:
+    def test_every_git_call_ignores_system_and_global_configuration(
+        self, trees: tuple[Path, Path], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        base, _ = trees
+        upstream, sha = upstream_with_pr(base, {HELPER: "X = 99\n"})
+        spy = mock.Mock(wraps=subprocess.run)
+        monkeypatch.setattr(vdc.subprocess, "run", spy)
+
+        vdc.materialize_head(base, 1, sha, tmp_path / "out", remote=str(upstream))
+
+        envs = [c.kwargs.get("env") for c in spy.call_args_list if c.args[0][0] == "git"]
+        assert envs
+        assert all(e is not None and e["GIT_CONFIG_NOSYSTEM"] == "1" for e in envs)
+        assert all(e is not None and e["GIT_CONFIG_GLOBAL"] == "/dev/null" for e in envs)

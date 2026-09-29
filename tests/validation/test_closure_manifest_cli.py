@@ -260,7 +260,9 @@ class TestTheRepositoryItself:
         self, manifest: Manifest
     ) -> None:
         assert ".github/codeql/codeql-config.yml" in manifest.files
-        assert "scripts/test_selection/path_policy.yml" in manifest.files
+        # path_policy.yml left the closure when the pytest context stopped depending on
+        # the check-paths job (its condition is no longer part of the verdict).
+        assert "scripts/test_selection/path_policy.yml" not in manifest.files
 
     def test_the_manifest_holds_only_tracked_files(self, manifest: Manifest) -> None:
         from closure_resolvers import RepoTree
@@ -268,3 +270,10 @@ class TestTheRepositoryItself:
         tracked = RepoTree.from_git(REPO_ROOT).tracked
 
         assert set(manifest.files) <= tracked
+
+
+class TestOutputEscaping:
+    def test_a_newline_in_an_unresolved_detail_is_escaped(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        assert cm._plain("a\n::error::x\x7f") == "a\\x0a::error::x\\x7f"

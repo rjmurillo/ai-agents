@@ -131,6 +131,12 @@ _WORKFLOW_FIELDS = ("on", "permissions", "env", "defaults", "concurrency")
 _MAX_RECORDED_NODES = 2_000
 
 
+def _plain(line: str) -> str:
+    """ASCII with every control character escaped, so a name cannot start a log line."""
+    ascii_line = line.encode("ascii", "backslashreplace").decode("ascii")
+    return re.sub(r"[\x00-\x1f\x7f]", lambda m: f"\\x{ord(m.group()):02x}", ascii_line)
+
+
 def _bounded(value: object) -> object:
     """A copy of ``value`` with at most `_MAX_RECORDED_NODES` nodes, else a marker.
 
@@ -406,11 +412,7 @@ def _report(manifest: Manifest, args: argparse.Namespace) -> int:
         f"{len(manifest.unresolved)} unresolved"
     )
     for item in sorted(manifest.unresolved):
-        print(
-            f"closure-manifest: UNRESOLVED [{item.kind}] {item.source}: {item.detail}".encode(
-                "ascii", "backslashreplace"
-            ).decode("ascii")
-        )
+        print(_plain(f"closure-manifest: UNRESOLVED [{item.kind}] {item.source}: {item.detail}"))
     if args.against:
         changes = diff(_load_json(args.against), manifest.to_json())
         moved = {k: v for k, v in changes.items() if v}
@@ -427,11 +429,7 @@ def _report(manifest: Manifest, args: argparse.Namespace) -> int:
             f"CODEOWNERS entry ({len(excluded)} deliberately excluded)"
         )
         for path in uncovered:
-            print(
-                f"closure-manifest: UNCOVERED {path}".encode("ascii", "backslashreplace").decode(
-                    "ascii"
-                )
-            )
+            print(_plain(f"closure-manifest: UNCOVERED {path}"))
         failed = failed or bool(uncovered)
     return EXIT_FAILED if failed and not args.advisory else EXIT_OK
 

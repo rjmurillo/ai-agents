@@ -108,6 +108,14 @@ class TestRepoTree:
 
 
 class TestTokens:
+    def test_a_long_run_of_plus_characters_scans_in_linear_time(self) -> None:
+        import time
+
+        start = time.perf_counter()
+        tokens_in("+" * 190_000 + "/a")
+
+        assert time.perf_counter() - start < 5
+
     def test_text_past_the_bound_is_not_scanned(self) -> None:
         text = "scripts/a.py " + "x" * 300_000 + " scripts/late.py"
 

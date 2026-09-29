@@ -52,7 +52,7 @@ FILE_EXTENSIONS = (
     ".cfg",
     ".ini",
 )
-_TOKEN = re.compile(r"(?<![\w./~$@:-])((?:\./)?[A-Za-z0-9_.@+-]+(?:/[A-Za-z0-9_.@+-]+)+)")
+_TOKEN = re.compile(r"(?<![\w./~$@:+-])((?:\./)?[A-Za-z0-9_.@+-]+(?:/[A-Za-z0-9_.@+-]+)+)")
 _SHA = re.compile(r"[0-9a-f]{40}")
 _DIGEST = re.compile(r"@sha256:[0-9a-f]{64}$")
 
