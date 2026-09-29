@@ -21,6 +21,8 @@
 |merge invalidates open PRs stale baseline ratchet strict: [decision-every-merge-invalidates-every-open-pr](decision-every-merge-invalidates-every-open-pr.md) (3635)
 |injected instructions stale snapshot always-on context lags repo: [decision-injected-instructions-lag-the-repo](decision-injected-instructions-lag-the-repo.md) (785)
 |gh graphql rest rate limit budget separate exhaustion: [process/process-gh-graphql-and-rest-budgets-are-separate](process/process-gh-graphql-and-rest-budgets-are-separate.md) (1421)
+|close comment absence claim grep zsh glob evidence exit status before posting: [process/process-post-a-closing-claim-only-after-its-evidence-command-succeeds](process/process-post-a-closing-claim-only-after-its-evidence-command-succeeds.md) (249)
+|implementer subagent prompt interim CI status end turn resume drive to merge: [orchestration/orchestration-implementer-prompts-must-forbid-interim-stops](orchestration/orchestration-implementer-prompts-must-forbid-interim-stops.md) (203)
 |rate limit 403 refusal header X-Ratelimit-Reset Remaining velocity: [ci/github-rate-limit-payload-does-not-predict-service](ci/github-rate-limit-payload-does-not-predict-service.md) (4114)
 |rebase after push non-fast-forward force-push forbidden merge remote: [git/git-rebase-after-push-costs-two-cycles](git/git-rebase-after-push-costs-two-cycles.md) (1350)
 |push takes 15 minutes lefthook pre-push empty ls-remote: [git/git-empty-hook-run-means-an-empty-push](git/git-empty-hook-run-means-an-empty-push.md) (2692)
@@ -186,7 +188,7 @@
 
 [Memory and Context]
 |context engineering token optimization progressive disclosure just-in-time token: [memory/context-engineering-principles](memory/context-engineering-principles.md) (600), [memory/memory-token-efficiency](memory/memory-token-efficiency.md) (862)
-|agentic session cost token replay cached input exec output fanout delegation direct work phase threads: [cost/cost-optimization-observations](cost/cost-optimization-observations.md) (745)
+|agentic session cost token replay cached input exec output fanout delegation direct work phase threads: [cost/cost-optimization-observations](cost/cost-optimization-observations.md) (826)
 |passive context AGENTS.md skills decision-point retrieval-led compression research: [memory/passive-context-vs-skills-vercel-research](memory/passive-context-vs-skills-vercel-research.md) (461), [claude/claude-md-anthropic-best-practices](claude/claude-md-anthropic-best-practices.md) (759), [claude/claude-code-skills-official-guidance](claude/claude-code-skills-official-guidance.md) (625)
 |portability symlink TOCTOU scan_all refuse_symlinked_scan_root: [decision-portability-ratchet-symlink-toctou](decision-portability-ratchet-symlink-toctou.md) (314)
 |instruction budget always-on ceiling applyTo scope headroom rule: [decision-the-instruction-budget-gate-already-exists](decision-the-instruction-budget-gate-already-exists.md) (1858)
