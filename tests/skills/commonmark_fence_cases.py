@@ -79,7 +79,7 @@ miss a fence, and measurement showed the opposite. Both left a block open past
 its real end, so `--write` appended a closing fence to well-formed documents.
 That is why the blockquote gap above is stated with a measurement rather than
 with the same argument. Do not repeat it without measuring; see rules 9 and 10
-in `_ListContainers`.
+in `ListContainers`.
 
 What remains in the fuzz residue below is two documents, and they share almost
 nothing. Both are pure under-detections and both carry a tab. Beyond that:
@@ -140,7 +140,7 @@ def oracle_fence_lines(text: str) -> set[int]:
     return inside
 
 
-# Each case is named for the CommonMark rule it exercises. `_ListContainers`
+# Each case is named for the CommonMark rule it exercises. `ListContainers`
 # carries sixteen numbered rules and every one was a real defect first,
 # most reported in review and the rest found by the fuzzer below; each was
 # reproduced against the reference parser before being fixed. The remaining

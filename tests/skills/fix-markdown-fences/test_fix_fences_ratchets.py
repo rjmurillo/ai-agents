@@ -12,7 +12,6 @@ the second question.
 
 from __future__ import annotations
 
-import inspect
 import sys
 from pathlib import Path
 
@@ -54,83 +53,30 @@ repair_markdown_fences = mod.repair_markdown_fences
 
 
 class TestScannerParity:
-    """The two scanners must not drift, and the fuzzer must see both.
+    """The two scanners share one container model, and the fuzzer must see both.
 
-    `_ListContainers` is duplicated byte-for-byte because the skills ship as
-    separate plugin directories and neither is on the other's import path. The
-    fuzz ratchet used to run only in the prose suite, so a regression in this
-    scanner outside the curated cases would not have tripped it, and nothing
-    compared the two copies.
+    `ListContainers` and the link grammar live once in
+    `hook_utilities/commonmark_containers.py` and `commonmark_links.py` (issue
+    #5352), so no test compares copies of them. The line splitters are still
+    local to each script, so one test holds them to the same terminator set. The
+    fuzz ratchets run against this scanner as well as the prose one, so a
+    regression outside the curated cases trips here too.
     """
 
-    def test_the_container_class_is_identical_in_both_scanners(self) -> None:
+    def test_both_scanners_use_the_one_shared_container_class(self) -> None:
         prose = import_skill_script(".claude/skills/prose-self-check/scripts/prose_lint.py")
-        assert inspect.getsource(mod._ListContainers) == inspect.getsource(prose._ListContainers), (
-            "the duplicated container class has drifted between the two skills"
-        )
+        assert mod.ListContainers is prose.ListContainers
 
-    def test_the_link_grammar_is_identical_in_both_scanners(self) -> None:
-        """The class is not the whole duplication, and the gap has cost five defects.
-
-        Every defect found in this PR since round 12 landed in code sitting
-        just OUTSIDE `_ListContainers`, where the parity test above could not
-        see it: the line splitter, the closing-fence predicate, the test
-        mirror, the oracle's own splitter, and the defect report's `rstrip`.
-        Rule 16's grammar is the newest such code, and the destination scanner
-        made it larger, so it is pinned here rather than left to the next
-        reviewer.
-
-        The patterns are compared by their source strings and the helpers by
-        their source text, which is what a copy-paste divergence changes.
+    def test_the_two_line_splitters_agree_on_line_terminators(self) -> None:
+        """`_LINE_SPLIT_RE` legitimately differs: the repair splits with the
+        separators kept, so its copy wraps the alternation in a group. What must
+        NOT differ is which characters count as terminators, so assert that
+        claim rather than exempting the name.
         """
         prose = import_skill_script(".claude/skills/prose-self-check/scripts/prose_lint.py")
-        for name in ("_LINK_TITLE", "_LINK_LABEL"):
-            assert getattr(mod, name) == getattr(prose, name), f"{name} has drifted"
-        for name in ("_LINK_TITLE_ONLY", "_LINK_LABEL_ONLY", "_LINK_LABEL_COLON"):
-            assert getattr(mod, name).pattern == getattr(prose, name).pattern, (
-                f"{name} has drifted"
-            )
-        assert mod._TITLE_CLOSERS == prose._TITLE_CLOSERS, "_TITLE_CLOSERS has drifted"
-        # The CONTAINER grammar, added after a fresh-eyes review found the same
-        # hole this guard was written to close, one layer out. `_ListContainers`
-        # is compared by source, but the module-level patterns its methods
-        # reach for are not inside the class, so `_BLOCK_QUOTE` and its
-        # siblings could drift between the two scanners with every test green.
-        # That is the fifth time on this branch a defect landed just outside
-        # whatever the parity guard covered.
-        for name in (
-            "_ATX_HEADING",
-            "_BLOCK_QUOTE",
-            "_LIST_MARKER",
-            "_SETEXT_UNDERLINE",
-            "_THEMATIC_BREAK",
-        ):
-            assert getattr(mod, name).pattern == getattr(prose, name).pattern, (
-                f"{name} has drifted between the two scanners"
-            )
-        for name in ("_MAX_FENCE_INDENT", "_MAX_LIST_PAD"):
-            assert getattr(mod, name) == getattr(prose, name), f"{name} has drifted"
-        # `_LINE_SPLIT_RE` legitimately differs: the repair splits with the
-        # separators kept, so its copy wraps the alternation in a group. What
-        # must NOT differ is which characters count as terminators, and the PR
-        # claims exactly that, so assert the claim rather than exempting the
-        # name.
         assert mod._LINE_SPLIT_RE.pattern.strip("()") == prose._LINE_SPLIT_RE.pattern.strip("()"), (
             "the two scanners no longer agree on what a line terminator is"
         )
-        for name in (
-            "_angle_destination_end",
-            "_link_destination_end",
-            "_link_tail",
-            "_link_reference",
-            "_title_end",
-            "_label_opens",
-            "_bare_title",
-            "_Definition",
-        ):
-            assert inspect.getsource(getattr(mod, name)) == inspect.getsource(
-                getattr(prose, name)
-            ), f"{name} has drifted between the two skills"
 
     @pytest.mark.parametrize("seed", [1729, 4242, 20260826])
     def test_write_never_mutates_a_balanced_generated_document(self, seed: int) -> None:
@@ -332,7 +278,7 @@ class TestOpenLabelStateIsBounded:
 
     def _state_after(self, continuations: int) -> object:
         """Open a label, feed *continuations* plain lines, return the state."""
-        containers = mod._ListContainers()
+        containers = mod.ListContainers()
         containers.observe("[unclosed\n")
         for index in range(continuations):
             containers.observe(f"plain line {index} of ordinary prose\n")
@@ -360,13 +306,13 @@ class TestOpenLabelStateIsBounded:
         empty, so the bit must be true for an all-whitespace run and false as
         soon as any line carries text.
         """
-        blank = mod._ListContainers()
+        blank = mod.ListContainers()
         blank.observe("[\n")
         blank.observe("   \n")
         blank.observe("\t\n")
         assert blank._open_label_blank is True
 
-        filled = mod._ListContainers()
+        filled = mod.ListContainers()
         filled.observe("[\n")
         filled.observe("   \n")
         filled.observe("  label text\n")
