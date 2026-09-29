@@ -79,15 +79,15 @@ Use the classification to pick delegation depth. A clear, reversible, P3 task ne
 
 | Situation | Behavior |
 |-----------|----------|
-| Task is bounded, frequent, or high-volume | Route to Haiku 4.5 or Luna when externally checkable. |
+| Task is bounded, frequent, or high-volume | Route to the bounded tier when an objective verifier checks it. |
 | Task is standard pattern (spec → plan → build → test) | Route sequentially through specialists. |
 | Task is a multi-faceted problem (incident, complex feature) | Route in parallel where possible. |
 | User wants strategic input | Route to high-level-advisor or roadmap. |
-| Task has unknowns or consequential tradeoffs | Select a registered specialist; request Opus 5.5 or Astra as its model when available. |
+| Task has unknowns or consequential tradeoffs | Select a registered specialist; request the judgment tier when the harness allows. |
 
 ## Agent Capability Matrix
 
-This matrix routes work to an agent by capability; it does not set models. An installed agent definition may declare a model; when it declares none, the harness supplies its own platform default. The same agent can therefore resolve to a different model in each install. Where the harness supports per-invocation model selection, use the advisory labels in the Model and Effort Routing policy below; harness precedence and availability rules determine which model actually runs.
+This matrix routes work to an agent by capability; it does not set models. An installed agent definition may declare a model; when it declares none, the harness supplies its own platform default. The same agent can therefore resolve to a different model in each install. Where the harness supports per-invocation model selection, use the advisory tiers in the Model, Effort, and Cost Routing policy below; harness precedence and availability rules determine which model actually runs.
 
 | Agent | Use For | Avoid When |
 |-------|---------|-----------|
@@ -121,33 +121,32 @@ Every row above names an agent that is registered in this install. Delegate only
 Route by expected cost per accepted result | task shape | verifier strength | failure cost. Never vendor effort labels.
 `accepted-result cost = initial inference + retries + correction/repair + context replay/tool failures + verifier/review + coordination + human wait`
 Weight decision burden and correction cost above raw price | verifier strength | fan-out | coordination | human wait; qualitative, not universal.
-Start at the lightest effort that meets the acceptance check, not the vendor default.
+Derive the route from discovered context (stack, tests, verifier, harness controls, local evals). No model/task table is authoritative.
 
-| Label | Effort | Route for |
+| Tier | Route for | Starting effort |
 |---|---|---|
-| Claude Fable 5.1 | Default high | Escalation only: highest-stakes reasoning, long-horizon agentic work, architecture, complex research, consequential analysis. |
-| Claude Opus 5.5 | Default medium | Default frontier: long-running agentic coding, broad-context engineering, knowledge work, computer use, multi-step research, end-to-end judgment. |
-| GPT-6 Astra | Lightest | Ambiguous, consequential, broad-context, multi-tool: architecture, research, complex coding, documents, computer use, end-to-end acceptance. |
-| Claude Sonnet 5 or GPT-6/5.6 Sol | Sonnet default high | Specified judgment where speed matters: everyday coding, document review, fact checking, structured or technical research, production work below Opus. |
-| Claude Haiku 4.5 or GPT-6/5.6 Luna | Haiku: no effort control | Bounded, frequent, externally checkable: extraction, classification, triage, summarization, small edits, routing, repeated transforms, volume automation. Haiku alias: ADR-080. |
-| GPT-5.6 Terra | Lightest | Known files and patterns: normal implementation or review, local repair. |
-| Escalate | unresolved judgment | `acceptance_failed`, `repair_repeated`, `cross_file_contract_missed`, or `diff_scope_exceeded` goes to Sol or Opus, never more prompt text; raise effort only there. Raise Opus 5.5 effort before Fable 5.1. |
+| Bounded | Explicit scope, cheap failure, objective verifier: extraction, triage, small edits, transforms | Lowest offered |
+| Specified | Known files and patterns: implementation, review, local repair | Low or medium |
+| Judgment | Ambiguity, architecture, repair, cross-file contracts, acceptance | Medium; high when those dominate |
+| Escalate | `acceptance_failed`, `repair_repeated`, `cross_file_contract_missed`, `diff_scope_exceeded` | Up one tier or effort; never more prompt text |
 
-Model labels and agent roles are separate | labels advisory and unenforced, not agents or IDs.
-`orchestrator` coordinates | `autoplan` routes | known aliases: `opus`, `sonnet`, `haiku`; other labels only when the harness resolves them.
+Higher effort is not monotonically better; it can add latency and tokens without raising acceptance. Validate an effort per task shape and harness before defaulting to it.
+Model labels and agent roles are separate | tiers and labels advisory, not agents or IDs.
+`orchestrator` coordinates | `autoplan` routes | aliases: `haiku` bounded, `sonnet` specified, `opus` judgment; other labels only when the harness resolves them, never as superiority claims.
+Pin changes pass ADR-080; this policy never justifies a pin.
 Resolve to concrete IDs | unresolved: retain harness default + record fallback | never silently substitute.
 Preserve registered roles, mappings, role-keyed results, ADR-009, and ADR-078.
 
-Judgment: Opus 5.5 or Astra owns ambiguity/acceptance | Sol or Opus handles hard exceptions and high-recall review | Do not force a weaker model into judgment work with more prompts, tools, or subagents.
+Judgment tier owns ambiguity/acceptance and hard exceptions | Do not force a weaker model into judgment work with more prompts, tools, or subagents.
 Bounded: route down only when scope explicit | failure cheap | verifier objective (tests, diff, schema, security) | fan-out/context replay low | receipt compact.
 Control loop: do not route everything up | constrain capable models for routine work | pre-route up when correction/review/human-wait cost wins.
 Interactive: human-blocking latency weighs more | async: token cost weighs more | fan-out adds coordination tax.
-Fixtures 2026-09-24 (single-turn): cheapest rung within 0.10 of ladder best for most agents. Relative, no pass bar (Luna qa 0.33). Only nominates a tier for a bounded leaf with a real verifier. Exceptions: skillbook Opus/Astra; implementer Astra; orchestrator Sonnet; security-review Opus.
+Fixtures 2026-09-24 (single-turn): cheapest rung within 0.10 of ladder best for most agents. Relative, no pass bar (Luna qa 0.33). Only nominates a tier for a bounded leaf with a real verifier. Cheapest rung trailed on a ladder for skillbook, implementer, orchestrator, security-review.
 Rates 2026-09-22, $/1M in/out: Fable/Astra $10/$50, Opus $4/$20, Sonnet/Sol $2/$10, Haiku $1/$5, Luna $0.10/$0.50. Haiku context 200K. Rate cards are not accepted-result cost.
 Benchmark costs are conditional on harness, effort, prompt, and pass definition; calibrate.
 
 The orchestrator delegates implementation and accepts independent verification.
-Use event-driven waits and compact receipts. Stop after acceptance.
+Any model: explicit follow-through, event-driven waits, compact receipts, one changed re-delegation per unit then typed escalation. Stop after acceptance.
 
 ## Routing Algorithm
 
@@ -155,8 +154,8 @@ Use event-driven waits and compact receipts. Stop after acceptance.
 0. Recon the target stack (see Target Recon). Never route on an assumed stack.
 1. Classify complexity (Cynefin)
 2. Bounded leaf, real verifier, no consequential judgment?
-   YES → choose Haiku/Luna/Sonnet/Sol/Terra by task shape
-   NO  → judgment work runs on Opus/Astra; continue
+   YES → bounded or specified tier by task shape
+   NO  → judgment tier; continue
 3. Does task need investigation first?
    YES → analyst → synthesize → re-evaluate
    NO  → continue
@@ -400,9 +399,9 @@ the evidence gap. Orchestrator coordinates; it does not investigate.
 | Pasting a skill's full text into a delegation prompt | Spends the subagent's window on text it can load itself; the paste is the pollution | Name the skill and let the subagent load it |
 | Concatenating agent responses | Not synthesis, just noise | Extract, resolve conflicts, produce coherent output |
 | Relaying a worker's "done" without checking the artifact | The report states intent, not the actual change; a false "done" ships as success | Inspect the diff, created file, or command output before synthesizing |
-| Luna or Haiku on open-ended work | Review cost can exceed the token savings | Route bounded work down; route normal work to Terra or Sonnet |
-| Sol or Opus for bounded disposable work | Spends expensive review capacity on cheap work | Use Luna or Haiku with a verifier |
-| Defaulting to xhigh/max effort | Burns latency and tokens for <=0.2 quality gain | Start light; raise effort only at unresolved judgment |
+| Bounded tier on open-ended work | Review cost can exceed the token savings | Route bounded work down; normal work to the specified tier |
+| Judgment tier for bounded disposable work | Spends expensive review capacity on cheap work | Use the bounded tier with a verifier |
+| Treating more effort as better | Burns latency and tokens for <=0.2 quality gain | Start at the task-shape effort; validate any raise |
 | Cheap model at high effort | Costs more without supplying missing judgment | Match effort to task shape; escalate on failed acceptance |
 | Same-family self-verification | Correlated blind spots make it a weak check | Cross-check with a different model family |
 | Serial when a human is blocked on the result | Wastes wall clock a human is paying for | Parallelize independent routes |
