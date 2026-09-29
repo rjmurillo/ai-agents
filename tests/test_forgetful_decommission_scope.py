@@ -49,8 +49,6 @@ HISTORY_PREFIXES = (
     ".project-toolkit/analysis/",
     ".project-toolkit/critique/",
     ".project-toolkit/qa/",
-    ".project-toolkit/specs/PRD-",
-    ".project-toolkit/specs/STATUS.md",
     ".project-toolkit/specs/design/",
     ".project-toolkit/specs/interviews/",
     ".project-toolkit/specs/requirements/REQ-",
@@ -98,9 +96,15 @@ EXEMPTIONS: dict[str, tuple[str, int, str]] = {
     "tests/skills/test_forgetful_decommission_guards.py": (
         NEEDLE, 28, "REMOVED_SPELLINGS are the check"
     ),
-    "tests/test_forgetful_decommission_scope.py": (NEEDLE, 6, "this guard's own needle"),
+    "tests/test_forgetful_decommission_scope.py": (NEEDLE, 7, "this guard's own needle"),
     "tests/test_skill_registry.py": (NEEDLE, 3, "keyword left the memory category"),
     "tests/test_validation_skill_frontmatter.py": (NEEDLE, 8, "retired tool grant is rejected"),
+    ".project-toolkit/specs/PRD-memory-enhancement-layer-for-serena-forgetful.md": (
+        RECORD, 11, "spec of the retired feature, kept as written and marked superseded"
+    ),
+    ".project-toolkit/specs/STATUS.md": (
+        REGISTRY, 2, "index rows key on the retired PRD file name and mark it superseded"
+    ),
     "scripts/consolidate_skills.py": (REGISTRY, 2, "archived actions stay memory work"),
     "tests/test_consolidate_skills.py": (NEEDLE, 1, "archived action stays memory"),
 }
@@ -214,6 +218,8 @@ def test_history_prefix_exempts_records_but_not_live_files() -> None:
     assert not is_history(".agents/governance/MEMORY-MANAGEMENT.md")
     assert not is_history(".project-toolkit/testing/prompt-eval-methodology.md")
     assert not is_history("README.md")
+    assert not is_history(".project-toolkit/specs/STATUS.md")
+    assert not is_history(".project-toolkit/specs/PRD-new-memory-flow.md")
     assert not is_history("CHANGELOG.md.bak")
     assert not is_history(".project-toolkit/specs/requirements/EARS-TEMPLATE.md")
     assert audit({"README.md": 1}, {}) == (["README.md"], [])
