@@ -93,6 +93,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         sys.stderr.write(DIAGNOSIS)
         return EXIT_UNAVAILABLE
     try:
+        sys.stdout.flush()
         return subprocess.run([*command, *arguments], check=False).returncode
     except OSError as error:
         sys.stderr.write(f"lefthook_runner: cannot start {command[0]}: {error}\n{DIAGNOSIS}")
