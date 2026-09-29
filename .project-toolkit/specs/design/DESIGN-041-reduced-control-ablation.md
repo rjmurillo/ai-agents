@@ -125,7 +125,7 @@ Dry run replaces step 2 with writing the control's `files` and taking its
 | `execution.first_pass` | same as acceptance (retry budget 0) |
 | `execution.tool_failures` | tool results with `is_error` true |
 | `execution.retries` | 0 |
-| `execution.scope_violations` | changed paths outside `allowed_paths`, excluding control files, follow-up files, `.parity-profile/`, `.runtime/`, `__pycache__/`, `*.pyc`; diffed against the pinned seed ref, so committed agent work counts |
+| `execution.scope_violations` | changed paths outside `allowed_paths`, excluding `.parity-profile/`, `.runtime/`, `__pycache__/`, `*.pyc`; diffed against the pinned seed ref before follow-up files are written, so committed agent work, control-file edits, and edits at follow-up paths all count |
 | `durable.followup_validation` | follow-up exit 0 |
 | `durable.objective_satisfied` | every response check passes |
 | `durable.residual_defects` | `failures + errors` parsed from the follow-up unittest summary; 0 on exit 0; 1 when exit is non-zero and no summary parses |

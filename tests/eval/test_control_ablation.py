@@ -234,25 +234,19 @@ def test_scope_violations_counts_paths_outside_allowed() -> None:
     count = ablation.scope_violations(
         ["calc/core.py", "README.md"],
         ["calc/*.py"],
-        control_files={},
     )
     assert count == 1
 
 
-def test_scope_violations_excludes_control_files() -> None:
-    count = ablation.scope_violations(
-        ["AGENTS.md"],
-        ["calc/*.py"],
-        control_files={"AGENTS.md": "..."},
-    )
-    assert count == 0
+def test_scope_violations_counts_an_agent_edit_to_a_control_file() -> None:
+    count = ablation.scope_violations(["AGENTS.md"], ["calc/*.py"])
+    assert count == 1
 
 
 def test_scope_violations_counts_an_agent_edit_at_a_followup_path() -> None:
     count = ablation.scope_violations(
         ["followup/test_hidden.py"],
         ["calc/*.py"],
-        control_files={},
     )
     assert count == 1
 
@@ -267,7 +261,6 @@ def test_scope_violations_excludes_pycache_and_profile_paths() -> None:
             "stray.pyc",
         ],
         ["calc/*.py"],
-        control_files={},
     )
     assert count == 0
 

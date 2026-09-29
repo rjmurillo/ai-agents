@@ -160,3 +160,48 @@ def test_a_reply_that_echoes_the_token_is_redacted(tmp_path: Path) -> None:
     report = (tmp_path / "out" / "report.json").read_text(encoding="utf-8")
     assert "fixture-secret-7731" not in report
     assert "[REDACTED]" in report
+
+
+class RefreshingRunner(FakeClaudeRunner):
+    """Simulate the CLI refreshing the copied login, then echoing the new token."""
+
+    def __call__(
+        self, argv: list[str], **kwargs: object
+    ) -> subprocess.CompletedProcess[str]:
+        if "--print" in argv:
+            env = kwargs["env"]
+            assert isinstance(env, dict)
+            copy = Path(env["CLAUDE_CONFIG_DIR"]) / ".credentials.json"
+            refreshed = {"claudeAiOauth": {"accessToken": "refreshed-secret-9914-abcdef"}}
+            copy.write_text(json.dumps(refreshed), encoding="utf-8")
+            self.reply = "new token refreshed-secret-9914-abcdef"
+        return super().__call__(argv, **kwargs)
+
+
+def test_a_token_refreshed_during_the_call_is_redacted(tmp_path: Path) -> None:
+    auth = tmp_path / "credentials.json"
+    auth.write_text(AUTH_SECRET, encoding="utf-8")
+    runner = RefreshingRunner(load_tasks(tmp_path))
+
+    code = cli.main(_live_args(tmp_path, "--claude-auth-file", str(auth)), runner=runner)
+
+    assert code == cli.EXIT_OK
+    report = (tmp_path / "out" / "report.json").read_text(encoding="utf-8")
+    assert "refreshed-secret-9914-abcdef" not in report
+
+
+def test_a_timeout_records_a_fixed_reason_without_the_prompt(tmp_path: Path) -> None:
+    tasks = load_tasks(tmp_path)
+
+    def timing_out(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        if "--version" in argv:
+            return subprocess.CompletedProcess(argv, 0, stdout="2.3.1\n", stderr="")
+        raise subprocess.TimeoutExpired(argv, 5)
+
+    code = cli.main(_live_args(tmp_path), runner=timing_out)
+
+    assert code == cli.EXIT_EXTERNAL
+    report = json.loads((tmp_path / "out" / "report.json").read_text(encoding="utf-8"))
+    failures = [run["harness_failure"] for run in report["runs"]]
+    assert all(failure.startswith("claude timed out after") for failure in failures)
+    assert not any(task.prompt in failure for task in tasks for failure in failures)

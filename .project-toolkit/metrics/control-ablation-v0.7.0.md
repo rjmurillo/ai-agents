@@ -69,9 +69,11 @@ less per accepted durable task.
 
 - Gate 5: one reduced configuration was compared with the full one on
   identical tasks, model, harness, and retry budget.
-- Gate 6: the reduced configuration is non-inferior on deterministic
-  acceptance (15 of 15 each) and residual defects (0 each). The sample is
-  3 runs per cell, so this rules out a large regression, not a small one.
+- Gate 6: on these runs the reduced configuration matched the full one on
+  deterministic acceptance (15 of 15 each) and residual defects (0 each).
+  That is an observation, not a statistical bound: with 3 runs per cell, a
+  task that succeeds half the time would still pass all 3 runs 12.5 percent
+  of the time.
 - Gate 7: cost, wall time, and correction time per accepted durable task are
   in the table above.
 

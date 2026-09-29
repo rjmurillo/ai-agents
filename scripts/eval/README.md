@@ -1103,8 +1103,10 @@ counts), then runs
 changed-path measurement; any that still appear, along with stray `.pyc`
 files, are excluded from `scope_violations` and `produced_artifact`
 either way). A changed path outside the task's `allowed_paths` counts as a
-scope violation, excluding control files, follow-up files,
-`.parity-profile/`, `.runtime/`, `__pycache__/`, and `*.pyc`.
+scope violation, excluding `.parity-profile/`, `.runtime/`, `__pycache__/`,
+and `*.pyc`. Control files are committed at seed, so an agent edit to one
+counts, and so does an agent edit at a follow-up path, because changed paths
+are read before follow-up files are written.
 
 Fields recorded by construction, because the run is unattended and has no
 reviewer: `durable.review_findings` (0, no reviewer), `durable.rework_minutes` (0, no

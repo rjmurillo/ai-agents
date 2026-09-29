@@ -143,23 +143,25 @@ _REDACTED = "[REDACTED]"
 _MIN_SECRET_LENGTH = 16
 
 
-def redact_credentials(text: str, source: Path) -> str:
-    """Replace every string value of `source`'s `claudeAiOauth` object in `text`.
+def credential_values(source: Path) -> frozenset[str]:
+    """Return every secret-length string value of `source`'s `claudeAiOauth` object.
 
-    The agent under test can read the copied login by absolute path, so a reply
-    may carry a token. Replies reach `report.json` and stdout; this is the last
-    point before either. Values shorter than 16 characters (scopes, plan names)
-    are not secrets and are left alone.
+    Values shorter than 16 characters (scopes, plan names) are not secrets.
+    An unreadable file raises `HarnessFailureError`: without the values the
+    reply cannot be redacted, so it must not be published.
     """
     try:
         oauth = json.loads(source.read_text(encoding="utf-8")).get("claudeAiOauth", {})
-    except (OSError, ValueError, AttributeError):
-        return text
-    secrets = (
-        value
-        for value in (oauth.values() if isinstance(oauth, dict) else ())
-        if isinstance(value, str) and len(value) >= _MIN_SECRET_LENGTH
+    except (OSError, ValueError, AttributeError) as exc:
+        raise HarnessFailureError(f"cannot read credential values from {source}") from exc
+    values = oauth.values() if isinstance(oauth, dict) else ()
+    return frozenset(
+        value for value in values if isinstance(value, str) and len(value) >= _MIN_SECRET_LENGTH
     )
+
+
+def redact(text: str, secrets: frozenset[str]) -> str:
+    """Replace each secret in `text`; replies reach `report.json` and stdout after this."""
     for secret in secrets:
         text = text.replace(secret, _REDACTED)
     return text
@@ -203,19 +205,30 @@ def invoke_claude(
     argv = claude_argv(model, task.prompt)
     env = runtime_env(workspace, "claude")
     env["CLAUDE_CONFIG_DIR"] = str(claude_config_dir(workspace))
+    config_dir = Path(env["CLAUDE_CONFIG_DIR"])
+    # Snapshot before the call: the operator's file may change during it.
+    secrets = credential_values(auth_file) if auth_file is not None else frozenset()
     started = time.monotonic()
-    with claude_auth(auth_file, Path(env["CLAUDE_CONFIG_DIR"])):
-        result = runner(
-            argv,
-            cwd=workspace,
-            env=env,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=timeout,
-            check=False,
-        )
+    with claude_auth(auth_file, config_dir):
+        try:
+            result = runner(
+                argv,
+                cwd=workspace,
+                env=env,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=timeout,
+                check=False,
+            )
+        except subprocess.TimeoutExpired:
+            # str(TimeoutExpired) carries the full argv, including the prompt.
+            raise HarnessFailureError(f"claude timed out after {timeout:.0f}s") from None
+        copy = config_dir / ".credentials.json"
+        if auth_file is not None and copy.is_file():
+            # The CLI may have refreshed the copy; its new tokens need redacting too.
+            secrets |= credential_values(copy)
     wall_seconds = time.monotonic() - started
     if result.returncode != 0:
         raise HarnessFailureError(f"claude exited {result.returncode}")
@@ -224,8 +237,7 @@ def invoke_claude(
     except RuntimeOutputError as exc:
         raise HarnessFailureError(str(exc)) from exc
     reply, resolved_model = claude_result(events)
-    if auth_file is not None:
-        reply = redact_credentials(reply, auth_file)
+    reply = redact(reply, secrets)
     _require_success_result(events, reply)
     if not same_model(resolved_model, model):
         raise HarnessFailureError(
