@@ -114,7 +114,7 @@ A gate is any check whose failure would falsify your conclusion. Only a current 
 
 4. **Tests passing** - All tests green? No skipped tests without justification?
 
-> `golden-principles` + `taste-lints` + `code-quality` are now part of `/review` (Child 1 #1934), so `/ship` does not invoke them separately. `/pr-quality:all` is likewise no longer a required separate step before `/ship`: a passing `/review` marker (check 3) already runs the same canonical axes locally, and CI runs the same prompts as a backstop.
+> `golden-principles` + `taste-lints` + `code-quality` are now part of `/review` (Child 1 #1934), so `/ship` does not invoke them separately. `/pr-quality:all` is likewise no longer a required separate step before `/ship`: a passing `/review` marker (check 3) already runs the same canonical axes locally. No CI workflow runs the review axes: PR #5132 deleted the one that did, so the local marker is the review-axis gate.
 
 ## Process
 

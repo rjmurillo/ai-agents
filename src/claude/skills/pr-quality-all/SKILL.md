@@ -131,12 +131,34 @@ UNKNOWN a question mark.
 | Running the axes on different bases | Six verdicts about six diffs do not merge into one answer | Resolve the base to a commit once and forward that SHA, not the branch name |
 | Treating this as the pre-merge gate | It reads working changes, not the PR; `review` is the gate `ship` checks | Run this before pushing, and `review` before shipping |
 
+## Standing Decision
+
+The seven `pr-quality-*` skills (this one and the six axis skills) are kept as a
+standalone surface. Issue #5067 asked whether to delete them, merge them into
+`/review`, or keep them. The decision is keep, recorded 2026-09-29.
+
+Rationale:
+
+- The repository owner's KEEP rule for skills and agents (epic #5456, comment of
+  2026-09-11) holds while a skill exists. Removing a command family breaks
+  muscle memory and external docs that name it, and the owner reverted an earlier
+  full removal for that reason.
+- The cost the issue targeted is gone. No workflow runs the review axes: PR #5132
+  deleted `ai-pr-quality-gate.yml`. Keeping the seven skills adds no CI compute.
+- `pr-comment-responder` routes to this skill (see `metadata.routing`), and it is
+  the one-verdict, pre-push view. `/review` stays the pre-merge gate and writes
+  the marker that `/ship` validates.
+
+Revisit only if the owner rescinds the KEEP rule for these skills. The per-check
+audit of `pre_pr_sequence.py` against `pr-validation.yml` lives in
+`docs/WORKFLOW-VALIDATION.md`.
+
 ## Extension Points
 
 - **A seventh axis.** Add its `pr-quality-<name>` skill, then add one row here and
   one line to step 4. The merge table is unchanged: it is token-based, not
   axis-count-based.
 - **Different merge policy.** The rules live in `verdict.py`. Change them there
-  and every consumer, this skill and CI alike, moves together.
+  and every consumer moves together.
 - **Machine consumption.** Each axis emits schema-bound JSON alongside its
   verdict, so a downstream reader parses those rather than this table.
