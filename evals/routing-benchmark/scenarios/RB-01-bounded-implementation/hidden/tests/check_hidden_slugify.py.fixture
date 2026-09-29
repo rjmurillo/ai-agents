@@ -1,0 +1,30 @@
+import unittest
+
+from slugger import slugify
+
+
+class HiddenSlugifyChecks(unittest.TestCase):
+    def test_runs_of_separators_collapse_to_one_hyphen(self) -> None:
+        self.assertEqual(slugify("a  --  b"), "a-b")
+
+    def test_leading_and_trailing_separators_are_stripped(self) -> None:
+        self.assertEqual(slugify("  !hello, world?  "), "hello-world")
+
+    def test_non_ascii_letters_count_as_separators(self) -> None:
+        self.assertEqual(slugify("Café au lait"), "caf-au-lait")
+
+    def test_digits_are_kept(self) -> None:
+        self.assertEqual(slugify("Release 2 Notes"), "release-2-notes")
+
+    def test_input_without_letters_or_digits_is_empty(self) -> None:
+        self.assertEqual(slugify("?!  --"), "")
+        self.assertEqual(slugify(""), "")
+
+    def test_slugify_is_idempotent(self) -> None:
+        for text in ("Hello World", "a  --  b", "Café", "x_y_z 9"):
+            once = slugify(text)
+            self.assertEqual(slugify(once), once)
+
+
+if __name__ == "__main__":
+    unittest.main()

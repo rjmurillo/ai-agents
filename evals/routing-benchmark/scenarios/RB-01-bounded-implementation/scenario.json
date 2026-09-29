@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "id": "RB-01-bounded-implementation",
+  "category": "bounded_implementation",
+  "difficulty": "ordinary_bounded",
+  "title": "Implement slugify in one module",
+  "requirement": "Implement `slugify(text)` in `slugger/core.py`. It lowercases the text, replaces each run of characters that are not ASCII letters or digits with one hyphen, and strips leading and trailing hyphens. Input with no ASCII letters or digits returns an empty string.",
+  "allowed_scope": {"paths": ["slugger/core.py"]},
+  "expected_changed_paths": ["slugger/core.py"],
+  "invariants": [
+    "slugify is a pure function of its argument",
+    "slugify(slugify(x)) equals slugify(x) for every x",
+    "only the standard library is imported"
+  ],
+  "acceptance_criteria": [
+    "Runs of non-alphanumeric characters collapse to one hyphen",
+    "Leading and trailing hyphens are stripped",
+    "Non-ASCII letters count as separators",
+    "Input with no ASCII letters or digits returns an empty string"
+  ],
+  "validation": {
+    "commands": [["python", "-m", "unittest", "discover", "-s", "tests", "-p", "check_*.py"]],
+    "timeout_seconds": 60
+  },
+  "grading": {"method": "deterministic"},
+  "reset": {"method": "fresh_copy", "notes": "Copy initial/ into an empty directory; delete that directory after grading."},
+  "provenance": {
+    "kind": "synthetic",
+    "reason": "No existing in-tree corpus offers a Python-only single-module task with a one-file legal change surface. The C# corpus under evals/oneshot-vs-shipped needs the dotnet toolchain and the prompt fixtures under evals/reviewer-asymmetry-spike are not executable repositories."
+  }
+}

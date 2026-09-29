@@ -1,0 +1,5 @@
+"""Human-readable range labels shown under a page of results."""
+
+
+def range_label(first: int, last: int, total: int) -> str:
+    return f"{first}-{last} of {total}"

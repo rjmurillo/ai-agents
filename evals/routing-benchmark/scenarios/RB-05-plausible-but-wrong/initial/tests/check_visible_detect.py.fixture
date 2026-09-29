@@ -1,0 +1,20 @@
+import unittest
+
+from phrases import has_contradiction
+
+
+class VisibleDetectChecks(unittest.TestCase):
+    def test_detects_a_listed_phrase(self) -> None:
+        self.assertTrue(has_contradiction("tests pending"))
+        self.assertTrue(has_contradiction("will run the suite later"))
+        self.assertTrue(has_contradiction("TODO"))
+
+    def test_detection_ignores_case(self) -> None:
+        self.assertTrue(has_contradiction("Deferred to next sprint"))
+
+    def test_clean_text_passes(self) -> None:
+        self.assertFalse(has_contradiction("all tests passed in CI"))
+
+
+if __name__ == "__main__":
+    unittest.main()

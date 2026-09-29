@@ -1,0 +1,29 @@
+"""ETL trace comparison. Each row is one traced method against its baseline."""
+
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class EtlRow:
+    name: str
+    delta_pct: float
+    interesting: bool
+
+
+@dataclass(frozen=True)
+class EtlResult:
+    ok: bool
+    regression: bool
+    report: str
+
+
+def compare_etl(rows: list[EtlRow]) -> EtlResult:
+    lines = ["ETL overweight report"]
+    overweight = []
+    for row in rows:
+        if row.delta_pct > 0 and row.interesting:
+            overweight.append(row.name)
+            lines.append(f"  overweight: {row.name} {row.delta_pct:+.1f}%")
+    if not overweight:
+        lines.append("  no overweight rows")
+    return EtlResult(ok=True, regression=bool(overweight), report="\n".join(lines))

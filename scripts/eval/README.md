@@ -1044,6 +1044,31 @@ I/O and no model calls; `_eval_common.percentile` is the one shared
 percentile helper it and the model-sweep and report-aggregator cores all use
 (REQ-042 AC-11).
 
+## Routing Benchmark Corpus
+
+`eval_routing_corpus.py` loads the six-scenario corpus under
+`evals/routing-benchmark/scenarios/` and proves its graders discriminate
+(issue #5425, REQ-044, DESIGN-042). The corpus feeds the #5422 routing
+experiment. It names no model, so every strategy arm receives the same task.
+
+```bash
+uv run python scripts/eval/eval_routing_corpus.py
+```
+
+One scenario is one directory: `scenario.json`, the driver-visible `initial/`
+state, grader-only `hidden/` checks, and `known_good/` and `known_bad/`
+overlays. Every fixture file ends in `.fixture` so linters and pytest ignore
+it. The six categories are bounded implementation, multi-file invariants,
+investigation before edit, scope expansion, plausible but wrong, and
+architecture resolved before delegation.
+
+The grader is deterministic. A verdict is PASS only when no changed path is
+outside the allowed scope, every expected path changed, and every validation
+command exits 0. Judge dimensions are stored and never read.
+
+Exit codes: `0` every control held. `1` a control failed. `2` the corpus is
+invalid. The JSON report states how many scenarios were examined.
+
 ## Held-Out-Gated Optimization
 
 `optimize-artifact.py` adds the piece the rest of this directory is missing: a

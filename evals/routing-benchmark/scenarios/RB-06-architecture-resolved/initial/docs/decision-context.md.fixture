@@ -1,0 +1,24 @@
+# Export endpoint throttling: decision context
+
+The export endpoint is expensive. One client can start many exports at once
+and starve the others. The team wants a per-client limit of N calls per window.
+
+Facts from the current system:
+
+- The service runs as one process per host behind a sticky load balancer.
+- Operators accept a limit that is approximate across hosts.
+- There is no shared cache in the deployment today, and adding one is out of
+  scope for this change.
+- Tests must control time, so the limiter cannot read the wall clock itself.
+
+Open design question: which counting scheme should the limiter use?
+
+Options raised in review:
+
+1. A counter per client that resets when a fixed time window rolls over.
+   Cheap and predictable. A client can burst across a window edge.
+2. A log of recent call times per client. Exact, but memory grows with the
+   limit and the cost per call is higher.
+3. A shared-store token bucket. Exact across hosts, but needs a cache.
+
+No option is chosen yet. The choice belongs to whoever plans the work.
