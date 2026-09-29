@@ -127,8 +127,8 @@ Derive the route from discovered context (stack, tests, verifier, harness contro
 |---|---|---|
 | Bounded | Explicit scope, cheap failure, objective verifier: extraction, triage, small edits, transforms | Lowest offered |
 | Specified | Known files and patterns: implementation, review, first local repair | Low or medium |
-| Judgment | Ambiguity, architecture, repeated or cross-file repair, long-horizon agentic work, acceptance | Medium; high when those dominate |
-| Escalate | `acceptance_failed`, `repair_repeated`, `cross_file_contract_missed`, `diff_scope_exceeded` | Raise effort in tier, then up one tier; the top tier is escalation only, then a typed exception to the user; never more prompt text |
+| Judgment | Ambiguity, architecture, cross-file repair, long-horizon agentic work, acceptance | Medium; high when those dominate |
+| Escalate | `acceptance_failed`, `repair_repeated`, `cross_file_contract_missed`, `diff_scope_exceeded` | Raise effort in tier when offered, then one tier above where it failed; the top tier is escalation only, then a typed exception to the user; never more prompt text |
 
 Higher effort is not monotonically better; it can add latency and tokens without raising acceptance. Validate an effort per task shape and harness before defaulting to it.
 Model labels and agent roles are separate | tiers and labels advisory, not agents or IDs.
