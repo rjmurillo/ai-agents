@@ -68,6 +68,7 @@ EXPECTED_ORDER: tuple[str, ...] = (
     'Mypy Changed Files (ratchet)',
     'Markdown Linting',
     'Workflow YAML Validation',
+    'Required-Context Conditions (advisory)',
     'Copilot CLI Version Pin',
     'CI Dependency Pins',
     'ADR Lifecycle Frontmatter (ratchet)',
