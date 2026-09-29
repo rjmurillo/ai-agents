@@ -103,7 +103,7 @@ EXAMPLE_PLACEHOLDER_RE = re.compile(
 CITATION_LABEL_RE = re.compile(
     r"\bcitations?\b[^.\n]*,\s*not\s+(?:local\s+)?paths?\b", re.IGNORECASE
 )
-FENCE_RE = re.compile(r"^\s*(```|~~~)")
+FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})")
 
 
 def citation_block_lines(text: str) -> frozenset[int]:
@@ -115,7 +115,11 @@ def citation_block_lines(text: str) -> frozenset[int]:
     for lineno, line in enumerate(text.splitlines(), start=1):
         match = FENCE_RE.match(line)
         if fence:
-            if match and match.group(1) == fence:
+            if (
+                match
+                and match.group(1)[0] == fence[0]
+                and len(match.group(1)) >= len(fence)
+            ):
                 fence = ""
                 in_citation = False
             elif in_citation:
@@ -124,6 +128,7 @@ def citation_block_lines(text: str) -> frozenset[int]:
         if match:
             fence = match.group(1)
             in_citation = bool(CITATION_LABEL_RE.search(previous))
+            previous = ""
             continue
         if line.strip():
             previous = line
@@ -157,7 +162,7 @@ def line_has_example_placeholder(line: str) -> bool:
 
 
 def extract_skill_refs(text: str) -> Iterable[tuple[int, str]]:
-    for lineno, line in enumerate(text.splitlines(), start=1):
+    for lineno, line in _scannable_lines(text):
         if line_has_ignore_directive(line):
             continue
         for match in SKILL_REF_RE.finditer(line):
@@ -291,3 +296,28 @@ def extract_typed_skill_refs(text: str) -> set[tuple[int, str]]:
             if name:
                 typed.add((lineno, name))
     return typed
+
+
+def owner_skills_for_script(line: str, script_ref: str) -> list[str]:
+    """Return skills the line names as the owner of ``script_ref``.
+
+    Two phrasings bind a script to one skill: "``ref`` in the ``owner``
+    skill" and "the ``owner`` skill's ``ref``". A skill named elsewhere on the
+    line is not an owner of this reference (issue #5872).
+    """
+    ref = re.escape(script_ref)
+    patterns = (
+        rf"`{ref}`\s+(?:in|of|from)\s+the\s+`([a-z][a-z0-9-]*)`\s+skill\b",
+        rf"\bthe\s+`([a-z][a-z0-9-]*)`\s+skill's\s+`{ref}`",
+    )
+    return [
+        match.group(1)
+        for pattern in patterns
+        for match in re.finditer(pattern, line, re.IGNORECASE)
+    ]
+
+
+def is_explicit_skill_route(line: str, token: str) -> bool:
+    """True when the line points at one skill: "the/use/invoke `token` skill"."""
+    pattern = rf"\b(?:the|use|invoke|run|call)\s+`{re.escape(token)}`\s+skill\b"
+    return re.search(pattern, line, re.IGNORECASE) is not None

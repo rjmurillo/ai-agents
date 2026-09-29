@@ -16,8 +16,6 @@ author: spec
 
 # TASK-031: Agents composed from paired Claude/Copilot templates, src/claude/ layout move, binplace manifest introduced (B1)
 
-<!-- orphan-ref-ignore-file -->
-
 ## Objective
 
 Introduce two NEW templates per agent, `templates/agents/<stem>.claude.md.tmpl` and `templates/agents/<stem>.copilot.md.tmpl`, for every one of the 31 agents, composed from shared partials under `templates/agents/partials/`, with any Claude-only section confined to the `.claude.md.tmpl` variant. The existing `templates/agents/<stem>.shared.md` is NOT replaced: it stays exactly as it is today, unchanged, as the sole source `src/vs-code-agents/` renders from (ADR-109 section 5, untouched seam). Render the Claude variant into `src/claude/agents/<stem>.md` for the first time (retiring `src/claude/`'s hand-maintained status) losslessly against today's content, repoint the Copilot mirror (`.github/agents/`, `src/copilot-cli/agents/`) to render from the Copilot variant losslessly against today's output, and introduce the binplace manifest under `templates/platforms/` that every later class's PR extends with its own row.
@@ -61,7 +59,7 @@ Out of scope: reconciling the 18 divergent agent pairs' content into genuinely s
 | `templates/platforms/copilot-cli.yaml` | Modify | `agents` stanza's `sourceDir` repointed off `.claude/agents` (documentation-only; `generate_agents.py` does not read this field); every other stanza unchanged |
 | `build/scripts/build_all.py` | Modify | Introduce `_binplace()`; generalize `assert_no_claude_writes`'s `allowed_paths` to read the manifest; widen `OWNED_PREFIXES` to include `.claude/agents/` |
 | `build/scripts/binplace_manifest.py` | Create | Manifest load, validation (path containment), and allowlist derivation, per DESIGN-025 |
-| `tests/build_scripts/test_agent_templates.py` | Create | Positive, negative, edge cases for the paired-template compile |
+| `tests/build_scripts/test_agent_templates.py` | Create | Positive, negative, edge cases for the paired-template compile | <!-- orphan-ref-ignore -->
 | `tests/build_scripts/test_agent_templates_lossless.py` | Create | Byte-identity fixture test against a pre-task snapshot of `src/claude/*.md` and `src/copilot-cli/agents/` |
 | `tests/build_scripts/test_binplace_manifest.py` | Create | Manifest load and containment validation |
 | `scripts/validation/checks_portability.py`, `pre_pr_sequence.py`, `pre_pr.py` | Modify | New `Agent Template Drift` gate wrapper, `_Gate` row, facade re-export |

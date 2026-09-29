@@ -21,8 +21,6 @@ tags:
 
 # REQ-023: ADR-100 items 2-4, demote scope and atomic-commit gates to advisory
 
-<!-- orphan-ref-ignore-file -->
-
 ## Step 0 First Principles
 
 ### Q1 Demand Reality
@@ -40,7 +38,7 @@ blocking behavior rather than adding it.
 ### Q2 Status Quo
 
 `check_atomic_commit` still blocks on the five-file commit ceiling (ADR-100
-item 2 target). `scripts/detect_scope_explosion.py`'s
+item 2 target). `scripts/detect_scope_explosion.py`'s <!-- orphan-ref-ignore -->
 `BLOCK_THRESHOLD = 50` still returns 1 above the threshold, blocking pushes
 (item 3 target). `SKIP_SCOPE_CHECK` still exists as a self-attested bypass
 flag with a recorded abuse history
@@ -54,9 +52,9 @@ of an already-accepted decision.
 ### Q3 Desperate Specificity
 
 Issue #5241 and the specific code paths ADR-100 names: `check_atomic_commit`
-(item 2), `scripts/detect_scope_explosion.py`'s `BLOCK_THRESHOLD` and its
+(item 2), `scripts/detect_scope_explosion.py`'s `BLOCK_THRESHOLD` and its <!-- orphan-ref-ignore -->
 `_partition_generated` exclusion list (item 3), and the `SKIP_SCOPE_CHECK`
-env-var honor in `scripts/detect_scope_explosion.py` (item 4). These are blocked purely
+env-var honor in `scripts/detect_scope_explosion.py` (item 4). These are blocked purely <!-- orphan-ref-ignore -->
 on someone implementing an already-accepted decision, not on any open
 design question.
 
@@ -257,7 +255,7 @@ or alert; this is a one-time behavior change to an existing gate.
       rather than reviewable change, per ADR-100 item 3's extension
       instruction.
 - [ ] REQ-023-AC5: WHEN `SKIP_SCOPE_CHECK` is read anywhere in
-      `scripts/detect_scope_explosion.py`, THE SYSTEM SHALL no longer honor
+      `scripts/detect_scope_explosion.py`, THE SYSTEM SHALL no longer honor <!-- orphan-ref-ignore -->
       it (the flag and its handling are removed), AND this removal SHALL
       land in the same PR as AC-03/AC-04, never before them, SO THAT ADR-100
       item 4 lands without a window where the gate blocks with no relief
@@ -361,7 +359,7 @@ blocking behavior from two gates and one bypass flag outright.
 - `.project-toolkit/architecture/ADR-100-retire-pr-size-ceilings.md` (source of
   truth for scope and ordering)
 - `.claude/rules/universal.md` (MUST-6 text to reduce)
-- `scripts/detect_scope_explosion.py`
+- `scripts/detect_scope_explosion.py` <!-- orphan-ref-ignore -->
 - `tests/validation/test_always_on_corpus_claims.py`,
   `tests/validation/test_audit_procedure_claims.py`
 - `.project-toolkit/retrospective/2026-08-07-pr-4402-scope-bypass.md`

@@ -158,9 +158,9 @@ Script references on example-placeholder lines are ignored automatically. This c
 
 A fenced block whose last prose line before the fence says "citations, not local paths" is a citation block. The scanner skips its references and reports them under `directive_suppressed` with reason `citation block`. Rule templates use this for historical evidence lists (issue #5872).
 
-Backticked skill routing-role values (`front-door`, `explicit-only`, `conditional-adjunct`, `lifecycle`, `nested-helper`, `deprecated`) are category words, not skill names. A line like "a `front-door` skill" produces no `skill_name` finding unless a skill with that name exists. A script cited by a skill-relative path, followed by "in the" and a backticked skill name, also resolves against that named skill's directory.
+Backticked skill routing-role values (`front-door`, `explicit-only`, `conditional-adjunct`, `lifecycle`, `nested-helper`, `deprecated`) are category words, not skill names. A line like "a `front-door` skill" produces no `skill_name` finding. An explicit route such as "the `lifecycle` skill" still does when no such skill exists. A script cited by a skill-relative path, followed by "in the" and a backticked skill name, also resolves against that named skill's directory.
 
-Specs stay in scope. A spec that records files a later PR deleted carries a file-scope directive, so live specs keep their orphan checks (issue #5872).
+Specs stay in scope. A spec that records files a later PR deleted carries a line-scope directive on each such line, so the rest of the spec keeps its orphan checks (issue #5872).
 
 Use file-scope on M1-deletion specs and proposed-entity catalogs whose every reference is intentional history. Use line-scope for one-off references that document an absence (for example, "the script `scripts/validation/manifest_counts.py` was not created").
 

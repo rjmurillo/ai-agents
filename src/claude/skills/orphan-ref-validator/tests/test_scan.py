@@ -2580,3 +2580,73 @@ class TestScriptNamedInASkillResolvesThere:
         write(target, "- `scripts/run.py` is used.\n")
         result = scan([target], fake_repo)
         assert [f.referenced_entity for f in result.findings] == ["scripts/run.py"]
+
+
+class TestReviewFindingsOnCitationAndOwnerHandling:
+    """Regression pins for PR #6003 review threads."""
+
+    def test_deleted_skill_inside_citation_block_is_not_flagged(self, fake_repo):
+        target = fake_repo / "docs" / "cite.md"
+        write(
+            target,
+            "Treat them as citations, not local paths:\n\n"
+            "```text\n- Use the `doc-sync` skill\n```\n",
+        )
+        result = scan([target], fake_repo)
+        assert [f for f in result.findings if f.kind == "skill_name"] == []
+
+    def test_deleted_skill_outside_citation_block_is_flagged(self, fake_repo):
+        target = fake_repo / "docs" / "live.md"
+        write(target, "Use the `ghost-skill` skill now.\n")
+        result = scan([target], fake_repo)
+        assert [f.referenced_entity for f in result.findings] == ["ghost-skill"]
+
+    def test_script_missing_from_stated_owner_flags_despite_other_skill(self, fake_repo):
+        write(fixture_catalog(fake_repo) / "alpha-skill" / "scripts" / "run.py", "#\n")
+        target = fake_repo / "docs" / "two.md"
+        write(
+            target,
+            "Use the `beta-skill` skill's `scripts/run.py`, not the `alpha-skill` skill.\n",
+        )
+        result = scan([target], fake_repo)
+        assert [f.referenced_entity for f in result.findings] == ["scripts/run.py"]
+
+    def test_possessive_owner_phrase_resolves(self, fake_repo):
+        write(fixture_catalog(fake_repo) / "beta-skill" / "scripts" / "run.py", "#\n")
+        target = fake_repo / "docs" / "poss.md"
+        write(target, "See the `beta-skill` skill's `scripts/run.py`.\n")
+        result = scan([target], fake_repo)
+        assert [f for f in result.findings if f.kind == "script_path"] == []
+
+    def test_deleted_skill_named_like_a_role_is_flagged_on_explicit_route(self, fake_repo):
+        target = fake_repo / "docs" / "route.md"
+        write(target, "Invoke the `lifecycle` skill now.\n")
+        result = scan([target], fake_repo)
+        assert [f.referenced_entity for f in result.findings] == ["lifecycle"]
+
+    def test_longer_outer_fence_survives_inner_fence(self, fake_repo):
+        target = fake_repo / "docs" / "nested.md"
+        write(
+            target,
+            "Treat these as citations, not paths:\n"
+            "````text\n"
+            "```python\n"
+            "`scripts/inner.py`\n"
+            "```\n"
+            "`scripts/gone.py`\n"
+            "````\n"
+            "`scripts/after.py`\n",
+        )
+        result = scan([target], fake_repo)
+        assert [f.referenced_entity for f in result.findings] == ["scripts/after.py"]
+
+    def test_label_does_not_carry_to_the_next_fence(self, fake_repo):
+        target = fake_repo / "docs" / "adjacent.md"
+        write(
+            target,
+            "Treat these as citations, not paths:\n"
+            "```text\n`scripts/a.py`\n```\n"
+            "```text\n`scripts/b.py`\n```\n",
+        )
+        result = scan([target], fake_repo)
+        assert [f.referenced_entity for f in result.findings] == ["scripts/b.py"]

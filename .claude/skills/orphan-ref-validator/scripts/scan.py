@@ -96,7 +96,6 @@ if __package__ in (None, ""):
     )
     from patterns import (
         FILE_IGNORE_DIRECTIVE_RE,
-        SKILL_TYPED_REF_RE,
         extract_all_reference_candidates,
         extract_citation_block_refs,
         extract_directive_suppressed_refs,
@@ -107,6 +106,8 @@ if __package__ in (None, ""):
         extract_skill_refs,
         extract_skill_script_refs,
         extract_typed_skill_refs,
+        is_explicit_skill_route,
+        owner_skills_for_script,
     )
     from walking import collect_walk_targets
 else:
@@ -138,7 +139,6 @@ else:
     )
     from .patterns import (
         FILE_IGNORE_DIRECTIVE_RE,
-        SKILL_TYPED_REF_RE,
         extract_all_reference_candidates,
         extract_citation_block_refs,
         extract_directive_suppressed_refs,
@@ -149,6 +149,8 @@ else:
         extract_skill_refs,
         extract_skill_script_refs,
         extract_typed_skill_refs,
+        is_explicit_skill_route,
+        owner_skills_for_script,
     )
     from .walking import collect_walk_targets
 
@@ -344,6 +346,20 @@ def _io_error_type(exc: OSError) -> str:
     return "config"
 
 
+def _is_role_category_use(
+    ref: str, lines: list[str], lineno: int, known_skills: set[str]
+) -> bool:
+    """True when a role value names a category, not a specific skill.
+
+    "a ``front-door`` skill" describes a class. "the ``lifecycle`` skill" is a
+    route to one skill, so a deleted skill of that name must still be found.
+    """
+    if not is_routing_role_value(ref) or ref in known_skills:
+        return False
+    line = lines[lineno - 1] if 0 < lineno <= len(lines) else ""
+    return not is_explicit_skill_route(line, ref)
+
+
 def _check_skill_refs(
     text: str,
     rel: str,
@@ -406,7 +422,7 @@ def _check_skill_refs(
         line = lines[lineno - 1] if 0 < lineno <= len(lines) else ""
         if _is_known_kebab_word(ref) or _is_qualified_foreign_skill(ref, line):
             continue
-        if is_routing_role_value(ref) and ref not in known_skills:
+        if _is_role_category_use(ref, lines, lineno, known_skills):
             continue
         is_typed = (lineno, ref) in typed
         in_retired = _is_known_retired_kebab_skill(ref)
@@ -429,7 +445,7 @@ def _check_skill_refs(
     for lineno, ref in extract_single_word_skill_refs(text):
         if _is_metasyntactic_placeholder(ref):
             continue
-        if is_routing_role_value(ref) and ref not in known_skills:
+        if _is_role_category_use(ref, lines, lineno, known_skills):
             continue
         is_typed = (lineno, ref) in typed
         if typed_only and not is_typed:
@@ -499,18 +515,18 @@ def _script_ref_resolves(
 
 
 def _resolves_in_named_skill(script_ref: str, repo_root: Path, line: str) -> bool:
-    """True when the line says the script lives in a named skill and it does.
+    """True when the line names this script's owner skill and the file exists.
 
     Prose such as "``scripts/resolve_route.py`` in the ``autoplan`` skill"
     states the owner explicitly, so resolve against that skill's directory.
-    A named skill that lacks the file still yields a finding (issue #5872).
+    Only an owner bound to this reference counts: a script missing from its
+    stated owner still yields a finding even when another skill on the line
+    ships a file of that name (issue #5872).
     """
-    for match in SKILL_TYPED_REF_RE.finditer(line):
-        name = next((g for g in match.groupdict().values() if g), None)
-        skill_path = skills_dir(repo_root) / name / script_ref if name else None
-        if skill_path is not None and _exists_under_repo(repo_root, skill_path):
-            return True
-    return False
+    return any(
+        _exists_under_repo(repo_root, skills_dir(repo_root) / name / script_ref)
+        for name in owner_skills_for_script(line, script_ref)
+    )
 
 
 def _check_script_refs(
