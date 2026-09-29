@@ -100,40 +100,78 @@ class TestMain:
         captured = capsys.readouterr()
         assert "Spec validation failed" in captured.out
 
-    def test_both_infra_failures_returns_0(self, capsys):
-        """Infrastructure failures should not block merge."""
+    def test_both_infra_failures_fail_closed(self, capsys):
+        """Issue #5738: a required check that could not run must not pass."""
         rc = main([
             "--trace-verdict", "CRITICAL_FAIL",
             "--completeness-verdict", "CRITICAL_FAIL",
             "--trace-infra-failure", "true",
             "--completeness-infra-failure", "true",
         ])
-        assert rc == 0
+        assert rc == 1
         output = capsys.readouterr().out
         assert "infrastructure failure" in output.lower()
-        assert "Copilot CLI unavailable" not in output
+        assert "rotate the COPILOT_GITHUB_TOKEN secret" in output
+        assert "fails closed" in output
+        assert "Not blocking merge" not in output
+        assert "Spec validation passed" not in output
+        assert "::warning::" not in output
 
-    def test_trace_infra_failure_only(self, capsys):
-        """When only trace has infra failure, completeness PASS still passes."""
+    def test_both_infra_failures_fail_closed_even_with_pass_verdicts(self, capsys):
+        """Edge: the flag alone blocks, whatever the raw verdict text says."""
+        rc = main([
+            "--trace-verdict", "PASS",
+            "--completeness-verdict", "PASS",
+            "--trace-infra-failure", "1",
+            "--completeness-infra-failure", "yes",
+        ])
+        assert rc == 1
+        assert "Spec validation passed" not in capsys.readouterr().out
+
+    def test_infra_flag_is_case_insensitive(self):
+        rc = main([
+            "--trace-verdict", "PASS",
+            "--completeness-verdict", "PASS",
+            "--trace-infra-failure", "TRUE",
+        ])
+        assert rc == 1
+
+    def test_false_infra_flags_do_not_block_a_passing_run(self, capsys):
+        """Negative control: flags that are not truthy leave a pass green."""
+        rc = main([
+            "--trace-verdict", "PASS",
+            "--completeness-verdict", "PASS",
+            "--trace-infra-failure", "false",
+            "--completeness-infra-failure", "",
+        ])
+        assert rc == 0
+        output = capsys.readouterr().out
+        assert "Spec validation passed" in output
+        assert "rotate" not in output
+
+    def test_trace_infra_failure_only_fails_closed(self, capsys):
+        """Half of validation missing is still missing evidence: block."""
         rc = main([
             "--trace-verdict", "CRITICAL_FAIL",
             "--completeness-verdict", "PASS",
             "--trace-infra-failure", "true",
         ])
-        assert rc == 0
+        assert rc == 1
         output = capsys.readouterr().out
-        assert "partially completed" in output
+        assert "Traceability check did not run" in output
+        assert "rotate the COPILOT_GITHUB_TOKEN secret" in output
         assert "Spec validation passed" not in output
 
-    def test_completeness_infra_failure_only(self, capsys):
+    def test_completeness_infra_failure_only_fails_closed(self, capsys):
         rc = main([
             "--trace-verdict", "PASS",
             "--completeness-verdict", "CRITICAL_FAIL",
             "--completeness-infra-failure", "true",
         ])
-        assert rc == 0
+        assert rc == 1
         output = capsys.readouterr().out
-        assert "partially completed" in output
+        assert "Completeness check did not run" in output
+        assert "rotate the COPILOT_GITHUB_TOKEN secret" in output
         assert "Spec validation passed" not in output
 
     def test_real_fail_not_masked_by_infra(self):
@@ -144,6 +182,16 @@ class TestMain:
             "--trace-infra-failure", "true",
         ])
         assert rc == 1
+
+    def test_real_fail_reports_failure_message_alongside_infra(self, capsys):
+        """A genuine FAIL on the healthy side names the real failure."""
+        rc = main([
+            "--trace-verdict", "CRITICAL_FAIL",
+            "--completeness-verdict", "FAIL",
+            "--trace-infra-failure", "true",
+        ])
+        assert rc == 1
+        assert "Spec validation failed" in capsys.readouterr().out
 
     def test_findings_text_does_not_suppress_failures(self):
         """Free-form findings cannot override structured failure flags."""
