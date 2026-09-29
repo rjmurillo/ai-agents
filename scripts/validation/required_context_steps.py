@@ -82,7 +82,13 @@ def _step_source_map(
         ident = ident.lower()
         body = step_body_text(step)
         sources = sources_in(body, SOURCES)
-        for source in env_sources(body, tainted_env):
+        # A step's own `env:` replaces a workflow or job value of the same name
+        # for that step's body. If the override itself reads a source, the body
+        # text above already carries it, so only the untainted overrides need
+        # to hide the inherited taint.
+        overridden = {str(name).lower() for name in mapping(step, "env")}
+        inherited = {n: v for n, v in tainted_env.items() if n not in overridden}
+        for source in env_sources(body, inherited):
             if source not in sources:
                 sources.append(source)
         if sources:
