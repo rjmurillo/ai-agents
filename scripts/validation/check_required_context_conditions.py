@@ -14,8 +14,8 @@ the relocated form and says exactly what it is worth:
     `github.actor`. It narrows the window and does not close it."
 
 It is P0 code, so it is advisory by the ADR's own rule 1: the pull request it
-gates can edit it. What closes the window is the base-ref publisher in
-requirement 2, which this module does not provide and must not be cited as.
+gates can edit it. Requirement 2's base-ref publisher closes the window; this
+module does not, and must not be cited as if it did.
 
 Findings, by kind:
 
@@ -41,21 +41,19 @@ Findings, by kind:
 
 What this lint does not see, so a clean run is not read as more than it is:
 
-  - A condition relocated two or more levels: a step reading `steps.b.outputs`
-    where `b` itself only read `steps.a.outputs`.
+  - A condition relocated two levels: `steps.b.outputs` where `b` only read
+    `steps.a.outputs`.
   - A script the job runs that decides scope, such as which tests a partition
-    selects, or a checked-in Python module that reads the event itself.
+    selects or a module that reads the event itself.
   - A condition in a job the producing job depends on. Only the producing job's
     own steps and job `if:` are read.
   - A job-level `if:` on `github.event_name` or `github.actor`. Only
-    `needs.<job>.outputs` is flagged at job level, though a job skipped by an
-    event or actor term reports success the same way.
-  - A workflow-level `on.<event>.paths` or `paths-ignore` filter, which decides
-    whether the whole workflow runs and so is the syntactic form of the same
-    gate.
-  - A job that calls a reusable workflow (`uses:`). It has no steps here, so it
-    reads as clean whatever the called workflow does.
-  - Any spelling the patterns below do not name, for example
+    `needs.<job>.outputs` is flagged at job level, though a skipped job
+    reports success the same way.
+  - A workflow-level `on.<event>.paths` or `paths-ignore` filter, the
+    syntactic form of the same gate.
+  - A job that calls a reusable workflow (`uses:`): no steps here, so it reads
+    as clean. Or any spelling the patterns do not name, such as
     `github.event.sender.login`.
 
 Job identity mirrors `scripts/github_core/workflow_event_subscriptions.py`,
@@ -69,23 +67,21 @@ Job identity mirrors `scripts/github_core/workflow_event_subscriptions.py`,
     cannot publish.
 
 A job is named by its `name:` when it declares one and by its job id otherwise,
-which is the string branch protection matches. Different from that module: it
-reads whole-file subscriptions, this one keeps the job-to-context pairing so a
-finding can name the job.
+which is the string branch protection matches. Different from that module: this
+one keeps the job-to-context pairing so a finding can name the job.
 
 EXIT CODES (ADR-035):
   0 - no findings, or findings under --advisory
   1 - findings
-  2 - configuration: the workflow directory is missing or a workflow does not parse
+  2 - configuration: the workflow directory is missing or a workflow is unparseable
 
-`validate_required_context_conditions` is the pre-PR gate. It is advisory: it
-prints findings and always returns True, for the reason this module gives above.
+`validate_required_context_conditions` is the advisory pre-PR gate: it prints
+findings and always returns True.
 """
 
 from __future__ import annotations
 
 import argparse
-import re
 import sys
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
@@ -97,6 +93,17 @@ import yaml
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
+
+from required_context_sources import (  # noqa: E402
+    JOB_SOURCES,
+    SOURCES,
+    STEP_OUTPUT,
+    condition_sources,
+    env_sources,
+    sources_in,
+    step_body_text,
+    text,
+)
 
 from scripts.ci.ruleset_required_contexts import REQUIRED_CONTEXTS  # noqa: E402
 
@@ -111,41 +118,6 @@ KIND_PRODUCERS = "producer-count"
 
 _EXPRESSION_MARKER = "${{"
 
-# Bracket forms (`needs['job'].outputs`) are equivalent to dotted access in the
-# expression language, so both spellings are matched. `GITHUB_EVENT_NAME` and
-# `GITHUB_ACTOR` are the environment spellings of the same two values; a step
-# body reads them without an expression, which is how the relocation happens.
-# The expression language is case-insensitive for context and property names, so
-# `github.Actor` and `NEEDS.x.OUTPUTS` are the same reads and are matched too.
-# `GITHUB_TRIGGERING_ACTOR` and `github.triggering_actor` are the actor of a
-# re-run, which is a different value but the same kind of outside source.
-_FLAGS = re.IGNORECASE
-_NEEDS_OUTPUTS = re.compile(
-    r"\bneeds(?:\.[A-Za-z0-9_-]+|\[\s*['\"][^'\"]+['\"]\s*\])\.outputs\b", _FLAGS
-)
-_EVENT_NAME = re.compile(
-    r"\bgithub(?:\.event_name|\[\s*['\"]event_name['\"]\s*\])|\bGITHUB_EVENT_NAME\b",
-    _FLAGS,
-)
-_ACTOR = re.compile(
-    r"\bgithub(?:\.(?:triggering_)?actor|\[\s*['\"](?:triggering_)?actor['\"]\s*\])"
-    r"|\bGITHUB_(?:TRIGGERING_)?ACTOR\b",
-    _FLAGS,
-)
-_STEP_OUTPUT = re.compile(
-    r"\bsteps(?:\.([A-Za-z0-9_-]+)|\[\s*['\"]([^'\"]+)['\"]\s*\])\.outputs\b", _FLAGS
-)
-_ENV_READ = re.compile(r"\benv\.([A-Za-z0-9_]+)\b", _FLAGS)
-
-_SOURCES: tuple[tuple[str, re.Pattern[str]], ...] = (
-    ("needs.*.outputs", _NEEDS_OUTPUTS),
-    ("github.event_name", _EVENT_NAME),
-    ("github.actor", _ACTOR),
-)
-_JOB_SOURCES: tuple[tuple[str, re.Pattern[str]], ...] = (
-    ("needs.*.outputs", _NEEDS_OUTPUTS),
-)
-_STEP_BODY_KEYS = ("env", "with", "run", "if")
 
 
 class WorkflowLoadError(Exception):
@@ -246,46 +218,6 @@ def producing_jobs(
     return found
 
 
-# `yaml.safe_load` expands an alias into a shared reference, so a small file can
-# describe a structure whose `str()` is exponentially large. Walk the scalars
-# under a node budget and a depth cap instead of stringifying the container.
-_MAX_NODES = 10_000
-_MAX_DEPTH = 32
-
-
-def _text(value: object) -> str:
-    """Join the scalar leaves of ``value`` into one string, bounded in work done.
-
-    A bare boolean or number is a valid `if:` value in YAML. It references
-    nothing, so it is coerced to text rather than skipped as a type error.
-    """
-    parts: list[str] = []
-    stack: list[tuple[object, int]] = [(value, 0)]
-    budget = _MAX_NODES
-    while stack and budget > 0:
-        node, depth = stack.pop()
-        budget -= 1
-        if isinstance(node, Mapping):
-            if depth < _MAX_DEPTH:
-                stack.extend((child, depth + 1) for child in node.values())
-        elif isinstance(node, list):
-            if depth < _MAX_DEPTH:
-                stack.extend((child, depth + 1) for child in node)
-        else:
-            parts.append(str(node))
-    return "\n".join(parts)
-
-
-def _sources_in(text: str, sources: Sequence[tuple[str, re.Pattern[str]]]) -> list[str]:
-    return [name for name, pattern in sources if pattern.search(text)]
-
-
-def _condition_sources(
-    condition: object, sources: Sequence[tuple[str, re.Pattern[str]]]
-) -> list[str]:
-    return _sources_in(_text(condition), sources)
-
-
 def _step_label(index: int, step: Mapping[str, Any]) -> str:
     name = step.get("name")
     if isinstance(name, str) and name:
@@ -303,10 +235,6 @@ def _steps(producer: ProducingJob) -> list[tuple[int, Mapping[str, Any]]]:
     return [(i, s) for i, s in enumerate(steps) if isinstance(s, Mapping)]
 
 
-def _step_body_text(step: Mapping[str, Any]) -> str:
-    return "\n".join(_text(step[key]) for key in _STEP_BODY_KEYS if key in step)
-
-
 def _tainted_env(producer: ProducingJob) -> dict[str, list[str]]:
     """Map each workflow-level or job-level env name to the sources its value reads.
 
@@ -317,21 +245,12 @@ def _tainted_env(producer: ProducingJob) -> dict[str, list[str]]:
     tainted: dict[str, list[str]] = {}
     for scope in (producer.workflow_env, _mapping(producer.body, "env")):
         for name, value in scope.items():
-            sources = _sources_in(_text(value), _SOURCES)
+            sources = sources_in(text(value), SOURCES)
             if sources:
                 tainted[str(name)] = sources
             else:
                 tainted.pop(str(name), None)
     return tainted
-
-
-def _env_sources(text: str, tainted_env: Mapping[str, list[str]]) -> list[str]:
-    found: list[str] = []
-    for match in _ENV_READ.finditer(text):
-        for source in tainted_env.get(match.group(1), []):
-            if source not in found:
-                found.append(source)
-    return found
 
 
 def _step_source_map(
@@ -343,9 +262,9 @@ def _step_source_map(
         ident = step.get("id")
         if not isinstance(ident, str) or not ident:
             continue
-        text = _step_body_text(step)
-        sources = _sources_in(text, _SOURCES)
-        for source in _env_sources(text, tainted_env):
+        body = step_body_text(step)
+        sources = sources_in(body, SOURCES)
+        for source in env_sources(body, tainted_env):
             if source not in sources:
                 sources.append(source)
         if sources:
@@ -362,7 +281,7 @@ def _step_findings(producer: ProducingJob) -> list[Finding]:
         if "if" not in step:
             continue
         label = _step_label(index, step)
-        direct = _condition_sources(step["if"], _SOURCES)
+        direct = condition_sources(step["if"], SOURCES)
         if direct:
             findings.append(
                 Finding(
@@ -387,10 +306,10 @@ def _relocated_findings(
     tainted: Mapping[str, list[str]],
     tainted_env: Mapping[str, list[str]],
 ) -> list[Finding]:
-    text = _text(condition)
+    condition_text = text(condition)
     findings: list[Finding] = []
     seen: set[str] = set()
-    for match in _STEP_OUTPUT.finditer(text):
+    for match in STEP_OUTPUT.finditer(condition_text):
         ident = match.group(1) or match.group(2)
         if ident in seen or ident not in tainted:
             continue
@@ -406,15 +325,15 @@ def _relocated_findings(
                 label,
             )
         )
-    env_sources = _env_sources(text, tainted_env)
-    if env_sources:
+    env_found = env_sources(condition_text, tainted_env)
+    if env_found:
         findings.append(
             Finding(
                 KIND_RELOCATED,
                 producer.context,
                 producer.workflow,
                 producer.job_id,
-                f"step `if:` reads an env value that is set from {', '.join(env_sources)}",
+                f"step `if:` reads an env value that is set from {', '.join(env_found)}",
                 label,
             )
         )
@@ -424,7 +343,7 @@ def _relocated_findings(
 def _job_findings(producer: ProducingJob) -> list[Finding]:
     if "if" not in producer.body:
         return []
-    refs = _condition_sources(producer.body["if"], _JOB_SOURCES)
+    refs = condition_sources(producer.body["if"], JOB_SOURCES)
     if not refs:
         return []
     return [
