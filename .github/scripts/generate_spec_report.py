@@ -137,7 +137,7 @@ def _findings_section(is_infra: bool, findings: str) -> str:
     """Return a side's findings body, labeled when that side is infra-flagged.
 
     The raw Copilot CLI output stays visible: dropping it loses observability
-    on this fail-open path (issue #5738). An infra-flagged side's raw verdict
+    on this infrastructure-failure path (issue #5738). An infra-flagged side's raw verdict
     (typically `CRITICAL_FAIL`) describes a process that never completed, not
     a code-quality judgement, so it is prefixed with a label stating the
     check did not run, and that the text below is unevaluated output, not a
@@ -218,7 +218,7 @@ def _build_full_report(
     its raw AI-review verdict (typically `CRITICAL_FAIL`): that verdict
     describes a Copilot CLI process that never completed, not a code-quality
     judgement. The raw text is still shown in that side's details block
-    (`_findings_section`), so the fail-open path keeps its observability, but
+    (`_findings_section`), so the failure path keeps its observability, but
     labeled so it reads as unevaluated output, not a verdict (issue #5738).
     """
     if final_verdict == "INFRA_FAILURE":
@@ -249,17 +249,18 @@ def _build_full_report(
 > check marked `INFRA_FAILURE (did not run)` below contributed no verdict:
 > Copilot CLI failed after retries and never evaluated that side of this PR.
 > The **Final Verdict: FAIL** above comes from the side that did run, and it
-> blocks merge under normal policy. If the infrastructure failure persists,
-> check `COPILOT_GITHUB_TOKEN` scope, rate limits, or network connectivity.
+> blocks merge. The infrastructure failure would also block merge on its own
+> (fail closed). Rotate the `COPILOT_GITHUB_TOKEN` secret, then re-run.
 """
         else:
             infra_note = """
 > [!WARNING]
 > **Infrastructure failure detected.** A check marked `INFRA_FAILURE (did not run)`
 > below is not a code-quality result: Copilot CLI failed after retries and never
-> evaluated this PR. Per current policy this does not block merge (see
-> `.agents/governance/FAIL-OPEN-INVENTORY.md`). If this persists, check
-> `COPILOT_GITHUB_TOKEN` scope, rate limits, or network connectivity.
+> evaluated this PR. This required check fails closed, so it blocks merge until
+> validation runs. Operator action: rotate the `COPILOT_GITHUB_TOKEN` secret,
+> then re-run the workflow. Also check the Copilot monthly quota, rate limits,
+> and network connectivity.
 """
 
     trace_findings_body = _findings_section(trace_infra, trace_findings)
@@ -344,9 +345,8 @@ def main(argv: list[str] | None = None) -> int:
 
         if trace_infra and completeness_infra:
             # Neither side produced a real verdict; nothing here is PASS,
-            # FAIL, or WARN. Mirrors check_spec_failures.py's own
-            # both-infra branch, which likewise never reaches
-            # spec_validation_failed on raw CRITICAL_FAIL verdicts.
+            # FAIL, or WARN. check_spec_failures.py blanks infra-flagged
+            # verdicts before spec_validation_failed, then fails closed.
             final_verdict = "INFRA_FAILURE"
         else:
             trace_for_verdict = "" if trace_infra else trace_verdict
@@ -357,9 +357,9 @@ def main(argv: list[str] | None = None) -> int:
                 final_verdict = "FAIL"
             elif trace_infra or completeness_infra:
                 # One side could not run; the other side did not fail, but
-                # only half of validation completed. WARN says "not fully
-                # validated," which PASS would not.
-                final_verdict = "WARN"
+                # only half of validation completed. check_spec_failures.py
+                # fails closed on either side, so the report says so.
+                final_verdict = "INFRA_FAILURE"
             elif trace_verdict == "WARN" or completeness_verdict == "WARN":
                 final_verdict = "WARN"
             else:

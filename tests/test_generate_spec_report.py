@@ -289,11 +289,11 @@ class TestMainWithSpecs:
 # ---------------------------------------------------------------------------
 # Tests: main - infrastructure failure (issue #5738)
 #
-# check_spec_failures.py governs whether the required check blocks merge;
-# these tests govern the separate, non-blocking PR comment channel that
-# operators actually read. Before this fix, an infra failure rendered the
-# raw AI-review verdict (CRITICAL_FAIL) unlabeled, indistinguishable from a
-# real code-quality rejection.
+# check_spec_failures.py governs whether the required check blocks merge
+# (it fails closed on infrastructure failure); these tests govern the
+# separate PR comment channel that operators actually read. Before this fix,
+# an infra failure rendered the raw AI-review verdict (CRITICAL_FAIL)
+# unlabeled, indistinguishable from a real code-quality rejection.
 # ---------------------------------------------------------------------------
 
 
@@ -322,7 +322,9 @@ class TestMainInfraFailure:
         assert "Final Verdict: INFRA_FAILURE" in report
         assert "Final Verdict: FAIL" not in report
         assert "Final Verdict: PASS" not in report
-        assert "does not block merge" in report
+        assert "fails closed" in report
+        assert "rotate the `COPILOT_GITHUB_TOKEN` secret" in report
+        assert "does not block merge" not in report
         # The summary table cell is the displayed verdict an operator scans;
         # it must show the honest label, never the bare raw verdict.
         assert "| Requirements Traceability | `INFRA_FAILURE (did not run)` |" in report
@@ -370,12 +372,15 @@ class TestMainInfraFailure:
         assert "Final Verdict: FAIL" in report
         assert "Final Verdict: INFRA_FAILURE" not in report
         assert "does not block merge" not in report
-        assert "blocks merge under normal policy" in report
+        assert "blocks merge." in report
 
-    def test_one_sided_infra_failure_yields_warn_not_pass(self, tmp_path, monkeypatch):
-        """Edge: one side down and the other healthy is WARN, not a clean
-        PASS, and the summary table's own cell (not the boilerplate note
-        text) is what proves the infra side is labeled."""
+    def test_one_sided_infra_failure_yields_infra_failure_not_pass(
+        self, tmp_path, monkeypatch
+    ):
+        """Edge: one side down and the other healthy is INFRA_FAILURE (the
+        gate fails closed), not a clean PASS or WARN, and the summary
+        table's own cell (not the boilerplate note text) is what proves the
+        infra side is labeled."""
         _setup_output(tmp_path, monkeypatch)
         report_dir = tmp_path / "ai-review-results"
         with patch(
@@ -391,9 +396,11 @@ class TestMainInfraFailure:
             ))
         assert rc == 0
         report = (report_dir / "spec-validation-report.md").read_text()
-        assert "Final Verdict: WARN" in report
+        assert "Final Verdict: INFRA_FAILURE" in report
         assert "Final Verdict: PASS" not in report
-        assert "does not block merge" in report
+        assert "Final Verdict: WARN" not in report
+        assert "fails closed" in report
+        assert "does not block merge" not in report
         assert "| Requirements Traceability | `INFRA_FAILURE (did not run)` |" in report
         assert "| Requirements Traceability | `CRITICAL_FAIL` |" not in report
         assert "| Implementation Completeness | `PASS` |" in report

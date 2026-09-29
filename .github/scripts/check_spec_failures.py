@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """Check spec validation verdicts and fail the workflow if needed.
 
+Exit codes: 0 when both checks ran and none failed. 1 when either check
+failed, or when either check did not run because of an infrastructure
+failure (fail closed, issue #5738).
+
 Input env vars (used as defaults for CLI args):
     TRACE_VERDICT              - Verdict from traceability check
     COMPLETENESS_VERDICT       - Verdict from completeness check
@@ -24,6 +28,22 @@ workspace = os.environ.get(
 sys.path.insert(0, workspace)
 
 from scripts.ai_review_common import spec_validation_failed  # noqa: E402
+
+# Fail closed: a required check that could not run is not a pass. Follows
+# .claude/rules/security.md MUST 7: "A required security review that does not
+# run MUST produce a blocking verdict. Infrastructure failure is not a
+# security pass."
+# Copilot CLI authenticates with COPILOT_GITHUB_TOKEN, so an infrastructure
+# failure points at that secret first (issue #5738). Recent runs reported
+# "You have exceeded your monthly quota", so the account behind the token
+# matters as much as the token.
+INFRA_FAILURE_ERROR = (
+    "::error::Spec validation could not run due to infrastructure failure, "
+    "so this required check fails closed. Operator action: rotate the "
+    "COPILOT_GITHUB_TOKEN secret (it is likely expired or revoked), then "
+    "re-run this workflow. Also check the Copilot monthly quota, rate "
+    "limits, and network connectivity."
+)
 
 
 def _is_infra_failure(flag: str, _findings: str = "") -> bool:
@@ -79,22 +99,15 @@ def main(argv: list[str] | None = None) -> int:
         args.completeness_infra_failure, args.completeness_findings
     )
 
-    if trace_infra and completeness_infra:
-        print(
-            "::warning::Spec validation skipped due to infrastructure failure"
-            ". Not blocking merge."
-        )
-        return 0
-
     if trace_infra:
         print(
-            "::warning::Traceability check skipped due to infrastructure failure."
+            "::error::Traceability check did not run due to infrastructure failure."
         )
         trace = ""
 
     if completeness_infra:
         print(
-            "::warning::Completeness check skipped due to infrastructure failure."
+            "::error::Completeness check did not run due to infrastructure failure."
         )
         completeness = ""
 
@@ -106,10 +119,8 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     if trace_infra or completeness_infra:
-        print(
-            "::warning::Spec validation partially completed; one check did not run."
-        )
-        return 0
+        print(INFRA_FAILURE_ERROR)
+        return 1
 
     print("Spec validation passed")
     return 0
