@@ -17,19 +17,28 @@ already public in ``check_agent_skill_discriminator.py`` and in
 
 from __future__ import annotations
 
-_OPEN_FENCE = "---\n"
-_CLOSE_FENCE = "\n---\n"
+_FENCE = "---"
+
+
+def _line_body(line: str) -> str:
+    """Return a line without its terminator (LF, CRLF, or none)."""
+    return line.rstrip("\r\n")
 
 
 def split_leading_frontmatter(text: str) -> tuple[str, str]:
     """Split a Markdown file into ``(frontmatter, body)``.
 
-    The frontmatter excludes both ``---`` fences. Returns ``("", text)`` when
-    the file does not open with a fence line or the block never closes.
+    The frontmatter excludes both fences and the newline before the closing
+    fence. A fence is a line holding ``---`` plus optional surrounding
+    whitespace, so CRLF files, a padded fence, and a closing fence at end of
+    file all split. Returns ``("", text)`` when the file does not open with a
+    fence line or the block never closes.
     """
-    if not text.startswith(_OPEN_FENCE):
+    lines = text.splitlines(keepends=True)
+    if not lines or _line_body(lines[0]).strip() != _FENCE:
         return "", text
-    end_idx = text.find(_CLOSE_FENCE, len(_OPEN_FENCE))
-    if end_idx == -1:
-        return "", text
-    return text[len(_OPEN_FENCE) : end_idx], text[end_idx + len(_CLOSE_FENCE) :]
+    for index in range(1, len(lines)):
+        if _line_body(lines[index]).strip() == _FENCE:
+            frontmatter = "".join(lines[1:index])
+            return _line_body(frontmatter) if frontmatter else "", "".join(lines[index + 1 :])
+    return "", text

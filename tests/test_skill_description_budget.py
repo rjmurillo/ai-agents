@@ -51,6 +51,22 @@ def test_extract_frontmatter_none_when_unterminated():
     assert budget.extract_frontmatter("---\nname: foo\n# never closed\n") is None
 
 
+def test_extract_frontmatter_parses_closing_fence_at_end_of_file():
+    assert budget.extract_frontmatter("---\nname: foo\ndescription: bar\n---") == {
+        "name": "foo",
+        "description": "bar",
+    }
+
+
+def test_extract_frontmatter_parses_crlf_fences():
+    text = "---\r\nname: foo\r\ndescription: bar\r\n---\r\n# body\r\n"
+    assert budget.extract_frontmatter(text) == {"name": "foo", "description": "bar"}
+
+
+def test_extract_frontmatter_parses_padded_closing_fence():
+    assert budget.extract_frontmatter("---\nname: foo\n   ---\n# body\n") == {"name": "foo"}
+
+
 def test_extract_frontmatter_none_on_malformed_yaml():
     assert budget.extract_frontmatter("---\n: : :\n bad\n---\n") is None
 

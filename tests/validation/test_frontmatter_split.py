@@ -36,18 +36,34 @@ def test_empty_body_after_fence():
         "",
         "# just a heading\n",
         "---\nname: foo\n# never closed\n",
-        "--- \nname: foo\n---\n",
         "\n---\nname: foo\n---\n",
-        "---\nname: foo\n---",
     ],
 )
 def test_returns_whole_text_when_no_block(text):
     assert split_leading_frontmatter(text) == ("", text)
 
 
-def test_empty_frontmatter_block_is_not_recognized():
-    """``---\\n---\\n`` has no ``\\n---\\n`` after the opener, so it is unterminated."""
-    text = "---\n---\nbody\n"
+def test_empty_frontmatter_block_yields_empty_frontmatter():
+    assert split_leading_frontmatter("---\n---\nbody\n") == ("", "body\n")
+
+
+def test_closing_fence_at_end_of_file_without_newline():
+    assert split_leading_frontmatter("---\nname: foo\n---") == ("name: foo", "")
+
+
+def test_crlf_fences_split():
+    assert split_leading_frontmatter("---\r\nname: foo\r\n---\r\nbody\r\n") == (
+        "name: foo",
+        "body\r\n",
+    )
+
+
+def test_padded_fences_split():
+    assert split_leading_frontmatter("--- \nname: foo\n   ---\nbody\n") == ("name: foo", "body\n")
+
+
+def test_four_dash_line_is_not_a_fence():
+    text = "---\nname: foo\n----\nbody\n"
     assert split_leading_frontmatter(text) == ("", text)
 
 
