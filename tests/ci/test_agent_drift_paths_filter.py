@@ -32,7 +32,26 @@ GENERATED_SURFACE = (
     ".github/instructions/**",
     ".github/prompts/**",
     ".github/workflows/**",
+    "build/generate_agents_common.py",
 )
+
+# Sibling entries the drift check deliberately does not need: they wire the
+# validators and hooks that run beside the generator, and none is an input to
+# ``generate_agents.py --validate``. The catalog generator has its own gate,
+# ``validate_agent_catalog.py``. Every sibling entry outside this set must
+# appear in the drift filter, so a path the sibling gains cannot be skipped
+# here without a test failing.
+SIBLING_ONLY = frozenset({
+    "build/generate_agent_catalog.py",
+    "build/scripts/**",
+    "scripts/validation/**",
+    "lefthook.yml",
+    ".config/lefthook.yml",
+    ".githooks/**",
+    ".github/actions/**",
+    "tests/ci/test_validation_scripts_are_reachable.py",
+    "tests/ci/test_frontmatter_gate_paths_filter.py",
+})
 
 
 def _agents_filter(workflow: Path) -> list[str]:
@@ -55,6 +74,19 @@ def test_drift_filter_covers_generated_surface(pattern: str) -> None:
 def test_sibling_filter_still_lists_the_surface(pattern: str) -> None:
     """Guards the guard: if the sibling drops a path, this list is stale."""
     assert pattern in _agents_filter(SIBLING)
+
+
+def test_drift_filter_is_a_superset_of_the_sibling_minus_documented_exclusions() -> None:
+    missing = set(_agents_filter(SIBLING)) - SIBLING_ONLY - set(_agents_filter(DRIFT))
+    assert missing == set(), (
+        f"{SIBLING.name} lists {sorted(missing)} but {DRIFT.name} does not, and "
+        "they are not in SIBLING_ONLY: add the path or document the exclusion"
+    )
+
+
+def test_documented_exclusions_are_real_sibling_entries() -> None:
+    """Negative control: a stale exclusion would hide a real omission."""
+    assert SIBLING_ONLY <= set(_agents_filter(SIBLING))
 
 
 def test_drift_filter_keeps_its_own_generator_inputs() -> None:
