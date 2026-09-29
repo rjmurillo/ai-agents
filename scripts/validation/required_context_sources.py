@@ -30,18 +30,27 @@ NEEDS_OUTPUTS = re.compile(
     r"\bneeds(?:\.[A-Za-z0-9_-]+|\[\s*['\"][^'\"]+['\"]\s*\])\.outputs\b", FLAGS
 )
 EVENT_NAME = re.compile(
-    r"\bgithub(?:\.event_name|\[\s*['\"]event_name['\"]\s*\])|\bGITHUB_EVENT_NAME\b",
+    r"\bgithub(?:\.event_name\b|\[\s*['\"]event_name['\"]\s*\])|\bGITHUB_EVENT_NAME\b",
     FLAGS,
 )
 ACTOR = re.compile(
-    r"\bgithub(?:\.(?:triggering_)?actor|\[\s*['\"](?:triggering_)?actor['\"]\s*\])"
+    r"\bgithub(?:\.(?:triggering_)?actor\b|\[\s*['\"](?:triggering_)?actor['\"]\s*\])"
     r"|\bGITHUB_(?:TRIGGERING_)?ACTOR\b",
     FLAGS,
 )
 STEP_OUTPUT = re.compile(
     r"\bsteps(?:\.([A-Za-z0-9_-]+)|\[\s*['\"]([^'\"]+)['\"]\s*\])\.outputs\b", FLAGS
 )
-ENV_READ = re.compile(r"\benv\.([A-Za-z0-9_]+)\b", FLAGS)
+# A read of an environment value, in the spellings a step body uses: the
+# expression forms `env.NAME` and `env['NAME']`, and the shell forms `$NAME`,
+# `${NAME}` and PowerShell's `$env:NAME`.
+ENV_READ = re.compile(
+    r"\benv\.([A-Za-z_][A-Za-z0-9_]*)\b"
+    r"|\benv\[\s*['\"]([A-Za-z_][A-Za-z0-9_]*)['\"]\s*\]"
+    r"|\$env:([A-Za-z_][A-Za-z0-9_]*)"
+    r"|\$\{?([A-Za-z_][A-Za-z0-9_]*)",
+    FLAGS,
+)
 
 SOURCES: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("needs.*.outputs", NEEDS_OUTPUTS),
@@ -61,6 +70,14 @@ MAX_NODES = 10_000
 MAX_DEPTH = 32
 
 
+class ScanTruncatedError(Exception):
+    """A value exceeded the scan budget, so part of it was never read.
+
+    Raised rather than returning a partial answer: a source hidden past the
+    budget would otherwise read as absent.
+    """
+
+
 def text(value: object) -> str:
     """Join the scalar leaves of ``value`` into one string, bounded in work done.
 
@@ -70,18 +87,28 @@ def text(value: object) -> str:
     parts: list[str] = []
     stack: list[tuple[object, int]] = [(value, 0)]
     budget = MAX_NODES
-    while stack and budget > 0:
+    while stack:
+        if budget <= 0:
+            raise ScanTruncatedError(f"more than {MAX_NODES} nodes")
         node, depth = stack.pop()
         budget -= 1
-        if isinstance(node, Mapping):
-            if depth < MAX_DEPTH:
-                stack.extend((child, depth + 1) for child in node.values())
-        elif isinstance(node, list):
-            if depth < MAX_DEPTH:
-                stack.extend((child, depth + 1) for child in node)
+        if isinstance(node, Mapping | list):
+            if depth >= MAX_DEPTH:
+                raise ScanTruncatedError(f"nesting deeper than {MAX_DEPTH}")
+            children = node.values() if isinstance(node, Mapping) else node
+            stack.extend((child, depth + 1) for child in children)
         else:
-            parts.append(str(node))
+            parts.append(_scalar_text(node))
     return "\n".join(parts)
+
+
+def _scalar_text(node: object) -> str:
+    try:
+        return str(node)
+    except ValueError:
+        # An integer scalar past Python's digit limit cannot be printed. Digits
+        # carry no source, so it reads as empty rather than aborting the scan.
+        return ""
 
 
 def sources_in(text: str, sources: Sequence[tuple[str, re.Pattern[str]]]) -> list[str]:
@@ -101,7 +128,8 @@ def step_body_text(step: Mapping[str, Any]) -> str:
 def env_sources(text: str, tainted_env: Mapping[str, list[str]]) -> list[str]:
     found: list[str] = []
     for match in ENV_READ.finditer(text):
-        for source in tainted_env.get(match.group(1), []):
+        name = next(group for group in match.groups() if group)
+        for source in tainted_env.get(name.lower(), []):
             if source not in found:
                 found.append(source)
     return found

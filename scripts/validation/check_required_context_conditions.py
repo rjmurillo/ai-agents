@@ -42,7 +42,7 @@ Findings, by kind:
 What this lint does not see, so a clean run is not read as more than it is:
 
   - A condition relocated two levels: `steps.b.outputs` where `b` only read
-    `steps.a.outputs`.
+    `steps.a.outputs`, or one written through `$GITHUB_ENV`.
   - A script the job runs that decides scope, such as which tests a partition
     selects or a module that reads the event itself.
   - A condition in a job the producing job depends on. Only the producing job's
@@ -84,7 +84,6 @@ from __future__ import annotations
 import argparse
 import sys
 from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -94,63 +93,50 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from required_context_sources import (  # noqa: E402
-    JOB_SOURCES,
-    SOURCES,
-    STEP_OUTPUT,
-    condition_sources,
-    env_sources,
-    sources_in,
-    step_body_text,
-    text,
+from required_context_sources import ScanTruncatedError  # noqa: E402
+from required_context_steps import job_findings, step_findings  # noqa: E402
+from required_context_types import (  # noqa: E402
+    KIND_JOB,
+    KIND_PRODUCERS,
+    KIND_RELOCATED,
+    KIND_STEP,
+    KIND_UNSCANNED,
+    Finding,
+    ProducingJob,
+    WorkflowLoadError,
+    mapping,
 )
 
 from scripts.ci.ruleset_required_contexts import REQUIRED_CONTEXTS  # noqa: E402
+
+__all__ = [
+    "EXIT_CONFIG",
+    "EXIT_FINDINGS",
+    "EXIT_OK",
+    "KIND_JOB",
+    "KIND_PRODUCERS",
+    "KIND_RELOCATED",
+    "KIND_STEP",
+    "KIND_UNSCANNED",
+    "Finding",
+    "ProducingJob",
+    "WorkflowLoadError",
+    "grouped_lines",
+    "lint",
+    "load_workflows",
+    "main",
+    "producing_jobs",
+    "run",
+    "validate_required_context_conditions",
+]
 
 EXIT_OK = 0
 EXIT_FINDINGS = 1
 EXIT_CONFIG = 2
 
-KIND_STEP = "step-condition"
-KIND_RELOCATED = "relocated-condition"
-KIND_JOB = "job-condition"
-KIND_PRODUCERS = "producer-count"
 
 _EXPRESSION_MARKER = "${{"
 
-
-
-class WorkflowLoadError(Exception):
-    """A workflow file could not be read or parsed."""
-
-
-@dataclass(frozen=True, slots=True)
-class Finding:
-    """One place a required-context chain departs from the property."""
-
-    kind: str
-    context: str
-    workflow: str
-    job: str
-    detail: str
-    step: str = ""
-
-    def render(self) -> str:
-        where = f"{self.workflow}:{self.job}"
-        if self.step:
-            where = f"{where}:{self.step}"
-        return f"[{self.kind}] {self.context}: {where}: {self.detail}"
-
-
-@dataclass(frozen=True, slots=True)
-class ProducingJob:
-    """A job whose check-run name is a pinned required context."""
-
-    workflow: str
-    job_id: str
-    context: str
-    body: Mapping[str, Any]
-    workflow_env: Mapping[str, Any] = field(default_factory=dict)
 
 
 def load_workflows(workflow_dir: Path) -> dict[str, Mapping[str, Any]]:
@@ -171,11 +157,6 @@ def load_workflows(workflow_dir: Path) -> dict[str, Mapping[str, Any]]:
             raise WorkflowLoadError(f"cannot parse {path.name}: top level is not a mapping")
         documents[path.name] = loaded
     return documents
-
-
-def _mapping(container: Mapping[str, Any], key: str) -> Mapping[str, Any]:
-    value = container.get(key)
-    return value if isinstance(value, Mapping) else {}
 
 
 def _check_run_label(job_id: str, body: Mapping[str, Any]) -> str:
@@ -213,149 +194,9 @@ def producing_jobs(
             label = _check_run_label(str(job_id), body)
             for context in _contexts_for_label(label, pinned):
                 found.append(
-                    ProducingJob(workflow, str(job_id), context, body, _mapping(document, "env"))
+                    ProducingJob(workflow, str(job_id), context, body, mapping(document, "env"))
                 )
     return found
-
-
-def _step_label(index: int, step: Mapping[str, Any]) -> str:
-    name = step.get("name")
-    if isinstance(name, str) and name:
-        return name
-    ident = step.get("id")
-    if isinstance(ident, str) and ident:
-        return ident
-    return f"step[{index}]"
-
-
-def _steps(producer: ProducingJob) -> list[tuple[int, Mapping[str, Any]]]:
-    steps = producer.body.get("steps")
-    if not isinstance(steps, list):
-        return []
-    return [(i, s) for i, s in enumerate(steps) if isinstance(s, Mapping)]
-
-
-def _tainted_env(producer: ProducingJob) -> dict[str, list[str]]:
-    """Map each workflow-level or job-level env name to the sources its value reads.
-
-    A step that reads `env.NAME` inherits those sources: the outside value
-    reached it through the environment instead of through the step's own text.
-    A job-level definition wins over a workflow-level one, as it does at run time.
-    """
-    tainted: dict[str, list[str]] = {}
-    for scope in (producer.workflow_env, _mapping(producer.body, "env")):
-        for name, value in scope.items():
-            sources = sources_in(text(value), SOURCES)
-            if sources:
-                tainted[str(name)] = sources
-            else:
-                tainted.pop(str(name), None)
-    return tainted
-
-
-def _step_source_map(
-    steps: Sequence[tuple[int, Mapping[str, Any]]], tainted_env: Mapping[str, list[str]]
-) -> dict[str, list[str]]:
-    """Map each step id to the outside sources its own body reads."""
-    found: dict[str, list[str]] = {}
-    for _, step in steps:
-        ident = step.get("id")
-        if not isinstance(ident, str) or not ident:
-            continue
-        body = step_body_text(step)
-        sources = sources_in(body, SOURCES)
-        for source in env_sources(body, tainted_env):
-            if source not in sources:
-                sources.append(source)
-        if sources:
-            found[ident] = sources
-    return found
-
-
-def _step_findings(producer: ProducingJob) -> list[Finding]:
-    steps = _steps(producer)
-    tainted_env = _tainted_env(producer)
-    tainted = _step_source_map(steps, tainted_env)
-    findings: list[Finding] = []
-    for index, step in steps:
-        if "if" not in step:
-            continue
-        label = _step_label(index, step)
-        direct = condition_sources(step["if"], SOURCES)
-        if direct:
-            findings.append(
-                Finding(
-                    KIND_STEP,
-                    producer.context,
-                    producer.workflow,
-                    producer.job_id,
-                    f"step `if:` references {', '.join(direct)}",
-                    label,
-                )
-            )
-        findings.extend(
-            _relocated_findings(producer, label, step["if"], tainted, tainted_env)
-        )
-    return findings
-
-
-def _relocated_findings(
-    producer: ProducingJob,
-    label: str,
-    condition: object,
-    tainted: Mapping[str, list[str]],
-    tainted_env: Mapping[str, list[str]],
-) -> list[Finding]:
-    condition_text = text(condition)
-    findings: list[Finding] = []
-    seen: set[str] = set()
-    for match in STEP_OUTPUT.finditer(condition_text):
-        ident = match.group(1) or match.group(2)
-        if ident in seen or ident not in tainted:
-            continue
-        seen.add(ident)
-        findings.append(
-            Finding(
-                KIND_RELOCATED,
-                producer.context,
-                producer.workflow,
-                producer.job_id,
-                f"step `if:` reads steps.{ident}.outputs, and step `{ident}` reads "
-                f"{', '.join(tainted[ident])}",
-                label,
-            )
-        )
-    env_found = env_sources(condition_text, tainted_env)
-    if env_found:
-        findings.append(
-            Finding(
-                KIND_RELOCATED,
-                producer.context,
-                producer.workflow,
-                producer.job_id,
-                f"step `if:` reads an env value that is set from {', '.join(env_found)}",
-                label,
-            )
-        )
-    return findings
-
-
-def _job_findings(producer: ProducingJob) -> list[Finding]:
-    if "if" not in producer.body:
-        return []
-    refs = condition_sources(producer.body["if"], JOB_SOURCES)
-    if not refs:
-        return []
-    return [
-        Finding(
-            KIND_JOB,
-            producer.context,
-            producer.workflow,
-            producer.job_id,
-            f"job `if:` references {', '.join(refs)}, so another job's output decides "
-            "whether this one runs",
-        )
-    ]
 
 
 def _producer_count_findings(
@@ -395,8 +236,19 @@ def lint(
     producers = producing_jobs(documents, pinned)
     findings: list[Finding] = []
     for producer in producers:
-        findings.extend(_job_findings(producer))
-        findings.extend(_step_findings(producer))
+        try:
+            findings.extend(job_findings(producer))
+            findings.extend(step_findings(producer))
+        except ScanTruncatedError as exc:
+            findings.append(
+                Finding(
+                    KIND_UNSCANNED,
+                    producer.context,
+                    producer.workflow,
+                    producer.job_id,
+                    f"not fully examined: {exc}",
+                )
+            )
     findings.extend(_producer_count_findings(producers, pinned))
     return findings, producers
 
@@ -450,7 +302,7 @@ def validate_required_context_conditions(repo_root: Path) -> bool:
     """
     try:
         findings, summary = run(repo_root / ".github" / "workflows")
-    except WorkflowLoadError as exc:
+    except (WorkflowLoadError, RecursionError, ValueError, TypeError) as exc:
         print(f"required-context-conditions: NOT EXAMINED: {exc}", file=sys.stderr)
         return True
     for line in grouped_lines(findings):
@@ -484,7 +336,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
         findings, summary = run(args.workflows_dir)
-    except WorkflowLoadError as exc:
+    except (WorkflowLoadError, RecursionError, ValueError, TypeError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return EXIT_CONFIG
     lines = [f.render() for f in findings] if args.verbose else grouped_lines(findings)

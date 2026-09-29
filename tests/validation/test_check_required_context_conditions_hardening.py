@@ -14,9 +14,11 @@ if str(_VALIDATION_DIR) not in sys.path:
     sys.path.insert(0, str(_VALIDATION_DIR))
 
 import pytest
+import required_context_sources as sources
 from check_required_context_conditions import (
     KIND_RELOCATED,
     KIND_STEP,
+    KIND_UNSCANNED,
     load_workflows,
     producing_jobs,
 )
@@ -173,10 +175,154 @@ class TestHardening:
 
         findings, _ = lint_one(tmp_path, body)
 
-        assert kinds(findings) == [KIND_STEP]
+        assert kinds(findings) == [KIND_UNSCANNED]
+        assert "not fully examined" in findings[0].detail
 
 
 def _dir(tmp_path: Path, body: str) -> Path:
     workflows = tmp_path / "workflows"
     write_workflow(workflows, "wf.yml", body)
     return workflows
+
+
+ENV_JOB = """\
+    on: pull_request
+    jobs:
+      gate:
+        name: Run Python Tests
+        env:
+          EVENT: ${{ github.event_name }}
+        steps:
+          - id: decide
+            run: |
+              %s
+          - name: Work
+            if: steps.decide.outputs.skip != 'true'
+            run: pytest
+    """
+
+
+class TestSecondReviewFindings:
+    """The second security pass: case, shell env reads, budgets and a huge integer."""
+
+    @pytest.mark.parametrize(
+        "read",
+        ['echo "$EVENT"', "echo ${EVENT}", "Write-Host $env:EVENT", "echo ${{ env['EVENT'] }}"],
+    )
+    def test_shell_and_bracket_env_reads_carry_the_taint(self, tmp_path: Path, read: str) -> None:
+        findings, _ = lint_one(tmp_path, ENV_JOB % read)
+
+        assert kinds(findings) == [KIND_RELOCATED]
+        assert "github.event_name" in findings[0].detail
+
+    def test_an_env_defined_from_a_tainted_env_is_tainted(self, tmp_path: Path) -> None:
+        body = """\
+            on: pull_request
+            env:
+              BASE: ${{ github.actor }}
+            jobs:
+              gate:
+                name: Run Python Tests
+                env:
+                  DERIVED: ${{ env.BASE }}-x
+                steps:
+                  - name: Work
+                    if: env.DERIVED != 'a-x'
+                    run: pytest
+            """
+
+        findings, _ = lint_one(tmp_path, body)
+
+        assert kinds(findings) == [KIND_RELOCATED]
+        assert "github.actor" in findings[0].detail
+
+    def test_an_unrelated_dollar_name_is_not_a_taint(self, tmp_path: Path) -> None:
+        findings, _ = lint_one(tmp_path, ENV_JOB % 'echo "$HOME $OTHER"')
+
+        assert findings == []
+
+    def test_step_ids_and_env_names_are_matched_case_insensitively(self, tmp_path: Path) -> None:
+        steps = (
+            "      - id: Decide\n        run: echo $GITHUB_EVENT_NAME\n"
+            "      - name: Work\n"
+            "        if: steps.DECIDE.outputs.skip != 'true'\n"
+            "        run: pytest\n"
+        )
+
+        findings, _ = lint_one(tmp_path, job_body(steps=steps))
+
+        assert kinds(findings) == [KIND_RELOCATED]
+
+    def test_an_env_name_in_a_different_case_is_the_same_name(self, tmp_path: Path) -> None:
+        findings, _ = lint_one(tmp_path, (ENV_JOB % "echo $event").replace("EVENT:", "Event:"))
+
+        assert kinds(findings) == [KIND_RELOCATED]
+
+    @pytest.mark.parametrize(
+        "condition",
+        [
+            "github.actor_id == '1'",
+            "github.event_name_x == 'y'",
+            "github.triggering_actor_id == '1'",
+        ],
+    )
+    def test_a_longer_property_name_is_not_the_named_source(
+        self, tmp_path: Path, condition: str
+    ) -> None:
+        steps = f"      - name: Fine\n        if: {condition}\n        run: echo hi\n"
+
+        findings, _ = lint_one(tmp_path, job_body(steps=steps))
+
+        assert findings == []
+
+    def test_an_integer_past_the_digit_limit_does_not_abort_the_scan(
+        self, tmp_path: Path
+    ) -> None:
+        huge = "0x" + "f" * 4000
+        steps = (
+            f"      - id: big\n        run: echo hi\n        with:\n          n: {huge}\n"
+            "      - name: Guarded\n        if: github.actor == 'a'\n        run: echo 1\n"
+        )
+
+        findings, _ = lint_one(tmp_path, job_body(steps=steps))
+
+        assert kinds(findings) == [KIND_STEP]
+
+    def test_a_value_past_the_node_budget_is_reported_not_skipped(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(sources, "MAX_NODES", 4)
+        steps = (
+            "      - id: wide\n        run: echo hi\n        env:\n"
+            "          A: 1\n          B: 2\n          C: 3\n          D: 4\n          E: 5\n"
+        )
+
+        findings, _ = lint_one(tmp_path, job_body(steps=steps))
+
+        assert kinds(findings) == [KIND_UNSCANNED]
+        assert "more than 4 nodes" in findings[0].detail
+
+    def test_a_value_past_the_depth_cap_is_reported_not_skipped(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(sources, "MAX_DEPTH", 2)
+        steps = (
+            "      - id: deep\n        run: echo hi\n        with:\n"
+            "          a:\n            b:\n              c:\n                d: 1\n"
+        )
+
+        findings, _ = lint_one(tmp_path, job_body(steps=steps))
+
+        assert kinds(findings) == [KIND_UNSCANNED]
+        assert "deeper than 2" in findings[0].detail
+
+    def test_text_raises_instead_of_returning_a_partial_answer(self) -> None:
+        with pytest.raises(sources.ScanTruncatedError):
+            sources.text(list(range(sources.MAX_NODES + 5)))
+
+    def test_text_joins_scalars_from_nested_containers(self) -> None:
+        assert sorted(sources.text({"a": ["x", {"b": "y"}], "c": 3}).split("\n")) == [
+            "3",
+            "x",
+            "y",
+        ]
