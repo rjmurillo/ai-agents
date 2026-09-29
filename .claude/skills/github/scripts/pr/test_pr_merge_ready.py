@@ -1385,6 +1385,32 @@ def _has_ci_failures(result: dict[str, Any]) -> bool:
     )
 
 
+def _merge_state_gate_tier(merge_state: str, has_work: bool) -> str | None:
+    """Return the tier a merge state fixes before the work tiers, or None.
+
+    ``BEHIND`` and ``DIRTY`` come from :data:`_MERGE_STATE_TIERS`.  ``BLOCKED``
+    with no CI failure and no thread has no work this loop can do: it waits on
+    a gate outside the loop (issue #5549).  ``BLOCKED`` with a failure or
+    thread returns None so it reaches the work tiers, because in a repository
+    that requires resolved threads and passing checks, those are exactly what
+    GitHub reports as ``BLOCKED``.
+
+    A state outside the executable allowlist and not ``BLOCKED`` (``UNKNOWN``,
+    a missing value, or a value GitHub adds later) is ``UNSUPPORTED``, returned
+    before the work tiers so it never classifies T2 or T3 for a state this
+    script has no merge path for.  ``BLOCKED`` is not in
+    :data:`_SUPPORTED_MERGE_STATES` on purpose: that set feeds ``CanMerge``,
+    and a ``BLOCKED`` PR must stay unmergeable.
+    """
+    if merge_state in _MERGE_STATE_TIERS:
+        return _MERGE_STATE_TIERS[merge_state]
+    if merge_state == "BLOCKED":
+        return None if has_work else "BLOCKED"
+    if merge_state not in _SUPPORTED_MERGE_STATES:
+        return "UNSUPPORTED"
+    return None
+
+
 def classify_tier(result: dict[str, Any], *, is_bot: bool = False) -> str:
     """Return the canonical tier for a merge-readiness result.
 
@@ -1427,34 +1453,13 @@ def classify_tier(result: dict[str, Any], *, is_bot: bool = False) -> str:
     if result.get("IsDraft") or (result.get("State") or "").upper() in ("CLOSED", "MERGED"):
         return "SKIP"
 
-    # --- Merge-path states (table lookup) ---
+    # --- Merge-state gates (lookup, idle BLOCKED, UNSUPPORTED) ---
     merge_state = result.get("MergeStateStatus") or ""
-    if merge_state in _MERGE_STATE_TIERS:
-        return _MERGE_STATE_TIERS[merge_state]
-
     has_ci_failures = _has_ci_failures(result)
     has_threads = (result.get("UnresolvedThreads") or 0) > 0
-
-    # BLOCKED with no CI failure and no thread has no work this loop can do:
-    # it is waiting on a gate outside the loop (issue #5549).  BLOCKED with a
-    # failure or thread falls through to the work tiers, because in a
-    # repository that requires thread resolution and passing checks, those are
-    # exactly what GitHub reports as BLOCKED.
-    if merge_state == "BLOCKED" and not (has_ci_failures or has_threads):
-        return "BLOCKED"
-
-    # --- States with no merge path (terminal) ---
-    # Outside both the executable allowlist and the merge-path table above:
-    # UNKNOWN, a missing value, or a value GitHub adds later.  Returned before
-    # the work tiers, so an unsupported state with threads does not classify T3
-    # ("Walk full thread lifecycle, then merge") for a state this script has no
-    # merge path for, and one with CI failures does not classify T2.
-    # BLOCKED is not in _SUPPORTED_MERGE_STATES on purpose: that set feeds
-    # CanMerge, and a BLOCKED PR must stay unmergeable (issue #5549).  Here it
-    # is admitted to the work tiers only, read at call time so the allowlist
-    # stays the single source of the executable states.
-    if merge_state not in _SUPPORTED_MERGE_STATES and merge_state != "BLOCKED":
-        return "UNSUPPORTED"
+    gated = _merge_state_gate_tier(merge_state, has_ci_failures or has_threads)
+    if gated:
+        return gated
 
     # --- Work-needed tiers ---
     # T5: bot PRs with any issue
