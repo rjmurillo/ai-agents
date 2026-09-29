@@ -293,9 +293,15 @@ CI-only checks.
 
 Result: 24 same-script duplicates (21 gates and 3 ratchets), 1 same-tool pair.
 
-The other 54 pre-PR gates have no matching workflow step (79 gates, minus 25
-with one, counting `Count Ratchets`, `Rule Scope Declarations`, `Model Pin
-Governance`, `YAML Style Validation`, and the 21 gates in the table above).
+The 79 rows are registered gates. A pre-push run defers 5 of them to separate hook
+jobs (`already_run_by`), and `--quick` skips 4.
+
+The other 54 gates have no workflow step that runs the same script (79 gates,
+minus 25 with one: `Count Ratchets`, `Rule Scope Declarations`, `Model Pin
+Governance`, `YAML Style Validation`, and the 21 gates in the table above). Two of
+the 54 sit beside a CI check that uses a different tool: `Workflow YAML
+Validation` (actionlint locally, `validate_workflows.py` in CI) and `Documented
+Interpreter Portability` (a different script from `check_python3_entrypoints.py`).
 Examples are `Nested Test Detection`, `Sync Registry Provenance`, and `Agent
 Drift Detection`. They run only through `pre_pr.py`, so a hook-skipping push
 reaches CI without them.
