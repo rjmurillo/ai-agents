@@ -1393,10 +1393,17 @@ When retrospective is complete:
 | git add | `.serena/memories/[other].md` | [Reason] |
 | git add | `.project-toolkit/retrospective/[file].md` | Retrospective artifact |
 
+### Findings for the owner
+
+| Item | Evidence (path:line) | Proposed action | Class |
+|------|----------------------|-----------------|-------|
+| [Delta item] | [path:line] | [Smallest action that resolves it] | [Blocker / Requested improvement / Optional enhancement / Side quest] |
+
 ### Handoff Summary
 
 - **Skills to persist**: [N] candidates (atomicity >= 70%)
 - **Memory files touched**: [List of .serena/memories/*.md files]
+- **Blockers for the owner**: [N] (0 when the findings table has no Blocker rows)
 - **Recommended next**: skillbook (if skills) | memory (if entities) | git add (if files)
 ````
 
@@ -1405,7 +1412,8 @@ When retrospective is complete:
 1. **Skill Candidates**: Only include skills with atomicity >= 70%
 2. **Memory Updates**: Specify exact file paths in `.serena/memories/`
 3. **Git Operations**: List ALL files that need `git add` for persistence
-4. **Handoff Summary**: Orchestrator uses this to determine routing
+4. **Findings for the owner**: Copy the artifact's table, Blocker rows first. An empty table is valid. Do not route a finding to an issue; the owner decides.
+5. **Handoff Summary**: Orchestrator uses this to determine routing
 
 ### Example Handoff Output
 
@@ -1434,10 +1442,16 @@ When retrospective is complete:
 | git add | `.serena/memories/learnings-2025-12.md` | New monthly learnings |
 | git add | `.project-toolkit/retrospective/2025-12-18-workflow-retro.md` | Retrospective artifact |
 
+### Findings for the owner
+
+| Item | Evidence (path:line) | Proposed action | Class |
+|------|----------------------|-----------------|-------|
+
 ### Handoff Summary
 
 - **Skills to persist**: 2 candidates (atomicity >= 70%)
 - **Memory files touched**: skills-ci-infrastructure.md, learnings-2025-12.md
+- **Blockers for the owner**: 0
 - **Recommended next**: skillbook -> memory -> git add
 ````
 

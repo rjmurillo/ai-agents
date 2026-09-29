@@ -22,6 +22,12 @@ AGENT_SURFACES = (
 )
 # The partial is a fragment; learning persistence lives in sibling partials.
 AGENT_FILES = tuple(rel for rel in AGENT_SURFACES if not rel.endswith(".mustache"))
+# Only the Claude template carries the mandatory structured handoff block.
+CLAUDE_AGENT_FILES = (
+    "templates/agents/retrospective.claude.md.tmpl",
+    ".claude/agents/retrospective.md",
+    "src/claude/agents/retrospective.md",
+)
 SKILL_TREES = (
     ".claude/skills/retrospective",
     "src/claude/skills/retrospective",
@@ -112,7 +118,9 @@ def test_no_issue_or_backlog_routing(rel: str) -> None:
 def test_triage_prose_emits_owner_table_with_four_classes(rel: str) -> None:
     text = _read(rel)
     prose = " ".join(text.split())
-    assert text.count("### Findings for the owner") == 1
+    triage = text.split("### Activity: Delta Triage", maxsplit=1)[1]
+    triage = triage.split("### Activity: ROTI", maxsplit=1)[0]
+    assert triage.count("### Findings for the owner") == 1
     assert FINDINGS_HEADER in text
     assert CLASS_PLACEHOLDER in text
     for cls in CLASSES:
@@ -134,6 +142,19 @@ def test_agent_surfaces_keep_learning_persistence(rel: str) -> None:
     assert "backlog/" not in storage
     handoff = " ".join(text.split("## Handoff Protocol", maxsplit=1)[1].split())
     assert "the `Findings for the owner` table (Blocker rows first) to orchestrator" in handoff
+
+
+@pytest.mark.parametrize("rel", CLAUDE_AGENT_FILES)
+def test_structured_handoff_carries_owner_findings(rel: str) -> None:
+    text = _read(rel)
+    template = text.split("## Retrospective Handoff", maxsplit=2)[1]
+    template = template.split("### Handoff Output Rules", maxsplit=1)[0]
+    findings = template.split("### Findings for the owner", maxsplit=1)[1]
+    assert findings.lstrip("\n").startswith(FINDINGS_HEADER)
+    assert CLASS_PLACEHOLDER in findings
+    assert "**Blockers for the owner**" in template
+    prose = " ".join(text.split())
+    assert "Copy the artifact's table, Blocker rows first. An empty table is valid." in prose
 
 
 @pytest.mark.parametrize("rel", ARTIFACT_SURFACES)
