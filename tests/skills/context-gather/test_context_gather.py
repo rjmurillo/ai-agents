@@ -245,7 +245,7 @@ class TestStructure:
         )
 
     def test_trigger_phrase_count_in_range(self, skill_content: str) -> None:
-        """`.claude/skills/skillforge/references/skill-development-conventions.md` mandates 3-5 trigger phrases per skill."""
+        """The skill development conventions mandate 3-5 trigger phrases per skill."""
         triggers_section = skill_content.split("## Triggers")[1]
         next_section = triggers_section.find("\n## ")
         if next_section != -1:
