@@ -249,16 +249,17 @@ def _build_full_report(
 > check marked `INFRA_FAILURE (did not run)` below contributed no verdict:
 > Copilot CLI failed after retries and never evaluated that side of this PR.
 > The **Final Verdict: FAIL** above comes from the side that did run, and it
-> blocks merge. The infrastructure failure would also block merge on its own
-> (fail closed). Rotate the `COPILOT_GITHUB_TOKEN` secret, then re-run.
+> fails `Check for Failures`. The infrastructure failure would also fail that
+> step on its own (fail closed). Rotate the `COPILOT_GITHUB_TOKEN` secret, then re-run.
 """
         else:
             infra_note = """
 > [!WARNING]
 > **Infrastructure failure detected.** A check marked `INFRA_FAILURE (did not run)`
 > below is not a code-quality result: Copilot CLI failed after retries and never
-> evaluated this PR. This required check fails closed, so it blocks merge until
-> validation runs. Operator action: rotate the `COPILOT_GITHUB_TOKEN` secret,
+> evaluated this PR. This check fails closed: `Check for Failures` stays red
+> until validation runs, which blocks merge when branch protection requires
+> `Validate Spec Coverage`. Operator action: rotate the `COPILOT_GITHUB_TOKEN` secret,
 > then re-run the workflow. Also check the Copilot monthly quota, rate limits,
 > and network connectivity.
 """

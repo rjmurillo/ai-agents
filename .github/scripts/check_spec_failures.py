@@ -39,7 +39,7 @@ from scripts.ai_review_common import spec_validation_failed  # noqa: E402
 # matters as much as the token.
 INFRA_FAILURE_ERROR = (
     "::error::Spec validation could not run due to infrastructure failure, "
-    "so this required check fails closed. Operator action: rotate the "
+    "so this check fails closed. Operator action: rotate the "
     "COPILOT_GITHUB_TOKEN secret (it is likely expired or revoked), then "
     "re-run this workflow. Also check the Copilot monthly quota, rate "
     "limits, and network connectivity."
