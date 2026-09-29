@@ -105,7 +105,7 @@ Useful flags, verified against source:
 
 - `build/generate_agents.py`: `--validate` (CI compare mode), `--what-if` (dry run, writes nothing), `--templates-path`, `--output-root`. Exit codes: 0 ok, 1 logic error or drift, 2 config error (docstring, generate_agents.py:13-16).
 - `build/scripts/build_all.py`: `--check` (staleness gate; snapshots and restores owned trees), `--clean`, `--audit-format json`, `--platform copilot-cli`. Exit codes: 0 ok, 1 generator error, 2 config error or staleness or (under `--check`) a path under `OWNED_PREFIXES` that cannot be read or redirects (symlink or junction) or holds a nested git repository, or a generator write under `.claude/` (REQ-003-010), 3 audit blocklist violation or (under `--check`) unreadable git state (the `EXIT CODES` block in this script's module docstring). Only the staleness producer of exit 2 is cleared by regenerating and committing; the REQ-003-010 producer is a generator policy violation, so regenerating reproduces it. Git is external, so every git-read failure (launch, timeout, nonzero exit) is 3 per the `AGENTS.md` contract, which keeps "you are missing git" out of the same code as "your tree is stale" (issue #4632).
-- `build/scripts/lib_mirror.py`: the lib copy, run by `build_all.py` (B5). `build_all.py --check` is the dry run (exit 2 when out of sync); do not "fix" `.claude/lib/` imports by hand. `scripts/sync_plugin_lib.py` is retired.
+- `build/scripts/lib_mirror.py`: the lib copy, run by `build_all.py` (B5). `build_all.py --check` is the dry run (exit 2 when out of sync); do not "fix" `.claude/lib/` imports by hand.
 
 ### Phase 3: Run the Drift Gates Locally Before Pushing
 
@@ -217,7 +217,7 @@ Run this checklist before pushing any change that touched a canonical or generat
 
 ## Provenance and Maintenance
 
-Verified 2026-07-29 against the working tree (re-verification pass; the 2026-07-03 pass had rotted for `build/scripts/build_all.py`, `build/generate_agents.py`, `pyproject.toml`, `scripts/sync_plugin_lib.py`, `.github/workflows/publish.yml`, and `.github/workflows/validate-generated-agents.yml`). Volatile facts and how to re-check them:
+Verified 2026-07-29 against the working tree (re-verification pass; the 2026-07-03 pass had rotted for `build/scripts/build_all.py`, `build/generate_agents.py`, `pyproject.toml`, `.github/workflows/publish.yml`, and `.github/workflows/validate-generated-agents.yml`). Volatile facts and how to re-check them:
 
 | Fact | Source | Re-verify |
 |------|--------|-----------|
