@@ -10,8 +10,8 @@ on:
   pull_request:
     branches: [main]
     types: [opened, synchronize, reopened, edited]
-    # No path filter - workflow runs on ALL PRs to satisfy required check
-    # Path filtering done at job level using dorny/paths-filter
+    # No path filter. The validate-spec job decides its own scope in its
+    # "Decide scope" step (scripts/ci/spec_coverage_scope.py).
 
   merge_group:
     branches: [main]
@@ -42,7 +42,7 @@ permissions:
 
 # for architectural decision on workflow-level concurrency control
 
-# Mitigation: Path filtering, timeouts, and PR-specific temp files reduce impact
+# Mitigation: scope decision inside the job, timeouts, and PR-specific temp files reduce impact
 
 concurrency:
   group: spec-validation-${{ github.event.pull_request.number || inputs.pr_number || github.ref }}
@@ -70,36 +70,16 @@ jobs:
           workflow-name: 'Spec-to-Implementation Validation'
           concurrency-group: ${{ github.event.pull_request.number || inputs.pr_number }}
 
-  check-paths:
-    name: Check Changed Paths
-    runs-on: ubuntu-26.04-arm
-    environment: bot-secrets
-    needs: debounce
-    if: github.event_name != 'merge_group' && always() && (needs.debounce.result == 'success' || needs.debounce.result == 'skipped')
-    outputs:
-      has-code-changes: ${{ steps.filter.outputs.code }}
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
-
-      - name: Check for code changes
-        id: filter
-        uses: dorny/paths-filter@61f87a10cd2c304679af17bb73ef192addf33c1c
-        with:
-          filters: |
-            code:
-              - 'src/**'
-              - 'templates/**'
-              - 'scripts/**'
-              - 'build/**'
-              - '.claude/skills/**'
-
   validate-spec:
     name: Validate Spec Coverage
-    needs: check-paths
-    # always() required: transitive dependency on debounce (which may be SKIPPED)
-    # would otherwise cause this job to be skipped even when check-paths succeeds
-    if: github.event_name != 'merge_group' && always() && needs.check-paths.result == 'success'
+    needs: debounce
+    # always() required: debounce may be SKIPPED, which would otherwise skip
+    # this job too. The `needs.debounce.result` term is ordering only, not a
+    # scope decision. ADR-101 requirement 1: whether spec validation applies is
+    # decided by this job's own "Decide scope" step below, not by a sibling
+    # job's output. `github.event_name != 'merge_group'` stays: a queue run has
+    # no pull request to validate and this job holds an environment secret.
+    if: github.event_name != 'merge_group' && always() && (needs.debounce.result == 'success' || needs.debounce.result == 'skipped')
     # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
     runs-on: ubuntu-26.04-arm
     environment: bot-secrets
@@ -107,21 +87,21 @@ jobs:
     timeout-minutes: 26
 
     steps:
-      - name: Check if validation needed
-        id: should-run
-        env:
-          HAS_CODE_CHANGES: ${{ needs.check-paths.outputs.has-code-changes }}
-        run: |
-          if [ "$HAS_CODE_CHANGES" != "true" ]; then
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-            echo "Skipped - no code changes detected"
-          fi
-
       - name: Checkout repository
-        if: steps.should-run.outputs.skip != 'true'
         uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
         with:
           fetch-depth: 0
+
+      # Both SHAs come from the event payload, never a branch name: on
+      # pull_request the checkout is the synthetic refs/pull/N/merge commit, so
+      # an implicit HEAD would credit this pull request with base-branch files.
+      - name: Decide scope
+        id: should-run
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: python3 scripts/ci/spec_coverage_scope.py
 
       - name: Extract Spec References
         if: steps.should-run.outputs.skip != 'true'
