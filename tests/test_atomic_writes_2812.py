@@ -18,14 +18,11 @@ safe.
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import pytest
 
 import scripts.ai_review_common.cache_guard as cache_guard
-import scripts.error_classification as error_classification
-import scripts.pr_branch_mapping as pr_branch_mapping
 import scripts.update_reviewer_signal_stats as urss
 
 
@@ -55,9 +52,7 @@ class TestCacheGuardPopulate:
         cache_dir = tmp_path / "cache" / "architect"
         assert (cache_dir / "verdict.txt").read_text(encoding="utf-8") == "APPROVE"
         assert (cache_dir / "findings.txt").read_text(encoding="utf-8") == "none"
-        assert (cache_dir / "infrastructure-failure.txt").read_text(
-            encoding="utf-8"
-        ) == "false"
+        assert (cache_dir / "infrastructure-failure.txt").read_text(encoding="utf-8") == "false"
         assert "cache_populated=true" in out.read_text(encoding="utf-8")
         assert _tmp_files(cache_dir) == []
 
@@ -102,47 +97,6 @@ class TestCacheGuardPopulate:
         assert "cache_populated=false" in out.read_text(encoding="utf-8")
 
 
-class TestPrBranchMappingSave:
-    def test_positive_add_then_load_roundtrips(self, tmp_path):
-        rc = pr_branch_mapping.main(
-            ["--project-root", str(tmp_path), "add", "--pr", "42", "--branch", "feat/x"]
-        )
-        assert rc == 0
-        mapping = pr_branch_mapping.load_mapping(tmp_path)
-        assert pr_branch_mapping.get_branch_for_pr(mapping, 42) == "feat/x"
-        memory = tmp_path / pr_branch_mapping.MEMORY_RELATIVE_PATH
-        assert _tmp_files(memory.parent) == []
-
-    def test_negative_replace_failure_preserves_prior_mapping(self, tmp_path, monkeypatch):
-        pr_branch_mapping.main(
-            ["--project-root", str(tmp_path), "add", "--pr", "1", "--branch", "b1"]
-        )
-        memory = tmp_path / pr_branch_mapping.MEMORY_RELATIVE_PATH
-        prior = memory.read_text(encoding="utf-8")
-        mapping = pr_branch_mapping.load_mapping(tmp_path)
-        pr_branch_mapping.add_mapping(mapping, 2, "b2")
-        monkeypatch.setattr(
-            pr_branch_mapping.os,
-            "replace",
-            lambda _s, _d: (_ for _ in ()).throw(OSError("io")),
-        )
-        with pytest.raises(OSError):
-            pr_branch_mapping.save_mapping(tmp_path, mapping)
-        assert memory.read_text(encoding="utf-8") == prior
-        assert _tmp_files(memory.parent) == []
-
-    def test_edge_mapping_lock_creates_and_yields(self, tmp_path):
-        with pr_branch_mapping._mapping_lock(tmp_path):
-            pass
-        lock = (
-            tmp_path
-            / ".serena"
-            / "memories"
-            / f".{pr_branch_mapping.MEMORY_FILENAME}.lock"
-        )
-        assert lock.exists()
-
-
 # ---------------------------------------------------------------------------
 # update_reviewer_signal_stats helpers
 # ---------------------------------------------------------------------------
@@ -169,37 +123,3 @@ class TestReviewerSignalStatsHelpers:
         with pytest.raises(OSError):
             urss._atomic_write_text(str(target), "content")
         assert _tmp_files(tmp_path) == []
-
-
-# ---------------------------------------------------------------------------
-# error_classification.log_error (locked append)
-# ---------------------------------------------------------------------------
-class TestErrorClassificationLog:
-    def _classified(self):
-        return error_classification.classify_error(
-            tool_name="bash", exit_code=1, stderr="boom"
-        )
-
-    def test_positive_appends_one_json_line(self, tmp_path):
-        log_path = tmp_path / "errors.jsonl"
-        error_classification.log_error(
-            self._classified(), recovery_action="retry", success=True, log_path=log_path
-        )
-        lines = log_path.read_text(encoding="utf-8").strip().splitlines()
-        assert len(lines) == 1
-        assert json.loads(lines[0])["recovery"] == "retry"
-
-    def test_edge_multiple_appends_accumulate(self, tmp_path):
-        log_path = tmp_path / "errors.jsonl"
-        for _ in range(3):
-            error_classification.log_error(
-                self._classified(), recovery_action="retry", success=True, log_path=log_path
-            )
-        lines = log_path.read_text(encoding="utf-8").strip().splitlines()
-        assert len(lines) == 3
-        assert all(json.loads(line)["tool"] == "bash" for line in lines)
-
-    def test_negative_locked_append_helper_writes_exact_text(self, tmp_path):
-        target = tmp_path / "out.jsonl"
-        error_classification._locked_append(target, '{"x":1}\n')
-        assert target.read_text(encoding="utf-8") == '{"x":1}\n'

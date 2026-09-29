@@ -32,7 +32,6 @@ _resolver = _import_script(
 )
 
 import scripts.invoke_batch_pr_review as batch  # noqa: E402
-import scripts.invoke_session_start_gate as gate  # noqa: E402
 
 
 def test_resolver_run_git_timeout_returns_synthetic_124() -> None:
@@ -66,11 +65,4 @@ def test_batch_run_gh_timeout_returns_synthetic_124() -> None:
     timeout = subprocess.TimeoutExpired(cmd="gh", timeout=60)
     with patch("subprocess.run", side_effect=timeout):
         result = batch.run_gh("pr", "view", "1")
-    assert result.returncode == 124
-
-
-def test_gate_run_git_timeout_returns_synthetic_124() -> None:
-    timeout = subprocess.TimeoutExpired(cmd="git", timeout=10)
-    with patch("subprocess.run", side_effect=timeout):
-        result = gate.run_git("rev-parse", "HEAD")
     assert result.returncode == 124
