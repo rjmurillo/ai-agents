@@ -255,7 +255,7 @@ to a CI round trip. Dropping the CI side reopens the hook-skipping routes.
 | PR description vs diff (`map_pr_description_result.py`) | Not in `_SEQUENCE` | `validate-pr` step | No | Keep CI. It reads the PR body, which does not exist before the PR opens. |
 | PR description standards (`parse_pr_standards.py`) | Not in `_SEQUENCE` | `validate-pr` step | No | Keep CI. Same reason. |
 | Workflow YAML (`scripts/validate_workflows.py`) | pre-commit `workflow-validation`, staged files only | `Validate workflow YAML`, whole tree | Yes, same script | Keep both. The `Workflow YAML Validation` pre-PR gate runs actionlint, a different checker. |
-| Bare-python3 entrypoints (`check_python3_entrypoints.py`) | None | `Check bare-python3 documentation entrypoints` | No | Keep CI. The `Documented Interpreter Portability` gate is a different script. |
+| Bare-python3 entrypoints (`check_python3_entrypoints.py`) | pre-PR gate `Python3 Entrypoints` | `Check bare-python3 documentation entrypoints` | Yes, same script | Keep both. The `Documented Interpreter Portability` gate is a different script. |
 | Rule scope declarations (`check_rule_scope_keys.py`) | pre-PR gate `Rule Scope Declarations (paths:)` | `Check rule scope declarations (paths:)` | Yes, same script | Keep both. |
 | ADR-006 run-block ratchet (`adr006_run_block_scanner.py`) | None | `Run ADR-006 run-block ratchet` | No | Keep CI. |
 | Taste-lint count ratchet | pre-push `count-ratchets`, pre-PR `Count Ratchets` | `Run taste-lint error-count ratchet` | Yes, same script | Keep both. |

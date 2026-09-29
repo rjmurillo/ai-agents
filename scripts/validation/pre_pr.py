@@ -76,6 +76,20 @@ from check_skill_adr_bindings import validate_skill_adr_bindings
 from check_subprocess_encoding import validate_subprocess_encoding
 from check_test_tree_writes import validate_test_tree_writes
 from check_unreachable_code import validate_unreachable_code
+from checks_ci_parity import (
+    validate_adr_uniqueness,
+    validate_agent_registry,
+    validate_agent_skill_discriminator,
+    validate_hook_contracts,
+    validate_passive_context_budget,
+    validate_placeholder_identity,
+    validate_plugin_frontmatter_self_containment,
+    validate_python3_entrypoints,
+    validate_security_suppressions_diff,
+    validate_sha_pinning,
+    validate_skillbook,
+    validate_tracked_conflict_markers,
+)
 from checks_common import (
     MissingScriptSkip,
     _gh_base_ref,
