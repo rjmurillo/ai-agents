@@ -266,6 +266,27 @@ def _profile_roots(profile: Path) -> dict[str, str]:
     return {key: str(path) for key, path in roots.items()}
 
 
+# Copilot BYOK provider variables (`copilot help environment`, Copilot CLI
+# 1.0.89) let a run bypass GitHub-routed quota. Two documented ones stay
+# out: COPILOT_PROVIDER_API_KEY_COMMAND runs an ambient shell command, and
+# COPILOT_PROVIDER_HEADERS can carry a credential under any header name.
+HARNESS_AUTH_ENV: dict[str, set[str]] = {
+    "claude": {"ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN"},
+    "copilot": {
+        "COPILOT_GITHUB_TOKEN",
+        "GH_TOKEN",
+        "GITHUB_TOKEN",
+        "COPILOT_PROVIDER_TYPE",
+        "COPILOT_PROVIDER_BASE_URL",
+        "COPILOT_PROVIDER_API_KEY",
+        "COPILOT_PROVIDER_BEARER_TOKEN",
+        "COPILOT_PROVIDER_MODEL_ID",
+        "COPILOT_PROVIDER_WIRE_MODEL",
+    },
+    "codex": {"CODEX_API_KEY", "CODEX_ACCESS_TOKEN"},
+}
+
+
 def runtime_env(workspace: Path, harness: str) -> dict[str, str]:
     """Build an allowlisted environment rooted at an isolated CLI profile."""
     allow = {
@@ -301,29 +322,10 @@ def runtime_env(workspace: Path, harness: str) -> dict[str, str]:
     # `scripts/eval/README.md` does map codex to OPENAI_API_KEY, but for the
     # direct-API provider path in `_providers.py`, not for this CLI
     # subprocess.
-    # Copilot BYOK provider variables (`copilot help environment`, Copilot CLI
-    # 1.0.89) let a run bypass GitHub-routed quota. Two documented ones stay
-    # out: COPILOT_PROVIDER_API_KEY_COMMAND runs an ambient shell command, and
-    # COPILOT_PROVIDER_HEADERS can carry a credential under any header name.
-    authentication = {
-        "claude": {"ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN"},
-        "copilot": {
-            "COPILOT_GITHUB_TOKEN",
-            "GH_TOKEN",
-            "GITHUB_TOKEN",
-            "COPILOT_PROVIDER_TYPE",
-            "COPILOT_PROVIDER_BASE_URL",
-            "COPILOT_PROVIDER_API_KEY",
-            "COPILOT_PROVIDER_BEARER_TOKEN",
-            "COPILOT_PROVIDER_MODEL_ID",
-            "COPILOT_PROVIDER_WIRE_MODEL",
-        },
-        "codex": {"CODEX_API_KEY", "CODEX_ACCESS_TOKEN"},
-    }
     # A harness outside this mapping raises KeyError here rather than falling
     # through to the profile branch below, so that branch's final `else` is
     # reachable only for "codex".
-    allow.update(authentication[harness])
+    allow.update(HARNESS_AUTH_ENV[harness])
     env = {key: value for key, value in os.environ.items() if key in allow}
     runtime = workspace / ".runtime"
     runtime.mkdir(exist_ok=True)

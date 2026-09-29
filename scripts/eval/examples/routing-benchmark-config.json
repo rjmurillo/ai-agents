@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "harnesses": [
+    {"harness": "codex", "version": "codex-cli 0.156.0"},
+    {"harness": "copilot", "version": "GitHub Copilot CLI 1.0.89-1."}
+  ],
+  "strategies": [
+    {
+      "arm": "A",
+      "topology": "fan_out",
+      "orchestrator": {"model": "gpt-5.6-sol", "effort": "medium"},
+      "workers": {
+        "ordinary_bounded": {"model": "gpt-5.6-sol", "effort": "low"},
+        "fallback_reasoning": {"model": "gpt-5.6-sol", "effort": "medium"}
+      },
+      "max_concurrency": 3,
+      "max_correction_rounds": 2
+    },
+    {
+      "arm": "B",
+      "topology": "fan_out",
+      "orchestrator": {"model": "gpt-5.6-sol", "effort": "medium"},
+      "workers": {
+        "ordinary_bounded": {"model": "gpt-5.6-luna", "effort": "medium"},
+        "fallback_reasoning": {"model": "gpt-5.6-terra", "effort": "high"}
+      },
+      "reviewer": {"model": "gpt-5.6-sol", "effort": "medium", "isolated": true},
+      "max_concurrency": 3,
+      "max_correction_rounds": 2
+    },
+    {
+      "arm": "C",
+      "topology": "fan_out",
+      "orchestrator": {"model": "gpt-5.6-sol", "effort": "medium"},
+      "workers": {
+        "ordinary_bounded": {"model": "gpt-5.6-luna", "effort": "high"},
+        "fallback_reasoning": {"model": "gpt-5.6-sol", "effort": "medium"}
+      },
+      "max_concurrency": 3,
+      "max_correction_rounds": 2
+    },
+    {
+      "arm": "D",
+      "topology": "fan_out",
+      "orchestrator": {"model": "gpt-5.6-sol", "effort": "medium"},
+      "workers": {
+        "ordinary_bounded": {"model": "gpt-5.6-terra", "effort": "high"},
+        "fallback_reasoning": {"model": "gpt-5.6-sol", "effort": "medium"}
+      },
+      "max_concurrency": 3,
+      "max_correction_rounds": 2
+    },
+    {
+      "arm": "E",
+      "topology": "single_agent",
+      "orchestrator": {"model": "gpt-5.6-sol", "effort": "high"},
+      "max_correction_rounds": 2
+    },
+    {
+      "arm": "F",
+      "topology": "plan_then_fresh",
+      "orchestrator": {"model": "gpt-5.6-sol", "effort": "high"},
+      "implementer": {"model": "gpt-5.6-sol", "effort": "high"},
+      "fresh_context_boundary": true,
+      "handoff_artifact": "implementation-plan.md",
+      "max_correction_rounds": 2
+    }
+  ]
+}
