@@ -104,16 +104,20 @@ class TestSecurityReviewFindings:
     @pytest.mark.parametrize(
         "binding",
         [
-            "def f(target):\n    load(target)\n",
-            "for target in items:\n    load(target)\n",
+            "for target in items:\n    pass\n",
             "a, target = pair\n",
-            "with open(p) as target:\n    load(target)\n",
-            "[load(target) for target in items]\n",
+            "with open(p) as target:\n    pass\n",
             "(target := compute())\n",
             "[target, other] = pair\n",
+            "target += 'x'\n",
+            "try:\n    pass\nexcept OSError as target:\n    pass\n",
+            "import target\n",
+            "def target():\n    pass\n",
         ],
     )
-    def test_a_name_bound_in_another_way_is_ambiguous(self, tmp_path: Path, binding: str) -> None:
+    def test_a_name_bound_in_another_way_in_the_same_scope_is_ambiguous(
+        self, tmp_path: Path, binding: str
+    ) -> None:
         write(
             tmp_path,
             "verify.py",
@@ -123,6 +127,76 @@ class TestSecurityReviewFindings:
             + "importlib.util.spec_from_file_location('x', target)\n",
         )
         write(tmp_path, "sibling.py", "")
+
+        assert len(gate._unresolvable_dynamic_sites(["verify.py"], tmp_path)) == 1
+
+    @pytest.mark.parametrize(
+        "load_site",
+        [
+            "def f(target):\n    importlib.util.spec_from_file_location('x', target)\n",
+            "g = lambda target: importlib.util.spec_from_file_location('x', target)\n",
+            "[importlib.util.spec_from_file_location('x', target) for target in items]\n",
+            "{target: importlib.util.spec_from_file_location('x', target) for target in items}\n",
+        ],
+    )
+    def test_a_parameter_or_loop_variable_shadows_the_module_name_at_the_load(
+        self, tmp_path: Path, load_site: str
+    ) -> None:
+        write(
+            tmp_path,
+            "verify.py",
+            "import importlib.util\nfrom pathlib import Path\n"
+            "target = Path(__file__).parent / 'sibling.py'\n" + load_site,
+        )
+        write(tmp_path, "sibling.py", "")
+
+        assert len(gate._unresolvable_dynamic_sites(["verify.py"], tmp_path)) == 1
+
+    def test_a_binding_in_another_function_does_not_make_a_module_name_ambiguous(
+        self, tmp_path: Path
+    ) -> None:
+        """The scope-blind resolver read this as ambiguous; Python does not."""
+        write(
+            tmp_path,
+            "verify.py",
+            "import importlib.util\nfrom pathlib import Path\n"
+            "target = Path(__file__).parent / 'sibling.py'\n"
+            "def unrelated(target):\n    return target\n"
+            "importlib.util.spec_from_file_location('x', target)\n",
+        )
+        write(tmp_path, "sibling.py", "")
+
+        assert gate._unresolvable_dynamic_sites(["verify.py"], tmp_path) == []
+
+    def test_a_name_local_to_the_function_resolves_there(self, tmp_path: Path) -> None:
+        """The shape build/generate_agents_common.py uses: a local built from a module constant."""
+        write(
+            tmp_path,
+            "verify.py",
+            "import importlib.util\nfrom pathlib import Path\n"
+            "HERE = Path(__file__).resolve().parent\n"
+            "def load():\n"
+            "    path = HERE / 'sibling.py'\n"
+            "    return importlib.util.spec_from_file_location('x', path)\n"
+            "def other(path):\n    return path\n",
+        )
+        write(tmp_path, "sibling.py", "")
+
+        assert gate._unresolvable_dynamic_sites(["verify.py"], tmp_path) == []
+        assert gate._expand_import_closure(["verify.py"], tmp_path) == ["verify.py", "sibling.py"]
+
+    def test_a_name_assigned_twice_in_the_function_is_ambiguous(self, tmp_path: Path) -> None:
+        write(
+            tmp_path,
+            "verify.py",
+            "import importlib.util\nfrom pathlib import Path\n"
+            "def load():\n"
+            "    path = Path(__file__).parent / 'a.py'\n"
+            "    path = Path(__file__).parent / 'b.py'\n"
+            "    return importlib.util.spec_from_file_location('x', path)\n",
+        )
+        write(tmp_path, "a.py", "")
+        write(tmp_path, "b.py", "")
 
         assert len(gate._unresolvable_dynamic_sites(["verify.py"], tmp_path)) == 1
 

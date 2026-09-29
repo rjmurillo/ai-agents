@@ -309,7 +309,7 @@ import shlex
 import subprocess
 import sys
 import unicodedata
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Any, NamedTuple
 
@@ -1813,88 +1813,157 @@ def _call_argument(node: ast.Call, position: int, keyword: str) -> ast.AST | Non
     return None
 
 
-def _single_assignments(tree: ast.AST) -> dict[str, ast.AST]:
-    """Names assigned exactly once in the module, mapped to that value.
-
-    A name assigned more than once, or rebound by an augmented assignment,
-    is ambiguous. It is left out, so a load that reads it stays unresolvable.
-    """
-    seen: dict[str, list[ast.AST]] = {}
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Assign):
-            for target in node.targets:
-                if isinstance(target, ast.Name):
-                    seen.setdefault(target.id, []).append(node.value)
-                else:
-                    _mark_ambiguous(seen, target)
-        elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
-            if node.value is not None:
-                seen.setdefault(node.target.id, []).append(node.value)
-        elif isinstance(node, ast.AugAssign):
-            _mark_ambiguous(seen, node.target)
-        else:
-            _mark_other_bindings(seen, node)
-    return {name: values[0] for name, values in seen.items() if len(values) == 1}
+_COMPREHENSIONS = (ast.ListComp, ast.SetComp, ast.DictComp, ast.GeneratorExp)
+_SCOPE_NODES = (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda, *_COMPREHENSIONS)
+_Lookup = Callable[[str], "ast.AST | None"]
 
 
-def _mark_ambiguous(seen: dict[str, list[ast.AST]], target: ast.AST) -> None:
-    """Record every name bound by ``target`` as bound in a way this cannot follow."""
+def _iter_scope(nodes: list[ast.AST]) -> Iterator[ast.AST]:
+    """Every node of one scope's own statements, without entering a nested scope."""
+    stack = list(nodes)
+    while stack:
+        node = stack.pop()
+        yield node
+        if isinstance(node, (*_SCOPE_NODES, ast.ClassDef)):
+            continue
+        stack.extend(ast.iter_child_nodes(node))
+
+
+def _bind(table: dict[str, ast.AST | None], name: str, value: ast.AST | None) -> None:
+    """Record a binding. A second binding, or one with no simple value, is ambiguous."""
+    table[name] = value if name not in table else None
+
+
+def _bind_targets(table: dict[str, ast.AST | None], target: ast.AST) -> None:
     for node in ast.walk(target):
         if isinstance(node, ast.Name):
-            seen.setdefault(node.id, []).extend([node, node])
+            table[node.id] = None
 
 
-def _mark_other_bindings(seen: dict[str, list[ast.AST]], node: ast.AST) -> None:
-    """Mark names bound by parameters, loops, ``with``, walrus and comprehensions.
-
-    A module-level ``target = ...`` does not describe a function parameter of
-    the same name, and the walk is not scope-aware, so any such binding makes
-    the name ambiguous and a load that reads it stays unresolvable.
-    """
-    if isinstance(node, ast.arg):
-        seen.setdefault(node.arg, []).extend([node, node])
-    elif isinstance(node, ast.For | ast.AsyncFor | ast.comprehension):
-        _mark_ambiguous(seen, node.target)
+def _bind_statement(table: dict[str, ast.AST | None], node: ast.AST) -> None:
+    """Record the names one statement-level node binds."""
+    if isinstance(node, ast.Assign):
+        for target in node.targets:
+            if isinstance(target, ast.Name):
+                _bind(table, target.id, node.value)
+            else:
+                _bind_targets(table, target)
+    elif isinstance(node, ast.AnnAssign):
+        if isinstance(node.target, ast.Name) and node.value is not None:
+            _bind(table, node.target.id, node.value)
+    elif isinstance(node, ast.AugAssign | ast.NamedExpr | ast.For | ast.AsyncFor):
+        _bind_targets(table, node.target)
     elif isinstance(node, ast.withitem) and node.optional_vars is not None:
-        _mark_ambiguous(seen, node.optional_vars)
-    elif isinstance(node, ast.NamedExpr):
-        _mark_ambiguous(seen, node.target)
+        _bind_targets(table, node.optional_vars)
+    else:
+        _bind_named(table, node)
+
+
+def _bind_named(table: dict[str, ast.AST | None], node: ast.AST) -> None:
+    """Record handler names, imports and definitions: names with no simple value."""
+    if isinstance(node, ast.ExceptHandler) and node.name:
+        table[node.name] = None
+    elif isinstance(node, ast.Import | ast.ImportFrom):
+        for alias in node.names:
+            table[(alias.asname or alias.name).split(".")[0]] = None
+    elif isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef):
+        table[node.name] = None
+
+
+def _bind_parameters(table: dict[str, ast.AST | None], args: ast.arguments) -> None:
+    for arg in (*args.posonlyargs, *args.args, *args.kwonlyargs, args.vararg, args.kwarg):
+        if arg is not None:
+            table[arg.arg] = None
+
+
+def _scope_table(scope: ast.AST) -> dict[str, ast.AST | None]:
+    """Names bound in ``scope``, each mapped to its single simple value or None.
+
+    None means the name is bound in a way this cannot follow: assigned more than
+    once, augmented, unpacked, a parameter, a loop or ``with`` target, a walrus,
+    an except-handler name, an import, or a definition. A load that reads such a
+    name stays unresolvable.
+    """
+    table: dict[str, ast.AST | None] = {}
+    if isinstance(scope, _COMPREHENSIONS):
+        for generator in scope.generators:
+            _bind_targets(table, generator.target)
+        return table
+    if isinstance(scope, ast.FunctionDef | ast.AsyncFunctionDef | ast.Lambda):
+        _bind_parameters(table, scope.args)
+    body = scope.body if isinstance(scope.body, list) else [scope.body]
+    for node in _iter_scope(body):
+        _bind_statement(table, node)
+    return table
+
+
+class _Scopes:
+    """Resolves a name the way Python does: the nearest enclosing scope that binds it."""
+
+    def __init__(self, tree: ast.Module) -> None:
+        self._tree = tree
+        self._parents: dict[ast.AST, ast.AST] = {}
+        for parent in ast.walk(tree):
+            for child in ast.iter_child_nodes(parent):
+                self._parents[child] = parent
+        self._tables: dict[ast.AST, dict[str, ast.AST | None]] = {}
+
+    def _enclosing(self, node: ast.AST) -> ast.AST:
+        current = self._parents.get(node)
+        while current is not None and not isinstance(current, (*_SCOPE_NODES, ast.Module)):
+            current = self._parents.get(current)
+        return current if current is not None else self._tree
+
+    def lookup_at(self, node: ast.AST) -> _Lookup:
+        """A lookup function for names read at ``node``."""
+
+        def lookup(name: str) -> ast.AST | None:
+            scope = self._enclosing(node)
+            while True:
+                table = self._tables.setdefault(scope, _scope_table(scope))
+                if name in table:
+                    return table[name]
+                if scope is self._tree:
+                    return None
+                scope = self._enclosing(scope)
+
+        return lookup
 
 
 def _derive_file_path(
-    node: ast.AST, script: Path, names: dict[str, ast.AST] | None, depth: int = 0,
+    node: ast.AST, script: Path, lookup: _Lookup | None, depth: int = 0,
 ) -> Path | None:
     """Evaluate ``node`` when it is built only from ``__file__`` and literals.
 
     Returns None for anything else: a parameter, an f-string, an attribute
     read, a call this function does not model. A partial answer is never
     returned, so one unmodelled step makes the whole load unresolvable.
-    ``names`` is None when the file rebinds ``Path``, ``os`` or ``__file__``,
-    which refuses every derivation in it.
+    ``lookup`` resolves a name at the load site and is None when the file
+    rebinds ``Path``, ``os`` or ``__file__``, which refuses every derivation in it.
     """
-    if depth > 12 or names is None:
+    if depth > 12 or lookup is None:
         return None
     if isinstance(node, ast.Name):
         if node.id == "__file__":
             return script
-        value = names.get(node.id)
-        return None if value is None else _derive_file_path(value, script, names, depth + 1)
+        value = lookup(node.id)
+        return None if value is None else _derive_file_path(value, script, lookup, depth + 1)
     if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Div):
-        left = _derive_file_path(node.left, script, names, depth + 1)
+        left = _derive_file_path(node.left, script, lookup, depth + 1)
         right = _string_constant(node.right)
         return None if left is None or right is None else left / right
     if isinstance(node, ast.Attribute) and node.attr == "parent":
-        base = _derive_file_path(node.value, script, names, depth + 1)
+        base = _derive_file_path(node.value, script, lookup, depth + 1)
         return None if base is None else base.parent
     if isinstance(node, ast.Subscript):
-        return _derive_from_parents(node, script, names, depth)
+        return _derive_from_parents(node, script, lookup, depth)
     if isinstance(node, ast.Call):
-        return _derive_from_call(node, script, names, depth)
+        return _derive_from_call(node, script, lookup, depth)
     return None
 
 
 def _derive_from_parents(
-    node: ast.Subscript, script: Path, names: dict[str, ast.AST] | None, depth: int,
+    node: ast.Subscript, script: Path, lookup: _Lookup | None, depth: int,
 ) -> Path | None:
     """``X.parents[N]`` with a literal non-negative ``N``."""
     target = node.value
@@ -1903,7 +1972,7 @@ def _derive_from_parents(
         return None
     if not (isinstance(index, ast.Constant) and isinstance(index.value, int)):
         return None
-    base = _derive_file_path(target.value, script, names, depth + 1)
+    base = _derive_file_path(target.value, script, lookup, depth + 1)
     if base is None or index.value < 0:
         return None
     try:
@@ -1913,24 +1982,24 @@ def _derive_from_parents(
 
 
 def _derive_from_call(
-    node: ast.Call, script: Path, names: dict[str, ast.AST] | None, depth: int,
+    node: ast.Call, script: Path, lookup: _Lookup | None, depth: int,
 ) -> Path | None:
     func = node.func
     name = _call_name(node)
     if name in _PATH_CONSTRUCTORS or name == "dirname":
         if len(node.args) != 1:
             return None
-        base = _derive_file_path(node.args[0], script, names, depth + 1)
+        base = _derive_file_path(node.args[0], script, lookup, depth + 1)
         if base is None:
             return None
         return base.parent if name == "dirname" else base
     if isinstance(func, ast.Attribute) and name in {"resolve", "absolute"} and not node.args:
-        return _derive_file_path(func.value, script, names, depth + 1)
+        return _derive_file_path(func.value, script, lookup, depth + 1)
     if isinstance(func, ast.Attribute) and name in {"with_name", "with_suffix", "joinpath"}:
-        base = _derive_file_path(func.value, script, names, depth + 1)
+        base = _derive_file_path(func.value, script, lookup, depth + 1)
         return None if base is None else _apply_path_method(base, name, node.args)
     if name == "join" and node.args:
-        base = _derive_file_path(node.args[0], script, names, depth + 1)
+        base = _derive_file_path(node.args[0], script, lookup, depth + 1)
         return None if base is None else _apply_path_method(base, "joinpath", node.args[1:])
     return None
 
@@ -1951,7 +2020,7 @@ def _apply_path_method(base: Path, name: str, args: list[ast.expr]) -> Path | No
 
 
 def _load_from_call(
-    node: ast.Call, script: Path, names: dict[str, ast.AST] | None,
+    node: ast.Call, script: Path, lookup: _Lookup | None,
 ) -> _DynamicLoad | None:
     """Classify one call as a dynamic load, or None when it is not one."""
     name = _call_name(node)
@@ -1963,7 +2032,7 @@ def _load_from_call(
     if name in _FILE_LOADS:
         position, keyword = _FILE_LOADS[name]
         target = _call_argument(node, position, keyword)
-        path = None if target is None else _derive_file_path(target, script, names)
+        path = None if target is None else _derive_file_path(target, script, lookup)
         return _DynamicLoad(node.lineno, name, None, path)
     if name in {"exec", "eval"} and isinstance(node.func, ast.Name):
         if node.args and _is_inert_code(_string_constant(node.args[0])):
@@ -2066,11 +2135,12 @@ def _dynamic_loads(source: bytes, script: Path) -> list[_DynamicLoad]:
         return []
     except (RecursionError, MemoryError):
         return [_DynamicLoad(1, "unparseable", None, None)]
-    names = None if _shadows_a_path_name(tree) else _single_assignments(tree)
+    scopes = None if _shadows_a_path_name(tree) else _Scopes(tree)
     found: list[_DynamicLoad] = []
     for node in ast.walk(tree):
         if isinstance(node, ast.Call):
-            load = _load_from_call(node, script, names)
+            lookup = None if scopes is None else scopes.lookup_at(node)
+            load = _load_from_call(node, script, lookup)
             if load is not None:
                 found.append(load)
     return sorted(found, key=lambda load: load.line)

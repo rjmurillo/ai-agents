@@ -290,7 +290,8 @@ class TestPathDerivationEdges:
         import ast
 
         node = ast.parse(expression, mode="eval").body
-        return gate._derive_file_path(node, script, names or {})
+        table = names or {}
+        return gate._derive_file_path(node, script, table.get)
 
     def test_with_suffix_on_a_derived_path(self, tmp_path: Path) -> None:
         script = tmp_path / "verify.py"
