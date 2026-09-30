@@ -1069,6 +1069,37 @@ I/O and no model calls; `_eval_common.percentile` is the one shared
 percentile helper it and the model-sweep and report-aggregator cores all use
 (REQ-042 AC-11).
 
+### Live Claude Run
+
+`eval_durable_live.py` produces the JSONL above from real `claude -p` runs over
+the routing corpus (issue #5768). It is not the routing runner: that runner
+plans only harnesses the #5423 matrix classifies (`codex`, `copilot`), and its
+arms are Sol, Luna, and Terra based. This script adds no arm and no
+eligibility claim. It compares two instruction controls on identical tasks:
+`current` (CLAUDE.md, AGENTS.md, `.claude/CLAUDE.md`, the three always-on
+rules) and `reduced` (AGENTS.md only).
+
+```bash
+uv run python scripts/eval/eval_durable_live.py            # dry run, zero spend
+uv run python scripts/eval/eval_durable_live.py --live --use-stored-login \
+  --output-dir evals/durable-outcome-live/RUN
+```
+
+The control text reaches the CLI through `--append-system-prompt-file`, and
+`CLAUDE_CODE_DISABLE_CLAUDE_MDS=1` keeps every other CLAUDE.md out. `--live`
+also needs `--use-stored-login`: the run bills to the Claude login stored on
+the machine, and the script never reads or copies the credential file. A hard
+`--max-invocations` cap stops the launches. A task whose process failed or
+returned no `result` event gets no record, is listed under `harness_failures`,
+and makes the comparison refuse rather than count the failure against a
+control.
+
+Measured fields come from the corpus grader and the CLI stream. Proxies are
+`unsupported_claims` and `unresolved_uncertainty` (regexes over the final
+message). `review_findings`, `rollback_events`, and `rework_minutes` are 0 by
+construction, not measured. Requested effort is never verified: the stream
+names no effort. The `_durable_live.py` docstring lists every mapping.
+
 ## Routing Benchmark Corpus
 
 `eval_routing_corpus.py` loads the six-scenario corpus under
