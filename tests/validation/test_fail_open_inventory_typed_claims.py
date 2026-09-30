@@ -18,7 +18,11 @@ Two resolution levels, because the tables differ:
   ``CheckOutcome`` or ``GateResult``, or (for an exit-code function) to build a
   ``CheckOutcome`` itself or through one helper.
 * A table without one (the hook jobs) names only the script, so the test
-  requires the script to import ``CheckOutcome`` from the evidence module.
+  requires the script to import ``CheckOutcome`` from the evidence module, or,
+  for a self-contained skill script that cannot import the repository package,
+  to define the module-level ``TYPED_RESULT_VOCABULARY`` mirror that
+  ``tests/skills/security-detection/test_typed_vocabulary_parity.py`` checks
+  against ``evidence.py``.
 
 This is a static check. It proves the function is declared to return, or builds,
 the typed contract; the behavioral tests beside each converted gate prove each
@@ -47,6 +51,9 @@ PY_FILE = re.compile(r"`([A-Za-z0-9_./-]+\.py)(?::[0-9,-]+)?`")
 EVIDENCE_IMPORT = re.compile(
     r"from\s+(?:scripts\.validation\.)?evidence\s+import[^#]*?\bCheckOutcome\b", re.S
 )
+
+
+MIRROR_NAME = "TYPED_RESULT_VOCABULARY"
 
 
 class TypedClaim(NamedTuple):
@@ -118,6 +125,17 @@ def _builds_check_outcome(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
     )
 
 
+def _defines_vocabulary_mirror(source: str) -> bool:
+    """True when the module assigns ``TYPED_RESULT_VOCABULARY`` at module level."""
+    for node in ast.parse(source).body:
+        targets = node.targets if isinstance(node, ast.Assign) else []
+        if isinstance(node, ast.AnnAssign):
+            targets = [node.target]
+        if any(isinstance(t, ast.Name) and t.id == MIRROR_NAME for t in targets):
+            return True
+    return False
+
+
 def _function_returns_typed(source: str, function: str) -> bool:
     """True when ``function`` is annotated typed, or builds a ``CheckOutcome`` itself.
 
@@ -155,7 +173,7 @@ def unproven_claims(claims: list[TypedClaim], root: Path) -> list[str]:
             backed = (
                 _function_returns_typed(source, claim.function)
                 if claim.function
-                else bool(EVIDENCE_IMPORT.search(source))
+                else bool(EVIDENCE_IMPORT.search(source) or _defines_vocabulary_mirror(source))
             )
             if not backed:
                 bad.append(f"{claim.path_cell}: {script.relative_to(root)} does not emit it")
@@ -241,6 +259,31 @@ def test_a_functionless_table_requires_the_evidence_import(
     claims = typed_claims(table)
 
     assert (unproven_claims(claims, _fake_repo(tmp_path, source)) == []) is expected
+
+
+def test_a_functionless_table_accepts_the_portable_vocabulary_mirror(tmp_path: Path) -> None:
+    table = "| Path | Contract |\n|---|---|\n| `gate.py:1` | TYPED |\n"
+    claims = typed_claims(table)
+    body = 'TYPED_RESULT_VOCABULARY = {"PASS": "PASS"}\n'
+
+    assert unproven_claims(claims, _fake_repo(tmp_path, body)) == []
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "# TYPED_RESULT_VOCABULARY is mentioned in a comment only\n",
+        "def f():\n    TYPED_RESULT_VOCABULARY = {}\n",
+        "OTHER_VOCABULARY = {}\n",
+    ],
+)
+def test_a_functionless_table_rejects_a_mirror_that_is_not_module_level(
+    tmp_path: Path, source: str
+) -> None:
+    table = "| Path | Contract |\n|---|---|\n| `gate.py:1` | TYPED |\n"
+    claims = typed_claims(table)
+
+    assert len(unproven_claims(claims, _fake_repo(tmp_path, source))) == 1
 
 
 def test_an_exit_code_function_that_builds_a_check_outcome_is_accepted(tmp_path: Path) -> None:

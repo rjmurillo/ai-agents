@@ -136,6 +136,7 @@ def test_gh_absent_is_advisory(
 
     captured = capsys.readouterr()
     assert "gh executable unavailable" in captured.out
+    assert captured.out.startswith("[BLOCKED] validate_active_plan_closeout reason=tool.absent")
 
 
 def test_gh_nonzero_is_advisory(monkeypatch, capsys) -> None:
@@ -149,6 +150,7 @@ def test_gh_nonzero_is_advisory(monkeypatch, capsys) -> None:
     captured = capsys.readouterr()
     assert "could not inspect #101: gh lookup failed" in captured.out
     assert "network unavailable" in captured.out
+    assert captured.out.startswith("[BLOCKED] validate_active_plan_closeout reason=lookup.failed")
 
 
 def test_gh_unrecognized_output_is_advisory(
@@ -182,6 +184,43 @@ def test_gh_timeout_is_advisory(monkeypatch, capsys) -> None:
 
     captured = capsys.readouterr()
     assert "could not inspect #101: gh lookup timed out" in captured.out
+    assert captured.out.startswith("[BLOCKED] validate_active_plan_closeout reason=timeout")
+
+
+def test_gh_empty_state_prints_a_typed_unknown(monkeypatch, capsys) -> None:
+    def empty(*args, **kwargs):
+        return subprocess.CompletedProcess(args[0], 0, "  \n", "")
+
+    monkeypatch.setattr("scripts.validation.active_plan_closeout.subprocess.run", empty)
+
+    assert gh_issue_state(101, repo="owner/repo") is None
+
+    out = capsys.readouterr().out
+    assert out.startswith("[UNKNOWN] validate_active_plan_closeout reason=output.malformed")
+    assert "gh returned no state" in out
+
+
+def test_gh_oserror_prints_a_typed_lookup_failure(monkeypatch, capsys) -> None:
+    def broken(*args, **kwargs):
+        raise PermissionError("gh: permission denied")
+
+    monkeypatch.setattr("scripts.validation.active_plan_closeout.subprocess.run", broken)
+
+    assert gh_issue_state(101, repo="owner/repo") is None
+
+    out = capsys.readouterr().out
+    assert out.startswith("[BLOCKED] validate_active_plan_closeout reason=lookup.failed")
+    assert "permission denied" in out
+
+
+def test_a_successful_lookup_prints_no_typed_line(monkeypatch, capsys) -> None:
+    def open_state(*args, **kwargs):
+        return subprocess.CompletedProcess(args[0], 0, "OPEN\n", "")
+
+    monkeypatch.setattr("scripts.validation.active_plan_closeout.subprocess.run", open_state)
+
+    assert gh_issue_state(101, repo="owner/repo") == "OPEN"
+    assert capsys.readouterr().out == ""
 
 
 def test_issue_refs_captures_pull_request_urls() -> None:
@@ -199,6 +238,7 @@ def test_gh_issue_state_rejects_invalid_repo_format(capsys) -> None:
     assert result is None
     captured = capsys.readouterr()
     assert "invalid repo format" in captured.out
+    assert captured.out.startswith("[BLOCKED] validate_active_plan_closeout reason=lookup.failed")
 
 
 def test_clean_run_is_a_pass_that_names_how_many_lookups_it_made(

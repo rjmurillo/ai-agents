@@ -260,6 +260,106 @@ def test_critical_with_git_failure_exits_3(tmp_path: Path) -> None:
     assert result["security_review"]["satisfied"] is False
 
 
+# typed result on the security_review object (issue #5636) -----------------------
+
+
+@pytest.mark.parametrize("risk", ["none", "high"])
+def test_non_critical_is_a_typed_skip(risk: str, tmp_path: Path) -> None:
+    result = _result(risk)
+    mod.enforce_security_review(result, "HEAD", tmp_path)
+    review = result["security_review"]
+    assert (review["state"], review["reason"]) == ("SKIP", "policy.exempt")
+
+
+def test_a_bound_marker_is_a_pass_with_no_reason(repo: Path) -> None:
+    _marker(repo)
+    result = _result("critical")
+    mod.enforce_security_review(result, "HEAD", repo)
+    review = result["security_review"]
+    assert (review["state"], review["reason"]) == ("PASS", "")
+
+
+def test_a_missing_marker_is_a_typed_fail(repo: Path) -> None:
+    result = _result("critical")
+    mod.enforce_security_review(result, "HEAD", repo)
+    review = result["security_review"]
+    assert (review["state"], review["reason"]) == ("FAIL", "violations.found")
+
+
+def test_an_unresolvable_ref_is_a_typed_blocked_lookup_failure(tmp_path: Path) -> None:
+    result = _result("critical")
+    assert mod.enforce_security_review(result, "no-such-ref", tmp_path) == 3
+    review = result["security_review"]
+    assert (review["state"], review["reason"]) == ("BLOCKED", "lookup.failed")
+
+
+def test_a_missing_git_binary_is_blocked_with_tool_absent(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(mod.shutil, "which", lambda _name: None)
+    result = _result("critical")
+    assert mod.enforce_security_review(result, "HEAD", tmp_path) == 3
+    review = result["security_review"]
+    assert (review["state"], review["reason"]) == ("BLOCKED", "tool.absent")
+
+
+def test_a_git_timeout_is_blocked_with_timeout(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    def boom(*_a: object, **_k: object) -> None:
+        raise mod.subprocess.TimeoutExpired(cmd="git", timeout=1)
+
+    monkeypatch.setattr(mod.subprocess, "run", boom)
+    result = _result("critical")
+    assert mod.enforce_security_review(result, "HEAD", tmp_path) == 3
+    review = result["security_review"]
+    assert (review["state"], review["reason"]) == ("BLOCKED", "timeout")
+
+
+def test_undecodable_git_output_is_unknown_with_output_malformed(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    def boom(*_a: object, **_k: object) -> None:
+        raise UnicodeDecodeError("utf-8", b"\xff", 0, 1, "invalid start byte")
+
+    monkeypatch.setattr(mod.subprocess, "run", boom)
+    result = _result("critical")
+    assert mod.enforce_security_review(result, "HEAD", tmp_path) == 3
+    review = result["security_review"]
+    assert (review["state"], review["reason"]) == ("UNKNOWN", "output.malformed")
+
+
+def test_a_spawn_failure_is_blocked_with_tool_absent(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    def boom(*_a: object, **_k: object) -> None:
+        raise PermissionError("git not executable")
+
+    monkeypatch.setattr(mod.subprocess, "run", boom)
+    result = _result("critical")
+    assert mod.enforce_security_review(result, "HEAD", tmp_path) == 3
+    review = result["security_review"]
+    assert (review["state"], review["reason"]) == ("BLOCKED", "tool.absent")
+
+
+def test_the_blocked_stderr_line_is_typed_and_names_the_reason(
+    monkeypatch: pytest.MonkeyPatch, repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    rc = _run_main(monkeypatch, repo, "--require-security-review", "--ref", "no-such-ref")
+    first = capsys.readouterr().err.splitlines()[0]
+    assert rc == 3
+    assert first.startswith("[BLOCKED] detect_infrastructure reason=lookup.failed scope=")
+
+
+def test_the_fail_stderr_line_is_typed_and_names_the_reason(
+    monkeypatch: pytest.MonkeyPatch, repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    rc = _run_main(monkeypatch, repo, "--require-security-review")
+    first = capsys.readouterr().err.splitlines()[0]
+    assert rc == 1
+    assert first.startswith("[FAIL] detect_infrastructure reason=violations.found scope=")
+
+
 # main() CLI ---------------------------------------------------------------------
 
 
@@ -309,6 +409,8 @@ def test_main_json_mode_carries_exit_code_and_review_state(
         "required": True,
         "satisfied": False,
         "detail": payload["security_review"]["detail"],
+        "state": "FAIL",
+        "reason": "violations.found",
     }
 
 
