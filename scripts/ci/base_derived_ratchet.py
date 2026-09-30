@@ -1,0 +1,243 @@
+"""Count ratchet whose ceiling is measured at the merge base (issue #5363).
+
+A committed baseline integer has two costs. Two PRs that each lower it conflict
+on one line (issue #4171), and a branch that clears violations without running
+``--update`` leaves slack that a later regression spends silently. ADR-092
+removed the same class for the plugin version by deleting the field. This
+module does the same for the count baselines: nothing is recorded, and the
+ceiling is derived when the check runs.
+
+The ceiling is the count measured on the tree at ``git merge-base HEAD
+<base-ref>``. The branch may not exceed it. Because the ceiling comes from the
+fork point, a ``main`` that moves underneath the branch changes nothing here,
+so the BEHIND BASE states the scalar comparison needed do not exist.
+``scripts/ci/merge_tree_ratchet_check.py`` measures the merged tree against the
+base tip, which is the other half of the stale-branch guard.
+
+Three outcomes are explicit and blocking or non-blocking on purpose:
+
+* No ``--base-ref``: exit 2. Without a ref there is no ceiling, and a run that
+  silently skipped the comparison would read as a pass.
+* No fork point (shallow clone, unrelated history): exit 3, the same class as
+  a git read failure.
+* Bootstrap: the fork point does not yet carry the ratchet's own script, so the
+  branch introduces the ratchet and there is no earlier tree to hold it to.
+  Exit 0 with a message that names the state.
+
+Every other failure to measure the fork tree is exit 3. A ceiling that could not
+be measured never becomes a pass.
+
+Exit codes (AGENTS.md contract):
+    0 - ok (count <= count at the merge base, or bootstrap)
+    1 - regression (count > count at the merge base)
+    2 - config error (no --base-ref)
+    3 - external error (counter could not run, or no fork point)
+"""
+
+from __future__ import annotations
+
+import argparse
+import sys
+import tempfile
+from collections.abc import Callable
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+from scripts.ci.count_ratchet import (
+    EXIT_CONFIG,
+    EXIT_EXTERNAL,
+    EXIT_OK,
+    EXIT_REGRESSION,
+    _fork_point,
+    baseline_absent_at_ref,
+    changed_files,
+    git_environment,
+    is_shallow_repository,
+)
+from scripts.ci.merge_tree_materialization import (
+    init_scratch_repo,
+    materialize_tree,
+    remove_tree,
+    run_git,
+)
+
+__all__ = [
+    "EXIT_CONFIG",
+    "EXIT_EXTERNAL",
+    "EXIT_OK",
+    "EXIT_REGRESSION",
+    "build_parser",
+    "introduced_at",
+    "measure_commit",
+    "run",
+]
+
+Counter = Callable[[Path], int | None]
+Lister = Callable[[Path, frozenset[str]], list[str] | None]
+
+
+def build_parser(description: str) -> argparse.ArgumentParser:
+    """Argument parser shared by the base-derived ratchets."""
+    parser = argparse.ArgumentParser(description=description)
+    parser.add_argument(
+        "--repo-root",
+        type=Path,
+        default=Path.cwd(),
+        help="Repository root (default: current working directory).",
+    )
+    parser.add_argument(
+        "--base-ref",
+        help=(
+            "Git ref whose merge base with HEAD supplies the ceiling. Required: "
+            "the ceiling is the count measured on that tree."
+        ),
+    )
+    return parser
+
+
+def measure_commit(repo_root: Path, commit: str, counter: Counter) -> int | None:
+    """Count violations on the tree of ``commit``, or None when it cannot be measured.
+
+    The tree is materialized into a scratch repository first, because every
+    counter reads tracked files through git and must not see the working tree
+    of the branch under test. Scratch is removed on every exit path.
+    """
+    proc = run_git(
+        repo_root, "rev-parse", "--verify", f"{commit}^{{tree}}", env=git_environment()
+    )
+    if proc.returncode != 0:
+        sys.stderr.write(f"could not resolve the tree of {commit}: {proc.stderr}\n")
+        return None
+    tree_oid = proc.stdout.strip()
+    try:
+        scratch = Path(tempfile.mkdtemp(prefix="base-derived-ratchet-"))
+    except OSError as exc:
+        sys.stderr.write(f"scratch creation failed: {type(exc).__name__}: {exc}\n")
+        return None
+    count: int | None = None
+    try:
+        if materialize_tree(repo_root, tree_oid, scratch) and init_scratch_repo(scratch):
+            count = counter(scratch)
+    finally:
+        cleanup_error = remove_tree(scratch, "base-derived ratchet scratch")
+    if cleanup_error:
+        sys.stderr.write(f"{cleanup_error}\n")
+        return None
+    return count
+
+
+def introduced_at(repo_root: Path, commit: str, script: str) -> bool:
+    """True when ``commit`` does not carry ``script`` yet: the bootstrap state.
+
+    Delegates to ``baseline_absent_at_ref``, an allowlist that answers True only
+    when the ref resolves and the path is the one thing missing. A typo'd ref or
+    an unlaunchable git answers False, so the caller goes on to measure and
+    fails closed instead of reading a git error as "first run".
+    """
+    return baseline_absent_at_ref(repo_root, commit, repo_root / script)
+
+
+def _unreadable_fork_message(label: str, base_ref: str, *, shallow: bool) -> str:
+    cause = (
+        "this is a shallow clone, so there is no common history to read: run "
+        "`git fetch --unshallow` (or re-checkout at full depth) and re-run"
+        if shallow
+        else f"this checkout's history is unrelated to {base_ref}: fetch the "
+        f"real base branch and re-run"
+    )
+    return (
+        f"{label}: FORK POINT UNREADABLE. git could not name the commit where "
+        f"this branch left {base_ref}, so the ceiling cannot be measured and "
+        f"the ratchet blocks rather than guess. Probable cause: {cause}."
+    )
+
+
+def _print_violations(lister: Lister, repo_root: Path, base_ref: str) -> None:
+    violations = lister(repo_root, changed_files(repo_root, base_ref))
+    if not violations:
+        return
+    max_lines = 40
+    print("\nCurrent violations:", file=sys.stderr)
+    for line in violations[:max_lines]:
+        print(f"  {line}", file=sys.stderr)
+    if len(violations) > max_lines:
+        print(f"  ... and {len(violations) - max_lines} more", file=sys.stderr)
+
+
+def _ceiling(
+    root: Path, args: argparse.Namespace, label: str, counter: Counter, introduced_by: str
+) -> tuple[int | None, int]:
+    """Ceiling at the fork point and an exit code. Ceiling None means stop or skip."""
+    fork = _fork_point(root, args.base_ref)
+    if fork is None:
+        message = _unreadable_fork_message(
+            label, args.base_ref, shallow=is_shallow_repository(root)
+        )
+        print(message, file=sys.stderr)
+        return None, EXIT_EXTERNAL
+    if introduced_at(root, fork, introduced_by):
+        print(
+            f"{label}: bootstrap. {args.base_ref} does not carry {introduced_by} "
+            f"yet, so there is no earlier tree to hold this branch to. The "
+            f"ceiling starts once the ratchet lands."
+        )
+        return None, EXIT_OK
+    ceiling = measure_commit(root, fork, counter)
+    if ceiling is None:
+        print(
+            f"error: {label}: could not measure the merge base {fork[:12]}",
+            file=sys.stderr,
+        )
+        return None, EXIT_EXTERNAL
+    return ceiling, EXIT_OK
+
+
+def run(
+    args: argparse.Namespace,
+    *,
+    label: str,
+    counter: Counter,
+    scan_error: str,
+    regression_advice: str,
+    introduced_by: str,
+    lister: Lister | None = None,
+) -> int:
+    """Evaluate one ratchet. ``counter`` returns the current count, or None.
+
+    ``introduced_by`` is the repo-relative path of the ratchet's own script. A
+    fork point that lacks it is the bootstrap state.
+    """
+    if not args.base_ref:
+        print(
+            f"error: {label}: --base-ref is required. The ceiling is the count "
+            f"measured at the merge base, so a run without a ref has nothing to "
+            f"compare against.",
+            file=sys.stderr,
+        )
+        return EXIT_CONFIG
+    root = args.repo_root.resolve()
+    count = counter(root)
+    if count is None:
+        print(f"error: {scan_error}", file=sys.stderr)
+        return EXIT_EXTERNAL
+    ceiling, code = _ceiling(root, args, label, counter, introduced_by)
+    if ceiling is None:
+        return code
+    if count > ceiling:
+        print(
+            f"{label}: REGRESSION. {count} violations > {ceiling} at the merge "
+            f"base (+{count - ceiling}). {regression_advice}",
+            file=sys.stderr,
+        )
+        if lister is not None:
+            _print_violations(lister, root, args.base_ref)
+        return EXIT_REGRESSION
+    if count < ceiling:
+        print(
+            f"{label}: OK. {count} violations, {ceiling - count} below the "
+            f"merge base ({ceiling})."
+        )
+        return EXIT_OK
+    print(f"{label}: OK (count == merge base {ceiling}).")
+    return EXIT_OK

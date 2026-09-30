@@ -9,12 +9,8 @@ import pytest
 
 from scripts.ci import count_ratchet
 from scripts.ci import type_ignore_count_ratchet as ratchet
-from tests.ci.ratchet_test_helpers import make_baseline_writer
 
-_write_baseline = make_baseline_writer(
-    "type_ignore_count_baseline.txt",
-    trailing_newline=True,
-)
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def _fake_git(files: tuple[str, ...] = ("pkg/mod.py",), git_rc: int = 0):
@@ -281,144 +277,39 @@ class TestConstants:
         """_PY_GLOBS must target .py files; mutation to another extension must be detected."""
         assert ratchet._PY_GLOBS == ("*.py",)
 
-    def test_baseline_filename_is_correct(self) -> None:
-        """Baseline path must end with the canonical filename."""
-        assert ratchet._BASELINE_PATH.name == "type_ignore_count_baseline.txt"
+    def test_script_marker_names_a_tracked_file(self) -> None:
+        """The bootstrap marker must point at this ratchet's own file."""
+        assert (REPO_ROOT / ratchet._SCRIPT).is_file()
 
 
 # --- integration tests for main() -----------------------------------------
 
 
 class TestMain:
-    def test_ok_when_count_equals_baseline(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        baseline = _write_baseline(tmp_path, "5")
-        monkeypatch.setattr(ratchet, "_BASELINE_PATH", baseline)
-        monkeypatch.setattr(ratchet, "current_count", lambda _: 5)
-        rc = ratchet.main([])
-        assert rc == count_ratchet.EXIT_OK
-        assert "OK" in capsys.readouterr().out
-
-    def test_regression_when_count_exceeds_baseline(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        baseline = _write_baseline(tmp_path, "5")
-        monkeypatch.setattr(ratchet, "_BASELINE_PATH", baseline)
-        monkeypatch.setattr(ratchet, "current_count", lambda _: 6)
-        rc = ratchet.main([])
-        assert rc == count_ratchet.EXIT_REGRESSION
-
-    def test_count_below_baseline_passes_without_update(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """Issue #4171: lower counts pass without rewriting shared baseline."""
-        baseline = _write_baseline(tmp_path, "5")
-        monkeypatch.setattr(ratchet, "_BASELINE_PATH", baseline)
-        monkeypatch.setattr(ratchet, "current_count", lambda _: 4)
-        rc = ratchet.main([])
-        assert rc == count_ratchet.EXIT_OK
+    def test_config_error_without_base_ref(self, capsys: pytest.CaptureFixture) -> None:
+        assert ratchet.main([]) == count_ratchet.EXIT_CONFIG
         captured = capsys.readouterr()
-        assert "<= baseline" in captured.out
-        assert "BASELINE STALE" not in captured.err
+        assert "--base-ref" in captured.err + captured.out
 
-    def test_update_lowers_baseline(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        baseline = _write_baseline(tmp_path, "5")
-        monkeypatch.setattr(ratchet, "_BASELINE_PATH", baseline)
-        monkeypatch.setattr(ratchet, "current_count", lambda _: 3)
-        rc = ratchet.main(["--update"])
-        assert rc == count_ratchet.EXIT_OK
-        assert baseline.read_text(encoding="utf-8").strip() == "3"
-
-    def test_update_does_not_raise_baseline(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        baseline = _write_baseline(tmp_path, "5")
-        monkeypatch.setattr(ratchet, "_BASELINE_PATH", baseline)
-        monkeypatch.setattr(ratchet, "current_count", lambda _: 5)
-        ratchet.main(["--update"])
-        assert baseline.read_text(encoding="utf-8").strip() == "5"
-
-    def test_config_error_when_baseline_missing(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        missing = tmp_path / "no_baseline.txt"
-        monkeypatch.setattr(ratchet, "_BASELINE_PATH", missing)
-        rc = ratchet.main([])
-        assert rc == count_ratchet.EXIT_CONFIG
-
-    def test_external_error_when_scan_fails(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        baseline = _write_baseline(tmp_path, "5")
-        monkeypatch.setattr(ratchet, "_BASELINE_PATH", baseline)
+    def test_external_error_when_scan_fails(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(ratchet, "current_count", lambda _: None)
-        rc = ratchet.main([])
-        assert rc == count_ratchet.EXIT_EXTERNAL
+        assert ratchet.main(["--base-ref", "HEAD"]) == count_ratchet.EXIT_EXTERNAL
 
-    def test_base_ref_blocks_raised_allowance(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    def test_wires_this_ratchet_into_the_base_derived_run(
+        self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """A PR that raises the baseline vs origin/main must be blocked."""
-        baseline = _write_baseline(tmp_path, "10")
-        monkeypatch.setattr(ratchet, "_BASELINE_PATH", baseline)
+        seen: dict = {}
 
-        call_count = 0
+        def _run(args, **kwargs):
+            seen.update(kwargs)
+            return 0
 
-        def _fake_git_with_base(cmd, **kwargs):
-            nonlocal call_count
-            call_count += 1
-            if "rev-parse" in cmd:
-                return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
-            if "ls-tree" in cmd:
-                return subprocess.CompletedProcess(
-                    cmd, 0, stdout="100644 blob abc\tbaseline.txt\n", stderr=""
-                )
-            if "show" in cmd:
-                return subprocess.CompletedProcess(cmd, 0, stdout="5\n", stderr="")
-            stdout = "\0".join(("mod.py",)) + "\0"
-            return subprocess.CompletedProcess(cmd, 0, stdout=stdout, stderr="")
+        monkeypatch.setattr(ratchet, "run", _run)
+        assert ratchet.main(["--base-ref", "origin/main"]) == 0
+        assert seen["label"] == "type-ignore count ratchet"
+        assert seen["introduced_by"] == ratchet._SCRIPT
+        assert seen["counter"] is ratchet.current_count
 
-        monkeypatch.setattr(subprocess, "run", _fake_git_with_base)
-        monkeypatch.setattr(ratchet, "current_count", lambda _: 10)
-        rc = ratchet.main(["--base-ref", "origin/main"])
-        assert rc == count_ratchet.EXIT_REGRESSION
-
-    def test_a_stale_branch_is_told_what_the_base_ref_already_allows(
-        self,
-        tmp_path: Path,
-        capsys: pytest.CaptureFixture,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        """Baseline 10, base 5, count 4: the base ref already allows 4.
-
-        Shares ``count_ratchet`` with the taste and ruff ratchets, so this
-        pins that the type-ignore entry point reaches the same verdict. The
-        discrimination against a count the base ref does *not* allow is pinned
-        once, on the shared code, in ``test_taste_count_ratchet.py``.
-        """
-        baseline = _write_baseline(tmp_path, "10")
-        monkeypatch.setattr(ratchet, "_BASELINE_PATH", baseline)
-
-        def _fake_git_with_base(cmd, **kwargs):
-            if "rev-parse" in cmd:
-                return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
-            if "ls-tree" in cmd:
-                return subprocess.CompletedProcess(
-                    cmd, 0, stdout="100644 blob abc\tbaseline.txt\n", stderr=""
-                )
-            if "show" in cmd:
-                return subprocess.CompletedProcess(cmd, 0, stdout="5\n", stderr="")
-            return subprocess.CompletedProcess(cmd, 0, stdout="mod.py\0", stderr="")
-
-        monkeypatch.setattr(subprocess, "run", _fake_git_with_base)
-        monkeypatch.setattr(ratchet, "current_count", lambda _: 4)
-        rc = ratchet.main(["--base-ref", "origin/main"])
-        captured = capsys.readouterr()
-        assert rc == count_ratchet.EXIT_REGRESSION
-        assert "BASELINE ABOVE BASE" in captured.err
-        assert "The measured count is 4" in captured.err
-        assert "nothing in this tree added a violation" in captured.err
-        assert captured.err.index("merge or rebase") < captured.err.index(
-            "fix the violations"
-        )
+    def test_end_to_end_against_head_passes_on_the_real_repo(self) -> None:
+        rc = ratchet.main(["--base-ref", "HEAD", "--repo-root", str(REPO_ROOT)])
+        assert rc == count_ratchet.EXIT_OK

@@ -15,9 +15,11 @@ from scripts.ci import merge_tree_materialization as _mat
 from scripts.ci import merge_tree_ratchet_check as _m
 from scripts.ci import ruff_count_ratchet as _ruff
 from tests.ci.test_merge_tree_ratchet_check import (
+    _branch_with_counts,
     _commit_all,
     _git,
     _make_repo_with_baselines,
+    _tree_counters,
 )
 
 pytestmark = pytest.mark.windows_path
@@ -77,7 +79,8 @@ def test_merge_tree_ruff_count_matches_direct_count_on_windows(tmp_path: Path) -
     assert direct_count is not None
     assert direct_count > 0
     assert rc == _m.EXIT_OK
-    assert merged_counts == [direct_count]
+    # Merged tree first, then the base tip (same content at HEAD).
+    assert merged_counts == [direct_count, direct_count]
 
 
 @pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
@@ -126,7 +129,7 @@ def test_missing_git_launch_is_external(tmp_path: Path, capsys: pytest.CaptureFi
 @pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
 @pytest.mark.parametrize(
     ("ruff_count", "expected_exit"),
-    [(0, _m.EXIT_EXTERNAL), (11, _m.EXIT_REGRESSION)],
+    [(9, _m.EXIT_EXTERNAL), (11, _m.EXIT_REGRESSION)],
 )
 def test_cleanup_failure_does_not_mask_primary_failure(
     tmp_path: Path,
@@ -135,19 +138,16 @@ def test_cleanup_failure_does_not_mask_primary_failure(
     expected_exit: int,
 ) -> None:
     repo = _make_repo_with_baselines(tmp_path, ruff=10, taste=10, ignore=10)
+    _branch_with_counts(repo, ruff=ruff_count)
     with (
-        patch("scripts.ci.ruff_count_ratchet.current_count", return_value=ruff_count),
-        patch("scripts.ci.taste_count_ratchet.current_count", return_value=0),
-        patch("scripts.ci.type_ignore_count_ratchet.current_count", return_value=0),
-        patch("scripts.ci.memory_index_count_ratchet.current_count", return_value=0),
-        patch("scripts.ci.cli_exit_contract_ratchet.current_count", return_value=0),
+        _tree_counters(),
         patch.object(
             _m,
             "_remove_tree",
             return_value="merge-tree scratch cleanup failed: PermissionError: denied",
         ),
     ):
-        rc = _m.main(["--repo-root", str(repo), "--base-ref", "HEAD"])
+        rc = _m.main(["--repo-root", str(repo), "--base-ref", "main"])
 
     assert rc == expected_exit
     assert "PermissionError: denied" in capsys.readouterr().err

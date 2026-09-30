@@ -74,9 +74,9 @@ def run_mutants(repo_root: Path) -> None:
             b'_PY_GLOBS = ("*.MUTANT_EXTENSION",)',
         ),
         (
-            "break baseline filename reference",
-            b'_BASELINE_PATH = Path(__file__).with_name("type_ignore_count_baseline.txt")',
-            b'_BASELINE_PATH = Path(__file__).with_name("MUTANT_type_ignore_count_baseline.txt")',
+            "break the bootstrap marker handed to the shared runner",
+            b"introduced_by=_SCRIPT",
+            b'introduced_by="MUTANT_scripts/ci/absent.py"',
         ),
     ]
 
