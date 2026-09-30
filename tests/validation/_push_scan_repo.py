@@ -84,6 +84,7 @@ class Origin:
         self.bare = tmp_path / "origin.git"
         subprocess.run(
             ["git", "init", "-q", "--bare", "-b", "main", str(self.bare)],
+            cwd=tmp_path,
             check=True,
             capture_output=True,
         )
