@@ -1,0 +1,5 @@
+{
+  "schema_version": "1",
+  "description": "Intentional divergences between a committed generated agent file and the file build/generate_agents.py would emit. Each entry names one exact repo-relative file and states why it differs. The validator rejects an entry missing either field. Empty is the expected steady state. Replaces the [skip-drift-check] commit marker (issue #5636).",
+  "entries": []
+}

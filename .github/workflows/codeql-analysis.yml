@@ -5,7 +5,9 @@
 # optimal performance and integrates with the GitHub Security tab via SARIF.
 #
 # IMPORTANT: This workflow runs on ALL PRs to satisfy required status checks,
-# but skips actual analysis when no scannable files are changed.
+# but skips actual analysis when no scannable files are changed. The merge queue
+# (merge_group) and the nightly schedule always run the full analysis, because
+# CodeQL scans the whole tree and a path filter cannot prove it unchanged.
 #
 # Scannable paths are defined ONCE in the check-paths job filters block.
 # See the 'scannable' filter for the authoritative list.
@@ -30,8 +32,12 @@ on:
   merge_group:
     branches: [main]
   schedule:
-    # Weekly scan on Monday at 9 AM UTC
-    - cron: '0 9 * * 1'
+    # Nightly whole-tree scan at 05:23 UTC. CodeQL scans the whole codebase per
+    # language, so the PR path filter can skip a change that alters the verdict
+    # (a push to main that misses the filter, or a merge-queue race). A nightly
+    # run bounds that gap to one day (issue #5636). Off the hour on purpose,
+    # since the top of the hour is when scheduled runs queue.
+    - cron: '23 5 * * *'
   workflow_dispatch: # Allow manual triggering
 
 # Concurrency control: Cancels in-progress runs when new runs start

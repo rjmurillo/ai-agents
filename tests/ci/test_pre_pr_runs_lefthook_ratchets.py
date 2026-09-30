@@ -89,6 +89,12 @@ _EXPECTED_RATCHETS = (
         True,
     ),
     (
+        "canonical-citations-count-ratchet",
+        "scripts/ci/canonical_citations_count_ratchet.py",
+        False,
+        True,
+    ),
+    (
         "memory-index-token-ratchet",
         "scripts/ci/memory_index_token_ratchet.py",
         False,

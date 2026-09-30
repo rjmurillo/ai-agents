@@ -22,6 +22,11 @@ Failure mode by default: WARNING (exit 0 with non-empty stderr-style
 output on stdout). Set the environment variable `STRICT_CANONICAL_CHECK=1`
 to upgrade warnings to a hard FAIL (exit 1).
 
+Growth is blocked separately: `scripts/ci/canonical_citations_count_ratchet.py`
+freezes the number of violations `STRICT_CANONICAL_CHECK=1` reports at the
+value in `scripts/ci/canonical_citations_count_baseline.txt`, so the count can
+fall and cannot rise (issue #5636).
+
 EXIT CODES:
   0 - Success (no violations; OR violations only in soft-warn mode; OR no
       scan roots present, which prints `[SKIP] no scan roots present` and
