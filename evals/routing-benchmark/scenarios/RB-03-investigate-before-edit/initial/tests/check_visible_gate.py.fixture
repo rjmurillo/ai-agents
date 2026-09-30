@@ -1,0 +1,16 @@
+import unittest
+
+from perfgate import EtlRow, compare_etl, decide
+
+
+class VisibleGateChecks(unittest.TestCase):
+    def test_etl_regression_fails_the_gate(self) -> None:
+        rows = [EtlRow("Parser.Tokenize", 18.5, True)]
+        self.assertEqual(decide(False, compare_etl(rows), True), 1)
+
+    def test_no_regression_anywhere_passes(self) -> None:
+        self.assertEqual(decide(False, None, True), 0)
+
+
+if __name__ == "__main__":
+    unittest.main()

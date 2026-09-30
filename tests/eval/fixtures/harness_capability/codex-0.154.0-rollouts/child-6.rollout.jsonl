@@ -1,0 +1,6 @@
+{"timestamp":"2026-09-10T02:59:51.789Z","type":"session_meta","payload":{"id":"01a08941-e315-7fe3-86e1-2e8beab2782f","timestamp":"2026-09-10T02:59:51.711Z","cli_version":"0.154.0","source":{"subagent":{"thread_spawn":{"parent_thread_id":"01a08938-c495-7a62-aff5-39d52bb91b3c","depth":1}}},"parent_thread_id":"01a08938-c495-7a62-aff5-39d52bb91b3c"}}
+{"timestamp":"2026-09-10T02:59:51.789Z","type":"event_msg","payload":{"type":"task_started","turn_id":"01a08941-e344-7f00-b690-1277da6e67c2","started_at":1789009191}}
+{"timestamp":"2026-09-10T02:59:53.521Z","type":"turn_context","payload":{"turn_id":"01a08941-e344-7f00-b690-1277da6e67c2","model":"gpt-5.6-luna","effort":"max"}}
+{"timestamp":"2026-09-10T03:21:30.076Z","type":"compacted","payload":{"message":"","replacement_history":[]}}
+{"timestamp":"2026-09-10T03:21:30.079Z","type":"turn_context","payload":{"turn_id":"01a08941-e344-7f00-b690-1277da6e67c2","model":"gpt-5.6-luna","effort":"max"}}
+{"timestamp":"2026-09-10T03:23:32.013Z","type":"event_msg","payload":{"type":"task_complete","turn_id":"01a08941-e344-7f00-b690-1277da6e67c2","completed_at":1789010612,"duration_ms":1420236}}

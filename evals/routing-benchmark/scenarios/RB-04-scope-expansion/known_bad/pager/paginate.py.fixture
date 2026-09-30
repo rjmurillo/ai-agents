@@ -1,0 +1,8 @@
+"""Page slicing for list endpoints. Pages are numbered from 1."""
+
+
+def page_slice(items: list[str], page: int, size: int) -> list[str]:
+    if page < 1 or size < 1:
+        raise ValueError("page and size must be at least 1")
+    start = (page - 1) * size
+    return items[start : start + size]

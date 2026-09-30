@@ -149,7 +149,7 @@ Verified against the working tree on 2026-07-03. Retro-cited short SHAs do not r
 | Fact | Source | Re-verify with |
 |------|--------|----------------|
 | EVENT= stderr telemetry schema | RETIRED: `push_guard_base.py` and every guard built on it were deleted under ADR-084 (issue #5154); no live file defines this schema | N/A. A surviving `EVENT=` emitter with a related but narrower shape (unknown-identity fail-open, not the general guard schema) is `.claude/lib/hook_utilities/guards.py::_emit_skip_event` |
-| 4 drift surfaces run in CI | `.github/workflows/validate-generated-agents.yml:165-225` | `grep -n -e "run_install_parity" -e "sync_plugin_lib" -e "build_all" -e "generate_agents" .github/workflows/validate-generated-agents.yml` |
+| 4 drift surfaces run in CI | `.github/workflows/validate-generated-agents.yml:165-225` | `grep -n -e "run_install_parity" -e "build_all" -e "generate_agents" .github/workflows/validate-generated-agents.yml` |
 | `[skip-drift-check]` bypass marker | `.github/workflows/agent-drift-detection.yml:17,65-69` | `grep -n "skip-drift-check" .github/workflows/agent-drift-detection.yml` |
 | Version-field prohibition | `build/scripts/validate_plugin_version_bump.py` docstring, section RULE | `grep -n "MUST NOT carry" build/scripts/validate_plugin_version_bump.py` |
 | No version in any manifest or marketplace entry | three `.claude-plugin/plugin.json` files, both `marketplace.json` files | `python3 build/scripts/validate_plugin_version_bump.py` |

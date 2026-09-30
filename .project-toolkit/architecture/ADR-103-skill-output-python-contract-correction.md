@@ -22,8 +22,9 @@ enforcement gap Copilot's PR review found while checking the correction.
 schema, the standalone validator, `write_skill_error`'s behavior) now match
 this ADR's prose, not that a CI gate enforces the contract: two independent
 adr-review seats (analyst, high-level-advisor) flagged that the flag could
-otherwise read as "enforced." `validate_envelope` has no live caller in this
-repository today; see the Negative consequence below and issue #5299.
+otherwise read as "enforced." The `Skill Output Envelope` pre-PR gate
+(issue #5299) now runs `validate_envelope` against envelopes built by the real
+producers; see the Negative consequence below.
 
 `status: accepted` rests on a genuine six-seat Phase 4 convergence check
 against this ADR's current text, run in Round 5 after a Copilot review
@@ -150,17 +151,23 @@ exactly the contradiction class issue #5201 exists to eliminate.
   historical, PowerShell-era wording and must follow `superseded-by` to
   reach the current contract. Mitigated by ADR-056's `## Status` section
   stating the supersession explicitly at the top of the file.
-- **`validate_envelope` is not wired into any gate.** Verified: no hit for
-  `validate_skill_output` in `lefthook.yml`, `.github/workflows/`, or
-  `scripts/validation/pre_pr_sequence.py`/`pre_pr.py`. The function is
-  exercised only by its own unit tests (`tests/test_validate_envelope.py`,
-  split out of `tests/test_skill_output.py` in Round 5; also
-  `tests/test_skill_output_schema.py` for the independent JSON-Schema-level
-  checks, and `tests/test_skill_output_cli.py` for the CLI subprocess
-  integration path). This ADR closes the disagreement between the schema,
-  the validator, and this ADR's prose; it does not, by itself, put a live
-  check in front of any real skill-script output. Tracked as a fast
-  follow-up: issue #5299.
+- **`validate_envelope` was not wired into any gate when this ADR was
+  accepted.** No hit for `validate_skill_output` existed in `lefthook.yml`,
+  `.github/workflows/`, or `scripts/validation/pre_pr_sequence.py`/`pre_pr.py`;
+  the function was exercised only by its own unit tests
+  (`tests/test_validate_envelope.py`, split out of `tests/test_skill_output.py`
+  in Round 5; also `tests/test_skill_output_schema.py` for the independent
+  JSON-Schema-level checks, and `tests/test_skill_output_cli.py` for the CLI
+  subprocess integration path). Issue #5299 closed that gap: the
+  `Skill Output Envelope` gate in `pre_pr_sequence.py`
+  (`scripts/validation/check_skill_output_envelopes.py`) builds a success
+  envelope and one error envelope per accepted error type with the real
+  producers in `scripts/github_core/output.py`, requires the validator to
+  accept each, and fails when the validator CLI accepts an error envelope with
+  no `Error.Type`. It also fails when a producer error type is one the
+  validator rejects, and it skips when `validate_skill_output.py` is absent.
+  It checks the producers, not the output of each skill script. It runs in
+  `pre_pr.py` only; no workflow or lefthook job runs it.
 - **`validate_envelope` and the standalone CLI now reject envelopes that
   previously either passed or crashed.** This is a real runtime behavior
   change on the consumer/checker side, corrected from an earlier draft of
@@ -465,7 +472,7 @@ exactly the contradiction class issue #5201 exists to eliminate.
 - ADR-042: Python Migration Strategy
 - ADR-073: ADR Lifecycle Frontmatter
 - Issue #5201
-- Issue #5299 (fast follow-up: wire `validate_skill_output.py` into a gate)
+- Issue #5299 (closed by the `Skill Output Envelope` pre-PR gate)
 
 ## References
 

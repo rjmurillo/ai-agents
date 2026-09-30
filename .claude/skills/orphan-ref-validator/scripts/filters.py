@@ -198,3 +198,24 @@ def is_known_kebab_word(token: str) -> bool:
     if "-" not in token:
         return True
     return bool(MODEL_ID_RE.match(token))
+
+
+# Values of the ``role`` frontmatter field on a skill (plus ``deprecated``, the
+# retired-skill marker). Specs write them in backticks beside the word
+# "skill": "a `front-door` skill", "an `explicit-only` skill". The prose names
+# a category of skill, not a skill called ``front-door``, so the scanner must
+# not read it as a catalog reference (issue #5872). A real skill with one of
+# these names still resolves through the live catalog.
+ROUTING_ROLE_VALUES: frozenset[str] = frozenset({
+    "conditional-adjunct",
+    "deprecated",
+    "explicit-only",
+    "front-door",
+    "lifecycle",
+    "nested-helper",
+})
+
+
+def is_routing_role_value(token: str) -> bool:
+    """Return True if token is a skill routing-role value, not a skill name."""
+    return token in ROUTING_ROLE_VALUES

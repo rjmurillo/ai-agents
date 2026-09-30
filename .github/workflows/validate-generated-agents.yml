@@ -54,7 +54,7 @@ jobs:
               - 'src/claude/**'
               - '.claude-plugin/marketplace.json'
               - '.github/plugin/marketplace.json'
-              - '.claude/.claude-plugin/plugin.json'
+              - 'src/claude/.claude-plugin/plugin.json'
               - 'build/generate_agents.py'
               - 'build/generate_agents_common.py'
               - 'build/generate_agent_catalog.py'
@@ -82,15 +82,66 @@ jobs:
           OUTPUT_NAME: should-run-agents
         run: python3 scripts/workflows/determine_should_run_from_filters.py
 
-  validate:
-    name: Validate Generated Files
+  # Whole-tree check, so no paths filter and no dependency on check-paths.
+  # build_all.py --check compares every generator output against its source; a
+  # filter on the diff cannot decide that, and a filtered skip would report
+  # success for a stale tree (.claude/rules/ci-scripts.md, "Path filters gate
+  # the diff, never the tree"). Same shape as instruction-budget.yml. Issue #5296.
+  build-all-staleness:
+    name: Build-all Staleness
     # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
     runs-on: ubuntu-26.04-arm
-    needs: check-paths
+    timeout-minutes: 10
     permissions:
       contents: read
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.14'
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+
+      - name: Build-all staleness check (REQ-003-005)
+        # Fails (exit 2) if any generator output is stale relative to its
+        # source. Catches the "forgot to regenerate skills/agents" class of
+        # error before merge.
+        run: uv run python build/scripts/build_all.py --check
+
+  validate:
+    name: Validate Generated Files
+    # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
+    runs-on: ubuntu-26.04-arm
+    # `Validate Generated Files` is a required status check. It must go red when
+    # the unconditional staleness job fails, so it waits for that job and runs
+    # even when the job failed (a skipped required check reads as success).
+    needs: [check-paths, build-all-staleness]
+    if: ${{ !cancelled() }}
+    permissions:
+      contents: read
+
+    steps:
+      - name: Require upstream jobs
+        env:
+          PATHS_RESULT: ${{ needs.check-paths.result }}
+          STALENESS_RESULT: ${{ needs.build-all-staleness.result }}
+        run: |
+          failed=0
+          if [ "$PATHS_RESULT" != "success" ]; then
+            echo "::error::check-paths result: $PATHS_RESULT"
+            failed=1
+          fi
+          if [ "$STALENESS_RESULT" != "success" ]; then
+            echo "::error::build-all-staleness result: $STALENESS_RESULT"
+            failed=1
+          fi
+          exit "$failed"
+
       - name: Check if validation needed
         id: should-run
         env:
@@ -148,15 +199,6 @@ jobs:
           echo "Running agent generation in validation mode..."
           uv run python build/generate_agents.py --validate
 
-      - name: Build-all staleness check (REQ-003-005)
-        if: steps.should-run.outputs.skip != 'true'
-        # Run the M3 orchestrator in --check mode. Fails (exit 2) if any
-        # generator output is stale relative to the source. Catches the
-        # "forgot to regenerate skills/agents" class of error before merge.
-        run: |
-          echo "Running build_all.py --check..."
-          uv run python build/scripts/build_all.py --check
-
       - name: Review-axes drift check (REQ-008-03)
         if: steps.should-run.outputs.skip != 'true'
         # Rehomed from the retired ai-pr-quality-gate.yml. The canonical
@@ -205,19 +247,6 @@ jobs:
           PUSH_BEFORE_SHA: ${{ github.event_name == 'push' && github.event.before || '' }}
         run: |
           uv run python scripts/validation/run_install_parity_ci.py
-
-      - name: Plugin lib sync check (M7-T1)
-        if: steps.should-run.outputs.skip != 'true'
-        # `scripts/hook_utilities/` and `scripts/github_core/` are the
-        # canonical sources; `.claude/lib/` carries plugin-distributed
-        # copies with relative imports. The sync script has a --check
-        # mode that exits 1 on any drift between source and copy.
-        # Without this gate, a contributor could add a function to
-        # scripts/hook_utilities/ without running the sync script and
-        # the lib copy would silently fall behind.
-        run: |
-          echo "Running sync_plugin_lib.py --check..."
-          uv run python scripts/sync_plugin_lib.py --check
 
       - name: "Plugin manifest description count check (Issue #3651)"
         if: steps.should-run.outputs.skip != 'true'

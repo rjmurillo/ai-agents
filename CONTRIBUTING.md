@@ -610,7 +610,7 @@ and push enforcement runs through Lefthook, `pre_pr.py`, and CI under ADR-084.
 No `PreToolUse`, `PostToolUse`, `PermissionRequest`, or `PostToolUseFailure`
 hook is registered. ADR-097 retired all five, including
 `invoke_observation_sync.py`, which previously synced Serena observations to
-Forgetful on this event. Every surviving hook fires once per session or per
+a second memory backend on this event. Every surviving hook fires once per session or per
 turn, never once per tool call.
 
 **Diagnosability:** Hook errors print to stderr (visible in the harness output)
@@ -814,7 +814,7 @@ copilot --no-auto-update --version
 copilot --no-auto-update --log-level all --agent analyst --prompt "Reply with only the word OK"
 
 # Test all shared agents
-for agent in analyst architect backlog-generator critic devops explainer high-level-advisor implementer independent-thinker memory milestone-planner orchestrator pr-comment-responder qa retrospective roadmap security skillbook task-decomposer; do
+for agent in analyst architect critic devops explainer high-level-advisor implementer independent-thinker memory milestone-planner orchestrator pr-comment-responder qa retrospective roadmap security skillbook task-decomposer; do
   copilot --no-auto-update --log-level all --agent "$agent" --prompt "Reply OK" 2>&1 | grep -i warning && echo "FAIL: $agent" || echo "PASS: $agent"
 done
 ```

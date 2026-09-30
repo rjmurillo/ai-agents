@@ -503,7 +503,7 @@ Six classes. Five name a gate that exists. One is open work.
 
 | Class | Gate | State |
 |---|---|---|
-| C1 source digest and staleness | `scripts/validation/check_generated_staleness.py`, which runs `scripts/sync_plugin_lib.py` then `build/scripts/build_all.py` in that order, each under `--check` | Exists |
+| C1 source digest and staleness | `scripts/validation/check_generated_staleness.py`, which runs `build/scripts/build_all.py` under `--check` (the retired `sync_plugin_lib.py` step is folded into it, ADR-109 B5) | Exists |
 | C2 projection snapshot | `build/scripts/build_all.py` under `--check`, plus the generator tests under `tests/build_scripts/` | Exists |
 | C3 invariant preservation | Asserts invariants 6 and 8 survive the transform | **Missing.** M2 |
 | C4 generated drift | `build/scripts/validate_install_parity.py`, `build/scripts/check_agent_content_parity.py`, `build/scripts/detect_agent_drift.py` | Exists; the third is advisory |

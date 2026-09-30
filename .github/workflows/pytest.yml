@@ -4,12 +4,16 @@
 # Python Tests
 #
 # Runs pytest and security checks for Python code in the repository.
-# Uses dorny/paths-filter to determine if tests should run or be skipped.
 #
-# IMPORTANT: This workflow runs on ALL PRs to satisfy required status checks,
-# but skips actual test execution when no Python test inputs are changed.
+# IMPORTANT: The required "Run Python Tests" context comes from one job,
+# test-result, whose verdict rests on the test partitions, the coverage job and
+# the repository guards it depends on. None of them sits behind a path filter.
+# ADR-101 requirement 1: no condition sourced outside that chain's own logic
+# may let the context report success without running the verification its name
+# claims. The check-paths job still gates the two jobs that are not part of the
+# required context (Python Security Checks and the Windows path-contract tests).
 #
-# Testable paths are defined in the check-paths job filters block.
+# Which tests each partition runs is decided inside scripts/ci/run_pytest_selected.py.
 #
 # Local developers and AI agents can run the same tests using:
 #   uv run pytest
@@ -194,8 +198,11 @@ jobs:
 
   test:
     name: "pytest (${{ matrix.partition }})"
-    needs: check-paths
-    if: needs.check-paths.outputs.python-changed == 'true'
+    # ADR-101 requirement 1: no `needs:` and no job-level `if:`. The partitions
+    # sit inside the required "Run Python Tests" chain, so a path filter must
+    # not decide whether they run. A diff that matches no policy path still
+    # runs every partition in full (run_pytest_selected.py falls back to the
+    # full partition when no affected test is owned by it).
     runs-on: ubuntu-latest
     timeout-minutes: 10
     # `checks: write` was here from the ADR-042 migration (953b4534d, PR #967)
@@ -501,10 +508,8 @@ jobs:
 
   coverage:
     name: Combine Python coverage
-    needs:
-      - check-paths
-      - test
-    if: needs.check-paths.outputs.python-changed == 'true' && !cancelled() && needs.test.result == 'success'
+    needs: test
+    if: "!cancelled() && needs.test.result == 'success'"
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -557,10 +562,15 @@ jobs:
           overwrite: true
           retention-days: 7
 
+  # The only job that publishes the required "Run Python Tests" context. It
+  # replaces a same-named pair (this job plus a skip-tests pass-through that
+  # answered when a path filter said no Python inputs changed). ADR-101
+  # requirement 1: the verdict comes from the chain's own results, and every
+  # dependency must have succeeded. A skipped dependency is a failure here, so
+  # nothing can turn the context green without the tests having run.
   test-result:
     name: Run Python Tests
     needs:
-      - check-paths
       - test
       - coverage
       - zero-collection-guard
@@ -569,12 +579,8 @@ jobs:
     # !cancelled() rather than always(): a superseded run leaves its
     # dependencies 'cancelled', and always() would turn that into a red
     # required check on the PR head (Issue #5097). !cancelled() still runs on
-    # failed and skipped dependencies, so the pass-through and the real
-    # failure signal both survive.
-    if: >-
-      !cancelled() &&
-      (needs.check-paths.result != 'success' ||
-      needs.check-paths.outputs.python-changed == 'true')
+    # failed and skipped dependencies, so the real failure signal survives.
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-26.04-arm
     timeout-minutes: 2
     permissions:
@@ -587,7 +593,6 @@ jobs:
 
       - name: Require test, coverage, and repository guard success
         env:
-          PATH_RESULT: ${{ needs.check-paths.result }}
           TEST_RESULT: ${{ needs.test.result }}
           COVERAGE_RESULT: ${{ needs.coverage.result }}
           ZERO_COLLECTION_RESULT: ${{ needs.zero-collection-guard.result }}
@@ -595,7 +600,6 @@ jobs:
           CONTEXT_OUTPUT_RESULT: ${{ needs.context-output-guard.result }}
         run: >-
           python scripts/ci/require_job_results.py
-          --check PATH_RESULT success "path detection failed or was cancelled: {value}"
           --check TEST_RESULT success "test job failed or was cancelled: {value}"
           --check COVERAGE_RESULT success "coverage job failed or was cancelled: {value}"
           --check ZERO_COLLECTION_RESULT success "zero-collection-guard failed or was cancelled: {value}"
@@ -683,106 +687,6 @@ jobs:
           path: bandit.sarif
           retention-days: 7
 
-  # Pass-through job: satisfies required "Run Python Tests" check when no Python test inputs changed.
-  # GitHub branch protection requires SUCCESS (not SKIPPED) for required checks.
-  # See: Issue #1168
-  skip-tests:
-    name: Run Python Tests
-    needs:
-      - check-paths
-      - zero-collection-guard
-      # Issue #5475: this is the leg that reports the required check on
-      # exactly the change the line-ending guard exists for. A commit adding
-      # only a CRLF `.xml` or `.csv` leaves `python-changed` false, so
-      # `test-result` is skipped and this job answers for `Run Python Tests`
-      # instead. Not `.md`: the `python` filter carries `**/*.md`, as the
-      # `line-endings-guard` comment above records and
-      # `test_the_filter_gap_this_job_exists_for_is_real` asserts. Wiring the
-      # guard into `test-result` alone left it red beside a green required
-      # check, because the guard's own context is not in the repository's
-      # required-checks list.
-      - line-endings-guard
-      - context-output-guard
-    # !cancelled() so this job still runs (and can fail loudly) when
-    # zero-collection-guard failed, rather than being implicitly skipped by
-    # GitHub's default success()-over-needs gate, which would leave the
-    # required "Run Python Tests" context missing instead of failed.
-    if: >-
-      !cancelled() &&
-      needs.check-paths.result == 'success' &&
-      needs.check-paths.outputs.python-changed != 'true'
-    # ADR-025: ARM runner for cost optimization
-    runs-on: ubuntu-26.04-arm
-    # ADR-101: was 2 minutes when this job only sparse-checked out one file and
-    # ran require_job_results.py. Verifying the skip claim (below) needs the
-    # full path policy and select_tests modules present, so the checkout below
-    # is fetch-depth: 0 and unsharded, plus a uv setup step; neither fits a 2
-    # minute budget.
-    timeout-minutes: 10
-    permissions:
-      contents: read
-    steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
-        with:
-          egress-policy: audit
-
-      # ADR-101: fetch-depth: 0, not sparse. verify_skip_tests_claim.py (below)
-      # needs full history to diff base...head and the whole scripts/test_selection
-      # tree (the policy module and path_policy.yml) alongside require_job_results.py.
-      # No --depth=1 on any later fetch: see the "Run ruff count ratchet" step
-      # in this file for why a shallow fetch writes .git/shallow and grafts the
-      # fetched tip parentless.
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-          fetch-depth: 0
-
-      - name: Setup code environment
-        uses: ./.github/actions/setup-code-env
-        with:
-          gh-token: ${{ secrets.GITHUB_TOKEN }}
-          enable-pester: false
-          enable-git-hooks: false
-
-      # ADR-101 (see "The same pattern is live on a context that IS required"):
-      # test-result and skip-tests both publish the required "Run Python Tests"
-      # context. If check-paths ever computes python-changed=false when a
-      # changed file actually matches the path policy, this job would report
-      # that required context green with no test having run. Recompute the
-      # match independently before trusting the claim.
-      #
-      # head.sha, not HEAD: on pull_request the checkout above is the
-      # synthetic refs/pull/N/merge commit, whose first parent is the current
-      # base tip, so base.sha...HEAD attributes every base-branch commit since
-      # base.sha to this pull request. Observed on PR #5341. Issue #5378.
-      - name: Verify the python-changed=false claim (blocking)
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-        run: >-
-          uv run --frozen python scripts/ci/verify_skip_tests_claim.py
-          --base "$BASE_SHA"
-          --head "$HEAD_SHA"
-
-      - name: Require blocking guards succeeded
-        env:
-          ZERO_COLLECTION_RESULT: ${{ needs.zero-collection-guard.result }}
-          LINE_ENDINGS_RESULT: ${{ needs.line-endings-guard.result }}
-          CONTEXT_OUTPUT_RESULT: ${{ needs.context-output-guard.result }}
-        run: >-
-          python scripts/ci/require_job_results.py
-          --check ZERO_COLLECTION_RESULT success "zero-collection-guard failed or was cancelled: {value}"
-          --check LINE_ENDINGS_RESULT success "line-endings-guard failed or was cancelled: {value}"
-          --check CONTEXT_OUTPUT_RESULT success "context-output-guard failed or was cancelled: {value}"
-
-      - name: Skip tests (no Python test inputs changed)
-        run: |
-          echo "No Python test inputs changed - skipping tests"
-          echo ""
-          echo "See the 'python' filter in check-paths job for paths that trigger tests."
-          echo "Reference: .github/workflows/pytest.yml"
-
   # Tests marked @pytest.mark.windows_path exercise behavior that differs between
   # Windows and POSIX: path separators, PowerShell script resolution, Git's
   # Windows trace behavior, atomic-write durability, and install-tree layout.
@@ -831,7 +735,6 @@ jobs:
       - test
       - test-result
       - security
-      - skip-tests
       - test-windows-pwsh
       - context-output-guard
     # !cancelled() rather than always(): the alert script treats a 'cancelled'

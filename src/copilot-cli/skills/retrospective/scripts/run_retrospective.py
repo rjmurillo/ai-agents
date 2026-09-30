@@ -318,27 +318,15 @@ def render_artifact(
 
 #### Actionable Items Identified
 
-| Delta Item | Category | Priority | Destination | Reference |
-|------------|----------|----------|-------------|-----------|
-| [Item from Delta] | [Missing Docs/Tool Gap/Process/Feature] | P0/P1/P2/P3 | Issue #N / Memory / Skip | [Link] |
+| Delta Item | Category |
+|------------|----------|
+| [Item from Delta] | [Missing Docs/Tool Gap/Process/Feature] |
 
-#### Issues Created
+#### Findings for the owner
 
-| Issue | Title | Priority | Labels |
-|-------|-------|----------|--------|
-| #[N] | [Title] | P0/P1 | enhancement, source:retrospective |
-
-#### Backlog Items Stored
-
-| Item | Priority | Memory File |
-|------|----------|-------------|
-| [Item] | P2/P3 | backlog/retro-YYYY-MM-DD-items.md |
-
-#### Skipped Items
-
-| Item | Reason |
-|------|--------|
-| [Item] | [Duplicate of #X / Not actionable / Already addressed] |
+| Item | Evidence (path:line) | Proposed action | Class |
+|------|----------------------|-----------------|-------|
+| [Delta item] | [path:line] | [Smallest action that resolves it] | [Blocker / Requested improvement / Optional enhancement / Side quest] |
 
 ### ROTI Assessment
 

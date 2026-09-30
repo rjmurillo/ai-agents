@@ -8,7 +8,7 @@ Generators and drift gates for the agent/skill/rule/hook/settings pipeline. Sour
 - Per-class render map (agents, rules, skills, hooks, settings, prompts): `templates/AGENTS.md`.
 - REQ-003-010: generators write under `.claude/` only via `binplace_manifest.claude_allowlist()`: agents, rules, skill `SKILL.md`, `hooks/` plus `hooks.json`, `settings.json`, `lib/<pkg>/`, `lib/bootstrap.py`, the review sidecar; `NO-REGEN` paths (`regen_guard.py`) excluded.
 - `validate_install_parity.py` reports no violation ever; `validate-generated-agents.yml` still runs it (exit 2 on base-ref alone); `check_agent_content_parity.py` is the live byte gate.
-- Lib renders inside the same run (`lib_mirror.py`, ADR-109 B5); `scripts/sync_plugin_lib.py` is a deprecated shim, never a prerequisite.
+- Lib renders inside the same run (`lib_mirror.py`, ADR-109 B5); `scripts/sync_plugin_lib.py` is retired.
 
 ## Entry points
 
@@ -39,7 +39,7 @@ Generators and drift gates for the agent/skill/rule/hook/settings pipeline. Sour
 
 ## Dangerous assumptions
 
-- `scripts/sync_plugin_lib.py` looks like a required first step; it is a deprecated shim over `lib_mirror.py`, kept for one `validate-generated-agents.yml` step. `build_all.py` is the whole sequence; there is no order to get wrong.
+- Older docs mention `scripts/sync_plugin_lib.py` as a first step. It is retired (issue #5790). `build_all.py` is the whole sequence; there is no order to get wrong.
 - A red `--check` means the source changed, not that the output needs a hand-edit; exit 2 has five producers, only staleness clears by regenerating.
 - Raising `--similarity-threshold` (default 80) to clear a red defeats the gate.
 - `build/sync_slim_agents.py` is not a generator; `build_all.py` never calls it and `--write` copies rendered bodies backwards into `templates/agents/*.shared.md` and `.github/agents/`. Do not run it.

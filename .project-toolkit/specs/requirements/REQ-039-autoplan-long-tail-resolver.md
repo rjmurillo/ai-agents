@@ -40,7 +40,7 @@ the skill at all.
 
 ### Q3 Desperate Specificity
 
-Four skills have no automatic route: `business-strategy`, `book-to-skill`,
+Four skills have no automatic route: `business-strategy`, `book-to-skill`, <!-- orphan-ref-ignore -->
 `world-model-diagnostic`, and `dx-review`. Each one is `explicit-only` today
 with a rationale that says it waits for this resolver. `programming-advisor`
 is also unreachable from `autoplan` for its core question ("is there a library

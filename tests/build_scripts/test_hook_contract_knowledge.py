@@ -31,10 +31,7 @@ RUNTIME_ADR = (
     / "ADR-071-plugin-hook-runtime-contract-verification.md"
 )
 DISPATCHER_ADR = (
-    REPO_ROOT
-    / ".project-toolkit"
-    / "architecture"
-    / "ADR-068-consolidated-hook-dispatcher.md"
+    REPO_ROOT / ".project-toolkit" / "architecture" / "ADR-068-consolidated-hook-dispatcher.md"
 )
 PERMISSION_ADR = (
     REPO_ROOT
@@ -126,7 +123,12 @@ CLAUDE_EVENTS = {
 ROUTING_FILES = (
     REPO_ROOT / "AGENTS.md",
     REPO_ROOT / "src" / "claude" / "AGENTS.md",
-    REPO_ROOT / ".claude" / "skills" / "CLAUDE.md",
+    REPO_ROOT
+    / ".claude"
+    / "skills"
+    / "skillforge"
+    / "references"
+    / "skill-development-conventions.md",
     REPO_ROOT / ".github" / "AGENTS.md",
     REPO_ROOT / ".github" / "copilot-instructions.md",
     REPO_ROOT / "src" / "AGENTS.md",
@@ -810,8 +812,7 @@ def test_adr_068_scopes_its_six_dated_status_paragraphs() -> None:
     superseded_5154 = _normalize(
         _paragraph_after(
             text,
-            "Amended 2026-08-18 (issue #5154, landed on `main` independently "
-            "of #5061",
+            "Amended 2026-08-18 (issue #5154, landed on `main` independently of #5061",
             DISPATCHER_ADR,
         )
     )
@@ -823,8 +824,7 @@ def test_adr_068_scopes_its_six_dated_status_paragraphs() -> None:
     current = _normalize(
         _paragraph_after(
             text,
-            "Amended 2026-08-19 (merge of issue #4917 into the #5061+#5154 "
-            "reconciliation",
+            "Amended 2026-08-19 (merge of issue #4917 into the #5061+#5154 reconciliation",
             DISPATCHER_ADR,
         )
     )
@@ -846,8 +846,7 @@ def test_adr_068_scopes_its_six_dated_status_paragraphs() -> None:
     assert "ADR-068-071-085-5013-debate-log.md" in superseded_5013
 
     assert (
-        "held three shims, `markdownlint_guard`, `require_subagent_model`, and"
-        in superseded_5061
+        "held three shims, `markdownlint_guard`, `require_subagent_model`, and" in superseded_5061
     )
     assert (
         "110 seconds of configured timeout, with a 115-second generated host entry"
@@ -876,10 +875,7 @@ def test_adr_068_scopes_its_six_dated_status_paragraphs() -> None:
     assert "reduction is 50.0 percent" in superseded_5061_5154
 
     assert "three-way mechanical composition of three already-reviewed decisions" in current
-    assert (
-        "three registrations on one event: three PreToolUse shims"
-        in current
-    )
+    assert "three registrations on one event: three PreToolUse shims" in current
     assert "sums to 30 seconds of configured timeout" in current
     assert "generated host entry requests 35 seconds" in current
     assert "renumbered up from the `-11-` suffix" in current
@@ -929,8 +925,7 @@ def test_adr_071_scopes_its_six_dated_amendment_sections() -> None:
     superseded_5061 = _normalize(
         _section_after(
             text,
-            "### 2026-08-18 amendment: Serena memory worktree-scope guard "
-            "(issue #5061)",
+            "### 2026-08-18 amendment: Serena memory worktree-scope guard (issue #5061)",
             RUNTIME_ADR,
         )
     )
@@ -953,8 +948,7 @@ def test_adr_071_scopes_its_six_dated_amendment_sections() -> None:
     current = _normalize(
         _section_after(
             text,
-            "### 2026-08-19 reconciliation: merging issue #4917 into the "
-            "#5061+#5154 tree",
+            "### 2026-08-19 reconciliation: merging issue #4917 into the #5061+#5154 tree",
             RUNTIME_ADR,
         )
     )

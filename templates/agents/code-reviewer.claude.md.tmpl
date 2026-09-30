@@ -7,6 +7,16 @@ metadata:
   role: executor
 # Runs the review contract in fresh context with read-only tools, apart from the implementer.
 isolation_required: true
+tools:
+  - Read
+  - Grep
+  - Glob
+  - mcp__github__pull_request_read
+  - mcp__github__get_file_contents
+  - mcp__github__issue_read
+  - mcp__serena__find_symbol
+  - mcp__serena__find_referencing_symbols
+  - mcp__serena__get_symbols_overview
 argument-hint: Point to the diff, PR, or files to review; defaults to current working changes
 {{> code-reviewer-intro}}
 
