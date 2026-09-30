@@ -80,6 +80,17 @@ def _task_rows(records: Sequence[OutcomeRecord]) -> list[dict[str, object]]:
     ]
 
 
+def _require_same_tasks(by_repeat: dict[int, list[OutcomeRecord]]) -> None:
+    """Refuse repeats that cover different tasks, so a missing task is not read as variance."""
+    task_sets = {index: {r.task_id for r in group} for index, group in by_repeat.items()}
+    expected = set().union(*task_sets.values())
+    short = {
+        index: sorted(expected - found) for index, found in task_sets.items() if found != expected
+    }
+    if short:
+        raise ValueError(f"repeats cover different tasks; missing by repeat: {short}")
+
+
 def repetition_summary(records: Sequence[OutcomeRecord]) -> dict[str, object]:
     """Per-repeat counts and across-repeat spread for one configuration's records."""
     if not records:
@@ -87,6 +98,7 @@ def repetition_summary(records: Sequence[OutcomeRecord]) -> dict[str, object]:
     by_repeat: dict[int, list[OutcomeRecord]] = {}
     for record in records:
         by_repeat.setdefault(record.repeat, []).append(record)
+    _require_same_tasks(by_repeat)
     rows = [_repeat_row(index, group) for index, group in sorted(by_repeat.items())]
     costs = [r.cost_per_durable_usd for r in rows if r.cost_per_durable_usd is not None]
     tasks = _task_rows(records)

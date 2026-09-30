@@ -6,7 +6,7 @@
 Several `--records` files are concatenated, so chunked runs (one file per
 repeat, or a re-run of one failed cell) read as one configuration. Exit codes:
 0 report written. 2 a file is missing, malformed, or holds mixed configurations
-or a repeated `task_id`/`repeat` pair.
+a repeated `task_id`/`repeat` pair, or repeats that cover different tasks.
 """
 
 from __future__ import annotations
@@ -38,7 +38,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         records = [record for path in args.records for record in _read(path)]
         build_report(records)  # refuses mixed configurations and duplicate task/repeat pairs
         summary = repetition_summary(records)
-    except (OSError, UnicodeError, json.JSONDecodeError, DurableOutcomeError) as exc:
+    except (OSError, UnicodeError, ValueError, DurableOutcomeError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return EXIT_INPUT
     print(json.dumps(summary, indent=2))

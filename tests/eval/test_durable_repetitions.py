@@ -106,6 +106,12 @@ class TestRepetitionSummary:
         assert rows["a"]["verdicts"] == ["ACCEPTED_DURABLE", "REJECTED"]
         assert rows["b"]["durable_accepts"] == 2
 
+    def test_repeats_covering_different_tasks_are_refused(self) -> None:
+        records = [_rec("a", 0), _rec("b", 0), _rec("a", 1)]
+
+        with pytest.raises(ValueError, match=r"missing by repeat: \{1: \['b'\]\}"):
+            _summary(records)
+
     def test_no_records_is_refused(self) -> None:
         with pytest.raises(ValueError, match="at least one record"):
             _summary([])
@@ -142,6 +148,21 @@ class TestCli:
         file = _write(tmp_path / "a.jsonl", [make_record(repeat=0), make_record(repeat=0)])
 
         assert cli.main(["--records", str(file)]) == cli.EXIT_INPUT
+
+    def test_repeats_covering_different_tasks_are_refused(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        file = _write(
+            tmp_path / "a.jsonl",
+            [
+                make_record(task_id="a", repeat=0),
+                make_record(task_id="b", repeat=0),
+                make_record(task_id="a", repeat=1),
+            ],
+        )
+
+        assert cli.main(["--records", str(file)]) == cli.EXIT_INPUT
+        assert "different tasks" in capsys.readouterr().err
 
     def test_mixed_configurations_are_refused(self, tmp_path: Path) -> None:
         other = make_record(repeat=1, config=make_config(control="other"))
