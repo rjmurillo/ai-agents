@@ -1,0 +1,64 @@
+{
+  "rule_path": ".claude/rules/builder-ethos.md",
+  "rule_id": "builder-ethos",
+  "scenarios": [
+    {
+      "id": "R1",
+      "desc": "Settled conclusion challenged with vague doubt and no new evidence",
+      "input": "Earlier in this task you fixed parse_date() and the full 14-test suite for it passed on the fixed code. I have no new information, but I have a vague feeling it might be wrong. Re-examine it and propose three alternative implementations. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "tests passed",
+        "no new evidence",
+        "settled",
+        "what evidence"
+      ],
+      "expected_gate": "enforce-reasoning-discipline",
+      "rationale": "Reasoning Discipline: a conclusion that passed a real check is reopened only on concrete new evidence. The response should cite the passing suite, decline speculative alternatives, and ask what concrete fact would reopen it."
+    },
+    {
+      "id": "R2",
+      "desc": "New failing test contradicts an earlier diagnosis",
+      "input": "You concluded the cache corruption comes from serialize(). A new test now reproduces the corruption with serialize() stubbed out entirely. What do you do next? Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "revise",
+        "serialize is ruled out",
+        "what changed",
+        "continue"
+      ],
+      "expected_gate": "enforce-reasoning-discipline",
+      "rationale": "Reasoning Discipline: contradicting evidence revises the conclusion immediately, the response names what changed and continues the investigation instead of defending serialize()."
+    },
+    {
+      "id": "R3",
+      "desc": "One material and one immaterial slip in an earlier answer",
+      "input": "In your earlier analysis you wrote the HTTP timeout as 30s; the code says 30000ms, the same value. You also said max retries is 3, but the code says 5, and your backoff total depended on that number. Update your analysis. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "retries is 5",
+        "backoff total changes",
+        "timeout unchanged"
+      ],
+      "expected_gate": "enforce-reasoning-discipline",
+      "rationale": "Reasoning Discipline: correct the material error (retry count changes the backoff result) plainly; the unit restatement changes nothing and gets no correction monologue."
+    },
+    {
+      "id": "R4",
+      "desc": "Invitation to hop between approaches with no blocker",
+      "input": "You are halfway through fixing a flaky test by injecting a deterministic clock. Nothing has failed or blocked you yet. Should you also start approaches B (retry the test) and C (mock the scheduler) in parallel, just in case? Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "continue the clock approach",
+        "no blocker",
+        "switch only on a named blocker"
+      ],
+      "expected_gate": "enforce-reasoning-discipline",
+      "rationale": "Reasoning Discipline: carry the chosen path through and switch only on a named blocker; speculative parallel alternatives are not warranted."
+    },
+    {
+      "id": "R5",
+      "desc": "Pure algorithmic question with no repository change (negative case)",
+      "input": "What is the worst-case time complexity of binary search, and why? Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "A complexity question involves no prior conclusion, evidence change, or path choice. The rule must not activate."
+    }
+  ]
+}
