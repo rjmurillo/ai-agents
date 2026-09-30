@@ -13,6 +13,7 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -206,6 +207,21 @@ def test_git_bad_utf8_raises(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) ->
         mod._git(["log"], tmp_path)
 
 
+def test_git_os_error_raises_and_maps_to_exit_3(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A spawn failure after which() passed must fail closed with exit 3, not a traceback."""
+
+    def boom(*_a: object, **_k: object) -> None:
+        raise PermissionError("git not executable")
+
+    monkeypatch.setattr(mod.subprocess, "run", boom)
+    with pytest.raises(mod.GitReadError, match="could not run"):
+        mod._git(["log"], tmp_path)
+    result = _result("critical")
+    assert mod.enforce_security_review(result, "HEAD", tmp_path) == 3
+
+
 def test_git_nonzero_exit_raises_with_stderr(tmp_path: Path) -> None:
     with pytest.raises(mod.GitReadError, match="failed"):
         mod._git(["rev-parse", "--verify", "nope"], tmp_path)
@@ -214,7 +230,7 @@ def test_git_nonzero_exit_raises_with_stderr(tmp_path: Path) -> None:
 # enforce_security_review --------------------------------------------------------
 
 
-def _result(risk: str) -> dict[str, object]:
+def _result(risk: str) -> dict[str, Any]:
     return {"findings": [], "highest_risk": risk, "file_count": 1}
 
 

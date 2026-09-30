@@ -198,6 +198,8 @@ def _git(args: list[str], repo_root: Path) -> str:
         raise GitReadError(f"git {args[0]} timed out after {GIT_TIMEOUT_SECONDS}s") from exc
     except UnicodeDecodeError as exc:
         raise GitReadError(f"git {args[0]} output was not valid UTF-8") from exc
+    except OSError as exc:
+        raise GitReadError(f"git {args[0]} could not run: {exc}") from exc
     if result.returncode != 0:
         detail = result.stderr.strip() or f"exit {result.returncode}"
         raise GitReadError(f"git {args[0]} failed: {detail}")
