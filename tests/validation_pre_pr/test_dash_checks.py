@@ -13,13 +13,25 @@ from unittest.mock import patch
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def _local_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Run every test as a local checkout unless it opts into CI.
+
+    GitHub Actions sets ``CI`` and ``GITHUB_ACTIONS`` for the pytest run itself,
+    and the scan reads them, so an unpinned test would change verdict by host.
+    """
+    monkeypatch.delenv("CI", raising=False)
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+
+
 class TestValidateDashProhibition:
     """Tests for the branch-wide em/en-dash check."""
 
     def test_returns_true_when_no_base_ref_resolves(self, tmp_path: Path) -> None:
         from scripts.validation.pre_pr import validate_dash_prohibition
 
-        # tmp_path is not a git repo; no ref will resolve.
+        # tmp_path is not a git repo; no ref will resolve. Locally the scan warns
+        # and passes so a shallow or detached checkout does not stop a push.
         assert validate_dash_prohibition(tmp_path) is True
 
     def test_returns_true_for_clean_branch(self, tmp_path: Path) -> None:
@@ -133,7 +145,7 @@ class TestValidateDashProhibition:
             assert validate_dash_prohibition(tmp_path) is False
 
     def test_returns_true_when_git_diff_fails(self, tmp_path: Path) -> None:
-        """Fail open on git subprocess failure (do not block on infra issues)."""
+        """Locally, a failed git diff warns and passes (no CI variable set)."""
         from scripts.validation.pre_pr import validate_dash_prohibition
 
         with (
@@ -289,3 +301,98 @@ class TestValidateDashProhibition:
         assert "1 markdown file(s) checked" in out
         assert "skipped" not in out
         assert "[WARNING]" not in out
+
+
+class TestScanUnavailableUnderCi:
+    """Issue #5636, D10: an unresolved base ref is BLOCKED under CI, a warning locally."""
+
+    @pytest.mark.parametrize(
+        ("name", "value"),
+        [
+            ("CI", "true"),
+            ("CI", "1"),
+            ("CI", "TRUE"),
+            ("GITHUB_ACTIONS", "true"),
+            ("GITHUB_ACTIONS", " 1 "),
+        ],
+    )
+    def test_unresolved_base_ref_fails_closed_under_ci(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+        name: str,
+        value: str,
+    ) -> None:
+        from scripts.validation.pre_pr import validate_dash_prohibition
+
+        monkeypatch.setenv(name, value)
+        with patch("checks_dash._resolve_branch_base_ref", return_value=None):
+            assert validate_dash_prohibition(tmp_path) is False
+        out = capsys.readouterr().out
+        assert "[BLOCKED] Em/en-dash branch scan: no base ref resolved" in out
+        assert "no file was examined" in out
+
+    def test_unresolved_base_ref_only_warns_locally(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        from scripts.validation.pre_pr import validate_dash_prohibition
+
+        with patch("checks_dash._resolve_branch_base_ref", return_value=None):
+            assert validate_dash_prohibition(tmp_path) is True
+        out = capsys.readouterr().out
+        assert "[WARNING] Em/en-dash branch scan skipped: no base ref resolved" in out
+        assert "[BLOCKED]" not in out
+
+    @pytest.mark.parametrize("value", ["", "0", "false", "no"])
+    def test_falsy_ci_values_stay_local(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, value: str
+    ) -> None:
+        from scripts.validation.pre_pr import validate_dash_prohibition
+
+        monkeypatch.setenv("CI", value)
+        with patch("checks_dash._resolve_branch_base_ref", return_value=None):
+            assert validate_dash_prohibition(tmp_path) is True
+
+    def test_failed_git_diff_fails_closed_under_ci(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        from scripts.validation.pre_pr import validate_dash_prohibition
+
+        monkeypatch.setenv("CI", "true")
+        with (
+            patch("checks_dash._resolve_branch_base_ref", return_value="origin/main"),
+            patch("checks_dash._run_subprocess", return_value=(128, "", "fatal: bad revision")),
+        ):
+            assert validate_dash_prohibition(tmp_path) is False
+        assert "[BLOCKED] Em/en-dash branch scan: git diff failed" in capsys.readouterr().out
+
+    def test_resolved_base_ref_is_unaffected_by_ci(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Negative control: CI must not block a scan that ran and found nothing."""
+        from scripts.validation.pre_pr import validate_dash_prohibition
+
+        monkeypatch.setenv("CI", "true")
+        with (
+            patch("checks_dash._resolve_branch_base_ref", return_value="origin/main"),
+            patch("checks_dash._run_subprocess") as mock_run,
+        ):
+            mock_run.side_effect = [(0, "README.md\n", ""), (0, "clean\n", "")]
+            assert validate_dash_prohibition(tmp_path) is True
+
+    def test_violation_still_fails_under_ci(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from scripts.validation.pre_pr import validate_dash_prohibition
+
+        monkeypatch.setenv("CI", "true")
+        with (
+            patch("checks_dash._resolve_branch_base_ref", return_value="origin/main"),
+            patch("checks_dash._run_subprocess") as mock_run,
+        ):
+            mock_run.side_effect = [(0, "doc.md\n", ""), (0, f"a {chr(0x2014)} b\n", "")]
+            assert validate_dash_prohibition(tmp_path) is False
