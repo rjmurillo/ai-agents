@@ -8,12 +8,15 @@ import sys
 from pathlib import Path
 from typing import Any
 
-import _durable_repetitions as reps
-import eval_durable_repetitions as cli
 import pytest
-from _outcome_record import parse_record
 
 from tests.eval._durable_outcome_test_support import EVAL_DIR, make_config, make_record
+
+# isort: split
+# The support module above puts scripts/eval on sys.path, so these must follow it.
+import _durable_repetitions as reps
+import eval_durable_repetitions as cli
+from _outcome_record import parse_record
 
 SCRIPT = EVAL_DIR / "eval_durable_repetitions.py"
 
@@ -38,6 +41,11 @@ def _not_durable(task: str, repeat: int, cost: float = 0.5) -> Any:
     return parse_record(data)
 
 
+def _summary(records: list[Any]) -> dict[str, Any]:
+    result: dict[str, Any] = reps.repetition_summary(records)
+    return result
+
+
 class TestRepetitionSummary:
     def test_counts_each_verdict_per_repeat(self) -> None:
         records = [
@@ -47,8 +55,8 @@ class TestRepetitionSummary:
             _rec("b", 1),
         ]
 
-        summary = reps.repetition_summary(records)
-        first, second = summary["per_repeat"]  # type: ignore[misc]
+        summary = _summary(records)
+        first, second = summary["per_repeat"]
 
         assert (first["accepted_durable"], first["rejected"]) == (1, 1)
         assert (second["accepted_durable"], second["accepted_not_durable"]) == (1, 1)
@@ -56,7 +64,7 @@ class TestRepetitionSummary:
     def test_cost_per_durable_keeps_rejected_cost_in_the_numerator(self) -> None:
         records = [_rec("a", 0, cost=0.25), _rejected("b", 0, cost=0.75)]
 
-        row = reps.repetition_summary(records)["per_repeat"][0]  # type: ignore[index]
+        row = _summary(records)["per_repeat"][0]
 
         assert row["cost_per_durable_usd"] == 1.0
 
@@ -70,37 +78,37 @@ class TestRepetitionSummary:
             _rejected("b", 2),
         ]
 
-        spread = reps.repetition_summary(records)["accepted_durable_spread"]
+        spread = _summary(records)["accepted_durable_spread"]
 
         assert spread == {"n": 3, "mean": 1.0, "stdev": 1.0, "min": 0.0, "max": 2.0}
 
     def test_a_repeat_without_a_durable_accept_has_no_cost_and_is_counted(self) -> None:
         records = [_rec("a", 0, cost=0.4), _rejected("a", 1)]
 
-        summary = reps.repetition_summary(records)
+        summary = _summary(records)
 
         assert summary["repeats_without_durable"] == 1
-        assert summary["cost_per_durable_spread_usd"]["n"] == 1  # type: ignore[index]
-        assert summary["cost_per_durable_spread_usd"]["stdev"] is None  # type: ignore[index]
+        assert summary["cost_per_durable_spread_usd"]["n"] == 1
+        assert summary["cost_per_durable_spread_usd"]["stdev"] is None
 
     def test_no_durable_accept_anywhere_leaves_empty_cost_statistics(self) -> None:
-        summary = reps.repetition_summary([_rejected("a", 0)])
+        summary = _summary([_rejected("a", 0)])
 
-        assert summary["cost_per_durable_spread_usd"]["mean"] is None  # type: ignore[index]
+        assert summary["cost_per_durable_spread_usd"]["mean"] is None
 
     def test_a_task_with_mixed_verdicts_is_named(self) -> None:
         records = [_rec("a", 0), _rejected("a", 1), _rec("b", 0), _rec("b", 1)]
 
-        summary = reps.repetition_summary(records)
+        summary = _summary(records)
 
         assert summary["tasks_with_mixed_verdicts"] == ["a"]
-        rows = {row["task_id"]: row for row in summary["per_task"]}  # type: ignore[attr-defined]
+        rows = {row["task_id"]: row for row in summary["per_task"]}
         assert rows["a"]["verdicts"] == ["ACCEPTED_DURABLE", "REJECTED"]
         assert rows["b"]["durable_accepts"] == 2
 
     def test_no_records_is_refused(self) -> None:
         with pytest.raises(ValueError, match="at least one record"):
-            reps.repetition_summary([])
+            _summary([])
 
 
 def _write(path: Path, records: list[dict[str, Any]]) -> Path:

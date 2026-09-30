@@ -5,11 +5,14 @@ from __future__ import annotations
 import json
 from typing import Any
 
-import eval_routing_corpus as corpus_cli
 import pytest
 
 from tests.eval._durable_live_test_support import cli
 from tests.eval._routing_integration_test_support import EXTENSION_CORPUS, TASKS
+
+# isort: split
+# The support modules above put scripts/eval on sys.path, so this must follow them.
+import eval_routing_corpus as corpus_cli
 
 
 def _plan(capsys: pytest.CaptureFixture[str]) -> dict[str, Any]:
