@@ -246,7 +246,7 @@ def test_run_comparison_with_genuine_regression_fails_gate(
     assert gate["regressions"] == ["D12"]
 
 
-def test_run_comparison_with_every_base_unstable_does_not_divide_by_zero(
+def test_run_comparison_with_every_base_unstable_is_inconclusive(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
@@ -256,6 +256,14 @@ def test_run_comparison_with_every_base_unstable_does_not_divide_by_zero(
     assert out["scored_scenario_count"] == 0
     assert out["before_score"] == 0.0
     assert out["after_score"] == 0.0
+    gate = ev.acceptance_gate(out)
+    assert gate["criteria"]["has_stable_baseline"] is False
+    assert gate["verdict"] == "FAIL"
+
+
+def test_gate_without_scored_count_assumes_a_baseline() -> None:
+    gate = ev.acceptance_gate(_comparison([_result("D12", 3)], [_result("D12", 3)]))
+    assert gate["criteria"]["has_stable_baseline"] is True
 
 
 def test_gate_summary_names_unstable_and_wording_signals(

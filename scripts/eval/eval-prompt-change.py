@@ -695,6 +695,12 @@ def acceptance_gate(
 
     no_high_flakiness = len(high_flakiness_scenarios) == 0
 
+    # Inconclusive, not clean: when every base scenario is unstable there is no
+    # stable baseline to compare against, and the zero scores would let any
+    # after result pass (issue #5601 review). Hand-built comparisons that omit
+    # `scored_scenario_count` are treated as having a baseline.
+    has_stable_baseline = comparison.get("scored_scenario_count", len(before_results)) > 0
+
     # A non-regressing change passes even with zero improvements. A real
     # regression still fails: any pass->fail flip populates `regressions`, so
     # no_unexplained_regressions=False blocks the change. This holds even when
@@ -706,6 +712,7 @@ def acceptance_gate(
         and no_unexplained_regressions
         and no_high_flakiness
         and no_insufficient_scored_runs
+        and has_stable_baseline
     )
     if security_critical:
         passed = passed and security_pass
@@ -722,6 +729,7 @@ def acceptance_gate(
             "no_unexplained_regressions": no_unexplained_regressions,
             "no_high_flakiness": no_high_flakiness,
             "no_insufficient_scored_runs": no_insufficient_scored_runs,
+            "has_stable_baseline": has_stable_baseline,
         },
         "improvements": improvements,
         "regressions": regressions,
