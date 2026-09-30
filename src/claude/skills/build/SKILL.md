@@ -251,7 +251,7 @@ Run, in order:
 4. `Skill(skill="orphan-ref-validator")`. Reject the build on `VERDICT: CRITICAL_FAIL` or `VERDICT: ERROR`. Catches references to deleted skills and missing script paths before they reach review. Manifest count claims are not validated by anything: the marketplace count validator was retired in #2187 and orphan-ref-validator never took the work over. Its scanner emits only skill_name, script_path, and scan_truncated findings. To diagnose a failure, re-run the skill with `--output human`; each finding shows `path:line` plus a one-line recommendation. The first three gates run in `--changed-only` mode and ignore preexisting drift; gate 4 scans the default targets across the repo because skill-name and script-path orphans are repo-state global, not per-PR. If pre-existing drift outside the PR's scope blocks the gate, fix it in the same PR (the directives at `<!-- orphan-ref-ignore -->` and `<!-- orphan-ref-ignore-file -->` are documented in that skill's own SKILL.md).
 
 If a gate flags an item that is genuinely out of scope for this build, document
-the rationale in the PR body or issue handoff and link to the follow-up issue.
+the rationale in the PR body or issue handoff and flag the item to the owner.
 "I will fix it in review" is not an acceptable rationale.
 
 ## Verification
