@@ -7,8 +7,13 @@ context cost. This report keeps the states apart so a consumer (issue #4871)
 cannot read one as another:
 
   baseline_exempt              no scenario; only the baseline allows it.
-  scenario_defined_not_scored  a well-formed scenario exists. The artifact can
-                               be measured; nothing says it was.
+  scenario_defined_not_scored  a scenario with a positive and a negative case
+                               exists. The evaluator accepts it; nothing says
+                               it was run.
+  scenario_defined_not_runnable  the scenario has no negative case. The gate
+                               counts it as covered, but
+                               `scripts/eval/eval-rule-activation.py` refuses
+                               it before scoring.
   not_baselined                no scenario and not baselined. The ratchet gate
                                fails on these; listed so none drops out.
   scored                       always null here. Scored efficacy needs a live
@@ -33,7 +38,14 @@ if str(_REPO_ROOT) not in sys.path:
 sys.path.insert(0, str(_SCRIPT_DIR))
 from check_rule_activation_coverage import (  # noqa: E402
     DEFAULT_BASELINE_NAME,
+    NEGATIVE_GATE,
+    RULE_SCENARIOS_SUBDIR,
+    RULES_SUBDIR,
+    SKILL_SCENARIOS_SUBDIR,
+    SKILLS_SUBDIR,
     CoverageConfigError,
+    _read_scenario_json,
+    _resolve_target,
     covered_ids,
     discover_rules,
     discover_skills,
@@ -46,6 +58,25 @@ EXIT_OK = 0
 EXIT_CONFIG = 2
 
 
+def _without_negative_case(repo_root: Path, kind: str) -> set[str]:
+    """Ids whose scenario file has no negative case (`expected_gate` NEGATIVE_GATE)."""
+    if kind == "rule":
+        scenario_dir, artifact_dir, key = RULE_SCENARIOS_SUBDIR, RULES_SUBDIR, "rule_path"
+    else:
+        scenario_dir, artifact_dir, key = SKILL_SCENARIOS_SUBDIR, SKILLS_SUBDIR, "skill_path"
+    missing: set[str] = set()
+    for path in sorted((repo_root / scenario_dir).glob("*.json")):
+        data = _read_scenario_json(path)
+        target = data.get(key)
+        if not isinstance(target, str) or not target.strip():
+            continue  # ADR-088 reference scenarios cover no rule id
+        cases = data.get("scenarios")
+        cases = cases if isinstance(cases, list) else []
+        if not any(isinstance(c, dict) and c.get("expected_gate") == NEGATIVE_GATE for c in cases):
+            missing.add(_resolve_target(repo_root, target.strip(), artifact_dir, kind))
+    return missing
+
+
 def coverage_states(repo_root: Path, baseline_path: Path) -> dict[str, Any]:
     """Classify every rule and skill into an evidence state."""
     base_rules, base_skills = load_baseline(baseline_path)
@@ -55,10 +86,12 @@ def coverage_states(repo_root: Path, baseline_path: Path) -> dict[str, Any]:
         ("skills", discover_skills(repo_root), covered_ids(repo_root, "skill"), base_skills),
     ):
         uncovered = universe - covered
+        unrunnable = covered & _without_negative_case(repo_root, kind[:-1])
         payload[kind] = {
             "baseline_exempt": sorted(uncovered & base),
             "not_baselined": sorted(uncovered - base),
-            "scenario_defined_not_scored": sorted(universe & covered),
+            "scenario_defined_not_runnable": sorted(universe & unrunnable),
+            "scenario_defined_not_scored": sorted(universe & (covered - unrunnable)),
         }
     return payload
 
