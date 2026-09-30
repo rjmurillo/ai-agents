@@ -50,6 +50,17 @@ import sys
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+# The typed contract, package path (see hygiene_outcome for why).
+from scripts.validation.evidence import REASON_TREE_ABSENT, CheckOutcome  # noqa: E402
+from scripts.validation.hygiene_outcome import hygiene_outcome  # noqa: E402
+
+_VALIDATOR = "validate_tmp_worktrees"
+_SCOPE = "git worktrees under the temp root, and its free space"
+
 # 16G tmpfs is the machine in issue #5111. Two GiB is roughly one pytest
 # scratch generation plus one worktree of headroom, so the report fires while
 # there is still room to act rather than after a push has already died.
@@ -302,8 +313,8 @@ def format_report(report: TempReport) -> str:
     return "\n".join(lines)
 
 
-def validate_tmp_worktrees(repo_root: Path) -> bool:
-    """Advisory pre-PR gate. Prints findings and always returns True.
+def validate_tmp_worktrees(repo_root: Path) -> CheckOutcome:
+    """Advisory pre-PR gate. Prints findings and returns a typed result.
 
     Advisory on purpose, and the reason is the incident itself. The subject is
     machine state, not repository state: the residue issue #5111 measured was
@@ -312,10 +323,31 @@ def validate_tmp_worktrees(repo_root: Path) -> bool:
     and the pushing agent may not own. That is the same class of wedge the
     issue is about. The CLI below exits 1 on the same findings, so anyone who
     wants the blocking form has it without this gate imposing it on everyone.
+
+    The result is typed (issue #5636): findings are ``FAIL`` with reason
+    ``advisory.findings``, a failed listing or unreadable entry is ``BLOCKED``,
+    and an absent temp root is ``SKIP``. ``pre_pr_policy`` licenses each
+    non-``PASS`` pair by name, so the push is still not blocked.
     """
     report = build_report(repo_root)
     print(format_report(report))
-    return True
+    # An unreadable temp root also reads as "not present", but only a root the
+    # filesystem said is absent is a SKIP; an unreadable one is BLOCKED below.
+    if not report.temp_root_present and not report.unreadable_entries:
+        return CheckOutcome.skipped(
+            _VALIDATOR,
+            reason=REASON_TREE_ABSENT,
+            scope=_SCOPE,
+            detail=f"{report.temp_root} is not a directory; nothing examined",
+        )
+    return hygiene_outcome(
+        _VALIDATOR,
+        scope=_SCOPE,
+        examined=report.examined,
+        findings=len(report.worktrees) + int(report.free_space_low),
+        listing_failed=report.git_listing_failed,
+        unreadable=report.unreadable_entries,
+    )
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:

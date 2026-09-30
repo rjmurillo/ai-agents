@@ -41,6 +41,12 @@ if str(_VALIDATION_DIR) not in sys.path:
     sys.path.insert(0, str(_VALIDATION_DIR))
 import check_serena_memory_worktree_scope as checker
 
+from scripts.validation.evidence import (
+    REASON_LISTING_FAILED,
+    EvidenceState,
+    pre_pr_policy,
+)
+
 _SubprocessFake = Callable[..., tuple[int, str, str]]
 
 # Seconds. A wedged git in a throwaway repo should fail the test, not the job.
@@ -227,10 +233,14 @@ def test_an_unrunnable_worktree_listing_is_reported_rather_than_raised(
     assert report.findings == []
 
 
-def test_the_advisory_gate_still_returns_true_when_the_scan_cannot_run(
+def test_the_advisory_gate_is_blocked_but_licensed_when_the_scan_cannot_run(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The whole point of finding 1: advisory must survive an unrunnable scan."""
+    """The whole point of finding 1: advisory must survive an unrunnable scan.
+
+    Typed (issue #5636): the run is BLOCKED with a reason code, not the clean
+    True it used to be, and the policy licenses that pair so the push stands.
+    """
 
     def _fake(
         args: list[str],
@@ -242,7 +252,11 @@ def test_the_advisory_gate_still_returns_true_when_the_scan_cannot_run(
 
     monkeypatch.setattr(checker, "_run_subprocess", _fake)
 
-    assert checker.validate_serena_memory_worktree_scope(tmp_path) is True
+    outcome = checker.validate_serena_memory_worktree_scope(tmp_path)
+
+    assert outcome.state is EvidenceState.BLOCKED
+    assert outcome.reason == REASON_LISTING_FAILED
+    assert pre_pr_policy().accepts(outcome)
 
 
 def test_main_exits_two_when_the_listing_failed_so_nothing_was_examined(

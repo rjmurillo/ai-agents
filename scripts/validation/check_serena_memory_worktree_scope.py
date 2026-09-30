@@ -86,6 +86,13 @@ sys.path.insert(0, str(_SCRIPT_DIR))
 
 from checks_common import _run_subprocess  # noqa: E402
 
+# The typed contract, package path (see hygiene_outcome for why).
+from scripts.validation.evidence import REASON_LISTING_FAILED, CheckOutcome  # noqa: E402
+from scripts.validation.hygiene_outcome import hygiene_outcome  # noqa: E402
+
+_VALIDATOR = "validate_serena_memory_worktree_scope"
+_SCOPE = "untracked Serena memory files in sibling worktrees"
+
 # Matches this repo's own glob for memory content, cited verbatim from
 # lefthook.yml (the memory-token-update, memory-size, memory-index,
 # memory-token-counts, memory-tier, memory-cross-reference, and
@@ -370,18 +377,36 @@ def format_report(report: ScopeReport) -> str:
     return "\n".join(lines)
 
 
-def validate_serena_memory_worktree_scope(repo_root: Path) -> bool:
-    """Advisory pre-PR gate. Prints findings and always returns True.
+def validate_serena_memory_worktree_scope(repo_root: Path) -> CheckOutcome:
+    """Advisory pre-PR gate. Prints findings and returns a typed result.
 
     Advisory for the same reason ``validate_tmp_worktrees`` is: the subject is
     another worktree's uncommitted state, not this diff's own repository
     state, so a blocking verdict would refuse this push for a condition it did
     not create and this agent does not own. The standalone CLI below exits 1
     on the same findings for a caller that wants the blocking form.
+
+    The result is typed (issue #5636). A failed ``git worktree list`` examined
+    nothing, so it is ``BLOCKED`` rather than the clean ``PASS`` it used to
+    look like. Findings are ``FAIL`` with reason ``advisory.findings``.
+    ``pre_pr_policy`` licenses each pair by name.
     """
     report = build_scope_report(repo_root)
     print(format_report(report))
-    return True
+    if report.worktree_listing_failed:
+        return CheckOutcome.blocked(
+            _VALIDATOR,
+            reason=REASON_LISTING_FAILED,
+            scope=_SCOPE,
+            detail="git worktree list failed; nothing was examined",
+        )
+    return hygiene_outcome(
+        _VALIDATOR,
+        scope=_SCOPE,
+        examined=report.other_worktrees_examined,
+        findings=len(report.findings),
+        unreadable=report.unreadable_worktrees,
+    )
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:

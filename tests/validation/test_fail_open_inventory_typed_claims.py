@@ -1,0 +1,202 @@
+"""A fail-open inventory row cannot claim ``TYPED`` unless its script emits the typed result.
+
+Issue #5636 acceptance criterion: "Every non-blocking path emits an explicit
+WARNING, BLOCKED, or SKIP result and a machine-readable reason." The inventory's
+``Contract`` column says which rows do. Its own definition reads:
+
+    `TYPED` if the path reports through `scripts/validation/evidence.py`,
+    `BOOLEAN` otherwise, `N/A` for workflow YAML.
+
+Before this test, that column was prose. A row could say ``TYPED`` while its
+function still returned ``True`` on every path, and nothing failed. This test
+resolves each ``TYPED`` row to source and checks the claim statically.
+
+Two resolution levels, because the tables differ:
+
+* A table with a ``Function`` column names the function, so the test parses the
+  script and requires that function's return annotation to mention
+  ``CheckOutcome`` or ``GateResult``.
+* A table without one (the hook jobs) names only the script, so the test
+  requires the script to import ``CheckOutcome`` from the evidence module.
+
+This is a static check on the annotation. It proves the function is declared to
+return the typed contract; the behavioral tests beside each converted gate prove
+each path returns the right state.
+"""
+
+from __future__ import annotations
+
+import ast
+import re
+from pathlib import Path
+from typing import NamedTuple
+
+import pytest
+
+ROOT = Path(__file__).resolve().parents[2]
+INVENTORY = ROOT / ".agents/governance/FAIL-OPEN-INVENTORY.md"
+SEARCH_ROOTS = ("scripts", ".github/scripts", ".claude/skills")
+# GatePolicy is here for one row: ``default_pre_pr_policy`` builds the licences
+# that keep a typed BLOCKED or FAIL from blocking, and is part of the same
+# evidence.py contract even though it returns the policy, not an outcome.
+TYPED_ANNOTATIONS = ("CheckOutcome", "GateResult", "GatePolicy")
+UNESCAPED_PIPE = re.compile(r"(?<!\\)\|")
+TRAILING_COMMENT = re.compile(r"\s*<!--.*-->\s*$")
+PY_FILE = re.compile(r"`([A-Za-z0-9_./-]+\.py)(?::[0-9,-]+)?`")
+EVIDENCE_IMPORT = re.compile(
+    r"from\s+(?:scripts\.validation\.)?evidence\s+import[^#]*?\bCheckOutcome\b", re.S
+)
+
+
+class TypedClaim(NamedTuple):
+    path_cell: str
+    function: str
+
+
+def _cells(line: str) -> list[str]:
+    return [c.strip() for c in UNESCAPED_PIPE.split(TRAILING_COMMENT.sub("", line))[1:-1]]
+
+
+def _first_code_span(cell: str) -> str:
+    match = re.search(r"`([^`]+)`", cell)
+    return match.group(1) if match else ""
+
+
+def typed_claims(text: str) -> list[TypedClaim]:
+    """Return every table row whose ``Contract`` cell is exactly ``TYPED``."""
+    claims: list[TypedClaim] = []
+    header: list[str] = []
+    for raw in text.splitlines():
+        if not raw.startswith("|"):
+            header = []
+            continue
+        cells = _cells(raw)
+        if cells and cells[0] == "Path":
+            header = cells
+            continue
+        if not header or raw.startswith("|---") or "Contract" not in header:
+            continue
+        if len(cells) != len(header) or cells[header.index("Contract")] != "TYPED":
+            continue
+        function = _first_code_span(cells[header.index("Function")]) if "Function" in header else ""
+        claims.append(TypedClaim(cells[0], function))
+    return claims
+
+
+def _script_paths(path_cell: str, root: Path) -> list[Path]:
+    found: list[Path] = []
+    for name in PY_FILE.findall(path_cell):
+        base = Path(name).name
+        for search_root in SEARCH_ROOTS:
+            found.extend(sorted((root / search_root).rglob(base)))
+    return found
+
+
+def _function_returns_typed(source: str, function: str) -> bool:
+    for node in ast.walk(ast.parse(source)):
+        is_def = isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        if is_def and node.name == function and node.returns is not None:
+            annotation = ast.unparse(node.returns)
+            return any(typed in annotation for typed in TYPED_ANNOTATIONS)
+    return False
+
+
+def unproven_claims(claims: list[TypedClaim], root: Path) -> list[str]:
+    """Return the path cell of every claim its script does not back."""
+    bad: list[str] = []
+    for claim in claims:
+        scripts = _script_paths(claim.path_cell, root)
+        if not scripts:
+            bad.append(f"{claim.path_cell}: no checked-in Python script resolved")
+            continue
+        for script in scripts:
+            source = script.read_text(encoding="utf-8")
+            backed = (
+                _function_returns_typed(source, claim.function)
+                if claim.function
+                else bool(EVIDENCE_IMPORT.search(source))
+            )
+            if not backed:
+                bad.append(f"{claim.path_cell}: {script.relative_to(root)} does not emit it")
+    return bad
+
+
+def test_the_inventory_has_typed_rows() -> None:
+    """Negative control: a parser that finds no TYPED row would pass every test below."""
+    assert len(typed_claims(INVENTORY.read_text(encoding="utf-8"))) >= 2
+
+
+def test_every_typed_row_is_backed_by_a_script_that_emits_the_typed_result() -> None:
+    claims = typed_claims(INVENTORY.read_text(encoding="utf-8"))
+
+    assert unproven_claims(claims, ROOT) == []
+
+
+def _table(function_cell: str, contract: str, path: str = "`gate.py:1`") -> str:
+    return (
+        "| Path | Function | Contract |\n|---|---|---|\n"
+        f"| {path} | `{function_cell}` | {contract} |\n"
+    )
+
+
+def _fake_repo(tmp_path: Path, body: str) -> Path:
+    target = tmp_path / "scripts" / "validation"
+    target.mkdir(parents=True)
+    (target / "gate.py").write_text(body, encoding="utf-8")
+    return tmp_path
+
+
+def test_a_typed_claim_on_a_function_that_returns_bool_is_flagged(tmp_path: Path) -> None:
+    root = _fake_repo(tmp_path, "def validate_x(repo_root) -> bool:\n    return True\n")
+    claims = typed_claims(_table("validate_x", "TYPED"))
+
+    assert len(unproven_claims(claims, root)) == 1
+
+
+def test_a_typed_claim_on_a_function_annotated_as_typed_is_accepted(tmp_path: Path) -> None:
+    body = "def validate_x(repo_root) -> CheckOutcome:\n    ...\n"
+    claims = typed_claims(_table("validate_x", "TYPED"))
+
+    assert unproven_claims(claims, _fake_repo(tmp_path, body)) == []
+
+
+def test_a_gate_result_annotation_also_counts_as_typed(tmp_path: Path) -> None:
+    body = "def validate_x(repo_root) -> GateResult:\n    ...\n"
+    claims = typed_claims(_table("validate_x", "TYPED"))
+
+    assert unproven_claims(claims, _fake_repo(tmp_path, body)) == []
+
+
+def test_a_boolean_row_is_not_a_claim() -> None:
+    assert typed_claims(_table("validate_x", "BOOLEAN")) == []
+
+
+def test_a_typed_claim_naming_a_missing_function_is_flagged(tmp_path: Path) -> None:
+    body = "def other(repo_root) -> CheckOutcome:\n    ...\n"
+    claims = typed_claims(_table("validate_x", "TYPED"))
+
+    assert len(unproven_claims(claims, _fake_repo(tmp_path, body))) == 1
+
+
+def test_a_typed_claim_with_no_resolvable_script_is_flagged(tmp_path: Path) -> None:
+    claims = typed_claims(_table("validate_x", "TYPED", path="`ghost.py:1`"))
+
+    assert "no checked-in Python script resolved" in unproven_claims(claims, tmp_path)[0]
+
+
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        ("from scripts.validation.evidence import CheckOutcome\n", True),
+        ("from scripts.validation.evidence import (\n    REASON_X,\n    CheckOutcome,\n)\n", True),
+        ("import json\n", False),
+        ("# CheckOutcome is mentioned in a comment only\n", False),
+    ],
+)
+def test_a_functionless_table_requires_the_evidence_import(
+    tmp_path: Path, source: str, expected: bool
+) -> None:
+    table = "| Path | Contract |\n|---|---|\n| `gate.py:1` | TYPED |\n"
+    claims = typed_claims(table)
+
+    assert (unproven_claims(claims, _fake_repo(tmp_path, source)) == []) is expected

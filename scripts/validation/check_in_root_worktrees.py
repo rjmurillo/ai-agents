@@ -55,6 +55,17 @@ import sys
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+# The typed contract, package path (see hygiene_outcome for why).
+from scripts.validation.evidence import CheckOutcome  # noqa: E402
+from scripts.validation.hygiene_outcome import hygiene_outcome  # noqa: E402
+
+_VALIDATOR = "validate_in_root_worktrees"
+_SCOPE = "worktree directories inside registered checkouts"
+
 _VALIDATION_DIR = Path(__file__).resolve().parent
 if str(_VALIDATION_DIR) not in sys.path:
     sys.path.insert(0, str(_VALIDATION_DIR))
@@ -285,8 +296,8 @@ def format_report(report: InRootReport) -> str:
     return "\n".join(lines)
 
 
-def validate_in_root_worktrees(repo_root: Path) -> bool:
-    """Advisory pre-PR gate. Prints findings and always returns True.
+def validate_in_root_worktrees(repo_root: Path) -> CheckOutcome:
+    """Advisory pre-PR gate. Prints findings and returns a typed result.
 
     Advisory for the same reason as ``validate_tmp_worktrees``: the subject is
     machine state, not the diff. The harness that creates these worktrees is
@@ -294,9 +305,21 @@ def validate_in_root_worktrees(repo_root: Path) -> bool:
     made them, so a blocking verdict would refuse every push on the machine for
     a condition the pushing agent did not create. The CLI below exits 1 on the
     same findings for anyone who wants the blocking form.
+
+    The result is typed (issue #5636): findings are ``FAIL`` with reason
+    ``advisory.findings`` and a failed listing or unreadable entry is
+    ``BLOCKED``. ``pre_pr_policy`` licenses those pairs by name.
     """
-    print(format_report(build_report(repo_root)))
-    return True
+    report = build_report(repo_root)
+    print(format_report(report))
+    return hygiene_outcome(
+        _VALIDATOR,
+        scope=_SCOPE,
+        examined=report.examined,
+        findings=len(report.worktrees),
+        listing_failed=report.git_listing_failed,
+        unreadable=report.unreadable_entries,
+    )
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:

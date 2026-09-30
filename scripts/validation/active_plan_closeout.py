@@ -11,6 +11,18 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+# The typed contract, package path (evidence.py states why).
+from scripts.validation.evidence import (  # noqa: E402
+    REASON_ADVISORY_FINDINGS,
+    REASON_LOOKUP_FAILED,
+    WORKING_TREE,
+    CheckOutcome,
+)
+
 EXIT_OK = 0
 EXIT_CONFIG = 2
 DEFAULT_REPO = "rjmurillo/ai-agents"
@@ -156,24 +168,70 @@ def gh_issue_state(
     return state
 
 
-def validate_active_plan_closeout(repo_root: Path, *, repo: str = DEFAULT_REPO) -> bool:
-    """Warn when an active plan can be closed out. Advisory only."""
-    warnings = active_plan_warnings(
-        repo_root,
-        issue_state_lookup=lambda issue: gh_issue_state(issue, repo=repo),
-    )
-    if not warnings:
-        print(
-            "[PASS] Active plan closeout advisory: "
-            "no active plans with all tracking issues closed"
-        )
-        return True
+_VALIDATOR = "validate_active_plan_closeout"
+_SCOPE = "tracking issues of active execution plans"
 
-    print("[WARNING] Active execution plans have closed tracking issues:")
-    for warning in warnings:
-        print(f"  - {warning.format()}")
-    print("Note: advisory only. Exit code unchanged.")
-    return True
+
+def _findings_detail(plans: int, unresolved: int, lookups: int) -> str:
+    detail = f"{plans} active plan(s) have only closed tracking issues"
+    if unresolved:
+        detail += f"; {unresolved} of {lookups} lookup(s) returned no usable state"
+    return detail
+
+
+def validate_active_plan_closeout(repo_root: Path, *, repo: str = DEFAULT_REPO) -> CheckOutcome:
+    """Warn when an active plan can be closed out. Advisory only.
+
+    The result is typed (issue #5636). A closeable plan is ``FAIL`` with reason
+    ``advisory.findings``. A lookup that returned no usable state, or a state
+    outside ``KNOWN_STATES``, makes the clean verdict unprovable, so the run is
+    ``BLOCKED`` with reason ``lookup.failed``: before this change an
+    unreachable ``gh`` and "every plan still open" printed the same ``[PASS]``.
+    ``pre_pr_policy`` licenses both pairs by name, so the push is still not
+    blocked.
+    """
+    lookups = 0
+    unresolved = 0
+
+    def counted_lookup(issue: int) -> str | None:
+        nonlocal lookups, unresolved
+        lookups += 1
+        state = gh_issue_state(issue, repo=repo)
+        if _normalize_state(state) not in KNOWN_STATES:
+            unresolved += 1
+        return state
+
+    warnings = active_plan_warnings(repo_root, issue_state_lookup=counted_lookup)
+    if warnings:
+        print("[WARNING] Active execution plans have closed tracking issues:")
+        for warning in warnings:
+            print(f"  - {warning.format()}")
+        print("Note: advisory only. Exit code unchanged.")
+        return CheckOutcome.failed(
+            _VALIDATOR,
+            reason=REASON_ADVISORY_FINDINGS,
+            revision=WORKING_TREE,
+            scope=_SCOPE,
+            examined=lookups,
+            findings=len(warnings),
+            detail=_findings_detail(len(warnings), unresolved, lookups),
+        )
+    if unresolved:
+        print(
+            "[WARNING] Active plan closeout advisory: "
+            f"{unresolved} of {lookups} issue lookup(s) returned no usable state"
+        )
+        return CheckOutcome.blocked(
+            _VALIDATOR,
+            reason=REASON_LOOKUP_FAILED,
+            scope=_SCOPE,
+            detail=f"{unresolved} of {lookups} issue lookup(s) returned no usable state",
+        )
+    print(
+        "[PASS] Active plan closeout advisory: "
+        "no active plans with all tracking issues closed"
+    )
+    return CheckOutcome.passed(_VALIDATOR, revision=WORKING_TREE, scope=_SCOPE, examined=lookups)
 
 
 def build_parser() -> argparse.ArgumentParser:

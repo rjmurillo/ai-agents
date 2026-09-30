@@ -50,6 +50,14 @@ if str(_VALIDATION_DIR) not in sys.path:
 import check_serena_memory_worktree_scope as checker
 import pre_pr_sequence
 
+from scripts.validation.evidence import (
+    REASON_ADVISORY_FINDINGS,
+    REASON_ENTRIES_UNREADABLE,
+    EvidenceState,
+    coerce_outcome,
+    pre_pr_policy,
+)
+
 GATE_NAME = "Serena Memory Worktree Scope (advisory)"
 
 _SubprocessFake = Callable[..., tuple[int, str, str]]
@@ -381,7 +389,7 @@ def test_format_report_names_unreadable_siblings() -> None:
 # --- validate_serena_memory_worktree_scope (advisory gate) ------------------
 
 
-def test_the_advisory_gate_always_returns_true_even_with_findings(
+def test_the_advisory_gate_reports_findings_without_blocking(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     current = tmp_path / "current"
@@ -394,10 +402,48 @@ def test_the_advisory_gate_always_returns_true_even_with_findings(
     )
     monkeypatch.setattr(checker, "_run_subprocess", fake)
 
-    result = checker.validate_serena_memory_worktree_scope(current)
+    outcome = checker.validate_serena_memory_worktree_scope(current)
 
-    assert result is True
+    assert outcome.state is EvidenceState.FAIL
+    assert outcome.reason == REASON_ADVISORY_FINDINGS
+    assert outcome.findings == 1
+    assert outcome.examined == 1
+    assert pre_pr_policy().accepts(outcome)
     assert "stray.md" in capsys.readouterr().out
+
+
+def test_the_advisory_gate_passes_when_no_sibling_has_a_stray_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    current = tmp_path / "current"
+    current.mkdir()
+    sibling = tmp_path / "sibling"
+    sibling.mkdir()
+    fake = _make_fake_run_subprocess(_z(current.resolve(), sibling.resolve()), {})
+    monkeypatch.setattr(checker, "_run_subprocess", fake)
+
+    outcome = checker.validate_serena_memory_worktree_scope(current)
+
+    assert outcome.state is EvidenceState.PASS
+    assert outcome.examined == 1
+
+
+def test_an_unreadable_sibling_is_blocked_not_a_clean_pass(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        checker,
+        "build_scope_report",
+        lambda root: checker.ScopeReport(
+            current_worktree=str(root), other_worktrees_examined=1, unreadable_worktrees=1
+        ),
+    )
+
+    outcome = checker.validate_serena_memory_worktree_scope(tmp_path)
+
+    assert outcome.state is EvidenceState.BLOCKED
+    assert outcome.reason == REASON_ENTRIES_UNREADABLE
+    assert pre_pr_policy().accepts(outcome)
 
 
 # --- pre_pr_sequence wiring (testing.md SHOULD 6) ---------------------------
@@ -424,7 +470,7 @@ def _run_gate_alone(monkeypatch: pytest.MonkeyPatch) -> dict[str, bool]:
         if skip:
             state.skipped += 1
             return True
-        result = bool(callback())
+        result = pre_pr_policy().accepts(coerce_outcome(name, callback()))
         verdicts[name] = result
         return result
 
@@ -448,7 +494,8 @@ def test_the_sequence_runs_the_gate_and_it_stays_advisory_on_the_real_tree(
 
     Read-only (``git worktree list`` / ``git status``), and the assertion is
     on the always-True advisory contract, not on what it happens to find, so
-    this cannot flake on another concurrent session's worktree state.
+    this cannot flake on another concurrent session's worktree state. The
+    typed outcome may be PASS or a licensed FAIL, and the policy accepts both.
     """
     verdicts = _run_gate_alone(monkeypatch)
 

@@ -11,6 +11,12 @@ from scripts.validation.active_plan_closeout import (
     issue_refs,
     validate_active_plan_closeout,
 )
+from scripts.validation.evidence import (
+    REASON_ADVISORY_FINDINGS,
+    REASON_LOOKUP_FAILED,
+    EvidenceState,
+    pre_pr_policy,
+)
 
 
 def write_active_plan(repo_root: Path, name: str, body: str) -> Path:
@@ -79,8 +85,12 @@ def test_validator_is_advisory_when_warning_exists(
         lambda issue, repo: "CLOSED",
     )
 
-    assert validate_active_plan_closeout(tmp_path) is True
+    outcome = validate_active_plan_closeout(tmp_path)
 
+    assert outcome.state is EvidenceState.FAIL
+    assert outcome.reason == REASON_ADVISORY_FINDINGS
+    assert outcome.findings == 1
+    assert pre_pr_policy().accepts(outcome)
     captured = capsys.readouterr()
     assert "[WARNING] Active execution plans have closed tracking issues:" in captured.out
     assert ".project-toolkit/plans/active/closed.md: #101 closed." in captured.out
@@ -153,8 +163,11 @@ def test_gh_unrecognized_output_is_advisory(
 
     monkeypatch.setattr("scripts.validation.active_plan_closeout.subprocess.run", bad_state)
 
-    assert validate_active_plan_closeout(tmp_path) is True
+    outcome = validate_active_plan_closeout(tmp_path)
 
+    assert outcome.state is EvidenceState.BLOCKED
+    assert outcome.reason == REASON_LOOKUP_FAILED
+    assert pre_pr_policy().accepts(outcome)
     captured = capsys.readouterr()
     assert "unrecognized state SURPRISE for #101" in captured.out
 
@@ -186,3 +199,60 @@ def test_gh_issue_state_rejects_invalid_repo_format(capsys) -> None:
     assert result is None
     captured = capsys.readouterr()
     assert "invalid repo format" in captured.out
+
+
+def test_clean_run_is_a_pass_that_names_how_many_lookups_it_made(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    write_active_plan(tmp_path, "open.md", "# Plan\n\nRelated: #101 and #102\n")
+    monkeypatch.setattr(
+        "scripts.validation.active_plan_closeout.gh_issue_state",
+        lambda issue, repo: "OPEN",
+    )
+
+    outcome = validate_active_plan_closeout(tmp_path)
+
+    assert outcome.state is EvidenceState.PASS
+    assert outcome.examined == 2
+    assert "[PASS] Active plan closeout advisory" in capsys.readouterr().out
+
+
+def test_unreachable_gh_is_blocked_not_a_pass(tmp_path: Path, monkeypatch, capsys) -> None:
+    """The silent-pass case: a lookup that returns None used to print [PASS]."""
+    write_active_plan(tmp_path, "open.md", "# Plan\n\nRelated: #101\n")
+    monkeypatch.setattr(
+        "scripts.validation.active_plan_closeout.gh_issue_state",
+        lambda issue, repo: None,
+    )
+
+    outcome = validate_active_plan_closeout(tmp_path)
+
+    assert outcome.state is EvidenceState.BLOCKED
+    assert outcome.reason == REASON_LOOKUP_FAILED
+    assert "1 of 1 issue lookup(s)" in outcome.detail
+    out = capsys.readouterr().out
+    assert "[PASS]" not in out
+    assert "1 of 1 issue lookup(s) returned no usable state" in out
+
+
+def test_no_active_plans_is_a_pass_with_zero_examined(tmp_path: Path) -> None:
+    outcome = validate_active_plan_closeout(tmp_path)
+
+    assert outcome.state is EvidenceState.PASS
+    assert outcome.examined == 0
+
+
+def test_findings_and_a_failed_lookup_report_both_in_the_detail(
+    tmp_path: Path, monkeypatch
+) -> None:
+    write_active_plan(tmp_path, "closed.md", "# Plan\n\nRelated: #101\n")
+    write_active_plan(tmp_path, "unknown.md", "# Plan\n\nRelated: #202\n")
+    monkeypatch.setattr(
+        "scripts.validation.active_plan_closeout.gh_issue_state",
+        lambda issue, repo: "CLOSED" if issue == 101 else None,
+    )
+
+    outcome = validate_active_plan_closeout(tmp_path)
+
+    assert outcome.state is EvidenceState.FAIL
+    assert "1 of 2 lookup(s) returned no usable state" in outcome.detail
