@@ -152,7 +152,7 @@ Open ontology question: whether "human" means the owner typed the request in a s
 5. **Reset closes a wanted item.** The #5704 close pass closes something the owner wanted. Prevention: keep list from the owner before any close; closed as not planned is reversible.
 6. **Retro gate removal loses learnings.** Retiring the push gate (#5709) means sessions that would have written a retro write nothing. Prevention: reflect at session stop is the replacement and must land in the same PR.
 7. **ADR gate escape.** A factual error survives the adr-generator gates. Prevention: the debate log records gate escapes (AC-10) so the gate is measured, not assumed.
-8. **Metrics without stop.** The CostLedger reports a runaway condition and nobody acts. Prevention: AC-8, a circuit breaker with an owner reset, proposed and awaiting the owner's word.
+8. **Metrics without stop.** The CostLedger reports a runaway condition and nobody acts. Prevention: AC-8, a report-only circuit breaker that states what it would close (owner decision D16, PR #6063).
 
 ## Security
 
@@ -175,7 +175,7 @@ EARS syntax. Each is pass or fail from evidence. The sub-issue that carries it i
 5. The backlog-generator agent shall not exist in any template, generated tree, catalog, or routing table. (#5701)
 6. NEW. The adr-review deferral protocol, the qa agent, the security agent, the research skill, and the task-decomposer agent shall not require or perform issue creation to clear a verdict or finish a run; a deferred or conditional item shall be recorded in the debate log, the PR body under "Noticed, not done", or the retro file. task-decomposer shall use the issue script with `--source agent` when the owner has asked it to decompose an epic, and never raw gh.
 7. The weekly report shall state, for the trailing 7 days, the count and share of new issues by `source:*` label, the count of bursts (3 or more issues by one login within 10 minutes), and the machinery share by title, and shall exit 0 with a markdown table and JSON. (#5702)
-8. NEW, awaiting the owner's word. While the trailing-7-day `source:agent` share exceeds 50 percent, the labeler shall close any newly opened agent-sourced issue as not planned with a comment naming the epic and the threshold, until the owner posts a reset comment on the epic. This is the only criterion that stops rather than measures.
+8. NEW, report-only by owner decision D16 (PR #6063). While the trailing-7-day `source:agent` share exceeds 50 percent, the breaker shall report "would close N" for newly opened agent-sourced issues, naming the epic and the threshold. The report shall also state whether the owner posted a reset comment on the epic; a detected reset appears in the report and is never applied, so "would close N" is computed as if no reset existed. The breaker shall never close, label, or comment on an issue. The earlier wording had the labeler close them as not planned; the owner rejected enforcement and kept the report.
 9. COST-GOVERNANCE.md shall carry a Model Token Cost Policy with the two-line cost model, the five weekly metrics, the 2026-09-10 baseline, the runaway condition, and a weekly review line. (#5705)
 10. adr-generator shall run five mandatory exit gates (claims ledger, citation freshness, doc-accuracy, self-consistency, one refuting analyst seat) before Phase G5, and adr-review's debate log shall record any factual finding a seat raises after the gates as a gate escape. (#5708)
 11. When a session stops, the reflect skill shall run by a mechanism the harness can actually fire; a full retrospective shall be written only on a RetroTrigger; lefthook shall carry no retrospective push gate. (#5709)
@@ -190,13 +190,13 @@ EARS syntax. Each is pass or fail from evidence. The sub-issue that carries it i
 
 **Problem clarity.** The epic names the right root cause (no provenance, no human at the door) and the right doctrine error (per-task pricing of per-period spend). It under-states the door: it treats `new_issue.py` as the one script every agent calls (Q6 says so), and the measured traffic says otherwise. The reframing that changes the outcome is to make "agents never file; a human files" the invariant and to enforce it where every door converges, the repository, with the script as the courteous path. That is AC-3 and AC-6, and it is the shape ADR-020 proposed in December 2025 and never built.
 
-**Testability.** Every criterion above names a command, a grep, or an observable state. AC-8 is testable but is a policy decision the owner has not made.
+**Testability.** Every criterion above names a command, a grep, or an observable state. AC-8 is testable through `.github/scripts/agent_share_breaker_report.py`, which prints the verdict and enforces nothing.
 
-**Completeness.** Gaps between the epic and the problem, each now a criterion: door bypass (AC-3), gate-clearing generators (AC-6), redaction of Step 0 answers (AC-2), a stop rather than a report (AC-8). One gap has no criterion: token spend itself. No telemetry in the repo records tokens per session or per PR (`.project-toolkit/metrics/` holds a Step 0 tally, an audit TSV, and dashboard templates; nothing token-shaped). The CostLedger measures issues and retros as proxies. Recorded under Open questions.
+**Completeness.** Gaps between the epic and the problem, each now a criterion: door bypass (AC-3), gate-clearing generators (AC-6), redaction of Step 0 answers (AC-2), a stop rather than a report (AC-8, decided D16 as report-only). One gap has no criterion: token spend itself. No telemetry in the repo records tokens per session or per PR (`.project-toolkit/metrics/` holds a Step 0 tally, an audit TSV, and dashboard templates; nothing token-shaped). The CostLedger measures issues and retros as proxies. Recorded under Open questions.
 
-**Traceability.** Sub-issue to criterion: #5699 AC-12; #5700 AC-1, AC-2, AC-3; #5701 AC-5; #5702 AC-7; #5703 AC-4; #5704 AC-14; #5705 AC-9; #5706 AC-13; #5708 AC-10; #5709 AC-11; all ten sub-issues (#5699 to #5706, #5708, #5709) AC-15. Criteria with no sub-issue: AC-6, AC-8. AC-6 is the one the pre-mortem rates most likely to be skipped at build time, because it is the criterion that closes Failure mode 2 and nothing tracks it.
+**Traceability.** Sub-issue to criterion: #5699 AC-12; #5700 AC-1, AC-2, AC-3; #5701 AC-5; #5702 AC-7; #5703 AC-4; #5704 AC-14; #5705 AC-9; #5706 AC-13; #5708 AC-10; #5709 AC-11; all ten sub-issues (#5699 to #5706, #5708, #5709) AC-15. Criteria with no sub-issue: AC-6. AC-8 is implemented by PR #6063. AC-6 is the one the pre-mortem rates most likely to be skipped at build time, because it is the criterion that closes Failure mode 2 and nothing tracks it.
 
-**Feasibility.** All criteria reuse existing code: the issue script, `check_citation_freshness.py`, doc-accuracy, generate_agents and generate_skills, lefthook. AC-3 is a small workflow under ADR-006 (logic in a Python script, YAML thin). AC-8 adds one branch to that script.
+**Feasibility.** All criteria reuse existing code: the issue script, `check_citation_freshness.py`, doc-accuracy, generate_agents and generate_skills, lefthook. AC-3 is a small workflow under ADR-006 (logic in a Python script, YAML thin). AC-8 is a report step in `agent_share_breaker_report.py`.
 
 ## Out of scope
 
@@ -210,7 +210,7 @@ EARS syntax. Each is pass or fail from evidence. The sub-issue that carries it i
 
 | Decision | Owner |
 |---|---|
-| AC-8 circuit breaker: adopt, or keep measurement only. Without it the system reports and never brakes; net creation from Q5's numbers is about 4 issues a day | owner |
+| AC-8 circuit breaker: decided D16, report-only. Enforcement (closing issues) stays out of scope; net creation from Q5's numbers is about 4 issues a day | owner, decided |
 | AC-6 as a sub-issue of #5698 (the generator sweep: adr-review deferral MUST, qa and security CONDITIONAL verdicts, research skill, task-decomposer raw gh) | owner |
 | Split #5698: provenance epic (AC-1 to AC-6, AC-14, AC-15) and a sibling epic for agent-selected spend (AC-9 to AC-13) | owner |
 | Whether "human" means web form only (verifiable) or also owner-typed session requests (asserted through the script's marker, forgeable). Interim rule in AC-3 until decided | owner |
@@ -233,7 +233,7 @@ Run 2026-09-15 by the critic agent, read-only, against this file. Verdict REVISE
 | AC-9 to AC-13 solve problems Q3 does not name; scope bundling | Kept, with a second problem statement and traceability under "Two problems in one epic"; split recorded as an owner decision |
 | AC-3 depends on Open question 3, unresolved | Interim human marker written into AC-3 and Open question 3, with the early-warning signal |
 | AC-6 has no sub-issue and is the likeliest to be skipped | Recorded under Deferred as an owner decision; agents do not file |
-| AC-8 is the only stop and is deferred | Left deferred, with the cost of deferral stated (about 4 net issues a day) |
+| AC-8 is the only stop and is deferred | Decided D16: report-only, no stop. Cost stated (about 4 net issues a day); implemented by #6063 |
 | AC-12 "shall agree" not falsifiable | Rewritten as grep counts |
 | User story 3's self-sufficiency has no criterion | AC-15 added |
 | Workflow count | Re-measured at HEAD after the fast-forward: 13, corrected from 14 in the generator list |

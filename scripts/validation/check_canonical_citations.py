@@ -48,6 +48,23 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
+# The typed contract, package path (evidence.py states why). This file runs as
+# a script, so the repository root is not on sys.path until it is inserted.
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+from scripts.validation.evidence import (  # noqa: E402
+    REASON_ADVISORY_FINDINGS,
+    REASON_TREE_ABSENT,
+    REASON_VIOLATIONS_FOUND,
+    WORKING_TREE,
+    CheckOutcome,
+)
+
+_VALIDATOR = "validate_canonical_citations"
+_SCOPE = "docstrings and top-level comments that claim to mirror a source"
+
 # Tokens that indicate a mirror-claim. Case-insensitive substring match.
 # These are the surface indicators the rule is built on. Keep this list
 # narrow; broadening it raises the false-positive rate without raising
@@ -290,6 +307,41 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+def _no_roots_outcome() -> CheckOutcome:
+    """Type the benign absence of every scan root as ``SKIP`` with ``tree.absent``."""
+    return CheckOutcome.skipped(
+        _VALIDATOR,
+        reason=REASON_TREE_ABSENT,
+        scope=_SCOPE,
+        detail="no scan root present; a vendor install without .claude/ is not an error",
+    )
+
+
+def _violations_outcome(count: int, *, strict: bool) -> CheckOutcome:
+    """Type uncited mirror-claims: ``advisory.findings`` by default, blocking in strict mode.
+
+    Both are ``FAIL``. Only the reason differs, so a grep for the reason counts
+    the warnings that exit 0 separately from the ones that blocked.
+    """
+    return CheckOutcome.failed(
+        _VALIDATOR,
+        reason=REASON_VIOLATIONS_FOUND if strict else REASON_ADVISORY_FINDINGS,
+        revision=WORKING_TREE,
+        scope=_SCOPE,
+        findings=count,
+        detail="strict mode, exit 1" if strict else "soft warning, exit 0",
+    )
+
+
+def _report_non_pass(outcome: CheckOutcome) -> None:
+    """Print the typed result on stderr, leaving stdout's status lines unchanged.
+
+    ``checks_citations`` parses this script's stdout for its first status token,
+    so the typed line goes to the other stream.
+    """
+    print(outcome.report_line(), file=sys.stderr)
+
+
 def main(argv: list[str] | None = None) -> int:
     """Entry point. Returns ADR-035 exit code."""
     args = parse_args(argv)
@@ -308,11 +360,14 @@ def main(argv: list[str] | None = None) -> int:
             "[SKIP] no scan roots present "
             "(.claude/hooks, scripts/validation, build/scripts, .claude/skills).",
         )
+        _report_non_pass(_no_roots_outcome())
         return 0
 
     violations = collect_violations(repo_root)
     print(format_report(violations, strict=args.strict))
 
+    if violations:
+        _report_non_pass(_violations_outcome(len(violations), strict=args.strict))
     if violations and args.strict:
         return 1
     return 0

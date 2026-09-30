@@ -18,7 +18,11 @@ Two resolution levels, because the tables differ:
   ``CheckOutcome`` or ``GateResult``, or (for an exit-code function) to build a
   ``CheckOutcome`` itself or through one helper.
 * A table without one (the hook jobs) names only the script, so the test
-  requires the script to import ``CheckOutcome`` from the evidence module.
+  requires the script to import ``CheckOutcome`` from the evidence module, or,
+  for a self-contained skill script that cannot import the repository package,
+  to define the module-level ``TYPED_RESULT_VOCABULARY`` mirror that
+  ``tests/skills/security-detection/test_typed_vocabulary_parity.py`` checks
+  against ``evidence.py``.
 
 * A workflow or lefthook row (``Job.step`` tables) cites a YAML file, not a
   script. Its claim holds when that file has at least one ``run`` value that
@@ -54,9 +58,10 @@ YAML_FILE = re.compile(r"`([A-Za-z0-9_.-]+\.ya?ml)(?::[0-9,-]+)?`")
 REPORTER = "scripts/ci/report_advisory_result.py"
 YAML_ROOTS = (".github/workflows", ".")
 PY_FILE = re.compile(r"`([A-Za-z0-9_./-]+\.py)(?::[0-9,-]+)?`")
-EVIDENCE_IMPORT = re.compile(
-    r"from\s+(?:scripts\.validation\.)?evidence\s+import[^#]*?\bCheckOutcome\b", re.S
-)
+EVIDENCE_MODULES = ("evidence", "scripts.validation.evidence")
+
+
+MIRROR_NAME = "TYPED_RESULT_VOCABULARY"
 
 
 class TypedClaim(NamedTuple):
@@ -128,6 +133,26 @@ def _builds_check_outcome(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
     )
 
 
+def _defines_vocabulary_mirror(source: str) -> bool:
+    """True when the module assigns ``TYPED_RESULT_VOCABULARY`` and then reads it.
+
+    A declared constant nothing reads proves no typed output, so the claim also
+    needs a load of the name outside its own assignment.
+    """
+    tree = ast.parse(source)
+    defined = False
+    for node in tree.body:
+        targets = node.targets if isinstance(node, ast.Assign) else []
+        if isinstance(node, ast.AnnAssign):
+            targets = [node.target]
+        defined = defined or any(isinstance(t, ast.Name) and t.id == MIRROR_NAME for t in targets)
+    loaded = any(
+        isinstance(n, ast.Name) and n.id == MIRROR_NAME and isinstance(n.ctx, ast.Load)
+        for n in ast.walk(tree)
+    )
+    return defined and loaded
+
+
 def _function_returns_typed(source: str, function: str) -> bool:
     """True when ``function`` is annotated typed, or builds a ``CheckOutcome`` itself.
 
@@ -150,6 +175,21 @@ def _function_returns_typed(source: str, function: str) -> bool:
     calls = (n for n in ast.walk(node) if isinstance(n, ast.Call))
     called = {n.func.id for n in calls if isinstance(n.func, ast.Name)}
     return any(_builds_check_outcome(functions[name]) for name in called if name in functions)
+
+
+def _imports_check_outcome(source: str) -> bool:
+    """True when the module imports ``CheckOutcome`` from the evidence module.
+
+    Parsed rather than matched, so a trailing suppression comment inside a
+    parenthesized import does not hide the name, and a comment that only
+    mentions it does not count.
+    """
+    return any(
+        isinstance(node, ast.ImportFrom)
+        and node.module in EVIDENCE_MODULES
+        and any(alias.name == "CheckOutcome" for alias in node.names)
+        for node in ast.walk(ast.parse(source))
+    )
 
 
 def _yaml_paths(path_cell: str, root: Path) -> list[Path]:
@@ -178,7 +218,7 @@ def _calls_reporter(node: object) -> bool:
 def _yaml_claim_problems(path_cell: str, yaml_files: list[Path], root: Path) -> list[str]:
     """Return why a workflow or lefthook row's TYPED claim is not backed."""
     helper = root / REPORTER
-    if not helper.exists() or not EVIDENCE_IMPORT.search(helper.read_text(encoding="utf-8")):
+    if not helper.exists() or not _imports_check_outcome(helper.read_text(encoding="utf-8")):
         return [f"{path_cell}: {REPORTER} does not import CheckOutcome"]
     return [
         f"{path_cell}: {path.relative_to(root)} has no run value calling {REPORTER}"
@@ -204,7 +244,7 @@ def unproven_claims(claims: list[TypedClaim], root: Path) -> list[str]:
             backed = (
                 _function_returns_typed(source, claim.function)
                 if claim.function
-                else bool(EVIDENCE_IMPORT.search(source))
+                else _imports_check_outcome(source) or _defines_vocabulary_mirror(source)
             )
             if not backed:
                 bad.append(f"{claim.path_cell}: {script.relative_to(root)} does not emit it")
@@ -353,6 +393,39 @@ def test_a_yaml_row_naming_no_existing_file_is_flagged(tmp_path: Path) -> None:
     problems = unproven_claims(typed_claims(_yaml_table("`ghost.yml:1`")), tmp_path)
 
     assert "no checked-in Python script resolved" in problems[0]
+
+
+def test_a_functionless_table_accepts_the_portable_vocabulary_mirror(tmp_path: Path) -> None:
+    table = "| Path | Contract |\n|---|---|\n| `gate.py:1` | TYPED |\n"
+    claims = typed_claims(table)
+    body = 'TYPED_RESULT_VOCABULARY = {"PASS": "PASS"}\n_V = TYPED_RESULT_VOCABULARY\n'
+
+    assert unproven_claims(claims, _fake_repo(tmp_path, body)) == []
+
+
+def test_a_vocabulary_mirror_that_nothing_reads_does_not_back_the_claim(tmp_path: Path) -> None:
+    table = "| Path | Contract |\n|---|---|\n| `gate.py:1` | TYPED |\n"
+    claims = typed_claims(table)
+    body = 'TYPED_RESULT_VOCABULARY = {"PASS": "PASS"}\n'
+
+    assert len(unproven_claims(claims, _fake_repo(tmp_path, body))) == 1
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "# TYPED_RESULT_VOCABULARY is mentioned in a comment only\n",
+        "def f():\n    TYPED_RESULT_VOCABULARY = {}\n",
+        "OTHER_VOCABULARY = {}\n",
+    ],
+)
+def test_a_functionless_table_rejects_a_mirror_that_is_not_module_level(
+    tmp_path: Path, source: str
+) -> None:
+    table = "| Path | Contract |\n|---|---|\n| `gate.py:1` | TYPED |\n"
+    claims = typed_claims(table)
+
+    assert len(unproven_claims(claims, _fake_repo(tmp_path, source))) == 1
 
 
 def test_an_exit_code_function_that_builds_a_check_outcome_is_accepted(tmp_path: Path) -> None:
