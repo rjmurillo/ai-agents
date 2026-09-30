@@ -24,6 +24,8 @@ from scripts.validation.evidence import (
     REASON_DIFF_FAILED,
     REASON_ENTRIES_UNREADABLE,
     REASON_MALFORMED_OUTPUT,
+    REASON_PR_UNRESOLVED,
+    REASON_SCOPE_EMPTY,
     REASON_SCRIPT_ABSENT,
     REASON_SCRIPT_FAILED,
     REASON_TREE_ABSENT,
@@ -254,9 +256,8 @@ class TestProducerContract:
 
         _check(outcome, EvidenceState.BLOCKED, REASON_MALFORMED_OUTPUT, blocks=False)
 
-    def test_contradiction_reports_map_to_pass_finding_and_skip(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    @staticmethod
+    def _load_contradiction_producer(monkeypatch: pytest.MonkeyPatch):
         import importlib.util
 
         path = Path(__file__).resolve().parents[2] / "scripts/validation/spec_contradiction.py"
@@ -266,6 +267,12 @@ class TestProducerContract:
         # A dataclass looks its module up in sys.modules while it is defined.
         monkeypatch.setitem(sys.modules, spec.name, producer)
         spec.loader.exec_module(producer)
+        return producer
+
+    def test_contradiction_reports_map_to_pass_finding_and_skip(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        producer = self._load_contradiction_producer(monkeypatch)
         finding = producer.Contradiction("model-tier", "model", "sonnet", "opus", "f.md", "PR")
 
         name = "validate_spec_contradiction"
@@ -275,6 +282,24 @@ class TestProducerContract:
         assert warned.findings == 1
         skipped = self._outcome(name, producer.format_skip("pr.unresolved"))
         _check(skipped, EvidenceState.SKIP, "pr.unresolved", blocks=False)
+
+    def test_the_producer_skip_reasons_match_the_evidence_constants(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """The producer is stdlib-only and hardcodes the codes, so pin them here."""
+        producer = self._load_contradiction_producer(monkeypatch)
+        monkeypatch.setattr(producer, "fetch_current_pr_body", lambda o, r: None)
+        assert producer.collect_with_skip_reason(tmp_path, "o", "r")[1] == REASON_PR_UNRESOLVED
+
+        monkeypatch.setattr(producer, "fetch_current_pr_body", lambda o, r: "body")
+        monkeypatch.setattr(producer, "_resolve_base_ref", lambda root: None)
+        assert (
+            producer.collect_with_skip_reason(tmp_path, "o", "r")[1] == REASON_BASE_REF_UNRESOLVED
+        )
+
+        monkeypatch.setattr(producer, "_changed_agent_files", lambda root, base: {})
+        skip = producer.collect_with_skip_reason(tmp_path, "o", "r", base_ref="origin/main")[1]
+        assert skip == REASON_SCOPE_EMPTY
 
 
 class TestReviewMarker:
