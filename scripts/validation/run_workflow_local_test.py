@@ -474,32 +474,31 @@ def _worktree_common_dir(gitdir: Path) -> Path:
     return (gitdir / pointer).resolve()
 
 
-def _link_or_copy(src: str, dst: str) -> None:
-    """Hard-link an immutable git object file, falling back to a copy."""
-    try:
-        os.link(src, dst)
-    except OSError:
-        shutil.copy2(src, dst)
+_HOST_OBJECTS_MOUNT = "/host-git-objects"
 
 
 def _copy_git_metadata(common: Path, gitdir: Path, dest: Path) -> None:
     """Copy the git metadata a linked worktree needs into ``dest``.
 
-    Object files are never rewritten by git, so they are hard-linked when the
-    filesystem allows. Everything else is copied, so a job that fetches or
-    updates the index changes only the copy. Only this worktree's admin dir is
-    copied from ``worktrees/``. The copy is made world-writable because the
-    act job user differs from the host user.
+    Objects are not copied or linked: ``dest/objects`` starts empty and names
+    the host object store, mounted read-only at ``_HOST_OBJECTS_MOUNT``, in
+    ``objects/info/alternates``. A job reads history through the alternate and
+    writes new objects only into the copy, so it cannot alter a host object
+    (a hard link would share the inode, and its permissions, with the host).
+    Hooks are left out. Everything else is copied, and only this worktree's
+    admin dir is copied from ``worktrees/``. The copy is made world-writable
+    because the act job user differs from the host user.
     """
-    skip = {"objects", "worktrees"}
+    skip = {"objects", "worktrees", "hooks"}
     shutil.copytree(
         common,
         dest,
         symlinks=True,
         ignore=lambda _dir, names: [n for n in names if n in skip and _dir == str(common)],
     )
-    shutil.copytree(
-        common / "objects", dest / "objects", symlinks=True, copy_function=_link_or_copy
+    (dest / "objects" / "info").mkdir(parents=True)
+    (dest / "objects" / "info" / "alternates").write_text(
+        f"{_HOST_OBJECTS_MOUNT}\n", encoding="utf-8"
     )
     shutil.copytree(gitdir, dest / "worktrees" / gitdir.name, symlinks=True)
     for root, dirs, files in os.walk(dest):
@@ -529,6 +528,25 @@ def _host_common_dir(repo_root: Path) -> Path | None:
     return Path(line).resolve()
 
 
+def _require_backlink(repo_root: Path, gitdir: Path) -> None:
+    """Refuse a gitdir whose ``gitdir`` file does not point back at this worktree.
+
+    git writes ``<gitdir>/gitdir`` when it creates the worktree. A pointer
+    forged in the checkout's own ``.git`` file cannot also forge this file
+    inside the main clone, so it anchors the pointer to something the checkout
+    does not control.
+    """
+    try:
+        back = (gitdir / "gitdir").read_text(encoding="utf-8").strip()
+    except OSError:
+        back = ""
+    if not back or Path(back).resolve() != (repo_root / ".git").resolve():
+        raise UntrustedGitDirError(
+            f"linked worktree admin dir {gitdir} does not point back at {repo_root / '.git'}; "
+            "refusing to mount it into the act container."
+        )
+
+
 def _require_trusted_common_dir(repo_root: Path, common: Path) -> None:
     """Refuse to mount ``common`` unless it is the common git dir git reports for the host."""
     expected = _host_common_dir(repo_root)
@@ -552,7 +570,9 @@ def _worktree_git_mount(repo_root: Path) -> Iterator[list[str]]:
     container, where a job may write freely. This mounts a throwaway copy of
     the common git dir at the same absolute path, so a linked worktree behaves
     the same and a job that runs ``git fetch`` never touches the host
-    repository. Yields no args for a normal checkout or an unrecognised layout.
+    repository. The copy keeps the repo config, so remote URLs and credential
+    helper settings are visible to the job; this is a local-only tool. Yields no
+    args for a normal checkout or an unrecognised layout.
     """
     gitdir_text = _read_worktree_gitdir(repo_root)
     if gitdir_text is None:
@@ -560,6 +580,7 @@ def _worktree_git_mount(repo_root: Path) -> Iterator[list[str]]:
         return
     gitdir = Path(gitdir_text)
     common = _worktree_common_dir(gitdir)
+    _require_backlink(repo_root, gitdir)
     _require_trusted_common_dir(repo_root, common)
     if gitdir.parent != common / "worktrees":
         yield []
@@ -569,7 +590,8 @@ def _worktree_git_mount(repo_root: Path) -> Iterator[list[str]]:
     with tempfile.TemporaryDirectory(prefix="act-gitdir-") as tmp:
         dest = Path(tmp) / "git"
         _copy_git_metadata(common, gitdir, dest)
-        yield ["--container-options", f"-v {shlex.quote(f'{dest}:{common}')}"]
+        mounts = [f"{dest}:{common}", f"{common / 'objects'}:{_HOST_OBJECTS_MOUNT}:ro"]
+        yield ["--container-options", " ".join(f"-v {shlex.quote(m)}" for m in mounts)]
 
 
 def _act_env(repo_root: Path) -> dict[str, str]:

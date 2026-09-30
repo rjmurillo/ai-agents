@@ -9,6 +9,7 @@ copy of the common git dir at the same path, so ``git rev-parse`` and
 from __future__ import annotations
 
 import os
+import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -47,11 +48,12 @@ def _linked_worktree(tmp_path: Path, *, commondir: str | None = "../..") -> tupl
     worktree = tmp_path / "wt"
     worktree.mkdir()
     (worktree / ".git").write_text(f"gitdir: {gitdir}\n", encoding="utf-8")
+    (gitdir / "gitdir").write_text(f"{worktree / '.git'}\n", encoding="utf-8")
     return worktree, gitdir, common
 
 
 def _mounted_copy(args: list[str]) -> Path:
-    spec = args[1].removeprefix("-v ").strip("'")
+    spec = shlex.split(args[1])[1]
     return Path(spec.rsplit(":", 1)[0])
 
 
@@ -92,11 +94,11 @@ def test_mount_binds_a_copy_at_the_common_dir_path(trusted, tmp_path):
     with w._worktree_git_mount(worktree) as args:
         copy = _mounted_copy(args)
         assert args[0] == "--container-options"
-        assert args[1].endswith(f":{common.resolve()}")
+        assert shlex.split(args[1])[1].endswith(f":{common.resolve()}")
         assert copy != common.resolve()
         assert (copy / "HEAD").read_text(encoding="utf-8") == "ref: refs/heads/main\n"
         assert (copy / "worktrees" / "feat" / "commondir").is_file()
-        assert (copy / "objects" / "ab" / "cdef").read_text(encoding="utf-8") == "obj"
+        assert (copy / "objects" / "info" / "alternates").is_file()
 
 
 def test_mounted_copy_is_writable_and_isolated_from_the_host(trusted, tmp_path):
@@ -106,9 +108,9 @@ def test_mounted_copy_is_writable_and_isolated_from_the_host(trusted, tmp_path):
         assert os.access(copy, os.W_OK)
         assert os.stat(copy / "HEAD").st_mode & 0o666 == 0o666
         (copy / "HEAD").write_text("changed\n", encoding="utf-8")
-        (copy / "objects" / "ab" / "new").write_text("n", encoding="utf-8")
+        (copy / "objects" / "new").write_text("n", encoding="utf-8")
     assert (common / "HEAD").read_text(encoding="utf-8") == "ref: refs/heads/main\n"
-    assert not (common / "objects" / "ab" / "new").exists()
+    assert not (common / "objects" / "new").exists()
 
 
 def test_mounted_copy_is_removed_after_the_stage(trusted, tmp_path):
@@ -125,20 +127,8 @@ def test_mount_path_with_spaces_is_quoted(trusted, tmp_path):
     worktree, _, common = _linked_worktree(spaced)
     with w._worktree_git_mount(worktree) as args:
         assert args[1].startswith("-v '")
-        assert args[1].endswith(f":{common.resolve()}'")
-
-
-def test_link_or_copy_falls_back_to_copy_when_link_fails(monkeypatch, tmp_path):
-    src = tmp_path / "src"
-    src.write_text("x", encoding="utf-8")
-    dst = tmp_path / "dst"
-
-    def refuse(_src, _dst):
-        raise OSError("cross-device")
-
-    monkeypatch.setattr(w.os, "link", refuse)
-    w._link_or_copy(str(src), str(dst))
-    assert dst.read_text(encoding="utf-8") == "x"
+        assert f":{common.resolve()}'" in args[1]
+        assert shlex.split(args[1])[1].endswith(f":{common.resolve()}")
 
 
 def test_full_stage_passes_the_mount_before_the_workflow_flag(trusted, monkeypatch, tmp_path):
@@ -157,7 +147,7 @@ def test_full_stage_passes_the_mount_before_the_workflow_flag(trusted, monkeypat
     cmd = calls[0]
     assert cmd[:2] == ["gh", "act"]
     assert cmd[2] == "--container-options"
-    assert cmd[3].endswith(f":{common.resolve()}")
+    assert shlex.split(cmd[3])[1].endswith(f":{common.resolve()}")
     assert cmd[4:] == ["-W", WF]
 
 
@@ -206,7 +196,7 @@ def test_mount_copy_matches_a_real_linked_worktree(tmp_path):
 
     with w._worktree_git_mount(worktree) as args:
         copy = _mounted_copy(args)
-        assert args[1].endswith(f":{(main / '.git').resolve()}")
+        assert shlex.split(args[1])[1].endswith(f":{(main / '.git').resolve()}")
         head = subprocess.run(
             ["git", "--git-dir", str(copy / "worktrees" / "wt"), "rev-parse", "HEAD"],
             capture_output=True,
@@ -289,3 +279,43 @@ def test_real_worktree_passes_the_trust_check(tmp_path):
     )
     with w._worktree_git_mount(worktree) as args:
         assert args[0] == "--container-options"
+
+
+def test_objects_are_shared_read_only_and_never_linked(trusted, tmp_path):
+    worktree, _, common = _linked_worktree(tmp_path)
+    obj = common / "objects" / "ab" / "cdef"
+    obj.chmod(0o444)
+    with w._worktree_git_mount(worktree) as args:
+        copy = _mounted_copy(args)
+        mounts = shlex.split(args[1])
+        assert f"{common.resolve() / 'objects'}:{w._HOST_OBJECTS_MOUNT}:ro" in mounts
+        alternates = (copy / "objects" / "info" / "alternates").read_text(encoding="utf-8")
+        assert alternates.strip() == w._HOST_OBJECTS_MOUNT
+        assert not (copy / "objects" / "ab").exists()
+    assert os.stat(obj).st_mode & 0o777 == 0o444
+
+
+def test_hooks_are_not_copied(trusted, tmp_path):
+    worktree, _, common = _linked_worktree(tmp_path)
+    (common / "hooks").mkdir()
+    (common / "hooks" / "pre-push").write_text("#!/bin/sh\n", encoding="utf-8")
+    with w._worktree_git_mount(worktree) as args:
+        assert not (_mounted_copy(args) / "hooks").exists()
+
+
+def test_forged_backlink_is_refused(trusted, tmp_path):
+    worktree, gitdir, _ = _linked_worktree(tmp_path)
+    (gitdir / "gitdir").write_text(str(tmp_path / "other" / ".git") + "\n", encoding="utf-8")
+
+    with pytest.raises(w.UntrustedGitDirError, match="does not point back"):
+        with w._worktree_git_mount(worktree):
+            pass
+
+
+def test_missing_backlink_is_refused(trusted, tmp_path):
+    worktree, gitdir, _ = _linked_worktree(tmp_path)
+    (gitdir / "gitdir").unlink()
+
+    with pytest.raises(w.UntrustedGitDirError, match="does not point back"):
+        with w._worktree_git_mount(worktree):
+            pass
