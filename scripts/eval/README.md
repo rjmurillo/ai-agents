@@ -885,7 +885,7 @@ this workflow before merge.
 
 ## Autoplan Route Eval
 
-`eval_autoplan_routes.py` is part 1 of #5389. It drives the real `resolve_route.py` CLI, not a copy of its lookup, so a change to the resolver or to any skill's `metadata.routing.intents` moves the score.
+`eval_autoplan_routes.py` is part 1 of #5389. It calls the real `resolve_route.py` `main`, not a copy of its lookup, so a change to the resolver or to any skill's `metadata.routing.intents` moves the score.
 
 ```bash
 uv run python scripts/eval/eval_autoplan_routes.py                  # local, about 5 seconds, no API key

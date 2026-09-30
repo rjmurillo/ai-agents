@@ -3,7 +3,7 @@
 
 `/autoplan` routes a request in two steps. A model reads the high-traffic
 table (prose), and on a miss it runs `resolve_route.py`, a deterministic
-resolver. This eval drives the real resolver CLI, not a copy of its lookup,
+resolver. This eval drives the real resolver `main`, not a copy of its lookup,
 and scores each request against an expected route. Model-free, offline, and
 byte-stable across runs.
 
@@ -32,9 +32,12 @@ Exit codes (ADR-035):
 from __future__ import annotations
 
 import argparse
+import contextlib
+import importlib.util
+import io
 import json
-import subprocess
 import sys
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -63,8 +66,6 @@ KINDS = frozenset({"explicit", "orchestrator", "specialist", "ambiguous", "none"
 EXIT_OK = 0
 EXIT_FAIL = 1
 EXIT_CONFIG = 2
-
-RESOLVER_TIMEOUT_SECONDS = 30
 
 
 class EvalConfigError(Exception):
@@ -126,25 +127,44 @@ def load_scenarios(path: Path) -> list[Scenario]:
     return scenarios
 
 
+def _load_resolver_main() -> Callable[[list[str]], int]:
+    """Import the resolver's own `main` from its file path.
+
+    The resolver ships inside a skill directory, so it is not an importable
+    package. Calling `main` runs its real argument parsing and output path.
+    """
+    spec = importlib.util.spec_from_file_location("autoplan_resolve_route", RESOLVER)
+    if spec is None or spec.loader is None:
+        raise EvalConfigError(f"cannot load resolver: {RESOLVER}")
+    module = importlib.util.module_from_spec(spec)
+    # The resolver defines dataclasses, which look their module up in sys.modules.
+    sys.modules[spec.name] = module
+    try:
+        spec.loader.exec_module(module)
+    except (OSError, SyntaxError, ImportError) as exc:
+        raise EvalConfigError(f"cannot load resolver {RESOLVER}: {exc}") from exc
+    return module.main
+
+
 def run_resolver(request: str, skills_roots: list[str]) -> dict[str, Any]:
-    """Run the real resolver CLI for one request and parse its JSON line."""
-    cmd = [sys.executable, str(RESOLVER), "--request", request]
+    """Run the real resolver `main` for one request and parse its JSON line."""
+    argv = ["--request", request]
     for root in skills_roots:
-        cmd += ["--skills-root", root]
+        argv += ["--skills-root", root]
+    out, err = io.StringIO(), io.StringIO()
     try:
-        proc = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=RESOLVER_TIMEOUT_SECONDS, check=False
-        )
-    except (OSError, subprocess.TimeoutExpired) as exc:
-        raise EvalConfigError(f"resolver did not run: {exc}") from exc
-    if proc.returncode != 0:
-        raise EvalConfigError(f"resolver exited {proc.returncode}: {proc.stderr.strip()[:200]}")
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            code = _load_resolver_main()(argv)
+    except SystemExit as exc:
+        code = exc.code if isinstance(exc.code, int) else 2
+    if code != 0:
+        raise EvalConfigError(f"resolver exited {code}: {err.getvalue().strip()[:200]}")
     try:
-        result = json.loads(proc.stdout)
+        result = json.loads(out.getvalue())
     except ValueError as exc:
-        raise EvalConfigError(f"resolver output is not JSON: {proc.stdout[:200]!r}") from exc
+        raise EvalConfigError(f"resolver output is not JSON: {out.getvalue()[:200]!r}") from exc
     if not isinstance(result, dict) or result.get("kind") not in KINDS:
-        raise EvalConfigError(f"resolver output has no valid kind: {proc.stdout[:200]!r}")
+        raise EvalConfigError(f"resolver output has no valid kind: {out.getvalue()[:200]!r}")
     return result
 
 

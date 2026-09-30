@@ -192,32 +192,67 @@ def test_unwritable_output_is_config_error(tmp_path: Path) -> None:
     assert code == ev.EXIT_CONFIG
 
 
-def test_resolver_output_not_json_is_config_error(monkeypatch: pytest.MonkeyPatch) -> None:
-    class Proc:
-        returncode = 0
-        stdout = "garbage"
-        stderr = ""
+def _fake_main(stdout: str, code: int = 0) -> Any:
+    def fake(_argv: list[str]) -> int:
+        sys.stdout.write(stdout)
+        return code
 
-    monkeypatch.setattr(ev.subprocess, "run", lambda *a, **k: Proc())
+    return lambda: fake
+
+
+def test_resolver_output_not_json_is_config_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(ev, "_load_resolver_main", _fake_main("garbage"))
     with pytest.raises(ev.EvalConfigError, match="not JSON"):
         ev.run_resolver("x", [])
 
 
 def test_resolver_output_without_kind_is_config_error(monkeypatch: pytest.MonkeyPatch) -> None:
-    class Proc:
-        returncode = 0
-        stdout = "{}"
-        stderr = ""
-
-    monkeypatch.setattr(ev.subprocess, "run", lambda *a, **k: Proc())
+    monkeypatch.setattr(ev, "_load_resolver_main", _fake_main("{}"))
     with pytest.raises(ev.EvalConfigError, match="no valid kind"):
         ev.run_resolver("x", [])
 
 
-def test_resolver_spawn_failure_is_config_error(monkeypatch: pytest.MonkeyPatch) -> None:
-    def boom(*_a: Any, **_k: Any) -> None:
-        raise OSError("no exec")
+def test_resolver_systemexit_is_config_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    def exits(_argv: list[str]) -> int:
+        raise SystemExit(2)
 
-    monkeypatch.setattr(ev.subprocess, "run", boom)
-    with pytest.raises(ev.EvalConfigError, match="did not run"):
+    monkeypatch.setattr(ev, "_load_resolver_main", lambda: exits)
+    with pytest.raises(ev.EvalConfigError, match="exited 2"):
+        ev.run_resolver("x", [])
+
+
+def test_resolver_systemexit_without_int_code_is_config_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def exits(_argv: list[str]) -> int:
+        raise SystemExit("bad")
+
+    monkeypatch.setattr(ev, "_load_resolver_main", lambda: exits)
+    with pytest.raises(ev.EvalConfigError, match="exited 2"):
+        ev.run_resolver("x", [])
+
+
+def test_missing_resolver_file_is_config_error(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(ev, "RESOLVER", tmp_path / "absent.py")
+    with pytest.raises(ev.EvalConfigError, match="cannot load resolver"):
+        ev.run_resolver("x", [])
+
+
+def test_broken_resolver_module_is_config_error(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    broken = tmp_path / "broken.py"
+    broken.write_text("def (:\n", encoding="utf-8")
+    monkeypatch.setattr(ev, "RESOLVER", broken)
+    with pytest.raises(ev.EvalConfigError, match="cannot load resolver"):
+        ev.run_resolver("x", [])
+
+
+def test_non_python_resolver_path_is_config_error(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(ev, "RESOLVER", tmp_path / "resolver.txt")
+    with pytest.raises(ev.EvalConfigError, match="cannot load resolver"):
         ev.run_resolver("x", [])
