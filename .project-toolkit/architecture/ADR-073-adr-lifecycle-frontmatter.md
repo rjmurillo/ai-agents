@@ -39,7 +39,7 @@ Research (verified 2026-06-11, recorded on #2583): no upstream spec (Nygard, MAD
 
 ## Decision
 
-Adopt a queryable lifecycle frontmatter schema as the machine-readable source of truth for ADR state, retaining the human-readable `## Status` prose section as a secondary rendering.
+Adopt a queryable lifecycle frontmatter schema as the machine-readable source of truth for ADR state, keeping a human-readable `## Status` prose section as an optional secondary rendering, present only when it carries something the enum does not.
 
 Add a YAML frontmatter block to the canonical ADR template:
 
@@ -54,7 +54,7 @@ explainer: null           # link to a living design doc, if paired
 implemented: false        # flips true at first merged change; gates amend-vs-supersede
 ```
 
-The frontmatter `status` enum is authoritative for tooling. The prose `## Status` section remains for humans and may carry the nuance the enum cannot (review verdicts, conditions to reach Accepted, the conditional state ADR-072 uses today). When the two disagree, the frontmatter wins, the gate flags the drift, and the author reconciles by editing the prose to match; the gate never silently rewrites prose.
+The frontmatter `status` enum is authoritative for tooling. A prose `## Status` section is optional. It is permitted when it carries nuance the enum cannot (review verdicts, conditions to reach Accepted, the conditional state ADR-072 uses today). It is forbidden when it only restates the frontmatter: the enum word alone, or the enum word with a date or the `superseded-by` target. When a section is present and the two disagree, the frontmatter wins, the gate flags the drift, and the author reconciles by editing the prose to match; the gate never silently rewrites prose.
 
 Two integrity rules bind the schema from the start, because the review of this ADR surfaced both as exploitable gaps:
 
@@ -98,11 +98,11 @@ This ADR records the decision and the migration contract. It does not itself shi
 | Minimal status-only frontmatter (status enum only, defer the rest) | Delivers the queryability benefit at about 20% of the schema and author burden; no supersedes/explainer/implemented to maintain until a consumer needs them | Does not solve supersession or the `implemented` gate, the two forces #2583 and #2582 raised | Partly chosen: the chosen option ships the full schema but makes every field except `status` optional and unenforced, which collapses to this option in practice until a consumer appears |
 | Adopt `adr-tools` wholesale | Battle-tested `adr new -s` supersession; community tooling | Heavy dependency; imposes its directory and numbering conventions; conflicts with this repo's `ADR-NNN-slug.md` + `check_adr_uniqueness.py` gate | Disproportionate to the need; we want one field pair, not a toolchain swap |
 | Lifecycle frontmatter, gate enforced immediately | Clean enum from day one | The enum gate fails every un-backfilled ADR on the first run; breaks `main` until all 72 are migrated in one change | Rejected in favor of the same schema with a phased, consumer-gated rollout (chosen) |
-| **Lifecycle frontmatter, additive first, gate consumer-gated (chosen)** | Machine-readable state; one Python frontmatter query for current state; objective `implemented`; additive and reversible; Phase 1 commits only optional fields | Backfill cost (deferred); dual representation (frontmatter + prose) to reconcile; YAML in ADRs is new to this repo | Chosen: gets the schema in place now at near-zero cost, defers the expensive enforced migration until a real consumer justifies it |
+| **Lifecycle frontmatter, additive first, gate consumer-gated (chosen)** | Machine-readable state; one Python frontmatter query for current state; objective `implemented`; additive and reversible; Phase 1 commits only optional fields | Backfill cost (deferred); optional prose beside the frontmatter to reconcile; YAML in ADRs is new to this repo | Chosen: gets the schema in place now at near-zero cost, defers the expensive enforced migration until a real consumer justifies it |
 
 ### Trade-offs
 
-The chosen option accepts a dual representation: the frontmatter `status` enum and the prose `## Status` section both exist, and they can drift. We accept that cost because the prose section carries review nuance the enum cannot, and the gate makes drift visible rather than silent. The phased rollout trades a longer migration for never breaking `main` on an un-backfilled record.
+The chosen option allows a second representation only where it earns its place: the frontmatter `status` enum always exists, and a prose `## Status` section may exist beside it when it carries review nuance the enum cannot. Where both exist they can drift, and the gate makes drift visible rather than silent. A section that only restates the enum adds drift risk and no information, so the gate rejects it. The phased rollout trades a longer migration for never breaking `main` on an un-backfilled record.
 
 ## Consequences
 
@@ -126,7 +126,7 @@ The chosen option accepts a dual representation: the frontmatter `status` enum a
 ### Negative
 
 - Backfill of 72 existing ADRs is required before the enum gate can be enforced, and it is not purely mechanical. Several records resist a clean prose-to-enum map: ADR-072 carries conditional status ("Proposed... MUST clear five approval conditions"), and ADR-055 uses an inline `**Status**: Accepted (supersedes ADR-024, ADR-025)` format. Expect a triage pass on roughly 10 to 20 percent of records. This is the main reason backfill is deferred, not committed, by this decision.
-- Dual representation (frontmatter enum plus prose `## Status`) introduces a sync burden and a new drift class. The gate flags drift but cannot author the human nuance; reconciliation is a manual author step, and hooks can fail open (ADR-066), so drift is possible in practice.
+- Where an optional prose `## Status` section exists beside the frontmatter enum, it introduces a sync burden and a drift class. The gate flags drift but cannot author the human nuance; reconciliation is a manual author step, and hooks can fail open (ADR-066), so drift is possible in practice.
 - A hand-edited `status: accepted` is a forgeable approval signal unless the Phase 3 gate binds the transition to adr-review consensus evidence. The schema is security theater until that binding exists; this ADR makes the binding a Phase 3 precondition.
 - The `explainer` URL is an injection and SSRF surface if any tool auto-fetches it. Mitigated by the display-only, no-auto-fetch invariant above, which the gate must enforce.
 - Authors and agents must learn one more block; malformed YAML frontmatter can fail parsing for every downstream consumer at once. Mitigated by mandating `yaml.safe_load` and validating frontmatter in CI.
@@ -134,7 +134,7 @@ The chosen option accepts a dual representation: the frontmatter `status` enum a
 ### Neutral
 
 - ADRs gain a YAML frontmatter block, aligning their on-disk shape with skills and rules that already use frontmatter.
-- The prose `## Status` section is retained, so human reading habits do not change.
+- The prose `## Status` section is no longer required. A record whose section only restated the enum loses it, and readers take status from the frontmatter. Authors who need nuance keep the section, so reading habits change only for bare restatements.
 - `detect_adr_changes.py` already reads an optional `status:` line, so Phase 1 changes what is authoritative, not whether a `status:` line is parsed.
 
 ## Impact on Dependent Components
@@ -159,6 +159,20 @@ Phased rollout. Each phase is a separate PR.
 4. **Phase 3 to 4 (enforce; deferred, consumer-gated).** Flip the `validate-adr` gate to frontmatter-parse using `yaml.safe_load`, require a valid `status` enum, enforce bidirectional supersession (`X.superseded-by: Y` implies `Y.supersedes: X`), and gate a transition to `status: accepted` on the presence of an adr-review debate-log artifact under `.project-toolkit/critique/`. Ship only after Phase 2 completes, so the enum gate is never a tripwire on an un-migrated record.
 
 **Consumer trigger and success metric.** Phases 2 to 4 proceed only when at least one concrete consumer is built: a stale-ADR detector, a generated current-state index, or a dependency viewer. Success is measured by that consumer reading frontmatter instead of scraping prose, and by zero prose-vs-frontmatter drifts surviving a gate run. If no consumer materializes, the schema stays at Phase 1 (optional, unenforced) indefinitely, which is the intended low-cost resting state.
+
+## Amendment 2026-09-29: prose Status is optional
+
+Issue #5242 recorded that this ADR retained the prose `## Status` section unconditionally while the owner directed removing it where it duplicates the frontmatter. The owner chose option A. Prose `## Status` is optional, and forbidden only when it merely restates the frontmatter status enum. The six places the issue named are amended in the Decision, Options, Consequences and Negative and Neutral lists above.
+
+What the gate enforces after this amendment:
+
+- No prose section is never a violation. Presence is not required.
+- A section that only restates the enum is a `prose-frontmatter-agree` violation, reported for deletion.
+- A section with nuance must still open with the frontmatter enum word (`prose-frontmatter-agree`).
+
+The new rule shares the `prose-frontmatter-agree` count instead of adding a check name. The base-ref baseline reader rejects a baseline whose keys differ from the code's check list, so a new name would fail every branch against a base that lacks it. Issue #5273 tracks splitting the count.
+
+`ADR-TEMPLATE.md` and its adr-generator copy stop offering `## Status` as a default section and describe when to add one.
 
 ## Related Decisions
 

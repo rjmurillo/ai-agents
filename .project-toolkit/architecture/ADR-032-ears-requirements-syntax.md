@@ -11,10 +11,6 @@ implemented: true
 
 # ADR-032: EARS Requirements Syntax Standard
 
-## Status
-
-Accepted
-
 ## Date
 
 2025-12-30

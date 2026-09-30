@@ -11,10 +11,6 @@ implemented: true
 
 # ADR-060: Rework Warning Evidence Persistence in Session Log JSON
 
-## Status
-
-Accepted
-
 ## Date
 
 2026-05-25

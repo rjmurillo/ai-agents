@@ -11,10 +11,6 @@ implemented: true
 
 # ADR-050: ADR-to-Protocol Sync Process
 
-## Status
-
-Accepted
-
 ## Date
 
 2026-02-21
