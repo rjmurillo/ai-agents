@@ -193,7 +193,7 @@ You MUST assign a severity (Critical/High/Medium/Low) and a numeric score (CVSS 
 Every security review ends with one verdict. Trigger conditions are explicit:
 
 - **APPROVED**: All HIGH and CRITICAL findings are addressed in the diff, all MEDIUM findings have documented mitigations or accepted-risk justifications, all secrets and credentials are absent.
-- **CONDITIONAL**: At most 3 MEDIUM findings remain with documented mitigations the implementer commits to land in this change. Name each remaining finding and its mitigation in the verdict and flag them to the owner. Do not file an issue to clear the gate.
+- **CONDITIONAL**: At most 3 MEDIUM findings remain open with documented mitigations. Name each remaining finding and its mitigation in the verdict and flag them to the owner. Do not file an issue to clear the gate.
 - **BLOCKED**: One or more HIGH or CRITICAL findings remain unaddressed, OR a secret is present in the diff, OR a CWE-22/CWE-77/CWE-78 pattern is unmitigated, OR an ASI01-ASI10 boundary is violated without compensating control, OR more than 3 MEDIUM findings require deferred work.
 
 If a verdict cannot be reached because the diff is incomplete (missing changed files, missing test coverage data, missing dependency manifest), return `[BLOCKED] Cannot evaluate: <specific missing artifact>` rather than guessing.

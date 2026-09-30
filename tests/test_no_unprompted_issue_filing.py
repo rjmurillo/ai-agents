@@ -58,21 +58,40 @@ DIRECTIVE_PATTERNS = {
         re.IGNORECASE,
     ),
     "agent-sourced filing": re.compile(r"--source agent", re.IGNORECASE),
+    "verb plus issue": re.compile(
+        r"\b(file|create|raise)\s+(?:(?:an?|the|new|separate|tracking|follow-?up|github|tech|debt)\s+)*"
+        r"issues?\b|\bopen an? (github )?issue\b|\bissues? for (each|every|all)\b",
+        re.IGNORECASE,
+    ),
 }
 
-FILING_COMMAND = re.compile(r"gh issue create|new_issue\.py|issue_write|create_issue\b")
+FILING_COMMAND = re.compile(
+    r"gh\s+issue\s+create|new_issue\.py|issue_write|create_issue\b|\bbd\s+create\b"
+    r"|gh\s+api\s+\S*/issues\b(?!/)"
+)
 
-# A user-request gate or a prohibition within the window clears a filing command.
+# A gate must sit within WINDOW_LINES of the command and name the user's request
+# or a prohibition on filing. A bare "Do not run the tests" clears nothing.
 GATE = re.compile(
     r"only when the user|user explicitly asks|explicitly asks? (you )?(for|to)"
-    r"|user's request|Do not (run|file)|Never pass|never file|does not file"
-    r"|not file",
+    r"|user's request|request that invoked|asked for (an )?(issue|filing)"
+    r"|(Do not|Never|never|does not)\s+(run|file|pass|use|call|create)\b[^.\n]*"
+    r"(issue|new_issue|--source|filing)",
     re.IGNORECASE,
 )
-WINDOW_LINES = 8
+WINDOW_LINES = 5
 
-# path -> reason. Each entry is a filing mention that is not agent-initiated.
-ALLOWLIST: dict[str, str] = {}
+NEGATION = re.compile(r"\b(do not|does not|don't|never|must not)\b", re.IGNORECASE)
+
+# path -> (line pattern, reason). Only lines matching the pattern are exempt.
+ALLOWLIST: dict[str, tuple[re.Pattern[str], str]] = {
+    "templates/skills/quality-grades.SKILL.md.tmpl": (
+        re.compile(r"check_grade_changes\.py"),
+        "Describes a CI script that the quality-grades workflow runs. It is workflow "
+        "automation, not an instruction to an agent. Workflow-level issue generators "
+        "are outside this sweep.",
+    ),
+}
 
 
 @dataclass(frozen=True)
@@ -88,18 +107,34 @@ def _is_exempt(relative: str) -> bool:
 
 
 def scan_text(relative: str, text: str) -> list[Violation]:
-    """Return every violation in one file's text. Pure, no I/O."""
+    """Return at most one violation per line. Pure, no I/O."""
     lines = text.splitlines()
+    allowed = ALLOWLIST.get(relative)
     found: list[Violation] = []
     for index, line in enumerate(lines):
-        for rule, pattern in DIRECTIVE_PATTERNS.items():
-            if pattern.search(line) and not _gated_prohibition(lines, index):
-                found.append(Violation(relative, index + 1, rule, line.strip()[:120]))
-        if FILING_COMMAND.search(line) and not _has_gate(lines, index):
-            found.append(
-                Violation(relative, index + 1, "ungated filing command", line.strip()[:120])
-            )
+        if allowed and allowed[0].search(line):
+            continue
+        rule = _violated_rule(lines, index)
+        if rule:
+            found.append(Violation(relative, index + 1, rule, line.strip()[:120]))
     return found
+
+
+def _violated_rule(lines: list[str], index: int) -> str | None:
+    line = lines[index]
+    for rule, pattern in DIRECTIVE_PATTERNS.items():
+        match = pattern.search(line)
+        if match and not _gated_prohibition(lines, index) and not _negated(lines, index, match):
+            return rule
+    if FILING_COMMAND.search(line) and not _has_gate(lines, index):
+        return "ungated filing command"
+    return None
+
+
+def _negated(lines: list[str], index: int, match: re.Match[str]) -> bool:
+    """True when a negation precedes the match on this line or the line before."""
+    before = (lines[index - 1] if index else "") + " " + lines[index][: match.start()]
+    return bool(NEGATION.search(before))
 
 
 def _window(lines: list[str], index: int) -> str:
@@ -112,7 +147,10 @@ def _has_gate(lines: list[str], index: int) -> bool:
 
 def _gated_prohibition(lines: list[str], index: int) -> bool:
     """A directive phrase quoted inside a prohibition, for example 'Never pass --source agent'."""
-    return bool(re.search(r"Never pass|Do not file|Do not run", lines[index], re.IGNORECASE))
+    return bool(
+        re.search(r"(Do not|Never|never)\s+(pass|file|run|create)\b", lines[index])
+        or re.search(r"only when the user|explicitly asks", lines[index], re.IGNORECASE)
+    )
 
 
 def _scan_files() -> Iterable[Path]:
@@ -128,7 +166,7 @@ def scan_repo() -> list[Violation]:
     found: list[Violation] = []
     for path in _scan_files():
         relative = path.relative_to(ROOT).as_posix()
-        if _is_exempt(relative) or relative in ALLOWLIST:
+        if _is_exempt(relative):
             continue
         found.extend(scan_text(relative, path.read_text(encoding="utf-8")))
     return found
@@ -158,8 +196,18 @@ class TestRepositoryTemplates:
             assert expected in scanned
 
     def test_allowlist_has_no_stale_entries(self):
-        scanned = {p.relative_to(ROOT).as_posix() for p in _scan_files()}
-        assert set(ALLOWLIST) <= scanned
+        for relative, (pattern, _reason) in ALLOWLIST.items():
+            text = (ROOT / relative).read_text(encoding="utf-8")
+            assert pattern.search(text), f"stale allowlist entry: {relative}"
+
+    def test_allowlisted_line_is_the_only_exemption(self):
+        relative = "templates/skills/quality-grades.SKILL.md.tmpl"
+        assert scan_text(relative, "Run check_grade_changes.py and open a GitHub issue.") == []
+        assert scan_text(relative, "Agents should open a GitHub issue for each domain.")
+
+    def test_negated_mention_passes(self):
+        assert scan_text("a.md", "The skill does not commit, push, or file issues.") == []
+        assert scan_text("a.md", "Never\nfile issues from a retro.") == []
 
     def test_github_skill_is_exempt_because_it_documents_the_tools(self):
         assert _is_exempt("templates/skills/github.SKILL.md.tmpl")
@@ -219,6 +267,31 @@ class TestDetector:
 
     def test_never_pass_source_agent_is_a_prohibition(self):
         assert scan_text("a.md", "Never pass `--source agent` from this skill.") == []
+
+    def test_bd_create_fails(self):
+        assert scan_text("a.md", "Run bd create for each finding.")
+
+    def test_spaced_gh_issue_create_fails(self):
+        assert scan_text("a.md", "Run `gh  issue  create` now.")
+
+    def test_gh_api_issues_post_fails(self):
+        assert scan_text("a.md", "Run `gh api repos/o/r/issues -f title=X`.")
+
+    def test_gh_api_issue_comment_path_is_not_filing(self):
+        assert scan_text("a.md", "Run `gh api repos/o/r/issues/5/comments`.") == []
+
+    def test_file_issues_for_every_finding_fails(self):
+        assert scan_text("a.md", "File issues for every deferred P1 finding.")
+
+    def test_open_an_issue_fails(self):
+        assert scan_text("a.md", "Fix the validator or open an issue.")
+
+    def test_unrelated_do_not_run_does_not_clear_a_command(self):
+        text = "Do not run the tests twice.\nRun `gh issue create --title X` for each P1."
+        assert scan_text("a.md", text)
+
+    def test_open_issues_search_is_not_filing(self):
+        assert scan_text("a.md", "Search open issues for related work.") == []
 
     def test_clean_text_passes(self):
         assert scan_text("a.md", "Flag the gap to the owner in the verdict.") == []
