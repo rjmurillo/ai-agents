@@ -196,6 +196,57 @@ jobs:
           .claude/skills/context-optimizer/scripts/extract_and_index.py
           --check --manifest .project-toolkit/context-output-manifest.json
 
+  count-ratchet-guard:
+    name: Check whole-tree count ratchets (blocking)
+    # Issue #5636, decision D13. The ruff and subprocess-encoding count
+    # ratchets score every tracked Python file, so they are whole-tree checks
+    # (`.claude/rules/ci-scripts.md`, "Path filters gate the diff, never the
+    # tree"). They also run inside the `test` job's bulk partition; that copy
+    # stays until the follow-up removal below. This job has no `needs:` and no
+    # `if:` on purpose, the same shape as zero-collection-guard above.
+    #
+    # Dual-name rollout (ci-scripts.md MUST 22). Step 1, this change: the new
+    # job exists and the ratchet steps in `test` stay. It reaches the required
+    # "Run Python Tests" context through test-result's `needs`, so a failing
+    # ratchet blocks a merge from the first run and no required context is
+    # added or removed. The job name is not itself a required context.
+    # Step 2, a later change by the owner: require this job's name in ruleset
+    # 11104075 if a directly visible context is wanted, then delete the ratchet
+    # steps from `test`.
+    runs-on: ubuntu-26.04-arm
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    env:
+      BASE_REF: ${{ github.base_ref || github.event.repository.default_branch }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Setup code environment
+        uses: ./.github/actions/setup-code-env
+        with:
+          gh-token: ${{ secrets.GITHUB_TOKEN }}
+          enable-pester: false
+          enable-git-hooks: false
+
+      # No --depth=1: count_ratchet.py reads a merge base, and a depth-limited
+      # fetch would graft .git/shallow for the whole job.
+      - name: Fetch the base ref
+        run: git fetch origin "$BASE_REF"
+
+      - name: Run ruff count ratchet (whole tree)
+        run: uv run --frozen python scripts/ci/ruff_count_ratchet.py --base-ref FETCH_HEAD
+
+      - name: Run subprocess encoding count ratchet (whole tree)
+        run: uv run --frozen python scripts/ci/subprocess_encoding_count_ratchet.py --base-ref FETCH_HEAD
+
   test:
     name: "pytest (${{ matrix.partition }})"
     # ADR-101 requirement 1: no `needs:` and no job-level `if:`. The partitions
@@ -576,6 +627,7 @@ jobs:
       - zero-collection-guard
       - line-endings-guard
       - context-output-guard
+      - count-ratchet-guard
     # !cancelled() rather than always(): a superseded run leaves its
     # dependencies 'cancelled', and always() would turn that into a red
     # required check on the PR head (Issue #5097). !cancelled() still runs on
@@ -598,6 +650,7 @@ jobs:
           ZERO_COLLECTION_RESULT: ${{ needs.zero-collection-guard.result }}
           LINE_ENDINGS_RESULT: ${{ needs.line-endings-guard.result }}
           CONTEXT_OUTPUT_RESULT: ${{ needs.context-output-guard.result }}
+          COUNT_RATCHET_RESULT: ${{ needs.count-ratchet-guard.result }}
         run: >-
           python scripts/ci/require_job_results.py
           --check TEST_RESULT success "test job failed or was cancelled: {value}"
@@ -605,6 +658,7 @@ jobs:
           --check ZERO_COLLECTION_RESULT success "zero-collection-guard failed or was cancelled: {value}"
           --check LINE_ENDINGS_RESULT success "line-endings-guard failed or was cancelled: {value}"
           --check CONTEXT_OUTPUT_RESULT success "context-output-guard failed or was cancelled: {value}"
+          --check COUNT_RATCHET_RESULT success "count-ratchet-guard failed or was cancelled: {value}"
 
   security:
     name: Python Security Checks
@@ -737,6 +791,7 @@ jobs:
       - security
       - test-windows-pwsh
       - context-output-guard
+      - count-ratchet-guard
     # !cancelled() rather than always(): the alert script treats a 'cancelled'
     # dependency as a failure, so a cancelled main run would file a bogus
     # "Python Tests failed on main" issue (Issue #5097).
