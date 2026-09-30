@@ -20,11 +20,11 @@ _WORKFLOW = ROOT / ".github" / "workflows" / "label-issue-source.yml"
 
 sys.path.insert(0, str(_SCRIPTS))
 _spec = importlib.util.spec_from_file_location(
-    "agent_share_breaker_report_under_test", _SCRIPTS / "agent_share_breaker_report.py"
+    "agent_share_breaker_report", _SCRIPTS / "agent_share_breaker_report.py"
 )
 assert _spec is not None and _spec.loader is not None
 mod = importlib.util.module_from_spec(_spec)
-sys.modules["agent_share_breaker_report_under_test"] = mod
+sys.modules["agent_share_breaker_report"] = mod
 _spec.loader.exec_module(mod)
 
 OWNER = "rjmurillo"
@@ -336,6 +336,23 @@ class TestRunReportAndMain:
     )
     def test_main_returns_config_error_on_invalid_args(self, argv):
         assert mod.main(argv) == mod.EXIT_CONFIG
+
+
+class TestBoundedOutput:
+    def test_ignored_logins_shown_are_capped(self):
+        comments = [_comment(f"user{n}", mod.RESET_TOKEN) for n in range(25)]
+        scan = mod.find_resets(comments, OWNER)
+        text = mod.build_report(mod.compute_share([], NOW), _issue(1, None), (), scan, 5698)
+        assert "ignored reset tokens: 25" in text
+        assert "and 15 more" in text
+        assert "user24" not in text
+
+    def test_error_text_from_non_gh_failures_cannot_forge_a_command(self, capsys):
+        with patch.object(mod, "_gh", return_value=json.dumps([{"number": "x::y\nz"}])):
+            code = mod.main(["--issue", "1", "--owner", OWNER, "--repo", "r"])
+        err = capsys.readouterr().err
+        assert code == mod.EXIT_EXTERNAL
+        assert err.count("::") == 2 and err.count("\n") == 1
 
 
 class TestGhWrapper:

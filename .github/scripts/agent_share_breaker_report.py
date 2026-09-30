@@ -78,6 +78,7 @@ WINDOW = timedelta(days=7)
 THRESHOLD_PERCENT = 50
 RESET_TOKEN = "AC8-BREAKER-RESET"
 _GH_TIMEOUT_SECONDS = 60
+_MAX_LOGINS_SHOWN = 10
 _NAME_PATTERN = re.compile(r"[A-Za-z0-9_][A-Za-z0-9._-]*")
 _LOGIN_UNSAFE = re.compile(r"[^A-Za-z0-9\-\[\]_]")
 
@@ -203,7 +204,10 @@ def _reset_lines(resets: ResetScan, epic: int) -> list[str]:
     else:
         lines.append(f"- reset: none from the owner on #{epic}")
     if resets.ignored:
-        names = ", ".join(resets.ignored_logins) or "unknown"
+        shown = resets.ignored_logins[:_MAX_LOGINS_SHOWN]
+        extra = len(resets.ignored_logins) - len(shown)
+        names = ", ".join(shown) or "unknown"
+        names += f" and {extra} more" if extra > 0 else ""
         lines.append(f"- ignored reset tokens: {resets.ignored} from non-owner logins ({names})")
     return lines
 
@@ -238,6 +242,11 @@ def _flatten(pages: object) -> list[dict[str, Any]]:
     return cast("list[dict[str, Any]]", pages)
 
 
+def _clean(text: str) -> str:
+    """One line, no ``::``, capped, so text cannot forge a workflow command."""
+    return " ".join(text.split()).replace("::", ": :")[:300]
+
+
 def _gh(args: list[str]) -> str:
     """Run gh with an argument list and no shell. Return stdout or raise GhError."""
     try:
@@ -246,14 +255,14 @@ def _gh(args: list[str]) -> str:
             capture_output=True,
             text=True,
             encoding="utf-8",
+            errors="replace",
             timeout=_GH_TIMEOUT_SECONDS,
             check=False,
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         raise GhError(str(exc)) from exc
     if result.returncode != 0:
-        joined = " ".join(f"{result.stderr} {result.stdout}".split())
-        raise GhError(joined.replace("::", ": :")[:300])
+        raise GhError(_clean(f"{result.stderr} {result.stdout}"))
     return result.stdout
 
 
@@ -315,7 +324,8 @@ def main(argv: list[str] | None = None) -> int:
         write_summary(report)
     except (GhError, OSError, json.JSONDecodeError, KeyError, ValueError, TypeError) as exc:
         print(
-            f"::error::Could not compute breaker report for #{args.issue}: {exc}", file=sys.stderr
+            f"::error::Could not compute breaker report for #{args.issue}: {_clean(str(exc))}",
+            file=sys.stderr,
         )
         return EXIT_EXTERNAL
     print(report)
