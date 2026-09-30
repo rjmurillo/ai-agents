@@ -1,0 +1,22 @@
+{
+  "current_status": "VERIFIED",
+  "reduced_status": "VERIFIED",
+  "comparison": "refused: comparison task sets differ: missing from candidate=['RB-03-investigate-before-edit'], missing from baseline=[]",
+  "harness_scope": "claude only, not cross-harness",
+  "commit": "e2c8d95fb88353992553a8cc69f1b1fe0dcdb610",
+  "requested_model": "haiku",
+  "requested_effort": "low",
+  "effort_verified": false,
+  "launches": 20,
+  "harness_failures": [
+    [
+      "reduced",
+      "RB-03-investigate-before-edit",
+      "exit code 1"
+    ]
+  ],
+  "control_bytes": {
+    "current": 40774,
+    "reduced": 2076
+  }
+}
