@@ -200,8 +200,8 @@ def test_commands_isolate_profiles_and_send_the_same_fixture() -> None:
     assert "--no-auto-update" in copilot
     assert "--allow-all-tools" in copilot
     assert "--allow-all-paths" not in copilot
-    assert claude[claude.index("--tools") + 1] == "Edit"
-    assert "--available-tools=edit" in copilot
+    assert claude[claude.index("--tools") + 1] == "Read,Edit"
+    assert "--available-tools=view,edit" in copilot
     assert claude[claude.index("--print") + 1] == fixture.prompt
     assert copilot[copilot.index("--prompt") + 1] == fixture.prompt
     assert parity._redacted_argv(claude, "claude")[
