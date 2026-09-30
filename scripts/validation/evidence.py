@@ -100,14 +100,18 @@ __all__ = [
     "REASON_ALREADY_RUN",
     "REASON_AUTH_UNAVAILABLE",
     "REASON_BASE_REF_UNRESOLVED",
+    "REASON_BRANCH_UNDETERMINED",
     "REASON_DIFF_FAILED",
     "REASON_ENTRIES_UNREADABLE",
+    "REASON_ENV_BYPASS",
     "REASON_INCOMPLETE_EVIDENCE",
     "REASON_LEGACY_BOOLEAN",
     "REASON_LISTING_FAILED",
     "REASON_LOOKUP_FAILED",
     "REASON_MALFORMED_OUTPUT",
+    "REASON_MERGE_IN_PROGRESS",
     "REASON_NO_OUTCOMES",
+    "REASON_POLICY_EXEMPT",
     "REASON_PROCESS_SIGNALED",
     "REASON_PR_UNRESOLVED",
     "REASON_QUICK_MODE",
@@ -193,6 +197,17 @@ REASON_ADVISORY_FINDINGS: Final = "advisory.findings"
 #: ``git worktree list`` (or an equivalent enumeration) failed, so the set the
 #: gate was meant to inspect is unknown.
 REASON_LISTING_FAILED: Final = "listing.failed"
+#: A local hook job did not run because an environment toggle such as
+#: ``SKIP_YAMLLINT=1`` turned it off. The toggle is unauthenticated, so the
+#: reason code is what makes the bypass countable.
+REASON_ENV_BYPASS: Final = "policy.env_bypass"
+#: The check does not apply here on purpose: a documented exemption, such as a
+#: linked worktree or settled merged history, not a missing input.
+REASON_POLICY_EXEMPT: Final = "policy.exempt"
+#: A git merge is in progress, so the check's premise does not hold yet.
+REASON_MERGE_IN_PROGRESS: Final = "git.merge_in_progress"
+#: The current branch could not be determined.
+REASON_BRANCH_UNDETERMINED: Final = "branch.undetermined"
 #: No pull request resolves for the current branch, so a check that compares
 #: against the PR had nothing to compare.
 REASON_PR_UNRESOLVED: Final = "pr.unresolved"

@@ -14,14 +14,15 @@ resolves each ``TYPED`` row to source and checks the claim statically.
 Two resolution levels, because the tables differ:
 
 * A table with a ``Function`` column names the function, so the test parses the
-  script and requires that function's return annotation to mention
-  ``CheckOutcome`` or ``GateResult``.
+  script and requires that function to be annotated as returning
+  ``CheckOutcome`` or ``GateResult``, or (for an exit-code function) to build a
+  ``CheckOutcome`` itself or through one helper.
 * A table without one (the hook jobs) names only the script, so the test
   requires the script to import ``CheckOutcome`` from the evidence module.
 
-This is a static check on the annotation. It proves the function is declared to
-return the typed contract; the behavioral tests beside each converted gate prove
-each path returns the right state.
+This is a static check. It proves the function is declared to return, or builds,
+the typed contract; the behavioral tests beside each converted gate prove each
+path returns the right state.
 """
 
 from __future__ import annotations
@@ -92,14 +93,53 @@ def _script_paths(path_cell: str, root: Path) -> list[Path]:
     return found
 
 
+def _functions(source: str) -> dict[str, ast.FunctionDef | ast.AsyncFunctionDef]:
+    """Module-level functions only, so a same-named method cannot stand in for a helper."""
+    return {
+        node.name: node
+        for node in ast.parse(source).body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+    }
+
+
+def _builds_check_outcome(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
+    """True when the body calls ``CheckOutcome.<constructor>(...)``.
+
+    A parameter or return annotation that names the type does not count, so a
+    function that only accepts an outcome cannot back a TYPED claim.
+    """
+    return any(
+        isinstance(n, ast.Call)
+        and isinstance(n.func, ast.Attribute)
+        and isinstance(n.func.value, ast.Name)
+        and n.func.value.id == "CheckOutcome"
+        for statement in node.body
+        for n in ast.walk(statement)
+    )
+
+
 def _function_returns_typed(source: str, function: str) -> bool:
-    for node in ast.walk(ast.parse(source)):
-        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            continue
-        if node.name == function and node.returns is not None:
-            annotation = ast.unparse(node.returns)
-            return any(typed in annotation for typed in TYPED_ANNOTATIONS)
-    return False
+    """True when ``function`` is annotated typed, or builds a ``CheckOutcome`` itself.
+
+    The second clause is for an exit-code function (``-> int``) that reports its
+    non-pass paths as typed result lines. It counts a direct use of
+    ``CheckOutcome`` constructor in the body, or a call to one module-level helper
+    that does.
+    One hop only, so a claim cannot ride on a distant call chain.
+    """
+    functions = _functions(source)
+    node = functions.get(function)
+    if node is None:
+        return False
+    if node.returns is not None:
+        annotation = ast.unparse(node.returns)
+        if any(typed in annotation for typed in TYPED_ANNOTATIONS):
+            return True
+    if _builds_check_outcome(node):
+        return True
+    calls = (n for n in ast.walk(node) if isinstance(n, ast.Call))
+    called = {n.func.id for n in calls if isinstance(n.func, ast.Name)}
+    return any(_builds_check_outcome(functions[name]) for name in called if name in functions)
 
 
 def unproven_claims(claims: list[TypedClaim], root: Path) -> list[str]:
@@ -201,3 +241,72 @@ def test_a_functionless_table_requires_the_evidence_import(
     claims = typed_claims(table)
 
     assert (unproven_claims(claims, _fake_repo(tmp_path, source)) == []) is expected
+
+
+def test_an_exit_code_function_that_builds_a_check_outcome_is_accepted(tmp_path: Path) -> None:
+    body = (
+        "def run_job() -> int:\n"
+        "    print(CheckOutcome.skipped('j', reason='r').summary_line())\n"
+        "    return 0\n"
+    )
+    claims = typed_claims(_table("run_job", "TYPED"))
+
+    assert unproven_claims(claims, _fake_repo(tmp_path, body)) == []
+
+
+def test_an_exit_code_function_that_calls_a_typed_helper_is_accepted(tmp_path: Path) -> None:
+    body = (
+        "def _emit():\n"
+        "    return CheckOutcome.skipped('j', reason='r')\n"
+        "def run_job() -> int:\n"
+        "    _emit()\n"
+        "    return 0\n"
+    )
+    claims = typed_claims(_table("run_job", "TYPED"))
+
+    assert unproven_claims(claims, _fake_repo(tmp_path, body)) == []
+
+
+def test_an_exit_code_function_with_no_typed_use_is_flagged(tmp_path: Path) -> None:
+    body = "def run_job() -> int:\n    print('WARNING: skipped')\n    return 0\n"
+    claims = typed_claims(_table("run_job", "TYPED"))
+
+    assert len(unproven_claims(claims, _fake_repo(tmp_path, body))) == 1
+
+
+def test_a_helper_two_hops_away_does_not_back_the_claim(tmp_path: Path) -> None:
+    body = (
+        "def _leaf():\n"
+        "    return CheckOutcome.skipped('j', reason='r')\n"
+        "def _mid():\n"
+        "    return _leaf()\n"
+        "def run_job() -> int:\n"
+        "    _mid()\n"
+        "    return 0\n"
+    )
+    claims = typed_claims(_table("run_job", "TYPED"))
+
+    assert len(unproven_claims(claims, _fake_repo(tmp_path, body))) == 1
+
+
+def test_a_class_method_with_the_same_name_does_not_back_the_claim(tmp_path: Path) -> None:
+    body = (
+        "def _emit():\n"
+        "    pass\n"
+        "def run_job() -> int:\n"
+        "    _emit()\n"
+        "    return 0\n"
+        "class Unrelated:\n"
+        "    def _emit(self):\n"
+        "        return CheckOutcome.skipped('j', reason='r')\n"
+    )
+    claims = typed_claims(_table("run_job", "TYPED"))
+
+    assert len(unproven_claims(claims, _fake_repo(tmp_path, body))) == 1
+
+
+def test_an_annotation_that_only_names_the_type_does_not_back_the_claim(tmp_path: Path) -> None:
+    body = "def run_job(outcome: CheckOutcome) -> int:\n    return 0\n"
+    claims = typed_claims(_table("run_job", "TYPED"))
+
+    assert len(unproven_claims(claims, _fake_repo(tmp_path, body))) == 1

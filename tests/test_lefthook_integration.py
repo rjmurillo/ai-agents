@@ -7099,10 +7099,11 @@ def test_yamllint_missing_and_empty_are_advisory(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     assert policy.run_yamllint([], tmp_path) == 0
+    # _run_command catches the OSError and returns this; it never raises it.
     monkeypatch.setattr(
         policy,
         "_run_command",
-        lambda *_args, **_kwargs: (_ for _ in ()).throw(FileNotFoundError()),
+        lambda args, *_a, **_k: policy._ProcessStartFailure(args, FileNotFoundError("yamllint")),
     )
     assert policy.run_yamllint(["config.yml"], tmp_path) == 0
 
@@ -7453,10 +7454,11 @@ def test_bot_cascade_advisory_handles_missing_and_active_pr(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
+    # _run_command catches the OSError and returns this; it never raises it.
     monkeypatch.setattr(
         policy,
         "_run_command",
-        lambda *_args, **_kwargs: (_ for _ in ()).throw(FileNotFoundError()),
+        lambda args, *_a, **_k: policy._ProcessStartFailure(args, FileNotFoundError("gh")),
     )
     assert policy.bot_cascade_advisory(tmp_path) == 0
 
