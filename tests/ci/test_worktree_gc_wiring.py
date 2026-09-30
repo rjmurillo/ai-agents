@@ -75,8 +75,9 @@ def test_the_worst_case_report_fits_inside_its_lefthook_timeout() -> None:
     being killed at the lefthook cap. That kill happens to the job's shell, so
     the wrapper cannot absorb it (measured: a job with ``sleep 10 || true`` under
     ``timeout: 2s`` still exits lefthook non-zero). The wrapper's own ``--timeout``
-    is pinned below the cap in ``test_advisory_step_reporting_wiring.py``. Issue 4257 rules out buying
-    room by raising the cap, so the constants below must fit under it instead.
+    is pinned below the cap in ``test_advisory_step_reporting_wiring.py``.
+    Issue 4257 rules out buying room by raising the cap, so the constants below
+    must fit under it instead.
 
     Worst case is the two setup git calls made before the deadline is even
     established, plus the budget itself, plus one final inspection that started
