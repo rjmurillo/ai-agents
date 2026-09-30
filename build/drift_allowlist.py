@@ -24,7 +24,10 @@ bad entry, and the caller exits 2 (configuration error, ADR-035):
 - ``path`` is required, a string, repo-relative, POSIX-separated, and exact.
   Absolute paths, ``..`` segments, backslashes, and glob characters are refused
   so one entry can never cover more than one file.
-- ``reason`` is required and must hold non-whitespace text.
+- ``reason`` is required and must hold non-whitespace text with no control
+  character. A newline in ``reason`` would let a crafted entry start a line
+  that GitHub Actions parses as a workflow command when the validator echoes
+  the reason.
 - No duplicate ``path``, and no keys beyond ``path`` and ``reason``.
 
 A missing file is an empty allowlist (no divergence is permitted). An
@@ -68,12 +71,19 @@ class AllowedDivergence:
     reason: str
 
 
+def _has_control_char(value: str) -> bool:
+    """True when ``value`` holds an ASCII control character, including newline and DEL."""
+    return any(ord(char) < 32 or ord(char) == 127 for char in value)
+
+
 def _path_problem(value: object) -> str | None:
     """Return why ``value`` is not an acceptable exact repo-relative path."""
     if not isinstance(value, str) or not value.strip():
         return "'path' must be a non-empty string"
     if value != value.strip() or "\\" in value:
         return "'path' must use forward slashes and no surrounding whitespace"
+    if _has_control_char(value):
+        return "'path' must not contain a control character"
     if any(char in _GLOB_CHARS for char in value):
         return "'path' must name one exact file, not a glob"
     pure = PurePosixPath(value)
@@ -100,6 +110,8 @@ def _entry_problems(entry: object, seen: set[str]) -> list[str]:
     reason = entry.get("reason")
     if not isinstance(reason, str) or not reason.strip():
         problems.append("'reason' must be a non-empty string")
+    elif _has_control_char(reason):
+        problems.append("'reason' must not contain a control character")
     return problems
 
 
