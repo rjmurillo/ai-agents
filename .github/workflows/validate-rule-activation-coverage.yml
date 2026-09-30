@@ -51,6 +51,7 @@ jobs:
               - 'tests/evals/rule-scenarios/**'
               - 'tests/evals/skill-scenarios/**'
               - 'scripts/validation/check_rule_activation_coverage.py'
+              - 'scripts/validation/report_rule_activation_states.py'
               - 'scripts/validation/rule_activation_coverage_baseline.json'
               - '.github/workflows/validate-rule-activation-coverage.yml'
 
@@ -69,6 +70,16 @@ jobs:
 
       - name: Check rule and skill activation coverage ratchet
         run: python3 scripts/validation/check_rule_activation_coverage.py
+
+      - name: Report per-artifact evidence states
+        run: python3 scripts/validation/report_rule_activation_states.py --output "$RUNNER_TEMP/rule-activation-states.json"
+
+      - name: Upload evidence-state report
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: rule-activation-states
+          path: ${{ runner.temp }}/rule-activation-states.json
+          if-no-files-found: error
 
   skip-validation:
     name: Skip Validation (No Coverage-Relevant Changes)
