@@ -43,6 +43,7 @@ from checks_workflow_targets import _workflow_yaml_targets  # noqa: E402
 # ``import scripts.validation.evidence`` yield two distinct ``EvidenceState``
 # enums, and the runner resolves the package one.
 from scripts.validation.evidence import (  # noqa: E402
+    REASON_ADVISORY_FINDINGS,
     REASON_BASE_REF_UNRESOLVED,
     REASON_DIFF_FAILED,
     REASON_INCOMPLETE_EVIDENCE,
@@ -608,6 +609,11 @@ def validate_workflow_yaml(repo_root: Path) -> CheckOutcome:
     )
 
 
+def _count_finding_lines(output: str) -> int | None:
+    """Count yamllint's parsable-format lines, one per finding, or None when there are none."""
+    return sum(1 for line in output.splitlines() if line.strip()) or None
+
+
 def validate_yaml_style(repo_root: Path) -> CheckOutcome:
     """Check YAML style with yamllint (advisory: findings warn, never fail).
 
@@ -615,18 +621,14 @@ def validate_yaml_style(repo_root: Path) -> CheckOutcome:
     yamllint; an unproven scope falls back to the full-repo scan.
 
     Returns typed evidence (issue #5635). An absent yamllint is BLOCKED and is
-    licensed by name in the pre-PR policy, same as actionlint above. Findings
-    remain advisory and still return PASS, because this gate deliberately does
-    not block on style.
+    licensed by name in the pre-PR policy, same as actionlint above.
 
-    A tolerated run is distinguished from a clean one by its scope string
-    (``advisory findings tolerated``) and by the yamllint exit code carried in
-    ``detail``, NOT by a finding count: ``CheckOutcome.passed`` takes no
-    ``findings`` argument and hard-codes it to 0, and ``_check_pass_evidence``
-    rejects any PASS reporting findings. Counting the parsable-format lines
-    would mean returning FAIL and licensing it with a fourth
-    ``PolicyException``, which is a heavier contract than an advisory style
-    check earns.
+    Findings are ``FAIL`` with reason ``advisory.findings`` and the count of
+    parsable-format lines (issue #5636). They used to return PASS with the yamllint
+    exit code in ``detail``, because ``CheckOutcome.passed`` cannot carry a finding
+    count and this gate must not block on style. That made a run with findings read
+    as PASS in the summary and in ``--summary-json``. ``pre_pr_policy`` licenses the
+    one (state, reason) pair for this validator, so the gate still does not block.
     """
     if not shutil.which("yamllint"):
         print("[BLOCKED] yamllint not found; no YAML file was examined")
@@ -696,11 +698,13 @@ def validate_yaml_style(repo_root: Path) -> CheckOutcome:
         _print_capped(stdout or stderr, 30, "issues")
         print()
         print("Note: These are warnings, not errors. Fix when convenient.")
-        return CheckOutcome.passed(
+        return CheckOutcome.failed(
             _YAML_STYLE,
+            reason=REASON_ADVISORY_FINDINGS,
             revision=WORKING_TREE,
-            scope=f"{scope}, advisory findings tolerated",
+            scope=scope,
             examined=len(target_args),
+            findings=_count_finding_lines(stdout or stderr or ""),
             detail=f"yamllint exited {exit_code}; style findings are advisory here",
         )
 

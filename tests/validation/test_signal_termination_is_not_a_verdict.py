@@ -31,11 +31,13 @@ from unittest.mock import patch
 import pytest
 
 from scripts.validation.evidence import (
+    REASON_ADVISORY_FINDINGS,
     REASON_PROCESS_SIGNALED,
     REASON_TIMEOUT,
     REASON_TOOL_ABSENT,
     EvidenceState,
     default_pre_pr_policy,
+    pre_pr_policy,
 )
 from scripts.validation.pre_pr import validate_workflow_yaml, validate_yaml_style
 from scripts.validation.subprocess_runner import classify_subprocess_failure
@@ -203,12 +205,20 @@ class TestYamlStyleWiring:
 
         assert not default_pre_pr_policy().accepts(outcome)
 
-    def test_tolerated_style_findings_still_pass(self, tmp_path: Path) -> None:
-        """Positive control. Issue #2374 keeps style findings non-blocking."""
+    def test_tolerated_style_findings_are_a_licensed_fail_that_does_not_block(
+        self, tmp_path: Path
+    ) -> None:
+        """Positive control. Issue #2374 keeps style findings non-blocking.
+
+        They used to read PASS. Issue #5636 makes them FAIL with advisory.findings,
+        which the pre-PR policy licenses for this validator, so the gate still
+        does not block, and a killed yamllint (above) still does.
+        """
         outcome = _run_yaml_style(tmp_path, (1, "config.yml:1:1: [warning] ...", ""))
 
-        assert outcome.state is EvidenceState.PASS
-        assert "advisory findings tolerated" in outcome.scope
+        assert outcome.state is EvidenceState.FAIL
+        assert outcome.reason == REASON_ADVISORY_FINDINGS
+        assert pre_pr_policy().accepts(outcome)
 
     def test_an_absent_yamllint_is_still_blocked_and_licensed(
         self, tmp_path: Path

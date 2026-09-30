@@ -722,6 +722,14 @@ _ADVISORY_LICENCES: Final[tuple[tuple[str, EvidenceState, str, str], ...]] = (
         "as BLOCKED instead of PASS. An unresolved base ref still blocks under CI.",
     ),
     (
+        "validate_yaml_style",
+        EvidenceState.FAIL,
+        REASON_ADVISORY_FINDINGS,
+        "This gate reports style findings without failing (issue #2374). The FAIL "
+        "is counted and printed, and the same validator's missing-yamllint BLOCKED "
+        "is already licensed by name.",
+    ),
+    (
         "validate_review_marker",
         EvidenceState.FAIL,
         REASON_ADVISORY_FINDINGS,
