@@ -116,8 +116,8 @@ def test_every_filter_key_feeds_the_should_run_decision(workflow: str) -> None:
 
 @pytest.mark.parametrize("workflow", CITATION_WORKFLOWS)
 def test_filter_has_no_trigger_level_paths(workflow: str) -> None:
-    document: dict[str, Any] = yaml.safe_load((WORKFLOWS / workflow).read_text(encoding="utf-8"))
-    triggers = document.get("on", document.get(True))
+    document: Any = yaml.safe_load((WORKFLOWS / workflow).read_text(encoding="utf-8"))
+    triggers = document["on"] if "on" in document else document[True]
     assert "paths" not in triggers["pull_request"]
 
 
@@ -140,10 +140,10 @@ def _write_memory(root: Path, citation: str) -> Path:
 
 def test_the_check_detects_an_uncovered_target(tmp_path: Path) -> None:
     """Positive control: the corpus check must not pass because it examined nothing."""
-    root = _write_memory(tmp_path / "mem", "[cite:file](docs/elsewhere/guide.md:3)")
+    root = _write_memory(tmp_path / "mem", "[cite:file](docs/elsewhere/guide.md)")
     uncovered, examined = uncovered_targets(root, _all_globs("memory-health.yml"))
     assert examined == 1
-    assert uncovered == ["sample-memory: docs/elsewhere/guide.md:3"]
+    assert uncovered == ["sample-memory: docs/elsewhere/guide.md"]
 
 
 def test_the_check_accepts_a_covered_target(tmp_path: Path) -> None:
