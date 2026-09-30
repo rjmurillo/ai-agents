@@ -2122,3 +2122,15 @@ the correct input for optimization decisions.
 - [ADR-057](.project-toolkit/architecture/ADR-057-prompt-behavioral-evaluation.md)
 - [ADR-023](.project-toolkit/architecture/ADR-023-quality-gate-prompt-testing.md)
 - [Methodology](.project-toolkit/testing/prompt-eval-methodology.md)
+
+### Hidden regression after integration and repetition variance (#5768)
+
+`evals/durable-outcome-live/corpus/` holds `post_integration_regression` scenarios. Each
+has an `integration` check, an `integration/` directory, and a `hidden_regression/`
+overlay that passes the local check and fails the integration check.
+`eval_routing_corpus.py --corpus DIR --extension` proves the controls hold.
+`eval_durable_live.py --extension-corpus DIR` adds the scenarios to a run, and
+`--first-repeat N` numbers repeats from N so chunked runs keep unique `task_id`/`repeat`
+pairs. `eval_durable_repetitions.py --records A.jsonl [--records B.jsonl]` prints
+per-repeat verdict counts, cost per durable accept, and mean, sample standard deviation,
+minimum, and maximum across repeats. It reports spread only and makes no significance claim.

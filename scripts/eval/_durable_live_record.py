@@ -16,7 +16,7 @@ from pathlib import Path
 
 from _claude_stream import Invocation, StreamFacts
 from _outcome_record import OutcomeRecord, parse_record
-from _routing_grader import GradeResult, Verdict, grade, materialize
+from _routing_grader import GradeResult, Verdict, apply_changes, grade, grade_integration
 from _routing_scenario import Scenario
 
 _ALLOWED_TOOL_NAMES = frozenset({"Read", "Edit", "Write", "Glob", "Grep", "Bash"})
@@ -36,18 +36,27 @@ class Session:
 
 
 def followup_grade(scenario: Scenario, workdir: Path, changed: Sequence[str]) -> GradeResult:
-    """Grade the agent's diff on a fresh `initial/` copy, not on the agent's directory."""
+    """Grade the agent's diff on a fresh `initial/` copy, not on the agent's directory.
+
+    A scenario with an `integration` block also runs the post-integration
+    check. The two results merge: the follow-up passes only when both pass,
+    and every failed command of either counts as a residual defect.
+    """
     with tempfile.TemporaryDirectory(prefix="durable-followup-") as name:
         fresh = Path(name) / "work"
-        materialize(scenario, fresh)
-        for relative in changed:
-            source, target = workdir / relative, fresh / relative
-            if source.is_file():
-                target.parent.mkdir(parents=True, exist_ok=True)
-                target.write_bytes(source.read_bytes())
-            elif target.is_file():
-                target.unlink()
-        return grade(scenario, fresh)
+        apply_changes(scenario, workdir, changed, fresh)
+        local = grade(scenario, fresh)
+    if scenario.integration is None:
+        return local
+    integrated = grade_integration(scenario, workdir, changed)
+    both = local.verdict is Verdict.PASS and integrated.verdict is Verdict.PASS
+    return GradeResult(
+        Verdict.PASS if both else Verdict.FAIL,
+        local.changed_paths,
+        local.scope_violations,
+        local.missing_expected,
+        (*local.commands, *integrated.commands),
+    )
 
 
 def security_findings(workdir: Path, changed: Sequence[str]) -> int | None:
@@ -113,6 +122,10 @@ def build_record(
     facts = [i.facts for i in session.invocations]
     last_text = facts[-1].final_text
     accepted = final.verdict is Verdict.PASS
+    followup_ok = follow.verdict is Verdict.PASS
+    # With an integration check the objective is the integrated result; without
+    # one it is the final grade, as before.
+    objective = accepted and (scenario.integration is None or followup_ok)
     data = {
         "task_id": scenario.scenario_id,
         "repeat": repeat,
@@ -126,12 +139,12 @@ def build_record(
             "scope_violations": len(final.scope_violations),
         },
         "durable": {
-            "followup_validation": _evidence(follow.verdict is Verdict.PASS),
-            "objective_satisfied": _evidence(accepted),
+            "followup_validation": _evidence(followup_ok),
+            "objective_satisfied": _evidence(objective),
             "residual_defects": _residual(follow),
             "review_findings": 0,
             "rollback_events": 0,
-            "rework_minutes": 0.0,
+            "rework_minutes": rework_minutes(session.invocations),
         },
         "economics": {
             "model_cost_usd": round(sum(f.cost_usd for f in facts), 6),
@@ -142,11 +155,22 @@ def build_record(
         "risk": {
             "security_findings": security_findings(workdir, changed),
             "unapproved_external_actions": unapproved_actions(session.invocations),
-            "unsupported_claims": 1 if (not accepted and _CLAIM.search(last_text)) else 0,
+            "unsupported_claims": 1 if (not objective and _CLAIM.search(last_text)) else 0,
             "unresolved_uncertainty": len(_HEDGE.findall(last_text)),
         },
     }
     return parse_record(data)
+
+
+def rework_minutes(invocations: Sequence[Invocation]) -> float:
+    """Wall minutes spent in correction rounds (round 1 and later).
+
+    A correction round exists only because the previous attempt failed its
+    deterministic check, so its time is agent rework. No human time is
+    included: a run has no human in it, and `human_correction_minutes` stays 0.
+    """
+    seconds = sum(i.wall_seconds for i in invocations if i.round_index >= 1)
+    return float(round(seconds / 60.0, 4))
 
 
 def _residual(follow: GradeResult) -> int:

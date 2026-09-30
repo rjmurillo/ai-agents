@@ -1,0 +1,5 @@
+"""Rank match scores."""
+
+
+def top_scores(scores: list[int], n: int) -> list[int]:
+    raise NotImplementedError("top_scores is not implemented yet")

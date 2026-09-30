@@ -44,7 +44,7 @@ from _durable_live import (
 from _durable_live_record import record_to_row
 from _durable_outcome import build_report, compare
 from _outcome_record import DurableOutcomeError
-from _routing_scenario import RoutingCorpusError, Scenario, load_corpus
+from _routing_scenario import RoutingCorpusError, Scenario, load_corpus, load_extension_corpus
 
 EXIT_OK = 0
 EXIT_UNVERIFIED_OR_WORSE = 1
@@ -63,11 +63,17 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=(__doc__ or "").splitlines()[0])
     parser.add_argument("--repo-root", type=Path, default=REPO_ROOT)
     parser.add_argument("--corpus", type=Path, default=DEFAULT_CORPUS)
+    parser.add_argument(
+        "--extension-corpus",
+        type=Path,
+        help="directory of post_integration_regression scenarios, run after --corpus",
+    )
     parser.add_argument("--model", default="haiku", help="model alias or id passed to claude")
     parser.add_argument("--effort", default="low")
     parser.add_argument("--max-turns", type=int, default=DEFAULT_MAX_TURNS)
     parser.add_argument("--retry-budget", type=int, default=1, help="correction rounds per task")
     parser.add_argument("--repeats", type=int, default=1)
+    parser.add_argument("--first-repeat", type=int, default=0, help="index of the first repeat")
     parser.add_argument("--max-invocations", type=int, default=60, help="hard launch cap")
     parser.add_argument("--tasks", help="comma-separated scenario ids to run (default: all)")
     parser.add_argument("--controls", help="comma-separated controls to run (default: all)")
@@ -110,6 +116,8 @@ def _validate(args: argparse.Namespace) -> str | None:
     for name in ("max_turns", "repeats", "max_invocations"):
         if getattr(args, name) < 1:
             return f"--{name.replace('_', '-')} must be at least 1"
+    if args.first_repeat < 0:
+        return "--first-repeat must not be negative"
     if args.retry_budget < 0:
         return "--retry-budget must not be negative"
     return None
@@ -142,6 +150,7 @@ def plan_report(
             for name, text in texts.items()
         },
         "repeats": args.repeats,
+        "first_repeat": args.first_repeat,
         "retry_budget": args.retry_budget,
         "max_invocations": bound,
         "cap": args.max_invocations,
@@ -184,7 +193,14 @@ def _run_live(
 ) -> int:
     settings = RunSettings(args.model, args.effort, args.max_turns, args.retry_budget)
     budget = InvocationBudget(args.max_invocations)
-    result = run_experiment(scenarios, texts, settings, budget, repeats=args.repeats)
+    result = run_experiment(
+        scenarios,
+        texts,
+        settings,
+        budget,
+        repeats=args.repeats,
+        first_repeat=args.first_repeat,
+    )
     out: Path = args.output_dir
     out.mkdir(parents=True, exist_ok=True)
     _write_jsonl(out / "invocations.jsonl", [i.summary() for i in result.invocations])
@@ -196,6 +212,9 @@ def _run_live(
             "requested_model": args.model,
             "requested_effort": args.effort,
             "effort_verified": False,
+            "effort_observed": "unobservable: the claude stream does not report effort",
+            "first_repeat": args.first_repeat,
+            "repeats": args.repeats,
             "launches": budget.used,
             "harness_failures": [list(item) for item in result.harness_failures],
             "control_bytes": {n: len(t.encode("utf-8")) for n, t in texts.items()},
@@ -213,7 +232,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"error: {problem}", file=sys.stderr)
         return EXIT_CONFIG
     try:
-        scenarios = _select(load_corpus(args.corpus), args.tasks)
+        corpus = load_corpus(args.corpus)
+        if args.extension_corpus is not None:
+            corpus = [*corpus, *load_extension_corpus(args.extension_corpus)]
+        scenarios = _select(corpus, args.tasks)
         names = _select_controls(args.controls)
         texts = {name: control_text(args.repo_root, name) for name in names}
     except (RoutingCorpusError, LiveRunError) as exc:
