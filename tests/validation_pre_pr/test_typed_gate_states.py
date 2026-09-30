@@ -87,6 +87,13 @@ class TestCanonicalCitations:
         _check(outcome, EvidenceState.FAIL, REASON_ADVISORY_FINDINGS, blocks=False)
         assert outcome.findings == 3
 
+    def test_an_early_pass_line_cannot_hide_a_later_warning(self, tmp_path: Path) -> None:
+        out = "[PASS] header\n[WARN] 2 uncited mirror-claim(s) found.\n"
+        outcome = self._run(tmp_path, (0, out, ""))
+
+        _check(outcome, EvidenceState.FAIL, REASON_ADVISORY_FINDINGS, blocks=False)
+        assert outcome.findings == 2
+
     def test_no_scan_roots_is_a_licensed_skip(self, tmp_path: Path) -> None:
         outcome = self._run(tmp_path, (0, "[SKIP] no scan roots present\n", ""))
 

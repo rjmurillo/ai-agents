@@ -68,14 +68,28 @@ _ORCHESTRATOR = "validate_orchestrator_citations"
 _CONTRADICTION = "validate_spec_contradiction"
 
 
+def _read_status(stdout: str) -> tuple[str, int | None]:
+    """Return the worst status token in ``stdout`` and its count, or ``("", None)``.
+
+    Worst wins (``WARN``, then ``PASS``, then ``SKIP``), so an early ``[PASS]``
+    line cannot hide a later ``[WARN]``. A ``[FAIL]`` token is not read: at exit 0
+    it contradicts the exit code, so it falls through as unrecognized.
+    """
+    found = {m.group(1): m for m in reversed(list(_STATUS_LINE.finditer(stdout)))}
+    for status in ("WARN", "PASS", "SKIP"):
+        match = found.get(status)
+        if match is not None:
+            return status, int(match.group(2)) if match.group(2) else None
+    return "", None
+
+
 def _status_outcome(validator: str, scope: str, stdout: str) -> CheckOutcome:
-    """Map a soft-warn script's first status line to a typed result.
+    """Map a soft-warn script's status line to a typed result.
 
     Called only when the script exited 0. ``[WARN]`` is the finding the exit
     code hides, so it becomes ``FAIL`` with reason ``advisory.findings``.
     """
-    match = _STATUS_LINE.search(stdout)
-    status = match.group(1) if match else ""
+    status, count = _read_status(stdout)
     if status == "PASS":
         return CheckOutcome.passed(validator, revision=WORKING_TREE, scope=scope)
     if status == "SKIP":
@@ -85,13 +99,13 @@ def _status_outcome(validator: str, scope: str, stdout: str) -> CheckOutcome:
             scope=scope,
             detail="the script found no scan roots",
         )
-    if status == "WARN" and match is not None:
+    if status == "WARN":
         return CheckOutcome.failed(
             validator,
             reason=REASON_ADVISORY_FINDINGS,
             revision=WORKING_TREE,
             scope=scope,
-            findings=int(match.group(2) or 0) or None,
+            findings=count or None,
             detail="the script reported findings and exited 0",
         )
     return CheckOutcome.blocked(
