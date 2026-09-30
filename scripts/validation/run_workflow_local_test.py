@@ -510,6 +510,36 @@ def _copy_git_metadata(common: Path, gitdir: Path, dest: Path) -> None:
     dest.chmod(0o777)
 
 
+class UntrustedGitDirError(RuntimeError):
+    """A linked worktree's git pointers lead outside the common git dir git reports."""
+
+
+def _host_common_dir(repo_root: Path) -> Path | None:
+    """Return the common git dir ``git rev-parse --git-common-dir`` reports, or None."""
+    env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+    rc, out, _err = _run(
+        ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
+        timeout=30,
+        cwd=repo_root,
+        env=env,
+    )
+    line = out.strip()
+    if rc != 0 or not line:
+        return None
+    return Path(line).resolve()
+
+
+def _require_trusted_common_dir(repo_root: Path, common: Path) -> None:
+    """Refuse to mount ``common`` unless it is the common git dir git reports for the host."""
+    expected = _host_common_dir(repo_root)
+    if expected is None or common.resolve() != expected:
+        raise UntrustedGitDirError(
+            f"linked worktree common git dir {common} does not match the one git "
+            f"reports ({expected or 'unresolved'}); refusing to mount it into the act "
+            f"container. Check the commondir file under {repo_root / '.git'}."
+        )
+
+
 @contextlib.contextmanager
 def _worktree_git_mount(repo_root: Path) -> Iterator[list[str]]:
     """Yield act args that give the job container a writable copy of a linked worktree's git dir.
@@ -530,9 +560,12 @@ def _worktree_git_mount(repo_root: Path) -> Iterator[list[str]]:
         return
     gitdir = Path(gitdir_text)
     common = _worktree_common_dir(gitdir)
+    _require_trusted_common_dir(repo_root, common)
     if gitdir.parent != common / "worktrees":
         yield []
         return
+    # TemporaryDirectory creates the parent 0700; that, not the open modes on
+    # the copy, keeps other host users out. Do not swap in a shared temp root.
     with tempfile.TemporaryDirectory(prefix="act-gitdir-") as tmp:
         dest = Path(tmp) / "git"
         _copy_git_metadata(common, gitdir, dest)
@@ -1377,8 +1410,11 @@ def _run_act_stage(
     """
     if not linked_git:
         return _run_act_workflows(stage, base_cmd, timeout, files, repo_root, [])
-    with _worktree_git_mount(repo_root) as mount_args:
-        return _run_act_workflows(stage, base_cmd, timeout, files, repo_root, mount_args)
+    try:
+        with _worktree_git_mount(repo_root) as mount_args:
+            return _run_act_workflows(stage, base_cmd, timeout, files, repo_root, mount_args)
+    except UntrustedGitDirError as exc:
+        return StageResult(stage, False, str(exc))
 
 
 def _run_act_workflows(
