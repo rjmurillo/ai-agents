@@ -50,11 +50,11 @@ back to "nothing allowed" would hide the fault, and one that fell back to
 "everything allowed" would be a bypass.
 
 Canonical source (``.claude/rules/canonical-source-mirror.md``):
-``build/drift_allowlist.py`` is the D8 loader this module follows. Its shape,
-quoted from that file's docstring: a sidecar JSON under
-``.agents/governance/`` with ``schema_version`` and ``entries``; a missing file
-is an empty allowlist; an unreadable or malformed file raises
-``AllowlistError``.
+``build/drift_allowlist.py`` is the D8 loader this module follows: a sidecar JSON
+under ``.agents/governance/`` with ``schema_version`` and ``entries``, a missing
+file read as an empty allowlist, and an unreadable or malformed file raising
+``AllowlistError``. Its docstring states those three rules. This is a summary of
+them, not a quotation.
 
 Stricter/looser/different than canonical: this loader adds ``kind``, ``owner``,
 and ``expires`` (the drift loader has only ``path`` and ``reason``), and two

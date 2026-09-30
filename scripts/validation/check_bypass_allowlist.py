@@ -11,21 +11,36 @@ It fails, exit 1, on:
 
 - a toggle used in tracked source with no ``toggle`` entry;
 - a ``continue-on-error`` job or step with no ``continue-on-error`` entry;
-- an entry that authorizes a current use but whose ``expires`` date has passed.
+- two ``continue-on-error`` steps in one job that share a name, because one
+  entry would authorize both;
+- an entry that authorizes a current use but whose ``expires`` date has passed,
+  or any entry whose ``expires`` date is more than ``MAX_EXPIRY_DAYS`` days out,
+  so an exception cannot be made permanent by writing a far date.
 
 An entry that matches no current use is stale. It grants nothing, so it prints a
 notice and does not fail.
 
-Scope, stated so a clean run is not read as more than it proves. The scan reads
-the tracked paths at ``HEAD`` (``git ls-tree``) from the working tree. It finds
-``SKIP_`` names as string literals in Python (parsed, not grepped) and as
-``$NAME``, ``NAME=``, or ``NAME:`` in YAML, shell, PowerShell, TOML, and JSON. It
-skips ``tests/``, ``docs/``, ``src/`` (generated mirrors), ``templates/``,
-``.project-toolkit/``, ``.claude-mem/``, ``.serena/``, and Markdown. It does not
-find a toggle that is assembled at run time, a bypass that is not named
-``SKIP_``, or a shell ``|| true``. The allowlist records that an exception
-exists and is owned. It does not authenticate who sets the variable at run
-time: any local user can still set ``SKIP_AUTOFIX=1``.
+Where it runs. The pre-PR sequence runs it as the "Bypass Allowlist" gate, and
+``tests/validation/test_check_bypass_allowlist.py`` runs it on the whole tree
+inside the required "Run Python Tests" context, which has no path filter. Both
+are edited by the pull request they judge, so this is a guardrail and a review
+prompt, not a control: ADR-101 puts a control on a plane the candidate cannot
+edit, and this is not one.
+
+Scope, stated so a clean run is not read as more than it proves. The tracked
+paths come from ``git ls-tree`` at ``HEAD``. Their contents are read from the
+working tree, so the result carries ``rev=WORKING_TREE``, and a tracked symlink
+is skipped rather than followed. A ``SKIP_`` name is found as a string literal in
+Python (parsed, not grepped) and as a whole token on any non-comment line of
+YAML, shell, PowerShell, TOML, and JSON, so ``$env:SKIP_X``, ``env.SKIP_X``,
+``"SKIP_X":`` and ``SKIP_X = 1`` all count. The scan skips ``tests/``, ``docs/``,
+``src/`` (generated mirrors), ``templates/``, ``.project-toolkit/``,
+``.claude-mem/``, ``.serena/``, and Markdown. It does not find a toggle that is
+assembled at run time, a bypass that is not named ``SKIP_``, or a shell
+``|| true``. A prose mention in a scanned file needs an allowlist entry. The
+allowlist records that an exception exists and is owned. It does not
+authenticate who sets the variable at run time: any local user can still set
+``SKIP_AUTOFIX=1``.
 
 EXIT CODES (ADR-035):
   0 - every use is authorized and unexpired
@@ -40,12 +55,14 @@ from __future__ import annotations
 import argparse
 import ast
 import json
+import os
 import re
+import stat
 import subprocess
 import sys
 from collections.abc import Iterable
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -65,6 +82,7 @@ from scripts.validation.evidence import (  # noqa: E402
     REASON_ENTRIES_UNREADABLE,
     REASON_LISTING_FAILED,
     REASON_VIOLATIONS_FOUND,
+    WORKING_TREE,
     CheckOutcome,
     EvidenceState,
 )
@@ -72,6 +90,7 @@ from scripts.validation.evidence import (  # noqa: E402
 VALIDATOR = "validate_bypass_allowlist"
 SCOPE = "SKIP_ toggles in tracked source and continue-on-error in workflows"
 GIT_TIMEOUT_SECONDS = 30
+MAX_EXPIRY_DAYS = 370
 EXIT_OK, EXIT_LOGIC, EXIT_CONFIG, EXIT_EXTERNAL = 0, 1, 2, 3
 
 _SKIPPED_PREFIXES = (
@@ -88,11 +107,7 @@ _TOGGLE_SUFFIXES = (".py", ".yml", ".yaml", ".sh", ".ps1", ".psm1", ".toml", ".j
 _WORKFLOW_DIR = ".github/workflows/"
 _ACTIONS_DIR = ".github/actions/"
 _STRING_TOGGLE_RE = re.compile(f"^{TOGGLE_NAME}$")
-_TEXT_TOGGLE_RE = re.compile(
-    rf"(?:\$\{{?(?P<ref>{TOGGLE_NAME})\b)"
-    rf"|(?:\b(?P<assign>{TOGGLE_NAME})=)"
-    rf"|(?:^\s*-?\s*(?P<key>{TOGGLE_NAME})\s*:)"
-)
+_TEXT_TOGGLE_RE = re.compile(rf"(?<![A-Za-z0-9_])(?P<name>{TOGGLE_NAME})(?![A-Za-z0-9_])")
 
 
 @dataclass(frozen=True)
@@ -118,23 +133,25 @@ class TreeReadError(Exception):
 
 
 def tracked_files(repo_root: Path) -> list[str]:
-    """Return the paths tracked at ``HEAD``, or raise ``TreeReadError``."""
+    """Return the paths tracked at ``HEAD``, or raise ``TreeReadError``.
+
+    Read as bytes and decoded with ``os.fsdecode``, so a file name that is not
+    valid UTF-8 keeps its exact bytes and still resolves on disk. A lossy decode
+    would turn it into a path that does not exist and skip the file unscanned.
+    """
     command = ["git", "-C", str(repo_root), "ls-tree", "-r", "-z", "--name-only", "HEAD"]
     try:
         result = subprocess.run(
-            command,
-            capture_output=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=GIT_TIMEOUT_SECONDS,
-            check=False,
+            command, capture_output=True, timeout=GIT_TIMEOUT_SECONDS, check=False
         )
     except (OSError, subprocess.SubprocessError) as exc:
         raise TreeReadError(REASON_LISTING_FAILED, f"git ls-tree could not run: {exc}") from exc
     if result.returncode != 0:
-        detail = result.stderr.strip() or f"exit {result.returncode}"
-        raise TreeReadError(REASON_LISTING_FAILED, f"git ls-tree failed: {detail}")
-    return [name for name in result.stdout.split("\0") if name]
+        detail = result.stderr.decode("utf-8", errors="replace").strip()
+        raise TreeReadError(
+            REASON_LISTING_FAILED, f"git ls-tree failed: {detail or f'exit {result.returncode}'}"
+        )
+    return [os.fsdecode(name) for name in result.stdout.split(b"\0") if name]
 
 
 def _read_text(repo_root: Path, relpath: str) -> str | None:
@@ -143,8 +160,11 @@ def _read_text(repo_root: Path, relpath: str) -> str | None:
     A tracked path deleted in the working tree is not an error: the deletion is
     the change being made. Any other read failure raises ``TreeReadError``.
     """
+    path = repo_root / relpath
     try:
-        return (repo_root / relpath).read_text(encoding="utf-8", errors="replace")
+        if stat.S_ISLNK(os.lstat(path).st_mode):
+            return None
+        return path.read_text(encoding="utf-8", errors="replace")
     except FileNotFoundError:
         return None
     except OSError as exc:
@@ -174,8 +194,7 @@ def _text_toggles(source: str) -> set[str]:
     for line in source.splitlines():
         if line.lstrip().startswith("#"):
             continue
-        for match in _TEXT_TOGGLE_RE.finditer(line):
-            found.add(match.group("ref") or match.group("assign") or match.group("key"))
+        found.update(match.group("name") for match in _TEXT_TOGGLE_RE.finditer(line))
     return found
 
 
@@ -281,6 +300,31 @@ def _step_problems(uses: list[StepUse], allowlist: Allowlist, today: date) -> li
     return problems
 
 
+def _duplicate_problems(uses: list[StepUse]) -> list[str]:
+    """Name each key shared by more than one ``continue-on-error`` step."""
+    seen: dict[tuple[str, str, str], int] = {}
+    for use in uses:
+        seen[use.key] = seen.get(use.key, 0) + 1
+    return [
+        f"{count} continue-on-error steps share {key[0]} job {key[1]!r} step {key[2]!r}; "
+        "rename them so each needs its own entry"
+        for key, count in sorted(seen.items())
+        if count > 1
+    ]
+
+
+def _horizon_problems(allowlist: Allowlist, today: date) -> list[str]:
+    """Name each entry whose expiry is further out than ``MAX_EXPIRY_DAYS``."""
+    limit = today + timedelta(days=MAX_EXPIRY_DAYS)
+    entries = [*allowlist.toggles.values(), *allowlist.steps.values()]
+    return [
+        f"expiry {entry.expires} is more than {MAX_EXPIRY_DAYS} days out"
+        f" ({getattr(entry, 'toggle', None) or entry.key})"
+        for entry in entries
+        if entry.expires > limit
+    ]
+
+
 def stale_entries(
     allowlist: Allowlist, toggles: dict[str, list[str]], uses: list[StepUse]
 ) -> list[str]:
@@ -302,7 +346,12 @@ def evaluate(repo_root: Path, allowlist: Allowlist, today: date) -> tuple[CheckO
             VALIDATOR, reason=exc.reason, scope=SCOPE, detail=exc.detail
         )
         return blocked, []
-    problems = _toggle_problems(toggles, allowlist, today) + _step_problems(uses, allowlist, today)
+    problems = (
+        _toggle_problems(toggles, allowlist, today)
+        + _step_problems(uses, allowlist, today)
+        + _duplicate_problems(uses)
+        + _horizon_problems(allowlist, today)
+    )
     stale = stale_entries(allowlist, toggles, uses)
     examined = len(toggles) + len(uses)
     if problems:
@@ -310,7 +359,7 @@ def evaluate(repo_root: Path, allowlist: Allowlist, today: date) -> tuple[CheckO
             CheckOutcome.failed(
                 VALIDATOR,
                 reason=REASON_VIOLATIONS_FOUND,
-                revision="HEAD",
+                revision=WORKING_TREE,
                 scope=SCOPE,
                 examined=examined,
                 findings=len(problems),
@@ -321,7 +370,7 @@ def evaluate(repo_root: Path, allowlist: Allowlist, today: date) -> tuple[CheckO
     detail = f"{len(toggles)} toggle(s) and {len(uses)} continue-on-error step(s), all authorized"
     return (
         CheckOutcome.passed(
-            VALIDATOR, revision="HEAD", scope=SCOPE, examined=examined, detail=detail
+            VALIDATOR, revision=WORKING_TREE, scope=SCOPE, examined=examined, detail=detail
         ),
         stale,
     )
