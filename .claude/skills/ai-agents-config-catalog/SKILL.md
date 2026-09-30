@@ -79,7 +79,7 @@ Copy `.env.example` to `.env`. Keys as of 2026-07-03: `ANTHROPIC_API_KEY` (MCP s
 
 | Name | Type | Effect | Status | Guard / abuse story | Where defined |
 |---|---|---|---|---|---|
-| `.agents/governance/drift-allowlist.json` | committed allowlist file (replaces the retired commit-message marker, issue #5636) | Excuses named files from the agent drift gate. Each entry needs an exact repo-relative `path` and a non-empty `reason`; globs, absolute paths, dot-dot segments, duplicates, and unknown keys are rejected (exit 2). Every other drift still fails | Reviewed exception, visible in the PR diff | `build/generate_agents.py --validate` prints each allowed divergence with its reason and warns on an entry that matched no drift. `.github/CODEOWNERS` requires the owner on the allowlist file, its loader, and the generator. No commit message skips the drift job | `build/drift_allowlist.py`; `CONTRIBUTING.md` (Intentional divergence) |
+| `drift-allowlist.json` (governance directory) | committed allowlist file (replaces the retired commit-message marker, issue #5636) | Excuses named files from the agent drift gate. Each entry needs an exact repo-relative `path` and a non-empty `reason`; globs, absolute paths, dot-dot segments, duplicates, and unknown keys are rejected (exit 2). Every other drift still fails | Reviewed exception, visible in the PR diff | `generate_agents.py --validate` prints each allowed divergence with its reason and warns on an entry that matched no drift. CODEOWNERS requires the owner on the allowlist file, its loader, and the generator. No commit message skips the drift job | `drift_allowlist.py`; the Intentional divergence section of CONTRIBUTING |
 
 ## Text Directives (orphan-ref-validator)
 
@@ -189,7 +189,7 @@ moved or died: update this catalog before relying on it.
 | Fact | Re-verify one-liner |
 |---|---|
 | Git hook jobs, filters, and validators | `uv run --frozen lefthook validate` |
-| Drift allowlist file and validator | `cat .agents/governance/drift-allowlist.json; grep -n "ALLOWED DIVERGENCE" build/generate_agents.py` |
+| Drift allowlist file and validator | `git ls-files '*drift-allowlist.json' '*drift_allowlist.py'` |
 | size-exception | `grep -n "size-exception" scripts/validation/skill_size.py` |
 | orphan-ref directives + 50-line window | `grep -n "IGNORE_DIRECTIVE_RE" .claude/skills/orphan-ref-validator/scripts/patterns.py && grep -n "splitlines()\[:50\]" .claude/skills/orphan-ref-validator/scripts/scan.py` |
 | investigation allowlist | `grep -n "agents/" scripts/modules/investigation_allowlist.py` |

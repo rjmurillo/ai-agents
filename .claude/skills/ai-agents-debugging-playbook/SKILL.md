@@ -150,7 +150,7 @@ Verified against the working tree on 2026-07-03. Retro-cited short SHAs do not r
 |------|--------|----------------|
 | EVENT= stderr telemetry schema | RETIRED: `push_guard_base.py` and every guard built on it were deleted under ADR-084 (issue #5154); no live file defines this schema | N/A. A surviving `EVENT=` emitter with a related but narrower shape (unknown-identity fail-open, not the general guard schema) is `.claude/lib/hook_utilities/guards.py::_emit_skip_event` |
 | 4 drift surfaces run in CI | `.github/workflows/validate-generated-agents.yml:165-225` | `grep -n -e "run_install_parity" -e "build_all" -e "generate_agents" .github/workflows/validate-generated-agents.yml` |
-| Drift allowlist (no commit-message bypass) | `.agents/governance/drift-allowlist.json`; `build/drift_allowlist.py` | `cat .agents/governance/drift-allowlist.json` |
+| Drift allowlist (no commit-message bypass) | `drift-allowlist.json`; `drift_allowlist.py` | `git ls-files '*drift-allowlist.json' '*drift_allowlist.py'` |
 | Version-field prohibition | `build/scripts/validate_plugin_version_bump.py` docstring, section RULE | `grep -n "MUST NOT carry" build/scripts/validate_plugin_version_bump.py` |
 | No version in any manifest or marketplace entry | three `.claude-plugin/plugin.json` files, both `marketplace.json` files | `python3 build/scripts/validate_plugin_version_bump.py` |
 | Coverage pin file-set sensitivity and 63% | `.github/workflows/pytest.yml:424-437` (issue #1963) | `grep -n "reports 63%" .github/workflows/pytest.yml` |

@@ -74,7 +74,7 @@ Special case, generated trees. `src/vs-code-agents/` and `src/copilot-cli/agents
 | ADR / governance | `adr-review` debate to consensus; blocking `git_hook_policy.py adr-review` Lefthook job |
 | Any canonical-source edit | Drift gates: `uv run python build/generate_agents.py --validate` and `uv run python build/scripts/build_all.py --check`; CI mirrors in `agent-drift-detection.yml` and `drift-detection.yml` |
 
-There is no commit-message bypass for the agent drift gate. An intentional divergence between a generated agent file and its template goes in `.agents/governance/drift-allowlist.json` as an entry with an exact repo-relative `path` and a non-empty `reason`. `build/generate_agents.py --validate` prints each allowed divergence with its reason and rejects an entry missing either field (exit 2). `.github/CODEOWNERS` names the allowlist, so the entry needs the owner's approval in the PR that adds it. A global bypass reads as the session 1187 escape-hatch abuse pattern (told in `references/incident-history.md`).
+There is no commit-message bypass for the agent drift gate. An intentional divergence between a generated agent file and its template goes in `drift-allowlist.json` (under the governance directory) as an entry with an exact repo-relative `path` and a non-empty `reason`. `generate_agents.py --validate` prints each allowed divergence with its reason and rejects an entry missing either field (exit 2). CODEOWNERS names the allowlist, so the entry needs the owner's approval in the PR that adds it. A global bypass reads as the session 1187 escape-hatch abuse pattern (told in `references/incident-history.md`).
 
 ### Phase 3: Run the gates, local to CI
 
