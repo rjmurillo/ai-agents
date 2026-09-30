@@ -13,6 +13,7 @@ module-level helpers) so existing imports keep working.
 
 from __future__ import annotations
 
+import os
 import re
 import sys
 from pathlib import Path
@@ -52,6 +53,30 @@ _VENDORED_PREFIXES = (
 )
 
 
+def _running_in_ci() -> bool:
+    """True under CI (``CI`` or ``GITHUB_ACTIONS`` set to ``true`` or ``1``).
+
+    No shared CI helper exists in ``scripts/validation/`` (searched
+    ``def is_ci``, ``def _is_ci``, ``def in_ci``, ``def running_in_ci``,
+    ``def is_github_actions``). This mirrors the inline test that
+    ``checks_common._refresh_remote_base`` applies at
+    ``checks_common.py:410-412``: ``os.environ.get("CI", "").lower() in
+    ("true", "1")`` or the same test on ``GITHUB_ACTIONS``.
+    """
+    return any(
+        os.environ.get(name, "").strip().lower() in ("true", "1")
+        for name in ("CI", "GITHUB_ACTIONS")
+    )
+
+
+def _report_scan_unavailable(reason: str) -> None:
+    """Say the scan could not run: BLOCKED under CI, a warning anywhere else."""
+    if _running_in_ci():
+        print(f"[BLOCKED] Em/en-dash branch scan: {reason}; no file was examined")
+    else:
+        print(f"[WARNING] Em/en-dash branch scan skipped: {reason}")
+
+
 def _is_vendored(path: str) -> bool:
     """True when ``path`` starts with any vendored prefix."""
     return any(path.startswith(prefix) for prefix in _VENDORED_PREFIXES)
@@ -60,12 +85,13 @@ def _is_vendored(path: str) -> bool:
 def _branch_markdown_files(repo_root: Path) -> list[str] | None:
     """Resolve branch base and return non-vendored markdown paths to scan.
 
-    Returns None when the scan cannot run (no base ref or git diff failure);
-    callers treat None as fail-open (pass without scanning).
+    Returns None when the scan cannot run (no base ref or git diff failure).
+    The reason is reported here, as BLOCKED under CI and a warning locally;
+    the caller turns None into the matching verdict.
     """
     base_ref = _resolve_branch_base_ref(repo_root)
     if base_ref is None:
-        print("[WARNING] Em/en-dash branch scan skipped: no base ref resolved")
+        _report_scan_unavailable("no base ref resolved")
         return None
 
     exit_code, stdout, stderr = _run_subprocess(
@@ -81,18 +107,15 @@ def _branch_markdown_files(repo_root: Path) -> list[str] | None:
         timeout=30,
     )
     if exit_code != 0:
-        print(
-            f"[WARNING] Em/en-dash branch scan skipped: git diff failed: {stderr}",
-        )
+        _report_scan_unavailable(f"git diff failed: {stderr}")
         return None
 
-    return [
-        p for p in stdout.splitlines() if p.endswith(".md") and not _is_vendored(p)
-    ]
+    return [p for p in stdout.splitlines() if p.endswith(".md") and not _is_vendored(p)]
 
 
 def _find_dash_violations(
-    repo_root: Path, paths: list[str],
+    repo_root: Path,
+    paths: list[str],
 ) -> tuple[list[tuple[str, int]], list[str]]:
     """Read each committed path and return (path, line_num) hits.
 
@@ -166,12 +189,16 @@ def validate_dash_prohibition(repo_root: Path) -> bool:
     intentionally contain dashes to exercise the detection logic.
     .github/instructions/ is NOT skipped (REQ-006-AC4).
 
-    Returns True (pass) when no violations are found OR when the scan
-    cannot run (fail open). Returns False on any violation.
+    Returns True (pass) when no violations are found. Returns False on any
+    violation. When the scan cannot run (base ref unresolved, or ``git diff``
+    fails) it returns False under CI, so a checkout that examined nothing
+    cannot report green (issue #5636, decision D10), and True locally with a
+    ``[WARNING]``, so a shallow or detached local checkout does not stop a
+    push.
     """
     candidate_paths = _branch_markdown_files(repo_root)
     if candidate_paths is None:
-        return True
+        return not _running_in_ci()
     if not candidate_paths:
         print("[PASS] Em/en-dash prohibition (no markdown files on branch)")
         return True

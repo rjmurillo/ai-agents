@@ -196,6 +196,17 @@ class TestValidateMarkdownLint:
 class TestValidateDashProhibition:
     """Tests for the branch-wide em/en-dash check."""
 
+    @pytest.fixture(autouse=True)
+    def _local_environment(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Pin these cases to a local checkout.
+
+        Under CI an unresolved base ref or failed git diff blocks (issue #5636,
+        D10), and GitHub Actions sets CI for the pytest run itself. The CI legs
+        are covered in tests/validation_pre_pr/test_dash_checks.py.
+        """
+        monkeypatch.delenv("CI", raising=False)
+        monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+
     def test_returns_true_when_no_base_ref_resolves(self, tmp_path: Path) -> None:
 
         # tmp_path is not a git repo; no ref will resolve.
