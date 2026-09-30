@@ -45,6 +45,7 @@ from __future__ import annotations
 import argparse
 import json
 import shutil
+import stat
 import subprocess
 import sys
 from dataclasses import asdict, dataclass, field
@@ -133,9 +134,18 @@ def worktree_marker_state(candidate: Path) -> str:
     #5636).
     """
     marker = candidate / ".git"
+    # ``Path.is_file`` cannot tell absent from unreadable: on 3.14 it returns
+    # False for every OSError, permission errors and symlink loops included. So
+    # stat directly and treat only the two "nothing there" errors as absence.
     try:
-        if not marker.is_file():
-            return MARKER_NOT_WORKTREE
+        mode = marker.stat().st_mode
+    except (FileNotFoundError, NotADirectoryError):
+        return MARKER_NOT_WORKTREE
+    except OSError:
+        return MARKER_UNREADABLE
+    if not stat.S_ISREG(mode):
+        return MARKER_NOT_WORKTREE
+    try:
         with marker.open(encoding="utf-8", errors="replace") as handle:
             first_line = handle.readline()
     except OSError:

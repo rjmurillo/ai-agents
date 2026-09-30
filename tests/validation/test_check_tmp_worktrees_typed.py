@@ -175,3 +175,34 @@ def _check_blocked(outcome: object) -> None:
     assert outcome.state is EvidenceState.BLOCKED
     assert outcome.reason == REASON_ENTRIES_UNREADABLE
     assert pre_pr_policy().accepts(outcome)
+
+
+def test_a_marker_stat_failure_is_unreadable_not_absent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Path.is_file swallows every OSError on 3.14, so only stat() can tell them apart."""
+    (tmp_path / "wt").mkdir()
+    (tmp_path / "wt" / ".git").write_text("gitdir: /x/.git/worktrees/wt\n", encoding="utf-8")
+    real_stat = Path.stat
+
+    def deny(self: Path, *args, **kwargs):
+        if self.name == ".git" and self.parent.name == "wt":
+            raise PermissionError("denied")
+        return real_stat(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "stat", deny)
+
+    assert checker.worktree_marker_state(tmp_path / "wt") == checker.MARKER_UNREADABLE
+
+
+def test_only_a_missing_or_non_directory_marker_path_counts_as_absent(tmp_path: Path) -> None:
+    clone = tmp_path / "clone"
+    (clone / ".git").mkdir(parents=True)
+    plain = tmp_path / "plain"
+    plain.mkdir()
+    afile = tmp_path / "afile"
+    afile.write_text("x", encoding="utf-8")
+
+    assert checker.worktree_marker_state(clone) == checker.MARKER_NOT_WORKTREE
+    assert checker.worktree_marker_state(plain) == checker.MARKER_NOT_WORKTREE
+    assert checker.worktree_marker_state(afile) == checker.MARKER_NOT_WORKTREE
