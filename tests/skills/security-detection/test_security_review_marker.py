@@ -342,6 +342,55 @@ def test_a_spawn_failure_is_blocked_with_tool_absent(
     assert (review["state"], review["reason"]) == ("BLOCKED", "tool.absent")
 
 
+def test_a_non_critical_push_prints_a_typed_skip_on_stderr(
+    monkeypatch: pytest.MonkeyPatch, repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    argv = [
+        "detect_infrastructure.py",
+        "--repo-root",
+        str(repo),
+        "--files",
+        "README.md",
+        "--require-security-review",
+    ]
+    monkeypatch.setattr(sys, "argv", argv)
+
+    rc = int(mod.main())
+
+    err = capsys.readouterr().err
+    assert rc == 0
+    assert err.startswith("[SKIP] detect_infrastructure reason=policy.exempt scope=")
+
+
+def test_the_default_invocation_prints_no_typed_skip(
+    monkeypatch: pytest.MonkeyPatch, repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(
+        sys, "argv", ["detect_infrastructure.py", "--repo-root", str(repo), "--files", "README.md"]
+    )
+
+    assert int(mod.main()) == 0
+    assert capsys.readouterr().err == ""
+
+
+def test_json_mode_prints_no_typed_skip_line(
+    monkeypatch: pytest.MonkeyPatch, repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    argv = [
+        "detect_infrastructure.py",
+        "--repo-root",
+        str(repo),
+        "--files",
+        "README.md",
+        "--require-security-review",
+        "--json",
+    ]
+    monkeypatch.setattr(sys, "argv", argv)
+
+    assert int(mod.main()) == 0
+    assert capsys.readouterr().err == ""
+
+
 def test_the_blocked_stderr_line_is_typed_and_names_the_reason(
     monkeypatch: pytest.MonkeyPatch, repo: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:

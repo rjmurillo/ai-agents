@@ -399,6 +399,8 @@ def main() -> int:
     if args.require_security_review:
         repo_root = (args.repo_root or Path.cwd()).resolve()
         exit_code = enforce_security_review(result, args.ref, repo_root)
+        if not args.json:
+            _report_exempt(result)
 
     if args.json:
         print(json.dumps(result, indent=2))
@@ -430,6 +432,23 @@ def main() -> int:
     print("")
 
     return exit_code if exit_code == 0 else _report_blocked(result, exit_code)
+
+
+def _report_exempt(result: dict[str, Any]) -> None:
+    """Print one typed ``SKIP`` line when the marker check did not apply.
+
+    Without it a push with no CRITICAL finding prints nothing about the check,
+    so a machine cannot tell "exempt" from "never ran". Only the exempt state
+    prints here: a pass is quiet, and the blocked states print in
+    ``_report_blocked``.
+    """
+    review = result["security_review"]
+    if review["state"] == _V["SKIP"]:
+        print(
+            f"[SKIP] detect_infrastructure reason={review['reason']} "
+            f"scope=security review marker on the pushed ref detail={json.dumps(review['detail'])}",
+            file=sys.stderr,
+        )
 
 
 def _report_blocked(result: dict[str, Any], exit_code: int) -> int:

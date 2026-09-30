@@ -84,10 +84,11 @@ def active_plan_warnings(
         states = [_normalize_state(issue_state_lookup(number)) for number in issue_numbers]
         for issue_number, state in zip(issue_numbers, states, strict=True):
             if state is not None and state not in KNOWN_STATES:
-                print(
-                    "[WARNING] Active plan closeout advisory saw "
+                _print_lookup_advisory(
+                    issue_number,
+                    REASON_MALFORMED_OUTPUT,
                     f"unrecognized state {state} for #{issue_number} in "
-                    f"{plan.relative_to(repo_root).as_posix()}"
+                    f"{plan.relative_to(repo_root).as_posix()}",
                 )
 
         if states and all(state in TERMINAL_STATES for state in states):

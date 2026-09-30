@@ -126,14 +126,23 @@ def _builds_check_outcome(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
 
 
 def _defines_vocabulary_mirror(source: str) -> bool:
-    """True when the module assigns ``TYPED_RESULT_VOCABULARY`` at module level."""
-    for node in ast.parse(source).body:
+    """True when the module assigns ``TYPED_RESULT_VOCABULARY`` and then reads it.
+
+    A declared constant nothing reads proves no typed output, so the claim also
+    needs a load of the name outside its own assignment.
+    """
+    tree = ast.parse(source)
+    defined = False
+    for node in tree.body:
         targets = node.targets if isinstance(node, ast.Assign) else []
         if isinstance(node, ast.AnnAssign):
             targets = [node.target]
-        if any(isinstance(t, ast.Name) and t.id == MIRROR_NAME for t in targets):
-            return True
-    return False
+        defined = defined or any(isinstance(t, ast.Name) and t.id == MIRROR_NAME for t in targets)
+    loaded = any(
+        isinstance(n, ast.Name) and n.id == MIRROR_NAME and isinstance(n.ctx, ast.Load)
+        for n in ast.walk(tree)
+    )
+    return defined and loaded
 
 
 def _function_returns_typed(source: str, function: str) -> bool:
@@ -264,9 +273,17 @@ def test_a_functionless_table_requires_the_evidence_import(
 def test_a_functionless_table_accepts_the_portable_vocabulary_mirror(tmp_path: Path) -> None:
     table = "| Path | Contract |\n|---|---|\n| `gate.py:1` | TYPED |\n"
     claims = typed_claims(table)
-    body = 'TYPED_RESULT_VOCABULARY = {"PASS": "PASS"}\n'
+    body = 'TYPED_RESULT_VOCABULARY = {"PASS": "PASS"}\n_V = TYPED_RESULT_VOCABULARY\n'
 
     assert unproven_claims(claims, _fake_repo(tmp_path, body)) == []
+
+
+def test_a_vocabulary_mirror_that_nothing_reads_does_not_back_the_claim(tmp_path: Path) -> None:
+    table = "| Path | Contract |\n|---|---|\n| `gate.py:1` | TYPED |\n"
+    claims = typed_claims(table)
+    body = 'TYPED_RESULT_VOCABULARY = {"PASS": "PASS"}\n'
+
+    assert len(unproven_claims(claims, _fake_repo(tmp_path, body))) == 1
 
 
 @pytest.mark.parametrize(

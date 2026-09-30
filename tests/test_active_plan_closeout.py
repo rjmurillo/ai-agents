@@ -121,6 +121,7 @@ def test_evaluates_issue_and_pr_terminal_states_in_one_run(tmp_path: Path, capsy
     ]
     captured = capsys.readouterr()
     assert "unrecognized state UNRECOGNIZED for #105" in captured.out
+    assert "[UNKNOWN] validate_active_plan_closeout reason=output.malformed" in captured.out
 
 
 def test_gh_absent_is_advisory(
@@ -172,6 +173,7 @@ def test_gh_unrecognized_output_is_advisory(
     assert pre_pr_policy().accepts(outcome)
     captured = capsys.readouterr()
     assert "unrecognized state SURPRISE for #101" in captured.out
+    assert "[UNKNOWN] validate_active_plan_closeout reason=output.malformed" in captured.out
 
 
 def test_gh_timeout_is_advisory(monkeypatch, capsys) -> None:
