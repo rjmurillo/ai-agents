@@ -29,7 +29,11 @@ def _load(path: Path, alias: str):
     return module
 
 
-mod = _load(_SCRIPT, "label_issue_source_under_test")
+def _import_script(name: str, alias: str):
+    return _load(_SCRIPT.with_name(f"{name}.py"), alias)
+
+
+mod = _import_script("label_issue_source", "label_issue_source_under_test")
 OWNER = "rjmurillo"
 MARKER = "<!-- source:human -->"
 NOW = datetime(2026, 9, 30, 12, 0, 0, tzinfo=timezone.utc)
@@ -223,8 +227,7 @@ class TestMain:
 
     def test_api_failure_exits_3(self, capsys):
         with patch("subprocess.run", side_effect=FakeGh(_issue(), fail="issues/10")):
-            rc = mod.main(["--issue", "10", "--owner", OWNER, "--repo", "r"])
-        assert rc == 3
+            assert mod.main(["--issue", "10", "--owner", OWNER, "--repo", "r"]) == 3
         assert "Could not label issue #10" in capsys.readouterr().err
 
     def test_bad_json_exits_3(self):
