@@ -44,6 +44,7 @@ from check_adr_lifecycle import validate_adr_lifecycle
 from check_adr_links import validate_adr_links
 from check_agent_tree_frontmatter import validate_agent_tree_frontmatter
 from check_agents_write_targets import validate_agents_write_targets
+from check_bypass_allowlist import validate_bypass_allowlist
 from check_citation_freshness import validate_citation_freshness
 from check_doc_interpreter_portability import validate_doc_interpreter_portability
 from check_duplicate_test_helpers import validate_duplicate_test_helpers
@@ -410,6 +411,9 @@ _SEQUENCE: tuple[_Gate, ...] = (
     _Gate("Hook Template Drift", _root_only(validate_hook_template_drift)),
     _Gate("Spec ID Uniqueness", _root_only(validate_spec_id_uniqueness)),  # Issue #2068
     _Gate("Traceability", _root_only(validate_traceability)),
+    # Issue #5636, decision D17: a SKIP_ toggle or continue-on-error step with no
+    # allowlist entry, or an expired one, fails here before it fails in CI.
+    _Gate("Bypass Allowlist", _root_only(validate_bypass_allowlist)),
     # The gates below run the validators that pull-request workflows run and
     # this sequence did not (issue #5676): a branch cleared every local gate and
     # then failed `Validate Generated Files` or `Validate PR`, both required.
