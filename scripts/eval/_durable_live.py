@@ -27,10 +27,13 @@ What is measured, and what is a proxy:
   grader (`_routing_grader.grade`), which runs the hidden checks. Measured.
 * `followup_validation`: the agent's changed files are copied onto a fresh
   `initial/` state and graded again. It catches a result that depended on
-  files outside the diff. It is the only follow-up this corpus supports.
-  The corpus has no "regression appears only after integration" case.
+  files outside the diff. A `post_integration_regression` scenario (the
+  extension corpus, `load_extension_corpus`) adds the `integration` check:
+  files that only exist after the change lands run against the agent's
+  change. The routing corpus has no such case.
 * `objective_satisfied`: equals the final grade, because the hidden checks
-  encode the scenario's acceptance criteria.
+  encode the scenario's acceptance criteria. For an extension scenario it is
+  the final grade and the integration check together.
 * `residual_defects`: failing validation commands plus scope violations in
   the follow-up grade.
 * `tool_failures`, cost, tokens, turns, wall time: read from the CLI stream.
@@ -38,11 +41,17 @@ What is measured, and what is a proxy:
   not come back as errors. `Bash(python:*)` runs arbitrary Python, and this
   count neither observes nor blocks a network call made from inside it.
 * `security_findings`: ruff `S` rules over the changed Python files.
-* `unsupported_claims`, `unresolved_uncertainty`: regex proxies over the
-  final message. Weakest evidence here; the report says so.
-* `review_findings`, `rollback_events`, `rework_minutes`: 0 by construction.
-  No reviewer ran, the driver has no rollback path, and no human touched the
-  run. These are not a measured absence of defects.
+* `unsupported_claims`: a regex over the final message that looks for a claim
+  such as "tests pass", counted when the objective is not satisfied after the
+  final grade and, for an extension scenario, the integration check. A proxy.
+* `unresolved_uncertainty`: a hedge-phrase regex over the final message. A
+  proxy, and the weakest evidence here.
+* `rework_minutes`: measured. Wall minutes of correction rounds (round 1 and
+  later), which exist only because the prior attempt failed its check. Agent
+  rework only; `human_correction_minutes` stays 0.
+* `review_findings`, `rollback_events`: 0 by construction. No reviewer ran and
+  the driver has no rollback path, so an accepted change is never undone.
+  These are not a measured absence of defects.
 
 Observed effort is not exposed by the CLI stream (the init event carries
 `per_turn_effort_active` only), so effort is a request, never a verified
@@ -343,9 +352,14 @@ def run_experiment(
     budget: InvocationBudget,
     *,
     repeats: int = 1,
+    first_repeat: int = 0,
     runner: Runner = subprocess.run,
 ) -> ExperimentResult:
-    """Run every scenario under every control, `repeats` times. `controls` maps name to text."""
+    """Run every scenario under every control, `repeats` times. `controls` maps name to text.
+
+    Repeat indices are `first_repeat` to `first_repeat + repeats - 1`, so a
+    later chunk or a re-run of one failed cell keeps unique `task_id`/`repeat` pairs.
+    """
     records: dict[str, list[OutcomeRecord]] = {name: [] for name in controls}
     invocations: list[Invocation] = []
     failures: list[tuple[str, str, str]] = []
@@ -361,7 +375,7 @@ def run_experiment(
                 "control": control,
             }
             for scenario in scenarios:
-                for repeat in range(repeats):
+                for repeat in range(first_repeat, first_repeat + repeats):
                     run = run_task(
                         scenario,
                         control,
