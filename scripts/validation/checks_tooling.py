@@ -47,6 +47,7 @@ from scripts.validation.evidence import (  # noqa: E402
     REASON_BASE_REF_UNRESOLVED,
     REASON_DIFF_FAILED,
     REASON_INCOMPLETE_EVIDENCE,
+    REASON_SCRIPT_FAILED,
     REASON_TOOL_ABSENT,
     REASON_TREE_ABSENT,
     WORKING_TREE,
@@ -609,9 +610,16 @@ def validate_workflow_yaml(repo_root: Path) -> CheckOutcome:
     )
 
 
-def _count_finding_lines(output: str) -> int | None:
-    """Count yamllint's parsable-format lines, one per finding, or None when there are none."""
-    return sum(1 for line in output.splitlines() if line.strip()) or None
+_YAMLLINT_FINDING = re.compile(r"^\S.*:\d+:\d+: \[(?:error|warning)\]", re.MULTILINE)
+
+
+def _count_yamllint_findings(stdout: str) -> int:
+    """Count yamllint parsable-format findings: ``path:line:col: [level] message``.
+
+    Only stdout is read. A configuration or usage error is a stderr diagnostic
+    with no location, so it must not count as a finding in a checked file.
+    """
+    return len(_YAMLLINT_FINDING.findall(stdout))
 
 
 def validate_yaml_style(repo_root: Path) -> CheckOutcome:
@@ -698,13 +706,25 @@ def validate_yaml_style(repo_root: Path) -> CheckOutcome:
         _print_capped(stdout or stderr, 30, "issues")
         print()
         print("Note: These are warnings, not errors. Fix when convenient.")
+        findings = _count_yamllint_findings(stdout or "")
+        if findings == 0:
+            print("[BLOCKED] yamllint exited non-zero without reporting a finding")
+            return CheckOutcome.blocked(
+                _YAML_STYLE,
+                reason=REASON_SCRIPT_FAILED,
+                scope=scope,
+                detail=(
+                    f"yamllint exited {exit_code} and printed no finding, so a "
+                    "configuration or usage error left the scope unexamined"
+                ),
+            )
         return CheckOutcome.failed(
             _YAML_STYLE,
             reason=REASON_ADVISORY_FINDINGS,
             revision=WORKING_TREE,
             scope=scope,
             examined=len(target_args),
-            findings=_count_finding_lines(stdout or stderr or ""),
+            findings=findings,
             detail=f"yamllint exited {exit_code}; style findings are advisory here",
         )
 

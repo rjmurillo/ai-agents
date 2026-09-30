@@ -730,6 +730,14 @@ _ADVISORY_LICENCES: Final[tuple[tuple[str, EvidenceState, str, str], ...]] = (
         "is already licensed by name.",
     ),
     (
+        "validate_yaml_style",
+        EvidenceState.BLOCKED,
+        REASON_SCRIPT_FAILED,
+        "A yamllint configuration or usage error printed no finding, so nothing was "
+        "examined. It was a PASS before; it stays non-blocking for this advisory "
+        "gate and is now counted.",
+    ),
+    (
         "validate_review_marker",
         EvidenceState.FAIL,
         REASON_ADVISORY_FINDINGS,

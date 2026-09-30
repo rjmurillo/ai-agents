@@ -18,6 +18,7 @@ import pytest
 
 from scripts.validation.evidence import (
     REASON_ADVISORY_FINDINGS,
+    REASON_SCRIPT_FAILED,
     REASON_TIMEOUT,
     REASON_TOOL_ABSENT,
     EvidenceState,
@@ -181,6 +182,35 @@ class TestValidateYamlStyle:
 
         assert outcome.state is EvidenceState.FAIL
         assert pre_pr_policy().accepts(outcome)
+
+    def test_a_yamllint_config_error_is_blocked_but_licensed_not_counted_as_findings(
+        self, tmp_path: Path
+    ) -> None:
+        """PR #6068 review: a stderr diagnostic with no location is not a finding."""
+        with patch("checks_tooling.shutil.which", return_value="/usr/bin/yamllint"):
+            with patch("checks_tooling._yaml_style_targets", return_value=["config.yml"]):
+                with patch("checks_tooling._run_subprocess") as mock_run:
+                    mock_run.return_value = (1, "", "yamllint: invalid config: unknown option")
+                    outcome = validate_yaml_style(tmp_path)
+
+        assert outcome.state is EvidenceState.BLOCKED
+        assert outcome.reason == REASON_SCRIPT_FAILED
+        assert pre_pr_policy().accepts(outcome)
+
+    def test_only_located_lines_on_stdout_count_as_findings(self, tmp_path: Path) -> None:
+        stdout = (
+            "a.yml:1:1: [warning] missing document start (document-start)\n"
+            "a.yml:3:9: [error] syntax error: found character (syntax)\n"
+            "some unrelated banner line\n"
+        )
+        with patch("checks_tooling.shutil.which", return_value="/usr/bin/yamllint"):
+            with patch("checks_tooling._yaml_style_targets", return_value=["a.yml"]):
+                with patch("checks_tooling._run_subprocess") as mock_run:
+                    mock_run.return_value = (1, stdout, "noise on stderr")
+                    outcome = validate_yaml_style(tmp_path)
+
+        assert outcome.state is EvidenceState.FAIL
+        assert outcome.findings == 2
 
     def test_scoped_path_with_space_is_quoted_as_a_single_argv_element(
         self, tmp_path: Path
