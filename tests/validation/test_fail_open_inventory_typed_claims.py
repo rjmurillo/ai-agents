@@ -94,8 +94,9 @@ def _script_paths(path_cell: str, root: Path) -> list[Path]:
 
 def _function_returns_typed(source: str, function: str) -> bool:
     for node in ast.walk(ast.parse(source)):
-        is_def = isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-        if is_def and node.name == function and node.returns is not None:
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        if node.name == function and node.returns is not None:
             annotation = ast.unparse(node.returns)
             return any(typed in annotation for typed in TYPED_ANNOTATIONS)
     return False

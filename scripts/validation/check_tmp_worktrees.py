@@ -333,7 +333,8 @@ def validate_tmp_worktrees(repo_root: Path) -> CheckOutcome:
     print(format_report(report))
     # An unreadable temp root also reads as "not present", but only a root the
     # filesystem said is absent is a SKIP; an unreadable one is BLOCKED below.
-    if not report.temp_root_present and not report.unreadable_entries:
+    absent = not report.temp_root_present and not report.unreadable_entries
+    if absent and not report.git_listing_failed:
         return CheckOutcome.skipped(
             _VALIDATOR,
             reason=REASON_TREE_ABSENT,

@@ -87,7 +87,7 @@ sys.path.insert(0, str(_SCRIPT_DIR))
 from checks_common import _run_subprocess  # noqa: E402
 
 # The typed contract, package path (see hygiene_outcome for why).
-from scripts.validation.evidence import REASON_LISTING_FAILED, CheckOutcome  # noqa: E402
+from scripts.validation.evidence import CheckOutcome  # noqa: E402
 from scripts.validation.hygiene_outcome import hygiene_outcome  # noqa: E402
 
 _VALIDATOR = "validate_serena_memory_worktree_scope"
@@ -388,23 +388,18 @@ def validate_serena_memory_worktree_scope(repo_root: Path) -> CheckOutcome:
 
     The result is typed (issue #5636). A failed ``git worktree list`` examined
     nothing, so it is ``BLOCKED`` rather than the clean ``PASS`` it used to
-    look like. Findings are ``FAIL`` with reason ``advisory.findings``.
+    look like (``hygiene_outcome`` maps it to ``BLOCKED`` with reason
+    ``listing.failed``). Findings are ``FAIL`` with reason ``advisory.findings``.
     ``pre_pr_policy`` licenses each pair by name.
     """
     report = build_scope_report(repo_root)
     print(format_report(report))
-    if report.worktree_listing_failed:
-        return CheckOutcome.blocked(
-            _VALIDATOR,
-            reason=REASON_LISTING_FAILED,
-            scope=_SCOPE,
-            detail="git worktree list failed; nothing was examined",
-        )
     return hygiene_outcome(
         _VALIDATOR,
         scope=_SCOPE,
         examined=report.other_worktrees_examined,
         findings=len(report.findings),
+        listing_failed=report.worktree_listing_failed,
         unreadable=report.unreadable_worktrees,
     )
 

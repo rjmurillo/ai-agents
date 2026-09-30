@@ -91,3 +91,16 @@ def test_low_free_space_alone_is_an_advisory_finding(
 
     assert outcome.state is EvidenceState.FAIL
     assert outcome.findings == 1
+
+
+def test_an_absent_temp_root_with_a_failed_listing_is_blocked_not_skipped(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A SKIP would hide the failed listing behind the universal SKIP licence."""
+    monkeypatch.setattr(checker, "DEFAULT_TEMP_ROOT", tmp_path / "missing")
+    monkeypatch.setattr(checker, "_list_registered", lambda repo_root: ([], True))
+
+    outcome = checker.validate_tmp_worktrees(REPO_ROOT)
+
+    assert outcome.state is EvidenceState.BLOCKED
+    assert outcome.reason == REASON_LISTING_FAILED
