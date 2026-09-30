@@ -13,7 +13,7 @@ flat module names, the way the sibling tests do, because ``pre_pr`` loads the
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -312,12 +312,12 @@ class TestDashProhibition:
 
 
 class TestCopilotRoutingExclusions:
-    def _run(self, tmp_path: Path, **patch_args: object) -> CheckOutcome:
+    def _run(self, tmp_path: Path, module_result: Mock) -> CheckOutcome:
         import argparse
 
         import pre_pr_sequence
 
-        with patch("checks_copilot._validate_module", **patch_args):
+        with patch("checks_copilot._validate_module", module_result):
             outcome = pre_pr_sequence._run_copilot_routing_exclusions(
                 tmp_path, argparse.Namespace()
             )
@@ -325,20 +325,20 @@ class TestCopilotRoutingExclusions:
         return outcome
 
     def test_a_clean_scan_is_a_pass(self, tmp_path: Path) -> None:
-        assert self._run(tmp_path, return_value=True).state is EvidenceState.PASS
+        assert self._run(tmp_path, Mock(return_value=True)).state is EvidenceState.PASS
 
     def test_a_violation_blocks(self, tmp_path: Path) -> None:
-        outcome = self._run(tmp_path, return_value=False)
+        outcome = self._run(tmp_path, Mock(return_value=False))
 
         _check(outcome, EvidenceState.FAIL, REASON_VIOLATIONS_FOUND, blocks=True)
 
     def test_a_missing_template_is_a_licensed_skip(self, tmp_path: Path) -> None:
-        outcome = self._run(tmp_path, side_effect=FileNotFoundError("template"))
+        outcome = self._run(tmp_path, Mock(side_effect=FileNotFoundError("template")))
 
         _check(outcome, EvidenceState.SKIP, REASON_TREE_ABSENT, blocks=False)
 
     def test_a_raise_blocks_with_the_raised_reason(self, tmp_path: Path) -> None:
-        outcome = self._run(tmp_path, side_effect=ValueError("bad config"))
+        outcome = self._run(tmp_path, Mock(side_effect=ValueError("bad config")))
 
         _check(outcome, EvidenceState.FAIL, REASON_VALIDATOR_RAISED, blocks=True)
         assert "bad config" in outcome.detail
