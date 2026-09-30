@@ -12,6 +12,7 @@ import os
 import shutil
 import subprocess
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -29,6 +30,7 @@ def _git(repo: Path, *argv: str) -> str:
         capture_output=True,
         text=True,
         encoding="utf-8",
+        errors="replace",
         check=True,
         env=env,
     )
@@ -65,7 +67,7 @@ def _run(repo: Path, *, base_ref: str | None = "main", **overrides: object) -> i
     args = brd.build_parser("test").parse_args(
         ["--repo-root", str(repo), *(["--base-ref", base_ref] if base_ref else [])]
     )
-    kwargs: dict[str, object] = {
+    kwargs: dict[str, Any] = {
         "label": "fake ratchet",
         "counter": _counter,
         "scan_error": "fake scan failed",
@@ -73,7 +75,7 @@ def _run(repo: Path, *, base_ref: str | None = "main", **overrides: object) -> i
         "introduced_by": MARKER,
     }
     kwargs.update(overrides)
-    return brd.run(args, **kwargs)  # type: ignore[arg-type]
+    return brd.run(args, **kwargs)
 
 
 @pytest.fixture
