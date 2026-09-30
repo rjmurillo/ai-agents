@@ -82,10 +82,34 @@ class TestParseRecord:
             rep.parse_record(bad)
         assert err.value.exit_code == 3
 
-    def test_ignores_non_dict_labels(self):
+    def test_string_and_object_labels_are_both_read(self):
         raw = record(1)
-        raw["labels"] = ["plain", {"name": "source:human"}]
-        assert rep.parse_record(raw).labels == frozenset({"source:human"})
+        raw["labels"] = ["Source:Human", {"name": "bug"}]
+        assert rep.parse_record(raw).labels == frozenset({"source:human", "bug"})
+
+    @pytest.mark.parametrize("element", [5, None, ["source:agent"]])
+    def test_unsupported_label_element_aborts_with_exit_3(self, element):
+        raw = record(1)
+        raw["labels"] = ["source:human", element]
+        with pytest.raises(rep.ReportError, match="malformed labels") as err:
+            rep.parse_record(raw)
+        assert err.value.exit_code == 3
+
+    def test_string_label_drives_the_bucket(self):
+        raw = record(1)
+        raw["labels"] = ["source:agent"]
+        assert rep.classify_provenance(rep.parse_record(raw)) == "agent-only"
+
+
+class TestRecordNumber:
+    def test_returns_the_integer(self):
+        assert rep.record_number({"number": 9}) == 9
+
+    @pytest.mark.parametrize("bad", [{"number": "9"}, {"number": True}, {}, "text", None])
+    def test_rejects_bad_records(self, bad):
+        with pytest.raises(rep.ReportError) as err:
+            rep.record_number(bad)
+        assert err.value.exit_code == 3
 
 
 class TestClassifyProvenance:

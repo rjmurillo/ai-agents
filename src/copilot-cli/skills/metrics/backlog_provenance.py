@@ -71,6 +71,7 @@ from backlog_provenance_report import (  # noqa: E402
     ReportError,
     build_report,
     parse_record,
+    record_number,
     render_markdown,
 )
 
@@ -143,7 +144,7 @@ def collect_backlog(
             return backlog
         backlog.stats.pages += 1
         backlog.stats.records_fetched += len(items)
-        if not _absorb_page(items, backlog, seen, start, end, page):
+        if not _absorb_page(items, backlog, seen, start, end):
             raise ReportError(f"Pagination did not advance at page {page}", 3, "ApiError")
         pause(REST_PAGE_PACE_SECONDS)
         page += 1
@@ -155,26 +156,30 @@ def _absorb_page(
     seen: set[int],
     start: datetime,
     end: datetime,
-    page: int,
 ) -> bool:
     """Add one page to the backlog. Return False when no record was new."""
-    advanced = False
-    for record in items:
-        if isinstance(record, dict) and "pull_request" in record:
-            backlog.stats.pull_requests_excluded += 1
-            advanced = True
-            continue
-        issue = parse_record(record)
-        if issue.number in seen:
-            backlog.stats.duplicates_dropped += 1
-            continue
-        seen.add(issue.number)
-        advanced = True
-        if start <= issue.created_at < end:
-            backlog.issues.append(issue)
-        else:
-            backlog.stats.out_of_window_excluded += 1
-    return advanced
+    results = [_absorb_record(record, backlog, seen, start, end) for record in items]
+    return any(results)
+
+
+def _absorb_record(
+    record: Any, backlog: Backlog, seen: set[int], start: datetime, end: datetime
+) -> bool:
+    """Add one record. Return False when its number was already seen."""
+    is_pull_request = isinstance(record, dict) and "pull_request" in record
+    issue = None if is_pull_request else parse_record(record)
+    number = record_number(record) if issue is None else issue.number
+    if number in seen:
+        backlog.stats.duplicates_dropped += 1
+        return False
+    seen.add(number)
+    if issue is None:
+        backlog.stats.pull_requests_excluded += 1
+    elif start <= issue.created_at < end:
+        backlog.issues.append(issue)
+    else:
+        backlog.stats.out_of_window_excluded += 1
+    return True
 
 
 def build_parser() -> argparse.ArgumentParser:

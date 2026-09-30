@@ -87,6 +87,23 @@ class TestCollectBacklog:
         assert backlog.issues == []
         assert backlog.stats.pages == 0
 
+    def test_repeated_pull_requests_count_once(self):
+        backlog = collect([record(1), record(2, pr=True)], [record(2, pr=True), record(3)])
+        assert [item.number for item in backlog.issues] == [1, 3]
+        assert backlog.stats.pull_requests_excluded == 1
+        assert backlog.stats.duplicates_dropped == 1
+
+    def test_page_of_only_repeated_pull_requests_stops_with_error(self):
+        with pytest.raises(mod.ReportError, match="did not advance"):
+            collect([record(1, pr=True)], [record(1, pr=True)])
+
+    def test_pull_request_without_a_number_aborts(self):
+        bad = record(1, pr=True)
+        del bad["number"]
+        with pytest.raises(mod.ReportError) as err:
+            collect([bad])
+        assert err.value.exit_code == 3
+
     def test_page_with_only_repeats_stops_with_error(self):
         with pytest.raises(mod.ReportError, match="did not advance"):
             collect([record(1)], [record(1)])

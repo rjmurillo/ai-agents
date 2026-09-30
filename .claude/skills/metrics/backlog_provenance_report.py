@@ -115,13 +115,21 @@ def parse_timestamp(value: object) -> datetime:
     return parsed.astimezone(timezone.utc)
 
 
-def parse_record(record: object) -> Issue:
-    """Build an Issue from one REST issue record, or raise ReportError (exit 3)."""
+def record_number(record: object) -> int:
+    """Return a record's integer issue or pull request number, or raise (exit 3)."""
     if not isinstance(record, dict):
         raise ReportError(f"Malformed issue record: {type(record).__name__}", 3, "ApiError")
     number = record.get("number")
     if isinstance(number, bool) or not isinstance(number, int):
         raise ReportError(f"Issue record has no integer number: {number!r}", 3, "ApiError")
+    return number
+
+
+def parse_record(record: object) -> Issue:
+    """Build an Issue from one REST issue record, or raise ReportError (exit 3)."""
+    if not isinstance(record, dict):
+        raise ReportError(f"Malformed issue record: {type(record).__name__}", 3, "ApiError")
+    number = record_number(record)
     return Issue(
         number=number,
         title=str(record.get("title") or ""),
@@ -132,12 +140,19 @@ def parse_record(record: object) -> Issue:
 
 
 def _label_names(record: dict[str, Any], number: int) -> frozenset[str]:
+    """Lowercased label names. The issue schema allows string or object items."""
     labels = record.get("labels")
     if not isinstance(labels, list):
         raise ReportError(f"Issue {number} has malformed labels: {labels!r}", 3, "ApiError")
-    return frozenset(
-        str(label.get("name", "")).lower() for label in labels if isinstance(label, dict)
-    )
+    names: set[str] = set()
+    for label in labels:
+        if isinstance(label, str):
+            names.add(label.lower())
+        elif isinstance(label, dict):
+            names.add(str(label.get("name", "")).lower())
+        else:
+            raise ReportError(f"Issue {number} has malformed labels: {labels!r}", 3, "ApiError")
+    return frozenset(names)
 
 
 def _login(record: dict[str, Any], number: int) -> str:
