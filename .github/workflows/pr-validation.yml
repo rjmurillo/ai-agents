@@ -243,16 +243,18 @@ jobs:
       # learned to ignore, which is the same training signal that teaches people
       # to ignore the naming and complexity rules in the same output.
       #
-      # Existing debt is capped at the count measured on the merge base
-      # (issue #5363). No baseline file exists, so no PR rewrites a shared line.
+      # Existing debt is capped by scripts/ci/taste_count_baseline.txt.
+      # Lower counts pass without rewriting that shared line. Use --update
+      # only when intentionally lowering the ceiling.
       #
       # This job hosts it for the same reason it hosts the workflow-YAML and
       # model-pin gates: taste-lints scans Markdown, YAML, JSON, shell, and
       # PowerShell as well as Python, so a Python-paths-filtered workflow
       # (pytest.yml, where the ruff ratchets live) would miss most of its scope.
       #
-      # --base-ref is required: the ceiling is the count measured on the merge
-      # base, so a PR cannot raise it in the commit that adds the violations.
+      # --base-ref makes the ratchet one-directional. Without it a PR could
+      # raise the baseline in the same commit that adds the violations, and the
+      # gate would pass while the debt grew.
       - name: Run taste-lint error-count ratchet
         env:
           BASE_REF: ${{ github.base_ref || github.event.repository.default_branch }}
