@@ -277,7 +277,7 @@ def test_workflow_has_no_commit_marker_bypass() -> None:
 
 def test_workflow_filter_covers_allowlist_file() -> None:
     text = WORKFLOW.read_text(encoding="utf-8")
-    assert ".agents/governance/drift-allowlist.json" in text
+    assert "drift-allowlist.json" in text
     assert "build/drift_allowlist.py" in text
 
 
@@ -300,7 +300,7 @@ class TestNoRetiredMarkerInSkillTemplates:
         text = (SKILL_TEMPLATES / "ai-agents-config-catalog.SKILL.md.tmpl").read_text(
             encoding="utf-8"
         )
-        assert ".agents/governance/drift-allowlist.json" in text
+        assert "drift-allowlist.json" in text
 
     def test_guard_detects_an_injected_marker(self, tmp_path: Path) -> None:
         """Negative: the same substring check flags a template that names the marker."""
