@@ -86,10 +86,20 @@ class TestMain:
         ])
         assert rc == 1
 
-    def test_both_empty_returns_0(self):
-        """Empty verdicts are not failures."""
+    def test_both_empty_fails_closed(self, capsys):
+        """Issue #5636: no verdict means the check left no evidence it ran."""
         rc = main(["--trace-verdict", "", "--completeness-verdict", ""])
-        assert rc == 0
+        assert rc == 1
+        output = capsys.readouterr().out
+        assert "no verdict was recorded" in output
+        assert "Spec validation passed" not in output
+
+    def test_one_empty_verdict_fails_closed(self):
+        assert main(["--trace-verdict", "PASS", "--completeness-verdict", ""]) == 1
+        assert main(["--trace-verdict", "", "--completeness-verdict", "PASS"]) == 1
+
+    def test_whitespace_verdict_fails_closed(self):
+        assert main(["--trace-verdict", "  ", "--completeness-verdict", "PASS"]) == 1
 
     def test_warn_is_not_failure(self):
         rc = main(["--trace-verdict", "WARN", "--completeness-verdict", "WARN"])
@@ -222,3 +232,103 @@ class TestMain:
             "--trace-findings", "Some other error message",
         ])
         assert rc == 1
+
+
+class TestStepOutcome:
+    """continue-on-error hides a crashed step; the outcome is the survivor."""
+
+    @staticmethod
+    def _args(trace: str, completeness: str, **extra: str) -> list[str]:
+        argv = ["--trace-verdict", trace, "--completeness-verdict", completeness]
+        for flag, value in extra.items():
+            argv += [f"--{flag.replace('_', '-')}", value]
+        return argv
+
+    def test_success_outcomes_with_verdicts_pass(self, capsys):
+        rc = main(self._args(
+            "PASS", "PASS", trace_outcome="success", completeness_outcome="success",
+        ))
+        assert rc == 0
+        assert "Spec validation passed" in capsys.readouterr().out
+
+    def test_failure_outcome_fails_closed_despite_pass_verdict(self, capsys):
+        rc = main(self._args(
+            "PASS", "PASS", trace_outcome="failure", completeness_outcome="success",
+        ))
+        assert rc == 1
+        output = capsys.readouterr().out
+        assert "step outcome was 'failure'" in output
+        assert "Traceability check did not complete" in output
+        assert "Spec validation passed" not in output
+
+    def test_cancelled_completeness_outcome_fails_closed(self, capsys):
+        rc = main(self._args(
+            "PASS", "PASS", trace_outcome="success", completeness_outcome="cancelled",
+        ))
+        assert rc == 1
+        assert "Completeness check did not complete" in capsys.readouterr().out
+
+    def test_skipped_outcome_fails_closed(self):
+        rc = main(self._args(
+            "PASS", "PASS", trace_outcome="skipped", completeness_outcome="success",
+        ))
+        assert rc == 1
+
+    def test_outcome_is_case_and_whitespace_insensitive(self):
+        rc = main(self._args(
+            "PASS", "PASS", trace_outcome=" Success ", completeness_outcome="SUCCESS",
+        ))
+        assert rc == 0
+
+    def test_failure_outcome_with_empty_verdict_fails_closed(self):
+        """The crash shape: outcome failure and no outputs at all."""
+        rc = main(self._args(
+            "", "", trace_outcome="failure", completeness_outcome="failure",
+        ))
+        assert rc == 1
+
+    def test_success_outcome_with_empty_verdict_fails_closed(self):
+        rc = main(self._args(
+            "", "PASS", trace_outcome="success", completeness_outcome="success",
+        ))
+        assert rc == 1
+
+    def test_real_fail_still_reports_failure_message(self, capsys):
+        rc = main(self._args(
+            "FAIL", "PASS", trace_outcome="success", completeness_outcome="failure",
+        ))
+        assert rc == 1
+        assert "Spec validation failed" in capsys.readouterr().out
+
+    def test_infra_flag_wins_over_gap_message(self, capsys):
+        rc = main(self._args(
+            "", "PASS",
+            trace_outcome="failure", completeness_outcome="success",
+            trace_infra_failure="true",
+        ))
+        assert rc == 1
+        output = capsys.readouterr().out
+        assert "rotate the COPILOT_GITHUB_TOKEN secret" in output
+        assert "Traceability check did not complete" not in output
+
+    def test_outcomes_read_from_environment(self, monkeypatch, capsys):
+        monkeypatch.setenv("TRACE_VERDICT", "PASS")
+        monkeypatch.setenv("COMPLETENESS_VERDICT", "PASS")
+        monkeypatch.setenv("TRACE_OUTCOME", "failure")
+        monkeypatch.setenv("COMPLETENESS_OUTCOME", "success")
+        assert main([]) == 1
+        assert "Traceability check did not complete" in capsys.readouterr().out
+
+    def test_module_entrypoint_exits_nonzero(self):
+        """main(argv) is driven through the process exit path, not a helper."""
+        import subprocess
+
+        result = subprocess.run(
+            [sys.executable, str(_SCRIPTS_DIR / "check_spec_failures.py"),
+             "--trace-verdict", "PASS", "--completeness-verdict", "PASS",
+             "--trace-outcome", "failure"],
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
+            check=False,
+        )
+        assert result.returncode == 1
+        assert "did not complete" in result.stdout
