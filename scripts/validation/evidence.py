@@ -101,20 +101,24 @@ __all__ = [
     "REASON_AUTH_UNAVAILABLE",
     "REASON_BASE_REF_UNRESOLVED",
     "REASON_DIFF_FAILED",
+    "REASON_ENTRIES_UNREADABLE",
     "REASON_INCOMPLETE_EVIDENCE",
     "REASON_LEGACY_BOOLEAN",
     "REASON_LISTING_FAILED",
-    "REASON_ENTRIES_UNREADABLE",
     "REASON_LOOKUP_FAILED",
     "REASON_MALFORMED_OUTPUT",
     "REASON_NO_OUTCOMES",
     "REASON_PROCESS_SIGNALED",
+    "REASON_PR_UNRESOLVED",
     "REASON_QUICK_MODE",
+    "REASON_SCOPE_EMPTY",
     "REASON_SCRIPT_ABSENT",
+    "REASON_SCRIPT_FAILED",
     "REASON_TIMEOUT",
     "REASON_TOOL_ABSENT",
     "REASON_TREE_ABSENT",
     "REASON_VALIDATOR_RAISED",
+    "REASON_VIOLATIONS_FOUND",
     "WORKING_TREE",
     "aggregate",
     "coerce_outcome",
@@ -189,6 +193,17 @@ REASON_ADVISORY_FINDINGS: Final = "advisory.findings"
 #: ``git worktree list`` (or an equivalent enumeration) failed, so the set the
 #: gate was meant to inspect is unknown.
 REASON_LISTING_FAILED: Final = "listing.failed"
+#: No pull request resolves for the current branch, so a check that compares
+#: against the PR had nothing to compare.
+REASON_PR_UNRESOLVED: Final = "pr.unresolved"
+#: Nothing in scope needed examining (for example no changed agent files), so a
+#: comparison never started. Distinct from a clean comparison.
+REASON_SCOPE_EMPTY: Final = "scope.empty"
+#: A wrapped validator ran and reported a violation, in a mode that blocks.
+REASON_VIOLATIONS_FOUND: Final = "violations.found"
+#: A wrapped validator exited non-zero without reporting a finding: a
+#: configuration or environment error in the script itself, not a verdict.
+REASON_SCRIPT_FAILED: Final = "script.failed"
 #: A scan could not read some of the entries it was meant to inspect, so a clean
 #: verdict would claim more than was observed.
 REASON_ENTRIES_UNREADABLE: Final = "entries.unreadable"
@@ -647,6 +662,56 @@ _ADVISORY_LICENCES: Final[tuple[tuple[str, EvidenceState, str, str], ...]] = (
             (validator, EvidenceState.BLOCKED, REASON_LISTING_FAILED, _HYGIENE_LISTING_WHY),
             (validator, EvidenceState.BLOCKED, REASON_ENTRIES_UNREADABLE, _HYGIENE_UNREADABLE_WHY),
         )
+    ),
+    (
+        "validate_canonical_citations",
+        EvidenceState.FAIL,
+        REASON_ADVISORY_FINDINGS,
+        "Soft-warn by default: an uncited mirror-claim must not stop a push until "
+        "the owner decides the row (inventory C). STRICT_CANONICAL_CHECK=1 blocks.",
+    ),
+    (
+        "validate_canonical_citations",
+        EvidenceState.BLOCKED,
+        REASON_MALFORMED_OUTPUT,
+        "The script exited 0 but printed no status token this wrapper recognizes. "
+        "That was a pass before; it stays non-blocking and is now counted.",
+    ),
+    (
+        "validate_spec_contradiction",
+        EvidenceState.FAIL,
+        REASON_ADVISORY_FINDINGS,
+        "The contradiction heuristic runs under --advisory so a false positive "
+        "never blocks the local pre-PR cycle (issue #1920).",
+    ),
+    (
+        "validate_spec_contradiction",
+        EvidenceState.BLOCKED,
+        REASON_SCRIPT_FAILED,
+        "Under --advisory a non-zero exit is a configuration error in a heuristic "
+        "check. It was a pass before; it stays non-blocking and is now counted.",
+    ),
+    (
+        "validate_spec_contradiction",
+        EvidenceState.BLOCKED,
+        REASON_MALFORMED_OUTPUT,
+        "The script exited 0 but printed no status token this wrapper recognizes. "
+        "That was a pass before; it stays non-blocking and is now counted.",
+    ),
+    (
+        "validate_dash_prohibition",
+        EvidenceState.BLOCKED,
+        REASON_ENTRIES_UNREADABLE,
+        "Decision D10 left the dash scan's narrowing past a blob git cannot read "
+        "non-blocking, with each skipped file reported. The narrowing is now counted "
+        "as BLOCKED instead of PASS. An unresolved base ref still blocks under CI.",
+    ),
+    (
+        "validate_review_marker",
+        EvidenceState.FAIL,
+        REASON_ADVISORY_FINDINGS,
+        "Most pre-PR pushes are mid-development and have not run /review yet. "
+        "REVIEW_MARKER_ENFORCED=1 blocks; /ship blocks regardless (issue #1938).",
     ),
     (
         "validate_active_plan_closeout",

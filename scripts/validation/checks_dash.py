@@ -17,12 +17,30 @@ import os
 import re
 import sys
 from pathlib import Path
+from typing import NamedTuple
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
 if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
 from checks_common import _resolve_branch_base_ref, _run_subprocess  # noqa: E402
+
+# The typed contract, package path (evidence.py states why).
+_PROJECT_ROOT = _SCRIPT_DIR.parent.parent
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+from scripts.validation.evidence import (  # noqa: E402
+    REASON_BASE_REF_UNRESOLVED,
+    REASON_DIFF_FAILED,
+    REASON_ENTRIES_UNREADABLE,
+    REASON_VIOLATIONS_FOUND,
+    CheckOutcome,
+)
+
+_VALIDATOR = "validate_dash_prohibition"
+_SCOPE = "markdown files changed on the branch"
+_HEAD = "HEAD"
 
 # Compiled detection regex. Uses Unicode escape sequences so this source
 # file does not contain U+2014 or U+2013 itself (Issue #1923, REQ-006).
@@ -82,17 +100,24 @@ def _is_vendored(path: str) -> bool:
     return any(path.startswith(prefix) for prefix in _VENDORED_PREFIXES)
 
 
-def _branch_markdown_files(repo_root: Path) -> list[str] | None:
+class _ScanUnavailable(NamedTuple):
+    """Why the branch scan could not run: an evidence reason code and a sentence."""
+
+    reason: str
+    detail: str
+
+
+def _branch_markdown_files(repo_root: Path) -> list[str] | _ScanUnavailable:
     """Resolve branch base and return non-vendored markdown paths to scan.
 
-    Returns None when the scan cannot run (no base ref or git diff failure).
-    The reason is reported here, as BLOCKED under CI and a warning locally;
-    the caller turns None into the matching verdict.
+    Returns a :class:`_ScanUnavailable` when the scan cannot run (no base ref or
+    git diff failure). The reason is reported here, as BLOCKED under CI and a
+    warning locally; the caller turns it into the matching typed result.
     """
     base_ref = _resolve_branch_base_ref(repo_root)
     if base_ref is None:
         _report_scan_unavailable("no base ref resolved")
-        return None
+        return _ScanUnavailable(REASON_BASE_REF_UNRESOLVED, "no base ref resolved")
 
     exit_code, stdout, stderr = _run_subprocess(
         [
@@ -108,7 +133,7 @@ def _branch_markdown_files(repo_root: Path) -> list[str] | None:
     )
     if exit_code != 0:
         _report_scan_unavailable(f"git diff failed: {stderr}")
-        return None
+        return _ScanUnavailable(REASON_DIFF_FAILED, f"git diff failed: {stderr}")
 
     return [p for p in stdout.splitlines() if p.endswith(".md") and not _is_vendored(p)]
 
@@ -176,7 +201,30 @@ def _print_dash_violations(violations: list[tuple[str, int]]) -> None:
     )
 
 
-def validate_dash_prohibition(repo_root: Path) -> bool:
+def _unavailable_outcome(unavailable: _ScanUnavailable) -> CheckOutcome:
+    """Type a scan that could not run: ``FAIL`` under CI, ``SKIP`` anywhere else.
+
+    Under CI a checkout that examined nothing must not report green (issue
+    #5636, decision D10), so the result blocks. It is ``FAIL`` rather than
+    ``BLOCKED`` because ``BLOCKED`` would move the pre-PR exit code from 1 to 3
+    on a path that already blocks; ``pre_pr.run_validation`` keeps ``FAIL`` for
+    the same reason on a raising validator. The reason code still says the scan
+    never ran. Locally the scan is skipped on purpose so a shallow or detached
+    checkout does not stop a push, and ``SKIP`` is licensed for every validator.
+    """
+    if _running_in_ci():
+        return CheckOutcome.failed(
+            _VALIDATOR, reason=unavailable.reason, scope=_SCOPE, detail=unavailable.detail
+        )
+    return CheckOutcome.skipped(
+        _VALIDATOR,
+        reason=unavailable.reason,
+        scope=_SCOPE,
+        detail=f"{unavailable.detail}; skipped locally, CI blocks this",
+    )
+
+
+def validate_dash_prohibition(repo_root: Path) -> CheckOutcome:
     """Branch-wide em/en-dash check (Issue #1923, REQ-006-AC7).
 
     Catches U+2014 (em-dash) and U+2013 (en-dash) in any *.md file
@@ -189,35 +237,55 @@ def validate_dash_prohibition(repo_root: Path) -> bool:
     intentionally contain dashes to exercise the detection logic.
     .github/instructions/ is NOT skipped (REQ-006-AC4).
 
-    Returns True (pass) when no violations are found. Returns False on any
-    violation. When the scan cannot run (base ref unresolved, or ``git diff``
-    fails) it returns False under CI, so a checkout that examined nothing
-    cannot report green (issue #5636, decision D10), and True locally with a
-    ``[WARNING]``, so a shallow or detached local checkout does not stop a
-    push.
+    Returns typed evidence (issue #5636). ``PASS`` names how many files were
+    examined. A violation is ``FAIL`` with reason ``violations.found``. When
+    the scan cannot run (base ref unresolved, or ``git diff`` fails) the result
+    is ``FAIL`` under CI and ``SKIP`` locally; see :func:`_unavailable_outcome`.
+    A scan that skipped a blob git could not read is ``BLOCKED`` with reason
+    ``entries.unreadable``, licensed by name so it does not block (decision D10);
+    a ``PASS`` there would certify files nobody read.
     """
     candidate_paths = _branch_markdown_files(repo_root)
-    if candidate_paths is None:
-        return not _running_in_ci()
+    if isinstance(candidate_paths, _ScanUnavailable):
+        return _unavailable_outcome(candidate_paths)
     if not candidate_paths:
         print("[PASS] Em/en-dash prohibition (no markdown files on branch)")
-        return True
+        return CheckOutcome.passed(_VALIDATOR, revision=_HEAD, scope=_SCOPE, examined=0)
 
     violations, skipped = _find_dash_violations(repo_root, candidate_paths)
+    examined = len(candidate_paths) - len(skipped)
     if violations:
         _print_dash_violations(violations)
-        return False
+        return CheckOutcome.failed(
+            _VALIDATOR,
+            reason=REASON_VIOLATIONS_FOUND,
+            revision=_HEAD,
+            scope=_SCOPE,
+            examined=examined,
+            findings=len(violations),
+            detail="U+2014 or U+2013 in a markdown file changed on the branch",
+        )
 
     if skipped:
-        examined = len(candidate_paths) - len(skipped)
         print(
-            f"[PASS] Em/en-dash prohibition ({examined} of "
+            f"[WARNING] Em/en-dash prohibition ({examined} of "
             f"{len(candidate_paths)} markdown file(s) checked; "
             f"{len(skipped)} unreadable at HEAD, skipped)",
         )
-        return True
+        # BLOCKED, not PASS: the skipped blobs were never examined, so a PASS
+        # would certify a scan that did not cover its scope. The policy licenses
+        # this one pair, so the gate does not start blocking on it (decision D10).
+        return CheckOutcome.blocked(
+            _VALIDATOR,
+            reason=REASON_ENTRIES_UNREADABLE,
+            scope=_SCOPE,
+            detail=(
+                f"{examined} of {len(candidate_paths)} candidate file(s) examined; "
+                f"{len(skipped)} unreadable at HEAD, skipped"
+            ),
+        )
 
     print(
         f"[PASS] Em/en-dash prohibition ({len(candidate_paths)} markdown file(s) checked)",
     )
-    return True
+    return CheckOutcome.passed(_VALIDATOR, revision=_HEAD, scope=_SCOPE, examined=examined)
