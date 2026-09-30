@@ -7943,7 +7943,16 @@ def _handle_branch_dashes(args: argparse.Namespace) -> int:
     """
     from checks_dash import validate_dash_prohibition
 
-    return 0 if validate_dash_prohibition(_repo_root(args)) else 1
+    from scripts.validation.evidence import coerce_outcome, pre_pr_policy
+
+    # The gate returns a CheckOutcome, which has no truth value (its __bool__
+    # raises), so the exit code comes from the policy the pre-PR runner uses:
+    # a FAIL blocks, and a local SKIP does not, exactly as True and False did.
+    # coerce_outcome keeps a bool-returning stand-in working.
+    outcome = coerce_outcome(
+        "validate_dash_prohibition", validate_dash_prohibition(_repo_root(args))
+    )
+    return 0 if pre_pr_policy().accepts(outcome) else 1
 
 
 def _handle_staged_action_pins(args: argparse.Namespace) -> int:

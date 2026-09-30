@@ -255,7 +255,7 @@ def _run_orphaned_build_deferrals(repo_root: Path, _args: argparse.Namespace) ->
     )
 
 
-def _run_copilot_routing_exclusions(repo_root: Path, _args: argparse.Namespace) -> bool:
+def _run_copilot_routing_exclusions(repo_root: Path, _args: argparse.Namespace) -> GateResult:
     """Import lazily; ``run_validation`` turns any raise into a recorded failure.
 
     The previous shape wrapped both the import and the ``run_validation`` call in
@@ -266,7 +266,8 @@ def _run_copilot_routing_exclusions(repo_root: Path, _args: argparse.Namespace) 
     """
     from checks_copilot import validate_copilot_routing_exclusions
 
-    return bool(validate_copilot_routing_exclusions(repo_root))
+    outcome: GateResult = validate_copilot_routing_exclusions(repo_root)
+    return outcome
 
 
 _SEQUENCE: tuple[_Gate, ...] = (
