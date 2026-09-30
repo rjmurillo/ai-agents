@@ -458,3 +458,11 @@ class TestCopilotRoutingExclusions:
 
         _check(outcome, EvidenceState.FAIL, REASON_VALIDATOR_RAISED, blocks=True)
         assert "bad config" in outcome.detail
+
+    def test_a_missing_template_blocks_through_the_real_scanner(self, tmp_path: Path) -> None:
+        """It raises RoutingConfigError, not FileNotFoundError, so it is not a SKIP."""
+        import checks_copilot
+
+        outcome = checks_copilot.validate_copilot_routing_exclusions(tmp_path)
+
+        _check(outcome, EvidenceState.FAIL, REASON_VALIDATOR_RAISED, blocks=True)

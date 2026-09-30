@@ -32,15 +32,18 @@ def validate_copilot_routing_exclusions(repo_root: Path) -> CheckOutcome:
     """Return typed evidence about Copilot skills routing to excluded skills.
 
     Typed (issue #5636). A clean scan is ``PASS``. A violation is ``FAIL`` with
-    reason ``violations.found``. A missing template is ``SKIP`` with reason
-    ``tree.absent``, which stays non-blocking exactly as the old ``True`` did. Any
-    other raise (a malformed config) is ``FAIL`` with reason ``validator.raised``
-    and blocks, as ``False`` did.
+    reason ``violations.found``. A skill file that is not found during the scan is
+    ``SKIP`` with reason ``tree.absent``, which stays non-blocking exactly as the
+    old ``True`` did. Any other raise, including a missing template (which raises
+    ``RoutingConfigError``) and a malformed config, is ``FAIL`` with reason
+    ``validator.raised`` and blocks, as ``False`` did.
     """
     try:
         clean = _validate_module(repo_root)
     except FileNotFoundError as exc:
-        # The scan can raise this too, not only a missing template, so the message
+        # A missing template raises RoutingConfigError, which the handler below
+        # turns into a blocking FAIL. This branch is a skill file that vanished
+        # or was unreadable mid-scan, non-blocking as it always was, so the message
         # names the path the OS reported instead of claiming which file it was.
         print(f"[WARNING] Copilot routing exclusion check skipped, file not found: {exc}")
         return CheckOutcome.skipped(
