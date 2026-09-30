@@ -936,6 +936,20 @@ def _run_and_report(
     sys.exit(0 if gate["passed"] else 1)
 
 
+# Gate keys that describe a scenario without gating it (issue #5601).
+_INFORMATIONAL_SIGNALS = (
+    ("base_unstable_scenarios", "Base unstable (excluded from regressions, informational)"),
+    ("reason_mismatch_scenarios", "Reason wording differs (informational, non-gating)"),
+)
+
+
+def _print_informational_signals(gate: dict[str, Any]) -> None:
+    """Print the non-gating scenario lists to stderr."""
+    for key, label in _INFORMATIONAL_SIGNALS:
+        if gate.get(key):
+            print(f"  {label}: {gate[key]}", file=sys.stderr)
+
+
 def _print_gate_summary(gate: dict[str, Any]) -> None:
     """Print acceptance gate summary to stderr."""
     print(f"\n{'=' * 60}", file=sys.stderr)
@@ -961,18 +975,7 @@ def _print_gate_summary(gate: dict[str, Any]) -> None:
         print(f"  Regressions: {gate['regressions']}", file=sys.stderr)
     if gate["flaky_scenarios"]:
         print(f"  Flaky: {gate['flaky_scenarios']}", file=sys.stderr)
-    if gate.get("base_unstable_scenarios"):
-        print(
-            f"  Base unstable (excluded from regressions, informational): "
-            f"{gate['base_unstable_scenarios']}",
-            file=sys.stderr,
-        )
-    if gate.get("reason_mismatch_scenarios"):
-        print(
-            f"  Reason wording differs (informational, non-gating): "
-            f"{gate['reason_mismatch_scenarios']}",
-            file=sys.stderr,
-        )
+    _print_informational_signals(gate)
     if gate.get("not_scored_scenarios"):
         print(f"  Not scored (excluded runs): {gate['not_scored_scenarios']}", file=sys.stderr)
     if gate.get("high_flakiness_scenarios"):
