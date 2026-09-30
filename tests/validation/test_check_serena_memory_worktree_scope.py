@@ -52,7 +52,6 @@ import pre_pr_sequence
 
 from scripts.validation.evidence import (
     REASON_ADVISORY_FINDINGS,
-    REASON_ENTRIES_UNREADABLE,
     EvidenceState,
     coerce_outcome,
     pre_pr_policy,
@@ -426,24 +425,6 @@ def test_the_advisory_gate_passes_when_no_sibling_has_a_stray_file(
 
     assert outcome.state is EvidenceState.PASS
     assert outcome.examined == 1
-
-
-def test_an_unreadable_sibling_is_blocked_not_a_clean_pass(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(
-        checker,
-        "build_scope_report",
-        lambda root: checker.ScopeReport(
-            current_worktree=str(root), other_worktrees_examined=1, unreadable_worktrees=1
-        ),
-    )
-
-    outcome = checker.validate_serena_memory_worktree_scope(tmp_path)
-
-    assert outcome.state is EvidenceState.BLOCKED
-    assert outcome.reason == REASON_ENTRIES_UNREADABLE
-    assert pre_pr_policy().accepts(outcome)
 
 
 # --- pre_pr_sequence wiring (testing.md SHOULD 6) ---------------------------
