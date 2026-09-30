@@ -40,7 +40,7 @@ import sys
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 RESOLVER = REPO_ROOT / ".claude" / "skills" / "autoplan" / "scripts" / "resolve_route.py"
@@ -143,7 +143,7 @@ def _load_resolver_main() -> Callable[[list[str]], int]:
         spec.loader.exec_module(module)
     except (OSError, SyntaxError, ImportError) as exc:
         raise EvalConfigError(f"cannot load resolver {RESOLVER}: {exc}") from exc
-    return module.main
+    return cast(Callable[[list[str]], int], module.main)
 
 
 def run_resolver(request: str, skills_roots: list[str]) -> dict[str, Any]:
