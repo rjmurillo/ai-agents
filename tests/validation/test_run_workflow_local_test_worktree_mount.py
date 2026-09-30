@@ -18,9 +18,20 @@ _VALIDATION_DIR = str(REPO_ROOT / "scripts" / "validation")
 if _VALIDATION_DIR not in sys.path:
     sys.path.insert(0, _VALIDATION_DIR)
 
+import pytest
 import run_workflow_local_test as w
 
 WF = ".github/workflows/x.yml"
+
+
+@pytest.fixture
+def trusted(monkeypatch):
+    """Make git report the common dir the fake worktree's own pointers name."""
+
+    def report(repo_root):
+        return w._worktree_common_dir(Path(w._read_worktree_gitdir(repo_root))).resolve()
+
+    monkeypatch.setattr(w, "_host_common_dir", report)
 
 
 def _linked_worktree(tmp_path: Path, *, commondir: str | None = "../..") -> tuple[Path, Path, Path]:
@@ -70,13 +81,13 @@ def test_mount_yields_nothing_when_git_is_missing(tmp_path):
         assert args == []
 
 
-def test_mount_yields_nothing_for_unrecognised_layout(tmp_path):
+def test_mount_yields_nothing_for_unrecognised_layout(trusted, tmp_path):
     worktree, _, _ = _linked_worktree(tmp_path, commondir=None)
     with w._worktree_git_mount(worktree) as args:
         assert args == []
 
 
-def test_mount_binds_a_copy_at_the_common_dir_path(tmp_path):
+def test_mount_binds_a_copy_at_the_common_dir_path(trusted, tmp_path):
     worktree, _, common = _linked_worktree(tmp_path)
     with w._worktree_git_mount(worktree) as args:
         copy = _mounted_copy(args)
@@ -88,7 +99,7 @@ def test_mount_binds_a_copy_at_the_common_dir_path(tmp_path):
         assert (copy / "objects" / "ab" / "cdef").read_text(encoding="utf-8") == "obj"
 
 
-def test_mounted_copy_is_writable_and_isolated_from_the_host(tmp_path):
+def test_mounted_copy_is_writable_and_isolated_from_the_host(trusted, tmp_path):
     worktree, _, common = _linked_worktree(tmp_path)
     with w._worktree_git_mount(worktree) as args:
         copy = _mounted_copy(args)
@@ -100,7 +111,7 @@ def test_mounted_copy_is_writable_and_isolated_from_the_host(tmp_path):
     assert not (common / "objects" / "ab" / "new").exists()
 
 
-def test_mounted_copy_is_removed_after_the_stage(tmp_path):
+def test_mounted_copy_is_removed_after_the_stage(trusted, tmp_path):
     worktree, _, _ = _linked_worktree(tmp_path)
     with w._worktree_git_mount(worktree) as args:
         copy = _mounted_copy(args)
@@ -108,7 +119,7 @@ def test_mounted_copy_is_removed_after_the_stage(tmp_path):
     assert not copy.exists()
 
 
-def test_mount_path_with_spaces_is_quoted(tmp_path):
+def test_mount_path_with_spaces_is_quoted(trusted, tmp_path):
     spaced = tmp_path / "my repo"
     spaced.mkdir()
     worktree, _, common = _linked_worktree(spaced)
@@ -130,7 +141,7 @@ def test_link_or_copy_falls_back_to_copy_when_link_fails(monkeypatch, tmp_path):
     assert dst.read_text(encoding="utf-8") == "x"
 
 
-def test_full_stage_passes_the_mount_before_the_workflow_flag(monkeypatch, tmp_path):
+def test_full_stage_passes_the_mount_before_the_workflow_flag(trusted, monkeypatch, tmp_path):
     worktree, _, common = _linked_worktree(tmp_path)
     calls: list[list[str]] = []
 
@@ -209,3 +220,72 @@ def test_mount_copy_matches_a_real_linked_worktree(tmp_path):
         check=True,
     ).stdout.strip()
     assert head == expected
+
+
+def test_crafted_commondir_outside_the_reported_common_dir_is_refused(monkeypatch, tmp_path):
+    worktree, gitdir, _ = _linked_worktree(tmp_path)
+    elsewhere = tmp_path / "elsewhere"
+    (elsewhere / "worktrees").mkdir(parents=True)
+    (gitdir / "commondir").write_text(str(elsewhere) + "\n", encoding="utf-8")
+    monkeypatch.setattr(w, "_host_common_dir", lambda _root: (tmp_path / "main" / ".git").resolve())
+
+    with pytest.raises(w.UntrustedGitDirError, match="does not match"):
+        with w._worktree_git_mount(worktree):
+            pass
+
+
+def test_unresolvable_host_common_dir_is_refused(monkeypatch, tmp_path):
+    worktree, _, _ = _linked_worktree(tmp_path)
+    monkeypatch.setattr(w, "_host_common_dir", lambda _root: None)
+
+    with pytest.raises(w.UntrustedGitDirError, match="unresolved"):
+        with w._worktree_git_mount(worktree):
+            pass
+
+
+def test_full_stage_fails_with_the_refusal_and_never_runs_act(monkeypatch, tmp_path):
+    worktree, gitdir, _ = _linked_worktree(tmp_path)
+    (gitdir / "commondir").write_text(str(tmp_path) + "\n", encoding="utf-8")
+    monkeypatch.setattr(w, "_host_common_dir", lambda _root: None)
+
+    def no_act(*_a, **_k):
+        raise AssertionError("act must not run")
+
+    monkeypatch.setattr(w, "_run", no_act)
+    res = w._act_full_stage([WF], worktree)
+
+    assert res.ok is False
+    assert "refusing to mount" in res.detail
+
+
+def test_host_common_dir_reads_git_and_strips_git_env(monkeypatch, tmp_path):
+    seen = {}
+
+    def fake_run(cmd, *, timeout, cwd=None, env=None):
+        seen["env"] = env
+        return 0, f"{tmp_path}\n", ""
+
+    monkeypatch.setenv("GIT_DIR", "/wrong")
+    monkeypatch.setattr(w, "_run", fake_run)
+
+    assert w._host_common_dir(tmp_path) == tmp_path.resolve()
+    assert "GIT_DIR" not in seen["env"]
+
+
+def test_host_common_dir_is_none_when_git_fails(monkeypatch, tmp_path):
+    monkeypatch.setattr(w, "_run", lambda *_a, **_k: (128, "", "fatal"))
+    assert w._host_common_dir(tmp_path) is None
+
+
+def test_real_worktree_passes_the_trust_check(tmp_path):
+    main = tmp_path / "main"
+    main.mkdir()
+    git = ["git", "-c", "user.name=t", "-c", "user.email=t@example.com"]
+    subprocess.run([*git, "init", "-q", str(main)], check=True)
+    subprocess.run([*git, "-C", str(main), "commit", "-q", "--allow-empty", "-m", "x"], check=True)
+    worktree = tmp_path / "wt"
+    subprocess.run(
+        [*git, "-C", str(main), "worktree", "add", "-q", "-b", "b", str(worktree)], check=True
+    )
+    with w._worktree_git_mount(worktree) as args:
+        assert args[0] == "--container-options"
