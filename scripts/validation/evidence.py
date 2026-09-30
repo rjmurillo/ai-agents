@@ -96,12 +96,16 @@ __all__ = [
     "GatePolicy",
     "GateResult",
     "PolicyException",
+    "REASON_ADVISORY_FINDINGS",
     "REASON_ALREADY_RUN",
     "REASON_AUTH_UNAVAILABLE",
     "REASON_BASE_REF_UNRESOLVED",
     "REASON_DIFF_FAILED",
     "REASON_INCOMPLETE_EVIDENCE",
     "REASON_LEGACY_BOOLEAN",
+    "REASON_LISTING_FAILED",
+    "REASON_ENTRIES_UNREADABLE",
+    "REASON_LOOKUP_FAILED",
     "REASON_MALFORMED_OUTPUT",
     "REASON_NO_OUTCOMES",
     "REASON_PROCESS_SIGNALED",
@@ -116,6 +120,7 @@ __all__ = [
     "coerce_outcome",
     "default_pre_pr_policy",
     "exit_code_for",
+    "pre_pr_policy",
     "worst_state",
 ]
 
@@ -176,6 +181,20 @@ REASON_ALREADY_RUN: Final = "policy.already_run"
 REASON_VALIDATOR_RAISED: Final = "validator.raised"
 REASON_LEGACY_BOOLEAN: Final = "legacy.boolean_contract"
 REASON_NO_OUTCOMES: Final = "aggregate.no_outcomes"
+#: An advisory gate ran and found something. The state is FAIL, and a named
+#: :class:`PolicyException` in :func:`default_pre_pr_policy` is what keeps it
+#: from blocking, so the finding is counted instead of printed and forgotten
+#: (issue #5636).
+REASON_ADVISORY_FINDINGS: Final = "advisory.findings"
+#: ``git worktree list`` (or an equivalent enumeration) failed, so the set the
+#: gate was meant to inspect is unknown.
+REASON_LISTING_FAILED: Final = "listing.failed"
+#: A scan could not read some of the entries it was meant to inspect, so a clean
+#: verdict would claim more than was observed.
+REASON_ENTRIES_UNREADABLE: Final = "entries.unreadable"
+#: A per-item lookup (a ``gh issue view`` call) returned nothing usable, so the
+#: gate could not prove the clean verdict it would otherwise report.
+REASON_LOOKUP_FAILED: Final = "lookup.failed"
 
 #: Dotted lowercase slug. Machine-readable means a consumer can branch on it,
 #: which a free-text sentence does not support.
@@ -591,6 +610,74 @@ class GatePolicy:
         }
 
 
+_ADVISORY_REFERENCE: Final = ".agents/governance/FAIL-OPEN-INVENTORY.md"
+
+_HYGIENE_FINDINGS_WHY: Final = (
+    "The subject is machine state, not this diff, and the pushing agent may not "
+    "own it (issues #5061, #5111), so a finding must not refuse this push. The "
+    "FAIL is still counted and printed."
+)
+_HYGIENE_LISTING_WHY: Final = (
+    "With 'git worktree list' failed, the registered half of the scan is "
+    "unavailable. The hygiene scan stays advisory, but it cannot report a clean run."
+)
+_HYGIENE_UNREADABLE_WHY: Final = (
+    "An entry the scan could not read leaves the run partial. The hygiene scan "
+    "stays advisory, but it cannot report a clean run."
+)
+
+#: One licence per (validator, state, reason): an advisory gate that keeps its
+#: non-blocking verdict but reports it through the typed states instead of a
+#: bare ``True`` (issue #5636). Each row is a decision the inventory already
+#: recorded as ``B: keep advisory``; nothing here makes a gate stop blocking.
+#: The reasons are pinned per row so a validator cannot widen its own licence
+#: by inventing a new reason code. No row licenses ``UNKNOWN``: a missing
+#: observation is ``BLOCKED`` here, because ``UNKNOWN`` stays unlicensed by
+#: design (issue #5646).
+_ADVISORY_LICENCES: Final[tuple[tuple[str, EvidenceState, str, str], ...]] = (
+    *(
+        row
+        for validator in (
+            "validate_serena_memory_worktree_scope",
+            "validate_tmp_worktrees",
+            "validate_in_root_worktrees",
+        )
+        for row in (
+            (validator, EvidenceState.FAIL, REASON_ADVISORY_FINDINGS, _HYGIENE_FINDINGS_WHY),
+            (validator, EvidenceState.BLOCKED, REASON_LISTING_FAILED, _HYGIENE_LISTING_WHY),
+            (validator, EvidenceState.BLOCKED, REASON_ENTRIES_UNREADABLE, _HYGIENE_UNREADABLE_WHY),
+        )
+    ),
+    (
+        "validate_active_plan_closeout",
+        EvidenceState.FAIL,
+        REASON_ADVISORY_FINDINGS,
+        "A closeable plan is a housekeeping reminder, not a defect in this diff.",
+    ),
+    (
+        "validate_active_plan_closeout",
+        EvidenceState.BLOCKED,
+        REASON_LOOKUP_FAILED,
+        "The closeout check is a reminder. A failed 'gh issue view' must not "
+        "refuse a push, but the run cannot claim it looked at every plan.",
+    ),
+)
+
+
+def _advisory_exceptions() -> tuple[PolicyException, ...]:
+    """Build one bounded :class:`PolicyException` per advisory licence row."""
+    return tuple(
+        PolicyException(
+            validator=validator,
+            states=frozenset({state}),
+            reasons=frozenset({reason}),
+            justification=justification,
+            reference=_ADVISORY_REFERENCE,
+        )
+        for validator, state, reason, justification in _ADVISORY_LICENCES
+    )
+
+
 def default_pre_pr_policy() -> GatePolicy:
     """Return the policy the pre-PR gate runs under.
 
@@ -658,6 +745,25 @@ def default_pre_pr_policy() -> GatePolicy:
             ),
         )
     )
+
+
+def pre_pr_policy() -> GatePolicy:
+    """Return the policy ``pre_pr.py`` runs under: the base policy plus advisory licences.
+
+    :func:`default_pre_pr_policy` is unchanged and still carries exactly three
+    exceptions, none of which licenses ``FAIL`` or ``UNKNOWN``. This adds one
+    bounded :class:`PolicyException` per row of ``_ADVISORY_LICENCES`` so an
+    advisory gate can report a finding or a missing observation through the
+    typed states and still not block (issue #5636).
+
+    Two invariants hold and are pinned by
+    ``tests/validation/test_evidence_advisory_licences.py``: ``UNKNOWN`` is
+    licensed by nothing, here or in the base policy, because that is the state
+    that would put unreadable evidence back on the accept side (issue #5646);
+    and every advisory licence names one validator, one state, and one reason,
+    so a validator cannot widen its own licence by inventing a reason code.
+    """
+    return GatePolicy(exceptions=(*default_pre_pr_policy().exceptions, *_advisory_exceptions()))
 
 
 @dataclass(frozen=True, slots=True)

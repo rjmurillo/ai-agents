@@ -15,6 +15,13 @@ from pathlib import Path
 import pytest
 
 from scripts.validation import check_in_root_worktrees as checker
+from scripts.validation.evidence import (
+    REASON_ADVISORY_FINDINGS,
+    REASON_ENTRIES_UNREADABLE,
+    REASON_LISTING_FAILED,
+    EvidenceState,
+    pre_pr_policy,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -202,14 +209,16 @@ def test_an_unstattable_entry_is_counted_not_examined(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     (tmp_path / "bad").mkdir()
-    real_is_dir = Path.is_dir
+    real_stat = Path.stat
 
-    def is_dir(self: Path) -> bool:
+    def stat(self: Path, *args, **kwargs):
+        # stat, not is_dir: Path.is_dir swallows every OSError on Python 3.14, so
+        # patching it to raise simulated a failure the real method never reports.
         if self.name == "bad":
             raise PermissionError("denied")
-        return real_is_dir(self)
+        return real_stat(self, *args, **kwargs)
 
-    monkeypatch.setattr(Path, "is_dir", is_dir)
+    monkeypatch.setattr(Path, "stat", stat)
     report = checker.scan_repo_root(tmp_path, [], git_listing_failed=False)
 
     assert report.unreadable_entries == 1
@@ -274,8 +283,58 @@ def test_the_advisory_gate_never_fails_even_with_findings(
 ) -> None:
     make_worktree_dir(tmp_path / ".claude/worktrees", "agent-q")
 
-    assert checker.validate_in_root_worktrees(tmp_path) is True
+    outcome = checker.validate_in_root_worktrees(tmp_path)
+
+    assert outcome.state is EvidenceState.FAIL
+    assert outcome.reason == REASON_ADVISORY_FINDINGS
+    assert outcome.findings == 1
+    assert pre_pr_policy().accepts(outcome)
     assert "agent-q" in capsys.readouterr().out
+
+
+def test_the_advisory_gate_passes_and_names_the_examined_count_when_clean(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(checker, "_list_registered", lambda repo_root: ([], False))
+    (tmp_path / ".claude/worktrees").mkdir(parents=True)
+    (tmp_path / ".claude/worktrees" / "plain").mkdir()
+
+    outcome = checker.validate_in_root_worktrees(tmp_path)
+
+    assert outcome.state is EvidenceState.PASS
+    # The ".claude" container and its one child directory.
+    assert outcome.examined == 2
+
+
+def test_a_failed_git_listing_is_blocked_not_a_clean_pass(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(checker, "_list_registered", lambda repo_root: ([], True))
+
+    outcome = checker.validate_in_root_worktrees(tmp_path)
+
+    assert outcome.state is EvidenceState.BLOCKED
+    assert outcome.reason == REASON_LISTING_FAILED
+    assert pre_pr_policy().accepts(outcome)
+
+
+def test_an_unreadable_entry_is_blocked_not_a_clean_pass(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(checker, "_list_registered", lambda repo_root: ([], False))
+    monkeypatch.setattr(
+        checker,
+        "scan_repo_root",
+        lambda root, registered, failed: checker.InRootReport(
+            repo_root=str(root), examined=3, registered_count=0, unreadable_entries=2
+        ),
+    )
+
+    outcome = checker.validate_in_root_worktrees(tmp_path)
+
+    assert outcome.state is EvidenceState.BLOCKED
+    assert outcome.reason == REASON_ENTRIES_UNREADABLE
+    assert pre_pr_policy().accepts(outcome)
 
 
 def test_build_report_runs_against_the_real_repository() -> None:
@@ -349,7 +408,7 @@ def test_an_unreadable_pointer_is_not_a_linked_worktree(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     wt = make_worktree_dir(tmp_path, "wt")
-    monkeypatch.setattr(checker, "is_worktree_dir", lambda _p: True)
+    monkeypatch.setattr(checker, "worktree_marker_state", lambda _p: checker.MARKER_WORKTREE)
     real_open = Path.open
 
     def deny(self: Path, *args, **kwargs):
@@ -360,6 +419,7 @@ def test_an_unreadable_pointer_is_not_a_linked_worktree(
     monkeypatch.setattr(Path, "open", deny)
 
     assert checker.is_linked_worktree_dir(wt) is False
+    assert checker.linked_worktree_state(wt) == checker.UNREADABLE
 
 
 def test_a_registered_worktree_with_a_missing_directory_gets_prune_advice(
