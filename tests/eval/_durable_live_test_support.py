@@ -109,23 +109,38 @@ def _copy_overlay(scenario: Any, overlay: str | None, workdir: Path) -> None:
         shutil.copytree(staged, workdir, dirs_exist_ok=True)
 
 
+class FakeRunner:
+    """A process runner whose i-th call leaves `overlays[i]` (last repeats) in the cwd."""
+
+    def __init__(
+        self,
+        scenario: Any,
+        overlays: Sequence[str | None],
+        stdout: Callable[[int], str] | None,
+        returncodes: Sequence[int] | None,
+    ) -> None:
+        self.calls: list[list[str]] = []
+        self._scenario = scenario
+        self._overlays = overlays
+        self._stdout = stdout
+        self._returncodes = returncodes
+
+    def __call__(self, argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        index = len(self.calls)
+        self.calls.append(list(argv))
+        overlay = self._overlays[min(index, len(self._overlays) - 1)]
+        _copy_overlay(self._scenario, overlay, Path(kwargs["cwd"]))
+        codes = self._returncodes
+        code = 0 if codes is None else codes[min(index, len(codes) - 1)]
+        out = self._stdout(index) if self._stdout else stream_text()
+        return subprocess.CompletedProcess(argv, code, out, "")
+
+
 def fake_runner(
     scenario: Any,
     overlays: Sequence[str | None],
     *,
     stdout: Callable[[int], str] | None = None,
     returncodes: Sequence[int] | None = None,
-) -> Callable[..., subprocess.CompletedProcess[str]]:
-    """A process runner whose i-th call leaves `overlays[i]` (last repeats) in the cwd."""
-    calls: list[list[str]] = []
-
-    def runner(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
-        index = len(calls)
-        calls.append(list(argv))
-        _copy_overlay(scenario, overlays[min(index, len(overlays) - 1)], Path(kwargs["cwd"]))
-        code = 0 if returncodes is None else returncodes[min(index, len(returncodes) - 1)]
-        out = stdout(index) if stdout else stream_text()
-        return subprocess.CompletedProcess(argv, code, out, "")
-
-    runner.calls = calls  # type: ignore[attr-defined]
-    return runner
+) -> FakeRunner:
+    return FakeRunner(scenario, overlays, stdout, returncodes)
