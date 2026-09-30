@@ -63,3 +63,9 @@
 /build/scripts/                           @rjmurillo
 /lefthook.yml                             @rjmurillo
 /.github/CODEOWNERS                       @rjmurillo
+# Issue #5636: the drift allowlist decides which generated agent files may
+# differ from their templates, and the validator that reads it is the gate.
+# An entry added in the same PR it excuses needs an owner's review.
+/.agents/governance/drift-allowlist.json  @rjmurillo
+/build/drift_allowlist.py                 @rjmurillo
+/build/generate_agents.py                 @rjmurillo
