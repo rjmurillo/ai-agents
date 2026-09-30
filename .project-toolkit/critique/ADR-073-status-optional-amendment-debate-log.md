@@ -160,3 +160,7 @@ Records: ADR-001, ADR-008, ADR-009, ADR-010, ADR-011, ADR-012, ADR-013, ADR-015,
 
 Verification: `uv run python scripts/validation/check_adr_lifecycle.py` reports 0 violations across 112 records after the sweep. No record changed anything except that one section.
 
+
+## Author note: PR review follow-up
+
+This section is added by the change author and carries no vote. PR review of ADR-073 asked for one text edit: the amendment summary now lists Trade-offs beside the Decision, Options, Consequences, Negative and Neutral places. It also asked for validator changes that close two of the round 2 P2 findings: the restatement regex now accepts a linked successor, an optional "on" before a date, and the date before or after the successor, and it allows "by ADR-N" only after `superseded`. The ADR rule itself is unchanged.

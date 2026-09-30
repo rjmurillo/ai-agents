@@ -625,6 +625,59 @@ def test_a_very_long_status_line_is_nuance_and_is_not_scanned_slowly(tmp_path):
     assert _counts(tmp_path)["prose-frontmatter-agree"] == 0
 
 
+@pytest.mark.parametrize(
+    "prose",
+    [
+        "Superseded by ADR-042",
+        "Superseded by [ADR-042](ADR-042.md)",
+        "Superseded by ADR-042 on 2026-08-19",
+        "Superseded by ADR-042 (2026-08-19)",
+        "Superseded by ADR-042 2026-08-19.",
+        "Superseded on 2026-08-19",
+        "Superseded (2026-08-19) by ADR-042",
+    ],
+)
+def test_superseded_restatement_forms_are_forbidden(tmp_path, prose):
+    adr_dir = _adr_dir(tmp_path)
+    _write(adr_dir, 1, _valid(1, status="superseded"), f"\n## Status\n\n{prose}\n")
+
+    assert len(_hits(tmp_path, "prose-frontmatter-agree")) == 1
+
+
+@pytest.mark.parametrize(
+    "prose",
+    [
+        "Accepted on 2026-08-19",
+        "Accepted (2026-08-19)",
+        "Accepted on 2026-08-19.",
+    ],
+)
+def test_dated_accepted_restatement_forms_are_forbidden(tmp_path, prose):
+    adr_dir = _adr_dir(tmp_path)
+    _write(adr_dir, 1, _valid(1), f"\n## Status\n\n{prose}\n")
+
+    assert len(_hits(tmp_path, "prose-frontmatter-agree")) == 1
+
+
+@pytest.mark.parametrize(
+    ("status", "prose"),
+    [
+        ("accepted", "Accepted by ADR-042"),
+        ("accepted", "Accepted by [ADR-042](ADR-042.md)"),
+        ("proposed", "Proposed by ADR-042 on 2026-08-19"),
+        ("superseded", "Superseded by ADR-042 on 2026-08-19 (2026-08-20)"),
+        ("superseded", "Superseded by ADR-042 because it broke hooks"),
+        ("accepted", "Accepted on 2026-08-19 after the P1 findings cleared"),
+    ],
+)
+def test_forms_that_say_more_than_the_enum_are_not_restatements(tmp_path, status, prose):
+    """Negative: a successor on a non-superseded record, two dates, or trailing nuance."""
+    adr_dir = _adr_dir(tmp_path)
+    _write(adr_dir, 1, _valid(1, status=status), f"\n## Status\n\n{prose}\n")
+
+    assert _counts(tmp_path)["prose-frontmatter-agree"] == 0
+
+
 def test_a_superseded_restatement_naming_the_successor_is_forbidden(tmp_path):
     """The ADR-005 shape the owner called duplicative: enum plus superseded-by."""
     adr_dir = _adr_dir(tmp_path)

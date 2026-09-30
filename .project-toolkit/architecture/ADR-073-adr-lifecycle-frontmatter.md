@@ -162,7 +162,7 @@ Phased rollout. Each phase is a separate PR.
 
 ## Amendment 2026-09-29: prose Status is optional
 
-Issue #5242 recorded that this ADR retained the prose `## Status` section unconditionally while the owner directed removing it where it duplicates the frontmatter. The owner chose option A. Prose `## Status` is optional, and forbidden only when it merely restates the frontmatter status enum. The six places the issue named are amended in the Decision, Options, Consequences and Negative and Neutral lists above.
+Issue #5242 recorded that this ADR retained the prose `## Status` section unconditionally while the owner directed removing it where it duplicates the frontmatter. The owner chose option A. Prose `## Status` is optional, and forbidden only when it merely restates the frontmatter status enum. The six places the issue named are amended in the Decision, Options, Trade-offs, Consequences and Negative and Neutral lists above.
 
 What the gate enforces after this amendment:
 

@@ -623,10 +623,12 @@ def _status_prose(body: str) -> str | None:
 # A status section that says nothing the frontmatter does not: the enum word,
 # optionally with a date or the supersession target, and closing punctuation.
 # ADR-073 amendment 2026-09-29 (issue #5242): such a section is forbidden.
+_RESTATEMENT_DATE = r"(?:on\s+)?\(?\d{4}-\d{2}-\d{2}\)?[\s.,]*"
 _RESTATEMENT_RE = re.compile(
-    r"^[*_`~>\[\s]*[A-Za-z]+[*_`~\]\s]*"
-    r"(?:\(?\d{4}-\d{2}-\d{2}\)?[\s.,]*)?"
-    r"(?:by\s+ADR-\d+[\s.]*)?[.\s]*$",
+    r"^[*_`~>\[\s]*(?P<word>[A-Za-z]+)[*_`~\]\s.,]*"
+    rf"(?P<d1>{_RESTATEMENT_DATE})?"
+    r"(?P<succ>by\s+\[?ADR-\d+\]?(?:\([^)\s]*\))?[\s.,]*)?"
+    rf"(?P<d2>{_RESTATEMENT_DATE})?$",
     re.IGNORECASE,
 )
 
@@ -661,13 +663,17 @@ def _restates_status(lines: list[str]) -> bool:
     """True when the whole section is one enum-word line and nothing else.
 
     The caller has already proved the line's lead word equals the frontmatter
-    status, so this only decides whether anything follows the word.
+    status, so this only decides whether anything follows the word: at most one
+    date (optionally after "on"), and for `superseded` a successor id or link.
     """
-    return (
-        len(lines) == 1
-        and len(lines[0]) <= _MAX_RESTATEMENT_LINE
-        and _RESTATEMENT_RE.match(lines[0]) is not None
-    )
+    if len(lines) != 1 or len(lines[0]) > _MAX_RESTATEMENT_LINE:
+        return False
+    match = _RESTATEMENT_RE.match(lines[0])
+    if match is None or (match.group("d1") and match.group("d2")):
+        return False
+    # A successor is part of a restatement only for `superseded`; "Accepted by
+    # ADR-042" names a different fact than the frontmatter carries.
+    return not match.group("succ") or match.group("word").lower() == "superseded"
 
 
 def _check_prose(record: Record) -> list[Violation]:
