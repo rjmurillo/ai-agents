@@ -29,10 +29,10 @@ valid call, so the step keeps the semantics it had, except ``run`` with
 
 The typed line has the shape ``[STATE] validator reason=code scope=... detail=...``
 that ``CheckOutcome.report_line`` prints, so one grep counts every advisory
-non-pass. A non-pass also writes a ``::warning::`` annotation. Under GitHub
-Actions the result is appended to the step summary and written to
-``GITHUB_OUTPUT`` as ``state`` and ``reason``, so a later step or job can read
-it. A ``PASS`` prints one line and no annotation.
+non-pass. A non-pass other than ``SKIP`` also writes a ``::warning::``
+annotation. Under GitHub Actions the result is appended to the step summary and
+written to ``GITHUB_OUTPUT`` as ``state`` and ``reason``, so a later step or job
+can read it. A ``PASS`` or ``SKIP`` prints one line and no annotation.
 
 An unrecognized outcome (empty because a step id was mistyped, or a value GitHub
 adds later) is ``UNKNOWN`` with ``output.malformed``, never ``PASS``: a report
@@ -87,6 +87,9 @@ EXIT_EXTERNAL = 3
 DEFAULT_TIMEOUT_SECONDS = 600
 _REASON_SHAPE = re.compile(r"^[a-z][a-z0-9_]*(\.[a-z0-9_]+)*$")
 _NAME_SHAPE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+# A SKIP is a step that did not apply, which is routine (a PR with no spec refs
+# skips three review steps), so it prints its line and raises no annotation.
+_QUIET_STATES = (EvidenceState.PASS, EvidenceState.SKIP)
 _FAILURE_STATES = ("FAIL", "BLOCKED", "UNKNOWN")
 
 
@@ -187,7 +190,7 @@ def _publish(outcome: CheckOutcome) -> None:
     """Print the typed line and, under Actions, the annotation, summary, and outputs."""
     line = outcome.report_line()
     print(line)
-    if outcome.state is not EvidenceState.PASS:
+    if outcome.state not in _QUIET_STATES:
         print(f"::warning title={outcome.validator}::{_escape_annotation(line)}")
     summary = f"- `{outcome.state.value}` {outcome.validator} `{outcome.reason or 'ok'}`\n"
     _append(os.environ.get("GITHUB_STEP_SUMMARY"), summary)

@@ -95,7 +95,19 @@ def test_a_cancelled_step_is_reported_as_a_failure(capsys: pytest.CaptureFixture
 def test_a_skipped_step_is_a_typed_skip(capsys: pytest.CaptureFixture[str]) -> None:
     reporter.main(_step(outcome="skipped"))
 
-    assert _first_line(capsys).startswith("[SKIP] demo-check reason=policy.exempt")
+    out = capsys.readouterr().out
+    assert out.startswith("[SKIP] demo-check reason=policy.exempt")
+    assert "::warning" not in out
+
+
+@pytest.mark.parametrize("state", ["FAIL", "BLOCKED", "UNKNOWN"])
+def test_every_failure_state_still_raises_an_annotation(
+    state: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Inverse of the SKIP case: only routine skips are quiet."""
+    reporter.main(_step("--failure-state", state, outcome="failure"))
+
+    assert f"::warning title=demo-check::[{state}]" in capsys.readouterr().out
 
 
 @pytest.mark.parametrize("outcome", ["", "Success", "neutral", " "])
