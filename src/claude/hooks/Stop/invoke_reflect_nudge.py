@@ -35,6 +35,7 @@ import sys
 import tempfile
 import time
 from pathlib import Path
+from typing import Any
 
 HOOK_NAME = "reflect-trigger"
 DISABLE_ENV = "REFLECT_NUDGE_DISABLE"
@@ -63,7 +64,7 @@ def _state_dir() -> Path:
     return root / "ai-agents" / "reflect-nudge"
 
 
-def _turn_text(record: dict) -> str | None:
+def _turn_text(record: dict[str, Any]) -> str | None:
     """Return the text of a human turn, or None when the record is not one."""
     if record.get("type") != "user" or "toolUseResult" in record:
         return None
@@ -102,7 +103,7 @@ def scan_transcript(path: Path) -> dict[str, int]:
     return counts
 
 
-def _tally(record: dict, counts: dict[str, int]) -> None:
+def _tally(record: dict[str, Any], counts: dict[str, int]) -> None:
     if record.get("type") == "user":
         counts["user_records"] += 1
     text = _turn_text(record)
@@ -139,7 +140,7 @@ def already_nudged(session_id: str, digest: str) -> bool:
     if marker is None:
         return True
     try:
-        return json.loads(marker.read_text(encoding="utf-8")).get("signal") == digest
+        return bool(json.loads(marker.read_text(encoding="utf-8")).get("signal") == digest)
     except FileNotFoundError:
         return False
     except (OSError, ValueError, AttributeError):
@@ -178,7 +179,7 @@ def _log(message: str) -> None:
     print(f"{HOOK_NAME}: {message}", file=sys.stderr)
 
 
-def _transcript(payload: dict) -> Path | None:
+def _transcript(payload: dict[str, Any]) -> Path | None:
     raw = payload.get("transcript_path")
     if not isinstance(raw, str) or not raw:
         _log("no transcript_path in payload (fail-open, no block)")
@@ -190,7 +191,7 @@ def _transcript(payload: dict) -> Path | None:
     return path
 
 
-def _session_id(payload: dict) -> str | None:
+def _session_id(payload: dict[str, Any]) -> str | None:
     session_id = payload.get("session_id")
     if isinstance(session_id, str) and SESSION_ID_PATTERN.match(session_id):
         return session_id
@@ -207,7 +208,7 @@ def _decision(counts: dict[str, int]) -> str:
     return json.dumps({"decision": "block", "reason": reason})
 
 
-def _read_payload() -> dict:
+def _read_payload() -> dict[str, Any]:
     try:
         payload = json.loads(sys.stdin.read() or "{}")
     except ValueError:
