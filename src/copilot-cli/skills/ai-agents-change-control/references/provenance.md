@@ -18,7 +18,7 @@ Verified against the working tree on 2026-07-30. Volatile facts and their re-ver
 | ADR-066 accepted, ADR-071 accepted, #2230 rejected | Status sections of both ADR files | `sed -n '1,15p' .project-toolkit/architecture/ADR-066-hook-fail-open-reconciliation.md; sed -n '1,15p' .project-toolkit/architecture/ADR-071-plugin-hook-runtime-contract-verification.md` |
 | FM-9 and FM-10 sections; "neutral default" quote | `.agents/governance/FAILURE-MODES.md:284,315,387` | `sed -n '280,325p;383,390p' .agents/governance/FAILURE-MODES.md` |
 | Incident retro paths (908, 1187, 1887, 1965, 2205) | `.project-toolkit/retrospective/` | `find .project-toolkit/retrospective -maxdepth 1 \( -name "*908*" -o -name "*1187*" -o -name "*1887*" -o -name "*1965*" -o -name "*2205*" \)` |
-| `[skip-drift-check]` bypass contract | `.github/workflows/agent-drift-detection.yml:17,65-69` | `grep -n "skip-drift-check" .github/workflows/agent-drift-detection.yml` |
+| Drift allowlist contract (no commit-message bypass) | `.agents/governance/drift-allowlist.json`; `build/drift_allowlist.py` | `cat .agents/governance/drift-allowlist.json` |
 | Pinned required contexts (no LLM blocker) | `scripts/ci/ruleset_required_contexts.py:REQUIRED_CONTEXTS`, `RETIRED_AI_REVIEW_CONTEXTS` | `grep -n "CONTEXTS" scripts/ci/ruleset_required_contexts.py` |
 | ADR-006 amendment scope and conditions | `.project-toolkit/architecture/ADR-006-thin-workflows-testable-modules.md:255-309` | `grep -n "Amendment 2026-04-28" .project-toolkit/architecture/ADR-006-thin-workflows-testable-modules.md` |
 | Hook-install check rationale | `scripts/validation/checks_plugin.py:174-180` | `grep -n "def validate_lefthook_installed" scripts/validation/checks_plugin.py` |

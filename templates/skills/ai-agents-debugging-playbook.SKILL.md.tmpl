@@ -103,7 +103,7 @@ If three read-only commands have not identified the cause, stop and escalate to 
    - Drift: the specific surface command from the table above
 3. Prove the check can still fail. Re-run it with a deliberate defect injected; a gate that prints OK both ways is not covering your change. Three here pass in ways that read as success: `validate_install_parity.py` is a co-change check, not a content comparison, and it skips RULE groups entirely (`build/scripts/validate_install_parity.py:349`) and exempts diffs touching only hand-maintained `SHARED_AGENT` copies (`build/scripts/validate_install_parity.py:359`); that script and `run_plugin_version_bump_ci.py` both diff a base ref, so an uncommitted control is invisible and you must commit the control first; and `detect_agent_drift.py` compares only the 23 entries named in its `SECTIONS_TO_COMPARE` allowlist (`:77-101`), at an 80 percent similarity threshold (`:984`), whose exit code `scripts/ci/drift_run_detection.py:53-60` (`drift_detected`) captures and discards. Anything under an unlisted heading is never compared at all: replacing all 22 agent names in the orchestrator's capability matrix in one install copy still reports "OK (100.0% similar)" and exits 0.
 4. Commit with logical, reviewable granularity (author judgment; no hook measures commit or file count, ADR-100 deleted the last advisory, issue #5241).
-5. Escape hatches (`[skip-drift-check]`, etc.) require documented justification and are cataloged in `ai-agents-config-catalog`. Using one IS the incident report; say so in the PR.
+5. Escape hatches (a drift allowlist entry, etc.) require documented justification and are cataloged in `ai-agents-config-catalog`. Using one IS the incident report; say so in the PR.
 
 ## Traps That Cost Real Time
 
@@ -124,7 +124,7 @@ Deeper history and the settled-battles list live in `ai-agents-failure-archaeolo
 ## Anti-Patterns
 
 - Editing a generated tree to make a drift gate green. The gate reads difference, not direction; you may be destroying the source of truth.
-- Reaching for an escape hatch (`[skip-drift-check]`, etc.) as a first move. Escapes are for infrastructure failure, not friction.
+- Reaching for an escape hatch (a drift allowlist entry, etc.) as a first move. Escapes are for infrastructure failure, not friction.
 - Debugging your branch before checking main. Reproduce-on-main is the cheapest discriminator in this playbook.
 - Treating exit 2 and exit 143 as the same hook failure. They have different root causes and different fixes.
 - Switching `--cov` between module-name and file-path forms to "fix" a coverage red. Only the module-name form resolves correctly here.
@@ -150,7 +150,7 @@ Verified against the working tree on 2026-07-03. Retro-cited short SHAs do not r
 |------|--------|----------------|
 | EVENT= stderr telemetry schema | RETIRED: `push_guard_base.py` and every guard built on it were deleted under ADR-084 (issue #5154); no live file defines this schema | N/A. A surviving `EVENT=` emitter with a related but narrower shape (unknown-identity fail-open, not the general guard schema) is `.claude/lib/hook_utilities/guards.py::_emit_skip_event` |
 | 4 drift surfaces run in CI | `.github/workflows/validate-generated-agents.yml:165-225` | `grep -n -e "run_install_parity" -e "build_all" -e "generate_agents" .github/workflows/validate-generated-agents.yml` |
-| `[skip-drift-check]` bypass marker | `.github/workflows/agent-drift-detection.yml:17,65-69` | `grep -n "skip-drift-check" .github/workflows/agent-drift-detection.yml` |
+| Drift allowlist (no commit-message bypass) | `.agents/governance/drift-allowlist.json`; `build/drift_allowlist.py` | `cat .agents/governance/drift-allowlist.json` |
 | Version-field prohibition | `build/scripts/validate_plugin_version_bump.py` docstring, section RULE | `grep -n "MUST NOT carry" build/scripts/validate_plugin_version_bump.py` |
 | No version in any manifest or marketplace entry | three `.claude-plugin/plugin.json` files, both `marketplace.json` files | `python3 build/scripts/validate_plugin_version_bump.py` |
 | Coverage pin file-set sensitivity and 63% | `.github/workflows/pytest.yml:424-437` (issue #1963) | `grep -n "reports 63%" .github/workflows/pytest.yml` |

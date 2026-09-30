@@ -279,3 +279,31 @@ def test_workflow_filter_covers_allowlist_file() -> None:
     text = WORKFLOW.read_text(encoding="utf-8")
     assert ".agents/governance/drift-allowlist.json" in text
     assert "build/drift_allowlist.py" in text
+
+
+SKILL_TEMPLATES = REPO_ROOT / "templates" / "skills"
+RETIRED_MARKER = "skip-drift-check"
+
+
+class TestNoRetiredMarkerInSkillTemplates:
+    """Live skill templates must describe the allowlist, not the retired marker."""
+
+    def test_no_skill_template_names_the_retired_marker(self) -> None:
+        offenders = sorted(
+            path.name
+            for path in SKILL_TEMPLATES.glob("*.tmpl")
+            if RETIRED_MARKER in path.read_text(encoding="utf-8")
+        )
+        assert offenders == [], f"templates still name the retired marker: {offenders}"
+
+    def test_config_catalog_template_names_the_allowlist_file(self) -> None:
+        text = (SKILL_TEMPLATES / "ai-agents-config-catalog.SKILL.md.tmpl").read_text(
+            encoding="utf-8"
+        )
+        assert ".agents/governance/drift-allowlist.json" in text
+
+    def test_guard_detects_an_injected_marker(self, tmp_path: Path) -> None:
+        """Negative: the same substring check flags a template that names the marker."""
+        template = tmp_path / "x.SKILL.md.tmpl"
+        template.write_text("Use `[skip-drift-check]` to bypass.", encoding="utf-8")
+        assert RETIRED_MARKER in template.read_text(encoding="utf-8")
