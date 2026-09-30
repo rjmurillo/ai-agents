@@ -166,7 +166,7 @@ jobs:
           python3 scripts/ci/report_advisory_result.py step
           --validator post-pr-retrospective
           --scope "retrospective agent run"
-          --outcome ${{ steps.retro-agent.outcome }}
+          --outcome "${{ steps.retro-agent.outcome }}"
           --failure-state BLOCKED
           --failure-reason script.failed
           --detail "expired token, API outage, or agent error; see the step annotation"

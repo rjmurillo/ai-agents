@@ -151,7 +151,7 @@ jobs:
           python3 scripts/ci/report_advisory_result.py step
           --validator spec-traceability-check
           --scope "requirements traceability review by the analyst agent"
-          --outcome ${{ steps.trace.outcome }}
+          --outcome "${{ steps.trace.outcome }}"
           --failure-state BLOCKED
           --failure-reason script.failed
           --detail "analyst agent crash or timeout"
@@ -176,7 +176,7 @@ jobs:
           python3 scripts/ci/report_advisory_result.py step
           --validator spec-completeness-check
           --scope "completeness review by the critic agent"
-          --outcome ${{ steps.completeness.outcome }}
+          --outcome "${{ steps.completeness.outcome }}"
           --failure-state BLOCKED
           --failure-reason script.failed
           --detail "critic agent crash or timeout"
@@ -205,7 +205,7 @@ jobs:
           python3 scripts/ci/report_advisory_result.py step
           --validator spec-external-signal-gate
           --scope "deterministic acceptance-criteria check"
-          --outcome ${{ steps.external-gate.outcome }}
+          --outcome "${{ steps.external-gate.outcome }}"
           --failure-state FAIL
           --failure-reason advisory.findings
           --detail "observe-only; not yet the authoritative gate"
@@ -251,7 +251,7 @@ jobs:
           python3 scripts/ci/report_advisory_result.py step
           --validator spec-report-comment
           --scope "spec validation report comment"
-          --outcome ${{ steps.post-comment.outcome }}
+          --outcome "${{ steps.post-comment.outcome }}"
           --failure-state BLOCKED
           --failure-reason script.failed
 

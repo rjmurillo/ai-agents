@@ -51,7 +51,7 @@ jobs:
           python3 scripts/ci/report_advisory_result.py step
           --validator drift-k2-event
           --scope "kill-criteria metrics emission"
-          --outcome ${{ steps.emit-k2.outcome }}
+          --outcome "${{ steps.emit-k2.outcome }}"
           --failure-state BLOCKED
           --failure-reason script.failed
 
@@ -77,7 +77,7 @@ jobs:
           python3 scripts/ci/report_advisory_result.py step
           --validator drift-telemetry-summary
           --scope "kill-criteria drift telemetry report"
-          --outcome ${{ steps.summarize.outcome }}
+          --outcome "${{ steps.summarize.outcome }}"
           --failure-state FAIL
           --failure-reason advisory.findings
           --detail "the report exits 1 when a criterion fired"
@@ -99,7 +99,7 @@ jobs:
           python3 scripts/ci/report_advisory_result.py step
           --validator drift-events-upload
           --scope "drift-events artifact upload"
-          --outcome ${{ steps.upload-events.outcome }}
+          --outcome "${{ steps.upload-events.outcome }}"
           --failure-state BLOCKED
           --failure-reason script.failed
 

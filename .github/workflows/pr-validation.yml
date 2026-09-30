@@ -146,7 +146,7 @@ jobs:
           python3 scripts/ci/report_advisory_result.py step
           --validator pr-validation-comment
           --scope "PR validation report comment"
-          --outcome ${{ steps.post-comment.outcome }}
+          --outcome "${{ steps.post-comment.outcome }}"
           --failure-state BLOCKED
           --failure-reason script.failed
 

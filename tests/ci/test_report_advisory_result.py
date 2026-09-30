@@ -189,6 +189,56 @@ def test_a_signal_death_is_blocked_process_signaled(capsys: pytest.CaptureFixtur
     assert _first_line(capsys).startswith("[BLOCKED] demo-check reason=process.signaled")
 
 
+# --- --propagate-errors keeps a crash failing ------------------------------
+
+
+def _propagating(*extra: str, command: list[str]) -> list[str]:
+    return _run_cmd("--propagate-errors", *extra, command=command)
+
+
+def test_propagate_errors_still_exits_zero_on_success_and_on_findings() -> None:
+    assert reporter.main(_propagating(command=[sys.executable, "-c", "pass"])) == 0
+    assert reporter.main(_propagating(command=[sys.executable, "-c", "raise SystemExit(1)"])) == 0
+
+
+def test_propagate_errors_returns_the_childs_own_error_code(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    rc = reporter.main(_propagating(command=[sys.executable, "-c", "raise SystemExit(2)"]))
+
+    assert rc == 2
+    assert _first_line(capsys).startswith("[BLOCKED] demo-check reason=script.failed")
+
+
+def test_propagate_errors_fails_when_the_executable_is_missing() -> None:
+    assert reporter.main(_propagating(command=["definitely-not-a-real-binary-5636"])) == 3
+
+
+def test_propagate_errors_fails_on_a_timeout() -> None:
+    code = "import time; time.sleep(30)"
+
+    assert reporter.main(_propagating("--timeout", "1", command=[sys.executable, "-c", code])) == 3
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX signals")
+def test_propagate_errors_fails_on_a_signal_death() -> None:
+    code = "import os, signal; os.kill(os.getpid(), signal.SIGKILL)"
+
+    assert reporter.main(_propagating(command=[sys.executable, "-c", code])) == 3
+
+
+def test_without_the_flag_a_child_crash_still_exits_zero() -> None:
+    """Inverse: the flag is opt-in, so every other caller keeps its swallow."""
+    assert reporter.main(_run_cmd(command=[sys.executable, "-c", "raise SystemExit(2)"])) == 0
+
+
+def test_the_process_exit_code_carries_the_childs_code_under_the_flag() -> None:
+    result = _process(*_propagating(command=[sys.executable, "-c", "raise SystemExit(5)"]))
+
+    assert result.returncode == 5
+    assert "reason=script.failed" in result.stdout
+
+
 # --- bad arguments exit 2 --------------------------------------------------
 
 
@@ -203,6 +253,8 @@ def test_a_signal_death_is_blocked_process_signaled(capsys: pytest.CaptureFixtur
         ["step", *BASE, "--outcome", "failure", "--failure-reason", ""],
         ["step", "--validator", "bad name", "--scope", "s", "--outcome", "success"],
         ["step", "--validator", "x\n::error::y", "--scope", "s", "--outcome", "success"],
+        ["step", "--validator", "ok\n", "--scope", "s", "--outcome", "success"],
+        ["step", *BASE, "--outcome", "failure", "--failure-reason", "timeout\n"],
         [],
         ["unknown-mode"],
     ],

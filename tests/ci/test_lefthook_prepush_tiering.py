@@ -221,14 +221,16 @@ class TestEveryDeferralIsSound:
 # runs its command through `scripts/ci/report_advisory_result.py run`, which
 # exits 0 whatever the command returns and prints a typed result line. That is
 # still a job that cannot fail, so it stays declared here, and the helper's
-# name is a second marker of a swallow beside `||`.
-EXIT_SWALLOWING_PREPUSH_JOBS = frozenset({"worktree-gc-report", "python-lint-advisory"})
+# name is a second marker of a swallow beside `||`. `--propagate-errors` marks a
+# ruff job that still fails on a crash, so it is not a swallower.
+EXIT_SWALLOWING_PREPUSH_JOBS = frozenset({"worktree-gc-report"})
 _ADVISORY_REPORTER = "scripts/ci/report_advisory_result.py"
 
 
 def _discards_exit_status(job: dict[str, Any]) -> bool:
     run = str(job.get("run", ""))
-    return "||" in run or _ADVISORY_REPORTER in run
+    swallows_all = _ADVISORY_REPORTER in run and "--propagate-errors" not in run
+    return "||" in run or swallows_all
 
 
 class TestNonBlockingJobsAreDeclaredNotDiscovered:

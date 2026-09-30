@@ -138,7 +138,7 @@ def test_a_swallowed_step_is_followed_by_a_report_of_its_outcome(
     run = " ".join(str(report["run"]).split())
     assert f"{HELPER} step" in run
     assert f"--validator {validator}" in run
-    assert f"--outcome ${{{{ steps.{step_id}.outcome }}}}" in run
+    assert f'--outcome "${{{{ steps.{step_id}.outcome }}}}"' in run
 
 
 @pytest.mark.parametrize(("workflow", "job", "name", "step_id", "validator"), STEP_MODE_ROWS)
@@ -199,16 +199,38 @@ def test_a_lefthook_advisory_job_reports_through_the_helper(job: str, validator:
     assert "--findings-exit 1" in run
     assert "--exit-zero" not in run
     assert "|| echo" not in run
+    # Ruff's own crash used to fail the hook even under --exit-zero, so the
+    # ruff jobs keep failing on a crash; the gc reporter always swallowed.
+    assert ("--propagate-errors" in run) is job.startswith("python-")
 
 
-def test_the_worktree_gc_reporter_budget_stays_under_the_job_timeout() -> None:
+@pytest.mark.parametrize(
+    ("name", "job_seconds"),
+    [
+        ("worktree-gc-report", 120),
+        ("python-lint-advisory", 120),
+        ("python-autofix", 300),
+        ("python-check", 300),
+    ],
+)
+def test_the_reporter_timeout_stays_under_the_lefthook_job_timeout(
+    name: str, job_seconds: int
+) -> None:
     """MUST 19: a lefthook timeout kill cannot be absorbed, so the inner cap must be lower."""
-    job = _lefthook_jobs()["worktree-gc-report"]
+    job = _lefthook_jobs()[name]
     run = str(job["run"]).split()
     inner = int(run[run.index("--timeout") + 1])
 
-    assert job["timeout"] == "2m"
-    assert inner < 120
+    assert job["timeout"] == {120: "2m", 300: "5m"}[job_seconds]
+    assert inner < job_seconds
+
+
+def test_the_dev_extra_stays_on_the_blocking_python_tool_jobs() -> None:
+    """Regression: the two jobs below need mypy and semgrep from the dev extra."""
+    jobs = _lefthook_jobs()
+    for name in ("python-type-check", "security-scan"):
+        if name in jobs:
+            assert "--extra dev" in str(jobs[name]["run"]), name
 
 
 def test_no_lefthook_job_swallows_ruff_with_exit_zero() -> None:

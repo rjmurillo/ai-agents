@@ -7,8 +7,9 @@ purpose: their failure must not block. Before this helper each one swallowed its
 own failure and left only a raw log line, so no gate and no dashboard could
 count how often an advisory step failed or why.
 
-Two modes, both stdlib plus ``scripts.validation.evidence`` and both always
-exit 0 on a valid call, so the step keeps the semantics it had:
+Two modes, both stdlib plus ``scripts.validation.evidence``. Each exits 0 on a
+valid call, so the step keeps the semantics it had, except ``run`` with
+``--propagate-errors`` (below):
 
 ``step``
     Reads the outcome GitHub records for an earlier step
@@ -37,9 +38,21 @@ An unrecognized outcome (empty because a step id was mistyped, or a value GitHub
 adds later) is ``UNKNOWN`` with ``output.malformed``, never ``PASS``: a report
 that cannot read its input must not certify it.
 
+``run --propagate-errors`` keeps one distinction the old command had. Findings
+still exit 0. A tool error does not: an exit code that is neither 0 nor a
+findings code is returned as the child's own code, and a missing executable, a
+timeout, or a signal death returns 3. Use it where the old command could fail
+its job on a crash, such as ``ruff check --exit-zero``, whose exit code 2 (a
+configuration error) still failed the hook. A crash of the linter must not read
+as a passing lint.
+
 EXIT CODES (ADR-035):
-  0 - the report was produced (whatever the observed state)
+  0 - the report was produced (whatever the observed state); with
+      ``--propagate-errors``, also only when the command found nothing or
+      reported findings
   2 - bad arguments (an unknown state, a malformed reason code, no command)
+  3 - ``run --propagate-errors`` and the command could not run or was killed
+  N - ``run --propagate-errors`` and the command exited with its own error code N
 """
 
 from __future__ import annotations
@@ -70,6 +83,7 @@ from scripts.validation.evidence import (  # noqa: E402
 
 EXIT_OK = 0
 EXIT_CONFIG = 2
+EXIT_EXTERNAL = 3
 DEFAULT_TIMEOUT_SECONDS = 600
 _REASON_SHAPE = re.compile(r"^[a-z][a-z0-9_]*(\.[a-z0-9_]+)*$")
 _NAME_SHAPE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
@@ -109,24 +123,36 @@ def _revision() -> str:
     return os.environ.get("GITHUB_SHA", "") or "WORKING_TREE"
 
 
-def _run_command(args: argparse.Namespace) -> CheckOutcome:
-    """Run the wrapped command and type its exit code."""
+def _run_command(args: argparse.Namespace) -> tuple[CheckOutcome, int]:
+    """Run the wrapped command; return its typed result and the exit to propagate."""
     name, scope = args.validator, args.scope
     try:
         completed = subprocess.run(args.command, timeout=args.timeout, check=False)
     except FileNotFoundError:
+        detail = f"{args.command[0]} not found"
         return CheckOutcome.blocked(
-            name, reason=REASON_TOOL_ABSENT, scope=scope, detail=f"{args.command[0]} not found"
-        )
+            name, reason=REASON_TOOL_ABSENT, scope=scope, detail=detail
+        ), EXIT_EXTERNAL
     except subprocess.TimeoutExpired:
+        detail = f"exceeded {args.timeout}s"
         return CheckOutcome.blocked(
-            name, reason=REASON_TIMEOUT, scope=scope, detail=f"exceeded {args.timeout}s"
-        )
+            name, reason=REASON_TIMEOUT, scope=scope, detail=detail
+        ), EXIT_EXTERNAL
     except OSError as exc:
+        detail = f"could not start: {exc}"
         return CheckOutcome.blocked(
-            name, reason=REASON_TOOL_ABSENT, scope=scope, detail=f"could not start: {exc}"
-        )
-    return _outcome_from_exit(args, completed.returncode)
+            name, reason=REASON_TOOL_ABSENT, scope=scope, detail=detail
+        ), EXIT_EXTERNAL
+    return _outcome_from_exit(args, completed.returncode), _propagated_code(
+        args, completed.returncode
+    )
+
+
+def _propagated_code(args: argparse.Namespace, code: int) -> int:
+    """Return the exit code ``--propagate-errors`` hands back for a finished command."""
+    if code == 0 or code in args.findings_exit:
+        return EXIT_OK
+    return EXIT_EXTERNAL if code < 0 else code
 
 
 def _outcome_from_exit(args: argparse.Namespace, code: int) -> CheckOutcome:
@@ -197,26 +223,35 @@ def build_parser() -> argparse.ArgumentParser:
     _common(run)
     run.add_argument("--findings-exit", type=int, nargs="*", default=[1])
     run.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT_SECONDS)
+    run.add_argument(
+        "--propagate-errors",
+        action="store_true",
+        help="exit non-zero when the command errors, not only when it finds something",
+    )
     run.add_argument("command", nargs=argparse.REMAINDER, help="-- COMMAND [ARGS...]")
     return parser
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """CLI entry point. Returns 0 for a produced report, 2 for bad arguments."""
+    """CLI entry point. Returns 0 for a produced report, 2 for bad arguments.
+
+    ``run --propagate-errors`` returns the command's own error code instead of 0.
+    """
     parser = build_parser()
     args = parser.parse_args(argv)
-    if not _NAME_SHAPE.match(args.validator):
+    if not _NAME_SHAPE.fullmatch(args.validator):
         parser.error(f"--validator {args.validator!r} must use letters, digits, '.', '_', '-'")
-    if not _REASON_SHAPE.match(args.failure_reason):
+    if not _REASON_SHAPE.fullmatch(args.failure_reason):
         parser.error(f"--failure-reason {args.failure_reason!r} is not a dotted lowercase code")
     if args.mode == "run":
         if args.command[:1] == ["--"]:
             args.command = args.command[1:]
         if not args.command:
             parser.error("run needs a command after --")
-        _publish(_run_command(args))
-    else:
-        _publish(_outcome_from_step(args))
+        outcome, code = _run_command(args)
+        _publish(outcome)
+        return code if args.propagate_errors else EXIT_OK
+    _publish(_outcome_from_step(args))
     return EXIT_OK
 
 

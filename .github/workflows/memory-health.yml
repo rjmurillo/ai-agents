@@ -104,7 +104,7 @@ jobs:
           python3 scripts/ci/report_advisory_result.py step
           --validator memory-health-markdown
           --scope "memory health Markdown report"
-          --outcome ${{ steps.health-markdown.outcome }}
+          --outcome "${{ steps.health-markdown.outcome }}"
           --failure-state BLOCKED
           --failure-reason script.failed
 
