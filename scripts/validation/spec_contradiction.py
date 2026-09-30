@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size. One CLI script whose tests monkeypatch its module-level
+# seams by name (fetch_current_pr_body, collect_with_skip_reason). The skip-reason
+# plumbing put it 29 lines over; a split would move the seams those tests patch.
 """Flag contradictions between a PR description, its linked issues, and code.
 
 The "Validate Spec Coverage" CI check reads the PR description, the linked
