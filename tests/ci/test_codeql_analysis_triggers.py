@@ -22,13 +22,14 @@ PATHS_FILTER_ACTION = "dorny/paths-filter@"
 SHA_PIN = re.compile(r"^[^@\s]+@[0-9a-f]{40}$")
 
 
-def _document() -> dict[str, Any]:
+def _document() -> Any:
     return yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
 
 
-def _triggers() -> dict[str, Any]:
+def _triggers() -> Any:
+    """YAML 1.1 reads the bare key ``on`` as boolean True, so try both."""
     document = _document()
-    return document.get("on", document.get(True))
+    return document["on"] if "on" in document else document[True]
 
 
 def _steps(job: str) -> list[dict[str, Any]]:
@@ -77,9 +78,7 @@ def test_full_run_events_bypass_the_path_filter(event: str) -> None:
 
 def test_path_filter_step_is_skipped_for_the_full_run_events() -> None:
     step = next(
-        s
-        for s in _steps("check-paths")
-        if str(s.get("uses", "")).startswith(PATHS_FILTER_ACTION)
+        s for s in _steps("check-paths") if str(s.get("uses", "")).startswith(PATHS_FILTER_ACTION)
     )
     condition = step["if"]
     assert "schedule" in condition
