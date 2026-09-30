@@ -2034,6 +2034,8 @@ See `examples/example-scenarios.json` for a working template.
 Required fields: `id`, `desc`, `input`, `expected_verdict`.
 Optional: `expected_reason_contains`, `rationale`.
 
+`eval-prompt-change.py` scores a scenario on the verdict alone. `expected_reason_contains` is an informational signal: when a run has the right verdict and a reason without the substring, the gate summary lists the scenario under `Reason wording differs` and does not fail it (issue #5601). A scenario whose base side passes only some of its runs is listed under `Base unstable`, excluded from the regression list and from the before and after scores, and never gates. A base that passes every scored run while the after side fails still blocks.
+
 ## Scenario File Locations
 
 | Prompt Type | Scenario Location |

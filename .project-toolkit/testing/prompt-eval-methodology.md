@@ -66,7 +66,8 @@ def judge_scenario(prompt_text: str, scenario: dict) -> dict:
 def score(results, scenarios):
     passed = 0
     for r, s in zip(results, scenarios):
-        if r["verdict"] == s["expected_verdict"] and s["expected_reason_contains"] in r["reason"]:
+        # The verdict is the controlled label. The reason is free text and does not gate.
+        if r["verdict"] == s["expected_verdict"]:
             passed += 1
     return passed / len(scenarios)
 

@@ -105,7 +105,7 @@ class TestCheckScenarioPass:
         scenario = {"expected_verdict": "ROUTE"}
         assert eval_mod.check_scenario_pass(result, scenario) is False
 
-    def test_reason_contains_required_substring(self):
+    def test_reason_contains_present_passes(self):
         result = {"verdict": "ROUTE", "reason": "delegate to analyst"}
         scenario = {
             "expected_verdict": "ROUTE",
@@ -113,13 +113,14 @@ class TestCheckScenarioPass:
         }
         assert eval_mod.check_scenario_pass(result, scenario) is True
 
-    def test_reason_contains_missing_fails(self):
+    def test_reason_contains_missing_does_not_fail_the_verdict(self):
+        # Issue #5601: reason wording is a signal, never a gate.
         result = {"verdict": "ROUTE", "reason": "fix it now"}
         scenario = {
             "expected_verdict": "ROUTE",
             "expected_reason_contains": "analyst",
         }
-        assert eval_mod.check_scenario_pass(result, scenario) is False
+        assert eval_mod.check_scenario_pass(result, scenario) is True
 
     def test_reason_contains_case_insensitive(self):
         result = {"verdict": "IDENTIFY", "reason": "Detected CWE-22 issue"}
