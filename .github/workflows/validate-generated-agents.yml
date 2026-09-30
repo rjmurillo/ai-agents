@@ -56,6 +56,8 @@ jobs:
               - '.github/plugin/marketplace.json'
               - 'src/claude/.claude-plugin/plugin.json'
               - 'build/generate_agents.py'
+              - 'build/drift_allowlist.py'
+              - '.agents/governance/drift-allowlist.json'
               - 'build/generate_agents_common.py'
               - 'build/generate_agent_catalog.py'
               - 'build/scripts/**'

@@ -39,6 +39,12 @@ _SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(_SCRIPT_DIR))
 sys.path.insert(0, str(_SCRIPT_DIR / "scripts"))
 
+from drift_allowlist import (  # noqa: E402
+    AllowedDivergence,
+    AllowlistError,
+    load_allowlist,
+    split_differences,
+)
 from generate_agents_common import (  # noqa: E402
     convert_frontmatter_for_platform,
     convert_handoff_syntax,
@@ -339,6 +345,14 @@ def generate_agents(
         repo_root / ".agents" / "governance" / "model-pin-evidence.json"
     )
 
+    allowlist: list[AllowedDivergence] = []
+    if validate:
+        try:
+            allowlist = load_allowlist(repo_root)
+        except AllowlistError as exc:
+            print(f"Error: drift allowlist invalid: {exc}", file=sys.stderr)
+            return 2
+
     generated = 0
     errors = 0
     differences: list[str] = []
@@ -537,7 +551,7 @@ def generate_agents(
     print(f"Duration: {duration:.2f}s")
 
     if validate:
-        return _report_validation(differences)
+        return _report_validation(differences, allowlist, repo_root)
 
     if what_if:
         print("Dry run complete. No files were written.")
@@ -656,20 +670,38 @@ def _handle_validate(
         differences.append(str(output_file))
 
 
-def _report_validation(differences: list[str]) -> int:
-    """Report validation results and return exit code."""
-    if differences:
+def _report_validation(
+    differences: list[str],
+    allowlist: list[AllowedDivergence],
+    repo_root: Path,
+) -> int:
+    """Report validation results and return exit code.
+
+    A difference listed in the drift allowlist is reported with its reason and
+    does not fail validation. Every other difference fails it.
+    """
+    blocking, allowed, unused = split_differences(differences, allowlist, repo_root)
+    for diff, reason in allowed:
+        print(f"  ALLOWED DIVERGENCE: {diff} ({reason})")
+    for entry_path in unused:
+        print(f"  [WARNING] Allowlist entry matched no drift, remove it: {entry_path}")
+    if blocking:
         print()
-        print(f"VALIDATION FAILED: {len(differences)} file(s) differ from generated output")
+        print(f"VALIDATION FAILED: {len(blocking)} file(s) differ from generated output")
         print()
         print("Files with differences:")
-        for diff in differences:
+        for diff in blocking:
             print(f"  - {diff}")
         print()
         print("To fix: Run 'uv run python build/generate_agents.py' and commit the changes")
+        print("Intentional divergence: add the file and a reason to")
+        print("  .agents/governance/drift-allowlist.json")
         return 1
 
-    print("VALIDATION PASSED: All generated files match committed files")
+    print(
+        f"VALIDATION PASSED: All generated files match committed files "
+        f"({len(allowed)} allowed divergence(s))"
+    )
     return 0
 
 
