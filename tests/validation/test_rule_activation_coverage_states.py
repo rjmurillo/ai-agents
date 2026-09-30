@@ -23,24 +23,31 @@ def _write(path: Path, text: str) -> None:
     path.write_text(text, encoding="utf-8")
 
 
-def _rule(root: Path, rule_id: str, *, scenario: bool) -> None:
+def _cases(*, negative: bool) -> list[dict[str, str]]:
+    cases = [{"id": "case-1", "input": PROMPT}]
+    if negative:
+        cases.append({"id": "case-2", "input": PROMPT, "expected_gate": gate.NEGATIVE_GATE})
+    return cases
+
+
+def _rule(root: Path, rule_id: str, *, scenario: bool, negative: bool = True) -> None:
     _write(root / ".claude" / "rules" / f"{rule_id}.md", f"# {rule_id}\n")
     if scenario:
         payload = {
             "rule_path": f".claude/rules/{rule_id}.md",
             "rule_id": rule_id,
-            "scenarios": [{"id": "case-1", "input": PROMPT}],
+            "scenarios": _cases(negative=negative),
         }
         _write(root / gate.RULE_SCENARIOS_SUBDIR / f"{rule_id}.json", json.dumps(payload))
 
 
-def _skill(root: Path, skill_id: str, *, scenario: bool) -> None:
+def _skill(root: Path, skill_id: str, *, scenario: bool, negative: bool = True) -> None:
     _write(root / ".claude" / "skills" / skill_id / "SKILL.md", f"# {skill_id}\n")
     if scenario:
         payload = {
             "skill_path": f".claude/skills/{skill_id}/SKILL.md",
             "skill_id": skill_id,
-            "scenarios": [{"id": "case-1", "input": PROMPT}],
+            "scenarios": _cases(negative=negative),
         }
         _write(root / gate.SKILL_SCENARIOS_SUBDIR / f"{skill_id}.json", json.dumps(payload))
 
@@ -129,3 +136,34 @@ def test_ok_message_disclaims_efficacy(repo: Path, capsys: pytest.CaptureFixture
     code = gate.main(["--repo-root", str(repo), "--baseline", str(baseline)])
     assert code == gate.EXIT_OK
     assert "not efficacy evidence" in capsys.readouterr().out
+
+
+def test_positive_only_scenario_is_not_runnable(tmp_path: Path) -> None:
+    """The gate counts it covered; the evaluator refuses it before scoring (Devin, PR #6072)."""
+    _rule(tmp_path, "full-rule", scenario=True)
+    _rule(tmp_path, "positive-only-rule", scenario=True, negative=False)
+    _skill(tmp_path, "full-skill", scenario=True)
+    _skill(tmp_path, "positive-only-skill", scenario=True, negative=False)
+    baseline = _baseline(tmp_path, [], [])
+    states = report_mod.coverage_states(tmp_path, baseline)
+    assert states["rules"]["scenario_defined_not_runnable"] == ["positive-only-rule"]
+    assert states["rules"]["scenario_defined_not_scored"] == ["full-rule"]
+    assert states["skills"]["scenario_defined_not_runnable"] == ["positive-only-skill"]
+    assert states["skills"]["scenario_defined_not_scored"] == ["full-skill"]
+    assert states["skills"]["not_baselined"] == []
+
+
+def test_reference_scenarios_are_ignored_by_the_negative_case_scan(tmp_path: Path) -> None:
+    """An ADR-088 reference scenario names a skill_path but no rule_path."""
+    _rule(tmp_path, "full-rule", scenario=True)
+    _skill(tmp_path, "full-skill", scenario=True)
+    reference = tmp_path / gate.RULE_SCENARIOS_SUBDIR / "ref.json"
+    _write(reference, json.dumps({"skill_path": ".claude/skills/full-skill/SKILL.md"}))
+    assert report_mod._without_negative_case(tmp_path, "rule") == set()
+
+
+def test_non_list_scenarios_field_counts_as_no_negative_case(tmp_path: Path) -> None:
+    _rule(tmp_path, "odd-rule", scenario=False)
+    payload = {"rule_path": ".claude/rules/odd-rule.md", "scenarios": "nope"}
+    _write(tmp_path / gate.RULE_SCENARIOS_SUBDIR / "odd-rule.json", json.dumps(payload))
+    assert report_mod._without_negative_case(tmp_path, "rule") == {"odd-rule"}

@@ -822,7 +822,8 @@ Adding a new activation eval:
 `scripts/validation/report_rule_activation_states.py --output PATH` writes JSON that keeps three states apart, so baseline membership is never read as efficacy:
 
 - `baseline_exempt`: no scenario exists and only the baseline allows it. Not evidence.
-- `scenario_defined_not_scored`: a well-formed scenario exists. The artifact can be measured; nothing says it was.
+- `scenario_defined_not_scored`: a scenario with a positive and a negative case exists. The evaluator accepts it; nothing says it was run.
+- `scenario_defined_not_runnable`: the scenario has no negative case. The coverage gate counts it as covered, but `eval-rule-activation.py` refuses it before scoring.
 - `scored`: always `null` in this report. Scored efficacy comes from a live run of `eval-rule-activation.py`, and `eval-suite.py` labels those results `scored` in its routing plan.
 
 An uncovered artifact outside the baseline appears under `not_baselined` and fails the ratchet. The report never fails on a ratchet regression; `check_rule_activation_coverage.py` owns that decision. Issue #4871 reads this file, plus the `evidence` field of each `eval-suite.py --dry-run` routing-plan entry, to record whether each retained always-on unit has behavioral evidence.
