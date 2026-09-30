@@ -205,3 +205,18 @@ def test_every_bypass_in_this_repository_is_authorized_and_unexpired() -> None:
     outcome = gate.validate_bypass_allowlist(REPO_ROOT)
 
     assert outcome.state is EvidenceState.PASS, outcome.report_line()
+
+
+def test_a_text_mode_subprocess_double_is_accepted(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The pre-PR runner's tests replace subprocess.run with a str-returning double."""
+
+    def double(*_a: object, **_k: object) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(
+            args=[], returncode=0, stdout="a.txt\0b.txt\0", stderr=""
+        )
+
+    monkeypatch.setattr(gate.subprocess, "run", double)
+
+    assert gate.tracked_files(tmp_path) == ["a.txt", "b.txt"]

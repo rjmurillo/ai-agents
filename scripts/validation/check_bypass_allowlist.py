@@ -153,7 +153,12 @@ def tracked_files(repo_root: Path) -> list[str]:
         raise TreeReadError(
             REASON_LISTING_FAILED, f"git ls-tree failed: {detail or f'exit {result.returncode}'}"
         )
-    return [os.fsdecode(name) for name in result.stdout.split(b"\0") if name]
+    stdout = result.stdout
+    # Real git output is bytes. A caller that replaces ``subprocess.run`` with a
+    # text-mode double (the pre-PR runner's tests do) hands back ``str``.
+    if isinstance(stdout, str):
+        return [name for name in stdout.split("\0") if name]
+    return [os.fsdecode(name) for name in stdout.split(b"\0") if name]
 
 
 def _read_text(repo_root: Path, relpath: str) -> str | None:
