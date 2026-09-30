@@ -36,7 +36,7 @@ def _run(monkeypatch: pytest.MonkeyPatch, payload: object) -> int:
 
 
 def _corrections(tmp_path: Path) -> Path:
-    return write_transcript(tmp_path / "t.jsonl", [human("no"), human("wrong")])
+    return write_transcript(tmp_path / "t.jsonl", [human("no, use x"), human("wrong")])
 
 
 def test_main_blocks_then_dedupes(

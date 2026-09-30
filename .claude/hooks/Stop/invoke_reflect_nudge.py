@@ -45,8 +45,10 @@ SESSION_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
 
 _CORRECTION = re.compile(
     r"^(?:"
-    r"(?:no|nope|wrong|incorrect)(?:[\s,.!:;-]|$)"
-    r"(?!\s*(?:problem|worries|need|thanks|rush|hurry|go ahead|proceed|that'?s fine|looks good))"
+    r"(?:wrong|incorrect)(?:[\s,.!:;-]|$)"
+    r"|(?:no|nope)[\s,.!:;-]+(?:wrong|incorrect|use|don'?t|do not|stop|instead|not|never|wait"
+    r"|actually|you (?:should|must|need|forgot|missed|did)"
+    r"|(?:that|it)'?s (?:wrong|not|incorrect))\b"
     r"|(?:that'?s|that is|this is|it'?s) (?:wrong|incorrect|not (?:right|correct|what))"
     r"|not (?:like that|quite)"
     r"|i meant\b"
@@ -128,7 +130,10 @@ def qualifies(counts: dict[str, int]) -> bool:
 
 
 def signal_hash(counts: dict[str, int]) -> str:
-    return hashlib.sha256(f"{counts['high']}:{counts['med']}".encode()).hexdigest()[:16]
+    # Praise below the threshold must not re-arm the nudge, so MED counts in
+    # pairs: one more praise turn leaves the digest unchanged.
+    key = f"{counts['high']}:{counts['med'] // 2}"
+    return hashlib.sha256(key.encode()).hexdigest()[:16]
 
 
 def _marker_path(session_id: str) -> Path | None:

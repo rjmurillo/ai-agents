@@ -20,8 +20,10 @@ _spec.loader.exec_module(nudge)
 @pytest.mark.parametrize(
     "text",
     [
-        "No",
         "no, use the other one",
+        "nope, don't do that",
+        "No. wrong.",
+        "No, you should use the script",
         "Wrong.",
         "that's wrong",
         "That is incorrect",
@@ -82,7 +84,7 @@ def test_only_turn_head_is_scanned(tmp_path: Path) -> None:
 
 
 def test_scan_counts_scope(tmp_path: Path) -> None:
-    records = [human("no"), human("perfect"), human("hello"), tool_result("no")]
+    records = [human("no, use x"), human("perfect"), human("hello"), tool_result("no")]
     counts = nudge.scan_transcript(write_transcript(tmp_path / "t.jsonl", records, ["", "{x"]))
     assert counts == {"user_records": 4, "human_turns": 3, "high": 1, "med": 1, "skipped": 1}
 
@@ -145,7 +147,7 @@ def test_benign_no_answers_are_not_corrections(text: str) -> None:
 def test_malformed_message_shapes_do_not_abort_the_scan(tmp_path: Path) -> None:
     bad_message = human("x") | {"message": "no"}
     bad_block = human("x") | {"message": {"content": [{"type": "text", "text": 5}]}}
-    path = write_transcript(tmp_path / "t.jsonl", [bad_message, bad_block, human("no")])
+    path = write_transcript(tmp_path / "t.jsonl", [bad_message, bad_block, human("no, use x")])
     counts = nudge.scan_transcript(path)
     assert (counts["human_turns"], counts["high"]) == (1, 1)
 
@@ -167,3 +169,10 @@ def test_symlinked_marker_file_reads_as_nudged(
     target.write_text('{"signal": "other"}')
     (directory / "s.json").symlink_to(target)
     assert nudge.already_nudged("s", "h") is True
+
+
+def test_praise_below_threshold_does_not_rearm_the_nudge() -> None:
+    base = nudge.signal_hash({"high": 1, "med": 0})
+    assert nudge.signal_hash({"high": 1, "med": 1}) == base
+    assert nudge.signal_hash({"high": 1, "med": 2}) != base
+    assert nudge.signal_hash({"high": 2, "med": 0}) != base
