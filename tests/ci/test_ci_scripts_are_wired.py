@@ -63,6 +63,13 @@ _NOT_WORKFLOW_INVOKED: dict[str, str] = {
         "main() and no shebang; tests/ci/test_count_ratchet.py covers it "
         "directly (issue #3779)."
     ),
+    "base_derived_ratchet.py": (
+        "Library holding the merge-base ceiling policy shared by "
+        "taste_count_ratchet.py, ruff_count_ratchet.py, "
+        "type_ignore_count_ratchet.py and memory_index_count_ratchet.py, all of "
+        "which are workflow-invoked. It has no main() and no shebang; "
+        "tests/ci/test_base_derived_ratchet.py covers it directly (issue #5363)."
+    ),
     "lefthook_budget_model.py": (
         "Library holding the lefthook scheduling model shared by "
         "scripts/metrics/control_plane_baseline.py and the declared-budget "

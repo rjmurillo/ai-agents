@@ -39,18 +39,68 @@ CI_DIR = REPO_ROOT / "scripts" / "ci"
 # Every module under scripts/ci that owns a *_baseline.txt and drives
 # count_ratchet.run. Kept as an explicit tuple so a module dropped from the
 # import list fails the inventory test below rather than vanishing silently.
+# Issue #5363 moved taste, ruff, type-ignore and memory-index to a ceiling
+# derived from the merge base, so they own no baseline file and are pinned by
+# BASE_DERIVED_MODULES instead.
 RATCHET_MODULES = (
     cli_exit_contract_ratchet,
+    subprocess_encoding_count_ratchet,
+)
+
+BASE_DERIVED_MODULES = (
     memory_index_count_ratchet,
     ruff_count_ratchet,
-    subprocess_encoding_count_ratchet,
     taste_count_ratchet,
     type_ignore_count_ratchet,
 )
 
 
 def _registered_baseline_names() -> set[str]:
-    return {Path(ratchet.baseline_path).name for ratchet in RATCHETS}
+    return {
+        Path(ratchet.baseline_path).name
+        for ratchet in RATCHETS
+        if ratchet.baseline_path is not None
+    }
+
+
+def _module_id(module) -> str:
+    return module.__name__.rsplit(".", 1)[-1]
+
+
+@pytest.mark.parametrize("module", BASE_DERIVED_MODULES, ids=_module_id)
+def test_a_base_derived_ratchet_is_registered_by_script_and_owns_no_baseline(module) -> None:
+    """A base-derived ratchet has a registry row with no scalar and a real script."""
+    rows = [r for r in RATCHETS if r.counter_module is module]
+
+    assert len(rows) == 1, f"{module.__name__} must appear in RATCHETS exactly once"
+    assert rows[0].baseline_path is None
+    assert rows[0].script_path == module._SCRIPT
+    assert (REPO_ROOT / module._SCRIPT).is_file()
+    assert not hasattr(module, "_BASELINE_PATH")
+    assert not hasattr(module, "MERGE_TREE_BACKED")
+
+
+@pytest.mark.parametrize("module", BASE_DERIVED_MODULES, ids=_module_id)
+def test_main_forwards_the_bootstrap_marker(module, monkeypatch) -> None:
+    """Each base-derived CLI must hand its own script to the shared runner."""
+    forwarded: dict[str, object] = {}
+
+    def capture_run(_args, **kwargs) -> int:
+        forwarded.update(kwargs)
+        return count_ratchet.EXIT_OK
+
+    monkeypatch.setattr(module, "run", capture_run)
+
+    assert module.main([]) == count_ratchet.EXIT_OK
+    assert forwarded["introduced_by"] == module._SCRIPT
+    assert forwarded["counter"] is module.current_count
+
+
+def test_no_committed_baseline_file_remains_for_a_base_derived_ratchet() -> None:
+    """Deleting the scalar is the point of issue #5363: none may come back."""
+    stems = ("taste", "ruff", "type_ignore", "memory_index")
+
+    assert [s for s in stems if (CI_DIR / f"{s}_count_baseline.txt").exists()] == []
 
 
 def test_every_ci_baseline_file_has_exactly_one_ratchet_module() -> None:
@@ -80,9 +130,7 @@ def test_every_registry_baseline_belongs_to_a_known_module() -> None:
     )
 
 
-@pytest.mark.parametrize(
-    "module", RATCHET_MODULES, ids=lambda module: module.__name__.rsplit(".", 1)[-1]
-)
+@pytest.mark.parametrize("module", RATCHET_MODULES, ids=_module_id)
 def test_merge_tree_backed_matches_registry_membership(module) -> None:
     """A ratchet may claim the waiver only if the merge-tree gate covers it."""
     registered = module._BASELINE_PATH.name in _registered_baseline_names()
@@ -98,9 +146,7 @@ def test_merge_tree_backed_matches_registry_membership(module) -> None:
     )
 
 
-@pytest.mark.parametrize(
-    "module", RATCHET_MODULES, ids=lambda module: module.__name__.rsplit(".", 1)[-1]
-)
+@pytest.mark.parametrize("module", RATCHET_MODULES, ids=_module_id)
 def test_main_forwards_merge_tree_backing_declaration(module, monkeypatch) -> None:
     """Each ratchet CLI must pass its declaration to the shared runner."""
     forwarded: dict[str, object] = {}
@@ -149,8 +195,7 @@ def _stale_branch_with_four_violations(tmp_path: Path) -> tuple[Path, Path]:
     # in here. Probed against find_all_violations before this test was written.
     call = 'subprocess.run(["cmd{index}"], encoding="utf-8", capture_output=True)\n'
     (repo / "added.py").write_text(
-        "import subprocess\n\n\n"
-        + "".join(call.format(index=index) for index in range(4)),
+        "import subprocess\n\n\n" + "".join(call.format(index=index) for index in range(4)),
         encoding="utf-8",
     )
     commit_all(repo, "stale: four utf-8 captures with no errors=")

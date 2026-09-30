@@ -14,9 +14,12 @@ from scripts.ci import merge_tree_materialization as _mat
 from scripts.ci import merge_tree_ratchet_check as _m
 from scripts.ci import type_ignore_count_ratchet as _type_ignore
 from tests.ci.test_merge_tree_ratchet_check import (
+    _branch_with_counts,
     _commit_all,
     _git,
     _make_repo_with_baselines,
+    _tree_counters,
+    _write_count,
 )
 
 
@@ -44,17 +47,14 @@ def test_moving_base_ref_does_not_change_pinned_merge_or_baseline(
     repo = _make_repo_with_baselines(tmp_path, ruff=5, taste=10, ignore=10)
     base_oid = _git(repo, "rev-parse", "HEAD").stdout.strip()
 
-    _git(repo, "checkout", "-b", "pr-branch")
-    (repo / "scripts/ci/ruff_count_baseline.txt").write_text(
-        "100\n", encoding="utf-8"
-    )
-    _commit_all(repo, "raise branch baseline")
+    # The branch adds 50 to the ruff count: 55 merged against a base tip of 5.
+    _branch_with_counts(repo, **{"ruff-branch": 50})
 
+    # Target moves to 100 after the merge is pinned. Following the moved ref
+    # would make 55 look fine, so a pass here proves the pin failed.
     _git(repo, "checkout", "main")
-    (repo / "scripts/ci/ruff_count_baseline.txt").write_text(
-        "100\n", encoding="utf-8"
-    )
-    _commit_all(repo, "move target baseline")
+    _write_count(repo, "ruff", 100)
+    _commit_all(repo, "move target count")
     moved_oid = _git(repo, "rev-parse", "HEAD").stdout.strip()
     _git(repo, "checkout", "pr-branch")
     _git(repo, "update-ref", "refs/remotes/origin/main", base_oid)
@@ -67,22 +67,21 @@ def test_moving_base_ref_does_not_change_pinned_merge_or_baseline(
         return result
 
     with (
+        _tree_counters(),
         patch.object(_m, "_refresh_base_ref", return_value=True),
         patch.object(_m, "_merge_tree_oid", side_effect=move_ref_after_merge) as merge,
         patch.object(
             _m, "_read_baseline_at_ref", wraps=_m._read_baseline_at_ref
         ) as baseline_reader,
-        patch("scripts.ci.ruff_count_ratchet.current_count", return_value=50),
-        patch("scripts.ci.taste_count_ratchet.current_count", return_value=0),
-        patch("scripts.ci.type_ignore_count_ratchet.current_count", return_value=0),
+        patch.object(_m, "measure_commit", wraps=_m.measure_commit) as measure,
     ):
-        rc = _m.main(
-            ["--repo-root", str(repo), "--base-ref", "refs/remotes/origin/main"]
-        )
+        rc = _m.main(["--repo-root", str(repo), "--base-ref", "refs/remotes/origin/main"])
 
     assert rc == _m.EXIT_REGRESSION
     assert merge.call_args.args[1] == base_oid
     assert {call.args[1] for call in baseline_reader.call_args_list} == {base_oid}
+    assert {call.args[1] for call in measure.call_args_list} == {base_oid}
+    assert measure.call_count == 4
     assert _git(repo, "rev-parse", "refs/remotes/origin/main").stdout.strip() == moved_oid
 
 
@@ -97,9 +96,7 @@ def test_scratch_repo_uses_resolved_git_and_preserves_platform_path(
     calls: list[list[str]] = []
     subprocess_paths: list[str] = []
 
-    def fake_run(
-        argv: list[str], **kwargs: object
-    ) -> subprocess.CompletedProcess[bytes]:
+    def fake_run(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[bytes]:
         env = kwargs.get("env")
         assert isinstance(env, dict)
         path = env.get("PATH")
@@ -184,9 +181,7 @@ def test_scratch_repo_ignores_hostile_home_git_config(
 
     scratch = tmp_path / "scratch"
     scratch.mkdir()
-    (scratch / ".gitattributes").write_text(
-        "*.txt filter=hostile\n", encoding="utf-8"
-    )
+    (scratch / ".gitattributes").write_text("*.txt filter=hostile\n", encoding="utf-8")
     (scratch / "payload.txt").write_text("safe\n", encoding="utf-8")
 
     assert _m._init_scratch_repo(scratch)
@@ -198,25 +193,26 @@ def test_linked_worktree_real_counter_sees_merged_addition_and_deletion(
 ) -> None:
     repo = _make_repo_with_baselines(tmp_path, ruff=10, taste=10, ignore=1)
     ignore_comment = "# type:" + " ignore"
-    (repo / "deleted.py").write_text(
-        f"x = value  {ignore_comment}\n", encoding="utf-8"
-    )
+    (repo / "deleted.py").write_text(f"x = value  {ignore_comment}\n", encoding="utf-8")
     _commit_all(repo, "add type ignore that branch deletes")
 
     linked = tmp_path / "linked"
     _git(repo, "worktree", "add", "-q", "-b", "pr-branch", str(linked), "main")
     _git(linked, "rm", "-q", "deleted.py")
     _commit_all(linked, "delete old type ignore")
-    (repo / "added.py").write_text(
-        f"y = value  {ignore_comment}\n", encoding="utf-8"
-    )
+    (repo / "added.py").write_text(f"y = value  {ignore_comment}\n", encoding="utf-8")
     _commit_all(repo, "add target-side type ignore")
 
     real_counter = _type_ignore.current_count
 
+    roots: list[Path] = []
+
     def observe_merged_tree(root: Path) -> int | None:
-        assert (root / "added.py").is_file()
-        assert not (root / "deleted.py").exists()
+        roots.append(root)
+        if len(roots) == 1:
+            # The merged tree is measured first; the base tip follows.
+            assert (root / "added.py").is_file()
+            assert not (root / "deleted.py").exists()
         return real_counter(root)
 
     with (
@@ -232,3 +228,4 @@ def test_linked_worktree_real_counter_sees_merged_addition_and_deletion(
         rc = _m.main(["--repo-root", str(linked), "--base-ref", "main"])
 
     assert rc == _m.EXIT_OK
+    assert len(roots) == 2

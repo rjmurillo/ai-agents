@@ -21,7 +21,9 @@ Mechanism:
     git checkout-index every entry into <scratch>
     git init <scratch>, git -C <scratch> add -A, git -C <scratch> commit
     run each registered current_count() against <scratch>
-    compare against min(baseline at <base>, baseline in the merged tree)
+    compare against min(baseline at <base>, baseline in the merged tree), or,
+    for a base-derived ratchet (issue #5363), against the count measured on
+    the tree of <base>
 
 The ceiling is the LOWER of the base's baseline and the one the merged tree
 would install (issue #4538). Reading only the base's value left the gate blind
@@ -59,13 +61,14 @@ if TYPE_CHECKING:
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from scripts.ci.base_derived_ratchet import introduced_at, measure_commit
 from scripts.ci.merge_tree_materialization import (
     init_scratch_repo as _init_scratch_repo,
 )
 from scripts.ci.merge_tree_materialization import materialize_tree as _materialize_tree
 from scripts.ci.merge_tree_materialization import remove_tree as _remove_tree
 from scripts.ci.merge_tree_materialization import run_git as _git
-from scripts.ci.merge_tree_ratchet_registry import RATCHETS
+from scripts.ci.merge_tree_ratchet_registry import RATCHETS, MergeTreeRatchet
 
 EXIT_OK = 0
 EXIT_REGRESSION = 1
@@ -309,19 +312,54 @@ def _prepare_merged_tree(
     return base_oid, tree_oid, EXIT_OK
 
 
+def _check_base_derived(
+    ratchet: MergeTreeRatchet, repo_root: Path, base_oid: str, scratch_root: Path
+) -> tuple[int, str]:
+    """Merged count against the count measured on the base tip (issue #5363).
+
+    No scalar is read from either side. The base tip is measured like any other
+    tree, so a branch cannot install a ceiling and a ``main`` that lowered the
+    count since the fork point tightens this gate without an edit anywhere.
+    A base tip that lacks the ratchet's script is the bootstrap state: this
+    branch introduces the ratchet, so there is nothing earlier to hold it to.
+    """
+    label = ratchet.label
+    merged = ratchet.current_count(scratch_root)
+    if merged is None:
+        return EXIT_EXTERNAL, f"{label}: EXTERNAL ERROR - counter returned None"
+    if introduced_at(repo_root, base_oid, ratchet.script_path):
+        return EXIT_OK, (
+            f"{label}: bootstrap. The base ref does not carry "
+            f"{ratchet.script_path} yet, so there is no earlier tree to measure."
+        )
+    ceiling = measure_commit(repo_root, base_oid, ratchet.counter_module.current_count)
+    if ceiling is None:
+        return EXIT_EXTERNAL, f"{label}: EXTERNAL ERROR - could not measure the base ref"
+    if merged > ceiling:
+        return (
+            EXIT_REGRESSION,
+            f"{label}: REGRESSION. {merged} > {ceiling} at the base ref "
+            f"(+{merged - ceiling}).",
+        )
+    return EXIT_OK, f"{label}: OK. {merged} <= {ceiling} at the base ref."
+
+
+def _check_registered(
+    ratchet: MergeTreeRatchet, repo_root: Path, base_oid: str, scratch_root: Path
+) -> tuple[int, str]:
+    if ratchet.baseline_path is None:
+        return _check_base_derived(ratchet, repo_root, base_oid, scratch_root)
+    base = _read_baseline_at_ref(repo_root, base_oid, ratchet.baseline_path)
+    merged = _read_baseline_in_tree(scratch_root, ratchet.baseline_path)
+    return _check_one(ratchet.label, ratchet.current_count(scratch_root), base, merged)
+
+
 def _evaluate_registered_ratchets(
     repo_root: Path, base_oid: str, scratch_root: Path
 ) -> int:
     exit_code = EXIT_OK
     for ratchet in RATCHETS:
-        base = _read_baseline_at_ref(repo_root, base_oid, ratchet.baseline_path)
-        merged = _read_baseline_in_tree(scratch_root, ratchet.baseline_path)
-        code, msg = _check_one(
-            ratchet.label,
-            ratchet.current_count(scratch_root),
-            base,
-            merged,
-        )
+        code, msg = _check_registered(ratchet, repo_root, base_oid, scratch_root)
         exit_code = max(exit_code, code)
         if code != EXIT_OK:
             print(f"merge-tree-ratchet: {msg}", file=sys.stderr)
@@ -367,8 +405,9 @@ def _evaluate_merged_tree(repo_root: Path, base_ref: str) -> int:
             "or your changes\n"
             f"genuinely exceed the baseline. Merge or rebase from {base_ref} and re-check.\n"
             "If the ceiling is still breached after rebasing, fix the violations\n"
-            "rather than raising the baseline: the ceiling here is the LOWER of the\n"
-            "base's baseline and the one this branch would install.\n"
+            "rather than raising the baseline. A base-derived ratchet measures the\n"
+            "base ref itself; a scalar ratchet uses the LOWER of the base's\n"
+            "baseline and the one this branch would install.\n"
             "(See issues #4398 and #4538 for context.)",
             file=sys.stderr,
         )

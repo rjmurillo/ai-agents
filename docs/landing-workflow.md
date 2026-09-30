@@ -39,9 +39,10 @@ PRs and 818 runs were cancelled. The protocol now updates only the front PR.
 
 Each merge to main changes the tree. Open PRs become stale because:
 
-- **Count ratchets** compare the branch baseline against main. If main lowered
-  a baseline, every branch recording the old value fails until it picks up the
-  new one.
+- **Count ratchets** for taste, ruff, type-ignore and memory-index measure the
+  merge base and the merged tree. No baseline file exists, so main lowering a
+  count breaks no branch until the merged result exceeds it. The CLI exit
+  contract and subprocess-encoding ratchets still record a scalar baseline.
 - **Corpus claims** (always-on rule figures) go stale when main changes rule
   sizes.
 - **Required checks** ran against an older main. Even with `strict: false`, the
