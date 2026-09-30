@@ -135,3 +135,14 @@ def test_wrapper_fails_open_on_unexpected_error(
         runpy.run_path(str(HOOK), run_name="__main__")
     assert exited.value.code == 0
     assert "[WARNING] reflect-trigger error: boom" in capsys.readouterr().err
+
+
+def test_main_reports_schema_drift_when_no_record_names_a_human(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    record = {"type": "user", "message": {"content": "no"}}
+    path = write_transcript(tmp_path / "t.jsonl", [record])
+    assert _run(monkeypatch, {"session_id": "s1", "transcript_path": str(path)}) == 0
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "schema drift" in captured.err

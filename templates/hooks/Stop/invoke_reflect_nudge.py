@@ -46,6 +46,7 @@ SESSION_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
 _CORRECTION = re.compile(
     r"^(?:"
     r"(?:no|nope|wrong|incorrect)(?:[\s,.!:;-]|$)"
+    r"(?!\s*(?:problem|worries|need|thanks|rush|hurry|go ahead|proceed|that'?s fine|looks good))"
     r"|(?:that'?s|that is|this is|it'?s) (?:wrong|incorrect|not (?:right|correct|what))"
     r"|not (?:like that|quite)"
     r"|i meant\b"
@@ -53,6 +54,7 @@ _CORRECTION = re.compile(
     r"|stop (?:doing|using|adding|running)\b"
     r")"
 )
+_WRAPPER = re.compile(r"^<[a-z]+(?:-[a-z]+)+[ >]")
 _PRAISE = re.compile(
     r"^(?:perfect|exactly|that'?s it|that'?s exactly|great|excellent)(?:[\s,.!:;-]|$)"
 )
@@ -73,15 +75,18 @@ def _turn_text(record: dict[str, Any]) -> str | None:
     origin = record.get("origin")
     if not isinstance(origin, dict) or origin.get("kind") != "human":
         return None
-    content = (record.get("message") or {}).get("content")
+    message = record.get("message")
+    content = message.get("content") if isinstance(message, dict) else None
     if isinstance(content, list):
         content = " ".join(
-            b.get("text", "") for b in content if isinstance(b, dict) and b.get("type") == "text"
+            b["text"]
+            for b in content
+            if isinstance(b, dict) and b.get("type") == "text" and isinstance(b.get("text"), str)
         )
     if not isinstance(content, str):
         return None
     text = content.strip()
-    return None if text.startswith("<") else text
+    return None if not text or _WRAPPER.match(text) else text
 
 
 def scan_transcript(path: Path) -> dict[str, int]:
@@ -134,16 +139,23 @@ def _marker_path(session_id: str) -> Path | None:
     return directory / f"{session_id}.json"
 
 
+def _read_marker(marker: Path) -> dict[str, Any]:
+    """Read a marker without following a symlink planted at the file itself."""
+    fd = os.open(marker, os.O_RDONLY | os.O_NOFOLLOW)
+    with os.fdopen(fd, "r", encoding="utf-8") as handle:
+        return dict(json.load(handle))
+
+
 def already_nudged(session_id: str, digest: str) -> bool:
     """True when the marker records this signal set. A torn marker reads as nudged."""
     marker = _marker_path(session_id)
     if marker is None:
         return True
     try:
-        return bool(json.loads(marker.read_text(encoding="utf-8")).get("signal") == digest)
+        return bool(_read_marker(marker).get("signal") == digest)
     except FileNotFoundError:
         return False
-    except (OSError, ValueError, AttributeError):
+    except (OSError, ValueError, TypeError):
         return True
 
 
@@ -237,6 +249,8 @@ def main() -> int:
     ):
         print(_decision(counts))
         state = "nudged"
+    if counts["user_records"] and not counts["human_turns"]:
+        _log("user records present but none carry origin.kind human (schema drift?)")
     _log(
         f"{counts['user_records']} user records, {counts['human_turns']} human turns, "
         f"{counts['high']} HIGH, {counts['med']} MED, {counts['skipped']} skipped ({state})"

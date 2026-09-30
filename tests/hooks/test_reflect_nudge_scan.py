@@ -125,3 +125,45 @@ def test_already_nudged_states(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
     nudge.write_marker("s", "h")
     assert nudge.already_nudged("s", "h") is True
     assert nudge.already_nudged("s", "other") is False
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "no problem",
+        "No worries",
+        "no need to rerun",
+        "No, go ahead with B",
+        "no, proceed",
+        "no thanks",
+    ],
+)
+def test_benign_no_answers_are_not_corrections(text: str) -> None:
+    assert not nudge._CORRECTION.match(text.lower())
+
+
+def test_malformed_message_shapes_do_not_abort_the_scan(tmp_path: Path) -> None:
+    bad_message = human("x") | {"message": "no"}
+    bad_block = human("x") | {"message": {"content": [{"type": "text", "text": 5}]}}
+    path = write_transcript(tmp_path / "t.jsonl", [bad_message, bad_block, human("no")])
+    counts = nudge.scan_transcript(path)
+    assert (counts["human_turns"], counts["high"]) == (1, 1)
+
+
+def test_wrapper_filter_is_limited_to_hyphenated_harness_tags() -> None:
+    assert nudge._turn_text(human("<command-message>x</command-message>")) is None
+    assert nudge._turn_text(human("<local-command-caveat>x")) is None
+    assert nudge._turn_text(human("<div> is wrong")) == "<div> is wrong"
+    assert nudge._turn_text(human("   ")) is None
+
+
+def test_symlinked_marker_file_reads_as_nudged(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path))
+    directory = nudge._state_dir()
+    directory.mkdir(parents=True)
+    target = tmp_path / "target.json"
+    target.write_text('{"signal": "other"}')
+    (directory / "s.json").symlink_to(target)
+    assert nudge.already_nudged("s", "h") is True
