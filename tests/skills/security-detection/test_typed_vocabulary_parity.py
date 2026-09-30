@@ -31,29 +31,38 @@ def _load() -> object:
 
 
 VOCABULARY: dict[str, str] = _load().TYPED_RESULT_VOCABULARY  # type: ignore[attr-defined]
-STATES = {name: value for name, value in VOCABULARY.items() if not name.startswith("REASON_")}
-REASONS = {name: value for name, value in VOCABULARY.items() if name.startswith("REASON_")}
 
 
-def test_the_vocabulary_names_every_state_the_skill_can_emit() -> None:
-    assert set(STATES) == {"PASS", "FAIL", "SKIP", "BLOCKED", "UNKNOWN"}
+def parity_errors(vocabulary: dict[str, str]) -> list[str]:
+    """Return every mirrored value that ``evidence.py`` does not define."""
+    errors: list[str] = []
+    for name, value in sorted(vocabulary.items()):
+        if name.startswith("REASON_"):
+            if getattr(evidence, name, None) != value:
+                errors.append(f"{name}={value!r} is not the evidence constant of that name")
+        elif name != value or value not in {s.value for s in evidence.EvidenceState}:
+            errors.append(f"{name}={value!r} is not an EvidenceState")
+    return errors
 
 
-@pytest.mark.parametrize(("name", "value"), sorted(STATES.items()))
-def test_each_state_equals_an_evidence_state(name: str, value: str) -> None:
-    assert name == value
-    assert evidence.EvidenceState(value).value == value
+def test_the_mirror_names_every_state_the_skill_can_emit() -> None:
+    states = {name for name in VOCABULARY if not name.startswith("REASON_")}
+    assert states == {"PASS", "FAIL", "SKIP", "BLOCKED", "UNKNOWN"}
 
 
-@pytest.mark.parametrize(("name", "value"), sorted(REASONS.items()))
-def test_each_reason_equals_the_evidence_constant_of_the_same_name(
-    name: str, value: str
-) -> None:
-    assert getattr(evidence, name) == value
+def test_every_mirrored_value_is_defined_by_evidence() -> None:
+    assert parity_errors(VOCABULARY) == []
 
 
-def test_a_value_evidence_does_not_define_is_rejected() -> None:
-    """Negative control: the parity check must be able to fail."""
-    with pytest.raises(ValueError):
-        evidence.EvidenceState("MAYBE")
-    assert not hasattr(evidence, "REASON_NOT_A_REAL_CODE")
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        {"REASON_TIMEOUT": "time_out"},
+        {"REASON_NOT_A_REAL_CODE": "x.y"},
+        {"MAYBE": "MAYBE"},
+        {"PASS": "OK"},
+    ],
+)
+def test_the_parity_check_fails_on_a_drifted_mirror(mutation: dict[str, str]) -> None:
+    """Negative control: a check that cannot fail proves nothing."""
+    assert len(parity_errors({**VOCABULARY, **mutation})) == 1
