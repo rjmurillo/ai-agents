@@ -844,6 +844,13 @@ _ACT_PR_CONTEXT_EMPTY_ENV_PATTERN = re.compile(
     r"|argument --[A-Za-z0-9-]+: invalid int value: ''"
 )
 
+# The issues event has the same gap. act builds a synthetic payload with no
+# issue object, so a step env var mapped from github.event.issue.number is
+# empty and an argparse int flag fails with its own text. GitHub always
+# populates the issue on issues.opened, so the signature cannot arise in CI.
+# Event-scoped to issues; a non-empty bad value is a real defect and still blocks.
+_ACT_ISSUE_CONTEXT_EMPTY_ENV_PATTERN = re.compile(r"argument --issue: invalid int value: ''")
+
 # run_with_retry.py wraps a called script and translates its exit code into an
 # ADR-035 annotation. That annotation is derived, not a cause: when the wrapped
 # script failed for an attributed act limitation, the wrapper annotation
@@ -943,6 +950,13 @@ _ACT_LIMITATION_RULES: tuple[tuple[str | None, Callable[[str], bool], str], ...]
         "act leaves env vars mapped from github.event.pull_request (PR_NUMBER, "
         "PR_TITLE) empty on a local run, so validation scripts fail only in local "
         "act, not in CI.",
+    ),
+    (
+        "issues",
+        lambda text: bool(_ACT_ISSUE_CONTEXT_EMPTY_ENV_PATTERN.search(text)),
+        "act does not populate the issues event context on a local run, so an "
+        "env var mapped from github.event.issue.number is empty and the script "
+        "fails only in local act, not in CI.",
     ),
     (
         None,

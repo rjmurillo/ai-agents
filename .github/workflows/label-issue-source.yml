@@ -1,0 +1,39 @@
+name: Label Issue Source
+
+# Applies one source:human or source:agent label to every newly opened issue.
+# Logic lives in .github/scripts/label_issue_source.py (ADR-006). Epic #5698, AC-3.
+#
+# SECURITY NOTE: the issue body is untrusted. It is never placed in an
+# expression or an environment variable here. The script fetches it by number.
+
+on:
+  issues:
+    types: [opened]
+
+permissions: {}
+
+concurrency:
+  group: label-issue-source-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  label:
+    name: Apply Source Label
+    runs-on: ubuntu-26.04-arm  # ADR-025: ARM for cost efficiency
+    timeout-minutes: 2
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Label issue by provenance
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          OWNER: ${{ github.repository_owner }}
+          REPO_NAME: ${{ github.event.repository.name }}
+        run: python3 .github/scripts/label_issue_source.py --issue "$ISSUE_NUMBER" --owner "$OWNER" --repo "$REPO_NAME"
