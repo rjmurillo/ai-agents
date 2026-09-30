@@ -1,12 +1,14 @@
 """Tests for the linked-worktree git mount in run_workflow_local_test.py (#6070).
 
 act copies a linked worktree into its job container, where the ``.git`` file
-names a gitdir that does not exist. The runner mounts the common git dir
-read-only so ``git rev-parse`` works inside the container.
+names a gitdir that does not exist. The runner mounts a throwaway, writable
+copy of the common git dir at the same path, so ``git rev-parse`` and
+``git fetch`` work in the container without touching the host repository.
 """
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -21,10 +23,14 @@ import run_workflow_local_test as w
 WF = ".github/workflows/x.yml"
 
 
-def _linked_worktree(tmp_path: Path, *, commondir: str | None) -> tuple[Path, Path, Path]:
+def _linked_worktree(tmp_path: Path, *, commondir: str | None = "../..") -> tuple[Path, Path, Path]:
     common = tmp_path / "main" / ".git"
     gitdir = common / "worktrees" / "feat"
     gitdir.mkdir(parents=True)
+    (common / "HEAD").write_text("ref: refs/heads/main\n", encoding="utf-8")
+    (common / "objects" / "ab").mkdir(parents=True)
+    (common / "objects" / "ab" / "cdef").write_text("obj", encoding="utf-8")
+    (gitdir / "HEAD").write_text("ref: refs/heads/feat\n", encoding="utf-8")
     if commondir is not None:
         (gitdir / "commondir").write_text(commondir + "\n", encoding="utf-8")
     worktree = tmp_path / "wt"
@@ -33,8 +39,13 @@ def _linked_worktree(tmp_path: Path, *, commondir: str | None) -> tuple[Path, Pa
     return worktree, gitdir, common
 
 
+def _mounted_copy(args: list[str]) -> Path:
+    spec = args[1].removeprefix("-v ").strip("'")
+    return Path(spec.rsplit(":", 1)[0])
+
+
 def test_common_dir_follows_relative_commondir_file(tmp_path):
-    _, gitdir, common = _linked_worktree(tmp_path, commondir="../..")
+    _, gitdir, common = _linked_worktree(tmp_path)
     assert w._worktree_common_dir(gitdir) == common.resolve()
 
 
@@ -48,37 +59,79 @@ def test_common_dir_with_blank_commondir_file_is_the_gitdir(tmp_path):
     assert w._worktree_common_dir(gitdir) == gitdir
 
 
-def test_mount_args_empty_for_normal_checkout(tmp_path):
+def test_mount_yields_nothing_for_normal_checkout(tmp_path):
     (tmp_path / ".git").mkdir()
-    assert w._worktree_mount_args(tmp_path) == []
+    with w._worktree_git_mount(tmp_path) as args:
+        assert args == []
 
 
-def test_mount_args_empty_when_git_is_missing(tmp_path):
-    assert w._worktree_mount_args(tmp_path) == []
+def test_mount_yields_nothing_when_git_is_missing(tmp_path):
+    with w._worktree_git_mount(tmp_path) as args:
+        assert args == []
 
 
-def test_mount_args_mount_common_dir_read_only(tmp_path):
-    worktree, _, common = _linked_worktree(tmp_path, commondir="../..")
-    resolved = common.resolve()
-    assert w._worktree_mount_args(worktree) == [
-        "--container-options",
-        f"-v {resolved}:{resolved}:ro",
-    ]
+def test_mount_yields_nothing_for_unrecognised_layout(tmp_path):
+    worktree, _, _ = _linked_worktree(tmp_path, commondir=None)
+    with w._worktree_git_mount(worktree) as args:
+        assert args == []
 
 
-def test_mount_args_quote_paths_with_spaces(tmp_path):
+def test_mount_binds_a_copy_at_the_common_dir_path(tmp_path):
+    worktree, _, common = _linked_worktree(tmp_path)
+    with w._worktree_git_mount(worktree) as args:
+        copy = _mounted_copy(args)
+        assert args[0] == "--container-options"
+        assert args[1].endswith(f":{common.resolve()}")
+        assert copy != common.resolve()
+        assert (copy / "HEAD").read_text(encoding="utf-8") == "ref: refs/heads/main\n"
+        assert (copy / "worktrees" / "feat" / "commondir").is_file()
+        assert (copy / "objects" / "ab" / "cdef").read_text(encoding="utf-8") == "obj"
+
+
+def test_mounted_copy_is_writable_and_isolated_from_the_host(tmp_path):
+    worktree, _, common = _linked_worktree(tmp_path)
+    with w._worktree_git_mount(worktree) as args:
+        copy = _mounted_copy(args)
+        assert os.access(copy, os.W_OK)
+        assert os.stat(copy / "HEAD").st_mode & 0o666 == 0o666
+        (copy / "HEAD").write_text("changed\n", encoding="utf-8")
+        (copy / "objects" / "ab" / "new").write_text("n", encoding="utf-8")
+    assert (common / "HEAD").read_text(encoding="utf-8") == "ref: refs/heads/main\n"
+    assert not (common / "objects" / "ab" / "new").exists()
+
+
+def test_mounted_copy_is_removed_after_the_stage(tmp_path):
+    worktree, _, _ = _linked_worktree(tmp_path)
+    with w._worktree_git_mount(worktree) as args:
+        copy = _mounted_copy(args)
+        assert copy.is_dir()
+    assert not copy.exists()
+
+
+def test_mount_path_with_spaces_is_quoted(tmp_path):
     spaced = tmp_path / "my repo"
     spaced.mkdir()
-    worktree, _, common = _linked_worktree(spaced, commondir="../..")
-    resolved = common.resolve()
-    assert w._worktree_mount_args(worktree) == [
-        "--container-options",
-        f"-v '{resolved}:{resolved}:ro'",
-    ]
+    worktree, _, common = _linked_worktree(spaced)
+    with w._worktree_git_mount(worktree) as args:
+        assert args[1].startswith("-v '")
+        assert args[1].endswith(f":{common.resolve()}'")
 
 
-def test_act_stage_passes_mount_before_workflow_flag(monkeypatch, tmp_path):
-    worktree, _, common = _linked_worktree(tmp_path, commondir="../..")
+def test_link_or_copy_falls_back_to_copy_when_link_fails(monkeypatch, tmp_path):
+    src = tmp_path / "src"
+    src.write_text("x", encoding="utf-8")
+    dst = tmp_path / "dst"
+
+    def refuse(_src, _dst):
+        raise OSError("cross-device")
+
+    monkeypatch.setattr(w.os, "link", refuse)
+    w._link_or_copy(str(src), str(dst))
+    assert dst.read_text(encoding="utf-8") == "x"
+
+
+def test_full_stage_passes_the_mount_before_the_workflow_flag(monkeypatch, tmp_path):
+    worktree, _, common = _linked_worktree(tmp_path)
     calls: list[list[str]] = []
 
     def fake_run(cmd, *, timeout, cwd=None, env=None):
@@ -88,14 +141,34 @@ def test_act_stage_passes_mount_before_workflow_flag(monkeypatch, tmp_path):
     monkeypatch.setattr(w, "_run", fake_run)
     res = w._act_full_stage([WF], worktree)
 
-    resolved = common.resolve()
     assert res.ok is True
-    assert calls == [
-        ["gh", "act", "--container-options", f"-v {resolved}:{resolved}:ro", "-W", WF]
-    ]
+    assert len(calls) == 1
+    cmd = calls[0]
+    assert cmd[:2] == ["gh", "act"]
+    assert cmd[2] == "--container-options"
+    assert cmd[3].endswith(f":{common.resolve()}")
+    assert cmd[4:] == ["-W", WF]
 
 
-def test_act_stage_adds_no_mount_for_normal_checkout(monkeypatch, tmp_path):
+def test_dry_run_stage_never_copies_git_metadata(monkeypatch, tmp_path):
+    worktree, _, _ = _linked_worktree(tmp_path)
+    calls: list[list[str]] = []
+
+    def fake_run(cmd, *, timeout, cwd=None, env=None):
+        calls.append(list(cmd))
+        return 0, "", ""
+
+    def boom(_repo_root):
+        raise AssertionError("dry run must not copy git metadata")
+
+    monkeypatch.setattr(w, "_run", fake_run)
+    monkeypatch.setattr(w, "_worktree_git_mount", boom)
+    w._act_dryrun_stage([WF], worktree)
+
+    assert calls == [["gh", "act", "-n", "-W", WF]]
+
+
+def test_full_stage_adds_no_mount_for_normal_checkout(monkeypatch, tmp_path):
     (tmp_path / ".git").mkdir()
     calls: list[list[str]] = []
 
@@ -104,12 +177,12 @@ def test_act_stage_adds_no_mount_for_normal_checkout(monkeypatch, tmp_path):
         return 0, "", ""
 
     monkeypatch.setattr(w, "_run", fake_run)
-    w._act_dryrun_stage([WF], tmp_path)
+    w._act_full_stage([WF], tmp_path)
 
-    assert calls == [["gh", "act", "-n", "-W", WF]]
+    assert calls == [["gh", "act", "-W", WF]]
 
 
-def test_mount_target_matches_a_real_linked_worktree(tmp_path):
+def test_mount_copy_matches_a_real_linked_worktree(tmp_path):
     main = tmp_path / "main"
     main.mkdir()
     git = ["git", "-c", "user.name=t", "-c", "user.email=t@example.com"]
@@ -120,7 +193,19 @@ def test_mount_target_matches_a_real_linked_worktree(tmp_path):
         [*git, "-C", str(main), "worktree", "add", "-q", "-b", "b", str(worktree)], check=True
     )
 
-    args = w._worktree_mount_args(worktree)
-
-    expected = (main / ".git").resolve()
-    assert args == ["--container-options", f"-v {expected}:{expected}:ro"]
+    with w._worktree_git_mount(worktree) as args:
+        copy = _mounted_copy(args)
+        assert args[1].endswith(f":{(main / '.git').resolve()}")
+        head = subprocess.run(
+            ["git", "--git-dir", str(copy / "worktrees" / "wt"), "rev-parse", "HEAD"],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+    expected = subprocess.run(
+        ["git", "-C", str(worktree), "rev-parse", "HEAD"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    assert head == expected

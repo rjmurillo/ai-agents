@@ -71,6 +71,7 @@ EXIT CODES (per ADR-035, exit-code contract in AGENTS.md)
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import os
 import re
@@ -80,7 +81,7 @@ import signal
 import subprocess
 import sys
 import tempfile
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -473,22 +474,69 @@ def _worktree_common_dir(gitdir: Path) -> Path:
     return (gitdir / pointer).resolve()
 
 
-def _worktree_mount_args(repo_root: Path) -> list[str]:
-    """Return act args that mount a linked worktree's git metadata read-only.
+def _link_or_copy(src: str, dst: str) -> None:
+    """Hard-link an immutable git object file, falling back to a copy."""
+    try:
+        os.link(src, dst)
+    except OSError:
+        shutil.copy2(src, dst)
+
+
+def _copy_git_metadata(common: Path, gitdir: Path, dest: Path) -> None:
+    """Copy the git metadata a linked worktree needs into ``dest``.
+
+    Object files are never rewritten by git, so they are hard-linked when the
+    filesystem allows. Everything else is copied, so a job that fetches or
+    updates the index changes only the copy. Only this worktree's admin dir is
+    copied from ``worktrees/``. The copy is made world-writable because the
+    act job user differs from the host user.
+    """
+    skip = {"objects", "worktrees"}
+    shutil.copytree(
+        common,
+        dest,
+        symlinks=True,
+        ignore=lambda _dir, names: [n for n in names if n in skip and _dir == str(common)],
+    )
+    shutil.copytree(
+        common / "objects", dest / "objects", symlinks=True, copy_function=_link_or_copy
+    )
+    shutil.copytree(gitdir, dest / "worktrees" / gitdir.name, symlinks=True)
+    for root, dirs, files in os.walk(dest):
+        for name in [*dirs, *files]:
+            entry = Path(root) / name
+            if not entry.is_symlink():
+                entry.chmod(entry.stat().st_mode | 0o666 | (0o111 if entry.is_dir() else 0))
+    dest.chmod(0o777)
+
+
+@contextlib.contextmanager
+def _worktree_git_mount(repo_root: Path) -> Iterator[list[str]]:
+    """Yield act args that give the job container a writable copy of a linked worktree's git dir.
 
     act copies the worktree into the job container, but the ``.git`` file
     there still names a gitdir under the main clone that does not exist in the
     container. ``git rev-parse`` then fails and steps such as the context
-    output guard raise "Unable to determine repository root" (#6070). Mounting
-    the common git dir at the same absolute path, read-only, lets the pointer
-    resolve without letting a job write to the host repository.
+    output guard raise "Unable to determine repository root" (#6070). A normal
+    checkout works because act copies its ``.git`` directory into the
+    container, where a job may write freely. This mounts a throwaway copy of
+    the common git dir at the same absolute path, so a linked worktree behaves
+    the same and a job that runs ``git fetch`` never touches the host
+    repository. Yields no args for a normal checkout or an unrecognised layout.
     """
-    gitdir = _read_worktree_gitdir(repo_root)
-    if gitdir is None:
-        return []
-    common = _worktree_common_dir(Path(gitdir))
-    mount = f"{common}:{common}:ro"
-    return ["--container-options", f"-v {shlex.quote(mount)}"]
+    gitdir_text = _read_worktree_gitdir(repo_root)
+    if gitdir_text is None:
+        yield []
+        return
+    gitdir = Path(gitdir_text)
+    common = _worktree_common_dir(gitdir)
+    if gitdir.parent != common / "worktrees":
+        yield []
+        return
+    with tempfile.TemporaryDirectory(prefix="act-gitdir-") as tmp:
+        dest = Path(tmp) / "git"
+        _copy_git_metadata(common, gitdir, dest)
+        yield ["--container-options", f"-v {shlex.quote(f'{dest}:{common}')}"]
 
 
 def _act_env(repo_root: Path) -> dict[str, str]:
@@ -770,9 +818,7 @@ def _local_pytest_stage(files: Sequence[str], repo_root: Path) -> StageResult:
             # an import-graph subset of it.
             command_env = env | {
                 "COVERAGE_FILE": str(output_root / partition_env["COVERAGE_FILE"]),
-                "PYTEST_NON_TMP_ROOT": str(
-                    output_root / partition_env["PYTEST_NON_TMP_ROOT"]
-                ),
+                "PYTEST_NON_TMP_ROOT": str(output_root / partition_env["PYTEST_NON_TMP_ROOT"]),
                 "GITHUB_EVENT_NAME": "merge_group",
             }
             for position, token in enumerate(command):
@@ -937,8 +983,7 @@ _ACT_LIMITATION_RULES: tuple[tuple[str | None, Callable[[str], bool], str], ...]
     (
         None,
         lambda text: (
-            _GIT_REPO_MISSING_PATTERN in text
-            and bool(_ACT_GIT_PROCESS_ANNOTATION.search(text))
+            _GIT_REPO_MISSING_PATTERN in text and bool(_ACT_GIT_PROCESS_ANNOTATION.search(text))
         ),
         "act container cannot resolve the linked-worktree git metadata, so "
         "dorny/paths-filter fails only in local act, not in CI.",
@@ -1093,10 +1138,7 @@ def _git_annotation_has_missing_repository_signature(line: str, combined: str) -
     annotation_scope = _act_scope_label(line)
     return any(
         _GIT_REPO_MISSING_PATTERN in candidate
-        and (
-            annotation_scope is None
-            or _act_scope_label(candidate) == annotation_scope
-        )
+        and (annotation_scope is None or _act_scope_label(candidate) == annotation_scope)
         for candidate in combined.splitlines()
     )
 
@@ -1314,6 +1356,8 @@ def _run_act_stage(
     timeout: int,
     files: Sequence[str],
     repo_root: Path,
+    *,
+    linked_git: bool = False,
 ) -> StageResult:
     """Run an ``act`` invocation per workflow file, with act-limitation downgrade.
 
@@ -1327,7 +1371,25 @@ def _run_act_stage(
 
     A stage timeout keeps blocking, but the detail gains a cause line from
     :func:`_with_cause_hints` instead of a bare ``TimeoutExpired``.
+
+    ``linked_git`` mounts a writable copy of a linked worktree's git dir into
+    the job containers (#6070). It is off for the dry run, which starts none.
     """
+    if not linked_git:
+        return _run_act_workflows(stage, base_cmd, timeout, files, repo_root, [])
+    with _worktree_git_mount(repo_root) as mount_args:
+        return _run_act_workflows(stage, base_cmd, timeout, files, repo_root, mount_args)
+
+
+def _run_act_workflows(
+    stage: str,
+    base_cmd: Sequence[str],
+    timeout: int,
+    files: Sequence[str],
+    repo_root: Path,
+    mount_args: Sequence[str],
+) -> StageResult:
+    """Run ``base_cmd`` once per workflow file (and job), downgrading act limitations."""
     env = _act_env(repo_root)
     warnings: list[str] = []
     for wf in files:
@@ -1338,7 +1400,7 @@ def _run_act_stage(
             cmd = [*base_cmd]
             if event is not None:
                 cmd.append(event)
-            cmd += [*job_arg, *_worktree_mount_args(repo_root), "-W", wf]
+            cmd += [*job_arg, *mount_args, "-W", wf]
             rc, out, err = _run(cmd, timeout=timeout, cwd=repo_root, env=env)
             combined = (out + err).strip()
             if (
@@ -1377,7 +1439,9 @@ def _act_dryrun_stage(files: Sequence[str], repo_root: Path) -> StageResult:
 
 
 def _act_full_stage(files: Sequence[str], repo_root: Path) -> StageResult:
-    return _run_act_stage("gh act (full)", ["gh", "act"], _ACT_FULL_TIMEOUT, files, repo_root)
+    return _run_act_stage(
+        "gh act (full)", ["gh", "act"], _ACT_FULL_TIMEOUT, files, repo_root, linked_git=True
+    )
 
 
 # --- Orchestration -------------------------------------------------------
@@ -1508,9 +1572,7 @@ def run_local_test(
     inside_act = os.environ.get("ACT", "").strip().lower() == "true"
     if inside_act and runnable != [_PYTEST_WORKFLOW]:
         report.exit_code = 3
-        report.note = (
-            "unrunnable-locally: nested act execution supports only the pytest workflow"
-        )
+        report.note = "unrunnable-locally: nested act execution supports only the pytest workflow"
         return report
 
     local_pytest = runnable == [_PYTEST_WORKFLOW]
@@ -1524,8 +1586,7 @@ def run_local_test(
         if secret_blocked:
             report.secret_skipped = True
             report.note = (
-                "skipped workflows with secrets absent locally. "
-                "CI runs them with the real secrets."
+                "skipped workflows with secrets absent locally. CI runs them with the real secrets."
             )
         return report
 
@@ -1580,8 +1641,7 @@ def run_local_test(
     if secret_blocked:
         report.secret_skipped = True
         skip_note = (
-            "skipped workflows with secrets absent locally. "
-            "CI runs them with the real secrets."
+            "skipped workflows with secrets absent locally. CI runs them with the real secrets."
         )
         report.note = f"{report.note} {skip_note}".strip() if report.note else skip_note
 
