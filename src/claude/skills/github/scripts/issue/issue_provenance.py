@@ -42,6 +42,18 @@ _redactor = _load_bundled_redactor()
 SOURCES = ("human", "agent")
 SOURCE_LABELS = frozenset(f"source:{source}" for source in SOURCES)
 
+# The repository labeler (.github/workflows/label-issue-source.yml, epic #5698
+# AC-3) honors this comment as the human assertion. It defaults every other
+# owner-login issue to source:agent. Written only when --source human.
+HUMAN_MARKER = "<!-- source:human -->"
+
+
+def with_human_marker(source: str, body: str) -> str:
+    """Append the human marker to ``body`` for ``--source human`` only."""
+    if source != "human":
+        return body
+    return f"{body.rstrip()}\n\n{HUMAN_MARKER}" if body.strip() else HUMAN_MARKER
+
 # Phrase column of the canonical hedge phrase list, copied verbatim and in order
 # from skills/spec-generator/references/spec-step0-gates.md (the table that ends
 # at the <!-- step0:hedge-table-end --> marker). Match rule, quoted from that

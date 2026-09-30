@@ -155,7 +155,7 @@ class TestAgentEvidence:
     def test_human_whitespace_answers_count_as_absent(self):
         rc, gh = _run(["--title", "T", "--source", "human", "--blocked-by", "   "])
         assert rc == 0
-        assert "--body" not in gh.find("issue", "create")
+        assert _body_arg(gh.find("issue", "create")) == "<!-- source:human -->"
 
     def test_human_with_one_answer_exits_2(self, capsys):
         rc, _ = _run(["--title", "T", "--source", "human", "--blocked-by", BLOCKED_BY])
@@ -341,3 +341,21 @@ class TestCanonicalParity:
         bundled = PROJECT_ROOT / ".claude/skills/github/scripts/issue/redact_secrets.py"
         canonical = PROJECT_ROOT / "scripts" / "redact_secrets.py"
         assert bundled.read_bytes() == canonical.read_bytes()
+
+
+class TestHumanMarker:
+    """Epic #5698 AC-3: --source human writes the marker the labeler honors."""
+
+    def test_human_body_gets_the_marker_after_the_caller_text(self):
+        _, gh = _run(["--title", "T", "--body", "Context.", "--source", "human"])
+        assert _body_arg(gh.find("issue", "create")) == "Context.\n\n<!-- source:human -->"
+
+    def test_agent_body_never_carries_the_marker(self):
+        _, gh = _run(["--title", "T", "--body", "Context.", *AGENT_ARGS])
+        assert "source:human" not in _body_arg(gh.find("issue", "create"))
+
+    def test_marker_helper_ignores_agent_source(self):
+        assert provenance.with_human_marker("agent", "b") == "b"
+
+    def test_marker_helper_on_empty_human_body_is_the_bare_marker(self):
+        assert provenance.with_human_marker("human", "  ") == provenance.HUMAN_MARKER
