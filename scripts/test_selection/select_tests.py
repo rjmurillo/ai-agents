@@ -1,10 +1,13 @@
 """Select the pytest files affected by a set of changed files.
 
 Applies the fail-safe rules from issue #5050: any non-Python change, any
-``conftest.py`` change, any file the shared path policy calls a test input, any
-dynamic import in a changed file, or any file the import graph cannot map falls
-back to the full suite. Otherwise the import graph yields the exact set of test
-files that transitively import the changed files.
+``conftest.py`` change, any test input that is not a content file, any dynamic
+import in a changed file, or any file the import graph cannot map falls back to
+the full suite. Otherwise the import graph yields the exact set of test
+files that transitively import the changed files. A changed Markdown, JSON, or
+text test input narrows to its readers (issue #5377): tests whose string
+constants name the path, plus every test that walks a directory tree, since a
+walker can read any path. See `reader_map.py`.
 
 The test-input rule reads `path_policy.yml`, the same list
 `.github/workflows/pytest.yml` hands to `dorny/paths-filter` (issue #5318). It
@@ -27,10 +30,10 @@ from dataclasses import dataclass
 from pathlib import Path
 
 try:
-    from scripts.test_selection import import_graph, path_policy
+    from scripts.test_selection import import_graph, path_policy, reader_map
 except ModuleNotFoundError:  # pragma: no cover - exercised via direct file execution
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-    from scripts.test_selection import import_graph, path_policy
+    from scripts.test_selection import import_graph, path_policy, reader_map
 
 FULL_SUITE = "FULL_SUITE"
 
@@ -93,6 +96,56 @@ def has_dynamic_import(path: Path) -> bool:
     return False
 
 
+def _split_test_inputs(
+    changed: list[str], patterns: tuple[str, ...]
+) -> tuple[list[str], Selection | None]:
+    """Content test inputs among ``changed``, or a full run for any other kind.
+
+    Test inputs are checked first, and only for paths the import graph cannot
+    trace. A `.py` file inside a policy-named tree classifies as source, so an
+    ordinary edit under `scripts/memory_enhancement/` or `.claude/hooks/` still
+    narrows. A content input (Markdown, JSON, text) narrows to its readers; any
+    other test input runs everything.
+    """
+    inputs: list[str] = []
+    for rel in changed:
+        impact, matched = path_policy.classify(rel, patterns)
+        if impact is not path_policy.Impact.TEST_INPUT:
+            continue
+        if not reader_map.is_narrowable(rel):
+            return [], _full(f"{rel} matches test-input pattern {matched}")
+        inputs.append(rel)
+    return inputs, None
+
+
+def _graph_selection(
+    changed: list[str], inputs: list[str], repo_root: Path, cache_path: Path | None
+) -> Selection:
+    """Union of the import-graph subset for sources and the readers of inputs."""
+    try:
+        graph_data = import_graph.load_or_build_data(repo_root, cache_path)
+    except RuntimeError as exc:
+        return _full(f"import graph unavailable: {exc}")
+
+    graph = graph_data.graph
+    sources = [rel for rel in changed if rel not in inputs]
+    unmapped = [rel for rel in sources if rel not in graph]
+    if unmapped:
+        return _full(f"unmapped changed files: {', '.join(sorted(unmapped))}")
+
+    reverse = import_graph.reverse_graph(graph)
+    affected = import_graph.affected_closure(sources, reverse) if sources else set()
+    if sources and graph_data.wildcard_dependents:
+        affected.update(import_graph.affected_closure(graph_data.wildcard_dependents, reverse))
+    if inputs:
+        affected.update(reader_map.reader_tests(inputs, graph_data))
+    tests = tuple(sorted(rel for rel in affected if _is_test_file(rel)))
+    if not tests:
+        return _full("no test transitively imports the changed files")
+    reason = "test-input readers subset" if inputs else "import-graph subset"
+    return Selection(full=False, reason=reason, tests=tests)
+
+
 def select(
     changed: list[str],
     repo_root: Path,
@@ -108,18 +161,12 @@ def select(
     if not changed:
         return _full("no changed files reported")
 
-    # Test inputs first, and only for paths the import graph cannot trace. A
-    # `.py` file inside a policy-named tree classifies as source, so an
-    # ordinary edit under `scripts/memory_enhancement/` or `.claude/hooks/`
-    # still narrows instead of running everything.
-    patterns = path_policy.load_patterns(patterns_file)
-    for rel in changed:
-        impact, matched = path_policy.classify(rel, patterns)
-        if impact is path_policy.Impact.TEST_INPUT:
-            return _full(f"{rel} matches test-input pattern {matched}")
+    inputs, blocked = _split_test_inputs(changed, path_policy.load_patterns(patterns_file))
+    if blocked is not None:
+        return blocked
 
     for rel in changed:
-        if not _is_python(rel):
+        if rel not in inputs and not _is_python(rel):
             return _full(f"non-Python change: {rel}")
 
     for rel in changed:
@@ -128,27 +175,10 @@ def select(
 
     for rel in changed:
         candidate = repo_root / rel
-        if candidate.is_file() and has_dynamic_import(candidate):
+        if rel not in inputs and candidate.is_file() and has_dynamic_import(candidate):
             return _full(f"dynamic import in changed file: {rel}")
 
-    try:
-        graph_data = import_graph.load_or_build_data(repo_root, cache_path)
-    except RuntimeError as exc:
-        return _full(f"import graph unavailable: {exc}")
-
-    graph = graph_data.graph
-    unmapped = [rel for rel in changed if rel not in graph]
-    if unmapped:
-        return _full(f"unmapped changed files: {', '.join(sorted(unmapped))}")
-
-    reverse = import_graph.reverse_graph(graph)
-    affected = import_graph.affected_closure(changed, reverse)
-    if graph_data.wildcard_dependents:
-        affected.update(import_graph.affected_closure(graph_data.wildcard_dependents, reverse))
-    tests = tuple(sorted(rel for rel in affected if _is_test_file(rel)))
-    if not tests:
-        return _full("no test transitively imports the changed files")
-    return Selection(full=False, reason="import-graph subset", tests=tests)
+    return _graph_selection(changed, inputs, repo_root, cache_path)
 
 
 def changed_from_git(repo_root: Path, base: str, head: str = "HEAD") -> list[str] | None:
