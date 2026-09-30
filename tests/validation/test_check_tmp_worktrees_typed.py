@@ -52,6 +52,9 @@ def test_the_advisory_gate_skips_with_a_reason_when_the_temp_root_is_absent(
 
     assert outcome.state is EvidenceState.SKIP
     assert outcome.reason == REASON_TREE_ABSENT
+    # SKIP is licensed for every validator by the base policy's wildcard row, so
+    # an absent temp root does not block the push.
+    assert pre_pr_policy().accepts(outcome)
 
 
 def test_a_failed_git_listing_is_blocked_not_a_clean_pass(
