@@ -1,9 +1,8 @@
 """Whole-tree count ratchets run in an unconditional pytest.yml job (issue #5636, D13).
 
-Dual-name rollout, step 1 (``.claude/rules/ci-scripts.md`` MUST 22): the new
-``count-ratchet-guard`` job exists and reaches the required ``Run Python Tests``
-context through ``test-result``, while the ratchet steps stay in the ``test``
-job. No required context is added or removed by this change.
+Dual-name rollout, step 2 (``.claude/rules/ci-scripts.md`` MUST 22): the
+``count-ratchet-guard`` job name is pinned as a required context, the ratchet
+steps are gone from the ``test`` job, and ``test-result`` still needs the job.
 
 Every assertion parses the YAML object graph, never the file text, so a step
 deleted but still named in a comment fails (``.claude/rules/testing.md`` MUST 9).
@@ -105,13 +104,22 @@ def test_main_failure_alert_watches_the_guard() -> None:
 
 
 @pytest.mark.parametrize("script", RATCHETS)
-def test_old_ratchet_steps_stay_in_the_test_job(script: str) -> None:
-    """Step 1 keeps the old copy; deleting it is the owner's later step 2."""
+def test_ratchet_steps_are_gone_from_the_test_job(script: str) -> None:
+    """The guard job fully covers the ratchets, so the duplicate copy is deleted."""
     steps = [s for s in _jobs()["test"]["steps"] if script in s.get("run", "")]
-    assert len(steps) == 2  # pull_request leg and non-pull_request leg
+    assert steps == []
 
 
-def test_required_contexts_are_unchanged_by_this_change() -> None:
-    """Branch protection is the owner's to change: the new name is not required yet."""
-    assert GUARD_NAME not in REQUIRED_CONTEXTS
+@pytest.mark.parametrize("script", RATCHETS)
+def test_each_ratchet_runs_in_exactly_one_job(script: str) -> None:
+    owners = [
+        key
+        for key, job in _jobs().items()
+        if any(script in run for run in _run_lines(job))
+    ]
+    assert owners == [GUARD]
+
+
+def test_guard_name_is_a_pinned_required_context() -> None:
+    assert GUARD_NAME in REQUIRED_CONTEXTS
     assert "Run Python Tests" in REQUIRED_CONTEXTS
