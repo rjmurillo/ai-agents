@@ -135,7 +135,9 @@ class FakeGh:
         if self.fail and self.fail in joined:
             return subprocess.CompletedProcess(cmd, 1, "", "boom")
         if "creator=" in joined:
-            return subprocess.CompletedProcess(cmd, 0, json.dumps(self.recent), "")
+            assert "--paginate" in cmd and "--slurp" in cmd
+            pages = [self.recent[:1], self.recent[1:]] if len(self.recent) > 1 else [self.recent]
+            return subprocess.CompletedProcess(cmd, 0, json.dumps(pages), "")
         if "-X" not in cmd:
             return subprocess.CompletedProcess(cmd, 0, json.dumps(self.issue), "")
         return subprocess.CompletedProcess(cmd, 0, "{}", "")
@@ -176,6 +178,14 @@ class TestLabelIssue:
         )
         assert _run(gh)[0] == mod.LABEL_AGENT
         assert any("DELETE" in m and "source%3Ahuman" in m for m in gh.mutations())
+
+    def test_burst_found_on_a_later_page_still_counts(self):
+        recent = [
+            {"number": 11, "created_at": _iso(-1)},
+            {"number": 3, "created_at": _iso(2)},
+        ]
+        gh = FakeGh(_issue(body=MARKER), recent=recent)
+        assert _run(gh)[0] == mod.LABEL_AGENT
 
     def test_burst_lookup_failure_fails_toward_agent(self, capsys):
         gh = FakeGh(_issue(body=MARKER), fail="creator=")

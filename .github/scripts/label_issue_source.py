@@ -166,13 +166,22 @@ def fetch_issue(owner: str, repo: str, number: int) -> dict[str, Any]:
 def fetch_recent_by_author(
     owner: str, repo: str, login: str, since: datetime
 ) -> list[dict[str, Any]]:
-    """Fetch issues by ``login`` updated since ``since`` (a superset of created)."""
+    """Fetch every page of issues by ``login`` updated since ``since``.
+
+    The endpoint sorts by creation time, newest first. Issues opened after the
+    current one sort ahead of the window, so a single page could push a
+    qualifying older issue onto page two. ``--paginate --slurp`` returns all
+    pages as a list of lists, which this function flattens.
+    """
     stamp = since.strftime("%Y-%m-%dT%H:%M:%SZ")
     endpoint = (
         f"repos/{owner}/{repo}/issues?state=all&per_page=100"
         f"&creator={quote(login, safe='')}&since={stamp}"
     )
-    return cast("list[dict[str, Any]]", json.loads(_gh(["api", endpoint])))
+    pages = cast(
+        "list[list[dict[str, Any]]]", json.loads(_gh(["api", "--paginate", "--slurp", endpoint]))
+    )
+    return [item for page in pages for item in page]
 
 
 def ensure_label(owner: str, repo: str, label: str) -> None:
