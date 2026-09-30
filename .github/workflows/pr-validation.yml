@@ -126,6 +126,7 @@ jobs:
         run: python3 scripts/ci/build_pr_validation_report.py
 
       - name: Post PR Comment
+        id: post-comment
         if: steps.should-run.outputs.skip != 'true'
         continue-on-error: true
         env:
@@ -139,6 +140,15 @@ jobs:
               --marker "PR-VALIDATION" \
               --update-if-exists
           fi
+
+      - name: Report PR comment result
+        run: >-
+          python3 scripts/ci/report_advisory_result.py step
+          --validator pr-validation-comment
+          --scope "PR validation report comment"
+          --outcome ${{ steps.post-comment.outcome }}
+          --failure-state BLOCKED
+          --failure-reason script.failed
 
       - name: Set Job Summary
         if: steps.should-run.outputs.skip != 'true'

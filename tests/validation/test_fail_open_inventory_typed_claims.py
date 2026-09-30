@@ -20,6 +20,12 @@ Two resolution levels, because the tables differ:
 * A table without one (the hook jobs) names only the script, so the test
   requires the script to import ``CheckOutcome`` from the evidence module.
 
+* A workflow or lefthook row (``Job.step`` tables) cites a YAML file, not a
+  script. Its claim holds when that file has at least one ``run`` value that
+  calls ``scripts/ci/report_advisory_result.py`` and that helper builds a
+  ``CheckOutcome``. ``tests/ci/test_advisory_step_reporting_wiring.py`` proves
+  each row's own step or job is wired to it.
+
 This is a static check. It proves the function is declared to return, or builds,
 the typed contract; the behavioral tests beside each converted gate prove each
 path returns the right state.
@@ -33,6 +39,7 @@ from pathlib import Path
 from typing import NamedTuple
 
 import pytest
+import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 INVENTORY = ROOT / ".agents/governance/FAIL-OPEN-INVENTORY.md"
@@ -43,6 +50,9 @@ SEARCH_ROOTS = ("scripts", ".github/scripts", ".claude/skills")
 TYPED_ANNOTATIONS = ("CheckOutcome", "GateResult", "GatePolicy")
 UNESCAPED_PIPE = re.compile(r"(?<!\\)\|")
 TRAILING_COMMENT = re.compile(r"\s*<!--.*-->\s*$")
+YAML_FILE = re.compile(r"`([A-Za-z0-9_.-]+\.ya?ml)(?::[0-9,-]+)?`")
+REPORTER = "scripts/ci/report_advisory_result.py"
+YAML_ROOTS = (".github/workflows", ".")
 PY_FILE = re.compile(r"`([A-Za-z0-9_./-]+\.py)(?::[0-9,-]+)?`")
 EVIDENCE_IMPORT = re.compile(
     r"from\s+(?:scripts\.validation\.)?evidence\s+import[^#]*?\bCheckOutcome\b", re.S
@@ -142,11 +152,50 @@ def _function_returns_typed(source: str, function: str) -> bool:
     return any(_builds_check_outcome(functions[name]) for name in called if name in functions)
 
 
+def _yaml_paths(path_cell: str, root: Path) -> list[Path]:
+    found: list[Path] = []
+    for name in YAML_FILE.findall(path_cell):
+        for directory in YAML_ROOTS:
+            candidate = root / directory / name
+            if candidate.exists():
+                found.append(candidate)
+                break
+    return found
+
+
+def _calls_reporter(node: object) -> bool:
+    """True when any ``run`` value in a parsed YAML graph calls the reporter."""
+    if isinstance(node, dict):
+        run = node.get("run")
+        if isinstance(run, str) and REPORTER in run:
+            return True
+        return any(_calls_reporter(value) for value in node.values())
+    if isinstance(node, list):
+        return any(_calls_reporter(value) for value in node)
+    return False
+
+
+def _yaml_claim_problems(path_cell: str, yaml_files: list[Path], root: Path) -> list[str]:
+    """Return why a workflow or lefthook row's TYPED claim is not backed."""
+    helper = root / REPORTER
+    if not helper.exists() or not EVIDENCE_IMPORT.search(helper.read_text(encoding="utf-8")):
+        return [f"{path_cell}: {REPORTER} does not import CheckOutcome"]
+    return [
+        f"{path_cell}: {path.relative_to(root)} has no run value calling {REPORTER}"
+        for path in yaml_files
+        if not _calls_reporter(yaml.safe_load(path.read_text(encoding="utf-8")))
+    ]
+
+
 def unproven_claims(claims: list[TypedClaim], root: Path) -> list[str]:
     """Return the path cell of every claim its script does not back."""
     bad: list[str] = []
     for claim in claims:
         scripts = _script_paths(claim.path_cell, root)
+        yaml_files = [] if scripts else _yaml_paths(claim.path_cell, root)
+        if yaml_files:
+            bad.extend(_yaml_claim_problems(claim.path_cell, yaml_files, root))
+            continue
         if not scripts:
             bad.append(f"{claim.path_cell}: no checked-in Python script resolved")
             continue
@@ -241,6 +290,69 @@ def test_a_functionless_table_requires_the_evidence_import(
     claims = typed_claims(table)
 
     assert (unproven_claims(claims, _fake_repo(tmp_path, source)) == []) is expected
+
+
+def _yaml_table(path: str = "`ci.yml:3`") -> str:
+    return f"| Path | Contract |\n|---|---|\n| {path} | TYPED |\n"
+
+
+def _yaml_repo(tmp_path: Path, workflow: str, reporter: str | None) -> Path:
+    directory = tmp_path / ".github" / "workflows"
+    directory.mkdir(parents=True)
+    (directory / "ci.yml").write_text(workflow, encoding="utf-8")
+    if reporter is not None:
+        target = tmp_path / REPORTER
+        target.parent.mkdir(parents=True)
+        target.write_text(reporter, encoding="utf-8")
+    return tmp_path
+
+
+REPORTER_OK = "from scripts.validation.evidence import CheckOutcome\n"
+CALLS_REPORTER = (
+    "jobs:\n  j:\n    steps:\n      - name: r\n"
+    f"        run: python3 {REPORTER} step --validator v\n"
+)
+
+
+def test_a_workflow_row_with_a_reporter_call_is_accepted(tmp_path: Path) -> None:
+    repo = _yaml_repo(tmp_path, CALLS_REPORTER, REPORTER_OK)
+
+    assert unproven_claims(typed_claims(_yaml_table()), repo) == []
+
+
+def test_a_workflow_row_without_a_reporter_call_is_flagged(tmp_path: Path) -> None:
+    workflow = "jobs:\n  j:\n    steps:\n      - run: echo hi\n"
+    repo = _yaml_repo(tmp_path, workflow, REPORTER_OK)
+
+    problems = unproven_claims(typed_claims(_yaml_table()), repo)
+
+    assert len(problems) == 1
+    assert "no run value calling" in problems[0]
+
+
+def test_a_reporter_named_only_in_a_comment_does_not_back_the_row(tmp_path: Path) -> None:
+    workflow = f"# calls {REPORTER}\njobs:\n  j:\n    steps:\n      - run: echo hi\n"
+    repo = _yaml_repo(tmp_path, workflow, REPORTER_OK)
+
+    assert len(unproven_claims(typed_claims(_yaml_table()), repo)) == 1
+
+
+def test_a_workflow_row_whose_reporter_builds_no_check_outcome_is_flagged(tmp_path: Path) -> None:
+    repo = _yaml_repo(tmp_path, CALLS_REPORTER, "print('nothing typed')\n")
+
+    assert "does not import CheckOutcome" in unproven_claims(typed_claims(_yaml_table()), repo)[0]
+
+
+def test_a_workflow_row_with_a_missing_reporter_is_flagged(tmp_path: Path) -> None:
+    repo = _yaml_repo(tmp_path, CALLS_REPORTER, None)
+
+    assert len(unproven_claims(typed_claims(_yaml_table()), repo)) == 1
+
+
+def test_a_yaml_row_naming_no_existing_file_is_flagged(tmp_path: Path) -> None:
+    problems = unproven_claims(typed_claims(_yaml_table("`ghost.yml:1`")), tmp_path)
+
+    assert "no checked-in Python script resolved" in problems[0]
 
 
 def test_an_exit_code_function_that_builds_a_check_outcome_is_accepted(tmp_path: Path) -> None:

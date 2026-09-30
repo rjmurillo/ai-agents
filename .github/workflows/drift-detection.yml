@@ -46,6 +46,15 @@ jobs:
             --detail "agent drift detected run=$RUN_ID"
         continue-on-error: true
 
+      - name: Report K2 event result
+        run: >-
+          python3 scripts/ci/report_advisory_result.py step
+          --validator drift-k2-event
+          --scope "kill-criteria metrics emission"
+          --outcome ${{ steps.emit-k2.outcome }}
+          --failure-state BLOCKED
+          --failure-reason script.failed
+
       # Weekly drift telemetry rollup (REQ-008-09). The summarizer reads the
       # JSONL written this run and tallies trailing-30-day kill-criteria counts.
       # A single logic-free CLI call (ADR-006); the report exits 1 when a
@@ -57,14 +66,26 @@ jobs:
       # all-zero rollup, which confirms the report ran and records the all-clear
       # in the job summary instead of leaving it blank.
       - name: Summarize kill-criteria drift telemetry
+        id: summarize
         if: always()
         run: |
           python3 scripts/metrics/kill_criteria.py report >> "$GITHUB_STEP_SUMMARY"
         continue-on-error: true
 
+      - name: Report telemetry summary result
+        run: >-
+          python3 scripts/ci/report_advisory_result.py step
+          --validator drift-telemetry-summary
+          --scope "kill-criteria drift telemetry report"
+          --outcome ${{ steps.summarize.outcome }}
+          --failure-state FAIL
+          --failure-reason advisory.findings
+          --detail "the report exits 1 when a criterion fired"
+
       # The events file is git-ignored, so upload it as an artifact to make
       # the K2 count survive the ephemeral runner.
       - name: Upload kill-criteria events
+        id: upload-events
         if: steps.drift.outputs.drift_detected == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
@@ -72,6 +93,15 @@ jobs:
           path: .project-toolkit/metrics/drift-events.jsonl
           if-no-files-found: ignore
         continue-on-error: true
+
+      - name: Report events upload result
+        run: >-
+          python3 scripts/ci/report_advisory_result.py step
+          --validator drift-events-upload
+          --scope "drift-events artifact upload"
+          --outcome ${{ steps.upload-events.outcome }}
+          --failure-state BLOCKED
+          --failure-reason script.failed
 
       - name: Collect drift details
         id: details
