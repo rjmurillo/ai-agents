@@ -195,17 +195,28 @@ def _list_registered(repo_root: Path) -> tuple[list[str], bool]:
     return parse_worktree_list(result.stdout), False
 
 
-def _is_directory(path: Path) -> bool | None:
-    """True or False, or None when the filesystem could not answer.
+def directory_state(path: Path) -> bool | None:
+    """True, False, or None when the filesystem could not answer.
 
     Three states, not two. A directory that cannot be read is not the same as
     one that is absent, and collapsing them would let an unreadable temp root
-    report as a clean scan.
+    report as a clean scan. ``Path.is_dir`` cannot give the third answer: on
+    Python 3.14 it returns False for every OSError, so an ``except OSError``
+    around it never runs. Stat directly and treat only the two "nothing there"
+    errors as absence.
     """
     try:
-        return path.is_dir()
+        mode = path.stat().st_mode
+    except (FileNotFoundError, NotADirectoryError):
+        return False
     except OSError:
         return None
+    return stat.S_ISDIR(mode)
+
+
+def _is_directory(path: Path) -> bool | None:
+    """The three-state directory check, under the name the scan and tests use."""
+    return directory_state(path)
 
 
 def scan_temp_root(

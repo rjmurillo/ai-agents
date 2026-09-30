@@ -296,14 +296,16 @@ def test_an_unstattable_entry_is_counted_not_examined(
 ) -> None:
     entry = tmp_path / "entry"
     entry.mkdir()
-    real_is_dir = Path.is_dir
+    real_stat = Path.stat
 
-    def explode_for_the_entry(self: Path) -> bool:
+    def explode_for_the_entry(self: Path, *args, **kwargs):
+        # stat, not is_dir: Path.is_dir swallows every OSError on Python 3.14, so
+        # patching it to raise simulated a failure the real method never reports.
         if self == entry:
             raise OSError("stale file handle")
-        return bool(real_is_dir(self))
+        return real_stat(self, *args, **kwargs)
 
-    monkeypatch.setattr(Path, "is_dir", explode_for_the_entry)
+    monkeypatch.setattr(Path, "stat", explode_for_the_entry)
 
     report = checker.scan_temp_root(tmp_path, 0, [], git_listing_failed=False)
 
@@ -314,10 +316,10 @@ def test_an_unstattable_entry_is_counted_not_examined(
 def test_an_unreadable_temp_root_is_not_reported_as_clean(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    def explode(*_args: object, **_kwargs: object) -> bool:
+    def explode(*_args: object, **_kwargs: object) -> None:
         raise OSError("permission denied")
 
-    monkeypatch.setattr(Path, "is_dir", explode)
+    monkeypatch.setattr(Path, "stat", explode)
 
     report = checker.scan_temp_root(tmp_path, 0, [], git_listing_failed=False)
 

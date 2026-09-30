@@ -206,3 +206,59 @@ def test_only_a_missing_or_non_directory_marker_path_counts_as_absent(tmp_path: 
     assert checker.worktree_marker_state(clone) == checker.MARKER_NOT_WORKTREE
     assert checker.worktree_marker_state(plain) == checker.MARKER_NOT_WORKTREE
     assert checker.worktree_marker_state(afile) == checker.MARKER_NOT_WORKTREE
+
+
+def _deny_stat(monkeypatch: pytest.MonkeyPatch, *names: str) -> None:
+    """Make ``Path.stat`` fail for the named paths, the way an EACCES does."""
+    real_stat = Path.stat
+
+    def deny(self: Path, *args, **kwargs):
+        if self.name in names:
+            raise PermissionError("denied")
+        return real_stat(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "stat", deny)
+
+
+def test_an_unreadable_temp_root_is_blocked_not_skipped_as_absent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Path.is_dir swallows the error on 3.14, so the root read as absent and SKIPped."""
+    root = tmp_path / "root"
+    root.mkdir()
+    monkeypatch.setattr(checker, "DEFAULT_TEMP_ROOT", root)
+    _deny_stat(monkeypatch, "root")
+
+    outcome = checker.validate_tmp_worktrees(REPO_ROOT)
+
+    _check_blocked(outcome)
+
+
+def test_an_unreadable_child_directory_is_counted_not_dropped(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / "ok").mkdir()
+    (tmp_path / "locked").mkdir()
+    monkeypatch.setattr(checker, "DEFAULT_TEMP_ROOT", tmp_path)
+    _pin_free_bytes(monkeypatch, 10 * 1024**3)
+    _deny_stat(monkeypatch, "locked")
+
+    report = checker.build_report(REPO_ROOT)
+    outcome = checker.validate_tmp_worktrees(REPO_ROOT)
+
+    assert (report.unreadable_entries, report.examined) == (1, 1)
+    _check_blocked(outcome)
+
+
+def test_directory_state_separates_present_absent_and_unreadable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / "d").mkdir()
+    (tmp_path / "f").write_text("x", encoding="utf-8")
+
+    assert checker.directory_state(tmp_path / "d") is True
+    assert checker.directory_state(tmp_path / "f") is False
+    assert checker.directory_state(tmp_path / "gone") is False
+    assert checker.directory_state(tmp_path / "f" / "below") is False
+    _deny_stat(monkeypatch, "d")
+    assert checker.directory_state(tmp_path / "d") is None

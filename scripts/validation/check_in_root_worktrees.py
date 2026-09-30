@@ -73,6 +73,7 @@ if str(_VALIDATION_DIR) not in sys.path:
 from check_tmp_worktrees import (  # noqa: E402
     MARKER_UNREADABLE,
     MARKER_WORKTREE,
+    directory_state,
     parse_worktree_list,
     worktree_marker_state,
 )
@@ -222,21 +223,30 @@ def _list_registered(repo_root: Path) -> tuple[list[str], bool]:
 
 
 def _child_dirs(container: Path, report: InRootReport) -> list[Path]:
-    """Return the directories directly under ``container``; count what cannot be read."""
+    """Return the directories directly under ``container``; count what cannot be read.
+
+    Each directory test goes through ``directory_state``, because ``Path.is_dir``
+    swallows every OSError on Python 3.14 and would drop an unreadable container
+    or child without a count.
+    """
+    container_state = directory_state(container)
+    if container_state is None:
+        report.unreadable_entries += 1
+        return []
+    if not container_state:
+        return []
     try:
-        if not container.is_dir():
-            return []
         entries = sorted(container.iterdir())
     except OSError:
         report.unreadable_entries += 1
         return []
     children: list[Path] = []
     for entry in entries:
-        try:
-            if entry.is_dir():
-                children.append(entry)
-        except OSError:
+        state = directory_state(entry)
+        if state is None:
             report.unreadable_entries += 1
+        elif state:
+            children.append(entry)
     return children
 
 

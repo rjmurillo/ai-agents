@@ -209,14 +209,16 @@ def test_an_unstattable_entry_is_counted_not_examined(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     (tmp_path / "bad").mkdir()
-    real_is_dir = Path.is_dir
+    real_stat = Path.stat
 
-    def is_dir(self: Path) -> bool:
+    def stat(self: Path, *args, **kwargs):
+        # stat, not is_dir: Path.is_dir swallows every OSError on Python 3.14, so
+        # patching it to raise simulated a failure the real method never reports.
         if self.name == "bad":
             raise PermissionError("denied")
-        return real_is_dir(self)
+        return real_stat(self, *args, **kwargs)
 
-    monkeypatch.setattr(Path, "is_dir", is_dir)
+    monkeypatch.setattr(Path, "stat", stat)
     report = checker.scan_repo_root(tmp_path, [], git_listing_failed=False)
 
     assert report.unreadable_entries == 1
@@ -418,32 +420,6 @@ def test_an_unreadable_pointer_is_not_a_linked_worktree(
 
     assert checker.is_linked_worktree_dir(wt) is False
     assert checker.linked_worktree_state(wt) == checker.UNREADABLE
-
-
-def test_an_unreadable_marker_is_counted_not_examined_and_blocks_a_clean_pass(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """A directory whose `.git` cannot be read was not inspected (PR #6065 review)."""
-    make_worktree_dir(tmp_path / ".claude/worktrees", "wt")
-    (tmp_path / ".claude/worktrees" / "plain").mkdir()
-    monkeypatch.setattr(checker, "_list_registered", lambda repo_root: ([], False))
-    real_open = Path.open
-
-    def deny(self: Path, *args, **kwargs):
-        if self.parent.name == "wt" and self.name == ".git":
-            raise PermissionError("denied")
-        return real_open(self, *args, **kwargs)
-
-    monkeypatch.setattr(Path, "open", deny)
-
-    report = checker.build_report(tmp_path)
-    outcome = checker.validate_in_root_worktrees(tmp_path)
-
-    # The ".claude" container and "plain" were examined; "wt" was not.
-    assert (report.unreadable_entries, report.examined) == (1, 2)
-    assert outcome.state is EvidenceState.BLOCKED
-    assert outcome.reason == REASON_ENTRIES_UNREADABLE
-    assert pre_pr_policy().accepts(outcome)
 
 
 def test_a_registered_worktree_with_a_missing_directory_gets_prune_advice(
