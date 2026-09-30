@@ -45,7 +45,7 @@ D12 = {
 D6 = {
     "id": "D6",
     "desc": "degradation row",
-    "input": "Forgetful MCP is unavailable",
+    "input": "The optional memory backend is unavailable",
     "expected_verdict": "DEGRADED_PASS",
     "expected_reason_contains": "Serena-only",
     "verdict_options": ["DEGRADED_PASS", "HALT"],
