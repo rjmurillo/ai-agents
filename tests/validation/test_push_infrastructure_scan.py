@@ -110,9 +110,9 @@ def test_marker_is_read_from_the_pushed_sha_not_checked_out_head(
     work = work_clone(origin, tmp_path)
     git(work, "checkout", "-q", "-b", "feature/ci")
     commit(work, WORKFLOW, "on: push\n")
-    reviewed = marker(work)
+    reviewed_sha = marker(work)
     git(work, "checkout", "-q", "-b", "other", "origin/main")
-    line = new_branch_line("feature/ci", reviewed)
+    line = new_branch_line("feature/ci", reviewed_sha)
 
     reviewed = pre_push(work, line, monkeypatch)
     reviewed_err = capsys.readouterr().err

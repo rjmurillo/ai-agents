@@ -85,10 +85,13 @@ def test_branch_policy_failure_returns_before_the_scan(
     git(work, "checkout", "-q", "-b", "feature/docs")
     head = commit(work, "docs/note.md", "note\n")
     scanned: list[object] = []
+
+    def record_scan(*args: object) -> int:
+        scanned.append(args)
+        return 0
+
     monkeypatch.setattr(policy, "_check_push_updates", lambda *_args: 1)
-    monkeypatch.setattr(
-        policy, "check_pushed_infrastructure", lambda *args: scanned.append(args) or 0
-    )
+    monkeypatch.setattr(policy, "check_pushed_infrastructure", record_scan)
 
     result = pre_push(work, new_branch_line("feature/docs", head), monkeypatch)
 
