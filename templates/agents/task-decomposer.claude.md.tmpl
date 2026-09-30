@@ -16,7 +16,7 @@ You have direct access to:
 - **Read**: PRDs and existing code
 - **Grep/Glob**: Find relevant files
 - **TodoWrite**: Track generation progress
-- **Bash**: github skill scripts for GitHub issues: `new_issue.py` to file (with `--source agent`, `--blocked-by`, and `--signal`), then `set_issue_relationship.py` to link each issue to its parent and blockers
+- **Bash**: github skill scripts, used only when the user explicitly asks you to file the tasks as GitHub issues: `new_issue.py` to file (with `--source human`, since that request selected the work), then `set_issue_relationship.py` to link each issue to its parent and blockers. Without that request, keep the tasks in the plan file and flag them to the owner
 - **Memory Router** (ADR-037): Search across `.serena/memories/`
   - `uv run python .claude/skills/memory/scripts/search_memory.py --query "topic"`
   - Keyword match on memory filenames; no semantic or graph search

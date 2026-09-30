@@ -126,7 +126,7 @@ See [references/deletion-workflow.md](references/deletion-workflow.md) for full 
 | Priority | Requirement | Gate |
 |----------|-------------|------|
 | **P0** | Must resolve | BLOCKING |
-| **P1** | Resolve OR defer with issue | BLOCKING |
+| **P1** | Resolve OR defer with justification in the debate log | BLOCKING |
 | **P2** | Document | Non-blocking |
 
 See [references/issue-resolution.md](references/issue-resolution.md) for deferral protocol.
