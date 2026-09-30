@@ -107,3 +107,71 @@ def test_an_absent_temp_root_with_a_failed_listing_is_blocked_not_skipped(
 
     assert outcome.state is EvidenceState.BLOCKED
     assert outcome.reason == REASON_LISTING_FAILED
+
+
+def test_unreadable_free_space_is_blocked_not_a_clean_pass(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A gate that could not measure free space cannot claim it passed (PR #6065 review)."""
+    (tmp_path / "plain").mkdir()
+    monkeypatch.setattr(checker, "DEFAULT_TEMP_ROOT", tmp_path)
+
+    def boom(_path: Path) -> None:
+        raise OSError("statvfs failed")
+
+    monkeypatch.setattr(checker.shutil, "disk_usage", boom)
+
+    outcome = checker.validate_tmp_worktrees(REPO_ROOT)
+
+    _check_blocked(outcome)
+
+
+def test_an_unreadable_worktree_marker_is_blocked_not_a_clean_pass(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / "wt").mkdir()
+    (tmp_path / "wt" / ".git").write_text("gitdir: /x/.git/worktrees/wt\n", encoding="utf-8")
+    (tmp_path / "plain").mkdir()
+    monkeypatch.setattr(checker, "DEFAULT_TEMP_ROOT", tmp_path)
+    _pin_free_bytes(monkeypatch, 10 * 1024**3)
+    real_open = Path.open
+
+    def deny(self: Path, *args, **kwargs):
+        if self.parent.name == "wt" and self.name == ".git":
+            raise PermissionError("denied")
+        return real_open(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", deny)
+
+    report = checker.build_report(REPO_ROOT)
+    outcome = checker.validate_tmp_worktrees(REPO_ROOT)
+
+    assert (report.unreadable_entries, report.examined) == (1, 1)
+    _check_blocked(outcome)
+
+
+def test_findings_still_outrank_an_unreadable_free_space_reading(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / "wt").mkdir()
+    (tmp_path / "wt" / ".git").write_text("gitdir: /x/.git/worktrees/wt\n", encoding="utf-8")
+    monkeypatch.setattr(checker, "DEFAULT_TEMP_ROOT", tmp_path)
+
+    def boom(_path: Path) -> None:
+        raise OSError("statvfs failed")
+
+    monkeypatch.setattr(checker.shutil, "disk_usage", boom)
+
+    outcome = checker.validate_tmp_worktrees(REPO_ROOT)
+
+    assert outcome.state is EvidenceState.FAIL
+    assert outcome.findings == 1
+
+
+def _check_blocked(outcome: object) -> None:
+    from scripts.validation.evidence import CheckOutcome
+
+    assert isinstance(outcome, CheckOutcome)
+    assert outcome.state is EvidenceState.BLOCKED
+    assert outcome.reason == REASON_ENTRIES_UNREADABLE
+    assert pre_pr_policy().accepts(outcome)

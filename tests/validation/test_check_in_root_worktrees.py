@@ -406,7 +406,7 @@ def test_an_unreadable_pointer_is_not_a_linked_worktree(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     wt = make_worktree_dir(tmp_path, "wt")
-    monkeypatch.setattr(checker, "is_worktree_dir", lambda _p: True)
+    monkeypatch.setattr(checker, "worktree_marker_state", lambda _p: checker.MARKER_WORKTREE)
     real_open = Path.open
 
     def deny(self: Path, *args, **kwargs):
@@ -417,6 +417,33 @@ def test_an_unreadable_pointer_is_not_a_linked_worktree(
     monkeypatch.setattr(Path, "open", deny)
 
     assert checker.is_linked_worktree_dir(wt) is False
+    assert checker.linked_worktree_state(wt) == checker.UNREADABLE
+
+
+def test_an_unreadable_marker_is_counted_not_examined_and_blocks_a_clean_pass(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A directory whose `.git` cannot be read was not inspected (PR #6065 review)."""
+    make_worktree_dir(tmp_path / ".claude/worktrees", "wt")
+    (tmp_path / ".claude/worktrees" / "plain").mkdir()
+    monkeypatch.setattr(checker, "_list_registered", lambda repo_root: ([], False))
+    real_open = Path.open
+
+    def deny(self: Path, *args, **kwargs):
+        if self.parent.name == "wt" and self.name == ".git":
+            raise PermissionError("denied")
+        return real_open(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", deny)
+
+    report = checker.build_report(tmp_path)
+    outcome = checker.validate_in_root_worktrees(tmp_path)
+
+    # The ".claude" container and "plain" were examined; "wt" was not.
+    assert (report.unreadable_entries, report.examined) == (1, 2)
+    assert outcome.state is EvidenceState.BLOCKED
+    assert outcome.reason == REASON_ENTRIES_UNREADABLE
+    assert pre_pr_policy().accepts(outcome)
 
 
 def test_a_registered_worktree_with_a_missing_directory_gets_prune_advice(

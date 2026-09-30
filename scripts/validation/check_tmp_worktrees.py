@@ -117,22 +117,35 @@ def parse_worktree_list(porcelain: str) -> list[str]:
     return paths
 
 
-def is_worktree_dir(candidate: Path) -> bool:
-    """True when ``candidate`` holds the `.git` file `git worktree add` writes.
+MARKER_WORKTREE = "worktree"
+MARKER_NOT_WORKTREE = "not_worktree"
+MARKER_UNREADABLE = "unreadable"
+
+
+def worktree_marker_state(candidate: Path) -> str:
+    """Classify ``candidate`` as a worktree, not one, or unreadable.
 
     A linked worktree gets a `.git` FILE containing `gitdir: <admin path>`. A
     plain clone gets a `.git` DIRECTORY. Only the first is a worktree, so a
-    clone parked in the temp root is not reported as one.
+    clone parked in the temp root is not reported as one. A marker that exists
+    but cannot be read is a third answer, not "not a worktree": collapsing the
+    two let a scan that never looked at an entry report a clean pass (issue
+    #5636).
     """
     marker = candidate / ".git"
     try:
         if not marker.is_file():
-            return False
+            return MARKER_NOT_WORKTREE
         with marker.open(encoding="utf-8", errors="replace") as handle:
             first_line = handle.readline()
     except OSError:
-        return False
-    return first_line.startswith("gitdir:")
+        return MARKER_UNREADABLE
+    return MARKER_WORKTREE if first_line.startswith("gitdir:") else MARKER_NOT_WORKTREE
+
+
+def is_worktree_dir(candidate: Path) -> bool:
+    """True when ``candidate`` holds the `.git` file `git worktree add` writes."""
+    return worktree_marker_state(candidate) == MARKER_WORKTREE
 
 
 def find_registered_temp_worktrees(paths: list[str], temp_root: Path) -> list[str]:
@@ -220,8 +233,12 @@ def scan_temp_root(
             continue
         if not entry_state:
             continue
+        marker_state = worktree_marker_state(entry)
+        if marker_state == MARKER_UNREADABLE:
+            report.unreadable_entries += 1
+            continue
         report.examined += 1
-        if not is_worktree_dir(entry):
+        if marker_state != MARKER_WORKTREE:
             continue
         seen.add(str(entry))
         report.worktrees.append(
@@ -347,7 +364,10 @@ def validate_tmp_worktrees(repo_root: Path) -> CheckOutcome:
         examined=report.examined,
         findings=len(report.worktrees) + int(report.free_space_low),
         listing_failed=report.git_listing_failed,
-        unreadable=report.unreadable_entries,
+        # Unmeasurable free space is one more unread item. Only a present root
+        # is measured, so an unreadable root is not counted twice.
+        unreadable=report.unreadable_entries
+        + int(report.temp_root_present and report.free_bytes is None),
     )
 
 

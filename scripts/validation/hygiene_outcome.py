@@ -79,7 +79,7 @@ def hygiene_outcome(
             validator,
             reason=REASON_ENTRIES_UNREADABLE,
             scope=scope,
-            detail=f"{unreadable} entr(y/ies) could not be read and were not examined",
+            detail=f"{unreadable} item(s) could not be read and were not examined",
         )
     return CheckOutcome.passed(
         validator,

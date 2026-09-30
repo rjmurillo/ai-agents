@@ -47,7 +47,7 @@ def test_unreadable_entries_without_findings_are_blocked() -> None:
 
     assert outcome.state is EvidenceState.BLOCKED
     assert outcome.reason == REASON_ENTRIES_UNREADABLE
-    assert "3 entr" in outcome.detail
+    assert "3 item(s)" in outcome.detail
 
 
 def test_findings_outrank_a_failed_listing() -> None:

@@ -70,7 +70,12 @@ _VALIDATION_DIR = Path(__file__).resolve().parent
 if str(_VALIDATION_DIR) not in sys.path:
     sys.path.insert(0, str(_VALIDATION_DIR))
 
-from check_tmp_worktrees import is_worktree_dir, parse_worktree_list  # noqa: E402
+from check_tmp_worktrees import (  # noqa: E402
+    MARKER_UNREADABLE,
+    MARKER_WORKTREE,
+    parse_worktree_list,
+    worktree_marker_state,
+)
 
 _GIT_TIMEOUT_SECONDS = 10
 
@@ -131,21 +136,36 @@ def _exists(path: Path) -> bool:
         return True
 
 
-def is_linked_worktree_dir(candidate: Path) -> bool:
-    """True when ``candidate`` is a linked worktree, not a submodule.
+LINKED = "linked"
+NOT_LINKED = "not_linked"
+UNREADABLE = "unreadable"
 
-    Both carry a `.git` file starting `gitdir:`. A linked worktree points at
-    `<common dir>/worktrees/<name>`; a submodule points at
-    `<superproject>/.git/modules/<name>`.
+
+def linked_worktree_state(candidate: Path) -> str:
+    """Classify ``candidate`` as a linked worktree, not one, or unreadable.
+
+    Both a linked worktree and a submodule carry a `.git` file starting
+    `gitdir:`. A linked worktree points at `<common dir>/worktrees/<name>`; a
+    submodule points at `<superproject>/.git/modules/<name>`. A marker that
+    cannot be read is its own answer, so the scan can count it instead of
+    treating it as a directory that was examined and found clean.
     """
-    if not is_worktree_dir(candidate):
-        return False
+    marker_state = worktree_marker_state(candidate)
+    if marker_state == MARKER_UNREADABLE:
+        return UNREADABLE
+    if marker_state != MARKER_WORKTREE:
+        return NOT_LINKED
     try:
         with (candidate / ".git").open(encoding="utf-8", errors="replace") as handle:
             target = handle.readline()[len("gitdir:") :].strip()
     except OSError:
-        return False
-    return "/worktrees/" in target.replace("\\", "/")
+        return UNREADABLE
+    return LINKED if "/worktrees/" in target.replace("\\", "/") else NOT_LINKED
+
+
+def is_linked_worktree_dir(candidate: Path) -> bool:
+    """True when ``candidate`` is a linked worktree, not a submodule."""
+    return linked_worktree_state(candidate) == LINKED
 
 
 def _innermost_parent(path: Path, checkouts: list[Path]) -> Path | None:
@@ -237,8 +257,12 @@ def scan_repo_root(
 
     for container in CONTAINER_DIRS:
         for entry in _child_dirs(repo_root / container, report):
+            state = linked_worktree_state(entry)
+            if state == UNREADABLE:
+                report.unreadable_entries += 1
+                continue
             report.examined += 1
-            if not is_linked_worktree_dir(entry) or _resolve(str(entry)) in known:
+            if state != LINKED or _resolve(str(entry)) in known:
                 continue
             report.worktrees.append(
                 InRootWorktree(path=str(entry), parent=str(repo_root), registered=False)
