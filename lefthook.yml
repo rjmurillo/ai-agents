@@ -681,7 +681,15 @@ pre-push:
 
           - name: infrastructure-advisory
             timeout: 60s
-            run: uv run --frozen python .claude/skills/security-detection/detect_infrastructure.py --files {push_files}
+            # Issue #5636 (D9): blocks a push that carries a CRITICAL path unless
+            # HEAD is a /review marker commit binding the security axis to its
+            # parent. A new commit moves HEAD off the marker, so the marker
+            # dies with the SHA it reviewed. pre-commit above stays advisory:
+            # no marker can bind a commit that does not exist yet.
+            run: >-
+              uv run --frozen python
+              .claude/skills/security-detection/detect_infrastructure.py
+              --files {push_files} --require-security-review
             glob: "**/*"
 
           # Kept at main's 30m. Cut to 10m earlier on this branch and put
