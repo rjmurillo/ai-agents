@@ -184,6 +184,7 @@ Copilot equivalent.
 | `eval-e2e-delivery.py` | End-to-end delivery eval (plan-rubric proxy). Feeds a vague germ, captures each agent's plan, LLM-judges it against hidden acceptance criteria. Core in `_e2e_delivery_core.py`. | #2859 |
 | `eval-model-sweep.py` | Sweep one agent's fixtures across candidate models; scored KEEP_PIN/DROP_PIN verdict with effect size, plus the lightest sufficient model for routing. Core in `_model_sweep_core.py`. | #2840 |
 | `eval_model_routing.py` | Roll per-model sweep reports for many agents and skills into `evals/model-routing/` routing tables. | #5883, #5889 |
+| `eval_autoplan_routes.py` | Score the autoplan long-tail resolver (`resolve_route.py`) against `tests/evals/autoplan-routes/routes.json`. Offline, no model. Reports per-family accuracy, the orchestrator-fallback rate, and the families it does not execute. | #5389 |
 | `eval_runtime_parity.py` | Run the same fixture through real Claude and Copilot CLIs with isolated agent profiles, resolved-model checks, traces, and deterministic controls. | #4853 |
 | `eval_harness_capability.py` | Run fail-closed live capability probes from a shell-free JSON plan and derive the #5422 arm matrix. | #5423 |
 | `eval_recorded_capabilities.py` | Classify recorded Codex rollouts and Copilot event files offline for `concurrency_limit` and `context_reset_observability`. | #5423 |
@@ -881,6 +882,27 @@ rollback tracking issue, and fails the repository gate. The restoration PR must
 restore the failing book reference to the always-on rule surface or strengthen the
 skill trigger and scenario coverage. It must include the latest gate report and pass
 this workflow before merge.
+
+## Autoplan Route Eval
+
+`eval_autoplan_routes.py` is part 1 of #5389. It drives the real `resolve_route.py` CLI, not a copy of its lookup, so a change to the resolver or to any skill's `metadata.routing.intents` moves the score.
+
+```bash
+uv run python scripts/eval/eval_autoplan_routes.py                  # local, about 5 seconds, no API key
+uv run python scripts/eval/eval_autoplan_routes.py --output r.json  # also write the JSON report
+```
+
+Exit 0 means every scenario matched. Exit 1 prints a diff per failure: expected kind and route, observed kind and route, and any skill from `routes_absent` that was selected. Exit 2 is a bad fixture file or a resolver that could not run.
+
+The layers stay separate, as #5389 requires:
+
+| Layer | Where it lives |
+|---|---|
+| Classified, structurally reachable, scenario present | `check_skill_routing_roles.py --report` |
+| Scored route accuracy, deterministic resolver families | this script |
+| Scored route accuracy, model-driven families | not built yet |
+
+Executed families: `explicit-skill`, `long-tail-single-domain`, `multi-domain-handoff`, `negative-noise`, `failure-fallback`. A scenario that expects a specialist fails when the resolver returns the orchestrator or `none`, and the report counts those as the orchestrator-fallback rate. Every report lists `high-traffic-direct`, `conditional-adjunct`, `lifecycle`, and `composition-order` as not executed, because the autoplan table and the parent skills' prose are read by a model.
 
 ## Skill Overlap Eval
 
