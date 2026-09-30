@@ -80,6 +80,7 @@ jobs:
           name: rule-activation-states
           path: ${{ runner.temp }}/rule-activation-states.json
           if-no-files-found: error
+          retention-days: 7
 
   skip-validation:
     name: Skip Validation (No Coverage-Relevant Changes)
