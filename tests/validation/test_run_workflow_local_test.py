@@ -1729,6 +1729,24 @@ def test_act_limitation_hint_matches_argparse_empty_pr_number() -> None:
     )
 
 
+def test_act_limitation_hint_matches_empty_issue_number_on_issues_event() -> None:
+    """The issues event has no issue object under act, so ISSUE_NUMBER is empty.
+
+    label_issue_source.py takes --issue as an argparse int. The signature is
+    event-scoped to issues, and a non-empty bad value stays a real defect.
+    """
+    empty = "label_issue_source.py: error: argument --issue: invalid int value: ''"
+    assert w._act_limitation_hint(empty, "issues") is not None
+    assert w._act_limitation_hint(empty, "workflow_dispatch") is None
+    assert w._act_limitation_hint(empty, "push") is None
+    assert (
+        w._act_limitation_hint("error: argument --issue: invalid int value: 'abc'", "issues")
+        is None
+    )
+    genuine = f"{empty}\n::error::Genuine action bug\n"
+    assert w._act_limitation_hint(genuine, "issues") is None
+
+
 def test_adr035_wrapper_annotation_is_explained_only_alongside_a_limitation() -> None:
     """run_with_retry.py's ADR-035 annotation is derived, not a cause.
 
