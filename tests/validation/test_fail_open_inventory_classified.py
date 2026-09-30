@@ -80,7 +80,7 @@ def _table(*rows: str) -> str:
 
 def test_inventory_lists_rows() -> None:
     """Negative control: a parser that finds nothing would pass every test below."""
-    assert len(_live()) >= 60
+    assert len(_live()) >= 70
 
 
 def test_no_row_is_undecided() -> None:
