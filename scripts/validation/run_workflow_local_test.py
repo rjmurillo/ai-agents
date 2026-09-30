@@ -74,6 +74,7 @@ import argparse
 import json
 import os
 import re
+import shlex
 import shutil
 import signal
 import subprocess
@@ -454,6 +455,40 @@ def _unsupported_worktree_gitdir_error(repo_root: Path) -> str | None:
             f"Re-run from the main worktree or set {_BYPASS_ENV}=true to bypass (logged)."
         )
     return None
+
+
+def _worktree_common_dir(gitdir: Path) -> Path:
+    """Return the common git dir a linked worktree's admin dir points at.
+
+    ``<gitdir>/commondir`` holds a path, relative to ``gitdir``, to the main
+    clone's ``.git``. Without that file the admin dir is its own common dir.
+    """
+    marker = gitdir / "commondir"
+    try:
+        pointer = marker.read_text(encoding="utf-8").strip()
+    except OSError:
+        return gitdir
+    if not pointer:
+        return gitdir
+    return (gitdir / pointer).resolve()
+
+
+def _worktree_mount_args(repo_root: Path) -> list[str]:
+    """Return act args that mount a linked worktree's git metadata read-only.
+
+    act copies the worktree into the job container, but the ``.git`` file
+    there still names a gitdir under the main clone that does not exist in the
+    container. ``git rev-parse`` then fails and steps such as the context
+    output guard raise "Unable to determine repository root" (#6070). Mounting
+    the common git dir at the same absolute path, read-only, lets the pointer
+    resolve without letting a job write to the host repository.
+    """
+    gitdir = _read_worktree_gitdir(repo_root)
+    if gitdir is None:
+        return []
+    common = _worktree_common_dir(Path(gitdir))
+    mount = f"{common}:{common}:ro"
+    return ["--container-options", f"-v {shlex.quote(mount)}"]
 
 
 def _act_env(repo_root: Path) -> dict[str, str]:
@@ -1303,7 +1338,7 @@ def _run_act_stage(
             cmd = [*base_cmd]
             if event is not None:
                 cmd.append(event)
-            cmd += [*job_arg, "-W", wf]
+            cmd += [*job_arg, *_worktree_mount_args(repo_root), "-W", wf]
             rc, out, err = _run(cmd, timeout=timeout, cwd=repo_root, env=env)
             combined = (out + err).strip()
             if (
