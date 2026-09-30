@@ -21,9 +21,11 @@ An entry that matches no current use is stale. It grants nothing, so it prints a
 notice and does not fail.
 
 Where it runs. The pre-PR sequence runs it as the "Bypass Allowlist" gate, and
-``tests/validation/test_check_bypass_allowlist.py`` runs it on the whole tree
-inside the required "Run Python Tests" context, which has no path filter. Both
-are edited by the pull request they judge, so this is a guardrail and a review
+``tests/validation/test_check_bypass_allowlist_cli.py`` runs it on the whole tree
+inside the required "Run Python Tests" context. On a pull request that context
+may narrow to the tests the changed files import, so the whole-tree test can wait
+until ``merge_group`` or ``push``, which run the full partition. Both callers are
+edited by the pull request they judge, so this is a guardrail and a review
 prompt, not a control: ADR-101 puts a control on a plane the candidate cannot
 edit, and this is not one.
 
