@@ -123,6 +123,18 @@
                 ]
             }
         ],
+        "Stop": [
+            {
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "cd \"$CLAUDE_PROJECT_DIR\" && python3 -u .claude/hooks/Stop/invoke_reflect_nudge.py",
+                        "timeout": 10,
+                        "statusMessage": "Scanning for unrecorded corrections (#5817)"
+                    }
+                ]
+            }
+        ],
         "SessionEnd": [
             {
                 "hooks": [

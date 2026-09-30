@@ -211,6 +211,8 @@ AUTHORIZED_HOOKS = {
     "invoke_plugin_hook_drift_check.py": "#5085 KEEP: name installed plugin "
     "copies that register hooks this checkout does not, read-only, fail-open, "
     "dogfood-only",
+    "invoke_reflect_nudge.py": "#5817 KEEP: deterministic transcript scan, no "
+    "network, blocks at most once per session, fail-open, dogfood-only",
 }
 
 

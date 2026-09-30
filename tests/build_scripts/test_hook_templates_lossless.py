@@ -35,6 +35,7 @@ EXPECTED_HOOK_TREE_FILES = frozenset(
         "PreToolUse/_bootstrap.py",
         "PreToolUse/markdownlint-safe-config.yaml",
         "SessionEnd/invoke_memory_reflection.py",
+        "Stop/invoke_reflect_nudge.py",
         "SessionStart/invoke_checkout_freshness_check.py",
         "SessionStart/invoke_context_loader.py",
         "SessionStart/invoke_plugin_hook_drift_check.py",

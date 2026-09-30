@@ -375,18 +375,21 @@ def test_reference_preserves_cross_harness_decision_shapes() -> None:
     assert "A translated `ask` emits nothing" in normalized
 
 
-def test_no_stop_hook_is_registered_on_any_surface() -> None:
-    """Stop is unregistered everywhere, and no dispatch group targets it.
+def test_only_the_local_surface_registers_a_stop_hook() -> None:
+    """Stop is registered once, on the local surface, and on no dispatch group.
 
     The vendored and generated surfaces were purged under ADR-084. The local
-    surface kept one Stop group whose only remaining shim was
-    invoke_auto_retrospective.py, which #3187 measured net-negative and #3349
-    found still firing: it wrote a retrospective skeleton into the working
-    tree at session end and returned a block decision to force another turn.
-    Deleting it emptied the group, so the whole Stop path is gone rather than
-    reduced. Asserting absence on all four surfaces, and on group ids as well
-    as registrations, is what keeps it gone: a group with no registration
-    would still be dispatchable by hand.
+    surface kept one Stop group whose only shim, invoke_auto_retrospective.py,
+    #3187 measured net-negative and #3349 found still firing: it wrote a
+    retrospective skeleton into the working tree and returned a block decision
+    to force another turn. That group was deleted. Issue #5817 re-adds one
+    direct local Stop registration, invoke_reflect_nudge.py, a transcript scan
+    that writes outside the tree and blocks at most once per session.
+
+    Absence on the other three surfaces, and on group ids as well as
+    registrations, keeps the purge intact: a group with no registration would
+    still be dispatchable by hand, and the plugin and Copilot trees ship
+    nothing until a runtime test drives a Copilot Stop payload.
     """
     local_hooks = _read_json(REPO_ROOT / ".claude" / "settings.json")["hooks"]
     vendored_hooks = _read_json(REPO_ROOT / ".claude" / "hooks" / "hooks.json")["hooks"]
@@ -395,7 +398,9 @@ def test_no_stop_hook_is_registered_on_any_surface() -> None:
     ]
     dispatch_groups = _read_json(REPO_ROOT / ".claude" / "hooks" / "dispatch_groups.json")["groups"]
 
-    assert "Stop" not in local_hooks
+    stop_commands = [h["command"] for e in local_hooks["Stop"] for h in e["hooks"]]
+    assert len(stop_commands) == 1
+    assert stop_commands[0].endswith(".claude/hooks/Stop/invoke_reflect_nudge.py")
     assert "Stop" not in vendored_hooks
     assert "Stop" not in generated_hooks
     assert "agentStop" not in generated_hooks
