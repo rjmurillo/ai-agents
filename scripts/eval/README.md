@@ -816,6 +816,16 @@ Adding a new activation eval:
 6. Iterate on the rule or skill `description` field until the `description` mechanism passes on its own. Treat `full` as ceiling diagnostics, not as a passing route.
 7. Read the `Routing:` caveat before accepting a `description` pass. One skill router fronts every sibling reference, and a sibling resolves for your target as readily as the target does. That caveat counts the positive cells whose router never opened the reference under test, so a pass reported beside a nonzero count is partly a measurement of some other reference.
 
+### Evidence states in the coverage gate
+
+`scripts/validation/report_rule_activation_states.py --output PATH` writes JSON that keeps three states apart, so baseline membership is never read as efficacy:
+
+- `baseline_exempt`: no scenario exists and only the baseline allows it. Not evidence.
+- `scenario_defined_not_scored`: a well-formed scenario exists. The artifact can be measured; nothing says it was.
+- `scored`: always `null` in this report. Scored efficacy comes from a live run of `eval-rule-activation.py`, and `eval-suite.py` labels those results `scored` in its routing plan.
+
+An uncovered artifact outside the baseline appears under `not_baselined` and fails the ratchet. The report never fails on a ratchet regression; `check_rule_activation_coverage.py` owns that decision. Issue #4871 reads this file, plus the `evidence` field of each `eval-suite.py --dry-run` routing-plan entry, to record whether each retained always-on unit has behavioral evidence.
+
 ### Software Engineering Library Rollback Gate
 
 ADR-088 moved these eight book-derived references behind `software-engineering-library`:
