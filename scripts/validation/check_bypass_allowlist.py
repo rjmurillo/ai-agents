@@ -316,13 +316,14 @@ def _duplicate_problems(uses: list[StepUse]) -> list[str]:
 def _horizon_problems(allowlist: Allowlist, today: date) -> list[str]:
     """Name each entry whose expiry is further out than ``MAX_EXPIRY_DAYS``."""
     limit = today + timedelta(days=MAX_EXPIRY_DAYS)
-    entries = [*allowlist.toggles.values(), *allowlist.steps.values()]
-    return [
-        f"expiry {entry.expires} is more than {MAX_EXPIRY_DAYS} days out"
-        f" ({getattr(entry, 'toggle', None) or entry.key})"
-        for entry in entries
-        if entry.expires > limit
+    message = f"expiry {{}} is more than {MAX_EXPIRY_DAYS} days out ({{}})"
+    problems = [
+        message.format(t.expires, t.toggle) for t in allowlist.toggles.values() if t.expires > limit
     ]
+    problems += [
+        message.format(e.expires, e.key) for e in allowlist.steps.values() if e.expires > limit
+    ]
+    return problems
 
 
 def stale_entries(
