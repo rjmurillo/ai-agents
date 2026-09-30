@@ -19,6 +19,7 @@ from pathlib import Path
 import pytest
 
 from scripts.validation import git_hook_policy as policy
+from scripts.validation.evidence import CheckOutcome
 
 _LINE = re.compile(r"^\[(?P<state>[A-Z]+)\] (?P<job>\S+) reason=(?P<reason>\S+)", re.MULTILINE)
 
@@ -217,6 +218,19 @@ class TestBotCascadeAdvisory:
         assert rc == 0
         assert _typed(capsys) == [("FAIL", "bot-cascade-advisory", "advisory.findings")]
 
+    def test_an_incomplete_thread_fetch_is_a_typed_unknown(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """A partial snapshot that found zero unresolved is not a clean scan (PR #6067 review)."""
+        payload = json.dumps({"fetched_pages_complete": False, "unresolved_count": 0})
+        rc = self._run(
+            tmp_path, monkeypatch, pr=_proc(0, "7\n"), threads=_proc(0, payload),
+            reviews=_proc(0, ""),
+        )
+
+        assert rc == 0
+        assert _typed(capsys) == [("UNKNOWN", "bot-cascade-advisory", "evidence.incomplete")]
+
     def test_zero_unresolved_threads_and_no_bot_review_is_silent(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
     ) -> None:
@@ -351,7 +365,7 @@ class TestBranchContext:
         assert policy.check_branch_context(tmp_path) == 0
         assert _typed(capsys) == [("SKIP", "branch-context", "tree.absent")]
 
-    def test_a_raise_is_a_typed_unknown_and_still_fails_open(
+    def test_a_raise_is_a_typed_unknown_that_names_its_cause_and_still_fails_open(
         self, repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
     ) -> None:
         def boom(_r: Path) -> str:
@@ -360,4 +374,28 @@ class TestBranchContext:
         monkeypatch.setattr(policy, "_current_branch", boom)
 
         assert policy.check_branch_context(repo) == 0
-        assert _typed(capsys) == [("UNKNOWN", "branch-context", "validator.raised")]
+        err = capsys.readouterr().err
+        assert [(m["state"], m["job"], m["reason"]) for m in _LINE.finditer(err)] == [
+            ("UNKNOWN", "branch-context", "validator.raised")
+        ]
+        assert 'detail="OSError: disk gone; failing open"' in err
+
+
+def test_the_detail_is_a_json_string_so_a_quote_cannot_split_the_line(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    outcome = CheckOutcome.skipped("job", reason="policy.exempt", detail='says "hi"\nnext')
+
+    policy._emit_outcome(outcome)
+
+    lines = capsys.readouterr().err.splitlines()
+    assert len(lines) == 1
+    assert lines[0].endswith('detail="says \\"hi\\"\\nnext"')
+
+
+def test_an_outcome_with_no_detail_prints_no_detail_field(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    policy._emit_outcome(CheckOutcome.skipped("job", reason="policy.exempt"))
+
+    assert "detail=" not in capsys.readouterr().err

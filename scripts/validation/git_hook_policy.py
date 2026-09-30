@@ -8002,6 +8002,15 @@ def _warn_unresolved_threads(stdout: str, pr_number: str) -> None:
         )
         return
     complete = payload.get("fetched_pages_complete") is True
+    if not complete:
+        _emit_outcome(
+            CheckOutcome.unknown(
+                _JOB_BOT_CASCADE_ADVISORY,
+                reason=REASON_INCOMPLETE_EVIDENCE,
+                scope=_BOT_CASCADE_SCOPE,
+                detail=f"unresolved-thread fetch for PR #{pr_number} was incomplete",
+            )
+        )
     count = payload.get("unresolved_count")
     if complete and isinstance(count, int) and not isinstance(count, bool) and count > 0:
         print(f"WARNING: PR #{pr_number} has {count} unresolved thread(s)")
@@ -8118,7 +8127,13 @@ def _emit_outcome(outcome: CheckOutcome) -> None:
     so one grep counts all three (issue #5636). Only non-pass paths call this,
     which keeps a clean hook run as quiet as it was.
     """
-    print(outcome.summary_line(), file=sys.stderr)
+    line = outcome.summary_line()
+    if outcome.detail:
+        # summary_line omits the detail. A json string keeps it on one line and
+        # keeps a quote inside the detail from splitting the field, and it is what
+        # names the cause of a swallowed exception.
+        line += f" detail={json.dumps(outcome.detail)}"
+    print(line, file=sys.stderr)
 
 
 def _repo_root(args: argparse.Namespace) -> Path:
