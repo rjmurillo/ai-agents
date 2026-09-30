@@ -167,9 +167,11 @@ def test_read_signals_detect_tree_walks(source: str, walks: bool) -> None:
 def test_read_signals_keep_path_like_literals_only() -> None:
     import ast
 
-    tree = ast.parse("a = 'AGENTS.md'\nb = 'x'\nc = 'two\\nlines'\nd = 'y' * 400\ne = 'z' * 300\n")
+    keep = "k" * 299
+    drop = "z" * 300
+    tree = ast.parse(f"a = 'AGENTS.md'\nb = 'x'\nc = 'two\\nlines'\nd = '{drop}'\ne = '{keep}'\n")
     literals, _ = import_graph._read_signals(tree)
-    assert literals == frozenset({"AGENTS.md"})
+    assert literals == frozenset({"AGENTS.md", keep})
 
 
 def test_build_records_literals_and_walkers(tmp_path: Path) -> None:

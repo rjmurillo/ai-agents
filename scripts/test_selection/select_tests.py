@@ -135,7 +135,7 @@ def _graph_selection(
 
     reverse = import_graph.reverse_graph(graph)
     affected = import_graph.affected_closure(sources, reverse) if sources else set()
-    if sources and graph_data.wildcard_dependents:
+    if graph_data.wildcard_dependents:
         affected.update(import_graph.affected_closure(graph_data.wildcard_dependents, reverse))
     if inputs:
         affected.update(reader_map.reader_tests(inputs, graph_data))

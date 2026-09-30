@@ -159,3 +159,10 @@ def test_reader_tests_uses_supplied_graph_data() -> None:
         tree_walkers=frozenset(),
     )
     assert reader_map.reader_tests(["docs/x.md"], data) == {"tests/test_a.py"}
+
+
+def test_input_only_change_includes_wildcard_dependent_tests(tmp_path: Path) -> None:
+    _make_repo(tmp_path)
+    _write(tmp_path, "tests/test_dynamic.py", "import importlib\nimportlib.import_module(name)\n")
+    result = _select(tmp_path, ["AGENTS.md"])
+    assert "tests/test_dynamic.py" in result.tests
