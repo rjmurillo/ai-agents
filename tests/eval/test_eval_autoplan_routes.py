@@ -129,7 +129,8 @@ def test_specialist_falling_through_to_orchestrator_fails(
     code = ev.main(["--fixtures", str(fixtures), "--skills-root", str(root)])
     out = capsys.readouterr().out
     assert code == ev.EXIT_FAIL
-    assert "orchestrator fallback: 1/1" in out
+    assert "unresolved (none): 1/1" in out
+    assert "orchestrator fallback: 0/1" in out
     assert "expected dx-review, observed None" in out
 
 
@@ -141,7 +142,9 @@ def test_unexpected_skill_is_named_in_the_diff(
     )
     code = ev.main(["--fixtures", str(_write(tmp_path, scenario))])
     assert code == ev.EXIT_FAIL
-    assert "unexpected skills selected: dx-review" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert "unexpected skills selected: local:dx-review" in out
+    assert "expected kind=specialist route=dx-review; observed kind=specialist" in out
 
 
 def test_bare_strips_namespace() -> None:
@@ -160,6 +163,9 @@ def test_bare_strips_namespace() -> None:
         json.dumps({"scenarios": [_scenario(id="")]}),
         json.dumps({"scenarios": [_scenario(family="lifecycle")]}),
         json.dumps({"scenarios": [_scenario(expect={"kind": "bogus"})]}),
+        json.dumps({"scenarios": [_scenario(expect={"kind": ["none"]})]}),
+        json.dumps({"scenarios": [_scenario(expect={"kind": {}})]}),
+        json.dumps({"scenarios": [_scenario(expect="none")]}),
         json.dumps({"scenarios": [_scenario(expect={"kind": "none", "route": 3})]}),
         json.dumps({"scenarios": [_scenario(expect={"kind": "none", "routes_absent": "x"})]}),
         json.dumps({"scenarios": [_scenario(), _scenario()]}),
@@ -256,3 +262,68 @@ def test_non_python_resolver_path_is_config_error(
     monkeypatch.setattr(ev, "RESOLVER", tmp_path / "resolver.txt")
     with pytest.raises(ev.EvalConfigError, match="cannot load resolver"):
         ev.run_resolver("x", [])
+
+
+def test_orchestrator_handoff_counts_apart_from_unresolved(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    scenario = _scenario(request="Refactor the loader and the docs in parallel across services.")
+    assert ev.main(["--fixtures", str(_write(tmp_path, scenario))]) == ev.EXIT_FAIL
+    out = capsys.readouterr().out
+    assert "orchestrator fallback: 1/1" in out
+    assert "unresolved (none): 0/1" in out
+
+
+@pytest.mark.parametrize(
+    ("expected", "observed", "matches"),
+    [
+        ("dx-review", "local:dx-review", True),
+        ("dx-review", "gstack:dx-review", True),
+        ("local:dx-review", "local:dx-review", True),
+        ("gstack:dx-review", "local:dx-review", False),
+        ("dx-review", "local:other", False),
+        (None, None, True),
+        (None, "local:dx-review", False),
+        ("dx-review", None, False),
+    ],
+)
+def test_route_matches_pins_a_qualified_namespace(
+    expected: str | None, observed: str | None, matches: bool
+) -> None:
+    assert ev.route_matches(expected, observed) is matches
+
+
+def test_wrong_namespace_fails_when_the_fixture_is_qualified() -> None:
+    scenario = ev.Scenario("s", "explicit-skill", "r", "explicit", "gstack:dx-review", ())
+    observed = {"kind": "explicit", "route": "local:dx-review", "candidates": ["local:dx-review"]}
+    problems = ev.score(scenario, observed)
+    assert problems[0].startswith("expected kind=explicit route=gstack:dx-review")
+    assert "route: expected gstack:dx-review, observed local:dx-review" in problems
+
+
+def test_qualified_routes_absent_only_blocks_that_namespace() -> None:
+    scenario = ev.Scenario(
+        "s", "explicit-skill", "r", "explicit", "dx-review", ("gstack:dx-review",)
+    )
+    ok = {"kind": "explicit", "route": "local:dx-review", "candidates": ["local:dx-review"]}
+    bad = {"kind": "explicit", "route": "gstack:dx-review", "candidates": ["gstack:dx-review"]}
+    assert ev.score(scenario, ok) == []
+    assert "unexpected skills selected: gstack:dx-review" in ev.score(scenario, bad)
+
+
+def test_resolver_kind_of_wrong_type_is_config_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(ev, "_load_resolver_main", _fake_main('{"kind": ["x"]}'))
+    with pytest.raises(ev.EvalConfigError, match="no valid kind"):
+        ev.run_resolver("x", [])
+
+
+def test_resolver_kind_outside_vocabulary_is_config_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(ev, "_load_resolver_main", _fake_main('{"kind": "bogus"}'))
+    with pytest.raises(ev.EvalConfigError, match="no valid kind"):
+        ev.run_resolver("x", [])
+
+
+def test_resolver_main_is_loaded_once() -> None:
+    ev._RESOLVER_CACHE.clear()
+    first = ev._load_resolver_main()
+    assert ev._load_resolver_main() is first
