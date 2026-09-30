@@ -245,6 +245,24 @@ class TestCheckOutcomeSerialization:
 
         assert "examined=0" in line
 
+    def test_report_line_appends_the_detail_as_one_json_string(self) -> None:
+        """The cause reaches the log on one line, quotes escaped."""
+        outcome = CheckOutcome.blocked(
+            "v", reason=REASON_TOOL_ABSENT, detail='gh said "no"\nsecond line'
+        )
+
+        line = outcome.report_line()
+
+        assert line.startswith(outcome.summary_line())
+        assert line.endswith('detail="gh said \\"no\\"\\nsecond line"')
+        assert "\n" not in line
+
+    def test_report_line_equals_the_summary_when_there_is_no_detail(self) -> None:
+        outcome = CheckOutcome.skipped("v", reason=REASON_TOOL_ABSENT)
+
+        assert outcome.report_line() == outcome.summary_line()
+        assert "detail=" not in outcome.report_line()
+
 
 class TestCoerceOutcome:
     """The migration seam between bool validators and typed ones."""
