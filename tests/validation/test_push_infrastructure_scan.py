@@ -348,3 +348,69 @@ def test_missing_detector_fails_the_push(
     result = _pre_push(work, _new_branch_line("feature/docs", head), monkeypatch)
 
     assert result != 0, capsys.readouterr().err
+
+
+def test_push_with_no_changed_files_skips_the_detector_and_reports_zero(
+    origin: Origin,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A branch at origin/main scores zero files, reported, without the detector."""
+    work = _work(origin, tmp_path, detector=False)
+    _git(work, "checkout", "-q", "-b", "feature/empty", "origin/main")
+    head = _git(work, "rev-parse", "HEAD")
+
+    result = _pre_push(work, _new_branch_line("feature/empty", head), monkeypatch)
+
+    err = capsys.readouterr().err
+    assert result == 0, err
+    assert "refs/heads/feature/empty scores 0 file(s)" in err
+
+
+def test_failed_diff_fails_loud(
+    origin: Origin,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """AC5: a diff git cannot produce is a config error, not an empty file list."""
+    work = _work(origin, tmp_path)
+    _git(work, "checkout", "-q", "-b", "feature/docs")
+    head = _commit(work, "docs/note.md", "note\n")
+    real_run_git = policy._run_git
+
+    def failing_scan_diff(repo_root: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
+        if args[:4] == ["diff", "--name-only", "-z", "--no-renames"]:
+            return subprocess.CompletedProcess(args, 128, "", "fatal: bad object\n")
+        return real_run_git(repo_root, args)
+
+    monkeypatch.setattr(policy, "_run_git", failing_scan_diff)
+
+    result = _pre_push(work, _new_branch_line("feature/docs", head), monkeypatch)
+
+    err = capsys.readouterr().err
+    assert result == 2, err
+    assert "could not diff" in err
+    assert "scores" not in err
+
+
+def test_branch_policy_failure_returns_before_the_scan(
+    origin: Origin,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The scan runs only after the per-update branch policies pass."""
+    work = _work(origin, tmp_path)
+    _git(work, "checkout", "-q", "-b", "feature/docs")
+    head = _commit(work, "docs/note.md", "note\n")
+    scanned: list[object] = []
+    monkeypatch.setattr(policy, "_check_push_updates", lambda *_args: 1)
+    monkeypatch.setattr(
+        policy, "check_pushed_infrastructure", lambda *args: scanned.append(args) or 0
+    )
+
+    result = _pre_push(work, _new_branch_line("feature/docs", head), monkeypatch)
+
+    assert result == 1
+    assert scanned == []
