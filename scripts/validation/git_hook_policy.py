@@ -6613,6 +6613,11 @@ def _check_ref_updates(
 # blocked the push. The base here is computed from immutable SHAs instead.
 DETECT_INFRASTRUCTURE_SCRIPT = ".claude/skills/security-detection/detect_infrastructure.py"
 INFRASTRUCTURE_BASE_REF = "origin/main"
+INFRASTRUCTURE_SCANNED_REF_PREFIXES = ("refs/heads/", "refs/tags/")
+# The removed lefthook job's own cap. It bounds one detector run so a
+# multi-ref push reports a typed timeout (exit 3) before push-ref-policy's
+# 2m lefthook cap kills the whole job without a diagnosis.
+DETECT_INFRASTRUCTURE_TIMEOUT_SECONDS = 60.0
 
 
 def _infrastructure_scan_files(push_ref: PushRef, repo_root: Path) -> tuple[str, list[str]]:
@@ -6644,7 +6649,7 @@ def _infrastructure_scan_files(push_ref: PushRef, repo_root: Path) -> tuple[str,
 
 
 def _check_ref_infrastructure(push_ref: PushRef, repo_root: Path) -> int:
-    """Run the security review marker gate over one pushed branch ref."""
+    """Run the security review marker gate over one pushed branch or tag ref."""
     try:
         base, files = _infrastructure_scan_files(push_ref, repo_root)
     except PushUpdateConfigError as error:
@@ -6670,30 +6675,35 @@ def _check_ref_infrastructure(push_ref: PushRef, repo_root: Path) -> int:
         ],
         repo_root,
         input_text="\0".join(files) + "\0",
+        timeout_seconds=DETECT_INFRASTRUCTURE_TIMEOUT_SECONDS,
     )
     _print_process_output(result)
     return result.returncode
 
 
 def check_pushed_infrastructure(refs: Sequence[PushRef], repo_root: Path) -> int:
-    """Block a pushed branch that carries a CRITICAL path without a security marker.
+    """Block a pushed branch or tag that carries a CRITICAL path without a marker.
 
-    Each branch ref is scored from merge-base(origin/main, pushed SHA) to the
-    pushed SHA, and its marker is checked on that SHA, not on checked-out HEAD.
-    Deletions and non-branch refs carry nothing to review and are skipped.
-    Returns the first non-zero detector or configuration exit code.
+    Each branch or tag ref is scored from merge-base(origin/main, pushed SHA)
+    to the pushed SHA, and its marker is checked on that SHA, not on
+    checked-out HEAD. Tags are scored because a tag push runs the workflows of
+    the tagged commit (`.github/workflows/publish.yml` triggers on `v*`).
+    Deletions and other refs (notes, custom namespaces) are skipped, and the
+    skip is reported. Returns the first non-zero detector or config exit code.
     """
-    branch_refs = [
-        ref for ref in refs if not ref.is_deletion and _branch_name(ref.remote_ref) is not None
+    scanned_refs = [
+        ref
+        for ref in refs
+        if not ref.is_deletion and ref.remote_ref.startswith(INFRASTRUCTURE_SCANNED_REF_PREFIXES)
     ]
-    if not branch_refs:
+    if not scanned_refs:
         print(
-            "Infrastructure scan: skipped, no branch ref in this push carries commits",
+            "Infrastructure scan: skipped, no branch or tag ref in this push carries commits",
             file=sys.stderr,
         )
         return 0
     first_failure = 0
-    for push_ref in branch_refs:
+    for push_ref in scanned_refs:
         result = _check_ref_infrastructure(push_ref, repo_root)
         if result != 0 and first_failure == 0:
             first_failure = result

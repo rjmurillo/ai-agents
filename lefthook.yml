@@ -503,8 +503,8 @@ pre-push:
         piped: true
         jobs:
           # Also the security review marker gate (issue #5636, D9): a pushed
-          # branch carrying a CRITICAL path is blocked unless its pushed SHA is
-          # a /review marker commit binding the security axis. A new commit
+          # branch or tag carrying a CRITICAL path is blocked unless its pushed
+          # SHA is a /review marker commit binding the security axis. A new commit
           # moves the branch off the marker, so the marker dies with the SHA it
           # reviewed. Issue #6076 moved the gate here from `{push_files}`,
           # which diffed a new branch against the local `main` ref, so a stale
