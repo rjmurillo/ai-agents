@@ -14,10 +14,12 @@ Decision rule, from the spec:
 - ``source:agent`` when the author is the repository owner and the body carries
   no human marker. The owner login is shared with every agent session, so the
   default is agent: only a human can assert human.
-- ``source:human`` when the author is the repository owner and the body carries
-  ``<!-- source:human -->`` and the issue is not part of a burst (another issue
-  by the same login in the previous ten minutes). A burst forces
-  ``source:agent`` whatever the marker says.
+- ``source:human`` when the author is the repository owner and the body ends
+  with ``<!-- source:human -->`` as its last non-blank line and the issue is not
+  part of a burst (another issue by the same login in the previous ten
+  minutes). A burst forces ``source:agent`` whatever the marker says. The
+  burst check looks backward only, so the first issue of a burst is not caught.
+- ``source:agent`` when the author is missing (a deleted account).
 - ``source:human`` when the author is any other person.
 
 Trust boundary: the issue body is untrusted input. It is fetched by this script
@@ -31,7 +33,10 @@ behavior for agent issues without Step 0 answers is not implemented here. This
 script only labels.
 
 Residual risk, recorded in the spec: under a shared login no in-band marker is
-unforgeable. The burst rule is a detective control, not a preventive one.
+unforgeable. The burst rule is a detective control, not a preventive one. An
+agent that writes the marker as the last line of an issue body, outside a burst,
+receives ``source:human``. ``new_issue.py`` rejects that body for ``--source
+agent``, but raw ``gh`` and the MCP tool cannot be stopped from writing it.
 
 Exit codes (AGENTS.md, ADR-035): 0 ok, 2 config error, 3 external error.
 """
@@ -55,14 +60,15 @@ LABEL_HUMAN = "source:human"
 LABEL_AGENT = "source:agent"
 SOURCE_LABELS = (LABEL_HUMAN, LABEL_AGENT)
 
-# Written by new_issue.py on --source human. The two literals are kept equal by
-# tests/test_label_issue_source.py because a skill script cannot import from
-# .github/scripts and stay self-contained in an installed plugin.
+# Written by new_issue.py on --source human, always as the last line. The two
+# literals are kept equal by tests/test_label_issue_source.py because a skill
+# script cannot import from .github/scripts and stay self-contained in an
+# installed plugin.
 HUMAN_MARKER_PATTERN = re.compile(r"<!--\s*source:human\s*-->", re.IGNORECASE)
 
 BURST_WINDOW = timedelta(minutes=10)
 _GH_TIMEOUT_SECONDS = 30
-_NAME_PATTERN = re.compile(r"^[A-Za-z0-9._-]+$")
+_NAME_PATTERN = re.compile(r"[A-Za-z0-9_][A-Za-z0-9._-]*")
 _LABEL_COLORS = {LABEL_HUMAN: "0e8a16", LABEL_AGENT: "d93f0b"}
 _LABEL_DESCRIPTIONS = {
     LABEL_HUMAN: "A human selected this work",
@@ -81,12 +87,19 @@ def is_bot(login: str, user_type: str) -> bool:
 
 
 def has_human_marker(body: str) -> bool:
-    """Return True when the raw body carries the human marker comment."""
-    return bool(HUMAN_MARKER_PATTERN.search(body or ""))
+    """Return True when the marker is the last non-blank line of the raw body.
+
+    Anchoring to the last line means a marker quoted in prose, or in a fenced
+    example inside an issue about this labeler, does not count.
+    """
+    lines = [line for line in (body or "").splitlines() if line.strip()]
+    return bool(lines) and HUMAN_MARKER_PATTERN.fullmatch(lines[-1].strip()) is not None
 
 
 def classify(login: str, user_type: str, owner: str, body: str, in_burst: bool) -> tuple[str, str]:
     """Return ``(label, reason)`` for one issue. Pure, no network."""
+    if not login:
+        return LABEL_AGENT, "author is missing"
     if is_bot(login, user_type):
         return LABEL_AGENT, "author is an automation identity"
     if login.lower() != owner.lower():
@@ -114,6 +127,20 @@ def is_in_burst(current: dict[str, Any], others: list[dict[str, Any]]) -> bool:
     return False
 
 
+def _error_text(result: subprocess.CompletedProcess[str]) -> str:
+    """Join stderr and stdout: ``gh api`` puts the JSON error body on stdout.
+
+    Newlines and ``::`` are removed so the text cannot forge a workflow command
+    when it is printed after ``::error::`` or ``::warning::``.
+    """
+    joined = f"{result.stderr.strip()} {result.stdout.strip()}".strip()
+    return " ".join(joined.split()).replace("::", ": :")[:300]
+
+
+def _valid_name(value: str) -> bool:
+    return _NAME_PATTERN.fullmatch(value) is not None and value not in {".", ".."}
+
+
 def _gh(args: list[str]) -> str:
     """Run gh with an argument list. Return stdout or raise GhError."""
     try:
@@ -127,7 +154,7 @@ def _gh(args: list[str]) -> str:
     except (OSError, subprocess.TimeoutExpired) as exc:
         raise GhError(str(exc)) from exc
     if result.returncode != 0:
-        raise GhError((result.stderr.strip() or result.stdout.strip())[:300])
+        raise GhError(_error_text(result))
     return result.stdout
 
 
@@ -171,17 +198,12 @@ def ensure_label(owner: str, repo: str, label: str) -> None:
 
 
 def apply_label(owner: str, repo: str, number: int, desired: str, current: list[str]) -> None:
-    """Make ``desired`` the only source label on the issue."""
+    """Make ``desired`` the only source label on the issue.
+
+    The desired label is added before the stale one is removed, so a failure
+    between the calls leaves two source labels, never none.
+    """
     ensure_label(owner, repo, desired)
-    for stale in (name for name in SOURCE_LABELS if name != desired and name in current):
-        _gh(
-            [
-                "api",
-                "-X",
-                "DELETE",
-                f"repos/{owner}/{repo}/issues/{number}/labels/{quote(stale, safe='')}",
-            ]
-        )
     if desired not in current:
         _gh(
             [
@@ -191,6 +213,15 @@ def apply_label(owner: str, repo: str, number: int, desired: str, current: list[
                 f"repos/{owner}/{repo}/issues/{number}/labels",
                 "-f",
                 f"labels[]={desired}",
+            ]
+        )
+    for stale in (name for name in SOURCE_LABELS if name != desired and name in current):
+        _gh(
+            [
+                "api",
+                "-X",
+                "DELETE",
+                f"repos/{owner}/{repo}/issues/{number}/labels/{quote(stale, safe='')}",
             ]
         )
 
@@ -234,7 +265,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    if args.issue < 1 or not _NAME_PATTERN.match(args.owner) or not _NAME_PATTERN.match(args.repo):
+    if args.issue < 1 or not _valid_name(args.owner) or not _valid_name(args.repo):
         print("Invalid --issue, --owner, or --repo", file=sys.stderr)
         return EXIT_CONFIG
     try:

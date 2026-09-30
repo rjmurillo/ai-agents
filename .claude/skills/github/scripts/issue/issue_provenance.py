@@ -48,11 +48,25 @@ SOURCE_LABELS = frozenset(f"source:{source}" for source in SOURCES)
 HUMAN_MARKER = "<!-- source:human -->"
 
 
+_MARKER_ANYWHERE = re.compile(r"<!--\s*source:human\s*-->", re.IGNORECASE)
+
+
 def with_human_marker(source: str, body: str) -> str:
-    """Append the human marker to ``body`` for ``--source human`` only."""
+    """Append the human marker as the last line for ``--source human`` only."""
     if source != "human":
         return body
     return f"{body.rstrip()}\n\n{HUMAN_MARKER}" if body.strip() else HUMAN_MARKER
+
+
+def marker_error(source: str, body: str) -> str | None:
+    """Reject the human marker in any body that is not ``--source human``.
+
+    The labeler treats a trailing marker as a human assertion. An agent-sourced
+    body that carries one would be relabeled ``source:human``.
+    """
+    if source != "human" and _MARKER_ANYWHERE.search(body):
+        return f"body carries {HUMAN_MARKER}, which only --source human may write"
+    return None
 
 # Phrase column of the canonical hedge phrase list, copied verbatim and in order
 # from skills/spec-generator/references/spec-step0-gates.md (the table that ends

@@ -359,3 +359,12 @@ class TestHumanMarker:
 
     def test_marker_helper_on_empty_human_body_is_the_bare_marker(self):
         assert provenance.with_human_marker("human", "  ") == provenance.HUMAN_MARKER
+
+    def test_agent_body_with_the_marker_is_rejected(self, capsys):
+        rc, _ = _run(["--title", "T", "--body", "x\n<!-- source:human -->", *AGENT_ARGS])
+        assert rc == 2
+        assert "only --source human may write" in _error(capsys)
+
+    def test_marker_helper_error_is_none_for_human_and_clean_agent(self):
+        assert provenance.marker_error("human", provenance.HUMAN_MARKER) is None
+        assert provenance.marker_error("agent", "no marker") is None

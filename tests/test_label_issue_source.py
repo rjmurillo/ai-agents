@@ -75,6 +75,16 @@ class TestClassify:
         assert label == mod.LABEL_AGENT
         assert "burst" in reason
 
+    def test_marker_must_be_the_last_non_blank_line(self):
+        assert mod.has_human_marker(f"text\n{MARKER}\n\n  \n")
+        assert not mod.has_human_marker(f"{MARKER}\ntext after")
+        assert not mod.has_human_marker(f"quoted `{MARKER}` in prose")
+        assert not mod.has_human_marker(f"```\n{MARKER}\n```")
+        assert not mod.has_human_marker("")
+
+    def test_missing_author_is_agent(self):
+        assert mod.classify("", "", OWNER, MARKER, False)[0] == mod.LABEL_AGENT
+
     def test_marker_lookalike_is_not_a_marker(self):
         for body in ("source:human", "<!-- source:humans -->", "<!-- source:agent -->", None):
             assert mod.classify(OWNER, "User", OWNER, body, False)[0] == mod.LABEL_AGENT
@@ -206,6 +216,24 @@ class TestEnsureLabel:
         with patch("subprocess.run", side_effect=fake):
             mod.ensure_label("o", "r", mod.LABEL_AGENT)
 
+    def test_already_exists_in_stdout_is_not_an_error(self):
+        def fake(cmd, **_kw):
+            return subprocess.CompletedProcess(
+                cmd, 1, '{"errors":[{"code":"already_exists"}]}', "gh: Validation Failed (HTTP 422)"
+            )
+
+        with patch("subprocess.run", side_effect=fake):
+            mod.ensure_label("o", "r", mod.LABEL_AGENT)
+
+    def test_error_text_cannot_forge_a_workflow_command(self):
+        def fake(cmd, **_kw):
+            return subprocess.CompletedProcess(cmd, 1, "", "line\n::error::forged")
+
+        with patch("subprocess.run", side_effect=fake), pytest.raises(mod.GhError) as caught:
+            mod.fetch_issue("o", "r", 1)
+        assert "\n" not in str(caught.value)
+        assert "::" not in str(caught.value)
+
     def test_other_failure_raises(self):
         def fake(cmd, **_kw):
             return subprocess.CompletedProcess(cmd, 1, "", "HTTP 403")
@@ -230,6 +258,21 @@ class TestMain:
             assert mod.main(["--issue", "10", "--owner", OWNER, "--repo", "r"]) == 3
         assert "Could not label issue #10" in capsys.readouterr().err
 
+    def test_ghost_author_issue_is_labeled_agent(self):
+        issue = _issue()
+        issue["user"] = None
+        assert _run(FakeGh(issue))[0] == mod.LABEL_AGENT
+
+    def test_add_happens_before_delete(self):
+        gh = FakeGh(_issue(labels=["source:human"]))
+        _run(gh)
+        kinds = [
+            "POST" if "labels[]" in m else "DELETE"
+            for m in gh.mutations()
+            if "labels" in m and "/labels" in m and "repos/rjmurillo/r/labels " not in m
+        ]
+        assert kinds.index("POST") < kinds.index("DELETE")
+
     def test_bad_json_exits_3(self):
         def fake(cmd, **_kw):
             return subprocess.CompletedProcess(cmd, 0, "not json", "")
@@ -243,6 +286,9 @@ class TestMain:
             ["--issue", "0", "--owner", "o", "--repo", "r"],
             ["--issue", "1", "--owner", "o;rm", "--repo", "r"],
             ["--issue", "1", "--owner", "o", "--repo", "r/../x"],
+            ["--issue", "1", "--owner", "o", "--repo", ".."],
+            ["--issue", "1", "--owner=-o", "--repo", "r"],
+            ["--issue", "1", "--owner", "o", "--repo", "r\n"],
             ["--issue", "1", "--owner", "", "--repo", "r"],
         ],
     )

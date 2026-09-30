@@ -231,7 +231,12 @@ def _validate_request(args: argparse.Namespace, fmt: str) -> tuple[str, str] | i
     evidence_error, step0_block = provenance.step0_evidence(
         args.source, body, args.blocked_by, args.signal
     )
-    error = escaped_newline_body_error(body) or label_error or evidence_error
+    error = (
+        escaped_newline_body_error(body)
+        or provenance.marker_error(args.source, body)
+        or label_error
+        or evidence_error
+    )
     if error:
         return _usage_error(error, fmt)
     if step0_block:
