@@ -59,6 +59,7 @@ from scripts.validation.evidence import (
     REASON_POLICY_EXEMPT,
     REASON_PR_UNRESOLVED,
     REASON_SCRIPT_FAILED,
+    REASON_TIMEOUT,
     REASON_TOOL_ABSENT,
     REASON_TREE_ABSENT,
     REASON_VALIDATOR_RAISED,
@@ -870,6 +871,20 @@ def _container_clamped(timeout_seconds: float) -> float:
     return min(timeout_seconds, CONTAINER_SUBPROCESS_CEILING_SECONDS)
 
 
+class _ProcessStartFailure(subprocess.CompletedProcess[str]):
+    """The result for a command that never started: exit 3, with the OSError kept.
+
+    ``_run_command`` used to return a plain ``CompletedProcess`` here, so a missing
+    binary looked like any command that exited 3 and an advisory job called it a
+    finding. Being a ``CompletedProcess`` keeps every existing caller working; the
+    ``start_error`` is what lets a typed job say the tool was absent (issue #5636).
+    """
+
+    def __init__(self, command: Sequence[str], start_error: OSError) -> None:
+        super().__init__(list(command), 3, "", str(start_error))
+        self.start_error = start_error
+
+
 def _run_command(
     args: Sequence[str],
     repo_root: Path,
@@ -905,7 +920,7 @@ def _run_command(
             start_new_session=_SUPPORTS_PGROUP,
         )
     except OSError as exc:
-        return subprocess.CompletedProcess(command, 3, "", str(exc))
+        return _ProcessStartFailure(command, exc)
     try:
         stdout, stderr = proc.communicate(
             input=input_text,
@@ -6845,18 +6860,10 @@ def run_yamllint(paths: Sequence[str], repo_root: Path) -> int:
         return 0
     if not paths:
         return 0
-    try:
-        result = _run_command(["yamllint", "-f", "parsable", "--", *paths], repo_root)
-    except FileNotFoundError:
-        print("WARNING: yamllint not installed", file=sys.stderr)
-        _emit_outcome(
-            CheckOutcome.blocked(
-                _JOB_YAML_ADVISORY,
-                reason=REASON_TOOL_ABSENT,
-                scope=scope,
-                detail="yamllint is not installed",
-            )
-        )
+    result = _run_command(["yamllint", "-f", "parsable", "--", *paths], repo_root)
+    if _report_process_failure(
+        _JOB_YAML_ADVISORY, scope, result, "WARNING: yamllint could not run"
+    ):
         return 0
     _print_process_output(result)
     if result.returncode != 0:
@@ -6935,6 +6942,13 @@ def run_planning_advisory(repo_root: Path) -> int:
         ],
         repo_root,
     )
+    if _report_process_failure(
+        _JOB_PLANNING_ADVISORY,
+        "planning artifacts",
+        result,
+        "WARNING: planning validation could not run",
+    ):
+        return 0
     _print_process_output(result)
     if result.returncode != 0:
         print("WARNING: planning validation findings are advisory", file=sys.stderr)
@@ -7944,21 +7958,17 @@ def validate_branch_sessions(paths: Sequence[str], repo_root: Path) -> int:
 
 
 def bot_cascade_advisory(repo_root: Path) -> int:
-    try:
-        pr = _run_command(
-            ["gh", "pr", "view", "--json", "number", "--jq", ".number"],
-            repo_root,
-        )
-    except FileNotFoundError:
-        print("Bot cascade check skipped (gh unavailable)")
-        _emit_outcome(
-            CheckOutcome.blocked(
-                _JOB_BOT_CASCADE_ADVISORY,
-                reason=REASON_TOOL_ABSENT,
-                scope=_BOT_CASCADE_SCOPE,
-                detail="gh is not installed",
-            )
-        )
+    pr = _run_command(
+        ["gh", "pr", "view", "--json", "number", "--jq", ".number"],
+        repo_root,
+    )
+    if _report_process_failure(
+        _JOB_BOT_CASCADE_ADVISORY,
+        _BOT_CASCADE_SCOPE,
+        pr,
+        "Bot cascade check skipped (gh unavailable)",
+        to_stdout=True,
+    ):
         return 0
     if pr.returncode != 0 or not pr.stdout.strip():
         print("Bot cascade check skipped (no resolvable PR)")
@@ -8134,6 +8144,39 @@ def _emit_outcome(outcome: CheckOutcome) -> None:
         # names the cause of a swallowed exception.
         line += f" detail={json.dumps(outcome.detail)}"
     print(line, file=sys.stderr)
+
+
+def _report_process_failure(
+    job: str,
+    scope: str,
+    result: subprocess.CompletedProcess[str],
+    message: str,
+    *,
+    to_stdout: bool = False,
+) -> bool:
+    """Report a command that never ran to a verdict, and say whether it was one.
+
+    ``_run_command`` returns exit 3 for three unrelated things: a timeout, an
+    ``OSError`` starting the process, and a child that exits 3 itself. A
+    ``FileNotFoundError`` raised by the command never reaches a caller, because
+    ``_run_command`` catches it, so an ``except FileNotFoundError`` around a call
+    is dead code. This reads the two markers ``_run_command`` does leave and
+    prints one ``BLOCKED`` line: ``tool.absent`` for a missing binary,
+    ``script.failed`` for another start error, ``timeout`` for a kill. It returns
+    True so the caller can stop without calling the result a finding.
+    """
+    if isinstance(result, _ProcessStartFailure):
+        missing = isinstance(result.start_error, FileNotFoundError)
+        reason = REASON_TOOL_ABSENT if missing else REASON_SCRIPT_FAILED
+        detail = f"{result.args[0]} could not start: {result.start_error}"
+    elif _timed_out(result):
+        reason = REASON_TIMEOUT
+        detail = (result.stderr or "").strip().splitlines()[-1]
+    else:
+        return False
+    print(message, file=sys.stdout if to_stdout else sys.stderr)
+    _emit_outcome(CheckOutcome.blocked(job, reason=reason, scope=scope, detail=detail))
+    return True
 
 
 def _repo_root(args: argparse.Namespace) -> Path:

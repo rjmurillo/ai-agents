@@ -56,14 +56,39 @@ class TestYamllint:
         assert policy.run_yamllint(["a.yml"], tmp_path) == 0
         assert _typed(capsys) == [("SKIP", "yaml-advisory", "policy.env_bypass")]
 
-    def test_a_missing_binary_is_a_typed_blocked(
+    def test_a_missing_binary_is_a_typed_blocked_through_the_real_wrapper(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
     ) -> None:
+        """_run_command catches the OSError itself, so a raising stub would test nothing real."""
         monkeypatch.delenv("SKIP_YAMLLINT", raising=False)
-        monkeypatch.setattr(policy, "_run_command", _dispatch({"yamllint": FileNotFoundError()}))
+        real = policy._run_command
+        monkeypatch.setattr(
+            policy,
+            "_run_command",
+            lambda args, root, **kw: real(["yamllint-no-such-binary", *args[1:]], root, **kw),
+        )
 
         assert policy.run_yamllint(["a.yml"], tmp_path) == 0
         assert _typed(capsys) == [("BLOCKED", "yaml-advisory", "tool.absent")]
+
+    def test_a_yamllint_timeout_is_a_typed_blocked(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        monkeypatch.delenv("SKIP_YAMLLINT", raising=False)
+        timed_out = _proc(3, "", "ERROR: yamllint timed out after 90 seconds\n")
+        monkeypatch.setattr(policy, "_run_command", lambda *_a, **_k: timed_out)
+
+        assert policy.run_yamllint(["a.yml"], tmp_path) == 0
+        assert _typed(capsys) == [("BLOCKED", "yaml-advisory", "timeout")]
+
+    def test_a_yamllint_that_exits_three_itself_is_a_finding_not_a_timeout(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        monkeypatch.delenv("SKIP_YAMLLINT", raising=False)
+        monkeypatch.setattr(policy, "_run_command", lambda *_a, **_k: _proc(3, "", "bad config"))
+
+        assert policy.run_yamllint(["a.yml"], tmp_path) == 0
+        assert _typed(capsys) == [("FAIL", "yaml-advisory", "advisory.findings")]
 
     def test_findings_are_a_typed_fail_and_still_exit_zero(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
@@ -101,6 +126,19 @@ class TestPlanningAdvisory:
 
         assert policy.run_planning_advisory(tmp_path) == 0
         assert _typed(capsys) == []
+
+
+    def test_a_planning_timeout_is_a_typed_blocked_not_a_finding(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """PR #6067 review: a timeout is not a completed scan."""
+        timed_out = _proc(
+            3, "", "ERROR: validate_planning_artifacts.py timed out after 90 seconds\n"
+        )
+        monkeypatch.setattr(policy, "_run_command", lambda *_a, **_k: timed_out)
+
+        assert policy.run_planning_advisory(tmp_path) == 0
+        assert _typed(capsys) == [("BLOCKED", "planning-advisory", "timeout")]
 
 
 class TestTasteAdvisory:
@@ -183,11 +221,26 @@ class TestBotCascadeAdvisory:
         monkeypatch.setattr(policy, "_run_command", run)
         return policy.bot_cascade_advisory(tmp_path)
 
-    def test_a_missing_gh_is_a_typed_blocked(
+    def test_a_missing_gh_is_a_typed_blocked_through_the_real_wrapper(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        assert self._run(tmp_path, monkeypatch, pr=FileNotFoundError()) == 0
+        real = policy._run_command
+        monkeypatch.setattr(
+            policy,
+            "_run_command",
+            lambda args, root, **kw: real(["gh-no-such-binary", *args[1:]], root, **kw),
+        )
+
+        assert policy.bot_cascade_advisory(tmp_path) == 0
         assert _typed(capsys) == [("BLOCKED", "bot-cascade-advisory", "tool.absent")]
+
+    def test_a_gh_timeout_is_a_typed_blocked_not_an_unresolved_pr(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        timed_out = _proc(3, "", "ERROR: gh timed out after 90 seconds\n")
+
+        assert self._run(tmp_path, monkeypatch, pr=timed_out) == 0
+        assert _typed(capsys) == [("BLOCKED", "bot-cascade-advisory", "timeout")]
 
     def test_no_resolvable_pr_is_a_typed_skip(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
@@ -399,3 +452,25 @@ def test_an_outcome_with_no_detail_prints_no_detail_field(
     policy._emit_outcome(CheckOutcome.skipped("job", reason="policy.exempt"))
 
     assert "detail=" not in capsys.readouterr().err
+
+
+class TestRunCommandStartFailure:
+    """The wrapper's own contract: what it returns when the command cannot start."""
+
+    def test_a_missing_binary_returns_a_start_failure_that_keeps_the_oserror(
+        self, tmp_path: Path
+    ) -> None:
+        result = policy._run_command(["definitely-not-a-real-binary-5636"], tmp_path)
+
+        assert isinstance(result, policy._ProcessStartFailure)
+        assert isinstance(result.start_error, FileNotFoundError)
+        assert result.returncode == 3
+
+    def test_a_real_child_that_exits_three_is_not_a_start_failure(self, tmp_path: Path) -> None:
+        import sys
+
+        result = policy._run_command([sys.executable, "-c", "raise SystemExit(3)"], tmp_path)
+
+        assert not isinstance(result, policy._ProcessStartFailure)
+        assert result.returncode == 3
+        assert not policy._timed_out(result)

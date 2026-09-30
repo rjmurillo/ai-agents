@@ -94,15 +94,28 @@ def _script_paths(path_cell: str, root: Path) -> list[Path]:
 
 
 def _functions(source: str) -> dict[str, ast.FunctionDef | ast.AsyncFunctionDef]:
+    """Module-level functions only, so a same-named method cannot stand in for a helper."""
     return {
         node.name: node
-        for node in ast.walk(ast.parse(source))
+        for node in ast.parse(source).body
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
     }
 
 
-def _names_typed_contract(node: ast.AST) -> bool:
-    return any(isinstance(n, ast.Name) and n.id == "CheckOutcome" for n in ast.walk(node))
+def _builds_check_outcome(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
+    """True when the body calls ``CheckOutcome.<constructor>(...)``.
+
+    A parameter or return annotation that names the type does not count, so a
+    function that only accepts an outcome cannot back a TYPED claim.
+    """
+    return any(
+        isinstance(n, ast.Call)
+        and isinstance(n.func, ast.Attribute)
+        and isinstance(n.func.value, ast.Name)
+        and n.func.value.id == "CheckOutcome"
+        for statement in node.body
+        for n in ast.walk(statement)
+    )
 
 
 def _function_returns_typed(source: str, function: str) -> bool:
@@ -110,7 +123,8 @@ def _function_returns_typed(source: str, function: str) -> bool:
 
     The second clause is for an exit-code function (``-> int``) that reports its
     non-pass paths as typed result lines. It counts a direct use of
-    ``CheckOutcome`` in the body, or a call to one module-level helper that does.
+    ``CheckOutcome`` constructor in the body, or a call to one module-level helper
+    that does.
     One hop only, so a claim cannot ride on a distant call chain.
     """
     functions = _functions(source)
@@ -121,13 +135,11 @@ def _function_returns_typed(source: str, function: str) -> bool:
         annotation = ast.unparse(node.returns)
         if any(typed in annotation for typed in TYPED_ANNOTATIONS):
             return True
-    if _names_typed_contract(node):
+    if _builds_check_outcome(node):
         return True
     calls = (n for n in ast.walk(node) if isinstance(n, ast.Call))
     called = {n.func.id for n in calls if isinstance(n.func, ast.Name)}
-    return any(
-        _names_typed_contract(functions[name]) for name in called if name in functions
-    )
+    return any(_builds_check_outcome(functions[name]) for name in called if name in functions)
 
 
 def unproven_claims(claims: list[TypedClaim], root: Path) -> list[str]:
@@ -272,6 +284,29 @@ def test_a_helper_two_hops_away_does_not_back_the_claim(tmp_path: Path) -> None:
         "    _mid()\n"
         "    return 0\n"
     )
+    claims = typed_claims(_table("run_job", "TYPED"))
+
+    assert len(unproven_claims(claims, _fake_repo(tmp_path, body))) == 1
+
+
+def test_a_class_method_with_the_same_name_does_not_back_the_claim(tmp_path: Path) -> None:
+    body = (
+        "def _emit():\n"
+        "    pass\n"
+        "def run_job() -> int:\n"
+        "    _emit()\n"
+        "    return 0\n"
+        "class Unrelated:\n"
+        "    def _emit(self):\n"
+        "        return CheckOutcome.skipped('j', reason='r')\n"
+    )
+    claims = typed_claims(_table("run_job", "TYPED"))
+
+    assert len(unproven_claims(claims, _fake_repo(tmp_path, body))) == 1
+
+
+def test_an_annotation_that_only_names_the_type_does_not_back_the_claim(tmp_path: Path) -> None:
+    body = "def run_job(outcome: CheckOutcome) -> int:\n    return 0\n"
     claims = typed_claims(_table("run_job", "TYPED"))
 
     assert len(unproven_claims(claims, _fake_repo(tmp_path, body))) == 1
