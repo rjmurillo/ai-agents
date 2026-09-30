@@ -374,11 +374,20 @@ def validate_orchestrator_citations(repo_root: Path) -> bool:
     points to a file that no longer exists. A stale citation (e.g. the removed
     ``AIReviewCommon.psm1`` reference fixed in PR #1934) sends the next reader
     to a dead pointer. See Issue #1966.
+
+    Fails closed when the validator is absent, matching
+    ``validate_agent_catalog``: this gate exits non-zero on a stale citation,
+    so a missing script is a gate that cannot run, not a pass (issue #5636).
     """
     script = repo_root / "scripts" / "validation" / "check_orchestrator_citations.py"
     if not script.exists():
-        print("[WARNING] check_orchestrator_citations.py not found (skipping)")
-        return True
+        print(
+            "[ERROR] check_orchestrator_citations.py absent; the orchestrator "
+            "citation gate cannot run. Hard failure: a gate that cannot run is "
+            "not a pass.",
+            file=sys.stderr,
+        )
+        return False
 
     exit_code, stdout, stderr = _run_subprocess(
         [sys.executable, str(script), "--repo-root", str(repo_root)]
