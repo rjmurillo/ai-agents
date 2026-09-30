@@ -321,6 +321,7 @@ def test_retired_review_contexts_are_not_pinned() -> None:
     assert drift.REQUIRED_CONTEXTS == {
         "Analyze (actions)",
         "Analyze (python)",
+        "Check whole-tree count ratchets (blocking)",
         "Run Python Tests",
         "Validate Generated Files",
         "Validate Path Normalization",
