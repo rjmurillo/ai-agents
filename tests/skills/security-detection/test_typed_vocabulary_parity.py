@@ -30,7 +30,7 @@ def _load() -> object:
     return module
 
 
-VOCABULARY: dict[str, str] = _load().TYPED_RESULT_VOCABULARY  # type: ignore[attr-defined]
+VOCABULARY: dict[str, str] = vars(_load())["TYPED_RESULT_VOCABULARY"]
 
 
 def parity_errors(vocabulary: dict[str, str]) -> list[str]:
