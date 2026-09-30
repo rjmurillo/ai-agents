@@ -99,7 +99,7 @@ class TestNoTrackedFileHidesBehindTheSkip:
     moment someone digs it.
     """
 
-    _KNOWN = frozenset()
+    _KNOWN: frozenset[str] = frozenset()
 
     @pytest.mark.skipif(shutil.which("git") is None, reason="git not installed")
     def test_no_new_tracked_path_lands_under_a_worktrees_dir(self) -> None:
