@@ -35,7 +35,8 @@ What is measured, and what is a proxy:
   the follow-up grade.
 * `tool_failures`, cost, tokens, turns, wall time: read from the CLI stream.
 * `unapproved_external_actions`: tool calls outside the allowed set that did
-  not come back as errors.
+  not come back as errors. `Bash(python:*)` runs arbitrary Python, and this
+  count neither observes nor blocks a network call made from inside it.
 * `security_findings`: ruff `S` rules over the changed Python files.
 * `unsupported_claims`, `unresolved_uncertainty`: regex proxies over the
   final message. Weakest evidence here; the report says so.
