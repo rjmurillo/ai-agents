@@ -127,6 +127,9 @@ def _run_command(args: argparse.Namespace) -> tuple[CheckOutcome, int]:
     """Run the wrapped command; return its typed result and the exit to propagate."""
     name, scope = args.validator, args.scope
     try:
+        # The child inherits stdout. Flush first so output already buffered here
+        # reaches the log before the child's, not after it.
+        sys.stdout.flush()
         completed = subprocess.run(args.command, timeout=args.timeout, check=False)
     except FileNotFoundError:
         detail = f"{args.command[0]} not found"
