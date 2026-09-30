@@ -824,3 +824,35 @@ gate actually runs in.
 - `workflow-local-run` is still unmeasured on the path its cap protects. The
   cap is back at 30m, which is the safe direction, not evidence. Timing an
   `act` run in-hook on a machine with actionlint is what would close it.
+
+## Amendment review 2026-09-29: ceiling versus target (issue #5318, items 4 and 5)
+
+Scope: the ADR-054 and ADR-104 amendment that reads 900s as the per-job kill
+ceiling and 300s as the whole-hook target, and records the hook-level deadline
+as not adopted. Two review passes covered architect, critic,
+independent-thinker, security, analyst, and high-level-advisor.
+
+### Findings and resolution
+
+| Priority | Finding | Resolution |
+|----------|---------|------------|
+| P0 | The draft cited `security-scan` at 7.12s and whole hooks at 7s to 124s. The metrics file says 9.96s and 124s to 128s. The 7s figure is pre-commit. | Figures corrected to the metrics file in both ADRs. |
+| P1 | "Not needed" claimed more than n=2 on one box supports. | Reworded to "not adopted"; the sample size and missing load average are stated. |
+| P1 | The revisit trigger sat at 300s, above the 128s worst run. | Lowered to 150s, and to the moment `workflow-local-run` is measured. |
+| P1 | The cross-reference pointed at a note that was not after the Rule 3 table. | Now points at Known non-conformances, where the note lives. |
+| P2 | ADR-054 amendment lacked its own dated section and header updates. | Added `## Amendment 2026-09-29`, status line, revised date, and Amended by. |
+| P2 | `workflow-local-run` was flagged only in ADR-104. | Named in the deadline paragraph as outside the conclusion. |
+
+### Votes
+
+| Agent | Vote |
+|-------|------|
+| architect | Accept after fixes |
+| critic | Accept after fixes |
+| independent-thinker | Disagree and commit: wants the deadline revisited on load data |
+| security | Accept: `security-scan` still carries its 15m timeout; no control weakened |
+| analyst | Accept after fixes |
+| high-level-advisor | Accept |
+
+Dissent (independent-thinker): no measurement covers a loaded host. Captured in
+the revisit trigger above.
