@@ -49,6 +49,16 @@ jobs:
           filters: |
             memories:
               - '.serena/memories/**'
+            # Read domain of the citation verifiers, derived from
+            # scripts/memory_enhancement/verification.py (issue #5636, D14):
+            # an ADR citation resolves under .project-toolkit/architecture,
+            # and a file or function citation resolves to any repo-relative
+            # path, of which scripts/**/*.py is the proxy memory-health.yml
+            # already used. tests/ci/test_memory_citation_path_filters.py fails
+            # when a target cited by a memory falls outside these globs.
+            cited_targets:
+              - '.project-toolkit/architecture/**'
+              - 'scripts/**/*.py'
             code:
               # python3 -m memory_enhancement resolves to the repository-root
               # package, so watching only the scripts/ copy misses edits to the
@@ -61,7 +71,7 @@ jobs:
         env:
           GH_EVENT_NAME: ${{ github.event_name }}
           FILTER_OUTPUTS: ${{ toJson(steps.filter.outputs) }}
-          FILTER_KEYS: memories,code
+          FILTER_KEYS: memories,cited_targets,code
           OUTPUT_NAME: should-verify
         run: python3 scripts/workflows/determine_should_run_from_filters.py
 
