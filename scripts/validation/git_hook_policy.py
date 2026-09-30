@@ -6587,6 +6587,13 @@ def check_push_refs(stream: TextIO, repo_root: Path) -> int:
     if active_refs:
         warn_if_push_files_incomplete(active_refs, repo_root)
         _fetch_origin_main(repo_root)
+    return _check_ref_updates(refs, active_refs, repo_root)
+
+
+def _check_ref_updates(
+    refs: Sequence[PushRef], active_refs: Sequence[PushRef], repo_root: Path
+) -> int:
+    """Run the per-update branch policies, then the infrastructure scan."""
     updates = []
     for push_ref in active_refs:
         try:
@@ -6594,7 +6601,103 @@ def check_push_refs(stream: TextIO, repo_root: Path) -> int:
         except PushUpdateConfigError as error:
             print(f"ERROR: {error}", file=sys.stderr)
             return 2
-    return _check_push_updates(updates, repo_root)
+    updates_result = _check_push_updates(updates, repo_root)
+    if updates_result != 0:
+        return updates_result
+    return check_pushed_infrastructure(refs, repo_root)
+
+
+# Issue #6076: the pushed file set for the security review marker gate. Lefthook
+# `{push_files}` diffs a new branch against the local `main` ref, so a stale
+# local `main` leaked main's own infrastructure changes into the list and
+# blocked the push. The base here is computed from immutable SHAs instead.
+DETECT_INFRASTRUCTURE_SCRIPT = ".claude/skills/security-detection/detect_infrastructure.py"
+INFRASTRUCTURE_BASE_REF = "origin/main"
+
+
+def _infrastructure_scan_files(push_ref: PushRef, repo_root: Path) -> tuple[str, list[str]]:
+    """Return the base SHA and the files changed from it to the pushed SHA.
+
+    The base is merge-base(origin/main, pushed SHA). There is no fallback to
+    local `main` or to the empty tree: either would score files the branch
+    never changed. Raises ``PushUpdateConfigError`` when the base or the diff
+    cannot be resolved.
+    """
+    base = _merge_base(repo_root, INFRASTRUCTURE_BASE_REF, push_ref.local_sha)
+    if base is None:
+        raise PushUpdateConfigError(
+            f"could not resolve merge-base({INFRASTRUCTURE_BASE_REF}, "
+            f"{push_ref.local_sha[:12]}) for {push_ref.remote_ref}; the infrastructure "
+            "scan will not guess a base. Run `git fetch origin main` (and "
+            "`git fetch --unshallow origin` in a shallow clone), then push again."
+        )
+    diff = _run_git(
+        repo_root,
+        ["diff", "--name-only", "-z", "--no-renames", base, push_ref.local_sha, "--"],
+    )
+    if diff.returncode != 0:
+        _print_process_output(diff)
+        raise PushUpdateConfigError(
+            f"could not diff {base[:12]}..{push_ref.local_sha[:12]} for {push_ref.remote_ref}"
+        )
+    return base, [path for path in diff.stdout.split("\0") if path]
+
+
+def _check_ref_infrastructure(push_ref: PushRef, repo_root: Path) -> int:
+    """Run the security review marker gate over one pushed branch ref."""
+    try:
+        base, files = _infrastructure_scan_files(push_ref, repo_root)
+    except PushUpdateConfigError as error:
+        print(f"ERROR: {error}", file=sys.stderr)
+        return 2
+    print(
+        f"Infrastructure scan: {push_ref.remote_ref} scores {len(files)} file(s) "
+        f"in {base[:12]}..{push_ref.local_sha[:12]}",
+        file=sys.stderr,
+    )
+    if not files:
+        return 0
+    result = _run_command(
+        [
+            sys.executable,
+            DETECT_INFRASTRUCTURE_SCRIPT,
+            "--files-from-stdin",
+            "--require-security-review",
+            "--ref",
+            push_ref.local_sha,
+            "--repo-root",
+            str(repo_root),
+        ],
+        repo_root,
+        input_text="\0".join(files) + "\0",
+    )
+    _print_process_output(result)
+    return result.returncode
+
+
+def check_pushed_infrastructure(refs: Sequence[PushRef], repo_root: Path) -> int:
+    """Block a pushed branch that carries a CRITICAL path without a security marker.
+
+    Each branch ref is scored from merge-base(origin/main, pushed SHA) to the
+    pushed SHA, and its marker is checked on that SHA, not on checked-out HEAD.
+    Deletions and non-branch refs carry nothing to review and are skipped.
+    Returns the first non-zero detector or configuration exit code.
+    """
+    branch_refs = [
+        ref for ref in refs if not ref.is_deletion and _branch_name(ref.remote_ref) is not None
+    ]
+    if not branch_refs:
+        print(
+            "Infrastructure scan: skipped, no branch ref in this push carries commits",
+            file=sys.stderr,
+        )
+        return 0
+    first_failure = 0
+    for push_ref in branch_refs:
+        result = _check_ref_infrastructure(push_ref, repo_root)
+        if result != 0 and first_failure == 0:
+            first_failure = result
+    return first_failure
 
 
 def warn_if_push_files_incomplete(

@@ -38,8 +38,9 @@ never ran the security axis does not review a CRITICAL security surface. This
 module reimplements the check rather than importing the review skill, because
 each skill ships as a self-contained directory and cannot import a sibling
 skill's script at runtime (``.claude/rules/plugin-self-containment.md``).
-The scope is the ref only, HEAD by default: a push of a ref other than HEAD is
-judged by HEAD's marker.
+The scope is the ref only, HEAD by default. The pre-push hook passes each
+pushed SHA as ``--ref`` (issue #6076), so a pushed branch is judged by its own
+marker, not by the checked-out HEAD's.
 """
 
 from __future__ import annotations

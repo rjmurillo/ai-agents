@@ -502,6 +502,15 @@ pre-push:
     - group:
         piped: true
         jobs:
+          # Also the security review marker gate (issue #5636, D9): a pushed
+          # branch carrying a CRITICAL path is blocked unless its pushed SHA is
+          # a /review marker commit binding the security axis. A new commit
+          # moves the branch off the marker, so the marker dies with the SHA it
+          # reviewed. Issue #6076 moved the gate here from `{push_files}`,
+          # which diffed a new branch against the local `main` ref, so a stale
+          # `main` leaked main's own files into the scan. Each ref is now
+          # scored from merge-base(origin/main, pushed SHA), with exit 2 when
+          # that base cannot be resolved.
           - name: push-ref-policy
             timeout: 2m
             run: uv run --frozen python scripts/validation/git_hook_policy.py pre-push
@@ -678,19 +687,6 @@ pre-push:
               - "tests/skills/**"
               - "docs/**"
               - "evals/**"
-
-          - name: infrastructure-advisory
-            timeout: 60s
-            # Issue #5636 (D9): blocks a push that carries a CRITICAL path unless
-            # HEAD is a /review marker commit binding the security axis to its
-            # parent. A new commit moves HEAD off the marker, so the marker
-            # dies with the SHA it reviewed. pre-commit above stays advisory:
-            # no marker can bind a commit that does not exist yet.
-            run: >-
-              uv run --frozen python
-              .claude/skills/security-detection/detect_infrastructure.py
-              --files {push_files} --require-security-review
-            glob: "**/*"
 
           # Kept at main's 30m. Cut to 10m earlier on this branch and put
           # back in review (PR #5319): rule 7 sizes a cap from a measured

@@ -92,6 +92,7 @@ POLICY_SUPPORT_FILES = (
     "scripts/validation/__init__.py",
     "scripts/validation/validate_review_marker.py",
     "build/scripts/validate_plugin_version_bump.py",
+    ".claude/skills/security-detection/detect_infrastructure.py",
 )
 
 
@@ -547,7 +548,6 @@ def test_configuration_uses_named_native_jobs() -> None:
         "python-type-check",
         "security-scan",
         "security-suppression-policy",
-        "infrastructure-advisory",
         "workflow-local-run",
         "path-normalization",
         "planning-artifacts",
@@ -786,13 +786,12 @@ def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
     ]
     assert len(markdown_groups) == 1
     assert markdown_groups[0].get("piped") is True
-    infrastructure_run = pre_push_jobs["infrastructure-advisory"]["run"]
-    assert isinstance(infrastructure_run, str)
-    assert "--files {push_files}" in infrastructure_run
+    # Issue #6076: the security marker gate left `{push_files}` for
+    # push-ref-policy, which scores merge-base(origin/main, pushed SHA).
+    assert "infrastructure-advisory" not in pre_push_jobs
     for name in (
         "python-lint-advisory",
         "python-type-check",
-        "infrastructure-advisory",
         "workflow-local-run",
     ):
         run = pre_push_jobs[name]["run"]
@@ -1435,20 +1434,23 @@ def test_doublestar_selects_root_level_push_file(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     _init_repo(repo)
     _copy_runtime_config(repo)
-    detector = repo / ".claude/skills/security-detection/detect_infrastructure.py"
-    detector.parent.mkdir(parents=True, exist_ok=True)
+    # Issue #6076 moved infrastructure-advisory off `{push_files}`, so the
+    # root-level selection is pinned on python-type-check, whose `**/*.py`
+    # glob is the same doublestar shape. The policy script is a recorder.
+    recorder = repo / "scripts/validation/git_hook_policy.py"
+    recorder.parent.mkdir(parents=True, exist_ok=True)
     _write_lf(
-        detector,
+        recorder,
         "from pathlib import Path\nimport sys\n"
         "Path('root-job-ran.txt').write_text(','.join(sys.argv[1:]), encoding='utf-8')\n",
     )
-    _write_lf(repo / "root-only.txt", "base\n")
+    _write_lf(repo / "root_only.py", "BASE = 1\n")
     _git(repo, "add", ".")
     _git(repo, "commit", "-qm", "test: base")
     base_sha = _git(repo, "rev-parse", "HEAD").stdout.strip()
     _git(repo, "update-ref", "refs/remotes/origin/main", base_sha)
-    _write_lf(repo / "root-only.txt", "head\n")
-    _git(repo, "add", "root-only.txt")
+    _write_lf(repo / "root_only.py", "BASE = 2\n")
+    _git(repo, "add", "root_only.py")
     _git(repo, "commit", "-qm", "test: root-only push")
     head_sha = _git(repo, "rev-parse", "HEAD").stdout.strip()
     push_input = f"refs/heads/feature/test {head_sha} refs/heads/feature/test {base_sha}\n"
@@ -1458,15 +1460,15 @@ def test_doublestar_selects_root_level_push_file(tmp_path: Path) -> None:
         "run",
         "pre-push",
         "--job",
-        "infrastructure-advisory",
+        "python-type-check",
         "--force",
         stdin=push_input,
     )
 
-    assert _git(repo, "diff", "--name-only", base_sha, head_sha).stdout == "root-only.txt\n"
+    assert _git(repo, "diff", "--name-only", base_sha, head_sha).stdout == "root_only.py\n"
     selected_files = (repo / "root-job-ran.txt").read_text(encoding="utf-8").split(",")
-    assert selected_files[0] == "--files"
-    assert "root-only.txt" in selected_files
+    assert selected_files[0] == "mypy"
+    assert "root_only.py" in selected_files
 
 
 def test_doublestar_matches_nested_and_root_pre_commit_files(tmp_path: Path) -> None:
@@ -6076,6 +6078,8 @@ def test_push_policy_blocks_main_and_preserves_destination_branch(
 
     monkeypatch.setattr(policy, "_check_review_marker", capture_marker)
     monkeypatch.setattr(policy, "_check_plugin_version", lambda *_args: 0)
+    # The infrastructure scan has its own suite (test_push_infrastructure_scan.py).
+    monkeypatch.setattr(policy, "check_pushed_infrastructure", lambda *_args: 0)
 
     blocked = policy.check_push_refs(
         io.StringIO(f"refs/heads/local {head} refs/heads/main {remote}\n"),
