@@ -39,13 +39,15 @@ def validate_copilot_routing_exclusions(repo_root: Path) -> CheckOutcome:
     """
     try:
         clean = _validate_module(repo_root)
-    except FileNotFoundError:
-        print("[WARNING] copilot-cli template not found; skipping Copilot routing exclusion check")
+    except FileNotFoundError as exc:
+        # The scan can raise this too, not only a missing template, so the message
+        # names the path the OS reported instead of claiming which file it was.
+        print(f"[WARNING] Copilot routing exclusion check skipped, file not found: {exc}")
         return CheckOutcome.skipped(
             _VALIDATOR,
             reason=REASON_TREE_ABSENT,
             scope=_SCOPE,
-            detail="copilot-cli template not found",
+            detail=f"file not found: {exc.filename or exc}",
         )
     except Exception as exc:
         print(f"[ERROR] copilot routing exclusion check failed: {exc}", file=sys.stderr)

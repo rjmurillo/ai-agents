@@ -62,6 +62,9 @@ __all__ = [
 ]
 
 _STATUS_LINE = re.compile(r"^\[(PASS|WARN|FAIL|SKIP)\](?:\s+(\d+)\b)?", re.MULTILINE)
+_SKIP_REASON = re.compile(
+    r"^\[SKIP\]\s+reason=(?P<code>[a-z][a-z0-9_]*(?:\.[a-z0-9_]+)*)", re.MULTILINE
+)
 
 _CANONICAL = "validate_canonical_citations"
 _ORCHESTRATOR = "validate_orchestrator_citations"
@@ -93,11 +96,14 @@ def _status_outcome(validator: str, scope: str, stdout: str) -> CheckOutcome:
     if status == "PASS":
         return CheckOutcome.passed(validator, revision=WORKING_TREE, scope=scope)
     if status == "SKIP":
+        # A producer that names its own reason (spec_contradiction) keeps it; one
+        # that does not (check_canonical_citations, "no scan roots") is tree.absent.
+        named = _SKIP_REASON.search(stdout)
         return CheckOutcome.skipped(
             validator,
-            reason=REASON_TREE_ABSENT,
+            reason=named["code"] if named else REASON_TREE_ABSENT,
             scope=scope,
-            detail="the script found no scan roots",
+            detail="the script reported it compared nothing",
         )
     if status == "WARN":
         return CheckOutcome.failed(
@@ -114,6 +120,16 @@ def _status_outcome(validator: str, scope: str, stdout: str) -> CheckOutcome:
         scope=scope,
         detail="exit 0 with no [PASS], [WARN], or [SKIP] status line to read",
     )
+
+
+def _blocking_default(exit_code: int) -> str:
+    """Name a blocking non-zero exit: 1 is a finding, any other code is a script error.
+
+    ADR-035 reserves 1 for a logic error, which for these checkers is a violation,
+    and 2 for configuration. Labeling exit 2 ``violations.found`` would send a
+    reader looking for a finding that was never measured.
+    """
+    return REASON_VIOLATIONS_FOUND if exit_code == 1 else REASON_SCRIPT_FAILED
 
 
 def _print_streams(stdout: str, stderr: str) -> None:
@@ -153,7 +169,8 @@ def validate_canonical_citations(repo_root: Path) -> CheckOutcome:
     _print_streams(stdout, stderr)
 
     if exit_code != 0:
-        reason = classify_subprocess_failure(exit_code, stderr, default=REASON_VIOLATIONS_FOUND)
+        default = _blocking_default(exit_code)
+        reason = classify_subprocess_failure(exit_code, stderr, default=default)
         return CheckOutcome.failed(
             _CANONICAL,
             reason=reason,
@@ -202,7 +219,8 @@ def validate_orchestrator_citations(repo_root: Path) -> CheckOutcome:
     )
     _print_streams(stdout, stderr)
     if exit_code != 0:
-        reason = classify_subprocess_failure(exit_code, stderr, default=REASON_VIOLATIONS_FOUND)
+        default = _blocking_default(exit_code)
+        reason = classify_subprocess_failure(exit_code, stderr, default=default)
         return CheckOutcome.failed(
             _ORCHESTRATOR,
             reason=reason,

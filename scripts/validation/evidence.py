@@ -101,17 +101,19 @@ __all__ = [
     "REASON_AUTH_UNAVAILABLE",
     "REASON_BASE_REF_UNRESOLVED",
     "REASON_DIFF_FAILED",
+    "REASON_ENTRIES_UNREADABLE",
     "REASON_INCOMPLETE_EVIDENCE",
     "REASON_LEGACY_BOOLEAN",
     "REASON_LISTING_FAILED",
-    "REASON_ENTRIES_UNREADABLE",
     "REASON_LOOKUP_FAILED",
     "REASON_MALFORMED_OUTPUT",
     "REASON_NO_OUTCOMES",
     "REASON_PROCESS_SIGNALED",
+    "REASON_PR_UNRESOLVED",
     "REASON_QUICK_MODE",
-    "REASON_SCRIPT_FAILED",
+    "REASON_SCOPE_EMPTY",
     "REASON_SCRIPT_ABSENT",
+    "REASON_SCRIPT_FAILED",
     "REASON_TIMEOUT",
     "REASON_TOOL_ABSENT",
     "REASON_TREE_ABSENT",
@@ -191,6 +193,12 @@ REASON_ADVISORY_FINDINGS: Final = "advisory.findings"
 #: ``git worktree list`` (or an equivalent enumeration) failed, so the set the
 #: gate was meant to inspect is unknown.
 REASON_LISTING_FAILED: Final = "listing.failed"
+#: No pull request resolves for the current branch, so a check that compares
+#: against the PR had nothing to compare.
+REASON_PR_UNRESOLVED: Final = "pr.unresolved"
+#: Nothing in scope needed examining (for example no changed agent files), so a
+#: comparison never started. Distinct from a clean comparison.
+REASON_SCOPE_EMPTY: Final = "scope.empty"
 #: A wrapped validator ran and reported a violation, in a mode that blocks.
 REASON_VIOLATIONS_FOUND: Final = "violations.found"
 #: A wrapped validator exited non-zero without reporting a finding: a
@@ -689,6 +697,14 @@ _ADVISORY_LICENCES: Final[tuple[tuple[str, EvidenceState, str, str], ...]] = (
         REASON_MALFORMED_OUTPUT,
         "The script exited 0 but printed no status token this wrapper recognizes. "
         "That was a pass before; it stays non-blocking and is now counted.",
+    ),
+    (
+        "validate_dash_prohibition",
+        EvidenceState.BLOCKED,
+        REASON_ENTRIES_UNREADABLE,
+        "Decision D10 left the dash scan's narrowing past a blob git cannot read "
+        "non-blocking, with each skipped file reported. The narrowing is now counted "
+        "as BLOCKED instead of PASS. An unresolved base ref still blocks under CI.",
     ),
     (
         "validate_review_marker",

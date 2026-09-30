@@ -12,6 +12,7 @@ flat module names, the way the sibling tests do, because ``pre_pr`` loads the
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -21,6 +22,7 @@ from scripts.validation.evidence import (
     REASON_ADVISORY_FINDINGS,
     REASON_BASE_REF_UNRESOLVED,
     REASON_DIFF_FAILED,
+    REASON_ENTRIES_UNREADABLE,
     REASON_MALFORMED_OUTPUT,
     REASON_SCRIPT_ABSENT,
     REASON_SCRIPT_FAILED,
@@ -112,6 +114,14 @@ class TestCanonicalCitations:
 
         _check(outcome, EvidenceState.FAIL, REASON_VIOLATIONS_FOUND, blocks=True)
 
+    def test_a_configuration_exit_is_a_script_failure_not_a_violation(
+        self, tmp_path: Path
+    ) -> None:
+        """Exit 2 means the repo root was invalid; nothing was measured (PR #6066 review)."""
+        outcome = self._run(tmp_path, (2, "", "[FAIL] repo root not found"))
+
+        _check(outcome, EvidenceState.FAIL, REASON_SCRIPT_FAILED, blocks=True)
+
     def test_a_timeout_blocks_with_its_own_reason(self, tmp_path: Path) -> None:
         stderr = "Command timed out after 30s"
         outcome = self._run(tmp_path, (-1, "", stderr))
@@ -136,13 +146,18 @@ class TestOrchestratorCitations:
 
         assert outcome.state is EvidenceState.PASS
 
-    @pytest.mark.parametrize("exit_code", [1, 2])
-    def test_a_nonzero_exit_blocks(self, tmp_path: Path, exit_code: int) -> None:
+    @pytest.mark.parametrize(
+        ("exit_code", "reason"),
+        [(1, REASON_VIOLATIONS_FOUND), (2, REASON_SCRIPT_FAILED)],
+    )
+    def test_a_nonzero_exit_blocks_and_names_finding_versus_script_error(
+        self, tmp_path: Path, exit_code: int, reason: str
+    ) -> None:
         repo = _repo(tmp_path, self._SCRIPT)
         with patch("checks_citations._run_subprocess", return_value=(exit_code, "", "bad")):
             outcome = validate_orchestrator_citations(repo)
 
-        _check(outcome, EvidenceState.FAIL, REASON_VIOLATIONS_FOUND, blocks=True)
+        _check(outcome, EvidenceState.FAIL, reason, blocks=True)
 
 
 class TestSpecContradiction:
@@ -189,6 +204,77 @@ class TestSpecContradiction:
         outcome = self._run(tmp_path, (0, "nothing recognizable", ""))
 
         _check(outcome, EvidenceState.BLOCKED, REASON_MALFORMED_OUTPUT, blocks=False)
+
+    @pytest.mark.parametrize("reason", ["pr.unresolved", "base_ref.unresolved", "scope.empty"])
+    def test_a_producer_that_compared_nothing_is_a_licensed_skip_with_its_reason(
+        self, tmp_path: Path, reason: str
+    ) -> None:
+        out = f"[SKIP] reason={reason} nothing was compared (no PR).\n"
+        outcome = self._run(tmp_path, (0, out, ""))
+
+        _check(outcome, EvidenceState.SKIP, reason, blocks=False)
+
+    def test_a_skip_with_a_malformed_reason_falls_back_to_tree_absent(
+        self, tmp_path: Path
+    ) -> None:
+        outcome = self._run(tmp_path, (0, "[SKIP] reason=NOT A SLUG\n", ""))
+
+        _check(outcome, EvidenceState.SKIP, REASON_TREE_ABSENT, blocks=False)
+
+
+class TestProducerContract:
+    """The wrappers parse what the real producers print, not strings written for the test."""
+
+    def _outcome(self, name: str, text: str) -> CheckOutcome:
+        import checks_citations
+
+        return checks_citations._status_outcome(name, "scope", text)
+
+    def test_canonical_clean_and_warn_reports_map_to_pass_and_advisory_fail(self) -> None:
+        import check_canonical_citations as producer
+
+        clean = producer.format_report([], strict=False)
+        warn = producer.format_report(
+            [producer.Violation(path="a.py", matched_token="matches", excerpt="x")], strict=False
+        )
+
+        assert self._outcome("validate_canonical_citations", clean).state is EvidenceState.PASS
+        flagged = self._outcome("validate_canonical_citations", warn)
+        _check(flagged, EvidenceState.FAIL, REASON_ADVISORY_FINDINGS, blocks=False)
+        assert flagged.findings == 1
+
+    def test_canonical_strict_report_is_not_read_as_a_pass_at_exit_zero(self) -> None:
+        import check_canonical_citations as producer
+
+        strict = producer.format_report(
+            [producer.Violation(path="a.py", matched_token="matches", excerpt="x")], strict=True
+        )
+
+        outcome = self._outcome("validate_canonical_citations", strict)
+
+        _check(outcome, EvidenceState.BLOCKED, REASON_MALFORMED_OUTPUT, blocks=False)
+
+    def test_contradiction_reports_map_to_pass_finding_and_skip(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import importlib.util
+
+        path = Path(__file__).resolve().parents[2] / "scripts/validation/spec_contradiction.py"
+        spec = importlib.util.spec_from_file_location("spec_contradiction_contract", path)
+        assert spec is not None and spec.loader is not None
+        producer = importlib.util.module_from_spec(spec)
+        # A dataclass looks its module up in sys.modules while it is defined.
+        monkeypatch.setitem(sys.modules, spec.name, producer)
+        spec.loader.exec_module(producer)
+        finding = producer.Contradiction("model-tier", "model", "sonnet", "opus", "f.md", "PR")
+
+        name = "validate_spec_contradiction"
+        assert self._outcome(name, producer.format_report([])).state is EvidenceState.PASS
+        warned = self._outcome(name, producer.format_report([finding]))
+        _check(warned, EvidenceState.FAIL, REASON_ADVISORY_FINDINGS, blocks=False)
+        assert warned.findings == 1
+        skipped = self._outcome(name, producer.format_skip("pr.unresolved"))
+        _check(skipped, EvidenceState.SKIP, "pr.unresolved", blocks=False)
 
 
 class TestReviewMarker:
@@ -299,16 +385,21 @@ class TestDashProhibition:
         _check(outcome, EvidenceState.FAIL, REASON_VIOLATIONS_FOUND, blocks=True)
         assert outcome.findings == 2
 
-    def test_a_narrowed_scan_passes_with_the_narrowing_in_the_detail(
-        self, tmp_path: Path
-    ) -> None:
+    def test_a_narrowed_scan_is_blocked_but_licensed_not_a_clean_pass(self, tmp_path: Path) -> None:
+        """A blob git cannot read was never checked, so PASS would overclaim (PR #6066 review)."""
         calls = [(0, "a.md\nb.md\n", ""), (128, "", "gone"), (0, "ok\n", "")]
 
         outcome = self._run(tmp_path, calls)
 
-        assert outcome.state is EvidenceState.PASS
-        assert outcome.examined == 1
-        assert "1 of 2 candidate file(s) unreadable" in outcome.detail
+        _check(outcome, EvidenceState.BLOCKED, REASON_ENTRIES_UNREADABLE, blocks=False)
+        assert "1 of 2 candidate file(s) examined; 1 unreadable" in outcome.detail
+
+    def test_a_violation_beside_an_unreadable_file_still_blocks(self, tmp_path: Path) -> None:
+        calls = [(0, "a.md\nb.md\n", ""), (128, "", "gone"), (0, f"x{_EM_DASH}y\n", "")]
+
+        outcome = self._run(tmp_path, calls)
+
+        _check(outcome, EvidenceState.FAIL, REASON_VIOLATIONS_FOUND, blocks=True)
 
 
 class TestCopilotRoutingExclusions:

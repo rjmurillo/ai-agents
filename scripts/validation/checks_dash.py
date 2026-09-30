@@ -33,6 +33,7 @@ if str(_PROJECT_ROOT) not in sys.path:
 from scripts.validation.evidence import (  # noqa: E402
     REASON_BASE_REF_UNRESOLVED,
     REASON_DIFF_FAILED,
+    REASON_ENTRIES_UNREADABLE,
     REASON_VIOLATIONS_FOUND,
     CheckOutcome,
 )
@@ -240,6 +241,9 @@ def validate_dash_prohibition(repo_root: Path) -> CheckOutcome:
     examined. A violation is ``FAIL`` with reason ``violations.found``. When
     the scan cannot run (base ref unresolved, or ``git diff`` fails) the result
     is ``FAIL`` under CI and ``SKIP`` locally; see :func:`_unavailable_outcome`.
+    A scan that skipped a blob git could not read is ``BLOCKED`` with reason
+    ``entries.unreadable``, licensed by name so it does not block (decision D10);
+    a ``PASS`` there would certify files nobody read.
     """
     candidate_paths = _branch_markdown_files(repo_root)
     if isinstance(candidate_paths, _ScanUnavailable):
@@ -264,18 +268,20 @@ def validate_dash_prohibition(repo_root: Path) -> CheckOutcome:
 
     if skipped:
         print(
-            f"[PASS] Em/en-dash prohibition ({examined} of "
+            f"[WARNING] Em/en-dash prohibition ({examined} of "
             f"{len(candidate_paths)} markdown file(s) checked; "
             f"{len(skipped)} unreadable at HEAD, skipped)",
         )
-        return CheckOutcome.passed(
+        # BLOCKED, not PASS: the skipped blobs were never examined, so a PASS
+        # would certify a scan that did not cover its scope. The policy licenses
+        # this one pair, so the gate does not start blocking on it (decision D10).
+        return CheckOutcome.blocked(
             _VALIDATOR,
-            revision=_HEAD,
+            reason=REASON_ENTRIES_UNREADABLE,
             scope=_SCOPE,
-            examined=examined,
             detail=(
-                f"{len(skipped)} of {len(candidate_paths)} candidate file(s) "
-                "unreadable at HEAD, skipped"
+                f"{examined} of {len(candidate_paths)} candidate file(s) examined; "
+                f"{len(skipped)} unreadable at HEAD, skipped"
             ),
         )
 
