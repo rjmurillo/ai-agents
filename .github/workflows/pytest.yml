@@ -204,12 +204,10 @@ jobs:
     # tree"). This job has no `needs:` and no
     # `if:` on purpose, the same shape as zero-collection-guard above.
     #
-    # Dual-name rollout (ci-scripts.md MUST 22) is complete. Step 1 emitted this
-    # job's name while the ratchet steps stayed in `test`. Step 2, this change:
-    # the name is pinned in scripts/ci/ruleset_required_contexts.py, and the
-    # duplicate ratchet steps are gone from `test`. The owner adds the same
-    # context to ruleset 11104075. `test-result` still needs this job, so the
-    # "Run Python Tests" context also fails when a ratchet fails.
+    # This job's name is pinned in scripts/ci/ruleset_required_contexts.py and
+    # and must match ruleset 11104075 (ci-scripts.md MUST 22 dual-name rollout).
+    # `test-result` also needs this job, so "Run Python Tests" fails when a
+    # ratchet fails.
     #
     # `uv run --frozen` pins ruff to the lockfile; an open-ended `ruff>=` could
     # fail the baseline on an unrelated PR after a rule change. BASE_REF stays
