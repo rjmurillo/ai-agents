@@ -145,17 +145,10 @@ def test_a_swallowed_step_is_followed_by_a_report_of_its_outcome(
 def test_a_report_step_has_no_condition_that_could_hide_a_failure(
     workflow: str, job: str, name: str, step_id: str, validator: str
 ) -> None:
-    """The report runs at least whenever the swallowed step runs.
-
-    No condition also reports a skipped outcome. The swallowed step's own
-    condition is the one narrowing allowed: pr-validation.yml needs it because
-    its bot-skip path never checks out the helper.
-    """
     steps = _steps(workflow, job)
-    at = _index(steps, name)
-    swallowed, report = steps[at], steps[at + 1]
+    report = steps[_index(steps, name) + 1]
 
-    assert report.get("if") in (None, swallowed.get("if"))
+    assert "if" not in report
     assert "continue-on-error" not in report
 
 
@@ -169,6 +162,32 @@ def _helper_steps() -> list[tuple[str, str, int, list[dict[str, Any]]]]:
                 if HELPER in str(step.get("run", "")):
                     rows.append((path.name, job_name, at, steps))
     return rows
+
+
+def _always_checked_out(conditions: list[Any]) -> bool:
+    """True when one checkout is unconditional or two cover both branches.
+
+    pr-validation.yml checks out under ``X != 'true'`` and again under
+    ``X == 'true'``, so exactly one of the pair runs on every path.
+    """
+    if None in conditions:
+        return True
+    text = {str(c) for c in conditions}
+    return any(c.replace(" != ", " == ") in text for c in text if " != " in c)
+
+
+@pytest.mark.parametrize(
+    ("conditions", "expected"),
+    [
+        ([None], True),
+        (["steps.s.outputs.skip != 'true'", "steps.s.outputs.skip == 'true'"], True),
+        (["steps.s.outputs.skip != 'true'"], False),
+        (["steps.s.outputs.skip == 'true'"], False),
+        (["steps.a.outputs.x != 'true'", "steps.b.outputs.x == 'true'"], False),
+    ],
+)
+def test_the_checkout_coverage_rule(conditions: list[Any], expected: bool) -> None:
+    assert _always_checked_out(conditions) is expected
 
 
 def test_the_helper_scan_finds_every_wired_row() -> None:
@@ -198,7 +217,7 @@ def test_a_reporter_step_runs_only_after_a_checkout_that_ran(
     ]
 
     assert checkouts, f"{workflow}:{job} runs {HELPER} before any checkout"
-    assert None in checkouts or condition in checkouts, (
+    assert _always_checked_out(checkouts) or condition in checkouts, (
         f"{workflow}:{job} step {steps[at].get('name')!r} runs under {condition!r}, "
         f"but every earlier checkout is conditional: {checkouts!r}"
     )
