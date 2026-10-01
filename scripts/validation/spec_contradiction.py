@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size. One CLI script whose tests monkeypatch its module-level
+# seams by name (fetch_current_pr_body, collect_with_skip_reason). The skip-reason
+# plumbing put it 29 lines over; a split would move the seams those tests patch.
 """Flag contradictions between a PR description, its linked issues, and code.
 
 The "Validate Spec Coverage" CI check reads the PR description, the linked
@@ -371,14 +374,18 @@ def _resolve_base_ref(repo_root: Path) -> str | None:
     return None
 
 
-def collect_contradictions(
+def collect_with_skip_reason(
     repo_root: Path, owner: str, repo: str, base_ref: str | None = None
-) -> list[Contradiction]:
-    """Fetch PR + linked issues, diff agent frontmatter, return contradictions.
+) -> tuple[list[Contradiction], str | None]:
+    """Fetch PR + linked issues, diff agent frontmatter, and say if nothing was compared.
 
-    Returns an empty list (not an error) when there is no PR, no gh, no linked
-    issues, or no changed agent files. Those are the common pre-PR states and
-    mean "nothing to compare", not "contradiction found".
+    Returns ``(contradictions, skip_reason)``. ``skip_reason`` is None when a
+    comparison ran, and a dotted reason code when it never started: no PR or no
+    ``gh`` (``pr.unresolved``), no base ref (``base_ref.unresolved``), or no
+    changed agent files (``scope.empty``). Those are the common pre-PR states and
+    mean "nothing to compare", not "contradiction found", so ``contradictions``
+    is empty. The reason is what lets a caller tell them from a clean comparison,
+    which ``[PASS]`` used to claim for both.
 
     When ``base_ref`` is provided (e.g. a value resolved by pre_pr.py's
     ``_resolve_branch_base_ref``) it is used as the diff base. Otherwise the
@@ -386,15 +393,15 @@ def collect_contradictions(
     """
     pr_body = fetch_current_pr_body(owner, repo)
     if pr_body is None:
-        return []
+        return [], "pr.unresolved"
 
     if base_ref is None:
         base_ref = _resolve_base_ref(repo_root)
     if base_ref is None:
-        return []
+        return [], "base_ref.unresolved"
     frontmatter_files = _changed_agent_files(repo_root, base_ref)
     if not frontmatter_files:
-        return []
+        return [], "scope.empty"
 
     contradictions: list[Contradiction] = []
     contradictions.extend(find_contradictions(pr_body, "PR description", frontmatter_files))
@@ -405,7 +412,30 @@ def collect_contradictions(
         contradictions.extend(
             find_contradictions(issue_body, f"issue #{issue_number}", frontmatter_files)
         )
-    return contradictions
+    return contradictions, None
+
+
+def collect_contradictions(
+    repo_root: Path, owner: str, repo: str, base_ref: str | None = None
+) -> list[Contradiction]:
+    """Return the contradictions found, or an empty list when nothing was compared.
+
+    Kept for callers that only need the list; :func:`collect_with_skip_reason`
+    says whether the empty list means "clean" or "never compared".
+    """
+    return collect_with_skip_reason(repo_root, owner, repo, base_ref)[0]
+
+
+def format_skip(reason: str) -> str:
+    """Render the report for a run that compared nothing.
+
+    The first line is ``[SKIP] reason=<code>``, the status token the pre-PR
+    wrapper reads. It is not ``[PASS]``: no claim was checked.
+    """
+    return (
+        f"[SKIP] reason={reason} nothing was compared "
+        "(no PR, no base ref, or no changed agent files)."
+    )
 
 
 def format_report(contradictions: list[Contradiction]) -> str:
@@ -488,8 +518,10 @@ def main(argv: list[str] | None = None) -> int:
     owner = info.owner
     repo = info.repo
 
-    contradictions = collect_contradictions(repo_root, owner, repo, base_ref=args.base)
-    print(format_report(contradictions))
+    contradictions, skip_reason = collect_with_skip_reason(
+        repo_root, owner, repo, base_ref=args.base
+    )
+    print(format_skip(skip_reason) if skip_reason else format_report(contradictions))
 
     if contradictions and not args.advisory:
         return 1

@@ -13,6 +13,8 @@
 |decision records rationale evidence implementation choices review findings: [skills-decision-index](skills-decision-index.md) (2345)
 |governance bureaucracy audit open issues PR churn session log redundancy critical review: [audits/2026-08-17-governance-bureaucracy-critical-review](audits/2026-08-17-governance-bureaucracy-critical-review.md) (681)
 |frontmatter key migration nested metadata shape atomic commit count gate scope bypass bulk rename: [decision-frontmatter-migrations-must-cover-both-key-shapes](decision-frontmatter-migrations-must-cover-both-key-shapes.md) (1353)
+|disposition registry base ref waiver self-approve finding eureka: [decision-a-disposition-registry-is-trusted-only-from-the-base-ref](decision-a-disposition-registry-is-trusted-only-from-the-base-ref.md) (416)
+|signing signature attestation sigstore publisher app check run forged test result conftest ADR-101 eureka: [decision-signing-proves-who-reported-a-result-not-that-it-is-true](decision-signing-proves-who-reported-a-result-not-that-it-is-true.md) (472)
 
 [GitHub and PR Operations]
 |premise verification git log -S git grep reviewer-findings pr-comment-responder refuted: [pr-review/decision-premise-verification-reused-reviewer-findings](pr-review/decision-premise-verification-reused-reviewer-findings.md) (800)
@@ -20,6 +22,8 @@
 |merge invalidates open PRs stale baseline ratchet strict: [decision-every-merge-invalidates-every-open-pr](decision-every-merge-invalidates-every-open-pr.md) (3635)
 |injected instructions stale snapshot always-on context lags repo: [decision-injected-instructions-lag-the-repo](decision-injected-instructions-lag-the-repo.md) (785)
 |gh graphql rest rate limit budget separate exhaustion: [process/process-gh-graphql-and-rest-budgets-are-separate](process/process-gh-graphql-and-rest-budgets-are-separate.md) (1421)
+|close comment absence claim grep zsh glob evidence exit status before posting: [process/process-post-a-closing-claim-only-after-its-evidence-command-succeeds](process/process-post-a-closing-claim-only-after-its-evidence-command-succeeds.md) (249)
+|implementer subagent prompt interim CI status end turn resume drive to merge: [orchestration/orchestration-implementer-prompts-must-forbid-interim-stops](orchestration/orchestration-implementer-prompts-must-forbid-interim-stops.md) (203)
 |rate limit 403 refusal header X-Ratelimit-Reset Remaining velocity: [ci/github-rate-limit-payload-does-not-predict-service](ci/github-rate-limit-payload-does-not-predict-service.md) (4114)
 |rebase after push non-fast-forward force-push forbidden merge remote: [git/git-rebase-after-push-costs-two-cycles](git/git-rebase-after-push-costs-two-cycles.md) (1350)
 |push takes 15 minutes lefthook pre-push empty ls-remote: [git/git-empty-hook-run-means-an-empty-push](git/git-empty-hook-run-means-an-empty-push.md) (2692)
@@ -50,6 +54,9 @@
 |ruleset required contexts scheduled drift second baseline duplicate source contract: [decision-ruleset-drift-must-not-create-a-second-baseline](decision-ruleset-drift-must-not-create-a-second-baseline.md) (258)
 |pr context statusCheckRollup list null CheckRun StatusContext reviewThreads: [github/pr-context-authoritative-metadata](github/pr-context-authoritative-metadata.md) (195)
 |stacked pull request async merge endpoint merge-async stack GraphQL refusal: [github/stacked-pr-async-merge-endpoint](github/stacked-pr-async-merge-endpoint.md) (1084)
+|PR validator prepare-body-file backticked path not in diff: [pr-review/pr-validator-needs-prepare-body-file-and-diff-backed-paths](pr-review/pr-validator-needs-prepare-body-file-and-diff-backed-paths.md) (238)
+|triage packet stale issue closed before dispatch re-check state: [pr-review/triage-packets-go-stale-within-hours](pr-review/triage-packets-go-stale-within-hours.md) (175)
+|coderabbit sticky changes-requested approve command: [coderabbit/coderabbit-sticky-changes-requested-clears-with-approve-command](coderabbit/coderabbit-sticky-changes-requested-clears-with-approve-command.md) (131)
 
 [Scripting and Testing]
 |repo-root default script REPO_ROOT __file__ scratch clone cwd: [testing/repo-root-default-measures-the-wrong-repository](testing/repo-root-default-measures-the-wrong-repository.md) (719)
@@ -80,6 +87,7 @@
 |design agent specialization entry-criteria limitation composability: [skills-design-index](skills-design-index.md) (206)
 |always-on corpus membership applyTo mirror generated synthesized internal-only: [architecture/always-on-membership-lives-in-the-mirror](architecture/always-on-membership-lives-in-the-mirror.md) (456)
 |always-on rule edit invalidates corpus figures byte totals: [architecture/growing-an-always-on-rule-breaks-four-prose-documents](architecture/growing-an-always-on-rule-breaks-four-prose-documents.md) (1791)
+|github_core source scripts lib_mirror generated .claude/lib: [architecture/architecture-github-core-source-is-scripts-github-core](architecture/architecture-github-core-source-is-scripts-github-core.md) (164)
 
 [Implementation and Quality]
 |implementation code feature bug fix test TDD additive: [skills-implementation-index](skills-implementation-index.md) (304)
@@ -115,6 +123,8 @@
 |count ratchet baseline branch freshness behind main stale: [ci/ci-count-ratchets-require-branch-freshness](ci/ci-count-ratchets-require-branch-freshness.md) (1604)
 |taste count ratchet pre-push cost twelve minutes python-tests: [ci/run-count-ratchets-before-the-expensive-pre-push](ci/run-count-ratchets-before-the-expensive-pre-push.md) (875)
 |pre-push wall clock duration python-tests partitions mutation contention DORA: [ci/ci-pre-push-wall-clock-is-python-tests](ci/ci-pre-push-wall-clock-is-python-tests.md) (1854)
+|CLAUDE_PLUGIN_ROOT pycache bytecode generated staleness gate python-tests collect only full suite merge_group D9 review marker merge main: [ci/ci-local-push-and-test-environment-contracts](ci/ci-local-push-and-test-environment-contracts.md) (536)
+|python 3.14 pathlib is_dir is_file OSError swallow stat _run_command FileNotFoundError dead code: [python/python-314-pathlib-swallows-oserror](python/python-314-pathlib-swallows-oserror.md) (159)
 |taste baseline slack MAX_BASELINE_SLACK drift enforced by pytest: [ci/ci-taste-baseline-slack-is-enforced-by-pytest-not-the-ratchet](ci/ci-taste-baseline-slack-is-enforced-by-pytest-not-the-ratchet.md) (1077)
 |ratchet declared twice lefthook checks_ratchet parity add/add conflict: [ci/ci-a-ratchet-is-declared-twice-so-drop-it-twice](ci/ci-a-ratchet-is-declared-twice-so-drop-it-twice.md) (704)
 |stale detached HEAD shared checkout verify wrong commit: [workspace/workspace-shared-checkout-is-a-stale-detached-head](workspace/workspace-shared-checkout-is-a-stale-detached-head.md) (1497)
@@ -137,6 +147,7 @@
 |doc-only repair executable guard prose shell snippet: [decision-doc-only-repairs-need-an-executable-guard](decision-doc-only-repairs-need-an-executable-guard.md) (620)
 |python-lint-ratchet not a ratchet changed files zero tolerance: [python/python-lint-ratchet-is-not-a-ratchet](python/python-lint-ratchet-is-not-a-ratchet.md) (970)
 |milestone tracking semver v-prefix silent no-op set_item_milestone missing-milestone-ok: [ci/milestone-tracking-v-prefix-fix](ci/milestone-tracking-v-prefix-fix.md) (408)
+|build_all --check drift uncommitted changes git diff: [ci/ci-build-all-check-reports-uncommitted-changes-as-drift](ci/ci-build-all-check-reports-uncommitted-changes-as-drift.md) (163)
 
 [Documentation and Planning]
 |documentation PRD spec user-facing migration self-contained: [skills-documentation-index](skills-documentation-index.md) (311)
@@ -159,6 +170,7 @@
 |git branch switch checkout file state verification lost: [git/git-004-branch-switch-file-verification](git/git-004-branch-switch-file-verification.md) (851)
 |lost code recovery investigation unmerged branch orphaned: [session/recovery-001-lost-code-investigation](session/recovery-001-lost-code-investigation.md) (552)
 |cva refactoring variant consolidation template generate: [utilities/utilities-cva-refactoring](utilities/utilities-cva-refactoring.md) (1253)
+|agent-shims 1password pre-push hang PATH workaround native claude CLI live evals: [git/git-agent-shims-hang-pre-push-on-a-1password-read](git/git-agent-shims-hang-pre-push-on-a-1password-read.md) (347)
 
 [External Tools]
 |gemini code assist config styleguide ignore path enterprise: [skills-gemini-index](skills-gemini-index.md) (200)
@@ -173,13 +185,15 @@
 [Retrospective and Learning]
 |retrospective learning session failure skill persistence extract artifact: [skills-retrospective-index](skills-retrospective-index.md) (376), [retrospective/retrospective-artifact-efficiency-pattern](retrospective/retrospective-artifact-efficiency-pattern.md) (1019)
 |skill sidecar observations learnings eval-harness fixtures build-model parity drift prompt-optimization ci-infrastructure: [agent-prompt-optimization-observations](agent-prompt-optimization-observations.md) (2449), [eval-harness-observations](eval-harness-observations.md) (2714), [ci-infrastructure-observations](ci-infrastructure-observations.md) (1674)
+|github pr stack base branch delete-branch merge_pr dependent closed retarget sidecar: [github-observations](github-observations.md) (137)
+|orchestrator subagent owner approval relayed refuse approve-untrusted-config sidecar: [orchestrator-observations](orchestrator-observations.md) (118)
 |eval fixture provenance corpus closed-loop author-worded synthetic trigger-eval upper-bound: [decision-eval-fixture-provenance-closed-loop](decision-eval-fixture-provenance-closed-loop.md) (1509)
 |eval provider billing matrix harness subscription api claude-cli codex-cli copilot-api cost basis credential: [eval/eval-billing-matrix](eval/eval-billing-matrix.md) (1525)
 |implementation contracts PreToolUse advisory envelope hookSpecificOutput two-pipeline agent: [hooks-pretooluse-advisory-envelope-contract](hooks-pretooluse-advisory-envelope-contract.md) (393), [agents-two-pipeline-mirror-recipe](agents-two-pipeline-mirror-recipe.md) (1053), [eval/eval-multiprovider-transport](eval/eval-multiprovider-transport.md) (816), [lsp-first-enforcement-adr062](lsp-first-enforcement-adr062.md) (427)
 
 [Memory and Context]
 |context engineering token optimization progressive disclosure just-in-time token: [memory/context-engineering-principles](memory/context-engineering-principles.md) (600), [memory/memory-token-efficiency](memory/memory-token-efficiency.md) (862)
-|agentic session cost token replay cached input exec output fanout delegation direct work phase threads: [cost/cost-optimization-observations](cost/cost-optimization-observations.md) (745)
+|agentic session cost token replay cached input exec output fanout delegation direct work phase threads: [cost/cost-optimization-observations](cost/cost-optimization-observations.md) (826)
 |passive context AGENTS.md skills decision-point retrieval-led compression research: [memory/passive-context-vs-skills-vercel-research](memory/passive-context-vs-skills-vercel-research.md) (461), [claude/claude-md-anthropic-best-practices](claude/claude-md-anthropic-best-practices.md) (759), [claude/claude-code-skills-official-guidance](claude/claude-code-skills-official-guidance.md) (625)
 |portability symlink TOCTOU scan_all refuse_symlinked_scan_root: [decision-portability-ratchet-symlink-toctou](decision-portability-ratchet-symlink-toctou.md) (314)
 |instruction budget always-on ceiling applyTo scope headroom rule: [decision-the-instruction-budget-gate-already-exists](decision-the-instruction-budget-gate-already-exists.md) (1858)
@@ -204,7 +218,7 @@
 
 [Related]
 |feedback retrieval: [memory/memory-001-feedback-retrieval](memory/memory-001-feedback-retrieval.md) (578)
-|memory architecture serena-primary: [memory/memory-architecture-serena-primary](memory/memory-architecture-serena-primary.md) (485)
+|memory architecture serena-primary: [memory/memory-architecture-serena-primary](memory/memory-architecture-serena-primary.md) (497)
 |decomposition thresholds: [memory/memory-size-001-decomposition-thresholds](memory/memory-size-001-decomposition-thresholds.md) (961)
 |fragmentation tech-debt: [memory/memory-system-fragmentation-tech-debt](memory/memory-system-fragmentation-tech-debt.md) (940)
 |serena subdirectory convention nested read_memory rglob enumeration: [memory/serena-memory-subdirectory-convention](memory/serena-memory-subdirectory-convention.md) (1298)

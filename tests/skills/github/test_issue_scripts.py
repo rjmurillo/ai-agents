@@ -246,7 +246,7 @@ class TestNewIssue:
         assert result["Data"]["issue_number"] == 123
         assert result["Data"]["title"] == "My Title"
 
-    def test_empty_body_and_labels_omitted(self):
+    def test_empty_body_carries_only_the_human_marker_and_one_label(self):
         mod = self._import()
         proc = make_proc(stdout="https://github.com/o/r/issues/5")
         with (
@@ -255,7 +255,7 @@ class TestNewIssue:
         ):
             mod.main(["--source", "human", "--title", "No Body"])
         cmd = mock_run.call_args[0][0]
-        assert "--body" not in cmd
+        assert cmd[cmd.index("--body") + 1] == "<!-- source:human -->"
         # Only the source label rides in the create call (issue #5700).
         assert cmd.count("--label") == 1
 

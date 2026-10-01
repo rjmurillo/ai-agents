@@ -44,12 +44,14 @@ jobs:
           filters: |
             skills:
               - '.claude/skills/**/SKILL.md'
+              - 'src/copilot-cli/skills/**/SKILL.md'
             context:
               - 'CLAUDE.md'
               - 'AGENTS.md'
             validator:
               - '.claude/skills/context-optimizer/scripts/test_skill_passive_compliance.py'
               - 'scripts/skill_description_budget.py'
+              - 'scripts/skill_description_budget.json'
               - 'tests/test_skill_description_budget.py'
 
       - name: Determine if compliance validation should run
@@ -87,8 +89,7 @@ jobs:
         run: python3 -m pip install 'PyYAML==6.0.3'
 
       - name: Run skill description budget
-        continue-on-error: true
-        run: python3 scripts/skill_description_budget.py --max-total-chars 40000
+        run: python3 scripts/skill_description_budget.py --budget-file scripts/skill_description_budget.json
 
   skip-compliance:
     name: Skip compliance (no changes)

@@ -12,25 +12,29 @@ from unittest.mock import patch
 
 import pytest
 
-from scripts.validation.evidence import (
-    REASON_BASE_REF_UNRESOLVED,
-    REASON_DIFF_FAILED,
-    EvidenceState,
-)
+from scripts.validation.evidence import pre_pr_policy
+
+
+@pytest.fixture(autouse=True)
+def _local_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Run every test as a local checkout unless it opts into CI.
+
+    GitHub Actions sets ``CI`` and ``GITHUB_ACTIONS`` for the pytest run itself,
+    and the scan reads them, so an unpinned test would change verdict by host.
+    """
+    monkeypatch.delenv("CI", raising=False)
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
 
 
 class TestValidateDashProhibition:
     """Tests for the branch-wide em/en-dash check."""
 
-    def test_blocks_when_no_base_ref_resolves(self, tmp_path: Path) -> None:
+    def test_returns_true_when_no_base_ref_resolves(self, tmp_path: Path) -> None:
         from scripts.validation.pre_pr import validate_dash_prohibition
 
-        # tmp_path is not a git repo; no ref will resolve. The scan cannot
-        # run, so the gate must not report the value a clean scan reports
-        # (issue #5636).
-        outcome = validate_dash_prohibition(tmp_path)
-        assert outcome.state is EvidenceState.BLOCKED
-        assert outcome.reason == REASON_BASE_REF_UNRESOLVED
+        # tmp_path is not a git repo; no ref will resolve. Locally the scan warns
+        # and passes so a shallow or detached checkout does not stop a push.
+        assert pre_pr_policy().accepts(validate_dash_prohibition(tmp_path))
 
     def test_returns_true_for_clean_branch(self, tmp_path: Path) -> None:
         from scripts.validation.pre_pr import validate_dash_prohibition
@@ -44,7 +48,7 @@ class TestValidateDashProhibition:
                 (0, "README.md\n", ""),  # git diff
                 (0, "clean content\n", ""),  # git show
             ]
-            assert validate_dash_prohibition(tmp_path).state is EvidenceState.PASS
+            assert pre_pr_policy().accepts(validate_dash_prohibition(tmp_path))
 
     def test_returns_false_on_em_dash(self, tmp_path: Path) -> None:
         from scripts.validation.pre_pr import validate_dash_prohibition
@@ -62,7 +66,7 @@ class TestValidateDashProhibition:
                 (0, "doc.md\n", ""),  # git diff
                 (0, f"prose with {chr(0x2014)} em-dash\n", ""),  # git show
             ]
-            assert validate_dash_prohibition(tmp_path).state is EvidenceState.FAIL
+            assert not pre_pr_policy().accepts(validate_dash_prohibition(tmp_path))
 
     def test_returns_false_on_en_dash(self, tmp_path: Path) -> None:
         from scripts.validation.pre_pr import validate_dash_prohibition
@@ -76,7 +80,7 @@ class TestValidateDashProhibition:
                 (0, "range.md\n", ""),
                 (0, f"range 1{chr(0x2013)}10\n", ""),
             ]
-            assert validate_dash_prohibition(tmp_path).state is EvidenceState.FAIL
+            assert not pre_pr_policy().accepts(validate_dash_prohibition(tmp_path))
 
     def test_skips_vendored_paths(self, tmp_path: Path) -> None:
         from scripts.validation.pre_pr import validate_dash_prohibition
@@ -90,7 +94,7 @@ class TestValidateDashProhibition:
         ):
             mock_ref.return_value = "origin/main"
             mock_run.return_value = (0, "node_modules/pkg/README.md\n", "")
-            assert validate_dash_prohibition(tmp_path).state is EvidenceState.PASS
+            assert pre_pr_policy().accepts(validate_dash_prohibition(tmp_path))
 
     def test_skips_test_fixtures_dir(self, tmp_path: Path) -> None:
         from scripts.validation.pre_pr import validate_dash_prohibition
@@ -104,7 +108,7 @@ class TestValidateDashProhibition:
         ):
             mock_ref.return_value = "origin/main"
             mock_run.return_value = (0, "tests/hooks/fixtures/dash_violations.md\n", "")
-            assert validate_dash_prohibition(tmp_path).state is EvidenceState.PASS
+            assert pre_pr_policy().accepts(validate_dash_prohibition(tmp_path))
 
     def test_skips_worktree_scratch_paths(self, tmp_path: Path) -> None:
         """issue #4892: sibling-session scratch trees must not enter the scan."""
@@ -124,7 +128,7 @@ class TestValidateDashProhibition:
                 "worktrees/sub/notes.md\n.agent-scratch/sub/notes.md\n.scratch/sub/notes.md\n",
                 "",
             )
-            assert validate_dash_prohibition(tmp_path).state is EvidenceState.PASS
+            assert pre_pr_policy().accepts(validate_dash_prohibition(tmp_path))
         mock_run.assert_called_once()
 
     def test_includes_github_instructions_tree(self, tmp_path: Path) -> None:
@@ -140,10 +144,10 @@ class TestValidateDashProhibition:
                 (0, ".github/instructions/universal.instructions.md\n", ""),
                 (0, f"prose {chr(0x2014)} dash\n", ""),
             ]
-            assert validate_dash_prohibition(tmp_path).state is EvidenceState.FAIL
+            assert not pre_pr_policy().accepts(validate_dash_prohibition(tmp_path))
 
-    def test_reports_unknown_when_git_diff_fails(self, tmp_path: Path) -> None:
-        """A failed `git diff` is UNKNOWN, not a pass (issue #5636)."""
+    def test_returns_true_when_git_diff_fails(self, tmp_path: Path) -> None:
+        """Locally, a failed git diff warns and passes (no CI variable set)."""
         from scripts.validation.pre_pr import validate_dash_prohibition
 
         with (
@@ -152,9 +156,7 @@ class TestValidateDashProhibition:
         ):
             mock_ref.return_value = "origin/main"
             mock_run.return_value = (128, "", "fatal: bad revision")
-            outcome = validate_dash_prohibition(tmp_path)
-            assert outcome.state is EvidenceState.UNKNOWN
-            assert outcome.reason == REASON_DIFF_FAILED
+            assert pre_pr_policy().accepts(validate_dash_prohibition(tmp_path))
 
     def test_reads_head_content_not_working_tree(self, tmp_path: Path) -> None:
         """`_find_dash_violations` reads HEAD via `git show`, not the working tree.
@@ -179,7 +181,7 @@ class TestValidateDashProhibition:
             ]
             # No file at tmp_path/doc.md (working tree). Function should
             # still detect the violation because it reads HEAD content.
-            assert validate_dash_prohibition(tmp_path).state is EvidenceState.FAIL
+            assert not pre_pr_policy().accepts(validate_dash_prohibition(tmp_path))
 
     def test_unreadable_head_blob_is_reported_not_silent(
         self,
@@ -211,10 +213,16 @@ class TestValidateDashProhibition:
             result = validate_dash_prohibition(tmp_path)
 
         out = capsys.readouterr().out
-        assert result.state is EvidenceState.PASS, "a single unreadable file still fails open"
+        assert pre_pr_policy().accepts(result), "a single unreadable file still fails open"
         assert "[WARNING]" in out
         assert "unreadable.md" in out
         assert "skipped" in out
+        # Each dropped path prints one typed line, so a grep for the reason
+        # counts the paths that were never examined (issue #5636).
+        typed = [line for line in out.splitlines() if "reason=entries.unreadable" in line]
+        assert len(typed) == 1
+        assert typed[0].startswith("[BLOCKED] validate_dash_prohibition ")
+        assert "unreadable.md could not be read at HEAD (git show exited 128)" in typed[0]
         # The unfixed implementation prints the ordinary all-clean PASS line
         # with no scope caveat; the fix MUST NOT claim the full candidate set
         # was checked when one of the two files was never read.
@@ -241,9 +249,9 @@ class TestValidateDashProhibition:
             result = validate_dash_prohibition(tmp_path)
 
         out = capsys.readouterr().out
-        assert result.state is EvidenceState.FAIL
+        assert not pre_pr_policy().accepts(result)
         assert "violation.md:1" in out
-        assert "[WARNING]" in out
+        assert "[BLOCKED] validate_dash_prohibition reason=entries.unreadable" in out
         assert "unreadable.md" in out
 
     def test_narrowed_scope_reports_examined_count_alongside_skip_count(
@@ -273,7 +281,7 @@ class TestValidateDashProhibition:
             result = validate_dash_prohibition(tmp_path)
 
         out = capsys.readouterr().out
-        assert result.state is EvidenceState.PASS
+        assert pre_pr_policy().accepts(result)
         assert "1 of 2 markdown file(s) checked" in out
         assert "1 unreadable at HEAD, skipped" in out
 
@@ -297,7 +305,102 @@ class TestValidateDashProhibition:
             result = validate_dash_prohibition(tmp_path)
 
         out = capsys.readouterr().out
-        assert result.state is EvidenceState.PASS
+        assert pre_pr_policy().accepts(result)
         assert "1 markdown file(s) checked" in out
         assert "skipped" not in out
         assert "[WARNING]" not in out
+
+
+class TestScanUnavailableUnderCi:
+    """Issue #5636, D10: an unresolved base ref is BLOCKED under CI, a warning locally."""
+
+    @pytest.mark.parametrize(
+        ("name", "value"),
+        [
+            ("CI", "true"),
+            ("CI", "1"),
+            ("CI", "TRUE"),
+            ("GITHUB_ACTIONS", "true"),
+            ("GITHUB_ACTIONS", " 1 "),
+        ],
+    )
+    def test_unresolved_base_ref_fails_closed_under_ci(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+        name: str,
+        value: str,
+    ) -> None:
+        from scripts.validation.pre_pr import validate_dash_prohibition
+
+        monkeypatch.setenv(name, value)
+        with patch("checks_dash._resolve_branch_base_ref", return_value=None):
+            assert not pre_pr_policy().accepts(validate_dash_prohibition(tmp_path))
+        out = capsys.readouterr().out
+        assert "[BLOCKED] Em/en-dash branch scan: no base ref resolved" in out
+        assert "no file was examined" in out
+
+    def test_unresolved_base_ref_only_warns_locally(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        from scripts.validation.pre_pr import validate_dash_prohibition
+
+        with patch("checks_dash._resolve_branch_base_ref", return_value=None):
+            assert pre_pr_policy().accepts(validate_dash_prohibition(tmp_path))
+        out = capsys.readouterr().out
+        assert "[WARNING] Em/en-dash branch scan skipped: no base ref resolved" in out
+        assert "[BLOCKED]" not in out
+
+    @pytest.mark.parametrize("value", ["", "0", "false", "no"])
+    def test_falsy_ci_values_stay_local(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, value: str
+    ) -> None:
+        from scripts.validation.pre_pr import validate_dash_prohibition
+
+        monkeypatch.setenv("CI", value)
+        with patch("checks_dash._resolve_branch_base_ref", return_value=None):
+            assert pre_pr_policy().accepts(validate_dash_prohibition(tmp_path))
+
+    def test_failed_git_diff_fails_closed_under_ci(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        from scripts.validation.pre_pr import validate_dash_prohibition
+
+        monkeypatch.setenv("CI", "true")
+        with (
+            patch("checks_dash._resolve_branch_base_ref", return_value="origin/main"),
+            patch("checks_dash._run_subprocess", return_value=(128, "", "fatal: bad revision")),
+        ):
+            assert not pre_pr_policy().accepts(validate_dash_prohibition(tmp_path))
+        assert "[BLOCKED] Em/en-dash branch scan: git diff failed" in capsys.readouterr().out
+
+    def test_resolved_base_ref_is_unaffected_by_ci(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Negative control: CI must not block a scan that ran and found nothing."""
+        from scripts.validation.pre_pr import validate_dash_prohibition
+
+        monkeypatch.setenv("CI", "true")
+        with (
+            patch("checks_dash._resolve_branch_base_ref", return_value="origin/main"),
+            patch("checks_dash._run_subprocess") as mock_run,
+        ):
+            mock_run.side_effect = [(0, "README.md\n", ""), (0, "clean\n", "")]
+            assert pre_pr_policy().accepts(validate_dash_prohibition(tmp_path))
+
+    def test_violation_still_fails_under_ci(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from scripts.validation.pre_pr import validate_dash_prohibition
+
+        monkeypatch.setenv("CI", "true")
+        with (
+            patch("checks_dash._resolve_branch_base_ref", return_value="origin/main"),
+            patch("checks_dash._run_subprocess") as mock_run,
+        ):
+            mock_run.side_effect = [(0, "doc.md\n", ""), (0, f"a {chr(0x2014)} b\n", "")]
+            assert not pre_pr_policy().accepts(validate_dash_prohibition(tmp_path))

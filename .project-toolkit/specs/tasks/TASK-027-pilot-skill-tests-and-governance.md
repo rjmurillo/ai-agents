@@ -23,7 +23,7 @@ author: spec
 - `templates/skills/partials/{no-dashes,completion-tail-audit,clear-the-gate,conventional-commits,bound-the-search,terminal-predicate}.mustache` exist, each opening with `{{! rule-source: <file>.md }}` and each body a verbatim contiguous span of that rule file.
 - `uv run python build/scripts/build_all.py` rendered the eight `.claude/skills/<name>/SKILL.md` files and regenerated their `src/copilot-cli/skills/<name>/SKILL.md` mirrors; both sets committed; `build_all.py --check` exits 0; `git status` shows no unrelated drift.
 - `tests/build_scripts/test_skill_partials_rule_parity.py` passes with a negative control.
-- `tests/build_scripts/test_skill_templates_pilot_scope.py` `PILOT` widened to the eight pilot names in the same commit as the templates.
+- `tests/build_scripts/test_skill_templates_pilot_scope.py` `PILOT` widened to the eight pilot names in the same commit as the templates. <!-- orphan-ref-ignore -->
 - `tests/skills/_template_contract.py` plus `tests/skills/<pilot>/test_skill_md_contract.py` for all eight pass: rendered equals render of template; no `^@CLAUDE\.md$` line and no `{{` in rendered or mirror.
 - `.claude/skills/CLAUDE.md`, `.agents/steering/claude-skills.md`, and `.agents/governance/SKILL-CREATION-CRITERIA.md` each carry one sentence: the eight pilot skills are template-owned; edit `templates/skills/<name>.SKILL.md.tmpl`, not `SKILL.md`; the first regenerates its plugin mirror through `build_all.py`.
 - The PR byte report names every template-owned file carrying a NO-REGEN sentinel (expected: none).

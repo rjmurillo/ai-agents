@@ -73,9 +73,24 @@ from check_doc_interpreter_portability import (
 )
 from check_nested_tests import validate_no_nested_tests
 from check_skill_adr_bindings import validate_skill_adr_bindings
+from check_skill_output_envelopes import validate_skill_output_envelopes
 from check_subprocess_encoding import validate_subprocess_encoding
 from check_test_tree_writes import validate_test_tree_writes
 from check_unreachable_code import validate_unreachable_code
+from checks_ci_parity import (
+    validate_adr_uniqueness,
+    validate_agent_registry,
+    validate_agent_skill_discriminator,
+    validate_hook_contracts,
+    validate_passive_context_budget,
+    validate_placeholder_identity,
+    validate_plugin_frontmatter_self_containment,
+    validate_python3_entrypoints,
+    validate_security_suppressions_diff,
+    validate_sha_pinning,
+    validate_skillbook,
+    validate_tracked_conflict_markers,
+)
 from checks_common import (
     MissingScriptSkip,
     _gh_base_ref,
@@ -179,8 +194,8 @@ from scripts.validation.evidence import (
     GateResult,
     aggregate,
     coerce_outcome,
-    default_pre_pr_policy,
     exit_code_for,
+    pre_pr_policy,
 )
 
 # The verdict reporters, extracted for the same size ceiling that produced
@@ -199,10 +214,11 @@ from scripts.validation.pre_pr_report import (
     write_summary_json as _write_summary_json,
 )
 
-#: The gate this runner enforces. PASS always passes; the one exception is
-#: SKIP, which .project-toolkit/devops/SHIFT-LEFT.md already documented as
-#: non-blocking before issue #5635. BLOCKED and UNKNOWN block.
-_POLICY = default_pre_pr_policy()
+#: The gate this runner enforces. PASS always passes; SKIP is licensed for every
+#: validator (.project-toolkit/devops/SHIFT-LEFT.md documented it as non-blocking
+#: before issue #5635); the remaining exceptions are named per validator, state,
+#: and reason. UNKNOWN blocks, and so does anything not named.
+_POLICY = pre_pr_policy()
 
 
 @dataclass
@@ -283,7 +299,7 @@ def run_validation(
     """Run one validation, record its typed outcome, and report whether it passed.
 
     Returns True when the outcome does not block the gate under
-    :func:`default_pre_pr_policy`, so a SKIP still returns True and a BLOCKED or
+    :func:`pre_pr_policy`, so a SKIP still returns True and a BLOCKED or
     UNKNOWN does not. The exit code is decided in :func:`main` from the recorded
     outcomes, not from this return value.
     """

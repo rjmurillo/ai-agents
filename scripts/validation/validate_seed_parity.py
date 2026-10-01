@@ -49,6 +49,10 @@ from collections.abc import Sequence
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+sys.path.insert(0, str(REPO_ROOT))
+
+from scripts.validation.frontmatter_split import split_leading_frontmatter  # noqa: E402
+
 CANONICAL_DIR = REPO_ROOT / ".claude" / "skills" / "review" / "references"
 CI_PROMPTS_DIR = REPO_ROOT / ".github" / "prompts"
 
@@ -64,15 +68,6 @@ ALL_ROLES: tuple[str, ...] = (
 
 class ParityError(Exception):
     """Domain error for seed parity validation."""
-
-
-def _split_frontmatter(text: str) -> tuple[str, str]:
-    if not text.startswith("---\n"):
-        return "", text
-    end_idx = text.find("\n---\n", 4)
-    if end_idx == -1:
-        return "", text
-    return text[4:end_idx], text[end_idx + 5 :]
 
 
 def _strip_appended_output_schema(body: str) -> str:
@@ -182,7 +177,7 @@ def check_role(role: str) -> tuple[bool, str]:
     # working tree post-regen).
     ci_body_after_strip = re.sub(r"\A(?:<!--[^\n]*-->\n){1,5}\n?", "", ci_text)
 
-    _, canonical_body = _split_frontmatter(canonical_text)
+    _, canonical_body = split_leading_frontmatter(canonical_text)
     canonical_body = _strip_appended_output_schema(canonical_body)
     canonical_body = _strip_balanced_fence(canonical_body, ci_body_after_strip)
 
@@ -192,8 +187,7 @@ def check_role(role: str) -> tuple[bool, str]:
     if canonical_hash == ci_hash:
         return (
             True,
-            f"role={role} status=ok source={source_label} "
-            f"hash={canonical_hash[:16]}",
+            f"role={role} status=ok source={source_label} hash={canonical_hash[:16]}",
         )
     return (
         False,

@@ -12,12 +12,12 @@
 #   3. Fails CI if semantic drift is detected
 #   4. Provides an actionable diff showing exactly what diverged
 #
-# Bypass procedure (intentional divergence):
-#   If you intentionally want a generated file to differ from its template:
-#   1. Add [skip-drift-check] anywhere in a commit message on the PR
-#   2. Document the reason in your PR description
-#   3. Update templates/README.md to record the intentional difference
-#   4. Ensure the PR has explicit code-owner approval
+# Intentional divergence (no commit-message bypass):
+#   If you intentionally want a generated file to differ from its template,
+#   add the file and a reason to .agents/governance/drift-allowlist.json.
+#   The validator (build/generate_agents.py --validate) reads that file and
+#   rejects an entry that lacks a path or a reason. Every other drift fails.
+#   Issue #5636 retired the [skip-drift-check] marker.
 #
 # Running locally:
 #   python3 build/generate_agents.py --validate
@@ -46,30 +46,10 @@ jobs:
       contents: read
     outputs:
       should-run-drift: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.determine.outputs.should-run-drift }}
-      bypass-requested: ${{ steps.bypass.outputs.bypass-requested }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
-        with:
-          # Need full history to inspect commit messages for bypass markers
-          fetch-depth: 0
-
-      - name: Check for bypass marker in commit messages
-        id: bypass
-        if: github.event_name != 'workflow_dispatch'
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: |
-          # Check all commits in this PR for [skip-drift-check]
-          BYPASS=$(git log "$BASE_SHA..$HEAD_SHA" --format="%s %b" | grep -c '\[skip-drift-check\]' || true)
-          if [ "$BYPASS" -gt 0 ]; then
-            echo "bypass-requested=true" >> "$GITHUB_OUTPUT"
-            echo "⚠️  Bypass marker [skip-drift-check] detected in commit message(s)."
-          else
-            echo "bypass-requested=false" >> "$GITHUB_OUTPUT"
-          fi
 
       - name: Check for relevant file changes
         uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4
@@ -79,12 +59,22 @@ jobs:
           filters: |
             agents:
               - 'templates/**'
+              - 'docs/agent-catalog.md'
               - 'src/vs-code-agents/**'
               - 'src/copilot-cli/**'
+              - 'src/claude/**'
+              - '.claude/**'
+              - '.github/agents/**'
+              - '.github/instructions/**'
+              - '.github/prompts/**'
+              - '.github/workflows/**'
               - 'build/generate_agents.py'
+              - 'build/drift_allowlist.py'
+              - '.agents/governance/drift-allowlist.json'
+              - 'build/generate_agents_common.py'
               - 'build/scripts/build_all.py'
               - 'build/scripts/check_plugin_manifest_parity.py'
-              - 'scripts/sync_plugin_lib.py'
+              - 'build/scripts/lib_mirror.py'
               - 'scripts/ai_review_common/**'
               - 'scripts/github_core/**'
               - 'scripts/hook_utilities/**'
@@ -115,10 +105,7 @@ jobs:
     name: Agent Drift Detection
     runs-on: ubuntu-26.04-arm
     needs: check-paths
-    # Run when validation is needed AND no bypass was requested
-    if: |
-      needs.check-paths.outputs.should-run-drift == 'true' &&
-      needs.check-paths.outputs.bypass-requested != 'true'
+    if: needs.check-paths.outputs.should-run-drift == 'true'
     permissions:
       contents: read
 
@@ -191,45 +178,6 @@ jobs:
           LIB_MIRROR_CONCLUSION: ${{ steps.lib-mirror.outcome }}
           MANIFEST_PARITY_CONCLUSION: ${{ steps.manifest-parity.outcome }}
         run: python3 scripts/ci/write_drift_job_summary.py
-
-  # ─── Bypass warning, runs instead of validate when bypass is active ──────────
-  bypass-warning:
-    name: Agent Drift Detection
-    runs-on: ubuntu-26.04-arm
-    needs: check-paths
-    if: |
-      needs.check-paths.outputs.should-run-drift == 'true' &&
-      needs.check-paths.outputs.bypass-requested == 'true'
-    permissions:
-      contents: read
-
-    steps:
-      - name: Bypass acknowledged, drift check skipped
-        run: |
-          echo "⚠️  Agent drift detection bypassed via [skip-drift-check] commit marker."
-          echo ""
-          echo "This check has been intentionally skipped for this PR."
-          echo ""
-          echo "Bypass requirements:"
-          echo "  ✔  [skip-drift-check] marker present in a commit message"
-          echo "  ☐  Reason documented in PR description"
-          echo "  ☐  templates/README.md updated with intentional difference"
-          echo "  ☐  Explicit code-owner approval obtained"
-          echo ""
-          echo "Status: PASS (bypassed, manual approval required)"
-
-      - name: Write bypass summary
-        run: |
-          {
-            echo "## Agent Drift Detection - Bypassed"
-            echo ""
-            echo "Drift detection was skipped because a \`[skip-drift-check]\` marker was found in a commit message."
-            echo ""
-            echo "**Bypass checklist:**"
-            echo "- [ ] Reason documented in PR description"
-            echo "- [ ] \`templates/README.md\` updated with intentional difference"
-            echo "- [ ] Explicit code-owner approval obtained"
-          } >> "$GITHUB_STEP_SUMMARY"
 
   # ─── Skip job, provides passing status when no agent files changed ───────────
   # Uses the SAME NAME as the real validation job so required status checks pass.

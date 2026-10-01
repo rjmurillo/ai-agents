@@ -117,6 +117,9 @@ def run_copilot_observe(
     times out, or a zero exit produced output this cannot parse as a JSON
     array of objects (ADR-035 exit code 3 in every case, never an unhandled
     exception mapping to Python's default exit 1).
+
+    stdin is closed (`DEVNULL`): the CLI does not exit while stdin is an open
+    pipe, so a harness shell otherwise waits out the 60 second timeout.
     """
     cwd = repo_root / target_directory if target_directory else repo_root
     try:
@@ -124,6 +127,7 @@ def run_copilot_observe(
             ["copilot", "instruction", "list", "--json"],
             cwd=cwd,
             capture_output=True,
+            stdin=subprocess.DEVNULL,
             text=True,
             encoding="utf-8",
             errors="replace",

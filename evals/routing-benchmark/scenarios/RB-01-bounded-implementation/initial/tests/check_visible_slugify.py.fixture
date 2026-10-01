@@ -1,0 +1,15 @@
+import unittest
+
+from slugger import slugify
+
+
+class VisibleSlugifyChecks(unittest.TestCase):
+    def test_words_are_joined_with_hyphens(self) -> None:
+        self.assertEqual(slugify("Hello World"), "hello-world")
+
+    def test_single_word_is_lowercased(self) -> None:
+        self.assertEqual(slugify("Python"), "python")
+
+
+if __name__ == "__main__":
+    unittest.main()

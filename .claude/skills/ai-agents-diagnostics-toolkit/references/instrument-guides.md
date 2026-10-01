@@ -77,7 +77,6 @@ Three separate drift surfaces; run all three when you suspect any generation pro
 |---|---|---|---|
 | Agents | `uv run python build/generate_agents.py --validate` | `VALIDATION PASSED`, 0.05s, exit 0 | `templates/agents/*.shared.md` and `src/` trees diverged |
 | Mirrors | `uv run python build/scripts/build_all.py --check` | exit 0 | A `.claude/` canonical edit was not regenerated, or a generated tree was hand-edited |
-| Plugin lib | `uv run python ./scripts/sync_plugin_lib.py --check` | `All plugin lib copies are in sync.`, exit 0 | `scripts/{hook_utilities,github_core,ai_review_common}` and `.claude/lib/` diverged |
 
 - `build_all.py --check` exits 2 on staleness, on a path under `OWNED_PREFIXES` that cannot be read, redirects (symlink or junction), or holds a nested git repository, and on a generator writing under `.claude/` (REQ-003-010); it exits 3 when it cannot read git state (the `EXIT CODES` block in the `build/scripts/build_all.py` module docstring). Read the stderr line before reaching for the staleness remedy: regenerating and committing fixes only the staleness producer, not the exit-3 git cause and not the other three exit-2 ones. Its log legitimately says `Mode: Generate` mid-run; the snapshot/restore guard (#2440) makes the owned trees read-only, but not the whole run: `write_audit` creates or overwrites `build/audit/GENERATION-AUDIT.md` on every invocation, and that path is outside the snapshot, so restore never touches it.
 - Trap, the expensive one: drift output shows a DIFFERENCE, not a DIRECTION. On 2025-12-15 an agent "fixed" drift by editing the canonical source to match the stale generated tree (commit reverted). Before fixing any drift red, answer "which side is the source of truth?" via `.agents/governance/GENERATOR-FILES.md`, then see `ai-agents-generation-and-release` for the regeneration workflow.
@@ -136,7 +135,6 @@ uv run python ./scripts/eval/eval-agent-vs-baseline.py --agent <name> --fixtures
 | Golden principles | 7912 files, 109 errors, 92 warnings, exit 10 | Red on main |
 | Agent drift | `VALIDATION PASSED`, exit 0 | Green |
 | Mirror drift (`build_all.py --check`) | exit 0 | Green |
-| Plugin lib drift | `All plugin lib copies are in sync.`, exit 0 | Green |
 
 Two instruments read red on main: golden principles (exit 10) and the description budget in gate mode (exit 1). Guard telemetry and maturity tiers is no longer in this list: it was retired entirely under ADR-084 (issue #5154), not merely feed-starved. Every other instrument is green.
 

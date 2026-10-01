@@ -15,7 +15,7 @@ False-positive cases that must NOT fire (tested explicitly below):
 
 This test is collected by default pytest (``testpaths = ["tests"]`` in
 ``pyproject.toml``). The sibling test in
-``.claude/skills/ai-agents-docs-of-record/tests/`` checks only one skill's
+``tests/skills/ai-agents-docs-of-record/`` checks only one skill's
 provenance table; this guard covers the full skill tree.
 """
 

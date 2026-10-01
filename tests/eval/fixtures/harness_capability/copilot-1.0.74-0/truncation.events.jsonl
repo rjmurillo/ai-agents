@@ -1,0 +1,2 @@
+{"type":"session.start","data":{"sessionId":"349232cb-6187-4fe6-922a-2892bab70529","copilotVersion":"1.0.74-0"},"timestamp":"2026-07-27T03:21:23.243Z"}
+{"type":"session.truncation","data":{"tokenLimit":200000,"preTruncationTokensInMessages":305193,"postTruncationTokensInMessages":81572,"tokensRemovedDuringTruncation":63300,"performedBy":"BasicTruncator"},"timestamp":"2026-07-28T04:38:24.446Z"}

@@ -197,7 +197,8 @@ def scan_skill(skill_dir: Path, project_root: Path) -> SkillMetadata:
     model = frontmatter.get("model", "")
     category = categorize_skill(name, description)
     last_modified = get_last_modified_date(skill_dir, project_root)
-    has_tests = (skill_dir / "tests").is_dir() and any((skill_dir / "tests").iterdir())
+    tests_dir = project_root / "tests" / "skills" / skill_dir.name
+    has_tests = tests_dir.is_dir() and any(tests_dir.iterdir())
     has_scripts = (skill_dir / "scripts").is_dir() and any((skill_dir / "scripts").iterdir())
 
     all_files = list(skill_dir.rglob("*"))

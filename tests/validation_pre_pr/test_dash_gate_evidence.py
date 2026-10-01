@@ -1,28 +1,21 @@
-"""Typed evidence from the branch-wide em/en-dash gate (issue #5636).
+"""End-to-end evidence from the branch-wide em/en-dash gate (issue #5636).
 
 `validate_dash_prohibition` is a blocking pre-push job (`dash-prohibition` in
-`lefthook.yml`) and a `pre_pr.py` gate. Before this change it printed a
-warning and returned `True` when no base ref resolved or `git diff` failed, so
-a gate that scanned nothing recorded `PASS` and exited 0 for a branch that
-carried a committed dash. `checks_mypy.validate_mypy_changed_files` reports the
-same two conditions as `BLOCKED` and `UNKNOWN`; this gate now does too.
+`lefthook.yml`) and a `pre_pr.py` gate. Its typed contract (PR #6057, #6066):
+a scan that cannot run is `FAIL` under CI and `SKIP` locally. `test_dash_checks.py`
+pins the unit states with mocked subprocess. This file pins what that file does
+not: real git repositories, the `git_hook_policy.py branch-dashes` exit codes and
+stderr line, and `pre_pr.run_validation` accounting.
 
 Coverage:
 
-- positive: a clean scan is `PASS` and names its base, scope, and file count.
-- negative: an unresolved base ref and a failed `git diff` are not `PASS`, the
-  `git_hook_policy.py branch-dashes` handler exits 3 for the first (BLOCKED, an
-  external dependency, remedy `git fetch origin main`) and 1 for the second
-  (UNKNOWN), the mapping `evidence.exit_code_for` gives `pre_pr.py`, and
-  `pre_pr` records both as blocking.
-- edge: no markdown on the branch is `PASS` with `examined=0`, and an unreadable
-  file lowers `examined` instead of counting as checked.
-- boundary: real git repositories, not mocked subprocess, decide both not-run
-  cases end to end. The `git diff` failure test pins the resolver to a base
-  that names no revision and lets the real `git diff` exit 128. The
-  unresolved-base-ref boundary test pins nothing: a `git clone --origin
-  upstream` checkout on a branch with no upstream misses every candidate the
-  real resolver tries. The other tests pin the resolver to choose a base.
+- negative: with no base ref or a failing `git diff`, CI fails the handler with
+  exit 1 and names the reason on stderr; `pre_pr` records a failure.
+- edge: locally the same conditions skip, so the handler exits 0 and `pre_pr`
+  does not count a pass.
+- positive: a clean scan is `PASS` naming base, scope, and file count.
+- boundary: a `git clone --origin upstream` checkout on a branch with no
+  upstream misses every candidate the real resolver tries, with nothing pinned.
 """
 
 from __future__ import annotations
@@ -30,7 +23,6 @@ from __future__ import annotations
 import subprocess
 import sys
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 
@@ -38,7 +30,6 @@ from scripts.validation.evidence import (
     REASON_BASE_REF_UNRESOLVED,
     REASON_DIFF_FAILED,
     EvidenceState,
-    default_pre_pr_policy,
 )
 from tests.ci.count_ratchet_git_harness import commit_all, git_checked, git_stdout, init_repo
 
@@ -100,19 +91,14 @@ def _pin_base(monkeypatch: pytest.MonkeyPatch, resolve: object) -> None:
     monkeypatch.setattr(checks_dash, "_resolve_branch_base_ref", resolve)
 
 
-class TestScanThatCannotRunIsNotAPass:
-    def test_unresolved_base_ref_is_blocked(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        repo = _repo_with(tmp_path, {"docs/guide.md": f"one{EM_DASH}two\n"})
-        _pin_base(monkeypatch, lambda _root: None)
+@pytest.fixture(autouse=True)
+def _local_checkout(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Run every test as a local checkout unless it opts into CI."""
+    monkeypatch.delenv("CI", raising=False)
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
 
-        outcome = checks_dash.validate_dash_prohibition(repo)
 
-        assert outcome.state is EvidenceState.BLOCKED
-        assert outcome.reason == REASON_BASE_REF_UNRESOLVED
-        assert outcome.examined is None, "nothing was scanned, so no count may be claimed"
-
+class TestScanThatCannotRunUnderCi:
     def test_unresolved_base_ref_fails_the_pre_push_handler(
         self,
         tmp_path: Path,
@@ -120,16 +106,23 @@ class TestScanThatCannotRunIsNotAPass:
         capsys: pytest.CaptureFixture[str],
     ) -> None:
         """The committed dash is real; only the base ref is missing."""
+        monkeypatch.setenv("CI", "true")
         repo = _repo_with(tmp_path, {"docs/guide.md": f"one{EM_DASH}two\n"})
         _pin_base(monkeypatch, lambda _root: None)
 
-        assert _run_handler(repo) == 3
+        outcome = checks_dash.validate_dash_prohibition(repo)
+        assert outcome.state is EvidenceState.FAIL
+        assert outcome.reason == REASON_BASE_REF_UNRESOLVED
+        assert outcome.examined is None, "nothing was scanned, so no count may be claimed"
+        capsys.readouterr()
+
+        assert _run_handler(repo) == 1
 
         err = capsys.readouterr().err
-        assert "[BLOCKED]" in err
+        assert "[FAIL]" in err
         assert f"reason={REASON_BASE_REF_UNRESOLVED}" in err
 
-    def test_real_checkout_with_no_base_ref_is_blocked_with_no_pinning(
+    def test_real_checkout_with_no_base_ref_fails_with_no_pinning(
         self,
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
@@ -141,39 +134,44 @@ class TestScanThatCannotRunIsNotAPass:
         `refs/remotes/origin/HEAD`, and, on a new branch, no `@{u}`; the
         remote is a local path, so `gh pr view` has no GitHub host to ask.
         """
+        monkeypatch.setenv("CI", "true")
         monkeypatch.delenv("GH_REPO", raising=False)  # gh would otherwise skip the remotes
         repo = _clone_without_origin(tmp_path, {"docs/guide.md": f"one{EM_DASH}two\n"})
         assert checks_dash._resolve_branch_base_ref(repo) is None
 
         outcome = checks_dash.validate_dash_prohibition(repo)
 
-        assert outcome.state is EvidenceState.BLOCKED
+        assert outcome.state is EvidenceState.FAIL
         assert outcome.reason == REASON_BASE_REF_UNRESOLVED
-        assert _run_handler(repo) == 3
+        capsys.readouterr()
+        assert _run_handler(repo) == 1
         assert f"reason={REASON_BASE_REF_UNRESOLVED}" in capsys.readouterr().err
 
-    def test_failed_git_diff_is_unknown_and_fails_the_handler(
+    def test_failed_git_diff_fails_the_handler(
         self,
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
         """A base that names no revision makes the real `git diff` exit 128."""
+        monkeypatch.setenv("CI", "true")
         repo = _repo_with(tmp_path, {"docs/guide.md": f"one{EM_DASH}two\n"})
         _pin_base(monkeypatch, lambda _root: "refs/heads/no-such-branch")
 
         outcome = checks_dash.validate_dash_prohibition(repo)
-        assert outcome.state is EvidenceState.UNKNOWN
+        assert outcome.state is EvidenceState.FAIL
         assert outcome.reason == REASON_DIFF_FAILED
+        capsys.readouterr()
         assert _run_handler(repo) == 1
-        assert "[UNKNOWN]" in capsys.readouterr().err
+        assert f"reason={REASON_DIFF_FAILED}" in capsys.readouterr().err
 
-    def test_pre_pr_records_the_unrunnable_scan_as_blocking(
+    def test_pre_pr_records_the_unrunnable_scan_as_a_failure(
         self,
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
+        monkeypatch.setenv("CI", "true")
         repo = _repo_with(tmp_path, {"docs/guide.md": "plain\n"})
         _pin_base(monkeypatch, lambda _root: None)
         state = ValidationState()
@@ -185,21 +183,38 @@ class TestScanThatCannotRunIsNotAPass:
         )
 
         assert accepted is False
-        assert (state.blocked, state.passed) == (1, 0)
+        assert (state.failed, state.passed) == (1, 0)
         assert "reason=base_ref.unresolved" in capsys.readouterr().out
 
-    def test_the_default_policy_licenses_neither_state(self, tmp_path: Path) -> None:
-        """The exit code comes from the policy, so pin what the policy says."""
-        policy = default_pre_pr_policy()
-        with patch("checks_dash._resolve_branch_base_ref", return_value=None):
-            blocked = checks_dash.validate_dash_prohibition(tmp_path)
-        with (
-            patch("checks_dash._resolve_branch_base_ref", return_value="origin/main"),
-            patch("checks_dash._run_subprocess", return_value=(128, "", "fatal: nope")),
-        ):
-            unknown = checks_dash.validate_dash_prohibition(tmp_path)
-        assert not policy.accepts(blocked)
-        assert not policy.accepts(unknown)
+
+class TestScanThatCannotRunLocally:
+    def test_unresolved_base_ref_skips_and_the_handler_exits_zero(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        repo = _repo_with(tmp_path, {"docs/guide.md": f"one{EM_DASH}two\n"})
+        _pin_base(monkeypatch, lambda _root: None)
+
+        outcome = checks_dash.validate_dash_prohibition(repo)
+
+        assert outcome.state is EvidenceState.SKIP
+        assert outcome.reason == REASON_BASE_REF_UNRESOLVED
+        assert _run_handler(repo) == 0
+
+    def test_pre_pr_does_not_count_a_local_skip_as_a_pass(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        repo = _repo_with(tmp_path, {"docs/guide.md": "plain\n"})
+        _pin_base(monkeypatch, lambda _root: None)
+        state = ValidationState()
+
+        run_validation(
+            "Em/en-dash Prohibition",
+            state,
+            lambda: checks_dash.validate_dash_prohibition(repo),
+        )
+
+        assert state.passed == 0
+        assert state.failed == 0
 
 
 class TestScanThatRanReportsWhatItExamined:
@@ -214,7 +229,7 @@ class TestScanThatRanReportsWhatItExamined:
         assert outcome.state is EvidenceState.PASS
         assert outcome.examined == 2
         assert outcome.findings == 0
-        assert outcome.revision.endswith("...HEAD")
+        assert outcome.revision == "HEAD"
         assert outcome.scope
         assert _run_handler(repo) == 0
 
@@ -243,21 +258,3 @@ class TestScanThatRanReportsWhatItExamined:
 
         assert outcome.state is EvidenceState.PASS
         assert outcome.examined == 0
-
-    def test_an_unreadable_file_lowers_examined_instead_of_counting_as_checked(
-        self, tmp_path: Path
-    ) -> None:
-        with (
-            patch("checks_dash._resolve_branch_base_ref", return_value="origin/main"),
-            patch("checks_dash._run_subprocess") as run,
-        ):
-            run.side_effect = [
-                (0, "clean.md\nunreadable.md\n", ""),  # git diff
-                (0, "no dashes here\n", ""),  # clean.md
-                (128, "", "fatal: bad object"),  # unreadable.md
-            ]
-            outcome = checks_dash.validate_dash_prohibition(tmp_path)
-
-        assert outcome.state is EvidenceState.PASS
-        assert outcome.examined == 1
-        assert "1 of 2" in outcome.detail

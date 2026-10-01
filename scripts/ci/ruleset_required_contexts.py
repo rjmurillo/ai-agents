@@ -12,6 +12,7 @@ REQUIRED_CONTEXTS: frozenset[str] = frozenset(
     {
         "Analyze (actions)",
         "Analyze (python)",
+        "Check whole-tree count ratchets (blocking)",
         "Run Python Tests",
         "Validate Generated Files",
         "Validate Path Normalization",

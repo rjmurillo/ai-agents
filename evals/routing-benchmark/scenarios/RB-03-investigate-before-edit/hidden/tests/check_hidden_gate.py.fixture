@@ -1,0 +1,42 @@
+import unittest
+
+from perfgate import EtlResult, EtlRow, compare_etl, decide
+
+
+class HiddenGateChecks(unittest.TestCase):
+    def test_compare_etl_reports_a_slower_interesting_row_as_regression(self) -> None:
+        result = compare_etl([EtlRow("A", 5.0, True)])
+        self.assertTrue(result.regression)
+        self.assertTrue(result.ok)
+
+    def test_compare_etl_ignores_faster_or_uninteresting_rows(self) -> None:
+        rows = [EtlRow("A", -12.0, True), EtlRow("B", 30.0, False), EtlRow("C", 0.0, True)]
+        self.assertFalse(compare_etl(rows).regression)
+
+    def test_compare_etl_with_no_rows_is_not_a_regression(self) -> None:
+        self.assertFalse(compare_etl([]).regression)
+
+    def test_clean_etl_still_suppresses_a_benchmark_regression_as_noise(self) -> None:
+        clean = compare_etl([EtlRow("A", -3.0, True)])
+        self.assertEqual(decide(True, clean, True), 0)
+
+    def test_etl_regression_fails_the_gate_without_a_benchmark_regression(self) -> None:
+        rows = [EtlRow("A", 18.5, True)]
+        self.assertEqual(decide(False, compare_etl(rows), True), 1)
+
+    def test_etl_regression_does_not_fail_the_gate_when_failing_is_disabled(self) -> None:
+        rows = [EtlRow("A", 18.5, True)]
+        self.assertEqual(decide(False, compare_etl(rows), False), 0)
+
+    def test_failed_etl_comparison_falls_back_to_the_benchmark_verdict(self) -> None:
+        failed = EtlResult(ok=False, regression=False, report="trace missing")
+        self.assertEqual(decide(True, failed, True), 1)
+        self.assertEqual(decide(False, failed, True), 0)
+
+    def test_gate_does_not_read_the_report_text(self) -> None:
+        clean = EtlResult(ok=True, regression=False, report="ETL overweight report\n  overweight: X")
+        self.assertEqual(decide(False, clean, True), 0)
+
+
+if __name__ == "__main__":
+    unittest.main()

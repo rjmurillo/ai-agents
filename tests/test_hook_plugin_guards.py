@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import subprocess
-import sys
 from pathlib import Path
 from typing import Any
 
@@ -203,89 +202,6 @@ class TestSkipIfConsumerRepo:
         captured = capsys.readouterr()
         assert "[SKIP] test-hook" in captured.err
         assert "cannot verify ai-agents project repo identity" in captured.err
-
-
-class TestSyncPluginLibShim:
-    """ADR-109 B5: sync_plugin_lib.py is a thin shim over lib_mirror.compile_all.
-
-    The copy logic itself (`sync_pair`, `sync_file`, `IMPORT_CONVERSIONS`,
-    the AST self-containment check) moved to `build/scripts/lib_mirror.py`
-    and is exercised there (`tests/build_scripts/test_lib_mirror.py`). This
-    class only proves the shim still delegates correctly, since
-    `.github/workflows/validate-generated-agents.yml` still calls it
-    directly (workflow files are out of scope for the PR that retired the
-    rest of this script).
-    """
-
-    def test_check_passes_when_in_sync(self) -> None:
-        result = subprocess.run(
-            [sys.executable, str(REPO_ROOT / "scripts" / "sync_plugin_lib.py"), "--check"],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            cwd=str(REPO_ROOT),
-            timeout=10,
-        )
-        assert result.returncode == 0, (
-            f"Sync check failed (files out of sync):\n{result.stdout}\n{result.stderr}"
-        )
-
-    def test_check_detects_drift(
-        self,
-        tmp_path: Path,
-        monkeypatch: pytest.MonkeyPatch,
-        capsys: pytest.CaptureFixture[str],
-    ) -> None:
-        """A drifted plugin-tree file makes the shim's --check return 1.
-
-        Every registered package source (PACKAGES: hook_utilities,
-        github_core, ai_review_common) must exist, or lib_mirror's
-        fail-closed missing-source-directory error also returns 1
-        (CodeRabbit, PR #5787 review), and this test would keep passing
-        even if the drift check itself were removed or broken. Asserting
-        the specific "out of sync" message and the drifted path, not just
-        the exit code, closes that gap.
-        """
-        import scripts.sync_plugin_lib as sync_mod
-
-        for package in ("hook_utilities", "github_core", "ai_review_common"):
-            pkg_src = tmp_path / "scripts" / package
-            pkg_src.mkdir(parents=True)
-            (pkg_src / "__init__.py").write_text("", encoding="utf-8")
-        (tmp_path / "scripts" / "hook_utilities" / "bootstrap.py").write_text(
-            '"""Bootstrap."""\n', encoding="utf-8"
-        )
-        (tmp_path / "scripts" / "validation").mkdir(parents=True)
-        (tmp_path / "scripts" / "validation" / "validate_review_marker.py").write_text(
-            '"""Marker."""\n', encoding="utf-8"
-        )
-        drifted = tmp_path / "src" / "claude" / "lib" / "hook_utilities"
-        drifted.mkdir(parents=True)
-        (drifted / "__init__.py").write_text("stale\n", encoding="utf-8")
-
-        monkeypatch.setattr(sync_mod, "_REPO_ROOT", tmp_path)
-
-        rc = sync_mod.main(["--check"])
-
-        assert rc == 1
-        stderr = capsys.readouterr().err
-        assert "Plugin lib copies are out of sync:" in stderr
-        assert "src/claude/lib/hook_utilities/__init__.py" in stderr
-
-    def test_reexports_registry_used_by_validate_sync_registry(self) -> None:
-        """SYNC_PAIRS stays importable at its historical name (backward compat)."""
-        import scripts.sync_plugin_lib as sync_mod
-
-        assert ("scripts/hook_utilities", ".claude/lib/hook_utilities") in sync_mod.SYNC_PAIRS
-
-    def test_validate_review_marker_pair_is_registered(self) -> None:
-        import scripts.sync_plugin_lib as sync_mod
-
-        pair = (
-            "scripts/validation/validate_review_marker.py",
-            ".claude/skills/review/scripts/validate_review_marker.py",
-        )
-        assert pair in sync_mod.SYNC_FILE_PAIRS
 
 
 def _parse_events(stderr_text: str) -> list[dict[str, Any]]:

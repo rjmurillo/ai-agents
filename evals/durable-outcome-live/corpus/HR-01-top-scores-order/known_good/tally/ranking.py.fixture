@@ -1,0 +1,5 @@
+"""Rank match scores."""
+
+
+def top_scores(scores: list[int], n: int) -> list[int]:
+    return sorted(scores, reverse=True)[: max(n, 0)]

@@ -125,7 +125,7 @@ with invoker `autoplan`. REQ-019 criterion 3 changes to match.
 
 ## Reclassified skills
 
-`business-strategy`, `book-to-skill`, `world-model-diagnostic`, and
+`business-strategy`, `book-to-skill`, `world-model-diagnostic`, and <!-- orphan-ref-ignore -->
 `dx-review` change from `explicit-only` to `front-door` with intents.
 `ai-agents-external-claims` and `validation-authority` stay `explicit-only`
 for issues #5388 and #5387. Their rationale strings are quoted, because the

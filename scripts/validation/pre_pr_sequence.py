@@ -44,6 +44,7 @@ from check_adr_lifecycle import validate_adr_lifecycle
 from check_adr_links import validate_adr_links
 from check_agent_tree_frontmatter import validate_agent_tree_frontmatter
 from check_agents_write_targets import validate_agents_write_targets
+from check_bypass_allowlist import validate_bypass_allowlist
 from check_citation_freshness import validate_citation_freshness
 from check_doc_interpreter_portability import validate_doc_interpreter_portability
 from check_duplicate_test_helpers import validate_duplicate_test_helpers
@@ -52,16 +53,35 @@ from check_git_hook_health import validate_git_hook_health
 from check_in_root_worktrees import validate_in_root_worktrees
 from check_index_line_endings import validate_index_line_endings
 from check_nested_tests import validate_no_nested_tests
+from check_promotion_exceptions import validate_promotion_exceptions
 from check_push_lock_paths import validate_push_lock_paths
+from check_required_context_conditions import validate_required_context_conditions
 from check_serena_memory_worktree_scope import (
     validate_serena_memory_worktree_scope,
 )
 from check_skill_adr_bindings import validate_skill_adr_bindings
+from check_skill_output_envelopes import validate_skill_output_envelopes
+from check_skill_tree_layout import validate_skill_tree_layout
 from check_subprocess_encoding import validate_subprocess_encoding
 from check_test_tree_writes import validate_test_tree_writes
 from check_tmp_worktrees import validate_tmp_worktrees
 from check_unreachable_code import validate_unreachable_code
 from check_worktree_recipes import validate_worktree_recipes
+from checks_ci_parity import (
+    validate_adr_uniqueness,
+    validate_agent_registry,
+    validate_agent_skill_discriminator,
+    validate_closure_manifest,
+    validate_hook_contracts,
+    validate_passive_context_budget,
+    validate_placeholder_identity,
+    validate_plugin_frontmatter_self_containment,
+    validate_python3_entrypoints,
+    validate_security_suppressions_diff,
+    validate_sha_pinning,
+    validate_skillbook,
+    validate_tracked_conflict_markers,
+)
 from checks_coverage import (
     validate_review_marker,
 )
@@ -115,6 +135,7 @@ from checks_tooling import (
     validate_copilot_version_pin,
     validate_effective_context_ratchet,
     validate_instruction_budget,
+    validate_instruction_bytes,
     validate_markdown_lint,
     validate_path_normalization,
     validate_planning_artifacts,
@@ -236,7 +257,7 @@ def _run_orphaned_build_deferrals(repo_root: Path, _args: argparse.Namespace) ->
     )
 
 
-def _run_copilot_routing_exclusions(repo_root: Path, _args: argparse.Namespace) -> bool:
+def _run_copilot_routing_exclusions(repo_root: Path, _args: argparse.Namespace) -> GateResult:
     """Import lazily; ``run_validation`` turns any raise into a recorded failure.
 
     The previous shape wrapped both the import and the ``run_validation`` call in
@@ -247,7 +268,8 @@ def _run_copilot_routing_exclusions(repo_root: Path, _args: argparse.Namespace) 
     """
     from checks_copilot import validate_copilot_routing_exclusions
 
-    return bool(validate_copilot_routing_exclusions(repo_root))
+    outcome: GateResult = validate_copilot_routing_exclusions(repo_root)
+    return outcome
 
 
 _SEQUENCE: tuple[_Gate, ...] = (
@@ -317,6 +339,16 @@ _SEQUENCE: tuple[_Gate, ...] = (
     _Gate("Mypy Changed Files (ratchet)", _root_only(validate_mypy_changed_files)),
     _Gate("Markdown Linting", _root_only(validate_markdown_lint)),
     _Gate("Workflow YAML Validation", _root_only(validate_workflow_yaml)),
+    # Advisory lint over the workflows that produce a pinned required context
+    # (ADR-101 requirement 1). Reports a step or job `if:` that reads another
+    # job's output, the event name or the actor, and a pinned context with no
+    # producer or more than one. Never fails: it is P0 code the gated pull
+    # request can edit, and the live corpus carries findings this gate does not
+    # own. See the module docstring for what it cannot see. Issue #5245.
+    _Gate(
+        "Required-Context Conditions (advisory)",
+        _root_only(validate_required_context_conditions),
+    ),
     # Fails when the pinned @github/copilot version is missing, unparseable, or
     # known-bad (0.0.397). Issue #2630.
     _Gate("Copilot CLI Version Pin", _root_only(validate_copilot_version_pin)),
@@ -380,6 +412,37 @@ _SEQUENCE: tuple[_Gate, ...] = (
     _Gate("Hook Template Drift", _root_only(validate_hook_template_drift)),
     _Gate("Spec ID Uniqueness", _root_only(validate_spec_id_uniqueness)),  # Issue #2068
     _Gate("Traceability", _root_only(validate_traceability)),
+    # Issue #5636, decision D17: a SKIP_ toggle or continue-on-error step with no
+    # allowlist entry, or an expired one, fails here before it fails in CI.
+    _Gate("Bypass Allowlist", _root_only(validate_bypass_allowlist)),
+    # Issue #5636, ADR-113 decision 8: a malformed promotion exceptions file or
+    # a lapsed record fails here, not at the next release.
+    _Gate("Promotion Exceptions", _root_only(validate_promotion_exceptions)),
+    # The gates below run the validators that pull-request workflows run and
+    # this sequence did not (issue #5676): a branch cleared every local gate and
+    # then failed `Validate Generated Files` or `Validate PR`, both required.
+    # tests/validation/test_pre_pr_covers_workflow_validators.py reads every
+    # pull-request workflow and fails when one runs a validator that neither a
+    # gate here nor that test's exemption table accounts for.
+    _Gate("Agent Registry", _root_only(validate_agent_registry)),
+    _Gate(
+        "Plugin Frontmatter Self-Containment",
+        _root_only(validate_plugin_frontmatter_self_containment),
+    ),
+    _Gate("Python3 Entrypoints", _root_only(validate_python3_entrypoints)),
+    _Gate("GitHub Actions SHA Pinning", _root_only(validate_sha_pinning)),
+    _Gate("ADR Number Uniqueness", _root_only(validate_adr_uniqueness)),
+    _Gate("Agent-Skill Discriminator", _root_only(validate_agent_skill_discriminator)),
+    _Gate("Hook Contracts", _root_only(validate_hook_contracts)),
+    _Gate("Passive Context Budget", _root_only(validate_passive_context_budget)),
+    _Gate("Skillbook Validation", _root_only(validate_skillbook)),
+    # Advisory: the typed dependency closure of every pinned required context
+    # (ADR-101 Phase 1, issue #5245). Prints the summary and any unresolved edge,
+    # never fails; the job that binds runs from the default branch.
+    _Gate("Closure Manifest (advisory)", _root_only(validate_closure_manifest)),
+    _Gate("Placeholder Identity", _root_only(validate_placeholder_identity)),
+    _Gate("Tracked Conflict Markers", _root_only(validate_tracked_conflict_markers)),
+    _Gate("Security Suppressions Diff", _root_only(validate_security_suppressions_diff)),
     # The seven gates below are the seven validators the CI job
     # "Validate Vendor Portability" runs. They are kept together, and
     # tests/validation/test_pre_pr_covers_vendor_portability.py reads that
@@ -424,6 +487,10 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # inside it: Skill Memory References pins that it runs immediately after
     # Skill SKIP Clause Routing.
     _Gate("Commands Retired (ADR-064)", _root_only(validate_commands_retired)),
+    # Builds envelopes with the real skill-output producers and asks
+    # scripts/validate_skill_output.py to accept each, then proves the validator
+    # still rejects a malformed one. Until issue #5299 no gate ran that validator.
+    _Gate("Skill Output Envelope", _root_only(validate_skill_output_envelopes)),
     # Block new test files colocated in customer-shipped skill dirs. Issue #4838.
     _Gate("Colocated Skill Tests", _root_only(validate_colocated_skill_tests)),
     # Ratchet (issue #3457). Fails when a rule or skill has no activation
@@ -496,6 +563,12 @@ _SEQUENCE: tuple[_Gate, ...] = (
         "Agent Tree Frontmatter (.claude/agents)",
         _root_only(validate_agent_tree_frontmatter),
     ),
+    # A loose file directly under .claude/skills/ registers as a skill named after
+    # the file (issue #5503, CLAUDE.md registered as skill "CLAUDE").
+    _Gate(
+        "Skill Tree Layout (.claude/skills)",
+        _root_only(validate_skill_tree_layout),
+    ),
     # A source change requires a plugin.json bump (issue #2118).
     _Gate("Plugin Version Bump", _root_only(validate_plugin_version_bump)),
     # Claude and Copilot plugin hooks.json must anchor to the plugin root. Bare
@@ -535,6 +608,10 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # language-universal .github/instructions/*.instructions.md files, so the
     # always-on corpus cannot grow silently on a new all-language rule.
     _Gate("Instruction Budget (always-on)", _root_only(validate_instruction_budget)),
+    # Per-fixture activated-bytes ratchet (issue #5400): the bytes each of six
+    # scripted routing scenarios loads, including skill and agent capability
+    # dependencies. The gate above sees only always-on bytes per language.
+    _Gate("Instruction Bytes (per-fixture)", _root_only(validate_instruction_bytes)),
     # Pins the numeric claims in model-context-doctrine.md to live measurements.
     # The budget gate above checks a ceiling; this gate checks the exact figures
     # (byte counts, file counts, multipliers) stated in the doctrine doc, so a

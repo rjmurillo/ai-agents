@@ -1,0 +1,66 @@
+{
+  "status": "VERIFIED",
+  "config": {
+    "model": "claude-haiku-4-5-20251001",
+    "harness": "claude",
+    "harness_version": "2.1.285",
+    "context_bytes": 0,
+    "retry_budget": 1,
+    "reviewer": "none",
+    "control": "reduced"
+  },
+  "verdict_counts": {
+    "ACCEPTED_DURABLE": 1,
+    "ACCEPTED_NOT_DURABLE": 0,
+    "REJECTED": 2,
+    "UNVERIFIED": 0
+  },
+  "per_task": [
+    {
+      "task_id": "RB-03-investigate-before-edit",
+      "repeats": 1,
+      "durable_accepts": 0,
+      "verdicts": [
+        "REJECTED"
+      ]
+    },
+    {
+      "task_id": "RB-04-scope-expansion",
+      "repeats": 1,
+      "durable_accepts": 1,
+      "verdicts": [
+        "ACCEPTED_DURABLE"
+      ]
+    },
+    {
+      "task_id": "RB-06-architecture-resolved",
+      "repeats": 1,
+      "durable_accepts": 0,
+      "verdicts": [
+        "REJECTED"
+      ]
+    }
+  ],
+  "zero_success_tasks": [
+    "RB-03-investigate-before-edit",
+    "RB-06-architecture-resolved"
+  ],
+  "all_success_tasks": [
+    "RB-04-scope-expansion"
+  ],
+  "cost_percentiles_usd": {
+    "p10": 0.0428,
+    "p50": 0.1086,
+    "p90": 0.1628
+  },
+  "correction_minutes_percentiles": {
+    "p10": 0.0,
+    "p50": 0.0,
+    "p90": 0.0
+  },
+  "headline": {
+    "cost_per_accepted_durable_task_usd": 0.3113,
+    "correction_minutes_per_accepted_durable_task": 0.0,
+    "residual_risk": 0
+  }
+}

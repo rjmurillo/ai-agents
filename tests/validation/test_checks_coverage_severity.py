@@ -24,6 +24,7 @@ from scripts.validation.checks_coverage import (
     _print_output,
     validate_review_marker,
 )
+from scripts.validation.evidence import pre_pr_policy
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -71,10 +72,10 @@ def test_advisory_failure_prints_warn_and_never_fail(
     repo = _repo(tmp_path, with_script=True)
     monkeypatch.delenv("REVIEW_MARKER_ENFORCED", raising=False)
 
-    passed = validate_review_marker(repo)
+    outcome = validate_review_marker(repo)
 
     captured = capsys.readouterr().out
-    assert passed is True
+    assert pre_pr_policy().accepts(outcome)
     assert "[FAIL]" not in captured
     assert "[WARN]" in captured
     assert "a review marker must be an empty commit" in captured
@@ -88,10 +89,10 @@ def test_enforced_failure_keeps_the_fail_token(
     repo = _repo(tmp_path, with_script=True)
     monkeypatch.setenv("REVIEW_MARKER_ENFORCED", "1")
 
-    passed = validate_review_marker(repo)
+    outcome = validate_review_marker(repo)
 
     captured = capsys.readouterr().out
-    assert passed is False
+    assert not pre_pr_policy().accepts(outcome)
     assert "[FAIL]" in captured
 
 
@@ -103,10 +104,10 @@ def test_missing_script_advisory_still_warns(
     repo = _repo(tmp_path, with_script=False)
     monkeypatch.delenv("REVIEW_MARKER_ENFORCED", raising=False)
 
-    passed = validate_review_marker(repo)
+    outcome = validate_review_marker(repo)
 
     captured = capsys.readouterr().out
-    assert passed is True
+    assert pre_pr_policy().accepts(outcome)
     assert "[WARN] validate_review_marker.py not found (advisory skip)" in captured
     assert "[FAIL]" not in captured
 
@@ -207,10 +208,10 @@ def test_success_forwards_each_line_once(
     _add_valid_marker(repo)
     monkeypatch.delenv("REVIEW_MARKER_ENFORCED", raising=False)
 
-    passed = validate_review_marker(repo)
+    outcome = validate_review_marker(repo)
 
     captured = capsys.readouterr().out
-    assert passed is True
+    assert pre_pr_policy().accepts(outcome)
     assert _pass_line_count(captured) == 1
 
 
@@ -238,10 +239,10 @@ def test_success_severity_token_stays_pass_in_both_modes(
     else:
         monkeypatch.delenv("REVIEW_MARKER_ENFORCED", raising=False)
 
-    passed = validate_review_marker(repo)
+    outcome = validate_review_marker(repo)
 
     captured = capsys.readouterr().out
-    assert passed is True
+    assert pre_pr_policy().accepts(outcome)
     assert "[PASS]" in captured
     assert "[WARN]" not in captured
     assert "[FAIL]" not in captured
@@ -258,10 +259,10 @@ def test_success_forwards_each_line_once_when_enforced(
     _add_valid_marker(repo)
     monkeypatch.setenv("REVIEW_MARKER_ENFORCED", "1")
 
-    passed = validate_review_marker(repo)
+    outcome = validate_review_marker(repo)
 
     captured = capsys.readouterr().out
-    assert passed is True
+    assert pre_pr_policy().accepts(outcome)
     assert _pass_line_count(captured) == 1
 
 

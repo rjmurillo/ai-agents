@@ -316,6 +316,7 @@ See [references/script-integration-framework.md](references/script-integration-f
 | [Phase 4 Deep Dive](references/phase4-synthesis-deep-dive.md) | Panel composition, script agent, evaluation format, consensus loop |
 | [Synthesis Protocol](references/synthesis-protocol.md) | Multi-agent panel execution details |
 | [Evolution Scoring](references/evolution-scoring.md) | Timelessness scoring and evolution rubric |
+| [Skill Development Conventions](references/skill-development-conventions.md) | Repository skill conventions: frontmatter schema, size ceilings, Triggers and Process sections |
 | [Evolution Timelessness](references/evolution-timelessness.md) | Temporal projection and anti-obsolescence patterns |
 | [Architecture Patterns](references/architecture-patterns.md) | Pattern selection guide and decision tree |
 | [Configuration](references/configuration.md) | SkillForge configuration defaults |

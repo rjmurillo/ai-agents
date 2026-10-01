@@ -245,7 +245,7 @@ Compare actual behavior against hypothesis.
 | Verdict | Meaning | Action |
 |---------|---------|--------|
 | VALIDATED | Hypothesis confirmed | Document and expand scope |
-| INVALIDATED | Hypothesis falsified | File bugs, prioritize fixes |
+| INVALIDATED | Hypothesis falsified | Report the bugs to the owner, prioritize fixes |
 | INCONCLUSIVE | Unable to determine | Refine experiment design |
 
 **Finding Categories**:

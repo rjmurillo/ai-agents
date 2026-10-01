@@ -403,8 +403,15 @@ Blank answers, canonical hedge phrases, and conflicting `source:*` labels exit
 redacts flag evidence before it publishes it. It refuses a body Step 0 block
 that carries a secret, because it publishes the body unchanged.
 
-The check covers this script only. The GitHub MCP `issue_write` tool, raw
-`gh issue create`, and workflow steps that call the API bypass it.
+`--source human` also appends `<!-- source:human -->` as the last body line. The
+script rejects that marker in any other body.
+
+The script's check covers this script only. The GitHub MCP `issue_write` tool,
+raw `gh issue create`, and workflow steps that call the API bypass it. The
+`Label Issue Source` workflow labels those issues after they open: bots and
+owner-login issues without a trailing human marker get `source:agent`, a burst
+of owner issues within ten minutes forces `source:agent`, and every other
+author gets `source:human`. It labels only. It does not close or block.
 
 ---
 
