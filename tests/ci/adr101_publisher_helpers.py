@@ -26,6 +26,7 @@ def make_env(**overrides: str) -> dict[str, str]:
         "ADR101_REPOSITORY": "rjmurillo/ai-agents",
         "ADR101_HEAD_SHA": HEAD,
         "ADR101_PULL_NUMBER": "42",
+        "ADR101_BASE_SHA": BASE,
         "ADR101_TRIGGER_RUN_ID": "9001",
         "ADR101_TRIGGER_EVENT": "pull_request",
         "ADR101_EXECUTE_RESULT": "success",

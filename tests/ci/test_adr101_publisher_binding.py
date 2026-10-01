@@ -43,6 +43,9 @@ class TestTamperedEvidence:
             {"ADR101_TRIGGER_RUN_ID": "12;id"},
             {"ADR101_TRIGGER_RUN_ID": ""},
             {"ADR101_PULL_NUMBER": "4 2"},
+            {"ADR101_BASE_SHA": ""},
+            {"ADR101_BASE_SHA": "main"},
+            {"ADR101_BASE_SHA": "B" * 40},
             {"ADR101_EXECUTE_RESULT": "ok"},
             {"ADR101_EXECUTE_RESULT": ""},
         ],
@@ -77,6 +80,23 @@ class TestTamperedEvidence:
         assert outcome.reason == "base.not_served"
         assert api.created == []
         assert exit_code(outcome) == 0
+
+    def test_a_base_that_moved_since_the_event_publishes_nothing(self) -> None:
+        api = FakeApi(pull=PullState(head_sha=HEAD, base_sha="d" * 40))
+
+        outcome = run_publish(api)
+
+        assert outcome.state is EvidenceState.FAIL
+        assert outcome.reason == "revision.moved"
+        assert "base" in outcome.detail
+        assert api.created == []
+
+    def test_the_digest_binds_the_event_base_not_a_later_one(self) -> None:
+        api = FakeApi()
+
+        run_publish(api)
+
+        assert api.created[0]["external_id"] == revision_digest(HEAD, BASE)
 
     def test_a_head_that_moves_between_the_two_reads_publishes_nothing(self) -> None:
         api = FakeApi(pull_after=PullState(head_sha="c" * 40, base_sha=BASE))

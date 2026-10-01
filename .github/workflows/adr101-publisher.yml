@@ -23,8 +23,17 @@ name: ADR-101 Publisher
 # ADR101_PUBLISHER_APP_PRIVATE_KEY of environment adr101-publisher, limited to
 # main. A repository-level copy would be readable by a branch-defined workflow.
 #
-# No concurrency group: a group keyed on the head SHA would let a fork pull
-# request that reuses an upstream SHA cancel a legitimate in-flight run.
+# Concurrency is keyed on the pull request number, so a newer run for the same
+# pull request replaces an older one and a stale run cannot publish after a newer
+# result. It is never keyed on the head SHA: a fork pull request can reuse an
+# upstream SHA and would cancel a legitimate run. A run with no pull request
+# attached falls back to its own run id and cancels nothing.
+#
+# Base binding: the event's base SHA is compared with the live base before
+# publishing, which closes the window between the event and the publish. It does
+# not close a base that advances after a green check. Before this context is
+# required, ADR-101 requires one of strict up-to-date checks, a merge queue, or
+# re-publication when the base moves (the Phase 0 strict-policy decision).
 #
 # This publisher closes identity, pinning, revision binding and the job split. It
 # does not authenticate that the tests ran (requirement 2b, open research), so its
@@ -36,6 +45,10 @@ on:
     types: [completed]
 
 permissions: {}
+
+concurrency:
+  group: adr101-publisher-${{ github.event.workflow_run.pull_requests[0].number || github.event.workflow_run.id }}
+  cancel-in-progress: true
 
 jobs:
   gate:
@@ -151,6 +164,7 @@ jobs:
           ADR101_REPOSITORY: ${{ github.repository }}
           ADR101_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
           ADR101_PULL_NUMBER: ${{ github.event.workflow_run.pull_requests[0].number }}
+          ADR101_BASE_SHA: ${{ github.event.workflow_run.pull_requests[0].base.sha }}
           ADR101_TRIGGER_RUN_ID: ${{ github.event.workflow_run.id }}
           ADR101_EXECUTE_RESULT: ${{ needs.execute.result }}
         run: python3 scripts/ci/adr101_publisher.py publish

@@ -106,10 +106,15 @@ class TestTriggersAndRunners:
     def test_the_workflow_default_permissions_are_empty(self, workflow: dict[Any, Any]) -> None:
         assert workflow["permissions"] == {}
 
-    def test_there_is_no_concurrency_group_a_fork_could_use_to_cancel_a_run(
+    def test_concurrency_is_keyed_on_the_pull_request_never_the_head_sha(
         self, workflow: dict[Any, Any]
     ) -> None:
-        assert "concurrency" not in workflow
+        group = workflow["concurrency"]["group"]
+
+        assert "pull_requests[0].number" in group
+        assert "workflow_run.id" in group
+        assert "head_sha" not in group
+        assert workflow["concurrency"]["cancel-in-progress"] is True
 
     def test_the_job_set_is_exactly_gate_execute_publish(
         self, jobs: dict[str, dict[str, Any]]
@@ -298,6 +303,7 @@ class TestNoHeadControlledInput:
             "github.event.workflow_run.event",
             "github.event.workflow_run.id",
             "github.event.workflow_run.pull_requests[0].number",
+            "github.event.workflow_run.pull_requests[0].base.sha",
         }
         found = set(re.findall(r"github\.event\.[A-Za-z0-9_.\[\]]+", text_of(jobs)))
 

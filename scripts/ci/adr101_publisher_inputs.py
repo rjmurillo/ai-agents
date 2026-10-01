@@ -90,6 +90,7 @@ ENV_READ_TOKEN = "ADR101_READ_TOKEN"
 ENV_REPOSITORY = "ADR101_REPOSITORY"
 ENV_HEAD_SHA = "ADR101_HEAD_SHA"
 ENV_PULL_NUMBER = "ADR101_PULL_NUMBER"
+ENV_BASE_SHA = "ADR101_BASE_SHA"
 ENV_RUN_ID = "ADR101_TRIGGER_RUN_ID"
 ENV_EVENT = "ADR101_TRIGGER_EVENT"
 ENV_EXECUTE_RESULT = "ADR101_EXECUTE_RESULT"
@@ -140,6 +141,7 @@ class PublisherEnv:
     repository: str
     head_sha: str
     pull_number: str
+    base_sha: str
     run_id: str
     event: str
     execute_result: str
@@ -162,6 +164,7 @@ class PublisherEnv:
             repository=read(ENV_REPOSITORY),
             head_sha=read(ENV_HEAD_SHA),
             pull_number=read(ENV_PULL_NUMBER),
+            base_sha=read(ENV_BASE_SHA),
             run_id=read(ENV_RUN_ID),
             event=read(ENV_EVENT),
             execute_result=read(ENV_EXECUTE_RESULT),
@@ -233,6 +236,8 @@ def validate_event_inputs(env: PublisherEnv) -> CheckOutcome | None:
         problems.append("triggering run id is not numeric")
     if env.pull_number and not is_number(env.pull_number):
         problems.append("pull request number is not numeric")
+    if env.pull_number and not is_sha(env.base_sha):
+        problems.append("event base SHA is not 40 lowercase hex characters")
     if env.execute_result not in _EXECUTE_RESULTS:
         problems.append("execute job result is not success, failure, cancelled or skipped")
     if not problems:

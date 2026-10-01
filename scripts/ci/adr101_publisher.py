@@ -258,6 +258,8 @@ def _publish_bound(env: PublisherEnv, api: PublisherApi) -> CheckOutcome:
         )
     if pull.head_sha != env.head_sha:
         return _moved("the pull request head is not the SHA the event named")
+    if pull.base_sha != env.base_sha:
+        return _moved("the pull request base is not the SHA the event named")
     mismatch = _run_mismatch(env, api)
     if mismatch is not None:
         return mismatch
