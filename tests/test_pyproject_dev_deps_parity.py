@@ -53,7 +53,9 @@ REQUIRED_DEV_TOOLS = frozenset(
         "semgrep",
     }
 )
-SAFE_SEMGREP_OVERRIDES = frozenset({"click==8.3.3", "cryptography==50.0.0", "mcp==1.28.1"})
+SAFE_SEMGREP_OVERRIDES = frozenset(
+    {"click==8.3.3", "cryptography==50.0.0", "mcp==1.28.1", "pyjwt[crypto]==2.15.0"}
+)
 COOLDOWN_EXEMPT_PACKAGES = frozenset(
     {"anthropic", "click", "cryptography", "lefthook", "mcp", "semgrep"}
 )
@@ -74,9 +76,7 @@ def normalize_name(requirement: str) -> str:
     return re.sub(r"[-_.]+", "-", raw_name).lower()
 
 
-def dev_dependency_drift(
-    extra_dev: list[str], group_dev: list[str]
-) -> set[str]:
+def dev_dependency_drift(extra_dev: list[str], group_dev: list[str]) -> set[str]:
     """Return requirement strings present in exactly one of the two dev tables.
 
     An empty set means the extra and the group are in parity. A non-empty set

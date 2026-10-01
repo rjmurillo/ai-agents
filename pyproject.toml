@@ -23,7 +23,7 @@ dev = [
     "pip-audit>=2.10.0",
     "ruff>=0.15.16",
     "mypy>=2.1.0",
-    "semgrep==1.177.0",
+    "semgrep==1.178.0",
     "lefthook==2.1.14",
     "packaging>=24.0",
     "pytest-timeout>=2.4.0",
@@ -44,6 +44,9 @@ override-dependencies = [
     "click==8.3.3",
     "cryptography==50.0.0",
     "mcp==1.28.1",
+    # semgrep 1.178.0 still pins pyjwt~=2.13.0. 2.15.0 fixes the 2.13.0 CVEs
+    # pip-audit reports and GHSA-42vr-xj54-vc7v (issue #6028).
+    "pyjwt[crypto]==2.15.0",
 ]
 
 [tool.uv.exclude-newer-package]
@@ -291,7 +294,7 @@ dev = [
     "pip-audit>=2.10.0",
     "ruff>=0.15.16",
     "mypy>=2.1.0",
-    "semgrep==1.177.0",
+    "semgrep==1.178.0",
     "lefthook==2.1.14",
     "packaging>=24.0",
     "pytest-timeout>=2.4.0",
