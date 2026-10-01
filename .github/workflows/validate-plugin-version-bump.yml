@@ -119,6 +119,14 @@ jobs:
           echo ".claude-plugin/plugin.json, then commit. See ADR-092."
           echo ""
 
+      # ADR-113 decision 2: persist this job's typed result for the promotion gate.
+      - name: Upload promotion evidence
+        if: always()
+        uses: ./.github/actions/upload-validator-evidence
+        with:
+          validator: validate_plugin_version_bump
+          job-status: ${{ job.status }}
+
   skip-validation:
     name: Validate Plugin Version Bump (Skipped)
     needs: check-paths
