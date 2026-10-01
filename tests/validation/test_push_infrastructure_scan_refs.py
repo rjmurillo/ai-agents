@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import subprocess
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -205,3 +206,135 @@ def test_failed_fetch_warns_and_still_scores_from_local_origin_main(
     assert result == 0, err
     assert "could not refresh origin/main" in err
     assert "refs/heads/feature/docs scores 1 file(s)" in err
+
+
+@pytest.mark.parametrize("step", ["merge-base", "diff"])
+def test_git_step_that_did_not_complete_exits_3_without_a_fetch_remedy(
+    step: str,
+    origin: Origin,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A timed-out git step is an external failure, not a missing base."""
+    work = work_clone(origin, tmp_path)
+    git(work, "checkout", "-q", "-b", "feature/docs")
+    head = commit(work, "docs/note.md", "note\n")
+    real_run_git = policy._run_git
+    scan_args = {
+        "merge-base": ["merge-base", "origin/main", head],
+        "diff": ["diff", "--name-only", "-z", "--no-renames"],
+    }[step]
+
+    def timed_out_step(repo_root: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
+        if args[: len(scan_args)] == scan_args:
+            return subprocess.CompletedProcess(args, 3, "", "timed out after 90s\n")
+        return real_run_git(repo_root, args)
+
+    monkeypatch.setattr(policy, "_run_git", timed_out_step)
+
+    result = pre_push(work, new_branch_line("feature/docs", head), monkeypatch)
+
+    err = capsys.readouterr().err
+    assert result == 3, err
+    assert f"git {step} did not complete for refs/heads/feature/docs" in err
+    assert "git fetch origin main" not in err
+
+
+def _two_ref_push(origin: Origin, tmp_path: Path) -> tuple[Path, str]:
+    work = work_clone(origin, tmp_path)
+    git(work, "checkout", "-q", "-b", "feature/a")
+    first = commit(work, "docs/a.md", "a\n")
+    git(work, "checkout", "-q", "-b", "feature/b", "origin/main")
+    second = commit(work, "docs/b.md", "b\n")
+    return work, new_branch_line("feature/a", first) + new_branch_line("feature/b", second)
+
+
+def test_refs_share_one_detector_budget(
+    origin: Origin,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The second ref's detector gets only what the first ref left of the budget."""
+    work, payload = _two_ref_push(origin, tmp_path)
+    clock = [1000.0]
+    timeouts: list[float] = []
+    real_run_command = policy._run_command
+
+    def slow_detector(
+        args: list[str], repo_root: Path, **kwargs: Any
+    ) -> subprocess.CompletedProcess[str]:
+        if policy.DETECT_INFRASTRUCTURE_SCRIPT in args:
+            timeouts.append(kwargs["timeout_seconds"])
+            clock[0] += 50.0
+            return subprocess.CompletedProcess(list(args), 0, "", "")
+        return real_run_command(args, repo_root, **kwargs)
+
+    monkeypatch.setattr(policy, "_run_command", slow_detector)
+    monkeypatch.setattr(policy.time, "monotonic", lambda: clock[0])
+
+    result = pre_push(work, payload, monkeypatch)
+
+    assert result == 0
+    assert timeouts == [60.0, 10.0]
+
+
+def test_scan_stops_after_a_detector_timeout(
+    origin: Origin,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """After an exit 3, the remaining refs are not scanned and the push fails 3."""
+    work, payload = _two_ref_push(origin, tmp_path)
+    calls: list[list[str]] = []
+    real_run_command = policy._run_command
+
+    def timing_out_detector(
+        args: list[str], repo_root: Path, **kwargs: Any
+    ) -> subprocess.CompletedProcess[str]:
+        if policy.DETECT_INFRASTRUCTURE_SCRIPT in args:
+            calls.append(list(args))
+            return subprocess.CompletedProcess(list(args), 3, "", "timed out\n")
+        return real_run_command(args, repo_root, **kwargs)
+
+    monkeypatch.setattr(policy, "_run_command", timing_out_detector)
+
+    result = pre_push(work, payload, monkeypatch)
+
+    err = capsys.readouterr().err
+    assert result == 3, err
+    assert len(calls) == 1
+    assert "refs/heads/feature/b scores" not in err
+
+
+def test_spent_budget_fails_3_without_running_the_detector(
+    origin: Origin,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A ref reached after the budget is gone fails typed, not with a 0s run."""
+    work, payload = _two_ref_push(origin, tmp_path)
+    clock = [1000.0]
+    calls: list[float] = []
+    real_run_command = policy._run_command
+
+    def budget_eating_detector(
+        args: list[str], repo_root: Path, **kwargs: Any
+    ) -> subprocess.CompletedProcess[str]:
+        if policy.DETECT_INFRASTRUCTURE_SCRIPT in args:
+            calls.append(kwargs["timeout_seconds"])
+            clock[0] += 61.0
+            return subprocess.CompletedProcess(list(args), 0, "", "")
+        return real_run_command(args, repo_root, **kwargs)
+
+    monkeypatch.setattr(policy, "_run_command", budget_eating_detector)
+    monkeypatch.setattr(policy.time, "monotonic", lambda: clock[0])
+
+    result = pre_push(work, payload, monkeypatch)
+
+    err = capsys.readouterr().err
+    assert result == 3, err
+    assert calls == [60.0]
+    assert "spent its 60s budget before scoring refs/heads/feature/b" in err

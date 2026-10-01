@@ -6614,10 +6614,30 @@ def _check_ref_updates(
 DETECT_INFRASTRUCTURE_SCRIPT = ".claude/skills/security-detection/detect_infrastructure.py"
 INFRASTRUCTURE_BASE_REF = "origin/main"
 INFRASTRUCTURE_SCANNED_REF_PREFIXES = ("refs/heads/", "refs/tags/")
-# The removed lefthook job's own cap. It bounds one detector run so a
-# multi-ref push reports a typed timeout (exit 3) before push-ref-policy's
-# 2m lefthook cap kills the whole job without a diagnosis.
+# One budget shared by every detector run in a push, so a multi-ref push
+# reports a typed timeout (exit 3) before push-ref-policy's 2m lefthook cap
+# kills the whole job without a diagnosis. A per-ref cap let two stalled runs
+# spend the full 2m.
 DETECT_INFRASTRUCTURE_TIMEOUT_SECONDS = 60.0
+# `_run_command` reports a timeout or a failed start as exit 3, the external
+# failure code. Git itself exits 0, 1, 128, or 129, so 3 from a git step means
+# it never completed.
+_EXTERNAL_FAILURE_EXIT = 3
+
+
+class InfrastructureScanExternalError(RuntimeError):
+    """A git step of the infrastructure scan timed out or could not start."""
+
+
+def _scan_git(repo_root: Path, args: list[str], what: str) -> subprocess.CompletedProcess[str]:
+    """Run one scan git step; raise the external error when it did not complete."""
+    result = _run_git(repo_root, args)
+    if result.returncode == _EXTERNAL_FAILURE_EXIT:
+        _print_process_output(result)
+        raise InfrastructureScanExternalError(f"git {what} did not complete")
+    if result.returncode != 0:
+        _print_process_output(result)
+    return result
 
 
 def _infrastructure_scan_files(push_ref: PushRef, repo_root: Path) -> tuple[str, list[str]]:
@@ -6625,36 +6645,45 @@ def _infrastructure_scan_files(push_ref: PushRef, repo_root: Path) -> tuple[str,
 
     The base is merge-base(origin/main, pushed SHA). There is no fallback to
     local `main` or to the empty tree: either would score files the branch
-    never changed. Raises ``PushUpdateConfigError`` when the base or the diff
-    cannot be resolved.
+    never changed. Raises ``PushUpdateConfigError`` when git answers that the
+    base or the diff does not exist, and ``InfrastructureScanExternalError``
+    when a git step times out or cannot start.
     """
-    base = _merge_base(repo_root, INFRASTRUCTURE_BASE_REF, push_ref.local_sha)
-    if base is None:
+    merge_base = _scan_git(
+        repo_root,
+        ["merge-base", INFRASTRUCTURE_BASE_REF, push_ref.local_sha],
+        "merge-base",
+    )
+    base = merge_base.stdout.strip() if merge_base.returncode == 0 else ""
+    if not base:
         raise PushUpdateConfigError(
             f"could not resolve merge-base({INFRASTRUCTURE_BASE_REF}, "
             f"{push_ref.local_sha[:12]}) for {push_ref.remote_ref}; the infrastructure "
             "scan will not guess a base. Run `git fetch origin main` (and "
             "`git fetch --unshallow origin` in a shallow clone), then push again."
         )
-    diff = _run_git(
+    diff = _scan_git(
         repo_root,
         ["diff", "--name-only", "-z", "--no-renames", base, push_ref.local_sha, "--"],
+        "diff",
     )
     if diff.returncode != 0:
-        _print_process_output(diff)
         raise PushUpdateConfigError(
             f"could not diff {base[:12]}..{push_ref.local_sha[:12]} for {push_ref.remote_ref}"
         )
     return base, [path for path in diff.stdout.split("\0") if path]
 
 
-def _check_ref_infrastructure(push_ref: PushRef, repo_root: Path) -> int:
+def _check_ref_infrastructure(push_ref: PushRef, repo_root: Path, deadline: float) -> int:
     """Run the security review marker gate over one pushed branch or tag ref."""
     try:
         base, files = _infrastructure_scan_files(push_ref, repo_root)
     except PushUpdateConfigError as error:
         print(f"ERROR: {error}", file=sys.stderr)
         return 2
+    except InfrastructureScanExternalError as error:
+        print(f"ERROR: {error} for {push_ref.remote_ref}", file=sys.stderr)
+        return 3
     print(
         f"Infrastructure scan: {push_ref.remote_ref} scores {len(files)} file(s) "
         f"in {base[:12]}..{push_ref.local_sha[:12]}",
@@ -6662,6 +6691,14 @@ def _check_ref_infrastructure(push_ref: PushRef, repo_root: Path) -> int:
     )
     if not files:
         return 0
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        print(
+            f"ERROR: infrastructure scan spent its {DETECT_INFRASTRUCTURE_TIMEOUT_SECONDS:.0f}s "
+            f"budget before scoring {push_ref.remote_ref}",
+            file=sys.stderr,
+        )
+        return 3
     result = _run_command(
         [
             sys.executable,
@@ -6675,7 +6712,7 @@ def _check_ref_infrastructure(push_ref: PushRef, repo_root: Path) -> int:
         ],
         repo_root,
         input_text="\0".join(files) + "\0",
-        timeout_seconds=DETECT_INFRASTRUCTURE_TIMEOUT_SECONDS,
+        timeout_seconds=remaining,
     )
     _print_process_output(result)
     return result.returncode
@@ -6690,6 +6727,8 @@ def check_pushed_infrastructure(refs: Sequence[PushRef], repo_root: Path) -> int
     the tagged commit (`.github/workflows/publish.yml` triggers on `v*`).
     Deletions and other refs (notes, custom namespaces) are skipped, and the
     skip is reported. Returns the first non-zero detector or config exit code.
+    Every ref shares one detector budget, and the scan stops at the first
+    exit 3 (timeout or failed start), since the budget left cannot cover more.
     """
     scanned_refs = [
         ref
@@ -6702,11 +6741,14 @@ def check_pushed_infrastructure(refs: Sequence[PushRef], repo_root: Path) -> int
             file=sys.stderr,
         )
         return 0
+    deadline = time.monotonic() + DETECT_INFRASTRUCTURE_TIMEOUT_SECONDS
     first_failure = 0
     for push_ref in scanned_refs:
-        result = _check_ref_infrastructure(push_ref, repo_root)
+        result = _check_ref_infrastructure(push_ref, repo_root, deadline)
         if result != 0 and first_failure == 0:
             first_failure = result
+        if result == _EXTERNAL_FAILURE_EXIT:
+            break
     return first_failure
 
 
