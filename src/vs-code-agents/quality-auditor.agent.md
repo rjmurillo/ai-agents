@@ -116,4 +116,4 @@ Overall: {grade} ({score}/100) ({trend})
 - Do not modify code or files during auditing
 - Report gaps as observations, not prescriptions
 - Track trends only when previous data exists
-- Grade rules, skills, and agents as executable artifacts under `.claude/skills/code-qualities-assessment/references/executable-nl-artifacts.md`; do not define a separate prompt-quality model
+- Grade rules, skills, and agents as executable artifacts using the `code-qualities-assessment` skill's `references/executable-nl-artifacts.md`; do not define a separate prompt-quality model
