@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 from datetime import date
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
@@ -344,7 +344,7 @@ class TestHardening:
 
     def test_verifier_returning_a_truthy_non_bool_is_unapproved(self) -> None:
         def sloppy(_record: PromotionException) -> bool:
-            return "error"  # type: ignore[return-value]
+            return cast("bool", "error")
 
         assert exception_status(_record(), TODAY, sloppy) is ExceptionStatus.UNAPPROVED
 
