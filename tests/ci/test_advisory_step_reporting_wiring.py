@@ -9,6 +9,7 @@ them gained a way to fail the job. Every assertion parses the YAML object graph
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Any
 
@@ -18,6 +19,9 @@ import yaml
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOWS = REPO_ROOT / ".github" / "workflows"
 HELPER = "scripts/ci/report_advisory_result.py"
+# One standalone comparison, optionally wrapped in ${{ }}. Anything with a
+# conjunct or disjunct does not match, so it never counts as a complement.
+_COMPARISON = re.compile(r"^\s*(?:\$\{\{\s*)?([\w.-]+)\s*(==|!=)\s*'([^']*)'\s*(?:\}\})?\s*$")
 
 # (workflow, job, swallowed step name, step id, validator name)
 STEP_MODE_ROWS = [
@@ -150,6 +154,86 @@ def test_a_report_step_has_no_condition_that_could_hide_a_failure(
 
     assert "if" not in report
     assert "continue-on-error" not in report
+
+
+def _helper_steps() -> list[tuple[str, str, int, list[dict[str, Any]]]]:
+    rows = []
+    for path in sorted(WORKFLOWS.glob("*.yml")):
+        document = yaml.safe_load(path.read_text(encoding="utf-8"))
+        for job_name, job in (document.get("jobs") or {}).items():
+            steps = list(job.get("steps") or [])
+            for at, step in enumerate(steps):
+                if HELPER in str(step.get("run", "")):
+                    rows.append((path.name, job_name, at, steps))
+    return rows
+
+
+def _always_checked_out(conditions: list[Any]) -> bool:
+    """True when one checkout is unconditional or two cover both branches.
+
+    pr-validation.yml checks out under ``X != 'true'`` and again under
+    ``X == 'true'``, so exactly one of the pair runs on every path. Only a
+    pair of standalone comparisons counts: a shared extra conjunct could make
+    both checkouts skip.
+    """
+    if None in conditions:
+        return True
+    parsed = {m.groups() for c in conditions if (m := _COMPARISON.match(str(c)))}
+    return any((lhs, "==", value) in parsed for lhs, op, value in parsed if op == "!=")
+
+
+@pytest.mark.parametrize(
+    ("conditions", "expected"),
+    [
+        ([None], True),
+        (["steps.s.outputs.skip != 'true'", "steps.s.outputs.skip == 'true'"], True),
+        (["steps.s.outputs.skip != 'true'"], False),
+        (["steps.s.outputs.skip == 'true'"], False),
+        (["steps.a.outputs.x != 'true'", "steps.b.outputs.x == 'true'"], False),
+        (["${{ steps.s.outputs.skip != 'true' }}", "steps.s.outputs.skip == 'true'"], True),
+        (
+            [
+                "steps.s.outputs.skip != 'true' && github.event_name == 'pull_request'",
+                "steps.s.outputs.skip == 'true' && github.event_name == 'pull_request'",
+            ],
+            False,
+        ),
+        (["steps.s.outputs.skip != 'true'", "steps.s.outputs.skip == 'false'"], False),
+    ],
+)
+def test_the_checkout_coverage_rule(conditions: list[Any], expected: bool) -> None:
+    assert _always_checked_out(conditions) is expected
+
+
+def test_the_helper_scan_finds_every_wired_row() -> None:
+    """Guards the scan below against silently matching nothing."""
+    assert len(_helper_steps()) >= len(STEP_MODE_ROWS) + len(RUN_MODE_ROWS)
+
+
+@pytest.mark.parametrize(
+    ("workflow", "job", "at", "steps"),
+    _helper_steps(),
+    ids=lambda value: value if isinstance(value, str) else "",
+)
+def test_a_reporter_step_runs_only_after_a_checkout_that_ran(
+    workflow: str, job: str, at: int, steps: list[dict[str, Any]]
+) -> None:
+    """Regression: a bot-skip guard on checkout left the helper path missing.
+
+    pr-validation.yml skips its checkout for Renovate and Dependabot. An
+    unguarded reporter step then failed the required Validate PR check with
+    "can't open file", which blocked every bot pull request from merging.
+    """
+    condition = steps[at].get("if")
+    checkouts = [
+        step.get("if") for step in steps[:at] if "actions/checkout" in str(step.get("uses", ""))
+    ]
+
+    assert checkouts, f"{workflow}:{job} runs {HELPER} before any checkout"
+    assert _always_checked_out(checkouts) or condition in checkouts, (
+        f"{workflow}:{job} step {steps[at].get('name')!r} runs under {condition!r}, "
+        f"but every earlier checkout is conditional: {checkouts!r}"
+    )
 
 
 @pytest.mark.parametrize(("workflow", "job", "name", "validator"), RUN_MODE_ROWS)
