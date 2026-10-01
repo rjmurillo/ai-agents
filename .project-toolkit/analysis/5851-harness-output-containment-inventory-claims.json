@@ -1,0 +1,128 @@
+{
+  "artifact": ".project-toolkit/analysis/5851-harness-output-containment-inventory.md",
+  "activation": {
+    "decision": "activate",
+    "reason": "vendor hook behavior claims for Claude Code, Copilot CLI, and Codex"
+  },
+  "claims": [
+    {
+      "id": "C1",
+      "claim": "Claude Code caps a successful Bash result at 1,000,000 characters by default, adjustable by CLAUDE_CODE_BASH_OUTPUT_LIMIT",
+      "category": "vendor",
+      "time_sensitive": false,
+      "source": {
+        "kind": "primary",
+        "url": "https://code.claude.com/docs/en/hooks",
+        "published": null,
+        "accessed": "2026-09-30",
+        "secondary_reason": null
+      },
+      "confidence": "medium",
+      "disposition": "qualified",
+      "final_wording": "Native cap on a successful Bash result. Default 1,000,000 characters.",
+      "gap": "Read through a page-summarizing fetch tool, not the raw page text. Recheck against the page before relying on the exact number."
+    },
+    {
+      "id": "C2",
+      "claim": "Claude Code caps hook additionalContext at 10,000 characters and spills the rest to a file with a 2,000 character preview",
+      "category": "vendor",
+      "time_sensitive": false,
+      "source": {
+        "kind": "primary",
+        "url": "https://code.claude.com/docs/en/hooks",
+        "published": null,
+        "accessed": "2026-09-30",
+        "secondary_reason": null
+      },
+      "confidence": "medium",
+      "disposition": "qualified",
+      "final_wording": "Capped at 10,000 characters; larger text spills to a file with a 2,000 character preview.",
+      "gap": "Read through a page-summarizing fetch tool, not the raw page text. Recheck against the page before relying on the exact number."
+    },
+    {
+      "id": "C3",
+      "claim": "Copilot CLI bounds hook output at 10 MiB per invocation then truncates",
+      "category": "vendor",
+      "time_sensitive": false,
+      "source": {
+        "kind": "primary",
+        "url": "https://docs.github.com/en/copilot/reference/hooks-configuration",
+        "published": null,
+        "accessed": "2026-09-30",
+        "secondary_reason": null
+      },
+      "confidence": "medium",
+      "disposition": "qualified",
+      "final_wording": "Bounded at 10 MiB per invocation, then truncated.",
+      "gap": "Read through a page-summarizing fetch tool, not the raw page text. Recheck against the page before relying on the exact number."
+    },
+    {
+      "id": "C4",
+      "claim": "Copilot CLI preToolUse modifiedArgs substitutes tool arguments",
+      "category": "vendor",
+      "time_sensitive": false,
+      "source": {
+        "kind": "primary",
+        "url": "https://docs.github.com/en/copilot/reference/hooks-configuration",
+        "published": null,
+        "accessed": "2026-09-30",
+        "secondary_reason": null
+      },
+      "confidence": "medium",
+      "disposition": "qualified",
+      "final_wording": "Replaces tool arguments.",
+      "gap": "Read through a page-summarizing fetch tool, not the raw page text. Recheck against the page before relying on the exact number."
+    },
+    {
+      "id": "C5",
+      "claim": "Codex PreToolUse updatedInput rewrites Bash and apply_patch calls and needs a string command",
+      "category": "vendor",
+      "time_sensitive": false,
+      "source": {
+        "kind": "primary",
+        "url": "https://learn.chatgpt.com/docs/hooks",
+        "published": null,
+        "accessed": "2026-09-30",
+        "secondary_reason": null
+      },
+      "confidence": "medium",
+      "disposition": "qualified",
+      "final_wording": "Yes for Bash and `apply_patch`. Needs a string `command`.",
+      "gap": "Read through a page-summarizing fetch tool, not the raw page text. Recheck against the page before relying on the exact number."
+    },
+    {
+      "id": "C6",
+      "claim": "Codex PostToolUse decision block replaces the tool result with the hook feedback",
+      "category": "vendor",
+      "time_sensitive": false,
+      "source": {
+        "kind": "primary",
+        "url": "https://learn.chatgpt.com/docs/hooks",
+        "published": null,
+        "accessed": "2026-09-30",
+        "secondary_reason": null
+      },
+      "confidence": "medium",
+      "disposition": "qualified",
+      "final_wording": "`decision: \"block\"` replaces the result with the hook's feedback text.",
+      "gap": "Read through a page-summarizing fetch tool, not the raw page text. Recheck against the page before relying on the exact number."
+    },
+    {
+      "id": "C7",
+      "claim": "Codex spills hook additionalContext over about 2,500 tokens to disk with a head and tail preview",
+      "category": "vendor",
+      "time_sensitive": false,
+      "source": {
+        "kind": "primary",
+        "url": "https://learn.chatgpt.com/docs/hooks",
+        "published": null,
+        "accessed": "2026-09-30",
+        "secondary_reason": null
+      },
+      "confidence": "medium",
+      "disposition": "qualified",
+      "final_wording": "Hook `additionalContext` above about 2,500 tokens spills to disk with a head and tail preview.",
+      "gap": "Read through a page-summarizing fetch tool, not the raw page text. Recheck against the page before relying on the exact number."
+    }
+  ]
+}
