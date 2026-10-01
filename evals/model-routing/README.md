@@ -50,11 +50,13 @@ python3 scripts/eval/eval-agent-vs-baseline.py --agent critic \
 
 Then roll up:
 
-> Retirement note (issue #5701): the `backlog-generator` agent was retired. Drop it from `--agents` below before running this command; the recorded results keep its rows.
+> Retirement note (issue #5701): the `backlog-generator` agent was retired, so it is
+> absent from `--agents` below and the command runs as written. The recorded results in
+> `REPORT.md` keep its rows as history; its recommended models no longer apply.
 
 ```bash
 python3 scripts/eval/eval_model_routing.py \
-  --agents analyst,architect,backlog-generator,critic,devops,explainer,high-level-advisor,implementer,independent-thinker,issue-feature-review,milestone-planner,orchestrator,qa,roadmap,security,skillbook,task-decomposer \
+  --agents analyst,architect,critic,devops,explainer,high-level-advisor,implementer,independent-thinker,issue-feature-review,milestone-planner,orchestrator,qa,roadmap,security,skillbook,task-decomposer \
   --skill analyze=analyst --skill security-review=security \
   --skill adr-review=architect --skill plan=milestone-planner \
   --skill spec=explainer --skill review=critic \
