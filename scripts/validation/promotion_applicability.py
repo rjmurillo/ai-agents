@@ -133,6 +133,12 @@ def _when_problem(value: object) -> str | None:
     return None
 
 
+def _workflow_problem(value: object) -> str | None:
+    if isinstance(value, str) and _WORKFLOW_RE.fullmatch(value):
+        return None
+    return "'workflow' must be a path such as '.github/workflows/pytest.yml'"
+
+
 def _entry_problems(entry: object) -> list[str]:
     if not isinstance(entry, dict):
         return ["entry must be a JSON object"]
@@ -151,9 +157,9 @@ def _entry_problems(entry: object) -> list[str]:
     tier = entry["tier"]
     if not isinstance(tier, str) or tier not in _TIERS:
         problems.append(f"'tier' must be one of {', '.join(sorted(_TIERS))}")
-    workflow = entry["workflow"]
-    if not isinstance(workflow, str) or not _WORKFLOW_RE.fullmatch(workflow):
-        problems.append("'workflow' must be a path such as '.github/workflows/pytest.yml'")
+    workflow_problem = _workflow_problem(entry["workflow"])
+    if workflow_problem:
+        problems.append(workflow_problem)
     for field in ("job", "rationale"):
         problem = _text_problem(entry, field)
         if problem:
