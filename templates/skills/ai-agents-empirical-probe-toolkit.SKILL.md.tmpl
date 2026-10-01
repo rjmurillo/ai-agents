@@ -135,7 +135,7 @@ Pick the recipe from the selector table. Each recipe states when to use it, the 
 **Steps**:
 
 1. Check whether the identical failure exists on main: look at recent runs of the same workflow on main, or re-run the workflow against main. Use the `github` skill scripts (raw `gh` is blocked by the skill-first guard).
-2. If it fails on main too: pre-existing bug. File an issue, link it in the PR, and stop debugging your diff.
+2. If it fails on main too: pre-existing bug. Record it in the PR body, flag it to the owner, and stop debugging your diff.
 3. If it fails only on the PR: the discriminating experiment is now cheap. Bisect your diff (revert half the changes locally, re-run the failing check via `uv run python scripts/validation/pre_pr.py` or the specific validator).
 4. Record misattribution near-misses in a memory; they compound.
 

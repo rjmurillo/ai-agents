@@ -40,10 +40,9 @@ _REMEDIATION_GUIDE = """\
 --- Bypass procedure (intentional divergence) ---
 
   If this divergence is intentional:
-  1. Add [skip-drift-check] to a commit message in this PR
-  2. Document the reason in your PR description
-  3. Update templates/README.md with the intentional difference
-  4. Ensure explicit code-owner approval on this PR
+  1. Add the file path and a reason to .agents/governance/drift-allowlist.json
+  2. Update templates/README.md with the intentional difference
+  3. Ensure explicit code-owner approval on this PR
 """
 
 

@@ -18,6 +18,8 @@ import sys
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 SCRIPT_PATH = REPO_ROOT / "scripts" / "validation" / "spec_contradiction.py"
 
@@ -241,6 +243,21 @@ def test_format_report_lists_contradictions():
 # --- collect_contradictions (mocked gh + git seams) ------------------------
 
 
+def test_collect_with_skip_reason_names_why_nothing_was_compared(monkeypatch):
+    monkeypatch.setattr(sc, "fetch_current_pr_body", lambda o, r: None)
+    assert sc.collect_with_skip_reason(REPO_ROOT, "o", "r") == ([], "pr.unresolved")
+
+    monkeypatch.setattr(sc, "fetch_current_pr_body", lambda o, r: "body")
+    monkeypatch.setattr(sc, "_resolve_base_ref", lambda root: None)
+    assert sc.collect_with_skip_reason(REPO_ROOT, "o", "r") == ([], "base_ref.unresolved")
+
+    monkeypatch.setattr(sc, "_changed_agent_files", lambda root, base: {})
+    assert sc.collect_with_skip_reason(REPO_ROOT, "o", "r", base_ref="origin/main") == (
+        [],
+        "scope.empty",
+    )
+
+
 def test_collect_contradictions_no_pr_returns_empty(monkeypatch):
     monkeypatch.setattr(sc, "fetch_current_pr_body", lambda owner, repo: None)
     result = sc.collect_contradictions(REPO_ROOT, "o", "r")
@@ -329,7 +346,7 @@ def test_main_advisory_exits_zero_on_contradiction(monkeypatch, capsys):
     )
     c = sc.Contradiction("model-tier", "model", "sonnet", "opus", "f.md", "issue #1")
     monkeypatch.setattr(
-        sc, "collect_contradictions", lambda root, owner, repo, base_ref=None: [c]
+        sc, "collect_with_skip_reason", lambda root, owner, repo, base_ref=None: ([c], None)
     )
     code = sc.main(["--advisory"])
     assert code == 0
@@ -342,7 +359,7 @@ def test_main_strict_exits_one_on_contradiction(monkeypatch, capsys):
     )
     c = sc.Contradiction("model-tier", "model", "sonnet", "opus", "f.md", "issue #1")
     monkeypatch.setattr(
-        sc, "collect_contradictions", lambda root, owner, repo, base_ref=None: [c]
+        sc, "collect_with_skip_reason", lambda root, owner, repo, base_ref=None: ([c], None)
     )
     code = sc.main([])
     assert code == 1
@@ -353,11 +370,29 @@ def test_main_exits_zero_when_clean(monkeypatch, capsys):
         sc, "resolve_repo_params", lambda owner="", repo="": SimpleNamespace(owner="o", repo="r")
     )
     monkeypatch.setattr(
-        sc, "collect_contradictions", lambda root, owner, repo, base_ref=None: []
+        sc, "collect_with_skip_reason", lambda root, owner, repo, base_ref=None: ([], None)
     )
     code = sc.main([])
     assert code == 0
     assert "[PASS]" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("reason", ["pr.unresolved", "base_ref.unresolved", "scope.empty"])
+def test_main_says_skip_not_pass_when_nothing_was_compared(monkeypatch, capsys, reason):
+    """The producer used to print [PASS] for "no PR" and "no agent files" (PR #6066 review)."""
+    monkeypatch.setattr(
+        sc, "resolve_repo_params", lambda owner="", repo="": SimpleNamespace(owner="o", repo="r")
+    )
+    monkeypatch.setattr(
+        sc, "collect_with_skip_reason", lambda root, owner, repo, base_ref=None: ([], reason)
+    )
+
+    code = sc.main(["--advisory"])
+
+    out = capsys.readouterr().out
+    assert code == 0
+    assert out.startswith(f"[SKIP] reason={reason}")
+    assert "[PASS]" not in out
 
 
 def test_main_config_error_when_repo_unresolvable(monkeypatch):
@@ -379,9 +414,9 @@ def test_main_passes_base_to_collect(monkeypatch):
 
     def _capture(root, owner, repo, base_ref=None):
         seen["base_ref"] = base_ref
-        return []
+        return [], None
 
-    monkeypatch.setattr(sc, "collect_contradictions", _capture)
+    monkeypatch.setattr(sc, "collect_with_skip_reason", _capture)
     code = sc.main(["--base", "origin/release"])
     assert code == 0
     assert seen["base_ref"] == "origin/release"

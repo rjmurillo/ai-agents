@@ -87,6 +87,8 @@ EXPECTED_ORDER: tuple[str, ...] = (
     'Hook Template Drift',
     'Spec ID Uniqueness',
     'Traceability',
+    'Bypass Allowlist',
+    'Promotion Exceptions',
     'Agent Registry',
     'Plugin Frontmatter Self-Containment',
     'Python3 Entrypoints',

@@ -45,10 +45,22 @@ from __future__ import annotations
 import argparse
 import json
 import shutil
+import stat
 import subprocess
 import sys
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
+
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+# The typed contract, package path (see hygiene_outcome for why).
+from scripts.validation.evidence import REASON_TREE_ABSENT, CheckOutcome  # noqa: E402
+from scripts.validation.hygiene_outcome import hygiene_outcome  # noqa: E402
+
+_VALIDATOR = "validate_tmp_worktrees"
+_SCOPE = "git worktrees under the temp root, and its free space"
 
 # 16G tmpfs is the machine in issue #5111. Two GiB is roughly one pytest
 # scratch generation plus one worktree of headroom, so the report fires while
@@ -106,22 +118,44 @@ def parse_worktree_list(porcelain: str) -> list[str]:
     return paths
 
 
-def is_worktree_dir(candidate: Path) -> bool:
-    """True when ``candidate`` holds the `.git` file `git worktree add` writes.
+MARKER_WORKTREE = "worktree"
+MARKER_NOT_WORKTREE = "not_worktree"
+MARKER_UNREADABLE = "unreadable"
+
+
+def worktree_marker_state(candidate: Path) -> str:
+    """Classify ``candidate`` as a worktree, not one, or unreadable.
 
     A linked worktree gets a `.git` FILE containing `gitdir: <admin path>`. A
     plain clone gets a `.git` DIRECTORY. Only the first is a worktree, so a
-    clone parked in the temp root is not reported as one.
+    clone parked in the temp root is not reported as one. A marker that exists
+    but cannot be read is a third answer, not "not a worktree": collapsing the
+    two let a scan that never looked at an entry report a clean pass (issue
+    #5636).
     """
     marker = candidate / ".git"
+    # ``Path.is_file`` cannot tell absent from unreadable: on 3.14 it returns
+    # False for every OSError, permission errors and symlink loops included. So
+    # stat directly and treat only the two "nothing there" errors as absence.
     try:
-        if not marker.is_file():
-            return False
+        mode = marker.stat().st_mode
+    except (FileNotFoundError, NotADirectoryError):
+        return MARKER_NOT_WORKTREE
+    except OSError:
+        return MARKER_UNREADABLE
+    if not stat.S_ISREG(mode):
+        return MARKER_NOT_WORKTREE
+    try:
         with marker.open(encoding="utf-8", errors="replace") as handle:
             first_line = handle.readline()
     except OSError:
-        return False
-    return first_line.startswith("gitdir:")
+        return MARKER_UNREADABLE
+    return MARKER_WORKTREE if first_line.startswith("gitdir:") else MARKER_NOT_WORKTREE
+
+
+def is_worktree_dir(candidate: Path) -> bool:
+    """True when ``candidate`` holds the `.git` file `git worktree add` writes."""
+    return worktree_marker_state(candidate) == MARKER_WORKTREE
 
 
 def find_registered_temp_worktrees(paths: list[str], temp_root: Path) -> list[str]:
@@ -161,17 +195,28 @@ def _list_registered(repo_root: Path) -> tuple[list[str], bool]:
     return parse_worktree_list(result.stdout), False
 
 
-def _is_directory(path: Path) -> bool | None:
-    """True or False, or None when the filesystem could not answer.
+def directory_state(path: Path) -> bool | None:
+    """True, False, or None when the filesystem could not answer.
 
     Three states, not two. A directory that cannot be read is not the same as
     one that is absent, and collapsing them would let an unreadable temp root
-    report as a clean scan.
+    report as a clean scan. ``Path.is_dir`` cannot give the third answer: on
+    Python 3.14 it returns False for every OSError, so an ``except OSError``
+    around it never runs. Stat directly and treat only the two "nothing there"
+    errors as absence.
     """
     try:
-        return path.is_dir()
+        mode = path.stat().st_mode
+    except (FileNotFoundError, NotADirectoryError):
+        return False
     except OSError:
         return None
+    return stat.S_ISDIR(mode)
+
+
+def _is_directory(path: Path) -> bool | None:
+    """The three-state directory check, under the name the scan and tests use."""
+    return directory_state(path)
 
 
 def scan_temp_root(
@@ -209,8 +254,12 @@ def scan_temp_root(
             continue
         if not entry_state:
             continue
+        marker_state = worktree_marker_state(entry)
+        if marker_state == MARKER_UNREADABLE:
+            report.unreadable_entries += 1
+            continue
         report.examined += 1
-        if not is_worktree_dir(entry):
+        if marker_state != MARKER_WORKTREE:
             continue
         seen.add(str(entry))
         report.worktrees.append(
@@ -302,8 +351,8 @@ def format_report(report: TempReport) -> str:
     return "\n".join(lines)
 
 
-def validate_tmp_worktrees(repo_root: Path) -> bool:
-    """Advisory pre-PR gate. Prints findings and always returns True.
+def validate_tmp_worktrees(repo_root: Path) -> CheckOutcome:
+    """Advisory pre-PR gate. Prints findings and returns a typed result.
 
     Advisory on purpose, and the reason is the incident itself. The subject is
     machine state, not repository state: the residue issue #5111 measured was
@@ -312,10 +361,35 @@ def validate_tmp_worktrees(repo_root: Path) -> bool:
     and the pushing agent may not own. That is the same class of wedge the
     issue is about. The CLI below exits 1 on the same findings, so anyone who
     wants the blocking form has it without this gate imposing it on everyone.
+
+    The result is typed (issue #5636): findings are ``FAIL`` with reason
+    ``advisory.findings``, a failed listing or unreadable entry is ``BLOCKED``,
+    and an absent temp root is ``SKIP``. ``pre_pr_policy`` licenses each
+    non-``PASS`` pair by name, so the push is still not blocked.
     """
     report = build_report(repo_root)
     print(format_report(report))
-    return True
+    # An unreadable temp root also reads as "not present", but only a root the
+    # filesystem said is absent is a SKIP; an unreadable one is BLOCKED below.
+    absent = not report.temp_root_present and not report.unreadable_entries
+    if absent and not report.git_listing_failed:
+        return CheckOutcome.skipped(
+            _VALIDATOR,
+            reason=REASON_TREE_ABSENT,
+            scope=_SCOPE,
+            detail=f"{report.temp_root} is not a directory; nothing examined",
+        )
+    return hygiene_outcome(
+        _VALIDATOR,
+        scope=_SCOPE,
+        examined=report.examined,
+        findings=len(report.worktrees) + int(report.free_space_low),
+        listing_failed=report.git_listing_failed,
+        # Unmeasurable free space is one more unread item. Only a present root
+        # is measured, so an unreadable root is not counted twice.
+        unreadable=report.unreadable_entries
+        + int(report.temp_root_present and report.free_bytes is None),
+    )
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:

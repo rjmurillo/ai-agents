@@ -216,7 +216,21 @@ class TestEveryDeferralIsSound:
 # reason a glob-skipped job is (see this module's docstring). Sizing, budget
 # ratchets, and the container clamp all still apply to it, so nothing else in
 # this suite notices.
+#
+# Issue #5636 (D17 item 2) moved two of them onto one mechanism. The job now
+# runs its command through `scripts/ci/report_advisory_result.py run`, which
+# exits 0 whatever the command returns and prints a typed result line. That is
+# still a job that cannot fail, so it stays declared here, and the helper's
+# name is a second marker of a swallow beside `||`. `--propagate-errors` marks a
+# ruff job that still fails on a crash, so it is not a swallower.
 EXIT_SWALLOWING_PREPUSH_JOBS = frozenset({"worktree-gc-report"})
+_ADVISORY_REPORTER = "scripts/ci/report_advisory_result.py"
+
+
+def _discards_exit_status(job: dict[str, Any]) -> bool:
+    run = str(job.get("run", ""))
+    swallows_all = _ADVISORY_REPORTER in run and "--propagate-errors" not in run
+    return "||" in run or swallows_all
 
 
 class TestNonBlockingJobsAreDeclaredNotDiscovered:
@@ -224,11 +238,11 @@ class TestNonBlockingJobsAreDeclaredNotDiscovered:
 
     def test_only_known_jobs_discard_their_exit_status(self) -> None:
         discarding = {
-            str(job.get("name")) for job in _all_jobs("pre-push") if "||" in str(job.get("run", ""))
+            str(job.get("name")) for job in _all_jobs("pre-push") if _discards_exit_status(job)
         }
         unexpected = discarding - EXIT_SWALLOWING_PREPUSH_JOBS
         assert unexpected == set(), (
-            f"{sorted(unexpected)} discard a non-zero exit with `||` in "
+            f"{sorted(unexpected)} discard a non-zero exit with `||` or the advisory reporter in "
             "lefthook.yml, so they cannot fail a push and nothing in the "
             "script they run says so. Either make the job blocking, or add it "
             "to EXIT_SWALLOWING_PREPUSH_JOBS with the issue that decided it "
@@ -246,7 +260,7 @@ class TestNonBlockingJobsAreDeclaredNotDiscovered:
         for name in EXIT_SWALLOWING_PREPUSH_JOBS:
             job = _job_named("pre-push", name)
             assert job is not None, f"{name!r} is missing from pre-push."
-            assert "||" in str(job.get("run", "")), (
+            assert _discards_exit_status(job), (
                 f"{name!r} no longer discards its exit status. If it is a "
                 "blocking gate now, drop it from EXIT_SWALLOWING_PREPUSH_JOBS "
                 "and size its cap as a gate rather than as a reporter."

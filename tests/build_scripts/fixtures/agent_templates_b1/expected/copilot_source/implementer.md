@@ -454,7 +454,7 @@ Save to: `.project-toolkit/planning/impact-analysis-code-[feature].md`
 Ask: "Does this refactoring unblock my task or improve testability of code I'm changing?"
 
 - **Yes**: Refactor, document in commit message
-- **No**: Create tech debt issue, do not refactor now
+- **No**: Flag it to the owner in the handoff, do not refactor now
 
 ### Boy Scout Rule Application
 

@@ -1,0 +1,47 @@
+{
+  "current_status": "VERIFIED",
+  "reduced_status": "VERIFIED",
+  "comparison": "refused: comparison task sets differ: missing from candidate=['RB-01-bounded-implementation'], missing from baseline=['RB-06-architecture-resolved']",
+  "harness_scope": "claude only, not cross-harness",
+  "commit": "e2c8d95fb88353992553a8cc69f1b1fe0dcdb610",
+  "requested_model": "haiku",
+  "requested_effort": "low",
+  "effort_verified": false,
+  "launches": 19,
+  "harness_failures": [
+    [
+      "current",
+      "RB-02-multi-file-invariants",
+      "error_max_turns"
+    ],
+    [
+      "current",
+      "RB-05-plausible-but-wrong",
+      "error_max_turns"
+    ],
+    [
+      "current",
+      "RB-06-architecture-resolved",
+      "error_max_turns"
+    ],
+    [
+      "reduced",
+      "RB-01-bounded-implementation",
+      "error_max_turns"
+    ],
+    [
+      "reduced",
+      "RB-02-multi-file-invariants",
+      "error_max_turns"
+    ],
+    [
+      "reduced",
+      "RB-05-plausible-but-wrong",
+      "error_max_turns"
+    ]
+  ],
+  "control_bytes": {
+    "current": 40774,
+    "reduced": 2076
+  }
+}

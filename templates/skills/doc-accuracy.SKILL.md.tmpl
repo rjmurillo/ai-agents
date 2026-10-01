@@ -95,7 +95,7 @@ python3 scripts/doc_accuracy.py --target /path/to/repo
 # Compilability only
 python3 scripts/doc_accuracy.py --target /path/to/repo --phases 3
 
-# Incremental (changed files only)
+# Incremental (files changed since HEAD forked from main, as in main...HEAD)
 python3 scripts/doc_accuracy.py --target /path/to/repo --diff-base main
 
 # JSON output to specific directory

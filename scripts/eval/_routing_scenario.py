@@ -9,6 +9,13 @@ the corpus root is one scenario:
     <id>/known_good/     overlay that solves the scenario (control fixture)
     <id>/known_bad/      overlay that looks plausible and must be graded FAIL
 
+An extension scenario (issue #5768, category `post_integration_regression`) adds
+two more directories and an `integration` block. `hidden_regression/` is an
+overlay that passes the local `validation` and fails the `integration`
+validation; `integration/` holds the files that only exist after the change is
+integrated (a downstream check). `load_corpus` keeps the six-category routing
+contract and refuses extension scenarios; `load_extension_corpus` loads them.
+
 Every file inside a fixture directory carries the `.fixture` suffix. That keeps
 repository linters, type checkers, and pytest from treating fixture code as
 live source; `_routing_grader.materialize` strips the suffix.
@@ -39,6 +46,7 @@ _E = TypeVar("_E", bound=Enum)
 SCHEMA_VERSION = 1
 SCENARIO_FILE = "scenario.json"
 FIXTURE_DIRS: tuple[str, ...] = ("initial", "hidden", "known_good", "known_bad")
+INTEGRATION_FIXTURE_DIRS: tuple[str, ...] = ("integration", "hidden_regression")
 MIN_TIMEOUT_SECONDS = 1
 MAX_TIMEOUT_SECONDS = 300
 
@@ -52,6 +60,13 @@ class Category(str, Enum):
     SCOPE_EXPANSION = "scope_expansion"
     PLAUSIBLE_BUT_WRONG = "plausible_but_wrong"
     ARCHITECTURE_RESOLVED = "architecture_resolved"
+    POST_INTEGRATION_REGRESSION = "post_integration_regression"
+
+
+#: The six behavior classes `load_corpus` requires, one scenario each.
+CORE_CATEGORIES: tuple[Category, ...] = tuple(
+    item for item in Category if item is not Category.POST_INTEGRATION_REGRESSION
+)
 
 
 class DifficultyClass(str, Enum):
@@ -92,6 +107,18 @@ class Architecture:
 
 
 @dataclass(frozen=True, slots=True)
+class Integration:
+    """Extension category: the check that runs after the change is integrated.
+
+    `evidence_marker` must appear in the failing output of the
+    `hidden_regression/` overlay, so a failure names the regression it found.
+    """
+
+    validation: Validation
+    evidence_marker: str
+
+
+@dataclass(frozen=True, slots=True)
 class Provenance:
     kind: str
     reason: str
@@ -117,6 +144,7 @@ class Scenario:
     provenance: Provenance
     reviewer_finding: ReviewerFinding | None
     architecture: Architecture | None
+    integration: Integration | None
     root: Path
 
     def fixture_dir(self, name: str) -> Path:
@@ -141,7 +169,7 @@ _TOP_REQUIRED = frozenset(
         "provenance",
     }
 )
-_TOP_OPTIONAL = frozenset({"self_check", "reviewer_finding", "architecture"})
+_TOP_OPTIONAL = frozenset({"self_check", "reviewer_finding", "architecture", "integration"})
 
 
 def _obj(value: object, path: str) -> dict[str, object]:
@@ -277,6 +305,15 @@ def _architecture(value: object, path: str) -> Architecture:
     )
 
 
+def _integration(value: object, path: str) -> Integration:
+    data = _obj(value, path)
+    _keys(data, frozenset({"commands", "timeout_seconds", "evidence_marker"}), frozenset(), path)
+    check = _validation(
+        {"commands": data["commands"], "timeout_seconds": data["timeout_seconds"]}, path
+    )
+    return Integration(check, _text(data["evidence_marker"], f"{path}.evidence_marker"))
+
+
 def _scope(value: object, path: str) -> tuple[tuple[str, ...], tuple[str, ...]]:
     data = _obj(value, path)
     _keys(data, frozenset({"paths"}), frozenset({"forbidden"}), path)
@@ -316,6 +353,9 @@ def parse_scenario(data: object, root: Path) -> Scenario:
         architecture=(
             _architecture(doc["architecture"], "architecture") if "architecture" in doc else None
         ),
+        integration=(
+            _integration(doc["integration"], "integration") if "integration" in doc else None
+        ),
         root=root,
     )
 
@@ -331,6 +371,11 @@ def _check_fixtures(scenario: Scenario) -> None:
     for name in ("known_good", "known_bad"):
         if not fixture_files(scenario.fixture_dir(name)):
             raise RoutingCorpusError(f"{scenario.scenario_id}: {name}/ must hold files")
+    if scenario.integration is not None:
+        for name in INTEGRATION_FIXTURE_DIRS:
+            directory = scenario.fixture_dir(name)
+            if not directory.is_dir() or not fixture_files(directory):
+                raise RoutingCorpusError(f"{scenario.scenario_id}: {name}/ must hold files")
     overlap = sorted(initial.keys() & hidden.keys())
     if overlap:
         raise RoutingCorpusError(
@@ -353,6 +398,11 @@ def _check_category_fields(scenario: Scenario) -> None:
     if is_architecture != (scenario.architecture is not None):
         raise RoutingCorpusError(
             f"{sid}: architecture is required for, and only for, architecture_resolved"
+        )
+    is_regression = scenario.category is Category.POST_INTEGRATION_REGRESSION
+    if is_regression != (scenario.integration is not None):
+        raise RoutingCorpusError(
+            f"{sid}: integration is required for, and only for, post_integration_regression"
         )
     if scenario.category is Category.SCOPE_EXPANSION and not scenario.forbidden_paths:
         raise RoutingCorpusError(f"{sid}: scope_expansion needs at least one forbidden path")
@@ -384,14 +434,7 @@ def load_scenario(directory: Path) -> Scenario:
     return scenario
 
 
-def load_corpus(root: Path) -> list[Scenario]:
-    """Load every scenario under `root`, then check corpus-level rules.
-
-    Each directory name must equal its scenario id. The corpus must hold no
-    duplicate id, every category in `Category`, and exactly one scenario per
-    category (#5425: one primary scenario per category keeps the paid matrix
-    bounded).
-    """
+def _load_directories(root: Path) -> list[Scenario]:
     if not root.is_dir():
         raise RoutingCorpusError(f"{root}: corpus root is not a directory")
     directories = sorted(path for path in root.iterdir() if path.is_dir())
@@ -405,8 +448,26 @@ def load_corpus(root: Path) -> list[Scenario]:
             raise RoutingCorpusError(
                 f"{scenario.root}: directory name must equal scenario id {scenario.scenario_id!r}"
             )
+    return scenarios
+
+
+def load_corpus(root: Path) -> list[Scenario]:
+    """Load every scenario under `root`, then check corpus-level rules.
+
+    Each directory name must equal its scenario id. The corpus must hold no
+    duplicate id, every category in `CORE_CATEGORIES`, and exactly one scenario
+    per category (#5425: one primary scenario per category keeps the paid matrix
+    bounded). An extension category is refused here; see `load_extension_corpus`.
+    """
+    scenarios = _load_directories(root)
+    extension = [s.scenario_id for s in scenarios if s.category not in CORE_CATEGORIES]
+    if extension:
+        raise RoutingCorpusError(
+            f"{extension}: extension-category scenarios belong in an extension corpus, "
+            "not the routing corpus"
+        )
     counts = Counter(scenario.category for scenario in scenarios)
-    missing = {item for item in Category} - counts.keys()
+    missing = set(CORE_CATEGORIES) - counts.keys()
     if missing:
         raise RoutingCorpusError(f"missing required categories {sorted(c.value for c in missing)}")
     crowded = sorted(category.value for category, count in counts.items() if count > 1)
@@ -414,5 +475,21 @@ def load_corpus(root: Path) -> list[Scenario]:
         raise RoutingCorpusError(
             f"one primary scenario per category keeps the paid matrix bounded, "
             f"got more in {crowded}"
+        )
+    return scenarios
+
+
+def load_extension_corpus(root: Path) -> list[Scenario]:
+    """Load a corpus of `post_integration_regression` scenarios (issue #5768).
+
+    Holds at least one scenario and no core-category scenario, so the routing
+    corpus contract stays one primary scenario per core category.
+    """
+    scenarios = _load_directories(root)
+    core = [s.scenario_id for s in scenarios if s.category in CORE_CATEGORIES]
+    if core or not scenarios:
+        raise RoutingCorpusError(
+            f"{root}: an extension corpus holds only post_integration_regression scenarios "
+            f"(core scenarios found: {core}, total: {len(scenarios)})"
         )
     return scenarios
