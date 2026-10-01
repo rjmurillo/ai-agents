@@ -31,8 +31,33 @@ NUMBER_WORDS: dict[str, int] = {
 _NUMBER = "|".join([*NUMBER_WORDS, r"\d{1,2}"])
 
 # number, up to two modifier words, one plural noun, then a colon or opening paren.
-# A backtick or tilde fence opener or closer; shared with the duplicate-block scanner.
-FENCE_RE = re.compile(r"^\s*(```|~~~)")
+# A run of three or more backticks or tildes, then the rest of the line.
+_FENCE_RE = re.compile(r"^\s*(?P<run>`{3,}|~{3,})(?P<rest>.*)$")
+
+Fence = tuple[str, int]
+
+
+def fence_step(line: str, open_fence: Fence | None) -> tuple[Fence | None, bool]:
+    """Advance CommonMark fence state by one line.
+
+    Returns the new open fence (char, length) or None, and whether the line is a fence
+    line. A closer needs the same char, at least the opener's length, and only trailing
+    whitespace. A backtick opener may not carry a backtick in its info string. Shared by
+    the cardinality scan and the duplicate-block scan so the two cannot drift.
+    """
+    match = _FENCE_RE.match(line)
+    if match is None:
+        return open_fence, False
+    run, rest = match.group("run"), match.group("rest")
+    if open_fence is None:
+        if run[0] == "`" and "`" in rest:
+            return None, False
+        return (run[0], len(run)), True
+    char, length = open_fence
+    if run[0] == char and len(run) >= length and not rest.strip():
+        return None, True
+    return open_fence, True
+
 
 _CLAIM_RE = re.compile(
     rf"(?<![\w.-])(?P<num>{_NUMBER})\s+(?:[A-Za-z-]+\s+){{0,2}}?(?P<noun>[A-Za-z-]+s)\s*"
@@ -123,12 +148,12 @@ def derived_count_claims(text: str) -> list[Claim]:
     """Return every claim whose stated count differs from its enumeration."""
     lines = text.splitlines()
     claims: list[Claim] = []
-    in_fence = False
+    fence: Fence | None = None
     for index, line in enumerate(lines):
-        if FENCE_RE.match(line):
-            in_fence = not in_fence
+        fence, is_fence_line = fence_step(line, fence)
+        if is_fence_line:
             continue
-        if in_fence:
+        if fence is not None:
             continue
         match = _CLAIM_RE.search(line)
         if line.lstrip().startswith("|") or not match or _is_contractual(line[: match.start()]):

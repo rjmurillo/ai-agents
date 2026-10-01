@@ -236,6 +236,31 @@ def test_report_json_carries_examined_count(repo: Path, capsys: pytest.CaptureFi
     assert {"duplicate_blocks", "cardinality", "amplification"} <= set(out)
 
 
+_CLAIM = "Run the three filters: a, b, c, d."
+
+
+@pytest.mark.parametrize(
+    ("text", "live"),
+    [
+        (f"````\n```\n{_CLAIM}\n```\n{_CLAIM}\n````\n", 0),
+        (f"```\n~~~\n{_CLAIM}\n~~~\n```\n", 0),
+        (f"```\n{_CLAIM}\n`````\n{_CLAIM}\n", 1),
+        (f"```\n{_CLAIM}\n", 0),
+        (f"```\n{_CLAIM}\n```x\n{_CLAIM}\n```\n{_CLAIM}\n", 1),
+        (f"```a`b\n{_CLAIM}\n", 1),
+    ],
+)
+def test_cardinality_fences_follow_commonmark(text: str, live: int) -> None:
+    assert len(card.derived_count_claims(text)) == live
+
+
+def test_body_lines_share_the_fence_rules() -> None:
+    line = "Every reviewer must confirm that this policy line holds before merging."
+    text = f"````\n```\n{line}\n```\n{line}\n````\n{line}\n"
+    assert gate._body_lines(text) == [line.lower()]
+    assert gate._body_lines(f"```\n{line}\n") == []
+
+
 def test_tilde_fenced_example_is_not_a_live_claim() -> None:
     text = "~~~\nRun the three filters: a, b, c, d.\n~~~\n"
     assert card.derived_count_claims(text) == []
