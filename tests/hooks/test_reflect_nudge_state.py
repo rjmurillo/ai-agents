@@ -191,8 +191,7 @@ class TestRegisteredPath:
     def _invoke(self, stdin_text: str, state: Path) -> subprocess.CompletedProcess[str]:
         env = {**os.environ, "CLAUDE_PROJECT_DIR": str(REPO_ROOT), "XDG_STATE_HOME": str(state)}
         return subprocess.run(
-            self._command(),
-            shell=True,
+            ["sh", "-c", self._command()],
             input=stdin_text,
             capture_output=True,
             text=True,
@@ -230,11 +229,11 @@ class TestRegisteredPath:
         command = self._command()
         assert command.endswith("|| true")
         guarded = subprocess.run(
-            command, shell=True, capture_output=True, text=True,
+            ["sh", "-c", command], capture_output=True, text=True,
             encoding="utf-8", errors="replace", env=env, timeout=30, check=False,
         )  # fmt: skip
         bare = subprocess.run(
-            command.removesuffix(" || true"), shell=True, capture_output=True, text=True,
+            ["sh", "-c", command.removesuffix(" || true")], capture_output=True, text=True,
             encoding="utf-8", errors="replace", env=env, timeout=30, check=False,
         )  # fmt: skip
         assert guarded.returncode == 0
