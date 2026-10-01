@@ -39,21 +39,28 @@ permissions: {}
 jobs:
   gate:
     name: Compute promotion manifest
+    # Run from the default branch only. A dispatch from another branch would run
+    # that branch's copy of the gate program (ADR-113 decision 5).
+    if: ${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
     runs-on: ubuntu-26.04-arm
     timeout-minutes: 10
     permissions:
       contents: read
     outputs:
-      verdict: ${{ steps.manifest.outputs.verdict }}
+      release_eligible: ${{ steps.manifest.outputs.release_eligible }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
           egress-policy: audit
 
+      # Full history and tags: the gate checks that the candidate is an
+      # ancestor of the default branch head and that a named tag resolves to it.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0
+          fetch-tags: true
 
       - name: Setup code environment
         uses: ./.github/actions/setup-code-env
@@ -72,11 +79,14 @@ jobs:
         env:
           CANDIDATE_SHA: ${{ inputs.candidate-sha }}
           CANDIDATE_DIGEST: ${{ inputs.candidate-digest }}
+          RELEASE_TAG: ${{ inputs.release-tag }}
         run: >-
           uv run --frozen python scripts/validation/promotion_gate.py
           --evidence-dir "$RUNNER_TEMP/evidence"
           --candidate-sha "$CANDIDATE_SHA"
           --candidate-digest "$CANDIDATE_DIGEST"
+          --ancestor-of HEAD
+          --expect-tag "$RELEASE_TAG"
           --output "$RUNNER_TEMP/promotion-manifest.json"
           --github-output "$GITHUB_OUTPUT"
           --mode advisory
@@ -92,12 +102,18 @@ jobs:
   # The only job with a write token (ADR-113 Resolved Question 3). It checks
   # out nothing, runs no candidate code, and does not parse the manifest. It
   # attaches the file to an existing release and never creates a release or tag.
-  # It runs only when the verdict is promote, so a blocked manifest never becomes
-  # the baseline for the remediated class (decision 9).
+  # It runs only for an enforced promote verdict, so a blocked or advisory
+  # manifest never becomes the baseline for the remediated class (decision 9).
+  # The gate step has already checked that the tag resolves to the candidate.
+  # This workflow runs advisory, so the job stays dormant until the gate is
+  # switched to enforcing under ADR-113 decision 5.
   release-manifest:
     name: Attach manifest to release
     needs: gate
-    if: ${{ inputs.release-tag != '' && needs.gate.outputs.verdict == 'promote' }}
+    if: >-
+      ${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+      && inputs.release-tag != ''
+      && needs.gate.outputs.release_eligible == 'true' }}
     runs-on: ubuntu-26.04-arm
     timeout-minutes: 5
     permissions:
