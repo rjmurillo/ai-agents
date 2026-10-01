@@ -57,7 +57,7 @@ Bail on the unhappy path first. Keep the happy path on the leftmost indent level
 
 ## Delete Dead Code
 
-Commented-out code rots. Remove it. The version control history is the archive.
+Commented-out code rots. Remove it; version control is the archive.
 
 - Delete unreachable branches, unused imports, and stale parameters.
 - Delete TODOs that have outlived their context. Open an issue if the work still matters.
@@ -138,9 +138,9 @@ A table replaces five `if`/`elif` branches with one lookup and one default.
 
 ## Fix Completeness
 
-Bot review rounds fail to converge because the fix for round N creates round N+1's findings. On PR #5466, 17 of 20 findings came from the previous fix (issue #5487). Check both causes before you push.
+Bot review rounds fail to converge because the fix for round N creates round N+1's findings. On PR #5466, roughly 17 of 20 findings came from the previous fix (issue #5487). Check both causes before you push.
 
-- **One value, one role.** A value that serves git and also a human reader is two contracts under one name. Split it (`base_ref` to resolve, `display_ref` to print) so the leak cannot compile.
+- **One value, one role at a contract boundary.** A value that serves git and also a human reader is two contracts under one name. Split it (`base_ref` to resolve, `display_ref` to print). Distinct names make a mix-up visible in review; use distinct types where you need the checker to enforce it.
 - **List sibling call paths.** Grep every caller of the function you changed. In the PR body, list the callers you found and the ones you verified. Where practical, unwire the fix at each call site and confirm a test fails.
 
 ## Variable Scope and Lifetime
@@ -203,7 +203,7 @@ Before you mark work complete, walk this list:
 - [ ] Long branching uses tables when shapes match; polymorphism when they do not.
 - [ ] Tests describe behavior, follow Arrange/Act/Assert, and would catch a regression.
 - [ ] Variables live in the narrowest scope that satisfies their use.
-- [ ] Callers of every changed function are listed and checked; no value serves two roles.
+- [ ] Callers of every changed function are listed and checked; no value crosses two contracts under one name.
 - [ ] Comments explain _why_; the code explains _what_.
 - [ ] Errors are typed, traced, and logged without secrets.
 - [ ] Any suppression is a scoped last resort with a mini-ADR comment above it; no blanket ignores.
