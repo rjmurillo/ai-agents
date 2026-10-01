@@ -38,6 +38,7 @@ def _git(repo: Path, *args: str) -> str:
         capture_output=True,
         text=True,
         encoding="utf-8",
+        errors="replace",
         check=True,
     )
     return result.stdout.strip()
@@ -112,8 +113,27 @@ def test_local_axes_match_select_axes() -> None:
     assert vrm.LOCAL_AXES == select_axes.LOCAL_AXES
 
 
-def test_find_references_dir_finds_source_repo_skill() -> None:
-    assert vrm.find_references_dir() == REFERENCES
+def test_find_references_dir_is_none_for_canonical_copy() -> None:
+    """The canonical copy has no skill sibling; its caller passes --references-dir."""
+    assert vrm.find_references_dir() is None
+
+
+def test_find_references_dir_finds_sibling_of_installed_copy(tmp_path: Path) -> None:
+    skill = tmp_path / "skills" / "review"
+    (skill / "scripts").mkdir(parents=True)
+    (skill / "references").mkdir()
+    installed = skill / "scripts" / "validate_review_marker.py"
+    installed.write_text(SCRIPT_PATH.read_text(encoding="utf-8"), encoding="utf-8")
+    module = _load("installed_copy_under_test_5113", installed)
+    assert module.find_references_dir() == (skill / "references").resolve()
+
+
+def test_default_known_axes_none_for_missing_dir(tmp_path: Path) -> None:
+    assert vrm.default_known_axes(tmp_path / "nope") is None
+
+
+def test_default_known_axes_reads_explicit_dir() -> None:
+    assert "analyst" in vrm.default_known_axes(REFERENCES)
 
 
 def test_validate_ref_rejects_unknown_axis(git_repo: Path) -> None:
@@ -144,14 +164,14 @@ def test_validate_ref_accepts_second_trailer_when_first_is_invalid(git_repo: Pat
     assert outcome.ok
 
 
-def test_validate_ref_default_axes_come_from_real_skill(git_repo: Path) -> None:
+def test_validate_ref_axes_come_from_references_dir(git_repo: Path) -> None:
     _marker_commit(git_repo, "analyst,security,correctness")
-    assert vrm.validate_ref("HEAD", git_repo).ok
+    assert vrm.validate_ref("HEAD", git_repo, references_dir=REFERENCES).ok
 
 
-def test_validate_ref_default_rejects_unknown_axis(git_repo: Path) -> None:
+def test_validate_ref_references_dir_rejects_unknown_axis(git_repo: Path) -> None:
     _marker_commit(git_repo, "analyst,not-an-axis")
-    outcome = vrm.validate_ref("HEAD", git_repo)
+    outcome = vrm.validate_ref("HEAD", git_repo, references_dir=REFERENCES)
     assert outcome.exit_code == 1
 
 
@@ -163,6 +183,46 @@ def test_validate_ref_config_error_without_references_dir(
     outcome = vrm.validate_ref("HEAD", git_repo)
     assert outcome.exit_code == 2
     assert "references/" in outcome.message
+
+
+def test_validate_ref_stale_marker_wins_over_missing_references(
+    git_repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A marker naming another SHA is exit 1 even with no axis directory."""
+    monkeypatch.setattr(vrm, "find_references_dir", lambda: None)
+    _git(git_repo, "commit", "-q", "--allow-empty", "-m", "review: marker", "--trailer",
+         f"Reviewed-By: /review@analyst on {'b' * 40}")
+    outcome = vrm.validate_ref("HEAD", git_repo)
+    assert outcome.exit_code == 1
+    assert "does not bind" in outcome.message
+
+
+def test_main_exit_2_for_bad_references_dir(
+    git_repo: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _marker_commit(git_repo, "analyst")
+    code = vrm.main(
+        ["--repo-root", str(git_repo), "--references-dir", str(tmp_path / "missing")]
+    )
+    assert code == 2
+
+
+def test_main_passes_with_references_dir(
+    git_repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _marker_commit(git_repo, "analyst,correctness")
+    code = vrm.main(["--repo-root", str(git_repo), "--references-dir", str(REFERENCES)])
+    assert code == 0
+    assert "reviewed:" in capsys.readouterr().out
+
+
+def test_main_exit_1_for_unknown_axis(
+    git_repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _marker_commit(git_repo, "analyst,bogus")
+    code = vrm.main(["--repo-root", str(git_repo), "--references-dir", str(REFERENCES)])
+    assert code == 1
+    assert "bogus" in capsys.readouterr().err
 
 
 def test_wrong_sha_still_reports_binding_failure(git_repo: Path) -> None:

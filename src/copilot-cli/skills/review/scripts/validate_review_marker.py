@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size, sidecar copied alone into installs, so it cannot import siblings
 """Validate that a SHA-bound ``Reviewed-By: /review@...`` marker covers a commit.
 
 The ``/review`` skill writes a git trailer on a PASS verdict so ``/ship`` can
@@ -113,19 +114,16 @@ def select_marker_for_sha(values: list[str], expected_sha: str) -> ReviewMarker 
 
 
 def find_references_dir() -> Path | None:
-    """Locate the review skill's ``references/`` directory, or ``None``.
+    """Return the ``references/`` directory beside this script's skill, or ``None``.
 
-    The marker names axes of the skill that wrote it, so the axis set comes from
-    this script's own install, never from the repository being shipped. A mirror
-    sits at ``<skill>/scripts/`` beside ``<skill>/references/``; the canonical
-    copy under ``scripts/validation/`` falls back to the source-repo skill path.
+    The marker names axes of the skill that wrote it, so the default axis set
+    comes from this script's own install, never from the repository being
+    shipped. A mirror sits at ``<skill>/scripts/`` beside ``<skill>/references/``.
+    The canonical copy under ``scripts/validation/`` has no such sibling; its
+    caller passes ``--references-dir``.
     """
-    here = Path(__file__).resolve()
-    candidates = (
-        here.parent.parent / "references",
-        here.parents[2] / ".claude" / "skills" / "review" / "references",
-    )
-    return next((path for path in candidates if path.is_dir()), None)
+    candidate = Path(__file__).resolve().parent.parent / "references"
+    return candidate if candidate.is_dir() else None
 
 
 def discover_known_axes(references_dir: Path) -> frozenset[str]:
@@ -138,10 +136,15 @@ def discover_known_axes(references_dir: Path) -> frozenset[str]:
     return frozenset(stems | set(LOCAL_AXES) | set(ALWAYS_ON_AXES))
 
 
-def default_known_axes() -> frozenset[str] | None:
-    """Return the axis set discovered beside this script, or ``None`` if absent."""
-    references_dir = find_references_dir()
-    return None if references_dir is None else discover_known_axes(references_dir)
+def default_known_axes(references_dir: Path | None = None) -> frozenset[str] | None:
+    """Return the discovered axis set, or ``None`` when there is no references dir.
+
+    ``references_dir`` wins over the directory beside this script.
+    """
+    found = references_dir if references_dir is not None else find_references_dir()
+    if found is None or not found.is_dir():
+        return None
+    return discover_known_axes(found)
 
 
 def check_axes(axes: tuple[str, ...], known_axes: frozenset[str]) -> str | None:
@@ -377,21 +380,23 @@ def validate_marker_commit_shape(
     return None
 
 
+def bound_markers(values: list[str], parent_sha: str) -> list[ReviewMarker]:
+    """Return every well-formed marker among ``values`` that binds ``parent_sha``."""
+    parsed = (parse_marker(value) for value in values)
+    return [marker for marker in parsed if marker is not None and marker.sha == parent_sha]
+
+
 def select_valid_marker(
-    values: list[str],
-    parent_sha: str,
+    markers: list[ReviewMarker],
     known_axes: frozenset[str],
 ) -> tuple[ReviewMarker | None, str | None]:
-    """Return the first marker that binds ``parent_sha`` with valid axes.
+    """Return the first marker with a valid axis list.
 
-    When a marker binds the SHA but every one fails the axis check, the second
-    value is the first marker's axis failure so the caller can report it.
+    When every marker fails the axis check, the second value is the first
+    marker's failure so the caller can report it.
     """
     axis_failure: str | None = None
-    for value in values:
-        marker = parse_marker(value)
-        if marker is None or marker.sha != parent_sha:
-            continue
+    for marker in markers:
         failure = check_axes(marker.axes, known_axes)
         if failure is None:
             return marker, None
@@ -403,6 +408,7 @@ def validate_ref(
     ref: str,
     repo_root: Path,
     known_axes: frozenset[str] | None = None,
+    references_dir: Path | None = None,
 ) -> ValidationOutcome:
     """Check that ``ref`` is a marker commit binding its parent (the reviewed code).
 
@@ -419,15 +425,6 @@ def validate_ref(
     ref_error = validate_ref_argument(ref)
     if ref_error is not None:
         return ref_error
-
-    if known_axes is None:
-        known_axes = default_known_axes()
-        if known_axes is None:
-            return ValidationOutcome(
-                ok=False,
-                exit_code=2,
-                message="review skill references/ directory not found; cannot check axis names",
-            )
 
     head_sha, resolve_error = resolve_sha_with_error(ref, repo_root)
     if head_sha is None:
@@ -456,7 +453,9 @@ def validate_ref(
             message=_with_reason(f"git could not read commit '{ref}'", marker_read_error),
         )
 
-    return evaluate_marker_values(ref, head_sha, parent_sha, values, known_axes)
+    return evaluate_marker_values(
+        ref, head_sha, parent_sha, values, known_axes, references_dir
+    )
 
 
 def evaluate_marker_values(
@@ -464,9 +463,16 @@ def evaluate_marker_values(
     head_sha: str,
     parent_sha: str,
     values: list[str],
-    known_axes: frozenset[str],
+    known_axes: frozenset[str] | None,
+    references_dir: Path | None = None,
 ) -> ValidationOutcome:
-    """Decide the outcome from the raw ``Reviewed-By`` values on a marker commit."""
+    """Decide the outcome from the raw ``Reviewed-By`` values on a marker commit.
+
+    The axis set is resolved here, after the shape and binding checks, so a
+    missing ``references/`` directory (exit 2) never hides a stale or absent
+    marker (exit 1). ``known_axes`` wins over ``references_dir``, which wins
+    over the directory beside this script.
+    """
     if not values:
         return ValidationOutcome(
             ok=False,
@@ -477,17 +483,8 @@ def evaluate_marker_values(
             ),
         )
 
-    marker, axis_failure = select_valid_marker(values, parent_sha, known_axes)
-    if marker is None and axis_failure is not None:
-        return ValidationOutcome(
-            ok=False,
-            exit_code=1,
-            message=(
-                f"'{MARKER_TRAILER_KEY}' marker on {ref} ({head_sha[:12]}) has an invalid "
-                f"axis list: {axis_failure}. Re-run /review and list only the axes that ran."
-            ),
-        )
-    if marker is None:
+    markers = bound_markers(values, parent_sha)
+    if not markers:
         return ValidationOutcome(
             ok=False,
             exit_code=1,
@@ -495,6 +492,26 @@ def evaluate_marker_values(
                 f"'{MARKER_TRAILER_KEY}' marker on {ref} ({head_sha[:12]}) does not bind "
                 f"the reviewed tip {parent_sha[:12]} (it reviewed a different commit, or "
                 f"new code landed after review). Re-run /review."
+            ),
+        )
+
+    if known_axes is None:
+        known_axes = default_known_axes(references_dir)
+    if known_axes is None:
+        return ValidationOutcome(
+            ok=False,
+            exit_code=2,
+            message="review skill references/ directory not found; cannot check axis names",
+        )
+
+    marker, axis_failure = select_valid_marker(markers, known_axes)
+    if marker is None:
+        return ValidationOutcome(
+            ok=False,
+            exit_code=1,
+            message=(
+                f"'{MARKER_TRAILER_KEY}' marker on {ref} ({head_sha[:12]}) has an invalid "
+                f"axis list: {axis_failure}. Re-run /review and list only the axes that ran."
             ),
         )
 
@@ -524,6 +541,15 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--references-dir",
+        type=Path,
+        default=None,
+        help=(
+            "Review skill references/ directory that names the valid axes. "
+            "Defaults to the references/ directory beside this script's skill."
+        ),
+    )
+    parser.add_argument(
         "--repo-root",
         type=Path,
         default=None,
@@ -545,7 +571,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"[FAIL] invalid repo root: {repo_root}", file=sys.stderr)
         return 2
 
-    outcome = validate_ref(args.ref, repo_root)
+    outcome = validate_ref(args.ref, repo_root, references_dir=args.references_dir)
     label = "PASS" if outcome.ok else "FAIL"
     stream = sys.stdout if outcome.ok else sys.stderr
     print(f"[{label}] {outcome.message}", file=stream)

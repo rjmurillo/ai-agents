@@ -93,7 +93,14 @@ def validate_review_marker(repo_root: Path) -> CheckOutcome:
         return _absent_outcome(enforced)
 
     exit_code, stdout, stderr = _run_subprocess(
-        [sys.executable, str(script), "--repo-root", str(repo_root)]
+        [
+            sys.executable,
+            str(script),
+            "--repo-root",
+            str(repo_root),
+            "--references-dir",
+            str(repo_root / ".claude" / "skills" / "review" / "references"),
+        ]
     )
     output = (stdout or "") + (stderr or "")
 
