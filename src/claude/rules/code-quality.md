@@ -61,20 +61,6 @@ If a function is hard to name, it does too much. Split it.
 Deep `if`/`else` trees hide intent. Use early returns to flatten control flow.
 
 ```python
-# Avoid
-def charge(order):
-    if order is not None:
-        if order.is_valid():
-            if order.total > 0:
-                process(order)
-            else:
-                raise ValueError("non-positive total")
-        else:
-            raise ValueError("invalid order")
-    else:
-        raise ValueError("missing order")
-
-# Prefer
 def charge(order):
     if order is None:
         raise ValueError("missing order")
@@ -95,8 +81,6 @@ Commented-out code rots. Remove it. The version control history is the archive.
 - Delete TODOs that have outlived their context. Open an issue if the work still matters.
 - Delete commented-out blocks. If you are unsure, run a search across the repo first; then delete.
 - Delete unused public APIs once you confirm no internal callers exist. External consumers belong behind a deprecation notice.
-
-A reader trusts the code in front of them. Dead code teaches readers to distrust everything they read.
 
 ## Code Smell Detection
 
@@ -168,20 +152,14 @@ When branching grows past three or four cases, replace conditional code with a t
 
 Use table-driven logic for command dispatch, status transitions, validation rules, and feature flags. Avoid it when the cases differ in structure, not just data; polymorphism fits better there.
 
-```python
-HTTP_STATUS_TEXT = {
-    200: "OK",
-    201: "Created",
-    400: "Bad Request",
-    404: "Not Found",
-    500: "Internal Server Error",
-}
-
-def status_text(code: int) -> str:
-    return HTTP_STATUS_TEXT.get(code, "Unknown")
-```
-
 A table replaces five `if`/`elif` branches with one lookup and one default.
+
+## Fix Completeness
+
+Bot review rounds fail to converge because the fix for round N creates round N+1's findings. On PR #5466, 17 of 20 findings came from the previous fix (issue #5487). Check both causes before you push.
+
+- **One value, one role.** A value that serves git and also a human reader is two contracts under one name. Split it (`base_ref` to resolve, `display_ref` to print) so the leak cannot compile.
+- **List sibling call paths.** Grep every caller of the function you changed. In the PR body, list the callers you found and the ones you verified. Where practical, unwire the fix at each call site and confirm a test fails.
 
 ## Variable Scope and Lifetime
 
@@ -193,8 +171,6 @@ Minimize the distance between a variable's declaration and its last use.
 - Reduce live variables: a function with twelve locals is harder to read than three small functions with three locals each.
 - Avoid global mutable state. Where you cannot, document the invariants and guard the writers.
 - Pull constants out of methods only when they are reused. A constant used in one method belongs in that method.
-
-A short scope is easier to reason about. A short scope makes refactoring safe.
 
 ## Comments
 
@@ -218,8 +194,6 @@ Errors are part of the contract. Handle them with the same care as the happy pat
 - Use `try`/`finally` (or its language equivalent) for resource cleanup. Prefer language constructs (`with`, `using`, `defer`) when available.
 - Never use exceptions for normal control flow. They are slow and hide intent.
 - Re-raise with `raise` (Python) or `throw;` (C#) to preserve the stack. A new exception with no `cause` loses the trail.
-
-A function that fails predictably is easier to operate than one that succeeds unpredictably.
 
 ## Suppressions Are a Last Resort
 
@@ -247,6 +221,7 @@ Before you mark work complete, walk this list:
 - [ ] Long branching uses tables when shapes match; polymorphism when they do not.
 - [ ] Tests describe behavior, follow Arrange/Act/Assert, and would catch a regression.
 - [ ] Variables live in the narrowest scope that satisfies their use.
+- [ ] Callers of every changed function are listed and checked; no value serves two roles.
 - [ ] Comments explain _why_; the code explains _what_.
 - [ ] Errors are typed, traced, and logged without secrets.
 - [ ] Any suppression is a scoped last resort with a mini-ADR comment above it; no blanket ignores.
