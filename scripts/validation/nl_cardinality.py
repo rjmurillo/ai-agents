@@ -141,11 +141,13 @@ def derived_count_claims(text: str) -> list[Claim]:
 
 
 def simplify(claim_text: str) -> str:
-    """Return the claim with the derived number removed."""
-    return re.sub(
-        rf"\b(?:{_NUMBER})\s+(?=(?:[A-Za-z-]+\s+){{0,2}}?[A-Za-z-]+s\s*[:(])",
-        "",
-        claim_text,
-        count=1,
-        flags=re.IGNORECASE,
-    )
+    """Return the claim with the derived number removed.
+
+    Uses the detector's own pattern, so the span removed is the span flagged.
+    """
+    match = _CLAIM_RE.search(claim_text)
+    if match is None:
+        return claim_text
+    start, end = match.span("num")
+    tail = claim_text[end:].lstrip()
+    return claim_text[:start] + tail

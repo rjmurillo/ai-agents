@@ -69,6 +69,13 @@ def test_clean_tree_passes(repo: Path) -> None:
     assert gate.run(repo, update=False) == 0
 
 
+def test_simplify_removes_only_the_flagged_number_and_ignores_non_claims() -> None:
+    assert card.simplify("In 2 steps, run the three filters: a, b, c, d.") == (
+        "In 2 steps, run the filters: a, b, c, d."
+    )
+    assert card.simplify("No claim here.") == "No claim here."
+
+
 def test_three_filters_is_flagged_and_simplified() -> None:
     claims = card.derived_count_claims("Run the three filters: lint, format, types, tests.")
     assert [(c.stated, c.actual) for c in claims] == [(3, 4)]
@@ -222,14 +229,31 @@ def test_validate_entry_point_matches_pre_pr_contract(repo: Path) -> None:
 def test_skill_references_are_authored_and_untemplated_skills_count(repo: Path) -> None:
     _write(repo, ".claude/skills/solo/SKILL.md", "Solo skill.\n" + _POLICY)
     _write(repo, ".claude/skills/solo/references/r.md", "Reference.\n" + _POLICY)
-    assert (
-        "templates/rules/a.md|.claude/skills/solo/SKILL.md"
-        not in gate.measure(repo)["duplicate_blocks"]
-        or True
-    )
+    paths = {p.relative_to(repo).as_posix() for p in gate.authored_files(repo)}
+    assert ".claude/skills/solo/SKILL.md" in paths
+    assert ".claude/skills/solo/references/r.md" in paths
     pairs = gate.measure(repo)["duplicate_blocks"]
     assert any(".claude/skills/solo/references/r.md" in key for key in pairs)
     assert any(".claude/skills/solo/SKILL.md" in key for key in pairs)
+
+
+def test_partials_and_hand_maintained_prompts_are_authored(repo: Path) -> None:
+    _write(repo, "templates/agents/partials/p.mustache", "Partial.\n" + _POLICY)
+    _write(repo, "templates/skills/partials/q.mustache", "Partial.\n" + _POLICY)
+    _write(repo, "templates/README.md", "Readme.\n" + _POLICY)
+    _write(repo, ".github/prompts/hand.md", "Prompt.\n" + _POLICY)
+    _write(repo, ".github/prompts/pr-quality-gate-x.md", "Generated.\n" + _POLICY)
+    paths = {p.relative_to(repo).as_posix() for p in gate.authored_files(repo)}
+    assert {
+        "templates/agents/partials/p.mustache",
+        "templates/skills/partials/q.mustache",
+        "templates/README.md",
+        ".github/prompts/hand.md",
+    } <= paths
+    assert ".github/prompts/pr-quality-gate-x.md" not in paths
+    pairs = gate.measure(repo)["duplicate_blocks"]
+    assert any("templates/agents/partials/p.mustache" in key for key in pairs)
+    assert any(".github/prompts/hand.md" in key for key in pairs)
 
 
 def test_templated_skill_projection_is_not_authored(repo: Path) -> None:

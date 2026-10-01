@@ -56,6 +56,17 @@ MIN_BLOCK_LINES = 5
 MIN_BLOCK_CHARS = 200
 MIN_LINE_CHARS = 20
 SKILL_ROOT = ".claude/skills"
+# Authored text beyond the capability-block candidates (CANONICAL_GLOBS): agent and
+# skill partials, top-level template docs, and hand-maintained prompts.
+EXTRA_AUTHORED_GLOBS: tuple[tuple[str, str], ...] = (
+    ("templates/agents/partials", "*.mustache"),
+    ("templates/skills/partials", "*.mustache"),
+    ("templates", "*.md"),
+    (".github/prompts", "*.md"),
+)
+# `.github/prompts/pr-quality-gate-*.md` is generated from the review skill's
+# references (templates/platforms/binplace.yaml), so it is a projection.
+GENERATED_PROMPT_PREFIX = "pr-quality-gate-"
 _FENCE_RE = re.compile(r"^\s*(```|~~~)")
 _RULE_RE = re.compile(r"^[\s|:\-=*_#>]*$")
 
@@ -65,10 +76,14 @@ class ScanError(Exception):
 
 
 def authored_files(repo_root: Path) -> list[Path]:
-    """Return authored sources: templates plus skill references and untemplated skills."""
+    """Return authored sources: templates, partials, hand-kept prompts, skill references."""
     files: list[Path] = []
-    for subdir, pattern in CANONICAL_GLOBS:
-        files.extend(sorted((repo_root / subdir).glob(pattern)))
+    for subdir, pattern in (*CANONICAL_GLOBS, *EXTRA_AUTHORED_GLOBS):
+        files.extend(
+            p
+            for p in sorted((repo_root / subdir).glob(pattern))
+            if not p.name.startswith(GENERATED_PROMPT_PREFIX)
+        )
     skills = repo_root / SKILL_ROOT
     templated = {
         p.name.removesuffix(".SKILL.md.tmpl")
