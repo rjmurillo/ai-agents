@@ -73,7 +73,8 @@ class FakeReader:
         listed = []
         for item in self.artifacts.get(name, []):
             if isinstance(item, dict) and item.get("size_in_bytes") == "auto":
-                archive = self.archives.get(item.get("id"), b"")  # type: ignore[arg-type]
+                identifier = item.get("id")
+                archive = self.archives.get(identifier, b"") if isinstance(identifier, int) else b""
                 item = {**item, "size_in_bytes": len(archive)}
             listed.append(item)
         return listed
