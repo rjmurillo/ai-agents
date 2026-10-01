@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import os
 import shlex
+import shutil
+import socket
 import subprocess
 import sys
 from pathlib import Path
@@ -319,3 +321,121 @@ def test_missing_backlink_is_refused(trusted, tmp_path):
     with pytest.raises(w.UntrustedGitDirError, match="does not point back"):
         with w._worktree_git_mount(worktree):
             pass
+
+
+def test_remove_copy_retries_after_making_the_tree_writable(tmp_path):
+    root = tmp_path / "copy"
+    locked = root / "objects" / "ab"
+    locked.mkdir(parents=True)
+    (locked / "obj").write_text("x", encoding="utf-8")
+    locked.chmod(0o500)
+    root.chmod(0o500)
+
+    assert w._remove_copy(root) is None
+    assert not root.exists()
+
+
+def test_remove_copy_reports_the_leftover_path_without_raising(monkeypatch, tmp_path):
+    root = tmp_path / "copy"
+    root.mkdir()
+
+    def refuse(_path):
+        raise PermissionError("root-owned")
+
+    monkeypatch.setattr(w.shutil, "rmtree", refuse)
+    message = w._remove_copy(root)
+
+    assert message is not None
+    assert str(root) in message
+    assert "root-owned" in message
+
+
+def test_cleanup_failure_after_a_clean_stage_is_a_failed_stage_naming_the_path(
+    trusted, monkeypatch, tmp_path
+):
+    worktree, _, _ = _linked_worktree(tmp_path)
+    monkeypatch.setattr(w, "_run", lambda *_a, **_k: (0, "", ""))
+    real_remove = w._remove_copy
+
+    def fake_remove(root):
+        real_remove(root)
+        return f"leftover {root}"
+
+    monkeypatch.setattr(w, "_remove_copy", fake_remove)
+
+    res = w._act_full_stage([WF], worktree)
+
+    assert res.ok is False
+    assert "leftover" in res.detail
+    assert "act-gitdir-" in res.detail
+
+
+def test_cleanup_failure_does_not_mask_a_body_exception(trusted, monkeypatch, tmp_path, capsys):
+    worktree, _, _ = _linked_worktree(tmp_path)
+    real_remove = w._remove_copy
+
+    def fake_remove(root):
+        real_remove(root)
+        return f"leftover {root}"
+
+    monkeypatch.setattr(w, "_remove_copy", fake_remove)
+
+    with pytest.raises(ValueError, match="boom"):
+        with w._worktree_git_mount(worktree):
+            raise ValueError("boom")
+
+    assert "WARNING: leftover" in capsys.readouterr().err
+
+
+def test_sockets_and_fifos_in_the_git_dir_are_skipped(trusted, tmp_path):
+    worktree, _, common = _linked_worktree(tmp_path)
+    os.mkfifo(common / "fsmonitor.fifo")
+    with socket.socket(socket.AF_UNIX) as sock:
+        sock.bind(str(common / "fsmonitor.sock"))
+        with w._worktree_git_mount(worktree) as args:
+            copy = _mounted_copy(args)
+            assert not (copy / "fsmonitor.fifo").exists()
+            assert not (copy / "fsmonitor.sock").exists()
+            assert (copy / "HEAD").is_file()
+
+
+def test_special_file_check_ignores_a_missing_path(tmp_path):
+    assert w._is_special_file(tmp_path / "missing") is False
+
+
+def test_copy_error_becomes_a_failed_stage_and_removes_the_copy(trusted, monkeypatch, tmp_path):
+    worktree, _, _ = _linked_worktree(tmp_path)
+    seen = {}
+
+    def broken(src, dst, **_kw):
+        seen["dst"] = dst
+        raise shutil.Error("cannot copy")
+
+    monkeypatch.setattr(w.shutil, "copytree", broken)
+    monkeypatch.setattr(w, "_run", lambda *_a, **_k: pytest.fail("act must not run"))
+    res = w._act_full_stage([WF], worktree)
+
+    assert res.ok is False
+    assert "could not copy the git metadata" in res.detail
+    assert not Path(seen["dst"]).parent.exists()
+
+
+def test_colon_in_the_common_dir_is_refused_up_front(monkeypatch, tmp_path):
+    worktree, gitdir, common = _linked_worktree(tmp_path / "a:b")
+    monkeypatch.setattr(w, "_host_common_dir", lambda _root: common.resolve())
+
+    with pytest.raises(w.GitMountError, match="contains ':'"):
+        with w._worktree_git_mount(worktree):
+            pass
+
+
+def test_colon_in_the_temp_root_is_refused(trusted, monkeypatch, tmp_path):
+    worktree, _, _ = _linked_worktree(tmp_path)
+    weird = tmp_path / "t:mp"
+    weird.mkdir()
+    monkeypatch.setattr(w.tempfile, "tempdir", str(weird))
+
+    with pytest.raises(w.GitMountError, match="contains ':'"):
+        with w._worktree_git_mount(worktree):
+            pass
+    assert list(weird.iterdir()) == []
