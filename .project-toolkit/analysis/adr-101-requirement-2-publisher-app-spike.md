@@ -9,7 +9,7 @@ Evidence levels used below: MEASURED (run in this session, command given), READ 
 **Split verdict. Build nothing further until the owner decides.**
 
 1. A dedicated GitHub App meets the identity half of requirement 2. A check run published with an installation token carries the App's id. A ruleset can pin that id. Neither a head-defined workflow nor an exfiltrated `BOT_PAT` can mint it. The plan supports this: the live ruleset already stores `integration_id` per required context (READ, see Evidence 3).
-2. No signing scheme closes the residual that ADR-101 says only signed execution evidence closes. That covers an App-authored check run, an artifact attestation, and direct Sigstore. A signature authenticates the signer. The signer learns the test result from a process the candidate controls. So the signed statement is exactly as forgeable as the unsigned one. This is measured below, including a third forgery the ADR does not list.
+2. No signing scheme closes the residual that ADR-101 says only signed execution evidence closes. That covers an App-authored check run, an artifact attestation, and direct Sigstore. A signature authenticates the signer. The signer learns the test result from a process the candidate controls, and against arbitrary candidate code in that process the signed statement is as forgeable as the unsigned one. I measured one forgery this session, and it is one the ADR does not list (Evidence 1). Base-owned canary tests and `--noconftest` over a base-owned corpus raise the cost of a blanket forgery. They do not close a targeted one.
 3. The stop clause in D22 reads "cannot be met by a GitHub App on this plan". Read literally, point 2 triggers it. Read as a plan-availability test, point 1 passes it. I read it literally and stopped. The owner can overrule that reading, and "If the owner says go" below states exactly what would be built.
 4. ADR-101 needs a text change, reported here and not made: its claim that signed evidence "is now the only option that closes this requirement" does not hold. Changing it needs a debate log under `adr-review`.
 
@@ -76,9 +76,11 @@ This is a third forgery. ADR-101 lists two: `os._exit(0)` from a session hook (l
 | Publication job (separate runner) | App installation token, check run | `needs.execute.result` only, which is the execution job's exit status | Yes. Exit 0 is candidate-authored (Evidence 1, first forgery, ADR line 213). |
 | Execution job, in-process | Workflow OIDC identity via `actions/attest` | Whatever the harness wrote | Yes, and worse: the OIDC request variables are runner environment, so the candidate can request the token itself (INFERRED from the documented `ACTIONS_ID_TOKEN_REQUEST_URL` mechanism; the design would grant `id-token` to no execution job). |
 | Execution job, supervisor outside a container | Supervisor plus OIDC after the container exits | Container exit status, files the candidate wrote | Yes. Same input, one hop later. ADR line 211 already says the sandbox authenticates termination, not collection. |
-| Trusted observer that traces the candidate from outside its trust domain | None exists on GitHub-hosted runners | Would have to observe test bodies running without trusting the process that runs them | Not buildable here. Any base-owned reader of a Python process's reports reads what in-process code may rewrite. |
+| Trusted observer that traces the candidate from outside its trust domain (syscall or ptrace tracing, a gVisor-style sandbox) | The observer | Syscalls and files, not which assertions ran | Not through reports. It sees behavior rather than rewritten reports, but it cannot map syscalls to "this test body ran and passed" without trusting in-process data. INFERRED, unbuilt, and not available as a GitHub-hosted feature. |
+| Base-owned corpus run with `--noconftest` and a base-owned `-c` config, plus a base-owned canary test that must fail | Supervisor | Per-test outcomes from the same process | Raises cost. It removes the conftest vector, so the Evidence 1 forgery needs a test-file or product-code patch instead. A forgery that spares the canary still works. |
+| Hardware or VM attestation of the runner | Not offered on GitHub-hosted runners (INFERRED) | n/a | n/a |
 
-Every row ends in the same place. The signature is real. What it signs is not independent of the candidate.
+Every row ends in the same place for arbitrary candidate code in the test process. The signature is real. What it signs is not independent of the candidate. The last three rows are cost raisers to evaluate if the owner wants one, not closures.
 
 ### 3. The plan supports pinning by publisher
 
@@ -118,9 +120,9 @@ What it leaves open, stated in the ADR's own vocabulary: the "candidate forges t
 
 ## Proposed ADR-101 text change (reported, not made)
 
-1. Line 215 and line 219: replace "is now the only option that closes this requirement" with a statement that no mechanism authenticates in-process test results against candidate-authored code, and move the forged-exit, collected-count and skipped-corpus cases into the accepted residuals beside line 203, citing Evidence 1.
+1. Line 215 carries the phrase "is now the only option that closes this requirement". Lines 195, 219, 221 and 430 repeat the same premise in other words. Replace the claim with a statement that no mechanism authenticates in-process test results against arbitrary candidate code, and move the forged-exit, collected-count and skipped-corpus cases into the accepted residuals beside line 203, citing Evidence 1.
 2. Line 430: the research item resolves to "App-authored check run, `integration_id` pinned; execution authenticity bounded as above". That lets requirement 2 enter a phase.
-3. Lines 143 and 229 say the ruleset "pins context names alone today". The live ruleset records `integration_id: 15368` on every context (READ). The statement that nothing separates publishers stays true, because every pin is the Actions app.
+3. Line 143 says `ruleset_required_contexts.py` "pins names alone today" and line 229 says it "pins context names alone today". The live ruleset records `integration_id: 15368` on every context (READ). The statement that nothing separates publishers stays true, because every pin is the Actions app.
 4. Line 100 says the repository has "exactly one environment-gated job". The repository now lists three environments, `bot-secrets`, `copilot`, `vendor-provenance` (READ, `gh api repos/rjmurillo/ai-agents/environments`), and none carries a deployment branch policy.
 5. Line 187 names a `workflow_run` trigger. `pull_request_target` also runs the base ref's workflow definition and is the shape `enforcement-closure.yml` already uses. Say which is meant.
 
@@ -131,59 +133,63 @@ Repository permissions only. No account, organization, or webhook scope.
 | Permission | Level | Why |
 |---|---|---|
 | Checks | Read and write | Create and update the check run. Nothing else needs write. |
-| Pull requests | Read | Compare the pull request's current head and base to the SHAs the run captured (CWE-367 guard, ADR line 235). |
-| Contents | Read | Resolve the diff and base SHA by immutable SHA through the compare API. |
 | Metadata | Read | Mandatory for every App. |
 
-No `statuses`, `administration`, `actions`, `secrets`, `workflows`, `members` or `environments` permission. An App without `administration` cannot edit a ruleset, so a stolen key cannot touch P2. Subscribe to no webhook events.
+No `contents`, `pull_requests`, `statuses`, `administration`, `actions`, `secrets`, `workflows`, `members` or `environments` permission. The repository is public, so the SHA compare and the pull request pointer read (ADR line 235) need no App scope. The publication job makes them with its own `GITHUB_TOKEN` under job-level `contents: read` and `pull-requests: read`. If the repository ever goes private, add `contents: read` and `pull_requests: read` to the App then. An App without `administration` cannot edit a ruleset, so a stolen key cannot touch P2. Subscribe to no webhook events.
 
-Request the same three at token time with `permission-checks: write`, `permission-pull-requests: read`, `permission-contents: read` on `create-github-app-token`. The token is then narrower than the installation, which limits a leaked step output.
+Request the narrow set at token time too: `permission-checks: write` on `create-github-app-token`. The token is then no wider than the check run call needs.
 
 ## How the base-owned job gets a token
 
 1. The publication job runs under `pull_request_target` (or `workflow_run`), so the workflow definition comes from the default branch. The pull request cannot edit the job that reads the key.
-2. The job declares `environment: adr101-publisher`. That environment restricts deployment branches to `main`. A head-defined workflow on another branch that names the environment is refused the secret. This is the containment ADR-101 describes for repository-level secrets, applied to this one.
+2. The job declares `environment: adr101-publisher`. That environment restricts deployment branches to `main`. A head-defined workflow on another branch that names the environment is refused the secret. This contains the push-triggered branch case ADR-101 describes at lines 265-271. It does not contain `pull_request_target`: that trigger runs on the base branch by definition, so `main` admits it. That is a design fact, not something a probe can change. The only containment against a fork pull request is the content of the publication job itself (steps 4 to 7 below), CODEOWNERS on the workflow file, and the lint that the design adds.
 3. A step runs `actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0` with the App id from an environment variable and the private key from the environment secret.
-4. The job checks out the base ref only. It never checks out, imports, or reads an artifact from the head. It fetches the diff from the API by SHA.
+4. The job checks out the base ref only, with `persist-credentials: false` and no cache restore. It never checks out, imports, or reads an artifact from the head. It fetches the diff from the API by SHA.
 5. No job that runs candidate code names the environment, holds the key, or holds `checks: write`. The execution job holds `contents: read` and nothing else.
+6. Head-controlled strings (pull request title, head ref name, `workflow_run.head_branch`) never reach a `run:` expression. The job receives only SHAs and numeric ids through `env:`, and the module validates them against `^[0-9a-f]{40}$` and `^[0-9]+$` before use.
+7. The key reaches exactly one step, the token step. No `set -x`, and no step logs an API response body, because Actions masks a multi-line PEM line by line and a traceback can print fragments.
 
-INFERRED, to be probed after the App exists: that `pull_request_target` runs on `refs/heads/main` for the environment's branch policy, so the policy admits it. The owner checklist includes the probe.
+The execution job is the second place this design can fail, and it shares a workflow with the publication job when `pull_request_target` is the trigger. A fork pull request then runs its code in base-ref context. The execution job must use no cache restore, because a candidate can poison a base-scoped cache that a later job restores, and must use `persist-credentials: false`. It names no environment and no secret. Plain `pull_request` would remove the base-ref context but makes the execution workflow head-editable, which breaks the "base owns the launch" rule at ADR line 195. So the choice is `pull_request_target` with those constraints, or a design that does not exist yet.
 
 ## Threat model notes
 
 | Threat | Path | Effect | Control | Residual |
 |---|---|---|---|---|
-| Private key theft from a head-defined workflow | Branch pushes `on: push`, names the environment | Attacker mints check runs under the App | Environment secret with deployment branches limited to `main`; no repository-level copy | A workflow merged to `main` that reads it. CODEOWNERS and review on `.github/workflows/` (Phase 0) |
-| Token theft inside the publication job | A step in that job leaks `GITHUB_OUTPUT` or logs | One-hour token with `checks: write` | Token scoped to three permissions, revoked at job end, job runs no candidate code | Logs are public on a public repo: mask, never echo |
+| Private key theft from a head-defined workflow | Branch pushes `on: push`, names the environment | Attacker mints check runs under the App | Environment secret with deployment branches limited to `main`; no repository-level copy | See the `pull_request_target` and merged-workflow rows below |
+| Token theft inside the publication job | A step in that job leaks `GITHUB_OUTPUT` or logs | Short-lived token with `checks: write` only | Token scoped to `checks: write`, revoked at job end, job runs no candidate code, key reaches one step | Logs are public on a public repo: never echo a response body |
 | Forged execution evidence | Candidate conftest or `os._exit` | Green context, no real verification | None available (Evidence 1, 2) | Accepted. Needs the ADR text change above |
 | Publisher publishes for a stale revision | Branch moved during the run | Success against a different tree | Compare head and base SHAs immediately before publishing; abort without publishing on mismatch (ADR line 235) | Window between compare and publish, accepted by the ADR as CWE-367 |
 | Silent skip | Flag off, secrets missing, execute skipped | A missing context read as green | `always()`; typed outcomes; SKIP never accepted by a blocking policy | None known |
 | App key reused for a second purpose | Later features add permissions | A bigger blast radius | One App, one permission list, drift check on permissions | Needs a baseline entry in Phase 0 |
-| Fork pull request | Fork head SHA | App may be unable to attach a check run | ADR line 322 already marks this as a probe, not an assumption | UNKNOWN until probed (checklist step 12) |
+| Fork pull request under `pull_request_target` | Fork code runs in base-ref context; the environment policy admits `main` by design | Cache poisoning next to the key, or a code path that reaches the key step | No cache restore, `persist-credentials: false`, no head checkout in the publication job, only validated SHAs and ids through `env:`, CODEOWNERS on the workflow | Content of the publication job is the whole control. The ADR line 322 question, whether the App can attach a check run to a fork head SHA, stays UNKNOWN until probed (checklist step 17) |
+| Head-controlled string reaches a shell | PR title, head ref, `head_branch` in a `run:` expression | Command injection in the job holding the key (CWE-78) | Pass SHAs and numeric ids only, validate before use | None known |
+| Long-lived key | Stolen `.pem` is a bearer credential | Attacker mints green for any commit under a pinned context | Rotation every 90 days (checklist step 18); a scheduled audit that every App check run's `external_id` matches a real workflow run | Detection lag between audits |
+| Ruleset drift | A context added with a null `integration_id` accepts an App-authored check of that name | A name-matched green | Extend the Phase 0 drift check to fail on a null `integration_id` | Depends on Phase 0 landing |
+| Owner-side compromise | Repository admin edits the environment's branch policy or ruleset bypass actors; the personal account that owns the App is taken over | Key access or a green context without the App | Out of reach of any in-tree control (ADR line 130). Alert on audit-log events for environment and App settings changes | Accepted, matches the ADR's P2 root-of-trust statement |
+| Key theft from a workflow merged to `main` | A merged step reads the secret | Same as key theft | CODEOWNERS and review on `.github/workflows/` (Phase 0) | Review quality |
 
 ## Owner checklist
 
-Only the repository owner can do these. Do them in order. Nothing here touches a ruleset.
+Only the repository owner can do these. Steps 1 to 15 are for now, in order. Steps 16 to 18 happen after code exists. Nothing in steps 1 to 15 touches a ruleset.
 
 1. Open `https://github.com/settings/apps/new` while signed in as `rjmurillo`.
 2. GitHub App name: `rjmurillo-adr101-publisher`. If taken, append a short suffix and use the same name everywhere below.
 3. Homepage URL: `https://github.com/rjmurillo/ai-agents`.
 4. Identifying and authorizing users: leave the callback URL empty. Clear "Expire user authorization tokens" and "Request user authorization (OAuth) during installation".
 5. Webhook: clear "Active". Leave every event unchecked.
-6. Repository permissions: Checks = Read and write; Contents = Read-only; Pull requests = Read-only; Metadata = Read-only. Every other permission stays "No access". Set no account permission and no organization permission.
+6. Repository permissions: Checks = Read and write. Metadata = Read-only. Every other permission stays "No access". Set no account permission and no organization permission.
 7. Where can this GitHub App be installed: "Only on this account".
 8. Create the App. Record the numeric App ID and the Client ID from the App's settings page.
-9. On the App's settings page choose "Generate a private key". A `.pem` file downloads once.
-10. Install the App: App settings, "Install App", account `rjmurillo`, "Only select repositories", choose `ai-agents`.
-11. In `rjmurillo/ai-agents` settings, Environments, create `adr101-publisher`. Set "Deployment branches and tags" to "Selected branches and tags" and add the branch `main`. Add no required reviewers and no wait timer. Under the environment add:
-    - Secret `ADR101_PUBLISHER_APP_PRIVATE_KEY`: the full contents of the `.pem` file, including the BEGIN and END lines.
-    - Variable `ADR101_PUBLISHER_APP_ID`: the numeric App ID.
-    Do not create either at repository or organization level. A branch-defined `on: push` workflow can read those.
-12. Move the `.pem` into your password manager and delete the downloaded copy with `trash`. Do not commit it, paste it into an issue, or put it in a session file.
-13. Probe the containment before anything else relies on it. Push a throwaway branch whose workflow sets `environment: adr101-publisher` and reads the secret. GitHub must refuse the deployment. If it runs, stop and tell the orchestrator.
-14. Leave the repository variable `ADR101_PUBLISHER_ENABLED` unset. It stays off until the job exists and a test pull request has published one check run.
-15. Do not add the new context to any ruleset yet. When the job has published on a test pull request, read its App id with `gh api repos/rjmurillo/ai-agents/commits/<sha>/check-runs --jq '.check_runs[] | {name, app: .app.id}'`, then follow the no-gap rename sequence in `.claude/rules/ci-scripts.md` MUST 22: emit the context, merge, require it with that `integration_id`, then remove any old requirement.
-16. Rotation: generate a second key in App settings, replace the environment secret, run one test pull request, then delete the first key in App settings.
+9. Install the App: App settings, "Install App", account `rjmurillo`, "Only select repositories", choose `ai-agents`.
+10. In `rjmurillo/ai-agents` settings, Environments, create `adr101-publisher`. Set "Deployment branches and tags" to "Selected branches and tags" and add the branch `main`. Add no required reviewers and no wait timer.
+11. Test the containment with a dummy value first. Add the environment secret `ADR101_PUBLISHER_APP_PRIVATE_KEY` with the text `probe-not-a-key`. Push a throwaway branch whose workflow sets `environment: adr101-publisher` and echoes whether the secret is set, not its value. GitHub must refuse the deployment. If the job runs, delete the secret and stop: the environment policy does not hold. Delete the throwaway branch.
+12. Generate the key only after step 11 passes. On the App's settings page choose "Generate a private key". A `.pem` file downloads once.
+13. Replace the environment secret `ADR101_PUBLISHER_APP_PRIVATE_KEY` with the full contents of the `.pem`, including the BEGIN and END lines. Add the environment variable `ADR101_PUBLISHER_APP_ID` with the numeric App ID. Create neither at repository or organization level, because a branch-defined `on: push` workflow can read those.
+14. Move the `.pem` into your password manager and delete the downloaded copy with `trash`. Do not commit it, paste it into an issue, or put it in a session file. Set a calendar reminder for rotation in 90 days.
+15. Leave the repository variable `ADR101_PUBLISHER_ENABLED` unset. It stays off until the job exists and a test pull request has published one check run.
+16. After the job exists and has published on a test pull request, read its App id with `gh api repos/rjmurillo/ai-agents/commits/<sha>/check-runs --jq '.check_runs[] | {name, app: .app.id}'`. Then follow the no-gap rename sequence in `.claude/rules/ci-scripts.md` MUST 22: emit the context, merge, require it with that `integration_id`, then remove any old requirement. This step edits the ruleset and is yours to run.
+17. Probe a fork. Open a pull request from a fork of `ai-agents` against `main` and read whether the App's check run attaches to the fork head SHA (ADR line 322). Record the answer on issue #5245. Do not assume either result.
+18. Rotation, every 90 days: generate a second key in App settings, replace the environment secret, run one test pull request, then delete the first key in App settings.
 
 Names the code would read: environment `adr101-publisher`, secret `ADR101_PUBLISHER_APP_PRIVATE_KEY`, variable `ADR101_PUBLISHER_APP_ID`, repository variable `ADR101_PUBLISHER_ENABLED`.
 
@@ -195,6 +201,7 @@ Build, behind `ADR101_PUBLISHER_ENABLED` (default off), a base-owned workflow wi
 - Workflow YAML with triggers and calls only: an `execute` job on its own runner with `contents: read`, no secrets, no environment, running a base-owned harness over the candidate checked out as data; a `publish` job with `needs: execute`, `if: ${{ always() }}`, `environment: adr101-publisher`, and no candidate code.
 - A verifier that reads the published check run through the API and checks `app.id`, `head_sha`, `name`, and a base-owned `external_id` digest of the captured SHAs. It rejects tampered or mismatched evidence as FAIL.
 - Tests for flag off (SKIP), flag on with secrets absent (BLOCKED), a mocked valid token and evidence (PASS), and tampered evidence (FAIL).
+- A test or lint that fails when the publication job checks out the head, restores a cache, or interpolates a head-controlled string into `run:`, and a CODEOWNERS entry for the workflow file.
 - It would not join `scripts/ci/ruleset_required_contexts.py` or any ruleset.
 
 An honest label on the result would read "published by the pinned App for this head and base; execution authenticity bounded by ADR-101 line 203". It must never read "verified".
