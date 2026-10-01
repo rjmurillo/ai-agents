@@ -974,6 +974,23 @@ def validate_capability_graph_declarations(repo_root: Path) -> bool:
     return bool(validate_capability_graph(repo_root))
 
 
+def validate_nl_structural_debt_ratchet(repo_root: Path) -> bool:
+    """Gate structural debt in natural-language artifacts (issue #5397).
+
+    Ratchets authored duplicate normative blocks and stale derived cardinality
+    claims against `nl_structural_debt_baseline.json`. Generated projections are
+    excluded. SKIP when `templates/` is absent, which is a downstream install
+    rather than a violation.
+    """
+    if not (repo_root / "templates" / "skills").is_dir():
+        raise MissingScriptSkip(
+            "templates/skills not present (downstream install); no authored artifacts to ratchet"
+        )
+    from check_nl_structural_debt import validate_nl_structural_debt
+
+    return bool(validate_nl_structural_debt(repo_root))
+
+
 def validate_skill_routing_roles_declarations(repo_root: Path) -> bool:
     """Gate every skill's `metadata.routing` declaration (REQ-038, issue #5384).
 
