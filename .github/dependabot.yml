@@ -1,0 +1,21 @@
+# Dependabot owns security updates for uv lockfiles. Renovate (renovate.json)
+# owns version updates, so open-pull-requests-limit is 0 to avoid duplicate
+# bump PRs. GitHub documents that this limit blocks version updates only and
+# leaves security updates running:
+# https://docs.github.com/en/code-security/dependabot/dependabot-security-updates/configuring-dependabot-security-updates
+version: 2
+updates:
+  - package-ecosystem: "uv"
+    directories:
+      - "/"
+      - "/packages/semantic-hooks"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 0
+    groups:
+      uv-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+    commit-message:
+      prefix: "fix(deps)"
