@@ -94,9 +94,10 @@ Runner = Callable[..., "subprocess.CompletedProcess[str]"]
 class MaterializeError(Exception):
     """The head could not be fetched, or is not the commit the event named."""
 
-    def __init__(self, message: str, *, moved: bool = False) -> None:
+    def __init__(self, message: str, *, moved: bool = False, blocked_reason: str = "") -> None:
         super().__init__(message)
         self.moved = moved
+        self.blocked_reason = blocked_reason
 
 
 def harness_argv(scratch: Path) -> list[str]:
@@ -119,16 +120,23 @@ def _tool_root() -> Path:
 
 
 def _git(cwd: Path, args: Sequence[str], env: Mapping[str, str], runner: Runner) -> str:
-    result = runner(
-        ["git", *_INERT_GIT, *args],
-        cwd=cwd,
-        capture_output=True,
-        encoding="utf-8",
-        errors="replace",
-        check=False,
-        timeout=GIT_TIMEOUT_SECONDS,
-        env={**env, **_NO_SYSTEM_CONFIG},
-    )
+    try:
+        result = runner(
+            ["git", *_INERT_GIT, *args],
+            cwd=cwd,
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+            timeout=GIT_TIMEOUT_SECONDS,
+            env={**env, **_NO_SYSTEM_CONFIG},
+        )
+    except FileNotFoundError:
+        raise MaterializeError("git not found", blocked_reason=REASON_TOOL_ABSENT) from None
+    except subprocess.TimeoutExpired:
+        raise MaterializeError(
+            f"git {args[0]} exceeded {GIT_TIMEOUT_SECONDS}s", blocked_reason=REASON_TIMEOUT
+        ) from None
     if result.returncode != 0:
         raise MaterializeError(f"git {args[0]} failed with exit {result.returncode}")
     return str(result.stdout).strip()
@@ -265,6 +273,8 @@ def run_execute(
         try:
             materialize_head(tool_root, env.pull_number, env.head_sha, scratch, runner)
         except MaterializeError as exc:
+            if exc.blocked_reason:
+                return CheckOutcome.blocked(VALIDATOR, reason=exc.blocked_reason, detail=str(exc))
             reason = REASON_REVISION_MOVED if exc.moved else REASON_EXECUTION_FAILED
             return CheckOutcome.failed(VALIDATOR, reason=reason, detail=str(exc))
         try:

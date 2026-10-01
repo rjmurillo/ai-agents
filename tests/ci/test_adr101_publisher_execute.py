@@ -155,6 +155,24 @@ class TestRun:
         assert outcome.state is EvidenceState.BLOCKED
         assert outcome.reason == "timeout"
 
+    @pytest.mark.parametrize(
+        "error, reason",
+        [
+            (FileNotFoundError("git"), "tool.absent"),
+            (subprocess.TimeoutExpired("git", 1), "timeout"),
+        ],
+    )
+    def test_a_missing_git_or_a_git_timeout_is_blocked_not_a_traceback(
+        self, tmp_path: Path, error: Exception, reason: str
+    ) -> None:
+        def broken(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+            raise error
+
+        outcome = ex.run_execute(make_env(), {}, broken, tmp_path)
+
+        assert outcome.state is EvidenceState.BLOCKED
+        assert outcome.reason == reason
+
     def test_a_head_that_moved_is_fail_and_the_harness_never_runs(self, tmp_path: Path) -> None:
         runner = FakeRunner(fetched_sha="c" * 40)
 
