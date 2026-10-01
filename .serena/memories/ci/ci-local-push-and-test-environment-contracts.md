@@ -9,15 +9,17 @@ Set `CLAUDE_PLUGIN_ROOT=.claude`, not the repository root. With the root, the
 memory scripts fail at import. The skill command paths already fall back to
 `.claude` (`${CLAUDE_PLUGIN_ROOT:-.claude}`), so an explicit value must match.
 
-## Set PYTHONDONTWRITEBYTECODE=1 for ad hoc runs
+## Stray bytecode is not generated-file drift
 
-A leftover `__pycache__` under `.claude` or `src` fails the generated-staleness
-push gate. Set `PYTHONDONTWRITEBYTECODE=1` for the run that created it.
-
-Do not confuse this with `decision-warm-pycache-before-push-never-purge.md`.
-That memory covers the parallel pre-push group racing on a cold cache under
-`scripts`, where the fix is to warm the cache, never to purge it. This one covers
-stray bytecode written by manual runs into trees the staleness gate scans.
+The PR #6063 report blamed a leftover `__pycache__` under `.claude` or `src` for
+a failed generated-staleness push gate. The code does not support that cause.
+`_is_bytecode_artifact` in `build/scripts/build_all.py` excludes any path under
+`__pycache__` and any `.pyc` or `.pyo` from the generator-write comparison, and
+the `--check` path restores pre-existing caches. Treat a staleness failure as
+real drift in a generator-owned file and read the reported paths. Setting
+`PYTHONDONTWRITEBYTECODE=1` does not clear or prevent reading an existing cache.
+See `decision-warm-pycache-before-push-never-purge.md` for the cache race that
+does exist.
 
 ## The pre-push python-tests job only collects
 
@@ -27,7 +29,7 @@ full execution is opt-in through `AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY`, per
 ADR-104). Real execution happens in CI or by hand. To match CI locally:
 
 ```bash
-CLAUDE_PLUGIN_ROOT=.claude GITHUB_EVENT_NAME=merge_group PYTHONDONTWRITEBYTECODE=1 \
+CLAUDE_PLUGIN_ROOT=.claude GITHUB_EVENT_NAME=merge_group \
   uv run --frozen pytest
 ```
 
