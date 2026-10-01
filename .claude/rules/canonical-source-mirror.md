@@ -60,7 +60,7 @@ A pre-push guard may be stricter than the canonical CI validator, to block local
 
 ## Anti-patterns rejected by this rule
 
-- **"Matches X" with no path.** A docstring says `# matches the validator` but does not name the validator file. The next reader cannot find what you mean. Reject.
+- **"Matches X" with neither a canonical reference nor structural evidence.** A docstring says `# matches the validator` but names no file, import, conformance test, or generator. The next reader cannot find what you mean. Reject. A claim with any one of those passes this check.
 - **"Mirrors X" with a paraphrased contract and no structural evidence.** The docstring describes the regex in prose with no import, test, or generator behind it. The prose drifts from the regex within one revision. Reject.
 - **"Aligned with X" with no divergence section, when the implementation diverges.** The reader assumes parity; the code does not deliver parity; the bug compounds with the false claim. Reject.
 - **First-commit citation deferred to "I will add it later".** The cost of citing the canonical source is roughly zero at write time and roughly one round of review later. Pay the zero. Reject.
