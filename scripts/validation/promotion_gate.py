@@ -45,6 +45,7 @@ from scripts.validation.promotion_candidate import (  # noqa: E402
 from scripts.validation.promotion_evidence import (  # noqa: E402
     BoundEvidence,
     Candidate,
+    EvidenceRecord,
     bind_records,
     load_evidence_dir,
 )
@@ -84,6 +85,20 @@ class GateResult:
 
     manifest: dict[str, Any]
     exit_code: int
+
+
+def _digest_bound(
+    candidate: Candidate, bound: Sequence[EvidenceRecord], build_validators: frozenset[str]
+) -> bool:
+    """True when the candidate has a tarball digest and a build result bound to it.
+
+    ADR-113 decision 4 defines the promoted candidate as the commit plus the
+    tarball digest. A manifest bound to the commit alone is not that candidate.
+    Binding already rejected any build record whose digest differed.
+    """
+    return bool(candidate.digest) and any(
+        record.outcome.validator in build_validators for record in bound
+    )
 
 
 def _no_applicability_outcome(candidate: Candidate) -> CheckOutcome:
@@ -135,6 +150,7 @@ def build_manifest(
     mode: str,
     today: date,
     exceptions_loaded: int,
+    digest_bound: bool,
 ) -> dict[str, Any]:
     """Assemble the manifest. ``verdict`` follows decision 9 whatever the mode."""
     tally = counts(classified, len(remediated))
@@ -149,6 +165,7 @@ def build_manifest(
         "counts": tally,
         "findings": [entry.to_dict() for entry in classified],
         "remediated": remediated,
+        "digest_bound": digest_bound,
         "evidence": {
             "bound": len(bound.bound),
             "rejected": [item.to_dict() for item in bound.rejected],
@@ -196,6 +213,7 @@ def run_gate(
         mode=mode,
         today=day,
         exceptions_loaded=len(exceptions),
+        digest_bound=_digest_bound(candidate, bound.bound, build_validators),
     )
     blocked = manifest["verdict"] == "block"
     code = EXIT_LOGIC if blocked and mode == MODE_ENFORCING else EXIT_OK
@@ -287,7 +305,10 @@ def _write_outputs(args: argparse.Namespace, manifest: dict[str, Any]) -> None:
         args.output.write_text(text, encoding="utf-8")
     if args.github_output:
         eligible = (
-            manifest["verdict"] == "promote" and manifest["enforced"] and bool(args.expect_tag)
+            manifest["verdict"] == "promote"
+            and manifest["enforced"]
+            and manifest["digest_bound"]
+            and bool(args.expect_tag)
         )
         with args.github_output.open("a", encoding="utf-8") as handle:
             handle.write(f"verdict={manifest['verdict']}\n")
