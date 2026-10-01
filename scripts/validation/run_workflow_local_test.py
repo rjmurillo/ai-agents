@@ -519,6 +519,10 @@ def _copy_git_metadata(common: Path, gitdir: Path, dest: Path) -> None:
     dest.chmod(0o777)
 
 
+def _is_windows() -> bool:
+    return os.name == "nt"
+
+
 class GitMountError(RuntimeError):
     """The linked worktree's git metadata cannot be mounted into the act container."""
 
@@ -638,10 +642,12 @@ def _worktree_git_mount(repo_root: Path) -> Iterator[list[str]]:
     the same and a job that runs ``git fetch`` never touches the host
     repository. The copy keeps the repo config, so remote URLs and credential
     helper settings are visible to the job; this is a local-only tool. Yields no
-    args for a normal checkout or an unrecognised layout.
+    args for a normal checkout, an unrecognised layout, or Windows, where the
+    worktree's ``.git`` file names a drive path a Linux job container cannot
+    resolve and the mount cannot change that.
     """
     gitdir_text = _read_worktree_gitdir(repo_root)
-    if gitdir_text is None:
+    if gitdir_text is None or _is_windows():
         yield []
         return
     gitdir = Path(gitdir_text)

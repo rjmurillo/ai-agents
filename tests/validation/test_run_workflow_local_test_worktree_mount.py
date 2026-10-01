@@ -442,3 +442,19 @@ def test_colon_in_the_temp_root_is_refused(trusted, monkeypatch, tmp_path):
         with w._worktree_git_mount(worktree):
             pass
     assert list(weird.iterdir()) == []
+
+
+def test_windows_yields_no_mount_instead_of_rejecting_drive_paths(monkeypatch, tmp_path):
+    worktree, _, _ = _linked_worktree(tmp_path)
+    monkeypatch.setattr(w, "_is_windows", lambda: True)
+    monkeypatch.setattr(w, "_host_common_dir", lambda _root: pytest.fail("no git call on Windows"))
+
+    with w._worktree_git_mount(worktree) as args:
+        assert args == []
+
+
+def test_is_windows_reads_os_name(monkeypatch):
+    monkeypatch.setattr(w.os, "name", "nt")
+    assert w._is_windows() is True
+    monkeypatch.setattr(w.os, "name", "posix")
+    assert w._is_windows() is False
