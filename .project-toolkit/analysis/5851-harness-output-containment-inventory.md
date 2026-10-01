@@ -8,7 +8,7 @@ Issue #5851 wants large command output kept out of model context. Full output st
 
 ## Method and evidence labels
 
-- PROBED: run on 2026-09-30 against the real binary with a throwaway hook. Result observed in what the model reported.
+- PROBED: run on 2026-09-30 against the real binary with a throwaway hook. The result is the tool_result content the host sent toward the model, read from the host's stream-json event log, with a negative control. A model's own report is not used as evidence.
 - DOCUMENTED: stated in the vendor hook reference, fetched the same day. Not run here.
 - BINARY: string present in the installed binary. Effect not run.
 - NOT RUN: attempted and blocked, reason named.
@@ -35,9 +35,9 @@ BINARY rows come from `strings` on the Codex 0.157.1 binary shipped in the `@ope
 
 | Seam | Can replace or bound output? | Evidence |
 |---|---|---|
-| PreToolUse `hookSpecificOutput.updatedInput.command` | Yes. Rewrites the command before it runs, so a wrapper can spill and bound output. | PROBED. Command `echo REALOUTPUT-12345` was rewritten to `echo REWRITTEN-BY-PRE-HOOK`. The model saw the rewritten output. |
-| PostToolUse `hookSpecificOutput.updatedToolOutput`, object form | Yes, for a successful Bash call. The object must match `tool_response`: `stdout`, `stderr`, `interrupted`, `isImage`, `noOutputExpected`. | PROBED. Replacing `stdout` showed `CONTAINED-BY-HOOK-PROBE` to the model. |
-| PostToolUse `updatedToolOutput`, bare string | No. Ignored with no error. | PROBED. The model still saw `REALOUTPUT-12345`. |
+| PreToolUse `hookSpecificOutput.updatedInput.command` | Yes. Rewrites the command before it runs, so a wrapper can spill and bound output. | PROBED. Command `echo REALOUTPUT-12345` was rewritten to `echo REWRITTEN-BY-PRE-HOOK`. The model reported the rewritten output (model report only, no event-log check). |
+| PostToolUse `hookSpecificOutput.updatedToolOutput`, object form | Yes, for a successful Bash call. The object must match `tool_response`: `stdout`, `stderr`, `interrupted`, `isImage`, `noOutputExpected`. | PROBED. The host's tool_result held only `CONTAINED-BY-HOOK-PROBE`. The original marker was absent. |
+| PostToolUse `updatedToolOutput`, bare string | No. Ignored with no error. | PROBED. Negative control: the host's tool_result still held `REALOUTPUT-12345`. |
 | PostToolUseFailure (nonzero exit) | No. The hook fires with `error` set to `Exit code 3\n<stderr>\n<stdout>` and no `tool_response`. Returning `updatedToolOutput` or `additionalContext` changed nothing the model reported. | PROBED. Exit 3 command; the model quoted the original text. |
 | `additionalContext` | Adds context. Capped at 10,000 characters; larger text spills to a file with a 2,000 character preview. | DOCUMENTED. |
 | `CLAUDE_CODE_BASH_OUTPUT_LIMIT` (bytes) | Native cap on a successful Bash result. Default 1,000,000 characters. Truncates and names a debug log. Not applied to timeouts. | DOCUMENTED. |
@@ -94,11 +94,11 @@ new = dict(tr, stdout="CONTAINED-BY-HOOK-PROBE") if isinstance(tr, dict) else "C
 print(json.dumps({"hookSpecificOutput": {"hookEventName": "PostToolUse", "updatedToolOutput": new}}))
 ```
 
-With `new` as the bare string the model still saw the real output. With the object form it saw `CONTAINED-BY-HOOK-PROBE`. The logged `tool_response` was `{"stdout": "REALOUTPUT-12345", "stderr": "", "interrupted": false, "isImage": false, "noOutputExpected": false}`.
+Run with `--output-format stream-json --verbose` and read the `tool_result` block of each `user` event. With `new` as the bare string the tool_result was `REALOUTPUT-12345` (negative control). With the object form it was `CONTAINED-BY-HOOK-PROBE` and the original marker did not appear. The logged `tool_response` was `{"stdout": "REALOUTPUT-12345", "stderr": "", "interrupted": false, "isImage": false, "noOutputExpected": false}`.
 
-Probe B, PreToolUse rewrite: the hook printed `{"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "allow", "updatedInput": {"command": "echo REWRITTEN-BY-PRE-HOOK"}}}`. The model reported `REWRITTEN-BY-PRE-HOOK`.
+Probe B, PreToolUse rewrite: the hook printed `{"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "allow", "updatedInput": {"command": "echo REWRITTEN-BY-PRE-HOOK"}}}`. The model-bound output was `REWRITTEN-BY-PRE-HOOK`, read from the model's reply in that run; the stream-json check was repeated only for Probe A.
 
-Probe C, PostToolUseFailure: the same hook registered for both events, on `bash -c 'echo FAILOUT-777 >&2; echo STDOUT-888; exit 3'`. The failure event carried `error` = `Exit code 3\nFAILOUT-777\nSTDOUT-888` and no `tool_response`. The model quoted the original text, so neither returned field applied.
+Probe C, PostToolUseFailure: the same hook registered for both events, on `bash -c 'echo FAILOUT-777 >&2; echo STDOUT-888; exit 3'`. The failure event carried `error` = `Exit code 3\nFAILOUT-777\nSTDOUT-888` and no `tool_response`. The model's reply quoted the original text, so neither returned field applied. This row rests on the model's report, not the event log, and is weaker than Probe A.
 
 ## Reproduction
 
