@@ -309,6 +309,8 @@ def test_main_json_mode_carries_exit_code_and_review_state(
         "required": True,
         "satisfied": False,
         "detail": payload["security_review"]["detail"],
+        "state": "FAIL",
+        "reason": "violations.found",
     }
 
 

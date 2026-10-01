@@ -1,0 +1,222 @@
+{
+  "schema_version": "1",
+  "description": "Authorized SKIP_ toggles and continue-on-error workflow steps. Every entry names its owner, reason, and expiry date. scripts/validation/check_bypass_allowlist.py fails on a use that is not listed and on an entry whose date has passed. Renew or remove an entry before it expires. Issue 5636, decision D17.",
+  "entries": [
+    {
+      "kind": "toggle",
+      "toggle": "AI_AGENTS_SKIP_TESTS",
+      "reason": "Reference pre-commit hook under .agents/hooks/examples. Installed only by a consumer who copies it; not wired into this repository's hooks.",
+      "owner": "rjmurillo",
+      "expires": "2026-12-31"
+    },
+    {
+      "kind": "toggle",
+      "toggle": "EVAL_SKIP_MODEL_PREFLIGHT",
+      "reason": "Skips the eval harness model reachability probe. The probe fails open by design so a flaky probe cannot block an eval run; the real error surfaces at first call.",
+      "owner": "rjmurillo",
+      "expires": "2026-12-31"
+    },
+    {
+      "kind": "toggle",
+      "toggle": "SKIP_ACTIONLINT",
+      "reason": "Skips the local actionlint pre-commit job. Not a required check; CI runs workflow validation separately.",
+      "owner": "rjmurillo",
+      "expires": "2026-12-31"
+    },
+    {
+      "kind": "toggle",
+      "toggle": "SKIP_AUTOFIX",
+      "reason": "Skips autofix-only jobs. The paired check and lint jobs still run. Also the CI action input skip-autofix, default 0.",
+      "owner": "rjmurillo",
+      "expires": "2026-12-31"
+    },
+    {
+      "kind": "toggle",
+      "toggle": "SKIP_AUTOFIX_VALUE",
+      "reason": "Internal variable in the setup-code-env action that carries the skip-autofix input into SKIP_AUTOFIX. Same authorization as SKIP_AUTOFIX.",
+      "owner": "rjmurillo",
+      "expires": "2026-12-31"
+    },
+    {
+      "kind": "toggle",
+      "toggle": "SKIP_CLI_E2E",
+      "reason": "Not a bypass. git_hook_policy reads it only to reject it with exit 2, so setting it hardens the CLI E2E gate.",
+      "owner": "rjmurillo",
+      "expires": "2026-12-31"
+    },
+    {
+      "kind": "toggle",
+      "toggle": "SKIP_PUSH_LOCK_COMMIT_GUARD",
+      "reason": "Local escape hatch for the push-lock commit guard probe (issue 5123 race guard). Prints to stdout only.",
+      "owner": "rjmurillo",
+      "expires": "2026-12-31"
+    },
+    {
+      "kind": "toggle",
+      "toggle": "SKIP_WORKFLOW_LOCAL_TEST",
+      "reason": "Documented bypass for workflows that cannot run under act. Skips the advisory workflow-local-run job.",
+      "owner": "rjmurillo",
+      "expires": "2026-12-31"
+    },
+    {
+      "kind": "toggle",
+      "toggle": "SKIP_YAMLLINT",
+      "reason": "Skips the advisory yaml-advisory hook job only. Prints a typed SKIP line with policy.env_bypass.",
+      "owner": "rjmurillo",
+      "expires": "2026-12-31"
+    },
+    {
+      "kind": "continue-on-error",
+      "path": ".github/workflows/agent-drift-detection.yml",
+      "job": "validate",
+      "step": "Regenerate and validate agent files",
+      "reason": "Re-asserted: the downstream step Fail when any drift check fails reads the step outcome and exits 1.",
+      "owner": "rjmurillo",
+      "expires": "2026-12-31"
+    },
+    {
+      "kind": "continue-on-error",
+      "path": ".github/workflows/agent-drift-detection.yml",
+      "job": "validate",
+      "step": "Check plugin lib mirrors are in sync",
+      "reason": "Re-asserted: the downstream step Fail when any drift check fails reads the step outcome and exits 1.",
+      "owner": "rjmurillo",
+      "expires": "2026-12-31"
+    },
+    {
+      "kind": "continue-on-error",
+      "path": ".github/workflows/agent-drift-detection.yml",
+      "job": "validate",
+      "step": "Check plugin manifest parity and description counts",
+      "reason": "Re-asserted: the downstream step Fail when any drift check fails reads the step outcome and exits 1.",
+      "owner": "rjmurillo",
+      "expires": "2026-12-31"
+    },
+    {
+      "kind": "continue-on-error",
+      "path": ".github/workflows/ai-spec-validation.yml",
+      "job": "validate-spec",
+      "step": "🔗 Requirements Traceability Check (Analyst Agent)",
+      "reason": "Re-asserted: check_spec_failures.py reads the step outcome, verdict, and infrastructure flag (fixed in PR 6043).",
+      "owner": "rjmurillo",
+      "expires": "2026-12-31"
+    },
+    {
+      "kind": "continue-on-error",
+      "path": ".github/workflows/ai-spec-validation.yml",
+      "job": "validate-spec",
+      "step": "✅ Completeness Check (Critic Agent)",
+      "reason": "Re-asserted: check_spec_failures.py reads the step outcome, verdict, and infrastructure flag (fixed in PR 6043).",
+      "owner": "rjmurillo",
+      "expires": "2026-12-31"
+    },
+    {
+      "kind": "continue-on-error",
+      "path": ".github/workflows/ai-spec-validation.yml",
+      "job": "validate-spec",
+      "step": "External-signal gate (observe)",
+      "reason": "Observe-only until the canary in PR 2361 decides. The authoritative gate is check_spec_failures.py. Re-review then.",
+      "owner": "rjmurillo",
+      "expires": "2026-12-31"
+    },
+    {
+      "kind": "continue-on-error",
+      "path": ".github/workflows/ai-spec-validation.yml",
+      "job": "validate-spec",
+      "step": "Post PR Comment",
+      "reason": "Comment posting only. Carries no verdict.",
+      "owner": "rjmurillo",
+      "expires": "2026-12-31"
+    },
+    {
+      "kind": "continue-on-error",
+      "path": ".github/workflows/drift-detection.yml",
+      "job": "detect-drift",
+      "step": "Emit K2 kill-criteria event",
+      "reason": "Telemetry emission. A failure loses a metric, not a verdict.",
+      "owner": "rjmurillo",
+      "expires": "2026-12-31"
+    },
+    {
+      "kind": "continue-on-error",
+      "path": ".github/workflows/drift-detection.yml",
+      "job": "detect-drift",
+      "step": "Summarize kill-criteria drift telemetry",
+      "reason": "Alert by design: the report exits 1 when a criterion fired and the alert lands in the step summary.",
+      "owner": "rjmurillo",
+      "expires": "2026-12-31"
+    },
+    {
+      "kind": "continue-on-error",
+      "path": ".github/workflows/drift-detection.yml",
+      "job": "detect-drift",
+      "step": "Upload kill-criteria events",
+      "reason": "Artifact upload. A failure loses a copy of a git-ignored events file.",
+      "owner": "rjmurillo",
+      "expires": "2026-12-31"
+    },
+    {
+      "kind": "continue-on-error",
+      "path": ".github/workflows/memory-health.yml",
+      "job": "health-check",
+      "step": "Run health check (JSON)",
+      "reason": "Re-asserted: Parse health results returns 1 on a missing, empty, unparseable, or schema-invalid report.",
+      "owner": "rjmurillo",
+      "expires": "2026-12-31"
+    },
+    {
+      "kind": "continue-on-error",
+      "path": ".github/workflows/memory-health.yml",
+      "job": "health-check",
+      "step": "Run health check (Markdown)",
+      "reason": "Markdown report only. The JSON path is re-asserted, and the PR comment step posts a no-report notice.",
+      "owner": "rjmurillo",
+      "expires": "2026-12-31"
+    },
+    {
+      "kind": "continue-on-error",
+      "path": ".github/workflows/post-pr-retrospective.yml",
+      "job": "retrospective",
+      "step": "Run retrospective via Claude Code",
+      "reason": "Issue 2015 contract: an expired token or API outage must not paint the check red. The annotation is the signal.",
+      "owner": "rjmurillo",
+      "expires": "2026-12-31"
+    },
+    {
+      "kind": "continue-on-error",
+      "path": ".github/workflows/pr-maintenance.yml",
+      "job": "discover-prs",
+      "step": "Detect orphan commits on merged PR branches",
+      "reason": "Issue 4316 contract: warn, never block. Findings are for a human to judge.",
+      "owner": "rjmurillo",
+      "expires": "2026-12-31"
+    },
+    {
+      "kind": "continue-on-error",
+      "path": ".github/workflows/pr-validation.yml",
+      "job": "validate-pr",
+      "step": "Post PR Comment",
+      "reason": "Comment posting only, behind a retry wrapper. The validation verdict is computed in earlier steps.",
+      "owner": "rjmurillo",
+      "expires": "2026-12-31"
+    },
+    {
+      "kind": "continue-on-error",
+      "path": ".github/workflows/semantic-pr-title-check.yml",
+      "job": "main",
+      "step": "semantic",
+      "reason": "Re-asserted: the Classify outcome step ignores the known HTML flake and blocks real failures.",
+      "owner": "rjmurillo",
+      "expires": "2026-12-31"
+    },
+    {
+      "kind": "continue-on-error",
+      "path": ".github/workflows/software-engineering-library-activation.yml",
+      "job": "activation-gate",
+      "step": "Run live activation eval",
+      "reason": "Re-asserted: Fail when live activation gate failed reads the step outcome and exits 1, alongside the rollback alert.",
+      "owner": "rjmurillo",
+      "expires": "2026-12-31"
+    }
+  ]
+}

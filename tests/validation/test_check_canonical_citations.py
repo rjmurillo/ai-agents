@@ -370,6 +370,75 @@ def test_main_no_scan_roots_skips(
     assert "[SKIP]" in out
 
 
+# --- Typed result on every non-pass path (issue #5636) ---
+
+
+def _typed_lines(err: str) -> list[str]:
+    return [line for line in err.splitlines() if "validate_canonical_citations" in line]
+
+
+def test_soft_warning_prints_a_typed_fail_with_advisory_findings_on_stderr(
+    fake_repo: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("STRICT_CANONICAL_CHECK", raising=False)
+    _write_file(fake_repo, ".claude/hooks/v.py", '"""Matches the validator."""\n')
+
+    rc = ccc.main(["--repo-root", str(fake_repo)])
+
+    captured = capsys.readouterr()
+    assert rc == 0
+    lines = _typed_lines(captured.err)
+    assert len(lines) == 1
+    assert lines[0].startswith("[FAIL] validate_canonical_citations reason=advisory.findings")
+    assert "findings=1" in lines[0]
+    assert "validate_canonical_citations" not in captured.out
+
+
+def test_strict_violation_prints_violations_found_and_still_exits_one(
+    fake_repo: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("STRICT_CANONICAL_CHECK", raising=False)
+    _write_file(fake_repo, ".claude/hooks/v.py", '"""Matches the validator."""\n')
+
+    rc = ccc.main(["--repo-root", str(fake_repo), "--strict"])
+
+    lines = _typed_lines(capsys.readouterr().err)
+    assert rc == 1
+    assert len(lines) == 1
+    assert "reason=violations.found" in lines[0]
+
+
+def test_absent_scan_roots_print_a_typed_skip_and_still_exit_zero(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    rc = ccc.main(["--repo-root", str(tmp_path)])
+
+    lines = _typed_lines(capsys.readouterr().err)
+    assert rc == 0
+    assert len(lines) == 1
+    assert lines[0].startswith("[SKIP] validate_canonical_citations reason=tree.absent")
+
+
+def test_a_clean_run_prints_no_typed_line(
+    fake_repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _write_file(fake_repo, ".claude/hooks/clean.py", '"""Clean docstring."""\n')
+
+    rc = ccc.main(["--repo-root", str(fake_repo)])
+
+    assert rc == 0
+    assert _typed_lines(capsys.readouterr().err) == []
+
+
+def test_a_bad_repo_root_still_exits_two_without_a_typed_line(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    rc = ccc.main(["--repo-root", str(tmp_path / "missing")])
+
+    assert rc == 2
+    assert _typed_lines(capsys.readouterr().err) == []
+
+
 # --- Unreadable / unparseable files signal instead of silent skip (#2809) ---
 
 

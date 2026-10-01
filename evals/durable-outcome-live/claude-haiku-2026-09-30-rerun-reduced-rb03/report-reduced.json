@@ -1,0 +1,47 @@
+{
+  "status": "VERIFIED",
+  "config": {
+    "model": "claude-haiku-4-5-20251001",
+    "harness": "claude",
+    "harness_version": "2.1.285",
+    "context_bytes": 0,
+    "retry_budget": 1,
+    "reviewer": "none",
+    "control": "reduced"
+  },
+  "verdict_counts": {
+    "ACCEPTED_DURABLE": 0,
+    "ACCEPTED_NOT_DURABLE": 0,
+    "REJECTED": 1,
+    "UNVERIFIED": 0
+  },
+  "per_task": [
+    {
+      "task_id": "RB-03-investigate-before-edit",
+      "repeats": 1,
+      "durable_accepts": 0,
+      "verdicts": [
+        "REJECTED"
+      ]
+    }
+  ],
+  "zero_success_tasks": [
+    "RB-03-investigate-before-edit"
+  ],
+  "all_success_tasks": [],
+  "cost_percentiles_usd": {
+    "p10": 0.1884,
+    "p50": 0.1884,
+    "p90": 0.1884
+  },
+  "correction_minutes_percentiles": {
+    "p10": 0.0,
+    "p50": 0.0,
+    "p90": 0.0
+  },
+  "headline": {
+    "cost_per_accepted_durable_task_usd": null,
+    "correction_minutes_per_accepted_durable_task": null,
+    "residual_risk": 1
+  }
+}

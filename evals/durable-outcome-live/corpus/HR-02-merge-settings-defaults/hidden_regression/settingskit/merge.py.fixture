@@ -1,0 +1,10 @@
+"""Merge settings dicts."""
+
+
+def merge_settings(base: dict, override: dict) -> dict:
+    for key, value in override.items():
+        if isinstance(value, dict) and isinstance(base.get(key), dict):
+            merge_settings(base[key], value)
+        else:
+            base[key] = value
+    return base
