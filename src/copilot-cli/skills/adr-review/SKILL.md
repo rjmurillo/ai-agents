@@ -28,7 +28,9 @@ metadata:
 
 # ADR Review
 
-Multi-agent debate pattern for rigorous ADR validation. Orchestrates 6 specialized agents through structured review rounds until consensus or 10 rounds maximum.
+Multi-agent debate pattern for rigorous ADR validation. Orchestrates up to 6 specialized agents through structured review rounds until consensus or 10 rounds maximum.
+
+Panel size follows the AGENTS.md trigger. The full six-agent panel runs when the ADR change touches executable enforcement or a rule other gates read. A prose-only or metadata-only edit takes a reduced panel of architect and critic. Either way, any ADR edit that is not frontmatter-only still needs the staged debate log the `git_hook_policy.py adr-review` job checks.
 
 ## Triggers
 
@@ -124,7 +126,7 @@ See [references/deletion-workflow.md](references/deletion-workflow.md) for full 
 | Priority | Requirement | Gate |
 |----------|-------------|------|
 | **P0** | Must resolve | BLOCKING |
-| **P1** | Resolve OR defer with issue | BLOCKING |
+| **P1** | Resolve OR defer with justification in the debate log | BLOCKING |
 | **P2** | Document | Non-blocking |
 
 See [references/issue-resolution.md](references/issue-resolution.md) for deferral protocol.

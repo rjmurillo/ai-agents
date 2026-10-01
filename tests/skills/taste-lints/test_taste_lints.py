@@ -188,7 +188,7 @@ class TestCheckNaming:
 
     def test_leading_underscore_private_module_passes(self) -> None:
         # PEP 8 private module; the directory convention in scripts/eval/. #2795.
-        result = check_naming("scripts/eval/_run_rollup_core.py", [])
+        result = check_naming("scripts/eval/_eval_common.py", [])
         assert [v for v in result if v.rule == "naming"] == []
 
     def test_leading_underscore_then_pascal_case_still_fails(self) -> None:

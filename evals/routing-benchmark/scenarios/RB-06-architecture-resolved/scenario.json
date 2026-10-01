@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "id": "RB-06-architecture-resolved",
+  "category": "architecture_resolved",
+  "difficulty": "ordinary_bounded",
+  "title": "Add per-client rate limiting once the counting scheme is decided",
+  "requirement": "Add per-client rate limiting for the export endpoint in `throttle/limiter.py`. `RateLimiter(limit, window_seconds, clock)` has `allow(client_id) -> bool`. It returns True while a client is within its limit. The counting scheme is an open design question described in docs/decision-context.md.",
+  "allowed_scope": {"paths": ["throttle/limiter.py"]},
+  "expected_changed_paths": ["throttle/limiter.py"],
+  "invariants": [
+    "time comes only from the injected clock",
+    "clients are counted separately",
+    "the limiter uses no shared store and no thread or process it starts itself"
+  ],
+  "acceptance_criteria": [
+    "A client's calls within its limit are allowed and the next call is denied",
+    "Limit and window_seconds below their minimum raise ValueError",
+    "The implementation follows the resolved decision in the driver contract"
+  ],
+  "architecture": {
+    "question": "Which counting scheme should the limiter use: fixed window, recent-call log, or shared-store token bucket?",
+    "context_path": "docs/decision-context.md",
+    "resolved_decision": "Use an in-process fixed-window counter per client. The window index is floor(clock() / window_seconds). The count resets when the index changes.",
+    "driver_contract": "Implement RateLimiter as a fixed-window counter kept in process memory. Window index is floor(clock() / window_seconds), so windows align to multiples of window_seconds. Keep one (window index, count) pair per client. When the index changes the count restarts at zero. Raise ValueError when limit is below 1 or window_seconds is not positive. Read time only from the clock argument. Do not add modules, a shared store, or a call log."
+  },
+  "validation": {
+    "commands": [["python", "-m", "unittest", "discover", "-s", "tests", "-p", "check_*.py"]],
+    "timeout_seconds": 60
+  },
+  "grading": {"method": "deterministic"},
+  "reset": {"method": "fresh_copy", "notes": "Copy initial/ into an empty directory; delete that directory after grading."},
+  "provenance": {
+    "kind": "synthetic",
+    "reason": "The category needs an unresolved design choice in source context with a deterministic check that separates one resolved choice from another. No existing in-tree fixture holds an executable decision of that shape."
+  }
+}

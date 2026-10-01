@@ -229,6 +229,22 @@ class TestSkillPluginPathResolution:
             + "\n".join(f"  - {v}" for v in violations)
         )
 
+    def test_shared_scanner_scripts_are_selected_by_the_adr_047_tests(
+        self,
+        skill_scripts_with_lib_imports: list[Path],
+    ) -> None:
+        """Issue #5352: the two scanner scripts import the shared container model.
+
+        The ADR-047 checks above only apply to files `_has_lib_import` selects.
+        A shared module imported under a name that marker list misses would
+        leave a wrong or missing bootstrap with every test green, so assert the
+        selection itself.
+        """
+        assert skill_scripts_with_lib_imports
+        selected = {p.relative_to(SKILLS_DIR).as_posix() for p in skill_scripts_with_lib_imports}
+        assert "fix-markdown-fences/scripts/fix_fences.py" in selected
+        assert "prose-self-check/scripts/prose_lint.py" in selected
+
     def test_no_skip_on_missing_agents_dir(self) -> None:
         """No skill script should skip when .agents/ is missing (ADR-047)."""
         skip_pattern = "[SKIP] .agents/ not found"

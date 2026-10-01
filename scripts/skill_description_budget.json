@@ -1,0 +1,7 @@
+{
+  "_comment": "Local engineering ratchet on aggregate skill-description characters per shipped root (issue #5762). Set just above the measured corpus. Not a measured limit of any model host. Raise a value only with a reviewed reason in the same PR; lowering is always fine. Enforced by .github/workflows/skill-passive-compliance.yml.",
+  "roots": {
+    ".claude/skills": {"max_total_chars": 46500},
+    "src/copilot-cli/skills": {"max_total_chars": 46000}
+  }
+}

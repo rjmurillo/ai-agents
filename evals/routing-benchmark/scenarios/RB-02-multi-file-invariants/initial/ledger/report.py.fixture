@@ -1,0 +1,12 @@
+"""Summary report over a ledger."""
+
+from ledger.models import KINDS
+from ledger.store import Ledger
+
+
+def summarize(ledger: Ledger) -> dict[str, int]:
+    totals = {f"{kind}_cents": 0 for kind in KINDS}
+    for entry in ledger.entries:
+        totals[f"{entry.kind}_cents"] += entry.cents
+    totals["balance_cents"] = totals["deposit_cents"] - totals["withdrawal_cents"]
+    return totals

@@ -55,11 +55,28 @@ import sys
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+# The typed contract, package path (see hygiene_outcome for why).
+from scripts.validation.evidence import CheckOutcome  # noqa: E402
+from scripts.validation.hygiene_outcome import hygiene_outcome  # noqa: E402
+
+_VALIDATOR = "validate_in_root_worktrees"
+_SCOPE = "worktree directories inside registered checkouts"
+
 _VALIDATION_DIR = Path(__file__).resolve().parent
 if str(_VALIDATION_DIR) not in sys.path:
     sys.path.insert(0, str(_VALIDATION_DIR))
 
-from check_tmp_worktrees import is_worktree_dir, parse_worktree_list  # noqa: E402
+from check_tmp_worktrees import (  # noqa: E402
+    MARKER_UNREADABLE,
+    MARKER_WORKTREE,
+    directory_state,
+    parse_worktree_list,
+    worktree_marker_state,
+)
 
 _GIT_TIMEOUT_SECONDS = 10
 
@@ -120,21 +137,36 @@ def _exists(path: Path) -> bool:
         return True
 
 
-def is_linked_worktree_dir(candidate: Path) -> bool:
-    """True when ``candidate`` is a linked worktree, not a submodule.
+LINKED = "linked"
+NOT_LINKED = "not_linked"
+UNREADABLE = "unreadable"
 
-    Both carry a `.git` file starting `gitdir:`. A linked worktree points at
-    `<common dir>/worktrees/<name>`; a submodule points at
-    `<superproject>/.git/modules/<name>`.
+
+def linked_worktree_state(candidate: Path) -> str:
+    """Classify ``candidate`` as a linked worktree, not one, or unreadable.
+
+    Both a linked worktree and a submodule carry a `.git` file starting
+    `gitdir:`. A linked worktree points at `<common dir>/worktrees/<name>`; a
+    submodule points at `<superproject>/.git/modules/<name>`. A marker that
+    cannot be read is its own answer, so the scan can count it instead of
+    treating it as a directory that was examined and found clean.
     """
-    if not is_worktree_dir(candidate):
-        return False
+    marker_state = worktree_marker_state(candidate)
+    if marker_state == MARKER_UNREADABLE:
+        return UNREADABLE
+    if marker_state != MARKER_WORKTREE:
+        return NOT_LINKED
     try:
         with (candidate / ".git").open(encoding="utf-8", errors="replace") as handle:
             target = handle.readline()[len("gitdir:") :].strip()
     except OSError:
-        return False
-    return "/worktrees/" in target.replace("\\", "/")
+        return UNREADABLE
+    return LINKED if "/worktrees/" in target.replace("\\", "/") else NOT_LINKED
+
+
+def is_linked_worktree_dir(candidate: Path) -> bool:
+    """True when ``candidate`` is a linked worktree, not a submodule."""
+    return linked_worktree_state(candidate) == LINKED
 
 
 def _innermost_parent(path: Path, checkouts: list[Path]) -> Path | None:
@@ -191,21 +223,30 @@ def _list_registered(repo_root: Path) -> tuple[list[str], bool]:
 
 
 def _child_dirs(container: Path, report: InRootReport) -> list[Path]:
-    """Return the directories directly under ``container``; count what cannot be read."""
+    """Return the directories directly under ``container``; count what cannot be read.
+
+    Each directory test goes through ``directory_state``, because ``Path.is_dir``
+    swallows every OSError on Python 3.14 and would drop an unreadable container
+    or child without a count.
+    """
+    container_state = directory_state(container)
+    if container_state is None:
+        report.unreadable_entries += 1
+        return []
+    if not container_state:
+        return []
     try:
-        if not container.is_dir():
-            return []
         entries = sorted(container.iterdir())
     except OSError:
         report.unreadable_entries += 1
         return []
     children: list[Path] = []
     for entry in entries:
-        try:
-            if entry.is_dir():
-                children.append(entry)
-        except OSError:
+        state = directory_state(entry)
+        if state is None:
             report.unreadable_entries += 1
+        elif state:
+            children.append(entry)
     return children
 
 
@@ -226,8 +267,12 @@ def scan_repo_root(
 
     for container in CONTAINER_DIRS:
         for entry in _child_dirs(repo_root / container, report):
+            state = linked_worktree_state(entry)
+            if state == UNREADABLE:
+                report.unreadable_entries += 1
+                continue
             report.examined += 1
-            if not is_linked_worktree_dir(entry) or _resolve(str(entry)) in known:
+            if state != LINKED or _resolve(str(entry)) in known:
                 continue
             report.worktrees.append(
                 InRootWorktree(path=str(entry), parent=str(repo_root), registered=False)
@@ -285,8 +330,8 @@ def format_report(report: InRootReport) -> str:
     return "\n".join(lines)
 
 
-def validate_in_root_worktrees(repo_root: Path) -> bool:
-    """Advisory pre-PR gate. Prints findings and always returns True.
+def validate_in_root_worktrees(repo_root: Path) -> CheckOutcome:
+    """Advisory pre-PR gate. Prints findings and returns a typed result.
 
     Advisory for the same reason as ``validate_tmp_worktrees``: the subject is
     machine state, not the diff. The harness that creates these worktrees is
@@ -294,9 +339,21 @@ def validate_in_root_worktrees(repo_root: Path) -> bool:
     made them, so a blocking verdict would refuse every push on the machine for
     a condition the pushing agent did not create. The CLI below exits 1 on the
     same findings for anyone who wants the blocking form.
+
+    The result is typed (issue #5636): findings are ``FAIL`` with reason
+    ``advisory.findings`` and a failed listing or unreadable entry is
+    ``BLOCKED``. ``pre_pr_policy`` licenses those pairs by name.
     """
-    print(format_report(build_report(repo_root)))
-    return True
+    report = build_report(repo_root)
+    print(format_report(report))
+    return hygiene_outcome(
+        _VALIDATOR,
+        scope=_SCOPE,
+        examined=report.examined,
+        findings=len(report.worktrees),
+        listing_failed=report.git_listing_failed,
+        unreadable=report.unreadable_entries,
+    )
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:

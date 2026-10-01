@@ -61,8 +61,8 @@ impossible.
 4. `.github/scripts/check_spec_failures.py` holds the authoritative verdict. When
    `spec_validation_failed(trace, completeness)` is true it prints
    `::error::Spec validation failed - implementation does not fully satisfy requirements`
-   and returns 1. An infrastructure failure in **both** reviewers returns 0 instead,
-   so an unavailable Copilot CLI cannot block a merge.
+   and returns 1. An infrastructure failure in **either** reviewer also returns 1
+   (fail closed, issue #5738), so an unavailable Copilot CLI blocks the check.
 
 ## What the reviewers actually see
 

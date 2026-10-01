@@ -57,10 +57,10 @@ delivered, verify only, do not re-touch).
 | File | Action | Description |
 |---|---|---|
 | `.claude/rules/universal.md` | modify | MUST-6 reduced to advisory text |
-| `scripts/detect_scope_explosion.py` | modify | report-only above threshold; `_partition_generated` extended; `SKIP_SCOPE_CHECK` removed |
+| `scripts/detect_scope_explosion.py` | modify | report-only above threshold; `_partition_generated` extended; `SKIP_SCOPE_CHECK` removed | <!-- orphan-ref-ignore -->
 | `tests/validation/test_always_on_corpus_claims.py` | modify | advisory-updated expectations |
 | `tests/validation/test_audit_procedure_claims.py` | modify | advisory-updated expectations |
-| `scripts/detect_scope_explosion.py`'s own test module | modify | exit-0-with-report assertions; `SKIP_SCOPE_CHECK` removal assertion |
+| `scripts/detect_scope_explosion.py`'s own test module | modify | exit-0-with-report assertions; `SKIP_SCOPE_CHECK` removal assertion | <!-- orphan-ref-ignore -->
 | (four documents per OQ2, resolved before edit) | modify | refreshed figures per ADR-100 item 2 |
 
 ## Implementation Notes

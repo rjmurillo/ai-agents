@@ -3,6 +3,16 @@ name: comment-analyzer
 description: Use this agent when you need to analyze code comments for accuracy, completeness, and long-term maintainability. Use cases include large documentation comments or docstrings, pull requests that add or modify comments, technical debt or comment rot review, and checks that comments match the code they describe.
 metadata:
   role: support
+tools:
+  - Read
+  - Grep
+  - Glob
+  - mcp__github__pull_request_read
+  - mcp__github__get_file_contents
+  - mcp__github__issue_read
+  - mcp__serena__find_symbol
+  - mcp__serena__find_referencing_symbols
+  - mcp__serena__get_symbols_overview
 argument-hint: Point to the comments or PR to review for accuracy
 ---
 

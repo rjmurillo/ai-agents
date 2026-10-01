@@ -143,7 +143,7 @@ Run `test_pr_merge_ready.py` for every open PR. Classify each into a tier (T1-T5
 
 ### Phase 2: Act per tier
 
-Walk the queue. For each PR, apply the tier's action set. T1 first (land-ready), then T2 (CI fix), then T3/T4 (threads). T5 applies to bot-authored PRs that pass the merge-state gates (not BEHIND, BLOCKED, or DIRTY) but still have a failure or unresolved threads; the tier-dispatch block terminates such a PR after the auto-merge disarm gate so a human handles it (issue #5208). A bot PR whose merge state is blocked stays at that merge-state tier and the automated loop processes it.
+Walk the queue. For each PR, apply the tier's action set. T1 first (land-ready), then T2 (CI fix), then T3/T4 (threads). T5 applies to bot-authored PRs that pass the merge-state gates (not BEHIND or DIRTY) but still have a failure or unresolved threads, including a BLOCKED one (issue #5549); the tier-dispatch block terminates such a PR after the auto-merge disarm gate so a human handles it (issue #5208). A bot PR that is BEHIND or DIRTY stays at that merge-state tier and the automated loop processes it.
 
 **Per-PR live-state gate (BLOCKING, issue #2455).** Before any action runs on a PR (any tier: arming auto-merge, pushing a CI fix, posting a thread reply), call `check_pr_live_state.py` and branch on the JSON envelope `Data.action` field. The session-start triage snapshot is stale by the time the walk reaches each row in a repo with heavy merge automation, and the consequences of acting on a stale row are concrete: armed auto-merge on a redundant PR, conflict merges into a closed branch, duplicate logic landed twice.
 
@@ -288,10 +288,11 @@ fi
 # False, so a producer call that omits --is-bot cannot return T5 at all: every
 # affected bot PR that reached work-tier classification came back T2, T3, or T4
 # and was processed in the unattended loop. T5 is reached only when the
-# merge state passes the earlier gates (not BEHIND, BLOCKED, or DIRTY) AND
-# `is_bot and (has_ci_failures or has_threads)`. A bot PR whose merge state
-# is blocked by failing checks stays at its merge-state tier and does not
-# reach the T5 handoff, which is correct: the automated loop handles it.
+# merge state passes the earlier gates (not BEHIND or DIRTY) AND
+# `is_bot and (has_ci_failures or has_threads)`. BLOCKED with a failure or a
+# thread reaches T5 too (issue #5549). A bot PR that is BEHIND or DIRTY stays
+# at its merge-state tier and does not reach the T5 handoff, which is correct:
+# the automated loop handles it.
 # Author identity is stable during one pass, so this answer is kept for tier
 # production. The focused `--field author_is_bot` mode keeps the read down to
 # one `gh pr view --json author` call instead of a full context walk. Auto-merge
@@ -437,7 +438,8 @@ fi
 #       "BEHIND", "BLOCKED", "DIRTY", "SKIP", "UNSUPPORTED",
 #   )
 # The five beyond the T1-T5 ladder are real: SKIP for a draft, closed, or merged
-# PR, BEHIND/BLOCKED/DIRTY from the merge-state lookup, and UNSUPPORTED for a
+# PR, BEHIND/DIRTY from the merge-state lookup, BLOCKED for a PR waiting on an
+# outside gate with no failure or thread (issue #5549), and UNSUPPORTED for a
 # mergeStateStatus this repository has no verified merge path for. Listing only
 # the ladder rejected those as producer failures and silently disabled the
 # documented BEHIND and DIRTY handling.
@@ -651,14 +653,14 @@ Dispatcher exit contract (CWE-829 trust boundary, Issue #5072): exit 0 all crite
 ## Workflow
 
 1. Triage all open PRs into tiers T1-T5 using `test_pr_merge_ready.py`.
-2. Process T1 (land-ready) first, then T2 (CI fix), then T3/T4 (threads). T5 is not processed by this loop: a bot-authored PR that reaches work-tier classification with a failure or unresolved threads is handed to a human, and the tier-dispatch block terminates it after the auto-merge disarm gate (issue #5208). Bot PRs classified BEHIND, BLOCKED, or DIRTY retain that merge-state tier.
+2. Process T1 (land-ready) first, then T2 (CI fix), then T3/T4 (threads). T5 is not processed by this loop: a bot-authored PR that reaches work-tier classification with a failure or unresolved threads is handed to a human, and the tier-dispatch block terminates it after the auto-merge disarm gate (issue #5208). Bot PRs classified BEHIND or DIRTY retain that merge-state tier. A bot PR that is BLOCKED with a failure or unresolved threads classifies T5 (issue #5549).
 3. **Before acting on any PR, call `check_pr_live_state.py`** and skip the row when it returns `Data.action=SKIP` (issue #2455). The triage snapshot from step 1 goes stale fast in a repo with heavy merge automation; the gate catches PRs merged/closed mid-walk and PRs whose diff is already on `main` via a sibling consolidated PR.
 4. **Before any branch mutation, re-read the ref and pin the push.** The
    Force-Push Safety SHA gate below is the concurrency boundary: match
    `git rev-parse "refs/heads/$BRANCH"` against the PR's expected head SHA, and
    pin `--force-with-lease` to that observed SHA so a competing session's commit
    rejects the push instead of being overwritten (issues #3653, #3413).
-5. **On every pass through a T3/T4 PR, call `check_pr_round_cap.py`** and stop working that PR when it returns `Data.action=ESCALATE` (issue #5056). It caps how many fix/review rounds and how many wall-clock hours the thread-fix loop may run before it hands the PR back to a human; PR #1887 ran 11+ rounds over 46 hours with no cap in place. The script posts the escalation reason as a PR comment itself; the agent does not need to.
+5. **On every pass through a T3/T4 PR, call `check_pr_round_cap.py`** and stop working that PR when it returns `Data.action=ESCALATE` (issue #5056). It caps how many fix/review rounds and how many wall-clock hours the thread-fix loop may run before it hands the PR back to a human; PR #1887 ran 11+ rounds over 46 hours with no cap in place. The script posts the escalation reason as a PR comment itself; the agent does not need to. The wall-clock budget restarts when the PR head SHA advances or a maintainer with write access reopens the PR (issue #5477), so calendar idle time does not retire a PR; the round cap still bounds a loop that keeps pushing. A maintainer restarts both the clock and the round counter with a `/pr-autofix continue` comment (OWNER or COLLABORATOR) or by running the script with `--reset`. A repeat blocked call posts no further comments.
 6. For each PR that the live-state gate and round-cap gate cleared: address review threads, fix CI failures using known patterns, then choose the merge path from the four-condition gate.
 
 ## Ready-to-Merge Definition (4 conditions, ALL required)
@@ -702,8 +704,12 @@ the defect issue #5208 reports.
 The classifier is total: every `mergeStateStatus` GitHub can report reaches
 exactly one row across the two tables below, and no state reaches T1 unless
 this document names a merge script for it. `CLEAN`, `HAS_HOOKS`, and
-`UNSTABLE` are that set. `BEHIND`, `BLOCKED`, and `DIRTY` take their own
-merge-path rows. Every other value, `UNKNOWN` and a missing value today plus
+`UNSTABLE` are that set. `BEHIND` and `DIRTY` take their own merge-path
+rows. `BLOCKED` takes its own row only when the PR has no CI failure and no
+unresolved thread. With either, it reaches the work tiers below, never T1
+(issue #5549): in a repository that requires passing checks and resolved
+threads, GitHub reports exactly those two conditions as `BLOCKED`.
+Every other value, `UNKNOWN` and a missing value today plus
 anything GitHub adds later, blocks `CanMerge` and takes the `UNSUPPORTED` row.
 
 `UNSUPPORTED` is a merge-path row rather than a work tier because the work
@@ -728,15 +734,16 @@ rulesets), sent a fully green PR into the round-cap loop.
 ### Work-needed tiers
 
 Every tier below is reached only from a `mergeStateStatus` this document names
-a merge script for (`CLEAN`, `HAS_HOOKS`, `UNSTABLE`), so "then merge" in T3 is
-always executable.
+a merge script for (`CLEAN`, `HAS_HOOKS`, `UNSTABLE`), or from `BLOCKED` with a
+failure or thread (issue #5549). "Then merge" in T3 is executable once the work
+moves the state to one of the three named states; reclassify after the fix.
 
 | Tier | Criteria | Action |
 |------|----------|--------|
-| T1 | `CanMerge=true` (`CLEAN`, `HAS_HOOKS`, or `UNSTABLE` with all non-required failures disposed) | Merge via the row for that state in "Merge path by `mergeStateStatus`" below; each of the three names its own script |
-| T2 | CI failures only (required or undisposed non-required), no threads | Fix CI, verify required checks pass |
-| T3 | Threads only (CI passing) | Walk full thread lifecycle, then merge |
-| T4 | Both CI failures + threads | Fix CI first, then lifecycle threads |
+| T1 | `CanMerge=true` (`CLEAN`, `HAS_HOOKS`, or `UNSTABLE` with all non-required failures disposed); never `BLOCKED` | Merge via the row for that state in "Merge path by `mergeStateStatus`" below; each of the three names its own script |
+| T2 | CI failures only (required or undisposed non-required), no threads; includes `BLOCKED` | Fix CI, verify required checks pass |
+| T3 | Threads only (CI passing); includes `BLOCKED` | Walk full thread lifecycle, then merge. A `BLOCKED` PR that still reports `BLOCKED` after its threads resolve is waiting on an outside gate: stop |
+| T4 | Both CI failures + threads; includes `BLOCKED` | Fix CI first, then lifecycle threads |
 | T5 | Bot PR that passes merge-state gates but has failures or threads | Handle individually |
 
 ### Merge-path states (not work tiers)
@@ -750,7 +757,7 @@ here would re-assert the thing issue #4899 fixed.
 | State | Criteria | Action |
 |-------|----------|--------|
 | BEHIND | `MergeStateStatus == "BEHIND"` | Update branch against main, then reclassify |
-| BLOCKED | `MergeStateStatus == "BLOCKED"` (branch protection, pending reviews) | Wait for external gate (review approval, etc.) |
+| BLOCKED | `MergeStateStatus == "BLOCKED"` with no CI failure and no unresolved thread (branch protection, pending reviews) | Wait for external gate (review approval, etc.). `BLOCKED` with a failure or thread is T2, T3, T4, or T5 instead |
 | DIRTY | `MergeStateStatus == "DIRTY"` (merge conflict) | Resolve conflict via the merge-resolver agent, then reclassify |
 | SKIP | Draft, merged, or closed | No action |
 | UNSUPPORTED | `MergeStateStatus` outside `CLEAN`/`HAS_HOOKS`/`UNSTABLE`/`BEHIND`/`BLOCKED`/`DIRTY` (`UNKNOWN`, missing, or a value GitHub adds later) | Disarm auto-merge, then stop and hand the PR to a human. Do not attempt a merge and do not enter the round-cap loop |
@@ -768,7 +775,7 @@ here would re-assert the thing issue #4899 fixed.
   ```
 
 - **Stale merge-state cache**: `test_pr_merge_ready.py` sets `StaleDirtySuspected=true` when GitHub reports `mergeable == "CONFLICTING"` or `mergeStateStatus == "DIRTY"`. This is advisory, not authoritative. A PR can merge or close during the review-fix cycle; acting on an earlier ACT result triggers a conflict merge into a deleted branch. In a worktree, use `run_pr_mutation_if_live git fetch origin "$BASE"`, then `git merge-base --is-ancestor "origin/$BASE" HEAD` (exit 0 = ancestor) and a guarded `run_pr_mutation_if_live git merge --no-commit --no-ff "origin/$BASE"` trial merge. Both clean means the conflict is stale. Disable existing auto-merge through the wrapper and verify `autoMergeRequest` is null before the final guarded merge and push (issue #3913). A failing trial merge means the conflict is real: resolve via merge-resolver agent. Evidence required: both live-state verdicts, the ancestry exit code, and the trial-merge result. See doc Stale merge-state cache section (issue #2368).
-- **Stale CI check**: Push fresh commit to re-trigger; avoid `--no-verify` if possible.
+- **Stale CI check**: Push a fresh commit to re-trigger. Never pass `--no-verify`; the harness denies it (ADR-112).
 - **Bot review threads**: Read, triage per Thread Severity, reply with disposition, resolve via `add_pr_review_thread_reply.py --resolve`.
 - **Armed auto-merge + final thread**: `add_pr_review_thread_reply.py --resolve` posts the reply, disables armed auto-merge when that thread is the final unresolved one, then resolves the thread. If the guard cannot prove the unresolved count, the script exits 3 after posting the reply and leaves the thread unresolved so GitHub cannot merge before the completion gate.
 - **Session validation failure**: Hand-edit the log to satisfy the session-log schema, then re-validate it.
@@ -894,7 +901,9 @@ python3 "$SCRIPTS_DIR/get_pr_checks.py" --pull-request {pr} | \
 run_pr_mutation_if_live python3 "$SCRIPTS_DIR/set_pr_auto_merge.py" --pull-request {pr} --enable --merge-method SQUASH
 
 # Direct merge: already-CLEAN fallback or UNSTABLE state with documented non-required failures.
-run_pr_mutation_if_live python3 "$SCRIPTS_DIR/merge_pr.py" --pull-request {pr} --strategy squash
+# Pin the merge to the head read at triage; a moved head is refused (ADR-112).
+run_pr_mutation_if_live python3 "$SCRIPTS_DIR/merge_pr.py" --pull-request {pr} --strategy squash \
+  --expected-head-sha "$EXPECTED_HEAD_SHA"
 ```
 
 ### Merge path by `mergeStateStatus`

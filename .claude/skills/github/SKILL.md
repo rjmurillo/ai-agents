@@ -196,7 +196,7 @@ scripts and `github_core` import with the anthropic SDK blocked.
 | `new_pr.py` | Create PR with validation | `--title`, `--body`, `--base` |
 | `validate_pr_description.py` | Validate PR description | `--title`, `--body`, `--body-file`, `--fail-on-violation` |
 | `close_pr.py` | Close PR with comment | `--pull-request`, `--comment` |
-| `merge_pr.py` | Merge with strategy | `--pull-request`, `--strategy`, `--delete-branch`, `--auto` |
+| `merge_pr.py` | Merge pinned to the reviewed head, then read back and audited (ADR-112) | `--pull-request`, `--expected-head-sha`, `--strategy`, `--delete-branch`, `--auto` |
 | `audit_closing_claims.py` | Fleet audit of open-PR closing claims: extracts closing keywords from PR bodies, commit messages, and auto-merge overrides; classifies Markdown context (body) and plain-text context (commits/overrides); flags a claim unsupported when it can reach the eventual squash commit without a matching active body claim (exit 1). Needs a token with administration read: reachability depends on the repository's `squash_merge_commit_message` setting, which GitHub omits for anyone else, and the audit exits 3 rather than reporting a clean fleet it cannot verify | `--state open`, `--artifact`, `--resume-from`, `--output-format {json,human,auto}` |
 | `edit_pr_body.py` | Edit a PR body with a SHA-256 stale-write guard | `--pull-request`, `--body`/`--body-file`, `--expected-hash`, `--dry-run` |
 
@@ -206,7 +206,7 @@ scripts and `github_core` import with the anthropic SDK blocked.
 |--------|---------|----------------|
 | `get_issue_context.py` | Issue metadata (no comments) | `--issue` |
 | `get_issue_comments.py` | Issue comment thread (discourse) | `--issue`, `--limit` |
-| `new_issue.py` | Create new issue | `--title`, `--body`, `--labels` |
+| `new_issue.py` | Create new issue; `--source` required, agent needs Step 0 | `--title`, `--body`, `--labels`, `--source`, `--blocked-by`, `--signal` |
 | `close_issue.py` | Close with optional comment (`--verify-claims` aborts on a cited commit/PR the remote disproves, exit 1, and separately on one it could not check, exit 3 or 4) | `--issue`, `--reason`, `--comment`, `--verify-claims` |
 | `reopen_issue.py` | Reopen with optional comment | `--issue`, `--comment` |
 | `set_issue_labels.py` | Apply labels (auto-create) | `--issue`, `--labels`, `--priority` |
@@ -383,6 +383,35 @@ blocker, or context, add the native link with `set_issue_relationship.py`.
 After `new_issue.py`, link the new issue in the next call. Pull requests cannot
 be linked this way; use a closing keyword. Full decision rules, the audit
 procedure, and the MCP fallback: `references/issue-relationships.md`.
+
+### Issue Provenance
+
+`new_issue.py` requires `--source`, which records who selected the work:
+
+- `human`: an explicit human request selected this issue. An owner login, a
+  human-started session, or a user approving publication does not qualify.
+- `agent`: anything an agent chose. It also needs Step 0 evidence:
+  `--blocked-by` (who is blocked, and on what) and `--signal` (the metric, log,
+  run, or ticket that proves it). A body that already carries a `## Step 0`
+  block with `### Q3` and `### Q5` supplies the evidence instead; passing both
+  is an error.
+
+Blank answers, canonical hedge phrases, and conflicting `source:*` labels exit
+2 before any GitHub call. The script creates the `source:human` or
+`source:agent` label when the repository lacks it, and passes it to
+`gh issue create` itself, so a label failure creates no issue. The script
+redacts flag evidence before it publishes it. It refuses a body Step 0 block
+that carries a secret, because it publishes the body unchanged.
+
+`--source human` also appends `<!-- source:human -->` as the last body line. The
+script rejects that marker in any other body.
+
+The script's check covers this script only. The GitHub MCP `issue_write` tool,
+raw `gh issue create`, and workflow steps that call the API bypass it. The
+`Label Issue Source` workflow labels those issues after they open: bots and
+owner-login issues without a trailing human marker get `source:agent`, a burst
+of owner issues within ten minutes forces `source:agent`, and every other
+author gets `source:human`. It labels only. It does not close or block.
 
 ---
 

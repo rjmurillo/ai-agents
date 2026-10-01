@@ -24,7 +24,48 @@
             "Bash(git *core.sshCommand=*)",
             "Bash(git *core.fsmonitor=*)",
             "Bash(git *textconv=*)",
-            "Bash(git *uploadpack.packObjectsHook=*)"
+            "Bash(git *uploadpack.packObjectsHook=*)",
+            "Bash(git push *--force)",
+            "Bash(git push *--force *)",
+            "Bash(git push -f *)",
+            "Bash(git push * -f)",
+            "Bash(git push * -f *)",
+            "Bash(git push *--force-with-lease)",
+            "Bash(git push *--force-with-lease *)",
+            "Bash(git push * +*)",
+            "Bash(git push *--mirror*)",
+            "Bash(git commit *--no-verify)",
+            "Bash(git commit *--no-verify *)",
+            "Bash(git commit -n *)",
+            "Bash(git commit * -n)",
+            "Bash(git commit * -n *)",
+            "Bash(git push *--no-verify)",
+            "Bash(git push *--no-verify *)",
+            "Bash(rm -rf *)",
+            "Bash(rm -fr *)",
+            "Bash(rm -Rf *)",
+            "Bash(rm -fR *)",
+            "Bash(rm -r -f *)",
+            "Bash(rm -f -r *)",
+            "Bash(rm --recursive --force *)",
+            "Bash(rm --force --recursive *)",
+            "Bash(gh repo delete*)",
+            "Bash(gh repo archive*)",
+            "Bash(gh repo rename*)",
+            "Bash(gh repo edit*)",
+            "Bash(gh release delete*)",
+            "Bash(gh issue delete*)",
+            "Bash(gh label delete*)",
+            "Bash(gh secret *)",
+            "Bash(gh variable set*)",
+            "Bash(gh variable delete*)",
+            "Bash(gh pr merge *--admin*)",
+            "Bash(gh api *-X DELETE*)",
+            "Bash(gh api *-XDELETE*)",
+            "Bash(gh api *--method DELETE*)",
+            "Bash(gh api *--method=DELETE*)",
+            "Bash(gh api *branches/*/protection*)",
+            "Bash(gh api *collaborators*)"
         ]
     },
     "hooks": {
@@ -78,6 +119,18 @@
                         "command": "cd \"$CLAUDE_PROJECT_DIR\" && python3 -u .claude/hooks/UserPromptSubmit/invoke_memory_recall.py",
                         "timeout": 10,
                         "statusMessage": "Recalling relevant memories (#4011)"
+                    }
+                ]
+            }
+        ],
+        "Stop": [
+            {
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "cd \"$CLAUDE_PROJECT_DIR\" && python3 -u .claude/hooks/Stop/invoke_reflect_nudge.py || true",
+                        "timeout": 10,
+                        "statusMessage": "Checking the session for unrecorded corrections (#5817)"
                     }
                 ]
             }

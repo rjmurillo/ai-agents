@@ -1,0 +1,5 @@
+"""Merge settings dicts."""
+
+
+def merge_settings(base: dict, override: dict) -> dict:
+    return {**base, **override}

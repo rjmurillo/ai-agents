@@ -383,8 +383,8 @@ class TestPathResolution:
         assert _resolves("invoke_context_loader.py")
 
     def test_a_decoy_outside_hook_roots_does_not_resolve(self):
-        assert (PROJECT_ROOT / "scripts" / "invoke_session_start_gate.py").is_file()
-        assert not _resolves("scripts/invoke_session_start_gate.py")
+        assert (PROJECT_ROOT / "scripts" / "invoke_batch_pr_review.py").is_file()
+        assert not _resolves("scripts/invoke_batch_pr_review.py")
 
 
 class TestWhatCountsAsAProseClaim:

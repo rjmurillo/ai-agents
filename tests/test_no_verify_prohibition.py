@@ -57,6 +57,8 @@ _ALLOWED = frozenset(
         ".github/instructions/universal.instructions.md",
         # Lists the prohibition correctly; the mention is the rule text.
         ".claude/skills/ai-agents-change-control/SKILL.md",
+        # The ADR-112 deny rules that enforce the prohibition at the harness.
+        ".claude/settings.json",
         # This test file itself.
         "tests/test_no_verify_prohibition.py",
     ]

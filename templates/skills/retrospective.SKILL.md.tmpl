@@ -165,8 +165,10 @@ Persist learnings to memory and evaluate the retrospective itself.
   [diagnosis-and-actions.md, Memory Protocol](references/diagnosis-and-actions.md#memory-protocol).
 - Close with **+/Delta**, **ROTI**, and **Helped, Hindered, Hypothesis**: see
   [frameworks.md, Closing Activities](references/frameworks.md#closing-activities).
-- Route any P0 or P1 delta item to a GitHub issue through the `github` skill; store P2 and P3
-  items in backlog memory.
+- Record each actionable delta item in the artifact's `Findings for the owner` table, classed
+  from the frozen completion contract: see
+  [frameworks.md, Delta Triage](references/frameworks.md#activity-delta-triage). Do not file a
+  GitHub issue or write a backlog memory file. The owner decides what becomes tracked work.
 
 ---
 
@@ -188,7 +190,7 @@ Before the retrospective is complete, confirm:
 ## Boundaries
 
 - This skill reads evidence and writes one artifact plus memory entries. It does not open PRs
-  itself; it routes delta items to the `github` skill.
+  or file issues; it lists delta items for the owner in the artifact.
 - Memory and GitHub are integration points. A failed memory call degrades to a documented
   fallback (write the artifact, note the memory write failed), never a silent context loss.
 - Keep entry points thin. The Stop hook and `/retro fill` parse inputs and call this skill;

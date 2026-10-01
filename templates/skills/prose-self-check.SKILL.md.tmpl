@@ -280,4 +280,4 @@ patterns above.
 - Banned vocabulary source of truth: `.claude/rules/voice.md` ("Banned
   Vocabulary" section).
 - Em-dash/en-dash MUST NOT: `.claude/rules/universal.md`.
-- Skill standards: `.claude/skills/CLAUDE.md`.
+- Skill standards: `.claude/skills/skillforge/references/skill-development-conventions.md`.

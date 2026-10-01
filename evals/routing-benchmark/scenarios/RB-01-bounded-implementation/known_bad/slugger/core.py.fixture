@@ -1,0 +1,5 @@
+"""Text helpers for URL fragments."""
+
+
+def slugify(text: str) -> str:
+    return text.strip().lower().replace(" ", "-")

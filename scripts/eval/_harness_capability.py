@@ -37,6 +37,8 @@ from dataclasses import dataclass, replace
 from enum import Enum
 from pathlib import Path
 
+from _pending_live_probes import PendingLiveProbe, PendingProbeError, load_pending_probes
+
 SCHEMA_VERSION = 1
 
 
@@ -129,6 +131,7 @@ class HarnessCapabilityRecord:
     failure_retry_behavior: str
     probe_command: str
     date: str
+    pending_live_probes: tuple[PendingLiveProbe, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -421,6 +424,14 @@ def _load_capability(value: object, field: str) -> Capability:
     )
 
 
+def _pending_probes(raw: Mapping[str, object], field: str) -> tuple[PendingLiveProbe, ...]:
+    try:
+        loaded: tuple[PendingLiveProbe, ...] = load_pending_probes(raw.get("pending_live_probes"))
+    except PendingProbeError as exc:
+        raise HarnessCapabilityError(f"{field}: {exc}") from exc
+    return loaded
+
+
 def _load_record(value: object, index: int) -> HarnessCapabilityRecord:
     field = f"harnesses[{index}]"
     raw = _mapping(value, field)
@@ -465,6 +476,7 @@ def _load_record(value: object, index: int) -> HarnessCapabilityRecord:
             raw.get("probe_command", ""), f"{field}.probe_command", allow_empty=True
         ),
         date=_string(raw.get("date"), f"{field}.date"),
+        pending_live_probes=_pending_probes(raw, field),
     )
     validate_record(record)
     return record
@@ -595,7 +607,7 @@ def _capability_dict(capability: Capability) -> dict[str, object]:
 
 
 def _record_dict(record: HarnessCapabilityRecord) -> dict[str, object]:
-    return {
+    result: dict[str, object] = {
         "harness": record.harness,
         "version": record.version,
         "version_evidence": record.version_evidence.value,
@@ -610,6 +622,9 @@ def _record_dict(record: HarnessCapabilityRecord) -> dict[str, object]:
         "probe_command": record.probe_command,
         "date": record.date,
     }
+    if record.pending_live_probes:
+        result["pending_live_probes"] = [p.as_dict() for p in record.pending_live_probes]
+    return result
 
 
 # Most restrictive first. `_worst_eligibility` walks this order, so a harness

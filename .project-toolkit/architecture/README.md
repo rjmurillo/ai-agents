@@ -158,6 +158,7 @@ These bind today.
 | [ADR-108](ADR-108-template-owned-skill-files.md) | Template-Owned Skill Files Under `.claude/skills/` | 2026-09-11 | Adopt one new artifact class and amend the three texts that forbid it: REQ-003-010, REQ-003 decision D4, and ADR-107 property 1. |
 | [ADR-109](ADR-109-template-first-plugin-distribution.md) | Template-First Plugin Distribution | 2026-09-11 | Adopt template-first distribution for every artifact class the plugins ship, with one stated exception for imported Python library code, and supersede ADR-052 with an inverted direction. |
 | [ADR-111](ADR-111-skill-model-pins-project-per-harness.md) | Skill Model Pins Project Per Harness | 2026-09-27 | Default every skill, agent, and command to the harness-inherited model. |
+| [ADR-113](ADR-113-promotion-gate-evidence-and-exceptions.md) | Promotion Gate Evidence, Artifact Binding, and Governed Exceptions | 2026-09-30 | One aggregator, one manifest. |
 
 ## Proposed
 
@@ -192,6 +193,7 @@ Recorded, not yet binding. The last column is what each record says is holding i
 | [ADR-104](ADR-104-gate-tier-placement-and-budgets.md) | Gate Tier Placement | 2026-08-25 | Three tiers, each with a stated job. | Six-seat adr-review debate held 2026-08-25; log at `.project-toolkit/critique/ADR-104-debate-log.md`. The first revision was blocked by two seats and this record is the rewrite. `implemented` stays... |
 | [ADR-107](ADR-107-canonical-skill-contracts-and-harness-projections.md) | Canonical Skill Contracts and Generated Harness Projections | 2026-09-09 | Issue #5603 requires this record to distinguish semantic contract, harness projection, capability profile, advisory model tactic, host authorization, and generated or vendor output. | review by 2027-03-09; Critical and load-bearing, as issue #5603 requires this record to state. Scope that claim precisely, because two review seats read the bold label against the next sentence and... |
 | [ADR-110](ADR-110-capability-ownership-dag.md) | Capability Ownership and the Artifact Dependency DAG | 2026-09-22 | Behavior-driving artifacts compose a capability DAG, and each capability has one canonical owner that declares itself in its own frontmatter. | review by 2027-03-22; The record defines where capability ownership is declared and what a gate may refuse. The gate ships with it and finds nothing yet, because no artifact declares a capability... |
+| [ADR-112](ADR-112-risk-tiered-action-boundaries.md) | Risk-Tiered Action Boundaries for Agent Tools | 2026-09-28 | Sort every agent action into four tiers, deny the highest tier at the Claude harness, check shared-repository mutations inside the script that performs them, and record every gap this leaves open. | review by 2027-03-28; The record was filed on 2026-09-28 for issue #5767, a child of epic #5456. It is implemented in the same change. Requirement: REQ-043. Tasks: TASK-052. |
 
 ## Retired
 

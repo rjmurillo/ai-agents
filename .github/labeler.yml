@@ -182,14 +182,6 @@ agent-task-decomposer:
           - "src/vs-code-agents/task-decomposer.agent.md"
           - "templates/agents/task-decomposer.shared.md"
 
-agent-backlog-generator:
-  - changed-files:
-      - any-glob-to-any-file:
-          - ".claude/agents/backlog-generator.md"
-          - "src/copilot-cli/agents/backlog-generator.agent.md"
-          - "src/vs-code-agents/backlog-generator.agent.md"
-          - "templates/agents/backlog-generator.shared.md"
-
 agent-critic:
   - changed-files:
       - any-glob-to-any-file:

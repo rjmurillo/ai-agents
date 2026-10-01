@@ -236,7 +236,8 @@ flowchart TD
 
 - Push to `main`.
 - Pull request to `main`.
-- Weekly schedule, Monday 09:00 UTC, cron `0 9 * * 1`.
+- Merge queue (`merge_group`), always a full analysis.
+- Nightly schedule, 05:23 UTC, cron `23 5 * * *`, always a full analysis.
 - Manual dispatch.
 
 **Behavior**:

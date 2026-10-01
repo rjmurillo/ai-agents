@@ -43,7 +43,7 @@ You have direct access to:
 - **Read**: PRDs and existing code
 - **Grep/Glob**: Find relevant files
 - **TodoWrite**: Track generation progress
-- **Bash**: github skill scripts for GitHub issues: `new_issue.py` to file, then `set_issue_relationship.py` to link each issue to its parent and blockers
+- **Bash**: github skill scripts, used only when the user explicitly asks you to file the tasks as GitHub issues: `new_issue.py` to file (with `--source human`, since that request selected the work), then `set_issue_relationship.py` to link each issue to its parent and blockers. Without that request, keep the tasks in the plan file and flag them to the owner
 - **Memory Router** (ADR-037): Search across `.serena/memories/`
   - `uv run python .claude/skills/memory/scripts/search_memory.py --query "topic"`
   - Keyword match on memory filenames; no semantic or graph search
@@ -273,7 +273,7 @@ Before handing off, validate ALL items in the applicable checklist:
 - [ ] All tasks have acceptance criteria
 - [ ] All tasks have complexity estimates (XS/S/M/L/XL)
 - [ ] Dependencies documented and graph included
-- [ ] If tasks were filed as GitHub issues: each parent and dependency is a native link (github skill, `set_issue_relationship.py`), not only `#N` text
+- [ ] If the user explicitly asked for GitHub issues and tasks were filed: each parent and dependency is a native link (github skill, `set_issue_relationship.py`), not only `#N` text
 - [ ] Milestone groupings logical
 - [ ] Estimate reconciliation completed (if source had estimates)
 - [ ] Summary table accurate (complexity counts match tasks)

@@ -4,12 +4,16 @@
 # Python Tests
 #
 # Runs pytest and security checks for Python code in the repository.
-# Uses dorny/paths-filter to determine if tests should run or be skipped.
 #
-# IMPORTANT: This workflow runs on ALL PRs to satisfy required status checks,
-# but skips actual test execution when no Python test inputs are changed.
+# IMPORTANT: The required "Run Python Tests" context comes from one job,
+# test-result, whose verdict rests on the test partitions, the coverage job and
+# the repository guards it depends on. None of them sits behind a path filter.
+# ADR-101 requirement 1: no condition sourced outside that chain's own logic
+# may let the context report success without running the verification its name
+# claims. The check-paths job still gates the two jobs that are not part of the
+# required context (Python Security Checks and the Windows path-contract tests).
 #
-# Testable paths are defined in the check-paths job filters block.
+# Which tests each partition runs is decided inside scripts/ci/run_pytest_selected.py.
 #
 # Local developers and AI agents can run the same tests using:
 #   uv run pytest
@@ -192,10 +196,66 @@ jobs:
           .claude/skills/context-optimizer/scripts/extract_and_index.py
           --check --manifest .project-toolkit/context-output-manifest.json
 
+  count-ratchet-guard:
+    name: Check whole-tree count ratchets (blocking)
+    # Issue #5636, decision D13. The ruff and subprocess-encoding count
+    # ratchets score every tracked Python file, so they are whole-tree checks
+    # (`.claude/rules/ci-scripts.md`, "Path filters gate the diff, never the
+    # tree"). This job has no `needs:` and no
+    # `if:` on purpose, the same shape as zero-collection-guard above.
+    #
+    # This job's name is pinned in scripts/ci/ruleset_required_contexts.py and
+    # and must match ruleset 11104075 (ci-scripts.md MUST 22 dual-name rollout).
+    # `test-result` also needs this job, so "Run Python Tests" fails when a
+    # ratchet fails.
+    #
+    # `uv run --frozen` pins ruff to the lockfile; an open-ended `ruff>=` could
+    # fail the baseline on an unrelated PR after a rule change. BASE_REF stays
+    # in env, so a ref name never reaches the script source, and the ratchet
+    # receives the fixed literal FETCH_HEAD, never the ref name. Both ratchets
+    # compare against a ref: without --base-ref, raising the baseline in the
+    # change that adds the violations would pass as an improvement.
+    runs-on: ubuntu-26.04-arm
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    env:
+      BASE_REF: ${{ github.base_ref || github.event.repository.default_branch }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Setup code environment
+        uses: ./.github/actions/setup-code-env
+        with:
+          gh-token: ${{ secrets.GITHUB_TOKEN }}
+          enable-pester: false
+          enable-git-hooks: false
+
+      # No --depth=1: count_ratchet.py reads a merge base, and a depth-limited
+      # fetch would graft .git/shallow for the whole job.
+      - name: Fetch the base ref
+        run: git fetch origin "$BASE_REF"
+
+      - name: Run ruff count ratchet (whole tree)
+        run: uv run --frozen python scripts/ci/ruff_count_ratchet.py --base-ref FETCH_HEAD
+
+      - name: Run subprocess encoding count ratchet (whole tree)
+        run: uv run --frozen python scripts/ci/subprocess_encoding_count_ratchet.py --base-ref FETCH_HEAD
+
   test:
     name: "pytest (${{ matrix.partition }})"
-    needs: check-paths
-    if: needs.check-paths.outputs.python-changed == 'true'
+    # ADR-101 requirement 1: no `needs:` and no job-level `if:`. The partitions
+    # sit inside the required "Run Python Tests" chain, so a path filter must
+    # not decide whether they run. A diff that matches no policy path still
+    # runs every partition in full (run_pytest_selected.py falls back to the
+    # full partition when no affected test is owned by it).
     runs-on: ubuntu-latest
     timeout-minutes: 10
     # `checks: write` was here from the ADR-042 migration (953b4534d, PR #967)
@@ -275,103 +335,12 @@ jobs:
           RUFF_RATCHET_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before || 'HEAD~1' }}
         run: python scripts/ci/ruff_ratchet.py
 
-      # Issue #2993 acceptance criterion 2 (regression guard, option C). The
-      # diff-scoped ratchet above cannot see debt a PR adds to a file it does
-      # not otherwise touch, so the whole-tree total is capped by
-      # scripts/ci/ruff_count_baseline.txt. A lower count passes without
-      # rewriting that shared line; use --update only when intentionally
-      # lowering the ceiling.
-      # `uv run --frozen` pins ruff to the lockfile. The dev extra declares an
-      # open-ended `ruff>=`, so a `uv pip install` resolves whatever is newest
-      # and a future ruff rule change could fail this baseline on an unrelated
-      # PR.
-      #
-      # PR and non-PR legs select by step-level if: rather than shell branching,
-      # per ADR-006 (no decision logic in workflow YAML). Both compare against a
-      # ref, which is what makes the baseline one-directional: without
-      # --base-ref, raising the baseline in the same change that adds the
-      # violations passes as an improvement. A ref name is attacker-controlled
-      # text and gets three separate defenses. Keeping it in env means the
-      # `${{ }}` expression is never substituted into the script source, so a
-      # ref name cannot inject shell syntax. Quoting `"$BASE_REF"` at the one
-      # place the shell does expand it keeps it a single argument to git rather
-      # than a word-split command line. And the ratchet script is handed the
-      # fixed literal FETCH_HEAD, never the ref name, so nothing
-      # attacker-controlled reaches Python argv.
-      #
-      # The non-PR leg compares against the default branch, not
-      # github.event.before: event.before is the branch's own previous tip, so
-      # raising the baseline in one push and adding the violations in the next
-      # would slip through. The default branch is what the baseline is promised
-      # against. On a push to the default branch this compares it to itself,
-      # which is a harmless no-op.
-      - name: Run ruff count ratchet (whole tree, pull request)
-        if: matrix.partition == 'bulk' && github.event_name == 'pull_request'
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        run: |
-          # No --depth=1. The checkout above already used fetch-depth: 0, so a
-          # depth-limited fetch saves nothing and writes .git/shallow, grafting
-          # the fetched tip parentless. The graft is written by whichever fetch
-          # runs first and a plain undepthed fetch does not clear it; only
-          # --unshallow does.
-          #
-          # count_ratchet.py reads a merge base on two legs, and they fail in
-          # opposite directions. changed_files diffs `base_ref...HEAD`
-          # (three-dot) to sort branch-touched files first: that leg fails
-          # OPEN, so a graft degrades the diagnostic instead of failing the
-          # step, which is the buried-violation problem the ordering exists to
-          # prevent, not a red check. _base_ref_verdict reads `git merge-base`
-          # to decide whether THIS tree moved the baseline (issue #5065): that
-          # leg fails CLOSED. Under a graft it cannot name a fork point, the
-          # behind-base relief goes inert, and a legitimately-behind branch
-          # blocks again with a message that says the fork point is
-          # unreadable. So the no-shallow-fetch requirement here is
-          # load-bearing for the verdict, not only for the diagnostic, the
-          # same way it is at the merge-tree step in pr-validation.yml, where
-          # a graft hitting merge_tree_ratchet_check cost a red required
-          # check.
-          git fetch origin "$BASE_REF"
-          uv run --frozen python scripts/ci/ruff_count_ratchet.py --base-ref FETCH_HEAD
-
-      - name: Run ruff count ratchet (whole tree, non-PR)
-        if: matrix.partition == 'bulk' && github.event_name != 'pull_request'
-        env:
-          BASE_REF: ${{ github.event.repository.default_branch }}
-        run: |
-          # No --depth=1: see the pull_request leg above.
-          git fetch origin "$BASE_REF"
-          uv run --frozen python scripts/ci/ruff_count_ratchet.py --base-ref FETCH_HEAD
-
-      - name: Run subprocess encoding count ratchet (whole tree, pull request)
-        if: matrix.partition == 'bulk' && github.event_name == 'pull_request'
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        run: |
-          # No --depth=1: see the ruff count ratchet leg above. This ratchet
-          # is the one that needs it most. Its baseline is absent from
-          # scripts/ci/merge_tree_ratchet_registry.py, so it declares
-          # MERGE_TREE_BACKED = False and this --base-ref comparison is its
-          # only stale-branch guard; a graft turns that guard into a hard
-          # block rather than degrading it.
-          git fetch origin "$BASE_REF"
-          uv run --frozen python scripts/ci/subprocess_encoding_count_ratchet.py --base-ref FETCH_HEAD
-
-      - name: Run subprocess encoding count ratchet (whole tree, non-PR)
-        if: matrix.partition == 'bulk' && github.event_name != 'pull_request'
-        env:
-          BASE_REF: ${{ github.event.repository.default_branch }}
-        run: |
-          # No --depth=1: see the pull_request leg above.
-          git fetch origin "$BASE_REF"
-          uv run --frozen python scripts/ci/subprocess_encoding_count_ratchet.py --base-ref FETCH_HEAD
-
       - name: Check security suppressions in diff (pull request, issue 4061)
         if: matrix.partition == 'bulk' && github.event_name == 'pull_request'
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
-          # No --depth=1: see the pull_request leg above.
+          # No --depth=1: a depth-limited fetch grafts .git/shallow for the job.
           git fetch origin "$BASE_REF"
           uv run --frozen python scripts/validation/git_hook_policy.py security-suppressions-diff --base-ref FETCH_HEAD
 
@@ -380,7 +349,7 @@ jobs:
         env:
           BASE_REF: ${{ github.event.repository.default_branch }}
         run: |
-          # No --depth=1: see the pull_request leg above.
+          # No --depth=1: a depth-limited fetch grafts .git/shallow for the job.
           git fetch origin "$BASE_REF"
           uv run --frozen python scripts/validation/git_hook_policy.py security-suppressions-diff --base-ref FETCH_HEAD
 
@@ -501,10 +470,8 @@ jobs:
 
   coverage:
     name: Combine Python coverage
-    needs:
-      - check-paths
-      - test
-    if: needs.check-paths.outputs.python-changed == 'true' && !cancelled() && needs.test.result == 'success'
+    needs: test
+    if: "!cancelled() && needs.test.result == 'success'"
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -557,24 +524,26 @@ jobs:
           overwrite: true
           retention-days: 7
 
+  # The only job that publishes the required "Run Python Tests" context. It
+  # replaces a same-named pair (this job plus a skip-tests pass-through that
+  # answered when a path filter said no Python inputs changed). ADR-101
+  # requirement 1: the verdict comes from the chain's own results, and every
+  # dependency must have succeeded. A skipped dependency is a failure here, so
+  # nothing can turn the context green without the tests having run.
   test-result:
     name: Run Python Tests
     needs:
-      - check-paths
       - test
       - coverage
       - zero-collection-guard
       - line-endings-guard
       - context-output-guard
+      - count-ratchet-guard
     # !cancelled() rather than always(): a superseded run leaves its
     # dependencies 'cancelled', and always() would turn that into a red
     # required check on the PR head (Issue #5097). !cancelled() still runs on
-    # failed and skipped dependencies, so the pass-through and the real
-    # failure signal both survive.
-    if: >-
-      !cancelled() &&
-      (needs.check-paths.result != 'success' ||
-      needs.check-paths.outputs.python-changed == 'true')
+    # failed and skipped dependencies, so the real failure signal survives.
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-26.04-arm
     timeout-minutes: 2
     permissions:
@@ -587,20 +556,20 @@ jobs:
 
       - name: Require test, coverage, and repository guard success
         env:
-          PATH_RESULT: ${{ needs.check-paths.result }}
           TEST_RESULT: ${{ needs.test.result }}
           COVERAGE_RESULT: ${{ needs.coverage.result }}
           ZERO_COLLECTION_RESULT: ${{ needs.zero-collection-guard.result }}
           LINE_ENDINGS_RESULT: ${{ needs.line-endings-guard.result }}
           CONTEXT_OUTPUT_RESULT: ${{ needs.context-output-guard.result }}
+          COUNT_RATCHET_RESULT: ${{ needs.count-ratchet-guard.result }}
         run: >-
           python scripts/ci/require_job_results.py
-          --check PATH_RESULT success "path detection failed or was cancelled: {value}"
           --check TEST_RESULT success "test job failed or was cancelled: {value}"
           --check COVERAGE_RESULT success "coverage job failed or was cancelled: {value}"
           --check ZERO_COLLECTION_RESULT success "zero-collection-guard failed or was cancelled: {value}"
           --check LINE_ENDINGS_RESULT success "line-endings-guard failed or was cancelled: {value}"
           --check CONTEXT_OUTPUT_RESULT success "context-output-guard failed or was cancelled: {value}"
+          --check COUNT_RATCHET_RESULT success "count-ratchet-guard failed or was cancelled: {value}"
 
   security:
     name: Python Security Checks
@@ -656,7 +625,10 @@ jobs:
       # turning this step green regardless. Gate on high severity AND high
       # confidence so real high-risk findings fail CI, scoped off test-only
       # false positives. SARIF output feeds GitHub code scanning.
+      # Issue #6028: a pip-audit finding in a transitive pin skipped Bandit on
+      # every pull request. Bandit scans this repo's code, so it runs anyway.
       - name: Run Bandit
+        if: ${{ !cancelled() }}
         run: |
           bandit -r .claude/ scripts/ \
             -x '*/tests/*,*/test/*' \
@@ -682,106 +654,6 @@ jobs:
           name: bandit-results
           path: bandit.sarif
           retention-days: 7
-
-  # Pass-through job: satisfies required "Run Python Tests" check when no Python test inputs changed.
-  # GitHub branch protection requires SUCCESS (not SKIPPED) for required checks.
-  # See: Issue #1168
-  skip-tests:
-    name: Run Python Tests
-    needs:
-      - check-paths
-      - zero-collection-guard
-      # Issue #5475: this is the leg that reports the required check on
-      # exactly the change the line-ending guard exists for. A commit adding
-      # only a CRLF `.xml` or `.csv` leaves `python-changed` false, so
-      # `test-result` is skipped and this job answers for `Run Python Tests`
-      # instead. Not `.md`: the `python` filter carries `**/*.md`, as the
-      # `line-endings-guard` comment above records and
-      # `test_the_filter_gap_this_job_exists_for_is_real` asserts. Wiring the
-      # guard into `test-result` alone left it red beside a green required
-      # check, because the guard's own context is not in the repository's
-      # required-checks list.
-      - line-endings-guard
-      - context-output-guard
-    # !cancelled() so this job still runs (and can fail loudly) when
-    # zero-collection-guard failed, rather than being implicitly skipped by
-    # GitHub's default success()-over-needs gate, which would leave the
-    # required "Run Python Tests" context missing instead of failed.
-    if: >-
-      !cancelled() &&
-      needs.check-paths.result == 'success' &&
-      needs.check-paths.outputs.python-changed != 'true'
-    # ADR-025: ARM runner for cost optimization
-    runs-on: ubuntu-26.04-arm
-    # ADR-101: was 2 minutes when this job only sparse-checked out one file and
-    # ran require_job_results.py. Verifying the skip claim (below) needs the
-    # full path policy and select_tests modules present, so the checkout below
-    # is fetch-depth: 0 and unsharded, plus a uv setup step; neither fits a 2
-    # minute budget.
-    timeout-minutes: 10
-    permissions:
-      contents: read
-    steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
-        with:
-          egress-policy: audit
-
-      # ADR-101: fetch-depth: 0, not sparse. verify_skip_tests_claim.py (below)
-      # needs full history to diff base...head and the whole scripts/test_selection
-      # tree (the policy module and path_policy.yml) alongside require_job_results.py.
-      # No --depth=1 on any later fetch: see the "Run ruff count ratchet" step
-      # in this file for why a shallow fetch writes .git/shallow and grafts the
-      # fetched tip parentless.
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-          fetch-depth: 0
-
-      - name: Setup code environment
-        uses: ./.github/actions/setup-code-env
-        with:
-          gh-token: ${{ secrets.GITHUB_TOKEN }}
-          enable-pester: false
-          enable-git-hooks: false
-
-      # ADR-101 (see "The same pattern is live on a context that IS required"):
-      # test-result and skip-tests both publish the required "Run Python Tests"
-      # context. If check-paths ever computes python-changed=false when a
-      # changed file actually matches the path policy, this job would report
-      # that required context green with no test having run. Recompute the
-      # match independently before trusting the claim.
-      #
-      # head.sha, not HEAD: on pull_request the checkout above is the
-      # synthetic refs/pull/N/merge commit, whose first parent is the current
-      # base tip, so base.sha...HEAD attributes every base-branch commit since
-      # base.sha to this pull request. Observed on PR #5341. Issue #5378.
-      - name: Verify the python-changed=false claim (blocking)
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-        run: >-
-          uv run --frozen python scripts/ci/verify_skip_tests_claim.py
-          --base "$BASE_SHA"
-          --head "$HEAD_SHA"
-
-      - name: Require blocking guards succeeded
-        env:
-          ZERO_COLLECTION_RESULT: ${{ needs.zero-collection-guard.result }}
-          LINE_ENDINGS_RESULT: ${{ needs.line-endings-guard.result }}
-          CONTEXT_OUTPUT_RESULT: ${{ needs.context-output-guard.result }}
-        run: >-
-          python scripts/ci/require_job_results.py
-          --check ZERO_COLLECTION_RESULT success "zero-collection-guard failed or was cancelled: {value}"
-          --check LINE_ENDINGS_RESULT success "line-endings-guard failed or was cancelled: {value}"
-          --check CONTEXT_OUTPUT_RESULT success "context-output-guard failed or was cancelled: {value}"
-
-      - name: Skip tests (no Python test inputs changed)
-        run: |
-          echo "No Python test inputs changed - skipping tests"
-          echo ""
-          echo "See the 'python' filter in check-paths job for paths that trigger tests."
-          echo "Reference: .github/workflows/pytest.yml"
 
   # Tests marked @pytest.mark.windows_path exercise behavior that differs between
   # Windows and POSIX: path separators, PowerShell script resolution, Git's
@@ -814,7 +686,7 @@ jobs:
           python-version: '3.14'
 
       - name: Install uv
-        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           enable-cache: true
 
@@ -831,9 +703,9 @@ jobs:
       - test
       - test-result
       - security
-      - skip-tests
       - test-windows-pwsh
       - context-output-guard
+      - count-ratchet-guard
     # !cancelled() rather than always(): the alert script treats a 'cancelled'
     # dependency as a failure, so a cancelled main run would file a bogus
     # "Python Tests failed on main" issue (Issue #5097).

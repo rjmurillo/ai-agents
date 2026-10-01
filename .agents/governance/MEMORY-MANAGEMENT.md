@@ -3,18 +3,17 @@
 
 > **Status**: Operational Guidance
 > **Last Updated**: 2026-01-03
-> **Related**: ADR-007 (Memory-First Architecture), `AGENTS.md` Retrieval gate
+> **Related**: ADR-106 (Serena-Only Memory Architecture), `AGENTS.md` Retrieval gate
 
-This document describes the unified memory management workflow across three memory systems: **Serena**, **Forgetful**, and **Claude-Mem**.
+This document describes the unified memory management workflow across two memory systems: **Serena** and **Claude-Mem**.
 
 ---
 
-## Three-Tier Memory Architecture
+## Two-Tier Memory Architecture
 
 | System | Purpose | Scope | Persistence | Export/Import |
 |--------|---------|-------|-------------|---------------|
 | **Serena** | Project-specific context, code symbols | Single project | `.serena/memories/` (git) | Manual (filesystem) |
-| **Forgetful** | Cross-project semantic memory | All projects | PostgreSQL + HNSW | `execute_forgetful_tool` |
 | **Claude-Mem** | Session observations, prompts | Claude Code sessions | SQLite | `python3 .claude-mem/scripts/export_claude_mem_memories.py` |
 
 ---
@@ -29,15 +28,6 @@ This document describes the unified memory management workflow across three memo
 - **Integration points**: Where to find specific functionality in codebase
 
 **Example**: "The GitHub skills are located in `.claude/skills/github/scripts/` and use Python modules in `.claude/skills/modules/`"
-
-### Use Forgetful When
-
-- **Cross-project learnings**: Patterns applicable to any project
-- **Atomic concepts**: Single, reusable insights (<2000 chars)
-- **Relationships**: Linking related concepts across knowledge graph
-- **Discovery**: Semantic search for "what have I learned about X"
-
-**Example**: "Trust-based compliance achieves <50% success; verification-based BLOCKING gates achieve 100%"
 
 ### Use Claude-Mem When
 
@@ -72,21 +62,7 @@ This document describes the unified memory management workflow across three memo
 
 ### During Session
 
-**Forgetful**: Create atomic memories for cross-project learnings
-
-```python
-mcp__forgetful__execute_forgetful_tool("create_memory", {
-    "title": "One concept summary",
-    "content": "Detailed explanation (<2000 chars)",
-    "context": "Why this matters",
-    "keywords": ["keyword1", "keyword2"],
-    "tags": ["category"],
-    "importance": 7-10,
-    "project_ids": [1]
-})
-```
-
-**Serena**: Update project memories for cross-session context
+Update Serena project memories for cross-session context.
 
 ```python
 mcp__serena__write_memory(
@@ -387,7 +363,7 @@ python3 scripts/review_memory_export_security.py .claude-mem/memories/[file].jso
 
 ## Duplicate Prevention
 
-All three memory systems handle duplicates differently:
+Both memory systems handle duplicates differently:
 
 ### Serena
 
@@ -396,14 +372,6 @@ All three memory systems handle duplicates differently:
 - Same filename = overwrite
 - Different filename = separate memories
 - Responsibility: Agent must check existing memories before writing
-
-### Forgetful
-
-**Strategy**: Semantic similarity + manual linking
-
-- Auto-links similar memories during creation
-- Agent should check `similar_memories` in response
-- Manually link with `link_memories` tool if needed
 
 ### Claude-Mem
 
@@ -421,28 +389,6 @@ All three memory systems handle duplicates differently:
 ---
 
 ## Memory Atomicity Guidelines
-
-### Forgetful Memory Size
-
-**Rule**: Each memory MUST be <2000 characters and contain ONE concept.
-
-**Good** (atomic):
-
-```markdown
-Title: "Trust-Based Compliance Failure (<50% vs 100%)"
-Content: "Trust-based guidance achieves <50% compliance. Verification-based
-BLOCKING gates achieve 100%. Replace trust with: BLOCKING keyword, MUST language,
-verification method, tool output in transcript, clear consequence."
-```
-
-**Bad** (non-atomic):
-
-```markdown
-Title: "Session 229 Learnings"
-Content: "We learned about frustrations, trust-based compliance, branch verification,
-skills-first violations, HANDOFF.md conflicts, PR #226 disaster, the 100% rule,
-the 5-instance threshold, December 22 timeline, and token economics."
-```
 
 ### Serena Memory Structure
 
@@ -469,7 +415,6 @@ Serena memories use Markdown with sections:
 ## References
 
 - Related Serena memories
-- Forgetful memory IDs
 - ADRs, sessions, issues
 ```
 
@@ -479,7 +424,7 @@ Serena memories use Markdown with sections:
 
 ### Sharing Your Learnings
 
-1. **During session**: Create Forgetful memories for cross-project concepts
+1. **During session**: Update Serena memories for project concepts
 2. **End of session**: Export Claude-Mem observations
 3. **Privacy review**: Scan export for sensitive data
 4. **Commit to git**: Add export to `.claude-mem/memories/exports/`
@@ -577,20 +522,6 @@ npx tsx scripts/search-memories.ts "" | head -20
 npx tsx scripts/search-memories.ts "[expected topic]"
 ```
 
-### Forgetful tool unavailable
-
-**Cause**: Forgetful MCP server not running
-
-**Solution**:
-
-```bash
-# Test Forgetful health
-python3 -m scripts.memory.memory_health
-
-# Check localhost:8020/mcp
-curl http://localhost:8020/mcp
-```
-
 ---
 
 ## Best Practices
@@ -598,15 +529,15 @@ curl http://localhost:8020/mcp
 ### Memory Creation
 
 1. **Serena first**: Check existing Serena memories before creating new ones
-2. **Atomic Forgetful**: One concept per memory (<2000 chars)
-3. **Link related**: Use `link_memories` to connect related Forgetful memories
+2. **Atomic Serena**: One concept per memory file
+3. **Link related**: Name related Serena memories in a References section
 4. **Tag consistently**: Use established tags for discoverability
 
 ### Export Timing
 
 **Export when**:
 
-- Session created 5+ Forgetful memories
+- Session produced 5+ notable observations
 - Significant architectural decisions documented
 - Frustration patterns identified
 - Testing strategies developed
@@ -644,7 +575,6 @@ transcript instead:
 ```markdown
 ### Memory Management
 
-**Forgetful memories created**: 9 (IDs 80-88)
 **Serena memory updated**: recurring-frustrations-integration
 **Claude-Mem export**: .claude-mem/memories/exports/2026-01-03-session-229-frustrations.json
 **Privacy review**: Completed (no sensitive data)
@@ -655,8 +585,7 @@ transcript instead:
 
 Before exporting, verify:
 
-- [ ] Each Forgetful memory is atomic (<2000 chars, one concept)
-- [ ] Memories have importance 7+ (only export high-value learnings)
+- [ ] Each Serena memory covers one concept
 - [ ] Privacy review completed (no secrets, paths, PII)
 - [ ] Naming follows convention (YYYY-MM-DD-session-NNN-topic.json)
 - [ ] Export path documented in the per-issue handoff or transcript

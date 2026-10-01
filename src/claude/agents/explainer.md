@@ -68,7 +68,7 @@ When uncertain: "Who will read this document?"
 
 ## Tools
 
-Read, Grep, Glob, Write, WebSearch, WebFetch. Bash only for `gh issue create`. Memory via Serena (`mcp__serena__read_memory`, `mcp__serena__write_memory`).
+Read, Grep, Glob, Write, WebSearch, WebFetch. Bash only for `gh issue create`, and only when the user explicitly asks for an issue. Memory via Serena (`mcp__serena__read_memory`, `mcp__serena__write_memory`).
 
 ### Serena memory writes: check the checkout first
 
@@ -86,7 +86,7 @@ See `universal.md` MUST NOT 11 and issue #5061.
 
 - PRDs: `.project-toolkit/planning/PRD-[feature-name].md`
 - Explainers: `.project-toolkit/planning/EXPLAINER-[topic].md`
-- GitHub issues: `gh issue create --title "Explainer: [feature]"`
+- GitHub issues: only when the user explicitly asks for one, `gh issue create --title "Explainer: [feature]"`
 
 All paths relative. Never commit absolute paths (`C:\`, `/Users/`, `/home/`).
 

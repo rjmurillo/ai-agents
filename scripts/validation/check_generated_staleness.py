@@ -38,9 +38,8 @@ lib step now renders ``scripts/{hook_utilities,github_core,ai_review_common}/``
 directly into every lib plugin tree and binplaces the claude-side copies onto
 ``.claude/lib/``, in the same run that checks everything else. There is no
 second command whose order matters, so this gate runs one child now.
-``scripts/sync_plugin_lib.py`` survives only as a thin, deprecated shim over
-the same logic, kept alive for the one workflow step that still calls it
-directly (see that script's own docstring); this gate no longer needs it.
+``scripts/sync_plugin_lib.py`` is retired (issue #5790); ``build_all.py`` is
+the only entry point.
 
 Bounded deadlines with cleanup-preserving termination
 -----------------------------------------------------

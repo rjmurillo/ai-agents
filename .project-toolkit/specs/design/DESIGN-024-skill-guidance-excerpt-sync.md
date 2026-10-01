@@ -42,7 +42,7 @@ ADR-108 amends the first three for exactly one class and satisfies the fifth by 
 
 ```text
 templates/skills/<name>.SKILL.md.tmpl      canonical (new)
-templates/skills/partials/<slug>.mustache  canonical excerpt (new); {{! rule-source: x.md }} pins it to .claude/rules/x.md
+templates/skills/partials/<slug>.mustache  canonical excerpt (new); {{! rule-source: x.md }} pins it to .claude/rules/x.md <!-- orphan-ref-ignore -->
         | build/scripts/skill_templates.py: discover, grammar-check, render (chevron), compare
         v
 .claude/skills/<name>/SKILL.md             derived (template-owned); loaded by Claude Code unchanged
@@ -138,7 +138,7 @@ Unchanged pipeline. The include-line transform finds nothing in the eight render
 | `--validate` on a clean tree | positive | exit 0 |
 | CLI as subprocess | contract | exit codes 0, 1, 2 observed end to end |
 
-`tests/build_scripts/test_skill_templates_pilot_scope.py`: asserts `discover(repo_root)` on the real tree returns exactly the names in a `PILOT` constant (empty set in A1, the eight pilot names after A2); its docstring states that widening the set is an owner decision recorded in that file. This is the control on the allowlist (ADR-108 section 1): a ninth `.tmpl` fails the suite until the owner adds the name.
+`tests/build_scripts/test_skill_templates_pilot_scope.py`: asserts `discover(repo_root)` on the real tree returns exactly the names in a `PILOT` constant (empty set in A1, the eight pilot names after A2); its docstring states that widening the set is an owner decision recorded in that file. This is the control on the allowlist (ADR-108 section 1): a ninth `.tmpl` fails the suite until the owner adds the name. <!-- orphan-ref-ignore -->
 
 `tests/build_scripts/test_build_all.py`: an allowlisted template-owned write passes the guard; a write to any other `.claude/` path still exits 2; `--check` with a drifted template exits 2 and restores nothing under `.claude/` (it never wrote).
 
@@ -154,4 +154,4 @@ Revert A2, then A1; move ADR-108 to `rejected`. The eight `SKILL.md` files retur
 
 ## Declined alternative: excerpt blocks pinned by a validator, no amendment
 
-`.claude/skills/<name>/SKILL.md` stays canonical and hand-maintained. Guidance spans sit between `<!-- excerpt: <slug> -->` and `<!-- /excerpt -->`; `scripts/validation/check_skill_excerpts.py` pins each span byte for byte to `templates/skills/partials/<slug>.md` and each sourced excerpt as a substring of its rule file, exits 0/1/2, with an author-run `--fix`. No `chevron`, no ADR change, no `.tmpl` files. Declined by the owner on 2026-09-11 in favor of templates as the canonical source.
+`.claude/skills/<name>/SKILL.md` stays canonical and hand-maintained. Guidance spans sit between `<!-- excerpt: <slug> -->` and `<!-- /excerpt -->`; `scripts/validation/check_skill_excerpts.py` pins each span byte for byte to `templates/skills/partials/<slug>.md` and each sourced excerpt as a substring of its rule file, exits 0/1/2, with an author-run `--fix`. No `chevron`, no ADR change, no `.tmpl` files. Declined by the owner on 2026-09-11 in favor of templates as the canonical source. <!-- orphan-ref-ignore -->

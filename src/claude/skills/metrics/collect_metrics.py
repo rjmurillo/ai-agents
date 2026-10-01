@@ -22,7 +22,7 @@ from typing import Any
 AGENT_PATTERNS = [
     r"(?i)\b(orchestrator|analyst|architect|implementer|security|qa|devops|critic|"
     r"milestone-planner|planner|explainer|task-decomposer|task-generator|"
-    r"backlog-generator|high-level-advisor|independent-thinker|memory|"
+    r"high-level-advisor|independent-thinker|memory|"
     r"skillbook|retrospective|roadmap|pr-comment-responder)\b\s*(agent)?",
     r"(?i)reviewed\s+by:?\s*(security|architect|analyst|qa|implementer)",
     r"(?i)agent:\s*(\w+)",

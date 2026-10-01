@@ -41,9 +41,14 @@ Advanced Git techniques for clean history, effective collaboration, and confiden
 
 ```bash
 git checkout feature/user-auth
+# Record the remote tip BEFORE rewriting. A later fetch moves the tracking
+# ref, so reading it at push time would let the lease overwrite new commits.
+git fetch origin
+EXPECTED_REMOTE_SHA=$(git rev-parse origin/feature/user-auth)
 git rebase -i main
 # Squash "fix typo" commits, reword messages, reorder logically
-git push --force-with-lease origin feature/user-auth
+git push --force-with-lease="refs/heads/feature/user-auth:$EXPECTED_REMOTE_SHA" \
+  origin HEAD:refs/heads/feature/user-auth
 ```
 
 **Rebase operations:** `pick` (keep), `reword` (change message), `edit` (amend content), `squash` (combine keeping message), `fixup` (combine discarding message), `drop` (remove).
@@ -210,7 +215,7 @@ verified bundle before `git worktree remove`.
 | Avoid | Why | Instead |
 |-------|-----|---------|
 | Rebasing shared branches | Rewrites history for all collaborators | Merge for shared branches |
-| `--force` without `--force-with-lease` | Overwrites teammates' work | Always `--force-with-lease` |
+| `--force`, or a bare `--force-with-lease` | Overwrites teammates' work; a fetch can advance the lease's expected value | Pin the lease to an observed SHA: `--force-with-lease=<ref>:<sha>` |
 | Bisecting on dirty working tree | Checkout fails with uncommitted changes | Commit or stash first |
 | Orphaned worktrees | Consume disk space silently | Remove after use |
 | `git stash` with several live worktrees | One stash stack serves every worktree; `pop` takes the newest entry, whoever made it | WIP commit on your own branch |
@@ -223,5 +228,5 @@ verified bundle before `git worktree remove`.
 - [ ] Working tree is clean (`git status`)
 - [ ] Branch history matches expectations (`git log --oneline`)
 - [ ] Tests pass after history rewrite
-- [ ] Force push used `--force-with-lease`
+- [ ] Force push pinned `--force-with-lease=<ref>:<sha>` to an observed SHA
 - [ ] Worktrees cleaned up (`git worktree list`)

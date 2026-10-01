@@ -1,10 +1,9 @@
 """CI-collected tests for the issue #1987 skill-script reference check.
 
-testpaths = ["tests"] (pyproject), so the skill-local
-.claude/skills/orphan-ref-validator/tests/test_scan.py is not collected by the
-default CI pytest run. This file lives under tests/ so the #1987 guard has CI
-coverage. It loads scan.py via the same importlib shim the skill-local suite
-uses, to avoid colliding with the copilot mirror's bare-name import.
+testpaths = ["tests"] (pyproject). This file sits beside test_scan.py in
+tests/skills/orphan-ref-validator/ so the #1987 guard has CI coverage. It loads
+scan.py via the same importlib shim test_scan.py uses, to avoid colliding with
+the copilot mirror's bare-name import.
 """
 
 from __future__ import annotations

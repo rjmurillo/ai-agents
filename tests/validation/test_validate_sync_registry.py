@@ -21,7 +21,7 @@ SCRIPT = REPO_ROOT / "scripts" / "validation" / "validate_sync_registry.py"
 
 # Make the module importable for the unit tests that call find_unregistered
 # directly. The script also self-inserts scripts/ on import to reach
-# sync_plugin_lib.
+# lib_mirror.
 sys.path.insert(0, str(REPO_ROOT / "scripts" / "validation"))
 
 import validate_sync_registry as vsr

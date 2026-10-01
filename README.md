@@ -126,7 +126,7 @@ The agents themselves use the platform specific handoffs to invoke subagents, ke
 - **Specialized agents** for different development phases (analysis, architecture, implementation, QA, etc.)
 - **Explicit handoff protocols** between agents with clear accountability
 - **Multi-Agent Impact Analysis Framework** for comprehensive planning
-- **Cross-session memory** with citation verification, graph traversal, and health reporting via Serena + Forgetful
+- **Cross-session memory** with citation verification, graph traversal, and health reporting via Serena
 - **Self-improvement system** with skill tracking and retrospectives
 - **Quality gates** with pre-PR validation, session protocol enforcement, and automated CI checks
 - **Reusable skills** for common development workflows (git, PR management, testing, linting)
@@ -141,7 +141,7 @@ The agents themselves use the platform specific handoffs to invoke subagents, ke
 | **Orchestrator** | The coordinating agent that routes tasks to specialists and synthesizes results |
 | **Handoff** | Explicit transfer of context and control between agents with clear accountability |
 | **Skill** | A reusable workflow component for common tasks (git, PR, testing, linting, and more) |
-| **Memory** | Cross-session context persistence via Serena + Forgetful for knowledge retention |
+| **Memory** | Cross-session context persistence via Serena for knowledge retention |
 | **ADR** | Architectural Decision Record, structured documents capturing design decisions |
 | **Quality Gate** | Validation checkpoint (critic review, QA pass, security scan) before proceeding |
 
@@ -387,7 +387,7 @@ flowchart LR
 
 ### Agent Catalog
 
-The Copilot CLI bundle adds the `backlog-generator` agent; both bundles include all the other agents. `spec-generator` is now a skill (issue #2001), available in both bundles. Both bundles share the same templates.
+Both bundles include every agent. `spec-generator` is now a skill (issue #2001), available in both bundles. Both bundles share the same templates.
 
 | Agent | Purpose | Output | Bundle |
 |-------|---------|--------|--------|
@@ -413,7 +413,6 @@ The Copilot CLI bundle adds the `backlog-generator` agent; both bundles include 
 | **issue-feature-review** | Feature-request triage on GitHub issues | Constructive verdict with next steps | both |
 | **merge-resolver** | Resolve git/PR merge conflicts | Pattern-based resolution plan | both |
 | **negotiation** | Offer analysis and counter-proposals | Value-gap analysis with RADAR protocol | both |
-| **backlog-generator** | Proactive task discovery when idle | Sized tasks from project state analysis | Copilot CLI only |
 
 See [AGENTS.md](AGENTS.md) for detailed agent documentation.
 

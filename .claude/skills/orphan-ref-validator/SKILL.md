@@ -156,6 +156,12 @@ Place file-scope directives below the YAML frontmatter (if any) and well within 
 
 Script references on example-placeholder lines are ignored automatically. This covers lines that start with `Example:`, `e.g.`, or `For example`, plus prose examples that document an intentionally absent helper.
 
+A fenced block whose last prose line before the fence says "citations, not local paths" is a citation block. The scanner skips its references and reports them under `directive_suppressed` with reason `citation block`. Rule templates use this for historical evidence lists (issue #5872).
+
+Backticked skill routing-role values (`front-door`, `explicit-only`, `conditional-adjunct`, `lifecycle`, `nested-helper`, `deprecated`) are category words, not skill names. A line like "a `front-door` skill" produces no `skill_name` finding. An explicit route such as "the `lifecycle` skill" still does when no such skill exists. A script cited by a skill-relative path, followed by "in the" and a backticked skill name, also resolves against that named skill's directory.
+
+Specs stay in scope. A spec that records files a later PR deleted carries a line-scope directive on each such line, so the rest of the spec keeps its orphan checks (issue #5872).
+
 Use file-scope on M1-deletion specs and proposed-entity catalogs whose every reference is intentional history. Use line-scope for one-off references that document an absence (for example, "the script `scripts/validation/manifest_counts.py` was not created").
 
 ### Phase 4: Resolve and Verdict
@@ -169,7 +175,7 @@ Use file-scope on M1-deletion specs and proposed-entity catalogs whose every ref
 
 Success criteria for the skill:
 
-- [ ] `uv run pytest .claude/skills/orphan-ref-validator/tests/ -q` reports all tests passed.
+- [ ] In a repository checkout, `uv run pytest tests/skills/orphan-ref-validator/ -q` reports all tests passed. Plugin installs do not ship tests.
 - [ ] `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"/skills/orphan-ref-validator/scripts/scan.py --help` exits 0 with the documented argparse output.
 - [ ] `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"/skills/orphan-ref-validator/scripts/scan.py --targets missing.md` exits 2 with `VERDICT: ERROR`.
 - [ ] `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"/skills/orphan-ref-validator/scripts/scan.py` from the repo root exits 0 with `VERDICT: PASS` on default tracked text targets.
@@ -310,8 +316,10 @@ python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"/skills/orphan-r
 
 ## Tests
 
+The suite lives in the source repository and does not ship in plugin installs. From a checkout:
+
 ```bash
-uv run pytest .claude/skills/orphan-ref-validator/tests/ -q
+uv run pytest tests/skills/orphan-ref-validator/ -q
 ```
 
 Coverage target is 80 percent line coverage on `scan.py`. Cases cover positive and negative detection for each kind, the ADR-056 envelope shape, vendored-install scenarios, and edge cases (empty file, mixed living-and-dead refs, large files, secret files).

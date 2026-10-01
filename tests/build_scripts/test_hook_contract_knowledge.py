@@ -1,5 +1,6 @@
 """Contract tests for durable cross-harness hook knowledge."""
 
+import ast
 import json
 import re
 from pathlib import Path
@@ -31,10 +32,7 @@ RUNTIME_ADR = (
     / "ADR-071-plugin-hook-runtime-contract-verification.md"
 )
 DISPATCHER_ADR = (
-    REPO_ROOT
-    / ".project-toolkit"
-    / "architecture"
-    / "ADR-068-consolidated-hook-dispatcher.md"
+    REPO_ROOT / ".project-toolkit" / "architecture" / "ADR-068-consolidated-hook-dispatcher.md"
 )
 PERMISSION_ADR = (
     REPO_ROOT
@@ -126,7 +124,12 @@ CLAUDE_EVENTS = {
 ROUTING_FILES = (
     REPO_ROOT / "AGENTS.md",
     REPO_ROOT / "src" / "claude" / "AGENTS.md",
-    REPO_ROOT / ".claude" / "skills" / "CLAUDE.md",
+    REPO_ROOT
+    / ".claude"
+    / "skills"
+    / "skillforge"
+    / "references"
+    / "skill-development-conventions.md",
     REPO_ROOT / ".github" / "AGENTS.md",
     REPO_ROOT / ".github" / "copilot-instructions.md",
     REPO_ROOT / "src" / "AGENTS.md",
@@ -373,18 +376,20 @@ def test_reference_preserves_cross_harness_decision_shapes() -> None:
     assert "A translated `ask` emits nothing" in normalized
 
 
-def test_no_stop_hook_is_registered_on_any_surface() -> None:
-    """Stop is unregistered everywhere, and no dispatch group targets it.
+def test_stop_hook_is_registered_only_as_the_local_reflect_nudge() -> None:
+    """Stop has one local registration: the non-blocking reflect nudge (#5817).
 
     The vendored and generated surfaces were purged under ADR-084. The local
-    surface kept one Stop group whose only remaining shim was
-    invoke_auto_retrospective.py, which #3187 measured net-negative and #3349
-    found still firing: it wrote a retrospective skeleton into the working
-    tree at session end and returned a block decision to force another turn.
-    Deleting it emptied the group, so the whole Stop path is gone rather than
-    reduced. Asserting absence on all four surfaces, and on group ids as well
-    as registrations, is what keeps it gone: a group with no registration
-    would still be dispatchable by hand.
+    surface once kept a Stop group whose only shim, invoke_auto_retrospective.py,
+    was measured net-negative by #3187 and found still firing by #3349: it wrote
+    a retrospective skeleton into the working tree and returned a block decision
+    to force another turn. That path was deleted outright.
+
+    #5817 added back one direct registration, invoke_reflect_nudge.py, which
+    never blocks. This test pins what keeps the old failure shape gone: the
+    registration is direct (no dispatch group, so the gate_all mode that exits
+    on a block never wraps it), it exists on the local surface only, and its
+    source cannot emit a block decision.
     """
     local_hooks = _read_json(REPO_ROOT / ".claude" / "settings.json")["hooks"]
     vendored_hooks = _read_json(REPO_ROOT / ".claude" / "hooks" / "hooks.json")["hooks"]
@@ -393,7 +398,9 @@ def test_no_stop_hook_is_registered_on_any_surface() -> None:
     ]
     dispatch_groups = _read_json(REPO_ROOT / ".claude" / "hooks" / "dispatch_groups.json")["groups"]
 
-    assert "Stop" not in local_hooks
+    commands = [h["command"] for entry in local_hooks["Stop"] for h in entry["hooks"]]
+    assert len(commands) == 1
+    assert ".claude/hooks/Stop/invoke_reflect_nudge.py" in commands[0]
     assert "Stop" not in vendored_hooks
     assert "Stop" not in generated_hooks
     assert "agentStop" not in generated_hooks
@@ -403,6 +410,19 @@ def test_no_stop_hook_is_registered_on_any_surface() -> None:
         for group_id, spec in dispatch_groups.items()
         if spec.get("event") in {"Stop", "SubagentStop", "agentStop"}
     ] == []
+
+    tree = ast.parse(
+        (REPO_ROOT / "templates" / "hooks" / "Stop" / "invoke_reflect_nudge.py").read_text(
+            encoding="utf-8"
+        )
+    )
+    docstring = ast.get_docstring(tree, clean=False)
+    strings = {
+        n.value
+        for n in ast.walk(tree)
+        if isinstance(n, ast.Constant) and isinstance(n.value, str) and n.value != docstring
+    }
+    assert not strings & {"decision", "block", "continue"}
 
     sidecar = _normalized_text(OFFICIAL_SOURCES)
     assert "Shared Stop producers can emit this shape on both harnesses." in sidecar
@@ -810,8 +830,7 @@ def test_adr_068_scopes_its_six_dated_status_paragraphs() -> None:
     superseded_5154 = _normalize(
         _paragraph_after(
             text,
-            "Amended 2026-08-18 (issue #5154, landed on `main` independently "
-            "of #5061",
+            "Amended 2026-08-18 (issue #5154, landed on `main` independently of #5061",
             DISPATCHER_ADR,
         )
     )
@@ -823,8 +842,7 @@ def test_adr_068_scopes_its_six_dated_status_paragraphs() -> None:
     current = _normalize(
         _paragraph_after(
             text,
-            "Amended 2026-08-19 (merge of issue #4917 into the #5061+#5154 "
-            "reconciliation",
+            "Amended 2026-08-19 (merge of issue #4917 into the #5061+#5154 reconciliation",
             DISPATCHER_ADR,
         )
     )
@@ -846,8 +864,7 @@ def test_adr_068_scopes_its_six_dated_status_paragraphs() -> None:
     assert "ADR-068-071-085-5013-debate-log.md" in superseded_5013
 
     assert (
-        "held three shims, `markdownlint_guard`, `require_subagent_model`, and"
-        in superseded_5061
+        "held three shims, `markdownlint_guard`, `require_subagent_model`, and" in superseded_5061
     )
     assert (
         "110 seconds of configured timeout, with a 115-second generated host entry"
@@ -876,10 +893,7 @@ def test_adr_068_scopes_its_six_dated_status_paragraphs() -> None:
     assert "reduction is 50.0 percent" in superseded_5061_5154
 
     assert "three-way mechanical composition of three already-reviewed decisions" in current
-    assert (
-        "three registrations on one event: three PreToolUse shims"
-        in current
-    )
+    assert "three registrations on one event: three PreToolUse shims" in current
     assert "sums to 30 seconds of configured timeout" in current
     assert "generated host entry requests 35 seconds" in current
     assert "renumbered up from the `-11-` suffix" in current
@@ -929,8 +943,7 @@ def test_adr_071_scopes_its_six_dated_amendment_sections() -> None:
     superseded_5061 = _normalize(
         _section_after(
             text,
-            "### 2026-08-18 amendment: Serena memory worktree-scope guard "
-            "(issue #5061)",
+            "### 2026-08-18 amendment: Serena memory worktree-scope guard (issue #5061)",
             RUNTIME_ADR,
         )
     )
@@ -953,8 +966,7 @@ def test_adr_071_scopes_its_six_dated_amendment_sections() -> None:
     current = _normalize(
         _section_after(
             text,
-            "### 2026-08-19 reconciliation: merging issue #4917 into the "
-            "#5061+#5154 tree",
+            "### 2026-08-19 reconciliation: merging issue #4917 into the #5061+#5154 tree",
             RUNTIME_ADR,
         )
     )

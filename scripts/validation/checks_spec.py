@@ -20,6 +20,11 @@ _SCRIPT_DIR = Path(__file__).resolve().parent
 if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
+from checks_citations import (  # noqa: E402, F401  (re-exported: pre_pr imports these from here)
+    validate_canonical_citations,
+    validate_orchestrator_citations,
+    validate_spec_contradiction,
+)
 from checks_common import (  # noqa: E402
     MissingScriptSkip,
     _resolve_branch_base_ref,
@@ -285,7 +290,7 @@ def validate_skill_memory_references(repo_root: Path) -> bool:
 def validate_sync_registry(repo_root: Path) -> bool:
     """Enforce that every shared lib package is registered for sync (Issue #1909).
 
-    `scripts/sync_plugin_lib.py:SYNC_PAIRS` lists the shared packages copied
+    `build/scripts/lib_mirror.py:SYNC_PAIRS` lists the shared packages copied
     into `.claude/lib/` for plugin distribution. A new lib package added
     without a SYNC_PAIRS entry silently misses the sync and crashes a shimmed
     hook at install time. This gate fails when a package under the source roots
@@ -333,100 +338,6 @@ def validate_agent_catalog(repo_root: Path) -> bool:
         for line in output.strip().splitlines()[:40]:
             print(line)
     return bool(exit_code == 0)
-
-
-def validate_canonical_citations(repo_root: Path) -> bool:
-    """Heuristic check for uncited mirror-claims.
-
-    Soft-warn by default. Set STRICT_CANONICAL_CHECK=1 in the environment
-    to upgrade to a hard failure. Always returns True in soft-warn mode
-    so a single uncited claim does not block the PR pipeline.
-
-    See: `.claude/rules/canonical-source-mirror.md` and PR #1887
-    retrospective Layer 4.
-    """
-    script = repo_root / "scripts" / "validation" / "check_canonical_citations.py"
-    if not script.exists():
-        print("[WARNING] check_canonical_citations.py not found (skipping)")
-        return True
-
-    exit_code, stdout, stderr = _run_subprocess(
-        [sys.executable, str(script), "--repo-root", str(repo_root)]
-    )
-
-    output = stdout.strip()
-    if output:
-        print(output)
-    if stderr.strip():
-        print(stderr.strip(), file=sys.stderr)
-
-    # Default mode is soft-warn; the script already exits 0 unless
-    # STRICT_CANONICAL_CHECK=1 is set. Treat any non-zero exit as a fail
-    # so CI can opt into strict mode by setting the env var.
-    return bool(exit_code == 0)
-
-
-def validate_orchestrator_citations(repo_root: Path) -> bool:
-    """Verify orchestrator prose path citations resolve to real files.
-
-    Wraps ``scripts/validation/check_orchestrator_citations.py``, which fails
-    when a backtick path citation in ``.claude/skills/pr-quality-all/SKILL.md``
-    points to a file that no longer exists. A stale citation (e.g. the removed
-    ``AIReviewCommon.psm1`` reference fixed in PR #1934) sends the next reader
-    to a dead pointer. See Issue #1966.
-    """
-    script = repo_root / "scripts" / "validation" / "check_orchestrator_citations.py"
-    if not script.exists():
-        print("[WARNING] check_orchestrator_citations.py not found (skipping)")
-        return True
-
-    exit_code, stdout, stderr = _run_subprocess(
-        [sys.executable, str(script), "--repo-root", str(repo_root)]
-    )
-    if stdout.strip():
-        print(stdout.strip())
-    if stderr.strip():
-        print(stderr.strip(), file=sys.stderr)
-    return bool(exit_code == 0)
-
-
-def validate_spec_contradiction(repo_root: Path) -> bool:
-    """Advisory check for PR-description vs linked-issue vs code contradictions.
-
-    Wraps ``scripts/validation/spec_contradiction.py`` in ``--advisory`` mode,
-    so a heuristic false positive never blocks the local pre-PR cycle. The
-    script catches the PR #1897 round-7 loop locally (Issue #1894 claimed
-    ``model_tier: sonnet`` while the committed agent frontmatter shipped
-    ``model: opus``), which CI's "Validate Spec Coverage" gate surfaced only
-    after each push. Always returns True; the WARN output is the signal.
-
-    See Issue #1920 and the retrospective at
-    ``.project-toolkit/retrospective/2026-05-08-pr-1897-confident-incorrectness-recurrence.md``.
-    """
-    script = repo_root / "scripts" / "validation" / "spec_contradiction.py"
-    if not script.exists():
-        print("[WARNING] spec_contradiction.py not found (skipping)")
-        return True
-
-    base_ref = _resolve_branch_base_ref(repo_root)
-    cmd = [
-        sys.executable,
-        str(script),
-        "--repo-root",
-        str(repo_root),
-        "--advisory",
-    ]
-    if base_ref:
-        cmd.extend(["--base", base_ref])
-    exit_code, stdout, stderr = _run_subprocess(cmd)
-    if stdout.strip():
-        print(stdout.strip())
-    if stderr.strip():
-        print(stderr.strip(), file=sys.stderr)
-    # Advisory: the wrapped script already exits 0 under --advisory, so any
-    # non-zero exit here is a config error (e.g. could not resolve repo). Do
-    # not block the pre-PR cycle on it; surface the output and pass.
-    return True
 
 
 _MODEL_PIN_BACKLOG_PREFIX = "[model-pins]   backlog: "
