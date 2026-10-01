@@ -213,13 +213,23 @@ class TestUnusableArtifact:
     @pytest.mark.parametrize(
         "archive",
         [
-            b"not a zip",
-            _zip("other.json", _evidence()),
-            _zip("run_python_tests.json", "{"),
-            _zip("run_python_tests.json", _evidence("someone_else")),
-            _zip("run_python_tests.json", json.dumps({"validator": "run_python_tests"})),
-            _zip("run_python_tests.json", '{"validator": "run_python_tests", "validator": "x"}'),
-            _zip("run_python_tests.json", "[" * 5000 + "]" * 5000),
+            pytest.param(b"not a zip", id="not-a-zip"),
+            pytest.param(_zip("other.json", _evidence()), id="wrong-member-name"),
+            pytest.param(_zip("run_python_tests.json", "{"), id="truncated-json"),
+            pytest.param(
+                _zip("run_python_tests.json", _evidence("someone_else")), id="other-validator"
+            ),
+            pytest.param(
+                _zip("run_python_tests.json", json.dumps({"validator": "run_python_tests"})),
+                id="missing-fields",
+            ),
+            pytest.param(
+                _zip(
+                    "run_python_tests.json", '{"validator": "run_python_tests", "validator": "x"}'
+                ),
+                id="duplicate-key",
+            ),
+            pytest.param(_zip("run_python_tests.json", "[" * 5000 + "]" * 5000), id="deep-nesting"),
         ],
     )
     def test_an_artifact_that_is_not_evidence_is_recorded_unknown(
