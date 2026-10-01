@@ -190,9 +190,9 @@ def missing_outcomes(
     ``.claude/rules/ci-scripts.md`` MUST 12 names as the silent pass.
 
     A lone ``SKIP`` with ``policy.exempt`` does not count: the record is
-    candidate-writable, and ADR-113 decision 9 accepts the exempt row only for a validator the applicability table marks
-    not applicable, which is separate work. Until then a required validator
-    must show a result.
+    candidate-writable, and ADR-113 decision 9 accepts the exempt row only for a
+    validator the applicability table marks not applicable, which is separate
+    work. Until then a required validator must show a result.
     """
     present = {record.outcome.validator for record in bound if _shows_a_result(record)}
     return tuple(
