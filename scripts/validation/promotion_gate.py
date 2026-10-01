@@ -44,7 +44,6 @@ from scripts.validation.promotion_applicability import (  # noqa: E402
 )
 from scripts.validation.promotion_candidate import (  # noqa: E402
     CandidateCheckError,
-    InvalidCandidateNameError,
     candidate_files,
     candidate_on_branch,
     tag_names_candidate,
@@ -270,9 +269,24 @@ def _summary(manifest: dict[str, Any]) -> str:
     return f"promotion gate: {verdict} state={manifest['state']} {shown}"
 
 
-def _config_error(message: str) -> int:
+class _GateExitError(Exception):
+    """Stops the run with an ADR-035 exit code after the message is printed."""
+
+    def __init__(self, code: int) -> None:
+        super().__init__(code)
+        self.code = code
+
+
+def _refuse(message: str) -> _GateExitError:
+    """Bad input or configuration: exit 2."""
     print(f"[FAIL] promotion gate: {json.dumps(message)}", file=sys.stderr)
-    return EXIT_CONFIG
+    return _GateExitError(EXIT_CONFIG)
+
+
+def _blocked(message: str) -> _GateExitError:
+    """An external dependency (git, the filesystem) could not answer: exit 3."""
+    print(f"[BLOCKED] promotion gate: {json.dumps(message)}", file=sys.stderr)
+    return _GateExitError(EXIT_EXTERNAL)
 
 
 def _argument_problem(args: argparse.Namespace) -> str | None:
@@ -340,57 +354,63 @@ def _write_outputs(args: argparse.Namespace, manifest: dict[str, Any]) -> None:
             handle.write(f"release_eligible={'true' if eligible else 'false'}\n")
 
 
-def main(argv: Sequence[str] | None = None) -> int:
-    """CLI entry point. Returns an ADR-035 exit code."""
-    args = _parser().parse_args(argv)
+@dataclass(frozen=True, slots=True)
+class _Prepared:
+    candidate: Candidate
+    previous: PreviousManifest | None
+    required: tuple[str, ...]
+    build: frozenset[str]
+    table_present: bool
+
+
+def _prepare(args: argparse.Namespace) -> _Prepared:
+    """Validate arguments and resolve the candidate and applicable validators."""
     problem = _argument_problem(args)
     if problem:
-        return _config_error(problem)
+        raise _refuse(problem)
     try:
         candidate, previous = _inputs(args)
-    except (ValueError, ManifestError, OSError) as exc:
-        return _config_error(f"{type(exc).__name__}: {exc}")
-    try:
         problem = _candidate_problem(args, candidate)
-    except InvalidCandidateNameError as exc:
-        return _config_error(str(exc))
-    except CandidateCheckError as exc:
-        print(f"[BLOCKED] promotion gate: {json.dumps(str(exc))}", file=sys.stderr)
-        return EXIT_EXTERNAL
-    if problem:
-        return _config_error(problem)
-    try:
         required, build, table_present = _applicable(args, candidate)
-    except ApplicabilityError as exc:
-        return _config_error(str(exc))
+    except (ValueError, ManifestError, OSError, ApplicabilityError) as exc:
+        raise _refuse(f"{type(exc).__name__}: {exc}") from exc
     except CandidateCheckError as exc:
-        print(f"[BLOCKED] promotion gate: {json.dumps(str(exc))}", file=sys.stderr)
-        return EXIT_EXTERNAL
+        raise _blocked(str(exc)) from exc
+    if problem:
+        raise _refuse(problem)
+    return _Prepared(candidate, previous, required, build, table_present)
+
+
+def _execute(args: argparse.Namespace, prepared: _Prepared) -> GateResult:
     try:
-        result = run_gate(
+        return run_gate(
             repo_root=args.repo_root,
             evidence_dir=args.evidence_dir,
-            candidate=candidate,
-            required=required,
-            build_validators=build,
-            applicability_absent=not table_present,
-            previous=previous,
+            candidate=prepared.candidate,
+            required=prepared.required,
+            build_validators=prepared.build,
+            applicability_absent=not prepared.table_present,
+            previous=prepared.previous,
             mode=args.mode,
             today=args.today,
         )
     except ExceptionsFileError as exc:
-        return _config_error(str(exc))
+        raise _refuse(str(exc)) from exc
     except OSError as exc:
-        print(f"[BLOCKED] promotion gate: {json.dumps(type(exc).__name__)}", file=sys.stderr)
-        return EXIT_EXTERNAL
+        raise _blocked(type(exc).__name__) from exc
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    """CLI entry point. Returns an ADR-035 exit code."""
+    args = _parser().parse_args(argv)
     try:
-        _write_outputs(args, result.manifest)
-    except OSError as exc:
-        print(
-            f"[BLOCKED] promotion gate cannot write: {json.dumps(type(exc).__name__)}",
-            file=sys.stderr,
-        )
-        return EXIT_EXTERNAL
+        result = _execute(args, _prepare(args))
+        try:
+            _write_outputs(args, result.manifest)
+        except OSError as exc:
+            raise _blocked(f"cannot write {type(exc).__name__}") from exc
+    except _GateExitError as stop:
+        return stop.code
     print(_summary(result.manifest))
     return result.exit_code
 
