@@ -78,6 +78,7 @@ import re
 import shlex
 import shutil
 import signal
+import stat
 import subprocess
 import sys
 import tempfile
@@ -477,6 +478,15 @@ def _worktree_common_dir(gitdir: Path) -> Path:
 _HOST_OBJECTS_MOUNT = "/host-git-objects"
 
 
+def _is_special_file(path: Path) -> bool:
+    """Return True for a socket or FIFO, which copytree cannot copy (for example fsmonitor)."""
+    try:
+        mode = path.lstat().st_mode
+    except OSError:
+        return False
+    return stat.S_ISSOCK(mode) or stat.S_ISFIFO(mode)
+
+
 def _copy_git_metadata(common: Path, gitdir: Path, dest: Path) -> None:
     """Copy the git metadata a linked worktree needs into ``dest``.
 
@@ -490,12 +500,12 @@ def _copy_git_metadata(common: Path, gitdir: Path, dest: Path) -> None:
     because the act job user differs from the host user.
     """
     skip = {"objects", "worktrees", "hooks"}
-    shutil.copytree(
-        common,
-        dest,
-        symlinks=True,
-        ignore=lambda _dir, names: [n for n in names if n in skip and _dir == str(common)],
-    )
+
+    def ignore(directory: str, names: list[str]) -> list[str]:
+        top = directory == str(common)
+        return [n for n in names if (top and n in skip) or _is_special_file(Path(directory) / n)]
+
+    shutil.copytree(common, dest, symlinks=True, ignore=ignore)
     (dest / "objects" / "info").mkdir(parents=True)
     (dest / "objects" / "info" / "alternates").write_text(
         f"{_HOST_OBJECTS_MOUNT}\n", encoding="utf-8"
@@ -509,8 +519,50 @@ def _copy_git_metadata(common: Path, gitdir: Path, dest: Path) -> None:
     dest.chmod(0o777)
 
 
-class UntrustedGitDirError(RuntimeError):
+class GitMountError(RuntimeError):
+    """The linked worktree's git metadata cannot be mounted into the act container."""
+
+
+class UntrustedGitDirError(GitMountError):
     """A linked worktree's git pointers lead outside the common git dir git reports."""
+
+
+class GitCopyCleanupError(GitMountError):
+    """The throwaway git dir copy could not be removed and is still on disk."""
+
+
+def _make_tree_writable(root: Path) -> None:
+    """Best-effort chmod so the host user can delete a tree git wrote into."""
+    for current, dirs, files in os.walk(root):
+        for name in [*dirs, *files]:
+            entry = Path(current) / name
+            if not entry.is_symlink():
+                with contextlib.suppress(OSError):
+                    entry.chmod(entry.stat().st_mode | 0o700)
+    with contextlib.suppress(OSError):
+        root.chmod(0o700)
+
+
+def _remove_copy(root: Path) -> str | None:
+    """Remove the temp copy, retrying once after making it writable.
+
+    Returns None on success, else a message naming the leftover path. Never
+    raises: files the container user created can resist deletion, and a
+    traceback would hide the stage result.
+    """
+    for attempt in range(2):
+        try:
+            shutil.rmtree(root)
+        except OSError as exc:
+            if attempt == 0:
+                _make_tree_writable(root)
+                continue
+            return (
+                f"could not remove the temporary git dir copy {root} ({exc}); it holds "
+                "the repository config and stays on disk until you delete it"
+            )
+        return None
+    return None  # pragma: no cover - the loop always returns
 
 
 def _host_common_dir(repo_root: Path) -> Path | None:
@@ -533,8 +585,8 @@ def _require_backlink(repo_root: Path, gitdir: Path) -> None:
 
     git writes ``<gitdir>/gitdir`` when it creates the worktree. A pointer
     forged in the checkout's own ``.git`` file cannot also forge this file
-    inside the main clone, so it anchors the pointer to something the checkout
-    does not control.
+    inside the main clone, so it catches a misdirected pointer. It does not
+    stop someone who can write to both the checkout and the main clone.
     """
     try:
         back = (gitdir / "gitdir").read_text(encoding="utf-8").strip()
@@ -548,13 +600,27 @@ def _require_backlink(repo_root: Path, gitdir: Path) -> None:
 
 
 def _require_trusted_common_dir(repo_root: Path, common: Path) -> None:
-    """Refuse to mount ``common`` unless it is the common git dir git reports for the host."""
+    """Refuse to mount ``common`` unless it is the common git dir git reports for the host.
+
+    git follows the same ``.git`` file and ``commondir`` pointer the checkout
+    controls, so this catches a misdirected pointer (a ``.git`` file copied
+    from another worktree), not a forged pair of files.
+    """
     expected = _host_common_dir(repo_root)
     if expected is None or common.resolve() != expected:
         raise UntrustedGitDirError(
             f"linked worktree common git dir {common} does not match the one git "
             f"reports ({expected or 'unresolved'}); refusing to mount it into the act "
             f"container. Check the commondir file under {repo_root / '.git'}."
+        )
+
+
+def _require_mountable(path: Path) -> None:
+    """Refuse a path that docker's ``-v src:dst`` syntax cannot carry."""
+    if ":" in str(path):
+        raise GitMountError(
+            f"{path} contains ':' and cannot be bind-mounted into the act container; "
+            "move the repository or set TMPDIR to a path without ':'."
         )
 
 
@@ -585,13 +651,26 @@ def _worktree_git_mount(repo_root: Path) -> Iterator[list[str]]:
     if gitdir.parent != common / "worktrees":
         yield []
         return
-    # TemporaryDirectory creates the parent 0700; that, not the open modes on
-    # the copy, keeps other host users out. Do not swap in a shared temp root.
-    with tempfile.TemporaryDirectory(prefix="act-gitdir-") as tmp:
-        dest = Path(tmp) / "git"
-        _copy_git_metadata(common, gitdir, dest)
+    _require_mountable(common)
+    # mkdtemp creates the parent 0700; that, not the open modes on the copy,
+    # keeps other host users out. Do not swap in a shared temp root.
+    tmp = Path(tempfile.mkdtemp(prefix="act-gitdir-"))
+    try:
+        dest = tmp / "git"
+        _require_mountable(dest)
+        try:
+            _copy_git_metadata(common, gitdir, dest)
+        except (OSError, shutil.Error) as exc:
+            raise GitMountError(f"could not copy the git metadata from {common}: {exc}") from exc
         mounts = [f"{dest}:{common}", f"{common / 'objects'}:{_HOST_OBJECTS_MOUNT}:ro"]
         yield ["--container-options", " ".join(f"-v {shlex.quote(m)}" for m in mounts)]
+    finally:
+        leftover = _remove_copy(tmp)
+        if leftover is not None:
+            print(f"WARNING: {leftover}", file=sys.stderr)
+    # Reached only when the body did not raise, so a stage result is never masked.
+    if leftover is not None:
+        raise GitCopyCleanupError(leftover)
 
 
 def _act_env(repo_root: Path) -> dict[str, str]:
@@ -1432,11 +1511,16 @@ def _run_act_stage(
     """
     if not linked_git:
         return _run_act_workflows(stage, base_cmd, timeout, files, repo_root, [])
+    result = StageResult(stage, False, "")
     try:
         with _worktree_git_mount(repo_root) as mount_args:
-            return _run_act_workflows(stage, base_cmd, timeout, files, repo_root, mount_args)
-    except UntrustedGitDirError as exc:
+            result = _run_act_workflows(stage, base_cmd, timeout, files, repo_root, mount_args)
+    except GitCopyCleanupError as exc:
+        detail = f"{result.detail}\n{exc}" if result.detail else str(exc)
+        return StageResult(stage, False, detail)
+    except GitMountError as exc:
         return StageResult(stage, False, str(exc))
+    return result
 
 
 def _run_act_workflows(
