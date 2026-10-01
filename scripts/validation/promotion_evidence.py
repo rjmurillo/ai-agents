@@ -34,6 +34,8 @@ record was written by a trusted job. That is the provenance check in decision
 from __future__ import annotations
 
 import json
+import math
+import os
 import re
 import stat
 from dataclasses import dataclass
@@ -51,6 +53,7 @@ REASON_DIGEST_MISSING = "binding.digest_missing"
 REASON_CANDIDATE_DIGEST_ABSENT = "binding.candidate_digest_absent"
 
 MAX_EVIDENCE_BYTES = 1_048_576
+_SHOWN_LIMIT = 200
 _SHA_RE = re.compile(r"[0-9a-f]{40}")
 _DIGEST_RE = re.compile(r"[0-9a-f]{64}")
 _OUTCOME_KEYS = frozenset(
@@ -157,8 +160,8 @@ def _items(document: dict[str, Any]) -> tuple[str, ...]:
 
 def _duration(document: dict[str, Any]) -> float:
     value = document.get("duration_seconds", 0.0)
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        raise EvidenceError("'duration_seconds' must be a number")
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+        raise EvidenceError("'duration_seconds' must be a finite number")
     return float(value)
 
 
@@ -175,7 +178,7 @@ def parse_evidence(document: object, source: str = "") -> EvidenceRecord:
         raise EvidenceError("evidence must be a JSON object")
     extra = sorted(set(document) - _RECORD_KEYS)
     if extra:
-        raise EvidenceError(f"unknown key(s) {', '.join(extra)}")
+        raise EvidenceError(f"unknown key(s) {_shown(', '.join(extra))}")
     digest = _string(document, "digest")
     if digest and not _DIGEST_RE.fullmatch(digest):
         raise EvidenceError("'digest' must be 64 lowercase hex characters")
@@ -193,35 +196,73 @@ def parse_evidence(document: object, source: str = "") -> EvidenceRecord:
         )
     except (ValueError, TypeError) as exc:
         raise EvidenceError(str(exc)) from exc
-    return EvidenceRecord(outcome=outcome, digest=digest, items=_items(document), source=source)
+    items = _items(document)
+    if items and outcome.state is EvidenceState.PASS:
+        raise EvidenceError("a PASS must not list failed items")
+    return EvidenceRecord(outcome=outcome, digest=digest, items=items, source=source)
 
 
 def _reject_duplicate_keys(pairs: list[tuple[str, object]]) -> dict[str, object]:
-    keys = [key for key, _ in pairs]
-    repeated = sorted({key for key in keys if keys.count(key) > 1})
+    seen: set[str] = set()
+    repeated: set[str] = set()
+    for key, _ in pairs:
+        (repeated if key in seen else seen).add(key)
     if repeated:
-        raise ValueError(f"duplicate key(s) {', '.join(repeated)}")
+        raise ValueError(f"duplicate key(s) {_shown(', '.join(sorted(repeated)))}")
     return dict(pairs)
 
 
+def _reject_constant(name: str) -> object:
+    raise ValueError(f"non-finite number {name} is not valid evidence")
+
+
+def _clean(value: str) -> str:
+    """Return ``value`` control-free and short enough to log safely.
+
+    Evidence is attacker-writable text. A key name or file name can hold a
+    newline that starts a workflow command line, so every value this module
+    echoes goes through here first.
+    """
+    cleaned = "".join(char if char.isprintable() else "?" for char in value)
+    if len(cleaned) > _SHOWN_LIMIT:
+        cleaned = cleaned[:_SHOWN_LIMIT] + "..."
+    return cleaned
+
+
+def _shown(value: str) -> str:
+    """Return the cleaned ``value`` in quotes, for use inside an error message."""
+    return repr(_clean(value))
+
+
 def _read_regular_file(path: Path) -> str:
-    """Return the text of a regular file no larger than the cap, or raise OSError."""
-    info = path.lstat()
-    if not stat.S_ISREG(info.st_mode):
-        raise OSError("not a regular file")
-    if info.st_size > MAX_EVIDENCE_BYTES:
+    """Return the text of a regular file no larger than the cap, or raise OSError.
+
+    Opens with ``O_NOFOLLOW`` and checks the opened descriptor, so a path
+    swapped for a symlink after listing is refused rather than followed, and
+    reads at most one byte past the cap so a file that grew is still caught.
+    """
+    descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+    try:
+        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+            raise OSError("not a regular file")
+        data = os.read(descriptor, MAX_EVIDENCE_BYTES + 1)
+    finally:
+        os.close(descriptor)
+    if len(data) > MAX_EVIDENCE_BYTES:
         raise OSError(f"larger than {MAX_EVIDENCE_BYTES} bytes")
-    return path.read_text(encoding="utf-8")
+    return data.decode("utf-8")
 
 
 def _load_one(path: Path) -> EvidenceRecord | RejectedEvidence:
-    source = path.name
+    source = _clean(path.name)
     try:
         text = _read_regular_file(path)
     except (OSError, UnicodeDecodeError) as exc:
         return RejectedEvidence(source, "", REASON_UNREADABLE, str(exc))
     try:
-        document = json.loads(text, object_pairs_hook=_reject_duplicate_keys)
+        document = json.loads(
+            text, object_pairs_hook=_reject_duplicate_keys, parse_constant=_reject_constant
+        )
         return parse_evidence(document, source)
     except (ValueError, RecursionError) as exc:
         validator = _validator_hint(text)
@@ -235,7 +276,7 @@ def _validator_hint(text: str) -> str:
     except (ValueError, RecursionError):
         return ""
     name = document.get("validator") if isinstance(document, dict) else ""
-    return name if isinstance(name, str) else ""
+    return _clean(name) if isinstance(name, str) else ""
 
 
 def load_evidence_dir(
@@ -278,13 +319,19 @@ def binding_problem(record: EvidenceRecord, candidate: Candidate, tier: BindingT
 def bind_records(
     records: tuple[EvidenceRecord, ...],
     candidate: Candidate,
-    build_validators: frozenset[str] = frozenset(),
+    build_validators: frozenset[str],
 ) -> BoundEvidence:
     """Split records into those bound to ``candidate`` and those rejected.
 
     A validator named in ``build_validators`` is about the build and binds on
-    SHA and digest. Every other validator binds on SHA alone. A rejected record
-    is not silently dropped: the caller counts its validator as missing.
+    SHA and digest. Every other validator binds on SHA alone. ``build_validators``
+    has no default: an omitted set would bind a build result on SHA alone with
+    no signal, so the caller must state it, and the applicability table owns it.
+
+    A rejected record is reported, not dropped, and does not cancel a bound
+    record from the same validator. A validator with no bound record is the
+    caller's to count as missing. Two bound records for one validator both stay,
+    so worst-wins aggregation, not file order, decides the state.
     """
     bound: list[EvidenceRecord] = []
     rejected: list[RejectedEvidence] = []

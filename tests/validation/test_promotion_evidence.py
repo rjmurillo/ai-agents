@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
@@ -84,7 +84,7 @@ class TestParse:
         assert parse_evidence(original.to_dict()).outcome == original
 
     def test_digest_and_items_are_carried(self) -> None:
-        record = _record(digest=DIGEST, items=["a.py", "b.py"])
+        record = _record(digest=DIGEST, items=["a.py", "b.py"], state="FAIL", reason="x.y")
         assert record.digest == DIGEST
         assert record.items == ("a.py", "b.py")
 
@@ -126,6 +126,20 @@ class TestParse:
 
     def test_counts_may_be_null(self) -> None:
         assert _record(examined=None, findings=None).outcome.examined is None
+
+    @pytest.mark.parametrize("bad", [float("nan"), float("inf"), float("-inf")])
+    def test_duration_must_be_finite(self, bad: float) -> None:
+        with pytest.raises(EvidenceError, match="finite"):
+            _record(duration_seconds=bad)
+
+    def test_pass_must_not_list_items(self) -> None:
+        with pytest.raises(EvidenceError, match="PASS must not list"):
+            _record(items=["a.py"])
+
+    def test_unknown_key_message_is_sanitized(self) -> None:
+        with pytest.raises(EvidenceError) as caught:
+            _record(**{"bad\n::error::x": 1})
+        assert "\n" not in str(caught.value)
 
     @pytest.mark.parametrize("bad", ["fast", True, None, [1]])
     def test_duration_must_be_a_number(self, bad: Any) -> None:
@@ -190,7 +204,7 @@ class TestBindRecords:
     def test_splits_bound_from_rejected(self) -> None:
         good = _record(validator="a")
         stale = _record(validator="b", revision=OTHER_SHA)
-        result = bind_records((good, stale), Candidate(SHA))
+        result = bind_records((good, stale), Candidate(SHA), frozenset())
         assert result.bound == (good,)
         assert [r.validator for r in result.rejected] == ["b"]
         assert result.rejected[0].reason == REASON_REVISION_MISMATCH
@@ -202,16 +216,16 @@ class TestBindRecords:
         assert result.rejected[0].reason == REASON_DIGEST_MISMATCH
 
     def test_non_build_validator_is_not_held_to_the_digest(self) -> None:
-        result = bind_records((_record(validator="pytest"),), Candidate(SHA, DIGEST))
+        result = bind_records((_record(validator="pytest"),), Candidate(SHA, DIGEST), frozenset())
         assert len(result.bound) == 1
 
     def test_empty_input_gives_empty_output(self) -> None:
-        result = bind_records((), Candidate(SHA))
+        result = bind_records((), Candidate(SHA), frozenset())
         assert result.bound == () and result.rejected == ()
 
     def test_rejection_to_dict(self) -> None:
         stale = _record(validator="b", revision=OTHER_SHA)
-        data = bind_records((stale,), Candidate(SHA)).rejected[0].to_dict()
+        data = bind_records((stale,), Candidate(SHA), frozenset()).rejected[0].to_dict()
         assert data["source"] == "x.json"
         assert data["validator"] == "b"
         assert data["reason"] == REASON_REVISION_MISMATCH
@@ -287,3 +301,61 @@ class TestLoadDir:
         (tmp_path / "f").write_text("x", encoding="utf-8")
         with pytest.raises(NotADirectoryError):
             load_evidence_dir(tmp_path / "f")
+
+
+class TestHardening:
+    def test_default_tier_is_not_assumed(self) -> None:
+        with pytest.raises(TypeError):
+            cast("Any", bind_records)((_record(),), Candidate(SHA))
+
+    def test_conflicting_bound_records_both_survive(self) -> None:
+        ok = _record(validator="v", scope="a")
+        bad = _record(validator="v", scope="b", state="FAIL", reason="x.y")
+        result = bind_records((ok, bad), Candidate(SHA), frozenset())
+        assert result.bound == (ok, bad)
+
+    def test_a_rejected_record_does_not_cancel_a_bound_one(self) -> None:
+        fresh = _record(validator="v")
+        stale = _record(validator="v", revision=OTHER_SHA, state="FAIL", reason="x.y")
+        result = bind_records((fresh, stale), Candidate(SHA), frozenset())
+        assert result.bound == (fresh,)
+        assert len(result.rejected) == 1
+
+    def test_nan_in_file_is_rejected(self, tmp_path: Path) -> None:
+        text = json.dumps(_doc()).replace("1.5", "NaN")
+        (tmp_path / "n.json").write_text(text, encoding="utf-8")
+        _, rejected = load_evidence_dir(tmp_path)
+        assert rejected[0].reason == REASON_MALFORMED
+
+    def test_many_distinct_keys_do_not_stall(self, tmp_path: Path) -> None:
+        body = ",".join(f'"k{i}": 1' for i in range(50000))
+        (tmp_path / "many.json").write_text("{" + body + "}", encoding="utf-8")
+        _, rejected = load_evidence_dir(tmp_path)
+        assert rejected[0].reason == REASON_MALFORMED
+
+    def test_uppercase_extension_is_not_loaded(self, tmp_path: Path) -> None:
+        (tmp_path / "x.JSON").write_text(json.dumps(_doc()), encoding="utf-8")
+        assert load_evidence_dir(tmp_path) == ((), ())
+
+    def test_file_name_with_control_character_is_cleaned(self, tmp_path: Path) -> None:
+        (tmp_path / "a\nb.json").write_text("{nope", encoding="utf-8")
+        _, rejected = load_evidence_dir(tmp_path)
+        assert "\n" not in rejected[0].source
+
+    def test_long_validator_hint_is_truncated(self, tmp_path: Path) -> None:
+        name = "v" * 1000
+        (tmp_path / "l.json").write_text(
+            json.dumps(_doc(validator=name, state="x")), encoding="utf-8"
+        )
+        _, rejected = load_evidence_dir(tmp_path)
+        assert len(rejected[0].validator) < 300
+
+    def test_non_string_validator_gives_no_hint(self, tmp_path: Path) -> None:
+        (tmp_path / "h.json").write_text(json.dumps(_doc(validator=5)), encoding="utf-8")
+        _, rejected = load_evidence_dir(tmp_path)
+        assert rejected[0].validator == ""
+
+    def test_unparseable_text_gives_no_hint(self, tmp_path: Path) -> None:
+        (tmp_path / "h.json").write_text("[1,", encoding="utf-8")
+        _, rejected = load_evidence_dir(tmp_path)
+        assert rejected[0].validator == ""
