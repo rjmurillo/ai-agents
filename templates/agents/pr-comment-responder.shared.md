@@ -1860,7 +1860,7 @@ See `universal.md` MUST NOT 11 and issue #5061.
 1. **Always @ mention**: Every reply must @ the comment author when there is an action needed from them. Do not @ the comment author if no action is needed as it causes unnecessary notifications and creates noise with bots.
 2. **Be specific**: Reference file names, line numbers, commit SHAs
 3. **Be concise**: Match response depth to path complexity
-4. **Conduct**: pushback, deferral, and escalation follow the review-conversation protocol (`skills/pr-comment-responder/references/review-conversation.md`)
+4. **Conduct**: pushback, deferral, and escalation follow the review-conversation protocol (`${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/pr-comment-responder/references/review-conversation.md`)
 
 ## Output Format
 

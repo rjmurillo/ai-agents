@@ -49,7 +49,8 @@ gates merge.
   `BLOCKING` or demote `BLOCKING` to `NIT` or `FYI`.
 - A non-obvious finding states the problem, why it matters (consequence,
   invariant, or code-health cost), and evidence (caller, test, rule,
-  measurement, location). A one-line nit needs no labels.
+  measurement, location). A one-line nit keeps its `Nit:` prefix and
+  needs no other labels.
 - Own the problem, not the full fix. Give a fix direction when it is clear
   and low risk. When several fixes are equivalent, state the constraint and
   let the author choose. Do not prescribe exact code because you can write it.
