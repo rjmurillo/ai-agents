@@ -52,8 +52,20 @@ class TestRunProblem:
     def test_a_default_branch_push_run_passes(self) -> None:
         assert _problem() is None
 
-    def test_a_merge_queue_run_passes(self) -> None:
+    def test_a_merge_queue_run_for_the_default_branch_passes(self) -> None:
         assert _problem(event="merge_group", head_branch="gh-readonly-queue/main/pr-1-abc") is None
+
+    @pytest.mark.parametrize(
+        "branch",
+        [
+            "gh-readonly-queue/other/pr-1-abc",
+            "gh-readonly-queue/main",
+            "gh-readonly-queue/mainline/pr-1",
+            "gh-readonly-queue/",
+        ],
+    )
+    def test_a_merge_queue_run_for_another_base_is_refused(self, branch: str) -> None:
+        assert _problem(event="merge_group", head_branch=branch) == "run.ref_mismatch"
 
     @pytest.mark.parametrize(
         ("overrides", "reason"),
@@ -212,7 +224,10 @@ class TestCorroborate:
         got = _corroborate(jobs, {1: _check(1), 2: _check(2, app={"id": 9})})
         assert got.state is EvidenceState.UNKNOWN
 
-    @pytest.mark.parametrize("repository", ["", "owner", "a/b/c", "o wner/repo", "owner/repo\n"])
+    @pytest.mark.parametrize(
+        "repository",
+        ["", "owner", "a/b/c", "o wner/repo", "owner/repo\n", "../..", "./repo", "o/.."],
+    )
     def test_a_bad_repository_name_reads_unknown(self, repository: str) -> None:
         assert _corroborate(repository=repository).state is EvidenceState.UNKNOWN
 

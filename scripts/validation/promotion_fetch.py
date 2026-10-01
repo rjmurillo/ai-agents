@@ -17,9 +17,13 @@ Three trust points, each a hard rule here:
 - The archive is read in memory with a size cap. Exactly one member, named
   ``<validator>.json``, is read. Nothing is extracted to disk, so no member name
   becomes a path.
-- The text goes through ``parse_evidence_text``, the loader the gate already uses
-  (strict JSON, duplicate keys refused, unknown keys refused), and the record's
-  validator must equal the artifact name.
+- The text goes through ``parse_evidence_text`` in
+  ``scripts/validation/promotion_evidence.py`` (line 267 at this commit), the
+  loader the gate already uses through ``load_evidence_dir``: strict JSON,
+  duplicate keys refused, unknown keys refused. The record's validator must also
+  equal the artifact name.
+- An artifact must have been created at or after the run's latest attempt
+  started, and its download must be the size its listing reported.
 
 Build-tier rows are skipped here. Their results come from the build job in the
 promotion entry workflow's own run, which is separate work, so they stay missing
@@ -43,9 +47,11 @@ import subprocess
 import zipfile
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Protocol
 
+from scripts.validation.evidence import CheckOutcome, EvidenceState
 from scripts.validation.promotion_applicability import TIER_COMMIT, Applicability
 from scripts.validation.promotion_evidence import (
     MAX_EVIDENCE_BYTES,
@@ -63,11 +69,12 @@ REASON_ARTIFACT_AMBIGUOUS = "artifact.ambiguous"
 REASON_ARTIFACT_EXPIRED = "artifact.expired"
 REASON_ARTIFACT_RUN = "artifact.run_mismatch"
 REASON_ARTIFACT_SIZE = "artifact.too_large"
+REASON_ARTIFACT_STALE = "artifact.stale"
 REASON_ARTIFACT_FORMAT = "artifact.malformed"
 REASON_RUN_ABSENT = "run.absent"
 REASON_ACCEPTED = "accepted"
 _SHA_RE = re.compile(r"[0-9a-f]{40}")
-_REPO_RE = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+")
+_REPO_RE = re.compile(r"[A-Za-z0-9_-][A-Za-z0-9_.-]*/[A-Za-z0-9_.-]+")
 _BRANCH_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._/-]*")
 
 
@@ -119,17 +126,26 @@ class GhCliReader:
 
 @dataclass(frozen=True, slots=True)
 class Disposition:
-    """What happened to one validator's evidence in one run."""
+    """What happened to one validator's evidence in one run.
+
+    ``state`` is the typed state written for the validator, or empty when the run
+    wrote nothing. A verified run whose artifact is unusable is not accepted, and
+    still writes an ``UNKNOWN`` record so a sibling run's ``PASS`` cannot hide it.
+    """
 
     validator: str
     run_id: int
     accepted: bool
     reason: str
+    state: str = ""
 
     def line(self) -> str:
         """One log line, built only from validated names and codes."""
-        verdict = "accepted" if self.accepted else "rejected"
-        return f"provenance: {self.validator} run {self.run_id} {verdict} {self.reason}"
+        head = f"provenance: {self.validator} run {self.run_id}"
+        if self.accepted:
+            return f"{head} accepted {self.state}"
+        recorded = f" recorded {self.state}" if self.state else ""
+        return f"{head} rejected {self.reason}{recorded}"
 
 
 def paginate(reader: GitHubReader, path: str, key: str, params: Mapping[str, str]) -> list[Any]:
@@ -185,22 +201,40 @@ def _int_id(value: object) -> int | None:
     return value if isinstance(value, int) and not isinstance(value, bool) else None
 
 
-def _select_artifact(
-    ctx: _Context, run_id: int, validator: str
-) -> tuple[Mapping[str, Any] | None, str]:
-    path = f"repos/{ctx.repo}/actions/runs/{run_id}/artifacts"
-    found = paginate(ctx.reader, path, "artifacts", {"name": validator})
-    named = [a for a in found if isinstance(a, dict) and a.get("name") == validator]
-    if not named:
-        return None, REASON_ARTIFACT_ABSENT
-    if len(named) > 1:
-        return None, REASON_ARTIFACT_AMBIGUOUS
-    artifact = named[0]
+def _instant(value: object) -> datetime | None:
+    if not isinstance(value, str):
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def _is_current(artifact: Mapping[str, Any], run: Mapping[str, Any]) -> bool:
+    """True when the artifact was created at or after the latest attempt started.
+
+    A re-run replaces an earlier attempt's artifact (``overwrite: true``), so an
+    artifact older than the attempt the check-runs describe belongs to another
+    attempt. A missing or unparseable time fails the check.
+    """
+    created, started = _instant(artifact.get("created_at")), _instant(run.get("run_started_at"))
+    if created is None or started is None:
+        return False
+    try:
+        return created >= started
+    except TypeError:
+        return False
+
+
+def _artifact_problem(
+    ctx: _Context, run: Mapping[str, Any], artifact: Mapping[str, Any]
+) -> str | None:
+    run_id = run["id"]
     if artifact.get("expired") is not False:
-        return None, REASON_ARTIFACT_EXPIRED
+        return REASON_ARTIFACT_EXPIRED
     size = _int_id(artifact.get("size_in_bytes"))
     if size is None or size > MAX_ARCHIVE_BYTES:
-        return None, REASON_ARTIFACT_SIZE
+        return REASON_ARTIFACT_SIZE
     origin = artifact.get("workflow_run")
     names_run = (
         isinstance(origin, dict)
@@ -208,12 +242,30 @@ def _select_artifact(
         and origin.get("head_sha") == ctx.candidate_sha
         and _int_id(artifact.get("id")) is not None
     )
-    return (artifact, "") if names_run else (None, REASON_ARTIFACT_RUN)
+    if not names_run:
+        return REASON_ARTIFACT_RUN
+    return None if _is_current(artifact, run) else REASON_ARTIFACT_STALE
+
+
+def _select_artifact(
+    ctx: _Context, run: Mapping[str, Any], validator: str
+) -> tuple[Mapping[str, Any] | None, str]:
+    path = f"repos/{ctx.repo}/actions/runs/{run['id']}/artifacts"
+    found = paginate(ctx.reader, path, "artifacts", {"name": validator})
+    named = [a for a in found if isinstance(a, dict) and a.get("name") == validator]
+    if not named:
+        return None, REASON_ARTIFACT_ABSENT
+    if len(named) > 1:
+        return None, REASON_ARTIFACT_AMBIGUOUS
+    problem = _artifact_problem(ctx, run, named[0])
+    return (None, problem) if problem else (named[0], "")
 
 
 def _download_record(ctx: _Context, artifact: Mapping[str, Any], validator: str) -> EvidenceRecord:
     """Download one selected artifact and parse it, raising ``ValueError`` if it is not evidence."""
     archive = ctx.reader.get_bytes(f"repos/{ctx.repo}/actions/artifacts/{artifact['id']}/zip")
+    if len(archive) != artifact["size_in_bytes"]:
+        raise ValueError("the download is not the size its listing reported")
     record = parse_evidence_text(read_evidence_member(archive, validator), f"{validator}.json")
     if record.outcome.validator != validator:
         raise ValueError("the record names a different validator than its artifact")
@@ -237,6 +289,24 @@ def _write(ctx: _Context, record: EvidenceRecord, run_id: int) -> None:
     target.write_text(json.dumps(document, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
+def _unusable(ctx: _Context, entry: Applicability, run_id: int, reason: str) -> Disposition:
+    """Record ``UNKNOWN`` for a verified run whose artifact cannot be used.
+
+    The run is the right workflow on the right commit, so a validator with no
+    usable result there is a finding. Writing it keeps a sibling run's ``PASS``
+    from hiding it, since the gate takes the worst of the records it loads.
+    """
+    outcome = CheckOutcome.unknown(
+        entry.validator,
+        reason=reason,
+        revision=ctx.candidate_sha,
+        scope=f"workflow run {run_id}",
+        detail="the run passed provenance but its evidence artifact could not be used",
+    )
+    _write(ctx, EvidenceRecord(outcome=outcome), run_id)
+    return Disposition(entry.validator, run_id, False, reason, EvidenceState.UNKNOWN.value)
+
+
 def _handle_run(ctx: _Context, entry: Applicability, run: Mapping[str, Any]) -> Disposition:
     run_id = _int_id(run.get("id"))
     if run_id is None:
@@ -249,13 +319,13 @@ def _handle_run(ctx: _Context, entry: Applicability, run: Mapping[str, Any]) -> 
     )
     if problem:
         return Disposition(entry.validator, run_id, False, problem)
-    artifact, reason = _select_artifact(ctx, run_id, entry.validator)
+    artifact, reason = _select_artifact(ctx, run, entry.validator)
     if artifact is None:
-        return Disposition(entry.validator, run_id, False, reason)
+        return _unusable(ctx, entry, run_id, reason)
     try:
         record = _download_record(ctx, artifact, entry.validator)
     except (ValueError, RecursionError):
-        return Disposition(entry.validator, run_id, False, REASON_ARTIFACT_FORMAT)
+        return _unusable(ctx, entry, run_id, REASON_ARTIFACT_FORMAT)
     corroboration = corroborate(
         job_name=entry.job,
         run_id=run_id,
@@ -263,8 +333,9 @@ def _handle_run(ctx: _Context, entry: Applicability, run: Mapping[str, Any]) -> 
         latest_jobs=_latest_jobs(ctx, run_id),
         check_runs=ctx.check_runs,
     )
-    _write(ctx, combine(record, corroboration), run_id)
-    return Disposition(entry.validator, run_id, True, REASON_ACCEPTED)
+    written = combine(record, corroboration)
+    _write(ctx, written, run_id)
+    return Disposition(entry.validator, run_id, True, REASON_ACCEPTED, written.outcome.state.value)
 
 
 def _check_runs_by_id(reader: GitHubReader, repo: str, sha: str) -> dict[int, Mapping[str, Any]]:
@@ -287,15 +358,19 @@ def fetch_verified_evidence(
 ) -> list[Disposition]:
     """Write one evidence file per accepted artifact and return every disposition.
 
-    A validator with no accepted run writes nothing, so the gate counts it
-    missing. One whose workflow has no run for the candidate gets a ``run.absent``
-    disposition, so the log says why nothing was fetched.
+    A validator whose workflow has no passing run writes nothing, so the gate
+    counts it missing, and one whose workflow has no run for the candidate gets a
+    ``run.absent`` disposition so the log says why. A run that passes provenance
+    but has no usable artifact writes an ``UNKNOWN`` record instead (see
+    ``_unusable``).
 
     Raises ``GitHubApiError`` when GitHub cannot answer, and ``ValueError`` for a
     malformed repository, SHA, or branch name.
     """
-    if not _REPO_RE.fullmatch(repo) or not _SHA_RE.fullmatch(candidate_sha):
-        raise ValueError("repo must be owner/name and candidate_sha a 40-character lowercase SHA")
+    if not _REPO_RE.fullmatch(repo) or ".." in repo.split("/"):
+        raise ValueError("repo must be owner/name")
+    if not _SHA_RE.fullmatch(candidate_sha):
+        raise ValueError("candidate_sha must be a 40-character lowercase SHA")
     if not _BRANCH_RE.fullmatch(default_branch):
         raise ValueError("default_branch is not a plain branch name")
     wanted = [entry for entry in entries if entry.tier == TIER_COMMIT]

@@ -56,12 +56,21 @@ class FakeReader:
         if path.endswith("/actions/runs"):
             return {"workflow_runs": self.runs}
         if path.endswith("/artifacts"):
-            return {"artifacts": self.artifacts.get((params or {}).get("name", ""), [])}
+            return {"artifacts": self._listed((params or {}).get("name", ""))}
         if path.endswith("/jobs"):
             return {"jobs": self.jobs}
         if path.endswith("/check-runs"):
             return {"check_runs": self.checks}
         raise AssertionError(f"unexpected path {path}")
+
+    def _listed(self, name: str) -> list[Any]:
+        """Artifacts for ``name``, with ``"auto"`` sizes resolved to the archive length."""
+        listed = []
+        for item in self.artifacts.get(name, []):
+            if isinstance(item, dict) and item.get("size_in_bytes") == "auto":
+                item = {**item, "size_in_bytes": len(self.archives.get(item.get("id"), b""))}
+            listed.append(item)
+        return listed
 
     def get_bytes(self, path: str) -> bytes:
         self.calls.append(path)
@@ -71,6 +80,7 @@ class FakeReader:
 def _run(**overrides: Any) -> dict[str, Any]:
     run = {
         "id": RUN, "status": "completed", "head_sha": SHA, "event": "push", "path": WORKFLOW,
+        "run_started_at": "2026-10-01T10:00:00Z",
         "head_branch": "main", "repository": {"id": 7}, "head_repository": {"id": 7},
     }  # fmt: skip
     run.update(overrides)
@@ -79,7 +89,8 @@ def _run(**overrides: Any) -> dict[str, Any]:
 
 def _artifact(**overrides: Any) -> dict[str, Any]:
     artifact = {
-        "id": 77, "name": "run_python_tests", "expired": False, "size_in_bytes": 400,
+        "id": 77, "name": "run_python_tests", "expired": False, "size_in_bytes": "auto",
+        "created_at": "2026-10-01T10:05:00Z",
         "workflow_run": {"id": RUN, "head_sha": SHA},
     }  # fmt: skip
     artifact.update(overrides)

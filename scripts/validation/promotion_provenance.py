@@ -41,7 +41,21 @@ Stricter/looser/different than canonical:
   name this run in ``details_url``. A re-run attempt therefore replaces the
   earlier attempt instead of adding a failed check-run beside it.
 - ``push`` runs must be on the default branch, and ``merge_group`` runs on a
-  ``gh-readonly-queue/`` branch. Decision 5 says "ref" without naming the rule.
+  ``gh-readonly-queue/<default branch>/`` branch. Decision 5 says "ref" without
+  naming the rule. The run payload carries ``head_branch`` and no full ref, so a
+  tag named like the default branch would read as that branch. Creating one needs
+  write access, and the run still executes the candidate commit's own workflow
+  file, which the gate already requires to be a default-branch ancestor, so it
+  offers no evidence the branch run would not.
+- A matrix job's legs are found by an identical job name. Real matrix legs carry
+  distinct names (``Analyze (actions)``, ``Analyze (python)``), so the table
+  names one row per leg, as it does for the two CodeQL legs. Same-named jobs in
+  one run, such as a reused workflow's repeats, all have to succeed.
+
+Source of the ``app`` field: ``gh api repos/rjmurillo/ai-agents/commits/<sha>/check-runs``
+returns, for an Actions job, ``"app": {"id": 15368, "slug": "github-actions"}``
+and a ``details_url`` of ``https://github.com/<repo>/actions/runs/<run>/job/<job>``.
+The REST reference for the response is "List check runs for a Git reference".
 """
 
 from __future__ import annotations
@@ -72,7 +86,7 @@ REASON_CHECK_UNRECOGNIZED = "checkrun.unrecognized"
 
 _FAIL_CONCLUSIONS = frozenset({"failure", "timed_out", "action_required", "startup_failure"})
 _CONCLUSION_SLUG = re.compile(r"[a-z_]{1,30}")
-_REPOSITORY_RE = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+")
+_REPOSITORY_RE = re.compile(r"[A-Za-z0-9_-][A-Za-z0-9_.-]*/[A-Za-z0-9_.-]+")
 
 
 @dataclass(frozen=True, slots=True)
@@ -91,11 +105,13 @@ def _repository_id(run: Mapping[str, Any], key: str) -> int | None:
 
 
 def _on_expected_branch(event: object, branch: object, default_branch: str) -> bool:
-    if not isinstance(branch, str) or not branch:
+    if not isinstance(branch, str) or not branch or not default_branch:
         return False
     if event == "push":
-        return bool(default_branch) and branch == default_branch
-    return event == "merge_group" and branch.startswith(MERGE_QUEUE_BRANCH_PREFIX)
+        return branch == default_branch
+    return event == "merge_group" and branch.startswith(
+        f"{MERGE_QUEUE_BRANCH_PREFIX}{default_branch}/"
+    )
 
 
 def run_problem(
@@ -189,7 +205,7 @@ def corroborate(
     one check-run per leg and every one must be ``success``; the worst leg
     decides. A job with no current entry, or no pinned check-run, is ``UNKNOWN``.
     """
-    if not _REPOSITORY_RE.fullmatch(repository):
+    if not _REPOSITORY_RE.fullmatch(repository) or ".." in repository.split("/"):
         return Corroboration(EvidenceState.UNKNOWN, REASON_CHECK_RUN, "repository name is invalid")
     ids = _current_job_ids(latest_jobs, job_name, run_id)
     if not ids:

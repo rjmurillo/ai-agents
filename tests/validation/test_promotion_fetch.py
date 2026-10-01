@@ -30,6 +30,7 @@ from scripts.validation.promotion_fetch import (
     paginate,
     read_evidence_member,
 )
+from scripts.validation.promotion_findings import overall_state
 from tests.validation.promotion_fetch_helpers import (
     REPO,
     RUN,
@@ -167,7 +168,13 @@ class TestRejectedBeforeDownload:
         assert (item.accepted, item.reason, item.run_id) == (False, "run.malformed", 0)
 
 
-class TestArtifactSelection:
+def _record_file(tmp_path: Path) -> dict[str, Any]:
+    return json.loads((tmp_path / "ev" / f"run_python_tests.{RUN}.json").read_text("utf-8"))
+
+
+class TestUnusableArtifact:
+    """A verified run with no usable artifact writes UNKNOWN, never nothing."""
+
     @pytest.mark.parametrize(
         ("artifacts", "reason"),
         [
@@ -183,16 +190,25 @@ class TestArtifactSelection:
             ([_artifact(id="77")], "artifact.run_mismatch"),
             ([_artifact(size_in_bytes=10**9)], "artifact.too_large"),
             ([_artifact(size_in_bytes=None)], "artifact.too_large"),
+            ([_artifact(created_at="2026-10-01T09:59:59Z")], "artifact.stale"),
+            ([_artifact(created_at=None)], "artifact.stale"),
+            ([_artifact(created_at="yesterday")], "artifact.stale"),
+            ([_artifact(created_at="2026-10-01T10:05:00")], "artifact.stale"),
         ],
     )
-    def test_each_unusable_artifact_is_rejected_with_its_reason(
+    def test_each_unusable_artifact_is_recorded_unknown_with_its_reason(
         self, tmp_path: Path, artifacts: list[Any], reason: str
     ) -> None:
         reader = _good(artifacts={"run_python_tests": artifacts})
         (item,) = _fetch(reader, tmp_path)
-        assert (item.accepted, item.reason) == (False, reason)
+        assert (item.accepted, item.reason, item.state) == (False, reason, "UNKNOWN")
         assert not any("/zip" in call for call in reader.calls)
-        assert _written(tmp_path) == []
+        written = _record_file(tmp_path)
+        assert (written["state"], written["reason"], written["revision"]) == (
+            "UNKNOWN",
+            reason,
+            SHA,
+        )
 
     @pytest.mark.parametrize(
         "archive",
@@ -203,19 +219,37 @@ class TestArtifactSelection:
             _zip("run_python_tests.json", _evidence("someone_else")),
             _zip("run_python_tests.json", json.dumps({"validator": "run_python_tests"})),
             _zip("run_python_tests.json", '{"validator": "run_python_tests", "validator": "x"}'),
+            _zip("run_python_tests.json", "[" * 5000 + "]" * 5000),
         ],
     )
-    def test_an_artifact_that_is_not_evidence_is_rejected(
+    def test_an_artifact_that_is_not_evidence_is_recorded_unknown(
         self, tmp_path: Path, archive: bytes
     ) -> None:
         (item,) = _fetch(_good(archives={77: archive}), tmp_path)
-        assert (item.accepted, item.reason) == (False, "artifact.malformed")
-        assert _written(tmp_path) == []
+        assert (item.accepted, item.reason, item.state) == (False, "artifact.malformed", "UNKNOWN")
+        assert _record_file(tmp_path)["reason"] == "artifact.malformed"
 
-    def test_a_deeply_nested_document_is_rejected_not_fatal(self, tmp_path: Path) -> None:
-        nested = "[" * 5000 + "]" * 5000
-        (item,) = _fetch(_good(archives={77: _zip("run_python_tests.json", nested)}), tmp_path)
-        assert item.reason == "artifact.malformed"
+    def test_a_download_that_is_not_the_listed_size_is_recorded_unknown(
+        self, tmp_path: Path
+    ) -> None:
+        reader = _good()
+        reader.artifacts["run_python_tests"] = [_artifact(size_in_bytes=1)]
+        (item,) = _fetch(reader, tmp_path)
+        assert (item.reason, item.state) == ("artifact.malformed", "UNKNOWN")
+
+    def test_a_failed_sibling_run_cannot_be_hidden_by_a_passing_one(self, tmp_path: Path) -> None:
+        """Two verified runs of one workflow: the one with no artifact must still count."""
+        reader = _good()
+        reader.runs = [
+            _run(),
+            _run(id=901, event="merge_group", head_branch="gh-readonly-queue/main/pr-1"),
+        ]
+        reader.artifacts["run_python_tests"] = [_artifact()]
+        items = _fetch(reader, tmp_path)
+        assert [(i.run_id, i.state) for i in items] == [(RUN, "PASS"), (901, "UNKNOWN")]
+        records, _ = load_evidence_dir(tmp_path / "ev")
+        bound = bind_records(records, Candidate(SHA), frozenset())
+        assert overall_state(r.outcome for r in bound.bound).state is EvidenceState.UNKNOWN
 
 
 class TestApiFailures:
@@ -239,6 +273,9 @@ class TestApiFailures:
         ("repo", "sha", "branch"),
         [
             ("owner", SHA, "main"),
+            ("../..", SHA, "main"),
+            ("o/..", SHA, "main"),
+            ("./r", SHA, "main"),
             ("o/r", "abc", "main"),
             ("o/r", SHA, ""),
             ("o/r", SHA, "ma in"),

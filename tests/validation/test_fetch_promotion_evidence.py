@@ -56,7 +56,7 @@ def test_an_accepted_run_exits_zero_and_reports_it(
     _table(tmp_path / "root", _row())
     assert main(_argv(tmp_path), _good()) == EXIT_OK
     out = capsys.readouterr().out
-    assert "provenance: run_python_tests run 900 accepted accepted" in out
+    assert "provenance: run_python_tests run 900 accepted PASS" in out
     assert "1 accepted, 0 rejected" in out
     assert (tmp_path / "ev" / "run_python_tests.900.json").is_file()
 
