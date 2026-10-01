@@ -29,7 +29,7 @@ def test_lock_file_maintenance_enabled(config: dict[str, Any]) -> None:
 def test_lock_file_maintenance_has_schedule(config: dict[str, Any]) -> None:
     schedule = config["lockFileMaintenance"]["schedule"]
     assert isinstance(schedule, list)
-    assert schedule, "schedule must be non-empty so refreshes are weekly, not ad hoc"
+    assert schedule == ["before 4am on monday"]
 
 
 def test_lock_file_maintenance_does_not_set_automerge(config: dict[str, Any]) -> None:
@@ -44,6 +44,10 @@ def test_vulnerability_alerts_bypass_minimum_release_age(config: dict[str, Any])
     alerts = config["vulnerabilityAlerts"]
     assert "minimumReleaseAge" in alerts
     assert alerts["minimumReleaseAge"] is None
+
+
+def test_vulnerability_alerts_label_security(config: dict[str, Any]) -> None:
+    assert "security" in config["vulnerabilityAlerts"]["labels"]
 
 
 def test_vulnerability_alerts_do_not_set_automerge(config: dict[str, Any]) -> None:
