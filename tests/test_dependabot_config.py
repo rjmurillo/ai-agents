@@ -18,8 +18,13 @@ CONFIG = ROOT / ".github" / "dependabot.yml"
 
 
 @pytest.fixture(scope="module")
-def config() -> dict:
-    return yaml.safe_load(CONFIG.read_text())
+def raw_text() -> str:
+    return CONFIG.read_text(encoding="utf-8")
+
+
+@pytest.fixture(scope="module")
+def config(raw_text: str) -> dict:
+    return yaml.safe_load(raw_text)
 
 
 @pytest.fixture(scope="module")
@@ -61,5 +66,5 @@ def test_uv_entry_sets_cooldown_matching_exclude_newer(uv_entry: dict) -> None:
 
 
 @pytest.mark.parametrize("token", ["automerge", "auto-merge", "auto_merge"])
-def test_config_does_not_set_automerge(token: str) -> None:
-    assert token not in CONFIG.read_text().lower()
+def test_config_does_not_set_automerge(token: str, raw_text: str) -> None:
+    assert token not in raw_text.lower()
