@@ -62,7 +62,20 @@ Before each user message, re-read the active plan, relevant artifacts, and exact
 - **Do not re-delegate unchanged work.** Change the approach or context before retrying a failed delegation.
 - **Preserve work across compaction.** Re-read the plan and current per-issue handoff. Read a historical session log only when one exists.
 
-Verify exact text before citing code, documents, or decisions. Do not rely on recall alone.
+Verify exact text before citing code, documents, or decisions. Do not rely on recall alone. Apply this after phase completion, major transitions, interruptions, and before asking the user. If the TODO list no longer matches the plan, update the plan, then the TODO list, then act.
+
+### Resume Check (fail closed)
+
+A resumable non-trivial task keeps one state record in the per-issue handoff: work-order fields, phase, exact next action, decisions with provenance (superseded ones marked), changed artifacts, validation run, blockers, repo, branch, head SHA, timestamp. Label retrieved memory fact, decision, hypothesis, or stale. A completion summary is not completion evidence.
+
+Before any state-changing action after handoff, compaction, interruption, or delegation:
+
+1. Compare recorded branch, worktree, head SHA, and artifacts with the live repository.
+2. Check the next action was not done, reverted, or superseded. Already done: continue from the next step.
+3. Restore ACCEPTANCE and RISK TIER from the record.
+4. Disagreement, missing field, or missing provenance: HOLD and surface it. Never mutate on a guess.
+
+A delegate return lacking artifacts, commands with results, or residual risks fails closed above read-only tier: reject and re-delegate.
 
 ## Output Bounds
 

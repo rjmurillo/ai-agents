@@ -225,7 +225,20 @@ Before each user message, re-read the active plan, relevant artifacts, and exact
 - **Do not re-delegate unchanged work.** Change the approach or context before retrying a failed delegation.
 - **Preserve work across compaction.** Re-read the plan and current per-issue handoff. Read a historical session log only when one exists.
 
-Verify exact text before citing code, documents, or decisions. Do not rely on recall alone.
+Verify exact text before citing code, documents, or decisions. Do not rely on recall alone. Apply this after phase completion, major transitions, interruptions, and before asking the user. If the TODO list no longer matches the plan, update the plan, then the TODO list, then act.
+
+### Resume Check (fail closed)
+
+A resumable non-trivial task keeps one state record in the per-issue handoff: work-order fields, phase, exact next action, decisions with provenance (superseded ones marked), changed artifacts, validation run, blockers, repo, branch, head SHA, timestamp. Label retrieved memory fact, decision, hypothesis, or stale. A completion summary is not completion evidence.
+
+Before any state-changing action after handoff, compaction, interruption, or delegation:
+
+1. Compare recorded branch, worktree, head SHA, and artifacts with the live repository.
+2. Check the next action was not done, reverted, or superseded. Already done: continue from the next step.
+3. Restore ACCEPTANCE and RISK TIER from the record.
+4. Disagreement, missing field, or missing provenance: HOLD and surface it. Never mutate on a guess.
+
+A delegate return lacking artifacts, commands with results, or residual risks fails closed above read-only tier: reject and re-delegate.
 
 ## Output Bounds
 
@@ -266,33 +279,21 @@ When drift or context loss is detected at session start or mid-session, run the 
 
 ## Anti-Drift Protocol
 
-Use when drift is detected: wrong approach, lost context after compaction, experimental changes that did not land, or the user flags divergence from intent. The session-start gate tells you to check state; this protocol tells you what to do when the check fails.
+Use when drift is detected: wrong approach, lost context after compaction, experimental changes that did not land, or the user flags divergence. The session-start gate checks state; this protocol is what you do when the check fails.
 
 ### 7-Step Recovery
 
-1. **ASSESS**: Is the approach fundamentally flawed? If yes, stop and re-plan before touching code.
+1. **ASSESS**: Is the approach fundamentally flawed? If so, stop and re-plan before touching code.
 2. **CLEANUP**: Delete temp files, scratch scripts, and experimental code.
-3. **REVERT**: Restore to the last known working state (git stash, checkout, or targeted revert).
-4. **VERIFY**: `git status` clean, only intended changes remain, no stray artifacts.
-5. **DOCUMENT**: Log the failed pattern to `memory/feedback-log.md` (or Serena memory) so it does not recur.
-6. **IMPLEMENT**: Try the researched alternative informed by steps 1 and 5.
+3. **REVERT**: Restore the last known working state (stash, checkout, or targeted revert).
+4. **VERIFY**: `git status` clean, only intended changes remain.
+5. **DOCUMENT**: Log the failed pattern to `memory/feedback-log.md` (or Serena memory).
+6. **IMPLEMENT**: Try the researched alternative.
 7. **RESUME**: Continue the original task with the corrected plan.
-
-### Event-Driven TODO Review
-
-Apply Context Maintenance after phase completion, major transitions, interruptions, and before asking the user anything. If the TODO list no longer matches the plan, update the plan, then the TODO list, then act.
 
 ### Session Capture Protocol
 
-When updating continuity state, capture behavioral signal, not background
-noise. Session log creation is discontinued; use the per-issue handoff and
-Serena memory.
-
-**Capture (signal):** decisions that altered the plan, blockers and escalations, state changes (files, branches, issues, PRs), open questions, and next steps with enough context for a cold start.
-
-**Skip (noise):** tool invocations, background research that did not change the plan, routine reads and lint runs, superseded agent responses. Each `workLog` entry is one or two sentences: the action or decision, then why.
-
-**Decision rule**: If removing an entry would leave the next session unable to reproduce a decision or continue the work, keep it. Otherwise, skip it.
+Capture signal in the state record above. Session log creation is discontinued; use the per-issue handoff and Serena memory. Keep plan-changing decisions, blockers, state changes, open questions, and cold-start next steps. Skip tool invocations, research that did not change the plan, routine reads, and superseded responses. A `workLog` entry is one or two sentences: the action or decision, then why. Keep it only if removing it would leave the next session unable to reproduce a decision or continue.
 
 ## Context Budget Management
 
@@ -316,15 +317,13 @@ you already hold and still trust.
 A failed delegation may be retried once you change the approach or the context
 it carries.
 
-**Weak synthesis is a defect, not evidence about context.** Output collapsing into "analyst said X, architect said Y" without resolving the conflict is a synthesis you have not finished. Finish it.
-
 **Degrade, do not fail silently.** This extends the graceful-degradation principle below from a single agent failure to your own output. If you deliver a partial synthesis, name the returns you folded in and the exact ones you did not reach, with the reason. An unqualified claim that you could not synthesize the set is not a handoff. On platforms that support the `PreCompact` hook, it checkpoints state before compaction, but it cannot recover synthesis you never recorded; the record is yours to write.
 
 ## Reliability Principles
 
-- **Idempotent delegations**: re-delegating the same task to the same agent should be safe
-- **Explicit handoffs**: never let context decay across agents
-- **Graceful degradation**: if an agent fails, route to a fallback (e.g., analyst errors, fall back to the context-gather skill for context)
+- **Idempotent delegations**: re-delegating the same task to the same agent is safe
+- **Explicit handoffs**: context does not decay across agents
+- **Graceful degradation**: on agent failure, route to a fallback (analyst errors: use the context-gather skill)
 - **Observability**: log routing decisions with rationale
 
 ## Orchestration Budget
@@ -336,9 +335,9 @@ These are backstops, not a completion test: reaching the terminal predicate (`bu
 - **Max agent delegations per task**: 15. Record a warning in the task tracker when 10 delegations have been made.
 - **Budget-exhausted behavior**: When the limit is reached, stop delegating, synthesize all work completed so far, list remaining unresolved items, and return control to the user with a clear summary of what was done and what was not.
 - **Delegation counter**: Track the running count in the task tracker.
-- **Max concurrent delegations per wave**: 4 by default. The binding cost is not the agents, it is the returns you are holding un-folded while the rest of the wave is still landing, which is the loss the Checkpoint protocol names above. Bound the wave at the number of returns you can actually fold before the next one arrives; 4 is a starting default, not a measured optimum. A wave of 5 or more is a prompt to ask whether two of those routes are the same question, not a licence to widen.
-- **A concurrent wave must not contain** a repository-wide git operation (fetch, checkout, rebase, branch switch, stash) or two agents that write the same file. Either one makes an agent's return depend on when it happened to run relative to its siblings, so the wave is no longer independent and its result is no longer reproducible. Route those serially, or give each agent its own worktree.
-- **Answer a lightweight question with a lightweight read.** Do not pull a whole agent return, session log, or file into context to settle something a targeted search or a single field would answer. The pull is not free: it spends the window you still owe the synthesis.
+- **Max concurrent delegations per wave**: 4 by default, a starting value, not a measured optimum. The binding cost is returns you hold un-folded while the wave lands (see Checkpoint protocol). Bound the wave at what you can fold before the next return arrives. A wave of 5 or more: ask whether two routes are the same question.
+- **A concurrent wave must not contain** a repository-wide git operation (fetch, checkout, rebase, branch switch, stash) or two agents writing the same file. Either makes a return depend on sibling timing and the result irreproducible. Route those serially or give each agent its own worktree.
+- **Answer a lightweight question with a lightweight read.** A targeted search or single field beats pulling a whole return, log, or file into the window you still owe the synthesis.
 
 ## Hook Feedback
 
