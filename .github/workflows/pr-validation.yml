@@ -410,3 +410,11 @@ jobs:
       # its source.
       - name: Enforce model pin policy
         run: uv run --frozen python3 scripts/validation/check_model_pins.py --mode enforce
+
+      # ADR-113 decision 2: persist this job's typed result for the promotion gate.
+      - name: Upload promotion evidence
+        if: always()
+        uses: ./.github/actions/upload-validator-evidence
+        with:
+          validator: validate_pr
+          job-status: ${{ job.status }}

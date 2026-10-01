@@ -249,6 +249,14 @@ jobs:
       - name: Run subprocess encoding count ratchet (whole tree)
         run: uv run --frozen python scripts/ci/subprocess_encoding_count_ratchet.py --base-ref FETCH_HEAD
 
+      # ADR-113 decision 2: persist this job's typed result for the promotion gate.
+      - name: Upload promotion evidence
+        if: always()
+        uses: ./.github/actions/upload-validator-evidence
+        with:
+          validator: check_whole_tree_count_ratchets_blocking
+          job-status: ${{ job.status }}
+
   test:
     name: "pytest (${{ matrix.partition }})"
     # ADR-101 requirement 1: no `needs:` and no job-level `if:`. The partitions
@@ -552,7 +560,15 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          sparse-checkout: scripts/ci/require_job_results.py
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            scripts/ci/require_job_results.py
+            scripts/__init__.py
+            scripts/validation/__init__.py
+            scripts/validation/evidence.py
+            scripts/validation/promotion_evidence.py
+            scripts/validation/emit_validator_evidence.py
+            .github/actions/upload-validator-evidence
 
       - name: Require test, coverage, and repository guard success
         env:
@@ -570,6 +586,14 @@ jobs:
           --check LINE_ENDINGS_RESULT success "line-endings-guard failed or was cancelled: {value}"
           --check CONTEXT_OUTPUT_RESULT success "context-output-guard failed or was cancelled: {value}"
           --check COUNT_RATCHET_RESULT success "count-ratchet-guard failed or was cancelled: {value}"
+
+      # ADR-113 decision 2: persist this job's typed result for the promotion gate.
+      - name: Upload promotion evidence
+        if: always()
+        uses: ./.github/actions/upload-validator-evidence
+        with:
+          validator: run_python_tests
+          job-status: ${{ job.status }}
 
   security:
     name: Python Security Checks
