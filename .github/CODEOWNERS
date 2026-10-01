@@ -89,3 +89,9 @@
 # validator job claims, so it needs the owner.
 /scripts/validation/emit_validator_evidence.py @rjmurillo
 /.github/actions/upload-validator-evidence/ @rjmurillo
+
+# Issue #5636, ADR-113 decision 5: these programs decide which workflow runs and
+# artifacts count as evidence. A change to them changes what a promotion trusts.
+/scripts/validation/promotion_provenance.py @rjmurillo
+/scripts/validation/promotion_fetch.py @rjmurillo
+/scripts/validation/fetch_promotion_evidence.py @rjmurillo

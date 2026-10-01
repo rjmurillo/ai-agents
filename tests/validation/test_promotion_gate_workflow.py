@@ -89,7 +89,7 @@ def test_the_gate_job_is_read_only_and_does_not_persist_credentials(
     workflow: dict[str, Any],
 ) -> None:
     gate = _jobs(workflow)["gate"]
-    assert gate["permissions"] == {"contents": "read"}
+    assert gate["permissions"] == {"contents": "read", "actions": "read", "checks": "read"}
     checkout = next(s for s in gate["steps"] if s.get("uses", "").startswith("actions/checkout"))
     assert checkout["with"]["persist-credentials"] is False
 
@@ -117,3 +117,35 @@ def test_every_action_is_pinned_to_a_full_commit_sha(workflow: dict[str, Any]) -
             ref = step.get("uses", "")
             if ref and not ref.startswith("./"):
                 assert len(ref.split("@")[1]) == 40, ref
+
+
+def test_the_fetch_step_runs_before_the_gate_and_is_the_only_one_with_a_token(
+    workflow: dict[str, Any],
+) -> None:
+    steps = _jobs(workflow)["gate"]["steps"]
+    names = [step.get("name") for step in steps]
+    assert names.index("Fetch verified evidence") < names.index("Compute the promotion manifest")
+    holders = [step["name"] for step in steps if "GH_TOKEN" in step.get("env", {})]
+    assert holders == ["Fetch verified evidence"]
+
+
+def test_the_fetch_step_reads_the_candidate_from_env_and_names_the_default_branch(
+    workflow: dict[str, Any],
+) -> None:
+    step = next(
+        s for s in _jobs(workflow)["gate"]["steps"] if s.get("name") == "Fetch verified evidence"
+    )
+    assert step["env"]["CANDIDATE_SHA"] == "${{ inputs.candidate-sha }}"
+    assert step["env"]["DEFAULT_BRANCH"] == "${{ github.event.repository.default_branch }}"
+    command = _normalized(step["run"])
+    assert "fetch_promotion_evidence.py" in command
+    assert '--evidence-dir "$RUNNER_TEMP/evidence"' in command
+
+
+def test_no_job_triggers_on_a_pull_request_or_checks_out_a_head_ref(
+    workflow: dict[str, Any],
+) -> None:
+    text = WORKFLOW.read_text(encoding="utf-8")
+    assert "pull_request_target" not in text
+    assert "head_ref" not in text
+    assert "github.event.pull_request" not in text
