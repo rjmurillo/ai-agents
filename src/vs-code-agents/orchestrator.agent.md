@@ -175,39 +175,32 @@ Every delegation includes:
 
 ```text
 DELEGATE TO: [agent]
-TASK: [one sentence]
-CONTEXT: [prior findings, constraints, dependencies]
-EXPECTED OUTPUT: [format, content requirements]
-SUCCESS CRITERIA: [verifier and pass criterion]
-ESCALATE TO: [exception recipient]
+OBJECTIVE: [one sentence, user-visible outcome]
+NON-GOALS: [out of scope; allowed paths and tools]
+CONTEXT: [findings, assumptions, open questions, repo, branch, head SHA]
+RISK TIER: [read-only | reversible-local | shared-repo | external | prod/data/security/financial]
+ACCEPTANCE: [criteria, invariants, verifier, pass criterion]
+STOP CONDITIONS: [when to halt]
+ESCALATE TO: [owner]
+ROLLBACK: [recovery path]
+EXPECTED OUTPUT: [format]
 CONSTRAINTS: [must/must-not]
 TIMEBOX: [if applicable]
 TODO: [ledger ID; ensure row; 1-row update]
 ```
 
-Agents return deltas, changed paths, verifier output, acceptance status, and typed escalation status. Do not return transcripts. If an agent returns narrative prose when you need structured findings, reject and re-delegate with explicit format requirement.
+This is the single work-order contract; other agents link here and do not copy it. Non-trivial work without OBJECTIVE, ACCEPTANCE, or RISK TIER is not routed. Fields survive delegation, review, correction, and resume.
+
+Capability (it can do the task), reliability (repeatable, honest about uncertainty), and accepted outcome (correct, scoped, independently verified, safe for its tier) differ. Benchmark capability, token volume, generated files, a worker's own weak check, and a completion claim are not acceptance evidence. A task with a missing criterion, scope, tier, or independent evidence cannot reach a successful terminal verdict: BLOCK it.
+
+Agents return a completion record: artifacts, commands run with results, deltas, residual risks, confidence, acceptance status, typed escalation status. No transcripts. Narrative prose where structure is needed: reject and re-delegate with the format.
 
 **Skill inheritance is harness-specific.** Claude Code workers did not inherit the parent's active skills; other harnesses are unverified. Where a worker does not inherit, name the skill file instead of pasting its body.
 
 ### Analyst evidence handoff
 
-Before delegating an investigation that needs shell output, git history, builds,
-or unrestricted web research outside the analyst's declared tools:
-
-1. Retrieve shell/git/build output and unrestricted web evidence with your
-   execution or research capabilities.
-2. Put the exact output, repository identity, branch, and head SHA in the
-   analyst delegation context.
-3. Name any unavailable evidence as a gap.
-
-The analyst retrieves structured GitHub and CI data directly (PRs, issues,
-workflows, job logs) using its own read tools. Do not prefetch GitHub/CI
-context; delegate it.
-
-The analyst has no shell or unrestricted web access.
-If it returns `[BLOCKED]` for load-bearing missing context, retrieve the named
-evidence and re-delegate once. Do not pass the blocked response through as the
-investigation result.
+Before delegating an investigation that needs shell output, git history, builds, or unrestricted web research (the analyst has no shell or web access), retrieve that evidence yourself. Put the exact output, repository, branch, and head SHA in the delegation context, and name any unavailable evidence as a gap. Delegate GitHub and CI reads (PRs, issues, workflows, job logs); the analyst reads them directly.
+If it returns `[BLOCKED]` for load-bearing missing context, retrieve the evidence and re-delegate once. Do not pass the blocked response through as the result.
 
 ## Synthesis Protocol
 
@@ -221,7 +214,7 @@ After all delegated work returns:
 6. **Sequence recommendations** by priority and dependencies
 7. **Produce single coherent output** for the user
 
-Your output is not "analyst said X, architect said Y." It is "based on investigation and design review, the recommended action is Z because of X and Y."
+After an investigation, record before the next mutation: verified facts, unresolved conflicts, bounded scope, acceptance criteria, and a disposition (`CONTINUE`, `RESTART`, `BLOCK`, `STOP`). "Based on findings, fix it" is invalid. Not "analyst said X, architect said Y" but "the action is Z because of X and Y."
 
 ## Context Maintenance
 
@@ -295,22 +288,9 @@ When updating continuity state, capture behavioral signal, not background
 noise. Session log creation is discontinued; use the per-issue handoff and
 Serena memory.
 
-**Capture (signal):**
+**Capture (signal):** decisions that altered the plan, blockers and escalations, state changes (files, branches, issues, PRs), open questions, and next steps with enough context for a cold start.
 
-- **Decisions made**: architecture choices, approach changes, agent routing changes that altered the plan
-- **Blockers hit**: what stopped progress, workarounds attempted, escalations needed
-- **State changes**: files modified, branches created, issues filed, PRs opened
-- **Open questions**: unresolved ambiguities requiring human input or a follow-up session
-- **Next steps**: concrete continuation plan with enough context for a cold-start
-
-**Skip (noise):**
-
-- Tool invocations (already in transcript logs)
-- Background research that did not change the plan
-- Routine operations: file reads, status checks, lint runs
-- Intermediate agent responses that were superseded or rejected
-
-Each `workLog` entry should be one or two sentences: lead with the action or decision, then the result or rationale. A future agent reading the log must be able to reconstruct *why* a choice was made, not just *what* happened.
+**Skip (noise):** tool invocations, background research that did not change the plan, routine reads and lint runs, superseded agent responses. Each `workLog` entry is one or two sentences: the action or decision, then why.
 
 **Decision rule**: If removing an entry would leave the next session unable to reproduce a decision or continue the work, keep it. Otherwise, skip it.
 
@@ -322,9 +302,7 @@ per-issue handoff.
 
 **You cannot observe your own context usage.** The window size is not exposed to you, so any statement about how much of it remains is fabricated. Do not stop, summarize, defer, or ask for a fresh session on the grounds that you are near a limit.
 
-**Token cost and context pollution are separate costs.** Tokens are charged once, at the call. An imported worker transcript stays in your context, is billed again on every later turn, and competes for attention before the window is full. A larger window delays capacity pressure without removing that attention cost. Context isolation is a worker's distinctive benefit; lower wall-clock latency is a separate one.
-
-**Shared mental models create duplicated orientation cost.** Tasks that need the same files and conventions rebuild that understanding once per worker when they are split, and parallelism does not recover it. Overlapping file ownership is one proxy for that duplication.
+**Worker transcripts cost twice.** An imported transcript stays in your context, is billed on every later turn, and competes for attention. Workers that share files and conventions each rebuild that orientation, and parallelism does not recover it.
 
 **Checkpoint protocol** (runs once between routing waves, after the prior wave returns and before the next fans out):
 

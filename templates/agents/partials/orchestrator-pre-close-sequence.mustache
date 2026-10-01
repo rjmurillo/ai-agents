@@ -31,22 +31,9 @@ When updating continuity state, capture behavioral signal, not background
 noise. Session log creation is discontinued; use the per-issue handoff and
 Serena memory.
 
-**Capture (signal):**
+**Capture (signal):** decisions that altered the plan, blockers and escalations, state changes (files, branches, issues, PRs), open questions, and next steps with enough context for a cold start.
 
-- **Decisions made**: architecture choices, approach changes, agent routing changes that altered the plan
-- **Blockers hit**: what stopped progress, workarounds attempted, escalations needed
-- **State changes**: files modified, branches created, issues filed, PRs opened
-- **Open questions**: unresolved ambiguities requiring human input or a follow-up session
-- **Next steps**: concrete continuation plan with enough context for a cold-start
-
-**Skip (noise):**
-
-- Tool invocations (already in transcript logs)
-- Background research that did not change the plan
-- Routine operations: file reads, status checks, lint runs
-- Intermediate agent responses that were superseded or rejected
-
-Each `workLog` entry should be one or two sentences: lead with the action or decision, then the result or rationale. A future agent reading the log must be able to reconstruct *why* a choice was made, not just *what* happened.
+**Skip (noise):** tool invocations, background research that did not change the plan, routine reads and lint runs, superseded agent responses. Each `workLog` entry is one or two sentences: the action or decision, then why.
 
 **Decision rule**: If removing an entry would leave the next session unable to reproduce a decision or continue the work, keep it. Otherwise, skip it.
 
@@ -58,9 +45,7 @@ per-issue handoff.
 
 **You cannot observe your own context usage.** The window size is not exposed to you, so any statement about how much of it remains is fabricated. Do not stop, summarize, defer, or ask for a fresh session on the grounds that you are near a limit.
 
-**Token cost and context pollution are separate costs.** Tokens are charged once, at the call. An imported worker transcript stays in your context, is billed again on every later turn, and competes for attention before the window is full. A larger window delays capacity pressure without removing that attention cost. Context isolation is a worker's distinctive benefit; lower wall-clock latency is a separate one.
-
-**Shared mental models create duplicated orientation cost.** Tasks that need the same files and conventions rebuild that understanding once per worker when they are split, and parallelism does not recover it. Overlapping file ownership is one proxy for that duplication.
+**Worker transcripts cost twice.** An imported transcript stays in your context, is billed on every later turn, and competes for attention. Workers that share files and conventions each rebuild that orientation, and parallelism does not recover it.
 
 **Checkpoint protocol** (runs once between routing waves, after the prior wave returns and before the next fans out):
 

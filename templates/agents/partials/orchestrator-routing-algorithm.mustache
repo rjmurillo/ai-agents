@@ -12,39 +12,32 @@ Every delegation includes:
 
 ```text
 DELEGATE TO: [agent]
-TASK: [one sentence]
-CONTEXT: [prior findings, constraints, dependencies]
-EXPECTED OUTPUT: [format, content requirements]
-SUCCESS CRITERIA: [verifier and pass criterion]
-ESCALATE TO: [exception recipient]
+OBJECTIVE: [one sentence, user-visible outcome]
+NON-GOALS: [out of scope; allowed paths and tools]
+CONTEXT: [findings, assumptions, open questions, repo, branch, head SHA]
+RISK TIER: [read-only | reversible-local | shared-repo | external | prod/data/security/financial]
+ACCEPTANCE: [criteria, invariants, verifier, pass criterion]
+STOP CONDITIONS: [when to halt]
+ESCALATE TO: [owner]
+ROLLBACK: [recovery path]
+EXPECTED OUTPUT: [format]
 CONSTRAINTS: [must/must-not]
 TIMEBOX: [if applicable]
 TODO: [ledger ID; ensure row; 1-row update]
 ```
 
-Agents return deltas, changed paths, verifier output, acceptance status, and typed escalation status. Do not return transcripts. If an agent returns narrative prose when you need structured findings, reject and re-delegate with explicit format requirement.
+This is the single work-order contract; other agents link here and do not copy it. Non-trivial work without OBJECTIVE, ACCEPTANCE, or RISK TIER is not routed. Fields survive delegation, review, correction, and resume.
+
+Capability (it can do the task), reliability (repeatable, honest about uncertainty), and accepted outcome (correct, scoped, independently verified, safe for its tier) differ. Benchmark capability, token volume, generated files, a worker's own weak check, and a completion claim are not acceptance evidence. A task with a missing criterion, scope, tier, or independent evidence cannot reach a successful terminal verdict: BLOCK it.
+
+Agents return a completion record: artifacts, commands run with results, deltas, residual risks, confidence, acceptance status, typed escalation status. No transcripts. Narrative prose where structure is needed: reject and re-delegate with the format.
 
 **Skill inheritance is harness-specific.** Claude Code workers did not inherit the parent's active skills; other harnesses are unverified. Where a worker does not inherit, name the skill file instead of pasting its body.
 
 ### Analyst evidence handoff
 
-Before delegating an investigation that needs shell output, git history, builds,
-or unrestricted web research outside the analyst's declared tools:
-
-1. Retrieve shell/git/build output and unrestricted web evidence with your
-   execution or research capabilities.
-2. Put the exact output, repository identity, branch, and head SHA in the
-   analyst delegation context.
-3. Name any unavailable evidence as a gap.
-
-The analyst retrieves structured GitHub and CI data directly (PRs, issues,
-workflows, job logs) using its own read tools. Do not prefetch GitHub/CI
-context; delegate it.
-
-The analyst has no shell or unrestricted web access.
-If it returns `[BLOCKED]` for load-bearing missing context, retrieve the named
-evidence and re-delegate once. Do not pass the blocked response through as the
-investigation result.
+Before delegating an investigation that needs shell output, git history, builds, or unrestricted web research (the analyst has no shell or web access), retrieve that evidence yourself. Put the exact output, repository, branch, and head SHA in the delegation context, and name any unavailable evidence as a gap. Delegate GitHub and CI reads (PRs, issues, workflows, job logs); the analyst reads them directly.
+If it returns `[BLOCKED]` for load-bearing missing context, retrieve the evidence and re-delegate once. Do not pass the blocked response through as the result.
 
 ## Synthesis Protocol
 
@@ -58,7 +51,7 @@ After all delegated work returns:
 6. **Sequence recommendations** by priority and dependencies
 7. **Produce single coherent output** for the user
 
-Your output is not "analyst said X, architect said Y." It is "based on investigation and design review, the recommended action is Z because of X and Y."
+After an investigation, record before the next mutation: verified facts, unresolved conflicts, bounded scope, acceptance criteria, and a disposition (`CONTINUE`, `RESTART`, `BLOCK`, `STOP`). "Based on findings, fix it" is invalid. Not "analyst said X, architect said Y" but "the action is Z because of X and Y."
 
 ## Context Maintenance
 
