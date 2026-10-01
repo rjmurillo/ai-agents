@@ -157,8 +157,8 @@ def default_known_axes(references_dir: Path | None = None) -> frozenset[str] | N
 def check_axes(axes: tuple[str, ...], known_axes: frozenset[str]) -> str | None:
     """Return why ``axes`` is not a valid axis list, or ``None`` when it is.
 
-    A duplicate name is rejected by length, because set equality alone cannot
-    tell ``analyst,analyst,qa`` from ``analyst,qa``. A subset is allowed:
+    A duplicate name is found with one ``Counter`` pass, because set equality
+    alone cannot tell ``analyst,analyst,qa`` from ``analyst,qa``. A subset is allowed:
     /review selects axes by change risk, so a marker lists the axes that ran.
     """
     unknown = sorted(set(axes) - known_axes)
