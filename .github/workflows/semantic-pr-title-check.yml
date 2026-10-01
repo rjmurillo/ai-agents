@@ -36,6 +36,7 @@ jobs:
         run: echo "Skipped - bot actor ($GH_ACTOR)"
 
       - name: Check out classifier
+        id: checkout
         if: github.event_name != 'merge_group' && github.actor != 'dependabot[bot]' && github.actor != 'github-actions[bot]' && github.actor != 'renovate[bot]'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -69,3 +70,23 @@ jobs:
             --outcome "$OUTCOME" \
             --error-message "$ERROR_MESSAGE" \
             --pr-title "$PR_TITLE"
+
+      # ADR-113 decision 2: persist this job's typed result for the promotion
+      # gate. A merge group run only echoes that the pull request gate passed,
+      # so it records SKIP, not PASS: the title was not validated at this commit.
+      - name: Check out the evidence emitter
+        if: always() && steps.checkout.outcome != 'success'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            scripts/validation
+            .github/actions/upload-validator-evidence
+
+      - name: Upload promotion evidence
+        if: always()
+        uses: ./.github/actions/upload-validator-evidence
+        with:
+          validator: validate_pr_title
+          job-status: ${{ job.status }}
+          ran: ${{ github.event_name != 'merge_group' && github.actor != 'dependabot[bot]' && github.actor != 'github-actions[bot]' && github.actor != 'renovate[bot]' }}
