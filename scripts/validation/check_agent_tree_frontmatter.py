@@ -30,9 +30,11 @@ loader reads the filesystem, so an untracked or ignored stub is just as
 dispatchable as a committed one. A finding on an untracked file is a true
 positive.
 
-There is no allowlist. The tree holds 30 files and all 30 are agent
-definitions, so the gate holds at zero. Adding an exemption here would repeat
-the #4813 mistake in a new file.
+There is no allowlist. Every file in the tree is an agent definition, so the
+gate holds at zero. Adding an exemption here would repeat the #4813 mistake in
+a new file. The count is deliberately not written down: it drifted from 31 to
+30 when an agent was retired (issue #5701), and a number in prose has no way
+to stay true.
 
 CLI::
 
