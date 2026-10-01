@@ -65,7 +65,14 @@ jobs:
         run: |
           echo "::warning::Hook bypass indicators detected. See audit report."
           # Indicators are non-blocking (exit 1 by contract); do not fail the audit.
-          python3 scripts/detect_hook_bypass.py --base-ref origin/main || true
+          # The wrapper exits 0 whatever the detector returns, and prints a typed
+          # line: findings are FAIL advisory.findings, a crash (exit 2 or more)
+          # is BLOCKED script.failed, so a crash is no longer indistinguishable.
+          python3 scripts/ci/report_advisory_result.py run \
+            --validator hook-bypass-report \
+            --scope "commits showing hook bypass indicators" \
+            --findings-exit 1 \
+            -- python3 scripts/detect_hook_bypass.py --base-ref origin/main
 
       - name: Upload audit report
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

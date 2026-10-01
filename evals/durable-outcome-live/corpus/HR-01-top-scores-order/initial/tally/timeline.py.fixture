@@ -1,0 +1,8 @@
+"""Match timeline: scores in the order they were played, next to the best few."""
+
+from tally.ranking import top_scores
+
+
+def chronology_and_best(scores: list[int], n: int) -> tuple[list[int], list[int]]:
+    best = top_scores(scores, n)
+    return list(scores), best

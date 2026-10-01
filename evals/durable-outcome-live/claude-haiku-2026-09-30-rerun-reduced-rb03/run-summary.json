@@ -1,0 +1,14 @@
+{
+  "reduced_status": "VERIFIED",
+  "comparison": "not run: a subset run holds one control",
+  "harness_scope": "claude only, not cross-harness",
+  "commit": "e2c8d95fb88353992553a8cc69f1b1fe0dcdb610",
+  "requested_model": "haiku",
+  "requested_effort": "low",
+  "effort_verified": false,
+  "launches": 2,
+  "harness_failures": [],
+  "control_bytes": {
+    "reduced": 2076
+  }
+}

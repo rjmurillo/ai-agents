@@ -217,6 +217,12 @@ class TestValidateDashProhibition:
         assert "[WARNING]" in out
         assert "unreadable.md" in out
         assert "skipped" in out
+        # Each dropped path prints one typed line, so a grep for the reason
+        # counts the paths that were never examined (issue #5636).
+        typed = [line for line in out.splitlines() if "reason=entries.unreadable" in line]
+        assert len(typed) == 1
+        assert typed[0].startswith("[BLOCKED] validate_dash_prohibition ")
+        assert "unreadable.md could not be read at HEAD (git show exited 128)" in typed[0]
         # The unfixed implementation prints the ordinary all-clean PASS line
         # with no scope caveat; the fix MUST NOT claim the full candidate set
         # was checked when one of the two files was never read.
@@ -245,7 +251,7 @@ class TestValidateDashProhibition:
         out = capsys.readouterr().out
         assert not pre_pr_policy().accepts(result)
         assert "violation.md:1" in out
-        assert "[WARNING]" in out
+        assert "[BLOCKED] validate_dash_prohibition reason=entries.unreadable" in out
         assert "unreadable.md" in out
 
     def test_narrowed_scope_reports_examined_count_alongside_skip_count(

@@ -94,9 +94,19 @@ jobs:
           uv run --frozen python3 -m memory_enhancement --repo-root . health --json > health-report.json
 
       - name: Run health check (Markdown)
+        id: health-markdown
         continue-on-error: true
         run: |
           uv run --frozen python3 -m memory_enhancement --repo-root . health --markdown > health-report.md
+
+      - name: Report Markdown health check result
+        run: >-
+          python3 scripts/ci/report_advisory_result.py step
+          --validator memory-health-markdown
+          --scope "memory health Markdown report"
+          --outcome "${{ steps.health-markdown.outcome }}"
+          --failure-state BLOCKED
+          --failure-reason script.failed
 
       - name: Upload health reports
         if: always()

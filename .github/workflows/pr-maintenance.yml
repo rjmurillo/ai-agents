@@ -96,7 +96,12 @@ jobs:
         continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.BOT_PAT }}
-        run: python3 scripts/maintenance/detect_orphan_commits.py --limit 50
+        run: >-
+          python3 scripts/ci/report_advisory_result.py run
+          --validator orphan-commit-report
+          --scope "commits pushed to merged PR branches"
+          --findings-exit 1
+          -- python3 scripts/maintenance/detect_orphan_commits.py --limit 50
 
   # Job 2: Process PRs in parallel (matrix strategy)
   process-prs:

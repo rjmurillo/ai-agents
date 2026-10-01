@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "id": "HR-01-top-scores-order",
+  "category": "post_integration_regression",
+  "difficulty": "ordinary_bounded",
+  "title": "Rank the highest match scores",
+  "requirement": "Implement `top_scores(scores, n)` in `tally/ranking.py`. It returns the `n` highest scores, highest first. When `n` is larger than the number of scores it returns every score, highest first. When `n` is zero or negative it returns an empty list.",
+  "allowed_scope": {
+    "paths": [
+      "tally/*.py"
+    ]
+  },
+  "expected_changed_paths": [
+    "tally/ranking.py"
+  ],
+  "invariants": [
+    "the result is ordered highest first",
+    "duplicate scores are kept",
+    "n of zero or less returns an empty list"
+  ],
+  "acceptance_criteria": [
+    "The three highest of a longer list come back highest first",
+    "An n larger than the list returns every score, highest first",
+    "An n of zero, a negative n, or an empty list returns an empty list"
+  ],
+  "validation": {
+    "commands": [
+      [
+        "python",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "check_*.py"
+      ]
+    ],
+    "timeout_seconds": 60
+  },
+  "integration": {
+    "commands": [
+      [
+        "python",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "verify_*.py"
+      ]
+    ],
+    "timeout_seconds": 60,
+    "evidence_marker": "INTEGRATION_REGRESSION"
+  },
+  "grading": {
+    "method": "deterministic"
+  },
+  "reset": {
+    "method": "fresh_copy",
+    "notes": "Copy initial/ into an empty directory; delete that directory after grading."
+  },
+  "provenance": {
+    "kind": "synthetic",
+    "reason": "Smallest case of a change that passes its own check and breaks a downstream caller: a ranking helper that reorders the list its caller still needs in play order."
+  }
+}
