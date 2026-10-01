@@ -123,4 +123,4 @@ Re-verify one-liners for every volatile fact:
 | Coverage pin forms | `grep -n "cov-fail-under" .github/workflows/pytest.yml` |
 | Commit count | `git rev-list --count HEAD ^origin/main` |
 
-When a baseline here goes stale (a red turns green or a number moves), update the table in the same PR that moved it, or file an issue pointing at this file.
+When a baseline here goes stale (a red turns green or a number moves), update the table in the same PR that moved it, or flag the stale row to the owner in the PR body.

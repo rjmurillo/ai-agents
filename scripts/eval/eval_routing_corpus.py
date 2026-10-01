@@ -8,7 +8,11 @@ reproducibility, plus the category 4 and category 5 checks. No network and no
 model calls. The validation commands run `python` scripts that ship inside the
 corpus fixtures, in scratch directories.
 
-    eval_routing_corpus.py [--corpus DIR]
+    eval_routing_corpus.py [--corpus DIR] [--extension]
+
+`--extension` loads a corpus of post_integration_regression scenarios (issue #5768)
+instead of the six-category routing corpus, and proves the hidden regression passes
+the local check and fails the integration check.
 
 Exit codes: 0 every scenario loaded and every control held. 1 a control
 failed. 2 the corpus is invalid (parse, schema, missing category, missing
@@ -25,7 +29,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from _routing_grader import ControlReport, verify_controls
-from _routing_scenario import RoutingCorpusError, load_corpus
+from _routing_scenario import RoutingCorpusError, load_corpus, load_extension_corpus
 
 EXIT_OK = 0
 EXIT_CONTROL_FAILED = 1
@@ -49,9 +53,10 @@ def _report_dict(report: ControlReport, category: str, difficulty: str) -> dict[
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0] if __doc__ else "")
     parser.add_argument("--corpus", type=Path, default=DEFAULT_CORPUS)
+    parser.add_argument("--extension", action="store_true", help="load an extension corpus")
     args = parser.parse_args(argv)
     try:
-        scenarios = load_corpus(args.corpus)
+        scenarios = (load_extension_corpus if args.extension else load_corpus)(args.corpus)
     except RoutingCorpusError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return EXIT_CORPUS_INVALID

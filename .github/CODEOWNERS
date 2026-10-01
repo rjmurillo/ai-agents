@@ -63,3 +63,29 @@
 /build/scripts/                           @rjmurillo
 /lefthook.yml                             @rjmurillo
 /.github/CODEOWNERS                       @rjmurillo
+# Issue #5636: the drift allowlist decides which generated agent files may
+# differ from their templates, and the validator that reads it is the gate.
+# An entry added in the same PR it excuses needs an owner's review.
+/.agents/governance/drift-allowlist.json  @rjmurillo
+/build/drift_allowlist.py                 @rjmurillo
+/build/generate_agents.py                 @rjmurillo
+# Issue #5636, decision D17: the bypass allowlist authorizes SKIP_ toggles and
+# continue-on-error steps. An entry added in the PR it excuses needs the owner.
+/.agents/governance/bypass-allowlist.json @rjmurillo
+/scripts/validation/bypass_allowlist.py   @rjmurillo
+/scripts/validation/check_bypass_allowlist.py @rjmurillo
+# Issue #5636, ADR-113: the promotion exceptions file and its loader decide
+# which release findings may be accepted. An entry added in the PR it excuses
+# needs the owner.
+/.agents/governance/promotion-exceptions.json @rjmurillo
+/scripts/validation/promotion_exceptions.py @rjmurillo
+# Issue #5636, ADR-113 decision 3: the applicability table says which validators
+# a promotion must see. A row added or dropped in the PR it excuses needs the owner.
+/.agents/governance/promotion-applicability.json @rjmurillo
+/scripts/validation/promotion_applicability.py @rjmurillo
+
+# Issue #5636, ADR-113 decision 2: the evidence a promotion reads is written by
+# this emitter and uploaded by this action. A change to either decides what a
+# validator job claims, so it needs the owner.
+/scripts/validation/emit_validator_evidence.py @rjmurillo
+/.github/actions/upload-validator-evidence/ @rjmurillo

@@ -39,7 +39,7 @@ Jargon, defined once:
 | WHY the seam is shaped this way, invariants | `ai-agents-architecture-contract` |
 | Triage a red CI gate you do not understand | `ai-agents-debugging-playbook` |
 | Change classification, commit caps, review gates | `ai-agents-change-control` |
-| Escape hatches like the skip-drift-check marker | `ai-agents-config-catalog` |
+| Escape hatches like the drift allowlist | `ai-agents-config-catalog` |
 
 ## Process
 

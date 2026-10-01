@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "id": "HR-02-merge-settings-defaults",
+  "category": "post_integration_regression",
+  "difficulty": "ordinary_bounded",
+  "title": "Merge user settings over the defaults",
+  "requirement": "Implement `merge_settings(base, override)` in `settingskit/merge.py`. It returns the merged settings. A key in `override` wins over the same key in `base`. When both values are dicts, merge them recursively so keys that only `base` holds survive.",
+  "allowed_scope": {
+    "paths": [
+      "settingskit/*.py"
+    ]
+  },
+  "expected_changed_paths": [
+    "settingskit/merge.py"
+  ],
+  "invariants": [
+    "a key only in base survives",
+    "a key only in override is added",
+    "nested dicts merge key by key"
+  ],
+  "acceptance_criteria": [
+    "An override value replaces the base value for the same key",
+    "A nested override keeps the base keys it does not name",
+    "Merging with an empty override returns the base settings"
+  ],
+  "validation": {
+    "commands": [
+      [
+        "python",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "check_*.py"
+      ]
+    ],
+    "timeout_seconds": 60
+  },
+  "integration": {
+    "commands": [
+      [
+        "python",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "verify_*.py"
+      ]
+    ],
+    "timeout_seconds": 60,
+    "evidence_marker": "INTEGRATION_REGRESSION"
+  },
+  "grading": {
+    "method": "deterministic"
+  },
+  "reset": {
+    "method": "fresh_copy",
+    "notes": "Copy initial/ into an empty directory; delete that directory after grading."
+  },
+  "provenance": {
+    "kind": "synthetic",
+    "reason": "A merge helper that edits its first argument. The loader passes a shared defaults dict, so the second load sees the first load's overrides."
+  }
+}

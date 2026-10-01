@@ -432,6 +432,7 @@ class TestAggregateJob:
                 "zero-collection-guard": "ZERO_COLLECTION_RESULT",
                 "line-endings-guard": "LINE_ENDINGS_RESULT",
                 "context-output-guard": "CONTEXT_OUTPUT_RESULT",
+                "count-ratchet-guard": "COUNT_RATCHET_RESULT",
             }[dependency]
             assert f"needs.{dependency}.result" in env[variable]
             assert f"--check {variable} success" in script_step["run"]

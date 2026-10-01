@@ -32,6 +32,8 @@ import check_tmp_worktrees
 import check_worktree_recipes
 import pre_pr_sequence
 
+from scripts.validation.evidence import GateResult, coerce_outcome, pre_pr_policy
+
 RECIPE_GATE = "Worktree Recipe Destinations"
 TEMP_GATE = "Temp-filesystem Worktrees (advisory)"
 IN_ROOT_GATE = "In-root Worktrees (advisory)"
@@ -53,14 +55,16 @@ def _run_sequence(monkeypatch: pytest.MonkeyPatch) -> dict[str, bool]:
     def record(
         name: str,
         state: _State,
-        callback: Callable[[], bool],
+        callback: Callable[[], GateResult],
         skip: bool = False,
     ) -> bool:
         state.total += 1
         if skip:
             state.skipped += 1
             return True
-        result = bool(callback())
+        # A typed outcome has no truth value; the runner asks the policy whether
+        # it blocks, and so does this stand-in.
+        result = pre_pr_policy().accepts(coerce_outcome(name, callback()))
         verdicts[name] = result
         return result
 

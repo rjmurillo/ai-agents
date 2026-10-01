@@ -1,6 +1,6 @@
 ```
 
-**PIV Verdict Gate**: Orchestrator MUST NOT proceed to PR creation while the security agent returns BLOCKED. APPROVED clears the gate. CONDITIONAL clears the gate only when the verdict cites a follow-up issue number for the remaining MEDIUM findings, per the Completion Trigger Taxonomy.
+**PIV Verdict Gate**: Orchestrator MUST NOT proceed to PR creation while the security agent returns BLOCKED. APPROVED clears the gate. CONDITIONAL clears the gate only when the verdict names each remaining MEDIUM finding and its mitigation and flags them to the owner, per the Completion Trigger Taxonomy.
 
 #### Security-Relevant Change Triggers
 
@@ -148,7 +148,7 @@ Save to: `.project-toolkit/security/PIV-[feature].md`
 ## Recommendation
 
 - [ ] **APPROVED**: Implementation meets security requirements
-- [ ] **CONDITIONAL**: At most 3 MEDIUM findings remain with documented mitigations and a follow-up issue
+- [ ] **CONDITIONAL**: At most 3 MEDIUM findings remain with documented mitigations flagged to the owner
 - [ ] **BLOCKED**: HIGH/CRITICAL findings, secrets, CWE-22/77/78 patterns, ASI boundary violations unresolved, or 4+ MEDIUM deferred
 
 ### Required Actions
