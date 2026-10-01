@@ -15,7 +15,7 @@ Each row is one factual claim in ADR-113, the command run, and the result observ
 | 9 | ADR-101 states the plane-above rule verbatim | quote | `grep -c` of the full sentence in ADR-101 | VERIFIED. Count 1 |
 | 10 | The drift allowlist has path and reason per entry, a strict loader, and CODEOWNERS protection | behavior | read `build/drift_allowlist.py` and `.github/CODEOWNERS` lines 66-70 | VERIFIED |
 | 11 | The repository lists one code owner | count | grep of owners in CODEOWNERS | VERIFIED. One distinct owner, @rjmurillo |
-| 12 | Decision D17 allowlist uses owner and expiry fields | behavior | D17 owner message in this session | NOT CHECKED IN THE TREE. The allowlist lands in a separate pull request under #5636 and is not merged when this ledger was written |
+| 12 | Decision D17 allowlist uses owner and expiry fields | behavior | D17 owner message in this session | VERIFIED on 2026-09-30. `.agents/governance/bypass-allowlist.json` from #6085 carries `owner` and `expires` per entry |
 | 13 | publish.yml also publishes on workflow_dispatch with dry-run false | behavior | read `.github/workflows/publish.yml` lines 11-26 | VERIFIED. `workflow_dispatch` with a `dry-run` choice input, default true |
 | 14 | CheckOutcome has no digest field and aggregate compares no revisions | absence | grep digest, sha256, artifact in `scripts/validation/evidence.py`; read `aggregate` | VERIFIED by the architect seat in debate round 1; no digest or artifact field found |
 | 15 | A tag push runs the workflow file at the tagged commit | behavior | GitHub Actions documented behavior for `push` events | NOT CHECKED IN THE TREE. External behavior, stated as the reason decision 5 exists |

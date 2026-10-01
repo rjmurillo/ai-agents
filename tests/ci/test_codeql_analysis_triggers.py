@@ -90,7 +90,9 @@ def test_every_action_reference_is_pinned_to_a_40_hex_sha() -> None:
         step["uses"]
         for job in _document()["jobs"].values()
         for step in job["steps"]
-        if "uses" in step and not SHA_PIN.match(step["uses"].split()[0])
+        if "uses" in step
+        and not step["uses"].startswith("./")  # a local action is the same commit
+        and not SHA_PIN.match(step["uses"].split()[0])
     ]
     assert unpinned == []
 
