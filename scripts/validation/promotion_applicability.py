@@ -139,6 +139,21 @@ def _workflow_problem(value: object) -> str | None:
     return "'workflow' must be a path such as '.github/workflows/pytest.yml'"
 
 
+def _identity_problems(entry: dict[str, object]) -> list[str]:
+    """Problems with the validator, tier, and workflow fields of a well-shaped entry."""
+    problems: list[str] = []
+    validator = entry["validator"]
+    if not isinstance(validator, str) or not _VALIDATOR_RE.fullmatch(validator):
+        problems.append("'validator' must be a lowercase slug such as 'run_python_tests'")
+    tier = entry["tier"]
+    if not isinstance(tier, str) or tier not in _TIERS:
+        problems.append(f"'tier' must be one of {', '.join(sorted(_TIERS))}")
+    workflow_problem = _workflow_problem(entry["workflow"])
+    if workflow_problem:
+        problems.append(workflow_problem)
+    return problems
+
+
 def _entry_problems(entry: object) -> list[str]:
     if not isinstance(entry, dict):
         return ["entry must be a JSON object"]
@@ -151,15 +166,7 @@ def _entry_problems(entry: object) -> list[str]:
         problems.append(f"unknown key(s) {', '.join(extra)}")
     if problems:
         return problems
-    validator = entry["validator"]
-    if not isinstance(validator, str) or not _VALIDATOR_RE.fullmatch(validator):
-        problems.append("'validator' must be a lowercase slug such as 'run_python_tests'")
-    tier = entry["tier"]
-    if not isinstance(tier, str) or tier not in _TIERS:
-        problems.append(f"'tier' must be one of {', '.join(sorted(_TIERS))}")
-    workflow_problem = _workflow_problem(entry["workflow"])
-    if workflow_problem:
-        problems.append(workflow_problem)
+    problems.extend(_identity_problems(entry))
     for field in ("job", "rationale"):
         problem = _text_problem(entry, field)
         if problem:
