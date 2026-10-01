@@ -139,7 +139,7 @@ retired by ADR-097 along with every tool-call hook:
 
 | Surface | Consumer | Shape re-verified 2026-09-01 |
 |---|---|---|
-| `.claude/settings.json` | Claude Code direct in this repository | 4 events, 7 groups |
+| `.claude/settings.json` | Claude Code direct in this repository | 5 events, 8 groups |
 | `.claude/hooks/hooks.json` | Vendored plugin source for both harness packages | 0 events, 0 groups |
 | `.github/hooks/require-subagent-model.json` | retired (ADR-097) | deleted; was Copilot CLI in this repository, native `preToolUse`, matcher `task`, direct registration |
 

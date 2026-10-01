@@ -166,7 +166,9 @@ def _run_cli(repo: Path, guard: Path = GUARD) -> subprocess.CompletedProcess[str
     # production does (issue #2223). The negative control runs a mutated copy
     # from tmp_path, which has no such sibling, so the real directory has to be
     # importable or that test fails on the import rather than on the mutation.
-    env["PYTHONPATH"] = str(_VALIDATION_DIR)
+    # A mutated copy also needs the repository root, because the guard imports
+    # the typed contract by its package path, ``scripts.validation.evidence``.
+    env["PYTHONPATH"] = os.pathsep.join((str(_VALIDATION_DIR), str(REPO_ROOT)))
     return subprocess.run(
         [sys.executable, str(guard), str(repo)],
         cwd=str(repo),
@@ -667,6 +669,57 @@ class TestOutOfScope:
         result = _run_cli(plain)
 
         assert result.returncode == 0
+
+    def test_a_repo_without_lefthook_config_prints_a_typed_skip(self, tmp_path: Path) -> None:
+        repo = _make_repo(tmp_path, "no_lefthook_typed", lefthook=False)
+
+        result = _run_cli(repo)
+
+        assert result.returncode == 0
+        assert result.stdout.startswith(
+            "[SKIP] validate_git_hook_health reason=tree.absent scope=git hooks installed"
+        )
+
+    def test_a_directory_that_is_not_a_repository_prints_a_typed_skip(
+        self, tmp_path: Path
+    ) -> None:
+        plain = tmp_path / "not_a_repo_typed"
+        plain.mkdir()
+        (plain / "lefthook.yml").write_text(LEFTHOOK_CONFIG, encoding="utf-8")
+
+        result = _run_cli(plain)
+
+        assert result.returncode == 0
+        assert "[SKIP] validate_git_hook_health reason=tree.absent" in result.stdout
+        assert "is not a git repository (0 hooks probed)" in result.stdout
+
+    @pytest.mark.parametrize("variable", ["CI", "GITHUB_ACTIONS"])
+    def test_a_ci_run_prints_a_typed_exempt_skip_and_exits_zero(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+        variable: str,
+    ) -> None:
+        repo = _make_repo(tmp_path, f"ci_{variable.lower()}")
+        monkeypatch.setenv(variable, "true")
+
+        rc = check_git_hook_health.main([str(repo)])
+
+        out = capsys.readouterr().out
+        assert rc == 0
+        assert "[SKIP] validate_git_hook_health reason=policy.exempt" in out
+        assert "skipped under CI (0 hooks probed)" in out
+
+    def test_a_probed_repo_prints_no_typed_skip(self, tmp_path: Path) -> None:
+        """Inverse: a run that probed hooks must not claim it skipped."""
+        repo = _make_repo(tmp_path, "probed")
+        _git(repo, "config", "core.hooksPath", str(tmp_path / "missing"))
+
+        result = _run_cli(repo)
+
+        assert result.returncode != 0
+        assert "[SKIP]" not in result.stdout
 
     def test_no_git_binary_is_an_external_failure(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch

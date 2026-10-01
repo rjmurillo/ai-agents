@@ -1,0 +1,19 @@
+{
+  "current_status": "VERIFIED",
+  "reduced_status": "VERIFIED",
+  "comparison": "BETTER",
+  "harness_scope": "claude only, not cross-harness",
+  "commit": "f9ca29d9bbdb091fdf3d2e5950cf2a8f08708745",
+  "requested_model": "haiku",
+  "requested_effort": "low",
+  "effort_verified": false,
+  "effort_observed": "unobservable: the claude stream does not report effort",
+  "first_repeat": 1,
+  "repeats": 1,
+  "launches": 25,
+  "harness_failures": [],
+  "control_bytes": {
+    "current": 40774,
+    "reduced": 2076
+  }
+}
