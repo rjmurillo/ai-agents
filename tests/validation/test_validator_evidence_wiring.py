@@ -65,9 +65,21 @@ def test_the_table_has_commit_tier_rows_to_cover() -> None:
     assert len(rows) >= 9
 
 
+# Validators whose jobs live in pytest.yml. A push that changes only that file
+# runs the whole suite in the pre-push hook, so its wiring is a separate change.
+# The follow-up that wires them empties this set, and the test below fails until
+# it does.
+AWAITING_WIRING = frozenset({"run_python_tests", "check_whole_tree_count_ratchets_blocking"})
+
+
 def test_every_commit_tier_validator_has_an_upload_step() -> None:
     wanted = {row.validator for row in load_applicability(ROOT) if row.tier == "commit"}
-    assert wanted - set(_uploaded()) == set()
+    assert wanted - set(_uploaded()) == AWAITING_WIRING
+
+
+def test_a_validator_awaiting_wiring_has_no_upload_step_yet() -> None:
+    """Fails the moment a pending validator is wired, so the set cannot go stale."""
+    assert AWAITING_WIRING & set(_uploaded()) == set()
 
 
 def test_no_upload_step_names_a_validator_the_table_lacks() -> None:
@@ -78,7 +90,7 @@ def test_no_upload_step_names_a_validator_the_table_lacks() -> None:
 def test_each_validator_is_uploaded_from_the_job_the_table_names() -> None:
     uploaded = _uploaded()
     for row in load_applicability(ROOT):
-        if row.tier != "commit":
+        if row.tier != "commit" or row.validator in AWAITING_WIRING:
             continue
         job_name = str(uploaded[row.validator]["job"]["name"])
         expected = row.job.split("(")[0].strip()
@@ -134,8 +146,6 @@ EXPECTED_RAN = {
         "&& github.actor != 'github-actions[bot]' && github.actor != 'renovate[bot]'"
     ),
     "validate_plugin_version_bump": None,
-    "run_python_tests": None,
-    "check_whole_tree_count_ratchets_blocking": None,
 }
 
 
