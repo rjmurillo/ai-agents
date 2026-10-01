@@ -6,7 +6,9 @@ applies this file instead of stating its own copy: human and AI reviewers,
 PR authors, responders, and specialist review agents. A consumer keeps a
 one-line invariant only; this file is the one place the doctrine lives.
 
-Boundaries: whether a finding is technically valid belongs to the `review`
+Boundaries: reviewer and author culture (goodwill, reply time, approve once
+code health improves) lives in `.agents/governance/code-review-norms.md`.
+Whether a finding is technically valid belongs to the `review`
 skill's technical-review contract. This protocol owns how a validated finding
 and its answer are worded, tracked, and escalated. Prose style, banned words,
 and dash rules stay in `.claude/rules/voice.md`; this file does not restate
@@ -37,12 +39,12 @@ review comments and pushback.
 The publisher renders a validated finding. It never changes the finding's
 technical severity.
 
-| Disposition | Meaning | Gates merge |
-|-------------|---------|-------------|
-| `BLOCKING` | Must resolve before approval | Yes |
-| `OPTIONAL` | Useful improvement | No |
-| `NIT` | Minor polish | No |
-| `FYI` | Information only, no action | No |
+Dispositions and their comment prefixes come from
+`.agents/governance/code-review-norms.md`, the repository's review-culture
+authority; this protocol extends it and does not restate it. In this file
+`BLOCKING` means no prefix (must address before merge), `OPTIONAL` means
+`Optional:`, `NIT` means `Nit:`, and `FYI` means `FYI:`. Only `BLOCKING`
+gates merge.
 
 - Render the disposition the finding carries. Do not promote a nit to
   `BLOCKING` or demote `BLOCKING` to `NIT` or `FYI`.
@@ -134,3 +136,5 @@ Each scenario names the section that decides it.
 16. Existing adjacent debt: tracked separately (Debt).
 17. Repeated replies, no new evidence: escalate (Bounded loops).
 18. Duplicate AI comments: deduplicated (Exemplary AI standard).
+
+<!-- vendor-portability: declared. This file cites .agents/governance/code-review-norms.md and .claude/rules/voice.md as upstream authorities it extends and does not restate, and .claude/skills/github/scripts/pr/check_pr_round_cap.py, a sibling in-plugin script cited for its contract. The protocol is self-contained and needs none of them at runtime. Issue #5403. -->

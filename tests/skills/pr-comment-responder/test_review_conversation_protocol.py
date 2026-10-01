@@ -35,6 +35,11 @@ def test_protocol_defines_each_disposition(disposition: str) -> None:
     assert f"`{disposition}`" in _text()
 
 
+def test_protocol_defers_prefixes_to_review_norms() -> None:
+    assert ".agents/governance/code-review-norms.md" in _text()
+    assert (_ROOT / ".agents" / "governance" / "code-review-norms.md").is_file()
+
+
 def test_protocol_forbids_severity_mutation() -> None:
     text = _text()
     assert "never changes the finding's" in text
@@ -61,5 +66,5 @@ def test_consumer_points_to_protocol(consumer: str) -> None:
 @pytest.mark.parametrize("consumer", _CONSUMERS)
 def test_consumer_does_not_copy_protocol_table(consumer: str) -> None:
     body = (_ROOT / consumer).read_text(encoding="utf-8")
-    assert "| `BLOCKING` | Must resolve before approval |" not in body
+    assert "Dispositions and their comment prefixes come from" not in body
     assert "An AI author is neither a compliance bot" not in body
