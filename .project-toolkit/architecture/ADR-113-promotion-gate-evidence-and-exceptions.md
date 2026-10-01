@@ -1,6 +1,6 @@
 ---
 id: ADR-113
-status: proposed
+status: accepted
 date: 2026-09-30
 decision-makers: [rjmurillo]
 supersedes: []
@@ -61,13 +61,13 @@ The decision is needed now because the typed-state work (#5635, #5636) already e
    The baseline for `remediated` is the previous promoted manifest, kept as a release asset. It affects only this non-blocking class. The first promotion has no baseline, so it reports no `remediated` findings. Promotion proceeds only when `unresolved` and `expired` are both zero. The manifest lists every finding by class. With decision 7, the first enforced promotion waits until the tree has no open finding, or until a second approver exists to accept them.
 10. **Implementation is out of scope for this record.** This ADR fixes the contract. Building it is separate work under #5636 after the record is accepted, and the three parts (result binding, plane and trust root, exception governance) may be split into their own reviewed changes.
 
-## Open Questions
+## Resolved Questions
 
-Owner for each: rjmurillo.
+Owner: rjmurillo. Decision D21, made directly to the orchestrator on 2026-09-30, accepted this record with solo-maintainer defaults for the three questions the proposal left open.
 
-- Does the repository plan a second approving identity? Until it does, decision 7 means no exceptions.
-- Can a tag ruleset restrict `v*` creation on this plan and account type? Decision 5 depends on it.
-- Is a GitHub Release the store for the previous manifest? `publish.yml` holds `contents: read` only, so the entry workflow needs a named write path.
+1. **Second approving identity.** None exists. Under decision 7 the gate accepts no exceptions for now, and every unfixed finding is `unresolved`. Adding a second approving identity re-opens decision 7 and the exception rules that depend on it.
+2. **Tag ruleset for `v*`.** A read-only probe of `gh api repos/rjmurillo/ai-agents/rulesets` on 2026-09-30 returned one ruleset, id 11104075, target `branch`, so rulesets work on this repository. GitHub documents rulesets as controlling "selected branches and tags", and the rulesets API takes `target: tag`. Decision 5 therefore keeps the tag ruleset as its mechanism. No tag ruleset exists yet and this change does not create one: live ruleset changes are the owner's to run. Until the owner creates it, the gate is advisory, as decision 5 already says. If the create call is refused on this plan, the fallback is a CI check in the default-branch entry workflow that fails when the tag's commit is not an ancestor of the default branch head or the tag does not match the package version.
+3. **Store for the previous manifest.** A GitHub Release holds it as a release asset. The release step runs in a narrowly scoped job with `contents: write`. The rest of `publish.yml` keeps `contents: read`.
 
 ## Prior Art Investigation
 
@@ -135,13 +135,14 @@ Option A accepts a maintenance cost for the applicability table. The cost is low
 
 ## Implementation Notes
 
-Nothing is implemented. Sequence when accepted: exception record schema and loader, then the aggregator with candidate binding, then the `publish.yml` call. Each step is its own change.
+Nothing is implemented. Sequence now that the record is accepted: exception record schema and loader, then the aggregator with candidate binding, then the `publish.yml` call. Each step is its own change.
 
 ## Related Decisions
 
 - ADR-101: Enforcement planes.
 - Decision D8 under #5636: the drift allowlist.
-- Decision D17 under #5636: the toggle and `continue-on-error` allowlist. It is proposed in a separate, unmerged change and uses the same owner and expiry fields. This record does not depend on it.
+- Decision D17 under #5636: the toggle and `continue-on-error` allowlist, merged in #6085. It uses the same owner and expiry fields. This record does not depend on it.
+- Decision D21 under #5636: owner acceptance of this record with the answers under Resolved Questions.
 
 ## References
 

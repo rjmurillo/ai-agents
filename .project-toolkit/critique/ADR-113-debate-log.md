@@ -2,7 +2,7 @@
 
 ## Summary
 
-- **Status after review**: proposed. Nothing implemented.
+- **Status after review**: proposed, then accepted by owner decision D21 (see Owner decision below). Nothing implemented.
 - **Rounds**: 3.
 - **Outcome**: no P0 remains. All six seats Accept or Disagree-and-Commit. One P1 raised in round 3 (the finding fingerprint needs a structured items field) is fixed in text.
 - **Method note**: the skill names six agents. Two reviewer agents were reused across the change under a two-concurrent-subagent limit, each filling three seats one after the other: architect, critic, and independent-thinker in one; security, analyst, and high-level-advisor in the other. The seats were reviewed separately and each voted separately. The reviewers are not independent of each other's context, so this is a weaker panel than six fresh agents.
@@ -66,3 +66,10 @@ Decision 6 and the Impact table now require a structured `items` field, and say 
 - Second-system: scope is bounded to the epic's five requirements, and decision 10 allows splitting.
 
 **Overall strategic assessment**: APPROVED for status proposed. Acceptance waits on the Open Questions.
+
+## Owner decision
+
+- **Decision**: D21, rjmurillo, 2026-09-30. Verdict: ACCEPT ADR-113 with solo-maintainer defaults. This is an owner decision, not a fourth debate round. No reviewer seat re-voted. The six-seat position above stands (APPROVED for status proposed, acceptance waiting on the Open Questions).
+- **Participants**: rjmurillo (decision-maker). The agents that voted in rounds 1 to 3 were not re-run.
+- **Answers recorded in the ADR**: (1) no second approving identity, so decision 7 allows no exceptions, and a second identity re-opens it; (2) a read-only ruleset probe found a branch-target ruleset on this repository and the tag target is part of the same ruleset feature, so the owner creates the `v*` tag ruleset and this change does not; (3) a GitHub Release stores the previous manifest through a narrowly scoped `contents: write` release job.
+- **Claims ledger**: row 12 is now checked in the tree. #6085 merged the D17 allowlist. Row 15 is unchanged.
