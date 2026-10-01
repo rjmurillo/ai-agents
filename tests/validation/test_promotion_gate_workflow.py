@@ -55,18 +55,23 @@ def test_the_write_job_is_scoped_to_contents_only(workflow: dict[str, Any]) -> N
     assert _jobs(workflow)["release-manifest"]["permissions"] == {"contents": "write"}
 
 
-@pytest.mark.parametrize("job", ["gate", "release-manifest"])
-def test_both_jobs_run_only_from_the_default_branch(workflow: dict[str, Any], job: str) -> None:
-    condition = _normalized(_jobs(workflow)[job]["if"])
-    assert "github.ref == format('refs/heads/{0}', github.event.repository.default_branch)" in (
-        condition
+DEFAULT_BRANCH_ONLY = (
+    "github.ref == format('refs/heads/{0}', github.event.repository.default_branch)"
+)
+
+
+def test_the_gate_job_condition_is_exactly_the_default_branch_guard(
+    workflow: dict[str, Any],
+) -> None:
+    assert _normalized(_jobs(workflow)["gate"]["if"]) == f"${{{{ {DEFAULT_BRANCH_ONLY} }}}}"
+
+
+def test_the_release_job_condition_is_exactly_the_full_guard(workflow: dict[str, Any]) -> None:
+    expected = (
+        f"${{{{ {DEFAULT_BRANCH_ONLY} && inputs.release-tag != '' "
+        "&& needs.gate.outputs.release_eligible == 'true' }}"
     )
-
-
-def test_the_release_job_needs_a_tag_and_an_eligible_manifest(workflow: dict[str, Any]) -> None:
-    condition = _normalized(_jobs(workflow)["release-manifest"]["if"])
-    assert "inputs.release-tag != ''" in condition
-    assert "needs.gate.outputs.release_eligible == 'true'" in condition
+    assert _normalized(_jobs(workflow)["release-manifest"]["if"]) == expected
     assert _jobs(workflow)["release-manifest"]["needs"] == "gate"
 
 

@@ -330,6 +330,8 @@ class TestCli:
             json.dumps(
                 {
                     "schema_version": "1",
+                    "verdict": "promote",
+                    "enforced": True,
                     "candidate": {"sha": OTHER},
                     "findings": [
                         {

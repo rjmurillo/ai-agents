@@ -327,11 +327,18 @@ def parse_previous_manifest(document: object) -> PreviousManifest:
     """Return the still-open findings a previous manifest recorded.
 
     A ``remediated`` entry is not open, so it is not a baseline for the next
-    comparison. A document that is not a promotion manifest raises: a baseline
+    comparison. Only a manifest that records an enforced ``promote`` verdict is
+    a baseline (decision 9: "the previous promoted manifest"). A document that is
+    not a promotion manifest raises: a baseline
     that silently read as empty would report every fixed finding as never seen.
     """
     if not isinstance(document, dict) or document.get("schema_version") != MANIFEST_SCHEMA_VERSION:
         raise ManifestError(f"previous manifest must be schema {MANIFEST_SCHEMA_VERSION!r}")
+    if document.get("verdict") != "promote" or document.get("enforced") is not True:
+        raise ManifestError(
+            "previous manifest must record an enforced promote verdict; "
+            "an advisory or blocked run is not a promoted baseline"
+        )
     candidate = document.get("candidate")
     sha = candidate.get("sha") if isinstance(candidate, dict) else None
     if not isinstance(sha, str) or not _SHA_RE.fullmatch(sha):

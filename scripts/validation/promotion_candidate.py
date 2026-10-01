@@ -51,9 +51,27 @@ def _git(repo_root: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
         raise CandidateCheckError(f"git {args[0]} could not run: {type(exc).__name__}") from exc
 
 
+def _component_problem(component: str) -> bool:
+    """True for a path component git refuses in a ref name."""
+    return (
+        not component
+        or component.startswith(".")
+        or component.endswith((".", ".lock"))
+        or "@{" in component
+    )
+
+
 def _valid_name(value: str, pattern: re.Pattern[str], label: str) -> None:
+    """Refuse a name git would reject, so bad input exits 2 and not 3.
+
+    The character set excludes space, ``~ ^ : ? * [ \\`` and control characters.
+    The component rules cover an empty component (``a//b``, a trailing slash),
+    a leading dot, and the ``.lock`` suffix, from ``git check-ref-format``.
+    """
     if not pattern.fullmatch(value) or ".." in value:
         raise InvalidCandidateNameError(f"{label} {value!r} is not a plain ref name")
+    if any(_component_problem(part) for part in value.split("/")):
+        raise InvalidCandidateNameError(f"{label} {value!r} is not a valid git ref name")
 
 
 def candidate_on_branch(repo_root: Path, sha: str, ref: str) -> tuple[bool, str]:
