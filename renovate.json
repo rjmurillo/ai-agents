@@ -5,6 +5,19 @@
   ],
   "rebaseWhen": "behind-base-branch",
   "dependencyDashboard": false,
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": [
+      "before 4am on monday"
+    ]
+  },
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "minimumReleaseAge": null,
+    "labels": [
+      "security"
+    ]
+  },
   "customManagers": [
     {
       "customType": "regex",

@@ -16,10 +16,16 @@ File shape, ``.agents/governance/promotion-applicability.json``, schema 1::
 
     {"schema_version": "1", "entries": [{
       "validator": "run_python_tests", "tier": "commit",
+      "workflow": ".github/workflows/pytest.yml",
       "job": "Run Python Tests", "when": "always",
       "rationale": "why this validator gates promotion"}]}
 
-``when`` is the string ``"always"`` or a non-empty list of glob patterns over
+``workflow`` is the repository path of the workflow file whose run holds the
+job. The provenance check (decision 5) accepts evidence only from a run of that
+workflow, so a result uploaded by any other workflow is refused.
+
+``when`` is the string ``"always"``, the string ``"never"`` (not applicable to any
+promotion, decision 9), or a non-empty list of glob patterns over
 repository-relative paths of the candidate commit. A pattern matches a path
 with :func:`fnmatch.fnmatchcase`, where ``*`` also crosses ``/``. That reads a
 pattern wider than a shell glob does, which can only add a required validator,
@@ -60,9 +66,11 @@ MAX_FILE_BYTES = 1_048_576
 TIER_COMMIT = "commit"
 TIER_BUILD = "build"
 ALWAYS = "always"
+NEVER = "never"
 
 _SHOWN_PATH = APPLICABILITY_RELATIVE_PATH.as_posix()
-_KEYS = frozenset({"validator", "tier", "job", "when", "rationale"})
+_KEYS = frozenset({"validator", "tier", "workflow", "job", "when", "rationale"})
+_WORKFLOW_RE = re.compile(r"\.github/workflows/[A-Za-z0-9][A-Za-z0-9._-]*\.ya?ml")
 _VALIDATOR_RE = re.compile(r"[a-z][a-z0-9_.-]*")
 _TIERS = frozenset({TIER_COMMIT, TIER_BUILD})
 
@@ -77,6 +85,7 @@ class Applicability:
 
     validator: str
     tier: str
+    workflow: str
     job: str
     when: tuple[str, ...]
     rationale: str
@@ -86,8 +95,15 @@ class Applicability:
         """True when the validator applies to every candidate."""
         return self.when == (ALWAYS,)
 
+    @property
+    def never(self) -> bool:
+        """True when the validator is marked not applicable to any promotion (decision 9)."""
+        return self.when == (NEVER,)
+
     def applies_to(self, paths: Iterable[str]) -> bool:
         """Return True when this validator must have run for a candidate with ``paths``."""
+        if self.never:
+            return False
         if self.always:
             return True
         names = list(paths)
@@ -108,10 +124,10 @@ def _text_problem(entry: dict[str, object], field: str) -> str | None:
 
 
 def _when_problem(value: object) -> str | None:
-    if value == ALWAYS:
+    if value in (ALWAYS, NEVER):
         return None
     if not isinstance(value, list) or not value:
-        return f"'when' must be \"{ALWAYS}\" or a non-empty list of glob patterns"
+        return f"'when' must be \"{ALWAYS}\", \"{NEVER}\", or a non-empty list of glob patterns"
     for pattern in value:
         if not isinstance(pattern, str) or not pattern.strip() or _has_forbidden_char(pattern):
             return "'when' patterns must be non-empty printable strings"
@@ -126,6 +142,27 @@ def _when_problem(value: object) -> str | None:
     return None
 
 
+def _workflow_problem(value: object) -> str | None:
+    if isinstance(value, str) and _WORKFLOW_RE.fullmatch(value):
+        return None
+    return "'workflow' must be a path such as '.github/workflows/pytest.yml'"
+
+
+def _identity_problems(entry: dict[str, object]) -> list[str]:
+    """Problems with the validator, tier, and workflow fields of a well-shaped entry."""
+    problems: list[str] = []
+    validator = entry["validator"]
+    if not isinstance(validator, str) or not _VALIDATOR_RE.fullmatch(validator):
+        problems.append("'validator' must be a lowercase slug such as 'run_python_tests'")
+    tier = entry["tier"]
+    if not isinstance(tier, str) or tier not in _TIERS:
+        problems.append(f"'tier' must be one of {', '.join(sorted(_TIERS))}")
+    workflow_problem = _workflow_problem(entry["workflow"])
+    if workflow_problem:
+        problems.append(workflow_problem)
+    return problems
+
+
 def _entry_problems(entry: object) -> list[str]:
     if not isinstance(entry, dict):
         return ["entry must be a JSON object"]
@@ -138,12 +175,7 @@ def _entry_problems(entry: object) -> list[str]:
         problems.append(f"unknown key(s) {', '.join(extra)}")
     if problems:
         return problems
-    validator = entry["validator"]
-    if not isinstance(validator, str) or not _VALIDATOR_RE.fullmatch(validator):
-        problems.append("'validator' must be a lowercase slug such as 'run_python_tests'")
-    tier = entry["tier"]
-    if not isinstance(tier, str) or tier not in _TIERS:
-        problems.append(f"'tier' must be one of {', '.join(sorted(_TIERS))}")
+    problems.extend(_identity_problems(entry))
     for field in ("job", "rationale"):
         problem = _text_problem(entry, field)
         if problem:
@@ -159,9 +191,10 @@ def _build(entry: dict[str, object]) -> Applicability:
     return Applicability(
         validator=str(entry["validator"]),
         tier=str(entry["tier"]),
+        workflow=str(entry["workflow"]),
         job=str(entry["job"]),
-        when=(ALWAYS,)
-        if when == ALWAYS
+        when=(str(when),)
+        if when in (ALWAYS, NEVER)
         else tuple(str(item) for item in cast("list[object]", when)),
         rationale=str(entry["rationale"]),
     )

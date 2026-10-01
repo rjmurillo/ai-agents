@@ -98,3 +98,9 @@
 /scripts/ci/adr101_publisher_execute.py     @rjmurillo
 /scripts/ci/adr101_publisher_github.py      @rjmurillo
 /scripts/ci/adr101_publisher_inputs.py      @rjmurillo
+
+# Issue #5636, ADR-113 decision 5: these programs decide which workflow runs and
+# artifacts count as evidence. A change to them changes what a promotion trusts.
+/scripts/validation/promotion_provenance.py @rjmurillo
+/scripts/validation/promotion_fetch.py @rjmurillo
+/scripts/validation/fetch_promotion_evidence.py @rjmurillo
