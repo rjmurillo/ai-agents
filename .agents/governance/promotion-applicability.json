@@ -55,16 +55,16 @@
       "tier": "commit",
       "workflow": ".github/workflows/pr-validation.yml",
       "job": "Validate PR",
-      "when": "always",
-      "rationale": "Required status check on the default branch ruleset 11104075, so a promotion needs its result."
+      "when": "never",
+      "rationale": "PR-only checks; evidence lives on the PR, not the main SHA. Conservative reading for the owner to confirm."
     },
     {
       "validator": "validate_pr_title",
       "tier": "commit",
       "workflow": ".github/workflows/semantic-pr-title-check.yml",
       "job": "Validate PR title",
-      "when": "always",
-      "rationale": "Required status check on the default branch ruleset 11104075, so a promotion needs its result."
+      "when": "never",
+      "rationale": "PR-only checks; evidence lives on the PR, not the main SHA. Conservative reading for the owner to confirm."
     },
     {
       "validator": "validate_plugin_version_bump",

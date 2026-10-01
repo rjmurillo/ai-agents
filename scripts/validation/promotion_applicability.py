@@ -24,7 +24,8 @@ File shape, ``.agents/governance/promotion-applicability.json``, schema 1::
 job. The provenance check (decision 5) accepts evidence only from a run of that
 workflow, so a result uploaded by any other workflow is refused.
 
-``when`` is the string ``"always"`` or a non-empty list of glob patterns over
+``when`` is the string ``"always"``, the string ``"never"`` (not applicable to any
+promotion, decision 9), or a non-empty list of glob patterns over
 repository-relative paths of the candidate commit. A pattern matches a path
 with :func:`fnmatch.fnmatchcase`, where ``*`` also crosses ``/``. That reads a
 pattern wider than a shell glob does, which can only add a required validator,
@@ -65,6 +66,7 @@ MAX_FILE_BYTES = 1_048_576
 TIER_COMMIT = "commit"
 TIER_BUILD = "build"
 ALWAYS = "always"
+NEVER = "never"
 
 _SHOWN_PATH = APPLICABILITY_RELATIVE_PATH.as_posix()
 _KEYS = frozenset({"validator", "tier", "workflow", "job", "when", "rationale"})
@@ -93,8 +95,15 @@ class Applicability:
         """True when the validator applies to every candidate."""
         return self.when == (ALWAYS,)
 
+    @property
+    def never(self) -> bool:
+        """True when the validator is marked not applicable to any promotion (decision 9)."""
+        return self.when == (NEVER,)
+
     def applies_to(self, paths: Iterable[str]) -> bool:
         """Return True when this validator must have run for a candidate with ``paths``."""
+        if self.never:
+            return False
         if self.always:
             return True
         names = list(paths)
@@ -115,10 +124,10 @@ def _text_problem(entry: dict[str, object], field: str) -> str | None:
 
 
 def _when_problem(value: object) -> str | None:
-    if value == ALWAYS:
+    if value in (ALWAYS, NEVER):
         return None
     if not isinstance(value, list) or not value:
-        return f"'when' must be \"{ALWAYS}\" or a non-empty list of glob patterns"
+        return f"'when' must be \"{ALWAYS}\", \"{NEVER}\", or a non-empty list of glob patterns"
     for pattern in value:
         if not isinstance(pattern, str) or not pattern.strip() or _has_forbidden_char(pattern):
             return "'when' patterns must be non-empty printable strings"
@@ -184,8 +193,8 @@ def _build(entry: dict[str, object]) -> Applicability:
         tier=str(entry["tier"]),
         workflow=str(entry["workflow"]),
         job=str(entry["job"]),
-        when=(ALWAYS,)
-        if when == ALWAYS
+        when=(str(when),)
+        if when in (ALWAYS, NEVER)
         else tuple(str(item) for item in cast("list[object]", when)),
         rationale=str(entry["rationale"]),
     )

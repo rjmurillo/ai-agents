@@ -127,6 +127,17 @@ class TestTableDrivesRequired:
         _evidence(repo, sha, "only_py")
         assert _run(repo, sha, *MODE) == EXIT_OK
 
+    def test_a_never_row_is_not_required_and_its_evidence_is_not_consulted(
+        self,
+        clone: tuple[Path, str, str],
+    ) -> None:
+        repo, first, _ = clone
+        _table(repo, _entry("always_one"), _entry("pr_only", when="never"))
+        _evidence(repo, first, "always_one")
+        assert _run(repo, first, *MODE) == EXIT_OK
+        _evidence(repo, first, "pr_only", state="FAIL", reason="job.failed")
+        assert _run(repo, first, *MODE) == EXIT_OK
+
     def test_a_missing_applicable_result_is_not_a_pass(
         self,
         clone: tuple[Path, str, str],
