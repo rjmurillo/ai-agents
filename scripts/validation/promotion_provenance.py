@@ -47,6 +47,11 @@ Stricter/looser/different than canonical:
   write access, and the run still executes the candidate commit's own workflow
   file, which the gate already requires to be a default-branch ancestor, so it
   offers no evidence the branch run would not.
+- A ``merge_group`` run reports the queue's temporary commit as ``head_sha``. The
+  check requires it to equal the candidate, as decision 5 says ("`head_sha` must
+  match"), so a queue run that lands as a different commit is rejected and its
+  validators read as missing. That fails closed. This repository has no merge
+  queue, so no queue run exists today.
 - A matrix job's legs are found by an identical job name. Real matrix legs carry
   distinct names (``Analyze (actions)``, ``Analyze (python)``), so the table
   names one row per leg, as it does for the two CodeQL legs. Same-named jobs in
@@ -127,7 +132,7 @@ def run_problem(
     if run.get("head_sha") != candidate_sha:
         return REASON_RUN_SHA
     event = run.get("event")
-    if event not in COMMIT_EVENTS:
+    if not isinstance(event, str) or event not in COMMIT_EVENTS:
         return REASON_RUN_EVENT
     if run.get("path") != workflow:
         return REASON_RUN_WORKFLOW
@@ -151,7 +156,8 @@ def _check_run_state(check_run: Mapping[str, Any]) -> Corroboration:
     conclusion = check_run.get("conclusion")
     if conclusion == "success":
         return Corroboration(EvidenceState.PASS)
-    state = EvidenceState.FAIL if conclusion in _FAIL_CONCLUSIONS else EvidenceState.UNKNOWN
+    failed = isinstance(conclusion, str) and conclusion in _FAIL_CONCLUSIONS
+    state = EvidenceState.FAIL if failed else EvidenceState.UNKNOWN
     return Corroboration(state, _conclusion_reason(conclusion))
 
 

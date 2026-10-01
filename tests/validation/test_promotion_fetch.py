@@ -122,6 +122,14 @@ class TestAccepted:
         assert (item.accepted, item.reason, item.run_id) == (False, "run.absent", 0)
         assert not any(call.endswith("/artifacts") for call in reader.calls)
 
+    def test_a_never_row_is_not_fetched_and_makes_no_request(self, tmp_path: Path) -> None:
+        reader = _good()
+        row = Applicability(
+            "pr_only", "commit", ".github/workflows/pr.yml", "PR", ("never",), "PR-only"
+        )
+        assert _fetch(reader, tmp_path, [row]) == []
+        assert reader.calls == []
+
     def test_a_candidate_with_no_runs_at_all_reports_each_validator_absent(
         self, tmp_path: Path
     ) -> None:
@@ -374,6 +382,17 @@ class TestArchive:
     def test_an_archive_over_the_size_cap_is_refused(self) -> None:
         with pytest.raises(ValueError, match="too large"):
             read_evidence_member(b"0" * (4 * MAX_EVIDENCE_BYTES + 1), "v")
+
+    @pytest.mark.parametrize(
+        "error", [NotImplementedError("compression"), RuntimeError("encrypted"), EOFError()]
+    )
+    def test_an_unreadable_member_is_a_value_error_not_a_crash(self, error: Exception) -> None:
+        archive = _zip("v.json", "{}")
+        with (
+            patch.object(zipfile.ZipFile, "open", side_effect=error),
+            pytest.raises(ValueError, match="cannot be read"),
+        ):
+            read_evidence_member(archive, "v")
 
     def test_a_non_utf8_member_is_refused(self) -> None:
         buffer = io.BytesIO()

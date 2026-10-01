@@ -78,6 +78,8 @@ class TestRunProblem:
             ({"event": "workflow_dispatch"}, "run.event_not_promotable"),
             ({"event": "schedule"}, "run.event_not_promotable"),
             ({"event": None}, "run.event_not_promotable"),
+            ({"event": ["push"]}, "run.event_not_promotable"),
+            ({"event": {"a": 1}}, "run.event_not_promotable"),
             ({"path": ".github/workflows/other.yml"}, "run.workflow_mismatch"),
             ({"path": WORKFLOW + "@refs/heads/x"}, "run.workflow_mismatch"),
             ({"head_branch": "feature"}, "run.ref_mismatch"),
@@ -155,7 +157,9 @@ class TestCorroborate:
         got = _corroborate(checks={JOB_ID: _check(conclusion=conclusion)})
         assert (got.state, got.reason) == (EvidenceState.UNKNOWN, f"checkrun.{conclusion}")
 
-    @pytest.mark.parametrize("conclusion", [None, "", "Success", "a.b", 5, "x" * 31, "new_value!"])
+    @pytest.mark.parametrize(
+        "conclusion", [None, "", "Success", "a.b", 5, "x" * 31, "new_value!", ["failure"], {"a": 1}]
+    )
     def test_an_unlisted_conclusion_reads_unknown_with_a_safe_reason(self, conclusion: Any) -> None:
         got = _corroborate(checks={JOB_ID: _check(conclusion=conclusion)})
         assert got.state is EvidenceState.UNKNOWN

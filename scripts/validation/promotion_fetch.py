@@ -45,6 +45,7 @@ import json
 import re
 import subprocess
 import zipfile
+import zlib
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
@@ -182,8 +183,10 @@ def read_evidence_member(archive: bytes, validator: str) -> str:
             # mismatch, so the check above bounds what ``read`` can return.
             with bundle.open(members[0]) as handle:
                 data = handle.read()
-    except zipfile.BadZipFile as exc:
-        raise ValueError("archive is not a zip file") from exc
+    except (zipfile.BadZipFile, NotImplementedError, RuntimeError, zlib.error, EOFError) as exc:
+        # zipfile raises NotImplementedError for a compression method it lacks and
+        # RuntimeError for an encrypted member, neither of which is a ValueError.
+        raise ValueError(f"archive cannot be read: {type(exc).__name__}") from exc
     return data.decode("utf-8")
 
 
@@ -373,7 +376,7 @@ def fetch_verified_evidence(
         raise ValueError("candidate_sha must be a 40-character lowercase SHA")
     if not _BRANCH_RE.fullmatch(default_branch):
         raise ValueError("default_branch is not a plain branch name")
-    wanted = [entry for entry in entries if entry.tier == TIER_COMMIT]
+    wanted = [e for e in entries if e.tier == TIER_COMMIT and not e.never]
     if not wanted:
         return []
     runs = paginate(
