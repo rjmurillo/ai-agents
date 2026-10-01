@@ -625,7 +625,10 @@ jobs:
       # turning this step green regardless. Gate on high severity AND high
       # confidence so real high-risk findings fail CI, scoped off test-only
       # false positives. SARIF output feeds GitHub code scanning.
+      # Issue #6028: a pip-audit finding in a transitive pin skipped Bandit on
+      # every pull request. Bandit scans this repo's code, so it runs anyway.
       - name: Run Bandit
+        if: ${{ !cancelled() }}
         run: |
           bandit -r .claude/ scripts/ \
             -x '*/tests/*,*/test/*' \

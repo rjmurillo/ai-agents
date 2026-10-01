@@ -75,7 +75,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
+import stat
 import unicodedata
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -88,6 +90,7 @@ EXCEPTIONS_RELATIVE_PATH = Path(".agents") / "governance" / "promotion-exception
 _FORBIDDEN_CATEGORIES = frozenset({"Cc", "Cf", "Zl", "Zp"})
 _SHOWN_PATH = EXCEPTIONS_RELATIVE_PATH.as_posix()
 SCHEMA_VERSION = "1"
+MAX_FILE_BYTES = 1_048_576
 
 _ENTRY_KEYS = frozenset(
     {
@@ -349,12 +352,42 @@ def parse_exceptions(document: object) -> tuple[PromotionException, ...]:
     return records
 
 
+def _read_regular_file(path: Path) -> str:
+    """Return the file text, refusing a symlink, a non-regular file, or an oversized one.
+
+    Refuses a symlink up front, then opens with ``O_NOFOLLOW`` where the
+    platform has it (Windows has no such flag, so the up-front check is the
+    portable guard there) and checks the opened descriptor, so a path a pull
+    request swaps for a symlink to ``/dev/zero`` is refused, not followed. Reads
+    at most one byte past the cap, so a file that reports size 0 and never ends
+    cannot hang the gate.
+    """
+    if path.is_symlink():
+        raise OSError("a symlink is not accepted")
+    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_BINARY", 0)
+    descriptor = os.open(path, flags)
+    try:
+        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+            raise OSError("not a regular file")
+        data = os.read(descriptor, MAX_FILE_BYTES + 1)
+    finally:
+        os.close(descriptor)
+    if len(data) > MAX_FILE_BYTES:
+        raise ExceptionsFileError(f"{_SHOWN_PATH} is larger than {MAX_FILE_BYTES} bytes")
+    return data.decode("utf-8")
+
+
 def _reject_duplicate_keys(pairs: list[tuple[str, object]]) -> dict[str, object]:
-    """Refuse a JSON object that repeats a key, which would let the last win."""
-    keys = [key for key, _ in pairs]
-    repeated = sorted({key for key in keys if keys.count(key) > 1})
+    """Refuse a JSON object that repeats a key, which would let the last win.
+
+    One pass with two sets, so a file with many keys costs linear time.
+    """
+    seen: set[str] = set()
+    repeated: set[str] = set()
+    for key, _ in pairs:
+        (repeated if key in seen else seen).add(key)
     if repeated:
-        raise ValueError(f"duplicate key(s) {', '.join(repeated)}")
+        raise ValueError(f"duplicate key(s) {', '.join(sorted(repeated))}")
     return dict(pairs)
 
 
@@ -370,7 +403,7 @@ def load_exceptions(repo_root: Path) -> tuple[PromotionException, ...]:
     """
     path = repo_root / EXCEPTIONS_RELATIVE_PATH
     try:
-        text = path.read_text(encoding="utf-8")
+        text = _read_regular_file(path)
     except FileNotFoundError:
         return ()
     except (OSError, UnicodeDecodeError) as exc:
