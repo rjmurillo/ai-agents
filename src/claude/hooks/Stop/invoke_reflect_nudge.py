@@ -259,7 +259,9 @@ def default_state_root(env: Mapping[str, str], os_name: str = os.name) -> Path:
     """Per-user state directory root, outside any repository."""
     if os_name == "nt":
         base = env.get("LOCALAPPDATA")
-        return Path(base) if base else Path.home() / "AppData" / "Local"
+        if base and Path(base).is_absolute():
+            return Path(base)
+        return Path.home() / "AppData" / "Local"
     xdg = env.get("XDG_STATE_HOME")
     if xdg and Path(xdg).is_absolute():
         return Path(xdg)

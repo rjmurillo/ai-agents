@@ -292,6 +292,7 @@ class TestSignalRules:
         relative = nudge.default_state_root({"XDG_STATE_HOME": "rel/state"}, "posix")
         assert relative.is_absolute()
         assert nudge.default_state_root({}, "nt").parts[-2:] == ("AppData", "Local")
+        assert nudge.default_state_root({"LOCALAPPDATA": "rel"}, "nt").is_absolute()
 
 
 class TestRun:
