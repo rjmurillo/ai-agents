@@ -6644,7 +6644,10 @@ _EXTERNAL_FAILURE_EXIT = 3
 # A config error or an external failure ends the scan; a finding (exit 1) does
 # not, so a multi-ref push names every unreviewed ref at once.
 _SCAN_STOP_EXITS = frozenset({2, _EXTERNAL_FAILURE_EXIT})
-# `git merge-base` exits 1 when the two commits share no history.
+# `git merge-base` exits 1 when the two commits share no history. It also exits
+# 1 in a shallow clone, but check_push_refs never reaches the scan there:
+# _check_history_integrity blocks a shallow repository first, with the
+# `git fetch --unshallow origin` remedy.
 _MERGE_BASE_NO_COMMON_HISTORY = 1
 
 

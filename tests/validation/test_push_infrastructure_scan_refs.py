@@ -19,7 +19,9 @@ from tests.validation._push_scan_repo import (
     ZERO,
     Origin,
     commit,
+    configure,
     git,
+    install_scripts,
     new_branch_line,
     pre_push,
     work_clone,
@@ -210,27 +212,92 @@ def test_failed_fetch_fails_closed_instead_of_scoring_a_stale_base(
     assert "scores" not in err
 
 
-def test_stale_base_would_hide_a_deleted_workflow(
+def _branch_deleting_a_workflow_main_added_after_a_stale_ref(
+    origin: Origin, tmp_path: Path
+) -> tuple[Path, str]:
+    """Main adds a workflow after the clone; the branch deletes it; origin/main stays stale."""
+    work = work_clone(origin, tmp_path)
+    stale = git(work, "rev-parse", "origin/main")
+    origin.advance_main(WORKFLOW)
+    # Fetch by path, not by remote name, so refs/remotes/origin/main is not updated.
+    git(work, "fetch", "-q", str(origin.bare), "main:refs/heads/fresh-main")
+    git(work, "checkout", "-q", "-b", "feature/drop-ci", "fresh-main")
+    git(work, "rm", "-q", WORKFLOW)
+    git(work, "commit", "-q", "-m", "drop ci")
+    assert git(work, "rev-parse", "origin/main") == stale
+    assert git(work, "rev-parse", "fresh-main") != stale
+    git(work, "remote", "set-url", "origin", str(tmp_path / "missing.git"))
+    return work, git(work, "rev-parse", "HEAD")
+
+
+def test_stale_base_hides_a_deleted_workflow_when_the_scan_trusts_it(
     origin: Origin,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """The fail-closed case: main adds a workflow the stale ref never saw, the branch deletes it."""
-    work = work_clone(origin, tmp_path)
-    origin.advance_main(WORKFLOW)
-    git(work, "fetch", "-q", "origin", "main:refs/heads/fresh-main")
-    git(work, "checkout", "-q", "-b", "feature/drop-ci", "fresh-main")
-    git(work, "rm", "-q", WORKFLOW)
-    git(work, "commit", "-q", "-m", "drop ci")
-    head = git(work, "rev-parse", "HEAD")
-    git(work, "remote", "set-url", "origin", str(tmp_path / "missing.git"))
+    """Control: scored from the stale base, the workflow deletion is invisible."""
+    work, head = _branch_deleting_a_workflow_main_added_after_a_stale_ref(origin, tmp_path)
+    monkeypatch.setattr(policy, "_fetch_origin_main", lambda _repo_root: True)
+
+    result = pre_push(work, new_branch_line("feature/drop-ci", head), monkeypatch)
+
+    err = capsys.readouterr().err
+    assert result == 0, err
+    assert "refs/heads/feature/drop-ci scores 0 file(s)" in err
+
+
+def test_failed_refresh_blocks_the_stale_base_that_would_hide_a_deleted_workflow(
+    origin: Origin,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """With the real (failing) refresh, the same push fails closed with exit 3."""
+    work, head = _branch_deleting_a_workflow_main_added_after_a_stale_ref(origin, tmp_path)
 
     result = pre_push(work, new_branch_line("feature/drop-ci", head), monkeypatch)
 
     err = capsys.readouterr().err
     assert result == 3, err
-    assert "scores 0 file(s)" not in err
+    assert "will not score from a stale origin/main" in err
+    assert "scores" not in err
+
+
+def test_shallow_clone_gets_the_unshallow_remedy_not_the_rebase_advice(
+    origin: Origin,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """merge-base exits 1 in a shallow clone too, where rebasing would not help.
+
+    The history-integrity gate blocks a shallow repository before the scan, so
+    the push gets the unshallow remedy and the scan never runs.
+    """
+    work = tmp_path / "shallow"
+    subprocess.run(
+        ["git", "clone", "-q", "--depth", "1", f"file://{origin.bare}", str(work)],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+    )
+    configure(work, origin.hooks)
+    install_scripts(work)
+    git(work, "checkout", "-q", "-b", "feature/docs")
+    head = commit(work, "docs/note.md", "note\n")
+    origin.advance_main("docs/one.md")
+    origin.advance_main("docs/two.md")
+    git(work, "fetch", "-q", "--depth", "1", "origin", "main")
+    monkeypatch.setattr(policy, "_fetch_origin_main", lambda _repo_root: True)
+
+    result = pre_push(work, new_branch_line("feature/docs", head), monkeypatch)
+
+    err = capsys.readouterr().err
+    assert result == 2, err
+    assert "git fetch --unshallow origin" in err
+    assert "Rebase the branch" not in err
+    assert "scores" not in err
 
 
 def test_config_error_stops_the_scan_before_later_refs(
