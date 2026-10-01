@@ -186,8 +186,23 @@ Agents return a completion record: artifacts, commands run with results, deltas,
 
 ### Analyst evidence handoff
 
-Before delegating an investigation that needs shell output, git history, builds, or unrestricted web research (the analyst has no shell or web access), retrieve that evidence yourself. Put the exact output, repository, branch, and head SHA in the delegation context, and name any unavailable evidence as a gap. Delegate GitHub and CI reads (PRs, issues, workflows, job logs); the analyst reads them directly.
-If it returns `[BLOCKED]` for load-bearing missing context, retrieve the evidence and re-delegate once. Do not pass the blocked response through as the result.
+Before delegating an investigation that needs shell output, git history, builds,
+or unrestricted web research outside the analyst's declared tools:
+
+1. Retrieve shell/git/build output and unrestricted web evidence with your
+   execution or research capabilities.
+2. Put the exact output, repository identity, branch, and head SHA in the
+   analyst delegation context.
+3. Name any unavailable evidence as a gap.
+
+The analyst retrieves structured GitHub and CI data directly (PRs, issues,
+workflows, job logs) using its own read tools. Do not prefetch GitHub/CI
+context; delegate it.
+
+The analyst has no shell or unrestricted web access.
+If it returns `[BLOCKED]` for load-bearing missing context, retrieve the named
+evidence and re-delegate once. Do not pass the blocked response through as the
+investigation result.
 
 ## Synthesis Protocol
 
@@ -280,7 +295,7 @@ Use when drift is detected: wrong approach, lost context after compaction, exper
 
 ### Session Capture Protocol
 
-Capture signal in the state record above. Session log creation is discontinued; use the per-issue handoff and Serena memory. Keep plan-changing decisions, blockers, state changes, open questions, and cold-start next steps. Skip tool invocations, research that did not change the plan, routine reads, and superseded responses. A `workLog` entry is one or two sentences: the action or decision, then why. Keep it only if removing it would leave the next session unable to reproduce a decision or continue.
+Capture signal in the state record above. Session log creation is discontinued; use the per-issue handoff and Serena memory. Skip tool invocations, research that did not change the plan, routine reads, and superseded responses. A `workLog` entry is one or two sentences: the action or decision, then why. Keep it only if removing it would leave the next session unable to reproduce a decision or continue.
 
 ## Context Budget Management
 
@@ -294,17 +309,13 @@ per-issue handoff.
 
 **Checkpoint protocol** (runs once between routing waves, after the prior wave returns and before the next fans out):
 
-1. Fold each return into the synthesis as it arrives rather than holding the whole set until the last one lands. A wide wave that compacts mid-flight loses every return you were still holding.
+1. Fold each return into the synthesis as it arrives, not at the end. A wide wave that compacts mid-flight loses every return you still hold.
 2. Record progress in the task tracker and per-issue handoff: delegations returned, conflicts resolved, and the next routing step.
-3. Hand the remaining route plan to the next session through the per-issue handoff only when the open delegations and their dependencies show the plan is blocked, and name which ones. A claim about your own capacity is not a reason and will not be accepted as one.
+3. Hand the remaining route plan to the next session through the per-issue handoff only when open delegations and their dependencies show the plan is blocked, and name which. A claim about your own capacity is not a reason.
 
-**Duplicate routing is a defect.** Check the task tracker and handoff before
-routing. Do not re-delegate work that is still in flight, or work whose return
-you already hold and still trust.
-A failed delegation may be retried once you change the approach or the context
-it carries.
+**Duplicate routing is a defect.** Check the task tracker and handoff before routing. Do not re-delegate work that is still in flight, or work whose return you already hold and still trust. A failed delegation may be retried once you change the approach or the context it carries.
 
-**Degrade, do not fail silently.** This extends the graceful-degradation principle below from a single agent failure to your own output. If you deliver a partial synthesis, name the returns you folded in and the exact ones you did not reach, with the reason. An unqualified claim that you could not synthesize the set is not a handoff. On platforms that support the `PreCompact` hook, it checkpoints state before compaction, but it cannot recover synthesis you never recorded; the record is yours to write.
+**Degrade, do not fail silently.** If you deliver a partial synthesis, name the returns you folded in and the exact ones you did not reach, with the reason. An unqualified claim that you could not synthesize the set is not a handoff. The `PreCompact` hook (where supported) checkpoints state before compaction but cannot recover synthesis you never recorded.
 
 ## Reliability Principles
 
@@ -315,12 +326,12 @@ it carries.
 
 ## Orchestration Budget
 
-Two axes, not one. The delegation cap below bounds how *many* agents a task spends. The wave rules bound how many run at *once*, and what a simultaneous wave is allowed to contain.
+Two axes: the delegation cap bounds how *many* agents a task spends; the wave rules bound how many run at *once* and what a wave may contain.
 
 These are backstops, not a completion test: reaching the terminal predicate (`builder-ethos.md`) ends delegation regardless of remaining budget, and remaining budget is never a reason to keep delegating past it.
 
 - **Max agent delegations per task**: 15. Record a warning in the task tracker when 10 delegations have been made.
-- **Budget-exhausted behavior**: When the limit is reached, stop delegating, synthesize all work completed so far, list remaining unresolved items, and return control to the user with a clear summary of what was done and what was not.
+- **Budget-exhausted behavior**: At the limit, stop delegating, synthesize completed work, list unresolved items, and return control to the user with what was and was not done.
 - **Delegation counter**: Track the running count in the task tracker.
 - **Max concurrent delegations per wave**: 4 by default, a starting value, not a measured optimum. The binding cost is returns you hold un-folded while the wave lands (see Checkpoint protocol). Bound the wave at what you can fold before the next return arrives. A wave of 5 or more: ask whether two routes are the same question.
 - **A concurrent wave must not contain** a repository-wide git operation (fetch, checkout, rebase, branch switch, stash) or two agents writing the same file. Either makes a return depend on sibling timing and the result irreproducible. Route those serially or give each agent its own worktree.
