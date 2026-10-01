@@ -8,6 +8,8 @@ gate's own loader accepts and binds to the candidate.
 from __future__ import annotations
 
 import json
+import subprocess
+import sys
 from pathlib import Path
 from unittest.mock import patch
 
@@ -213,3 +215,41 @@ def test_cli_bounds_a_very_long_scope(tmp_path: Path) -> None:
     assert main(_argv(tmp_path, **{"--job-id": "j" * 5000})) == EXIT_OK
     written = json.loads((tmp_path / "out" / "run_python_tests.json").read_text(encoding="utf-8"))
     assert len(written["scope"]) <= 200
+
+
+def test_cli_runs_without_a_github_output_file(tmp_path: Path) -> None:
+    argv = _argv(tmp_path)
+    index = argv.index("--github-output")
+    del argv[index : index + 2]
+    assert main(argv) == EXIT_OK
+    assert (tmp_path / "out" / "run_python_tests.json").is_file()
+
+
+def test_the_script_runs_under_bare_python_from_another_directory(tmp_path: Path) -> None:
+    """Jobs call it as `python3 scripts/validation/...` with nothing installed."""
+    script = Path(emitter.__file__).resolve()
+    result = subprocess.run(
+        [sys.executable, "-S", str(script), *_argv(tmp_path)],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        cwd=tmp_path,
+        check=False,
+    )
+    assert result.returncode == EXIT_OK, result.stderr
+    assert (tmp_path / "out" / "run_python_tests.json").is_file()
+
+
+def test_the_script_exits_two_for_a_bad_validator_name(tmp_path: Path) -> None:
+    script = Path(emitter.__file__).resolve()
+    result = subprocess.run(
+        [sys.executable, "-S", str(script), *_argv(tmp_path, **{"--validator": "../x"})],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        cwd=tmp_path,
+        check=False,
+    )
+    assert result.returncode == EXIT_CONFIG
