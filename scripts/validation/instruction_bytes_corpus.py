@@ -37,6 +37,7 @@ from scripts.validation.token_budget import estimate_token_count
 __all__ = [
     "CorpusError",
     "canonical_files",
+    "canonical_paths",
     "generated_files",
     "measure_corpus",
     "read_sized",
@@ -83,6 +84,19 @@ def _measure_entries(
                 seen.add(rel)
                 files.append(read_sized(repo_root, rel))
     return files
+
+
+def canonical_paths(repo_root: Path) -> list[str]:
+    """Return every authored file path, relative and sorted per group; empty groups are fine."""
+    seen: set[str] = set()
+    paths: list[str] = []
+    for _label, entries in _CANONICAL_GROUPS:
+        for subdir, pattern in entries:
+            for rel in _expand(repo_root, subdir, pattern):
+                if rel not in seen:
+                    seen.add(rel)
+                    paths.append(rel)
+    return paths
 
 
 def canonical_files(repo_root: Path) -> dict[str, list[SizedFile]]:

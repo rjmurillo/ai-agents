@@ -284,14 +284,12 @@ def test_skill_references_are_authored_and_untemplated_skills_count(repo: Path) 
 def test_partials_and_hand_maintained_prompts_are_authored(repo: Path) -> None:
     _write(repo, "templates/agents/partials/p.mustache", "Partial.\n" + _POLICY)
     _write(repo, "templates/skills/partials/q.mustache", "Partial.\n" + _POLICY)
-    _write(repo, "templates/README.md", "Readme.\n" + _POLICY)
     _write(repo, ".github/prompts/hand.md", "Prompt.\n" + _POLICY)
     _write(repo, ".github/prompts/pr-quality-gate-x.md", "Generated.\n" + _POLICY)
     paths = {p.relative_to(repo).as_posix() for p in gate.authored_files(repo)}
     assert {
         "templates/agents/partials/p.mustache",
         "templates/skills/partials/q.mustache",
-        "templates/README.md",
         ".github/prompts/hand.md",
     } <= paths
     assert ".github/prompts/pr-quality-gate-x.md" not in paths
@@ -306,6 +304,59 @@ def test_templated_skill_projection_is_not_authored(repo: Path) -> None:
     paths = {p.relative_to(repo).as_posix() for p in gate.authored_files(repo)}
     assert ".claude/skills/tpl/SKILL.md" not in paths
     assert "templates/skills/tpl.SKILL.md.tmpl" in paths
+
+
+def test_byte_corpus_authored_sources_are_scanned(repo: Path) -> None:
+    for rel in (
+        "templates/agents/x.claude.md.tmpl",
+        "templates/agents/x.copilot.md.tmpl",
+        ".agents/governance/g.md",
+        "AGENTS.md",
+        "CLAUDE.md",
+    ):
+        _write(repo, rel, "Authored.\n" + _POLICY)
+    _write(repo, ".claude/rules/projection.md", "Projection.\n" + _POLICY)
+    paths = {p.relative_to(repo).as_posix() for p in gate.authored_files(repo)}
+    assert {
+        "templates/agents/x.claude.md.tmpl",
+        "templates/agents/x.copilot.md.tmpl",
+        ".agents/governance/g.md",
+        "AGENTS.md",
+        "CLAUDE.md",
+    } <= paths
+    assert ".claude/rules/projection.md" not in paths
+
+
+def test_scan_set_is_the_corpus_classification_plus_documented_extras() -> None:
+    from scripts.validation.instruction_bytes_corpus import canonical_paths
+
+    scanned = {p.relative_to(_REPO_ROOT).as_posix() for p in gate.authored_files(_REPO_ROOT)}
+    corpus = {r for r in canonical_paths(_REPO_ROOT) if r.endswith(gate.NL_SUFFIXES)}
+    assert corpus <= scanned
+    assert "AGENTS.md" in scanned
+
+
+@pytest.mark.parametrize(
+    "setup",
+    ["missing_dependency", "duplicate_owner", "cycle"],
+)
+def test_report_refuses_an_invalid_capability_graph(
+    repo: Path, capsys: pytest.CaptureFixture[str], setup: str
+) -> None:
+    _graph_fillers(repo)
+    if setup == "missing_dependency":
+        _write(repo, "templates/rules/a1.md", "A.", frontmatter=_cap("pa", "ghost"))
+    elif setup == "duplicate_owner":
+        _write(repo, "templates/rules/a1.md", "A.", frontmatter=_cap("pa"))
+        _write(repo, "templates/rules/a2.md", "B.", frontmatter=_cap("pa"))
+    else:
+        _write(repo, "templates/rules/a1.md", "A.", frontmatter=_cap("pa", "pb"))
+        _write(repo, "templates/rules/a2.md", "B.", frontmatter=_cap("pb", "pa"))
+    _baseline(repo, dup=gate.measure(repo)["duplicate_blocks"])
+    assert gate.run(repo, update=False, report=True) == 1
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "capability graph has" in captured.err
 
 
 def test_report_lists_amplification_per_owner(
