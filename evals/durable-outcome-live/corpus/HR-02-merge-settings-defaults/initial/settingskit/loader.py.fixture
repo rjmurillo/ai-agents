@@ -1,0 +1,12 @@
+"""Load settings: the shipped defaults, overridden by the user's values."""
+
+from settingskit.merge import merge_settings
+
+DEFAULTS = {
+    "debug": False,
+    "limits": {"retries": 3, "timeout": 30},
+}
+
+
+def load_settings(user: dict) -> dict:
+    return merge_settings(DEFAULTS, user)

@@ -17,6 +17,8 @@ or a body that already carries a ``## Step 0`` block with ``### Q3`` and
 ``### Q5``. Every input check runs before any network call. The
 ``source:<value>`` label is created in the target repository when missing and
 passed to ``gh issue create`` itself, so an issue never exists without it.
+``--source human`` also appends ``<!-- source:human -->`` to the body, the
+assertion the repository labeler honors (epic #5698, AC-3).
 
 Exit codes follow ADR-035:
     0 - Success
@@ -229,12 +231,17 @@ def _validate_request(args: argparse.Namespace, fmt: str) -> tuple[str, str] | i
     evidence_error, step0_block = provenance.step0_evidence(
         args.source, body, args.blocked_by, args.signal
     )
-    error = escaped_newline_body_error(body) or label_error or evidence_error
+    error = (
+        escaped_newline_body_error(body)
+        or provenance.marker_error(args.source, body)
+        or label_error
+        or evidence_error
+    )
     if error:
         return _usage_error(error, fmt)
     if step0_block:
         body = f"{body.rstrip()}\n\n{step0_block}" if body.strip() else step0_block
-    return body, caller_labels
+    return provenance.with_human_marker(args.source, body), caller_labels
 
 
 def _apply_labels(

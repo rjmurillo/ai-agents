@@ -21,6 +21,22 @@ if str(_SCRIPT_DIR) not in sys.path:
 
 from checks_common import _run_subprocess  # noqa: E402
 
+# The typed contract, package path (evidence.py states why).
+_PROJECT_ROOT = _SCRIPT_DIR.parent.parent
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+from scripts.validation.evidence import (  # noqa: E402
+    REASON_ADVISORY_FINDINGS,
+    REASON_SCRIPT_ABSENT,
+    REASON_VIOLATIONS_FOUND,
+    CheckOutcome,
+)
+
+_VALIDATOR = "validate_review_marker"
+_SCOPE = "SHA-bound /review marker on HEAD"
+_HEAD = "HEAD"
+
 _FAIL_TOKEN = "[FAIL]"
 _WARN_TOKEN = "[WARN]"
 
@@ -51,7 +67,7 @@ def _print_output(output: str, rewrite_fail_to_warn: bool = False) -> None:
         print(_as_advisory(line) if rewrite_fail_to_warn else line)
 
 
-def validate_review_marker(repo_root: Path) -> bool:
+def validate_review_marker(repo_root: Path) -> CheckOutcome:
     """Advisory check for a SHA-bound ``Reviewed-By: /review@...`` marker on HEAD.
 
     Wraps ``scripts/validation/validate_review_marker.py`` (Issue #1938). The
@@ -61,18 +77,20 @@ def validate_review_marker(repo_root: Path) -> bool:
     mid-development and have not run ``/review`` yet. Blocking every such push
     would break normal iteration.
 
-    Set ``REVIEW_MARKER_ENFORCED=1`` to escalate to BLOCKING (returns False when
-    HEAD has no binding marker).
+    Set ``REVIEW_MARKER_ENFORCED=1`` to escalate to BLOCKING (a non-passing
+    check then blocks the push).
+
+    Returns typed evidence (issue #5636). A valid marker is ``PASS``. Advisory
+    mode reports a missing or stale marker, or a failed script run, as ``FAIL``
+    with reason ``advisory.findings``, which ``pre_pr_policy`` licenses, and an
+    absent script as ``SKIP``. Enforced mode reports the same conditions as
+    unlicensed ``FAIL`` results, so they block exactly as ``False`` did.
     """
     enforced = os.environ.get("REVIEW_MARKER_ENFORCED", "").lower() in ("1", "true")
 
     script = repo_root / "scripts" / "validation" / "validate_review_marker.py"
     if not script.exists():
-        if enforced:
-            print("[FAIL] validate_review_marker.py not present")
-            return False
-        print("[WARN] validate_review_marker.py not found (advisory skip)")
-        return True
+        return _absent_outcome(enforced)
 
     exit_code, stdout, stderr = _run_subprocess(
         [sys.executable, str(script), "--repo-root", str(repo_root)]
@@ -82,17 +100,23 @@ def validate_review_marker(repo_root: Path) -> bool:
     if exit_code == 0:
         if output.strip():
             _print_output(output)
-        return True
+        return CheckOutcome.passed(_VALIDATOR, revision=_HEAD, scope=_SCOPE)
 
     if enforced:
         # exit 1 (no/stale marker) and exit 2 (config) both block in enforced mode.
         # Pass the script's output verbatim: [FAIL] is accurate here.
         if output.strip():
             _print_output(output)
-        return False
+        return CheckOutcome.failed(
+            _VALIDATOR,
+            reason=REASON_VIOLATIONS_FOUND,
+            revision=_HEAD,
+            scope=_SCOPE,
+            detail=f"validate_review_marker.py exited {exit_code}; REVIEW_MARKER_ENFORCED is set",
+        )
 
-    # Advisory path: the check did not pass, but the caller will still return
-    # True. Printing [FAIL] here is misleading because the overall run succeeds.
+    # Advisory path: the check did not pass, but the caller will still not block.
+    # Printing [FAIL] here is misleading because the overall run succeeds.
     # Rewrite [FAIL] tokens to [WARN] so the severity label matches the outcome.
     if output.strip():
         _print_output(output, rewrite_fail_to_warn=True)
@@ -100,4 +124,31 @@ def validate_review_marker(repo_root: Path) -> bool:
         "  Note: advisory only (default). /ship blocks on this; pre_pr does not. "
         "Set REVIEW_MARKER_ENFORCED=1 to make it BLOCKING here. See Issue #1938."
     )
-    return True
+    # One fixed reason for every non-zero exit, not a classified one: a timeout
+    # or signal reason would be unlicensed and start blocking a gate that never did.
+    return CheckOutcome.failed(
+        _VALIDATOR,
+        reason=REASON_ADVISORY_FINDINGS,
+        revision=_HEAD,
+        scope=_SCOPE,
+        detail=f"validate_review_marker.py exited {exit_code}; advisory, not enforced",
+    )
+
+
+def _absent_outcome(enforced: bool) -> CheckOutcome:
+    """Type a missing validator script: unlicensed ``FAIL`` when enforced, else ``SKIP``."""
+    if enforced:
+        print("[FAIL] validate_review_marker.py not present")
+        return CheckOutcome.failed(
+            _VALIDATOR,
+            reason=REASON_SCRIPT_ABSENT,
+            scope=_SCOPE,
+            detail="validate_review_marker.py not present and REVIEW_MARKER_ENFORCED is set",
+        )
+    print("[WARN] validate_review_marker.py not found (advisory skip)")
+    return CheckOutcome.skipped(
+        _VALIDATOR,
+        reason=REASON_SCRIPT_ABSENT,
+        scope=_SCOPE,
+        detail="validate_review_marker.py not present; advisory skip",
+    )

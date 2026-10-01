@@ -23,7 +23,7 @@ This skill detects **CWE-78 (command injection)** patterns only. The regex patte
 
 **CWE-22 (path traversal) is delegated to CodeQL.** The CodeQL workflow runs `python-security-extended.qls` and `actions-security-extended.qls` on every PR, authoritatively detecting CWE-22 across **Python and GitHub Actions** code (the two languages CodeQL supports for this repo per `codeql-config.yml`). PowerShell, Bash, and C# are NOT covered by CodeQL; for those languages, CWE-22 detection relies on code review and any future static analyzer adoption. Per the buy-vs-build framework analysis (issue #1843), maintaining a custom regex-based CWE-22 detector created false positives (PR #1841 added seven suppression annotations to silence them) without comparable coverage of real CWE-22 vectors that CodeQL catches in CI. Path-traversal checking is Context (table stakes security, not a competitive differentiator); CodeQL is the right tool for the languages it supports.
 
-If a CWE-22 finding surfaces in CI from CodeQL, fix the underlying code or open an issue to triage. Do not add a regex-based CWE-22 check to this scanner.
+If a CWE-22 finding surfaces in CI from CodeQL, fix the underlying code or flag it to the owner. Do not add a regex-based CWE-22 check to this scanner.
 
 ## Triggers
 
