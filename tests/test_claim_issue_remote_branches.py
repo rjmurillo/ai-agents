@@ -32,6 +32,7 @@ def _load():
 
 
 claim = _load()
+_REAL_MERGED = claim.merged_through_pr
 
 
 def _git(cwd: Path, *args: str) -> str:
@@ -72,6 +73,13 @@ def clone(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return work
 
 
+@pytest.fixture(autouse=True)
+def _no_merged_prs():
+    """Default: gh finds no merged PR. Tests that need one patch it themselves."""
+    with patch.object(claim, "merged_through_pr", return_value=False):
+        yield
+
+
 class TestMatchingRemoteHeads:
     def test_matches_issue_number_in_branch(self):
         out = "a1\trefs/heads/codex/5420-a-paths\nb2\trefs/heads/fix-5420-x\n"
@@ -94,43 +102,66 @@ class TestMatchingRemoteHeads:
 class TestFindInFlightBranches:
     def test_no_matching_branch(self, clone):
         _push_branch(clone, "feat/9999-other", 1)
-        assert claim.find_in_flight_branches(5420) == ([], [])
+        assert claim.find_in_flight_branches("o", "r", 5420) == ([], [])
 
     def test_ancestor_branch_is_not_a_warning(self, clone):
         _push_branch(clone, "old/5420-stale", 0)
-        assert claim.find_in_flight_branches(5420) == ([], [])
+        assert claim.find_in_flight_branches("o", "r", 5420) == ([], [])
 
     def test_branch_ahead_of_main_is_reported(self, clone):
         _push_branch(clone, "codex/5420-a-paths", 3)
-        in_flight, warnings = claim.find_in_flight_branches(5420)
+        in_flight, warnings = claim.find_in_flight_branches("o", "r", 5420)
         assert warnings == []
         assert [(b["branch"], b["ahead"]) for b in in_flight] == [("codex/5420-a-paths", 3)]
 
     def test_near_miss_number_is_ignored(self, clone):
         _push_branch(clone, "feat/54200-other", 2)
-        assert claim.find_in_flight_branches(5420) == ([], [])
+        assert claim.find_in_flight_branches("o", "r", 5420) == ([], [])
 
     def test_own_current_branch_is_omitted(self, clone):
         _push_branch(clone, "feat/5420-mine", 2)
         _git(clone, "checkout", "-q", "feat/5420-mine")
-        assert claim.find_in_flight_branches(5420) == ([], [])
+        assert claim.find_in_flight_branches("o", "r", 5420) == ([], [])
 
     def test_unreadable_count_is_kept_as_unverified(self, clone):
         _push_branch(clone, "feat/5420-x", 1)
         with patch.object(claim, "commits_ahead", return_value=None):
-            in_flight, _ = claim.find_in_flight_branches(5420)
+            in_flight, _ = claim.find_in_flight_branches("o", "r", 5420)
         assert in_flight[0]["ahead"] is None
+
+    def test_squash_merged_branch_is_omitted(self, clone):
+        _push_branch(clone, "codex/5420-merged", 2)
+        with patch.object(claim, "merged_through_pr", return_value=True):
+            assert claim.find_in_flight_branches("o", "r", 5420) == ([], [])
+
+    def test_non_main_default_branch_classifies_ancestor(self, clone):
+        _git(clone, "branch", "-m", "main", "develop")
+        _git(clone, "push", "-q", "origin", "develop")
+        _git(clone, "update-ref", "-d", "refs/remotes/origin/main")
+        _git(clone, "remote", "set-head", "origin", "develop")
+        _git(clone, "checkout", "-q", "-B", "old/5420-stale", "develop")
+        _git(clone, "push", "-q", "origin", "old/5420-stale")
+        _git(clone, "checkout", "-q", "develop")
+        assert claim.find_in_flight_branches("o", "r", 5420) == ([], [])
+
+    @pytest.mark.parametrize("target", ["current_branch", "origin_base_ref", "commits_ahead"])
+    def test_per_branch_failure_degrades_to_named_warning(self, clone, target):
+        _push_branch(clone, "feat/5420-x", 1)
+        with patch.object(claim, target, side_effect=RuntimeError("git timed out")):
+            in_flight, warnings = claim.find_in_flight_branches("o", "r", 5420)
+        assert in_flight == []
+        assert warnings == ["remote branch probe skipped: git timed out"]
 
     def test_ls_remote_failure_degrades_to_named_warning(self, clone):
         _git(clone, "remote", "set-url", "origin", str(clone / "does-not-exist"))
-        in_flight, warnings = claim.find_in_flight_branches(5420)
+        in_flight, warnings = claim.find_in_flight_branches("o", "r", 5420)
         assert in_flight == []
         assert len(warnings) == 1
         assert warnings[0].startswith("remote branch probe skipped:")
 
     def test_ls_remote_runtime_error_degrades_to_named_warning(self, clone):
         with patch.object(claim, "_run", side_effect=RuntimeError("git timed out")):
-            assert claim.find_in_flight_branches(5420) == (
+            assert claim.find_in_flight_branches("o", "r", 5420) == (
                 [], ["remote branch probe skipped: git timed out"],
             )
 
@@ -139,15 +170,58 @@ class TestCommitsAhead:
     def test_counts_commits_beyond_main(self, clone):
         _push_branch(clone, "feat/x", 2)
         sha = _git(clone, "rev-parse", "origin/feat/x")
-        assert claim.commits_ahead(sha) == 2
+        assert claim.commits_ahead(sha, "origin/main") == 2
 
     def test_unknown_object_returns_none(self, clone):
-        assert claim.commits_ahead("f" * 40) is None
+        assert claim.commits_ahead("f" * 40, "origin/main") is None
+
+    def test_missing_base_ref_returns_none(self, clone):
+        assert claim.commits_ahead("f" * 40, None) is None
 
     def test_non_integer_output_returns_none(self):
         done = subprocess.CompletedProcess(["git"], 0, stdout="abc\n", stderr="")
         with patch.object(claim, "_run", return_value=done):
-            assert claim.commits_ahead("x") is None
+            assert claim.commits_ahead("x", "origin/main") is None
+
+
+class TestOriginBaseRef:
+    def test_reads_origin_head(self, clone):
+        _git(clone, "remote", "set-head", "origin", "main")
+        assert claim.origin_base_ref() == "origin/main"
+
+    def test_non_main_default_branch(self, clone):
+        _git(clone, "branch", "-m", "main", "develop")
+        _git(clone, "push", "-q", "origin", "develop")
+        _git(clone, "branch", "-q", "--set-upstream-to=origin/develop", "develop")
+        _git(clone, "update-ref", "-d", "refs/remotes/origin/main")
+        _git(clone, "remote", "set-head", "origin", "develop")
+        assert claim.origin_base_ref() == "origin/develop"
+
+    def test_falls_back_to_common_names_without_origin_head(self, clone):
+        _git(clone, "remote", "set-head", "origin", "-d")
+        assert claim.origin_base_ref() == "origin/main"
+
+    def test_none_when_no_candidate_exists(self, clone):
+        _git(clone, "remote", "set-head", "origin", "-d")
+        _git(clone, "update-ref", "-d", "refs/remotes/origin/main")
+        assert claim.origin_base_ref() is None
+
+
+class TestMergedThroughPr:
+    def test_true_when_merged_pr_head_matches(self):
+        done = subprocess.CompletedProcess(["gh"], 0, stdout="abc\ndef\n", stderr="")
+        with patch.object(claim, "_run", return_value=done):
+            assert _REAL_MERGED("o", "r", "b", "def") is True
+
+    def test_false_when_head_differs(self):
+        done = subprocess.CompletedProcess(["gh"], 0, stdout="abc\n", stderr="")
+        with patch.object(claim, "_run", return_value=done):
+            assert _REAL_MERGED("o", "r", "b", "zzz") is False
+
+    def test_false_when_lookup_fails(self):
+        done = subprocess.CompletedProcess(["gh"], 1, stdout="", stderr="boom")
+        with patch.object(claim, "_run", return_value=done):
+            assert _REAL_MERGED("o", "r", "b", "abc") is False
 
 
 class TestCurrentBranch:
