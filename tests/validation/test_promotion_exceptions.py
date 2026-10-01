@@ -23,6 +23,7 @@ from scripts.validation.promotion_exceptions import (
     finding_fingerprint,
     load_exceptions,
     parse_exceptions,
+    utc_today,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -74,6 +75,13 @@ class TestFingerprint:
 
     def test_empty_item_is_the_default(self) -> None:
         assert finding_fingerprint("v", "r.x", "s") == finding_fingerprint("v", "r.x", "s", "")
+
+
+class TestFingerprintCollisions:
+    def test_unit_separator_in_scope_cannot_mimic_an_item(self) -> None:
+        assert finding_fingerprint("v", "r.x", "a\x1fb") != finding_fingerprint(
+            "v", "r.x", "a", "b"
+        )
 
 
 class TestParse:
@@ -291,3 +299,54 @@ class TestSerialization:
         assert data["expires"] == "2026-12-31"
         assert data["remediate_by"] == "2026-11-30"
         assert data["owner"] == "rjmurillo"
+
+
+class TestHardening:
+    @pytest.mark.parametrize("bad", ["bob\n", "bob\u202e", "bob\x7f", "bo\u200bb"])
+    def test_handles_reject_trailing_newline_and_format_characters(self, bad: str) -> None:
+        with pytest.raises(ExceptionsFileError, match="'owner'"):
+            parse_exceptions(_doc(_entry(owner=bad)))
+        with pytest.raises(ExceptionsFileError, match="reviewer"):
+            parse_exceptions(_doc(_entry(approval={"pr": 1, "reviewer": bad})))
+
+    @pytest.mark.parametrize("bad", ["a\u202eb", "a\u2028b", "a\x85b", "a\u2029b"])
+    def test_text_rejects_bidi_and_line_separators(self, bad: str) -> None:
+        with pytest.raises(ExceptionsFileError, match="control character"):
+            parse_exceptions(_doc(_entry(rationale=bad)))
+
+    def test_date_with_trailing_newline_is_refused(self) -> None:
+        with pytest.raises(ExceptionsFileError, match="'expires'"):
+            parse_exceptions(_doc(_entry(expires="2026-12-31\n")))
+
+    def test_reason_with_trailing_newline_is_refused(self) -> None:
+        with pytest.raises(ExceptionsFileError, match="'reason'"):
+            parse_exceptions(_doc(_entry(reason="tests.failed\n")))
+
+    def test_duplicate_json_keys_fail_the_load(self, tmp_path: Path) -> None:
+        path = tmp_path / EXCEPTIONS_RELATIVE_PATH
+        path.parent.mkdir(parents=True)
+        path.write_text('{"schema_version": "1", "entries": [], "entries": []}', encoding="utf-8")
+        with pytest.raises(ExceptionsFileError, match="duplicate key"):
+            load_exceptions(tmp_path)
+
+    def test_deeply_nested_json_fails_the_load(self, tmp_path: Path) -> None:
+        path = tmp_path / EXCEPTIONS_RELATIVE_PATH
+        path.parent.mkdir(parents=True)
+        path.write_text("[" * 100000, encoding="utf-8")
+        with pytest.raises(ExceptionsFileError, match="cannot parse"):
+            load_exceptions(tmp_path)
+
+    def test_verifier_that_raises_reads_as_unapproved(self) -> None:
+        def broken(_record: PromotionException) -> bool:
+            raise RuntimeError("api down")
+
+        assert exception_status(_record(), TODAY, broken) is ExceptionStatus.UNAPPROVED
+
+    def test_verifier_returning_a_truthy_non_bool_is_unapproved(self) -> None:
+        def sloppy(_record: PromotionException) -> bool:
+            return "error"  # type: ignore[return-value]
+
+        assert exception_status(_record(), TODAY, sloppy) is ExceptionStatus.UNAPPROVED
+
+    def test_utc_today_is_a_date(self) -> None:
+        assert isinstance(utc_today(), date)

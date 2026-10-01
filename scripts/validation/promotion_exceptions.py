@@ -55,14 +55,16 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import unicodedata
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import date
+from datetime import UTC, date, datetime
 from enum import Enum
 from pathlib import Path
 from typing import cast
 
 EXCEPTIONS_RELATIVE_PATH = Path(".agents") / "governance" / "promotion-exceptions.json"
+_FORBIDDEN_CATEGORIES = frozenset({"Cc", "Cf", "Zl", "Zp"})
 _SHOWN_PATH = EXCEPTIONS_RELATIVE_PATH.as_posix()
 SCHEMA_VERSION = "1"
 
@@ -84,7 +86,6 @@ _APPROVAL_KEYS = frozenset({"pr", "reviewer"})
 _REASON_RE = re.compile(r"^[a-z][a-z0-9_]*(\.[a-z0-9_]+)*$")
 _HANDLE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]*$")
 _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
-_FINGERPRINT_SEPARATOR = "\x1f"
 
 
 class ExceptionsFileError(Exception):
@@ -103,12 +104,14 @@ class ExceptionStatus(str, Enum):
 def finding_fingerprint(validator: str, reason: str, scope: str, item: str = "") -> str:
     """Return the SHA-256 identity of one finding.
 
-    The unit separator keeps ``("a", "bc")`` and ``("ab", "c")`` distinct. An
-    empty ``item`` identifies a finding no validator itemised, which is the
+    The fields are JSON-encoded as one array, so no value can contain a
+    separator that lets ``("a", "bc")`` and ``("ab", "c")``, or a finding's
+    ``scope="a\x1fb"`` and an exception's ``scope="a", item="b"``, hash alike.
+    An empty ``item`` identifies a finding no validator itemised, which is the
     only identity available until results carry a structured items list.
     """
-    parts = (validator, reason, scope, item)
-    return hashlib.sha256(_FINGERPRINT_SEPARATOR.join(parts).encode("utf-8")).hexdigest()
+    encoded = json.dumps([validator, reason, scope, item], ensure_ascii=True)
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
 
 @dataclass(frozen=True, slots=True)
@@ -149,12 +152,33 @@ class PromotionException:
 
 #: Proves that ``approver`` left an approving review on ``approval_pr`` as a
 #: code owner other than the pull request's author. Returns False on any doubt.
+#: A real verifier must also prove that the pull request merged, that its diff
+#: added this exact entry, that the approval is on the head commit and not
+#: dismissed, and must compare logins case-insensitively. Otherwise an entry
+#: could cite any old approved pull request.
 ApprovalVerifier = Callable[[PromotionException], bool]
 
 
 def deny_all_approvals(_record: PromotionException) -> bool:
     """Refuse every approval. ADR-113 decision 7 for a one-owner repository."""
     return False
+
+
+def _approved(record: PromotionException, verifier: ApprovalVerifier) -> bool:
+    """Return True only when the verifier answers exactly ``True``.
+
+    A verifier that raises (an API outage) or returns a truthy non-bool (an
+    error object) has not proven an approval, so both read as unapproved.
+    """
+    try:
+        return verifier(record) is True
+    except Exception:  # any verifier fault must fail closed
+        return False
+
+
+def utc_today() -> date:
+    """Return the current UTC date, the clock decision 8 names for expiry."""
+    return datetime.now(UTC).date()
 
 
 def exception_status(
@@ -174,13 +198,19 @@ def exception_status(
         return ExceptionStatus.EXPIRED
     if finding_open and record.remediate_by < today:
         return ExceptionStatus.REMEDIATION_OVERDUE
-    if not verifier(record):
-        return ExceptionStatus.UNAPPROVED
-    return ExceptionStatus.ACTIVE
+    if _approved(record, verifier):
+        return ExceptionStatus.ACTIVE
+    return ExceptionStatus.UNAPPROVED
 
 
 def _has_control_char(value: str) -> bool:
-    return any(ord(char) < 32 or ord(char) == 127 for char in value)
+    """True for a control, format, or line-separator character.
+
+    Covers ASCII controls and DEL, C1 controls, bidirectional overrides
+    (U+202A to U+202E), and U+2028 and U+2029, so a rationale cannot start a
+    workflow command line or visually reorder what a reviewer reads.
+    """
+    return any(unicodedata.category(char) in _FORBIDDEN_CATEGORIES for char in value)
 
 
 def _text_problem(entry: dict[str, object], field: str, required: bool = True) -> str | None:
@@ -196,7 +226,7 @@ def _text_problem(entry: dict[str, object], field: str, required: bool = True) -
 
 def _date_problem(entry: dict[str, object], field: str) -> str | None:
     value = entry.get(field)
-    if not isinstance(value, str) or not _DATE_RE.match(value):
+    if not isinstance(value, str) or not _DATE_RE.fullmatch(value):
         return f"'{field}' must be a YYYY-MM-DD date"
     try:
         date.fromisoformat(value)
@@ -206,7 +236,7 @@ def _date_problem(entry: dict[str, object], field: str) -> str | None:
 
 
 def _handle_problem(value: object, label: str) -> str | None:
-    if not isinstance(value, str) or not _HANDLE_RE.match(value):
+    if not isinstance(value, str) or not _HANDLE_RE.fullmatch(value) or _has_control_char(value):
         return f"{label} must be a handle of letters, digits, '.', '_', or '-'"
     return None
 
@@ -244,7 +274,7 @@ def _field_problems(entry: dict[str, object]) -> list[str]:
     ]
     problems = [problem for problem in checks if problem]
     reason = entry.get("reason")
-    if isinstance(reason, str) and reason.strip() and not _REASON_RE.match(reason):
+    if isinstance(reason, str) and reason.strip() and not _REASON_RE.fullmatch(reason):
         problems.append("'reason' must be a dotted lowercase slug such as 'diff.failed'")
     return problems
 
@@ -298,11 +328,24 @@ def parse_exceptions(document: object) -> tuple[PromotionException, ...]:
     return records
 
 
+def _reject_duplicate_keys(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    """Refuse a JSON object that repeats a key, which would let the last win."""
+    keys = [key for key, _ in pairs]
+    repeated = sorted({key for key in keys if keys.count(key) > 1})
+    if repeated:
+        raise ValueError(f"duplicate key(s) {', '.join(repeated)}")
+    return dict(pairs)
+
+
 def load_exceptions(repo_root: Path) -> tuple[PromotionException, ...]:
     """Read and validate the exceptions file under ``repo_root``.
 
     Returns an empty tuple when the file does not exist. Raises
     ``ExceptionsFileError`` for an unreadable, non-JSON, or invalid file.
+
+    ``repo_root`` must be a checkout of the default branch. ADR-113 decision 5
+    reads this file from there, so a candidate cannot edit its own exceptions.
+    The loader reads whatever root it is given and cannot check that.
     """
     path = repo_root / EXCEPTIONS_RELATIVE_PATH
     try:
@@ -314,7 +357,7 @@ def load_exceptions(repo_root: Path) -> tuple[PromotionException, ...]:
             f"cannot read {EXCEPTIONS_RELATIVE_PATH.as_posix()}: {exc}"
         ) from exc
     try:
-        document = json.loads(text)
-    except json.JSONDecodeError as exc:
+        document = json.loads(text, object_pairs_hook=_reject_duplicate_keys)
+    except (json.JSONDecodeError, ValueError, RecursionError) as exc:
         raise ExceptionsFileError(f"cannot parse {_SHOWN_PATH}: {exc}") from exc
     return parse_exceptions(document)
