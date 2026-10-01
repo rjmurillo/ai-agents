@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import ast
 import re
-import sys
+from pathlib import Path
 
 # A test identifier that names conformance, parity, contract, or equivalence.
 _CONFORMANCE_TEST = re.compile(r"\btest_\w*(?:conform|parity|contract|equival)\w*", re.IGNORECASE)
@@ -33,34 +33,57 @@ REMEDIATION = (
 )
 
 
-def imported_project_names(source: str) -> frozenset[str]:
-    """Return names imported from non-stdlib modules, or an empty set if unparseable."""
+def owned_roots(repo_root: Path, file_dir: Path) -> frozenset[str]:
+    """Return top-level import names this repository owns.
+
+    Covers repo-root directories and modules, packages under `.claude/lib`, and
+    sibling modules of the scanned file (skill scripts import each other by bare
+    name). A third-party package never appears here, so it is not evidence.
+    """
+    names: set[str] = set()
+    for base in (repo_root, repo_root / ".claude" / "lib", file_dir):
+        if base.is_dir():
+            names.update(_module_names(base))
+    return frozenset(names)
+
+
+def _module_names(base: Path) -> set[str]:
+    found: set[str] = set()
+    for entry in base.iterdir():
+        if entry.is_dir() and entry.name.isidentifier():
+            found.add(entry.name)
+        elif entry.suffix == ".py" and entry.stem.isidentifier():
+            found.add(entry.stem)
+    return found
+
+
+def imported_project_names(source: str, owned: frozenset[str]) -> frozenset[str]:
+    """Return names imported from repository-owned modules, or empty if unparseable."""
     try:
         tree = ast.parse(source)
     except SyntaxError:
         return frozenset()
     names: set[str] = set()
     for node in ast.walk(tree):
-        names.update(_node_names(node))
+        names.update(_node_names(node, owned))
     return frozenset(n for n in names if len(n) >= _MIN_NAME_LENGTH)
 
 
-def _node_names(node: ast.AST) -> list[str]:
-    """Return the project names one import statement binds."""
-    if isinstance(node, ast.ImportFrom) and _is_project_root(node.module, node.level):
+def _node_names(node: ast.AST, owned: frozenset[str]) -> list[str]:
+    """Return the owned names one import statement binds."""
+    if isinstance(node, ast.ImportFrom) and _is_owned(node.module, node.level, owned):
         return [alias.asname or alias.name for alias in node.names]
     if isinstance(node, ast.Import):
         return [
-            alias.asname or alias.name for alias in node.names if _is_project_root(alias.name, 0)
+            alias.asname or alias.name for alias in node.names if _is_owned(alias.name, 0, owned)
         ]
     return []
 
 
-def _is_project_root(module: str | None, level: int) -> bool:
+def _is_owned(module: str | None, level: int, owned: frozenset[str]) -> bool:
     if level:
         return True
-    root = (module or "").split(".")[0]
-    return root not in sys.stdlib_module_names and root != "__future__"
+    return (module or "").split(".")[0] in owned
 
 
 def structural_evidence(text: str, imported: frozenset[str]) -> str | None:
