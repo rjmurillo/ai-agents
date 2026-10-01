@@ -54,8 +54,6 @@ Functions are the core unit of design. Keep them small, single-purpose, and easy
 - Apply the Stepdown Rule. Read top to bottom: each function calls the next level of detail.
 - No side effects beyond the function's name. `validatePassword(user)` should not also log the user in.
 
-If a function is hard to name, it does too much. Split it.
-
 ## Guard Clauses Over Deep Nesting
 
 Deep `if`/`else` trees hide intent. Use early returns to flatten control flow.
@@ -159,7 +157,8 @@ A table replaces five `if`/`elif` branches with one lookup and one default.
 Bot review rounds fail to converge because the fix for round N creates round N+1's findings. On PR #5466, roughly 17 of 20 findings came from the previous fix (issue #5487). Check both causes before you push.
 
 - **One value, one role at a contract boundary.** A value that serves git and also a human reader is two contracts under one name. Split it (`base_ref` to resolve, `display_ref` to print). Distinct names make a mix-up visible in review; use distinct types where you need the checker to enforce it.
-- **List sibling call paths.** Grep every caller of the function you changed. In the PR body, list the callers you found and the ones you verified. Where practical, unwire the fix at each call site and confirm a test fails.
+- **List sibling call paths.** Grep every caller of the function you changed. In the PR body, list the callers you found and the ones you verified.
+- **Optional unwire-and-fail check.** Where practical, unwire the fix at each call site and confirm a test fails. Per-fix, non-blocking, no repository-wide gate.
 
 ## Variable Scope and Lifetime
 
@@ -206,8 +205,6 @@ Reach for a suppression only when the idiomatic fix is genuinely impossible. Val
 **Scope it narrowly.** Prefer an inline, rule-specific suppression on the single offending line. A per-module ignore or a directory-wide disable is the least acceptable form. It needs an extra sentence on why it cannot be scoped tighter.
 
 **Write a mini-ADR above it.** One short comment tells the next maintainer you thought about this. State what the check wants, why the idiomatic fix does not work here, and why the suppression is the only option left. A bare suppression with no rationale is a defect in review.
-
-When in doubt, fix the code.
 
 ## Quick Self-Review
 
