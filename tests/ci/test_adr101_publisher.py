@@ -242,11 +242,20 @@ class TestGateAndPreflight:
     def test_an_output_is_not_written_without_github_output(self) -> None:
         assert pub.main(["gate"], make_env()) == 0
 
-    def test_a_multiline_output_value_is_refused(self, tmp_path: Path) -> None:
+    @pytest.mark.parametrize(
+        "key, value",
+        [("k", "a\nb"), ("k", "a\rb"), ("k\nx", "v"), ("k\rx", "v"), ("k=x", "v")],
+    )
+    def test_an_output_that_could_inject_a_line_is_refused(
+        self, tmp_path: Path, key: str, value: str
+    ) -> None:
         from scripts.ci.adr101_publisher_inputs import write_output
 
+        target = tmp_path / "o"
         with pytest.raises(ValueError):
-            write_output("k", "a\nb", {"GITHUB_OUTPUT": str(tmp_path / "o")})
+            write_output(key, value, {"GITHUB_OUTPUT": str(target)})
+
+        assert not target.exists()
 
     def test_the_step_summary_receives_the_typed_line(self, tmp_path: Path) -> None:
         summary = tmp_path / "summary.md"
@@ -326,3 +335,20 @@ class TestRealProcess:
         result = self._run("nonsense")
 
         assert result.returncode == 2
+
+
+class TestExecuteUsesTheGivenEnvironment:
+    def test_main_passes_its_environ_to_the_execute_stage(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        seen: dict[str, object] = {}
+
+        def fake(env: PublisherEnv, environ: object = None) -> CheckOutcome:
+            seen["environ"] = environ
+            return CheckOutcome.passed("v", revision="r", scope="s")
+
+        monkeypatch.setattr(pub, "run_execute", fake)
+        given = make_env()
+
+        assert pub.main(["execute"], given) == 0
+        assert seen["environ"] is given

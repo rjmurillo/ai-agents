@@ -272,8 +272,8 @@ def write_output(key: str, value: str, environ: Mapping[str, str] | None = None)
     path = source.get("GITHUB_OUTPUT", "")
     if not path:
         return
-    if "\n" in value or "\r" in value or "\n" in key:
-        raise ValueError("an Actions output value must be a single line")
+    if any(ch in value for ch in "\r\n") or any(ch in key for ch in "\r\n="):
+        raise ValueError("an Actions output must be one key=value line")
     with open(path, "a", encoding="utf-8") as handle:
         handle.write(f"{key}={value}\n")
 

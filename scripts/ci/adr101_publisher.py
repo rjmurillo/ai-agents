@@ -317,7 +317,7 @@ def main(
     elif args.command == "preflight":
         outcome = _command_preflight(env, environ)
     elif args.command == "execute":
-        outcome = run_execute(env)
+        outcome = run_execute(env, environ)
     else:
         outcome = publish(env, api_for)
     if outcome is None:
