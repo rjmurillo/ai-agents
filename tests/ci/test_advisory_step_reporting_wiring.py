@@ -211,9 +211,7 @@ def test_a_reporter_step_runs_only_after_a_checkout_that_ran(
     """
     condition = steps[at].get("if")
     checkouts = [
-        step.get("if")
-        for step in steps[:at]
-        if "actions/checkout" in str(step.get("uses", ""))
+        step.get("if") for step in steps[:at] if "actions/checkout" in str(step.get("uses", ""))
     ]
 
     assert checkouts, f"{workflow}:{job} runs {HELPER} before any checkout"
