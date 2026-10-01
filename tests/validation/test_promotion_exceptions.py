@@ -343,6 +343,22 @@ class TestHardening:
         path.write_text('{"schema_version": "1", "entries": [], ' + body + "}", encoding="utf-8")
         assert load_exceptions(tmp_path) == ()
 
+    def test_symlinked_file_fails_the_load(self, tmp_path: Path) -> None:
+        target = tmp_path / "real.json"
+        target.write_text(json.dumps(_doc()), encoding="utf-8")
+        link = tmp_path / EXCEPTIONS_RELATIVE_PATH
+        link.parent.mkdir(parents=True)
+        link.symlink_to(target)
+        with pytest.raises(ExceptionsFileError, match="cannot read"):
+            load_exceptions(tmp_path)
+
+    def test_symlink_to_an_endless_device_does_not_hang(self, tmp_path: Path) -> None:
+        link = tmp_path / EXCEPTIONS_RELATIVE_PATH
+        link.parent.mkdir(parents=True)
+        link.symlink_to("/dev/zero")
+        with pytest.raises(ExceptionsFileError, match="cannot read"):
+            load_exceptions(tmp_path)
+
     def test_oversized_file_fails_the_load(self, tmp_path: Path) -> None:
         path = tmp_path / EXCEPTIONS_RELATIVE_PATH
         path.parent.mkdir(parents=True)

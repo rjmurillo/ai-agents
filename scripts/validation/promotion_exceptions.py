@@ -75,7 +75,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
+import stat
 import unicodedata
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -350,6 +352,26 @@ def parse_exceptions(document: object) -> tuple[PromotionException, ...]:
     return records
 
 
+def _read_regular_file(path: Path) -> str:
+    """Return the file text, refusing a symlink, a non-regular file, or an oversized one.
+
+    Opens with ``O_NOFOLLOW`` and checks the opened descriptor, so a path a pull
+    request swaps for a symlink to ``/dev/zero`` is refused, not followed. Reads
+    at most one byte past the cap, so a file that reports size 0 and never ends
+    cannot hang the gate.
+    """
+    descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+    try:
+        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+            raise OSError("not a regular file")
+        data = os.read(descriptor, MAX_FILE_BYTES + 1)
+    finally:
+        os.close(descriptor)
+    if len(data) > MAX_FILE_BYTES:
+        raise ExceptionsFileError(f"{_SHOWN_PATH} is larger than {MAX_FILE_BYTES} bytes")
+    return data.decode("utf-8")
+
+
 def _reject_duplicate_keys(pairs: list[tuple[str, object]]) -> dict[str, object]:
     """Refuse a JSON object that repeats a key, which would let the last win.
 
@@ -376,9 +398,7 @@ def load_exceptions(repo_root: Path) -> tuple[PromotionException, ...]:
     """
     path = repo_root / EXCEPTIONS_RELATIVE_PATH
     try:
-        if path.stat().st_size > MAX_FILE_BYTES:
-            raise ExceptionsFileError(f"{_SHOWN_PATH} is larger than {MAX_FILE_BYTES} bytes")
-        text = path.read_text(encoding="utf-8")
+        text = _read_regular_file(path)
     except FileNotFoundError:
         return ()
     except (OSError, UnicodeDecodeError) as exc:
