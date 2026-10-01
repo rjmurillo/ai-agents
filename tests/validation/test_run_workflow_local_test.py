@@ -9,11 +9,13 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 from pathlib import Path
 from unittest import mock
 
 import pytest
+import yaml
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 _VALIDATION_DIR = str(REPO_ROOT / "scripts" / "validation")
@@ -1638,6 +1640,98 @@ def test_act_limitation_hint_matches_known_patterns() -> None:
         is None
     )
     assert w._act_limitation_hint("Error: job 'build' exited 2") is None
+
+
+_ACT_JOB = "[Python Tests/Check whole-tree count ratchets (blocking)]"
+_ACT_OTHER_JOB = "[Python Tests/Check context outputs (blocking)]"
+
+
+def _act_fetch_failure(
+    ref: str = "master", step: str = "Fetch the base ref", failing_job: str = _ACT_JOB
+) -> str:
+    return (
+        f"      {_ACT_JOB}   | fatal: couldn't find remote ref {ref}\n"
+        f"      {failing_job}   \u274c  Failure - Main {step} [572ms]\n"
+    )
+
+
+def test_act_limitation_hint_matches_the_master_base_ref_fetch_failure() -> None:
+    hint = w._act_limitation_hint(_act_fetch_failure())
+    assert hint is not None
+    assert "master" in hint
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        _act_fetch_failure(ref="main"),
+        _act_fetch_failure(ref="mastery"),
+        _act_fetch_failure(step="Run ruff count ratchet (whole tree)"),
+        _act_fetch_failure(failing_job=_ACT_OTHER_JOB),
+        f"{_ACT_JOB}   | fatal: couldn't find remote ref master\n",
+        f"{_ACT_JOB}   \u274c  Failure - Main Fetch the base ref [5ms]\n",
+        "",
+    ],
+)
+def test_act_limitation_hint_ignores_other_fetch_failures(text: str) -> None:
+    assert w._act_limitation_hint(text) is None
+
+
+def test_act_limitation_hint_requires_the_two_lines_to_be_adjacent() -> None:
+    first, second = _act_fetch_failure().splitlines(keepends=True)
+    interleaved = f"{first}      {_ACT_OTHER_JOB}   | other output\n{second}"
+    assert w._act_limitation_hint(interleaved) is None
+
+
+def test_act_limitation_hint_rejects_output_a_step_echoed() -> None:
+    """A step's own output carries act's `| ` prefix, so it cannot stand in for act's line."""
+    forged = (
+        f"      {_ACT_JOB}   | fatal: couldn't find remote ref master\n"
+        f"      {_ACT_JOB}   | \u274c  Failure - Main Fetch the base ref [1ms]\n"
+    )
+    assert w._act_limitation_hint(forged) is None
+
+
+def test_act_limitation_hint_blocks_when_another_step_also_failed() -> None:
+    other = f"      {_ACT_OTHER_JOB}   \u274c  Failure - Main Check manifest [3ms]\n"
+    assert w._act_limitation_hint(_act_fetch_failure() + other) is None
+
+
+def test_act_limitation_hint_accepts_the_failure_that_follows_from_the_fetch() -> None:
+    """`Run Python Tests` needs the ratchet job and runs on a failed dependency."""
+    derived = (
+        "      [Python Tests/Run Python Tests]   \u274c  Failure - Main "
+        "Require test, coverage, and repository guard success [4ms]\n"
+    )
+    assert w._act_limitation_hint(_act_fetch_failure() + derived) is not None
+
+
+def test_act_limitation_hint_blocks_a_failing_test_step_beside_the_fetch() -> None:
+    failing_tests = "      [Python Tests/pytest (bulk)]   \u274c  Failure - Main Run pytest [9s]\n"
+    assert w._act_limitation_hint(_act_fetch_failure() + failing_tests) is None
+
+
+def test_the_act_rule_names_match_pytest_yml() -> None:
+    """The rule quotes pytest.yml; a rename there must fail here, not pass silently."""
+    workflow = yaml.safe_load(
+        (REPO_ROOT / ".github" / "workflows" / "pytest.yml").read_text(encoding="utf-8")
+    )
+    jobs = workflow["jobs"]
+    guard = jobs["count-ratchet-guard"]
+    steps = [step.get("name") for step in guard["steps"]]
+    fetch = next(step for step in guard["steps"] if step.get("name") == "Fetch the base ref")
+    result = jobs["test-result"]
+    label = f"[{workflow['name']}/{guard['name']}]"
+    assert re.fullmatch(w._ACT_BASE_REF_JOB_LABEL, label)
+    assert "Fetch the base ref" in steps
+    assert fetch["run"] == 'git fetch origin "$BASE_REF"'
+    assert guard["env"]["BASE_REF"] == (
+        "${{ github.base_ref || github.event.repository.default_branch }}"
+    )
+    assert "count-ratchet-guard" in result["needs"]
+    derived = [step.get("name") for step in result["steps"]]
+    assert "Require test, coverage, and repository guard success" in derived
+    assert result["name"] == "Run Python Tests"
 
 
 def test_act_limitation_hint_matches_action_cache_copy_failure() -> None:
