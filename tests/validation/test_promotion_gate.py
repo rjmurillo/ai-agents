@@ -17,7 +17,11 @@ import pytest
 from scripts.validation import promotion_gate as gate
 from scripts.validation.evidence import EvidenceState
 from scripts.validation.promotion_evidence import Candidate
-from scripts.validation.promotion_exceptions import EXCEPTIONS_RELATIVE_PATH, ExceptionsFileError
+from scripts.validation.promotion_exceptions import (
+    EXCEPTIONS_RELATIVE_PATH,
+    ExceptionsFileError,
+    finding_fingerprint,
+)
 from scripts.validation.promotion_findings import Finding, PreviousFinding, PreviousManifest
 from scripts.validation.promotion_gate import (
     EXIT_CONFIG,
@@ -335,7 +339,7 @@ class TestCli:
                     "candidate": {"sha": OTHER},
                     "findings": [
                         {
-                            "fingerprint": "gone",
+                            "fingerprint": finding_fingerprint("pytest", "r.x", "tests/", ""),
                             "class": "unresolved",
                             "validator": "pytest",
                             "reason": "r.x",

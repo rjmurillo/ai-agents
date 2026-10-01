@@ -308,6 +308,8 @@ def _previous_finding(raw: dict[str, object]) -> PreviousFinding:
     if not all(isinstance(value, str) for value in values):
         raise ManifestError("a finding needs string fingerprint, validator, reason, scope, item")
     fingerprint, validator, reason, scope, item = (str(value) for value in values)
+    if fingerprint != finding_fingerprint(validator, reason, scope, item):
+        raise ManifestError("a previous finding's fingerprint does not match its identity fields")
     return PreviousFinding(fingerprint, validator, reason, scope, item)
 
 
