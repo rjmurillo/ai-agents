@@ -33,7 +33,8 @@ def _normalized(expression: str) -> str:
 
 
 def test_the_only_trigger_is_a_manual_dispatch(workflow: dict[str, Any]) -> None:
-    triggers = workflow.get("on", workflow.get(True))
+    # PyYAML reads the bare key `on` as the boolean True (YAML 1.1).
+    triggers = next(value for key, value in workflow.items() if key in ("on", True))
     assert set(triggers) == {"workflow_dispatch"}
 
 
