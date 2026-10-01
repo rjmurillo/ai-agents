@@ -11,9 +11,13 @@ _ROOT = Path(__file__).resolve().parents[3]
 _PROTOCOL = (
     _ROOT / ".claude" / "skills" / "pr-comment-responder" / "references" / "review-conversation.md"
 )
-_POINTER = "references/review-conversation.md"
+_OWNER = ".claude/skills/pr-comment-responder/SKILL.md"
+_OWNER_LINK = "(references/review-conversation.md)"
+_ANCHORED = (
+    "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
+    "/skills/pr-comment-responder/references/review-conversation.md"
+)
 _CONSUMERS = [
-    ".claude/skills/pr-comment-responder/SKILL.md",
     ".claude/skills/pr-review/SKILL.md",
     ".claude/skills/review/resources/technical-review.md",
     ".claude/agents/pr-comment-responder.md",
@@ -59,11 +63,15 @@ def test_protocol_states_round_count_survives_handoff() -> None:
 
 
 @pytest.mark.parametrize("consumer", _CONSUMERS)
-def test_consumer_points_to_protocol(consumer: str) -> None:
-    assert _POINTER in (_ROOT / consumer).read_text(encoding="utf-8")
+def test_consumer_anchors_pointer_to_plugin_root(consumer: str) -> None:
+    assert _ANCHORED in (_ROOT / consumer).read_text(encoding="utf-8")
 
 
-@pytest.mark.parametrize("consumer", _CONSUMERS)
+def test_owner_links_protocol_relative_to_its_own_directory() -> None:
+    assert _OWNER_LINK in (_ROOT / _OWNER).read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize("consumer", [*_CONSUMERS, _OWNER])
 def test_consumer_does_not_copy_protocol_table(consumer: str) -> None:
     body = (_ROOT / consumer).read_text(encoding="utf-8")
     assert "Dispositions and their comment prefixes come from" not in body
