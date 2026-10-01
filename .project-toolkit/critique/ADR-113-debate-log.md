@@ -69,7 +69,23 @@ Decision 6 and the Impact table now require a structured `items` field, and say 
 
 ## Owner decision
 
-- **Decision**: D21, rjmurillo, 2026-09-30. Verdict: ACCEPT ADR-113 with solo-maintainer defaults. This is an owner decision, not a fourth debate round. No reviewer seat re-voted. The six-seat position above stands (APPROVED for status proposed, acceptance waiting on the Open Questions).
-- **Participants**: rjmurillo (decision-maker). The agents that voted in rounds 1 to 3 were not re-run.
+- **Decision**: D21, rjmurillo, 2026-09-30. Verdict: ACCEPT ADR-113 with solo-maintainer defaults. The owner decision is not a debate round. The edits it caused were then reviewed by a reduced panel, architect and critic, because the owner answers added text no earlier round saw (`AGENTS.md` line 11 asks for that panel on prose edits).
+- **Participants**: rjmurillo (decision-maker); architect and critic for the reduced panel below. The other four seats did not re-vote.
 - **Answers recorded in the ADR**: (1) no second approving identity, so decision 7 allows no exceptions, and a second identity re-opens it; (2) a read-only ruleset probe found a branch-target ruleset on this repository and the tag target is part of the same ruleset feature, so the owner creates the `v*` tag ruleset and this change does not; (3) a GitHub Release stores the previous manifest through a narrowly scoped `contents: write` release job.
 - **Claims ledger**: row 12 is now checked in the tree. #6085 merged the D17 allowlist. Row 15 is unchanged.
+
+## Round 4: reduced panel on the acceptance edits
+
+| Seat | Findings | Vote |
+|---|---|---|
+| architect | P1: the tag-ruleset fallback overclaims, because a pushed tag runs the tagged commit's own workflow, so the ancestor check cannot protect that route. P2: the release write path needs a boundary (default-branch workflow, no candidate checkout, only after a promoted publish, no tag or release creation). P2: time-relative wording. | Disagree-and-Commit |
+| critic | P1: decision 2 had no check-run conclusion mapping and no matrix rule. P1: no key tied an artifact to its check-run. P1: gate coverage equals applicability-table coverage. P2: sequence artifact upload before the aggregator. P2: the tag ruleset is unproven and the record enforces nothing alone. P2: write token boundary. P2: no linkable record of D21. | Disagree-and-Commit |
+
+### Author response
+
+All P1 findings and the P2 findings are fixed in text. Decision 2 now holds a check-run conclusion table, a matrix rule, and the run id and job name tie. Decision 3 states that coverage equals table coverage. Resolved Question 2 says the fallback needs the `v*` tag trigger removed, uses dated wording, and says the accepted record enforces nothing until the owner acts. Resolved Question 3 states the release job boundary. The Implementation Notes put the artifact upload first. D21 is linked to its issue comment.
+
+### Dissent recorded
+
+- Both seats voted Disagree-and-Commit, not Accept. Neither re-read the text after the fixes. The tag ruleset capability stays unproven until the owner runs the command.
+- Method note: the two seats were agents run with the diff as input. They are not independent of the author's framing of the three questions.
