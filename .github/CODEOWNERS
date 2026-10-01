@@ -89,3 +89,12 @@
 # validator job claims, so it needs the owner.
 /scripts/validation/emit_validator_evidence.py @rjmurillo
 /.github/actions/upload-validator-evidence/ @rjmurillo
+
+# ADR-101 requirement 2a publisher (issue #5245). The workflow holds the App
+# credential and the scripts decide what it publishes, so a change to either
+# needs owner review before it can reach the key.
+/.github/workflows/adr101-publisher.yml     @rjmurillo
+/scripts/ci/adr101_publisher.py             @rjmurillo
+/scripts/ci/adr101_publisher_execute.py     @rjmurillo
+/scripts/ci/adr101_publisher_github.py      @rjmurillo
+/scripts/ci/adr101_publisher_inputs.py      @rjmurillo

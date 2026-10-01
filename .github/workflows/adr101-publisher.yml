@@ -1,0 +1,156 @@
+name: ADR-101 Publisher
+
+# ADR-101 requirement 2a (issue #5245, owner decision D23, spike PR #6103). A
+# dedicated GitHub App publishes the check run "ADR-101 Published Result" for the
+# head SHA of a pull request. This file holds triggers and calls only. Every
+# decision lives in scripts/ci/adr101_publisher*.py, which has the tests.
+#
+# Disabled by default. The repository variable ADR101_PUBLISHER_ENABLED turns it
+# on. With it off the gate job prints a typed SKIP, the other jobs do not start,
+# the environment below is never referenced, and no check run is published. With
+# it on and the App secrets absent the publish job fails closed (BLOCKED).
+#
+#   gate     No candidate code, no secret. Reads the flag and the event once.
+#   execute  The only job that runs candidate code. Own GitHub-hosted runner,
+#            contents: read, no environment, no secret, no token.
+#   publish  Holds the App credential. Own GitHub-hosted runner. Runs no
+#            candidate code, never checks out the head, restores no cache, and
+#            reads only the validated SHAs and ids named in the event.
+#
+# `workflow_run` runs this file as it stands on the default branch, so a pull
+# request cannot edit the jobs that hold the key. Head-controlled strings (title,
+# branch name) are never read. The key lives in the environment secret
+# ADR101_PUBLISHER_APP_PRIVATE_KEY of environment adr101-publisher, limited to
+# main. A repository-level copy would be readable by a branch-defined workflow.
+#
+# This publisher closes identity, pinning, revision binding and the job split. It
+# does not authenticate that the tests ran (requirement 2b, open research), so its
+# label never says "verified". It is in no ruleset and no required context.
+
+on:
+  workflow_run:
+    workflows: ["Python Tests"]
+    types: [completed]
+
+permissions: {}
+
+concurrency:
+  group: adr101-publisher-${{ github.event.workflow_run.head_sha }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    name: Decide whether the publisher applies
+    runs-on: ubuntu-26.04-arm
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      enabled: ${{ steps.gate.outputs.enabled }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
+      - name: Check out the base
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Gate
+        id: gate
+        env:
+          ADR101_PUBLISHER_ENABLED: ${{ vars.ADR101_PUBLISHER_ENABLED }}
+          ADR101_TRIGGER_EVENT: ${{ github.event.workflow_run.event }}
+        run: python3 scripts/ci/adr101_publisher.py gate
+
+  execute:
+    name: Execute the candidate under the base-owned harness
+    needs: gate
+    if: ${{ needs.gate.outputs.enabled == 'true' }}
+    runs-on: ubuntu-26.04-arm
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
+      - name: Check out the base
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: false
+
+      - name: Execute
+        env:
+          ADR101_PUBLISHER_ENABLED: ${{ vars.ADR101_PUBLISHER_ENABLED }}
+          ADR101_TRIGGER_EVENT: ${{ github.event.workflow_run.event }}
+          ADR101_REPOSITORY: ${{ github.repository }}
+          ADR101_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          ADR101_PULL_NUMBER: ${{ github.event.workflow_run.pull_requests[0].number }}
+        run: python3 scripts/ci/adr101_publisher.py execute
+
+  publish:
+    name: Publish the App-authored check run
+    needs: [gate, execute]
+    if: ${{ always() && needs.gate.outputs.enabled == 'true' }}
+    runs-on: ubuntu-26.04-arm
+    timeout-minutes: 10
+    environment: adr101-publisher
+    permissions:
+      contents: read
+      pull-requests: read
+      actions: read
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
+      - name: Check out the base
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Preflight
+        id: preflight
+        env:
+          ADR101_PUBLISHER_ENABLED: ${{ vars.ADR101_PUBLISHER_ENABLED }}
+          ADR101_TRIGGER_EVENT: ${{ github.event.workflow_run.event }}
+          ADR101_PUBLISHER_APP_ID: ${{ vars.ADR101_PUBLISHER_APP_ID }}
+          ADR101_HAS_KEY: ${{ secrets.ADR101_PUBLISHER_APP_PRIVATE_KEY != '' }}
+        run: python3 scripts/ci/adr101_publisher.py preflight
+
+      - name: Mint the installation token
+        id: app-token
+        if: ${{ steps.preflight.outputs.mint == 'true' }}
+        continue-on-error: true
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ vars.ADR101_PUBLISHER_APP_ID }}
+          private-key: ${{ secrets.ADR101_PUBLISHER_APP_PRIVATE_KEY }}
+          permission-checks: write
+
+      - name: Publish
+        env:
+          ADR101_PUBLISHER_ENABLED: ${{ vars.ADR101_PUBLISHER_ENABLED }}
+          ADR101_TRIGGER_EVENT: ${{ github.event.workflow_run.event }}
+          ADR101_PUBLISHER_APP_ID: ${{ vars.ADR101_PUBLISHER_APP_ID }}
+          ADR101_HAS_KEY: ${{ secrets.ADR101_PUBLISHER_APP_PRIVATE_KEY != '' }}
+          ADR101_APP_TOKEN: ${{ steps.app-token.outputs.token }}
+          ADR101_APP_TOKEN_OUTCOME: ${{ steps.app-token.outcome }}
+          ADR101_READ_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ADR101_REPOSITORY: ${{ github.repository }}
+          ADR101_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          ADR101_PULL_NUMBER: ${{ github.event.workflow_run.pull_requests[0].number }}
+          ADR101_TRIGGER_RUN_ID: ${{ github.event.workflow_run.id }}
+          ADR101_EXECUTE_RESULT: ${{ needs.execute.result }}
+        run: python3 scripts/ci/adr101_publisher.py publish
