@@ -1,0 +1,65 @@
+name: 'Upload Validator Evidence'
+description: 'Write the calling job''s typed result and upload it as a promotion evidence artifact (ADR-113 decision 2, issue 5636).'
+
+# Call this as the last step of a validator job, with `if: always()`, after a
+# checkout that includes scripts/validation and this action. The logic lives in
+# scripts/validation/emit_validator_evidence.py. It writes nothing for a pull
+# request run or a feature branch push, so the upload step is skipped there.
+#
+# The artifact name is the validator name, as the ADR requires. `overwrite`
+# lets a re-run of the same workflow run replace its earlier file.
+#
+# Retention is 30 days. A promotion can happen days after the candidate merged,
+# and evidence older than the window is missing, which the gate reads as a
+# finding. The artifact-retention-policy file has no tier for release evidence.
+
+inputs:
+  validator:
+    description: 'Validator name from .agents/governance/promotion-applicability.json'
+    required: true
+  job-status:
+    description: 'The calling job status: pass ${{ job.status }}'
+    required: true
+  ran:
+    description: "'true' when the job did its validation work, 'false' when it short-circuited"
+    required: false
+    default: 'true'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Write validator evidence
+      id: emit
+      shell: bash
+      env:
+        VALIDATOR: ${{ inputs.validator }}
+        JOB_STATUS: ${{ inputs.job-status }}
+        RAN: ${{ inputs.ran }}
+        REVISION: ${{ github.sha }}
+        EVENT_NAME: ${{ github.event_name }}
+        REF: ${{ github.ref }}
+        DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        JOB_ID: ${{ github.job }}
+        EVIDENCE_DIR: ${{ runner.temp }}/validator-evidence
+      run: >-
+        python3 scripts/validation/emit_validator_evidence.py
+        --validator "$VALIDATOR"
+        --job-status "$JOB_STATUS"
+        --ran "$RAN"
+        --revision "$REVISION"
+        --event "$EVENT_NAME"
+        --ref "$REF"
+        --default-branch "$DEFAULT_BRANCH"
+        --job-id "$JOB_ID"
+        --output-dir "$EVIDENCE_DIR"
+        --github-output "$GITHUB_OUTPUT"
+
+    - name: Upload validator evidence
+      if: steps.emit.outputs.emitted == 'true'
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      with:
+        name: ${{ inputs.validator }}
+        path: ${{ runner.temp }}/validator-evidence/${{ inputs.validator }}.json
+        if-no-files-found: error
+        overwrite: true
+        retention-days: 30

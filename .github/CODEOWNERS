@@ -83,3 +83,9 @@
 # a promotion must see. A row added or dropped in the PR it excuses needs the owner.
 /.agents/governance/promotion-applicability.json @rjmurillo
 /scripts/validation/promotion_applicability.py @rjmurillo
+
+# Issue #5636, ADR-113 decision 2: the evidence a promotion reads is written by
+# this emitter and uploaded by this action. A change to either decides what a
+# validator job claims, so it needs the owner.
+/scripts/validation/emit_validator_evidence.py @rjmurillo
+/.github/actions/upload-validator-evidence/ @rjmurillo
