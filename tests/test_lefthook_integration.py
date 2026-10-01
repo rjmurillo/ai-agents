@@ -6054,8 +6054,9 @@ def test_fetch_origin_main_failure_warns_and_continues(
 ) -> None:
     monkeypatch.setattr(policy, "_run_git", lambda *_args: _completed(1))
 
-    policy._fetch_origin_main(tmp_path)
+    refreshed = policy._fetch_origin_main(tmp_path)
 
+    assert refreshed is False
     assert "using local ref" in capsys.readouterr().err
 
 
@@ -6276,7 +6277,7 @@ def test_check_push_refs_blocks_force_push_end_to_end(
     side_sha = _commit_file(repo, "f.txt", "side\n")
     _git(repo, "checkout", "-q", "feature/test")
     feature_sha = _commit_file(repo, "f.txt", "feature\n")
-    monkeypatch.setattr(policy, "_fetch_origin_main", lambda _repo_root: None)
+    monkeypatch.setattr(policy, "_fetch_origin_main", lambda _repo_root: True)
     monkeypatch.setattr(policy, "warn_if_push_files_incomplete", lambda *_args: None)
     stream = io.StringIO(
         f"refs/heads/feature/test {feature_sha} refs/heads/feature/test {side_sha}\n"
@@ -6304,7 +6305,7 @@ def test_check_push_refs_multi_ref_catches_second_rewrite(
     side_sha = _commit_file(repo, "f.txt", "side\n")
     _git(repo, "checkout", "-q", "feature/test")
     feature_sha = _commit_file(repo, "f.txt", "feature\n")
-    monkeypatch.setattr(policy, "_fetch_origin_main", lambda _repo_root: None)
+    monkeypatch.setattr(policy, "_fetch_origin_main", lambda _repo_root: True)
     monkeypatch.setattr(policy, "warn_if_push_files_incomplete", lambda *_args: None)
     zero = "0" * 40
     stream = io.StringIO(

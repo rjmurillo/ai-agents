@@ -16,6 +16,7 @@ from pathlib import Path
 
 import pytest
 
+from scripts.validation import git_hook_policy as policy
 from tests.validation._push_scan_repo import (
     DETECTOR,
     WORKFLOW,
@@ -210,12 +211,14 @@ def test_missing_origin_main_fails_loud_instead_of_using_local_main(
     commit(work, "README.md", "base\n")
     git(work, "checkout", "-q", "-b", "feature/docs")
     head = commit(work, "docs/note.md", "note\n")
+    monkeypatch.setattr(policy, "_fetch_origin_main", lambda _repo_root: True)
 
     result = pre_push(work, new_branch_line("feature/docs", head), monkeypatch)
 
     err = capsys.readouterr().err
     assert result == 2, err
     assert "could not resolve merge-base(origin/main" in err
+    assert "git fetch origin main" in err
     assert "scores" not in err
 
 
@@ -235,7 +238,9 @@ def test_unrelated_history_fails_loud_instead_of_scoring_the_whole_tree(
 
     err = capsys.readouterr().err
     assert result == 2, err
-    assert "could not resolve merge-base(origin/main" in err
+    assert "shares no history with origin/main" in err
+    assert "Rebase the branch onto origin/main" in err
+    assert "git fetch origin main" not in err
 
 
 def test_missing_detector_fails_the_push(

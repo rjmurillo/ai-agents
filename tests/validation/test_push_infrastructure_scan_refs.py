@@ -190,13 +190,13 @@ def test_renaming_a_workflow_away_still_scores_the_workflow_path(
     assert WORKFLOW in captured.out
 
 
-def test_failed_fetch_warns_and_still_scores_from_local_origin_main(
+def test_failed_fetch_fails_closed_instead_of_scoring_a_stale_base(
     origin: Origin,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """AC8: an unreachable origin warns; the local origin/main still gives a base."""
+    """AC8: an unreachable origin fails the scan with exit 3, scoring nothing."""
     work = work_clone(origin, tmp_path)
     git(work, "remote", "set-url", "origin", str(tmp_path / "missing.git"))
     git(work, "checkout", "-q", "-b", "feature/docs")
@@ -205,9 +205,54 @@ def test_failed_fetch_warns_and_still_scores_from_local_origin_main(
     result = pre_push(work, new_branch_line("feature/docs", head), monkeypatch)
 
     err = capsys.readouterr().err
-    assert result == 0, err
-    assert "could not refresh origin/main" in err
-    assert "refs/heads/feature/docs scores 1 file(s)" in err
+    assert result == 3, err
+    assert "will not score from a stale origin/main" in err
+    assert "scores" not in err
+
+
+def test_stale_base_would_hide_a_deleted_workflow(
+    origin: Origin,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The fail-closed case: main adds a workflow the stale ref never saw, the branch deletes it."""
+    work = work_clone(origin, tmp_path)
+    origin.advance_main(WORKFLOW)
+    git(work, "fetch", "-q", "origin", "main:refs/heads/fresh-main")
+    git(work, "checkout", "-q", "-b", "feature/drop-ci", "fresh-main")
+    git(work, "rm", "-q", WORKFLOW)
+    git(work, "commit", "-q", "-m", "drop ci")
+    head = git(work, "rev-parse", "HEAD")
+    git(work, "remote", "set-url", "origin", str(tmp_path / "missing.git"))
+
+    result = pre_push(work, new_branch_line("feature/drop-ci", head), monkeypatch)
+
+    err = capsys.readouterr().err
+    assert result == 3, err
+    assert "scores 0 file(s)" not in err
+
+
+def test_config_error_stops_the_scan_before_later_refs(
+    origin: Origin,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """After an exit 2 the remaining refs are not scored."""
+    work = work_clone(origin, tmp_path)
+    git(work, "checkout", "-q", "-b", "feature/docs", "origin/main")
+    docs = commit(work, "docs/note.md", "note\n")
+    git(work, "checkout", "-q", "--orphan", "feature/orphan")
+    git(work, "rm", "-rq", "--cached", ".")
+    orphan = commit(work, "docs/orphan.md", "orphan\n")
+    payload = new_branch_line("feature/orphan", orphan) + new_branch_line("feature/docs", docs)
+
+    result = pre_push(work, payload, monkeypatch)
+
+    err = capsys.readouterr().err
+    assert result == 2, err
+    assert "refs/heads/feature/docs scores" not in err
 
 
 @pytest.mark.parametrize("step", ["merge-base", "diff"])
