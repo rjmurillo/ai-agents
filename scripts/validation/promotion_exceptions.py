@@ -355,12 +355,17 @@ def parse_exceptions(document: object) -> tuple[PromotionException, ...]:
 def _read_regular_file(path: Path) -> str:
     """Return the file text, refusing a symlink, a non-regular file, or an oversized one.
 
-    Opens with ``O_NOFOLLOW`` and checks the opened descriptor, so a path a pull
+    Refuses a symlink up front, then opens with ``O_NOFOLLOW`` where the
+    platform has it (Windows has no such flag, so the up-front check is the
+    portable guard there) and checks the opened descriptor, so a path a pull
     request swaps for a symlink to ``/dev/zero`` is refused, not followed. Reads
     at most one byte past the cap, so a file that reports size 0 and never ends
     cannot hang the gate.
     """
-    descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+    if path.is_symlink():
+        raise OSError("a symlink is not accepted")
+    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_BINARY", 0)
+    descriptor = os.open(path, flags)
     try:
         if not stat.S_ISREG(os.fstat(descriptor).st_mode):
             raise OSError("not a regular file")

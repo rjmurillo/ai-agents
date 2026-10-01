@@ -7,6 +7,7 @@ the input the rule exists to refuse.
 from __future__ import annotations
 
 import json
+import os
 from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any, cast
@@ -342,6 +343,29 @@ class TestHardening:
         body = ",".join(f'"k{i}": 1' for i in range(50000))
         path.write_text('{"schema_version": "1", "entries": [], ' + body + "}", encoding="utf-8")
         assert load_exceptions(tmp_path) == ()
+
+    def test_loads_where_the_platform_has_no_nofollow_flag(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Windows has no os.O_NOFOLLOW or O_BINARY; the loader must not need them."""
+        monkeypatch.delattr(os, "O_NOFOLLOW", raising=False)
+        monkeypatch.delattr(os, "O_BINARY", raising=False)
+        path = tmp_path / EXCEPTIONS_RELATIVE_PATH
+        path.parent.mkdir(parents=True)
+        path.write_text(json.dumps(_doc(_entry())), encoding="utf-8")
+        assert len(load_exceptions(tmp_path)) == 1
+
+    def test_symlink_is_refused_even_without_the_nofollow_flag(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.delattr(os, "O_NOFOLLOW", raising=False)
+        target = tmp_path / "real.json"
+        target.write_text(json.dumps(_doc()), encoding="utf-8")
+        link = tmp_path / EXCEPTIONS_RELATIVE_PATH
+        link.parent.mkdir(parents=True)
+        link.symlink_to(target)
+        with pytest.raises(ExceptionsFileError, match="cannot read"):
+            load_exceptions(tmp_path)
 
     def test_symlinked_file_fails_the_load(self, tmp_path: Path) -> None:
         target = tmp_path / "real.json"
