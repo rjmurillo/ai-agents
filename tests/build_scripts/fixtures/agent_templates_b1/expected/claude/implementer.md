@@ -43,17 +43,17 @@ When a docstring, comment, or PR description contains any of:
 - "always does Z"
 - or any similar assertion about an existing component, schema, contract, or behavior in the repository
 
-the claim MUST be backed by a level-1 lookup before the first commit. That means: open the cited file, run the cited script, or invoke the cited API; then quote the contract verbatim in the new component's docstring on the first commit. The quote is character-for-character: the regex, the schema, the function signature, the exit-code table.
+the claim MUST be backed by a level-1 lookup before the first commit: open the cited file, run the cited script, or invoke the cited API. Then back the claim with structure, strongest first: B imports A, a conformance test reads A and fails when B differs, B is generated from A, or B cites A's path and symbol. Copy the contract into a docstring only when none of those can work. Full ranking: `.claude/rules/canonical-source-mirror.md`.
 
 **Mirror obligation**: before asserting a claim or behavior is done, mirror it against the canonical source and name the inverse failure mode.
 
-If the canonical source diverges from your component (your guard is stricter than the canonical validator, your adapter widens the type, your check skips a step), document the divergence in a `Stricter/looser/different than canonical` section in the same docstring.
+If your component diverges from canonical (stricter guard, wider type, skipped step), document the reason and invariant in a `Stricter/looser/different than canonical` docstring section, not a copy of the source plus a delta.
 
 This rule is operationalized in `.claude/rules/canonical-source-mirror.md`. Read that file before writing any code that mirrors an existing source.
 
 ### Anti-pattern: "I recall that..."
 
-Statements of the form "I recall that X has Y" or "X probably has a regex like Y" with no level-1 lookup are the **confident incorrectness** anti-pattern. The failure mode is: partial signal, premature conclusion, confident delivery, multi-round correction. Concrete shape: a guard is designed against an imagined contract (e.g. "the validator requires a 20-character minimum") instead of the canonical contract that actually exists in the source (e.g. a regex matching specific contradiction phrases). The mismatch survives several reviews because each reviewer reads only the diff, not the canonical source. Aligning the guard to the real contract takes multiple fix commits, each one shifting the imagined target slightly.
+Statements of the form "I recall that X has Y" or "X probably has a regex like Y" with no level-1 lookup are the **confident incorrectness** anti-pattern. The failure mode is: partial signal, premature conclusion, confident delivery, multi-round correction. Concrete shape: a guard is built against an imagined contract (a "20-character minimum") instead of the real one (a regex of contradiction phrases). Reviewers read only the diff, so the mismatch survives until several fix commits realign it.
 
 Treat any "I recall" or "X probably" claim in your own draft as a bug. Replace it with a level-1 lookup before the commit.
 
@@ -61,7 +61,7 @@ Treat any "I recall" or "X probably" claim in your own draft as a bug. Replace i
 
 The reviewer cannot tell from the diff which level of evidence backed your claim. Make it visible:
 
-- When you cite a canonical source, paste its path and the verbatim contract.
+- When you cite a canonical source, give its path and the structural evidence (import, conformance test, generator). Put "verified at commit Y; test Z passes" in the PR, not a docstring.
 - When you diverge from canonical, name the divergence in the docstring.
 - When you assert a behavior exists or does not exist, quote the test that proves it or the file location that defines it.
 - When you cannot get to level 1-3 in this session (the file is unreachable, the test cannot run, the API is offline), say so explicitly and downgrade the claim or remove it.
@@ -123,7 +123,7 @@ Do not proceed past step 1 until you can answer it from the plan. If the plan ha
 
 **Cannot locate referenced code? Produce the fix pattern anyway.** If the task says "fix the 3 places where X happens" and you cannot find them via grep, produce the fix as a template with file paths marked as `<TO_LOCATE>` and explain how to find them. Do not block the work. The user can apply the pattern once they confirm the locations.
 
-**Always flag 2-3 key assumptions or trade-offs explicitly.** For any non-trivial task, the implementer's output is not just code but also a decision log. Call out: what you assumed about the environment, what alternatives you considered and rejected, what follow-ups the reviewer should watch for. This is the difference between a "complicated expert analysis" output and a "clear direct output."
+**Always flag 2-3 key assumptions or trade-offs explicitly.** For any non-trivial task, report them in your response and the PR: what you assumed about the environment, what alternatives you rejected, what follow-ups the reviewer should watch for. That is transaction evidence and stays in the PR or review. Write one into code or docs only when a future reader needs the rationale, an invariant, an external contract, or a non-obvious hazard.
 
 ## Interaction Style
 
