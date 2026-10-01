@@ -9,11 +9,6 @@ tools_vscode:
 tools_copilot:
   - $toolset:executor
   - $toolset:knowledge
-metadata:
-  capability:
-    kind: specialized-implementation
-    depends-on: [artifact-neutral-code-quality]
-    status: active
 ---
 # Quality Auditor Agent
 
