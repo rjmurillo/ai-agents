@@ -99,7 +99,7 @@ def test_skill_template_owns_the_capability_and_links_the_reference() -> None:
     )
     assert "- artifact-neutral-code-quality" in text
     assert "references/executable-nl-artifacts.md" in text
-    assert "behavior-driving Markdown" in text
+    assert "assessed manually" in text
 
 
 def test_no_parallel_quality_skill_exists() -> None:
