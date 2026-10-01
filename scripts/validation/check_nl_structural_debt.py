@@ -52,7 +52,7 @@ for _path in (_SCRIPT_DIR, _SCRIPT_DIR.parents[1]):
         sys.path.insert(0, str(_path))
 
 from check_capability_graph import TreeError, survey  # noqa: E402
-from nl_cardinality import FENCE_RE, derived_count_claims, simplify  # noqa: E402
+from nl_cardinality import Fence, derived_count_claims, fence_step, simplify  # noqa: E402
 
 BASELINE_PATH = "scripts/validation/nl_structural_debt_baseline.json"
 MIN_BLOCK_LINES = 5
@@ -121,13 +121,18 @@ def _body_lines(text: str) -> list[str]:
         end = next((i for i in range(1, len(lines)) if lines[i].strip() == "---"), 0)
         lines = lines[end + 1 :]
     kept: list[str] = []
-    in_fence = False
+    fence: Fence | None = None
     for line in lines:
-        if FENCE_RE.match(line):
-            in_fence = not in_fence
+        fence, is_fence_line = fence_step(line, fence)
+        if is_fence_line:
             continue
         norm = " ".join(line.split()).lower()
-        if in_fence or len(norm) < MIN_LINE_CHARS or _RULE_RE.match(norm) or norm.startswith("#"):
+        if (
+            fence is not None
+            or len(norm) < MIN_LINE_CHARS
+            or _RULE_RE.match(norm)
+            or norm.startswith("#")
+        ):
             continue
         kept.append(norm)
     return kept
