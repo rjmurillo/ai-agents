@@ -11,6 +11,8 @@ Exit Codes:
     0 = always. The hook never emits ``decision: "block"`` and never exits 2,
         so it cannot trap a session or loop on re-entry. A nudge is a
         ``systemMessage`` advisory on stdout. Every internal error exits 0.
+        The registered command ends in ``|| true`` because python itself
+        exits 2 when the script file is missing, and exit 2 on Stop blocks.
 
 Stop payload (canonical: .claude/skills/agent-harness-reference/SKILL.md and
 the #3184 probe, quoted in issue #5820 section 3):
@@ -47,22 +49,24 @@ import stat
 import sys
 import tempfile
 import time
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import IO, Any
 
 HOOK_NAME = "reflect-trigger"
 MARKER_VERSION = 1
-SESSION_ID_PATTERN = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
+SESSION_ID_PATTERN = re.compile(r"[A-Za-z0-9._-]{1,128}")
 STATE_SUBDIR = "ai-agents-reflect-nudge"
 
 MAX_STDIN_BYTES = 1_000_000
 MAX_TRANSCRIPT_BYTES = 64 * 1024 * 1024
+MAX_LINE_CHARS = 1024 * 1024
 SCAN_BUDGET_SECONDS = 2.0
 MAX_TURN_CHARS = 1000
 MARKER_MAX_AGE_SECONDS = 30 * 24 * 3600
 MARKER_PRUNE_LIMIT = 500
+OVERLONG_LINE = "\x00"  # not valid JSON, so the caller counts it as skipped
 HUMAN_PROMPT_SOURCES = frozenset({"typed", "queued"})
 MED_THRESHOLD = 2
 
@@ -77,7 +81,7 @@ HIGH_PATTERNS = tuple(
         r"^\s*(?:ok[,.]?\s+)?try again\b",
         r"\bthat(?:'|’)?s (?:wrong|incorrect|not (?:right|correct|what i))\b",
         r"\bthat is (?:wrong|incorrect|not (?:right|correct))\b",
-        r"\bi (?:meant|said)\b",
+        r"^\s*i meant\b",
         r"\b(?:never|always) do\b",
         r"\bdon(?:'|’)?t ever\b",
         r"\bstop (?:doing|using|adding)\b",
@@ -149,8 +153,47 @@ def classify(text: str) -> tuple[bool, bool]:
     )
 
 
+def open_transcript(raw_path: str) -> IO[str] | None:
+    """Open a regular, size-capped transcript, or return None.
+
+    Opens first and checks the open descriptor, so a path swapped for a FIFO
+    between a check and the open cannot block the hook. O_NONBLOCK keeps a
+    swapped-in FIFO from blocking the open itself.
+    """
+    path = Path(raw_path).resolve()
+    flags = os.O_RDONLY | getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        fd = os.open(path, flags)
+    except OSError:
+        return None
+    info = os.fstat(fd)
+    if not stat.S_ISREG(info.st_mode) or info.st_size > MAX_TRANSCRIPT_BYTES:
+        os.close(fd)
+        return None
+    return os.fdopen(fd, "r", encoding="utf-8", errors="replace")
+
+
+def _bounded_lines(handle: IO[str]) -> Iterator[str]:
+    """Yield lines, replacing any line over MAX_LINE_CHARS with OVERLONG_LINE.
+
+    The remainder of an over-long line is consumed in bounded chunks, so one
+    huge record cannot exhaust time or memory. The caller counts the
+    placeholder as a skipped line.
+    """
+    while True:
+        chunk = handle.readline(MAX_LINE_CHARS)
+        if not chunk:
+            return
+        if chunk.endswith("\n") or len(chunk) < MAX_LINE_CHARS:
+            yield chunk
+            continue
+        while chunk and not chunk.endswith("\n"):
+            chunk = handle.readline(MAX_LINE_CHARS)
+        yield OVERLONG_LINE
+
+
 def scan_transcript(
-    path: Path,
+    handle: IO[str],
     *,
     clock: Callable[[], float] = time.monotonic,
     budget: float = SCAN_BUDGET_SECONDS,
@@ -159,12 +202,11 @@ def scan_transcript(
     deadline = clock() + budget
     counts = {"user": 0, "human": 0, "high": 0, "med": 0, "skipped": 0}
     truncated = False
-    with path.open("r", encoding="utf-8", errors="replace") as handle:
-        for line in handle:
-            if clock() > deadline:
-                truncated = True
-                break
-            _scan_line(line, counts)
+    for line in _bounded_lines(handle):
+        if clock() > deadline:
+            truncated = True
+            break
+        _scan_line(line, counts)
     return ScanResult(
         user_records=counts["user"],
         human_turns=counts["human"],
@@ -180,7 +222,7 @@ def _scan_line(line: str, counts: dict[str, int]) -> None:
         return
     try:
         record = json.loads(line)
-    except ValueError:
+    except (ValueError, RecursionError):
         counts["skipped"] += 1
         return
     if not isinstance(record, dict):
@@ -212,7 +254,9 @@ def default_state_root(env: Mapping[str, str], os_name: str = os.name) -> Path:
         base = env.get("LOCALAPPDATA")
         return Path(base) if base else Path.home() / "AppData" / "Local"
     xdg = env.get("XDG_STATE_HOME")
-    return Path(xdg) if xdg else Path.home() / ".local" / "state"
+    if xdg and Path(xdg).is_absolute():
+        return Path(xdg)
+    return Path.home() / ".local" / "state"
 
 
 def _safe_marker_dir(state_root: Path) -> Path | None:
@@ -225,9 +269,10 @@ def _safe_marker_dir(state_root: Path) -> Path | None:
         pass
     info = target.lstat()
     owned = not hasattr(os, "getuid") or info.st_uid == os.getuid()
-    if stat.S_ISLNK(info.st_mode) or not stat.S_ISDIR(info.st_mode) or not owned:
+    private = os.name == "nt" or (info.st_mode & 0o077) == 0
+    if stat.S_ISLNK(info.st_mode) or not stat.S_ISDIR(info.st_mode):
         return None
-    return target
+    return target if owned and private else None
 
 
 def read_marker(marker: Path) -> str | None:
@@ -256,7 +301,6 @@ def write_marker(directory: Path, marker: Path, result: ScanResult) -> None:
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as handle:
             json.dump(body, handle)
-        os.chmod(tmp_name, 0o600)
         os.replace(tmp_name, marker)
     except BaseException:
         Path(tmp_name).unlink(missing_ok=True)
@@ -278,8 +322,8 @@ def prune_markers(directory: Path, now: float) -> None:
 def build_message(result: ScanResult) -> str:
     """Counts and the skill name only. Never quotes transcript text."""
     return (
-        f"{HOOK_NAME}: this session has {result.high} correction and "
-        f"{result.med} praise signal(s) that reflect has not recorded. "
+        f"{HOOK_NAME}: detected {result.high} correction and "
+        f"{result.med} praise signal(s) in this session. "
         "Run the reflect skill to review and approve what to keep."
     )
 
@@ -300,16 +344,6 @@ def _fail_open(stderr: IO[str], reason: str) -> int:
     return 0
 
 
-def _transcript_file(payload: Mapping[str, Any]) -> Path | None:
-    raw = payload.get("transcript_path")
-    if not isinstance(raw, str) or not raw.strip():
-        return None
-    path = Path(raw).resolve()
-    if not path.is_file() or path.stat().st_size > MAX_TRANSCRIPT_BYTES:
-        return None
-    return path
-
-
 def run(
     stdin: IO[str],
     stdout: IO[str],
@@ -325,12 +359,14 @@ def run(
     if payload is None:
         return _fail_open(stderr, "stop payload missing or malformed")
     session_id = payload.get("session_id")
-    if not isinstance(session_id, str) or not SESSION_ID_PATTERN.match(session_id):
+    if not isinstance(session_id, str) or not SESSION_ID_PATTERN.fullmatch(session_id):
         return _fail_open(stderr, "session_id missing or invalid")
-    transcript = _transcript_file(payload)
-    if transcript is None:
+    raw_path = payload.get("transcript_path")
+    handle = open_transcript(raw_path) if isinstance(raw_path, str) and raw_path.strip() else None
+    if handle is None:
         return _fail_open(stderr, "transcript_path missing, unreadable, or too large")
-    result = scan_transcript(transcript, clock=clock)
+    with handle:
+        result = scan_transcript(handle, clock=clock)
     if not has_signal(result):
         print(status_line(result, "silent"), file=stderr)
         return 0
@@ -357,9 +393,12 @@ def _nudge_once(
         print(status_line(result, "already nudged"), file=stderr)
         return 0
     write_marker(directory, marker, result)
-    prune_markers(directory, now())
-    print(json.dumps({"systemMessage": build_message(result)}), file=stdout)
+    print(json.dumps({"systemMessage": build_message(result)}), file=stdout, flush=True)
     print(status_line(result, "nudged"), file=stderr)
+    try:
+        prune_markers(directory, now())
+    except OSError:
+        print(f"{HOOK_NAME}: marker prune failed (ignored)", file=stderr)
     return 0
 
 

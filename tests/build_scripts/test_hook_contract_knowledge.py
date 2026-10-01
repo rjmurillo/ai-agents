@@ -1,5 +1,6 @@
 """Contract tests for durable cross-harness hook knowledge."""
 
+import ast
 import json
 import re
 from pathlib import Path
@@ -399,7 +400,7 @@ def test_stop_hook_is_registered_only_as_the_local_reflect_nudge() -> None:
 
     commands = [h["command"] for entry in local_hooks["Stop"] for h in entry["hooks"]]
     assert len(commands) == 1
-    assert commands[0].endswith(".claude/hooks/Stop/invoke_reflect_nudge.py")
+    assert ".claude/hooks/Stop/invoke_reflect_nudge.py" in commands[0]
     assert "Stop" not in vendored_hooks
     assert "Stop" not in generated_hooks
     assert "agentStop" not in generated_hooks
@@ -410,11 +411,18 @@ def test_stop_hook_is_registered_only_as_the_local_reflect_nudge() -> None:
         if spec.get("event") in {"Stop", "SubagentStop", "agentStop"}
     ] == []
 
-    source = (REPO_ROOT / "templates" / "hooks" / "Stop" / "invoke_reflect_nudge.py").read_text(
-        encoding="utf-8"
+    tree = ast.parse(
+        (REPO_ROOT / "templates" / "hooks" / "Stop" / "invoke_reflect_nudge.py").read_text(
+            encoding="utf-8"
+        )
     )
-    assert '"decision"' not in source
-    assert "sys.exit(2)" not in source
+    docstring = ast.get_docstring(tree, clean=False)
+    strings = {
+        n.value
+        for n in ast.walk(tree)
+        if isinstance(n, ast.Constant) and isinstance(n.value, str) and n.value != docstring
+    }
+    assert not strings & {"decision", "block", "continue"}
 
     sidecar = _normalized_text(OFFICIAL_SOURCES)
     assert "Shared Stop producers can emit this shape on both harnesses." in sidecar
