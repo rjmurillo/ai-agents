@@ -12,6 +12,10 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 0
+    # Matches exclude-newer = "7 days" in pyproject.toml, as the uv docs advise:
+    # https://docs.astral.sh/uv/guides/integration/dependabot/
+    cooldown:
+      default-days: 7
     groups:
       uv-security:
         applies-to: security-updates

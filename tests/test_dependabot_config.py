@@ -35,9 +35,12 @@ def test_config_version_is_2(config: dict) -> None:
 
 def test_uv_entry_covers_every_uv_lock_directory(uv_entry: dict) -> None:
     lock_dirs = {
-        "/" + p.parent.relative_to(ROOT).as_posix().removeprefix(".")
-        for p in ROOT.glob("**/uv.lock")
-        if ".venv" not in p.parts and "node_modules" not in p.parts
+        "/" + rel if rel != "." else "/"
+        for rel in (
+            p.parent.relative_to(ROOT).as_posix()
+            for p in ROOT.glob("**/uv.lock")
+            if ".venv" not in p.parts and "node_modules" not in p.parts
+        )
     }
     normalized = {d.rstrip("/") or "/" for d in lock_dirs}
     configured = {d.rstrip("/") or "/" for d in uv_entry["directories"]}
@@ -53,6 +56,10 @@ def test_security_updates_are_grouped(uv_entry: dict) -> None:
     assert any(g["applies-to"] == "security-updates" for g in groups.values())
 
 
-def test_config_does_not_set_automerge(config: dict) -> None:
-    assert "automerge" not in CONFIG.read_text().lower()
-    assert all("auto-merge" not in u for u in config["updates"])
+def test_uv_entry_sets_cooldown_matching_exclude_newer(uv_entry: dict) -> None:
+    assert uv_entry["cooldown"]["default-days"] == 7
+
+
+@pytest.mark.parametrize("token", ["automerge", "auto-merge", "auto_merge"])
+def test_config_does_not_set_automerge(token: str) -> None:
+    assert token not in CONFIG.read_text().lower()
