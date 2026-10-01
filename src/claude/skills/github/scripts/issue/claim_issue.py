@@ -60,6 +60,7 @@ from github_core.output import (
 _GH_TIMEOUT_SECONDS = 30
 _BASE_CANDIDATES = ("main", "master", "develop", "trunk")
 _HEADS_PREFIX = "refs/heads/"
+_REMOTE_SLUG = re.compile(r"[:/](?P<owner>[^/:]+)/(?P<repo>[^/]+?)(?:\.git)?/?$")
 
 
 def _run(cmd: list[str]) -> subprocess.CompletedProcess[str]:
@@ -216,7 +217,28 @@ def find_in_flight_branches(
         return [], [f"remote branch probe skipped: {err}"]
 
 
+def require_origin_matches(owner: str, repo: str) -> None:
+    """Raise ``RuntimeError`` unless ``origin`` points at ``owner/repo``.
+
+    The claim targets the resolved repository, which ``--owner`` and ``--repo``
+    can set apart from the checkout. Branch heads from a different ``origin``
+    would describe unrelated work.
+    """
+
+    result = _run(["git", "config", "--get", "remote.origin.url"])
+    url = result.stdout.strip()
+    if result.returncode != 0 or not url:
+        raise RuntimeError("no origin remote to probe")
+    match = _REMOTE_SLUG.search(url)
+    if match is None:
+        raise RuntimeError(f"cannot read owner and repo from origin url {url!r}")
+    found = f"{match['owner']}/{match['repo']}"
+    if found.lower() != f"{owner}/{repo}".lower():
+        raise RuntimeError(f"origin is {found}, not the claim target {owner}/{repo}")
+
+
 def _probe_in_flight(owner: str, repo: str, issue: int) -> list[dict[str, object]]:
+    require_origin_matches(owner, repo)
     listing = _run(["git", "ls-remote", "--heads", "origin"])
     if listing.returncode != 0:
         reason = listing.stderr.strip() or f"git ls-remote exited {listing.returncode}"

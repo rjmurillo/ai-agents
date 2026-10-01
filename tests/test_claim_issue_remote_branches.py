@@ -69,6 +69,9 @@ def clone(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     _git(work, "add", "-A")
     _git(work, "commit", "-q", "-m", "init")
     _git(work, "push", "-q", "-u", "origin", "main")
+    # origin reads as the claim target; insteadOf routes git to the local bare repo.
+    _git(work, "config", f"url.{bare}.insteadOf", "https://github.com/o/r.git")
+    _git(work, "remote", "set-url", "origin", "https://github.com/o/r.git")
     monkeypatch.chdir(work)
     return work
 
@@ -78,6 +81,14 @@ def _no_merged_prs():
     """Default: gh finds no merged PR. Tests that need one patch it themselves."""
     with patch.object(claim, "merged_through_pr", return_value=False):
         yield
+
+
+def _break_origin(work: Path) -> None:
+    """Point origin's transport at a missing path, keeping its github-style name."""
+    names = _git(work, "config", "--local", "--name-only", "--get-regexp", r"^url\..*\.insteadof$")
+    for name in names.splitlines():
+        _git(work, "config", "--remove-section", name.rsplit(".", 1)[0])
+    _git(work, "config", "url.file:///no/such/repo.insteadOf", "https://github.com/o/r.git")
 
 
 class TestMatchingRemoteHeads:
@@ -156,7 +167,7 @@ class TestFindInFlightBranches:
         assert warnings == ["remote branch probe skipped: git timed out"]
 
     def test_ls_remote_failure_degrades_to_named_warning(self, clone):
-        _git(clone, "remote", "set-url", "origin", str(clone / "does-not-exist"))
+        _break_origin(clone)
         in_flight, warnings = claim.find_in_flight_branches("o", "r", 5420)
         assert in_flight == []
         assert len(warnings) == 1
@@ -185,6 +196,41 @@ class TestCommitsAhead:
         done = subprocess.CompletedProcess(["git"], 0, stdout="abc\n", stderr="")
         with patch.object(claim, "_run", return_value=done):
             assert claim.commits_ahead("x", "origin/main") is None
+
+
+class TestRequireOriginMatches:
+    def test_matching_https_origin_passes(self, clone):
+        claim.require_origin_matches("o", "r")
+
+    def test_match_ignores_case(self, clone):
+        claim.require_origin_matches("O", "R")
+
+    @pytest.mark.parametrize(
+        "url",
+        ["git@github.com:o/r.git", "ssh://git@github.com/o/r", "https://github.com/o/r/"],
+    )
+    def test_other_url_shapes_pass(self, clone, url):
+        _git(clone, "config", "remote.origin.url", url)
+        claim.require_origin_matches("o", "r")
+
+    def test_different_repository_raises(self, clone):
+        with pytest.raises(RuntimeError, match="origin is o/r, not the claim target x/y"):
+            claim.require_origin_matches("x", "y")
+
+    def test_unparseable_url_raises(self, clone):
+        _git(clone, "config", "remote.origin.url", "just-a-name")
+        with pytest.raises(RuntimeError, match="cannot read owner and repo"):
+            claim.require_origin_matches("o", "r")
+
+    def test_missing_origin_raises(self, clone):
+        _git(clone, "remote", "remove", "origin")
+        with pytest.raises(RuntimeError, match="no origin remote"):
+            claim.require_origin_matches("o", "r")
+
+    def test_mismatch_degrades_the_probe_to_a_named_warning(self, clone):
+        in_flight, warnings = claim.find_in_flight_branches("x", "y", 5420)
+        assert in_flight == []
+        assert warnings == ["remote branch probe skipped: origin is o/r, not the claim target x/y"]
 
 
 class TestOriginBaseRef:
@@ -280,6 +326,6 @@ class TestMainReportsInFlight:
         assert "b (unverified)" in text
 
     def test_probe_warning_is_printed(self, clone, capsys):
-        _git(clone, "remote", "set-url", "origin", str(clone / "missing"))
+        _break_origin(clone)
         assert self._run_main("human") == 0
         assert "WARNING: remote branch probe skipped" in capsys.readouterr().out
