@@ -40,6 +40,14 @@ class TestReadPayload:
     def test_returns_none_for_bad_input(self, raw: str) -> None:
         assert nudge.read_payload(io.StringIO(raw)) is None
 
+    def test_input_over_the_cap_is_rejected_not_truncated(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(nudge, "MAX_STDIN_BYTES", 40)
+        padded = '{"session_id": "a"}' + " " * 30
+        assert nudge.read_payload(io.StringIO(padded)) is None
+        assert nudge.read_payload(io.StringIO('{"session_id": "a"}')) is not None
+
     def test_returns_none_on_read_error(self) -> None:
         class Broken(io.StringIO):
             def read(self, size: int | None = -1) -> str:

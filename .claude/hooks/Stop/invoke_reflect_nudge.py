@@ -14,8 +14,10 @@ Exit Codes:
         The registered command ends in ``|| true`` because python itself
         exits 2 when the script file is missing, and exit 2 on Stop blocks.
 
-Stop payload (canonical: .claude/skills/agent-harness-reference/SKILL.md and
-the #3184 probe, quoted in issue #5820 section 3):
+Stop payload (source: issue #3184, which probed the real event; the
+agent-harness-reference skill does not define these fields): "the Claude Code
+Stop payload carries `session_id`, `transcript_path`, and `cwd`, not
+`messages`."
     {"session_id": "...", "transcript_path": "...", "cwd": "..."}
 The deleted invoke_skill_learning.py read ``hook_input["messages"]``, a field
 the event never sent, and early-returned on every Stop. This hook reads
@@ -27,13 +29,17 @@ JSON. ``type == "user"`` also covers tool results, which carry
 "human"`` (or, on records with no ``origin``, ``promptSource`` of ``typed`` or
 ``queued``), no ``toolUseResult``, not ``isMeta``, not ``isSidechain``.
 
-Dedupe marker: one JSON file per session under per-user state outside any
-repository, mode 0o600 in a 0o700 directory, written atomically. It holds a
-version, counts, and a hash. It never holds transcript text.
+Dedupe marker: one file per (session, signal set) under per-user state
+outside any repository, mode 0o600 in an owner-only 0o700 directory. It is
+claimed with an exclusive create (O_CREAT | O_EXCL), so overlapping Stop
+events cannot both nudge: the loser sees the file exists and stays silent.
+The name carries a hash of the counts. The body holds counts, never
+transcript text.
 
-Calibration status (AC-9 of issue #5820): signal patterns are anchored at
-the start of a turn or are fixed phrases. Precision and recall are reported
-in the pull request that introduced this hook, with the examined counts.
+Calibration status (issue #5820, AC-9): the patterns are anchored at the
+start of a turn or are fixed phrases, and were tuned on one operator's
+191 human turns. Recall was not measured. See the pull request that
+introduced this hook for the examined counts and the limits.
 
 References:
     - Issue #5817 (this hook), #5820 (PRD), #3184 (the no-op it replaces)
@@ -47,7 +53,6 @@ import os
 import re
 import stat
 import sys
-import tempfile
 import time
 from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass
@@ -112,7 +117,9 @@ class ScanResult:
 def read_payload(stream: IO[str]) -> dict[str, Any] | None:
     """Return the Stop payload object, or None when absent or malformed."""
     try:
-        raw = stream.read(MAX_STDIN_BYTES)
+        raw = stream.read(MAX_STDIN_BYTES + 1)
+        if len(raw) > MAX_STDIN_BYTES:
+            return None
         payload = json.loads(raw)
     except (OSError, ValueError):
         return None
@@ -260,51 +267,55 @@ def default_state_root(env: Mapping[str, str], os_name: str = os.name) -> Path:
 
 
 def _safe_marker_dir(state_root: Path) -> Path | None:
-    """Create or validate the 0o700 marker directory, refusing symlinks."""
-    target = state_root / STATE_SUBDIR
+    """Create or validate the 0o700 marker directory, refusing symlinks.
+
+    The state root is resolved first, so a symlinked state root (a dotfile
+    manager, for example) works and every later check runs on the real path.
+    The root is not mode-checked: a 0o002 umask makes group-writable roots
+    normal. A directory another user pre-creates under it fails the owner and
+    0o700 checks below, which is what protects the marker.
+    """
     state_root.mkdir(parents=True, exist_ok=True)
+    root = state_root.resolve()
+    if not _owned_by_current_user(root.lstat()):
+        return None
+    target = root / STATE_SUBDIR
     try:
         target.mkdir(mode=0o700)
     except FileExistsError:
         pass
     info = target.lstat()
-    owned = not hasattr(os, "getuid") or info.st_uid == os.getuid()
-    private = os.name == "nt" or (info.st_mode & 0o077) == 0
     if stat.S_ISLNK(info.st_mode) or not stat.S_ISDIR(info.st_mode):
         return None
-    return target if owned and private else None
+    return target if _owned_by_current_user(info) and _is_private(info) else None
 
 
-def read_marker(marker: Path) -> str | None:
-    """Return the recorded signal hash, "" when absent, None when torn."""
+def _owned_by_current_user(info: os.stat_result) -> bool:
+    return not hasattr(os, "getuid") or info.st_uid == os.getuid()
+
+
+def _is_private(info: os.stat_result) -> bool:
+    """True when group and other have no access (the 0o700 rule)."""
+    return os.name == "nt" or (info.st_mode & 0o077) == 0
+
+
+def claim_marker(directory: Path, session_id: str, result: ScanResult) -> bool:
+    """Atomically claim the (session, signal set) marker.
+
+    Returns True for the one caller that created it and False when it already
+    exists. O_EXCL makes the create atomic across overlapping Stop events and
+    refuses to follow a symlink planted at the leaf.
+    """
+    marker = directory / f"{session_id}.{signal_hash(result)}.json"
+    flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY | getattr(os, "O_NOFOLLOW", 0)
     try:
-        data = json.loads(marker.read_text(encoding="utf-8"))
-    except FileNotFoundError:
-        return ""
-    except (OSError, ValueError):
-        return None
-    if not isinstance(data, dict) or data.get("v") != MARKER_VERSION:
-        return None
-    value = data.get("signal_hash")
-    return value if isinstance(value, str) else None
-
-
-def write_marker(directory: Path, marker: Path, result: ScanResult) -> None:
-    """Write the marker atomically with owner-only permissions."""
-    body = {
-        "v": MARKER_VERSION,
-        "signal_hash": signal_hash(result),
-        "high": result.high,
-        "med": result.med,
-    }
-    fd, tmp_name = tempfile.mkstemp(dir=directory, prefix=".tmp-", suffix=".json")
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as handle:
-            json.dump(body, handle)
-        os.replace(tmp_name, marker)
-    except BaseException:
-        Path(tmp_name).unlink(missing_ok=True)
-        raise
+        fd = os.open(marker, flags, 0o600)
+    except FileExistsError:
+        return False
+    body = {"v": MARKER_VERSION, "high": result.high, "med": result.med}
+    with os.fdopen(fd, "w", encoding="utf-8") as handle:
+        json.dump(body, handle)
+    return True
 
 
 def prune_markers(directory: Path, now: float) -> None:
@@ -385,14 +396,9 @@ def _nudge_once(
     directory = _safe_marker_dir(state_root)
     if directory is None:
         return _fail_open(stderr, "marker directory unsafe")
-    marker = directory / f"{session_id}.json"
-    recorded = read_marker(marker)
-    if recorded is None:
-        return _fail_open(stderr, "marker unreadable or torn")
-    if recorded == signal_hash(result):
+    if not claim_marker(directory, session_id, result):
         print(status_line(result, "already nudged"), file=stderr)
         return 0
-    write_marker(directory, marker, result)
     print(json.dumps({"systemMessage": build_message(result)}), file=stdout, flush=True)
     print(status_line(result, "nudged"), file=stderr)
     try:

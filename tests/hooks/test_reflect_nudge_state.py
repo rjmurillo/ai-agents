@@ -11,6 +11,7 @@ import ast
 import json
 import os
 import subprocess
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
@@ -58,37 +59,93 @@ class TestDedupe:
         _, out, _ = run_hook(payload(corrected, "b"), state)
         assert "systemMessage" in out
 
-    def test_marker_has_counts_and_hash_only_with_owner_permissions(
+    def test_marker_holds_counts_only_with_owner_permissions(
         self, corrected: Path, tmp_path: Path
     ) -> None:
         state = tmp_path / "state"
         run_hook(payload(corrected), state)
         directory = state / nudge.STATE_SUBDIR
-        marker = directory / "sess-1.json"
-        data = json.loads(marker.read_text(encoding="utf-8"))
-        assert set(data) == {"v", "signal_hash", "high", "med"}
-        assert "skill script" not in marker.read_text(encoding="utf-8")
-        assert sorted(p.name for p in directory.iterdir()) == ["sess-1.json"]
+        (marker,) = list(directory.iterdir())
+        text = marker.read_text(encoding="utf-8")
+        assert set(json.loads(text)) == {"v", "high", "med"}
+        assert "skill script" not in text
+        assert marker.name.startswith("sess-1.") and marker.suffix == ".json"
         if os.name == "posix":
             assert (directory.stat().st_mode & 0o777) == 0o700
             assert (marker.stat().st_mode & 0o777) == 0o600
 
-    @pytest.mark.parametrize("content", ["{torn", "[]", '{"v": 9, "signal_hash": "x"}', '{"v": 1}'])
-    def test_torn_marker_fails_open_to_no_nudge(
+    @pytest.mark.parametrize("content", ["", "{torn", "[]", "garbage"])
+    def test_marker_content_is_irrelevant_only_existence_counts(
         self, content: str, corrected: Path, tmp_path: Path
     ) -> None:
-        directory = tmp_path / "state" / nudge.STATE_SUBDIR
-        directory.mkdir(parents=True, mode=0o700)
-        (directory / "sess-1.json").write_text(content, encoding="utf-8")
-        code, out, err = run_hook(payload(corrected), tmp_path / "state")
+        """A torn or empty marker for this signal set still means already nudged."""
+        state = tmp_path / "state"
+        run_hook(payload(corrected), state)
+        (marker,) = list((state / nudge.STATE_SUBDIR).iterdir())
+        marker.write_text(content, encoding="utf-8")
+        code, out, err = run_hook(payload(corrected), state)
         assert (code, out) == (0, "")
-        assert "marker unreadable or torn" in err
+        assert "already nudged" in err
 
-    def test_marker_path_that_is_a_directory_fails_open(
+    def test_overlapping_stops_produce_exactly_one_nudge(
         self, corrected: Path, tmp_path: Path
     ) -> None:
-        (tmp_path / "state" / nudge.STATE_SUBDIR / "sess-1.json").mkdir(parents=True)
-        code, out, _ = run_hook(payload(corrected), tmp_path / "state")
+        state = tmp_path / "state"
+        stdin = payload(corrected)
+        with ThreadPoolExecutor(max_workers=16) as pool:
+            runs = list(pool.map(lambda _: run_hook(stdin, state), range(32)))
+        nudges = [out for _, out, _ in runs if "systemMessage" in out]
+        assert len(nudges) == 1
+        assert all(code == 0 for code, _, _ in runs)
+
+    @pytest.mark.skipif(os.name != "posix", reason="symlink semantics")
+    def test_symlink_planted_at_the_marker_leaf_is_not_followed(
+        self, corrected: Path, tmp_path: Path
+    ) -> None:
+        state = tmp_path / "state"
+        run_hook(payload(corrected), state)
+        directory = state / nudge.STATE_SUBDIR
+        (marker,) = list(directory.iterdir())
+        victim = tmp_path / "victim"
+        victim.write_text("keep", encoding="utf-8")
+        marker.unlink()
+        marker.symlink_to(victim)
+        code, out, _ = run_hook(payload(corrected), state)
+        assert (code, out) == (0, "")
+        assert victim.read_text(encoding="utf-8") == "keep"
+
+    @pytest.mark.skipif(os.name != "posix", reason="symlink semantics")
+    def test_symlinked_state_root_is_resolved_and_used(
+        self, corrected: Path, tmp_path: Path
+    ) -> None:
+        real = tmp_path / "real"
+        real.mkdir()
+        link = tmp_path / "link"
+        link.symlink_to(real)
+        _, out, _ = run_hook(payload(corrected), link)
+        assert "systemMessage" in out
+        assert (real / nudge.STATE_SUBDIR).is_dir()
+
+    @pytest.mark.skipif(os.name != "posix", reason="mode bits")
+    def test_group_writable_state_root_is_accepted(
+        self, corrected: Path, tmp_path: Path
+    ) -> None:
+        """A 0o002 umask makes this normal; the 0o700 child carries the safety."""
+        state = tmp_path / "state"
+        state.mkdir()
+        state.chmod(0o775)
+        _, out, _ = run_hook(payload(corrected), state)
+        assert "systemMessage" in out
+
+    def test_marker_path_that_is_a_directory_means_already_nudged(
+        self, corrected: Path, tmp_path: Path
+    ) -> None:
+        state = tmp_path / "state"
+        run_hook(payload(corrected), state)
+        (marker,) = list((state / nudge.STATE_SUBDIR).iterdir())
+        marker.unlink()
+        marker.mkdir()
+        code, out, _ = run_hook(payload(corrected), state)
         assert (code, out) == (0, "")
 
     @pytest.mark.skipif(os.name != "posix", reason="symlink semantics")
@@ -113,16 +170,23 @@ class TestDedupe:
         assert (code, out) == (0, "")
         assert "unsafe" in err
 
-    def test_failed_replace_leaves_no_temp_file(
-        self, corrected: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    @pytest.mark.skipif(
+        os.name != "posix" or os.geteuid() == 0, reason="needs a non-root POSIX user"
+    )
+    def test_unwritable_marker_directory_propagates_for_main_to_fail_open(
+        self, tmp_path: Path
     ) -> None:
-        def boom(*_a: Any, **_k: Any) -> None:
-            raise OSError("disk full")
-
-        monkeypatch.setattr(nudge.os, "replace", boom)
-        with pytest.raises(OSError):
-            run_hook(payload(corrected), tmp_path / "state")
-        assert list((tmp_path / "state" / nudge.STATE_SUBDIR).iterdir()) == []
+        state = tmp_path / "state"
+        path = write_transcript(tmp_path / "t.jsonl", [human("no, x")])
+        run_hook(payload(path), state)
+        directory = state / nudge.STATE_SUBDIR
+        write_transcript(path, [human("no, x"), human("wrong again")])
+        directory.chmod(0o500)
+        try:
+            with pytest.raises(PermissionError):
+                run_hook(payload(path), state)
+        finally:
+            directory.chmod(0o700)
 
     def test_old_markers_are_pruned_and_fresh_ones_kept(self, tmp_path: Path) -> None:
         old, fresh = tmp_path / "old.json", tmp_path / "fresh.json"
