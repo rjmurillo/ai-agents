@@ -12,7 +12,9 @@ MARKER CONTRACT (the single source of truth for both the writer and this reader)
 
 - ``/review@`` is a literal prefix.
 - ``<axis-list>`` is one or more comma-separated axis stems (``analyst``,
-  ``security``, ...). It MUST be non-empty.
+  ``security``, ...). It MUST be non-empty, name only discovered axes
+  (``references/*.md`` stems, the local skill axes, ``correctness``), and name
+  each axis once.
 - `` on `` (space-on-space) separates the axis list from the reviewed SHA.
 - ``<sha>`` is the git object name of the commit whose review state the marker
   asserts: the reviewed tip.
@@ -33,8 +35,10 @@ code state)?
 
 EXIT CODES (``AGENTS.md``, ADR-035):
     0 - A valid marker binds to the expected SHA.
-    1 - No marker, malformed marker, or marker binds to a different SHA.
-    2 - Configuration error (git unavailable, bad repo root, bad args).
+    1 - No marker, malformed marker, marker binds to a different SHA, or the
+        marker names an axis outside the discovered set (or names one twice).
+    2 - Configuration error (git unavailable, bad repo root, bad args, or no
+        review axis directory to validate axis names against).
 """
 
 from __future__ import annotations
@@ -60,6 +64,14 @@ _MARKER_VALUE_RE = re.compile(
     r"^/review@(?P<axes>[A-Za-z0-9_-]+(?:,[A-Za-z0-9_-]+)*) on "
     r"(?P<sha>[0-9A-Fa-f]{40}|[0-9A-Fa-f]{64})$"
 )
+
+
+# Axes that have no ``references/{stem}.md`` prompt but still appear in a marker.
+# LOCAL_AXES mirrors ``select_axes.LOCAL_AXES`` (sibling skills run with
+# ``Skill(skill=...)``); a test locks the two together. ``correctness`` is the
+# always-on step 4c pass that /review reports on every run.
+LOCAL_AXES = ("code-qualities-assessment", "doc-accuracy", "golden-principles", "taste-lints")
+ALWAYS_ON_AXES = ("correctness",)
 
 
 @dataclass(frozen=True, slots=True)
@@ -97,6 +109,54 @@ def select_marker_for_sha(values: list[str], expected_sha: str) -> ReviewMarker 
         marker = parse_marker(value)
         if marker is not None and marker.sha == expected_sha:
             return marker
+    return None
+
+
+def find_references_dir() -> Path | None:
+    """Locate the review skill's ``references/`` directory, or ``None``.
+
+    The marker names axes of the skill that wrote it, so the axis set comes from
+    this script's own install, never from the repository being shipped. A mirror
+    sits at ``<skill>/scripts/`` beside ``<skill>/references/``; the canonical
+    copy under ``scripts/validation/`` falls back to the source-repo skill path.
+    """
+    here = Path(__file__).resolve()
+    candidates = (
+        here.parent.parent / "references",
+        here.parents[2] / ".claude" / "skills" / "review" / "references",
+    )
+    return next((path for path in candidates if path.is_dir()), None)
+
+
+def discover_known_axes(references_dir: Path) -> frozenset[str]:
+    """Return every axis name a marker may carry.
+
+    That is each ``references/*.md`` stem, the local skill axes, and the
+    always-on ``correctness`` pass.
+    """
+    stems = {path.stem for path in references_dir.glob("*.md")}
+    return frozenset(stems | set(LOCAL_AXES) | set(ALWAYS_ON_AXES))
+
+
+def default_known_axes() -> frozenset[str] | None:
+    """Return the axis set discovered beside this script, or ``None`` if absent."""
+    references_dir = find_references_dir()
+    return None if references_dir is None else discover_known_axes(references_dir)
+
+
+def check_axes(axes: tuple[str, ...], known_axes: frozenset[str]) -> str | None:
+    """Return why ``axes`` is not a valid axis list, or ``None`` when it is.
+
+    A duplicate name is rejected by length, because set equality alone cannot
+    tell ``analyst,analyst,qa`` from ``analyst,qa``. A subset is allowed:
+    /review selects axes by change risk, so a marker lists the axes that ran.
+    """
+    unknown = sorted(set(axes) - known_axes)
+    if unknown:
+        return f"unknown axis name(s): {', '.join(unknown)}"
+    if len(set(axes)) != len(axes):
+        duplicated = sorted({axis for axis in axes if axes.count(axis) > 1})
+        return f"axis named more than once: {', '.join(duplicated)}"
     return None
 
 
@@ -317,7 +377,33 @@ def validate_marker_commit_shape(
     return None
 
 
-def validate_ref(ref: str, repo_root: Path) -> ValidationOutcome:
+def select_valid_marker(
+    values: list[str],
+    parent_sha: str,
+    known_axes: frozenset[str],
+) -> tuple[ReviewMarker | None, str | None]:
+    """Return the first marker that binds ``parent_sha`` with valid axes.
+
+    When a marker binds the SHA but every one fails the axis check, the second
+    value is the first marker's axis failure so the caller can report it.
+    """
+    axis_failure: str | None = None
+    for value in values:
+        marker = parse_marker(value)
+        if marker is None or marker.sha != parent_sha:
+            continue
+        failure = check_axes(marker.axes, known_axes)
+        if failure is None:
+            return marker, None
+        axis_failure = axis_failure or failure
+    return None, axis_failure
+
+
+def validate_ref(
+    ref: str,
+    repo_root: Path,
+    known_axes: frozenset[str] | None = None,
+) -> ValidationOutcome:
     """Check that ``ref`` is a marker commit binding its parent (the reviewed code).
 
     Resolves ``ref`` and its parent (``<ref>^``), reads the ``Reviewed-By``
@@ -325,10 +411,23 @@ def validate_ref(ref: str, repo_root: Path) -> ValidationOutcome:
     equals the parent SHA. The marker is an empty commit naming the reviewed
     tip, so binding to the parent is the SHA-binding check at the heart of the
     ship gate (a commit cannot name its own SHA; see module docstring).
+
+    The axis list must also name only discovered axes, each once. ``known_axes``
+    defaults to the set discovered beside this script; no axis directory is a
+    configuration error (exit 2), not a pass.
     """
     ref_error = validate_ref_argument(ref)
     if ref_error is not None:
         return ref_error
+
+    if known_axes is None:
+        known_axes = default_known_axes()
+        if known_axes is None:
+            return ValidationOutcome(
+                ok=False,
+                exit_code=2,
+                message="review skill references/ directory not found; cannot check axis names",
+            )
 
     head_sha, resolve_error = resolve_sha_with_error(ref, repo_root)
     if head_sha is None:
@@ -357,6 +456,17 @@ def validate_ref(ref: str, repo_root: Path) -> ValidationOutcome:
             message=_with_reason(f"git could not read commit '{ref}'", marker_read_error),
         )
 
+    return evaluate_marker_values(ref, head_sha, parent_sha, values, known_axes)
+
+
+def evaluate_marker_values(
+    ref: str,
+    head_sha: str,
+    parent_sha: str,
+    values: list[str],
+    known_axes: frozenset[str],
+) -> ValidationOutcome:
+    """Decide the outcome from the raw ``Reviewed-By`` values on a marker commit."""
     if not values:
         return ValidationOutcome(
             ok=False,
@@ -367,7 +477,16 @@ def validate_ref(ref: str, repo_root: Path) -> ValidationOutcome:
             ),
         )
 
-    marker = select_marker_for_sha(values, parent_sha)
+    marker, axis_failure = select_valid_marker(values, parent_sha, known_axes)
+    if marker is None and axis_failure is not None:
+        return ValidationOutcome(
+            ok=False,
+            exit_code=1,
+            message=(
+                f"'{MARKER_TRAILER_KEY}' marker on {ref} ({head_sha[:12]}) has an invalid "
+                f"axis list: {axis_failure}. Re-run /review and list only the axes that ran."
+            ),
+        )
     if marker is None:
         return ValidationOutcome(
             ok=False,
