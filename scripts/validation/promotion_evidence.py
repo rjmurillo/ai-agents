@@ -289,6 +289,9 @@ def load_evidence_dir(
 ) -> tuple[tuple[EvidenceRecord, ...], tuple[RejectedEvidence, ...]]:
     """Load every ``*.json`` file in ``directory``, keeping what fails to load.
 
+    The extension match is case-sensitive on every platform, so a directory
+    holding ``x.JSON`` loads the same on Windows and Linux (it loads neither).
+
     A file that cannot be read or parsed becomes a rejection, never a skip: a
     dropped file is a validator that silently did not report. A directory that
     cannot be listed raises ``OSError`` for the caller to turn into a block.
@@ -297,7 +300,9 @@ def load_evidence_dir(
         raise NotADirectoryError(f"evidence directory {directory.name!r} is not a directory")
     records: list[EvidenceRecord] = []
     rejected: list[RejectedEvidence] = []
-    for path in sorted(directory.glob("*.json")):
+    for path in sorted(directory.iterdir()):
+        if not path.name.endswith(".json"):
+            continue
         loaded = _load_one(path)
         if isinstance(loaded, EvidenceRecord):
             records.append(loaded)

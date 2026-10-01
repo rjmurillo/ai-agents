@@ -274,15 +274,25 @@ class TestPreviousManifest:
         with pytest.raises(ManifestError, match="list"):
             parse_previous_manifest(_manifest(findings={}))
 
-    @pytest.mark.parametrize("raw", ["x", {"fingerprint": "f"}, {"fingerprint": 1}])
-    def test_a_malformed_open_finding_is_refused(self, raw: Any) -> None:
-        document = _manifest(findings=[raw])
-        # a non-dict entry is skipped as not an open finding; a partial dict is refused
-        if isinstance(raw, dict):
-            with pytest.raises(ManifestError, match="string"):
-                parse_previous_manifest(document)
-        else:
-            assert parse_previous_manifest(document).findings == ()
+    @pytest.mark.parametrize(
+        "raw",
+        [{"class": "unresolved", "fingerprint": "f"}, {"class": "unresolved", "fingerprint": 1}],
+    )
+    def test_a_partial_open_finding_is_refused(self, raw: Any) -> None:
+        with pytest.raises(ManifestError, match="string"):
+            parse_previous_manifest(_manifest(findings=[raw]))
+
+    @pytest.mark.parametrize("raw", ["x", 5, None, ["a"]])
+    def test_a_non_object_entry_is_refused_not_skipped(self, raw: Any) -> None:
+        with pytest.raises(ManifestError, match="JSON object"):
+            parse_previous_manifest(_manifest(findings=[raw]))
+
+    @pytest.mark.parametrize("klass", [None, "", "open", 5])
+    def test_an_entry_without_a_known_class_is_refused(self, klass: Any) -> None:
+        raw = {"fingerprint": "f", "validator": "v", "reason": "r.x", "scope": "s", "item": ""}
+        raw["class"] = klass
+        with pytest.raises(ManifestError, match="class"):
+            parse_previous_manifest(_manifest(findings=[raw]))
 
     def test_load_reads_a_file(self, tmp_path: Path) -> None:
         path = tmp_path / "m.json"
@@ -337,8 +347,15 @@ class TestRemediated:
         other = frozenset({("v", "elsewhere")})
         assert remediated_findings([self._prev("old")], [], other) == ()
 
+    @pytest.mark.parametrize("examined", [0, None])
+    def test_a_pass_that_examined_nothing_does_not_prove_remediation(
+        self, examined: int | None
+    ) -> None:
+        empty = EvidenceRecord(CheckOutcome.passed("v", revision=SHA, scope="s", examined=examined))
+        assert passed_scopes([empty]) == frozenset()
+
     def test_passed_scopes_lists_only_pass_records(self) -> None:
-        ok = EvidenceRecord(CheckOutcome.passed("a", revision=SHA, scope="x"))
+        ok = EvidenceRecord(CheckOutcome.passed("a", revision=SHA, scope="x", examined=2))
         bad = EvidenceRecord(_fail("b", "y"))
         assert passed_scopes([ok, bad]) == frozenset({("a", "x")})
 

@@ -32,6 +32,10 @@ class CandidateCheckError(Exception):
     """Git could not answer the question, so the check proves nothing."""
 
 
+class InvalidCandidateNameError(ValueError):
+    """A ref or tag name is not a plain name. That is bad input, not a git failure."""
+
+
 def _git(repo_root: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
     try:
         return subprocess.run(  # subprocess-encoding: strict-ok
@@ -49,7 +53,7 @@ def _git(repo_root: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
 
 def _valid_name(value: str, pattern: re.Pattern[str], label: str) -> None:
     if not pattern.fullmatch(value) or ".." in value:
-        raise CandidateCheckError(f"{label} {value!r} is not a plain ref name")
+        raise InvalidCandidateNameError(f"{label} {value!r} is not a plain ref name")
 
 
 def candidate_on_branch(repo_root: Path, sha: str, ref: str) -> tuple[bool, str]:

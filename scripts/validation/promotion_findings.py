@@ -270,11 +270,15 @@ def classify_findings(
 
 
 def passed_scopes(bound: Iterable[EvidenceRecord]) -> frozenset[tuple[str, str]]:
-    """Return the ``(validator, scope)`` pairs that have a bound ``PASS`` record."""
+    """Return the ``(validator, scope)`` pairs with a bound ``PASS`` that examined something.
+
+    The same rule as ``missing_outcomes``: a PASS that examined nothing proves
+    nothing, so it cannot prove an old finding fixed either.
+    """
     return frozenset(
         (record.outcome.validator, record.outcome.scope)
         for record in bound
-        if record.outcome.state is EvidenceState.PASS
+        if record.outcome.state is EvidenceState.PASS and record.outcome.examined
     )
 
 
@@ -307,6 +311,18 @@ def _previous_finding(raw: dict[str, object]) -> PreviousFinding:
     return PreviousFinding(fingerprint, validator, reason, scope, item)
 
 
+_CLASS_VALUES = frozenset(item.value for item in FindingClass)
+
+
+def _checked_entry(entry: object) -> dict[str, object]:
+    """Return a finding entry, or raise: a skipped entry would lose an open finding."""
+    if not isinstance(entry, dict):
+        raise ManifestError("every previous finding must be a JSON object")
+    if entry.get("class") not in _CLASS_VALUES:
+        raise ManifestError("every previous finding needs a class of the four finding classes")
+    return entry
+
+
 def parse_previous_manifest(document: object) -> PreviousManifest:
     """Return the still-open findings a previous manifest recorded.
 
@@ -325,8 +341,8 @@ def parse_previous_manifest(document: object) -> PreviousManifest:
         raise ManifestError("previous manifest 'findings' must be a list")
     still_open = tuple(
         _previous_finding(raw)
-        for raw in findings
-        if isinstance(raw, dict) and raw.get("class") != FindingClass.REMEDIATED.value
+        for raw in (_checked_entry(entry) for entry in findings)
+        if raw["class"] != FindingClass.REMEDIATED.value
     )
     return PreviousManifest(candidate_sha=sha, findings=still_open)
 
