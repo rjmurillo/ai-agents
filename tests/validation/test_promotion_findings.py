@@ -230,6 +230,8 @@ class TestCountsAndVerdict:
 def _manifest(**overrides: Any) -> dict[str, Any]:
     doc: dict[str, Any] = {
         "schema_version": "1",
+        "verdict": "promote",
+        "enforced": True,
         "candidate": {"sha": PREV_SHA, "digest": ""},
         "findings": [
             {
@@ -269,6 +271,15 @@ class TestPreviousManifest:
     def test_candidate_sha_is_required(self, candidate: Any) -> None:
         with pytest.raises(ManifestError, match="candidate.sha"):
             parse_previous_manifest(_manifest(candidate=candidate))
+
+    @pytest.mark.parametrize(
+        ("verdict", "enforced"),
+        [("block", True), ("promote", False), ("block", False), (None, True), ("promote", None),
+         ("promote", "true")],
+    )  # fmt: skip
+    def test_only_an_enforced_promote_is_a_baseline(self, verdict: Any, enforced: Any) -> None:
+        with pytest.raises(ManifestError, match="enforced promote"):
+            parse_previous_manifest(_manifest(verdict=verdict, enforced=enforced))
 
     def test_findings_must_be_a_list(self) -> None:
         with pytest.raises(ManifestError, match="list"):

@@ -94,6 +94,21 @@ class TestCandidatePlacement:
         repo, first, _ = clone
         assert main(self._args(repo, first, "--expect-tag=-v1")) == EXIT_CONFIG
 
+    @pytest.mark.parametrize(
+        "name", ["foo/", "foo//bar", "foo.lock", "foo/.hidden", "foo.", "a/b.lock/c", "a@{b"]
+    )
+    def test_names_git_would_refuse_are_bad_input_and_exit_two(
+        self, clone: tuple[Path, str, str], name: str
+    ) -> None:
+        repo, first, _ = clone
+        assert main(self._args(repo, first, f"--ancestor-of={name}")) == EXIT_CONFIG
+        assert main(self._args(repo, first, f"--expect-tag={name}")) == EXIT_CONFIG
+
+    def test_a_namespaced_ref_is_accepted_as_a_name(self, clone: tuple[Path, str, str]) -> None:
+        repo, first, _ = clone
+        _git(repo, "branch", "release/2026.10", first)
+        assert main(self._args(repo, first, "--ancestor-of=release/2026.10")) == EXIT_OK
+
     def test_an_unknown_ref_exits_three(self, clone: tuple[Path, str, str]) -> None:
         repo, first, _ = clone
         assert main(self._args(repo, first, "--ancestor-of", "nope")) == EXIT_EXTERNAL
