@@ -32,7 +32,12 @@ def _zip(name: str, text: str) -> bytes:
 
 
 def _evidence(validator: str = "run_python_tests", state: str = "PASS", revision: str = SHA) -> str:
-    document = {"validator": validator, "state": state, "revision": revision, "scope": "job x"}
+    document: dict[str, Any] = {
+        "validator": validator,
+        "state": state,
+        "revision": revision,
+        "scope": "job x",
+    }
     if state == "PASS":
         document["findings"] = 0
     else:
@@ -68,7 +73,8 @@ class FakeReader:
         listed = []
         for item in self.artifacts.get(name, []):
             if isinstance(item, dict) and item.get("size_in_bytes") == "auto":
-                item = {**item, "size_in_bytes": len(self.archives.get(item.get("id"), b""))}
+                archive = self.archives.get(item.get("id"), b"")  # type: ignore[arg-type]
+                item = {**item, "size_in_bytes": len(archive)}
             listed.append(item)
         return listed
 
