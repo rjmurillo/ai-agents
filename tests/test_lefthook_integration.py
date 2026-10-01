@@ -1702,6 +1702,12 @@ def test_native_dispatch_forwards_argument_stdin_and_failures(tmp_path: Path) ->
     _init_repo(repo)
     _copy_runtime_config(repo)
     base_sha = _commit_file(repo, "tracked.txt", "base\n")
+    # A reachable origin whose main is base_sha: push-ref-policy refreshes
+    # origin/main and fails the infrastructure scan closed when it cannot.
+    origin = tmp_path / "origin.git"
+    _git(tmp_path, "clone", "-q", "--bare", str(repo), str(origin))
+    _git(origin, "update-ref", "refs/heads/main", base_sha)
+    _git(repo, "remote", "add", "origin", str(origin))
     _git(repo, "update-ref", "refs/remotes/origin/main", base_sha)
     head_sha = _commit_file(repo, "tracked.txt", "head\n")
     message = repo / "message.txt"
