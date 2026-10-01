@@ -25,39 +25,33 @@ HEAD = "a" * 40
 BASE = "b" * 40
 
 
-class FakeResponse:
-    def __init__(self, payload: bytes) -> None:
-        self._stream = io.BytesIO(payload)
-
-    def __enter__(self) -> FakeResponse:
-        return self
-
-    def __exit__(self, *exc: object) -> None:
-        return None
-
-    def read(self, limit: int = -1) -> bytes:
-        return self._stream.read(limit)
-
-
 class FakeOpener:
     def __init__(self, result: bytes | Exception) -> None:
         self.result = result
         self.requests: list[urllib.request.Request] = []
         self.timeouts: list[float] = []
 
-    def open(self, request: urllib.request.Request, timeout: float) -> FakeResponse:
-        self.requests.append(request)
-        self.timeouts.append(timeout)
+    def open(
+        self,
+        fullurl: urllib.request.Request,
+        data: None = None,
+        timeout: float | None = None,
+    ) -> io.BytesIO:
+        self.requests.append(fullurl)
+        self.timeouts.append(0.0 if timeout is None else timeout)
         if isinstance(self.result, Exception):
             raise self.result
-        return FakeResponse(self.result)
+        return io.BytesIO(self.result)
 
 
 def client(result: bytes | Exception) -> tuple[gh.GitHubApi, FakeOpener]:
-    api = gh.GitHubApi("rjmurillo/ai-agents", READ_TOKEN, APP_TOKEN)
     opener = FakeOpener(result)
-    api._opener = opener  # type: ignore[assignment]  # the network seam under test
-    return api, opener
+    return gh.GitHubApi("rjmurillo/ai-agents", READ_TOKEN, APP_TOKEN, opener), opener
+
+
+def sent_json(request: urllib.request.Request) -> Any:
+    assert isinstance(request.data, bytes)
+    return json.loads(request.data)
 
 
 def body(payload: Any) -> bytes:
@@ -115,7 +109,7 @@ class TestWrites:
         check_id = api.create_check_run(HEAD, "success", "digest", "title", "summary")
 
         request = opener.requests[0]
-        sent = json.loads(request.data)  # type: ignore[arg-type]
+        sent = sent_json(request)
         assert check_id == 777
         assert request.get_header("Authorization") == f"Bearer {APP_TOKEN}"
         assert request.get_method() == "POST"
@@ -132,7 +126,7 @@ class TestWrites:
 
         api.create_check_run(HEAD, "failure", "d", "t" * 5000, "s" * 5000)
 
-        sent = json.loads(opener.requests[0].data)  # type: ignore[arg-type]
+        sent = sent_json(opener.requests[0])
         assert len(sent["output"]["title"]) == 500
         assert len(sent["output"]["summary"]) == 500
 
@@ -161,7 +155,7 @@ class TestWrites:
         request = opener.requests[0]
         assert request.get_method() == "PATCH"
         assert request.full_url.endswith("/check-runs/777")
-        assert json.loads(request.data)["conclusion"] == "failure"  # type: ignore[arg-type]
+        assert sent_json(request)["conclusion"] == "failure"
 
 
 class TestFailures:
@@ -252,8 +246,6 @@ class TestFailures:
         assert opener.timeouts == [gh.TIMEOUT_SECONDS]
 
     def test_the_real_opener_has_the_redirect_guard(self) -> None:
-        api = gh.GitHubApi("rjmurillo/ai-agents", READ_TOKEN, APP_TOKEN)
-
-        handlers = [type(h) for h in api._opener.handlers]  # type: ignore[attr-defined]
+        handlers = [type(h) for h in vars(gh._opener())["handlers"]]
 
         assert gh._NoRedirect in handlers

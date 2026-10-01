@@ -25,6 +25,7 @@ import json
 import urllib.error
 import urllib.request
 from collections.abc import Mapping
+from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from email.message import Message
 from typing import IO, Any, Protocol
@@ -72,6 +73,17 @@ class CheckRunState:
     conclusion: str
     external_id: str
     app_id: str
+
+
+class Opener(Protocol):
+    """The one method of ``OpenerDirector`` this client uses, so a test can fake it."""
+
+    def open(
+        self,
+        fullurl: urllib.request.Request,
+        data: None = None,
+        timeout: float | None = None,
+    ) -> AbstractContextManager[IO[bytes]]: ...
 
 
 class PublisherApi(Protocol):
@@ -136,13 +148,19 @@ def _number_text(payload: Mapping[str, Any], *path: str) -> str:
 class GitHubApi:
     """The real client. Holds both tokens and never prints either."""
 
-    def __init__(self, repository: str, read_token: str, app_token: str) -> None:
+    def __init__(
+        self, repository: str, read_token: str, app_token: str, opener: Opener | None = None
+    ) -> None:
         if not is_repository(repository):
             raise ValueError("repository must be owner/name")
         self._repository = repository
         self._read_token = read_token
         self._app_token = app_token
-        self._opener = _opener()
+        self._opener: Opener
+        if opener is None:
+            self._opener = _opener()
+        else:
+            self._opener = opener
 
     def _call(
         self, token: str, method: str, path: str, body: Mapping[str, Any] | None = None

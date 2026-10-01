@@ -64,7 +64,9 @@ def jobs(workflow: dict[Any, Any]) -> dict[str, dict[str, Any]]:
 
 def triggers(workflow: dict[Any, Any]) -> dict[str, Any]:
     # PyYAML reads the bare key `on` as the boolean True.
-    return workflow.get("on", workflow.get(True))
+    found = workflow.get("on", workflow.get(True))
+    assert isinstance(found, dict)
+    return found
 
 
 def steps_of(job: dict[str, Any]) -> list[dict[str, Any]]:

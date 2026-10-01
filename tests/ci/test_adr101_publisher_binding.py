@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import replace
+from dataclasses import asdict
 
 import pytest
 
@@ -112,7 +112,7 @@ class TestTamperedEvidence:
         self, field_name: str, value: str
     ) -> None:
         good = CheckRunState(777, CHECK_NAME, HEAD, "success", revision_digest(HEAD, BASE), APP_ID)
-        api = FakeApi(read_back=replace(good, **{field_name: value}))
+        api = FakeApi(read_back=CheckRunState(**{**asdict(good), field_name: value}))
 
         outcome = run_publish(api)
 
@@ -187,7 +187,7 @@ class TestExecuteConclusion:
     def test_a_failed_retraction_says_a_success_run_remains(self) -> None:
         good = CheckRunState(777, CHECK_NAME, HEAD, "success", revision_digest(HEAD, BASE), APP_ID)
         api = FakeApi(
-            read_back=replace(good, app_id="999"),
+            read_back=CheckRunState(**{**asdict(good), "app_id": "999"}),
             fail_on={"set_conclusion": ApiError(500, "http error")},
         )
 
