@@ -32,8 +32,10 @@ def _lefthook_job(name: str) -> dict[str, Any]:
 
 def test_worktree_gc_report_runs_in_pre_push_without_apply() -> None:
     job = _lefthook_job("worktree-gc-report")
-    assert job["run"].startswith("uv run --frozen python scripts/maintenance/gc_worktrees.py")
-    assert "--apply" not in job["run"]
+    run = job["run"]
+    assert run.startswith("uv run --frozen python scripts/ci/report_advisory_result.py run")
+    assert run.endswith("-- uv run --frozen python scripts/maintenance/gc_worktrees.py")
+    assert "--apply" not in run
 
 
 def test_the_advisory_guard_carries_no_yaml_comment_character() -> None:
@@ -68,12 +70,14 @@ def _duration_seconds(value: str) -> float:
 def test_the_worst_case_report_fits_inside_its_lefthook_timeout() -> None:
     """The budget and the job cap must not drift into a push-rejecting pair.
 
-    The report mutates nothing, and the job's ``|| echo`` guard absorbs every
-    non-zero exit, so the one remaining way this job can reject a push is by
+    The report mutates nothing, and the job's ``report_advisory_result.py``
+    wrapper absorbs every non-zero exit, so the one remaining way this job can reject a push is by
     being killed at the lefthook cap. That kill happens to the job's shell, so
-    the guard cannot absorb it (measured: a job with ``sleep 10 || true`` under
-    ``timeout: 2s`` still exits lefthook non-zero). Issue 4257 rules out buying
-    room by raising the cap, so the constants below must fit under it instead.
+    the wrapper cannot absorb it (measured: a job with ``sleep 10 || true`` under
+    ``timeout: 2s`` still exits lefthook non-zero). The wrapper's own ``--timeout``
+    is pinned below the cap in ``test_advisory_step_reporting_wiring.py``.
+    Issue 4257 rules out buying room by raising the cap, so the constants below
+    must fit under it instead.
 
     Worst case is the two setup git calls made before the deadline is even
     established, plus the budget itself, plus one final inspection that started
@@ -108,19 +112,18 @@ def test_the_job_cap_was_not_raised_to_buy_headroom() -> None:
 def _guarded_command(stub: str) -> str:
     """Return the real lefthook ``run`` string with the script call replaced.
 
-    Substituting only the invocation keeps the guard exactly as shipped, so the
-    test exercises the operator that has to do the work rather than a
-    hand-written copy of it that could drift from the config.
+    Substituting only the wrapped invocation keeps the reporter call exactly as
+    shipped, so the test exercises the wrapper that has to do the work rather
+    than a hand-written copy of it that could drift from the config.
     """
     run = _lefthook_job("worktree-gc-report")["run"]
     invocation = "uv run --frozen python scripts/maintenance/gc_worktrees.py"
-    assert invocation in run, f"job no longer invokes the reporter directly: {run!r}"
-    return run.replace(invocation, stub)
+    assert run.endswith(f"-- {invocation}"), f"job no longer wraps the reporter: {run!r}"
+    return run[: -len(invocation)] + stub
 
 
-# The callers below hand this string to ``bash -c`` on purpose. The behaviour
-# under test is the ``||`` operator itself, which only exists inside a shell,
-# so running the command argv-style would test nothing. The explicit
+# The callers below hand this string to ``bash -c`` because lefthook runs a
+# ``run`` value through a shell, and the stub is a shell one-liner. The explicit
 # interpreter form is used instead of ``shell=True`` so the command is one
 # argv element that no later edit can accidentally extend (CWE-78).
 
@@ -154,27 +157,26 @@ def test_a_failing_report_says_so_instead_of_failing_silently() -> None:
         cwd=_REPO_ROOT,
         timeout=60,
     )
-    assert "worktree-gc-report" in completed.stdout
-    assert "4257" in completed.stdout
+    assert "[BLOCKED] worktree-gc-report reason=script.failed" in completed.stdout
 
 
-def test_without_the_guard_the_same_failure_does_fail_the_push() -> None:
+def test_without_the_wrapper_the_same_failure_does_fail_the_push() -> None:
     """Issue 4257 acceptance criterion 3: the isolating negative control.
 
-    Strips the ``|| ...`` guard from the shipped string and reruns the same
-    stub. This must fail, otherwise the two tests above would pass whether or
-    not the guard exists and would prove nothing about it.
+    Runs only the wrapped command from the shipped string, with the same stub.
+    This must fail, otherwise the tests above would pass whether or not the
+    wrapper exists and would prove nothing about it.
     """
-    unguarded = _guarded_command("sh -c 'exit 2'").split("||")[0].strip()
+    unwrapped = _guarded_command("sh -c 'exit 2'").split(" -- ", 1)[1]
     completed = subprocess.run(
-        ["bash", "-c", unguarded],
+        ["bash", "-c", unwrapped],
         capture_output=True,
         encoding="utf-8",
         errors="replace",
         cwd=_REPO_ROOT,
         timeout=60,
     )
-    assert completed.returncode != 0, "the guard is not load-bearing; the tests above are vacuous"
+    assert completed.returncode != 0, "the wrapper is not load-bearing; the tests above are vacuous"
 
 
 def test_a_slow_report_is_still_absorbed_when_it_exits_non_zero() -> None:

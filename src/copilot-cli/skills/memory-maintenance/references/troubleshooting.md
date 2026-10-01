@@ -447,7 +447,7 @@ If issues persist after trying these solutions:
 1. **Check Logs**: Review session logs for error context
 2. **Verify Configuration**: Ensure ADR-037 and ADR-038 guidelines are followed
 3. **Review Documentation**: See [API Reference](../../memory-search/references/api-reference.md) for function details
-4. **File Issue**: Create GitHub issue with `memory-system` label
+4. **Report**: Send the owner the logs and the failing step. Do not file an issue unless asked
 
 ## Related Documentation
 

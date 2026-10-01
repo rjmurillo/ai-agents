@@ -62,7 +62,7 @@ in config comments
 | PSScriptAnalyzer rule fails | Update `.psscriptanalyzerrc.psd1` | Suppress `PSAvoidUsingWriteHost` with rationale |
 | markdownlint rule fails | Update `.markdownlint.yaml` | Disable `MD013` line-length for generated docs |
 | ESLint rule conflicts | Update `.eslintrc` | Override `no-console` for CLI tools |
-| Upstream tool has a bug | File issue upstream, add workaround in config | Pin tool version, suppress specific rule |
+| Upstream tool has a bug | Flag the bug to the owner with a repro, add workaround in config | Pin tool version, suppress specific rule |
 | Tool default changed after upgrade | Review and align local config to new default | Update config after major version bump |
 
 ## Adjunct Mode: Build Phase 2b (issue #5387)

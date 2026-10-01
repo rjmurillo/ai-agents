@@ -12,6 +12,7 @@ from unittest.mock import patch
 
 import pytest
 
+from scripts.validation.evidence import pre_pr_policy
 from scripts.validation.pre_pr import validate_orchestrator_citations
 
 _SCRIPT = "check_orchestrator_citations.py"
@@ -28,8 +29,8 @@ def _repo(tmp_path: Path, *, with_script: bool) -> Path:
 class TestOrchestratorCitations:
     def test_absent_script_fails_closed(self, tmp_path: Path, capsys) -> None:
         repo = _repo(tmp_path, with_script=False)
-        with patch("checks_spec._run_subprocess") as run:
-            assert validate_orchestrator_citations(repo) is False
+        with patch("checks_citations._run_subprocess") as run:
+            assert not pre_pr_policy().accepts(validate_orchestrator_citations(repo))
         run.assert_not_called()
         err = capsys.readouterr().err
         assert "[ERROR]" in err
@@ -38,12 +39,12 @@ class TestOrchestratorCitations:
 
     def test_passes_when_validator_exits_zero(self, tmp_path: Path) -> None:
         repo = _repo(tmp_path, with_script=True)
-        with patch("checks_spec._run_subprocess", return_value=(0, "ok", "")):
-            assert validate_orchestrator_citations(repo) is True
+        with patch("checks_citations._run_subprocess", return_value=(0, "ok", "")):
+            assert pre_pr_policy().accepts(validate_orchestrator_citations(repo))
 
     @pytest.mark.parametrize("exit_code", [1, 2])
     def test_fails_when_validator_exits_nonzero(self, tmp_path: Path, exit_code: int) -> None:
         repo = _repo(tmp_path, with_script=True)
         result = (exit_code, "", "bad")
-        with patch("checks_spec._run_subprocess", return_value=result):
-            assert validate_orchestrator_citations(repo) is False
+        with patch("checks_citations._run_subprocess", return_value=result):
+            assert not pre_pr_policy().accepts(validate_orchestrator_citations(repo))

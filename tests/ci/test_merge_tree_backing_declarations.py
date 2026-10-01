@@ -22,6 +22,7 @@ from pathlib import Path
 import pytest
 
 from scripts.ci import (
+    canonical_citations_count_ratchet,
     cli_exit_contract_ratchet,
     count_ratchet,
     memory_index_count_ratchet,
@@ -40,6 +41,7 @@ CI_DIR = REPO_ROOT / "scripts" / "ci"
 # count_ratchet.run. Kept as an explicit tuple so a module dropped from the
 # import list fails the inventory test below rather than vanishing silently.
 RATCHET_MODULES = (
+    canonical_citations_count_ratchet,
     cli_exit_contract_ratchet,
     memory_index_count_ratchet,
     ruff_count_ratchet,

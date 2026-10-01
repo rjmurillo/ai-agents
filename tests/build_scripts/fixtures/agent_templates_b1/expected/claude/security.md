@@ -218,7 +218,7 @@ You MUST assign a severity (Critical/High/Medium/Low) and a numeric score (CVSS 
 Every security review ends with one verdict. Trigger conditions are explicit:
 
 - **APPROVED**: All HIGH and CRITICAL findings are addressed in the diff, all MEDIUM findings have documented mitigations or accepted-risk justifications, all secrets and credentials are absent.
-- **CONDITIONAL**: At most 3 MEDIUM findings remain with documented mitigations the implementer commits to land in a follow-up issue. Cite the follow-up issue number in the verdict.
+- **CONDITIONAL**: At most 3 MEDIUM findings remain open with documented mitigations. Name each remaining finding and its mitigation in the verdict and flag them to the owner. Do not file an issue to clear the gate.
 - **BLOCKED**: One or more HIGH or CRITICAL findings remain unaddressed, OR a secret is present in the diff, OR a CWE-22/CWE-77/CWE-78 pattern is unmitigated, OR an ASI01-ASI10 boundary is violated without compensating control, OR more than 3 MEDIUM findings require deferred work.
 
 If a verdict cannot be reached because the diff is incomplete (missing changed files, missing test coverage data, missing dependency manifest), return `[BLOCKED] Cannot evaluate: <specific missing artifact>` rather than guessing.
@@ -395,7 +395,7 @@ if any(trigger_matches(changed_path, pattern) for pattern in SECURITY_TRIGGERS):
     """)
 ```
 
-**PIV Verdict Gate**: Orchestrator MUST NOT proceed to PR creation while the security agent returns BLOCKED. APPROVED clears the gate. CONDITIONAL clears the gate only when the verdict cites a follow-up issue number for the remaining MEDIUM findings, per the Completion Trigger Taxonomy.
+**PIV Verdict Gate**: Orchestrator MUST NOT proceed to PR creation while the security agent returns BLOCKED. APPROVED clears the gate. CONDITIONAL clears the gate only when the verdict names each remaining MEDIUM finding and its mitigation and flags them to the owner, per the Completion Trigger Taxonomy.
 
 #### Security-Relevant Change Triggers
 
@@ -543,7 +543,7 @@ Save to: `.project-toolkit/security/PIV-[feature].md`
 ## Recommendation
 
 - [ ] **APPROVED**: Implementation meets security requirements
-- [ ] **CONDITIONAL**: At most 3 MEDIUM findings remain with documented mitigations and a follow-up issue
+- [ ] **CONDITIONAL**: At most 3 MEDIUM findings remain with documented mitigations flagged to the owner
 - [ ] **BLOCKED**: HIGH/CRITICAL findings, secrets, CWE-22/77/78 patterns, ASI boundary violations unresolved, or 4+ MEDIUM deferred
 
 ### Required Actions

@@ -94,6 +94,19 @@ from lefthook_inventory import (
     configured_hook_types,
 )
 
+# Typed contract by package path (evidence.py states why); exit-0 skips use it.
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+from scripts.validation.evidence import (
+    REASON_POLICY_EXEMPT,
+    REASON_TREE_ABSENT,
+    CheckOutcome,
+)
+
+_VALIDATOR = "validate_git_hook_health"
+_SCOPE = "git hooks installed for this checkout"
+
 # The repair below is a lefthook command, so this gate only speaks to a
 # repository that configures lefthook. These are the config names lefthook
 # itself looks for.
@@ -384,31 +397,35 @@ def diagnose(repo_root: Path) -> str | None:
         return f"{_POST_PROBE_PREFIX}{exc}"
 
 
+def _skip(reason: str, detail: str) -> int:
+    """Print a typed ``SKIP`` for a probe that did not run; exit 0 stays (not applicable)."""
+    outcome = CheckOutcome.skipped(_VALIDATOR, reason=reason, scope=_SCOPE, detail=detail)
+    print(outcome.report_line())
+    return 0
+
+
 def _evaluate(repo_root: Path) -> int:
     """Evaluate once and return the ADR-035 exit code."""
     if (
         os.environ.get("GITHUB_ACTIONS", "").lower() in ("true", "1")
         or os.environ.get("CI", "").lower() in ("true", "1")
     ):
-        print("git hook health: skipped under CI (0 hooks probed)")
-        return 0
+        return _skip(REASON_POLICY_EXEMPT, "skipped under CI (0 hooks probed)")
     if not _uses_lefthook(repo_root):
-        print(
-            "git hook health: skipped, no lefthook config in "
-            f"{repo_root} (0 hooks probed)"
+        return _skip(
+            REASON_TREE_ABSENT,
+            f"skipped, no lefthook config in {repo_root} (0 hooks probed)",
         )
-        return 0
 
     try:
         hooks_dir = _hooks_dir(repo_root)
         reason, probed = _diagnose_hooks_dir(repo_root, hooks_dir)
         remedy = _remedy(repo_root) if reason is not None else None
     except NotGitRepositoryError:
-        print(
-            f"git hook health: skipped, {repo_root} is not a git repository "
-            "(0 hooks probed)"
+        return _skip(
+            REASON_TREE_ABSENT,
+            f"skipped, {repo_root} is not a git repository (0 hooks probed)",
         )
-        return 0
     except GitExecutionError as exc:
         print(f"[ERROR] Git hook health could not be verified: {exc}", file=sys.stderr)
         return 3

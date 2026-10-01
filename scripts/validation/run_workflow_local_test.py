@@ -809,6 +809,54 @@ _ACT_PATHS_FILTER_BASE_PATTERN = re.compile(
     r"to be set in the event payload"
 )
 
+# Canonical source, ``.github/workflows/pytest.yml``, quoted verbatim:
+#
+#   line 23:  name: Python Tests
+#   line 200: name: Check whole-tree count ratchets (blocking)
+#   line 223: BASE_REF: ${{ github.base_ref || github.event.repository.default_branch }}
+#   line 243: - name: Fetch the base ref
+#   line 244: run: git fetch origin "$BASE_REF"
+#   job test-result: name: Run Python Tests
+#   job test-result: - name: Require test, coverage, and repository guard success
+#
+# act's synthetic push payload resolves ``BASE_REF`` to ``master``, which this
+# repository's remote does not have, so ``Fetch the base ref`` fails before any
+# ratchet runs. GitHub populates the real default branch, so CI never fetches
+# ``master``. ``Run Python Tests`` lists the count-ratchet job in ``needs`` and
+# runs on a failed dependency, so its ``Require ...`` step fails as a
+# consequence. A drift test, ``test_the_act_rule_names_match_pytest_yml``, reads
+# the workflow and fails when any quoted name changes.
+#
+# Pinned three ways so a real defect still blocks. The two act lines must carry
+# this job's label, the same label on both, and be adjacent: act prefixes a
+# step's own output with ``| `` after the label, so output a step echoes cannot
+# take the place of the ``Failure`` line act writes itself. And every
+# ``Failure - Main`` line in the log must name one of the two steps above, so
+# another failing step or job keeps blocking. A contributor who edits this job
+# can still print the first line and fail the step; the unexplained ``::error::``
+# check and CI remain the backstop for that, as for every rule here.
+_ACT_BASE_REF_JOB_LABEL = r"\[Python Tests/Check whole-tree count ratchets \(blocking\)\]"
+_ACT_BASE_REF_FETCH_PATTERN = re.compile(
+    rf"^[ \t]*(?P<job>{_ACT_BASE_REF_JOB_LABEL})[ \t]+\| "
+    r"fatal: couldn't find remote ref master[ \t]*\n"
+    r"[ \t]*(?P=job)[ \t]+\S+[ \t]+Failure - Main Fetch the base ref\b",
+    re.MULTILINE,
+)
+_ACT_MAIN_FAILURE_MARKER = "Failure - Main "
+_ACT_BASE_REF_FAILURE_LINES = (
+    "Failure - Main Fetch the base ref",
+    "Failure - Main Require test, coverage, and repository guard success",
+)
+
+
+def _is_act_base_ref_fetch_limitation(text: str) -> bool:
+    """True when the master base-ref fetch, and what follows from it, are the only failures."""
+    if not _ACT_BASE_REF_FETCH_PATTERN.search(text):
+        return False
+    failures = [line for line in text.splitlines() if _ACT_MAIN_FAILURE_MARKER in line]
+    return all(any(name in line for name in _ACT_BASE_REF_FAILURE_LINES) for line in failures)
+
+
 # act stages a cached action into the container at /var/run/act/actions/<ref>/
 # and copies it with `docker cp`. Recent dockerd rejects that destination with
 # "path escapes from parent" before the action's own code runs, so the step
@@ -843,6 +891,13 @@ _ACT_PR_CONTEXT_EMPTY_ENV_PATTERN = re.compile(
     r"|invalid literal for int\(\) with base 10: ''"
     r"|argument --[A-Za-z0-9-]+: invalid int value: ''"
 )
+
+# The issues event has the same gap. act builds a synthetic payload with no
+# issue object, so a step env var mapped from github.event.issue.number is
+# empty and an argparse int flag fails with its own text. GitHub always
+# populates the issue on issues.opened, so the signature cannot arise in CI.
+# Event-scoped to issues; a non-empty bad value is a real defect and still blocks.
+_ACT_ISSUE_CONTEXT_EMPTY_ENV_PATTERN = re.compile(r"argument --issue: invalid int value: ''")
 
 # run_with_retry.py wraps a called script and translates its exit code into an
 # ADR-035 annotation. That annotation is derived, not a cause: when the wrapped
@@ -910,6 +965,13 @@ _ACT_LIMITATION_RULES: tuple[tuple[str | None, Callable[[str], bool], str], ...]
     ),
     (
         None,
+        _is_act_base_ref_fetch_limitation,
+        "act's synthetic event payload resolves the default branch to master, so "
+        "the count-ratchet job cannot fetch its base ref. GitHub populates the "
+        "real default branch, so this fails only in local act, not in CI.",
+    ),
+    (
+        None,
         lambda text: bool(_ACT_SERVER_PORT_BIND_PATTERN.search(text)),
         "act's local reusable-workflow server port is already bound by another "
         "local act process. GitHub does not bind this local server in CI.",
@@ -943,6 +1005,13 @@ _ACT_LIMITATION_RULES: tuple[tuple[str | None, Callable[[str], bool], str], ...]
         "act leaves env vars mapped from github.event.pull_request (PR_NUMBER, "
         "PR_TITLE) empty on a local run, so validation scripts fail only in local "
         "act, not in CI.",
+    ),
+    (
+        "issues",
+        lambda text: bool(_ACT_ISSUE_CONTEXT_EMPTY_ENV_PATTERN.search(text)),
+        "act does not populate the issues event context on a local run, so an "
+        "env var mapped from github.event.issue.number is empty and the script "
+        "fails only in local act, not in CI.",
     ),
     (
         None,
