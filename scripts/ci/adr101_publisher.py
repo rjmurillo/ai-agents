@@ -69,6 +69,7 @@ from scripts.ci.adr101_publisher_github import (  # noqa: E402
 )
 from scripts.ci.adr101_publisher_inputs import (  # noqa: E402
     CHECK_NAME,
+    EXIT_CONFIG,
     PUBLISHED_LABEL,
     REASON_EVIDENCE_MISMATCH,
     REASON_EXECUTION_FAILED,
@@ -91,6 +92,7 @@ from scripts.validation.evidence import (  # noqa: E402
     REASON_LOOKUP_FAILED,
     REASON_PR_UNRESOLVED,
     CheckOutcome,
+    EvidenceState,
 )
 
 ApiFactory = Callable[[PublisherEnv], PublisherApi]
@@ -145,22 +147,24 @@ def _run_mismatch(env: PublisherEnv, api: PublisherApi) -> CheckOutcome | None:
 
 
 def _publish_failure(
-    env: PublisherEnv, api: PublisherApi, pull: PullState | None, outcome: CheckOutcome
+    env: PublisherEnv, api: PublisherApi, pull: PullState, outcome: CheckOutcome
 ) -> CheckOutcome:
     """Publish a ``failure`` check run for ``outcome``, then return it unchanged.
 
     If the publish itself fails the original outcome still stands, with a note,
     so a worse state is never replaced by a milder one.
     """
-    base = pull.base_sha if pull is not None else ""
     summary = f"{outcome.state.value} {outcome.reason}: {outcome.detail}"
     try:
-        if pull is not None:
-            stale = _still_bound(api, env, pull)
-            if stale is not None:
-                return stale
+        stale = _still_bound(api, env, pull)
+        if stale is not None:
+            return stale
         api.create_check_run(
-            env.head_sha, "failure", revision_digest(env.head_sha, base), CHECK_NAME, summary
+            env.head_sha,
+            "failure",
+            revision_digest(env.head_sha, pull.base_sha),
+            CHECK_NAME,
+            summary,
         )
     except ApiError:
         return CheckOutcome(
@@ -174,12 +178,17 @@ def _publish_failure(
     return outcome
 
 
-def _retract(api: PublisherApi, check_id: int) -> None:
-    """Best-effort downgrade of a success that could not be confirmed."""
+def _retract(api: PublisherApi, check_id: int) -> str:
+    """Best-effort downgrade of a success that could not be confirmed.
+
+    Returns a sentence for the outcome's detail. If the downgrade fails, a
+    success check run remains on the head, and the detail says so.
+    """
     try:
         api.set_conclusion(check_id, "failure", "read-back did not confirm; retracted")
     except ApiError:
-        pass  # the typed outcome returned to the caller still reports the failure
+        return "the retraction failed, so a success check run remains on the head"
+    return "the check run was retracted"
 
 
 def _verify_read_back(
@@ -189,21 +198,22 @@ def _verify_read_back(
     try:
         seen = api.get_check_run(check_id)
     except ApiError:
-        _retract(api, check_id)
         return CheckOutcome.unknown(
             VALIDATOR,
             reason=REASON_INCOMPLETE_EVIDENCE,
-            detail="the published check run could not be read back; it was retracted",
+            detail=f"the published check run could not be read back; {_retract(api, check_id)}",
         )
     expected = (env.app_id, env.head_sha, CHECK_NAME, "success", external_id)
     actual = (seen.app_id, seen.head_sha, seen.name, seen.conclusion, seen.external_id)
     if actual == expected:
         return None
-    _retract(api, check_id)
     return CheckOutcome.failed(
         VALIDATOR,
         reason=REASON_EVIDENCE_MISMATCH,
-        detail="the published check run does not match the App, head SHA, name or digest",
+        detail=(
+            "the published check run does not match the App, head SHA, name or digest; "
+            f"{_retract(api, check_id)}"
+        ),
     )
 
 
@@ -229,10 +239,14 @@ def _publish_success(env: PublisherEnv, api: PublisherApi, pull: PullState) -> C
 
 def _publish_bound(env: PublisherEnv, api: PublisherApi) -> CheckOutcome:
     if not env.pull_number:
-        unresolved = CheckOutcome.unknown(
-            VALIDATOR, reason=REASON_PR_UNRESOLVED, detail="the event names no pull request"
+        # A fork pull request can carry any upstream commit SHA as its head and
+        # arrives with no pull request attached. Publishing a failure for a SHA
+        # nothing binds would let an anonymous fork write App-authored checks.
+        return CheckOutcome.unknown(
+            VALIDATOR,
+            reason=REASON_PR_UNRESOLVED,
+            detail="the event names no pull request; nothing was published",
         )
-        return _publish_failure(env, api, None, unresolved)
     pull = api.get_pull(env.pull_number)
     if pull.head_sha != env.head_sha:
         return _moved("the pull request head is not the SHA the event named")
@@ -300,8 +314,28 @@ def main(
         outcome = publish(env, api_for)
     if outcome is None:
         return 0
+    if args.command == "execute" and outcome.state is EvidenceState.SKIP:
+        return _execute_disagreed(outcome, environ)
     report(outcome, environ)
     return exit_code(outcome)
+
+
+def _execute_disagreed(outcome: CheckOutcome, environ: Mapping[str, str] | None) -> int:
+    """Fail the execute job when it skips after the gate said to run.
+
+    The gate job read the flag and the event. If execute reads them differently,
+    the flag changed between the two jobs. A SKIP exit 0 here would let
+    ``needs.execute.result`` read success though no test ran, and the publish job
+    would post a green check run for it.
+    """
+    note = CheckOutcome.skipped(
+        VALIDATOR,
+        reason=outcome.reason,
+        detail=f"{outcome.detail}; the gate saw the publisher enabled, so this run is refused",
+    )
+    report(note, environ)
+    print(f"::error title={VALIDATOR}::execute skipped after the gate enabled the publisher")
+    return EXIT_CONFIG
 
 
 if __name__ == "__main__":

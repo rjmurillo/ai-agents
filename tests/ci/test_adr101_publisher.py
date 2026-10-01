@@ -15,16 +15,12 @@ from __future__ import annotations
 
 import subprocess
 import sys
-from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 import pytest
 
 from scripts.ci import adr101_publisher as pub
 from scripts.ci.adr101_publisher_github import (
-    ApiError,
-    CheckRunState,
-    PullState,
     RunState,
 )
 from scripts.ci.adr101_publisher_inputs import (
@@ -35,104 +31,19 @@ from scripts.ci.adr101_publisher_inputs import (
     revision_digest,
 )
 from scripts.validation.evidence import CheckOutcome, EvidenceState
+from tests.ci.adr101_publisher_helpers import (
+    BASE,
+    HEAD,
+    FakeApi,
+    make_env,
+    refuse_api,
+    run_publish,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = REPO_ROOT / "scripts" / "ci" / "adr101_publisher.py"
-HEAD = "a" * 40
-BASE = "b" * 40
-APP_ID = "123456"
 
 
-def make_env(**overrides: str) -> dict[str, str]:
-    """A fully valid, enabled environment. Override one field to break it."""
-    values = {
-        "ADR101_PUBLISHER_ENABLED": "true",
-        "ADR101_PUBLISHER_APP_ID": APP_ID,
-        "ADR101_HAS_KEY": "true",
-        "ADR101_APP_TOKEN": "ghs_installation_token",
-        "ADR101_APP_TOKEN_OUTCOME": "success",
-        "ADR101_READ_TOKEN": "ghs_read_token",
-        "ADR101_REPOSITORY": "rjmurillo/ai-agents",
-        "ADR101_HEAD_SHA": HEAD,
-        "ADR101_PULL_NUMBER": "42",
-        "ADR101_TRIGGER_RUN_ID": "9001",
-        "ADR101_TRIGGER_EVENT": "pull_request",
-        "ADR101_EXECUTE_RESULT": "success",
-    }
-    values.update(overrides)
-    return values
-
-
-@dataclass
-class FakeApi:
-    """Records every call. Each field is the value the matching call returns."""
-
-    pull: PullState = PullState(head_sha=HEAD, base_sha=BASE)
-    pull_after: PullState | None = None
-    run: RunState = RunState(head_sha=HEAD, status="completed")
-    read_back: CheckRunState | None = None
-    fail_on: dict[str, ApiError] = field(default_factory=dict)
-    calls: list[str] = field(default_factory=list)
-    created: list[dict[str, str]] = field(default_factory=list)
-    conclusions: list[tuple[int, str]] = field(default_factory=list)
-    _pull_reads: int = 0
-
-    def _maybe_fail(self, name: str) -> None:
-        self.calls.append(name)
-        if name in self.fail_on:
-            raise self.fail_on[name]
-
-    def get_pull(self, number: str) -> PullState:
-        self._maybe_fail("get_pull")
-        self._pull_reads += 1
-        if self._pull_reads > 1 and self.pull_after is not None:
-            return self.pull_after
-        return self.pull
-
-    def get_run(self, run_id: str) -> RunState:
-        self._maybe_fail("get_run")
-        return self.run
-
-    def create_check_run(
-        self, head_sha: str, conclusion: str, external_id: str, title: str, summary: str
-    ) -> int:
-        self._maybe_fail("create_check_run")
-        self.created.append(
-            {
-                "head_sha": head_sha,
-                "conclusion": conclusion,
-                "external_id": external_id,
-                "title": title,
-                "summary": summary,
-            }
-        )
-        return 777
-
-    def get_check_run(self, check_id: int) -> CheckRunState:
-        self._maybe_fail("get_check_run")
-        if self.read_back is not None:
-            return self.read_back
-        last = self.created[-1]
-        return CheckRunState(
-            check_id=check_id,
-            name=CHECK_NAME,
-            head_sha=last["head_sha"],
-            conclusion=last["conclusion"],
-            external_id=last["external_id"],
-            app_id=APP_ID,
-        )
-
-    def set_conclusion(self, check_id: int, conclusion: str, summary: str) -> None:
-        self._maybe_fail("set_conclusion")
-        self.conclusions.append((check_id, conclusion))
-
-
-def run_publish(api: FakeApi, **overrides: str) -> CheckOutcome:
-    return pub.publish(PublisherEnv.from_environ(make_env(**overrides)), lambda env: api)
-
-
-def refuse_api(_env: PublisherEnv) -> FakeApi:
-    raise AssertionError("the API must not be built for a state that publishes nothing")
 
 
 class TestFlagOff:
@@ -281,209 +192,6 @@ class TestValidPublish:
         assert api.calls.index("create_check_run") > api.calls.index("get_run")
 
 
-class TestTamperedEvidence:
-    @pytest.mark.parametrize(
-        "bad_sha",
-        ["", "abc", "A" * 40, "g" * 40, "a" * 39, "a" * 41, "a" * 40 + "\n$(id)", "a" * 64],
-    )
-    def test_a_malformed_head_sha_is_fail_and_makes_no_call(self, bad_sha: str) -> None:
-        env = PublisherEnv.from_environ(make_env(ADR101_HEAD_SHA=bad_sha))
-
-        outcome = pub.publish(env, refuse_api)
-
-        assert outcome.state is EvidenceState.FAIL
-        assert outcome.reason == "input.invalid"
-
-    @pytest.mark.parametrize(
-        "override",
-        [
-            {"ADR101_REPOSITORY": "../etc/passwd"},
-            {"ADR101_REPOSITORY": "owner/name/extra"},
-            {"ADR101_REPOSITORY": "a b/c"},
-            {"ADR101_TRIGGER_RUN_ID": "12;id"},
-            {"ADR101_TRIGGER_RUN_ID": ""},
-            {"ADR101_PULL_NUMBER": "4 2"},
-            {"ADR101_EXECUTE_RESULT": "ok"},
-            {"ADR101_EXECUTE_RESULT": ""},
-        ],
-    )
-    def test_any_malformed_event_value_is_fail_before_any_call(
-        self, override: dict[str, str]
-    ) -> None:
-        env = PublisherEnv.from_environ(make_env(**override))
-
-        outcome = pub.publish(env, refuse_api)
-
-        assert outcome.state is EvidenceState.FAIL
-        assert outcome.reason == "input.invalid"
-        assert exit_code(outcome) == 1
-
-    def test_a_pull_head_that_is_not_the_event_sha_is_fail_and_publishes_nothing(self) -> None:
-        api = FakeApi(pull=PullState(head_sha="c" * 40, base_sha=BASE))
-
-        outcome = run_publish(api)
-
-        assert outcome.state is EvidenceState.FAIL
-        assert outcome.reason == "revision.moved"
-        assert api.created == []
-
-    def test_a_head_that_moves_between_the_two_reads_publishes_nothing(self) -> None:
-        api = FakeApi(pull_after=PullState(head_sha="c" * 40, base_sha=BASE))
-
-        outcome = run_publish(api)
-
-        assert outcome.state is EvidenceState.FAIL
-        assert outcome.reason == "revision.moved"
-        assert api.created == []
-
-    def test_a_base_that_moves_between_the_two_reads_publishes_nothing(self) -> None:
-        api = FakeApi(pull_after=PullState(head_sha=HEAD, base_sha="d" * 40))
-
-        outcome = run_publish(api)
-
-        assert outcome.reason == "revision.moved"
-        assert api.created == []
-
-    def test_a_workflow_run_with_another_head_sha_is_fail(self) -> None:
-        api = FakeApi(run=RunState(head_sha="c" * 40, status="completed"))
-
-        outcome = run_publish(api)
-
-        assert outcome.state is EvidenceState.FAIL
-        assert outcome.reason == "evidence.mismatch"
-        assert api.created == []
-
-    def test_a_workflow_run_not_completed_is_fail(self) -> None:
-        api = FakeApi(run=RunState(head_sha=HEAD, status="in_progress"))
-
-        assert run_publish(api).state is EvidenceState.FAIL
-
-    @pytest.mark.parametrize(
-        "field_name, value",
-        [
-            ("app_id", "999"),
-            ("head_sha", "c" * 40),
-            ("name", "Run Python Tests"),
-            ("conclusion", "neutral"),
-            ("external_id", "tampered"),
-        ],
-    )
-    def test_a_read_back_that_differs_is_fail_and_is_retracted(
-        self, field_name: str, value: str
-    ) -> None:
-        good = CheckRunState(777, CHECK_NAME, HEAD, "success", revision_digest(HEAD, BASE), APP_ID)
-        api = FakeApi(read_back=replace(good, **{field_name: value}))
-
-        outcome = run_publish(api)
-
-        assert outcome.state is EvidenceState.FAIL
-        assert outcome.reason == "evidence.mismatch"
-        assert api.conclusions == [(777, "failure")]
-        assert exit_code(outcome) == 1
-
-    def test_a_read_back_that_cannot_be_read_is_unknown_and_retracted(self) -> None:
-        api = FakeApi(fail_on={"get_check_run": ApiError(500, "http error")})
-
-        outcome = run_publish(api)
-
-        assert outcome.state is EvidenceState.UNKNOWN
-        assert api.conclusions == [(777, "failure")]
-
-    def test_a_failed_retraction_still_reports_the_failure(self) -> None:
-        api = FakeApi(
-            fail_on={"get_check_run": ApiError(500, "x"), "set_conclusion": ApiError(500, "x")}
-        )
-
-        assert run_publish(api).state is EvidenceState.UNKNOWN
-
-
-class TestExecuteConclusion:
-    @pytest.mark.parametrize("result", ["failure", "cancelled", "skipped"])
-    def test_a_non_success_execute_publishes_failure_not_nothing(self, result: str) -> None:
-        api = FakeApi()
-
-        outcome = run_publish(api, ADR101_EXECUTE_RESULT=result)
-
-        assert outcome.state is EvidenceState.FAIL
-        assert outcome.reason == "execution.failed"
-        assert [c["conclusion"] for c in api.created] == ["failure"]
-        assert result in api.created[0]["summary"]
-
-    def test_no_state_ever_publishes_skipped_or_neutral(self) -> None:
-        conclusions = set()
-        for result in ("success", "failure", "cancelled", "skipped"):
-            api = FakeApi()
-            run_publish(api, ADR101_EXECUTE_RESULT=result)
-            conclusions |= {c["conclusion"] for c in api.created}
-
-        assert conclusions == {"success", "failure"}
-
-    def test_a_failure_that_cannot_be_published_keeps_the_original_outcome(self) -> None:
-        api = FakeApi(fail_on={"create_check_run": ApiError(500, "http error")})
-
-        outcome = run_publish(api, ADR101_EXECUTE_RESULT="failure")
-
-        assert outcome.state is EvidenceState.FAIL
-        assert "could not be published" in outcome.detail
-
-    def test_a_head_that_moved_before_the_failure_run_publishes_nothing(self) -> None:
-        api = FakeApi(pull_after=PullState(head_sha="c" * 40, base_sha=BASE))
-
-        outcome = run_publish(api, ADR101_EXECUTE_RESULT="failure")
-
-        assert outcome.reason == "revision.moved"
-        assert api.created == []
-
-    def test_no_pull_request_is_unknown_and_publishes_failure(self) -> None:
-        api = FakeApi()
-
-        outcome = run_publish(api, ADR101_PULL_NUMBER="")
-
-        assert outcome.state is EvidenceState.UNKNOWN
-        assert outcome.reason == "pr.unresolved"
-        assert [c["conclusion"] for c in api.created] == ["failure"]
-
-
-class TestApiFailures:
-    @pytest.mark.parametrize("status", [401, 403])
-    def test_a_refused_token_is_blocked_on_auth(self, status: int) -> None:
-        api = FakeApi(fail_on={"get_pull": ApiError(status, "http error")})
-
-        outcome = run_publish(api)
-
-        assert outcome.state is EvidenceState.BLOCKED
-        assert exit_code(outcome) == 4
-        assert api.created == []
-
-    @pytest.mark.parametrize("status", [0, 404, 500])
-    def test_any_other_failure_is_blocked_external(self, status: int) -> None:
-        api = FakeApi(fail_on={"get_run": ApiError(status, "transport error")})
-
-        outcome = run_publish(api)
-
-        assert outcome.state is EvidenceState.BLOCKED
-        assert outcome.reason == "lookup.failed"
-        assert exit_code(outcome) == 3
-
-    def test_a_failed_create_blocks_and_publishes_nothing(self) -> None:
-        api = FakeApi(fail_on={"create_check_run": ApiError(500, "http error")})
-
-        outcome = run_publish(api)
-
-        assert outcome.state is EvidenceState.BLOCKED
-        assert "nothing was published" in outcome.detail
-
-    def test_no_output_carries_a_token(self, capsys: pytest.CaptureFixture[str]) -> None:
-        api = FakeApi(fail_on={"get_pull": ApiError(403, "http error")})
-        outcome = run_publish(api)
-
-        pub.report(outcome, make_env())
-
-        out = capsys.readouterr().out
-        assert "ghs_installation_token" not in out
-        assert "ghs_read_token" not in out
-
-
 class TestGateAndPreflight:
     def test_gate_writes_enabled_true_and_prints_nothing(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
@@ -548,15 +256,19 @@ class TestGateAndPreflight:
         assert "[BLOCKED]" in summary.read_text(encoding="utf-8")
 
 
-class TestDispatch:
-    def test_execute_with_the_flag_off_exits_zero_with_a_skip(
+class TestExecuteDisagreesWithGate:
+    def test_execute_skipping_after_the_gate_enabled_exits_two(
         self, capsys: pytest.CaptureFixture[str]
     ) -> None:
         rc = pub.main(["execute"], make_env(ADR101_PUBLISHER_ENABLED="false"))
 
-        assert rc == 0
-        assert "[SKIP]" in capsys.readouterr().out
+        assert rc == 2
+        out = capsys.readouterr().out
+        assert "::error" in out
+        assert "[SKIP]" in out
 
+
+class TestDispatch:
     def test_the_default_api_factory_builds_the_real_client_without_a_request(self) -> None:
         from scripts.ci.adr101_publisher_github import GitHubApi
 

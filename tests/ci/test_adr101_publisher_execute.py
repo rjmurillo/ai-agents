@@ -207,6 +207,24 @@ class TestRun:
         assert outside.read_text(encoding="utf-8") == "untouched"
         assert runner.harness_pyproject == BASE_PYPROJECT
 
+    @pytest.mark.parametrize("name", ["pytest.ini", ".pytest.ini", "tox.ini", "setup.cfg"])
+    def test_a_competing_pytest_config_is_removed(self, tmp_path: Path, name: str) -> None:
+        seen: dict[str, bool] = {}
+
+        class Spy(FakeRunner):
+            def __call__(self, argv: list[str], **kwargs: Any):  # type: ignore[no-untyped-def]
+                if argv[0] != "git":
+                    seen["present"] = (Path(kwargs["cwd"]) / name).exists()
+                result = super().__call__(argv, **kwargs)
+                if argv[0] == "git" and "worktree" in argv:
+                    dest = Path(argv[argv.index("--force") + 1])
+                    (dest / name).write_text("[pytest]\naddopts = --co\n", encoding="utf-8")
+                return result
+
+        ex.run_execute(make_env(), {}, Spy(), tmp_path)
+
+        assert seen == {"present": False}
+
     def test_the_child_environment_holds_no_token_or_event_value(self, tmp_path: Path) -> None:
         runner = FakeRunner()
         environ = {

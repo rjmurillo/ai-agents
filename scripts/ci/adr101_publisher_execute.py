@@ -14,9 +14,10 @@ What it does, in order:
      base checkout. A worktree, not ``checkout-index``, because the repository's
      root ``conftest.py`` refuses to run in a tree whose HEAD is unreadable: a
      bare export errored every test at teardown (measured in a dry run).
-  5. Overwrites the scratch tree's ``pyproject.toml`` with this base checkout's
-     copy, so the pytest configuration is base-owned and a candidate cannot widen
-     ``addopts`` or narrow the test paths.
+  5. Replaces the scratch tree's pytest configuration with this base checkout's
+     ``pyproject.toml``, removing a candidate ``pytest.ini``, ``tox.ini`` and
+     ``setup.cfg`` that would outrank it, so a candidate cannot widen ``addopts``
+     or narrow the test paths through configuration.
   6. Runs the base-owned harness argument vector with the scratch tree as the
      working directory and a scrubbed environment.
 
@@ -71,6 +72,7 @@ from scripts.validation.evidence import (
 HARNESS_TIMEOUT_SECONDS = 2400
 GIT_TIMEOUT_SECONDS = 300
 _PULL_REF = "refs/pull/{number}/head"
+_COMPETING_CONFIGS = ("pytest.ini", ".pytest.ini", "tox.ini", "setup.cfg")
 # A system or global gitconfig can register a filter driver (git-lfs) that
 # checkout would run on head blobs when the head's .gitattributes names it.
 _INERT_GIT = ("-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false")
@@ -201,15 +203,21 @@ def _passed(head_sha: str) -> CheckOutcome:
 
 
 def _install_base_pytest_config(tool_root: Path, scratch: Path) -> None:
-    """Replace the candidate's pyproject.toml with the base copy.
+    """Make the base ``pyproject.toml`` the only pytest configuration at the root.
 
-    The destination is unlinked first: checkout-index writes a symlink as a
-    symlink, and copying onto one would write through it to a path outside the
+    pytest takes the first of ``pytest.ini``, ``pyproject.toml``, ``tox.ini`` and
+    ``setup.cfg`` that carries pytest settings, so a candidate ``pytest.ini``
+    would outrank the base copy. Each is unlinked first. ``unlink`` removes a
+    symlink and not its target, which matters because git checks a symlink out as
+    a symlink, and copying onto one would write through it to a path outside the
     scratch tree.
+
+    This does not stop a candidate ``conftest.py`` or a plugin it imports from
+    changing results. That is the (2b) gap, accepted and open.
     """
-    destination = scratch / "pyproject.toml"
-    destination.unlink(missing_ok=True)
-    shutil.copyfile(tool_root / "pyproject.toml", destination)
+    for name in (*_COMPETING_CONFIGS, "pyproject.toml"):
+        (scratch / name).unlink(missing_ok=True)
+    shutil.copyfile(tool_root / "pyproject.toml", scratch / "pyproject.toml")
 
 
 def run_execute(

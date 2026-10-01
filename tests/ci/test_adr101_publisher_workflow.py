@@ -104,6 +104,11 @@ class TestTriggersAndRunners:
     def test_the_workflow_default_permissions_are_empty(self, workflow: dict[Any, Any]) -> None:
         assert workflow["permissions"] == {}
 
+    def test_there_is_no_concurrency_group_a_fork_could_use_to_cancel_a_run(
+        self, workflow: dict[Any, Any]
+    ) -> None:
+        assert "concurrency" not in workflow
+
     def test_the_job_set_is_exactly_gate_execute_publish(
         self, jobs: dict[str, dict[str, Any]]
     ) -> None:
@@ -172,7 +177,9 @@ class TestPublishJob:
         assert mint["with"]["permission-checks"] == "write"
         permissions = [k for k in mint["with"] if k.startswith("permission-")]
         assert permissions == ["permission-checks"]
-        assert mint["continue-on-error"] is True
+        # No continue-on-error: a refused mint fails the job, which is fail closed,
+        # and the bypass allowlist would otherwise need an owner and expiry entry.
+        assert "continue-on-error" not in mint
 
     def test_the_key_is_the_with_input_of_one_step_only(
         self, jobs: dict[str, dict[str, Any]]

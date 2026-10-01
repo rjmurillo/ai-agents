@@ -23,6 +23,9 @@ name: ADR-101 Publisher
 # ADR101_PUBLISHER_APP_PRIVATE_KEY of environment adr101-publisher, limited to
 # main. A repository-level copy would be readable by a branch-defined workflow.
 #
+# No concurrency group: a group keyed on the head SHA would let a fork pull
+# request that reuses an upstream SHA cancel a legitimate in-flight run.
+#
 # This publisher closes identity, pinning, revision binding and the job split. It
 # does not authenticate that the tests ran (requirement 2b, open research), so its
 # label never says "verified". It is in no ruleset and no required context.
@@ -33,10 +36,6 @@ on:
     types: [completed]
 
 permissions: {}
-
-concurrency:
-  group: adr101-publisher-${{ github.event.workflow_run.head_sha }}
-  cancel-in-progress: true
 
 jobs:
   gate:
@@ -132,7 +131,6 @@ jobs:
       - name: Mint the installation token
         id: app-token
         if: ${{ steps.preflight.outputs.mint == 'true' }}
-        continue-on-error: true
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         with:
           app-id: ${{ vars.ADR101_PUBLISHER_APP_ID }}

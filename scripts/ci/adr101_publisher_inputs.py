@@ -27,6 +27,7 @@ run in any non-PASS state, so a SKIP can never satisfy a required context.
 EXIT CODES (ADR-035):
   0 - PASS, or SKIP (flag off, or an event this publisher does not serve)
   1 - FAIL or UNKNOWN: a violation or untrustworthy evidence
+  2 - configuration: the execute stage skipped after the gate enabled the run
   3 - BLOCKED on an external dependency
   4 - BLOCKED on authentication: the App id, key or token is absent or refused
 """
@@ -72,6 +73,7 @@ REASON_EXECUTION_FAILED = "execution.failed"
 
 EXIT_OK = 0
 EXIT_VIOLATION = 1
+EXIT_CONFIG = 2
 EXIT_EXTERNAL = 3
 EXIT_AUTH = 4
 

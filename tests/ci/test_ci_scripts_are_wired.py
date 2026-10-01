@@ -43,6 +43,21 @@ _WORKFLOW_DIRS = (
 # non-empty reason, so that adding one is a decision rather than a way to
 # silence this test.
 _NOT_WORKFLOW_INVOKED: dict[str, str] = {
+    "adr101_publisher_execute.py": (
+        "Library imported by adr101_publisher.py, which adr101-publisher.yml "
+        "invokes. Holds the execute stage. Covered by tests/ci/test_adr101_publisher_execute.py "
+        "(issue #5245)."
+    ),
+    "adr101_publisher_github.py": (
+        "Library imported by adr101_publisher.py, which adr101-publisher.yml "
+        "invokes. Holds the GitHub API client. Covered by tests/ci/test_adr101_publisher_github.py "
+        "(issue #5245)."
+    ),
+    "adr101_publisher_inputs.py": (
+        "Library imported by adr101_publisher.py, which adr101-publisher.yml "
+        "invokes. Holds the shared contract and gates. Covered by tests/ci/test_adr101_publisher_binding.py "
+        "(issue #5245)."
+    ),
     "cli_exit_contract_coverage.py": (
         "Library holding the test-coverage analysis for "
         "cli_exit_contract_ratchet.py, which is workflow-invoked from "
