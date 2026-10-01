@@ -185,6 +185,12 @@ def test_the_action_uploads_only_when_the_emitter_wrote_a_file() -> None:
     assert upload["with"]["name"] == "${{ inputs.validator }}"
 
 
+def test_the_action_keeps_evidence_for_the_adr_015_standard_tier() -> None:
+    """ADR-015 allows 1 or 7 days; scripts/ci/adr015_workflow_retention.py scans workflows only."""
+    upload = next(s for s in _action()["runs"]["steps"] if "uses" in s)
+    assert upload["with"]["retention-days"] == 7
+
+
 def test_the_action_passes_context_through_env_never_into_the_script() -> None:
     run = next(s for s in _action()["runs"]["steps"] if s.get("id") == "emit")
     assert "${{" not in run["run"]

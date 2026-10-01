@@ -9,9 +9,9 @@ description: 'Write the calling job result as typed evidence and upload it (ADR-
 # The artifact name is the validator name, as the ADR requires. `overwrite`
 # lets a re-run of the same workflow run replace its earlier file.
 #
-# Retention is 30 days. A promotion can happen days after the candidate merged,
-# and evidence older than the window is missing, which the gate reads as a
-# finding. The artifact-retention-policy file has no tier for release evidence.
+# Retention is 7 days, the standard tier in ADR-015. Evidence older than the
+# window is missing, which the gate reads as a finding, so a candidate older
+# than a week needs its validator workflows re-run on the same SHA first.
 
 inputs:
   validator:
@@ -65,4 +65,4 @@ runs:
         path: ${{ runner.temp }}/validator-evidence/${{ inputs.validator }}.json
         if-no-files-found: error
         overwrite: true
-        retention-days: 30
+        retention-days: 7
