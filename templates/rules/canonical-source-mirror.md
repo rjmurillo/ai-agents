@@ -30,34 +30,38 @@ If your code contains the words **matches**, **mirrors**, **aligned with**, **sa
 
 ## What the first commit MUST do
 
-The first commit that introduces the claim MUST:
+The first commit that introduces the claim MUST carry evidence that B conforms to A, at the strongest rank you can reach:
 
-1. **Cite the path verbatim.** Include the absolute repo path of the canonical source in the docstring or top-level comment. Example: `scripts/validate_session_json.py` or `.project-toolkit/architecture/ADR-035-exit-code-standardization.md`.
+1. **Shared implementation.** B imports or consumes A (module, schema, type). No second copy exists.
+2. **Executable conformance test.** A test reads A and fails when B differs. Name the test in the docstring.
+3. **Generated projection.** B is generated from A. State `generated from <path>`.
+4. **Symbolic reference.** Cite the repo path of A and the symbol. Pair it with rank 2 when the contract is mutable.
+5. **Copied prose.** Only when ranks 1 to 4 cannot work (an external contract with no importable form). Say why; the copy goes stale when A changes.
 
-2. **Quote the contract verbatim.** Include the exact regex, schema, function signature, exit-code table, or JSON shape, copied character-for-character from the canonical source. Reword nothing. If the contract is too long to inline, quote the load-bearing fragment (the regex pattern, the type signature, the enum values) and link to the file and line range.
+`check_canonical_citations.py` accepts ranks 1 to 4 and reports a copy that no structure backs.
 
-3. **Document any intentional divergence.** If your component is stricter, looser, or different than canonical (a pre-push guard that blocks something CI would only warn about; a fast-path that skips a check the canonical performs), add a section to the docstring titled `Stricter/looser/different than canonical` that names the divergence and the reason for it.
+If B intentionally differs from A, document the **reason and invariant of the divergence** under `Stricter/looser/different than canonical`, not a copy of A plus a delta. Back it with a test where practical.
 
-These three steps land in **the same commit** that introduces the claim. Not a follow-up. Not after the first review. The point of the rule is to prevent the imagined-contract bug, which is only avoidable before the imagined contract reaches the reviewer.
+Commit-scoped proof ("verified against `<path>` at commit `<sha>`; conformance test passes") belongs in the PR or review. Promote it to a docstring only when a future reader needs the rationale, invariant, external contract, or hazard.
+
+Land all of this in **the same commit** that introduces the claim. The imagined-contract bug is only avoidable before it reaches the reviewer.
 
 ## What the reviewer MUST verify
 
 When you review a PR that touches these paths and the diff includes the words **matches**, **mirrors**, **aligned with**, or similar:
 
-- Open the cited canonical source. Confirm the verbatim quote is correct, character-for-character. Differences in whitespace, character classes, or boundary tokens are not minor.
+- Open the cited canonical source. Confirm the evidence holds: the import resolves, the conformance test fails when A changes, the generator output matches. If a copy exists, check it character for character and ask whether ranks 1 to 3 could replace it. Whitespace and boundary-token differences are not minor.
 - Confirm the divergence section names every behavioral difference, not just the most obvious one.
 - If the cited source is itself absent or wrong, treat the PR as blocked until the citation is fixed. A wrong citation is worse than no citation; it weaponizes the next reader's trust.
 
 ## Stricter than canonical: defending divergence
 
-A pre-push guard or other local check is allowed to be stricter than the canonical CI validator. This is the M5 evidence-rule pattern documented in the retrospective: block locally what would only be flagged at CI to shorten the feedback loop. When you choose this position, the divergence section is your reviewer-facing communication. Name the canonical floor (e.g. "validator emits a warning"), name the local ceiling (e.g. "guard blocks the push"), and name the reason ("we have observed N rounds of CI bouncing on this; blocking pre-push moves the feedback to the author's terminal where the cost is lowest").
-
-A guard that is silently stricter than canonical is a bug in waiting. A guard that documents its strictness is a feature.
+A pre-push guard may be stricter than the canonical CI validator, to block locally what CI would only flag (the M5 evidence-rule pattern in the retrospective). The divergence section is your reviewer-facing communication: name the canonical floor ("validator warns"), the local ceiling ("guard blocks the push"), and the reason ("N rounds of CI bouncing; the author's terminal is the cheapest place for the feedback"). A silently stricter guard is a bug in waiting. A documented one is a feature.
 
 ## Anti-patterns rejected by this rule
 
 - **"Matches X" with no path.** A docstring says `# matches the validator` but does not name the validator file. The next reader cannot find what you mean. Reject.
-- **"Mirrors X" with a paraphrased contract.** The docstring describes the regex in prose instead of pasting it. The prose drifts from the regex within one revision. Reject.
+- **"Mirrors X" with a paraphrased contract and no structural evidence.** The docstring describes the regex in prose with no import, test, or generator behind it. The prose drifts from the regex within one revision. Reject.
 - **"Aligned with X" with no divergence section, when the implementation diverges.** The reader assumes parity; the code does not deliver parity; the bug compounds with the false claim. Reject.
 - **First-commit citation deferred to "I will add it later".** The cost of citing the canonical source is roughly zero at write time and roughly one round of review later. Pay the zero. Reject.
 - **Self-referential test that mirrors the producer's own output.** A test that asserts a generator emits a specific string, then checks the generator emitted that string, pins the output to itself. It proves the producer is internally consistent; it proves nothing about the canonical contract the output is supposed to honor, and it cannot catch a wrong variable, a wrong path, or a wrong exit code. This is this rule applied at the test layer. The test that satisfies the rule exercises the contract INDEPENDENTLY: it runs the artifact under the real runtime conditions (the cwd and environment the host sets) and asserts the intended effect, with a negative control proving the test fails when the artifact is wrong. PR #2205 shipped a string-match test of this shape against `generate_hooks._build_copilot_entry`; it passed while the generated hooks wedged customer environments. See `.claude/rules/generated-artifacts.md` and `.project-toolkit/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md`.
@@ -66,7 +70,7 @@ A guard that is silently stricter than canonical is a bug in waiting. A guard th
 
 A claim about what another component **does** is load-bearing in the same way a "mirrors" claim is. "Validator X skips directory Y." "Hook Z runs on push." "Helper W returns None on failure." The reader acts on these without re-deriving them, and a rule file that carries one is read by every agent on every session it applies to.
 
-A function's name is not evidence of its behavior. Neither is its call site, a prior PR description, or your memory of it. Open the file and read the body. Then quote the line you are relying on, with its path and line number:
+A function's name is not evidence of its behavior. Neither is its call site, a prior PR description, or your memory of it. Open the file and read the body. Then cite the line you are relying on, with its path and line number, and quote it only when the line is the contract:
 
 ```python
 # build/scripts/validate_plugin_manifests.py:318-327 prunes it by name:
@@ -127,11 +131,6 @@ Before you merge a document that names a test, a symbol, or a count, run `git gr
 
 The same applies to measurements. A measured result describes one tree, not a
 permanent fact. Verify it against the tree you are shipping, or omit it.
-
-On 2026-08-03 both halves of this fired in one change. A document cited a test
-name and a `DID_NOT_RUN` constant that existed only on another branch. The
-passing result in the same paragraph was stale because the file changed after
-the prose was written. Two review rounds had not reported either mismatch.
 
 ## The one place the mirror outranks the source: always-on membership
 
