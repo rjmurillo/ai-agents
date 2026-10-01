@@ -10,9 +10,13 @@ here for authored artifacts only:
   2. derived cardinality claims: "the three filters" followed by four filters.
      This is duplicated mutable state.
 
-Generated projections (.claude/, src/, .github/ mirrors) are excluded using the
-capability graph's projection roots. One authored source with N generated
-copies is the good shape and is never counted.
+The scan set is an allowlist of authored sources: the capability graph's canonical
+templates (`CANONICAL_GLOBS`), agent and skill partials, top-level template docs,
+hand-kept `.github/prompts/` files, skill references, and untemplated skills.
+Generated projections are not in the allowlist, so one authored source with N
+generated copies is the good shape and is never counted. The one projection that
+shares a root with authored text, `.github/prompts/pr-quality-gate-*.md`, is
+skipped by name.
 
 The check is a ratchet over a committed baseline. Existing debt is allowed; a
 new pair, a bigger overlap, or a new stale count fails. Shrinking debt also
@@ -49,7 +53,7 @@ from check_capability_graph import (  # noqa: E402
     TreeError,
     survey,
 )
-from nl_cardinality import derived_count_claims, simplify  # noqa: E402
+from nl_cardinality import FENCE_RE, derived_count_claims, simplify  # noqa: E402
 
 BASELINE_PATH = "scripts/validation/nl_structural_debt_baseline.json"
 MIN_BLOCK_LINES = 5
@@ -67,7 +71,6 @@ EXTRA_AUTHORED_GLOBS: tuple[tuple[str, str], ...] = (
 # `.github/prompts/pr-quality-gate-*.md` is generated from the review skill's
 # references (templates/platforms/binplace.yaml), so it is a projection.
 GENERATED_PROMPT_PREFIX = "pr-quality-gate-"
-_FENCE_RE = re.compile(r"^\s*(```|~~~)")
 _RULE_RE = re.compile(r"^[\s|:\-=*_#>]*$")
 
 
@@ -106,7 +109,7 @@ def _body_lines(text: str) -> list[str]:
     kept: list[str] = []
     in_fence = False
     for line in lines:
-        if _FENCE_RE.match(line):
+        if FENCE_RE.match(line):
             in_fence = not in_fence
             continue
         norm = " ".join(line.split()).lower()
@@ -167,6 +170,11 @@ def _load_baseline(repo_root: Path) -> dict[str, dict[str, Any]]:
         raise ScanError("baseline must hold exactly `duplicate_blocks` and `cardinality`")
     if not all(isinstance(data[k], dict) for k in data):
         raise ScanError("baseline sections must be objects")
+    counts = data["duplicate_blocks"].values()
+    if not all(type(v) is int and v > 0 for v in counts):
+        raise ScanError("baseline `duplicate_blocks` values must be positive integers")
+    if not all(isinstance(v, str) for v in data["cardinality"].values()):
+        raise ScanError("baseline `cardinality` values must be strings")
     return data
 
 
@@ -229,10 +237,15 @@ def run(repo_root: Path, update: bool, report: bool = False) -> int:
         print(f"[FAIL] {exc}", file=sys.stderr)
         return 2
     growth, shrink = compare(current, baseline)
+    examined = len(authored_files(repo_root))
     if report:
         print(
             json.dumps(
-                {**current, "amplification": amplification(repo_root, current["duplicate_blocks"])},
+                {
+                    **current,
+                    "amplification": amplification(repo_root, current["duplicate_blocks"]),
+                    "examined": examined,
+                },
                 indent=2,
                 sort_keys=True,
             )
@@ -249,6 +262,8 @@ def run(repo_root: Path, update: bool, report: bool = False) -> int:
         return 1
     if update:
         path.write_text(json.dumps(current, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    if not report:
+        print(f"[PASS] NL structural debt: 0 increases, {examined} authored artifacts examined")
     return 0
 
 

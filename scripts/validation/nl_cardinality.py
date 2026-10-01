@@ -31,6 +31,9 @@ NUMBER_WORDS: dict[str, int] = {
 _NUMBER = "|".join([*NUMBER_WORDS, r"\d{1,2}"])
 
 # number, up to two modifier words, one plural noun, then a colon or opening paren.
+# A backtick or tilde fence opener or closer; shared with the duplicate-block scanner.
+FENCE_RE = re.compile(r"^\s*(```|~~~)")
+
 _CLAIM_RE = re.compile(
     rf"(?<![\w.-])(?P<num>{_NUMBER})\s+(?:[A-Za-z-]+\s+){{0,2}}?(?P<noun>[A-Za-z-]+s)\s*"
     r"(?P<open>[:(])\s*(?P<rest>.*)$",
@@ -122,7 +125,7 @@ def derived_count_claims(text: str) -> list[Claim]:
     claims: list[Claim] = []
     in_fence = False
     for index, line in enumerate(lines):
-        if line.lstrip().startswith("```"):
+        if FENCE_RE.match(line):
             in_fence = not in_fence
             continue
         if in_fence:
