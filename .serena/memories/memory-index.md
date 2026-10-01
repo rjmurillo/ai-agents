@@ -14,6 +14,7 @@
 |governance bureaucracy audit open issues PR churn session log redundancy critical review: [audits/2026-08-17-governance-bureaucracy-critical-review](audits/2026-08-17-governance-bureaucracy-critical-review.md) (681)
 |frontmatter key migration nested metadata shape atomic commit count gate scope bypass bulk rename: [decision-frontmatter-migrations-must-cover-both-key-shapes](decision-frontmatter-migrations-must-cover-both-key-shapes.md) (1353)
 |disposition registry base ref waiver self-approve finding eureka: [decision-a-disposition-registry-is-trusted-only-from-the-base-ref](decision-a-disposition-registry-is-trusted-only-from-the-base-ref.md) (416)
+|signing signature attestation sigstore publisher app check run forged test result conftest ADR-101 eureka: [decision-signing-proves-who-reported-a-result-not-that-it-is-true](decision-signing-proves-who-reported-a-result-not-that-it-is-true.md) (472)
 
 [GitHub and PR Operations]
 |premise verification git log -S git grep reviewer-findings pr-comment-responder refuted: [pr-review/decision-premise-verification-reused-reviewer-findings](pr-review/decision-premise-verification-reused-reviewer-findings.md) (800)
@@ -122,6 +123,8 @@
 |count ratchet baseline branch freshness behind main stale: [ci/ci-count-ratchets-require-branch-freshness](ci/ci-count-ratchets-require-branch-freshness.md) (1604)
 |taste count ratchet pre-push cost twelve minutes python-tests: [ci/run-count-ratchets-before-the-expensive-pre-push](ci/run-count-ratchets-before-the-expensive-pre-push.md) (875)
 |pre-push wall clock duration python-tests partitions mutation contention DORA: [ci/ci-pre-push-wall-clock-is-python-tests](ci/ci-pre-push-wall-clock-is-python-tests.md) (1854)
+|CLAUDE_PLUGIN_ROOT PYTHONDONTWRITEBYTECODE pycache staleness gate python-tests collect only full suite merge_group D9 review marker merge main: [ci/ci-local-push-and-test-environment-contracts](ci/ci-local-push-and-test-environment-contracts.md) (500)
+|python 3.14 pathlib is_dir is_file OSError swallow stat _run_command FileNotFoundError dead code: [python/python-314-pathlib-swallows-oserror](python/python-314-pathlib-swallows-oserror.md) (151)
 |taste baseline slack MAX_BASELINE_SLACK drift enforced by pytest: [ci/ci-taste-baseline-slack-is-enforced-by-pytest-not-the-ratchet](ci/ci-taste-baseline-slack-is-enforced-by-pytest-not-the-ratchet.md) (1077)
 |ratchet declared twice lefthook checks_ratchet parity add/add conflict: [ci/ci-a-ratchet-is-declared-twice-so-drop-it-twice](ci/ci-a-ratchet-is-declared-twice-so-drop-it-twice.md) (704)
 |stale detached HEAD shared checkout verify wrong commit: [workspace/workspace-shared-checkout-is-a-stale-detached-head](workspace/workspace-shared-checkout-is-a-stale-detached-head.md) (1497)
@@ -167,7 +170,7 @@
 |git branch switch checkout file state verification lost: [git/git-004-branch-switch-file-verification](git/git-004-branch-switch-file-verification.md) (851)
 |lost code recovery investigation unmerged branch orphaned: [session/recovery-001-lost-code-investigation](session/recovery-001-lost-code-investigation.md) (552)
 |cva refactoring variant consolidation template generate: [utilities/utilities-cva-refactoring](utilities/utilities-cva-refactoring.md) (1253)
-|agent-shims 1password pre-push hang PATH workaround: [git/git-agent-shims-hang-pre-push-on-a-1password-read](git/git-agent-shims-hang-pre-push-on-a-1password-read.md) (259)
+|agent-shims 1password pre-push hang PATH workaround native claude CLI live evals: [git/git-agent-shims-hang-pre-push-on-a-1password-read](git/git-agent-shims-hang-pre-push-on-a-1password-read.md) (347)
 
 [External Tools]
 |gemini code assist config styleguide ignore path enterprise: [skills-gemini-index](skills-gemini-index.md) (200)
