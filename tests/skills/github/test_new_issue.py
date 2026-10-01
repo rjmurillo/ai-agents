@@ -66,9 +66,10 @@ class TestNewIssue:
         data = json.loads(capsys.readouterr().out)
         assert data["Error"]["Type"] == "ApiError"
 
-    def test_empty_body_not_passed(self):
+    def test_empty_body_carries_only_the_human_marker(self):
         _, gh = _run(["--title", "Title", "--body", "", "--source", "human"])
-        assert "--body" not in gh.find("issue", "create")
+        create = gh.find("issue", "create")
+        assert create[create.index("--body") + 1] == "<!-- source:human -->"
 
     def test_empty_labels_apply_only_the_source_label(self):
         _, gh = _run(["--title", "Title", "--labels", "", "--source", "human"])

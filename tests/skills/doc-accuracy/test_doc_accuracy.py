@@ -1195,6 +1195,113 @@ class TestGetChangedFiles:
         assert _get_changed_files("base", tmp_path) == set()
         assert _get_changed_files("base-symbolic", tmp_path) == set()
 
+    @staticmethod
+    def _git(path: Path, *args: str) -> str:
+        return subprocess.run(
+            ["git", "-C", str(path), *args],
+            check=True, capture_output=True, text=True,
+        ).stdout.strip()
+
+    def _commit_file(self, path: Path, name: str) -> None:
+        (path / name).write_text(f"# {name}\n")
+        self._git(path, "add", name)
+        self._git(path, "commit", "-m", name)
+
+    def test_base_that_advanced_after_fork_is_not_counted(
+        self, tmp_path: Path
+    ) -> None:
+        """Commits on the base after the fork are not this branch's changes."""
+        self._init_repo(tmp_path)
+        base = self._git(tmp_path, "symbolic-ref", "--short", "HEAD")
+        self._git(tmp_path, "switch", "-c", "feature")
+        self._commit_file(tmp_path, "feature.md")
+        self._git(tmp_path, "switch", base)
+        self._commit_file(tmp_path, "base-only.md")
+        self._git(tmp_path, "switch", "feature")
+
+        assert _get_changed_files(base, tmp_path) == {"feature.md"}
+
+    def test_base_that_advanced_after_fork_scopes_cli_inventory(
+        self, tmp_path: Path
+    ) -> None:
+        """main() reports only the branch's doc when the base moved on."""
+        self._init_repo(tmp_path)
+        base = self._git(tmp_path, "symbolic-ref", "--short", "HEAD")
+        self._git(tmp_path, "switch", "-c", "feature")
+        self._commit_file(tmp_path, "feature.md")
+        self._git(tmp_path, "switch", base)
+        self._commit_file(tmp_path, "base-only.md")
+        self._git(tmp_path, "switch", "feature")
+        out_dir = tmp_path / "out"
+
+        exit_code = main([
+            "--target", str(tmp_path),
+            "--diff-base", base,
+            "--phases", "1",
+            "--output-dir", str(out_dir),
+        ])
+
+        assert exit_code == 0
+        assessment = json.loads((out_dir / "assessment.json").read_text())
+        assert assessment["changed_files"] == ["feature.md"]
+
+    def test_unrelated_history_exits_2(self, tmp_path: Path) -> None:
+        """A base sharing no history with HEAD is a config error."""
+        self._init_repo(tmp_path)
+        base = self._git(tmp_path, "symbolic-ref", "--short", "HEAD")
+        self._git(tmp_path, "switch", "--orphan", "island")
+        self._commit_file(tmp_path, "island.md")
+
+        exit_code = main([
+            "--target", str(tmp_path),
+            "--diff-base", base,
+            "--phases", "1",
+        ])
+
+        assert exit_code == 2
+
+    def test_merge_base_git_failure_exits_3(self, tmp_path: Path) -> None:
+        """A merge-base failure other than 'no history' is external."""
+        self._init_repo(tmp_path)
+        real_run = subprocess.run
+
+        def failing_merge_base(*args, **kwargs):
+            cmd = args[0] if args else kwargs.get("args", [])
+            if "merge-base" in cmd:
+                raise subprocess.CalledProcessError(
+                    128, cmd, output=b"", stderr=b"fatal: bad object",
+                )
+            return real_run(*args, **kwargs)  # subprocess-encoding: strict-ok
+
+        with patch.object(subprocess, "run", side_effect=failing_merge_base):
+            exit_code = main([
+                "--target", str(tmp_path),
+                "--diff-base", "HEAD",
+                "--phases", "1",
+            ])
+
+        assert exit_code == 3
+
+    def test_malformed_merge_base_stdout_exits_3(self, tmp_path: Path) -> None:
+        """Successful merge-base with malformed output is a tool failure."""
+        self._init_repo(tmp_path)
+        real_run = subprocess.run
+
+        def malformed(*args, **kwargs):
+            cmd = args[0] if args else kwargs.get("args", [])
+            if "merge-base" in cmd:
+                return subprocess.CompletedProcess(cmd, 0, b"not-an-oid", b"")
+            return real_run(*args, **kwargs)  # subprocess-encoding: strict-ok
+
+        with patch.object(subprocess, "run", side_effect=malformed):
+            exit_code = main([
+                "--target", str(tmp_path),
+                "--diff-base", "HEAD",
+                "--phases", "1",
+            ])
+
+        assert exit_code == 3
+
     def test_option_like_revision_exits_2(self, tmp_path: Path) -> None:
         """An option-like diff base remains data after --end-of-options."""
         self._init_repo(tmp_path)

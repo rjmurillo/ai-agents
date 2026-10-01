@@ -25,7 +25,7 @@ Related skills: `ai-agents-change-control` owns when a bypass is allowed; `agent
 
 ## Triggers
 
-- `what does the skip-drift-check marker do`
+- `what does the drift allowlist do`
 - `list escape hatches`
 - `can I skip this gate`
 - `add a config flag`
@@ -79,7 +79,7 @@ Copy `.env.example` to `.env`. Keys as of 2026-07-03: `ANTHROPIC_API_KEY` (MCP s
 
 | Name | Type | Effect | Status | Guard / abuse story | Where defined |
 |---|---|---|---|---|---|
-| `[skip-drift-check]` | commit message marker | Skips the agent drift detection CI gate for the whole PR (marker in ANY commit subject/body counts) | Production escape hatch with obligations | The bypass job posts a checklist that a human must satisfy: reason documented in PR description, `templates/README.md` updated with the intentional difference, explicit code-owner approval. Marker alone is NOT approval | `.github/workflows/agent-drift-detection.yml:65-69` (detection), `:297-320` `(obligations)`; `CONTRIBUTING.md:529-535` |
+| `drift-allowlist.json` (governance directory) | committed allowlist file (replaces the retired commit-message marker, issue #5636) | Excuses named files from the agent drift gate. Each entry needs an exact repo-relative `path` and a non-empty `reason`; globs, absolute paths, dot-dot segments, duplicates, and unknown keys are rejected (exit 2). Every other drift still fails | Reviewed exception, visible in the PR diff | `generate_agents.py --validate` prints each allowed divergence with its reason and warns on an entry that matched no drift. CODEOWNERS requires the owner on the allowlist file, its loader, and the generator. No commit message skips the drift job | `drift_allowlist.py`; the Intentional divergence section of CONTRIBUTING |
 
 ## Text Directives (orphan-ref-validator)
 
@@ -139,7 +139,7 @@ retired by ADR-097 along with every tool-call hook:
 
 | Surface | Consumer | Shape re-verified 2026-09-01 |
 |---|---|---|
-| `.claude/settings.json` | Claude Code direct in this repository | 4 events, 7 groups |
+| `.claude/settings.json` | Claude Code direct in this repository | 5 events, 8 groups |
 | `.claude/hooks/hooks.json` | Vendored plugin source for both harness packages | 0 events, 0 groups |
 | `.github/hooks/require-subagent-model.json` | retired (ADR-097) | deleted; was Copilot CLI in this repository, native `preToolUse`, matcher `task`, direct registration |
 
@@ -166,7 +166,7 @@ repository-controlled code, so command-name matching is not a safe approval boun
 | Anti-pattern | Why it fails | Do instead |
 |---|---|---|
 | Reintroducing a global bypass | Session 1187: abused 3x in hours; user verdict "You can't be trusted" | Narrow, announced, per-check escapes |
-| `[skip-drift-check]` without the checklist | Marker skips the CI job but the bypass job posts unmet obligations; reviewers will bounce it | Document reason, update `templates/README.md`, get code-owner approval |
+| A drift allowlist entry with no real reason | The validator rejects an empty reason; a vague one gets bounced in review | State why the file differs, update `templates/README.md`, get code-owner approval |
 | Documenting a flag only in CONTRIBUTING.md | Docs drift previously left removed flags in active guidance | The defining script is the source of truth; docs quote it (FM-9) |
 | Editing `.claude/lib/hook_utilities/` to change flag behavior | That tree is a generated mirror; next `build_all.py` run reverts you | Edit `scripts/hook_utilities/`, run `uv run python build/scripts/build_all.py` |
 | Claiming `SKIPPED: investigation-only` with code staged | CI backstop diffs staged files against the allowlist | Split the commit or run QA |
@@ -189,7 +189,7 @@ moved or died: update this catalog before relying on it.
 | Fact | Re-verify one-liner |
 |---|---|
 | Git hook jobs, filters, and validators | `uv run --frozen lefthook validate` |
-| [skip-drift-check] marker + obligations | `grep -n "skip-drift-check" .github/workflows/agent-drift-detection.yml` |
+| Drift allowlist file and validator | `git ls-files '*drift-allowlist.json' '*drift_allowlist.py'` |
 | size-exception | `grep -n "size-exception" scripts/validation/skill_size.py` |
 | orphan-ref directives + 50-line window | `grep -n "IGNORE_DIRECTIVE_RE" .claude/skills/orphan-ref-validator/scripts/patterns.py && grep -n "splitlines()\[:50\]" .claude/skills/orphan-ref-validator/scripts/scan.py` |
 | investigation allowlist | `grep -n "agents/" scripts/modules/investigation_allowlist.py` |

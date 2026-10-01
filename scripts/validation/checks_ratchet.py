@@ -134,6 +134,13 @@ RATCHETS: tuple[Ratchet, ...] = (
         False,
         True,
     ),
+    # Issue #5636, D11: freezes the STRICT_CANONICAL_CHECK=1 violation count.
+    Ratchet(
+        "canonical-citations-count-ratchet",
+        "scripts/ci/canonical_citations_count_ratchet.py",
+        False,
+        True,
+    ),
     Ratchet(
         "memory-index-token-ratchet",
         "scripts/ci/memory_index_token_ratchet.py",

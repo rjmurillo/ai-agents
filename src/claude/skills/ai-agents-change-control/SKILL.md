@@ -74,7 +74,7 @@ Special case, generated trees. `src/vs-code-agents/` and `src/copilot-cli/agents
 | ADR / governance | `adr-review` debate to consensus; blocking `git_hook_policy.py adr-review` Lefthook job |
 | Any canonical-source edit | Drift gates: `uv run python build/generate_agents.py --validate` and `uv run python build/scripts/build_all.py --check`; CI mirrors in `agent-drift-detection.yml` and `drift-detection.yml` |
 
-Drift-gate bypass exists but is not free. `[skip-drift-check]` anywhere in a commit message on the PR skips agent drift detection (`.github/workflows/agent-drift-detection.yml:17`). Using it demands a stated reason and human approval; an unexplained bypass marker reads as the session 1187 escape-hatch abuse pattern (told in `references/incident-history.md`) and will be challenged in review.
+There is no commit-message bypass for the agent drift gate. An intentional divergence between a generated agent file and its template goes in `drift-allowlist.json` (under the governance directory) as an entry with an exact repo-relative `path` and a non-empty `reason`. `generate_agents.py --validate` prints each allowed divergence with its reason and rejects an entry missing either field (exit 2). CODEOWNERS names the allowlist, so the entry needs the owner's approval in the PR that adds it. A global bypass reads as the session 1187 escape-hatch abuse pattern (told in `references/incident-history.md`).
 
 ### Phase 3: Run the gates, local to CI
 
@@ -110,7 +110,7 @@ Six of the table's incidents compress a multi-round failure and are told in full
 | Anti-pattern | Why it fails here |
 |--------------|-------------------|
 | Editing the canonical side to match a generated tree, to silence a drift gate | Inverts the source of truth (2025-12-15 incident: the source was edited to match generated output; commit reverted). Ask which side is canonical first |
-| Using `[skip-drift-check]` without a stated reason and human approval | Bypass markers are audited; unexplained use reads as the session 1187 pattern |
+| Adding a drift allowlist entry without a stated reason or code-owner approval | The validator rejects an entry with no reason; an unexplained entry reads as the session 1187 pattern |
 | Adding a `version` back to a plugin.json or marketplace entry | The gate fails on the field's presence (ADR-092). Freshness already tracks the commit SHA, so the field only re-creates the merge conflict it was deleted for |
 | Adding a fail-open wrapper so a broken hook "does not block anyone" | Rejected pattern (#2230, recorded in ADR-071): silent exit 0 disables the hook while looking like success, exactly the #2205 failure |
 | Classifying a mixed session as investigation-only | One staged file outside the ADR-034 allowlist voids the exemption; split the work |

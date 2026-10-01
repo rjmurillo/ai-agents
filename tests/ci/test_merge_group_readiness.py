@@ -32,7 +32,10 @@ REQUIRED_PRODUCERS = {
         "analyze": {"Analyze (actions)", "Analyze (python)"},
     },
     "pr-validation.yml": {"validate-pr": {"Validate PR"}},
-    "pytest.yml": {"test-result": {"Run Python Tests"}},
+    "pytest.yml": {
+        "test-result": {"Run Python Tests"},
+        "count-ratchet-guard": {"Check whole-tree count ratchets (blocking)"},
+    },
     "semantic-pr-title-check.yml": {"main": {"Validate PR title"}},
     "validate-generated-agents.yml": {
         "validate": {"Validate Generated Files"},

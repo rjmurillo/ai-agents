@@ -453,15 +453,48 @@ def _count_code_blocks(content: str) -> int:
     return len(re.findall(r"^```\w*\s*$", content, re.MULTILINE))
 
 
+def _merge_base(
+    repo_root: Path, base_oid: str, head_oid: str, env: dict[str, str]
+) -> str:
+    """Return the fork point of ``base_oid`` and ``head_oid``.
+
+    Exit 2 when the two commits share no history (a config error: the
+    base names an unrelated line). Exit 3 on any other git failure.
+    """
+    try:
+        result = subprocess.run(
+            _git_command(repo_root, "merge-base", base_oid, head_oid),
+            capture_output=True, check=True,
+            timeout=_GIT_TIMEOUT, env=env,
+        )
+    except subprocess.CalledProcessError as exc:
+        if exc.returncode == 1 and not exc.stdout:
+            raise _GitError(
+                2, f"merge-base: {base_oid[:12]} and HEAD share no history",
+            ) from exc
+        raise _GitError(
+            3, f"merge-base: failed (rc {exc.returncode}): "
+            f"{_decode_stderr(exc.stderr)}",
+        ) from exc
+    oid_bytes = result.stdout.strip()
+    if re.fullmatch(rb"(?:[0-9a-f]{40}|[0-9a-f]{64})", oid_bytes) is None:
+        raise _GitError(3, "merge-base: malformed commit ID")
+    return oid_bytes.decode("ascii")
+
+
 def _get_changed_files(diff_base: str, repo_root: Path) -> set[str]:
-    """Get files changed between diff_base and HEAD (committed changes only).
+    """Get files changed on HEAD since it forked from diff_base.
+
+    The diff runs from ``merge-base(diff_base, HEAD)`` to HEAD, the same
+    change set as ``git diff diff_base...HEAD``. Committed changes only.
 
     Uses a deterministic validation sequence:
 
     1. Verify git work-tree environment (sanitized env, ``-C repo_root``).
     2. Resolve each revision to an OID and verify object accessibility.
     3. Resolve ``<revision>^{commit}``; non-commit bases are config exit 2.
-    4. Diff by resolved commit OIDs using NUL-separated output (``-z``).
+    4. Resolve the merge-base; unrelated histories are config exit 2.
+    5. Diff by resolved commit OIDs using NUL-separated output (``-z``).
 
     All git commands use ``_git_env()`` to strip inherited repository-
     selection variables (GIT_DIR, GIT_WORK_TREE, etc.).
@@ -590,10 +623,14 @@ def _get_changed_files(diff_base: str, repo_root: Path) -> set[str]:
         return oid
 
     # Phases 2-3: resolve and verify immutable commit IDs.
-    oid = resolve_commit(diff_base, invalid_exit=2)
+    base_oid = resolve_commit(diff_base, invalid_exit=2)
     head_oid = resolve_commit("HEAD", invalid_exit=3)
 
-    # Phase 4: diff by resolved OIDs, NUL-separated output.
+    # Phase 4: diff from the fork point, not the base tip, so commits that
+    # landed on the base after the fork are not counted as this branch's.
+    oid = _merge_base(repo_root, base_oid, head_oid, env)
+
+    # Phase 5: diff by resolved OIDs, NUL-separated output.
     try:
         result = subprocess.run(
             _git_command(
@@ -1239,7 +1276,8 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--diff-base", type=str, default=None,
-        help="Git ref for incremental mode (only report changed files)",
+        help="Git ref for incremental mode (only report files changed "
+        "since HEAD forked from this ref, as in git diff REF...HEAD)",
     )
     parser.add_argument(
         "--severity-threshold", type=str, default="high",
