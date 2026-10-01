@@ -15,6 +15,20 @@ Issue #5851 wants large command output kept out of model context. Full output st
 
 Versions: Claude Code 2.1.285, Copilot CLI 1.0.90, Codex CLI 0.157.1.
 
+## Sources
+
+Every DOCUMENTED row below comes from one of these pages, fetched 2026-09-30. The vendor pages are unversioned, so the date is the pin.
+
+| Harness | Page | Sections used |
+|---|---|---|
+| Claude Code | https://code.claude.com/docs/en/hooks | "Decision control" table (PreToolUse `updatedInput`, PostToolUse `updatedToolOutput`), "JSON output" (10,000 character cap), "Output limits" (`CLAUDE_CODE_BASH_OUTPUT_LIMIT`) |
+| Copilot CLI | https://docs.github.com/en/copilot/reference/hooks-configuration | "`preToolUse` decision control" (`modifiedArgs`), "`postToolUse` output" (`modifiedResult`), hook output bound (10 MiB) |
+| Codex | https://learn.chatgpt.com/docs/hooks (redirect from https://developers.openai.com/codex/hooks) | "PreToolUse" rewriting, "PostToolUse" output handling, hook output spill |
+
+The Copilot rows also match the repo's own record in `.claude/skills/agent-harness-reference/references/official-hook-contracts.md`.
+
+BINARY rows come from `strings` on the Codex 0.157.1 binary shipped in the `@openai/codex-linux-x64` package.
+
 ## Findings
 
 ### Claude Code
@@ -65,6 +79,26 @@ Hooks do load in this install: SessionStart and UserPromptSubmit hooks ran durin
 - The wrapper's effect on command identity in receipts and on approval prompts.
 - Secret redaction before the artifact is written. That is build-phase work from the issue.
 - Measurement through #5400. No before and after numbers exist yet.
+
+## Probe artifacts
+
+Each PROBED row used one throwaway hook, inlined here so the result can be rechecked.
+
+Probe A, PostToolUse replacement (settings file registers the hook for matcher `Bash`):
+
+```python
+import json, sys
+d = json.load(sys.stdin)
+tr = d.get("tool_response")
+new = dict(tr, stdout="CONTAINED-BY-HOOK-PROBE") if isinstance(tr, dict) else "CONTAINED-BY-HOOK-PROBE"
+print(json.dumps({"hookSpecificOutput": {"hookEventName": "PostToolUse", "updatedToolOutput": new}}))
+```
+
+With `new` as the bare string the model still saw the real output. With the object form it saw `CONTAINED-BY-HOOK-PROBE`. The logged `tool_response` was `{"stdout": "REALOUTPUT-12345", "stderr": "", "interrupted": false, "isImage": false, "noOutputExpected": false}`.
+
+Probe B, PreToolUse rewrite: the hook printed `{"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "allow", "updatedInput": {"command": "echo REWRITTEN-BY-PRE-HOOK"}}}`. The model reported `REWRITTEN-BY-PRE-HOOK`.
+
+Probe C, PostToolUseFailure: the same hook registered for both events, on `bash -c 'echo FAILOUT-777 >&2; echo STDOUT-888; exit 3'`. The failure event carried `error` = `Exit code 3\nFAILOUT-777\nSTDOUT-888` and no `tool_response`. The model quoted the original text, so neither returned field applied.
 
 ## Reproduction
 
