@@ -185,6 +185,14 @@ def test_the_action_uploads_only_when_the_emitter_wrote_a_file() -> None:
     assert upload["with"]["name"] == "${{ inputs.validator }}"
 
 
+def test_action_metadata_holds_no_expression() -> None:
+    """Metadata fields are not evaluated; `gh act` rejects an expression in a description."""
+    action = _action()
+    texts = [action["name"], action["description"]]
+    texts += [spec["description"] for spec in action["inputs"].values()]
+    assert [text for text in texts if "${{" in text] == []
+
+
 def test_the_action_keeps_evidence_for_the_adr_015_standard_tier() -> None:
     """ADR-015 allows 1 or 7 days; scripts/ci/adr015_workflow_retention.py scans workflows only."""
     upload = next(s for s in _action()["runs"]["steps"] if "uses" in s)
