@@ -43,13 +43,13 @@ When a docstring, comment, or PR description contains any of:
 - "always does Z"
 - or any similar assertion about an existing component, schema, contract, or behavior in the repository
 
-the claim MUST be backed by a level-1 lookup before the first commit: open the cited file, run the cited script, or invoke the cited API. Then back the claim with structure, strongest first: B imports A, a conformance test reads A and fails when B differs, B is generated from A, or B cites A's path and symbol. Copy the contract into a docstring only when none of those can work. Full ranking: `.claude/rules/canonical-source-mirror.md`.
+the claim MUST be backed by a level-1 lookup before the first commit: open the cited file, run the cited script, or invoke the cited API. Then back the claim with structure, strongest first: B imports A, a conformance test reads A and fails when B differs, B is generated from A, or B cites A's path and symbol. Copy the contract into a docstring only when none of those can work. Full ranking: the canonical-source-mirror rule.
 
 **Mirror obligation**: before asserting a claim or behavior is done, mirror it against the canonical source and name the inverse failure mode.
 
 If your component diverges from canonical (stricter guard, wider type, skipped step), document the reason and invariant in a `Stricter/looser/different than canonical` docstring section, not a copy of the source plus a delta.
 
-This rule is operationalized in `.claude/rules/canonical-source-mirror.md`. Read that file before writing any code that mirrors an existing source.
+This rule is operationalized in the canonical-source-mirror rule. Read it before writing any code that mirrors an existing source.
 
 ### Anti-pattern: "I recall that..."
 
