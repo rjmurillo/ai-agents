@@ -9,14 +9,16 @@
     "enabled": true,
     "schedule": [
       "before 4am on monday"
-    ]
+    ],
+    "automerge": true
   },
   "vulnerabilityAlerts": {
     "enabled": true,
     "minimumReleaseAge": null,
     "labels": [
       "security"
-    ]
+    ],
+    "automerge": true
   },
   "customManagers": [
     {
@@ -34,10 +36,6 @@
       "matchUpdateTypes": [
         "minor",
         "patch"
-      ],
-      "matchPackageNames": [
-        "!@anthropic-ai/claude-code",
-        "!@github/copilot"
       ],
       "automerge": true,
       "minimumReleaseAge": "7 days"
@@ -60,9 +58,10 @@
         "minor",
         "patch"
       ],
-      "automerge": false,
+      "automerge": true,
       "minimumReleaseAge": "7 days"
     }
   ],
-  "platformAutomerge": true
+  "platformAutomerge": true,
+  "automerge": true
 }

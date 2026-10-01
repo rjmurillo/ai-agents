@@ -3,6 +3,8 @@
 # bump PRs. GitHub documents that this limit blocks version updates only and
 # leaves security updates running:
 # https://docs.github.com/en/code-security/dependabot/dependabot-security-updates/configuring-dependabot-security-updates
+# Auto-merge for these PRs is enabled by
+# .github/workflows/dependabot-approve-and-auto-merge.yml, not by this file.
 version: 2
 updates:
   - package-ecosystem: "uv"

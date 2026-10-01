@@ -1,4 +1,4 @@
-"""Guards renovate.json settings that keep transitive lockfile pins fresh (#6028).
+"""Guards renovate.json: fresh lockfile pins (#6028) and automerge of every update.
 
 pip-audit went red on main because uv.lock held stale transitive pins
 (pyjwt, urllib3) with known CVEs. config:recommended leaves
@@ -32,8 +32,8 @@ def test_lock_file_maintenance_has_schedule(config: dict[str, Any]) -> None:
     assert schedule == ["before 4am on monday"]
 
 
-def test_lock_file_maintenance_does_not_set_automerge(config: dict[str, Any]) -> None:
-    assert "automerge" not in config["lockFileMaintenance"]
+def test_lock_file_maintenance_automerges(config: dict[str, Any]) -> None:
+    assert config["lockFileMaintenance"]["automerge"] is True
 
 
 def test_vulnerability_alerts_enabled(config: dict[str, Any]) -> None:
@@ -50,8 +50,41 @@ def test_vulnerability_alerts_label_security(config: dict[str, Any]) -> None:
     assert "security" in config["vulnerabilityAlerts"]["labels"]
 
 
-def test_vulnerability_alerts_do_not_set_automerge(config: dict[str, Any]) -> None:
-    assert "automerge" not in config["vulnerabilityAlerts"]
+def test_vulnerability_alerts_automerge(config: dict[str, Any]) -> None:
+    assert config["vulnerabilityAlerts"]["automerge"] is True
+
+
+def test_global_automerge_and_platform_automerge_enabled(config: dict[str, Any]) -> None:
+    assert config["automerge"] is True
+    assert config["platformAutomerge"] is True
+
+
+def test_no_package_rule_disables_automerge(config: dict[str, Any]) -> None:
+    for rule in config["packageRules"]:
+        assert rule.get("automerge") is not False
+
+
+def test_no_package_rule_excludes_packages_from_automerge(config: dict[str, Any]) -> None:
+    for rule in config["packageRules"]:
+        names = rule.get("matchPackageNames", [])
+        assert not any(name.startswith("!") for name in names)
+
+
+def test_cli_packages_keep_release_age_and_automerge(config: dict[str, Any]) -> None:
+    rule = next(
+        r
+        for r in config["packageRules"]
+        if "@anthropic-ai/claude-code" in r.get("matchPackageNames", [])
+    )
+    assert rule["automerge"] is True
+    assert rule["minimumReleaseAge"] == "7 days"
+    assert set(rule["matchUpdateTypes"]) == {"major", "minor", "patch"}
+
+
+def test_major_updates_stay_labelled(config: dict[str, Any]) -> None:
+    rule = next(r for r in config["packageRules"] if r.get("matchUpdateTypes") == ["major"])
+    assert "renovate-major" in rule["addLabels"]
+    assert rule.get("automerge") is not False
 
 
 def test_package_rules_keep_minimum_release_age(config: dict[str, Any]) -> None:
