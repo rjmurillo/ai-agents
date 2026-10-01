@@ -387,11 +387,14 @@ def test_cleanup_failure_does_not_mask_a_body_exception(trusted, monkeypatch, tm
     assert "WARNING: leftover" in capsys.readouterr().err
 
 
-def test_sockets_and_fifos_in_the_git_dir_are_skipped(trusted, tmp_path):
+def test_sockets_and_fifos_in_the_git_dir_are_skipped(trusted, monkeypatch, tmp_path):
     worktree, _, common = _linked_worktree(tmp_path)
     os.mkfifo(common / "fsmonitor.fifo")
+    # AF_UNIX paths top out near 108 bytes; bind by a relative name from inside the dir.
+    monkeypatch.chdir(common)
     with socket.socket(socket.AF_UNIX) as sock:
-        sock.bind(str(common / "fsmonitor.sock"))
+        sock.bind("fsmonitor.sock")
+        monkeypatch.chdir(tmp_path)
         with w._worktree_git_mount(worktree) as args:
             copy = _mounted_copy(args)
             assert not (copy / "fsmonitor.fifo").exists()
