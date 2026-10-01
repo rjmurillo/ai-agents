@@ -30,6 +30,7 @@ def _entry(validator: str, when: Any = "always", tier: str = "commit") -> dict[s
     return {
         "validator": validator,
         "tier": tier,
+        "workflow": ".github/workflows/x.yml",
         "job": validator,
         "when": when,
         "rationale": "test row",

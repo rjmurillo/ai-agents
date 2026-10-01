@@ -33,6 +33,7 @@ def _entry(**overrides: Any) -> dict[str, Any]:
     entry: dict[str, Any] = {
         "validator": "run_python_tests",
         "tier": "commit",
+        "workflow": ".github/workflows/pytest.yml",
         "job": "Run Python Tests",
         "when": "always",
         "rationale": "Required status check.",
@@ -67,7 +68,7 @@ class TestParse:
     def test_empty_table_is_valid(self) -> None:
         assert parse_applicability(_doc()) == ()
 
-    @pytest.mark.parametrize("field", ["validator", "tier", "job", "when", "rationale"])
+    @pytest.mark.parametrize("field", ["validator", "tier", "workflow", "job", "when", "rationale"])
     def test_each_field_is_required(self, field: str) -> None:
         entry = _entry()
         del entry[field]
@@ -87,6 +88,30 @@ class TestParse:
     def test_tier_must_be_commit_or_build(self, bad: Any) -> None:
         with pytest.raises(ApplicabilityError, match="tier"):
             parse_applicability(_doc(_entry(tier=bad)))
+
+    @pytest.mark.parametrize(
+        "bad",
+        [
+            "",
+            "pytest.yml",
+            ".github/workflows/",
+            ".github/workflows/a/b.yml",
+            ".github/workflows/../x.yml",
+            "/.github/workflows/pytest.yml",
+            ".github/workflows/pytest.txt",
+            ".github/workflows/pytest.yml\n",
+            ".github/workflows/pytest.yml@refs/heads/main",
+            5,
+            None,
+        ],
+    )
+    def test_workflow_must_be_a_workflow_file_path(self, bad: Any) -> None:
+        with pytest.raises(ApplicabilityError, match="workflow"):
+            parse_applicability(_doc(_entry(workflow=bad)))
+
+    def test_workflow_is_carried_on_the_entry(self) -> None:
+        (entry,) = parse_applicability(_doc(_entry(workflow=".github/workflows/x-y.yaml")))
+        assert entry.workflow == ".github/workflows/x-y.yaml"
 
     @pytest.mark.parametrize("field", ["job", "rationale"])
     @pytest.mark.parametrize("bad", ["", "  ", 5, "a\nb"])

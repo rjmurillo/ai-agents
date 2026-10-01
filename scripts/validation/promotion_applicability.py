@@ -16,8 +16,13 @@ File shape, ``.agents/governance/promotion-applicability.json``, schema 1::
 
     {"schema_version": "1", "entries": [{
       "validator": "run_python_tests", "tier": "commit",
+      "workflow": ".github/workflows/pytest.yml",
       "job": "Run Python Tests", "when": "always",
       "rationale": "why this validator gates promotion"}]}
+
+``workflow`` is the repository path of the workflow file whose run holds the
+job. The provenance check (decision 5) accepts evidence only from a run of that
+workflow, so a result uploaded by any other workflow is refused.
 
 ``when`` is the string ``"always"`` or a non-empty list of glob patterns over
 repository-relative paths of the candidate commit. A pattern matches a path
@@ -62,7 +67,8 @@ TIER_BUILD = "build"
 ALWAYS = "always"
 
 _SHOWN_PATH = APPLICABILITY_RELATIVE_PATH.as_posix()
-_KEYS = frozenset({"validator", "tier", "job", "when", "rationale"})
+_KEYS = frozenset({"validator", "tier", "workflow", "job", "when", "rationale"})
+_WORKFLOW_RE = re.compile(r"\.github/workflows/[A-Za-z0-9][A-Za-z0-9._-]*\.ya?ml")
 _VALIDATOR_RE = re.compile(r"[a-z][a-z0-9_.-]*")
 _TIERS = frozenset({TIER_COMMIT, TIER_BUILD})
 
@@ -77,6 +83,7 @@ class Applicability:
 
     validator: str
     tier: str
+    workflow: str
     job: str
     when: tuple[str, ...]
     rationale: str
@@ -144,6 +151,9 @@ def _entry_problems(entry: object) -> list[str]:
     tier = entry["tier"]
     if not isinstance(tier, str) or tier not in _TIERS:
         problems.append(f"'tier' must be one of {', '.join(sorted(_TIERS))}")
+    workflow = entry["workflow"]
+    if not isinstance(workflow, str) or not _WORKFLOW_RE.fullmatch(workflow):
+        problems.append("'workflow' must be a path such as '.github/workflows/pytest.yml'")
     for field in ("job", "rationale"):
         problem = _text_problem(entry, field)
         if problem:
@@ -159,6 +169,7 @@ def _build(entry: dict[str, object]) -> Applicability:
     return Applicability(
         validator=str(entry["validator"]),
         tier=str(entry["tier"]),
+        workflow=str(entry["workflow"]),
         job=str(entry["job"]),
         when=(ALWAYS,)
         if when == ALWAYS
