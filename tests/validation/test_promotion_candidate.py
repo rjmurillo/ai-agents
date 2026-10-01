@@ -14,7 +14,7 @@ from typing import Any
 import pytest
 
 from scripts.validation.promotion_gate import EXIT_CONFIG, EXIT_EXTERNAL, EXIT_OK, main
-from tests.validation.promotion_gate_helpers import make_clone
+from tests.validation.promotion_gate_helpers import git, make_clone
 
 TODAY = date(2026, 10, 1)
 
@@ -77,7 +77,7 @@ class TestCandidatePlacement:
 
     def test_a_namespaced_ref_is_accepted_as_a_name(self, clone: tuple[Path, str, str]) -> None:
         repo, first, _ = clone
-        _git(repo, "branch", "release/2026.10", first)
+        git(repo, "branch", "release/2026.10", first)
         assert main(self._args(repo, first, "--ancestor-of=release/2026.10")) == EXIT_OK
 
     def test_an_unknown_ref_exits_three(self, clone: tuple[Path, str, str]) -> None:
