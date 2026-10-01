@@ -3,10 +3,10 @@
 ## Summary
 
 - **Status after review**: proposed, then accepted by owner decision D21 (see Owner decision below). Nothing implemented.
-- **Rounds**: 3.
+- **Rounds**: 3 on the proposal, plus round 4 (a reduced architect and critic panel on the acceptance edits).
 - **Outcome**: no P0 remains. All six seats Accept or Disagree-and-Commit. One P1 raised in round 3 (the finding fingerprint needs a structured items field) is fixed in text.
 - **Method note**: the skill names six agents. Two reviewer agents were reused across the change under a two-concurrent-subagent limit, each filling three seats one after the other: architect, critic, and independent-thinker in one; security, analyst, and high-level-advisor in the other. The seats were reviewed separately and each voted separately. The reviewers are not independent of each other's context, so this is a weaker panel than six fresh agents.
-- **Claims ledger**: `.project-toolkit/critique/ADR-113-claims-ledger.md`. 15 rows. Row 12 and row 15 are marked not checked in the tree.
+- **Claims ledger**: `.project-toolkit/critique/ADR-113-claims-ledger.md`. 15 rows. Row 15 is marked not checked in the tree. Row 12 was checked on 2026-09-30, after #6085 merged.
 
 ## Round 1
 
@@ -71,7 +71,7 @@ Decision 6 and the Impact table now require a structured `items` field, and say 
 
 - **Decision**: D21, rjmurillo, 2026-09-30. Verdict: ACCEPT ADR-113 with solo-maintainer defaults. The owner decision is not a debate round. The edits it caused were then reviewed by a reduced panel, architect and critic, because the owner answers added text no earlier round saw (`AGENTS.md` line 11 asks for that panel on prose edits).
 - **Participants**: rjmurillo (decision-maker); architect and critic for the reduced panel below. The other four seats did not re-vote.
-- **Answers recorded in the ADR**: (1) no second approving identity, so decision 7 allows no exceptions, and a second identity re-opens it; (2) a read-only ruleset probe found a branch-target ruleset on this repository and the tag target is part of the same ruleset feature, so the owner creates the `v*` tag ruleset and this change does not; (3) a GitHub Release stores the previous manifest through a narrowly scoped `contents: write` release job.
+- **Answers recorded in the ADR**: (1) no second approving identity, so decision 7 allows no exceptions, and a second identity re-opens it; (2) a read-only ruleset probe found a branch-target ruleset on this repository. Tag-target support is inferred from the REST reference and is not proven. The owner creates the `v*` tag ruleset and this change does not; (3) a GitHub Release stores the previous manifest through a narrowly scoped `contents: write` release job.
 - **Claims ledger**: row 12 is now checked in the tree. #6085 merged the D17 allowlist. Row 15 is unchanged.
 
 ## Round 4: reduced panel on the acceptance edits
@@ -83,7 +83,11 @@ Decision 6 and the Impact table now require a structured `items` field, and say 
 
 ### Author response
 
-All P1 findings and the P2 findings are fixed in text. Decision 2 now holds a check-run conclusion table, a matrix rule, and the run id and job name tie. Decision 3 states that coverage equals table coverage. Resolved Question 2 says the fallback needs the `v*` tag trigger removed, uses dated wording, and says the accepted record enforces nothing until the owner acts. Resolved Question 3 states the release job boundary. The Implementation Notes put the artifact upload first. D21 is linked to its issue comment.
+All P1 findings and the P2 findings are fixed in text. Decision 2 now holds a check-run conclusion table, a matrix rule, and a tie by workflow run id and artifact name. Decision 3 states that coverage equals table coverage. Resolved Question 2 says the fallback needs the `v*` tag trigger removed, uses dated wording, and says the accepted record enforces nothing until the owner acts. Resolved Question 3 states the release job boundary. The Implementation Notes put the artifact upload first. D21 is linked to its issue comment.
+
+### Later bot review
+
+Copilot found three more gaps after the first fixes. The API gives no producing job for an artifact, so the tie is by run id and artifact name and the within-run residual is named. The conclusion mapping now handles status separately, `stale`, `startup_failure`, and an unknown value fails closed. The Summary bullets are updated. These second-pass edits were not re-reviewed by the panel.
 
 ### Dissent recorded
 
