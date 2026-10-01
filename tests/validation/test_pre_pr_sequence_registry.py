@@ -145,6 +145,7 @@ EXPECTED_ORDER: tuple[str, ...] = (
     'Always-on Corpus Claims',
     'Rule Scope Declarations (paths:)',
     'Capability Graph (metadata.capability)',
+    'NL Structural Debt Ratchet',
     'Skill Routing Roles (metadata.routing)',
     'Path-Local Effective Context Ratchet',
 )
