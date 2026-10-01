@@ -231,3 +231,14 @@ def test_wrong_sha_still_reports_binding_failure(git_repo: Path) -> None:
     outcome = vrm.validate_ref("HEAD", git_repo, KNOWN)
     assert outcome.exit_code == 1
     assert "does not bind" in outcome.message
+
+
+def test_check_axes_scales_linearly_on_a_forged_long_list() -> None:
+    """A 20,000-name trailer must not stall the ship gate."""
+    import time
+
+    axes = ("analyst",) * 20_000
+    start = time.monotonic()
+    reason = vrm.check_axes(axes, KNOWN)
+    assert reason == "axis named more than once: analyst"
+    assert time.monotonic() - start < 1.0

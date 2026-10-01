@@ -49,6 +49,7 @@ import re
 import shutil
 import subprocess
 import sys
+from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -68,9 +69,15 @@ _MARKER_VALUE_RE = re.compile(
 
 
 # Axes that have no ``references/{stem}.md`` prompt but still appear in a marker.
-# LOCAL_AXES mirrors ``select_axes.LOCAL_AXES`` (sibling skills run with
-# ``Skill(skill=...)``); a test locks the two together. ``correctness`` is the
-# always-on step 4c pass that /review reports on every run.
+# LOCAL_AXES copies select_axes.py:55 (canonical source, review skill scripts/
+# select_axes.py) verbatim:
+#   LOCAL_AXES = ("code-qualities-assessment", "doc-accuracy", "golden-principles", "taste-lints")
+# These are sibling skills run with ``Skill(skill=...)``. A test locks the two
+# tuples together. ``correctness`` is the always-on step 4c pass named in the
+# review skill's SKILL.md ("Always-on correctness pass"); /review reports it on
+# every run, so a marker may list it. This copy is stricter than select_axes.py
+# in one way: it rejects any name outside these sets, where select_axes.py only
+# rejects unknown names passed to --pin.
 LOCAL_AXES = ("code-qualities-assessment", "doc-accuracy", "golden-principles", "taste-lints")
 ALWAYS_ON_AXES = ("correctness",)
 
@@ -157,9 +164,9 @@ def check_axes(axes: tuple[str, ...], known_axes: frozenset[str]) -> str | None:
     unknown = sorted(set(axes) - known_axes)
     if unknown:
         return f"unknown axis name(s): {', '.join(unknown)}"
-    if len(set(axes)) != len(axes):
-        duplicated = sorted({axis for axis in axes if axes.count(axis) > 1})
-        return f"axis named more than once: {', '.join(duplicated)}"
+    repeated = sorted(axis for axis, count in Counter(axes).items() if count > 1)
+    if repeated:
+        return f"axis named more than once: {', '.join(repeated)}"
     return None
 
 
