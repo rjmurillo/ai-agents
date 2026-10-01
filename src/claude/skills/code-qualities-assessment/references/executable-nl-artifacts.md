@@ -98,9 +98,7 @@ Keep a count only when it is the contract, as in "exactly three replicas".
 ## Change amplification
 
 Change amplification is the number of independently authored locations that
-must change when one semantic policy changes. A reusable policy holds steady at
-
-1. Generated mirrors are excluded. Ownership and dependencies come from the
+must change when one semantic policy changes. A reusable policy holds steady at 1; generated mirrors are excluded. Ownership and dependencies come from the
 `metadata.capability` block, not from a second graph.
 
 ## Anti-fragile remediation
