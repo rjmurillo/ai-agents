@@ -1,7 +1,7 @@
 ---
 id: ADR-057
 status: accepted
-date: 2026-07-22
+date: 2026-09-30
 decision-makers: [architect, user]
 supersedes: []
 superseded-by: null
@@ -80,7 +80,7 @@ Excluded from behavioral eval: `CLAUDE.md`, `README.md`, `INDEX.md`, `AGENTS.md`
 
 Each evaluation consists of:
 
-1. **Scenarios**: Named input conditions with expected verdicts and reason-contains assertions
+1. **Scenarios**: Named input conditions with expected verdicts. A scenario may also carry a reason-contains substring, which is an informational signal and never gates
 2. **Runner**: Invokes the LLM with prompt text plus scenario input, parses the verdict
 3. **Before/after comparison**: Runs all scenarios against the prompt before and after the change, computes score delta
 
@@ -88,15 +88,20 @@ Each evaluation consists of:
 
 The gate blocks regressions. It does not mandate an improvement on every edit. A prompt change passes behavioral evaluation when these criteria hold:
 
-1. `after_score >= before_score` (no regression on existing scenarios)
-2. No scenario flips from pass to fail. Every pass-to-fail flip is recorded in `regressions` and blocks the gate automatically; the gate has no mechanism to accept a "justified" regression. Where the gate runs as a blocking CI leg (currently the `/spec` eval in `.github/workflows/slash-command-quality.yml`), a deliberate behavior change normally lands by updating the scenario expectations alongside the prompt in the same change, so the new expectations move with the intended behavior and the gate passes without a bypass. Only accepting a regression against unchanged expectations requires a human override (admin merge) with the rationale documented in the PR. For prompt files with no blocking CI leg, the gate is advisory and PR review carries the same judgment (see Amendment 2026-07-22).
+1. `after_score >= before_score` (no regression on existing scenarios). Both scores cover only scenarios with a stable base result; see criterion 4.
+2. No scenario with a stable base result flips from pass to fail. A scenario passes on its verdict alone (the controlled label the grader is told to emit); the free-text reason never decides pass or fail. Every such pass-to-fail flip is recorded in `regressions` and blocks the gate automatically; the gate has no mechanism to accept a "justified" regression. Where the gate runs as a blocking CI leg (currently the `/spec` eval in `.github/workflows/slash-command-quality.yml`), a deliberate behavior change normally lands by updating the scenario expectations alongside the prompt in the same change, so the new expectations move with the intended behavior and the gate passes without a bypass. Only accepting a regression against unchanged expectations requires a human override (admin merge) with the rationale documented in the PR. For prompt files with no blocking CI leg, the gate is advisory and PR review carries the same judgment (see Amendment 2026-07-22).
 3. Flakiness on any scenario stays at or below the 40% block threshold.
+4. At least one base scenario has a stable result. A base scenario is unstable when it meets the 2-of-3 pass threshold without passing every scored run (`is_base_unstable`: `passed` and `flaky`). The base prompt never changes, so that swing is sampling noise. A base that fails the threshold (for example 1 of 3) is not unstable: it counts as a base failure and cannot regress. An unstable scenario is excluded from `regressions` and from both scores, and is reported in `base_unstable_scenarios`. When every base scenario is unstable the gate has no baseline and fails closed (`has_stable_baseline`). A base that passes every scored run while the after side misses the 2-of-3 threshold is still a regression.
+
+Accepted limits of this criterion, stated so no reader assumes more: one stable scenario satisfies it, so the gate can pass with most scenarios excluded; a stable base (3 of 3) falling to 2 of 3 on the after side is not a regression, because the after side passes at 2 of 3; and a two-valued scenario such as D12 can be stable or pass by chance when the grader guesses, which removing the reason check no longer filters.
+
+A right verdict with a reason lacking the expected substring is listed in `reason_mismatch_scenarios` (after side, passing runs only) for a reviewer to read. It does not fail the gate (Amendment 2026-09-30, Issue #5601).
 
 A change that targets a failing scenario SHOULD move it from fail to pass. This is recorded as `has_improvement` and surfaced in the gate output, but it is not a hard pass requirement (see the 2026-06-01 relaxation note below).
 
 #### Acceptance Gate Relaxation (2026-06-01, Issue #2197)
 
-The original gate required `has_improvement` (at least one fail-to-pass flip, or `before_score == 1.0`) as a hard pass condition. This structurally blocked any legitimate change to a prompt whose base ref already had a failing scenario. Example: a documentation-consistency edit to `.claude/commands/spec.md` introduces no behavioral change and no regression, but pre-existing scenarios D13 and D14 fail on `main` (`before_score` 5/7 < 1.0). With zero fail-to-pass flips, `has_improvement` was false and the gate returned FAIL even though the change regressed nothing.
+The gate has since gained two criteria, `no_insufficient_scored_runs` and `has_stable_baseline` (Amendment 2026-09-30). The original gate required `has_improvement` (at least one fail-to-pass flip, or `before_score == 1.0`) as a hard pass condition. This structurally blocked any legitimate change to a prompt whose base ref already had a failing scenario. Example: a documentation-consistency edit to `.claude/commands/spec.md` introduces no behavioral change and no regression, but pre-existing scenarios D13 and D14 fail on `main` (`before_score` 5/7 < 1.0). With zero fail-to-pass flips, `has_improvement` was false and the gate returned FAIL even though the change regressed nothing.
 
 That outcome contradicts the gate's stated purpose: regression prevention (Decision Driver 2), not a mandate that every edit improve a score. The criterion "any scenario the change targets moves from fail to pass" was always conditional on the change targeting a scenario; it was never meant to apply to changes that target no scenario.
 
@@ -137,6 +142,7 @@ Minimum requirements for scenario coverage:
 
 - MUST: A prompt with 0 scenarios does not satisfy the gate. Enforced by load_scenarios() which rejects empty scenario files.
 - SHOULD: At least one scenario per decision branch the prompt change introduces or modifies. Enforced by code review.
+- SHOULD: At least one scenario that passes every base run. A scenario that passes only 2 of 3 base runs gives no regression protection (Amendment 2026-09-30). A file whose base scenarios are all unstable fails closed.
 - SHOULD: At least one regression scenario for existing behavior the change could affect. Enforced by code review.
 - SHOULD: Scenario coverage reviewed as part of the PR review process. Enforced by code review.
 
@@ -234,7 +240,8 @@ These gates run inside `eval-prompt-change.py`. They fire whenever the eval runn
 |------|-------------|-----------|
 | Scenario file must contain >= 1 scenario | eval-prompt-change.py load_scenarios() | RuntimeError on empty file |
 | after_score >= before_score (no regression) | eval-prompt-change.py acceptance_gate() | Gate returns FAIL |
-| No scenario flips pass to fail | eval-prompt-change.py acceptance_gate() | Gate returns FAIL |
+| No stable-base scenario flips pass to fail | eval-prompt-change.py acceptance_gate() | Gate returns FAIL |
+| At least one stable base scenario (`has_stable_baseline`) | eval-prompt-change.py acceptance_gate() | Gate returns FAIL when `scored_scenario_count` is 0. Applies to the security tier too, at 5 runs |
 | Flakiness > 40% blocks gate | eval-prompt-change.py acceptance_gate() | FLAKINESS_BLOCK_THRESHOLD = 0.4 |
 | Security prompts: 5 runs, 100% pass | eval-prompt-change.py --security-critical | Overrides runs, requires 100% pass_rate |
 | Non-security: 3 runs, 2/3 pass | eval-prompt-change.py DEFAULT_RUNS | (runs * 2) // 3 threshold |
@@ -273,6 +280,14 @@ Decision (Deliverable B of #3185): keep **enforcement** of the eval evidence req
 - The acceptance gate inside `eval-prompt-change.py` remains real and is used both by the `/spec` CI leg and by any contributor who runs an eval before a PR.
 
 If a broader deterministic gate is later warranted (Deliverable A), it belongs in `scripts/validation/pre_pr.py` plus a CI leg with real change-to-evidence matching, not a PreToolUse hook. Running the behavioral evals for all prompt files in CI stays deferred until the cost model this ADR defers is validated.
+
+## Amendment 2026-09-30 (Issue #5601): verdict-only scoring and a stable-base comparison
+
+Two defects made the `/spec` gate block changes that altered no behavior. A scenario passed only when the grader echoed a phrase, so rewording moved the score. A scenario whose base result swung between runs produced regressions on its own, because the base prompt never changes.
+
+Decision: the verdict alone gates a scenario, and `expected_reason_contains` is an informational signal. A base scenario that meets the 2-of-3 threshold without passing every run is excluded from `regressions` and the score comparison, and the gate fails closed when no base scenario is stable. The Acceptance Gate section above states the resulting criteria.
+
+Trade-off: a real regression on a scenario that already passes only some base runs is reported, not blocked. Three further limits are accepted and deferred: a minimum stable count or fraction, a stricter after-side threshold for scenarios that were stable at base, and a chance correction for two-valued scenarios. Each needs a measured false-block rate from live runs, which this change did not have. A base that passes every scored run and an after side that fails still blocks. A structured grader field that keeps a right-answer-wrong-reason check remains an option, but it needs live grader runs to author.
 
 ## Reversibility Assessment
 

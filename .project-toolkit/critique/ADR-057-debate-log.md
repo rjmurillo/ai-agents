@@ -85,3 +85,44 @@
 1. Update PR template to include eval score section (tracked as follow-up)
 2. Update `.project-toolkit/testing/prompt-eval-methodology.md` to back-reference ADR-057
 3. Consider moving operational scheduling details to methodology doc in future revision
+
+---
+
+## Amendment 2026-09-30 (Issue #5601): verdict-only scoring and a stable-base comparison
+
+ADR-057 is amended in PR #6079. Owner decision D12 approved the amendment. The change was written against `scripts/eval/eval-prompt-change.py`.
+
+### Panel
+
+Two of six agents ran: architect and critic. The session cap is three subagents with two concurrent, and the change describes existing code rather than adding enforcement. The other four agents did not review. This is a reduced panel, recorded as such.
+
+### Round 1 findings and resolution
+
+| # | Agent | Priority | Finding | Resolution |
+|---|-------|----------|---------|------------|
+| 1 | architect | P1 | Criterion 4 says "passes only some runs", but the code treats only 2 of 3 as unstable. A base at 1 of 3 stays in the scores. | Fixed. Criterion 4 and the Decision paragraph now state the 2-of-3 rule and the 1-of-3 case. |
+| 2 | architect | P1 | The Confirmation table has no row for `has_stable_baseline`. | Fixed. Row added, and the pass-to-fail row now says stable-base scenarios. |
+| 3 | architect | P2 | Frontmatter date stale. | Fixed to 2026-09-30. |
+| 4 | architect | P2 | Scenario Adequacy omits that an unstable scenario gives no protection. | Fixed. SHOULD added for one scenario that passes every base run. |
+| 5 | architect | P2 | The `reason_mismatch_scenarios` sentence is not scoped. | Fixed. States after side, passing runs. |
+| 6 | architect | P2 | Security tier silent on criterion 4. | Fixed in the Confirmation row: it applies at 5 runs. |
+| 7 | architect | P2 | The 2026-06-01 relaxation text is historical. | Fixed. Pointer to this amendment added. |
+| 8 | critic | P1 | One stable scenario of N satisfies criterion 4. | Deferred, documented as an accepted limit. A minimum count or fraction needs a measured false-block rate from live runs. |
+| 9 | critic | P1 | Stable base needs 3 of 3, but the after side passes at 2 of 3, so 3 to 2 is not a regression. | Deferred, documented as an accepted limit. A stricter after-side threshold needs live data. |
+| 10 | critic | P1 | Two-valued scenarios (D12) can be stable or pass by chance once the reason check is gone. | Deferred, documented as an accepted limit. A chance correction needs live data. |
+| 11 | critic | P2 | Residual risk understated. | Fixed. The Decision's trade-off paragraph names all three limits. |
+| 12 | critic | P2 | Criterion 4 names no numbers. | Deferred with findings 8 to 10. |
+| 13 | critic | P2 | A base with not-scored runs can be "stable" on one scored run. | Not changed here. Existing behavior of `insufficient_scored_before`, outside this amendment. |
+
+No P0 findings. Deferred items 8, 9, 10, and 12 are recorded in the ADR text. No issue was filed because filing needs owner authorization.
+
+### Votes
+
+| Agent | Vote |
+|-------|------|
+| architect | Disagree and Commit |
+| critic | Disagree and Commit |
+
+Dissent: the gate can pass with most scenarios excluded, and the 3-to-2 drop is unguarded. The ADR now states both as accepted limits.
+
+**Outcome: 2/2 reviewing agents Disagree and Commit. Strategic checklist: Chesterton's Fence PASS (original reason-contains purpose and the defect it caused are recorded), Path Dependence PASS (rollback is a revert), Core vs Context N/A, Second-System N/A.**
