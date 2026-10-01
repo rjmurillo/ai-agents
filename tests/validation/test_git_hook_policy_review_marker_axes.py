@@ -9,6 +9,7 @@ from __future__ import annotations
 import shutil
 import subprocess
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -68,9 +69,11 @@ def test_gate_passes_the_references_dir_argument(
     captured: list[str] = []
     real_command = policy._run_command
 
-    def fake_command(args: list[str], *rest: object, **kwargs: object):
+    def fake_command(
+        args: list[str], repo_root: Path, **kwargs: Any
+    ) -> subprocess.CompletedProcess[str]:
         if args[0] == "git":
-            return real_command(args, *rest, **kwargs)
+            return real_command(args, repo_root, **kwargs)
         captured.extend(args)
         return subprocess.CompletedProcess(args, 0, "", "")
 
