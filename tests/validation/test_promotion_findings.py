@@ -22,7 +22,11 @@ from scripts.validation.promotion_evidence import (
     EvidenceRecord,
     RejectedEvidence,
 )
-from scripts.validation.promotion_exceptions import PromotionException, parse_exceptions
+from scripts.validation.promotion_exceptions import (
+    PromotionException,
+    finding_fingerprint,
+    parse_exceptions,
+)
 from scripts.validation.promotion_findings import (
     MAX_MANIFEST_BYTES,
     REASON_MISSING,
@@ -227,6 +231,22 @@ class TestCountsAndVerdict:
         assert overall_state(outcomes).state is EvidenceState.FAIL
 
 
+def _prev_entry(
+    klass: str, validator: str = "pytest", scope: str = "tests/", **extra: Any
+) -> dict[str, Any]:
+    """A previous-manifest finding whose fingerprint matches its identity fields."""
+    entry: dict[str, Any] = {
+        "fingerprint": finding_fingerprint(validator, "tests.failed", scope, ""),
+        "class": klass,
+        "validator": validator,
+        "reason": "tests.failed",
+        "scope": scope,
+        "item": "",
+    }
+    entry.update(extra)
+    return entry
+
+
 def _manifest(**overrides: Any) -> dict[str, Any]:
     doc: dict[str, Any] = {
         "schema_version": "1",
@@ -234,22 +254,8 @@ def _manifest(**overrides: Any) -> dict[str, Any]:
         "enforced": True,
         "candidate": {"sha": PREV_SHA, "digest": ""},
         "findings": [
-            {
-                "fingerprint": "f1",
-                "class": "unresolved",
-                "validator": "pytest",
-                "reason": "tests.failed",
-                "scope": "tests/",
-                "item": "",
-            },
-            {
-                "fingerprint": "f2",
-                "class": "remediated",
-                "validator": "x",
-                "reason": "y.z",
-                "scope": "s",
-                "item": "",
-            },
+            _prev_entry("unresolved"),
+            _prev_entry("remediated", validator="x", scope="s"),
         ],
     }
     doc.update(overrides)
@@ -260,7 +266,9 @@ class TestPreviousManifest:
     def test_keeps_open_findings_and_drops_remediated(self) -> None:
         parsed = parse_previous_manifest(_manifest())
         assert parsed.candidate_sha == PREV_SHA
-        assert [f.fingerprint for f in parsed.findings] == ["f1"]
+        assert [f.fingerprint for f in parsed.findings] == [
+            _prev_entry("unresolved")["fingerprint"]
+        ]
 
     @pytest.mark.parametrize("document", [[], "x", None, {"schema_version": "2"}])
     def test_wrong_document_is_refused(self, document: Any) -> None:
@@ -292,6 +300,18 @@ class TestPreviousManifest:
     def test_a_partial_open_finding_is_refused(self, raw: Any) -> None:
         with pytest.raises(ManifestError, match="string"):
             parse_previous_manifest(_manifest(findings=[raw]))
+
+    def test_a_forged_fingerprint_is_refused(self) -> None:
+        forged = _prev_entry("unresolved", fingerprint="forged")
+        with pytest.raises(ManifestError, match="fingerprint does not match"):
+            parse_previous_manifest(_manifest(findings=[forged]))
+
+    @pytest.mark.parametrize("field", ["validator", "reason", "scope", "item"])
+    def test_an_edited_identity_field_is_refused(self, field: str) -> None:
+        edited = _prev_entry("unresolved")
+        edited[field] = "changed"
+        with pytest.raises(ManifestError, match="fingerprint does not match"):
+            parse_previous_manifest(_manifest(findings=[edited]))
 
     @pytest.mark.parametrize("raw", ["x", 5, None, ["a"]])
     def test_a_non_object_entry_is_refused_not_skipped(self, raw: Any) -> None:

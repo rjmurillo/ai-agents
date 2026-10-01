@@ -160,9 +160,15 @@ def _items(document: dict[str, Any]) -> tuple[str, ...]:
 
 def _duration(document: dict[str, Any]) -> float:
     value = document.get("duration_seconds", 0.0)
-    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise EvidenceError("'duration_seconds' must be a finite number")
-    return float(value)
+    try:
+        number = float(value)
+    except OverflowError as exc:
+        raise EvidenceError("'duration_seconds' must be a finite number") from exc
+    if not math.isfinite(number):
+        raise EvidenceError("'duration_seconds' must be a finite number")
+    return number
 
 
 def _state(document: dict[str, Any]) -> EvidenceState:

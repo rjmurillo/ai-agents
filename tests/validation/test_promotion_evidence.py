@@ -133,6 +133,16 @@ class TestParse:
         with pytest.raises(EvidenceError, match="finite"):
             _record(duration_seconds=bad)
 
+    def test_an_integer_too_large_for_a_float_is_rejected_not_a_crash(self) -> None:
+        with pytest.raises(EvidenceError, match="finite"):
+            _record(duration_seconds=10**400)
+
+    def test_an_oversized_integer_in_a_file_becomes_a_rejection(self, tmp_path: Path) -> None:
+        text = '{"validator": "v", "state": "PASS", "duration_seconds": 1' + "0" * 400 + "}"
+        (tmp_path / "big.json").write_text(text, encoding="utf-8")
+        _, rejected = load_evidence_dir(tmp_path)
+        assert rejected[0].reason == REASON_MALFORMED
+
     def test_pass_must_not_list_items(self) -> None:
         with pytest.raises(EvidenceError, match="PASS must not list"):
             _record(items=["a.py"])

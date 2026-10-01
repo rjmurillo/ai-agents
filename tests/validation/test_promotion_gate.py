@@ -17,7 +17,11 @@ import pytest
 from scripts.validation import promotion_gate as gate
 from scripts.validation.evidence import EvidenceState
 from scripts.validation.promotion_evidence import Candidate
-from scripts.validation.promotion_exceptions import EXCEPTIONS_RELATIVE_PATH, ExceptionsFileError
+from scripts.validation.promotion_exceptions import (
+    EXCEPTIONS_RELATIVE_PATH,
+    ExceptionsFileError,
+    finding_fingerprint,
+)
 from scripts.validation.promotion_findings import Finding, PreviousFinding, PreviousManifest
 from scripts.validation.promotion_gate import (
     EXIT_CONFIG,
@@ -335,7 +339,7 @@ class TestCli:
                     "candidate": {"sha": OTHER},
                     "findings": [
                         {
-                            "fingerprint": "gone",
+                            "fingerprint": finding_fingerprint("pytest", "r.x", "tests/", ""),
                             "class": "unresolved",
                             "validator": "pytest",
                             "reason": "r.x",
@@ -380,9 +384,27 @@ class TestCli:
             "release_eligible=false",
         ]
 
-    def test_github_output_is_eligible_only_for_an_enforced_tag_checked_promote(
+    def _eligible_args(self, tmp_path: Path, sink: Path, *extra: str) -> list[str]:
+        """Enforced, digest-bound promote with a build-tier result and a tag check."""
+        _write(tmp_path / "ev", "pytest.json", _evidence())
+        _write(tmp_path / "ev", "pack.json", _evidence(validator="pack", digest=DIGEST))
+        return self._args(
+            tmp_path, "--github-output", str(sink), "--require", "pytest", "--require", "pack",
+            "--build-validator", "pack", "--candidate-digest", DIGEST, *ENFORCING, *extra,
+        )  # fmt: skip
+
+    def _lines(self, sink: Path) -> list[str]:
+        return sink.read_text(encoding="utf-8").splitlines()
+
+    def test_eligible_only_for_an_enforced_tag_checked_digest_bound_promote(
         self, tmp_path: Path
     ) -> None:
+        sink = tmp_path / "out.txt"
+        args = self._eligible_args(tmp_path, sink, "--expect-tag", "v1")
+        assert main(args) == EXIT_OK
+        assert self._lines(sink) == ["verdict=promote", "release_eligible=true"]
+
+    def test_a_commit_only_promote_is_ineligible_without_a_digest(self, tmp_path: Path) -> None:
         _write(tmp_path / "ev", "pytest.json", _evidence())
         sink = tmp_path / "out.txt"
         args = self._args(
@@ -390,10 +412,24 @@ class TestCli:
             "--expect-tag", "v1",
         )  # fmt: skip
         assert main(args) == EXIT_OK
-        assert sink.read_text(encoding="utf-8").splitlines() == [
-            "verdict=promote",
-            "release_eligible=true",
-        ]
+        assert self._lines(sink) == ["verdict=promote", "release_eligible=false"]
+
+    def test_a_digest_with_no_build_tier_result_is_ineligible(self, tmp_path: Path) -> None:
+        _write(tmp_path / "ev", "pytest.json", _evidence())
+        sink = tmp_path / "out.txt"
+        args = self._args(
+            tmp_path, "--github-output", str(sink), "--require", "pytest", *ENFORCING,
+            "--expect-tag", "v1", "--candidate-digest", DIGEST,
+        )  # fmt: skip
+        assert main(args) == EXIT_OK
+        assert self._lines(sink) == ["verdict=promote", "release_eligible=false"]
+
+    def test_the_manifest_records_whether_it_is_digest_bound(self, tmp_path: Path) -> None:
+        sink = tmp_path / "out.txt"
+        out = tmp_path / "m.json"
+        args = self._eligible_args(tmp_path, sink, "--output", str(out))
+        assert main(args) == EXIT_OK
+        assert json.loads(out.read_text(encoding="utf-8"))["digest_bound"] is True
 
     def test_an_enforced_promote_without_a_tag_check_is_ineligible(self, tmp_path: Path) -> None:
         _write(tmp_path / "ev", "pytest.json", _evidence())
