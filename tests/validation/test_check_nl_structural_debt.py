@@ -204,11 +204,55 @@ def test_missing_baseline_is_a_config_error(repo: Path) -> None:
 
 @pytest.mark.parametrize(
     "content",
-    ["{not json", "[]", '{"duplicate_blocks": {}}', '{"duplicate_blocks": [], "cardinality": {}}'],
+    [
+        "{not json",
+        "[]",
+        '{"duplicate_blocks": {}}',
+        '{"duplicate_blocks": [], "cardinality": {}}',
+        '{"duplicate_blocks": {"a|b": "x"}, "cardinality": {}}',
+        '{"duplicate_blocks": {"a|b": true}, "cardinality": {}}',
+        '{"duplicate_blocks": {"a|b": 0}, "cardinality": {}}',
+        '{"duplicate_blocks": {}, "cardinality": {"k": 3}}',
+    ],
 )
 def test_invalid_baseline_is_a_config_error(repo: Path, content: str) -> None:
     (repo / gate.BASELINE_PATH).write_text(content)
     assert gate.run(repo, update=False) == 2
+
+
+def test_normal_run_prints_examined_and_violation_counts(
+    repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert gate.run(repo, update=False) == 0
+    assert "0 increases, 1 authored artifacts examined" in capsys.readouterr().out
+
+
+def test_report_json_carries_examined_count(repo: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    _graph_fillers(repo)
+    _write(repo, "templates/rules/owner.md", "Owner.", frontmatter=_cap("policy-x"))
+    assert gate.run(repo, update=False, report=True) == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["examined"] == len(gate.authored_files(repo))
+    assert {"duplicate_blocks", "cardinality", "amplification"} <= set(out)
+
+
+def test_tilde_fenced_example_is_not_a_live_claim() -> None:
+    text = "~~~\nRun the three filters: a, b, c, d.\n~~~\n"
+    assert card.derived_count_claims(text) == []
+    assert len(card.derived_count_claims("Run the three filters: a, b, c, d.")) == 1
+
+
+def test_threshold_pins_four_shared_lines_and_short_lines_are_not_duplicates() -> None:
+    four = "\n".join(
+        f"Every reviewer must confirm that policy line number {n} holds." for n in range(4)
+    )
+    short = "\n".join(f"Run step {n} now." for n in range(8))
+    files = {"a.md": four + "\n" + short, "b.md": four + "\n" + short}
+    assert gate.duplicate_blocks(files) == {}
+    five = "\n".join(
+        f"Every reviewer must confirm that policy line number {n} holds." for n in range(5)
+    )
+    assert gate.duplicate_blocks({"a.md": five, "b.md": five}) == {"a.md|b.md": 1}
 
 
 def test_missing_canonical_tree_is_a_config_error(tmp_path: Path) -> None:
