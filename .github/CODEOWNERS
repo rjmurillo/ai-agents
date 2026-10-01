@@ -74,3 +74,8 @@
 /.agents/governance/bypass-allowlist.json @rjmurillo
 /scripts/validation/bypass_allowlist.py   @rjmurillo
 /scripts/validation/check_bypass_allowlist.py @rjmurillo
+# Issue #5636, ADR-113: the promotion exceptions file and its loader decide
+# which release findings may be accepted. An entry added in the PR it excuses
+# needs the owner.
+/.agents/governance/promotion-exceptions.json @rjmurillo
+/scripts/validation/promotion_exceptions.py @rjmurillo
