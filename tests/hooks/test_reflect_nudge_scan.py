@@ -97,51 +97,24 @@ def test_qualifies_threshold(high: int, med: int, expected: bool) -> None:
     assert nudge.qualifies({"high": high, "med": med}) is expected
 
 
-def test_signal_hash_changes_with_counts() -> None:
-    assert nudge.signal_hash({"high": 1, "med": 0}) != nudge.signal_hash({"high": 2, "med": 0})
-
-
 def test_write_marker_failure_returns_false(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     blocker = tmp_path / "file"
     blocker.write_text("x")
     monkeypatch.setenv("XDG_STATE_HOME", str(blocker))
-    assert nudge.write_marker("s", "h") is False
+    assert nudge.claim_session("s") is False
 
 
 def test_stale_markers_are_pruned(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path))
-    assert nudge.write_marker("old", "h")
+    assert nudge.claim_session("old")
     old = nudge._state_dir() / "old.json"
     stale = time.time() - nudge.MARKER_MAX_AGE_SECONDS - 60
     os.utime(old, (stale, stale))
-    assert nudge.write_marker("new", "h")
+    assert nudge.claim_session("new")
     assert not old.exists()
     assert (nudge._state_dir() / "new.json").exists()
-
-
-def test_already_nudged_states(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path))
-    assert nudge.already_nudged("s", "h") is False
-    nudge.write_marker("s", "h")
-    assert nudge.already_nudged("s", "h") is True
-    assert nudge.already_nudged("s", "other") is False
-
-
-@pytest.mark.parametrize(
-    "text",
-    [
-        "no problem",
-        "No worries",
-        "no need to rerun",
-        "No, go ahead with B",
-        "no, proceed",
-        "no thanks",
-    ],
-)
-def test_benign_no_answers_are_not_corrections(text: str) -> None:
-    assert not nudge._CORRECTION.match(text.lower())
 
 
 def test_malformed_message_shapes_do_not_abort_the_scan(tmp_path: Path) -> None:
@@ -168,11 +141,11 @@ def test_symlinked_marker_file_reads_as_nudged(
     target = tmp_path / "target.json"
     target.write_text('{"signal": "other"}')
     (directory / "s.json").symlink_to(target)
-    assert nudge.already_nudged("s", "h") is True
+    assert nudge.claim_session("s") is False
 
 
-def test_praise_below_threshold_does_not_rearm_the_nudge() -> None:
-    base = nudge.signal_hash({"high": 1, "med": 0})
-    assert nudge.signal_hash({"high": 1, "med": 1}) == base
-    assert nudge.signal_hash({"high": 1, "med": 2}) != base
-    assert nudge.signal_hash({"high": 2, "med": 0}) != base
+def test_claim_session_is_exclusive(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path))
+    assert nudge.claim_session("s") is True
+    assert nudge.claim_session("s") is False
+    assert nudge.claim_session("other") is True

@@ -5,13 +5,20 @@ Deterministic scan, no model call and no network. The Stop payload carries
 ``session_id``, ``transcript_path`` and ``cwd`` (not ``messages``, the field the
 deleted hook read, issue #3184). The scanner reads the transcript JSONL the
 harness already wrote, counts correction and praise signals in human turns, and
-asks ``reflect`` to review them. The hook never writes memory: ``reflect``
-requires the operator to approve each learning.
+tells the operator, once, to run ``reflect``. The hook never writes memory:
+``reflect`` requires the operator to approve each learning.
 
-Hook Type: Stop (blocks at most once per session per signal set, fail-open)
+Cost bound: the hook NEVER blocks. It prints a ``systemMessage`` (shown to the
+operator, never sent to the model), so it forces zero extra model turns and
+adds zero model tokens. An exclusive-create marker caps it at one message per
+session, however many corrections follow. A blocking Stop hook forces a full
+extra turn each time it fires; measure-twice does that once per user turn
+(MeasureTwice.psm1:151-168) and its prompt tells the model to run review agents.
+
+Hook Type: Stop (notify-only, one message per session, fail-open)
 Exit Codes:
-    0 = always. A block is a stdout JSON decision, never a non-zero exit code,
-        so a hook fault cannot wedge the end of a turn.
+    0 = always. The notice is stdout JSON, never a block decision or a non-zero
+        exit code, so a hook fault cannot wedge or extend the end of a turn.
 
 Disable: set ``REFLECT_NUDGE_DISABLE=1`` (for example under ``env`` in
 ``settings.local.json``).
@@ -27,12 +34,10 @@ References:
 
 from __future__ import annotations
 
-import hashlib
 import json
 import os
 import re
 import sys
-import tempfile
 import time
 from pathlib import Path
 from typing import Any
@@ -129,13 +134,6 @@ def qualifies(counts: dict[str, int]) -> bool:
     return counts["high"] >= 1 or counts["med"] >= 2
 
 
-def signal_hash(counts: dict[str, int]) -> str:
-    # Praise below the threshold must not re-arm the nudge, so MED counts in
-    # pairs: one more praise turn leaves the digest unchanged.
-    key = f"{counts['high']}:{counts['med'] // 2}"
-    return hashlib.sha256(key.encode()).hexdigest()[:16]
-
-
 def _marker_path(session_id: str) -> Path | None:
     directory = _state_dir()
     for component in (directory, directory.parent, directory.parent.parent):
@@ -144,40 +142,22 @@ def _marker_path(session_id: str) -> Path | None:
     return directory / f"{session_id}.json"
 
 
-def _read_marker(marker: Path) -> dict[str, Any]:
-    """Read a marker without following a symlink planted at the file itself."""
-    fd = os.open(marker, os.O_RDONLY | os.O_NOFOLLOW)
-    with os.fdopen(fd, "r", encoding="utf-8") as handle:
-        return dict(json.load(handle))
+def claim_session(session_id: str) -> bool:
+    """Atomically claim the one message this session may show.
 
-
-def already_nudged(session_id: str, digest: str) -> bool:
-    """True when the marker records this signal set. A torn marker reads as nudged."""
-    marker = _marker_path(session_id)
-    if marker is None:
-        return True
-    try:
-        return bool(_read_marker(marker).get("signal") == digest)
-    except FileNotFoundError:
-        return False
-    except (OSError, ValueError, TypeError):
-        return True
-
-
-def write_marker(session_id: str, digest: str) -> bool:
-    """Atomically write an owner-only marker outside the repository."""
+    Exclusive create: of two racing Stop events exactly one wins. An existing
+    marker, a symlink, or any OS error all read as not claimed, so the hook
+    stays silent rather than repeating itself.
+    """
     marker = _marker_path(session_id)
     if marker is None:
         return False
     try:
         marker.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-        fd, tmp_name = tempfile.mkstemp(dir=marker.parent, prefix=".tmp-")
-        with os.fdopen(fd, "w", encoding="utf-8") as tmp:
-            json.dump({"signal": digest}, tmp)
-        os.chmod(tmp_name, 0o600)
-        os.replace(tmp_name, marker)
+        fd = os.open(marker, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
     except OSError:
         return False
+    os.close(fd)
     _prune(marker.parent)
     return True
 
@@ -216,13 +196,12 @@ def _session_id(payload: dict[str, Any]) -> str | None:
     return None
 
 
-def _decision(counts: dict[str, int]) -> str:
-    reason = (
-        f"This session has {counts['high']} correction and {counts['med']} praise signals "
-        "not yet recorded. Run the reflect skill to review them and approve which learnings "
-        "to keep."
+def _notice(counts: dict[str, int]) -> str:
+    message = (
+        f"reflect: this session has {counts['high']} correction and {counts['med']} praise "
+        "signals not yet recorded. Run the reflect skill to review them."
     )
-    return json.dumps({"decision": "block", "reason": reason})
+    return json.dumps({"systemMessage": message})
 
 
 def _read_payload() -> dict[str, Any]:
@@ -234,7 +213,7 @@ def _read_payload() -> dict[str, Any]:
 
 
 def main() -> int:
-    """Scan the transcript and emit one block decision when warranted."""
+    """Scan the transcript and show the operator one notice when warranted."""
     if os.environ.get(DISABLE_ENV, "").strip() not in ("", "0"):
         return 0
     payload = _read_payload()
@@ -246,14 +225,9 @@ def main() -> int:
         return 0
     counts = scan_transcript(path)
     state = "silent"
-    digest = signal_hash(counts)
-    if (
-        qualifies(counts)
-        and not already_nudged(session_id, digest)
-        and write_marker(session_id, digest)
-    ):
-        print(_decision(counts))
-        state = "nudged"
+    if qualifies(counts) and claim_session(session_id):
+        print(_notice(counts))
+        state = "notified"
     if counts["user_records"] and not counts["human_turns"]:
         _log("user records present but none carry origin.kind human (schema drift?)")
     _log(

@@ -212,7 +212,7 @@ AUTHORIZED_HOOKS = {
     "copies that register hooks this checkout does not, read-only, fail-open, "
     "dogfood-only",
     "invoke_reflect_nudge.py": "#5817 KEEP: deterministic transcript scan, no "
-    "network, blocks at most once per session, fail-open, dogfood-only",
+    "network, never blocks, one notice per session, fail-open, dogfood-only",
 }
 
 

@@ -39,14 +39,14 @@ def _corrections(tmp_path: Path) -> Path:
     return write_transcript(tmp_path / "t.jsonl", [human("no, use x"), human("wrong")])
 
 
-def test_main_blocks_then_dedupes(
+def test_main_notifies_once_then_stays_silent(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     payload = {"session_id": "s1", "transcript_path": str(_corrections(tmp_path))}
     assert _run(monkeypatch, payload) == 0
     first = capsys.readouterr()
-    assert json.loads(first.out)["decision"] == "block"
-    assert "(nudged)" in first.err
+    assert set(json.loads(first.out)) == {"systemMessage"}
+    assert "(notified)" in first.err
     assert _run(monkeypatch, payload) == 0
     second = capsys.readouterr()
     assert second.out == ""
@@ -97,8 +97,7 @@ def test_marker_path_refuses_symlink(tmp_path: Path, monkeypatch: pytest.MonkeyP
     link.symlink_to(real)
     monkeypatch.setenv("XDG_STATE_HOME", str(link))
     assert nudge._marker_path("s") is None
-    assert nudge.already_nudged("s", "h") is True
-    assert nudge.write_marker("s", "h") is False
+    assert nudge.claim_session("s") is False
 
 
 def test_default_state_home_is_under_user_home(monkeypatch: pytest.MonkeyPatch) -> None:

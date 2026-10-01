@@ -384,7 +384,7 @@ def test_only_the_local_surface_registers_a_stop_hook() -> None:
     retrospective skeleton into the working tree and returned a block decision
     to force another turn. That group was deleted. Issue #5817 re-adds one
     direct local Stop registration, invoke_reflect_nudge.py, a transcript scan
-    that writes outside the tree and blocks at most once per session.
+    that writes outside the tree, never blocks, and shows one notice per session.
 
     Absence on the other three surfaces, and on group ids as well as
     registrations, keeps the purge intact: a group with no registration would

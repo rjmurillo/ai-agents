@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
@@ -36,9 +37,12 @@ def state(tmp_path: Path) -> Path:
     return tmp_path / "state"
 
 
-def _blocked(result: subprocess.CompletedProcess[str]) -> dict:
+def _notified(result: subprocess.CompletedProcess[str]) -> dict:
+    """Parse the one stdout document. It must be a notice, never a block."""
     assert result.returncode == 0
-    return json.loads(result.stdout)
+    document = json.loads(result.stdout)
+    assert set(document) == {"systemMessage"}
+    return document
 
 
 def test_registration_points_at_generated_hook() -> None:
@@ -48,12 +52,11 @@ def test_registration_points_at_generated_hook() -> None:
     assert HOOK.is_file()
 
 
-def test_two_corrections_block_with_counts(tmp_path: Path, state: Path) -> None:
+def test_two_corrections_notify_with_counts(tmp_path: Path, state: Path) -> None:
     transcript = write_transcript(tmp_path / "t.jsonl", CORRECTIONS)
-    decision = _blocked(run_hook(_payload(transcript), state))
-    assert decision["decision"] == "block"
-    assert "2 correction" in decision["reason"]
-    assert "reflect" in decision["reason"]
+    message = _notified(run_hook(_payload(transcript), state))["systemMessage"]
+    assert "2 correction" in message
+    assert "reflect" in message
 
 
 def test_reason_never_quotes_transcript_text(tmp_path: Path, state: Path) -> None:
@@ -66,11 +69,11 @@ def test_reason_never_quotes_transcript_text(tmp_path: Path, state: Path) -> Non
     assert "hunter2" not in marker_text
 
 
-def test_two_praise_signals_block(tmp_path: Path, state: Path) -> None:
+def test_two_praise_signals_notify(tmp_path: Path, state: Path) -> None:
     transcript = write_transcript(
         tmp_path / "t.jsonl", [human("Perfect, thanks"), human("exactly what I needed")]
     )
-    assert _blocked(run_hook(_payload(transcript), state))["decision"] == "block"
+    assert "systemMessage" in _notified(run_hook(_payload(transcript), state))
 
 
 def test_one_praise_signal_stays_silent(tmp_path: Path, state: Path) -> None:
@@ -96,9 +99,9 @@ def test_tool_result_text_is_not_human_speech(tmp_path: Path, state: Path) -> No
 
 
 def test_nudge_check_discriminates_tool_result_from_human(tmp_path: Path, state: Path) -> None:
-    """Negative control: the same words as a human turn must block."""
+    """Negative control: the same words as a human turn must notify."""
     transcript = write_transcript(tmp_path / "t.jsonl", [human("No. wrong. incorrect.")])
-    assert _blocked(run_hook(_payload(transcript), state))["decision"] == "block"
+    assert "systemMessage" in _notified(run_hook(_payload(transcript), state))
 
 
 def test_missing_transcript_path_fails_open(state: Path) -> None:
@@ -110,7 +113,7 @@ def test_missing_transcript_path_fails_open(state: Path) -> None:
 def test_missing_transcript_path_negative_control(tmp_path: Path, state: Path) -> None:
     """Same case with the key present and valid must block (#3184 discriminator)."""
     transcript = write_transcript(tmp_path / "t.jsonl", CORRECTIONS)
-    assert _blocked(run_hook(_payload(transcript), state))["decision"] == "block"
+    assert "systemMessage" in _notified(run_hook(_payload(transcript), state))
 
 
 def test_legacy_messages_field_alone_does_not_nudge(state: Path) -> None:
@@ -144,7 +147,7 @@ def test_invalid_session_id_fails_open(tmp_path: Path, state: Path, session_id: 
 def test_malformed_line_is_skipped_and_counted(tmp_path: Path, state: Path) -> None:
     transcript = write_transcript(tmp_path / "t.jsonl", CORRECTIONS, extra_lines=["{bad", "[1]"])
     result = run_hook(_payload(transcript), state)
-    assert _blocked(result)["decision"] == "block"
+    assert "systemMessage" in _notified(result)
     assert "2 skipped" in result.stderr
 
 
@@ -166,27 +169,47 @@ def test_disabled_via_config_env(tmp_path: Path, state: Path) -> None:
 def test_disable_zero_leaves_hook_enabled(tmp_path: Path, state: Path) -> None:
     transcript = write_transcript(tmp_path / "t.jsonl", CORRECTIONS)
     result = run_hook(_payload(transcript), state, {"REFLECT_NUDGE_DISABLE": "0"})
-    assert _blocked(result)["decision"] == "block"
+    assert "systemMessage" in _notified(result)
 
 
 def test_second_stop_with_same_signals_is_silent(tmp_path: Path, state: Path) -> None:
     transcript = write_transcript(tmp_path / "t.jsonl", CORRECTIONS)
-    assert _blocked(run_hook(_payload(transcript), state))["decision"] == "block"
+    assert "systemMessage" in _notified(run_hook(_payload(transcript), state))
     second = run_hook(_payload(transcript), state)
     assert (second.returncode, second.stdout) == (0, "")
 
 
-def test_new_correction_after_nudge_nudges_again(tmp_path: Path, state: Path) -> None:
+def test_cap_is_one_message_per_session_whatever_the_signals(tmp_path: Path, state: Path) -> None:
+    """Worst case is bounded: ten later corrections still show nothing."""
     transcript = write_transcript(tmp_path / "t.jsonl", CORRECTIONS)
-    run_hook(_payload(transcript), state)
-    write_transcript(transcript, [*CORRECTIONS, human("never do that again")])
-    assert _blocked(run_hook(_payload(transcript), state))["decision"] == "block"
+    assert "systemMessage" in _notified(run_hook(_payload(transcript), state))
+    for extra in range(1, 11):
+        write_transcript(transcript, [*CORRECTIONS, *[human("never do that again")] * extra])
+        later = run_hook(_payload(transcript), state)
+        assert (later.returncode, later.stdout) == (0, "")
+
+
+def test_hook_never_emits_a_block_decision_or_reason(tmp_path: Path, state: Path) -> None:
+    """A block forces an extra model turn; this hook must never emit one."""
+    transcript = write_transcript(
+        tmp_path / "t.jsonl", [*CORRECTIONS, human("Perfect"), human("great")]
+    )
+    stdout = run_hook(_payload(transcript), state).stdout
+    assert "decision" not in stdout
+    assert '"reason"' not in stdout
+
+
+def test_concurrent_stops_show_one_message(tmp_path: Path, state: Path) -> None:
+    transcript = write_transcript(tmp_path / "t.jsonl", CORRECTIONS)
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        results = list(pool.map(lambda _: run_hook(_payload(transcript), state), range(8)))
+    assert sum(1 for r in results if r.stdout) == 1
 
 
 def test_other_session_is_not_deduped(tmp_path: Path, state: Path) -> None:
     transcript = write_transcript(tmp_path / "t.jsonl", CORRECTIONS)
     run_hook(_payload(transcript, "sess-a"), state)
-    assert _blocked(run_hook(_payload(transcript, "sess-b"), state))["decision"] == "block"
+    assert "systemMessage" in _notified(run_hook(_payload(transcript, "sess-b"), state))
 
 
 def test_marker_is_owner_only_outside_repo(tmp_path: Path, state: Path) -> None:
