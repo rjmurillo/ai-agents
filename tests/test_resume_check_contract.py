@@ -78,7 +78,8 @@ def test_resume_check_states_the_fail_closed_rules(path: Path) -> None:
 def test_resume_check_precedes_the_output_bounds_section(path: Path) -> None:
     text = (REPO_ROOT / path).read_text(encoding="utf-8")
 
-    assert text.index("## Context Maintenance") < text.index(HEADING) < text.index("## Output Bounds")
+    start = text.index("## Context Maintenance")
+    assert start < text.index(HEADING) < text.index("## Output Bounds")
 
 
 def _scenario(scenario_id: str) -> dict:
