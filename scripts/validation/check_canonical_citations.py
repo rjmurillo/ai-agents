@@ -10,6 +10,12 @@ same file there is at least one path-like reference (e.g.
 `scripts/foo.py`, `.project-toolkit/architecture/ADR-001.md`,
 `build/scripts/bar.py`) somewhere in the docstrings or top-level comments.
 
+Evidence ranks per `scripts/validation/mirror_evidence.py`: a path reference,
+a conformance test identifier, a shared import of a project name, or a
+"generated from" statement each satisfies the claim. A claim that carries a
+hand-copied contract with none of the structural forms also gets an advisory
+copied-contract finding that recommends eliminating the copy.
+
 The check is intentionally a heuristic. It is designed to catch the
 specific failure mode documented in the PR #1887 retrospective
 (`.project-toolkit/retrospective/2026-05-05-pr-1887-iteration-paradox.md`): a
@@ -60,6 +66,12 @@ from scripts.validation.evidence import (  # noqa: E402
     REASON_VIOLATIONS_FOUND,
     WORKING_TREE,
     CheckOutcome,
+)
+from scripts.validation.mirror_evidence import (  # noqa: E402
+    REMEDIATION,
+    copied_contract_marker,
+    imported_project_names,
+    structural_evidence,
 )
 
 _VALIDATOR = "validate_canonical_citations"
@@ -116,6 +128,15 @@ class Violation:
     path: Path
     matched_token: str
     excerpt: str
+
+
+@dataclass
+class CopyFinding:
+    """A mirror-claim backed only by a hand-copied contract."""
+
+    path: Path
+    marker: str
+    remediation: str = REMEDIATION
 
 
 def _scan_roots(repo_root: Path) -> list[Path]:
@@ -226,11 +247,48 @@ def scan_file(path: Path) -> Violation | None:
     if token is None:
         return None
 
-    if _has_path_reference(text):
+    if _has_path_reference(text) or structural_evidence(text, imported_project_names(source)):
         return None
 
     excerpt = _excerpt_for_token(text, token)
     return Violation(path=path, matched_token=token, excerpt=excerpt)
+
+
+def scan_copied_contract(path: Path) -> CopyFinding | None:
+    """Return a finding when a mirror-claim carries a copy no structure backs.
+
+    Advisory only: it never changes the exit code and is not counted by the
+    ratchet. Structural evidence (conformance test, shared import, generated
+    marker) clears it, because the copy is then a checked projection.
+    """
+    try:
+        source = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return None
+    text = _extract_docstring_and_top_comments(source)
+    if not text or _find_mirror_token(text) is None:
+        return None
+    marker = copied_contract_marker(text)
+    if marker is None or structural_evidence(text, imported_project_names(source)):
+        return None
+    return CopyFinding(path=path, marker=marker)
+
+
+def collect_copy_findings(repo_root: Path) -> list[CopyFinding]:
+    """Scan all configured roots for unbacked copied contracts."""
+    findings = (scan_copied_contract(p) for p in _iter_python_files(_scan_roots(repo_root)))
+    return [f for f in findings if f is not None]
+
+
+def format_copy_findings(findings: list[CopyFinding]) -> str:
+    """Format the advisory copied-contract section, empty when there are none."""
+    if not findings:
+        return ""
+    lines = [f"[INFO] {len(findings)} copied-contract finding(s), advisory.", ""]
+    for f in findings:
+        lines.append(f"  - {f.path} (marker: {f.marker!r})")
+    lines += ["", f"  {REMEDIATION}", ""]
+    return "\n".join(lines)
 
 
 def _excerpt_for_token(text: str, token: str) -> str:
@@ -365,6 +423,7 @@ def main(argv: list[str] | None = None) -> int:
 
     violations = collect_violations(repo_root)
     print(format_report(violations, strict=args.strict))
+    print(format_copy_findings(collect_copy_findings(repo_root)), end="")
 
     if violations:
         _report_non_pass(_violations_outcome(len(violations), strict=args.strict))
