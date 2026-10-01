@@ -146,6 +146,16 @@ jobs:
           bot-pat: ${{ secrets.BOT_PAT }}
           copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
 
+      - name: Report traceability check result
+        run: >-
+          python3 scripts/ci/report_advisory_result.py step
+          --validator spec-traceability-check
+          --scope "requirements traceability review by the analyst agent"
+          --outcome "${{ steps.trace.outcome }}"
+          --failure-state BLOCKED
+          --failure-reason script.failed
+          --detail "analyst agent crash or timeout"
+
       - name: ✅ Completeness Check (Critic Agent)
         if: steps.should-run.outputs.skip != 'true' && steps.spec-ref.outputs.has_specs == 'true'
         id: completeness
@@ -160,6 +170,16 @@ jobs:
           timeout-minutes: 3
           bot-pat: ${{ secrets.BOT_PAT }}
           copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+
+      - name: Report completeness check result
+        run: >-
+          python3 scripts/ci/report_advisory_result.py step
+          --validator spec-completeness-check
+          --scope "completeness review by the critic agent"
+          --outcome "${{ steps.completeness.outcome }}"
+          --failure-state BLOCKED
+          --failure-reason script.failed
+          --detail "critic agent crash or timeout"
 
       # Issue #2108 / #1855: enforce the closed-loop rule (no PASS on LLM
       # verdicts alone) by adding the deterministic acceptance-criteria
@@ -179,6 +199,16 @@ jobs:
           TRACE_VERDICT: ${{ steps.trace.outputs.verdict }}
           COMPLETENESS_VERDICT: ${{ steps.completeness.outputs.verdict }}
         run: python3 scripts/ci/spec_external_signal_wrapper.py
+
+      - name: Report external-signal gate result
+        run: >-
+          python3 scripts/ci/report_advisory_result.py step
+          --validator spec-external-signal-gate
+          --scope "deterministic acceptance-criteria check"
+          --outcome "${{ steps.external-gate.outcome }}"
+          --failure-state FAIL
+          --failure-reason advisory.findings
+          --detail "observe-only; not yet the authoritative gate"
 
       - name: Generate Validation Report
         if: steps.should-run.outputs.skip != 'true'
@@ -201,6 +231,7 @@ jobs:
         run: python3 .github/scripts/generate_spec_report.py
 
       - name: Post PR Comment
+        id: post-comment
         if: steps.should-run.outputs.skip != 'true'
         continue-on-error: true
         env:
@@ -214,6 +245,15 @@ jobs:
             --body-file "$REPORT_FILE" \
             --marker "AI-SPEC-VALIDATION" \
             --update-if-exists
+
+      - name: Report PR comment result
+        run: >-
+          python3 scripts/ci/report_advisory_result.py step
+          --validator spec-report-comment
+          --scope "spec validation report comment"
+          --outcome "${{ steps.post-comment.outcome }}"
+          --failure-state BLOCKED
+          --failure-reason script.failed
 
       - name: Set Job Summary
         if: steps.should-run.outputs.skip != 'true'

@@ -35,7 +35,9 @@ def corpus(tmp_path: Path) -> Path:
 def test_real_corpus_covers_each_category_exactly_once() -> None:
     scenarios = scenario_mod.load_corpus(REAL_CORPUS)
 
-    assert sorted(item.category.value for item in scenarios) == sorted(c.value for c in Category)
+    assert sorted(item.category.value for item in scenarios) == sorted(
+        c.value for c in scenario_mod.CORE_CATEGORIES
+    )
     assert len({item.scenario_id for item in scenarios}) == len(scenarios) == 6
 
 

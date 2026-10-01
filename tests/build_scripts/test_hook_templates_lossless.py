@@ -42,6 +42,7 @@ EXPECTED_HOOK_TREE_FILES = frozenset(
         "SessionStart/plugin_hook_drift_report.py",
         "SessionStart/plugin_hook_drift_safety.py",
         "SessionStart/plugin_hook_drift_state.py",
+        "Stop/invoke_reflect_nudge.py",
         "UserPromptSubmit/invoke_memory_recall.py",
     }
 )

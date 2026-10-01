@@ -1287,7 +1287,10 @@ def test_without_the_count_read_an_unset_variable_clears_the_gate(tmp_path: Path
         "proves nothing about the fix"
     )
     assert "PENDING=0" in without.stdout
-    assert "integer expression expected" in without.stderr
+    # bash 5.2 says "integer expression expected"; bash 5.3 says "integer expected".
+    assert any(
+        wording in without.stderr for wording in ("integer expression expected", "integer expected")
+    )
     assert shipped.returncode == 1
     assert "[BLOCKED] API comment count not recorded" in shipped.stdout
 
