@@ -375,18 +375,20 @@ def test_reference_preserves_cross_harness_decision_shapes() -> None:
     assert "A translated `ask` emits nothing" in normalized
 
 
-def test_no_stop_hook_is_registered_on_any_surface() -> None:
-    """Stop is unregistered everywhere, and no dispatch group targets it.
+def test_stop_hook_is_registered_only_as_the_local_reflect_nudge() -> None:
+    """Stop has one local registration: the non-blocking reflect nudge (#5817).
 
     The vendored and generated surfaces were purged under ADR-084. The local
-    surface kept one Stop group whose only remaining shim was
-    invoke_auto_retrospective.py, which #3187 measured net-negative and #3349
-    found still firing: it wrote a retrospective skeleton into the working
-    tree at session end and returned a block decision to force another turn.
-    Deleting it emptied the group, so the whole Stop path is gone rather than
-    reduced. Asserting absence on all four surfaces, and on group ids as well
-    as registrations, is what keeps it gone: a group with no registration
-    would still be dispatchable by hand.
+    surface once kept a Stop group whose only shim, invoke_auto_retrospective.py,
+    was measured net-negative by #3187 and found still firing by #3349: it wrote
+    a retrospective skeleton into the working tree and returned a block decision
+    to force another turn. That path was deleted outright.
+
+    #5817 added back one direct registration, invoke_reflect_nudge.py, which
+    never blocks. This test pins what keeps the old failure shape gone: the
+    registration is direct (no dispatch group, so the gate_all mode that exits
+    on a block never wraps it), it exists on the local surface only, and its
+    source cannot emit a block decision.
     """
     local_hooks = _read_json(REPO_ROOT / ".claude" / "settings.json")["hooks"]
     vendored_hooks = _read_json(REPO_ROOT / ".claude" / "hooks" / "hooks.json")["hooks"]
@@ -395,7 +397,9 @@ def test_no_stop_hook_is_registered_on_any_surface() -> None:
     ]
     dispatch_groups = _read_json(REPO_ROOT / ".claude" / "hooks" / "dispatch_groups.json")["groups"]
 
-    assert "Stop" not in local_hooks
+    commands = [h["command"] for entry in local_hooks["Stop"] for h in entry["hooks"]]
+    assert len(commands) == 1
+    assert commands[0].endswith(".claude/hooks/Stop/invoke_reflect_nudge.py")
     assert "Stop" not in vendored_hooks
     assert "Stop" not in generated_hooks
     assert "agentStop" not in generated_hooks
@@ -405,6 +409,12 @@ def test_no_stop_hook_is_registered_on_any_surface() -> None:
         for group_id, spec in dispatch_groups.items()
         if spec.get("event") in {"Stop", "SubagentStop", "agentStop"}
     ] == []
+
+    source = (REPO_ROOT / "templates" / "hooks" / "Stop" / "invoke_reflect_nudge.py").read_text(
+        encoding="utf-8"
+    )
+    assert '"decision"' not in source
+    assert "sys.exit(2)" not in source
 
     sidecar = _normalized_text(OFFICIAL_SOURCES)
     assert "Shared Stop producers can emit this shape on both harnesses." in sidecar
