@@ -186,8 +186,23 @@ Agents return a completion record: artifacts, commands run with results, deltas,
 
 ### Analyst evidence handoff
 
-Before delegating an investigation that needs shell output, git history, builds, or unrestricted web research (the analyst has no shell or web access), retrieve that evidence yourself. Put the exact output, repository, branch, and head SHA in the delegation context, and name any unavailable evidence as a gap. Delegate GitHub and CI reads (PRs, issues, workflows, job logs); the analyst reads them directly.
-If it returns `[BLOCKED]` for load-bearing missing context, retrieve the evidence and re-delegate once. Do not pass the blocked response through as the result.
+Before delegating an investigation that needs shell output, git history, builds,
+or unrestricted web research outside the analyst's declared tools:
+
+1. Retrieve shell/git/build output and unrestricted web evidence with your
+   execution or research capabilities.
+2. Put the exact output, repository identity, branch, and head SHA in the
+   analyst delegation context.
+3. Name any unavailable evidence as a gap.
+
+The analyst retrieves structured GitHub and CI data directly (PRs, issues,
+workflows, job logs) using its own read tools. Do not prefetch GitHub/CI
+context; delegate it.
+
+The analyst has no shell or unrestricted web access.
+If it returns `[BLOCKED]` for load-bearing missing context, retrieve the named
+evidence and re-delegate once. Do not pass the blocked response through as the
+investigation result.
 
 ## Synthesis Protocol
 
@@ -309,9 +324,9 @@ it carries.
 
 ## Reliability Principles
 
-- **Idempotent delegations**: re-delegating the same task to the same agent should be safe
-- **Explicit handoffs**: never let context decay across agents
-- **Graceful degradation**: if an agent fails, route to a fallback (e.g., analyst errors, fall back to the context-gather skill for context)
+- **Idempotent delegations**: re-delegating the same task to the same agent is safe
+- **Explicit handoffs**: context does not decay across agents
+- **Graceful degradation**: on agent failure, route to a fallback (analyst errors: use the context-gather skill)
 - **Observability**: log routing decisions with rationale
 
 ## Orchestration Budget
@@ -323,9 +338,9 @@ These are backstops, not a completion test: reaching the terminal predicate (`bu
 - **Max agent delegations per task**: 15. Record a warning in the task tracker when 10 delegations have been made.
 - **Budget-exhausted behavior**: When the limit is reached, stop delegating, synthesize all work completed so far, list remaining unresolved items, and return control to the user with a clear summary of what was done and what was not.
 - **Delegation counter**: Track the running count in the task tracker.
-- **Max concurrent delegations per wave**: 4 by default. The binding cost is not the agents, it is the returns you are holding un-folded while the rest of the wave is still landing, which is the loss the Checkpoint protocol names above. Bound the wave at the number of returns you can actually fold before the next one arrives; 4 is a starting default, not a measured optimum. A wave of 5 or more is a prompt to ask whether two of those routes are the same question, not a licence to widen.
-- **A concurrent wave must not contain** a repository-wide git operation (fetch, checkout, rebase, branch switch, stash) or two agents that write the same file. Either one makes an agent's return depend on when it happened to run relative to its siblings, so the wave is no longer independent and its result is no longer reproducible. Route those serially, or give each agent its own worktree.
-- **Answer a lightweight question with a lightweight read.** Do not pull a whole agent return, session log, or file into context to settle something a targeted search or a single field would answer. The pull is not free: it spends the window you still owe the synthesis.
+- **Max concurrent delegations per wave**: 4 by default, a starting value, not a measured optimum. The binding cost is returns you hold un-folded while the wave lands (see Checkpoint protocol). Bound the wave at what you can fold before the next return arrives. A wave of 5 or more: ask whether two routes are the same question.
+- **A concurrent wave must not contain** a repository-wide git operation (fetch, checkout, rebase, branch switch, stash) or two agents writing the same file. Either makes a return depend on sibling timing and the result irreproducible. Route those serially or give each agent its own worktree.
+- **Answer a lightweight question with a lightweight read.** A targeted search or single field beats pulling a whole return, log, or file into the window you still owe the synthesis.
 
 ## Hook Feedback
 
