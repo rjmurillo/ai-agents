@@ -145,11 +145,63 @@ def test_a_swallowed_step_is_followed_by_a_report_of_its_outcome(
 def test_a_report_step_has_no_condition_that_could_hide_a_failure(
     workflow: str, job: str, name: str, step_id: str, validator: str
 ) -> None:
-    steps = _steps(workflow, job)
-    report = steps[_index(steps, name) + 1]
+    """The report runs at least whenever the swallowed step runs.
 
-    assert "if" not in report
+    No condition also reports a skipped outcome. The swallowed step's own
+    condition is the one narrowing allowed: pr-validation.yml needs it because
+    its bot-skip path never checks out the helper.
+    """
+    steps = _steps(workflow, job)
+    at = _index(steps, name)
+    swallowed, report = steps[at], steps[at + 1]
+
+    assert report.get("if") in (None, swallowed.get("if"))
     assert "continue-on-error" not in report
+
+
+def _helper_steps() -> list[tuple[str, str, int, list[dict[str, Any]]]]:
+    rows = []
+    for path in sorted(WORKFLOWS.glob("*.yml")):
+        document = yaml.safe_load(path.read_text(encoding="utf-8"))
+        for job_name, job in (document.get("jobs") or {}).items():
+            steps = list(job.get("steps") or [])
+            for at, step in enumerate(steps):
+                if HELPER in str(step.get("run", "")):
+                    rows.append((path.name, job_name, at, steps))
+    return rows
+
+
+def test_the_helper_scan_finds_every_wired_row() -> None:
+    """Guards the scan below against silently matching nothing."""
+    assert len(_helper_steps()) >= len(STEP_MODE_ROWS) + len(RUN_MODE_ROWS)
+
+
+@pytest.mark.parametrize(
+    ("workflow", "job", "at", "steps"),
+    _helper_steps(),
+    ids=lambda value: value if isinstance(value, str) else "",
+)
+def test_a_reporter_step_runs_only_after_a_checkout_that_ran(
+    workflow: str, job: str, at: int, steps: list[dict[str, Any]]
+) -> None:
+    """Regression: a bot-skip guard on checkout left the helper path missing.
+
+    pr-validation.yml skips its checkout for Renovate and Dependabot. An
+    unguarded reporter step then failed the required Validate PR check with
+    "can't open file", which blocked every bot pull request from merging.
+    """
+    condition = steps[at].get("if")
+    checkouts = [
+        step.get("if")
+        for step in steps[:at]
+        if "actions/checkout" in str(step.get("uses", ""))
+    ]
+
+    assert checkouts, f"{workflow}:{job} runs {HELPER} before any checkout"
+    assert None in checkouts or condition in checkouts, (
+        f"{workflow}:{job} step {steps[at].get('name')!r} runs under {condition!r}, "
+        f"but every earlier checkout is conditional: {checkouts!r}"
+    )
 
 
 @pytest.mark.parametrize(("workflow", "job", "name", "validator"), RUN_MODE_ROWS)

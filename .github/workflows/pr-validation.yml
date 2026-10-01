@@ -141,7 +141,10 @@ jobs:
               --update-if-exists
           fi
 
+      # Same guard as Post PR Comment: on the bot-skip path the checkout above
+      # is skipped, so the reporter script does not exist yet.
       - name: Report PR comment result
+        if: steps.should-run.outputs.skip != 'true'
         run: >-
           python3 scripts/ci/report_advisory_result.py step
           --validator pr-validation-comment

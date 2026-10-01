@@ -528,6 +528,9 @@ class TestBotSkipGuardClassification:
             "Validate PR Description Standards",
             "Generate Validation Report",
             "Post PR Comment",
+            # Reports Post PR Comment's outcome and needs the guarded checkout's
+            # copy of the helper. It validates nothing on its own.
+            "Report PR comment result",
             "Set Job Summary",
             "Enforce Blocking Issues",
         }
