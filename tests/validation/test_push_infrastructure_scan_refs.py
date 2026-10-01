@@ -61,10 +61,12 @@ def test_failed_diff_fails_loud(
     head = commit(work, "docs/note.md", "note\n")
     real_run_git = policy._run_git
 
-    def failing_scan_diff(repo_root: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
+    def failing_scan_diff(
+        repo_root: Path, args: list[str], **kwargs: Any
+    ) -> subprocess.CompletedProcess[str]:
         if args[:4] == ["diff", "--name-only", "-z", "--no-renames"]:
             return subprocess.CompletedProcess(args, 128, "", "fatal: bad object\n")
-        return real_run_git(repo_root, args)
+        return real_run_git(repo_root, args, **kwargs)
 
     monkeypatch.setattr(policy, "_run_git", failing_scan_diff)
 
@@ -226,10 +228,12 @@ def test_git_step_that_did_not_complete_exits_3_without_a_fetch_remedy(
         "diff": ["diff", "--name-only", "-z", "--no-renames"],
     }[step]
 
-    def timed_out_step(repo_root: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
+    def timed_out_step(
+        repo_root: Path, args: list[str], **kwargs: Any
+    ) -> subprocess.CompletedProcess[str]:
         if args[: len(scan_args)] == scan_args:
             return subprocess.CompletedProcess(args, 3, "", "timed out after 90s\n")
-        return real_run_git(repo_root, args)
+        return real_run_git(repo_root, args, **kwargs)
 
     monkeypatch.setattr(policy, "_run_git", timed_out_step)
 
@@ -337,4 +341,106 @@ def test_spent_budget_fails_3_without_running_the_detector(
     err = capsys.readouterr().err
     assert result == 3, err
     assert calls == [60.0]
-    assert "spent its 60s budget before scoring refs/heads/feature/b" in err
+    assert "scan deadline passed before git merge-base for refs/heads/feature/b" in err
+
+
+def test_slow_fetch_shrinks_the_scan_deadline_to_fit_the_job_cap(
+    origin: Origin,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Time spent before the scan comes out of the scan, not past the 2m cap."""
+    work, payload = _two_ref_push(origin, tmp_path)
+    clock = [1000.0]
+    timeouts: list[float] = []
+    real_run_command = policy._run_command
+
+    def slow_fetch(
+        args: list[str], repo_root: Path, **kwargs: Any
+    ) -> subprocess.CompletedProcess[str]:
+        if "fetch" in args:
+            clock[0] += 100.0
+            return subprocess.CompletedProcess(list(args), 0, "", "")
+        if policy.DETECT_INFRASTRUCTURE_SCRIPT in args:
+            timeouts.append(kwargs["timeout_seconds"])
+            return subprocess.CompletedProcess(list(args), 0, "", "")
+        if "--no-renames" in args:
+            diff_timeouts.append(kwargs["timeout_seconds"])
+        return real_run_command(args, repo_root, **kwargs)
+
+    diff_timeouts: list[float] = []
+    monkeypatch.setattr(policy, "_run_command", slow_fetch)
+    monkeypatch.setattr(policy.time, "monotonic", lambda: clock[0])
+
+    result = pre_push(work, payload, monkeypatch)
+
+    assert result == 0
+    assert timeouts == [10.0, 10.0]
+    assert diff_timeouts == [10.0, 10.0]
+
+
+def test_git_step_after_the_deadline_exits_3_without_running_git(
+    origin: Origin,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A scan that starts past the job deadline fails typed before any git step."""
+    work, payload = _two_ref_push(origin, tmp_path)
+    clock = [1000.0]
+    scan_steps: list[list[str]] = []
+    real_run_command = policy._run_command
+
+    def stalled_fetch(
+        args: list[str], repo_root: Path, **kwargs: Any
+    ) -> subprocess.CompletedProcess[str]:
+        if "fetch" in args:
+            clock[0] += 115.0
+            return subprocess.CompletedProcess(list(args), 0, "", "")
+        if "--no-renames" in args or policy.DETECT_INFRASTRUCTURE_SCRIPT in args:
+            scan_steps.append(list(args))
+        return real_run_command(args, repo_root, **kwargs)
+
+    monkeypatch.setattr(policy, "_run_command", stalled_fetch)
+    monkeypatch.setattr(policy.time, "monotonic", lambda: clock[0])
+
+    result = pre_push(work, payload, monkeypatch)
+
+    err = capsys.readouterr().err
+    assert result == 3, err
+    assert "scan deadline passed before git merge-base" in err
+    assert scan_steps == []
+
+
+def test_slow_diff_spends_the_deadline_before_the_detector_runs(
+    origin: Origin,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Time a ref's own diff takes is checked again before its detector starts."""
+    work, payload = _two_ref_push(origin, tmp_path)
+    clock = [1000.0]
+    detector_calls: list[float] = []
+    real_run_command = policy._run_command
+
+    def slow_diff(
+        args: list[str], repo_root: Path, **kwargs: Any
+    ) -> subprocess.CompletedProcess[str]:
+        if policy.DETECT_INFRASTRUCTURE_SCRIPT in args:
+            detector_calls.append(kwargs["timeout_seconds"])
+            return subprocess.CompletedProcess(list(args), 0, "", "")
+        result = real_run_command(args, repo_root, **kwargs)
+        if "--no-renames" in args:
+            clock[0] += 61.0
+        return result
+
+    monkeypatch.setattr(policy, "_run_command", slow_diff)
+    monkeypatch.setattr(policy.time, "monotonic", lambda: clock[0])
+
+    result = pre_push(work, payload, monkeypatch)
+
+    err = capsys.readouterr().err
+    assert result == 3, err
+    assert detector_calls == []
+    assert "deadline passed before scoring refs/heads/feature/a" in err

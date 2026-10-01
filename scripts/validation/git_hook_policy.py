@@ -1108,8 +1108,10 @@ def _append_timeout_bytes(stderr: bytes, message: bytes) -> bytes:
 def _run_git(
     repo_root: Path,
     args: Sequence[str],
+    *,
+    timeout_seconds: float = DEFAULT_SUBPROCESS_TIMEOUT_SECONDS,
 ) -> subprocess.CompletedProcess[str]:
-    return _run_command(_git_command(args), repo_root)
+    return _run_command(_git_command(args), repo_root, timeout_seconds=timeout_seconds)
 
 
 def _run_git_bytes(
@@ -6559,6 +6561,7 @@ def _check_all_non_fast_forward(refs: list[PushRef], repo_root: Path) -> int:
 
 
 def check_push_refs(stream: TextIO, repo_root: Path) -> int:
+    job_started = time.monotonic()
     active_operation_result = check_active_git_operation(repo_root)
     if active_operation_result != 0:
         return active_operation_result
@@ -6587,11 +6590,14 @@ def check_push_refs(stream: TextIO, repo_root: Path) -> int:
     if active_refs:
         warn_if_push_files_incomplete(active_refs, repo_root)
         _fetch_origin_main(repo_root)
-    return _check_ref_updates(refs, active_refs, repo_root)
+    return _check_ref_updates(refs, active_refs, repo_root, job_started)
 
 
 def _check_ref_updates(
-    refs: Sequence[PushRef], active_refs: Sequence[PushRef], repo_root: Path
+    refs: Sequence[PushRef],
+    active_refs: Sequence[PushRef],
+    repo_root: Path,
+    job_started: float,
 ) -> int:
     """Run the per-update branch policies, then the infrastructure scan."""
     updates = []
@@ -6604,7 +6610,7 @@ def _check_ref_updates(
     updates_result = _check_push_updates(updates, repo_root)
     if updates_result != 0:
         return updates_result
-    return check_pushed_infrastructure(refs, repo_root)
+    return check_pushed_infrastructure(refs, repo_root, job_started=job_started)
 
 
 # Issue #6076: the pushed file set for the security review marker gate. Lefthook
@@ -6614,11 +6620,14 @@ def _check_ref_updates(
 DETECT_INFRASTRUCTURE_SCRIPT = ".claude/skills/security-detection/detect_infrastructure.py"
 INFRASTRUCTURE_BASE_REF = "origin/main"
 INFRASTRUCTURE_SCANNED_REF_PREFIXES = ("refs/heads/", "refs/tags/")
-# One budget shared by every detector run in a push, so a multi-ref push
-# reports a typed timeout (exit 3) before push-ref-policy's 2m lefthook cap
-# kills the whole job without a diagnosis. A per-ref cap let two stalled runs
-# spend the full 2m.
+# The scan's merge-base, diff, and detector steps for every ref share one
+# deadline: 60s from the scan's start, and never later than 110s after
+# push-ref-policy started, 10s inside its 2m lefthook cap (lefthook.yml). So
+# the scan reports a typed exit 3 instead of being killed by the cap without a
+# diagnosis, however long the fetch and branch policies before it took. A
+# per-ref cap let two stalled runs spend the full 2m.
 DETECT_INFRASTRUCTURE_TIMEOUT_SECONDS = 60.0
+PUSH_REF_POLICY_SCAN_DEADLINE_SECONDS = 110.0
 # `_run_command` reports a timeout or a failed start as exit 3, the external
 # failure code. Git itself exits 0, 1, 128, or 129, so 3 from a git step means
 # it never completed.
@@ -6629,9 +6638,18 @@ class InfrastructureScanExternalError(RuntimeError):
     """A git step of the infrastructure scan timed out or could not start."""
 
 
-def _scan_git(repo_root: Path, args: list[str], what: str) -> subprocess.CompletedProcess[str]:
+def _remaining(deadline: float) -> float:
+    return deadline - time.monotonic()
+
+
+def _scan_git(
+    repo_root: Path, args: list[str], what: str, deadline: float
+) -> subprocess.CompletedProcess[str]:
     """Run one scan git step; raise the external error when it did not complete."""
-    result = _run_git(repo_root, args)
+    remaining = _remaining(deadline)
+    if remaining <= 0:
+        raise InfrastructureScanExternalError(f"scan deadline passed before git {what}")
+    result = _run_git(repo_root, args, timeout_seconds=remaining)
     if result.returncode == _EXTERNAL_FAILURE_EXIT:
         _print_process_output(result)
         raise InfrastructureScanExternalError(f"git {what} did not complete")
@@ -6640,7 +6658,9 @@ def _scan_git(repo_root: Path, args: list[str], what: str) -> subprocess.Complet
     return result
 
 
-def _infrastructure_scan_files(push_ref: PushRef, repo_root: Path) -> tuple[str, list[str]]:
+def _infrastructure_scan_files(
+    push_ref: PushRef, repo_root: Path, deadline: float
+) -> tuple[str, list[str]]:
     """Return the base SHA and the files changed from it to the pushed SHA.
 
     The base is merge-base(origin/main, pushed SHA). There is no fallback to
@@ -6653,6 +6673,7 @@ def _infrastructure_scan_files(push_ref: PushRef, repo_root: Path) -> tuple[str,
         repo_root,
         ["merge-base", INFRASTRUCTURE_BASE_REF, push_ref.local_sha],
         "merge-base",
+        deadline,
     )
     base = merge_base.stdout.strip() if merge_base.returncode == 0 else ""
     if not base:
@@ -6666,6 +6687,7 @@ def _infrastructure_scan_files(push_ref: PushRef, repo_root: Path) -> tuple[str,
         repo_root,
         ["diff", "--name-only", "-z", "--no-renames", base, push_ref.local_sha, "--"],
         "diff",
+        deadline,
     )
     if diff.returncode != 0:
         raise PushUpdateConfigError(
@@ -6677,7 +6699,7 @@ def _infrastructure_scan_files(push_ref: PushRef, repo_root: Path) -> tuple[str,
 def _check_ref_infrastructure(push_ref: PushRef, repo_root: Path, deadline: float) -> int:
     """Run the security review marker gate over one pushed branch or tag ref."""
     try:
-        base, files = _infrastructure_scan_files(push_ref, repo_root)
+        base, files = _infrastructure_scan_files(push_ref, repo_root, deadline)
     except PushUpdateConfigError as error:
         print(f"ERROR: {error}", file=sys.stderr)
         return 2
@@ -6691,11 +6713,10 @@ def _check_ref_infrastructure(push_ref: PushRef, repo_root: Path, deadline: floa
     )
     if not files:
         return 0
-    remaining = deadline - time.monotonic()
+    remaining = _remaining(deadline)
     if remaining <= 0:
         print(
-            f"ERROR: infrastructure scan spent its {DETECT_INFRASTRUCTURE_TIMEOUT_SECONDS:.0f}s "
-            f"budget before scoring {push_ref.remote_ref}",
+            f"ERROR: infrastructure scan deadline passed before scoring {push_ref.remote_ref}",
             file=sys.stderr,
         )
         return 3
@@ -6718,7 +6739,9 @@ def _check_ref_infrastructure(push_ref: PushRef, repo_root: Path, deadline: floa
     return result.returncode
 
 
-def check_pushed_infrastructure(refs: Sequence[PushRef], repo_root: Path) -> int:
+def check_pushed_infrastructure(
+    refs: Sequence[PushRef], repo_root: Path, *, job_started: float | None = None
+) -> int:
     """Block a pushed branch or tag that carries a CRITICAL path without a marker.
 
     Each branch or tag ref is scored from merge-base(origin/main, pushed SHA)
@@ -6727,8 +6750,9 @@ def check_pushed_infrastructure(refs: Sequence[PushRef], repo_root: Path) -> int
     the tagged commit (`.github/workflows/publish.yml` triggers on `v*`).
     Deletions and other refs (notes, custom namespaces) are skipped, and the
     skip is reported. Returns the first non-zero detector or config exit code.
-    Every ref shares one detector budget, and the scan stops at the first
-    exit 3 (timeout or failed start), since the budget left cannot cover more.
+    Every ref's git steps and detector run share one deadline (see
+    PUSH_REF_POLICY_SCAN_DEADLINE_SECONDS), and the scan stops at the first
+    exit 3 (a timeout, a failed start, or a detector git read error).
     """
     scanned_refs = [
         ref
@@ -6741,7 +6765,12 @@ def check_pushed_infrastructure(refs: Sequence[PushRef], repo_root: Path) -> int
             file=sys.stderr,
         )
         return 0
-    deadline = time.monotonic() + DETECT_INFRASTRUCTURE_TIMEOUT_SECONDS
+    now = time.monotonic()
+    started = now if job_started is None else job_started
+    deadline = min(
+        now + DETECT_INFRASTRUCTURE_TIMEOUT_SECONDS,
+        started + PUSH_REF_POLICY_SCAN_DEADLINE_SECONDS,
+    )
     first_failure = 0
     for push_ref in scanned_refs:
         result = _check_ref_infrastructure(push_ref, repo_root, deadline)
