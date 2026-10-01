@@ -47,12 +47,22 @@ def _no_approval_check(_record: PromotionException) -> bool:
     return True
 
 
+def _describe(record: PromotionException, status: ExceptionStatus) -> str:
+    """Name the record by the fields an author can search for in the file."""
+    item = f" item={record.item!r}" if record.item else ""
+    return (
+        f"{status.value}: validator={record.validator!r} reason={record.reason!r} "
+        f"scope={record.scope!r}{item} expires={record.expires.isoformat()} "
+        f"remediate_by={record.remediate_by.isoformat()}"
+    )
+
+
 def _lapsed(records: tuple[PromotionException, ...], today: date) -> list[str]:
     lapsed: list[str] = []
     for record in records:
         status = exception_status(record, today, _no_approval_check)
         if status is not ExceptionStatus.ACTIVE:
-            lapsed.append(f"{record.fingerprint[:12]} {status.value}")
+            lapsed.append(_describe(record, status))
     return lapsed
 
 

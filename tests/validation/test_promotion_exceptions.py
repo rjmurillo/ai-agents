@@ -16,6 +16,7 @@ import pytest
 from scripts.validation import promotion_exceptions
 from scripts.validation.promotion_exceptions import (
     EXCEPTIONS_RELATIVE_PATH,
+    MAX_FILE_BYTES,
     ExceptionsFileError,
     ExceptionStatus,
     PromotionException,
@@ -333,6 +334,20 @@ class TestHardening:
         path.parent.mkdir(parents=True)
         path.write_text('{"schema_version": "1", "entries": [], "entries": []}', encoding="utf-8")
         with pytest.raises(ExceptionsFileError, match="duplicate key"):
+            load_exceptions(tmp_path)
+
+    def test_many_distinct_keys_load_in_linear_time(self, tmp_path: Path) -> None:
+        path = tmp_path / EXCEPTIONS_RELATIVE_PATH
+        path.parent.mkdir(parents=True)
+        body = ",".join(f'"k{i}": 1' for i in range(50000))
+        path.write_text('{"schema_version": "1", "entries": [], ' + body + "}", encoding="utf-8")
+        assert load_exceptions(tmp_path) == ()
+
+    def test_oversized_file_fails_the_load(self, tmp_path: Path) -> None:
+        path = tmp_path / EXCEPTIONS_RELATIVE_PATH
+        path.parent.mkdir(parents=True)
+        path.write_text(" " * (MAX_FILE_BYTES + 1), encoding="utf-8")
+        with pytest.raises(ExceptionsFileError, match="larger than"):
             load_exceptions(tmp_path)
 
     def test_deeply_nested_json_fails_the_load(self, tmp_path: Path) -> None:

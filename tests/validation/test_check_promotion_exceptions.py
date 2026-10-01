@@ -76,7 +76,16 @@ def test_expired_record_fails_with_exit_1(
     code, out = _run(tmp_path, capsys)
     assert code == EXIT_LOGIC
     assert REASON_LAPSED in out
-    assert "expired" in out
+    assert "expired: validator='pytest' reason='tests.failed' scope='tests/'" in out
+    assert "expires=2026-09-30" in out
+
+
+def test_a_lapsed_item_record_is_named_with_its_item(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _write(tmp_path, [_entry(item="a.py", expires="2026-09-30", remediate_by="2026-09-30")])
+    _, out = _run(tmp_path, capsys)
+    assert "item='a.py'" in out
 
 
 def test_overdue_remediation_fails_with_exit_1(

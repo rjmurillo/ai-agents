@@ -88,6 +88,7 @@ EXCEPTIONS_RELATIVE_PATH = Path(".agents") / "governance" / "promotion-exception
 _FORBIDDEN_CATEGORIES = frozenset({"Cc", "Cf", "Zl", "Zp"})
 _SHOWN_PATH = EXCEPTIONS_RELATIVE_PATH.as_posix()
 SCHEMA_VERSION = "1"
+MAX_FILE_BYTES = 1_048_576
 
 _ENTRY_KEYS = frozenset(
     {
@@ -350,11 +351,16 @@ def parse_exceptions(document: object) -> tuple[PromotionException, ...]:
 
 
 def _reject_duplicate_keys(pairs: list[tuple[str, object]]) -> dict[str, object]:
-    """Refuse a JSON object that repeats a key, which would let the last win."""
-    keys = [key for key, _ in pairs]
-    repeated = sorted({key for key in keys if keys.count(key) > 1})
+    """Refuse a JSON object that repeats a key, which would let the last win.
+
+    One pass with two sets, so a file with many keys costs linear time.
+    """
+    seen: set[str] = set()
+    repeated: set[str] = set()
+    for key, _ in pairs:
+        (repeated if key in seen else seen).add(key)
     if repeated:
-        raise ValueError(f"duplicate key(s) {', '.join(repeated)}")
+        raise ValueError(f"duplicate key(s) {', '.join(sorted(repeated))}")
     return dict(pairs)
 
 
@@ -370,6 +376,8 @@ def load_exceptions(repo_root: Path) -> tuple[PromotionException, ...]:
     """
     path = repo_root / EXCEPTIONS_RELATIVE_PATH
     try:
+        if path.stat().st_size > MAX_FILE_BYTES:
+            raise ExceptionsFileError(f"{_SHOWN_PATH} is larger than {MAX_FILE_BYTES} bytes")
         text = path.read_text(encoding="utf-8")
     except FileNotFoundError:
         return ()
