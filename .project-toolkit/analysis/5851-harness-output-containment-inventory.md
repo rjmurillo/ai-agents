@@ -35,10 +35,10 @@ BINARY rows come from `strings` on the Codex 0.157.1 binary shipped in the `@ope
 
 | Seam | Can replace or bound output? | Evidence |
 |---|---|---|
-| PreToolUse `hookSpecificOutput.updatedInput.command` | Yes. Rewrites the command before it runs, so a wrapper can spill and bound output. | PROBED. Command `echo REALOUTPUT-12345` was rewritten to `echo REWRITTEN-BY-PRE-HOOK`. The model reported the rewritten output (model report only, no event-log check). |
+| PreToolUse `hookSpecificOutput.updatedInput.command` | Yes. Rewrites the command before it runs, so a wrapper can spill and bound output. | PROBED, model report only. Command `echo REALOUTPUT-12345` was rewritten to `echo REWRITTEN-BY-PRE-HOOK`. The model reported the rewritten output (model report only, no event-log check). |
 | PostToolUse `hookSpecificOutput.updatedToolOutput`, object form | Yes, for a successful Bash call. The object must match `tool_response`: `stdout`, `stderr`, `interrupted`, `isImage`, `noOutputExpected`. | PROBED. The host's tool_result held only `CONTAINED-BY-HOOK-PROBE`. The original marker was absent. |
 | PostToolUse `updatedToolOutput`, bare string | No. Ignored with no error. | PROBED. Negative control: the host's tool_result still held `REALOUTPUT-12345`. |
-| PostToolUseFailure (nonzero exit) | No. The hook fires with `error` set to `Exit code 3\n<stderr>\n<stdout>` and no `tool_response`. Returning `updatedToolOutput` or `additionalContext` changed nothing the model reported. | PROBED. Exit 3 command; the model quoted the original text. |
+| PostToolUseFailure (nonzero exit) | No. The hook fires with `error` set to `Exit code 3\n<stderr>\n<stdout>` and no `tool_response`. Returning `updatedToolOutput` or `additionalContext` changed nothing the model reported. | PROBED, model report only. Exit 3 command; the model quoted the original text. |
 | `additionalContext` | Adds context. Capped at 10,000 characters; larger text spills to a file with a 2,000 character preview. | DOCUMENTED. |
 | `CLAUDE_CODE_BASH_OUTPUT_LIMIT` (bytes) | Native cap on a successful Bash result. Default 1,000,000 characters. Truncates and names a debug log. Not applied to timeouts. | DOCUMENTED. |
 
