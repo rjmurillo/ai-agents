@@ -10,7 +10,7 @@ copy it.
 A file is an executable artifact when an agent or runtime reads its text and
 changes behavior because of it. These count:
 
-- `.claude/rules/**`, `.claude/skills/**`, `.claude/agents/**`
+- rules, skills, and agents under the Claude Code tree
 - `.github/prompts/**` and loaded instruction Markdown
 - the shipped `src/` instruction, skill, and agent surfaces
 - any Markdown or structured text read at runtime to decide an action
@@ -118,9 +118,9 @@ can be made structurally impossible.
 
 ## Enforcement
 
-`scripts/validation/check_nl_structural_debt.py` ratchets authored duplicate
+`check_nl_structural_debt.py` ratchets authored duplicate
 normative blocks and stale derived counts against
-`scripts/validation/nl_structural_debt_baseline.json`, and reports change
+`nl_structural_debt_baseline.json`, and reports change
 amplification per capability owner with `--report`. Always-on bytes use
 `instruction_bytes.py`. Activation coverage uses
 `check_rule_activation_coverage.py`. Doctrine in this file is checked by review,

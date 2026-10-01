@@ -38,6 +38,7 @@ import re
 import sys
 from collections import defaultdict
 from pathlib import Path
+from typing import Any
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
 if str(_SCRIPT_DIR) not in sys.path:
@@ -127,7 +128,7 @@ def stale_counts(files: dict[str, str]) -> dict[str, str]:
     return dict(sorted(found.items()))
 
 
-def measure(repo_root: Path) -> dict[str, dict]:
+def measure(repo_root: Path) -> dict[str, dict[str, Any]]:
     """Return the current debt: duplicate pairs and stale cardinality claims."""
     paths = authored_files(repo_root)
     if not paths:
@@ -139,7 +140,7 @@ def measure(repo_root: Path) -> dict[str, dict]:
     return {"duplicate_blocks": duplicate_blocks(files), "cardinality": stale_counts(files)}
 
 
-def _load_baseline(repo_root: Path) -> dict[str, dict]:
+def _load_baseline(repo_root: Path) -> dict[str, dict[str, Any]]:
     path = repo_root / BASELINE_PATH
     if not path.is_file():
         raise ScanError(f"baseline missing: {BASELINE_PATH}; run with --update-baseline")
@@ -154,7 +155,9 @@ def _load_baseline(repo_root: Path) -> dict[str, dict]:
     return data
 
 
-def compare(current: dict[str, dict], baseline: dict[str, dict]) -> tuple[list[str], list[str]]:
+def compare(
+    current: dict[str, dict[str, Any]], baseline: dict[str, dict[str, Any]]
+) -> tuple[list[str], list[str]]:
     """Return (growth, shrink) findings; growth always fails, shrink demands a baseline update."""
     growth: list[str] = []
     shrink: list[str] = []
