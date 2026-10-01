@@ -24,6 +24,7 @@ import subprocess
 from pathlib import Path
 
 GIT_TIMEOUT_SECONDS = 30
+_SHA_RE = re.compile(r"[0-9a-f]{40}")
 _TAG_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._/-]*")
 _REF_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._/-]*")
 
@@ -106,6 +107,8 @@ def candidate_files(repo_root: Path, sha: str) -> tuple[str, ...]:
     candidate contains, not what a checkout happens to hold. NUL-separated, so a
     path with a newline in it stays one path.
     """
+    if not _SHA_RE.fullmatch(sha):
+        raise InvalidCandidateNameError(f"candidate {sha!r} is not a 40-character commit SHA")
     result = _git(repo_root, ["ls-tree", "-r", "-z", "--name-only", sha])
     if result.returncode != 0:
         raise CandidateCheckError(f"git ls-tree failed with exit {result.returncode}")

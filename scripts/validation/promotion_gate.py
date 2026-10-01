@@ -109,19 +109,19 @@ def _digest_bound(
 
 
 def _no_applicability_outcome(candidate: Candidate) -> CheckOutcome:
-    """No required validator was named, so nothing says what must have run.
+    """No applicability table supplied the required set, so nothing says what must have run.
 
-    ADR-113 decision 3 computes the required set from an applicability table.
-    Until that table feeds this program, an empty set is not a clean sheet: one
-    unrelated ``PASS`` would otherwise promote a candidate no applicable
-    validator examined.
+    ADR-113 decision 3 computes the required set from an applicability table. An
+    absent or empty table, or an empty set, is not a clean sheet: one unrelated
+    ``PASS`` would otherwise promote a candidate no applicable validator
+    examined, and a short ``--require`` list could not stand in for the table.
     """
     return CheckOutcome.unknown(
         "promotion",
         reason=REASON_NO_APPLICABILITY,
         scope=f"candidate {candidate.sha[:12]}",
         examined=0,
-        detail="no required validators were named, so no applicable result can be missing",
+        detail="the applicability table is absent or empty, or no validators were named",
     )
 
 
@@ -191,6 +191,7 @@ def run_gate(
     previous: PreviousManifest | None = None,
     mode: str = MODE_ADVISORY,
     today: date | None = None,
+    applicability_absent: bool = False,
 ) -> GateResult:
     """Compute the manifest and exit code.
 
@@ -206,7 +207,7 @@ def run_gate(
         *missing_outcomes(required, bound.bound, candidate),
         *unreadable_outcomes(malformed),
     )
-    if not required:
+    if applicability_absent or not required:
         synthesized = (*synthesized, _no_applicability_outcome(candidate))
     findings = collect_findings(bound.bound, synthesized)
     classified = classify_findings(findings, exceptions, day, deny_all_approvals)
@@ -286,17 +287,19 @@ def _argument_problem(args: argparse.Namespace) -> str | None:
 
 def _applicable(
     args: argparse.Namespace, candidate: Candidate
-) -> tuple[tuple[str, ...], frozenset[str]]:
-    """Return the required validators and the build-tier set.
+) -> tuple[tuple[str, ...], frozenset[str], bool]:
+    """Return the required validators, the build-tier set, and whether a table supplied them.
 
     The table (decision 3) supplies them from the candidate's own tree. Names
-    given on the command line add to the table and never replace it.
+    given on the command line add to the table and never replace it, so an
+    absent or empty table cannot be replaced by a short list: the third value
+    is False then, and ``run_gate`` blocks on ``applicability.absent``.
     """
     table = load_applicability(args.repo_root)
     paths = candidate_files(args.repo_root, candidate.sha) if table else ()
     required = {*required_validators(table, paths), *args.require}
     build = build_tier_validators(table) | frozenset(args.build_validator)
-    return tuple(sorted(required)), build
+    return tuple(sorted(required)), build, bool(table)
 
 
 def _inputs(args: argparse.Namespace) -> tuple[Candidate, PreviousManifest | None]:
@@ -357,7 +360,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if problem:
         return _config_error(problem)
     try:
-        required, build = _applicable(args, candidate)
+        required, build, table_present = _applicable(args, candidate)
     except ApplicabilityError as exc:
         return _config_error(str(exc))
     except CandidateCheckError as exc:
@@ -370,6 +373,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             candidate=candidate,
             required=required,
             build_validators=build,
+            applicability_absent=not table_present,
             previous=previous,
             mode=args.mode,
             today=args.today,

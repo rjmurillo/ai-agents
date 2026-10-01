@@ -106,8 +106,14 @@ def _when_problem(value: object) -> str | None:
     for pattern in value:
         if not isinstance(pattern, str) or not pattern.strip() or _has_forbidden_char(pattern):
             return "'when' patterns must be non-empty printable strings"
-        if pattern.startswith("/") or ".." in pattern.split("/"):
-            return "'when' patterns must be repository-relative with no '..' segment"
+        if pattern.startswith(("/", "./")) or ".." in pattern.split("/"):
+            return (
+                "'when' patterns must be repository-relative with no leading './' or '..' segment"
+            )
+        if pattern.endswith("/"):
+            return (
+                "'when' patterns match file paths, so a trailing '/' would never match; use 'dir/*'"
+            )
     return None
 
 

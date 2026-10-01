@@ -87,6 +87,14 @@ class TestCandidateFiles:
         git(repo, "commit", "-q", "-m", "m")
         assert candidate_files(repo, git(repo, "rev-parse", "HEAD")) == ("a\nb",)
 
+    @pytest.mark.parametrize("sha", ["--all", "abc", "A" * 40, "", "f" * 39])
+    def test_a_non_sha_is_refused_before_git_runs(
+        self, clone: tuple[Path, str, str], sha: str
+    ) -> None:
+        repo, _, _ = clone
+        with pytest.raises(ValueError, match="40-character"):
+            candidate_files(repo, sha)
+
     def test_unknown_commit_raises(self, clone: tuple[Path, str, str]) -> None:
         repo, _, _ = clone
         with pytest.raises(CandidateCheckError, match="ls-tree"):
@@ -155,6 +163,22 @@ class TestTableDrivesRequired:
         repo, first, _ = clone
         _evidence(repo, first, "always_one")
         assert _run(repo, first, *MODE) == EXIT_LOGIC
+
+    def test_a_short_require_list_cannot_stand_in_for_a_deleted_table(
+        self, clone: tuple[Path, str, str]
+    ) -> None:
+        repo, first, _ = clone
+        _evidence(repo, first, "only_one")
+        assert _run(repo, first, "--require", "only_one", *MODE) == EXIT_LOGIC
+
+    def test_an_empty_table_with_a_require_list_blocks(self, clone: tuple[Path, str, str]) -> None:
+        repo, first, _ = clone
+        _table(repo)
+        _evidence(repo, first, "only_one")
+        out = repo.parent / "m.json"
+        assert _run(repo, first, "--require", "only_one", "--output", str(out), *MODE) == EXIT_LOGIC
+        manifest = json.loads(out.read_text(encoding="utf-8"))
+        assert manifest["findings"][0]["reason"] == "applicability.absent"
 
     def test_an_invalid_table_exits_two(self, clone: tuple[Path, str, str]) -> None:
         repo, first, _ = clone

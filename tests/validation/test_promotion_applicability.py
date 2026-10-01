@@ -96,7 +96,20 @@ class TestParse:
 
     @pytest.mark.parametrize(
         "bad",
-        ["sometimes", [], [""], [5], ["a\nb"], ["/abs/*"], ["../x/*"], "ALWAYS", None],
+        [
+            "sometimes",
+            [],
+            [""],
+            [5],
+            ["a\nb"],
+            ["/abs/*"],
+            ["../x/*"],
+            "ALWAYS",
+            None,
+            [".github/workflows/"],
+            ["./x/*"],
+            ["a/*", "docs/"],
+        ],  # fmt: skip
     )
     def test_when_is_always_or_a_pattern_list(self, bad: Any) -> None:
         with pytest.raises(ApplicabilityError, match="when"):
@@ -222,6 +235,12 @@ class TestShippedTable:
         """Gate coverage equals table coverage (decision 3): fail on drift."""
         jobs = {entry.job for entry in load_applicability(REPO_ROOT)}
         assert REQUIRED_CONTEXTS <= jobs, sorted(REQUIRED_CONTEXTS - jobs)
+
+    def test_every_required_check_applies_to_every_candidate(self) -> None:
+        """A required check scoped to some paths would not be required for the rest."""
+        rows = [e for e in load_applicability(REPO_ROOT) if e.job in REQUIRED_CONTEXTS]
+        assert rows
+        assert all(row.always for row in rows), [r.validator for r in rows if not r.always]
 
     def test_the_package_checks_bind_on_the_tarball_digest(self) -> None:
         build = build_tier_validators(load_applicability(REPO_ROOT))
