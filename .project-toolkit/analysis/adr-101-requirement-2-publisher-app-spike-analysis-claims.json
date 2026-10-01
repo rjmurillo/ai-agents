@@ -24,7 +24,7 @@
     },
     {
       "id": "C2",
-      "claim": "create-github-app-token v3.2.0 resolves to bcd2ba49218906704ab6c1aa796996da409d3eb1 and accepts client-id, app-id, private-key, owner, repositories, permission-* and skip-token-revoke inputs",
+      "claim": "create-github-app-token v3.2.0 resolves to commit bcd2ba49218906704ab6c1aa796996da409d3eb1",
       "category": "vendor",
       "time_sensitive": false,
       "source": {
@@ -160,7 +160,7 @@
     },
     {
       "id": "C10",
-      "claim": "GitHub App registration labels: Webhook Active, Expire user authorization tokens, Request user authorization (OAuth) during installation, Only on this account",
+      "claim": "GitHub App registration offers Expire user authorization tokens and Request user authorization (OAuth) during installation options",
       "category": "vendor",
       "time_sensitive": false,
       "source": {
@@ -225,6 +225,125 @@
       "disposition": "qualified",
       "final_wording": "`actions/attest` artifact attestation, Sigstore public good",
       "gap": "The CLI help offers --no-public-good, which implies public good is the default. Not confirmed on a docs page."
+    },
+    {
+      "id": "C2b",
+      "claim": "create-github-app-token accepts client-id, app-id, private-key, owner, repositories, permission-* and skip-token-revoke inputs",
+      "category": "vendor",
+      "time_sensitive": false,
+      "source": {
+        "kind": "primary",
+        "url": "https://github.com/actions/create-github-app-token/blob/bcd2ba49218906704ab6c1aa796996da409d3eb1/action.yml",
+        "published": "2026-05-12",
+        "accessed": "2026-09-30",
+        "secondary_reason": null
+      },
+      "confidence": "high",
+      "disposition": "verified",
+      "final_wording": "Inputs include `client-id`, `app-id`, `private-key`, `owner`, `repositories`, `permission-checks`, `permission-contents`, `permission-pull-requests`, and `skip-token-revoke`.",
+      "gap": ""
+    },
+    {
+      "id": "C14",
+      "claim": "Ruleset 11104075 records integration_id 15368 on all nine required contexts",
+      "category": "api",
+      "time_sensitive": true,
+      "source": {
+        "kind": "primary",
+        "url": "https://api.github.com/repos/rjmurillo/ai-agents/rulesets/11104075",
+        "published": "2026-09-30",
+        "accessed": "2026-09-30",
+        "secondary_reason": null
+      },
+      "confidence": "high",
+      "disposition": "verified",
+      "final_wording": "As of 2026-09-30, `gh api repos/rjmurillo/ai-agents/rulesets/11104075` shows that every required context carries an `integration_id`.",
+      "gap": "Read once through gh api; the ruleset can change after this date."
+    },
+    {
+      "id": "C15",
+      "claim": "The repository is public and owned by a user account",
+      "category": "api",
+      "time_sensitive": false,
+      "source": {
+        "kind": "primary",
+        "url": "https://api.github.com/repos/rjmurillo/ai-agents",
+        "published": "2026-09-30",
+        "accessed": "2026-09-30",
+        "secondary_reason": null
+      },
+      "confidence": "high",
+      "disposition": "verified",
+      "final_wording": "which is public and user-owned (`gh api repos/rjmurillo/ai-agents`: `visibility: public`, owner type `User`)",
+      "gap": "Read once through gh api on 2026-09-30."
+    },
+    {
+      "id": "C16",
+      "claim": "The repository lists three environments, none with a deployment branch policy",
+      "category": "api",
+      "time_sensitive": true,
+      "source": {
+        "kind": "primary",
+        "url": "https://api.github.com/repos/rjmurillo/ai-agents/environments",
+        "published": "2026-09-30",
+        "accessed": "2026-09-30",
+        "secondary_reason": null
+      },
+      "confidence": "high",
+      "disposition": "verified",
+      "final_wording": "As of 2026-09-30 the repository lists three environments, `bot-secrets`, `copilot`, `vendor-provenance`",
+      "gap": "Read once through gh api; environments can change after this date."
+    },
+    {
+      "id": "C17",
+      "claim": "Ruleset integration_id is 15368 on every context, per the live ruleset",
+      "category": "api",
+      "time_sensitive": true,
+      "source": {
+        "kind": "primary",
+        "url": "https://api.github.com/repos/rjmurillo/ai-agents/rulesets/11104075",
+        "published": "2026-09-30",
+        "accessed": "2026-09-30",
+        "secondary_reason": null
+      },
+      "confidence": "high",
+      "disposition": "verified",
+      "final_wording": "As of 2026-09-30 the live ruleset records `integration_id: 15368` on every context (READ).",
+      "gap": "Same read as C14."
+    },
+    {
+      "id": "C10b",
+      "claim": "App registration offers a webhook Active toggle",
+      "category": "vendor",
+      "time_sensitive": false,
+      "source": {
+        "kind": "primary",
+        "url": "https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/registering-a-github-app",
+        "published": null,
+        "accessed": "2026-09-30",
+        "secondary_reason": null
+      },
+      "confidence": "high",
+      "disposition": "verified",
+      "final_wording": "Webhook: clear \"Active\".",
+      "gap": ""
+    },
+    {
+      "id": "C10c",
+      "claim": "App registration offers the Only on this account install option",
+      "category": "vendor",
+      "time_sensitive": false,
+      "source": {
+        "kind": "primary",
+        "url": "https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/registering-a-github-app",
+        "published": null,
+        "accessed": "2026-09-30",
+        "secondary_reason": null
+      },
+      "confidence": "high",
+      "disposition": "verified",
+      "final_wording": "Where can this GitHub App be installed: \"Only on this account\".",
+      "gap": ""
     }
   ]
 }

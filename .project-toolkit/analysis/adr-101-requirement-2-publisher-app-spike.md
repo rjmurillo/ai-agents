@@ -83,7 +83,7 @@ Every row ends in the same place for arbitrary candidate code in the test proces
 
 ### 3. The plan supports pinning by publisher
 
-READ 2026-09-30, `gh api repos/rjmurillo/ai-agents/rulesets/11104075`. Every required context carries an `integration_id`. All nine are `15368`, the GitHub Actions app. So the field exists and is honored on this repository, which is public and user-owned (`gh api repos/rjmurillo/ai-agents`: `visibility: public`, owner type `User`). Pinning to a different id is a data change, not a new capability.
+As of 2026-09-30, `gh api repos/rjmurillo/ai-agents/rulesets/11104075` shows that every required context carries an `integration_id`. All nine are `15368`, the GitHub Actions app. So the field exists and is honored on this repository, which is public and user-owned (`gh api repos/rjmurillo/ai-agents`: `visibility: public`, owner type `User`). Pinning to a different id is a data change, not a new capability.
 
 Docs (DOCS, `docs.github.com/en/rest/checks/runs`): "To create a check run, you must use a GitHub App." The ruleset pins 15368 on contexts that Actions jobs report, so checks from any workflow's own token read as 15368 and cannot be told apart by id (INFERRED from the pin field). A separate App is the only way to get a distinct id.
 
@@ -99,7 +99,7 @@ READ 2026-09-30 through `gh api`:
 
 | Mechanism | Whose key signs | What the verifier checks | Closes identity (conjunct 2) | Closes "tests executed" |
 |---|---|---|---|---|
-| App-authored check run, App pinned by `integration_id` in the ruleset | The App, key held in an environment-scoped secret | GitHub matches the context name and `integration_id` at merge time. A verifier script can also read the check run's `app.id`, `head_sha`, `name`, and `external_id`. | Yes | No. It carries `needs.execute.result`. |
+| App-authored check run, App pinned by `integration_id` in the ruleset | The App, key held in an environment-scoped secret | GitHub matches the context name and `integration_id` at merge time. A verifier script can also read the check run's `app.id`, `head_sha`, and `name`. `external_id` is key-holder-controlled, so it serves correlation only. | Yes | No. It carries `needs.execute.result`. |
 | `actions/attest` artifact attestation, Sigstore public good | The workflow's OIDC identity, cert names the workflow path and ref | `gh attestation verify --signer-workflow <base workflow> --source-ref refs/heads/main --signer-digest <base sha>` | Yes, for "this base-owned workflow signed it" | No. It names the workflow, not the facts the candidate wrote. |
 | Direct Sigstore (cosign keyless) | Same OIDC identity | Same claims, checked by the verifier | Same as above | No. |
 | Container or VM supervisor, no signature | None | Exit status from the runtime | No | No. ADR line 215. |
@@ -121,8 +121,8 @@ What it leaves open, stated in the ADR's own vocabulary: the "candidate forges t
 
 1. Line 215 carries the phrase "is now the only option that closes this requirement". Lines 195, 219, 221 and 430 repeat the same premise in other words. Replace the claim with a statement that no mechanism authenticates in-process test results against arbitrary candidate code, and move the forged-exit, collected-count and skipped-corpus cases into the accepted residuals beside line 203, citing Evidence 1.
 2. Line 430: the research item resolves to "App-authored check run, `integration_id` pinned; execution authenticity bounded as above". That lets requirement 2 enter a phase.
-3. Line 143 says `ruleset_required_contexts.py` "pins names alone today" and line 229 says it "pins context names alone today". The live ruleset records `integration_id: 15368` on every context (READ). The statement that nothing separates publishers stays true, because every pin is the Actions app.
-4. Line 100 says the repository has "exactly one environment-gated job". The repository now lists three environments, `bot-secrets`, `copilot`, `vendor-provenance` (READ, `gh api repos/rjmurillo/ai-agents/environments`), and none carries a deployment branch policy.
+3. Line 143 says `ruleset_required_contexts.py` "pins names alone today" and line 229 says it "pins context names alone today". As of 2026-09-30 the live ruleset records `integration_id: 15368` on every context (READ). The statement that nothing separates publishers stays true, because every pin is the Actions app.
+4. Line 100 says the repository has "exactly one environment-gated job". As of 2026-09-30 the repository lists three environments, `bot-secrets`, `copilot`, `vendor-provenance` (READ, `gh api repos/rjmurillo/ai-agents/environments`), and none carries a deployment branch policy.
 5. Line 187 names a `workflow_run` trigger. `pull_request_target` also runs the base ref's workflow definition and is the shape `enforcement-closure.yml` already uses. Say which is meant.
 
 ## Minimal App permissions
@@ -199,7 +199,7 @@ Build, behind `ADR101_PUBLISHER_ENABLED` (default off), a base-owned workflow wi
 
 - A Python module under `scripts/ci/` owning all logic, returning `evidence.CheckOutcome` values: SKIP with reason `publisher.disabled` when the flag is off, BLOCKED with `auth.unavailable` when the flag is on and the App id or key is absent, FAIL when the supervisor's recorded conclusion is not success or the SHAs moved, PASS only when the check run was published for the captured head and base.
 - Workflow YAML with triggers and calls only: an `execute` job on its own runner with `contents: read`, no secrets, no environment, running a base-owned harness over the candidate checked out as data; a `publish` job with `needs: execute`, `if: ${{ always() }}`, `environment: adr101-publisher`, and no candidate code.
-- A verifier that reads the published check run through the API and checks `app.id`, `head_sha`, `name`, and a base-owned `external_id` digest of the captured SHAs. It rejects tampered or mismatched evidence as FAIL.
+- A verifier that reads the published check run through the API and checks `app.id`, `head_sha`, and `name`, then cross-checks the run against the workflow-run API for the same head SHA. It uses `external_id`, a digest of the captured SHAs, for correlation only, and rejects tampered or mismatched evidence as FAIL.
 - Tests for flag off (SKIP), flag on with secrets absent (BLOCKED), a mocked valid token and evidence (PASS), and tampered evidence (FAIL).
 - A test or lint that fails when the publication job checks out the head, restores a cache, or interpolates a head-controlled string into `run:`, and a CODEOWNERS entry for the workflow file.
 - It would not join `scripts/ci/ruleset_required_contexts.py` or any ruleset.
