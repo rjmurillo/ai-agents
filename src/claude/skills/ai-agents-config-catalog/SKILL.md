@@ -15,7 +15,7 @@ metadata:
 
 <!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself; intentionally references upstream paths (.agents/, .claude/, scripts/, build/, build/scripts/build_all.py, scripts/validation/check_push_lock_before_commit.py, scripts/validation/git_hook_policy.py) because its audience is repo contributors, not plugin consumers (issue #2050) -->
 Every flag, marker, and skip semantic in this repo, verified against code as
-of 2026-07-03. Hook registration surfaces were rechecked on 2026-09-01. Each
+of 2026-07-03. Hook registration surfaces were rechecked on 2026-09-30. Each
 escape hatch exists because a gate sometimes misfires; each one also has an
 abuse story or a guard. Before you set any of these, read its row. The house
 rule (learned in session 1187, see the Removed Flags section): escape hatches
@@ -137,7 +137,7 @@ Two independent registration sources serve different consumers. Do not force
 parity between them. A third, `.github/hooks/require-subagent-model.json`, was
 retired by ADR-097 along with every tool-call hook:
 
-| Surface | Consumer | Shape re-verified 2026-09-01 |
+| Surface | Consumer | Shape re-verified 2026-09-30 |
 |---|---|---|
 | `.claude/settings.json` | Claude Code direct in this repository | 5 events, 8 groups |
 | `.claude/hooks/hooks.json` | Vendored plugin source for both harness packages | 0 events, 0 groups |
@@ -180,7 +180,7 @@ repository-controlled code, so command-name matching is not a safe approval boun
 
 ## Provenance and Maintenance
 
-Audited 2026-09-01 against the working tree for hook registration surfaces.
+Audited 2026-09-30 against the working tree for hook registration surfaces.
 Other rows remain verified as of 2026-07-03. Sources: files and line numbers
 cited per row above. Line numbers drift; the commands below are the durable
 re-verification. Run from repo root. If a command returns nothing, the flag

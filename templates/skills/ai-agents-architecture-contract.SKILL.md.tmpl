@@ -79,7 +79,7 @@ Two meta-patterns bind these together:
 Registration is split by consumer. These source files are intentionally not
 parity twins:
 
-| Surface | File | Registered (re-verified 2026-09-01) |
+| Surface | File | Registered (re-verified 2026-09-30) |
 |---|---|---|
 | Claude Code direct | `.claude/settings.json` `hooks` key | 5 events, 8 groups |
 | Vendored plugin source | `.claude/hooks/hooks.json` | 0 events, 0 groups |
@@ -175,6 +175,6 @@ Before relying on or amending this contract:
 
 ## Provenance and Maintenance
 
-Authored 2026-07-03, facts re-verified against the working tree on 2026-09-01. Volatile facts are date-stamped inline. The full per-claim source and re-verify command index is in `references/provenance.md`; consult it when editing or auditing this skill.
+Authored 2026-07-03, facts re-verified against the working tree on 2026-09-30. Volatile facts are date-stamped inline. The full per-claim source and re-verify command index is in `references/provenance.md`; consult it when editing or auditing this skill.
 
 Maintenance rule: when any row in `references/provenance.md` fails its re-verify command, fix this skill (SKILL.md and the affected reference) in the same PR as the change that broke it, and label anything newly Proposed as Proposed. Sibling map: pipeline operation `ai-agents-generation-and-release`, triage `ai-agents-debugging-playbook`, harness facts `agent-harness-reference`, flags `ai-agents-config-catalog`, change process `ai-agents-change-control`, history `ai-agents-failure-archaeology`, evidence bar `ai-agents-validation-and-qa`.

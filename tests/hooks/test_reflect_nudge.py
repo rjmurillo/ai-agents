@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import sys
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -200,10 +201,13 @@ def test_hook_never_emits_a_block_decision_or_reason(tmp_path: Path, state: Path
 
 
 def test_concurrent_stops_show_one_message(tmp_path: Path, state: Path) -> None:
+    """Process-level race, repeated 30 times (testing.md MUST-12) on fresh sessions."""
     transcript = write_transcript(tmp_path / "t.jsonl", CORRECTIONS)
-    with ThreadPoolExecutor(max_workers=8) as pool:
-        results = list(pool.map(lambda _: run_hook(_payload(transcript), state), range(8)))
-    assert sum(1 for r in results if r.stdout) == 1
+    for attempt in range(30):
+        payload = _payload(transcript, f"race-{attempt}")
+        with ThreadPoolExecutor(max_workers=6) as pool:
+            results = list(pool.map(lambda _, p=payload: run_hook(p, state), range(6)))
+        assert sum(1 for r in results if r.stdout) == 1, f"attempt {attempt}"
 
 
 def test_other_session_is_not_deduped(tmp_path: Path, state: Path) -> None:
@@ -262,7 +266,10 @@ def test_generated_hook_matches_template() -> None:
     assert template.read_bytes() == HOOK.read_bytes()
 
 
-@pytest.mark.skipif(os.geteuid() == 0, reason="root ignores file modes")
+@pytest.mark.skipif(
+    sys.platform == "win32" or os.geteuid() == 0,
+    reason="POSIX file modes; root ignores them",
+)
 def test_scan_fault_exits_zero_through_wrapper(tmp_path: Path, state: Path) -> None:
     transcript = write_transcript(tmp_path / "t.jsonl", CORRECTIONS)
     transcript.chmod(0o000)

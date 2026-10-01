@@ -130,7 +130,7 @@ def _tally(record: dict[str, Any], counts: dict[str, int]) -> None:
 
 
 def qualifies(counts: dict[str, int]) -> bool:
-    """Same threshold as the reflect skill: >=1 HIGH or >=2 MED."""
+    """Reflect's HIGH and MED thresholds: >=1 HIGH or >=2 MED. LOW is not scanned."""
     return counts["high"] >= 1 or counts["med"] >= 2
 
 
