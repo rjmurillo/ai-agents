@@ -83,6 +83,7 @@ Related: issue #5635. Callers: ``scripts/validation/pre_pr.py``,
 
 from __future__ import annotations
 
+import json
 import re
 from collections.abc import Iterable
 from dataclasses import dataclass, field, replace
@@ -96,26 +97,39 @@ __all__ = [
     "GatePolicy",
     "GateResult",
     "PolicyException",
+    "REASON_ADVISORY_FINDINGS",
     "REASON_ALREADY_RUN",
     "REASON_AUTH_UNAVAILABLE",
     "REASON_BASE_REF_UNRESOLVED",
+    "REASON_BRANCH_UNDETERMINED",
     "REASON_DIFF_FAILED",
+    "REASON_ENTRIES_UNREADABLE",
+    "REASON_ENV_BYPASS",
     "REASON_INCOMPLETE_EVIDENCE",
     "REASON_LEGACY_BOOLEAN",
+    "REASON_LISTING_FAILED",
+    "REASON_LOOKUP_FAILED",
     "REASON_MALFORMED_OUTPUT",
+    "REASON_MERGE_IN_PROGRESS",
     "REASON_NO_OUTCOMES",
+    "REASON_POLICY_EXEMPT",
     "REASON_PROCESS_SIGNALED",
+    "REASON_PR_UNRESOLVED",
     "REASON_QUICK_MODE",
+    "REASON_SCOPE_EMPTY",
     "REASON_SCRIPT_ABSENT",
+    "REASON_SCRIPT_FAILED",
     "REASON_TIMEOUT",
     "REASON_TOOL_ABSENT",
     "REASON_TREE_ABSENT",
     "REASON_VALIDATOR_RAISED",
+    "REASON_VIOLATIONS_FOUND",
     "WORKING_TREE",
     "aggregate",
     "coerce_outcome",
     "default_pre_pr_policy",
     "exit_code_for",
+    "pre_pr_policy",
     "worst_state",
 ]
 
@@ -176,6 +190,42 @@ REASON_ALREADY_RUN: Final = "policy.already_run"
 REASON_VALIDATOR_RAISED: Final = "validator.raised"
 REASON_LEGACY_BOOLEAN: Final = "legacy.boolean_contract"
 REASON_NO_OUTCOMES: Final = "aggregate.no_outcomes"
+#: An advisory gate ran and found something. The state is FAIL, and a named
+#: :class:`PolicyException` in :func:`default_pre_pr_policy` is what keeps it
+#: from blocking, so the finding is counted instead of printed and forgotten
+#: (issue #5636).
+REASON_ADVISORY_FINDINGS: Final = "advisory.findings"
+#: ``git worktree list`` (or an equivalent enumeration) failed, so the set the
+#: gate was meant to inspect is unknown.
+REASON_LISTING_FAILED: Final = "listing.failed"
+#: A local hook job did not run because an environment toggle such as
+#: ``SKIP_YAMLLINT=1`` turned it off. The toggle is unauthenticated, so the
+#: reason code is what makes the bypass countable.
+REASON_ENV_BYPASS: Final = "policy.env_bypass"
+#: The check does not apply here on purpose: a documented exemption, such as a
+#: linked worktree or settled merged history, not a missing input.
+REASON_POLICY_EXEMPT: Final = "policy.exempt"
+#: A git merge is in progress, so the check's premise does not hold yet.
+REASON_MERGE_IN_PROGRESS: Final = "git.merge_in_progress"
+#: The current branch could not be determined.
+REASON_BRANCH_UNDETERMINED: Final = "branch.undetermined"
+#: No pull request resolves for the current branch, so a check that compares
+#: against the PR had nothing to compare.
+REASON_PR_UNRESOLVED: Final = "pr.unresolved"
+#: Nothing in scope needed examining (for example no changed agent files), so a
+#: comparison never started. Distinct from a clean comparison.
+REASON_SCOPE_EMPTY: Final = "scope.empty"
+#: A wrapped validator ran and reported a violation, in a mode that blocks.
+REASON_VIOLATIONS_FOUND: Final = "violations.found"
+#: A wrapped validator exited non-zero without reporting a finding: a
+#: configuration or environment error in the script itself, not a verdict.
+REASON_SCRIPT_FAILED: Final = "script.failed"
+#: A scan could not read some of the entries it was meant to inspect, so a clean
+#: verdict would claim more than was observed.
+REASON_ENTRIES_UNREADABLE: Final = "entries.unreadable"
+#: A per-item lookup (a ``gh issue view`` call) returned nothing usable, so the
+#: gate could not prove the clean verdict it would otherwise report.
+REASON_LOOKUP_FAILED: Final = "lookup.failed"
 
 #: Dotted lowercase slug. Machine-readable means a consumer can branch on it,
 #: which a free-text sentence does not support.
@@ -452,6 +502,20 @@ class CheckOutcome:
             parts.append(f"findings={self.findings}")
         return " ".join(parts)
 
+    def report_line(self) -> str:
+        """Return :meth:`summary_line` plus the detail, as one greppable line.
+
+        ``summary_line`` omits the detail. A non-pass path that prints only the
+        summary names its state and reason but not its cause, so the reader
+        cannot tell which file was unreadable or which lookup failed. The detail
+        goes last as a JSON string: that keeps it on one line and keeps a quote
+        inside it from splitting the field.
+        """
+        line = self.summary_line()
+        if self.detail:
+            line += f" detail={json.dumps(self.detail)}"
+        return line
+
 
 #: What a gate row may return. ``bool`` stays legal so the migration can move
 #: one validator at a time; :func:`coerce_outcome` tags every bool it wraps so
@@ -591,6 +655,140 @@ class GatePolicy:
         }
 
 
+_ADVISORY_REFERENCE: Final = ".agents/governance/FAIL-OPEN-INVENTORY.md"
+
+_HYGIENE_FINDINGS_WHY: Final = (
+    "The subject is machine state, not this diff, and the pushing agent may not "
+    "own it (issues #5061, #5111), so a finding must not refuse this push. The "
+    "FAIL is still counted and printed."
+)
+_HYGIENE_LISTING_WHY: Final = (
+    "With 'git worktree list' failed, the registered half of the scan is "
+    "unavailable. The hygiene scan stays advisory, but it cannot report a clean run."
+)
+_HYGIENE_UNREADABLE_WHY: Final = (
+    "An entry the scan could not read leaves the run partial. The hygiene scan "
+    "stays advisory, but it cannot report a clean run."
+)
+
+#: One licence per (validator, state, reason): an advisory gate that keeps its
+#: non-blocking verdict but reports it through the typed states instead of a
+#: bare ``True`` (issue #5636). Each row is a decision the inventory already
+#: recorded as ``B: keep advisory``; nothing here makes a gate stop blocking.
+#: The reasons are pinned per row so a validator cannot widen its own licence
+#: by inventing a new reason code. No row licenses ``UNKNOWN``: a missing
+#: observation is ``BLOCKED`` here, because ``UNKNOWN`` stays unlicensed by
+#: design (issue #5646).
+_ADVISORY_LICENCES: Final[tuple[tuple[str, EvidenceState, str, str], ...]] = (
+    *(
+        row
+        for validator in (
+            "validate_serena_memory_worktree_scope",
+            "validate_tmp_worktrees",
+            "validate_in_root_worktrees",
+        )
+        for row in (
+            (validator, EvidenceState.FAIL, REASON_ADVISORY_FINDINGS, _HYGIENE_FINDINGS_WHY),
+            (validator, EvidenceState.BLOCKED, REASON_LISTING_FAILED, _HYGIENE_LISTING_WHY),
+            (validator, EvidenceState.BLOCKED, REASON_ENTRIES_UNREADABLE, _HYGIENE_UNREADABLE_WHY),
+        )
+    ),
+    (
+        "validate_canonical_citations",
+        EvidenceState.FAIL,
+        REASON_ADVISORY_FINDINGS,
+        "Soft-warn by default: an uncited mirror-claim must not stop a push until "
+        "the owner decides the row (inventory C). STRICT_CANONICAL_CHECK=1 blocks.",
+    ),
+    (
+        "validate_canonical_citations",
+        EvidenceState.BLOCKED,
+        REASON_MALFORMED_OUTPUT,
+        "The script exited 0 but printed no status token this wrapper recognizes. "
+        "That was a pass before; it stays non-blocking and is now counted.",
+    ),
+    (
+        "validate_spec_contradiction",
+        EvidenceState.FAIL,
+        REASON_ADVISORY_FINDINGS,
+        "The contradiction heuristic runs under --advisory so a false positive "
+        "never blocks the local pre-PR cycle (issue #1920).",
+    ),
+    (
+        "validate_spec_contradiction",
+        EvidenceState.BLOCKED,
+        REASON_SCRIPT_FAILED,
+        "Under --advisory a non-zero exit is a configuration error in a heuristic "
+        "check. It was a pass before; it stays non-blocking and is now counted.",
+    ),
+    (
+        "validate_spec_contradiction",
+        EvidenceState.BLOCKED,
+        REASON_MALFORMED_OUTPUT,
+        "The script exited 0 but printed no status token this wrapper recognizes. "
+        "That was a pass before; it stays non-blocking and is now counted.",
+    ),
+    (
+        "validate_dash_prohibition",
+        EvidenceState.BLOCKED,
+        REASON_ENTRIES_UNREADABLE,
+        "Decision D10 left the dash scan's narrowing past a blob git cannot read "
+        "non-blocking, with each skipped file reported. The narrowing is now counted "
+        "as BLOCKED instead of PASS. An unresolved base ref still blocks under CI.",
+    ),
+    (
+        "validate_yaml_style",
+        EvidenceState.FAIL,
+        REASON_ADVISORY_FINDINGS,
+        "This gate reports style findings without failing (issue #2374). The FAIL "
+        "is counted and printed, and the same validator's missing-yamllint BLOCKED "
+        "is already licensed by name.",
+    ),
+    (
+        "validate_yaml_style",
+        EvidenceState.BLOCKED,
+        REASON_SCRIPT_FAILED,
+        "A yamllint configuration or usage error printed no finding, so nothing was "
+        "examined. It was a PASS before; it stays non-blocking for this advisory "
+        "gate and is now counted.",
+    ),
+    (
+        "validate_review_marker",
+        EvidenceState.FAIL,
+        REASON_ADVISORY_FINDINGS,
+        "Most pre-PR pushes are mid-development and have not run /review yet. "
+        "REVIEW_MARKER_ENFORCED=1 blocks; /ship blocks regardless (issue #1938).",
+    ),
+    (
+        "validate_active_plan_closeout",
+        EvidenceState.FAIL,
+        REASON_ADVISORY_FINDINGS,
+        "A closeable plan is a housekeeping reminder, not a defect in this diff.",
+    ),
+    (
+        "validate_active_plan_closeout",
+        EvidenceState.BLOCKED,
+        REASON_LOOKUP_FAILED,
+        "The closeout check is a reminder. A failed 'gh issue view' must not "
+        "refuse a push, but the run cannot claim it looked at every plan.",
+    ),
+)
+
+
+def _advisory_exceptions() -> tuple[PolicyException, ...]:
+    """Build one bounded :class:`PolicyException` per advisory licence row."""
+    return tuple(
+        PolicyException(
+            validator=validator,
+            states=frozenset({state}),
+            reasons=frozenset({reason}),
+            justification=justification,
+            reference=_ADVISORY_REFERENCE,
+        )
+        for validator, state, reason, justification in _ADVISORY_LICENCES
+    )
+
+
 def default_pre_pr_policy() -> GatePolicy:
     """Return the policy the pre-PR gate runs under.
 
@@ -658,6 +856,25 @@ def default_pre_pr_policy() -> GatePolicy:
             ),
         )
     )
+
+
+def pre_pr_policy() -> GatePolicy:
+    """Return the policy ``pre_pr.py`` runs under: the base policy plus advisory licences.
+
+    :func:`default_pre_pr_policy` is unchanged and still carries exactly three
+    exceptions, none of which licenses ``FAIL`` or ``UNKNOWN``. This adds one
+    bounded :class:`PolicyException` per row of ``_ADVISORY_LICENCES`` so an
+    advisory gate can report a finding or a missing observation through the
+    typed states and still not block (issue #5636).
+
+    Two invariants hold and are pinned by
+    ``tests/validation/test_evidence_advisory_licences.py``: ``UNKNOWN`` is
+    licensed by nothing, here or in the base policy, because that is the state
+    that would put unreadable evidence back on the accept side (issue #5646);
+    and every advisory licence names one validator, one state, and one reason,
+    so a validator cannot widen its own licence by inventing a reason code.
+    """
+    return GatePolicy(exceptions=(*default_pre_pr_policy().exceptions, *_advisory_exceptions()))
 
 
 @dataclass(frozen=True, slots=True)

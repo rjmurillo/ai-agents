@@ -1,0 +1,141 @@
+# Promotion Gate (advisory)
+#
+# ADR-113 decision 1: one checked-in program, scripts/validation/promotion_gate.py,
+# computes the release promotion verdict from persisted validator evidence.
+# This workflow only calls it. It is advisory: it writes a manifest and exits 0
+# whatever the verdict, and the manifest says so. publish.yml does not call it
+# yet. ADR-113 decision 5 keeps the gate advisory until the default-branch
+# entry point, the integration pin, and the tag ruleset exist.
+#
+# Run it from the default branch only. The candidate SHA is an input, and the
+# job reads no artifact from a pull request.
+
+name: Promotion Gate
+
+on:
+  workflow_dispatch:
+    inputs:
+      candidate-sha:
+        description: 'Full 40-character commit SHA of the promotion candidate'
+        required: true
+        type: string
+      candidate-digest:
+        description: 'SHA-256 digest of the built npm tarball, if built'
+        required: false
+        default: ''
+        type: string
+      release-tag:
+        description: 'Existing release tag to attach the manifest to (empty to skip)'
+        required: false
+        default: ''
+        type: string
+
+concurrency:
+  group: ${{ github.workflow }}-${{ inputs.candidate-sha }}
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  gate:
+    name: Compute promotion manifest
+    # Run from the default branch only. A dispatch from another branch would run
+    # that branch's copy of the gate program (ADR-113 decision 5).
+    if: ${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+    runs-on: ubuntu-26.04-arm
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    outputs:
+      release_eligible: ${{ steps.manifest.outputs.release_eligible }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1  # v2.21.1
+        with:
+          egress-policy: audit
+
+      # Full history and tags: the gate checks that the candidate is an
+      # ancestor of the default branch head and that a named tag resolves to it.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Setup code environment
+        uses: ./.github/actions/setup-code-env
+        with:
+          gh-token: ${{ secrets.GITHUB_TOKEN }}
+          enable-pester: false
+          enable-git-hooks: false
+
+      # No validator uploads evidence yet (ADR-113 decision 2), so this
+      # directory is empty and the gate reports that no evidence was bound.
+      - name: Prepare the evidence directory
+        run: mkdir -p "$RUNNER_TEMP/evidence"
+
+      - name: Compute the promotion manifest
+        id: manifest
+        env:
+          CANDIDATE_SHA: ${{ inputs.candidate-sha }}
+          CANDIDATE_DIGEST: ${{ inputs.candidate-digest }}
+          RELEASE_TAG: ${{ inputs.release-tag }}
+        run: >-
+          uv run --frozen python scripts/validation/promotion_gate.py
+          --evidence-dir "$RUNNER_TEMP/evidence"
+          --candidate-sha "$CANDIDATE_SHA"
+          --candidate-digest "$CANDIDATE_DIGEST"
+          --ancestor-of HEAD
+          --expect-tag "$RELEASE_TAG"
+          --output "$RUNNER_TEMP/promotion-manifest.json"
+          --github-output "$GITHUB_OUTPUT"
+          --mode advisory
+
+      - name: Upload the manifest
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: promotion-manifest
+          path: ${{ runner.temp }}/promotion-manifest.json
+          if-no-files-found: error
+
+  # The only job with a write token (ADR-113 Resolved Question 3). It checks
+  # out nothing, runs no candidate code, and does not parse the manifest. It
+  # attaches the file to an existing release and never creates a release or tag.
+  # It runs only for an enforced promote verdict, so a blocked or advisory
+  # manifest never becomes the baseline for the remediated class (decision 9).
+  # The gate step has already checked that the tag resolves to the candidate.
+  # This workflow runs advisory, so the job stays dormant until the gate is
+  # switched to enforcing under ADR-113 decision 5.
+  release-manifest:
+    name: Attach manifest to release
+    needs: gate
+    if: >-
+      ${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+      && inputs.release-tag != ''
+      && needs.gate.outputs.release_eligible == 'true' }}
+    runs-on: ubuntu-26.04-arm
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1  # v2.21.1
+        with:
+          egress-policy: audit
+
+      - name: Download the manifest
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8
+        with:
+          name: promotion-manifest
+          path: ${{ runner.temp }}/manifest
+
+      - name: Attach the manifest to the existing release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release-tag }}
+          REPOSITORY: ${{ github.repository }}
+        run: >-
+          gh release upload "$RELEASE_TAG"
+          "$RUNNER_TEMP/manifest/promotion-manifest.json"
+          --clobber --repo "$REPOSITORY"

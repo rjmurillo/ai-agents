@@ -44,6 +44,7 @@ from check_adr_lifecycle import validate_adr_lifecycle
 from check_adr_links import validate_adr_links
 from check_agent_tree_frontmatter import validate_agent_tree_frontmatter
 from check_agents_write_targets import validate_agents_write_targets
+from check_bypass_allowlist import validate_bypass_allowlist
 from check_citation_freshness import validate_citation_freshness
 from check_doc_interpreter_portability import validate_doc_interpreter_portability
 from check_duplicate_test_helpers import validate_duplicate_test_helpers
@@ -52,6 +53,7 @@ from check_git_hook_health import validate_git_hook_health
 from check_in_root_worktrees import validate_in_root_worktrees
 from check_index_line_endings import validate_index_line_endings
 from check_nested_tests import validate_no_nested_tests
+from check_promotion_exceptions import validate_promotion_exceptions
 from check_push_lock_paths import validate_push_lock_paths
 from check_required_context_conditions import validate_required_context_conditions
 from check_serena_memory_worktree_scope import (
@@ -255,7 +257,7 @@ def _run_orphaned_build_deferrals(repo_root: Path, _args: argparse.Namespace) ->
     )
 
 
-def _run_copilot_routing_exclusions(repo_root: Path, _args: argparse.Namespace) -> bool:
+def _run_copilot_routing_exclusions(repo_root: Path, _args: argparse.Namespace) -> GateResult:
     """Import lazily; ``run_validation`` turns any raise into a recorded failure.
 
     The previous shape wrapped both the import and the ``run_validation`` call in
@@ -266,7 +268,8 @@ def _run_copilot_routing_exclusions(repo_root: Path, _args: argparse.Namespace) 
     """
     from checks_copilot import validate_copilot_routing_exclusions
 
-    return bool(validate_copilot_routing_exclusions(repo_root))
+    outcome: GateResult = validate_copilot_routing_exclusions(repo_root)
+    return outcome
 
 
 _SEQUENCE: tuple[_Gate, ...] = (
@@ -409,6 +412,12 @@ _SEQUENCE: tuple[_Gate, ...] = (
     _Gate("Hook Template Drift", _root_only(validate_hook_template_drift)),
     _Gate("Spec ID Uniqueness", _root_only(validate_spec_id_uniqueness)),  # Issue #2068
     _Gate("Traceability", _root_only(validate_traceability)),
+    # Issue #5636, decision D17: a SKIP_ toggle or continue-on-error step with no
+    # allowlist entry, or an expired one, fails here before it fails in CI.
+    _Gate("Bypass Allowlist", _root_only(validate_bypass_allowlist)),
+    # Issue #5636, ADR-113 decision 8: a malformed promotion exceptions file or
+    # a lapsed record fails here, not at the next release.
+    _Gate("Promotion Exceptions", _root_only(validate_promotion_exceptions)),
     # The gates below run the validators that pull-request workflows run and
     # this sequence did not (issue #5676): a branch cleared every local gate and
     # then failed `Validate Generated Files` or `Validate PR`, both required.
