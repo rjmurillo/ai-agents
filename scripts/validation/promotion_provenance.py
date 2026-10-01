@@ -216,6 +216,8 @@ def corroborate(
     ids = _current_job_ids(latest_jobs, job_name, run_id)
     if not ids:
         return Corroboration(EvidenceState.UNKNOWN, REASON_CHECK_ABSENT, "no current job")
+    if any(job.get("status") != "completed" for job in latest_jobs if job.get("id") in ids):
+        return Corroboration(EvidenceState.UNKNOWN, REASON_CHECK_NOT_COMPLETED, "job not completed")
     legs: list[Corroboration] = []
     for job_id in ids:
         check_run = check_runs.get(job_id)

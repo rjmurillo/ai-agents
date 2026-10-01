@@ -107,7 +107,7 @@ def _artifact(**overrides: Any) -> dict[str, Any]:
 def _good(**overrides: Any) -> FakeReader:
     fixtures: dict[str, Any] = {
         "artifacts": {"run_python_tests": [_artifact()]},
-        "jobs": [{"id": JOB, "name": "Run Python Tests", "run_id": RUN}],
+        "jobs": [{"id": JOB, "name": "Run Python Tests", "run_id": RUN, "status": "completed"}],
         "checks": [
             {
                 "id": JOB, "name": "Run Python Tests", "status": "completed",

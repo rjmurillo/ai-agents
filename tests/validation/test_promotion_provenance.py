@@ -109,7 +109,12 @@ class TestRunProblem:
 
 
 def _job(**overrides: Any) -> dict[str, Any]:
-    job: dict[str, Any] = {"id": JOB_ID, "name": "Run Python Tests", "run_id": RUN_ID}
+    job: dict[str, Any] = {
+        "id": JOB_ID,
+        "name": "Run Python Tests",
+        "run_id": RUN_ID,
+        "status": "completed",
+    }
     job.update(overrides)
     return job
 
@@ -169,6 +174,18 @@ class TestCorroborate:
     def test_a_job_that_has_not_completed_reads_unknown(self, status: Any) -> None:
         got = _corroborate(checks={JOB_ID: _check(status=status)})
         assert (got.state, got.reason) == (EvidenceState.UNKNOWN, "checkrun.not_completed")
+
+    @pytest.mark.parametrize("status", ["queued", "in_progress", None, "COMPLETED"])
+    def test_a_job_that_is_not_completed_reads_unknown_whatever_its_check_run_says(
+        self, status: Any
+    ) -> None:
+        got = _corroborate(jobs=[_job(status=status)], checks={JOB_ID: _check()})
+        assert (got.state, got.reason) == (EvidenceState.UNKNOWN, "checkrun.not_completed")
+
+    def test_one_unfinished_matrix_leg_makes_the_whole_job_unknown(self) -> None:
+        jobs = [_job(id=1), _job(id=2, status="in_progress")]
+        got = _corroborate(jobs, {1: _check(1), 2: _check(2)})
+        assert got.reason == "checkrun.not_completed"
 
     def test_no_current_job_reads_unknown(self) -> None:
         got = _corroborate(jobs=[])

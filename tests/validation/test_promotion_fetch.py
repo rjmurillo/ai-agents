@@ -140,7 +140,7 @@ class TestAccepted:
         reader = _good()
         reader.artifacts["check_ratchets"] = [_artifact(id=78, name="check_ratchets")]
         reader.archives[78] = _zip("check_ratchets.json", _evidence("check_ratchets"))
-        reader.jobs.append({"id": 5002, "name": "Ratchets", "run_id": RUN})
+        reader.jobs.append({"id": 5002, "name": "Ratchets", "run_id": RUN, "status": "completed"})
         reader.checks.append({**reader.checks[0], "id": 5002, "name": "Ratchets",
             "details_url": f"https://github.com/{REPO}/actions/runs/{RUN}/job/5002"})  # fmt: skip
         items = _fetch(reader, tmp_path, [_entry(), _entry("check_ratchets", "Ratchets")])
