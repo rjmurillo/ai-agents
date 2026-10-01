@@ -117,15 +117,34 @@ def _scenario(scenario_id: str) -> dict:
     return matches[0]
 
 
-@pytest.mark.parametrize("scenario_id", ["S15", "S16"])
+def _synthesis(path: Path) -> str:
+    text = (REPO_ROOT / path).read_text(encoding="utf-8")
+    start = text.find("## Synthesis Protocol")
+    assert start != -1, f"{path} is missing the Synthesis Protocol"
+    return text[start : text.find("\n## ", start + 1)]
+
+
+SCENARIO_EXPECTATIONS = {
+    "S15": ("BLOCK", "contract"),
+    "S16": ("BLOCK", "contract"),
+    "S20": ("ROUTE", "synthesis"),
+    "S21": ("BLOCK", "synthesis"),
+    "S22": ("ROUTE", "contract"),
+    "S23": ("BLOCK", "contract"),
+    "S24": ("BLOCK", "contract"),
+}
+
+
+@pytest.mark.parametrize("scenario_id", sorted(SCENARIO_EXPECTATIONS))
 @pytest.mark.parametrize("path", ORCHESTRATOR_PATHS, ids=str)
 def test_graded_scenarios_stay_tied_to_the_contract_text(path: Path, scenario_id: str) -> None:
     scenario = _scenario(scenario_id)
+    verdict, section = SCENARIO_EXPECTATIONS[scenario_id]
+    text = _contract(path) if section == "contract" else _synthesis(path)
 
-    assert scenario["expected_verdict"] == "BLOCK"
-    assert scenario["expected_verdict"] in scenario["verdict_options"]
-    assert "ACCEPT" in scenario["verdict_options"]
-    assert scenario["expected_reason_contains"] in _contract(path)
+    assert scenario["expected_verdict"] == verdict
+    assert verdict in scenario["verdict_options"]
+    assert scenario["expected_reason_contains"] in text
 
 
 def test_weak_self_check_scenario_models_the_wrong_but_plausible_implementation() -> None:
