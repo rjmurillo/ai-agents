@@ -7,11 +7,11 @@ PR authors, responders, and specialist review agents. A consumer keeps a
 one-line invariant only; this file is the one place the doctrine lives.
 
 Boundaries: reviewer and author culture (goodwill, reply time, approve once
-code health improves) lives in `.agents/governance/code-review-norms.md`.
+code health improves) lives in the `code-review-norms` governance file.
 Whether a finding is technically valid belongs to the `review`
 skill's technical-review contract. This protocol owns how a validated finding
 and its answer are worded, tracked, and escalated. Prose style, banned words,
-and dash rules stay in `.claude/rules/voice.md`; this file does not restate
+and dash rules stay in the repository voice rule; this file does not restate
 them. Design input only, no runtime dependency: Google eng-practices on
 review comments and pushback.
 
@@ -40,8 +40,7 @@ The publisher renders a validated finding. It never changes the finding's
 technical severity.
 
 Dispositions and their comment prefixes come from
-`.agents/governance/code-review-norms.md`, the repository's review-culture
-authority; this protocol extends it and does not restate it. In this file
+`code-review-norms`, the repository's review-culture authority; this protocol extends it and does not restate it. In this file
 `BLOCKING` means no prefix (must address before merge), `OPTIONAL` means
 `Optional:`, `NIT` means `Nit:`, and `FYI` means `FYI:`. Only `BLOCKING`
 gates merge.
@@ -108,7 +107,7 @@ pressure.
 - A reply cycle with no new evidence ends in escalation to the owner, not a
   third rebuttal.
 - Round counts survive handoff. Read the persisted count with
-  `.claude/skills/github/scripts/pr/check_pr_round_cap.py`; a new agent or
+  `skills/github/scripts/pr/check_pr_round_cap.py`; a new agent or
   context continues that count and never restarts it. The `review` skill's
   self-audit cap (3 rounds per invocation) binds the same way.
 - A resolved thread reopens only with new contradicting evidence cited in the
@@ -136,5 +135,3 @@ Each scenario names the section that decides it.
 16. Existing adjacent debt: tracked separately (Debt).
 17. Repeated replies, no new evidence: escalate (Bounded loops).
 18. Duplicate AI comments: deduplicated (Exemplary AI standard).
-
-<!-- vendor-portability: declared. This file cites .agents/governance/code-review-norms.md and .claude/rules/voice.md as upstream authorities it extends and does not restate, and .claude/skills/github/scripts/pr/check_pr_round_cap.py, a sibling in-plugin script cited for its contract. The protocol is self-contained and needs none of them at runtime. Issue #5403. -->

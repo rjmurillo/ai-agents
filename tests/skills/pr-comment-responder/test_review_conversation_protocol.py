@@ -36,7 +36,7 @@ def test_protocol_defines_each_disposition(disposition: str) -> None:
 
 
 def test_protocol_defers_prefixes_to_review_norms() -> None:
-    assert ".agents/governance/code-review-norms.md" in _text()
+    assert "`code-review-norms`" in _text()
     assert (_ROOT / ".agents" / "governance" / "code-review-norms.md").is_file()
 
 
