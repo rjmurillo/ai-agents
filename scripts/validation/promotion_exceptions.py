@@ -40,14 +40,35 @@ the reviewer, and an injected :data:`ApprovalVerifier` proves them against the
 GitHub API at promotion time. :func:`deny_all_approvals` is the verifier
 decision 7 requires while the repository has one code owner.
 
-Stricter/looser/different than canonical (``scripts/validation/bypass_allowlist.py``,
-the nearest loader, decision D17): the field validation, dated ``expires``, and
-raise-on-malformed behavior match it. This loader differs in three ways. A
-missing file is an empty list, as there. ``remediate_by`` after ``expires`` is
-refused, because a remediation date the exception outlives is incoherent; the
-ADR does not state that rule. The expiry day itself is still valid (``expires
-< today`` is expired); the ADR says "past its expiry", which this reads as
-strictly after.
+Canonical source and divergences. The nearest loader is
+``scripts/validation/bypass_allowlist.py`` (decision D17). The fragments this
+module follows, quoted verbatim:
+
+    _OWNER_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]*$")
+    _DATE_RE = re.compile(r"^\\d{4}-\\d{2}-\\d{2}$")
+
+and its ``load_allowlist`` contract, "Returns an empty allowlist when the file
+does not exist. Raises ``AllowlistError`` for an unreadable, non-JSON, or
+invalid file."
+
+Same: a ``schema_version`` of ``"1"``, per-entry required fields, a dated
+``expires``, a missing file read as empty, and an invalid file that raises.
+
+Stricter than canonical: the patterns use ``fullmatch``, because the canonical
+``$`` also matches before a trailing newline, so ``"bob\\n"`` passes there.
+Control characters include Unicode ``Cc``, ``Cf``, ``Zl``, and ``Zp`` (bidi
+overrides, U+2028), where the canonical check covers ASCII controls and DEL
+only. Duplicate JSON keys fail the load, where ``json.loads`` keeps the last.
+``remediate_by`` after ``expires`` is refused; the ADR does not state that
+rule. ``item`` null is refused rather than read as absent.
+
+Different from the ADR: decision 6 says per-item exceptions wait for a
+structured items field. ``scripts/validation/promotion_evidence.py`` supplies
+that field on its own record type, so schema 1 accepts ``item`` now. Today's
+``CheckOutcome`` carries no items, so an exception with an ``item`` matches
+only evidence whose record lists that item. The expiry day itself is valid
+(``expires < today`` is expired); the ADR says "past its expiry", which this
+reads as strictly after.
 """
 
 from __future__ import annotations
@@ -214,9 +235,9 @@ def _has_control_char(value: str) -> bool:
 
 
 def _text_problem(entry: dict[str, object], field: str, required: bool = True) -> str | None:
-    value = entry.get(field)
-    if value is None and not required:
+    if field not in entry and not required:
         return None
+    value = entry.get(field)
     if not isinstance(value, str) or (required and not value.strip()):
         return f"'{field}' must be a non-empty string"
     if _has_control_char(value):
@@ -297,7 +318,7 @@ def _build(entry: dict[str, object]) -> PromotionException:
         validator=str(entry["validator"]),
         reason=str(entry["reason"]),
         scope=str(entry["scope"]),
-        item=str(entry.get("item") or ""),
+        item=str(entry.get("item", "")),
         rationale=str(entry["rationale"]),
         owner=str(entry["owner"]),
         approval_pr=cast("int", approval["pr"]),

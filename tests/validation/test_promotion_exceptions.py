@@ -7,12 +7,13 @@ the input the rule exists to refuse.
 from __future__ import annotations
 
 import json
-from datetime import date
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any, cast
 
 import pytest
 
+from scripts.validation import promotion_exceptions
 from scripts.validation.promotion_exceptions import (
     EXCEPTIONS_RELATIVE_PATH,
     ExceptionsFileError,
@@ -42,7 +43,7 @@ def _entry(**overrides: Any) -> dict[str, Any]:
         "remediate_by": "2026-11-30",
     }
     entry.update(overrides)
-    return {k: v for k, v in entry.items() if v is not None}
+    return entry
 
 
 def _doc(*entries: dict[str, Any]) -> dict[str, Any]:
@@ -132,6 +133,11 @@ class TestParse:
     def test_control_character_in_text_is_refused(self) -> None:
         with pytest.raises(ExceptionsFileError, match="control character"):
             parse_exceptions(_doc(_entry(rationale="line\n::error::forged")))
+
+    @pytest.mark.parametrize("bad", [None, 5, ["a"]])
+    def test_present_item_must_be_a_string(self, bad: Any) -> None:
+        with pytest.raises(ExceptionsFileError, match="'item'"):
+            parse_exceptions(_doc(_entry(item=bad)))
 
     def test_item_with_control_character_is_refused(self) -> None:
         with pytest.raises(ExceptionsFileError, match="'item'"):
@@ -348,5 +354,17 @@ class TestHardening:
 
         assert exception_status(_record(), TODAY, sloppy) is ExceptionStatus.UNAPPROVED
 
-    def test_utc_today_is_a_date(self) -> None:
-        assert isinstance(utc_today(), date)
+    def test_utc_today_reads_the_clock_in_utc(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Freeze a moment where UTC and a UTC+14 clock disagree on the date."""
+        seen: list[Any] = []
+        frozen = datetime(2026, 10, 1, 23, 30, tzinfo=UTC)
+
+        class FrozenClock:
+            @staticmethod
+            def now(tz: Any = None) -> datetime:
+                seen.append(tz)
+                return frozen.astimezone(tz)
+
+        monkeypatch.setattr(promotion_exceptions, "datetime", FrozenClock)
+        assert utc_today() == date(2026, 10, 1)
+        assert seen == [UTC]
