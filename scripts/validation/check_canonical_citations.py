@@ -284,7 +284,7 @@ def format_copy_findings(findings: list[CopyFinding]) -> str:
     """Format the advisory copied-contract section, empty when there are none."""
     if not findings:
         return ""
-    lines = [f"[INFO] {len(findings)} copied-contract finding(s), advisory.", ""]
+    lines = [f"[WARN] {len(findings)} copied-contract finding(s), advisory.", ""]
     for f in findings:
         lines.append(f"  - {f.path} (marker: {f.marker!r})")
     lines += ["", f"  {REMEDIATION}", ""]

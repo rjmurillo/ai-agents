@@ -41,15 +41,25 @@ def imported_project_names(source: str) -> frozenset[str]:
         return frozenset()
     names: set[str] = set()
     for node in ast.walk(tree):
-        if isinstance(node, ast.ImportFrom) and _is_project_module(node):
-            names.update(alias.asname or alias.name for alias in node.names)
+        names.update(_node_names(node))
     return frozenset(n for n in names if len(n) >= _MIN_NAME_LENGTH)
 
 
-def _is_project_module(node: ast.ImportFrom) -> bool:
-    if node.level:
+def _node_names(node: ast.AST) -> list[str]:
+    """Return the project names one import statement binds."""
+    if isinstance(node, ast.ImportFrom) and _is_project_root(node.module, node.level):
+        return [alias.asname or alias.name for alias in node.names]
+    if isinstance(node, ast.Import):
+        return [
+            alias.asname or alias.name for alias in node.names if _is_project_root(alias.name, 0)
+        ]
+    return []
+
+
+def _is_project_root(module: str | None, level: int) -> bool:
+    if level:
         return True
-    root = (node.module or "").split(".")[0]
+    root = (module or "").split(".")[0]
     return root not in sys.stdlib_module_names and root != "__future__"
 
 

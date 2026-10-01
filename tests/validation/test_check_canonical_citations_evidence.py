@@ -60,6 +60,27 @@ def test_shared_import_is_accepted_without_path(repo: Path) -> None:
     assert ccc.scan_file(path) is None
 
 
+def test_direct_import_alias_is_accepted_without_path(repo: Path) -> None:
+    body = (
+        '"""Mirrors the session validator through the canonical alias."""\n'
+        "import scripts.validate_session_json as canonical\n"
+    )
+    assert ccc.scan_file(_write(repo, body)) is None
+
+
+def test_direct_import_without_alias_is_accepted_by_dotted_name(repo: Path) -> None:
+    body = (
+        '"""Mirrors scripts.validate_session_json by importing it."""\n'
+        "import scripts.validate_session_json\n"
+    )
+    assert ccc.scan_file(_write(repo, body)) is None
+
+
+def test_direct_stdlib_import_is_not_evidence(repo: Path) -> None:
+    body = '"""Mirrors the os.path semantics."""\nimport os.path\n'
+    assert ccc.scan_file(_write(repo, body)) is not None
+
+
 def test_stdlib_import_is_not_evidence(repo: Path) -> None:
     body = '"""Mirrors the Path semantics."""\nfrom pathlib import Path\n'
     assert ccc.scan_file(_write(repo, body)) is not None
@@ -128,7 +149,7 @@ def test_copy_findings_are_reported_but_never_block(repo: Path, capsys) -> None:
     assert ccc.main(["--repo-root", str(repo), "--strict"]) == 0
     out = capsys.readouterr().out
     assert "[PASS] No uncited mirror-claims found." in out
-    assert "copied-contract" in out
+    assert "[WARN] 1 copied-contract" in out
     assert "eliminate the copy" in out.lower()
 
 
@@ -157,3 +178,16 @@ def test_commit_scoped_verification_text_is_not_a_mirror_claim(repo: Path) -> No
     path = _write(repo, doc)
     assert ccc.scan_file(path) is None
     assert ccc.scan_copied_contract(path) is None
+
+
+def test_copy_findings_read_as_advisory_through_the_wrapper(repo: Path, capsys) -> None:
+    from scripts.validation import checks_citations
+
+    _write(repo, '"""Mirrors scripts/a.py. Copied verbatim from the source."""\n')
+    assert ccc.main(["--repo-root", str(repo)]) == 0
+    outcome = checks_citations._status_outcome(
+        "validate_canonical_citations", "s", capsys.readouterr().out
+    )
+    assert outcome.state.name == "FAIL"
+    assert outcome.reason == "advisory.findings"
+    assert outcome.findings == 1
