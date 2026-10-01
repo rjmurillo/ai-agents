@@ -100,7 +100,7 @@ Run axes sequentially. Each axis emits a verdict token (`PASS`, `WARN`, `CRITICA
 
 5. **Run the selected chained skill axes** (local-only; CI does not run these). Run every axis in `local_selected` after the canonical ones; report the rest as skipped with its reason. Resolve each `<script>` per "Path resolution" (chained-skill scripts). Scope every axis to the PR diff with the base branch detected in step 1 (stored as `BASE_BRANCH`), quoted, so the gates evaluate only changed files, not the whole tree:
 
-- local axis 1: Skill(skill="code-qualities-assessment"), invoking `python3 <assess.py> --target . --changed-only --base "origin/$BASE_BRANCH" --format json`. Its report labels authored, test, and generated files. Generated artifacts are generator-owned and create no local quality finding; evaluate their source and generation-drift evidence instead.
+- local axis 1: Skill(skill="code-qualities-assessment"), invoking `python3 <assess.py> --target . --changed-only --base "origin/$BASE_BRANCH" --format json`. Its report labels authored, test, and generated files; review generated files' source. For rules, skills, agents, or new abstractions, see `.claude/skills/code-qualities-assessment/references/executable-nl-artifacts.md`.
 - local axis 2: Skill(skill="doc-accuracy"), invoking `python3 <doc_accuracy.py> --target . --diff-base "origin/$BASE_BRANCH" --format gate`. This is the axis `docs-and-instructions` selects: a docs or instruction change is reviewed for claims the code contradicts, not waved through.
 - local axis 3: Skill(skill="golden-principles"), invoking `python3 <scan_principles.py> --diff-scope "origin/$BASE_BRANCH" --format json`. Scope: toolkit-artifact governance for GP-001, GP-003, GP-004, GP-005, GP-006 (script language, skill frontmatter, agent definitions, YAML logic, pinned Actions); GP-002 is hooks and review practice, GP-007 and GP-008 are taste-lints. A clean result on a non-toolkit repo means no rule applied, not that design was reviewed.
 - local axis 4: Skill(skill="taste-lints"), invoking `python3 <taste_lints.py> --diff-scope "origin/$BASE_BRANCH" --format json`.
@@ -199,6 +199,6 @@ that is safe (idempotent in effect: the latest marker binds the current tip).
 
 ## Refs
 
-- Skill chain: the 4 local axes at `.claude/skills/{code-qualities-assessment,doc-accuracy,golden-principles,taste-lints}/` (the build pipeline copies these too). Plus the 11 Stage-2 canonical axes and the Stage-1 gate: 16 rows.
+- Skill chain: the 4 local axes at `.claude/skills/{code-qualities-assessment,doc-accuracy,golden-principles,taste-lints}/`. Plus the 11 Stage-2 canonical axes and the Stage-1 gate: 16 rows.
 
 <!-- vendor-portability: declared. This skill body cites .claude/lib/ai_review_common/verdict.py (ships in the vendor install; the skill names the plugin-root-relative lib/ai_review_common/verdict.py fallback for the vendored layout) and mentions .agents/ only to assert that /review needs no .agents/ access. Also cites .claude/skills/github/scripts/pr/check_pr_round_cap.py as canonical-source-mirror evidence (issue #5260): a sibling in-plugin script cited for its contract, not resolved or run by /review. No upstream-only runtime dependency. Issue #2050. -->
