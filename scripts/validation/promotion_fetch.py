@@ -98,8 +98,8 @@ class GitHubReader(Protocol):
     def get_json(self, path: str, params: Mapping[str, str] | None = None) -> object:
         """Return the decoded JSON body of a GET."""
 
-    def get_bytes(self, path: str) -> bytes:
-        """Return the raw body of a GET, following redirects."""
+    def get_bytes(self, path: str, accept: str | None = None) -> bytes:
+        """Return the raw body of a GET, following redirects, asking for ``accept`` if given."""
 
 
 class GhCliReader:
@@ -130,8 +130,9 @@ class GhCliReader:
         except ValueError as exc:
             raise GitHubApiError(f"gh api returned invalid JSON for {path}") from exc
 
-    def get_bytes(self, path: str) -> bytes:
-        return self._run([path])
+    def get_bytes(self, path: str, accept: str | None = None) -> bytes:
+        headers = ["-H", f"Accept: {accept}"] if accept else []
+        return self._run([path, *headers])
 
 
 @dataclass(frozen=True, slots=True)
@@ -158,8 +159,13 @@ class Disposition:
         return f"{head} rejected {self.reason}{recorded}"
 
 
-def paginate(reader: GitHubReader, path: str, key: str, params: Mapping[str, str]) -> list[Any]:
+def paginate(
+    reader: GitHubReader, path: str, key: str | None, params: Mapping[str, str]
+) -> list[Any]:
     """Return every item under ``key`` across pages, failing closed on a short read.
+
+    With ``key`` None the response body is itself the list, as for the releases
+    endpoint.
 
     A page limit reached with a full page means more items exist, so the list is
     refused rather than returned truncated.
@@ -167,13 +173,13 @@ def paginate(reader: GitHubReader, path: str, key: str, params: Mapping[str, str
     items: list[Any] = []
     for page in range(1, MAX_PAGES + 1):
         body = reader.get_json(path, {**params, "per_page": str(PAGE_SIZE), "page": str(page)})
-        batch = body.get(key) if isinstance(body, dict) else None
+        batch = body if key is None else body.get(key) if isinstance(body, dict) else None
         if not isinstance(batch, list):
-            raise GitHubApiError(f"{path} did not return a '{key}' list")
+            raise GitHubApiError(f"{path} did not return a '{key or 'JSON'}' list")
         items.extend(batch)
         if len(batch) < PAGE_SIZE:
             return items
-    raise GitHubApiError(f"{path} has more than {MAX_PAGES * PAGE_SIZE} {key}")
+    raise GitHubApiError(f"{path} has more than {MAX_PAGES * PAGE_SIZE} {key or 'items'}")
 
 
 def read_evidence_member(archive: bytes, validator: str) -> str:

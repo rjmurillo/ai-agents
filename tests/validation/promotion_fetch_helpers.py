@@ -79,7 +79,7 @@ class FakeReader:
             listed.append(item)
         return listed
 
-    def get_bytes(self, path: str) -> bytes:
+    def get_bytes(self, path: str, accept: str | None = None) -> bytes:
         self.calls.append(path)
         return self.archives[int(path.split("/")[-2])]
 

@@ -94,6 +94,21 @@ jobs:
           --default-branch "$DEFAULT_BRANCH"
           --evidence-dir "$RUNNER_TEMP/evidence"
 
+      # ADR-113 Resolved Question 3. The previous promoted manifest is a release
+      # asset. It feeds only the non-blocking remediated class, and a first
+      # promotion has none. The step exits non-zero when GitHub cannot answer, so
+      # an absent file below means no baseline and not a failed download.
+      - name: Fetch the previous promoted manifest
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          RELEASE_TAG: ${{ inputs.release-tag }}
+        run: >-
+          uv run --frozen python scripts/validation/fetch_previous_manifest.py
+          --repo "$REPOSITORY"
+          --current-tag "$RELEASE_TAG"
+          --output-dir "$RUNNER_TEMP/previous"
+
       - name: Compute the promotion manifest
         id: manifest
         env:
@@ -107,6 +122,7 @@ jobs:
           --candidate-digest "$CANDIDATE_DIGEST"
           --ancestor-of HEAD
           --expect-tag "$RELEASE_TAG"
+          --previous-manifest-dir "$RUNNER_TEMP/previous"
           --output "$RUNNER_TEMP/promotion-manifest.json"
           --github-output "$GITHUB_OUTPUT"
           --mode advisory
