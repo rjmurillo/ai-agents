@@ -15,11 +15,13 @@ import json
 import time
 from typing import Any
 
+import jwt
 import pytest
+from cryptography.hazmat.primitives.asymmetric import rsa
 
-token_verifier = pytest.importorskip("semgrep.mcp.utilities.token_verifier")
-jwt = pytest.importorskip("jwt")
-rsa = pytest.importorskip("cryptography.hazmat.primitives.asymmetric.rsa")
+# Imported directly, not through importorskip: semgrep is a required dev tool,
+# and a skip here would hide the exact regression this file exists to catch.
+from semgrep.mcp.utilities import token_verifier
 
 KID = "test-key"
 SERVER_URL = "https://mcp.example.test/mcp"

@@ -9,6 +9,7 @@ them gained a way to fail the job. Every assertion parses the YAML object graph
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Any
 
@@ -18,6 +19,9 @@ import yaml
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOWS = REPO_ROOT / ".github" / "workflows"
 HELPER = "scripts/ci/report_advisory_result.py"
+# One standalone comparison, optionally wrapped in ${{ }}. Anything with a
+# conjunct or disjunct does not match, so it never counts as a complement.
+_COMPARISON = re.compile(r"^\s*(?:\$\{\{\s*)?([\w.-]+)\s*(==|!=)\s*'([^']*)'\s*(?:\}\})?\s*$")
 
 # (workflow, job, swallowed step name, step id, validator name)
 STEP_MODE_ROWS = [
@@ -168,12 +172,14 @@ def _always_checked_out(conditions: list[Any]) -> bool:
     """True when one checkout is unconditional or two cover both branches.
 
     pr-validation.yml checks out under ``X != 'true'`` and again under
-    ``X == 'true'``, so exactly one of the pair runs on every path.
+    ``X == 'true'``, so exactly one of the pair runs on every path. Only a
+    pair of standalone comparisons counts: a shared extra conjunct could make
+    both checkouts skip.
     """
     if None in conditions:
         return True
-    text = {str(c) for c in conditions}
-    return any(c.replace(" != ", " == ") in text for c in text if " != " in c)
+    parsed = {m.groups() for c in conditions if (m := _COMPARISON.match(str(c)))}
+    return any((lhs, "==", value) in parsed for lhs, op, value in parsed if op == "!=")
 
 
 @pytest.mark.parametrize(
@@ -184,6 +190,15 @@ def _always_checked_out(conditions: list[Any]) -> bool:
         (["steps.s.outputs.skip != 'true'"], False),
         (["steps.s.outputs.skip == 'true'"], False),
         (["steps.a.outputs.x != 'true'", "steps.b.outputs.x == 'true'"], False),
+        (["${{ steps.s.outputs.skip != 'true' }}", "steps.s.outputs.skip == 'true'"], True),
+        (
+            [
+                "steps.s.outputs.skip != 'true' && github.event_name == 'pull_request'",
+                "steps.s.outputs.skip == 'true' && github.event_name == 'pull_request'",
+            ],
+            False,
+        ),
+        (["steps.s.outputs.skip != 'true'", "steps.s.outputs.skip == 'false'"], False),
     ],
 )
 def test_the_checkout_coverage_rule(conditions: list[Any], expected: bool) -> None:
