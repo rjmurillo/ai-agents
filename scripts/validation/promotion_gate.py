@@ -36,8 +36,15 @@ if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
 from scripts.validation.evidence import CheckOutcome  # noqa: E402
+from scripts.validation.promotion_applicability import (  # noqa: E402
+    ApplicabilityError,
+    build_tier_validators,
+    load_applicability,
+    required_validators,
+)
 from scripts.validation.promotion_candidate import (  # noqa: E402
     CandidateCheckError,
+    candidate_files,
     candidate_on_branch,
     tag_names_candidate,
 )
@@ -258,6 +265,21 @@ def _argument_problem(args: argparse.Namespace) -> str | None:
     return None
 
 
+def _applicable(
+    args: argparse.Namespace, candidate: Candidate
+) -> tuple[tuple[str, ...], frozenset[str]]:
+    """Return the required validators and the build-tier set.
+
+    The table (decision 3) supplies them from the candidate's own tree. Names
+    given on the command line add to the table and never replace it.
+    """
+    table = load_applicability(args.repo_root)
+    paths = candidate_files(args.repo_root, candidate.sha) if table else ()
+    required = {*required_validators(table, paths), *args.require}
+    build = build_tier_validators(table) | frozenset(args.build_validator)
+    return tuple(sorted(required)), build
+
+
 def _inputs(args: argparse.Namespace) -> tuple[Candidate, PreviousManifest | None]:
     candidate = Candidate(args.candidate_sha, args.candidate_digest)
     previous = load_previous_manifest(args.previous_manifest) if args.previous_manifest else None
@@ -311,12 +333,19 @@ def main(argv: Sequence[str] | None = None) -> int:
     if problem:
         return _config_error(problem)
     try:
+        required, build = _applicable(args, candidate)
+    except ApplicabilityError as exc:
+        return _config_error(str(exc))
+    except CandidateCheckError as exc:
+        print(f"[BLOCKED] promotion gate: {json.dumps(str(exc))}", file=sys.stderr)
+        return EXIT_EXTERNAL
+    try:
         result = run_gate(
             repo_root=args.repo_root,
             evidence_dir=args.evidence_dir,
             candidate=candidate,
-            required=tuple(args.require),
-            build_validators=frozenset(args.build_validator),
+            required=required,
+            build_validators=build,
             previous=previous,
             mode=args.mode,
             today=args.today,

@@ -79,3 +79,7 @@
 # needs the owner.
 /.agents/governance/promotion-exceptions.json @rjmurillo
 /scripts/validation/promotion_exceptions.py @rjmurillo
+# Issue #5636, ADR-113 decision 3: the applicability table says which validators
+# a promotion must see. A row added or dropped in the PR it excuses needs the owner.
+/.agents/governance/promotion-applicability.json @rjmurillo
+/scripts/validation/promotion_applicability.py @rjmurillo

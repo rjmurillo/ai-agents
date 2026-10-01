@@ -6,7 +6,6 @@ is a read of git state and a stub would only restate the implementation.
 
 from __future__ import annotations
 
-import os
 import subprocess
 from datetime import date
 from pathlib import Path
@@ -15,42 +14,14 @@ from typing import Any
 import pytest
 
 from scripts.validation.promotion_gate import EXIT_CONFIG, EXIT_EXTERNAL, EXIT_OK, main
+from tests.validation.promotion_gate_helpers import make_clone
 
 TODAY = date(2026, 10, 1)
 
 
-def _git(repo: Path, *args: str) -> str:
-    result = subprocess.run(
-        ["git", "-C", str(repo), *args],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        check=True,
-        env={"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@example.com",
-             "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@example.com",
-             "PATH": os.environ["PATH"], "HOME": str(repo)},
-    )  # fmt: skip
-    return result.stdout.strip()
-
-
 @pytest.fixture
 def clone(tmp_path: Path) -> tuple[Path, str, str]:
-    repo = tmp_path / "repo"
-    repo.mkdir()
-    _git(repo, "init", "-q", "-b", "main")
-    (repo / "a").write_text("1", encoding="utf-8")
-    _git(repo, "add", "a")
-    _git(repo, "commit", "-q", "-m", "one")
-    first = _git(repo, "rev-parse", "HEAD")
-    _git(repo, "checkout", "-q", "-b", "side")
-    (repo / "b").write_text("2", encoding="utf-8")
-    _git(repo, "add", "b")
-    _git(repo, "commit", "-q", "-m", "side")
-    side = _git(repo, "rev-parse", "HEAD")
-    _git(repo, "checkout", "-q", "main")
-    _git(repo, "tag", "v1", first)
-    return repo, first, side
+    return make_clone(tmp_path)
 
 
 class TestCandidatePlacement:

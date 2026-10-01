@@ -75,3 +75,16 @@ def tag_names_candidate(repo_root: Path, tag: str, sha: str) -> tuple[bool, str]
     if resolved == sha:
         return True, f"tag {tag} resolves to {sha[:12]}"
     return False, f"tag {tag} resolves to {resolved[:12]}, not {sha[:12]}"
+
+
+def candidate_files(repo_root: Path, sha: str) -> tuple[str, ...]:
+    """Return the repository-relative paths in the candidate commit's tree.
+
+    Read from the commit, never the working tree: the gate asks what the
+    candidate contains, not what a checkout happens to hold. NUL-separated, so a
+    path with a newline in it stays one path.
+    """
+    result = _git(repo_root, ["ls-tree", "-r", "-z", "--name-only", sha])
+    if result.returncode != 0:
+        raise CandidateCheckError(f"git ls-tree failed with exit {result.returncode}")
+    return tuple(name for name in result.stdout.split("\0") if name)
