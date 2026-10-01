@@ -243,14 +243,14 @@ Verify exact text before citing code, documents, or decisions. Do not rely on re
 
 ### Resume Check (fail closed)
 
-A resumable non-trivial task keeps one state record in the per-issue handoff: work-order fields, phase, exact next action, decisions with provenance (superseded ones marked), changed artifacts, validation run, blockers, repo, branch, head SHA, timestamp. Label retrieved memory fact, decision, hypothesis, or stale. A completion summary is not completion evidence.
+A resumable non-trivial task keeps one state record in the per-issue handoff: work-order fields, phase, exact next action, decisions with provenance (superseded ones marked), changed artifacts, validation run, blockers, repo, branch, worktree, head SHA, timestamp. Label retrieved memory fact, decision, hypothesis, or stale. A completion summary is not completion evidence.
 
 Before any state-changing action after handoff, compaction, interruption, or delegation:
 
-1. Compare recorded branch, worktree, head SHA, and artifacts with the live repository.
-2. Check the next action was not done, reverted, or superseded. Already done: continue from the next step.
+1. Compare recorded branch, worktree, head SHA, and artifacts with the live repository. A head ahead of the record only by commits that complete the next action is not a mismatch.
+2. Check the next action. Already done: continue from the next step. Reverted or superseded: HOLD.
 3. Restore ACCEPTANCE and RISK TIER from the record.
-4. Disagreement, missing field, or missing provenance: HOLD and surface it. Never mutate on a guess.
+4. Other disagreement, missing field, or missing provenance: HOLD and surface it. Never mutate on a guess.
 
 A delegate return lacking artifacts, commands with results, or residual risks fails closed above read-only tier: reject and re-delegate.
 
@@ -340,7 +340,7 @@ per-issue handoff.
 
 Two axes: the delegation cap bounds how *many* agents a task spends; the wave rules bound how many run at *once* and what a wave may contain.
 
-These are backstops, not a completion test: reaching the terminal predicate (`builder-ethos.md`) ends delegation regardless of remaining budget, and remaining budget is never a reason to keep delegating past it.
+These are backstops, not a completion test: reaching the terminal predicate (`builder-ethos.md`) ends delegation whatever budget remains.
 
 - **Max agent delegations per task**: 15. Record a warning in the task tracker when 10 delegations have been made.
 - **Budget-exhausted behavior**: At the limit, stop delegating, synthesize completed work, list unresolved items, and return control to the user with what was and was not done.

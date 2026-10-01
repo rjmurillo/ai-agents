@@ -34,6 +34,7 @@ STATE_FIELDS = (
     "decisions with provenance",
     "validation run",
     "head SHA",
+    "worktree",
     "timestamp",
 )
 
@@ -41,7 +42,8 @@ RULES = (
     "Label retrieved memory fact, decision, hypothesis, or stale",
     "not completion evidence",
     "Compare recorded branch, worktree, head SHA, and artifacts with the live repository",
-    "not done, reverted, or superseded",
+    "Reverted or superseded: HOLD",
+    "not a mismatch",
     "continue from the next step",
     "Restore ACCEPTANCE and RISK TIER",
     "HOLD and surface it",
@@ -89,7 +91,7 @@ def _scenario(scenario_id: str) -> dict:
     return matches[0]
 
 
-@pytest.mark.parametrize("scenario_id", ["S17", "S18", "S19"])
+@pytest.mark.parametrize("scenario_id", ["S17", "S18", "S19", "S25", "S26"])
 @pytest.mark.parametrize("path", ORCHESTRATOR_PATHS, ids=str)
 def test_graded_scenarios_stay_tied_to_the_resume_text(path: Path, scenario_id: str) -> None:
     scenario = _scenario(scenario_id)
@@ -105,6 +107,29 @@ def test_stale_handoff_scenario_models_a_wrong_branch_and_head() -> None:
     assert scenario["expected_verdict"] == "BLOCK"
     assert "does not exist locally" in text
     assert "branch main at head 9a3e7f1" in text
+
+
+@pytest.mark.parametrize("scenario_id", ["S25", "S26"])
+def test_missing_field_and_reverted_scenarios_hold(scenario_id: str) -> None:
+    assert _scenario(scenario_id)["expected_verdict"] == "BLOCK"
+
+
+def test_matching_record_scenario_carries_every_state_field() -> None:
+    text = _scenario("S18")["input"]
+
+    for field in (
+        "worktree",
+        "timestamp",
+        "phase",
+        "risk tier",
+        "acceptance",
+        "provenance",
+        "changed artifacts",
+        "validation run",
+        "blockers",
+        "next action",
+    ):
+        assert field in text, field
 
 
 def test_matching_and_already_done_scenarios_continue() -> None:
