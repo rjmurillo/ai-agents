@@ -16,6 +16,13 @@ PATH=$(echo $PATH | tr ':' '\n' | grep -v agent-shims | paste -sd:) git push
 
 The prefix applies to that one command. The shell PATH stays unchanged.
 
+## Live evals use the native CLI
+
+The native `claude` CLI at `~/.local/bin/claude` runs live evals when the shims
+hang on a locked or signed-out 1Password. Strip `agent-shims` from PATH and the
+native CLI uses its stored login. Same prefix as above, applied to the eval
+command. Evidence: PRs #6086 and #6088.
+
 ## Source
 
 P1 triage session 2026-09-29. Related: issue #6000.
