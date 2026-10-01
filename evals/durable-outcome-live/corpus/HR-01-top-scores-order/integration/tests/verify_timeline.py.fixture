@@ -1,0 +1,25 @@
+import unittest
+
+from tally import chronology_and_best
+
+
+class TimelineIntegration(unittest.TestCase):
+    def test_chronology_keeps_the_order_the_scores_were_played(self) -> None:
+        chronology, best = chronology_and_best([3, 9, 4, 7], 2)
+        self.assertEqual(
+            chronology,
+            [3, 9, 4, 7],
+            "INTEGRATION_REGRESSION: the timeline lost play order after ranking",
+        )
+        self.assertEqual(best, [9, 7])
+
+    def test_the_callers_list_is_left_as_it_was(self) -> None:
+        scores = [2, 8, 5]
+        chronology_and_best(scores, 1)
+        self.assertEqual(
+            scores, [2, 8, 5], "INTEGRATION_REGRESSION: ranking reordered the caller's list"
+        )
+
+
+if __name__ == "__main__":
+    unittest.main()

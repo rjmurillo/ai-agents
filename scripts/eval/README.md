@@ -1069,6 +1069,37 @@ I/O and no model calls; `_eval_common.percentile` is the one shared
 percentile helper it and the model-sweep and report-aggregator cores all use
 (REQ-042 AC-11).
 
+### Live Claude Run
+
+`eval_durable_live.py` produces the JSONL above from real `claude -p` runs over
+the routing corpus (issue #5768). It is not the routing runner: that runner
+plans only harnesses the #5423 matrix classifies (`codex`, `copilot`), and its
+arms are Sol, Luna, and Terra based. This script adds no arm and no
+eligibility claim. It compares two instruction controls on identical tasks:
+`current` (CLAUDE.md, AGENTS.md, `.claude/CLAUDE.md`, the three always-on
+rules) and `reduced` (AGENTS.md only).
+
+```bash
+uv run python scripts/eval/eval_durable_live.py            # dry run, zero spend
+uv run python scripts/eval/eval_durable_live.py --live --use-stored-login \
+  --output-dir evals/durable-outcome-live/RUN
+```
+
+The control text reaches the CLI through `--append-system-prompt-file`, and
+`CLAUDE_CODE_DISABLE_CLAUDE_MDS=1` keeps every other CLAUDE.md out. `--live`
+also needs `--use-stored-login`: the run bills to the Claude login stored on
+the machine, and the script never reads or copies the credential file. A hard
+`--max-invocations` cap stops the launches. A task whose process failed or
+returned no `result` event gets no record, is listed under `harness_failures`,
+and makes the comparison refuse rather than count the failure against a
+control.
+
+Measured fields come from the corpus grader and the CLI stream. Proxies are
+`unsupported_claims` and `unresolved_uncertainty` (regexes over the final
+message). `review_findings`, `rollback_events`, and `rework_minutes` are 0 by
+construction, not measured. Requested effort is never verified: the stream
+names no effort. The `_durable_live.py` docstring lists every mapping.
+
 ## Routing Benchmark Corpus
 
 `eval_routing_corpus.py` loads the six-scenario corpus under
@@ -2091,3 +2122,15 @@ the correct input for optimization decisions.
 - [ADR-057](.project-toolkit/architecture/ADR-057-prompt-behavioral-evaluation.md)
 - [ADR-023](.project-toolkit/architecture/ADR-023-quality-gate-prompt-testing.md)
 - [Methodology](.project-toolkit/testing/prompt-eval-methodology.md)
+
+### Hidden regression after integration and repetition variance (#5768)
+
+`evals/durable-outcome-live/corpus/` holds `post_integration_regression` scenarios. Each
+has an `integration` check, an `integration/` directory, and a `hidden_regression/`
+overlay that passes the local check and fails the integration check.
+`eval_routing_corpus.py --corpus DIR --extension` proves the controls hold.
+`eval_durable_live.py --extension-corpus DIR` adds the scenarios to a run, and
+`--first-repeat N` numbers repeats from N so chunked runs keep unique `task_id`/`repeat`
+pairs. `eval_durable_repetitions.py --records A.jsonl [--records B.jsonl]` prints
+per-repeat verdict counts, cost per durable accept, and mean, sample standard deviation,
+minimum, and maximum across repeats. It reports spread only and makes no significance claim.

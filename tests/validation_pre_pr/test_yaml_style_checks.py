@@ -17,10 +17,13 @@ from unittest.mock import patch
 import pytest
 
 from scripts.validation.evidence import (
+    REASON_ADVISORY_FINDINGS,
+    REASON_SCRIPT_FAILED,
     REASON_TIMEOUT,
     REASON_TOOL_ABSENT,
     EvidenceState,
     default_pre_pr_policy,
+    pre_pr_policy,
 )
 from scripts.validation.pre_pr import validate_yaml_style
 
@@ -165,8 +168,8 @@ class TestValidateYamlStyle:
         command = mock_run.call_args.args[0]
         assert command == ["yamllint", "-f", "parsable", str(tmp_path)]
 
-    def test_scoped_findings_are_advisory_and_still_pass(self, tmp_path: Path) -> None:
-        """yamllint findings warn but never fail (advisory tool, #2374 precedent)."""
+    def test_scoped_findings_are_advisory_and_never_block(self, tmp_path: Path) -> None:
+        """yamllint findings warn but never block (advisory tool, #2374 precedent)."""
         with patch("checks_tooling.shutil.which", return_value="/usr/bin/yamllint"):
             with patch("checks_tooling._yaml_style_targets", return_value=["config.yml"]):
                 with patch("checks_tooling._run_subprocess") as mock_run:
@@ -175,7 +178,39 @@ class TestValidateYamlStyle:
                         "config.yml:1:1: [warning] missing document start (document-start)",
                         "",
                     )
-                    assert validate_yaml_style(tmp_path).state is EvidenceState.PASS
+                    outcome = validate_yaml_style(tmp_path)
+
+        assert outcome.state is EvidenceState.FAIL
+        assert pre_pr_policy().accepts(outcome)
+
+    def test_a_yamllint_config_error_is_blocked_but_licensed_not_counted_as_findings(
+        self, tmp_path: Path
+    ) -> None:
+        """PR #6068 review: a stderr diagnostic with no location is not a finding."""
+        with patch("checks_tooling.shutil.which", return_value="/usr/bin/yamllint"):
+            with patch("checks_tooling._yaml_style_targets", return_value=["config.yml"]):
+                with patch("checks_tooling._run_subprocess") as mock_run:
+                    mock_run.return_value = (1, "", "yamllint: invalid config: unknown option")
+                    outcome = validate_yaml_style(tmp_path)
+
+        assert outcome.state is EvidenceState.BLOCKED
+        assert outcome.reason == REASON_SCRIPT_FAILED
+        assert pre_pr_policy().accepts(outcome)
+
+    def test_only_located_lines_on_stdout_count_as_findings(self, tmp_path: Path) -> None:
+        stdout = (
+            "a.yml:1:1: [warning] missing document start (document-start)\n"
+            "a.yml:3:9: [error] syntax error: found character (syntax)\n"
+            "some unrelated banner line\n"
+        )
+        with patch("checks_tooling.shutil.which", return_value="/usr/bin/yamllint"):
+            with patch("checks_tooling._yaml_style_targets", return_value=["a.yml"]):
+                with patch("checks_tooling._run_subprocess") as mock_run:
+                    mock_run.return_value = (1, stdout, "noise on stderr")
+                    outcome = validate_yaml_style(tmp_path)
+
+        assert outcome.state is EvidenceState.FAIL
+        assert outcome.findings == 2
 
     def test_scoped_path_with_space_is_quoted_as_a_single_argv_element(
         self, tmp_path: Path
@@ -259,7 +294,7 @@ class TestYamlStyleExecutionFailures:
         assert outcome.state is EvidenceState.BLOCKED
         assert outcome.reason == REASON_TOOL_ABSENT
 
-    def test_an_ordinary_finding_exit_is_still_an_advisory_pass(
+    def test_an_ordinary_finding_exit_is_a_licensed_advisory_fail(
         self, tmp_path: Path
     ) -> None:
         """Negative control: the fix must not turn real findings into failures.
@@ -278,5 +313,7 @@ class TestYamlStyleExecutionFailures:
                     )
                     outcome = validate_yaml_style(tmp_path)
 
-        assert outcome.state is EvidenceState.PASS
-        assert "advisory findings tolerated" in outcome.scope
+        assert outcome.state is EvidenceState.FAIL
+        assert outcome.reason == REASON_ADVISORY_FINDINGS
+        assert outcome.findings == 1
+        assert pre_pr_policy().accepts(outcome)

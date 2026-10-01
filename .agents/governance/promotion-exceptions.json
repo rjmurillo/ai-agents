@@ -1,0 +1,5 @@
+{
+  "schema_version": "1",
+  "description": "Governed exceptions for the release promotion gate, ADR-113. Each entry names one finding fingerprint, a rationale, an owner, an approving pull request and reviewer, an expiry date, and a remediation date. The repository has one code owner, so decision 7 accepts no exception until a second approving identity exists. Issue 5636.",
+  "entries": []
+}

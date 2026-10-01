@@ -201,18 +201,20 @@ jobs:
     # Issue #5636, decision D13. The ruff and subprocess-encoding count
     # ratchets score every tracked Python file, so they are whole-tree checks
     # (`.claude/rules/ci-scripts.md`, "Path filters gate the diff, never the
-    # tree"). They also run inside the `test` job's bulk partition; that copy
-    # stays until the follow-up removal below. This job has no `needs:` and no
+    # tree"). This job has no `needs:` and no
     # `if:` on purpose, the same shape as zero-collection-guard above.
     #
-    # Dual-name rollout (ci-scripts.md MUST 22). Step 1, this change: the new
-    # job exists and the ratchet steps in `test` stay. It reaches the required
-    # "Run Python Tests" context through test-result's `needs`, so a failing
-    # ratchet blocks a merge from the first run and no required context is
-    # added or removed. The job name is not itself a required context.
-    # Step 2, a later change by the owner: require this job's name in ruleset
-    # 11104075 if a directly visible context is wanted, then delete the ratchet
-    # steps from `test`.
+    # This job's name is pinned in scripts/ci/ruleset_required_contexts.py and
+    # and must match ruleset 11104075 (ci-scripts.md MUST 22 dual-name rollout).
+    # `test-result` also needs this job, so "Run Python Tests" fails when a
+    # ratchet fails.
+    #
+    # `uv run --frozen` pins ruff to the lockfile; an open-ended `ruff>=` could
+    # fail the baseline on an unrelated PR after a rule change. BASE_REF stays
+    # in env, so a ref name never reaches the script source, and the ratchet
+    # receives the fixed literal FETCH_HEAD, never the ref name. Both ratchets
+    # compare against a ref: without --base-ref, raising the baseline in the
+    # change that adds the violations would pass as an improvement.
     runs-on: ubuntu-26.04-arm
     timeout-minutes: 10
     permissions:
@@ -333,103 +335,12 @@ jobs:
           RUFF_RATCHET_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before || 'HEAD~1' }}
         run: python scripts/ci/ruff_ratchet.py
 
-      # Issue #2993 acceptance criterion 2 (regression guard, option C). The
-      # diff-scoped ratchet above cannot see debt a PR adds to a file it does
-      # not otherwise touch, so the whole-tree total is capped by
-      # scripts/ci/ruff_count_baseline.txt. A lower count passes without
-      # rewriting that shared line; use --update only when intentionally
-      # lowering the ceiling.
-      # `uv run --frozen` pins ruff to the lockfile. The dev extra declares an
-      # open-ended `ruff>=`, so a `uv pip install` resolves whatever is newest
-      # and a future ruff rule change could fail this baseline on an unrelated
-      # PR.
-      #
-      # PR and non-PR legs select by step-level if: rather than shell branching,
-      # per ADR-006 (no decision logic in workflow YAML). Both compare against a
-      # ref, which is what makes the baseline one-directional: without
-      # --base-ref, raising the baseline in the same change that adds the
-      # violations passes as an improvement. A ref name is attacker-controlled
-      # text and gets three separate defenses. Keeping it in env means the
-      # `${{ }}` expression is never substituted into the script source, so a
-      # ref name cannot inject shell syntax. Quoting `"$BASE_REF"` at the one
-      # place the shell does expand it keeps it a single argument to git rather
-      # than a word-split command line. And the ratchet script is handed the
-      # fixed literal FETCH_HEAD, never the ref name, so nothing
-      # attacker-controlled reaches Python argv.
-      #
-      # The non-PR leg compares against the default branch, not
-      # github.event.before: event.before is the branch's own previous tip, so
-      # raising the baseline in one push and adding the violations in the next
-      # would slip through. The default branch is what the baseline is promised
-      # against. On a push to the default branch this compares it to itself,
-      # which is a harmless no-op.
-      - name: Run ruff count ratchet (whole tree, pull request)
-        if: matrix.partition == 'bulk' && github.event_name == 'pull_request'
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        run: |
-          # No --depth=1. The checkout above already used fetch-depth: 0, so a
-          # depth-limited fetch saves nothing and writes .git/shallow, grafting
-          # the fetched tip parentless. The graft is written by whichever fetch
-          # runs first and a plain undepthed fetch does not clear it; only
-          # --unshallow does.
-          #
-          # count_ratchet.py reads a merge base on two legs, and they fail in
-          # opposite directions. changed_files diffs `base_ref...HEAD`
-          # (three-dot) to sort branch-touched files first: that leg fails
-          # OPEN, so a graft degrades the diagnostic instead of failing the
-          # step, which is the buried-violation problem the ordering exists to
-          # prevent, not a red check. _base_ref_verdict reads `git merge-base`
-          # to decide whether THIS tree moved the baseline (issue #5065): that
-          # leg fails CLOSED. Under a graft it cannot name a fork point, the
-          # behind-base relief goes inert, and a legitimately-behind branch
-          # blocks again with a message that says the fork point is
-          # unreadable. So the no-shallow-fetch requirement here is
-          # load-bearing for the verdict, not only for the diagnostic, the
-          # same way it is at the merge-tree step in pr-validation.yml, where
-          # a graft hitting merge_tree_ratchet_check cost a red required
-          # check.
-          git fetch origin "$BASE_REF"
-          uv run --frozen python scripts/ci/ruff_count_ratchet.py --base-ref FETCH_HEAD
-
-      - name: Run ruff count ratchet (whole tree, non-PR)
-        if: matrix.partition == 'bulk' && github.event_name != 'pull_request'
-        env:
-          BASE_REF: ${{ github.event.repository.default_branch }}
-        run: |
-          # No --depth=1: see the pull_request leg above.
-          git fetch origin "$BASE_REF"
-          uv run --frozen python scripts/ci/ruff_count_ratchet.py --base-ref FETCH_HEAD
-
-      - name: Run subprocess encoding count ratchet (whole tree, pull request)
-        if: matrix.partition == 'bulk' && github.event_name == 'pull_request'
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        run: |
-          # No --depth=1: see the ruff count ratchet leg above. This ratchet
-          # is the one that needs it most. Its baseline is absent from
-          # scripts/ci/merge_tree_ratchet_registry.py, so it declares
-          # MERGE_TREE_BACKED = False and this --base-ref comparison is its
-          # only stale-branch guard; a graft turns that guard into a hard
-          # block rather than degrading it.
-          git fetch origin "$BASE_REF"
-          uv run --frozen python scripts/ci/subprocess_encoding_count_ratchet.py --base-ref FETCH_HEAD
-
-      - name: Run subprocess encoding count ratchet (whole tree, non-PR)
-        if: matrix.partition == 'bulk' && github.event_name != 'pull_request'
-        env:
-          BASE_REF: ${{ github.event.repository.default_branch }}
-        run: |
-          # No --depth=1: see the pull_request leg above.
-          git fetch origin "$BASE_REF"
-          uv run --frozen python scripts/ci/subprocess_encoding_count_ratchet.py --base-ref FETCH_HEAD
-
       - name: Check security suppressions in diff (pull request, issue 4061)
         if: matrix.partition == 'bulk' && github.event_name == 'pull_request'
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
-          # No --depth=1: see the pull_request leg above.
+          # No --depth=1: a depth-limited fetch grafts .git/shallow for the job.
           git fetch origin "$BASE_REF"
           uv run --frozen python scripts/validation/git_hook_policy.py security-suppressions-diff --base-ref FETCH_HEAD
 
@@ -438,7 +349,7 @@ jobs:
         env:
           BASE_REF: ${{ github.event.repository.default_branch }}
         run: |
-          # No --depth=1: see the pull_request leg above.
+          # No --depth=1: a depth-limited fetch grafts .git/shallow for the job.
           git fetch origin "$BASE_REF"
           uv run --frozen python scripts/validation/git_hook_policy.py security-suppressions-diff --base-ref FETCH_HEAD
 
@@ -714,7 +625,10 @@ jobs:
       # turning this step green regardless. Gate on high severity AND high
       # confidence so real high-risk findings fail CI, scoped off test-only
       # false positives. SARIF output feeds GitHub code scanning.
+      # Issue #6028: a pip-audit finding in a transitive pin skipped Bandit on
+      # every pull request. Bandit scans this repo's code, so it runs anyway.
       - name: Run Bandit
+        if: ${{ !cancelled() }}
         run: |
           bandit -r .claude/ scripts/ \
             -x '*/tests/*,*/test/*' \
