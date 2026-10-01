@@ -9,11 +9,13 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 from pathlib import Path
 from unittest import mock
 
 import pytest
+import yaml
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 _VALIDATION_DIR = str(REPO_ROOT / "scripts" / "validation")
@@ -1693,6 +1695,43 @@ def test_act_limitation_hint_rejects_output_a_step_echoed() -> None:
 def test_act_limitation_hint_blocks_when_another_step_also_failed() -> None:
     other = f"      {_ACT_OTHER_JOB}   \u274c  Failure - Main Check manifest [3ms]\n"
     assert w._act_limitation_hint(_act_fetch_failure() + other) is None
+
+
+def test_act_limitation_hint_accepts_the_failure_that_follows_from_the_fetch() -> None:
+    """`Run Python Tests` needs the ratchet job and runs on a failed dependency."""
+    derived = (
+        "      [Python Tests/Run Python Tests]   \u274c  Failure - Main "
+        "Require test, coverage, and repository guard success [4ms]\n"
+    )
+    assert w._act_limitation_hint(_act_fetch_failure() + derived) is not None
+
+
+def test_act_limitation_hint_blocks_a_failing_test_step_beside_the_fetch() -> None:
+    failing_tests = "      [Python Tests/pytest (bulk)]   \u274c  Failure - Main Run pytest [9s]\n"
+    assert w._act_limitation_hint(_act_fetch_failure() + failing_tests) is None
+
+
+def test_the_act_rule_names_match_pytest_yml() -> None:
+    """The rule quotes pytest.yml; a rename there must fail here, not pass silently."""
+    workflow = yaml.safe_load(
+        (REPO_ROOT / ".github" / "workflows" / "pytest.yml").read_text(encoding="utf-8")
+    )
+    jobs = workflow["jobs"]
+    guard = jobs["count-ratchet-guard"]
+    steps = [step.get("name") for step in guard["steps"]]
+    fetch = next(step for step in guard["steps"] if step.get("name") == "Fetch the base ref")
+    result = jobs["test-result"]
+    label = f"[{workflow['name']}/{guard['name']}]"
+    assert re.fullmatch(w._ACT_BASE_REF_JOB_LABEL, label)
+    assert "Fetch the base ref" in steps
+    assert fetch["run"] == 'git fetch origin "$BASE_REF"'
+    assert guard["env"]["BASE_REF"] == (
+        "${{ github.base_ref || github.event.repository.default_branch }}"
+    )
+    assert "count-ratchet-guard" in result["needs"]
+    derived = [step.get("name") for step in result["steps"]]
+    assert "Require test, coverage, and repository guard success" in derived
+    assert result["name"] == "Run Python Tests"
 
 
 def test_act_limitation_hint_matches_action_cache_copy_failure() -> None:
