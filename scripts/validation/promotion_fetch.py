@@ -219,17 +219,18 @@ def _instant(value: object) -> datetime | None:
 
 
 def _is_current(artifact: Mapping[str, Any], run: Mapping[str, Any]) -> bool:
-    """True when the artifact was created at or after the latest attempt started.
+    """True when the artifact was created after the latest attempt started.
 
     A re-run replaces an earlier attempt's artifact (``overwrite: true``), so an
     artifact older than the attempt the check-runs describe belongs to another
-    attempt. A missing or unparseable time fails the check.
+    attempt. An equal time cannot tell the attempts apart, so it fails too, as does a missing or
+    unparseable one.
     """
     created, started = _instant(artifact.get("created_at")), _instant(run.get("run_started_at"))
     if created is None or started is None:
         return False
     try:
-        return created >= started
+        return created > started
     except TypeError:
         return False
 

@@ -199,6 +199,7 @@ class TestUnusableArtifact:
             ([_artifact(size_in_bytes=10**9)], "artifact.too_large"),
             ([_artifact(size_in_bytes=None)], "artifact.too_large"),
             ([_artifact(created_at="2026-10-01T09:59:59Z")], "artifact.stale"),
+            ([_artifact(created_at="2026-10-01T10:00:00Z")], "artifact.stale"),
             ([_artifact(created_at=None)], "artifact.stale"),
             ([_artifact(created_at="yesterday")], "artifact.stale"),
             ([_artifact(created_at="2026-10-01T10:05:00")], "artifact.stale"),
