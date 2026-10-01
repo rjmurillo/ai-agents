@@ -71,6 +71,7 @@ from scripts.validation.mirror_evidence import (  # noqa: E402
     REMEDIATION,
     copied_contract_marker,
     imported_project_names,
+    owned_roots,
     structural_evidence,
 )
 
@@ -247,7 +248,9 @@ def scan_file(path: Path) -> Violation | None:
     if token is None:
         return None
 
-    if _has_path_reference(text) or structural_evidence(text, imported_project_names(source)):
+    if _has_path_reference(text) or structural_evidence(
+        text, imported_project_names(source, owned_roots(_PROJECT_ROOT, path.parent))
+    ):
         return None
 
     excerpt = _excerpt_for_token(text, token)
@@ -269,7 +272,9 @@ def scan_copied_contract(path: Path) -> CopyFinding | None:
     if not text or _find_mirror_token(text) is None:
         return None
     marker = copied_contract_marker(text)
-    if marker is None or structural_evidence(text, imported_project_names(source)):
+    if marker is None or structural_evidence(
+        text, imported_project_names(source, owned_roots(_PROJECT_ROOT, path.parent))
+    ):
         return None
     return CopyFinding(path=path, marker=marker)
 

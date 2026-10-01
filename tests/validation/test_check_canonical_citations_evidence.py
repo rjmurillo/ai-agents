@@ -191,3 +191,33 @@ def test_copy_findings_read_as_advisory_through_the_wrapper(repo: Path, capsys) 
     assert outcome.state.name == "FAIL"
     assert outcome.reason == "advisory.findings"
     assert outcome.findings == 1
+
+
+@pytest.mark.parametrize(
+    "imports",
+    [
+        "import pytest\n",
+        "import pytest as canonical\n",
+        "from pytest import fixture\n",
+        "import yaml.constructor\n",
+    ],
+)
+def test_third_party_import_is_not_evidence(repo: Path, imports: str) -> None:
+    doc = '"""Mirrors pytest fixture semantics: pytest, canonical, yaml.constructor."""'
+    body = f"{doc}\n{imports}"
+    assert ccc.scan_file(_write(repo, body)) is not None
+
+
+def test_sibling_module_import_is_evidence(repo: Path) -> None:
+    (repo / "scripts" / "validation" / "schema_rules.py").write_text("X = 1\n", encoding="utf-8")
+    body = '"""Mirrors the SCHEMA_RULES contract."""\nfrom schema_rules import SCHEMA_RULES\n'
+    assert ccc.scan_file(_write(repo, body)) is None
+
+
+def test_lib_package_import_is_evidence() -> None:
+    from scripts.validation import mirror_evidence as me
+
+    owned = me.owned_roots(REPO_ROOT, REPO_ROOT / "scripts" / "validation")
+    assert {"scripts", "build", "ai_review_common"} <= owned
+    assert "pytest" not in owned
+    assert "os" not in owned
