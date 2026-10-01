@@ -186,9 +186,7 @@ binplaces every class this rule file covers, lib included. `build_all.py
 --check` verifies all of it is byte-identical to what the templates and lib
 sources render, in one pass; a drift anywhere is exit 2.
 
-The old standalone sync entry point survives only as a thin, deprecated shim
-over the same `lib_mirror` logic, kept alive for the one CI workflow step
-that still calls it directly. Do not add a new caller of it: call
+The old standalone sync entry point is retired (issue #5790). Call
 `build_all.py` (or, for lib-specific logic in a script, `lib_mirror.py`)
 instead.
 
@@ -245,7 +243,7 @@ never have to uninstall to recover from an artifact we generated.
 - `.claude/rules/canonical-source-mirror.md`. Self-referential test anti-pattern.
 - `.claude/skills/software-engineering-library/references/release-it.md`. Fail fast and loud; bound the blast radius by prevention, not by silently swallowing failures.
 - `scripts/validation/validate_hook_anchoring.py`. The committed-artifact gate.
-- `build/scripts/lib_mirror.py`. Renders `scripts/{hook_utilities,github_core,ai_review_common}/` into every lib plugin tree; `scripts/sync_plugin_lib.py` is now a deprecated shim over it.
+- `build/scripts/lib_mirror.py`. Renders `scripts/{hook_utilities,github_core,ai_review_common}/` into every lib plugin tree; `scripts/sync_plugin_lib.py` is retired (issue #5790).
 - `scripts/ci/check_plugin_lib_mirrors.py`. The gate that catches a stale lib mirror; now a thin wrapper over `build_all.py --check`.
 - `tests/build_scripts/test_generate_hooks_runtime_contract.py`. Runtime-contract test pattern.
 - `tests/e2e/test_cli_hook_e2e.py`. Real-CLI smoke.

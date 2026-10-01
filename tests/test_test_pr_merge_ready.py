@@ -2051,6 +2051,97 @@ class TestClassifyTier:
         }
         assert classify_tier(result) == "BLOCKED"
 
+    @staticmethod
+    def _blocked(**overrides):
+        result = {
+            "CanMerge": False,
+            "IsDraft": False,
+            "State": "OPEN",
+            "MergeStateStatus": "BLOCKED",
+            "FailedRequiredChecks": [],
+            "UndisposedNonRequiredFailures": [],
+            "UnresolvedThreads": 0,
+            "PendingRequiredChecks": [],
+        }
+        result.update(overrides)
+        return result
+
+    def test_blocked_with_failed_required_check_is_t2(self):
+        """Issue #5549: BLOCKED plus a red required check is CI work."""
+        result = self._blocked(FailedRequiredChecks=[{"name": "tests"}])
+        assert classify_tier(result) == "T2"
+
+    def test_blocked_with_undisposed_non_required_failure_is_t2(self):
+        result = self._blocked(UndisposedNonRequiredFailures=["lint"])
+        assert classify_tier(result) == "T2"
+
+    def test_blocked_with_threads_only_is_t3(self):
+        result = self._blocked(UnresolvedThreads=1)
+        assert classify_tier(result) == "T3"
+
+    def test_blocked_with_failure_and_threads_is_t4(self):
+        result = self._blocked(
+            FailedRequiredChecks=[{"name": "lint"}], UnresolvedThreads=2
+        )
+        assert classify_tier(result) == "T4"
+
+    def test_blocked_bot_with_work_is_t5(self):
+        result = self._blocked(UnresolvedThreads=1)
+        assert classify_tier(result, is_bot=True) == "T5"
+
+    def test_blocked_bot_without_work_stays_blocked(self):
+        assert classify_tier(self._blocked(), is_bot=True) == "BLOCKED"
+
+    def test_blocked_with_only_pending_checks_stays_blocked(self):
+        """Pending checks are not a failure signal, so no T2 fallback."""
+        result = self._blocked(PendingRequiredChecks=[{"name": "build"}])
+        assert classify_tier(result) == "BLOCKED"
+
+    @pytest.mark.parametrize(
+        "overrides",
+        [
+            {},
+            {"FailedRequiredChecks": [{"name": "tests"}]},
+            {"UnresolvedThreads": 3},
+            {"FailedRequiredChecks": [{"name": "x"}], "UnresolvedThreads": 1},
+        ],
+    )
+    def test_blocked_never_reaches_t1(self, overrides):
+        """BLOCKED is unmergeable, so it must not classify as the merge tier."""
+        assert classify_tier(self._blocked(**overrides)) != "T1"
+
+    def test_blocked_with_can_merge_true_and_work_is_not_t1(self):
+        """Fail closed: classify_tier itself refuses T1 for BLOCKED."""
+        result = self._blocked(CanMerge=True, UnresolvedThreads=1)
+        assert classify_tier(result) == "T3"
+
+    @pytest.mark.parametrize("state", ["BEHIND", "DIRTY"])
+    def test_behind_and_dirty_keep_merge_state_tier_with_work(self, state):
+        """Inverse guard: only BLOCKED falls through; BEHIND and DIRTY do not."""
+        result = self._blocked(
+            MergeStateStatus=state,
+            FailedRequiredChecks=[{"name": "tests"}],
+            UnresolvedThreads=1,
+        )
+        assert classify_tier(result) == state
+
+    def test_blocked_end_to_end_with_thread_is_t3(self):
+        """Full path: a BLOCKED PR with one unresolved thread reports T3."""
+        pr_data = _clean_pr_in_state("BLOCKED")
+        _add_unresolved_thread(pr_data)
+        with patch("test_pr_merge_ready.gh_graphql", return_value=pr_data):
+            result = check_merge_readiness("o", "r", 42)
+        assert result["CanMerge"] is False
+        assert result["Tier"] == "T3"
+
+    def test_blocked_end_to_end_with_failed_check_is_t2(self):
+        pr_data = _clean_pr_in_state("BLOCKED")
+        _add_failed_required_check(pr_data)
+        with patch("test_pr_merge_ready.gh_graphql", return_value=pr_data):
+            result = check_merge_readiness("o", "r", 42)
+        assert result["CanMerge"] is False
+        assert result["Tier"] == "T2"
+
     def test_behind_state(self):
         result = {
             "CanMerge": False,
@@ -2121,7 +2212,7 @@ class TestClassifyTier:
             "CanMerge": False,
             "IsDraft": False,
             "State": "OPEN",
-            "MergeStateStatus": "UNSTABLE",
+            "MergeStateStatus": "BLOCKED",
             "FailedRequiredChecks": [{"name": "tests"}],
             "UndisposedNonRequiredFailures": [],
             "UnresolvedThreads": 0,
@@ -2134,7 +2225,7 @@ class TestClassifyTier:
             "CanMerge": False,
             "IsDraft": False,
             "State": "OPEN",
-            "MergeStateStatus": "CLEAN",
+            "MergeStateStatus": "BLOCKED",
             "FailedRequiredChecks": [],
             "UndisposedNonRequiredFailures": [],
             "UnresolvedThreads": 3,
@@ -2147,7 +2238,7 @@ class TestClassifyTier:
             "CanMerge": False,
             "IsDraft": False,
             "State": "OPEN",
-            "MergeStateStatus": "UNSTABLE",
+            "MergeStateStatus": "BLOCKED",
             "FailedRequiredChecks": [{"name": "lint"}],
             "UndisposedNonRequiredFailures": [],
             "UnresolvedThreads": 2,

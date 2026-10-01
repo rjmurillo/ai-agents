@@ -25,6 +25,7 @@ The main burn source is repeated long-context execution in `ai-agents`, not mode
 The first control changes to evaluate are:
 
 1. Make direct single-agent work the default. Delegate only when an independent merge artifact justifies it. Cap a task at 3 agents total and 2 concurrent agents.
+   Count every live agent against the 2-concurrent cap, including one that only polls CI. In the 2026-09-29 P1 sweep the orchestrator ran three at once twice (#5549, #5485, #5477; then #5485, #5477, #5738), excusing one as "only polling CI". Count live agents before each spawn.
 2. Start a fresh thread for each phase instead of carrying one thread through investigation, implementation, review, and merge.
 3. Bound `exec` output to summaries, names, counts, failures, and short excerpts.
 4. Keep the universal runtime contract small. Load doctrine, review playbooks, and procedures only after workflow selection.

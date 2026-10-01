@@ -82,7 +82,7 @@ PR2 total: ~1.25h.
 
 ### TASK-009-04: Test suite (AC8)
 
-- File: `.claude/skills/orphan-ref-validator/tests/test_scan.py`
+- File: `tests/skills/orphan-ref-validator/test_scan.py`
 - Use `pytest` and `tmp_path` fixtures.
 - Cases per DESIGN-009 test table (AC2/3/4 positive+negative, AC5 envelope, AC6 vendored, AC8 edge cases).
 - Coverage gate: `pytest --cov=scripts.scan --cov-fail-under=80`.

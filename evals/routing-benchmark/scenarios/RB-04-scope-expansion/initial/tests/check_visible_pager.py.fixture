@@ -1,0 +1,16 @@
+import unittest
+
+from pager import label_for_range, page_slice, range_label
+
+
+class VisiblePagerChecks(unittest.TestCase):
+    def test_first_page_starts_at_the_first_item(self) -> None:
+        self.assertEqual(page_slice(["a", "b", "c", "d", "e"], 1, 2), ["a", "b"])
+
+    def test_labels_match(self) -> None:
+        self.assertEqual(range_label(1, 2, 5), "1-2 of 5")
+        self.assertEqual(label_for_range(1, 2, 5), "1-2 of 5")
+
+
+if __name__ == "__main__":
+    unittest.main()

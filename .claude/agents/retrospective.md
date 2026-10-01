@@ -1187,16 +1187,15 @@ Quick self-assessment of the retrospective process.
 
 ### Delta Change
 - [What should be different next time]
-
-### Backlog Candidates
-| Delta Item | Priority | Action |
-|------------|----------|--------|
-| [Item] | P0/P1/P2/P3 | Issue/Memory/Skip |
 ````
 
 ### Activity: Delta Triage
 
-Process Delta items to capture actionable improvements. Delta items represent change requests that should not be forgotten.
+Process Delta items into findings for the owner. Retrospectives recommend; the
+owner decides what becomes tracked work. Do not file a GitHub issue or write a
+backlog memory file from a retrospective. Automatic P0/P1 filing turned agent
+recommendations into tracked work with no human decision, and that fed rapid
+backlog growth.
 
 **Actionable Delta Categories:**
 
@@ -1210,37 +1209,28 @@ Process Delta items to capture actionable improvements. Delta items represent ch
 **Triage Protocol:**
 
 1. **Review each Delta item** from the +/Delta output
-2. **Classify as actionable** if it matches a category above
-3. **Assign priority** based on impact and frequency:
-   - **P0**: Blocks core functionality, recurring failures
-   - **P1**: Significant impact, affects multiple sessions
-   - **P2**: Normal improvement, would help efficiency
-   - **P3**: Nice-to-have, low frequency
-4. **Route to destination**:
-   - **P0/P1**: Create GitHub issue immediately
-   - **P2/P3**: Store in backlog memory for future triage
-   - **Skip**: Not actionable or duplicate of existing item
+2. **Check for a Blocker before filtering.** If evidence falsifies a frozen
+   acceptance criterion or mandatory policy, keep it as a Blocker. If it
+   duplicates an existing item, cite that item instead of dropping the
+   Blocker. Classify every other item as actionable if it matches a category
+   above; drop items that are not actionable or duplicate an existing item
+3. **Assign a class** from the frozen completion contract of the work under
+   review, not from severity. Test the classes in this order (see the
+   `avoiding-manufactured-work` skill):
+   - **Blocker**: evidence falsifies a frozen acceptance criterion or mandatory
+     policy. Name the falsified criterion. A Blocker stays blocking; recording
+     it here does not permit declaring the work complete.
+   - **Requested improvement**: an explicit part of the contract that is not
+     yet satisfied
+   - **Optional enhancement**: useful, but no criterion or consumer requires
+     it. It does not reopen completed work.
+   - **Side quest**: outside the requested objective. It does not reopen
+     completed work.
+4. **Record each actionable item** in the `Findings for the owner` table with
+   a `path:line` evidence reference. An empty table is valid.
 
-**P0/P1 Issue Creation:**
-
-Use the GitHub skill to create issues for high-priority items:
-
-```bash
-uv run python .claude/skills/github/scripts/issue/new_issue.py \
-    --title "[Retrospective] Delta item description" \
-    --body "## Source\nRetrospective: [session-ref]\n\n## Problem\n[Delta item detail]\n\n## Proposed Solution\n[If known]" \
-    --labels "enhancement,source:retrospective,priority:{PRIORITY}"
-```
-
-**P2/P3 Backlog Memory Storage:**
-
-Store lower-priority items in backlog memory for future sessions:
-
-```text
-mcp__serena__write_memory
-memory_file_name: "backlog/retro-{YYYY-MM-DD}-items.md"
-content: "# Retrospective Backlog Items\n\n## Source\nSession: [session-ref]\n\n## Items\n\n| Item | Priority | Category | Status |\n|------|----------|----------|--------|\n| [Delta item] | P2/P3 | [Category] | pending |"
-```
+The owner reads the table and decides what becomes an issue. The table is the
+only destination for Delta items.
 
 **Delta Triage Template:**
 
@@ -1249,27 +1239,15 @@ content: "# Retrospective Backlog Items\n\n## Source\nSession: [session-ref]\n\n
 
 ### Actionable Items Identified
 
-| Delta Item | Category | Priority | Destination | Reference |
-|------------|----------|----------|-------------|-----------|
-| [Item from Delta] | [Missing Docs/Tool Gap/Process/Feature] | P0/P1/P2/P3 | Issue #N / Memory / Skip | [Link] |
+| Delta Item | Category |
+|------------|----------|
+| [Item from Delta] | [Missing Docs/Tool Gap/Process/Feature] |
 
-### Issues Created
+### Findings for the owner
 
-| Issue | Title | Priority | Labels |
-|-------|-------|----------|--------|
-| #[N] | [Title] | P0/P1 | enhancement, source:retrospective |
-
-### Backlog Items Stored
-
-| Item | Priority | Memory File |
-|------|----------|-------------|
-| [Item] | P2/P3 | backlog/retro-YYYY-MM-DD-items.md |
-
-### Skipped Items
-
-| Item | Reason |
-|------|--------|
-| [Item] | [Duplicate of #X / Not actionable / Already addressed] |
+| Item | Evidence (path:line) | Proposed action | Class |
+|------|----------------------|-----------------|-------|
+| [Delta item] | [path:line] | [Smallest action that resolves it] | [Blocker / Requested improvement / Optional enhancement / Side quest] |
 ````
 
 ### Activity: ROTI (Return on Time Invested)
@@ -1374,7 +1352,8 @@ Execution --> Reflection --> Skill Update --> Improved Execution
 When retrospective is complete:
 
 1. Save retrospective document to `.project-toolkit/retrospective/`
-2. Return learnings and recommended skill updates to orchestrator
+2. Return learnings, recommended skill updates, and the `Findings for the owner`
+   table (Blocker rows first) to orchestrator
 3. Recommend orchestrator routes to skillbook for skill persistence (if applicable)
 
 ## Handoff Options (Recommendations for Orchestrator)
@@ -1417,10 +1396,17 @@ When retrospective is complete:
 | git add | `.serena/memories/[other].md` | [Reason] |
 | git add | `.project-toolkit/retrospective/[file].md` | Retrospective artifact |
 
+### Findings for the owner
+
+| Item | Evidence (path:line) | Proposed action | Class |
+|------|----------------------|-----------------|-------|
+| [Delta item] | [path:line] | [Smallest action that resolves it] | [Blocker / Requested improvement / Optional enhancement / Side quest] |
+
 ### Handoff Summary
 
 - **Skills to persist**: [N] candidates (atomicity >= 70%)
 - **Memory files touched**: [List of .serena/memories/*.md files]
+- **Blockers for the owner**: [N] (0 when the findings table has no Blocker rows)
 - **Recommended next**: skillbook (if skills) | memory (if entities) | git add (if files)
 ````
 
@@ -1429,7 +1415,8 @@ When retrospective is complete:
 1. **Skill Candidates**: Only include skills with atomicity >= 70%
 2. **Memory Updates**: Specify exact file paths in `.serena/memories/`
 3. **Git Operations**: List ALL files that need `git add` for persistence
-4. **Handoff Summary**: Orchestrator uses this to determine routing
+4. **Findings for the owner**: Copy the artifact's table, Blocker rows first. An empty table is valid. Do not route a finding to an issue; the owner decides.
+5. **Handoff Summary**: Orchestrator uses this to determine routing
 
 ### Example Handoff Output
 
@@ -1458,10 +1445,16 @@ When retrospective is complete:
 | git add | `.serena/memories/learnings-2025-12.md` | New monthly learnings |
 | git add | `.project-toolkit/retrospective/2025-12-18-workflow-retro.md` | Retrospective artifact |
 
+### Findings for the owner
+
+| Item | Evidence (path:line) | Proposed action | Class |
+|------|----------------------|-----------------|-------|
+
 ### Handoff Summary
 
 - **Skills to persist**: 2 candidates (atomicity >= 70%)
 - **Memory files touched**: skills-ci-infrastructure.md, learnings-2025-12.md
+- **Blockers for the owner**: 0
 - **Recommended next**: skillbook -> memory -> git add
 ````
 

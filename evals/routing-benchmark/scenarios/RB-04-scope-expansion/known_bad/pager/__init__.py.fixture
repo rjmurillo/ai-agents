@@ -1,0 +1,6 @@
+from pager.labels import range_label
+from pager.paginate import page_slice
+
+label_for_range = range_label
+
+__all__ = ["label_for_range", "page_slice", "range_label"]

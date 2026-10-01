@@ -1,0 +1,39 @@
+import unittest
+
+from phrases import CONTRADICTION_PHRASES, has_contradiction
+
+EMBEDDED = (
+    "impending release",
+    "descending order",
+    "STBDX build",
+    "aN/Ab",
+    "unskipped tests",
+    "todos are tracked elsewhere",
+)
+
+
+class HiddenDetectChecks(unittest.TestCase):
+    def test_a_phrase_inside_a_longer_word_does_not_count(self) -> None:
+        for text in EMBEDDED:
+            self.assertFalse(
+                has_contradiction(text),
+                f"BOUNDARY_DEFECT: {text!r} matched inside a longer word",
+            )
+
+    def test_a_phrase_next_to_punctuation_still_counts(self) -> None:
+        for text in ("value is N/A.", "(TBD)", "status: pending, see below", "TODO: fix"):
+            self.assertTrue(has_contradiction(text), text)
+
+    def test_every_listed_phrase_is_detected_alone(self) -> None:
+        for phrase in CONTRADICTION_PHRASES:
+            self.assertTrue(has_contradiction(phrase), phrase)
+
+    def test_matching_ignores_case(self) -> None:
+        self.assertTrue(has_contradiction("Not Available on this host"))
+
+    def test_empty_text_is_clean(self) -> None:
+        self.assertFalse(has_contradiction(""))
+
+
+if __name__ == "__main__":
+    unittest.main()

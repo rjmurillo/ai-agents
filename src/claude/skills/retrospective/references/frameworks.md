@@ -366,16 +366,15 @@ Quick self-assessment of the retrospective process.
 
 ### Delta Change
 - [What should be different next time]
-
-### Backlog Candidates
-| Delta Item | Priority | Action |
-|------------|----------|--------|
-| [Item] | P0/P1/P2/P3 | Issue/Memory/Skip |
 ````
 
 ### Activity: Delta Triage
 
-Process Delta items to capture actionable improvements. Delta items represent change requests that should not be forgotten.
+Process Delta items into findings for the owner. Retrospectives recommend; the
+owner decides what becomes tracked work. Do not file a GitHub issue or write a
+backlog memory file from a retrospective. Automatic P0/P1 filing turned agent
+recommendations into tracked work with no human decision, and that fed rapid
+backlog growth.
 
 **Actionable Delta Categories:**
 
@@ -389,16 +388,28 @@ Process Delta items to capture actionable improvements. Delta items represent ch
 **Triage Protocol:**
 
 1. **Review each Delta item** from the +/Delta output
-2. **Classify as actionable** if it matches a category above
-3. **Assign priority** based on impact and frequency:
-   - **P0**: Blocks core functionality, recurring failures
-   - **P1**: Significant impact, affects multiple sessions
-   - **P2**: Normal improvement, would help efficiency
-   - **P3**: Nice-to-have, low frequency
-4. **Route to destination**:
-   - **P0/P1**: Create GitHub issue immediately (use the `github` skill)
-   - **P2/P3**: Store in backlog memory for future triage
-   - **Skip**: Not actionable or duplicate of existing item
+2. **Check for a Blocker before filtering.** If evidence falsifies a frozen
+   acceptance criterion or mandatory policy, keep it as a Blocker. If it
+   duplicates an existing item, cite that item instead of dropping the
+   Blocker. Classify every other item as actionable if it matches a category
+   above; drop items that are not actionable or duplicate an existing item
+3. **Assign a class** from the frozen completion contract of the work under
+   review, not from severity. Test the classes in this order (see the
+   `avoiding-manufactured-work` skill):
+   - **Blocker**: evidence falsifies a frozen acceptance criterion or mandatory
+     policy. Name the falsified criterion. A Blocker stays blocking; recording
+     it here does not permit declaring the work complete.
+   - **Requested improvement**: an explicit part of the contract that is not
+     yet satisfied
+   - **Optional enhancement**: useful, but no criterion or consumer requires
+     it. It does not reopen completed work.
+   - **Side quest**: outside the requested objective. It does not reopen
+     completed work.
+4. **Record each actionable item** in the `Findings for the owner` table with
+   a `path:line` evidence reference. An empty table is valid.
+
+The owner reads the table and decides what becomes an issue. The table is the
+only destination for Delta items.
 
 **Delta Triage Template:**
 
@@ -407,27 +418,15 @@ Process Delta items to capture actionable improvements. Delta items represent ch
 
 ### Actionable Items Identified
 
-| Delta Item | Category | Priority | Destination | Reference |
-|------------|----------|----------|-------------|-----------|
-| [Item from Delta] | [Missing Docs/Tool Gap/Process/Feature] | P0/P1/P2/P3 | Issue #N / Memory / Skip | [Link] |
+| Delta Item | Category |
+|------------|----------|
+| [Item from Delta] | [Missing Docs/Tool Gap/Process/Feature] |
 
-### Issues Created
+### Findings for the owner
 
-| Issue | Title | Priority | Labels |
-|-------|-------|----------|--------|
-| #[N] | [Title] | P0/P1 | enhancement, source:retrospective |
-
-### Backlog Items Stored
-
-| Item | Priority | Memory File |
-|------|----------|-------------|
-| [Item] | P2/P3 | backlog/retro-YYYY-MM-DD-items.md |
-
-### Skipped Items
-
-| Item | Reason |
-|------|--------|
-| [Item] | [Duplicate of #X / Not actionable / Already addressed] |
+| Item | Evidence (path:line) | Proposed action | Class |
+|------|----------------------|-----------------|-------|
+| [Delta item] | [path:line] | [Smallest action that resolves it] | [Blocker / Requested improvement / Optional enhancement / Side quest] |
 ````
 
 ### Activity: ROTI (Return on Time Invested)

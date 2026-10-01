@@ -329,22 +329,22 @@ priority: P2
 created: 2026-02-21
 ---
 
-# REQ-O01: Forgetful Memory Integration
+# REQ-O01: Serena Memory Integration
 
 ## Requirement Statement
 
-WHERE the Forgetful Memory MCP server is configured
-THE system SHALL persist cross-session learnings to the knowledge graph.
+WHERE the Serena MCP server is configured
+THE system SHALL persist cross-session learnings to Serena memories.
 
 ## Rationale
 
-Forgetful provides semantic memory. When available, use it for persistence.
+Serena memories are committed markdown. When the server is available, use it for persistence.
 
 ## Acceptance Criteria
 
 - [ ] MCP server availability detected at startup
-- [ ] Learnings saved via execute_forgetful_tool
-- [ ] Graceful degradation when unavailable
+- [ ] Learnings saved via mcp__serena__write_memory
+- [ ] Graceful degradation to direct file writes under `.serena/memories/` when unavailable
 ```
 
 ### Example: Platform-Specific Behavior

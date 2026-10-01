@@ -77,7 +77,6 @@ IMMEDIATE RCA Trigger (not monthly batch)
     +---> Run invoke_security_retrospective.py
     |         |
     |         +---> Extract false negative details
-    |         +---> Store in Forgetful (semantic memory)
     |         +---> Store in Serena (project memory)
     |         +---> Update security.md prompt
     |         +---> Add benchmark test case
@@ -138,8 +137,7 @@ python scripts/security/invoke_security_retrospective.py \
 1. [x] Added "Path Traversal Prevention" section to security.md
 2. [x] Added `GetFullPath()` normalization pattern to checklist
 3. [x] Created benchmark test case PT-001 in cwe22-path-traversal.ps1
-4. [x] Stored false negative in Forgetful (importance=10)
-5. [x] Created Serena memory for project-specific context
+4. [x] Created Serena memory for project-specific context
 
 **Detection Pattern Added**:
 
@@ -226,26 +224,9 @@ function Test-SafeFilePath {
 
 ## Memory Integration
 
-False negatives are stored in two memory systems:
-
-### Forgetful (Semantic Memory)
-
-Enables cross-project pattern search:
-
-```python
-# Query for all false negatives
-mcp__forgetful__execute_forgetful_tool(
-    "query_memory",
-    {
-        "query": "security false negative CWE-22",
-        "query_context": "security retrospective"
-    }
-)
-```
-
 ### Serena (Project Memory)
 
-Enables project-specific RCA retrieval:
+False negatives are stored as Serena project memories, which enable project-specific RCA retrieval:
 
 ```text
 .serena/memories/security-false-negative-cwe-22-pr752.md

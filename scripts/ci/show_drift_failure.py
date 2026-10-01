@@ -22,7 +22,6 @@ EXIT_OK = 0
 EXIT_USAGE = 2
 
 _GENERATE_SCRIPT = "build/generate_agents.py"
-_MIRROR_SCRIPT = "scripts/sync_plugin_lib.py"
 _BUILD_SCRIPT = "build/scripts/build_all.py"
 
 _REMEDIATION_GUIDE = """\
@@ -41,10 +40,9 @@ _REMEDIATION_GUIDE = """\
 --- Bypass procedure (intentional divergence) ---
 
   If this divergence is intentional:
-  1. Add [skip-drift-check] to a commit message in this PR
-  2. Document the reason in your PR description
-  3. Update templates/README.md with the intentional difference
-  4. Ensure explicit code-owner approval on this PR
+  1. Add the file path and a reason to .agents/governance/drift-allowlist.json
+  2. Update templates/README.md with the intentional difference
+  3. Ensure explicit code-owner approval on this PR
 """
 
 
@@ -75,7 +73,6 @@ def show_drift_failure(
         _run([sys.executable, _GENERATE_SCRIPT])
 
     if lib_mirror_conclusion == "failure":
-        _run([sys.executable, _MIRROR_SCRIPT])
         _run([sys.executable, _BUILD_SCRIPT])
 
     result = subprocess.run(

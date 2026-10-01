@@ -15,6 +15,11 @@ from pathlib import Path
 import pytest
 
 from scripts.validation import check_tmp_worktrees as checker
+from scripts.validation.evidence import (
+    REASON_ADVISORY_FINDINGS,
+    EvidenceState,
+    pre_pr_policy,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 _GIB = 1024**3
@@ -291,14 +296,16 @@ def test_an_unstattable_entry_is_counted_not_examined(
 ) -> None:
     entry = tmp_path / "entry"
     entry.mkdir()
-    real_is_dir = Path.is_dir
+    real_stat = Path.stat
 
-    def explode_for_the_entry(self: Path) -> bool:
+    def explode_for_the_entry(self: Path, *args, **kwargs):
+        # stat, not is_dir: Path.is_dir swallows every OSError on Python 3.14, so
+        # patching it to raise simulated a failure the real method never reports.
         if self == entry:
             raise OSError("stale file handle")
-        return bool(real_is_dir(self))
+        return real_stat(self, *args, **kwargs)
 
-    monkeypatch.setattr(Path, "is_dir", explode_for_the_entry)
+    monkeypatch.setattr(Path, "stat", explode_for_the_entry)
 
     report = checker.scan_temp_root(tmp_path, 0, [], git_listing_failed=False)
 
@@ -309,10 +316,10 @@ def test_an_unstattable_entry_is_counted_not_examined(
 def test_an_unreadable_temp_root_is_not_reported_as_clean(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    def explode(*_args: object, **_kwargs: object) -> bool:
+    def explode(*_args: object, **_kwargs: object) -> None:
         raise OSError("permission denied")
 
-    monkeypatch.setattr(Path, "is_dir", explode)
+    monkeypatch.setattr(Path, "stat", explode)
 
     report = checker.scan_temp_root(tmp_path, 0, [], git_listing_failed=False)
 
@@ -371,13 +378,16 @@ def test_the_advisory_gate_never_fails_even_with_findings(
     make_worktree_dir(tmp_path, "wt")
     monkeypatch.setattr(checker, "DEFAULT_TEMP_ROOT", tmp_path)
 
-    verdict = checker.validate_tmp_worktrees(REPO_ROOT)
+    outcome = checker.validate_tmp_worktrees(REPO_ROOT)
 
     # The negative control: the gate must have SEEN the planted worktree and
-    # still returned True. Without this assertion the test passes even when
+    # still not blocked. Without this assertion the test passes even when
     # the monkeypatch does not reach the scan, which is the vacuous shape.
     assert "wt" in capsys.readouterr().out
-    assert verdict is True
+    assert outcome.state is EvidenceState.FAIL
+    assert outcome.reason == REASON_ADVISORY_FINDINGS
+    assert outcome.findings == 1
+    assert pre_pr_policy().accepts(outcome)
 
 
 # --- CLI exit codes -------------------------------------------------------

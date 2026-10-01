@@ -1,0 +1,21 @@
+import unittest
+
+from throttle import RateLimiter
+
+
+class VisibleThrottleChecks(unittest.TestCase):
+    def test_calls_within_the_limit_are_allowed(self) -> None:
+        now = [0.0]
+        limiter = RateLimiter(2, 10.0, lambda: now[0])
+        self.assertTrue(limiter.allow("a"))
+        self.assertTrue(limiter.allow("a"))
+
+    def test_the_call_past_the_limit_is_denied(self) -> None:
+        now = [0.0]
+        limiter = RateLimiter(1, 10.0, lambda: now[0])
+        self.assertTrue(limiter.allow("a"))
+        self.assertFalse(limiter.allow("a"))
+
+
+if __name__ == "__main__":
+    unittest.main()

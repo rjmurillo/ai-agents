@@ -1,0 +1,15 @@
+import unittest
+
+from settingskit import merge_settings
+
+
+class VisibleMergeChecks(unittest.TestCase):
+    def test_override_wins(self) -> None:
+        self.assertEqual(merge_settings({"a": 1}, {"a": 2}), {"a": 2})
+
+    def test_keys_from_both_sides_survive(self) -> None:
+        self.assertEqual(merge_settings({"a": 1}, {"b": 2}), {"a": 1, "b": 2})
+
+
+if __name__ == "__main__":
+    unittest.main()

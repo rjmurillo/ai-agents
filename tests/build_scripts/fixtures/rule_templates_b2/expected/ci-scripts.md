@@ -6,9 +6,7 @@ paths:
   - ".github/actions/**"
   - "build/**"
   - ".claude/skills/**/scripts/**"
-  - ".claude/skills/**/tests/**"
   - "src/copilot-cli/skills/**/scripts/**"
-  - "src/copilot-cli/skills/**/tests/**"
   - ".github/scripts/**"
   - "tests/**"
 priority: high

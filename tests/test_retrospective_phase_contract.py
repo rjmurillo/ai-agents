@@ -35,13 +35,16 @@ PHASE_5_SECTIONS = (
 )
 DELTA_TRIAGE_CONTRACT = (
     "#### Actionable Items Identified",
-    "| Delta Item | Category | Priority | Destination | Reference |",
-    "#### Issues Created",
-    "| Issue | Title | Priority | Labels |",
-    "#### Backlog Items Stored",
-    "| Item | Priority | Memory File |",
-    "#### Skipped Items",
-    "| Item | Reason |",
+    "| Delta Item | Category |",
+    "#### Findings for the owner",
+    "| Item | Evidence (path:line) | Proposed action | Class |",
+)
+REMOVED_DELTA_ROUTING = (
+    "Issues Created",
+    "Backlog Items Stored",
+    "Skipped Items",
+    "backlog/retro-",
+    "source:retrospective",
 )
 MEMORY_RESULT_OPTIONS = "[Added / Updated / Deduplicated / Skipped / Failed]"
 
@@ -99,6 +102,8 @@ def test_template_and_renderer_cover_every_process_phase() -> None:
     assert MEMORY_RESULT_OPTIONS in template_phase_5
     for contract_line in DELTA_TRIAGE_CONTRACT:
         assert contract_line in template_phase_5
+    for removed in REMOVED_DELTA_ROUTING:
+        assert removed not in template_phase_5
 
 
 def test_copilot_cli_files_match_canonical_sources() -> None:

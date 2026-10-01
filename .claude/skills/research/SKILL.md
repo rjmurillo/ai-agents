@@ -1,7 +1,7 @@
 ---
 name: research
 version: 1.0.0
-description: Research an external topic, write a 3000-to-5000-word analysis, map it onto this project, and file the follow-up issue. Use when you say `research this topic`, `what does the literature say about X`, or `analyze this external practice for us`. Do NOT use to search this repository (use memory or grep), and do NOT use when no spec, issue, or artifact consumes the result.
+description: Research an external topic, write a 3000-to-5000-word analysis, map it onto this project, and draft the follow-up issue for the owner. Use when you say `research this topic`, `what does the literature say about X`, or `analyze this external practice for us`. Do NOT use to search this repository (use memory or grep), and do NOT use when no spec, issue, or artifact consumes the result.
 license: MIT
 allowed-tools: WebSearch, WebFetch, Read, Write, Glob, Grep, Bash(python3:*/skills/github/scripts/*), Bash(python3:*/skills/ai-agents-external-claims/scripts/*), mcp__serena__*, Skill
 argument-hint: topic-and-context
@@ -21,8 +21,8 @@ metadata:
 
 # Research
 
-Turn an external topic into a analysis document, a Serena memory, and an issue
-that names what to change here. Five phases, each with a gate.
+Turn an external topic into a analysis document, a Serena memory, and a drafted issue
+body that names what to change here. Five phases, each with a gate.
 
 Migrated from `.claude/commands/research.md` under ADR-064, which makes skills
 the single user-invocable surface. The move gains a `references/` directory, so
@@ -30,8 +30,8 @@ the three document skeletons and the degraded-mode rules now sit beside the
 workflow instead of inside it.
 
 Security note: the two Bash entries are scoped to script directories. The
-github skill's scripts let this skill reach GitHub discourse and file its
-Phase 5 issue without raw shell. The `ai-agents-external-claims` scripts run
+github skill's scripts let this skill reach GitHub discourse without raw
+shell, and file an issue only when the user asked for one. The `ai-agents-external-claims` scripts run
 the claim gate's ledger validator, which reads local files only. Wildcards are Claude Code tool patterns, not shell globs; the
 Bash tool executor must sanitize arguments to prevent command injection
 (CWE-78).
@@ -97,7 +97,7 @@ ledger, because each one restates a different set of claims.
 |----------|-------|--------|
 | Analysis document | `{analysis-dir}/{topic-slug}-analysis.draft.md` | `{analysis-dir}/{topic-slug}-analysis-claims.json` |
 | Serena memory | `{analysis-dir}/{topic-slug}-memory.draft.md` | `{analysis-dir}/{topic-slug}-memory-claims.json` |
-| Issue body | `{analysis-dir}/{topic-slug}-issue-body.md` (published, not moved) | `{analysis-dir}/{topic-slug}-issue-claims.json` |
+| Issue body | `{analysis-dir}/{topic-slug}-issue-body.md` (drafted, not moved) | `{analysis-dir}/{topic-slug}-issue-claims.json` |
 
 1. List each claim the artifact will state that rests on an outside source: a
    vendor or product behavior, an external API or compatibility fact, a
@@ -146,17 +146,27 @@ ledger, because each one restates a different set of claims.
 4. **Memory.** Write a Serena memory at `{topic-slug}-integration` that
    cross-references the analysis. Pass the claim gate on the memory draft first,
    with the memory's own ledger.
-5. **Action.** File a GitHub issue when implementation work is identified.
-   Writing the body is internal and reversible, so do it without asking. Pass
-   the claim gate on the body file before the publish step below.
-   Publishing the issue is external and irreversible, so confirm with the user before running this, and skip it rather than guess when no answer is available.
+5. **Action.** Write the issue body file when implementation work is identified,
+   and list it in the analysis under "Candidates for the owner". Do not publish
+   it. An agent that found the work does not select it: the owner decides what
+   becomes a tracked issue. Pass the claim gate on the body file, then report
+   its path to the owner in the run summary and stop.
+
+   File the issue only when the user's request that invoked this skill asked
+   for one. That explicit request is what makes the work human-selected.
+   Publishing is external and irreversible, so confirm with the user before running this, and skip it rather than guess when no answer is available. Run the script with `--source human`:
 
    ```bash
    python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/issue/new_issue.py" \
        --title "[Enhancement] Apply {TOPIC} to {integration-area}" \
        --body-file "{analysis-dir}/{topic-slug}-issue-body.md" \
-       --labels "enhancement,research-derived"
+       --labels "enhancement,research-derived" \
+       --source human
    ```
+
+   Never pass `--source agent` from this skill. An owner's later approval of a
+   drafted candidate is a fresh request: the owner files it, or asks in a new
+   turn.
 
    That script's exit code is not a plain success signal. Read
    `references/degraded-mode.md` before reacting to a non-zero exit.
@@ -190,7 +200,7 @@ the stop conditions. Every rule there degrades the run rather than halting it.
 | Analysis document | `{analysis-dir}/{topic-slug}.md` |
 | Claim ledgers | `{analysis-dir}/{topic-slug}-{analysis,memory,issue}-claims.json` |
 | Serena memory | `.serena/memories/{topic-slug}-integration.md` |
-| GitHub issue | Created if implementation work identified |
+| Issue body | Drafted when implementation work is identified; filed only on the user's explicit request |
 
 ## Verification
 
@@ -201,7 +211,7 @@ the stop conditions. Every rule there degrades the run rather than halting it.
 - [ ] Three or more failure modes, each paired with a correction
 - [ ] Applicability names real file paths and agent names, not generic possibilities
 - [ ] Serena memory written and cross-referenced from the analysis, or the skip recorded
-- [ ] Issue publication confirmed by the user, and its real number recorded
+- [ ] Issue body drafted and flagged to the owner; published only when the invoking request asked for filing, with its real number recorded
 - [ ] Every skipped phase attributed to a named fallback rule
 
 ## Anti-Patterns

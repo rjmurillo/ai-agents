@@ -1,0 +1,5 @@
+"""Text helpers for URL fragments."""
+
+
+def slugify(text: str) -> str:
+    raise NotImplementedError("slugify is not implemented yet")

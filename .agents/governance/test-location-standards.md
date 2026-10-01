@@ -1,6 +1,6 @@
 # Test Location Standards
 
-This document restates, for `.agents/` readers, rules already enforced by [`.claude/rules/testing.md`](../../.claude/rules/testing.md) (the binding rule; its `paths` frontmatter fires on `tests/**`, `**/*.Tests.ps1`, `**/tests/**`, `.claude/skills/**/tests/**`, `.project-toolkit/security/benchmarks/**`) and by the placement gates in [`scripts/validation/`](../../scripts/validation/). Nothing below is new policy; it is documentation catching up to [ADR-042](../../.project-toolkit/architecture/ADR-042-python-migration-strategy.md) (accepted, Python-first migration) and to gates that already ship. Where a claim has no gate behind it, it carries a `Why:` paragraph instead of inventing one.
+This document restates, for `.agents/` readers, rules already enforced by [`.claude/rules/testing.md`](../../.claude/rules/testing.md) (the binding rule; its `paths` frontmatter fires on `tests/**`, `**/*.Tests.ps1`, `**/tests/**`, `.project-toolkit/security/benchmarks/**`) and by the placement gates in [`scripts/validation/`](../../scripts/validation/). Nothing below is new policy; it is documentation catching up to [ADR-042](../../.project-toolkit/architecture/ADR-042-python-migration-strategy.md) (accepted, Python-first migration) and to gates that already ship. Where a claim has no gate behind it, it carries a `Why:` paragraph instead of inventing one.
 
 ## PowerShell layout: retired, no tracked survivors
 
@@ -50,7 +50,7 @@ Source: `pyproject.toml` `[tool.pytest.ini_options]`. Counts are measurements of
 | Script | Rejects | Exit codes | Wired at |
 |---|---|---|---|
 | [`check_nested_tests.py`](../../scripts/validation/check_nested_tests.py) | A `test_*` function AST-nested inside another function | 0 none found, 1 nested test found, 2 invalid repo root | pre-push, via `pre_pr.py` gate sequence (`scripts/validation/pre_pr_sequence.py`) |
-| [`check_colocated_skill_tests.py`](../../scripts/validation/check_colocated_skill_tests.py) | A newly added `test_*.py`/`*_test.py` under a shipped `.claude/skills/`, `src/copilot-cli/skills/`, or `src/claude/skills/` tree's `tests/` dir | 0 none (or legacy-only), 1 new colocated file found | pre-commit, `--staged-only` |
+| [`check_colocated_skill_tests.py`](../../scripts/validation/check_colocated_skill_tests.py) | A newly added `test_*.py`/`*_test.py` under a shipped `.claude/skills/`, `src/copilot-cli/skills/`, or `src/claude/skills/` tree's `tests/` dir | 0 none, 1 new colocated file found | pre-commit, `--staged-only` |
 | [`check_duplicate_test_helpers.py`](../../scripts/validation/check_duplicate_test_helpers.py) | Two module-level test helpers with the same name in one file | 0 none found, 1 duplicate found, 2 invalid repo root | pre-push, via `pre_pr.py` gate sequence |
 | [`check_test_tree_writes.py`](../../scripts/validation/check_test_tree_writes.py) | A test file writing outside `tmp_path`/`.pytest_tmp/` via a repo-root-bound path (AST heuristic; false positives possible) | 0 none found, 1 suspect write found, 2 invalid repo root | pre-push, via `pre_pr.py` gate sequence |
 | [`check_skill_contract_tests.py`](../../scripts/validation/check_skill_contract_tests.py) | A `SKILL.md` documenting a script + exit code with no test under `tests/` naming it | 0 every in-scope skill bound, 1 unbound skill found, 2 usage/I/O error | CI only, `.github/workflows/validate-vendor-portability.yml` |
@@ -99,7 +99,7 @@ Source: `pyproject.toml` `[tool.pytest.ini_options]`.
 
 - All Pester-specific naming (`{ScriptName}.Tests.ps1`), the `BeforeAll`/`It` examples, and the Pester CI snippet: zero tracked `.ps1` files remain (see PowerShell section above); nothing in this repository executes that pattern today.
 - The single-directory "all tests in `/tests/`" rule: superseded by the two-location rule (`tests/` plus `.project-toolkit/security/benchmarks/`) that `.claude/rules/testing.md` MUST 6 actually enforces.
-- The "no exceptions currently defined" line: false under current gates, which carry documented, evidence-anchored exceptions (`pytest-zero-collection:`-marked non-suites, legacy colocated skill tests that predate the gate).
+- The "no exceptions currently defined" line: false under current gates, which carry documented, evidence-anchored exceptions (`pytest-zero-collection:`-marked non-suites).
 
 ## Related Documents
 

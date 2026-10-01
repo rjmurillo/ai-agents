@@ -28,10 +28,6 @@ AGENT_SURFACES = {
 }
 
 ROUTING_SCENARIOS = {
-    "backlog-generator": (
-        "Scan the repo and propose backlog work for unowned quality gaps.",
-        ("backlog", "discovery"),
-    ),
     "debug": (
         "Debug a runtime failure where the app crashes after startup.",
         ("runtime", "bug"),

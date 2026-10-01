@@ -186,6 +186,7 @@ Copilot equivalent.
 | `eval_model_routing.py` | Roll per-model sweep reports for many agents and skills into `evals/model-routing/` routing tables. | #5883, #5889 |
 | `eval_runtime_parity.py` | Run the same fixture through real Claude and Copilot CLIs with isolated agent profiles, resolved-model checks, traces, and deterministic controls. | #4853 |
 | `eval_harness_capability.py` | Run fail-closed live capability probes from a shell-free JSON plan and derive the #5422 arm matrix. | #5423 |
+| `eval_recorded_capabilities.py` | Classify recorded Codex rollouts and Copilot event files offline for `concurrency_limit` and `context_reset_observability`. | #5423 |
 | `optimize-artifact.py` | Held-out-gated edit loop for agents, rules, and hooks. Splits tasks, bounds how many times an edit may be measured against the held-out group, and applies patches. A budgeted comparison, not an access boundary; see the seam section below. Core in `_optimizer_core.py`, scorer adapters in `_optimizer_adapters.py`. | #3422 |
 | `eval_billing_matrix.py` | Print the harness x billing matrix and report which cells this machine can reach. `--json` for a machine-readable form, `--require-ready` to exit 3 as a precondition step. | Complementary |
 | `_anthropic_api.py` | Shared API utilities (key loading, API calls). | N/A |
@@ -258,6 +259,30 @@ and concurrency measurements. The CLI writes a report, never the checked-in
 matrix. Missing commands, failed runs, and incomplete event streams remain
 UNVERIFIED. Verified model and effort values require backend attribution and
 a live runtime version for the same harness.
+
+### Recorded captures: concurrency ceiling and context reset
+
+Two cells need no live call when a past run left files behind. Codex writes one
+rollout per thread under `CODEX_HOME/sessions`, and Copilot writes
+`events.jsonl` under `~/.copilot/session-state/<id>/`.
+
+```bash
+uv run python scripts/eval/eval_recorded_capabilities.py \
+  --captures scripts/eval/examples/harness-capability-recorded-captures.json
+```
+
+`_codex_rollout.py` reads a parent and its children. The peak children with a
+turn open at once is a sound lower bound. The children spawned before a refused
+spawn is an informational upper bound, since threads without a supplied file
+also hold slots. The limit is a per-invocation setting, so a plan entry may
+state `configured_max_threads`; without it the cell cannot verify.
+`_context_reset.py` counts successful compactions and truncations (a failed
+compaction alone is not a reset). A capture replaces a matrix cell only when
+it is `VERIFIED`, which needs the runtime version the matrix pins. The checked-in
+captures come from codex-cli 0.154.0 and Copilot 1.0.79-9, so both cells stay
+UNVERIFIED and the matrix lists the live run each would need under
+`pending_live_probes`. The fixtures are trimmed real files: ids and timestamps
+stay, prompts, paths, and summaries are removed.
 
 ### Codex backend evidence requires a stderr trace
 
@@ -1045,6 +1070,109 @@ I/O and no model calls; `_eval_common.percentile` is the one shared
 percentile helper it and the model-sweep and report-aggregator cores all use
 (REQ-042 AC-11).
 
+### Live Claude Run
+
+`eval_durable_live.py` produces the JSONL above from real `claude -p` runs over
+the routing corpus (issue #5768). It is not the routing runner: that runner
+plans only harnesses the #5423 matrix classifies (`codex`, `copilot`), and its
+arms are Sol, Luna, and Terra based. This script adds no arm and no
+eligibility claim. It compares two instruction controls on identical tasks:
+`current` (CLAUDE.md, AGENTS.md, `.claude/CLAUDE.md`, the three always-on
+rules) and `reduced` (AGENTS.md only).
+
+```bash
+uv run python scripts/eval/eval_durable_live.py            # dry run, zero spend
+uv run python scripts/eval/eval_durable_live.py --live --use-stored-login \
+  --output-dir evals/durable-outcome-live/RUN
+```
+
+The control text reaches the CLI through `--append-system-prompt-file`, and
+`CLAUDE_CODE_DISABLE_CLAUDE_MDS=1` keeps every other CLAUDE.md out. `--live`
+also needs `--use-stored-login`: the run bills to the Claude login stored on
+the machine, and the script never reads or copies the credential file. A hard
+`--max-invocations` cap stops the launches. A task whose process failed or
+returned no `result` event gets no record, is listed under `harness_failures`,
+and makes the comparison refuse rather than count the failure against a
+control.
+
+Measured fields come from the corpus grader and the CLI stream. Proxies are
+`unsupported_claims` and `unresolved_uncertainty` (regexes over the final
+message). `review_findings`, `rollback_events`, and `rework_minutes` are 0 by
+construction, not measured. Requested effort is never verified: the stream
+names no effort. The `_durable_live.py` docstring lists every mapping.
+
+## Routing Benchmark Corpus
+
+`eval_routing_corpus.py` loads the six-scenario corpus under
+`evals/routing-benchmark/scenarios/` and proves its graders discriminate
+(issue #5425, REQ-044, DESIGN-042). The corpus feeds the #5422 routing
+experiment. It names no model, so every strategy arm receives the same task.
+
+```bash
+uv run python scripts/eval/eval_routing_corpus.py
+```
+
+One scenario is one directory: `scenario.json`, the driver-visible `initial/`
+state, grader-only `hidden/` checks, and `known_good/` and `known_bad/`
+overlays. Every fixture file ends in `.fixture` so linters and pytest ignore
+it. The six categories are bounded implementation, multi-file invariants,
+investigation before edit, scope expansion, plausible but wrong, and
+architecture resolved before delegation.
+
+The grader is deterministic. A verdict is PASS only when no changed path is
+outside the allowed scope, every expected path changed, and every validation
+command exits 0. Judge dimensions are stored and never read.
+
+Exit codes: `0` every control held. `1` a control failed. `2` the corpus is
+invalid. The JSON report states how many scenarios were examined.
+
+## Routing Benchmark Runner
+
+`eval_routing_benchmark.py` plans the #5422 routing experiment and runs it only
+when told to (issue #5424, REQ-045, DESIGN-043). Strategy arms A to F and the
+harness dimension come from one JSON config, so a new model, effort,
+concurrency ceiling, or reviewer needs no code change. The example is
+`scripts/eval/examples/routing-benchmark-config.json`; its values are
+placeholders for the owner to set, not a routing policy.
+
+```bash
+uv run python scripts/eval/eval_routing_benchmark.py            # dry run, zero spend
+uv run python scripts/eval/eval_routing_benchmark.py --live --output RESULTS.jsonl
+```
+
+The dry run loads the config, the #5423 capability matrix, and the #5425
+corpus. It expands strategy x scenario x harness and prints each row with its
+eligibility class, why a row was rejected, and which harness pairs are matched.
+It makes no model call and starts no process. Only `ELIGIBLE_MATCHED` and
+`ELIGIBLE_UNMATCHED` rows are planned. `UNSUPPORTED` and `UNVERIFIED` rows are
+rejected with the reason, and so is a model or effort the harness was never
+seen running.
+
+A pair of harnesses is matched only when both are `ELIGIBLE_MATCHED` and the
+semantic contract is equal: scenario state, task text, grader, routes, work
+packages, concurrency, correction budget, reviewer, fresh-context boundary, and
+handoff artifact. Any difference makes the pair `UNMATCHED` with the field
+named. Nothing is normalized away.
+
+`--live` is the only way to spend. It needs a credential in the environment for
+every planned harness, taken from `HARNESS_AUTH_ENV` in `_runtime_harness.py`.
+Without one the run exits 4 before a process starts. The live backend runs one
+harness process per invocation, one at a time, so fan-out workers never overlap.
+Each planned row gets a fresh scratch copy of its scenario. It records observed
+model and effort as unverified, because it does not yet read backend evidence,
+and it hashes the plan file for the arm F handoff. It has not run
+against a real harness; its tests use a fake process runner.
+
+Exit codes: `0` a plan with at least one planned row, or a live run with no
+harness failure. `1` nothing is plannable. `2` invalid input. `3` a live run hit
+a harness failure. `4` `--live` without credentials.
+
+The deterministic fake, `_routing_backend.ScriptedBackend`, grades with the real
+corpus and detects model and effort mismatch, silent inheritance from the
+parent, a concurrency ceiling breach, broken reviewer isolation, a fresh-context
+or artifact handoff mismatch, and a harness failure kept apart from a task
+failure. Unknown telemetry stays `None` and is never written as zero.
+
 ## Reduced-Control Ablation
 
 `eval_control_ablation.py` answers the question the Durable Outcome Report
@@ -1150,6 +1278,7 @@ it. The task file is trusted repository data: its `acceptance` and
 Its contents are never written to a report. The agent
 under test can still read it by absolute path while it runs, so keep live
 workspaces and reports out of the repository.
+||||||| 7bc260179
 
 ## Held-Out-Gated Optimization
 
@@ -2101,3 +2230,15 @@ the correct input for optimization decisions.
 - [ADR-057](.project-toolkit/architecture/ADR-057-prompt-behavioral-evaluation.md)
 - [ADR-023](.project-toolkit/architecture/ADR-023-quality-gate-prompt-testing.md)
 - [Methodology](.project-toolkit/testing/prompt-eval-methodology.md)
+
+### Hidden regression after integration and repetition variance (#5768)
+
+`evals/durable-outcome-live/corpus/` holds `post_integration_regression` scenarios. Each
+has an `integration` check, an `integration/` directory, and a `hidden_regression/`
+overlay that passes the local check and fails the integration check.
+`eval_routing_corpus.py --corpus DIR --extension` proves the controls hold.
+`eval_durable_live.py --extension-corpus DIR` adds the scenarios to a run, and
+`--first-repeat N` numbers repeats from N so chunked runs keep unique `task_id`/`repeat`
+pairs. `eval_durable_repetitions.py --records A.jsonl [--records B.jsonl]` prints
+per-repeat verdict counts, cost per durable accept, and mean, sample standard deviation,
+minimum, and maximum across repeats. It reports spread only and makes no significance claim.

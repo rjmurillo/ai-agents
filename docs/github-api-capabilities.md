@@ -216,7 +216,7 @@ directly instead of raw `gh`.
 | `validate_pr_description.py` | `.claude/skills/github/scripts/pr/` | Validate PR description |
 | `test_pr_merge_ready.py` | `.claude/skills/github/scripts/pr/` | Check merge readiness |
 | `get_issue_context.py` | `.claude/skills/github/scripts/issue/` | Get issue metadata |
-| `new_issue.py` | `.claude/skills/github/scripts/issue/` | Create issue |
+| `new_issue.py` | `.claude/skills/github/scripts/issue/` | Create issue (`--source` required) |
 | `post_issue_comment.py` | `.claude/skills/github/scripts/issue/` | Post issue comment |
 | `set_issue_labels.py` | `.claude/skills/github/scripts/issue/` | Manage issue labels |
 | `set_issue_milestone.py` | `.claude/skills/github/scripts/issue/` | Set issue milestone |

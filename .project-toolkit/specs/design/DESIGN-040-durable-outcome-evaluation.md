@@ -127,3 +127,28 @@ result never exits 0, so a missing result cannot read as a pass.
 `_percentile` in `_model_sweep_core.py` and `_report_aggregator.py` merge into
 one public `percentile` in `_eval_common.py`. The sweep copy existed because
 the aggregator's helper was private; a public contract removes that reason.
+
+## Hidden regression after integration (extension)
+
+The six-category routing corpus has no case that passes its local check and
+fails after integration. An extension corpus under
+`evals/durable-outcome-live/corpus/` holds scenarios of category
+`post_integration_regression`. Each adds an `integration` block (commands,
+timeout, evidence marker), an `integration/` directory of files that exist only
+after the change lands, and a `hidden_regression/` overlay that passes the local
+check and fails the integration check.
+
+`load_corpus` keeps one scenario per core category and refuses extension
+scenarios. `load_extension_corpus` loads them. `verify_controls` checks
+known-good passes both stages, known-bad fails locally, the hidden regression
+passes locally and fails integration with its marker, and the baseline fails.
+
+The live driver runs the integration check inside the follow-up grade. A change
+that passes acceptance and fails integration records follow-up `FAIL` and
+classifies `ACCEPTED_NOT_DURABLE`. The correction prompt never names the
+integration check.
+
+`rework_minutes` is the wall time of correction rounds (agent rework, no human
+time). `review_findings` and `rollback_events` stay 0 by construction, and
+`unsupported_claims` and `unresolved_uncertainty` stay regex proxies.
+`eval_durable_repetitions.py` reports per-repeat counts and their spread.

@@ -29,12 +29,12 @@ Three small, ordered edits against ADR-100's own text, no new components:
    (OQ1), then reduce `.claude/rules/universal.md` MUST-6 to advisory
    language and refresh the documents
    `tests/validation/test_always_on_corpus_claims.py` cites.
-2. **Item 3**: change `scripts/detect_scope_explosion.py`'s
+2. **Item 3**: change `scripts/detect_scope_explosion.py`'s <!-- orphan-ref-ignore -->
    `BLOCK_THRESHOLD` return path from exit 1 to a report-only exit 0, and
    extend `_partition_generated`'s exclusion list with
    `.project-toolkit/sessions/**`, `.project-toolkit/qa/**`, `.project-toolkit/memory/episodes/**`.
 3. **Item 4**: remove the `SKIP_SCOPE_CHECK` env-var honor in
-   `scripts/detect_scope_explosion.py`, in the same commit as item 3
+   `scripts/detect_scope_explosion.py`, in the same commit as item 3 <!-- orphan-ref-ignore -->
    (never before it).
 
 ## Component Architecture
@@ -79,7 +79,7 @@ an addition.
   `tests/validation/test_audit_procedure_claims.py` expectations from
   blocking to advisory (REQ-023 AC-06); run both locally before push
   (about one second, per the original seed plan's R3 mitigation).
-- Update `scripts/detect_scope_explosion.py`'s own unit tests (wherever
+- Update `scripts/detect_scope_explosion.py`'s own unit tests (wherever <!-- orphan-ref-ignore -->
   they live) to assert exit 0 with advisory output above
   `BLOCK_THRESHOLD`, and to assert `SKIP_SCOPE_CHECK` is no longer read.
 - Confirm `pre_pr_sequence.py`'s gate wiring for both validators does not

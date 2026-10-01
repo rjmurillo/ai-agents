@@ -66,7 +66,10 @@ class TestMergePrSkipPreflightWhenExplicit:
     """When --strategy is explicit, skip repository-settings discovery."""
 
     def _pr_state(self, state="OPEN", mergeable="MERGEABLE"):
-        return {"state": state, "mergeable": mergeable, "mergeStateStatus": "CLEAN"}
+        return {
+            "state": state, "mergeable": mergeable, "mergeStateStatus": "CLEAN",
+            "headRefOid": "a" * 40,
+        }
 
     def test_get_allowed_merge_methods_not_called_when_strategy_explicit(self):
         pr_data = self._pr_state()
@@ -81,6 +84,8 @@ class TestMergePrSkipPreflightWhenExplicit:
             ) as mock_settings,
             patch("subprocess.run", return_value=merge_result),
             patch(f"{_merge_mod.__name__}.write_skill_output"),
+            patch(f"{_merge_mod.__name__}._read_back",
+                  return_value={"state": "MERGED", "headRefOid": "a" * 40}),
         ):
             _merge_mod.main(["--pull-request", "42", "--strategy", "squash"])
         mock_settings.assert_not_called()
@@ -107,6 +112,8 @@ class TestMergePrSkipPreflightWhenExplicit:
             patch(f"{_merge_mod.__name__}._rest_merge",
                   return_value=rest_result) as mock_rest,
             patch(f"{_merge_mod.__name__}.write_skill_output"),
+            patch(f"{_merge_mod.__name__}._read_back",
+                  return_value={"state": "MERGED", "headRefOid": "a" * 40}),
         ):
             rc = _merge_mod.main([
                 "--pull-request", "42",
@@ -133,6 +140,8 @@ class TestMergePrSkipPreflightWhenExplicit:
             patch(f"{_merge_mod.__name__}._fetch_pr_state", return_value=pr_data),
             patch("subprocess.run", return_value=merge_result),
             patch(f"{_merge_mod.__name__}.write_skill_output"),
+            patch(f"{_merge_mod.__name__}._read_back",
+                  return_value={"state": "MERGED", "headRefOid": "a" * 40}),
         ):
             _merge_mod.main(["--pull-request", "42"])
         mock_settings.assert_called_once()

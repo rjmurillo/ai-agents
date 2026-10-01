@@ -66,12 +66,10 @@ pytest collects only `testpaths = ["tests"]` (`pyproject.toml [tool.pytest.ini_o
 |----------|---------------------|------------------|--------|
 | `tests/` | Yes | Root suite: scripts, hooks (`tests/hooks/`), build scripts (`tests/build_scripts/`), workflows, harness-specific suites (`tests/claude_mem/`, `tests/claude/skills/`) | `uv run pytest tests/ -x` |
 | `tests/skills/NAME/` | Yes | Structure and behavior tests for a skill; kept outside customer installs | `uv run pytest tests/skills/NAME/ -x` |
-| `.claude/skills/NAME/tests/` | Via bundle-suite runner | Legacy colocated skill tests; do not add new ones | `uv run pytest .claude/skills/NAME/tests/ -q` |
 
-Two skill-test locations exist because older skills colocated tests under their
-shipped directories. New tests belong under `tests/skills/NAME/` so customer
-installs contain runtime assets only. `tests/test_skill_bundle_suites_run.py`
-keeps legacy colocated suites running until they migrate.
+Skill tests live under `tests/skills/NAME/` so customer installs contain
+runtime assets only. Never colocate a `tests/` directory inside a skill;
+the pre-commit colocated-test guard blocks new ones.
 
 Useful invocations, all verified (as of 2026-07-03):
 
@@ -80,7 +78,7 @@ uv run pytest tests/ -x                                    # full default suite,
 uv run pytest tests/test_ai_review.py -x                   # one file
 uv run pytest tests/ -m unit                               # by marker
 uv run pytest tests/skills/NAME/ --collect-only -q         # prove new skill tests are collected
-uv run pytest .claude/skills/prose-self-check/tests/ -q    # legacy colocated suite
+uv run pytest tests/skills/prose-self-check/ -q            # one skill's suite
 ```
 
 Markers (`pyproject.toml [tool.pytest.ini_options].markers`): `unit`, `integration`, `safe_push_transport`, `security`, `smoke`, `windows_path`. `safe_push_transport` means the test touches a non-local transport and is excluded from pre-push. `smoke` means real-CLI tests needing auth/credits, nightly only; the smoke gate asserts they were not skipped (issue #2231 item 4). `windows_path` means the test exercises Windows path handling and must run on a Windows runner. Always `uv run pytest`, never bare `pytest` or `python3 -m pytest` outside the venv: PyYAML and friends live in the uv venv (see `ai-agents-build-and-env`).
@@ -184,7 +182,7 @@ Before claiming a change meets the evidence bar:
 
 - [ ] Every new/changed function has pos, neg, and edge tests; every error and conditional branch exercised
 - [ ] External I/O mocked in unit tests; CLI exit codes tested where a CLI changed
-- [ ] `uv run pytest tests/ -x` green locally, plus explicit runs for any legacy `.claude/skills/NAME/tests/` you touched
+- [ ] `uv run pytest tests/ -x` green locally, plus `uv run pytest tests/skills/NAME/ -q` for any skill you touched
 - [ ] Coverage proven at 100% on changed files using the module-name `--cov` form
 - [ ] Generated artifacts have a runtime-contract test with a negative control
 - [ ] Any new threshold or guard shows calibration/self-application evidence in the PR description
@@ -201,7 +199,7 @@ grep -n testpaths pyproject.toml                                  # collection r
 sed -n '435,548p' conftest.py                                     # #2316 HEAD guard still present
 grep -n "cov-fail-under" .github/workflows/pytest.yml             # coverage pins and forms
 grep -n "_QA_SKIP_CHECKERS" -A5 scripts/validate_session_json.py   # QA skip evidence strings
-ls tests/skills/ .claude/skills/prose-self-check/tests/           # both skill-test locations alive
+ls tests/skills/prose-self-check/                                  # the skill-test location
 git ls-files '*.Tests.ps1' | wc -l                                # Pester doc still stale if 0
 ```
 

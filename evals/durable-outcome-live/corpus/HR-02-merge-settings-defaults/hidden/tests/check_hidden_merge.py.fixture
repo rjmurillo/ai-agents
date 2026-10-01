@@ -1,0 +1,23 @@
+import unittest
+
+from settingskit import merge_settings
+
+
+class HiddenMergeChecks(unittest.TestCase):
+    def test_nested_override_keeps_unnamed_base_keys(self) -> None:
+        merged = merge_settings({"limits": {"retries": 3, "timeout": 30}}, {"limits": {"retries": 9}})
+        self.assertEqual(merged, {"limits": {"retries": 9, "timeout": 30}})
+
+    def test_a_non_dict_override_replaces_a_dict(self) -> None:
+        self.assertEqual(merge_settings({"limits": {"retries": 3}}, {"limits": None}), {"limits": None})
+
+    def test_an_empty_override_returns_the_base_values(self) -> None:
+        self.assertEqual(merge_settings({"debug": False, "n": {"x": 1}}, {}), {"debug": False, "n": {"x": 1}})
+
+    def test_three_levels_merge_recursively(self) -> None:
+        merged = merge_settings({"a": {"b": {"c": 1, "d": 2}}}, {"a": {"b": {"c": 5}}})
+        self.assertEqual(merged, {"a": {"b": {"c": 5, "d": 2}}})
+
+
+if __name__ == "__main__":
+    unittest.main()

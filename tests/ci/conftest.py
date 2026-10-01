@@ -17,6 +17,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+import yaml
 
 from scripts import bulk_cancel_guard
 from tests.ci.bulk_cancel_cli_fixtures import (
@@ -24,6 +25,7 @@ from tests.ci.bulk_cancel_cli_fixtures import (
     REOPEN_OMITTED_TYPES,
     write_workflows,
 )
+from tests.ci.dispatch_closure_helpers import CONFIG, GATE, HELPER, REPO_ROOT, VERIFIER, git, write
 
 _GHA_WRITER_VARS = (
     "GITHUB_STEP_SUMMARY",
@@ -87,3 +89,28 @@ def _zero_non_target_aggregate_counts() -> Iterator[None]:
         patch("scripts.ci.cli_exit_contract_ratchet.current_count", return_value=0),
     ):
         yield
+
+
+@pytest.fixture
+def trees(tmp_path: Path) -> tuple[Path, Path]:
+    base = tmp_path / "base"
+    base.mkdir()
+    git(base, "init", "-q")
+    git(base, "config", "user.email", "t@example.invalid")
+    git(base, "config", "user.name", "t")
+    gate = base / GATE
+    gate.parent.mkdir(parents=True, exist_ok=True)
+    gate.write_bytes((REPO_ROOT / GATE).read_bytes())
+    config = {
+        "scripts": {"claude_code": {"go": f"python3 {VERIFIER} --pull-request {{number}}"}},
+        "completion_criteria": [],
+    }
+    write(base, CONFIG, yaml.safe_dump(config))
+    write(base, VERIFIER, "import helper\n")
+    write(base, HELPER, "X = 1\n")
+    write(base, "README.md", "unrelated\n")
+    git(base, "add", "-A")
+    git(base, "commit", "-q", "-m", "base")
+    head = tmp_path / "head"
+    git(base, "worktree", "add", "--detach", str(head), "HEAD")
+    return base, head

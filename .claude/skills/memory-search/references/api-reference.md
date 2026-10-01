@@ -22,7 +22,7 @@ from memory_core.memory_router import search_memory
 from memory_core.reflexion_memory import get_episode
 ```
 
-`.claude/skills/memory/tests/conftest.py` does exactly this for the test suite.
+`tests/skills/memory/conftest.py` does exactly this for the test suite.
 
 ## Module Index
 

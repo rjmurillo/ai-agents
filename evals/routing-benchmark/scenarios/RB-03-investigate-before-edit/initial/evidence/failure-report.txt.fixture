@@ -1,0 +1,16 @@
+Gate run 4172, fail_on_regression enabled.
+
+Benchmark step: no regression reported.
+ETL step: report printed
+
+    ETL overweight report
+      overweight: Parser.Tokenize +18.5%
+
+Gate exit code: 0. The build passed although the ETL report lists an
+overweight row that is both interesting and slower than baseline.
+
+Expected exit code: 1.
+
+Reproduce:
+    rows = [EtlRow("Parser.Tokenize", 18.5, True)]
+    decide(False, compare_etl(rows), True)   # returns 0
