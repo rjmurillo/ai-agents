@@ -194,3 +194,67 @@ class TestTableDrivesRequired:
         repo, _, _ = clone
         _table(repo, _entry("always_one"))
         assert _run(repo, "f" * 40) == EXIT_EXTERNAL
+
+
+class TestNotApplicable:
+    def _repo_with_python(self, repo: Path) -> str:
+        (repo / "tool.py").write_text("x", encoding="utf-8")
+        git(repo, "add", "tool.py")
+        git(repo, "commit", "-q", "-m", "py")
+        return git(repo, "rev-parse", "HEAD")
+
+    def test_a_failing_result_from_a_not_applicable_validator_is_not_consulted(
+        self, clone: tuple[Path, str, str]
+    ) -> None:
+        repo, first, _ = clone
+        _table(repo, _entry("always_one"), _entry("only_ps", when=["*.ps1"]))
+        _evidence(repo, first, "always_one")
+        _evidence(repo, first, "only_ps", state="FAIL", reason="x.y", findings=1)
+        out = repo.parent / "m.json"
+        assert _run(repo, first, "--output", str(out), *MODE) == EXIT_OK
+        manifest = json.loads(out.read_text(encoding="utf-8"))
+        assert manifest["not_applicable"] == ["only_ps"]
+
+    def test_the_same_validator_blocks_once_its_files_are_present(
+        self, clone: tuple[Path, str, str]
+    ) -> None:
+        repo, _, _ = clone
+        sha = self._repo_with_python(repo)
+        _table(repo, _entry("always_one"), _entry("only_py", when=["*.py"]))
+        _evidence(repo, sha, "always_one")
+        _evidence(repo, sha, "only_py", state="FAIL", reason="x.y", findings=1)
+        assert _run(repo, sha, *MODE) == EXIT_LOGIC
+
+    def test_a_validator_the_table_does_not_list_is_still_consulted(
+        self, clone: tuple[Path, str, str]
+    ) -> None:
+        repo, first, _ = clone
+        _table(repo, _entry("always_one"))
+        _evidence(repo, first, "always_one")
+        _evidence(repo, first, "stranger", state="FAIL", reason="x.y", findings=1)
+        assert _run(repo, first, *MODE) == EXIT_LOGIC
+
+    def test_a_not_applicable_build_result_cannot_make_the_manifest_digest_bound(
+        self, clone: tuple[Path, str, str]
+    ) -> None:
+        repo, first, _ = clone
+        digest = "c" * 64
+        _table(repo, _entry("always_one"), _entry("pack", tier="build", when=["*.tgz"]))
+        _evidence(repo, first, "always_one")
+        _evidence(repo, first, "pack", digest=digest)
+        out = repo.parent / "m.json"
+        assert _run(repo, first, "--candidate-digest", digest, "--output", str(out), *MODE) == (
+            EXIT_OK
+        )
+        assert json.loads(out.read_text(encoding="utf-8"))["digest_bound"] is False
+
+    def test_a_malformed_file_naming_a_not_applicable_validator_is_not_consulted(
+        self, clone: tuple[Path, str, str]
+    ) -> None:
+        repo, first, _ = clone
+        _table(repo, _entry("always_one"), _entry("only_ps", when=["*.ps1"]))
+        _evidence(repo, first, "always_one")
+        (repo.parent / "ev" / "ps.json").write_text(
+            json.dumps({"validator": "only_ps", "state": "bogus"}), encoding="utf-8"
+        )
+        assert _run(repo, first, *MODE) == EXIT_OK

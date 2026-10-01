@@ -83,7 +83,7 @@ class TestParse:
         with pytest.raises(ApplicabilityError, match="slug"):
             parse_applicability(_doc(_entry(validator=bad)))
 
-    @pytest.mark.parametrize("bad", ["", "release", "COMMIT", None])
+    @pytest.mark.parametrize("bad", ["", "release", "COMMIT", None, [], {}, ["commit"], 5])
     def test_tier_must_be_commit_or_build(self, bad: Any) -> None:
         with pytest.raises(ApplicabilityError, match="tier"):
             parse_applicability(_doc(_entry(tier=bad)))

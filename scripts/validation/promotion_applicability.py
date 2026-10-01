@@ -29,8 +29,17 @@ The loader raises ``ApplicabilityError`` for any bad entry. A missing file is
 an empty table, which the gate reports as ``applicability.absent``, so a deleted
 table blocks promotion instead of excusing every validator.
 
-Mirrors ``scripts/validation/promotion_exceptions.py``: the same bounded,
-no-symlink read, duplicate-key refusal, and per-entry error list.
+Mirrors ``scripts/validation/promotion_exceptions.py`` (``_read_regular_file``,
+``_reject_duplicate_keys``, and ``load_exceptions``, whose contract reads
+"Returns an empty tuple when the file does not exist. Raises
+``ExceptionsFileError`` for an unreadable, non-JSON, or invalid file."):
+the same bounded, no-symlink read, duplicate-key refusal, and per-entry error
+list under an ``entries[N]:`` prefix.
+
+Different from that module: an entry with a missing or unknown key reports only
+those shape errors, then stops. ``promotion_exceptions.py`` goes on to report
+field errors in the same entry. Here a field check would index a key that is not
+there. The author fixes the shape, and the next run reports the field errors.
 """
 
 from __future__ import annotations
@@ -132,7 +141,8 @@ def _entry_problems(entry: object) -> list[str]:
     validator = entry["validator"]
     if not isinstance(validator, str) or not _VALIDATOR_RE.fullmatch(validator):
         problems.append("'validator' must be a lowercase slug such as 'run_python_tests'")
-    if entry["tier"] not in _TIERS:
+    tier = entry["tier"]
+    if not isinstance(tier, str) or tier not in _TIERS:
         problems.append(f"'tier' must be one of {', '.join(sorted(_TIERS))}")
     for field in ("job", "rationale"):
         problem = _text_problem(entry, field)

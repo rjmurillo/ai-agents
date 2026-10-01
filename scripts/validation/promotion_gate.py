@@ -157,6 +157,7 @@ def build_manifest(
     today: date,
     exceptions_loaded: int,
     digest_bound: bool,
+    not_applicable: frozenset[str] = frozenset(),
 ) -> dict[str, Any]:
     """Assemble the manifest. ``verdict`` follows decision 9 whatever the mode."""
     tally = counts(classified, len(remediated))
@@ -172,6 +173,7 @@ def build_manifest(
         "findings": [entry.to_dict() for entry in classified],
         "remediated": remediated,
         "digest_bound": digest_bound,
+        "not_applicable": sorted(not_applicable),
         "evidence": {
             "bound": len(bound.bound),
             "rejected": [item.to_dict() for item in bound.rejected],
@@ -191,8 +193,14 @@ def run_gate(
     mode: str = MODE_ADVISORY,
     today: date | None = None,
     applicability_absent: bool = False,
+    not_applicable: frozenset[str] = frozenset(),
 ) -> GateResult:
     """Compute the manifest and exit code.
+
+    ``not_applicable`` names validators the table lists but marks not applicable
+    to this candidate (decision 9). Their evidence is not consulted. A validator
+    the table does not list at all stays consulted, so an unknown failing result
+    still blocks.
 
     Raises ``ExceptionsFileError`` for a bad exceptions file and ``OSError`` for
     an evidence directory that cannot be read.
@@ -200,6 +208,8 @@ def run_gate(
     day = today or utc_today()
     exceptions = load_exceptions(repo_root)
     records, malformed = load_evidence_dir(evidence_dir)
+    records = tuple(r for r in records if r.outcome.validator not in not_applicable)
+    malformed = tuple(m for m in malformed if m.validator not in not_applicable)
     bound = bind_records(records, candidate, build_validators)
     evidence = BoundEvidence(bound.bound, (*malformed, *bound.rejected))
     synthesized = (
@@ -221,6 +231,7 @@ def run_gate(
         today=day,
         exceptions_loaded=len(exceptions),
         digest_bound=_digest_bound(candidate, bound.bound, build_validators),
+        not_applicable=not_applicable,
     )
     blocked = manifest["verdict"] == "block"
     code = EXIT_LOGIC if blocked and mode == MODE_ENFORCING else EXIT_OK
@@ -301,7 +312,7 @@ def _argument_problem(args: argparse.Namespace) -> str | None:
 
 def _applicable(
     args: argparse.Namespace, candidate: Candidate
-) -> tuple[tuple[str, ...], frozenset[str], bool]:
+) -> tuple[tuple[str, ...], frozenset[str], bool, frozenset[str]]:
     """Return the required validators, the build-tier set, and whether a table supplied them.
 
     The table (decision 3) supplies them from the candidate's own tree. Names
@@ -313,7 +324,8 @@ def _applicable(
     paths = candidate_files(args.repo_root, candidate.sha) if table else ()
     required = {*required_validators(table, paths), *args.require}
     build = build_tier_validators(table) | frozenset(args.build_validator)
-    return tuple(sorted(required)), build, bool(table)
+    skipped = frozenset(entry.validator for entry in table) - required
+    return tuple(sorted(required)), build, bool(table), skipped
 
 
 def _inputs(args: argparse.Namespace) -> tuple[Candidate, PreviousManifest | None]:
@@ -361,6 +373,7 @@ class _Prepared:
     required: tuple[str, ...]
     build: frozenset[str]
     table_present: bool
+    not_applicable: frozenset[str]
 
 
 def _prepare(args: argparse.Namespace) -> _Prepared:
@@ -371,14 +384,14 @@ def _prepare(args: argparse.Namespace) -> _Prepared:
     try:
         candidate, previous = _inputs(args)
         problem = _candidate_problem(args, candidate)
-        required, build, table_present = _applicable(args, candidate)
+        required, build, table_present, skipped = _applicable(args, candidate)
     except (ValueError, ManifestError, OSError, ApplicabilityError) as exc:
         raise _refuse(f"{type(exc).__name__}: {exc}") from exc
     except CandidateCheckError as exc:
         raise _blocked(str(exc)) from exc
     if problem:
         raise _refuse(problem)
-    return _Prepared(candidate, previous, required, build, table_present)
+    return _Prepared(candidate, previous, required, build, table_present, skipped)
 
 
 def _execute(args: argparse.Namespace, prepared: _Prepared) -> GateResult:
@@ -390,6 +403,7 @@ def _execute(args: argparse.Namespace, prepared: _Prepared) -> GateResult:
             required=prepared.required,
             build_validators=prepared.build,
             applicability_absent=not prepared.table_present,
+            not_applicable=prepared.not_applicable,
             previous=prepared.previous,
             mode=args.mode,
             today=args.today,
