@@ -48,6 +48,14 @@ class TestReadPayload:
         assert nudge.read_payload(io.StringIO(padded)) is None
         assert nudge.read_payload(io.StringIO('{"session_id": "a"}')) is not None
 
+    def test_cap_counts_utf8_bytes_not_characters(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(nudge, "MAX_STDIN_BYTES", 20)
+        multibyte = '{"s": "' + "\U0001f600" * 4 + '"}'  # 13 chars, 25 bytes
+        assert len(multibyte) <= 20 < len(multibyte.encode("utf-8"))
+        assert nudge.read_payload(io.StringIO(multibyte)) is None
+
     def test_returns_none_on_read_error(self) -> None:
         class Broken(io.StringIO):
             def read(self, size: int | None = -1) -> str:

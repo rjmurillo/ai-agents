@@ -118,7 +118,7 @@ def read_payload(stream: IO[str]) -> dict[str, Any] | None:
     """Return the Stop payload object, or None when absent or malformed."""
     try:
         raw = stream.read(MAX_STDIN_BYTES + 1)
-        if len(raw) > MAX_STDIN_BYTES:
+        if len(raw.encode("utf-8", errors="replace")) > MAX_STDIN_BYTES:
             return None
         payload = json.loads(raw)
     except (OSError, ValueError):

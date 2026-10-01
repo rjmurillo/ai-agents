@@ -87,10 +87,12 @@ class TestDedupe:
         assert (code, out) == (0, "")
         assert "already nudged" in err
 
+    @pytest.mark.parametrize("round_number", range(30))
     def test_overlapping_stops_produce_exactly_one_nudge(
-        self, corrected: Path, tmp_path: Path
+        self, round_number: int, corrected: Path, tmp_path: Path
     ) -> None:
-        state = tmp_path / "state"
+        """30 rounds, each with a fresh state directory, sample many interleavings."""
+        state = tmp_path / f"state-{round_number}"
         stdin = payload(corrected)
         with ThreadPoolExecutor(max_workers=16) as pool:
             runs = list(pool.map(lambda _: run_hook(stdin, state), range(32)))
