@@ -8,6 +8,7 @@ gate's own loader accepts and binds to the candidate.
 from __future__ import annotations
 
 import json
+import runpy
 import subprocess
 import sys
 from pathlib import Path
@@ -253,3 +254,11 @@ def test_the_script_exits_two_for_a_bad_validator_name(tmp_path: Path) -> None:
         check=False,
     )
     assert result.returncode == EXIT_CONFIG
+
+
+def test_the_entry_point_guard_returns_the_exit_code(tmp_path: Path) -> None:
+    script = Path(emitter.__file__).resolve()
+    argv = [str(script), *_argv(tmp_path, **{"--validator": "../x"})]
+    with patch.object(sys, "argv", argv), pytest.raises(SystemExit) as stop:
+        runpy.run_path(str(script), run_name="__main__")
+    assert stop.value.code == EXIT_CONFIG

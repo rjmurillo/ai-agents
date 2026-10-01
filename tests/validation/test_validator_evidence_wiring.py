@@ -106,11 +106,55 @@ def test_the_job_checks_out_the_emitter_before_the_call(call: dict[str, Any]) ->
     assert any(str(s.get("uses", "")).startswith("actions/checkout@") for s in before)
 
 
+def _effective_permissions(call: dict[str, Any]) -> dict[str, Any]:
+    """Job permissions, or the workflow-level block the job inherits."""
+    job = call["job"].get("permissions")
+    if job is not None:
+        return dict(job)
+    document = yaml.safe_load((WORKFLOWS / call["file"]).read_text(encoding="utf-8"))
+    return dict(document.get("permissions") or {})
+
+
 @pytest.mark.parametrize("call", _calls(), ids=lambda c: f"{c['file']}:{c['job_id']}")
-def test_the_job_gains_no_write_to_contents_and_no_token_exchange(call: dict[str, Any]) -> None:
-    permissions = call["job"].get("permissions") or {}
+def test_the_job_has_no_contents_write_and_no_token_exchange(call: dict[str, Any]) -> None:
+    permissions = _effective_permissions(call)
     assert permissions.get("contents", "read") != "write"
     assert "id-token" not in permissions
+
+
+SKIP_ON_SHORT_CIRCUIT = "steps.should-run.outputs.skip != 'true'"
+EXPECTED_RAN = {
+    "analyze_actions": "needs.check-paths.outputs.should-run-analysis == 'true'",
+    "analyze_python": "needs.check-paths.outputs.should-run-analysis == 'true'",
+    "validate_generated_files": SKIP_ON_SHORT_CIRCUIT,
+    "validate_path_normalization": SKIP_ON_SHORT_CIRCUIT,
+    "validate_pr": SKIP_ON_SHORT_CIRCUIT,
+    "validate_pr_title": (
+        "github.event_name != 'merge_group' && github.actor != 'dependabot[bot]' "
+        "&& github.actor != 'github-actions[bot]' && github.actor != 'renovate[bot]'"
+    ),
+    "validate_plugin_version_bump": None,
+    "run_python_tests": None,
+    "check_whole_tree_count_ratchets_blocking": None,
+}
+
+
+def _ran_expression(call: dict[str, Any]) -> str | None:
+    value = call["step"]["with"].get("ran")
+    if value is None:
+        return None
+    return str(value).removeprefix("${{ ").removesuffix(" }}")
+
+
+def test_every_uploaded_validator_has_an_expected_ran_expression() -> None:
+    assert set(_uploaded()) == set(EXPECTED_RAN)
+
+
+@pytest.mark.parametrize("validator", sorted(EXPECTED_RAN))
+def test_a_job_that_can_short_circuit_says_so_in_ran(validator: str) -> None:
+    """A green job that did no work must read SKIP, so `ran` must follow its own guard."""
+    call = _uploaded()[validator]
+    assert _ran_expression(call) == EXPECTED_RAN[validator]
 
 
 def test_the_emitter_checkout_in_a_conditional_job_fetches_only_what_it_needs() -> None:

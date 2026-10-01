@@ -418,3 +418,4 @@ jobs:
         with:
           validator: validate_pr
           job-status: ${{ job.status }}
+          ran: ${{ steps.should-run.outputs.skip != 'true' }}

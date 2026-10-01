@@ -41,6 +41,9 @@ runs:
         DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         JOB_ID: ${{ github.job }}
         EVIDENCE_DIR: ${{ runner.temp }}/validator-evidence
+        # The emitter needs no token. A caller workflow may set GH_TOKEN for
+        # its own steps, and this blank keeps it out of this process.
+        GH_TOKEN: ''
       run: >-
         python3 scripts/validation/emit_validator_evidence.py
         --validator "$VALIDATOR"
