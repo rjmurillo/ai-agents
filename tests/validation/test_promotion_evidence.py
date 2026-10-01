@@ -7,6 +7,7 @@ candidate must be rejected, and every rejection must stay visible.
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any, cast
 
@@ -359,3 +360,24 @@ class TestHardening:
         (tmp_path / "h.json").write_text("[1,", encoding="utf-8")
         _, rejected = load_evidence_dir(tmp_path)
         assert rejected[0].validator == ""
+
+
+class TestPlatformPortability:
+    def test_loads_where_the_platform_has_no_nofollow_flag(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.delattr(os, "O_NOFOLLOW", raising=False)
+        monkeypatch.delattr(os, "O_BINARY", raising=False)
+        (tmp_path / "ok.json").write_text(json.dumps(_doc()), encoding="utf-8")
+        records, rejected = load_evidence_dir(tmp_path)
+        assert len(records) == 1 and rejected == ()
+
+    def test_symlink_is_refused_without_the_nofollow_flag(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.delattr(os, "O_NOFOLLOW", raising=False)
+        target = tmp_path / "t.txt"
+        target.write_text(json.dumps(_doc()), encoding="utf-8")
+        (tmp_path / "link.json").symlink_to(target)
+        records, rejected = load_evidence_dir(tmp_path)
+        assert records == () and rejected[0].reason == REASON_UNREADABLE

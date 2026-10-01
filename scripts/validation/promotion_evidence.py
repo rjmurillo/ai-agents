@@ -237,11 +237,16 @@ def _shown(value: str) -> str:
 def _read_regular_file(path: Path) -> str:
     """Return the text of a regular file no larger than the cap, or raise OSError.
 
-    Opens with ``O_NOFOLLOW`` and checks the opened descriptor, so a path
-    swapped for a symlink after listing is refused rather than followed, and
-    reads at most one byte past the cap so a file that grew is still caught.
+    Refuses a symlink up front, then opens with ``O_NOFOLLOW`` where the
+    platform has it (Windows does not, so the up-front check is the portable
+    guard there) and checks the opened descriptor, so a path swapped for a
+    symlink after listing is refused rather than followed. Reads at most one
+    byte past the cap so a file that grew is still caught.
     """
-    descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+    if path.is_symlink():
+        raise OSError("a symlink is not accepted")
+    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_BINARY", 0)
+    descriptor = os.open(path, flags)
     try:
         if not stat.S_ISREG(os.fstat(descriptor).st_mode):
             raise OSError("not a regular file")
