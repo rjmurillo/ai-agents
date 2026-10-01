@@ -10,6 +10,10 @@ description: >-
   fix-markdown-fences).
 license: MIT
 metadata:
+  capability:
+    kind: reusable-primitive
+    depends-on: [artifact-neutral-code-quality]
+    status: active
   routing:
     role: lifecycle
     invoker: review
