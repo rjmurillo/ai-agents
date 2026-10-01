@@ -10,8 +10,9 @@ here for authored artifacts only:
   2. derived cardinality claims: "the three filters" followed by four filters.
      This is duplicated mutable state.
 
-The scan set is an allowlist of authored sources: the capability graph's canonical
-templates (`CANONICAL_GLOBS`), agent and skill partials, top-level template docs,
+The scan set is an allowlist of authored sources: every file the instruction byte
+corpus classifies as authored (`instruction_bytes_corpus.canonical_paths`: templates,
+per-harness agent templates, partials, governance, root AGENTS.md and CLAUDE.md),
 hand-kept `.github/prompts/` files, skill references, and untemplated skills.
 Generated projections are not in the allowlist, so one authored source with N
 generated copies is the good shape and is never counted. The one projection that
@@ -45,29 +46,24 @@ from pathlib import Path
 from typing import Any
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
-if str(_SCRIPT_DIR) not in sys.path:
-    sys.path.insert(0, str(_SCRIPT_DIR))
+for _path in (_SCRIPT_DIR, _SCRIPT_DIR.parents[1]):
+    if str(_path) not in sys.path:
+        sys.path.insert(0, str(_path))
 
-from check_capability_graph import (  # noqa: E402
-    CANONICAL_GLOBS,
-    TreeError,
-    survey,
-)
+from check_capability_graph import TreeError, survey  # noqa: E402
 from nl_cardinality import FENCE_RE, derived_count_claims, simplify  # noqa: E402
+
+from scripts.validation.instruction_bytes_corpus import canonical_paths  # noqa: E402
 
 BASELINE_PATH = "scripts/validation/nl_structural_debt_baseline.json"
 MIN_BLOCK_LINES = 5
 MIN_BLOCK_CHARS = 200
 MIN_LINE_CHARS = 20
 SKILL_ROOT = ".claude/skills"
-# Authored text beyond the capability-block candidates (CANONICAL_GLOBS): agent and
-# skill partials, top-level template docs, and hand-maintained prompts.
-EXTRA_AUTHORED_GLOBS: tuple[tuple[str, str], ...] = (
-    ("templates/agents/partials", "*.mustache"),
-    ("templates/skills/partials", "*.mustache"),
-    ("templates", "*.md"),
-    (".github/prompts", "*.md"),
-)
+# Authored text the byte corpus does not classify: hand-kept prompts. Everything else
+# authored comes from `instruction_bytes_corpus.canonical_paths`, the one source of truth.
+EXTRA_AUTHORED_GLOBS: tuple[tuple[str, str], ...] = ((".github/prompts", "*.md"),)
+NL_SUFFIXES = (".md", ".tmpl", ".mustache")
 # `.github/prompts/pr-quality-gate-*.md` is generated from the review skill's
 # references (templates/platforms/binplace.yaml), so it is a projection.
 GENERATED_PROMPT_PREFIX = "pr-quality-gate-"
@@ -78,10 +74,18 @@ class ScanError(Exception):
     """The scan cannot answer the question, so a clean result would be vacuous."""
 
 
+class GraphViolationError(Exception):
+    """The capability graph is invalid, so fan-out derived from it would mislead."""
+
+
 def authored_files(repo_root: Path) -> list[Path]:
-    """Return authored sources: templates, partials, hand-kept prompts, skill references."""
-    files: list[Path] = []
-    for subdir, pattern in (*CANONICAL_GLOBS, *EXTRA_AUTHORED_GLOBS):
+    """Return authored sources: the byte corpus set, hand-kept prompts, skill references."""
+    files = [
+        repo_root / rel
+        for rel in canonical_paths(repo_root)
+        if rel.endswith(NL_SUFFIXES) and not Path(rel).name.startswith(GENERATED_PROMPT_PREFIX)
+    ]
+    for subdir, pattern in EXTRA_AUTHORED_GLOBS:
         files.extend(
             p
             for p in sorted((repo_root / subdir).glob(pattern))
@@ -203,8 +207,16 @@ def compare(
 
 
 def amplification(repo_root: Path, duplicates: dict[str, int]) -> dict[str, dict[str, int]]:
-    """Report authored change amplification per capability owner (steady state is 1)."""
-    nodes, owners, _findings = survey(repo_root)
+    """Report authored change amplification per capability owner (steady state is 1).
+
+    Raises GraphViolationError over an invalid graph: fan-out from a broken graph misleads.
+    """
+    nodes, owners, findings = survey(repo_root)
+    if findings:
+        raise GraphViolationError(
+            f"capability graph has {len(findings)} violation(s); fix them before "
+            "--report: " + "; ".join(findings[:3])
+        )
     report: dict[str, dict[str, int]] = {}
     for name, owner in sorted(owners.items()):
         copies = sum(1 for pair in duplicates if owner.path in pair.split("|"))
@@ -233,23 +245,18 @@ def run(repo_root: Path, update: bool, report: bool = False) -> int:
         current = measure(repo_root)
         path = repo_root / BASELINE_PATH
         baseline = current if update and not path.is_file() else _load_baseline(repo_root)
+        fanout = amplification(repo_root, current["duplicate_blocks"]) if report else {}
+    except GraphViolationError as exc:
+        print(f"[FAIL] {exc}", file=sys.stderr)
+        return 1
     except (ScanError, TreeError) as exc:
         print(f"[FAIL] {exc}", file=sys.stderr)
         return 2
     growth, shrink = compare(current, baseline)
     examined = len(authored_files(repo_root))
     if report:
-        print(
-            json.dumps(
-                {
-                    **current,
-                    "amplification": amplification(repo_root, current["duplicate_blocks"]),
-                    "examined": examined,
-                },
-                indent=2,
-                sort_keys=True,
-            )
-        )
+        payload = {**current, "amplification": fanout, "examined": examined}
+        print(json.dumps(payload, indent=2, sort_keys=True))
     if growth:
         print(f"[FAIL] {len(growth)} structural debt increase(s):", file=sys.stderr)
         print("\n".join(f"  {g}" for g in growth), file=sys.stderr)
