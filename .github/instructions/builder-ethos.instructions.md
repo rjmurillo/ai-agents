@@ -129,7 +129,7 @@ Restates the Precedence Stack for mid-execution: the current request is User Sov
 
 Every post-satisfaction finding is one of four classes; classify it with the `avoiding-manufactured-work` skill's disposition procedure, not a second doctrine.
 
-An agent may boil any lake the user named. A lake the agent found gets flagged in the PR body, per-issue handoff, or retro file; the agent must never file an issue for it without explicit user authorization for that item or an explicitly documented, bounded standing authorization. Filing is the user's decision under User Sovereignty in section 3. This does not change the four-class table (Blocker, Requested improvement, Optional enhancement, Side quest); it only says where the flag for an agent-found item lands.
+An agent may boil any lake the user named. A lake the agent found gets flagged in the PR body, per-issue handoff, or retro file; an agent may only flag, never file, an issue for it unless the user explicitly authorizes that item or a documented, bounded standing authorization covers it. Filing is the user's decision under User Sovereignty in section 3. This does not change the four-class table (Blocker, Requested improvement, Optional enhancement, Side quest); it only says where the flag for an agent-found item lands.
 
 | Class | Meaning | Keeps the task active? |
 |---|---|---|
