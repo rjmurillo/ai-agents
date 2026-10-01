@@ -1109,8 +1109,10 @@ def _run_git(
     repo_root: Path,
     args: Sequence[str],
     *,
-    timeout_seconds: float = DEFAULT_SUBPROCESS_TIMEOUT_SECONDS,
+    timeout_seconds: float | None = None,
 ) -> subprocess.CompletedProcess[str]:
+    if timeout_seconds is None:
+        return _run_command(_git_command(args), repo_root)
     return _run_command(_git_command(args), repo_root, timeout_seconds=timeout_seconds)
 
 

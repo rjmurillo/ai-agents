@@ -6079,7 +6079,7 @@ def test_push_policy_blocks_main_and_preserves_destination_branch(
     monkeypatch.setattr(policy, "_check_review_marker", capture_marker)
     monkeypatch.setattr(policy, "_check_plugin_version", lambda *_args: 0)
     # The infrastructure scan has its own suite (test_push_infrastructure_scan.py).
-    monkeypatch.setattr(policy, "check_pushed_infrastructure", lambda *_args: 0)
+    monkeypatch.setattr(policy, "check_pushed_infrastructure", lambda *_args, **_kwargs: 0)
 
     blocked = policy.check_push_refs(
         io.StringIO(f"refs/heads/local {head} refs/heads/main {remote}\n"),
