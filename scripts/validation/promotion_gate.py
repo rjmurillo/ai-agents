@@ -36,9 +36,15 @@ if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
 from scripts.validation.evidence import CheckOutcome  # noqa: E402
+from scripts.validation.promotion_applicability import (  # noqa: E402
+    ApplicabilityError,
+    build_tier_validators,
+    load_applicability,
+    required_validators,
+)
 from scripts.validation.promotion_candidate import (  # noqa: E402
     CandidateCheckError,
-    InvalidCandidateNameError,
+    candidate_files,
     candidate_on_branch,
     tag_names_candidate,
 )
@@ -102,19 +108,19 @@ def _digest_bound(
 
 
 def _no_applicability_outcome(candidate: Candidate) -> CheckOutcome:
-    """No required validator was named, so nothing says what must have run.
+    """No applicability table supplied the required set, so nothing says what must have run.
 
-    ADR-113 decision 3 computes the required set from an applicability table.
-    Until that table feeds this program, an empty set is not a clean sheet: one
-    unrelated ``PASS`` would otherwise promote a candidate no applicable
-    validator examined.
+    ADR-113 decision 3 computes the required set from an applicability table. An
+    absent or empty table, or an empty set, is not a clean sheet: one unrelated
+    ``PASS`` would otherwise promote a candidate no applicable validator
+    examined, and a short ``--require`` list could not stand in for the table.
     """
     return CheckOutcome.unknown(
         "promotion",
         reason=REASON_NO_APPLICABILITY,
         scope=f"candidate {candidate.sha[:12]}",
         examined=0,
-        detail="no required validators were named, so no applicable result can be missing",
+        detail="the applicability table is absent or empty, or no validators were named",
     )
 
 
@@ -151,6 +157,7 @@ def build_manifest(
     today: date,
     exceptions_loaded: int,
     digest_bound: bool,
+    not_applicable: frozenset[str] = frozenset(),
 ) -> dict[str, Any]:
     """Assemble the manifest. ``verdict`` follows decision 9 whatever the mode."""
     tally = counts(classified, len(remediated))
@@ -166,6 +173,7 @@ def build_manifest(
         "findings": [entry.to_dict() for entry in classified],
         "remediated": remediated,
         "digest_bound": digest_bound,
+        "not_applicable": sorted(not_applicable),
         "evidence": {
             "bound": len(bound.bound),
             "rejected": [item.to_dict() for item in bound.rejected],
@@ -184,8 +192,15 @@ def run_gate(
     previous: PreviousManifest | None = None,
     mode: str = MODE_ADVISORY,
     today: date | None = None,
+    applicability_absent: bool = False,
+    not_applicable: frozenset[str] = frozenset(),
 ) -> GateResult:
     """Compute the manifest and exit code.
+
+    ``not_applicable`` names validators the table lists but marks not applicable
+    to this candidate (decision 9). Their evidence is not consulted. A validator
+    the table does not list at all stays consulted, so an unknown failing result
+    still blocks.
 
     Raises ``ExceptionsFileError`` for a bad exceptions file and ``OSError`` for
     an evidence directory that cannot be read.
@@ -193,13 +208,15 @@ def run_gate(
     day = today or utc_today()
     exceptions = load_exceptions(repo_root)
     records, malformed = load_evidence_dir(evidence_dir)
+    records = tuple(r for r in records if r.outcome.validator not in not_applicable)
+    malformed = tuple(m for m in malformed if m.validator not in not_applicable)
     bound = bind_records(records, candidate, build_validators)
     evidence = BoundEvidence(bound.bound, (*malformed, *bound.rejected))
     synthesized = (
         *missing_outcomes(required, bound.bound, candidate),
         *unreadable_outcomes(malformed),
     )
-    if not required:
+    if applicability_absent or not required:
         synthesized = (*synthesized, _no_applicability_outcome(candidate))
     findings = collect_findings(bound.bound, synthesized)
     classified = classify_findings(findings, exceptions, day, deny_all_approvals)
@@ -214,6 +231,7 @@ def run_gate(
         today=day,
         exceptions_loaded=len(exceptions),
         digest_bound=_digest_bound(candidate, bound.bound, build_validators),
+        not_applicable=not_applicable,
     )
     blocked = manifest["verdict"] == "block"
     code = EXIT_LOGIC if blocked and mode == MODE_ENFORCING else EXIT_OK
@@ -262,9 +280,24 @@ def _summary(manifest: dict[str, Any]) -> str:
     return f"promotion gate: {verdict} state={manifest['state']} {shown}"
 
 
-def _config_error(message: str) -> int:
+class _GateExitError(Exception):
+    """Stops the run with an ADR-035 exit code after the message is printed."""
+
+    def __init__(self, code: int) -> None:
+        super().__init__(code)
+        self.code = code
+
+
+def _refuse(message: str) -> _GateExitError:
+    """Bad input or configuration: exit 2."""
     print(f"[FAIL] promotion gate: {json.dumps(message)}", file=sys.stderr)
-    return EXIT_CONFIG
+    return _GateExitError(EXIT_CONFIG)
+
+
+def _blocked(message: str) -> _GateExitError:
+    """An external dependency (git, the filesystem) could not answer: exit 3."""
+    print(f"[BLOCKED] promotion gate: {json.dumps(message)}", file=sys.stderr)
+    return _GateExitError(EXIT_EXTERNAL)
 
 
 def _argument_problem(args: argparse.Namespace) -> str | None:
@@ -275,6 +308,24 @@ def _argument_problem(args: argparse.Namespace) -> str | None:
     if args.mode == MODE_ENFORCING and not args.ancestor_of:
         return "enforcing mode requires --ancestor-of, so the candidate is a default-branch commit"
     return None
+
+
+def _applicable(
+    args: argparse.Namespace, candidate: Candidate
+) -> tuple[tuple[str, ...], frozenset[str], bool, frozenset[str]]:
+    """Return the required validators, the build-tier set, and whether a table supplied them.
+
+    The table (decision 3) supplies them from the candidate's own tree. Names
+    given on the command line add to the table and never replace it, so an
+    absent or empty table cannot be replaced by a short list: the third value
+    is False then, and ``run_gate`` blocks on ``applicability.absent``.
+    """
+    table = load_applicability(args.repo_root)
+    paths = candidate_files(args.repo_root, candidate.sha) if table else ()
+    required = {*required_validators(table, paths), *args.require}
+    build = build_tier_validators(table) | frozenset(args.build_validator)
+    skipped = frozenset(entry.validator for entry in table) - required
+    return tuple(sorted(required)), build, bool(table), skipped
 
 
 def _inputs(args: argparse.Namespace) -> tuple[Candidate, PreviousManifest | None]:
@@ -315,49 +366,65 @@ def _write_outputs(args: argparse.Namespace, manifest: dict[str, Any]) -> None:
             handle.write(f"release_eligible={'true' if eligible else 'false'}\n")
 
 
-def main(argv: Sequence[str] | None = None) -> int:
-    """CLI entry point. Returns an ADR-035 exit code."""
-    args = _parser().parse_args(argv)
+@dataclass(frozen=True, slots=True)
+class _Prepared:
+    candidate: Candidate
+    previous: PreviousManifest | None
+    required: tuple[str, ...]
+    build: frozenset[str]
+    table_present: bool
+    not_applicable: frozenset[str]
+
+
+def _prepare(args: argparse.Namespace) -> _Prepared:
+    """Validate arguments and resolve the candidate and applicable validators."""
     problem = _argument_problem(args)
     if problem:
-        return _config_error(problem)
+        raise _refuse(problem)
     try:
         candidate, previous = _inputs(args)
-    except (ValueError, ManifestError, OSError) as exc:
-        return _config_error(f"{type(exc).__name__}: {exc}")
-    try:
         problem = _candidate_problem(args, candidate)
-    except InvalidCandidateNameError as exc:
-        return _config_error(str(exc))
+        required, build, table_present, skipped = _applicable(args, candidate)
+    except (ValueError, ManifestError, OSError, ApplicabilityError) as exc:
+        raise _refuse(f"{type(exc).__name__}: {exc}") from exc
     except CandidateCheckError as exc:
-        print(f"[BLOCKED] promotion gate: {json.dumps(str(exc))}", file=sys.stderr)
-        return EXIT_EXTERNAL
+        raise _blocked(str(exc)) from exc
     if problem:
-        return _config_error(problem)
+        raise _refuse(problem)
+    return _Prepared(candidate, previous, required, build, table_present, skipped)
+
+
+def _execute(args: argparse.Namespace, prepared: _Prepared) -> GateResult:
     try:
-        result = run_gate(
+        return run_gate(
             repo_root=args.repo_root,
             evidence_dir=args.evidence_dir,
-            candidate=candidate,
-            required=tuple(args.require),
-            build_validators=frozenset(args.build_validator),
-            previous=previous,
+            candidate=prepared.candidate,
+            required=prepared.required,
+            build_validators=prepared.build,
+            applicability_absent=not prepared.table_present,
+            not_applicable=prepared.not_applicable,
+            previous=prepared.previous,
             mode=args.mode,
             today=args.today,
         )
     except ExceptionsFileError as exc:
-        return _config_error(str(exc))
+        raise _refuse(str(exc)) from exc
     except OSError as exc:
-        print(f"[BLOCKED] promotion gate: {json.dumps(type(exc).__name__)}", file=sys.stderr)
-        return EXIT_EXTERNAL
+        raise _blocked(type(exc).__name__) from exc
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    """CLI entry point. Returns an ADR-035 exit code."""
+    args = _parser().parse_args(argv)
     try:
-        _write_outputs(args, result.manifest)
-    except OSError as exc:
-        print(
-            f"[BLOCKED] promotion gate cannot write: {json.dumps(type(exc).__name__)}",
-            file=sys.stderr,
-        )
-        return EXIT_EXTERNAL
+        result = _execute(args, _prepare(args))
+        try:
+            _write_outputs(args, result.manifest)
+        except OSError as exc:
+            raise _blocked(f"cannot write {type(exc).__name__}") from exc
+    except _GateExitError as stop:
+        return stop.code
     print(_summary(result.manifest))
     return result.exit_code
 

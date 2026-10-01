@@ -16,6 +16,7 @@ import pytest
 
 from scripts.validation import promotion_gate as gate
 from scripts.validation.evidence import EvidenceState
+from scripts.validation.promotion_applicability import Applicability
 from scripts.validation.promotion_evidence import Candidate
 from scripts.validation.promotion_exceptions import (
     EXCEPTIONS_RELATIVE_PATH,
@@ -265,6 +266,9 @@ class TestCli:
     @pytest.fixture(autouse=True)
     def _git_answers_yes(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Mock the git boundary. test_promotion_candidate.py drives real repositories."""
+        table = (Applicability("pytest", "commit", "Run Python Tests", ("always",), "test row"),)
+        monkeypatch.setattr(gate, "load_applicability", lambda _root: table)
+        monkeypatch.setattr(gate, "candidate_files", lambda *_a: ())
         monkeypatch.setattr(gate, "candidate_on_branch", lambda *_a: (True, "ok"))
         monkeypatch.setattr(gate, "tag_names_candidate", lambda *_a: (True, "ok"))
 
@@ -357,6 +361,7 @@ class TestCli:
         assert json.loads(out.read_text(encoding="utf-8"))["counts"]["remediated"] == 1
 
     def test_build_validator_flag_binds_on_digest(self, tmp_path: Path) -> None:
+        _write(tmp_path / "ev", "pytest.json", _evidence())
         _write(tmp_path / "ev", "pack.json", _evidence(validator="pack-size", digest=DIGEST))
         args = self._args(
             tmp_path, "--candidate-digest", DIGEST, "--build-validator", "pack-size",
