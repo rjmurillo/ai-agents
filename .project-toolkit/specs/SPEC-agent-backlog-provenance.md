@@ -211,7 +211,7 @@ EARS syntax. Each is pass or fail from evidence. The sub-issue that carries it i
 | Decision | Owner |
 |---|---|
 | AC-8 circuit breaker: decided D16, report-only. Enforcement (closing issues) stays out of scope; net creation from Q5's numbers is about 4 issues a day | owner, decided |
-| AC-6 as a sub-issue of #5698 (the generator sweep: adr-review deferral MUST, qa and security CONDITIONAL verdicts, research skill, task-decomposer raw gh) | owner |
+| AC-6 as a sub-issue of #5698 (the generator sweep: adr-review deferral MUST, qa and security CONDITIONAL verdicts, research skill, task-decomposer raw gh): resolved, owner decision D7 (fix now), shipped in PR #6054 | owner, decided |
 | Split #5698: provenance epic (AC-1 to AC-6, AC-14, AC-15) and a sibling epic for agent-selected spend (AC-9 to AC-13) | owner |
 | Whether "human" means web form only (verifiable) or also owner-typed session requests (asserted through the script's marker, forgeable). Interim rule in AC-3 until decided | owner |
 | A separate identity for agent sessions (GitHub App or machine user) so provenance is authenticated by login rather than asserted by a marker | owner |

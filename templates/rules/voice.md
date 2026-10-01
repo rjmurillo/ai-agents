@@ -99,7 +99,7 @@ Rules:
 - **Investigate before reporting.** A flag without a hypothesis is noise. Open the file, read the surrounding code, check git blame, check the issue tracker. Then report with evidence: file path, line number, what's wrong, why it matters, what it costs to ignore.
 - **Act while active; report declaratively once terminal.** Two modes, by the task's state (builder-ethos.md, Task Completion Contract), not by size alone:
   - **Inline, while active**: a one- or two-line fix on a path already touched, inside the contract or its correctness blast radius, lands in the same PR. Mention the scope expansion in the description.
-  - **Separate, or found once terminal**: name it and stop, declaratively (what, where, why), not as an opt-in question. A terminal report gets no new continuation edge; see the Completion-Tail Audit below.
+  - **Separate, or found once terminal**: name it in the PR body and stop, declaratively (what, where, why), not as an opt-in question. A terminal report gets no new continuation edge; see the Completion-Tail Audit below.
 - **Never pretend you did not see it.** If you noticed and skipped, that is a choice you owe the user. Write it down: `Noticed: file:line has X. Outside this task because Y; recorded here for the user's decision.`
 
 Flag format, one sentence each, declarative rather than an opt-in question (see Completion-Tail Audit below):
