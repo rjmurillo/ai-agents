@@ -231,32 +231,50 @@ def _third_party(path: Path, seen: set[Path]) -> set[str]:
     return bad
 
 
+def _module_file(name: str) -> Path:
+    module = ROOT.joinpath(*name.split("."))
+    return (
+        module.with_suffix(".py") if module.with_suffix(".py").exists() else module / "__init__.py"
+    )
+
+
 def _closure(path: Path, seen: set[Path]) -> set[Path]:
-    """Every repository file the emitter loads, found by following its imports."""
+    """Every repository file the emitter loads: its imports and each package marker above them.
+
+    Importing ``scripts.validation.evidence`` runs ``scripts/__init__.py`` and
+    ``scripts/validation/__init__.py`` first, and the second one imports
+    ``scripts.validation.models``, so those are part of the closure too.
+    """
     if path in seen:
         return seen
     seen.add(path)
-    for name in _imports(path):
-        if not name.startswith("scripts."):
-            continue
-        module = ROOT.joinpath(*name.split("."))
-        target = module.with_suffix(".py")
-        _closure(target if target.exists() else module / "__init__.py", seen)
+    modules = [name for name in _imports(path) if name.startswith("scripts.")]
+    for name in modules:
+        parts = name.split(".")
+        for depth in range(1, len(parts) + 1):
+            _closure(_module_file(".".join(parts[:depth])), seen)
     return seen
 
 
 def _sparse_checkout(call: dict[str, Any]) -> tuple[list[str], bool] | None:
-    """The call's sparse checkout lines and cone mode, or None when it checks out in full."""
+    """The sparse checkout in force at the call, or None when the last checkout is full.
+
+    Each checkout step replaces the workspace, so the last one before the call
+    decides which files exist.
+    """
     steps = call["job"]["steps"]
+    current: tuple[list[str], bool] | None = None
     for step in steps[: steps.index(call["step"])]:
         if not str(step.get("uses", "")).startswith("actions/checkout@"):
             continue
         options = step.get("with") or {}
         text = options.get("sparse-checkout")
-        if text:
-            lines = [line.strip() for line in str(text).splitlines() if line.strip()]
-            return lines, options.get("sparse-checkout-cone-mode", True) is not False
-    return None
+        if not text:
+            current = None
+            continue
+        lines = [line.strip() for line in str(text).splitlines() if line.strip()]
+        current = (lines, options.get("sparse-checkout-cone-mode", True) is not False)
+    return current
 
 
 def _is_checked_out(name: str, patterns: list[str], cone: bool) -> bool:
@@ -279,20 +297,31 @@ def _is_checked_out(name: str, patterns: list[str], cone: bool) -> bool:
 def test_a_sparse_checkout_ahead_of_a_call_carries_the_emitter_and_its_imports() -> None:
     """Some jobs check out only a few files, so the emitter must be in that list."""
     needed = {path.relative_to(ROOT).as_posix() for path in _closure(EMITTER, set())}
-    needed |= {
-        "scripts/__init__.py",
-        "scripts/validation/__init__.py",
-        ".github/actions/upload-validator-evidence/action.yml",
-    }
-    checked = 0
+    needed |= {".github/actions/upload-validator-evidence/action.yml"}
     for call in _calls():
         sparse = _sparse_checkout(call)
         if sparse is None:
             continue
-        checked += 1
         for name in needed:
             assert _is_checked_out(name, *sparse), f"{call['file']}:{call['job_id']} omits {name}"
-    assert checked >= 1
+
+
+def test_the_closure_includes_the_package_marker_imports() -> None:
+    names = {path.relative_to(ROOT).as_posix() for path in _closure(EMITTER, set())}
+    assert {
+        "scripts/__init__.py",
+        "scripts/validation/__init__.py",
+        "scripts/validation/models.py",
+    } <= names
+
+
+def test_a_later_full_checkout_replaces_an_earlier_sparse_one() -> None:
+    sparse = {"uses": "actions/checkout@x", "with": {"sparse-checkout": "a"}}
+    full = {"uses": "actions/checkout@x"}
+    call = {"job": {"steps": [sparse, full, {"id": "call"}]}, "step": {"id": "call"}}
+    assert _sparse_checkout(call) is None
+    call = {"job": {"steps": [full, sparse, {"id": "call"}]}, "step": {"id": "call"}}
+    assert _sparse_checkout(call) == (["a"], True)
 
 
 def test_a_sparse_checkout_check_notices_a_missing_file() -> None:

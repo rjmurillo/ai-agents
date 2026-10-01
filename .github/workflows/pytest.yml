@@ -565,6 +565,7 @@ jobs:
             scripts/ci/require_job_results.py
             scripts/__init__.py
             scripts/validation/__init__.py
+            scripts/validation/models.py
             scripts/validation/evidence.py
             scripts/validation/promotion_evidence.py
             scripts/validation/emit_validator_evidence.py
