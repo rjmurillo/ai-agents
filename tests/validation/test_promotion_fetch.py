@@ -304,6 +304,8 @@ class TestApiFailures:
             ("owner", SHA, "main"),
             ("../..", SHA, "main"),
             ("o/..", SHA, "main"),
+            ("o/.", SHA, "main"),
+            ("./.", SHA, "main"),
             ("./r", SHA, "main"),
             ("o/r", "abc", "main"),
             ("o/r", SHA, ""),

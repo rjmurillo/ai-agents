@@ -94,6 +94,16 @@ _CONCLUSION_SLUG = re.compile(r"[a-z_]{1,30}")
 _REPOSITORY_RE = re.compile(r"[A-Za-z0-9_-][A-Za-z0-9_.-]*/[A-Za-z0-9_.-]+")
 
 
+def is_repository_name(name: str) -> bool:
+    """True for ``owner/name`` where neither part is ``.`` or ``..``.
+
+    The name is interpolated into API paths, so a dot segment would let URL
+    normalization address another repository.
+    """
+    parts = name.split("/")
+    return bool(_REPOSITORY_RE.fullmatch(name)) and not any(p in (".", "..") for p in parts)
+
+
 @dataclass(frozen=True, slots=True)
 class Corroboration:
     """What the job's check-runs say about one validator in one run."""
@@ -211,7 +221,7 @@ def corroborate(
     one check-run per leg and every one must be ``success``; the worst leg
     decides. A job with no current entry, or no pinned check-run, is ``UNKNOWN``.
     """
-    if not _REPOSITORY_RE.fullmatch(repository) or ".." in repository.split("/"):
+    if not is_repository_name(repository):
         return Corroboration(EvidenceState.UNKNOWN, REASON_CHECK_RUN, "repository name is invalid")
     ids = _current_job_ids(latest_jobs, job_name, run_id)
     if not ids:

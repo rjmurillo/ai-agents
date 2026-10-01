@@ -247,7 +247,18 @@ class TestCorroborate:
 
     @pytest.mark.parametrize(
         "repository",
-        ["", "owner", "a/b/c", "o wner/repo", "owner/repo\n", "../..", "./repo", "o/.."],
+        [
+            "",
+            "owner",
+            "a/b/c",
+            "o wner/repo",
+            "owner/repo\n",
+            "../..",
+            "./repo",
+            "o/..",
+            "o/.",
+            "./.",
+        ],
     )
     def test_a_bad_repository_name_reads_unknown(self, repository: str) -> None:
         assert _corroborate(repository=repository).state is EvidenceState.UNKNOWN

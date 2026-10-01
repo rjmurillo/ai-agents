@@ -59,7 +59,12 @@ from scripts.validation.promotion_evidence import (
     EvidenceRecord,
     parse_evidence_text,
 )
-from scripts.validation.promotion_provenance import combine, corroborate, run_problem
+from scripts.validation.promotion_provenance import (
+    combine,
+    corroborate,
+    is_repository_name,
+    run_problem,
+)
 
 PAGE_SIZE = 100
 MAX_PAGES = 20
@@ -76,7 +81,6 @@ REASON_ARTIFACT_FORMAT = "artifact.malformed"
 REASON_RUN_ABSENT = "run.absent"
 REASON_ACCEPTED = "accepted"
 _SHA_RE = re.compile(r"[0-9a-f]{40}")
-_REPO_RE = re.compile(r"[A-Za-z0-9_-][A-Za-z0-9_.-]*/[A-Za-z0-9_.-]+")
 _BRANCH_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._/-]*")
 
 
@@ -380,7 +384,7 @@ def fetch_verified_evidence(
     Raises ``GitHubApiError`` when GitHub cannot answer, and ``ValueError`` for a
     malformed repository, SHA, or branch name.
     """
-    if not _REPO_RE.fullmatch(repo) or ".." in repo.split("/"):
+    if not is_repository_name(repo):
         raise ValueError("repo must be owner/name")
     if not _SHA_RE.fullmatch(candidate_sha):
         raise ValueError("candidate_sha must be a 40-character lowercase SHA")
