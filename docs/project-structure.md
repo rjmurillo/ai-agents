@@ -18,7 +18,7 @@ Root map: what to edit, what is generated, what to skip. `AGENTS.md` owns protoc
 |---|---|
 | `templates/{agents,rules,skills,hooks}/` | Source for all five classes; `settings` from `hooks/settings.tmpl` |
 | `scripts/{hook_utilities,github_core,ai_review_common}` | Plugin lib source; rendered by `build_all.py` (`build/AGENTS.md`) |
-| `{.agents,.claude,.claude/hooks,.github,build,scripts,src,src/claude,templates,tests}/AGENTS.md`, `.claude/skills/CLAUDE.md`, `.claude-mem/memories/AGENTS.md` | Per-directory guides |
+| `{.agents,.claude,.claude/hooks,.github,build,scripts,src,src/claude,templates,tests}/AGENTS.md`, `.claude-mem/memories/AGENTS.md` | Per-directory guides |
 | `docs/{skill-reference,agent-governance,task-classification-guide,when-to-use,orchestrator-routing-algorithm,search-dont-load,SKILL-AUTHORING,agent-metrics}.md` | Agent-facing; no guide owns `docs/` |
 
 ## Skip
@@ -29,7 +29,7 @@ Root map: what to edit, what is generated, what to skip. `AGENTS.md` owns protoc
 | `src/*.md`, `src/claude/{AGENTS.md,claude-instructions.template.md,security/references/}`, every `.claude-plugin/plugin.json`, `src/copilot-cli/{THIRD-PARTY-NOTICES.TXT,docs/}`, `.claude/hooks/**/{AGENTS,CLAUDE,README}.md`, `.claude/skills/*/{scripts,references,tests}/` bar `review/scripts/validate_review_marker.py`, `.github/agents/{pr-comment-responder.prompt.md,security/references/}` | Hand-maintained inside those prefixes |
 | `.serena/memories/` | Retrieval aid; `/memory-search`, never read whole |
 | `.agents/{archive,retrospective,critique,qa,analysis}/`, `.project-toolkit/memory/episodes/` | Evidence. Live: `.project-toolkit/sessions/handoffs/`, latest at start, update at end |
-| `evals/`, `tests/eval_scenarios/` | Corpora; runners in `scripts/eval/`. `tests/evals/` is pytest input |
+| `evals/` | Corpora; runners in `scripts/eval/`. `tests/evals/` is pytest input |
 | `.factory/mcp.json`, `.vscode/mcp.json` | `scripts/sync_mcp_config.py --sync-all` output |
 | `.github/prompts/pr-quality-gate-*.md` | `build/scripts/generate_pr_quality_prompts.py`; `build_all.py` skips it |
 | `packages/` | Separate toolchains, own lockfiles |

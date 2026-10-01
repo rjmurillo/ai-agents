@@ -71,6 +71,7 @@ if __package__ in (None, ""):
     from counts import (
         enumerate_sibling_artifacts,
         enumerate_skills,
+        skills_dir,
     )
     from envelope import (
         Finding,
@@ -91,10 +92,12 @@ if __package__ in (None, ""):
         is_known_single_word_skill,
         is_metasyntactic_placeholder,
         is_qualified_foreign_skill,
+        is_routing_role_value,
     )
     from patterns import (
         FILE_IGNORE_DIRECTIVE_RE,
         extract_all_reference_candidates,
+        extract_citation_block_refs,
         extract_directive_suppressed_refs,
         extract_instruction_refs,
         extract_rule_refs,
@@ -103,12 +106,15 @@ if __package__ in (None, ""):
         extract_skill_refs,
         extract_skill_script_refs,
         extract_typed_skill_refs,
+        is_explicit_skill_route,
+        owner_skills_for_script,
     )
     from walking import collect_walk_targets
 else:
     from .counts import (
         enumerate_sibling_artifacts,
         enumerate_skills,
+        skills_dir,
     )
     from .envelope import (
         Finding,
@@ -129,10 +135,12 @@ else:
         is_known_single_word_skill,
         is_metasyntactic_placeholder,
         is_qualified_foreign_skill,
+        is_routing_role_value,
     )
     from .patterns import (
         FILE_IGNORE_DIRECTIVE_RE,
         extract_all_reference_candidates,
+        extract_citation_block_refs,
         extract_directive_suppressed_refs,
         extract_instruction_refs,
         extract_rule_refs,
@@ -141,6 +149,8 @@ else:
         extract_skill_refs,
         extract_skill_script_refs,
         extract_typed_skill_refs,
+        is_explicit_skill_route,
+        owner_skills_for_script,
     )
     from .walking import collect_walk_targets
 
@@ -306,17 +316,19 @@ def directive_suppressed_refs(target_path: Path, repo_root: Path) -> list[Suppre
         text = _read_supported_text(target_path)
     except (OSError, UnicodeError):
         return []
-    return _suppressed_refs_for_text(text, rel, "line ignore directive")
+    return _suppressed_refs_for_text(
+        text, rel, "line ignore directive"
+    ) + _suppressed_refs_for_text(text, rel, "citation block")
 
 
 def _suppressed_refs_for_text(
     text: str, rel: str, reason: str
 ) -> list[SuppressedReference]:
-    extractor = (
-        extract_all_reference_candidates
-        if reason == "file ignore directive"
-        else extract_directive_suppressed_refs
-    )
+    extractors = {
+        "file ignore directive": extract_all_reference_candidates,
+        "citation block": extract_citation_block_refs,
+    }
+    extractor = extractors.get(reason, extract_directive_suppressed_refs)
     return [
         SuppressedReference(
             target_file=rel,
@@ -332,6 +344,20 @@ def _io_error_type(exc: OSError) -> str:
     if isinstance(exc, PermissionError):
         return "auth"
     return "config"
+
+
+def _is_role_category_use(
+    ref: str, lines: list[str], lineno: int, known_skills: set[str]
+) -> bool:
+    """True when a role value names a category, not a specific skill.
+
+    "a ``front-door`` skill" describes a class. "the ``lifecycle`` skill" is a
+    route to one skill, so a deleted skill of that name must still be found.
+    """
+    if not is_routing_role_value(ref) or ref in known_skills:
+        return False
+    line = lines[lineno - 1] if 0 < lineno <= len(lines) else ""
+    return not is_explicit_skill_route(line, ref)
 
 
 def _check_skill_refs(
@@ -396,6 +422,8 @@ def _check_skill_refs(
         line = lines[lineno - 1] if 0 < lineno <= len(lines) else ""
         if _is_known_kebab_word(ref) or _is_qualified_foreign_skill(ref, line):
             continue
+        if _is_role_category_use(ref, lines, lineno, known_skills):
+            continue
         is_typed = (lineno, ref) in typed
         in_retired = _is_known_retired_kebab_skill(ref)
         if ref in known_skills or (ref in siblings and not is_typed):
@@ -416,6 +444,8 @@ def _check_skill_refs(
         )
     for lineno, ref in extract_single_word_skill_refs(text):
         if _is_metasyntactic_placeholder(ref):
+            continue
+        if _is_role_category_use(ref, lines, lineno, known_skills):
             continue
         is_typed = (lineno, ref) in typed
         if typed_only and not is_typed:
@@ -461,7 +491,9 @@ def _skill_ref_finding(
     )
 
 
-def _script_ref_resolves(script_ref: str, rel: str, repo_root: Path) -> bool:
+def _script_ref_resolves(
+    script_ref: str, rel: str, repo_root: Path, line: str = ""
+) -> bool:
     """True when a script reference resolves on disk.
 
     Tries repo-root-relative first (the historical contract). For a reference
@@ -479,7 +511,22 @@ def _script_ref_resolves(script_ref: str, rel: str, repo_root: Path) -> bool:
         skill_dir = Path(rel).parent
         if _exists_under_repo(repo_root, repo_root / skill_dir / script_ref):
             return True
-    return False
+    return _resolves_in_named_skill(script_ref, repo_root, line)
+
+
+def _resolves_in_named_skill(script_ref: str, repo_root: Path, line: str) -> bool:
+    """True when the line names this script's owner skill and the file exists.
+
+    Prose such as "``scripts/resolve_route.py`` in the ``autoplan`` skill"
+    states the owner explicitly, so resolve against that skill's directory.
+    Only an owner bound to this reference counts: a script missing from its
+    stated owner still yields a finding even when another skill on the line
+    ships a file of that name (issue #5872).
+    """
+    return any(
+        _exists_under_repo(repo_root, skills_dir(repo_root) / name / script_ref)
+        for name in owner_skills_for_script(line, script_ref)
+    )
 
 
 def _check_script_refs(
@@ -489,9 +536,10 @@ def _check_script_refs(
     that do not exist on disk."""
     findings: list[Finding] = []
     refs_checked = 0
+    lines = text.splitlines()
     for lineno, script_ref in extract_script_refs(text):
         refs_checked += 1
-        if _script_ref_resolves(script_ref, rel, repo_root):
+        if _script_ref_resolves(script_ref, rel, repo_root, lines[lineno - 1]):
             continue
         findings.append(
             Finding(

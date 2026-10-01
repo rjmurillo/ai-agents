@@ -11,6 +11,7 @@ from __future__ import annotations
 import importlib.util
 import io
 import json
+import shutil
 import sys
 from pathlib import Path
 
@@ -104,6 +105,11 @@ class TestRulesDiscovery:
         scripts.mkdir(parents=True)
         copied = scripts / "prose_lint.py"
         copied.write_text(Path(mod.__file__).read_text(encoding="utf-8"), encoding="utf-8")
+        # A consumer install ships the shared lib beside the skills (ADR-047).
+        shutil.copytree(
+            Path(mod.__file__).resolve().parents[3] / "lib" / "hook_utilities",
+            plugin / "lib" / "hook_utilities",
+        )
 
         monkeypatch.delenv("CLAUDE_PLUGIN_ROOT", raising=False)
         monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)

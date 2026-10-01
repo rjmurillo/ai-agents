@@ -1,0 +1,17 @@
+"""Detect evidence text that contradicts a claim of completed work."""
+
+CONTRADICTION_PHRASES = (
+    "not available",
+    "skipped",
+    "N/A",
+    "deferred",
+    "will validate",
+    "will run",
+    "TODO",
+    "pending",
+    "TBD",
+)
+
+
+def has_contradiction(text: str) -> bool:
+    raise NotImplementedError("has_contradiction is not implemented yet")

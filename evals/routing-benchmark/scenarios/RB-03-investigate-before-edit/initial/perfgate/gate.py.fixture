@@ -1,0 +1,15 @@
+"""Exit-code decision for the performance gate."""
+
+from perfgate.etl import EtlResult
+
+
+def decide(bdn_regression: bool, etl: EtlResult | None, fail_on_regression: bool) -> int:
+    """Return 1 when the gate should fail the build, else 0.
+
+    A successful ETL comparison that found no regression is treated as proof
+    that a benchmark regression was measurement noise.
+    """
+    regression = bdn_regression
+    if etl is not None and etl.ok:
+        regression = etl.regression
+    return 1 if regression and fail_on_regression else 0

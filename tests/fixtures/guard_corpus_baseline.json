@@ -284,41 +284,7 @@
         0
       ]
     ],
-    "orphan-ref-validator/tests/test_scan.py": [
-      [
-        "log = subprocess.run(",
-        0
-      ],
-      [
-        "shallow = subprocess.run(",
-        0
-      ]
-    ],
-    "pr-comment-responder/tests/test_cluster_threads.py": [
-      [
-        "return subprocess.run(",
-        0
-      ]
-    ],
     "retrospective/scripts/extract_evidence.py": [
-      [
-        "result = subprocess.run(",
-        0
-      ]
-    ],
-    "retrospective/tests/test_extract_evidence.py": [
-      [
-        "result = subprocess.run(",
-        0
-      ]
-    ],
-    "retrospective/tests/test_run_retrospective.py": [
-      [
-        "result = subprocess.run(",
-        0
-      ]
-    ],
-    "retrospective/tests/test_score_atomicity.py": [
       [
         "result = subprocess.run(",
         0

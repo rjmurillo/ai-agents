@@ -36,7 +36,7 @@
         "parse"
       ],
       "expected_gate": "pr-quality-devops",
-      "rationale": "A framing paragraph is a reasonable request and a generic responder obliges. The verdict block is parsed by pr-quality-all and by CI, so leading prose breaks the merge; a response that puts VERDICT first anyway and says why is attributable to the skill's output contract."
+      "rationale": "A framing paragraph is a reasonable request and a generic responder obliges. The verdict block is parsed by pr-quality-all, so leading prose breaks the merge; a response that puts VERDICT first anyway and says why is attributable to the skill's output contract."
     },
     {
       "id": "S4",

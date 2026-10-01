@@ -53,8 +53,8 @@ description: Fix a validation failure in GitHub Actions. Use when a PR fails
 **research-and-incorporate**:
 ```yaml
 description: Research external topics, create comprehensive analysis, determine
-  project applicability, and incorporate learnings into Serena and Forgetful
-  memory systems. Transforms knowledge into searchable, actionable context.
+  project applicability, and incorporate learnings into Serena
+  memory. Transforms knowledge into searchable, actionable context.
 ```
 
 - What: research, analyze, incorporate
@@ -65,8 +65,8 @@ description: Research external topics, create comprehensive analysis, determine
 
 | Mistake | Why It Fails | Fix |
 |---------|--------------|-----|
-| "Handles memory operations" | No trigger keywords, vague | "Search and manage memories across Serena and Forgetful. Use when needing past context or creating new memories." |
-| "Populates Forgetful via LSP" | Too technical, no when | "Encode codebase into searchable knowledge graph. Use when onboarding to repository or refreshing project understanding." |
+| "Handles memory operations" | No trigger keywords, vague | "Search and manage memories across Serena. Use when needing past context or creating new memories." |
+| "Populates the index via LSP" | Too technical, no when | "Encode codebase into searchable knowledge graph. Use when onboarding to repository or refreshing project understanding." |
 | "Collects metrics" | No use case | "Collect agent usage metrics from git history. Use when measuring agent adoption or system health over time." |
 
 ### SKIP Clause for Sibling Families

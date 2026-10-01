@@ -13,21 +13,13 @@ This script follows `check_pr_live_state.py`'s shape (issue #2455): a
 machine-checked JSON envelope pr-autofix branches on, not another sentence
 in a SKILL.md.
 
-Storage decision (Search Before Building, Layer 1): the retired autofix lease
-(ADR-076) already solved "small per-PR state that survives a session
-restart" with a hidden-marker PR comment instead of counting commits or
-writing a file. This script reuses that shape:
-
-    1. A squash-merge, rebase, or force-push (all routine in this repo's
-       pr-autofix flow) destroys commit history a counter would replay; a
-       PR comment survives all three because it lives on the issue
-       timeline, not the ref graph.
-    2. Commit counting needs a git checkout and a commit-naming convention;
-       a comment marker needs only the GitHub API, matching
-       `check_pr_live_state.py`'s read-path design.
-    3. A fourth ad-hoc storage scheme repeats the failure
-       `.claude/rules/push-lock.md` documents for lock files (three
-       incompatible schemes coexisting silently). Reuse avoids a second.
+Storage decision: the retired autofix lease (ADR-076) solved "small per-PR
+state that survives a session restart" with a hidden-marker PR comment. This
+script reuses that shape. A squash-merge, rebase, or force-push destroys the
+commit history a counter would replay, while a comment lives on the issue
+timeline. It needs only the GitHub API, like `check_pr_live_state.py`, and a
+fourth ad-hoc storage scheme repeats the failure `.claude/rules/push-lock.md`
+documents for lock files.
 
 Unlike the lease, this marker carries no security weight: a forged or
 duplicated marker at worst causes a premature ESCALATE (fail-safe), never a
@@ -35,6 +27,14 @@ bypassed cap (fail-open, the failure this script prevents). So it skips the
 lease's verified-comment-author bookkeeping and trusts the latest marker
 carrying this script's own hidden-comment prefix, which only pr-autofix
 posts.
+
+Wall-clock reset (issue #5477): the budget restarts on head SHA advance, a
+reopen by a maintainer, or an operator reset (`--reset` or a
+`/pr-autofix continue` comment). The signals are specified in
+`github_core/round_cap.py`.
+
+The pure logic (markers, reset detection, ACT/ESCALATE decision) lives in
+`github_core/round_cap.py`; this script owns the `gh` I/O and the CLI.
 
 Exit codes follow ADR-035, mirroring `check_pr_live_state.py`: 0 = round
 recorded, under both caps (ACT); 1 = a cap is exceeded (ESCALATE);
@@ -47,6 +47,7 @@ import argparse
 import json
 import logging
 import os
+import re
 import subprocess
 import sys
 import time
@@ -85,8 +86,25 @@ from github_core.output import (
     write_skill_error,
     write_skill_output,
 )
+from github_core.round_cap import (
+    ESCALATION_MARKER,
+    MARKER_CLOSE,
+    STATE_MARKER,
+    Reset,
+    detect_reset,
+    escalation_already_posted,
+    evaluate_round_cap,
+    parse_marker,
+    render_escalation_comment,
+    render_state_marker,
+    select_latest_state,
+)
 
 _SCRIPT_NAME = "check_pr_round_cap.py"
+# Underscore aliases keep the names the tests and earlier callers import.
+_STATE_MARKER = STATE_MARKER
+_ESCALATION_MARKER = ESCALATION_MARKER
+_MARKER_CLOSE = MARKER_CLOSE
 
 
 class RoundCapStoreError(RuntimeError):
@@ -100,6 +118,27 @@ def _comment_endpoint(owner: str, repo: str, pr_number: int) -> str:
     return f"repos/{owner}/{repo}/issues/{pr_number}/comments"
 
 
+def _run_gh_read(gh_args: list[str], what: str) -> str:
+    """Run a read-only ``gh api`` call and return stdout. Raises RoundCapStoreError."""
+    try:
+        result = subprocess.run(
+            ["gh", "api", *gh_args],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=30,
+            check=False,
+        )
+    except (subprocess.SubprocessError, OSError) as exc:
+        raise RoundCapStoreError(f"{what} failed: {exc}") from exc
+    if result.returncode != 0:
+        raise RoundCapStoreError(
+            f"{what} exited {result.returncode}: "
+            f"{safe_log_str((result.stderr or '')[:200])}"
+        )
+    return result.stdout or ""
+
+
 def _list_comments(owner: str, repo: str, pr_number: int) -> list[dict[str, Any]]:
     """Return PR issue comments (oldest first). Raises RoundCapStoreError.
 
@@ -109,23 +148,46 @@ def _list_comments(owner: str, repo: str, pr_number: int) -> list[dict[str, Any]
     runs against empty input.
     """
     endpoint = _comment_endpoint(owner, repo, pr_number) + "?per_page=100"
+    stdout = _run_gh_read(["--paginate", endpoint], "comment list")
+    return _parse_paginated_json_arrays(stdout)
+
+
+def _list_issue_events(owner: str, repo: str, pr_number: int) -> list[dict[str, Any]]:
+    """Return the PR's issue timeline events (oldest first). Raises RoundCapStoreError."""
+    endpoint = f"repos/{owner}/{repo}/issues/{pr_number}/events?per_page=100"
+    return _parse_paginated_json_arrays(_run_gh_read(["--paginate", endpoint], "event list"))
+
+
+def _fetch_head_sha(owner: str, repo: str, pr_number: int) -> str:
+    """Return the PR head commit SHA. Raises RoundCapStoreError."""
+    endpoint = f"repos/{owner}/{repo}/pulls/{pr_number}"
+    sha = _run_gh_read([endpoint, "--jq", ".head.sha"], "head sha read").strip()
+    if not sha:
+        raise RoundCapStoreError("head sha read returned empty output")
+    return sha
+
+
+_LOGIN_PATTERN = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$")
+_WRITE_PERMISSIONS = frozenset({"admin", "maintain", "write"})
+
+
+def _actor_has_write_access(owner: str, repo: str, login: str) -> bool:
+    """True when *login* has write access. Fails safe: any error means False.
+
+    The login is validated against GitHub's username shape before it reaches
+    the API path (CWE-22): a crafted value must not add path segments.
+    """
+    if not _LOGIN_PATTERN.match(login):
+        return False
+    endpoint = f"repos/{owner}/{repo}/collaborators/{login}/permission"
     try:
-        result = subprocess.run(
-            ["gh", "api", "--paginate", endpoint],
-            capture_output=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=30,
-            check=False,
+        permission = _run_gh_read([endpoint, "--jq", ".permission"], "permission read")
+    except RoundCapStoreError as exc:
+        logger.warning(
+            "op=round_cap_permission_failed error=%s", safe_log_str(str(exc)),
         )
-    except (subprocess.SubprocessError, OSError) as exc:
-        raise RoundCapStoreError(f"comment list failed: {exc}") from exc
-    if result.returncode != 0:
-        raise RoundCapStoreError(
-            f"comment list exited {result.returncode}: "
-            f"{safe_log_str((result.stderr or '')[:200])}"
-        )
-    return _parse_paginated_json_arrays(result.stdout or "")
+        return False
+    return permission.strip() in _WRITE_PERMISSIONS
 
 
 def _parse_paginated_json_arrays(raw_stdout: str) -> list[dict[str, Any]]:
@@ -171,14 +233,6 @@ def _post_comment(owner: str, repo: str, pr_number: int, body: str) -> None:
             f"{safe_log_str((result.stderr or '')[:200])}"
         )
 
-#: Hidden marker prefix that makes every round-cap state comment findable in
-#: one timeline scan, using the same marker-comment pattern.
-_STATE_MARKER = "<!-- pr-autofix-round-cap-state:"
-#: Separate marker for the human-readable escalation notice, so a repeat
-#: `record` call after ESCALATE does not repost the same notice (issue #5056
-#: task item 4: leave a note, not spam one per re-invocation).
-_ESCALATION_MARKER = "<!-- pr-autofix-round-cap-escalated:"
-_MARKER_CLOSE = "-->"
 
 #: Defaults grounded in the evidence above: incidents ran 11-18 rounds over
 #: multi-hour spans (46h wall clock for PR #1887) before a human intervened.
@@ -188,10 +242,14 @@ _MARKER_CLOSE = "-->"
 _DEFAULT_MAX_ROUNDS = 5
 _DEFAULT_MAX_HOURS = 4.0
 
+
 __all__ = [
     "RepoInfo",
+    "Reset",
     "RoundCapStoreError",
     "build_parser",
+    "detect_reset",
+    "escalation_already_posted",
     "evaluate_round_cap",
     "main",
     "parse_marker",
@@ -199,145 +257,6 @@ __all__ = [
     "render_state_marker",
     "select_latest_state",
 ]
-
-
-# Marker parsing / rendering below: pure functions, unit-tested directly.
-
-
-def parse_marker(body: str, prefix: str) -> dict[str, Any] | None:
-    """Extract the JSON payload from a hidden marker comment, or None.
-
-    Tolerates a missing close token or malformed JSON by returning None
-    rather than raising: a corrupted marker must never crash the gate, it
-    must be treated as "no prior state" so the breaker still fails safe.
-    """
-    start = body.find(prefix)
-    if start == -1:
-        return None
-    payload_start = start + len(prefix)
-    end = body.find(_MARKER_CLOSE, payload_start)
-    if end == -1:
-        return None
-    raw = body[payload_start:end].strip()
-    try:
-        parsed = json.loads(raw)
-    except json.JSONDecodeError:
-        return None
-    return parsed if isinstance(parsed, dict) else None
-
-
-def select_latest_state(
-    comments: list[dict[str, Any]], prefix: str,
-) -> dict[str, Any] | None:
-    """Return the most recent marker payload matching *prefix*, or None.
-
-    GitHub's issue-comments endpoint returns comments in ascending
-    chronological order, so the latest matching marker is the last one
-    found scanning forward. Bounded to the newest 100 comments so a PR
-    with a very long history cannot turn this into an unbounded scan
-    (same defensive bound the retired autofix lease used for MAX_SCAN).
-    """
-    latest: dict[str, Any] | None = None
-    for comment in comments[-100:]:
-        body = comment.get("body") or ""
-        parsed = parse_marker(body, prefix)
-        if parsed is not None:
-            latest = parsed
-    return latest
-
-
-def render_state_marker(state: dict[str, Any]) -> str:
-    """Render round-cap state as a hidden marker comment body."""
-    payload = json.dumps(state, separators=(",", ":"), sort_keys=True)
-    return (
-        f"{_STATE_MARKER}{payload}{_MARKER_CLOSE}\n"
-        f"pr-autofix round-cap: round {state['round']} recorded "
-        f"(first seen {state['first_seen']})."
-    )
-
-
-def render_escalation_comment(
-    pr_number: int,
-    round_count: int,
-    max_rounds: int,
-    elapsed_hours: float,
-    max_hours: float,
-    reason: str,
-) -> str:
-    """Render the human-readable ESCALATE notice pr-autofix posts once."""
-    payload = json.dumps({"round": round_count}, separators=(",", ":"))
-    return (
-        f"{_ESCALATION_MARKER}{payload}{_MARKER_CLOSE}\n"
-        f"**pr-autofix round-cap breaker tripped for #{pr_number}.**\n\n"
-        f"{reason}\n\n"
-        f"- Rounds recorded: {round_count} (cap: {max_rounds})\n"
-        f"- Wall clock since first round: {elapsed_hours:.1f}h (cap: {max_hours:.1f}h)\n\n"
-        "pr-autofix is stopping automated work on this PR. A human needs to "
-        "review the remaining thread(s)/CI failure(s) directly, or restart "
-        "the counter by editing/removing the round-cap state marker."
-    )
-
-
-# Evaluation below: pure function, unit-tested directly.
-
-
-def evaluate_round_cap(
-    prior_state: dict[str, Any] | None,
-    now: datetime,
-    max_rounds: int,
-    max_hours: float,
-) -> dict[str, Any]:
-    """Advance round-cap state by one round and classify ACT vs ESCALATE.
-
-    Returns the new state dict (to persist) plus the verdict fields
-    (action, reason, round, elapsed_hours). Exceeding either the round
-    count or the wall-clock budget escalates; the checks are independent,
-    matching task requirement 3 ("wall-clock budget exceeded independent
-    of round count").
-    """
-    if prior_state and isinstance(prior_state.get("first_seen"), str):
-        first_seen_raw = prior_state["first_seen"]
-        prior_round = prior_state.get("round", 0)
-        round_count = (prior_round if isinstance(prior_round, int) else 0) + 1
-    else:
-        first_seen_raw = now.isoformat()
-        round_count = 1
-
-    try:
-        first_seen = datetime.fromisoformat(first_seen_raw)
-    except ValueError:
-        # A corrupted timestamp must not crash the gate; restart the clock
-        # rather than fail open on an unparseable value.
-        first_seen = now
-        first_seen_raw = now.isoformat()
-
-    elapsed_hours = max((now - first_seen).total_seconds() / 3600.0, 0.0)
-
-    if round_count >= max_rounds:
-        action = "ESCALATE"
-        reason = f"round cap reached: {round_count} rounds recorded (cap: {max_rounds})"
-    elif elapsed_hours >= max_hours:
-        action = "ESCALATE"
-        reason = (
-            f"wall-clock budget exceeded: {elapsed_hours:.1f}h since first round "
-            f"(cap: {max_hours:.1f}h)"
-        )
-    else:
-        action = "ACT"
-        reason = f"round {round_count}/{max_rounds} under cap ({elapsed_hours:.1f}h/{max_hours:.1f}h)"
-
-    new_state = {
-        "round": round_count,
-        "first_seen": first_seen_raw,
-        "last_round_at": now.isoformat(),
-    }
-    return {
-        "state": new_state,
-        "action": action,
-        "reason": reason,
-        "round": round_count,
-        "elapsed_hours": round(elapsed_hours, 2),
-    }
 
 
 # CLI below.
@@ -390,22 +309,75 @@ def build_parser() -> argparse.ArgumentParser:
             f"Default: $PR_AUTOFIX_MAX_ROUND_HOURS or {_DEFAULT_MAX_HOURS} if unset."
         ),
     )
+    parser.add_argument(
+        "--reset",
+        action="store_true",
+        help=(
+            "Operator reset (issue #5477): restart the wall-clock budget and "
+            "the round counter for this PR. Use after a human has decided the "
+            "loop should continue."
+        ),
+    )
     add_output_format_arg(parser)
     return parser
 
 
-def main(argv: list[str] | None = None) -> int:
-    args = build_parser().parse_args(argv)
-    output_format = args.output_format
-    assert_gh_authenticated()
-
-    resolved = resolve_repo_params(args.owner, args.repo)
-    owner, repo = resolved.owner, resolved.repo
-    pr_number = args.pull_request
-
-    op_start = time.monotonic()
+def _optional_head_sha(owner: str, repo: str, pr_number: int) -> str | None:
+    """Head SHA, or None on failure. A missing SHA only disables the SHA reset,
+    which fails safe (no reset), so it must not block the gate."""
     try:
-        comments = _list_comments(owner, repo, pr_number)
+        return _fetch_head_sha(owner, repo, pr_number)
+    except RoundCapStoreError as exc:
+        logger.warning(
+            "op=round_cap_head_sha_failed pr=%d error=%s", pr_number, safe_log_str(str(exc)),
+        )
+        return None
+
+
+def _optional_events(
+    owner: str, repo: str, pr_number: int,
+    prior_state: dict[str, Any] | None, operator_flag: bool,
+) -> list[dict[str, Any]]:
+    """Timeline events for reopen detection. Skipped when no prior state or the
+    operator flag already decides the reset; a fetch failure fails safe (no reset)."""
+    if prior_state is None or operator_flag:
+        return []
+    try:
+        return _list_issue_events(owner, repo, pr_number)
+    except RoundCapStoreError as exc:
+        logger.warning(
+            "op=round_cap_events_failed pr=%d error=%s", pr_number, safe_log_str(str(exc)),
+        )
+        return []
+
+
+def _post_escalation_note(
+    owner: str, repo: str, pr_number: int,
+    result: dict[str, Any], args: argparse.Namespace,
+) -> bool:
+    """Post the human-readable ESCALATE note. Non-fatal on failure: the state
+    marker is already persisted and the ESCALATE verdict still fires."""
+    body = render_escalation_comment(
+        pr_number, result["round"], args.max_rounds,
+        result["elapsed_hours"], args.max_hours, result["reason"],
+        first_seen=result["state"]["first_seen"],
+    )
+    try:
+        _post_comment(owner, repo, pr_number, body)
+    except RoundCapStoreError as exc:
+        logger.warning(
+            "op=round_cap_escalation_note_failed pr=%d error=%s",
+            pr_number, safe_log_str(str(exc)),
+        )
+        return False
+    return True
+
+
+def _load_comments_or_exit(
+    owner: str, repo: str, pr_number: int, output_format: str, op_start: float,
+) -> list[dict[str, Any]]:
+    try:
+        return _list_comments(owner, repo, pr_number)
     except RoundCapStoreError as exc:
         duration_ms = int((time.monotonic() - op_start) * 1000)
         logger.warning(
@@ -418,40 +390,74 @@ def main(argv: list[str] | None = None) -> int:
             output_format, pr_number, owner, repo,
         )
 
-    prior_state = select_latest_state(comments, _STATE_MARKER)
-    now = datetime.now(UTC)
-    result = evaluate_round_cap(prior_state, now, args.max_rounds, args.max_hours)
 
-    marker_body = render_state_marker(result["state"])
+def _persist_verdict(
+    owner: str, repo: str, pr_number: int, comments: list[dict[str, Any]],
+    prior_state: dict[str, Any] | None, result: dict[str, Any],
+    args: argparse.Namespace, output_format: str,
+) -> bool:
+    """Post the state marker and, when missing, the human escalation note.
+
+    Returns whether the escalation note was posted. A blocked call stays
+    silent on the second and later attempts (issue #5477): with no reset, an
+    ESCALATE whose state is already recorded as escalated, or already has a
+    notice, writes no state marker. The notice is retried on its own when it
+    is missing, so a failed notice post does not turn into marker spam.
+    """
+    escalating = result["action"] == "ESCALATE"
+    reset = result["reset_reason"] is not None
+    first_seen = result["state"]["first_seen"]
+    noted = escalating and escalation_already_posted(
+        comments, first_seen, allow_legacy=not reset,
+    )
+    recorded = escalating and (prior_state or {}).get("escalated") is True
+    if not (escalating and not reset and (noted or recorded)):
+        _post_state_marker(owner, repo, pr_number, result, output_format)
+    if not escalating or noted:
+        return False
+    return _post_escalation_note(owner, repo, pr_number, result, args)
+
+
+def _post_state_marker(
+    owner: str, repo: str, pr_number: int, result: dict[str, Any], output_format: str,
+) -> None:
     try:
-        _post_comment(owner, repo, pr_number, marker_body)
+        _post_comment(owner, repo, pr_number, render_state_marker(result["state"]))
     except RoundCapStoreError as exc:
         _emit_error(
             f"Failed to persist round-cap state comment: {exc}", 3, "ApiError",
             output_format, pr_number, owner, repo,
         )
 
-    escalation_posted = False
-    if result["action"] == "ESCALATE":
-        already_escalated = select_latest_state(
-            comments, _ESCALATION_MARKER,
-        )
-        if already_escalated is None:
-            escalation_body = render_escalation_comment(
-                pr_number, result["round"], args.max_rounds,
-                result["elapsed_hours"], args.max_hours, result["reason"],
-            )
-            try:
-                _post_comment(owner, repo, pr_number, escalation_body)
-                escalation_posted = True
-            except RoundCapStoreError as exc:
-                # Non-fatal: the round-cap state is already persisted above
-                # and the ESCALATE verdict below still fires. Losing the
-                # human-readable note is degraded, not broken.
-                logger.warning(
-                    "op=round_cap_escalation_note_failed pr=%d error=%s",
-                    pr_number, safe_log_str(str(exc)),
-                )
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    output_format = args.output_format
+    assert_gh_authenticated()
+
+    resolved = resolve_repo_params(args.owner, args.repo)
+    owner, repo = resolved.owner, resolved.repo
+    pr_number = args.pull_request
+
+    op_start = time.monotonic()
+    comments = _load_comments_or_exit(owner, repo, pr_number, output_format, op_start)
+
+    prior_state = select_latest_state(comments, _STATE_MARKER)
+    now = datetime.now(UTC)
+    head_sha = _optional_head_sha(owner, repo, pr_number)
+    events = _optional_events(owner, repo, pr_number, prior_state, args.reset)
+    reset = detect_reset(
+        comments, events, args.reset,
+        can_reopen_reset=lambda login: _actor_has_write_access(owner, repo, login),
+    )
+    result = evaluate_round_cap(
+        prior_state, now, args.max_rounds, args.max_hours,
+        head_sha=head_sha, reset=reset,
+    )
+
+    escalation_posted = _persist_verdict(
+        owner, repo, pr_number, comments, prior_state, result, args, output_format,
+    )
 
     output = {
         "pull_request": pr_number,
@@ -465,6 +471,7 @@ def main(argv: list[str] | None = None) -> int:
         "action": result["action"],
         "reason": result["reason"],
         "escalation_posted": escalation_posted,
+        "reset_reason": result["reset_reason"],
     }
 
     duration_ms = int((time.monotonic() - op_start) * 1000)

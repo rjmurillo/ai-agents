@@ -1,0 +1,11 @@
+"""Per-client rate limiting for the export endpoint."""
+
+from collections.abc import Callable
+
+
+class RateLimiter:
+    def __init__(self, limit: int, window_seconds: float, clock: Callable[[], float]) -> None:
+        raise NotImplementedError("RateLimiter is not implemented yet")
+
+    def allow(self, client_id: str) -> bool:
+        raise NotImplementedError("RateLimiter is not implemented yet")

@@ -100,12 +100,14 @@ experiment bill, not evidence of lower cost per accepted production result.
 `tests/evals/model-routing-scenarios.json` holds 10 dispatch scenarios. The
 answer to each is a Claude tier. They cover bounded leaves with a real
 verifier, an ambiguous architecture call, a review where only an eval fixture
-"verifies", the skillbook and security-review exceptions, long-horizon coding,
-one-rung escalation after failed acceptance, and Fable only after Opus fails.
+"verifies", the skillbook and security-review measured floors, long-horizon
+coding, one-rung escalation after failed acceptance, and the escalation-only top
+tier after the judgment tier fails. Each answer maps to a tier through the
+orchestrator's advisory aliases (`haiku`, `sonnet`, `opus`, `fable`).
 
 Run on 2026-09-26 with `eval-prompt-change.py`, 3 runs per scenario, the
-orchestrator prompt as the system prompt, `main`'s prompt before and this
-change's prompt after:
+orchestrator prompt as the system prompt. Both columns graded the model-named
+wording that preceded the tier policy:
 
 | Judge model | Before (`main`) | After |
 |---|---|---|

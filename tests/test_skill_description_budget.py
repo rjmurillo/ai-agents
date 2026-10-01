@@ -6,6 +6,8 @@ import json
 import sys
 from pathlib import Path
 
+import pytest
+
 _SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
 if str(_SCRIPTS) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS))
@@ -49,6 +51,22 @@ def test_extract_frontmatter_none_when_no_fence():
 
 def test_extract_frontmatter_none_when_unterminated():
     assert budget.extract_frontmatter("---\nname: foo\n# never closed\n") is None
+
+
+def test_extract_frontmatter_parses_closing_fence_at_end_of_file():
+    assert budget.extract_frontmatter("---\nname: foo\ndescription: bar\n---") == {
+        "name": "foo",
+        "description": "bar",
+    }
+
+
+def test_extract_frontmatter_parses_crlf_fences():
+    text = "---\r\nname: foo\r\ndescription: bar\r\n---\r\n# body\r\n"
+    assert budget.extract_frontmatter(text) == {"name": "foo", "description": "bar"}
+
+
+def test_extract_frontmatter_parses_padded_closing_fence():
+    assert budget.extract_frontmatter("---\nname: foo\n   ---\n# body\n") == {"name": "foo"}
 
 
 def test_extract_frontmatter_none_on_malformed_yaml():
@@ -181,3 +199,164 @@ def test_main_runs_on_real_corpus(capsys):
     payload = json.loads(capsys.readouterr().out)
     assert payload["skills"] >= 1
     assert payload["total_chars"] > 0
+
+
+# --- budget file mode (issue #5762) -------------------------------------------
+
+_REPO = Path(__file__).resolve().parents[1]
+_ROOT_CLAUDE = ".claude/skills"
+_ROOT_COPILOT = "src/copilot-cli/skills"
+
+
+def _budget_repo(tmp_path: Path, monkeypatch, limits: dict[str, int]) -> Path:
+    """Fake repo root with one 10-char skill in each root, plus a budget file."""
+    monkeypatch.setattr(budget, "_REPO_ROOT", tmp_path)
+    for root in limits:
+        _write_skill(tmp_path / root, "alpha", "x" * 10)
+    path = tmp_path / "budget.json"
+    path.write_text(
+        json.dumps({"roots": {r: {"max_total_chars": n} for r, n in limits.items()}}),
+        encoding="utf-8",
+    )
+    return path
+
+
+def test_budget_file_within_budget_for_every_root(tmp_path, monkeypatch, capsys):
+    path = _budget_repo(tmp_path, monkeypatch, {_ROOT_CLAUDE: 10, _ROOT_COPILOT: 10})
+
+    assert budget.main(["--budget-file", str(path)]) == budget.EXIT_OK
+    out = capsys.readouterr().out
+    assert f"[OK] {_ROOT_CLAUDE}" in out
+    assert f"[OK] {_ROOT_COPILOT}" in out
+
+
+def test_budget_file_over_budget_in_claude_root_fails(tmp_path, monkeypatch, capsys):
+    path = _budget_repo(tmp_path, monkeypatch, {_ROOT_CLAUDE: 9, _ROOT_COPILOT: 10})
+
+    assert budget.main(["--budget-file", str(path)]) == budget.EXIT_OVER_BUDGET
+    err = capsys.readouterr().err
+    assert f"[OVER BUDGET] {_ROOT_CLAUDE}" in err
+    assert "budget 9 chars" in err
+    assert "over by 1 chars" in err
+    assert "alpha" in err
+
+
+def test_copilot_only_description_growth_cannot_bypass_the_gate(tmp_path, monkeypatch, capsys):
+    """A description added only to the Copilot tree must fail the Copilot root."""
+    path = _budget_repo(tmp_path, monkeypatch, {_ROOT_CLAUDE: 10, _ROOT_COPILOT: 10})
+    _write_skill(tmp_path / _ROOT_COPILOT, "beta", "y" * 5)
+
+    assert budget.main(["--budget-file", str(path)]) == budget.EXIT_OVER_BUDGET
+    captured = capsys.readouterr()
+    assert f"[OK] {_ROOT_CLAUDE}" in captured.out
+    assert f"[OVER BUDGET] {_ROOT_COPILOT}" in captured.err
+    assert "beta" in captured.err
+
+
+def test_budget_file_reports_every_failing_root(tmp_path, monkeypatch, capsys):
+    path = _budget_repo(tmp_path, monkeypatch, {_ROOT_CLAUDE: 1, _ROOT_COPILOT: 1})
+
+    assert budget.main(["--budget-file", str(path)]) == budget.EXIT_OVER_BUDGET
+    err = capsys.readouterr().err
+    assert _ROOT_CLAUDE in err
+    assert _ROOT_COPILOT in err
+
+
+def test_budget_file_missing_root_is_config_error(tmp_path, monkeypatch, capsys):
+    path = _budget_repo(tmp_path, monkeypatch, {_ROOT_CLAUDE: 10})
+    path.write_text(
+        json.dumps({"roots": {_ROOT_COPILOT: {"max_total_chars": 10}}}), encoding="utf-8"
+    )
+
+    assert budget.main(["--budget-file", str(path)]) == budget.EXIT_CONFIG
+    assert "is not a directory" in capsys.readouterr().err
+
+
+def test_budget_file_unreadable_is_config_error(tmp_path, capsys):
+    assert budget.main(["--budget-file", str(tmp_path / "nope.json")]) == budget.EXIT_CONFIG
+    assert "cannot read budget file" in capsys.readouterr().err
+
+
+def test_budget_file_invalid_json_is_config_error(tmp_path, capsys):
+    path = tmp_path / "budget.json"
+    path.write_text("{not json", encoding="utf-8")
+
+    assert budget.main(["--budget-file", str(path)]) == budget.EXIT_CONFIG
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        [],
+        {},
+        {"roots": {}},
+        {"roots": {"a": 5}},
+        {"roots": {"a": {}}},
+        {"roots": {"a": {"max_total_chars": "10"}}},
+        {"roots": {"a": {"max_total_chars": True}}},
+        {"roots": {"a": {"max_total_chars": 0}}},
+    ],
+)
+def test_budget_file_invalid_shape_is_config_error(tmp_path, capsys, payload):
+    path = tmp_path / "budget.json"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+    assert budget.main(["--budget-file", str(path)]) == budget.EXIT_CONFIG
+    assert "error:" in capsys.readouterr().err
+
+
+def test_budget_file_negative_top_is_config_error(tmp_path, monkeypatch, capsys):
+    path = _budget_repo(tmp_path, monkeypatch, {_ROOT_CLAUDE: 10})
+
+    assert budget.main(["--budget-file", str(path), "--top", "-1"]) == budget.EXIT_CONFIG
+
+
+def test_repository_budget_file_passes_on_the_live_tree(capsys):
+    """The checked-in budgets must cover both shipped roots as they stand."""
+    code = budget.main(["--budget-file", str(_REPO / "scripts" / "skill_description_budget.json")])
+
+    assert code == budget.EXIT_OK, capsys.readouterr().err
+    budgets = budget.load_root_budgets(_REPO / "scripts" / "skill_description_budget.json")
+    assert set(budgets) == {_ROOT_CLAUDE, _ROOT_COPILOT}
+
+
+def test_workflow_blocks_and_covers_both_roots():
+    text = (_REPO / ".github" / "workflows" / "skill-passive-compliance.yml").read_text(
+        encoding="utf-8"
+    )
+    step = text.split("- name: Run skill description budget", 1)[1].split("- name:", 1)[0]
+
+    assert "continue-on-error" not in step
+    assert "--budget-file scripts/skill_description_budget.json" in step
+    for glob in (
+        "'.claude/skills/**/SKILL.md'",
+        "'src/copilot-cli/skills/**/SKILL.md'",
+        "'scripts/skill_description_budget.json'",
+    ):
+        assert glob in text
+
+
+def test_budget_file_root_without_described_skills_is_config_error(tmp_path, monkeypatch, capsys):
+    path = _budget_repo(tmp_path, monkeypatch, {_ROOT_CLAUDE: 10})
+    _write_skill(tmp_path / _ROOT_COPILOT, "bare", None)
+    path.write_text(
+        json.dumps({"roots": {_ROOT_COPILOT: {"max_total_chars": 10}}}), encoding="utf-8"
+    )
+
+    assert budget.main(["--budget-file", str(path)]) == budget.EXIT_CONFIG
+    assert "has no skills with a description" in capsys.readouterr().err
+
+
+def test_budget_file_json_output_lists_every_root(tmp_path, monkeypatch, capsys):
+    path = _budget_repo(tmp_path, monkeypatch, {_ROOT_CLAUDE: 10, _ROOT_COPILOT: 5})
+
+    code = budget.main(["--budget-file", str(path), "--output-format", "json"])
+
+    assert code == budget.EXIT_OVER_BUDGET
+    payload = json.loads(capsys.readouterr().out)
+    by_root = {entry["root"]: entry for entry in payload}
+    assert by_root[_ROOT_CLAUDE]["within_budget"] is True
+    assert by_root[_ROOT_COPILOT]["within_budget"] is False
+    assert by_root[_ROOT_COPILOT]["budget_chars"] == 5
+    assert by_root[_ROOT_COPILOT]["total_chars"] == 10
+    assert by_root[_ROOT_COPILOT]["budget_tokens_est"] == 2

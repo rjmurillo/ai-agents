@@ -102,7 +102,7 @@ Scenarios tested:
 | S2 | Three phases failed | STOP, reason contains "failure threshold" |
 | S3 | 50k token budget reached mid-phase | STOP, reason contains "budget" |
 | S4 | WebSearch returns zero results | FALLBACK to memory search |
-| S5 | Serena and Forgetful both unavailable | FALLBACK to web search, log degradation |
+| S5 | Serena unavailable | FALLBACK to web search, log degradation |
 
 Without these scenarios, the initial regression (ambiguous budget wording caused the LLM to stop too early) would have shipped. The evals caught it before merge.
 

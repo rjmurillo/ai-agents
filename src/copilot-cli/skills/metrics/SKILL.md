@@ -83,6 +83,7 @@ After execution:
 | Script | Platform | Usage |
 |--------|----------|-------|
 | `collect_metrics.py` | Python 3.8+ | Cross-platform |
+| `backlog_provenance.py` | Python 3.10+, `gh` | Read-only issue provenance report |
 
 ## Quick Start
 
@@ -95,6 +96,13 @@ python .claude/skills/metrics/collect_metrics.py --since 90 --output markdown
 
 # JSON output for automation
 python .claude/skills/metrics/collect_metrics.py --output json
+
+# Backlog provenance of issues created in the last 7 days (Markdown)
+SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/metrics"
+python "$SCRIPTS_DIR/backlog_provenance.py" --days 7
+
+# Same report as JSON, for an explicit UTC interval ending 2026-09-29 (exclusive)
+python "$SCRIPTS_DIR/backlog_provenance.py" --days 29 --until 2026-09-29T00:00:00Z --output-format json
 ```
 
 ## Metrics Collected
@@ -107,6 +115,21 @@ The utility collects the following metrics:
 | Metric 2: Agent Coverage | % of commits with agent involvement | 50% |
 | Metric 4: Infrastructure Review | % of infra changes with security review | 100% |
 | Metric 5: Usage Distribution | Agent utilization patterns | Balanced distribution |
+
+## Backlog Provenance
+
+`backlog_provenance.py` is a read-only diagnostic for epic #5698. It reads every
+issue created in an explicit UTC interval and reports the split by recorded
+`source:human` and `source:agent` label, plus two labeled heuristics. It does not
+score productivity, and it never files, labels, or closes an issue.
+
+- Buckets are mutually exclusive: `human-only`, `agent-only`, `conflict` (both labels), `unknown` (neither).
+- Labels record provenance. They do not verify who selected the work.
+- Machinery share matches a whole-word title term or the `area-validation` label. Bursts are 3 or more issues by one login within 10 minutes of the first. Both are heuristics, not causal attribution.
+- The read pages until an empty page. Any failed or malformed page exits 3 and no partial report prints. Pull requests are excluded and issues are deduplicated by number.
+- Markdown is the default on every terminal and redirect. Empty ratios print `N/A`, or `null` in JSON.
+
+Baseline, reproducible with `--days 29 --until 2026-09-29T00:00:00Z` (UTC, all issue states, retrieved 2026-09-29): 212 issues created 2026-08-31 through 2026-09-28. All 212 are `unknown` because no `source:*` label existed yet on that history. 87 (41.0%) match the machinery heuristic and 16 bursts cover 79 issues. Reconciled against the GitHub search API `created:2026-08-31..2026-09-28` count of 212. The earlier epic figure of 405 issues created in 30 days (2026-09-10 snapshot, about 9 in 10 machinery by title) is a historical claim. It used a different title rule and window, so it is not comparable to this run. The weekly cost-governance review cites this script's output.
 
 ## Detection Patterns
 

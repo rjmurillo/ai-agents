@@ -48,3 +48,23 @@ jobs:
       - name: Run budget validator
         run: |
           uv run --frozen python3 -m scripts.validation.instruction_budget --ci
+
+      # Issue #5400: per-fixture activated bytes. The ceilings gate a breach; the
+      # base delta prints a WARN when always-on or fixture bytes grow past the
+      # threshold. Base is the PR's target branch, fetched shallow.
+      - name: Fetch base branch
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          git fetch --no-tags --depth=1 origin "$BASE_REF"
+
+      - name: Report instruction bytes (pull request)
+        if: github.event_name == 'pull_request'
+        run: |
+          uv run --frozen python3 -m scripts.validation.instruction_bytes --ci --base-ref FETCH_HEAD
+
+      - name: Report instruction bytes
+        if: github.event_name != 'pull_request'
+        run: |
+          uv run --frozen python3 -m scripts.validation.instruction_bytes --ci

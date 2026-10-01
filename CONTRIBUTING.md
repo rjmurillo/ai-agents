@@ -535,14 +535,13 @@ git commit -m "fix(agents): regenerate from updated template"
 
 ### Intentional divergence (bypass procedure)
 
-In rare cases (e.g., emergency hotfix), you may need to skip drift detection:
+In rare cases a generated file must differ from its template. There is no commit-message bypass. Record the divergence in a committed file:
 
-1. Add `[skip-drift-check]` to a commit message in your PR
-2. Document the reason clearly in the PR description
-3. Update `templates/README.md` to record the intentional difference
-4. Obtain explicit code-owner approval for the bypass
+1. Add an entry to `.agents/governance/drift-allowlist.json` with the exact repo-relative `path` and a `reason`
+2. Update `templates/README.md` to record the intentional difference
+3. Obtain explicit code-owner approval on the PR
 
-> **Note:** Bypasses are auditable. They appear in the workflow summary and require reviewer acknowledgement.
+> **Note:** `build/generate_agents.py --validate` rejects an entry missing a path or a reason, and lists every allowed divergence in its output. The entry appears in the PR diff.
 
 ## Pre-Commit Hooks
 
@@ -610,7 +609,7 @@ and push enforcement runs through Lefthook, `pre_pr.py`, and CI under ADR-084.
 No `PreToolUse`, `PostToolUse`, `PermissionRequest`, or `PostToolUseFailure`
 hook is registered. ADR-097 retired all five, including
 `invoke_observation_sync.py`, which previously synced Serena observations to
-Forgetful on this event. Every surviving hook fires once per session or per
+a second memory backend on this event. Every surviving hook fires once per session or per
 turn, never once per tool call.
 
 **Diagnosability:** Hook errors print to stderr (visible in the harness output)

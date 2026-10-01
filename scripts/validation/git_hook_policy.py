@@ -46,6 +46,26 @@ from yaml.nodes import MappingNode, Node, ScalarNode, SequenceNode
 from scripts.ci import diff_line_scope
 from scripts.hook_utilities.utilities import recent_host_session_dates
 from scripts.test_selection import select_tests
+from scripts.validation.evidence import (
+    REASON_ADVISORY_FINDINGS,
+    REASON_AUTH_UNAVAILABLE,
+    REASON_BRANCH_UNDETERMINED,
+    REASON_DIFF_FAILED,
+    REASON_ENV_BYPASS,
+    REASON_INCOMPLETE_EVIDENCE,
+    REASON_LOOKUP_FAILED,
+    REASON_MALFORMED_OUTPUT,
+    REASON_MERGE_IN_PROGRESS,
+    REASON_POLICY_EXEMPT,
+    REASON_PR_UNRESOLVED,
+    REASON_SCRIPT_FAILED,
+    REASON_TIMEOUT,
+    REASON_TOOL_ABSENT,
+    REASON_TREE_ABSENT,
+    REASON_VALIDATOR_RAISED,
+    WORKING_TREE,
+    CheckOutcome,
+)
 from scripts.validation.object_id import ZERO_SHA_LENGTHS, is_full_object_id
 from scripts.validation.session_scope import (
     added_session_paths_in_index,
@@ -851,6 +871,20 @@ def _container_clamped(timeout_seconds: float) -> float:
     return min(timeout_seconds, CONTAINER_SUBPROCESS_CEILING_SECONDS)
 
 
+class _ProcessStartFailure(subprocess.CompletedProcess[str]):
+    """The result for a command that never started: exit 3, with the OSError kept.
+
+    ``_run_command`` used to return a plain ``CompletedProcess`` here, so a missing
+    binary looked like any command that exited 3 and an advisory job called it a
+    finding. Being a ``CompletedProcess`` keeps every existing caller working; the
+    ``start_error`` is what lets a typed job say the tool was absent (issue #5636).
+    """
+
+    def __init__(self, command: Sequence[str], start_error: OSError) -> None:
+        super().__init__(list(command), 3, "", str(start_error))
+        self.start_error = start_error
+
+
 def _run_command(
     args: Sequence[str],
     repo_root: Path,
@@ -886,7 +920,7 @@ def _run_command(
             start_new_session=_SUPPORTS_PGROUP,
         )
     except OSError as exc:
-        return subprocess.CompletedProcess(command, 3, "", str(exc))
+        return _ProcessStartFailure(command, exc)
     try:
         stdout, stderr = proc.communicate(
             input=input_text,
@@ -2391,25 +2425,31 @@ def check_branch_context(repo_root: Path) -> int:
     """
     try:
         if _merge_in_progress(repo_root):
-            return 0
+            return _branch_context_pass(REASON_MERGE_IN_PROGRESS, "a merge is in progress")
         sessions_dir = repo_root / ".project-toolkit" / "sessions"
         if not sessions_dir.is_dir():
-            return 0
+            return _branch_context_pass(REASON_TREE_ABSENT, "no sessions directory")
         current_branch = _current_branch(repo_root)
         if current_branch is None:
-            return 0
+            return _branch_context_pass(REASON_BRANCH_UNDETERMINED, "current branch unknown")
         session_log = _today_session_log(sessions_dir)
         if session_log is None:
-            return 0
+            return _branch_context_pass(REASON_TREE_ABSENT, "no session log for today")
         session_branch = _session_branch(session_log)
         if session_branch is None:
-            return 0
+            return _branch_context_pass(
+                REASON_INCOMPLETE_EVIDENCE, "today's session log names no branch"
+            )
         if current_branch == session_branch:
             return 0
         if _is_merged_history(repo_root, session_log):
-            return 0
+            return _branch_context_pass(
+                REASON_POLICY_EXEMPT, "the newest session log is already on the upstream branch"
+            )
         if _is_linked_worktree(repo_root) and _is_committed_here(repo_root, session_log):
-            return 0
+            return _branch_context_pass(
+                REASON_POLICY_EXEMPT, "linked worktree with a session log committed at HEAD"
+            )
         print(
             "ERROR: branch context mismatch: "
             f"current='{current_branch}', session='{session_branch}' "
@@ -2422,8 +2462,34 @@ def check_branch_context(repo_root: Path) -> int:
             file=sys.stderr,
         )
         return 1
-    except Exception:
+    except Exception as exc:
+        _emit_outcome(
+            CheckOutcome.unknown(
+                _JOB_BRANCH_CONTEXT,
+                reason=REASON_VALIDATOR_RAISED,
+                scope=_BRANCH_CONTEXT_SCOPE,
+                detail=f"{type(exc).__name__}: {exc}; failing open",
+            )
+        )
         return 0
+
+
+_BRANCH_CONTEXT_SCOPE = "current branch against today's session log"
+
+
+def _branch_context_pass(reason: str, detail: str) -> int:
+    """Return 0 for a fail-open input, and say which input it was (issue #5636).
+
+    ``check_branch_context`` is deliberately fail-open on every ambiguous
+    input, and each of those returns used to be silent, so a check that never
+    compared anything printed nothing at all. The exit code stays 0.
+    """
+    _emit_outcome(
+        CheckOutcome.skipped(
+            _JOB_BRANCH_CONTEXT, reason=reason, scope=_BRANCH_CONTEXT_SCOPE, detail=detail
+        )
+    )
+    return 0
 
 
 def _repo_root_entry(path: str) -> str:
@@ -6777,19 +6843,41 @@ def _check_plugin_version(update: PushUpdate, repo_root: Path) -> int:
 
 
 def run_yamllint(paths: Sequence[str], repo_root: Path) -> int:
+    """Run yamllint as an advisory job: always 0, and every non-pass path typed.
+
+    Typed result lines (issue #5636): ``SKIP`` for the ``SKIP_YAMLLINT=1``
+    toggle, ``BLOCKED`` when yamllint is not installed, ``FAIL`` with reason
+    ``advisory.findings`` when it reports findings. The exit code is unchanged.
+    """
+    scope = "staged YAML files"
     if os.environ.get("SKIP_YAMLLINT") == "1":
         print("YAML lint skipped (SKIP_YAMLLINT=1)")
+        _emit_outcome(
+            CheckOutcome.skipped(
+                _JOB_YAML_ADVISORY, reason=REASON_ENV_BYPASS, scope=scope, detail="SKIP_YAMLLINT=1"
+            )
+        )
         return 0
     if not paths:
         return 0
-    try:
-        result = _run_command(["yamllint", "-f", "parsable", "--", *paths], repo_root)
-    except FileNotFoundError:
-        print("WARNING: yamllint not installed", file=sys.stderr)
+    result = _run_command(["yamllint", "-f", "parsable", "--", *paths], repo_root)
+    if _report_process_failure(
+        _JOB_YAML_ADVISORY, scope, result, "WARNING: yamllint could not run"
+    ):
         return 0
     _print_process_output(result)
     if result.returncode != 0:
         print("WARNING: YAML style findings are advisory", file=sys.stderr)
+        _emit_outcome(
+            CheckOutcome.failed(
+                _JOB_YAML_ADVISORY,
+                reason=REASON_ADVISORY_FINDINGS,
+                revision=WORKING_TREE,
+                scope=scope,
+                examined=len(paths),
+                detail=f"yamllint exited {result.returncode}",
+            )
+        )
     return 0
 
 
@@ -6854,9 +6942,25 @@ def run_planning_advisory(repo_root: Path) -> int:
         ],
         repo_root,
     )
+    if _report_process_failure(
+        _JOB_PLANNING_ADVISORY,
+        "planning artifacts",
+        result,
+        "WARNING: planning validation could not run",
+    ):
+        return 0
     _print_process_output(result)
     if result.returncode != 0:
         print("WARNING: planning validation findings are advisory", file=sys.stderr)
+        _emit_outcome(
+            CheckOutcome.failed(
+                _JOB_PLANNING_ADVISORY,
+                reason=REASON_ADVISORY_FINDINGS,
+                revision=WORKING_TREE,
+                scope="planning artifacts",
+                detail=f"validate_planning_artifacts.py exited {result.returncode}",
+            )
+        )
     return 0
 
 
@@ -6889,12 +6993,30 @@ def run_taste_advisory(paths: Sequence[str], repo_root: Path) -> int:
     _print_process_output(result)
     if result.returncode == _TASTE_LINT_EXIT_VIOLATIONS:
         print("WARNING: taste lint findings are advisory", file=sys.stderr)
+        _emit_outcome(
+            CheckOutcome.failed(
+                _JOB_TASTE_ADVISORY,
+                reason=REASON_ADVISORY_FINDINGS,
+                revision=WORKING_TREE,
+                scope="staged files",
+                examined=len(paths),
+                detail=f"taste_lints.py exited {result.returncode}",
+            )
+        )
         return 0
     if result.returncode != 0:
         print(
             f"ERROR: taste-lints exited {result.returncode}, which is not a scan "
             f"result. The lint did not run, so nothing was checked.",
             file=sys.stderr,
+        )
+        _emit_outcome(
+            CheckOutcome.failed(
+                _JOB_TASTE_LINTS,
+                reason=REASON_SCRIPT_FAILED,
+                scope="staged files",
+                detail=f"taste_lints.py exited {result.returncode}, which blocks",
+            )
         )
         return 2
     return 0
@@ -7645,7 +7767,19 @@ def run_workflow_local(paths: Sequence[str], repo_root: Path) -> int:
         timeout_seconds=WORKFLOW_LOCAL_TIMEOUT_SECONDS,
     )
     _print_process_output(result)
-    return 0 if result.returncode == 4 else result.returncode
+    if result.returncode == 4:
+        # The documented exit 4 contract: unrunnable locally because a secret
+        # this environment lacks is required. It stays 0, and is typed.
+        _emit_outcome(
+            CheckOutcome.blocked(
+                _JOB_WORKFLOW_LOCAL,
+                reason=REASON_AUTH_UNAVAILABLE,
+                scope="pushed workflow files under act",
+                detail="act did not run the workflow; run_workflow_local_test.py exited 4",
+            )
+        )
+        return 0
+    return result.returncode
 
 
 def check_placeholder_identities(stream: TextIO, repo_root: Path) -> int:
@@ -7687,6 +7821,14 @@ def additions_advisory(repo_root: Path) -> int:
     if result.returncode != 0:
         _print_process_output(result)
         print("WARNING: could not calculate branch additions", file=sys.stderr)
+        _emit_outcome(
+            CheckOutcome.blocked(
+                _JOB_ADDITIONS_ADVISORY,
+                reason=REASON_DIFF_FAILED,
+                scope="branch additions against origin/main",
+                detail=f"git diff --numstat exited {result.returncode}",
+            )
+        )
         return 0
     additions = sum(
         int(fields[0])
@@ -7695,6 +7837,16 @@ def additions_advisory(repo_root: Path) -> int:
     )
     if additions > 500:
         print(f"WARNING: branch adds {additions} lines (recommended maximum 500)")
+        _emit_outcome(
+            CheckOutcome.failed(
+                _JOB_ADDITIONS_ADVISORY,
+                reason=REASON_ADVISORY_FINDINGS,
+                revision="origin/main...HEAD",
+                scope="branch additions against origin/main",
+                findings=1,
+                detail=f"{additions} added lines (recommended maximum 500)",
+            )
+        )
     return 0
 
 
@@ -7806,16 +7958,28 @@ def validate_branch_sessions(paths: Sequence[str], repo_root: Path) -> int:
 
 
 def bot_cascade_advisory(repo_root: Path) -> int:
-    try:
-        pr = _run_command(
-            ["gh", "pr", "view", "--json", "number", "--jq", ".number"],
-            repo_root,
-        )
-    except FileNotFoundError:
-        print("Bot cascade check skipped (gh unavailable)")
+    pr = _run_command(
+        ["gh", "pr", "view", "--json", "number", "--jq", ".number"],
+        repo_root,
+    )
+    if _report_process_failure(
+        _JOB_BOT_CASCADE_ADVISORY,
+        _BOT_CASCADE_SCOPE,
+        pr,
+        "Bot cascade check skipped (gh unavailable)",
+        to_stdout=True,
+    ):
         return 0
     if pr.returncode != 0 or not pr.stdout.strip():
         print("Bot cascade check skipped (no resolvable PR)")
+        _emit_outcome(
+            CheckOutcome.skipped(
+                _JOB_BOT_CASCADE_ADVISORY,
+                reason=REASON_PR_UNRESOLVED,
+                scope=_BOT_CASCADE_SCOPE,
+                detail="no pull request resolves for this branch",
+            )
+        )
         return 0
     pr_number = pr.stdout.strip()
     threads = _run_command(
@@ -7838,11 +8002,37 @@ def _warn_unresolved_threads(stdout: str, pr_number: str) -> None:
         payload = json.loads(stdout)
     except json.JSONDecodeError:
         print(f"Bot cascade check skipped for PR #{pr_number} (invalid JSON)")
+        _emit_outcome(
+            CheckOutcome.unknown(
+                _JOB_BOT_CASCADE_ADVISORY,
+                reason=REASON_MALFORMED_OUTPUT,
+                scope=_BOT_CASCADE_SCOPE,
+                detail=f"unresolved-threads output for PR #{pr_number} was not JSON",
+            )
+        )
         return
     complete = payload.get("fetched_pages_complete") is True
+    if not complete:
+        _emit_outcome(
+            CheckOutcome.unknown(
+                _JOB_BOT_CASCADE_ADVISORY,
+                reason=REASON_INCOMPLETE_EVIDENCE,
+                scope=_BOT_CASCADE_SCOPE,
+                detail=f"unresolved-thread fetch for PR #{pr_number} was incomplete",
+            )
+        )
     count = payload.get("unresolved_count")
     if complete and isinstance(count, int) and not isinstance(count, bool) and count > 0:
         print(f"WARNING: PR #{pr_number} has {count} unresolved thread(s)")
+        _emit_outcome(
+            CheckOutcome.failed(
+                _JOB_BOT_CASCADE_ADVISORY,
+                reason=REASON_ADVISORY_FINDINGS,
+                scope=_BOT_CASCADE_SCOPE,
+                findings=count,
+                detail=f"PR #{pr_number} has {count} unresolved thread(s)",
+            )
+        )
 
 
 def _warn_recent_bot_review(pr_number: str, repo_root: Path) -> None:
@@ -7859,6 +8049,14 @@ def _warn_recent_bot_review(pr_number: str, repo_root: Path) -> None:
     )
     if reviews.returncode != 0:
         print(f"Bot cascade review query skipped for PR #{pr_number}")
+        _emit_outcome(
+            CheckOutcome.blocked(
+                _JOB_BOT_CASCADE_ADVISORY,
+                reason=REASON_LOOKUP_FAILED,
+                scope=_BOT_CASCADE_SCOPE,
+                detail=f"gh api reviews query for PR #{pr_number} exited {reviews.returncode}",
+            )
+        )
         return
     timestamps = [line.strip().strip('"') for line in reviews.stdout.splitlines() if line.strip()]
     if not timestamps:
@@ -7867,10 +8065,27 @@ def _warn_recent_bot_review(pr_number: str, repo_root: Path) -> None:
         submitted = datetime.fromisoformat(max(timestamps).replace("Z", "+00:00"))
     except ValueError:
         print(f"Bot cascade timestamp parse skipped for PR #{pr_number}")
+        _emit_outcome(
+            CheckOutcome.unknown(
+                _JOB_BOT_CASCADE_ADVISORY,
+                reason=REASON_MALFORMED_OUTPUT,
+                scope=_BOT_CASCADE_SCOPE,
+                detail=f"a bot review timestamp on PR #{pr_number} did not parse",
+            )
+        )
         return
     age = int((datetime.now(UTC) - submitted).total_seconds())
     if age < 120:
         print(f"WARNING: PR #{pr_number} last bot review is {age}s old (< 120s)")
+        _emit_outcome(
+            CheckOutcome.failed(
+                _JOB_BOT_CASCADE_ADVISORY,
+                reason=REASON_ADVISORY_FINDINGS,
+                scope=_BOT_CASCADE_SCOPE,
+                findings=1,
+                detail=f"PR #{pr_number} last bot review is {age}s old (< 120s)",
+            )
+        )
 
 
 def _print_process_output(
@@ -7898,6 +8113,70 @@ def _print_advisory_failure(
 ) -> None:
     _print_process_output(result, stdout_stream=sys.stderr)
     print(f"WARNING: {label} failed without blocking", file=sys.stderr)
+
+
+_JOB_YAML_ADVISORY = "yaml-advisory"
+_JOB_PLANNING_ADVISORY = "planning-advisory"
+_JOB_TASTE_ADVISORY = "taste-advisory"
+# The crash path blocks, so it is not an advisory result and must not say so.
+_JOB_TASTE_LINTS = "taste-lints"
+_JOB_ADDITIONS_ADVISORY = "additions-advisory"
+_JOB_BOT_CASCADE_ADVISORY = "bot-cascade-advisory"
+_JOB_WORKFLOW_LOCAL = "workflow-local-run"
+_JOB_BRANCH_CONTEXT = "branch-context"
+_BOT_CASCADE_SCOPE = "unresolved review threads and recent bot reviews on the current PR"
+
+
+def _emit_outcome(outcome: CheckOutcome) -> None:
+    """Print one typed result line on stderr for a hook job's non-pass path.
+
+    An advisory hook returns 0 whatever it found, so the exit code cannot say
+    whether a job found something, could not run, or was switched off. The
+    summary line can: it names the state, the reason code, and the scope in the
+    ``[STATE] job reason=code scope=...`` shape the pre-PR summary already uses,
+    so one grep counts all three (issue #5636). Only non-pass paths call this,
+    which keeps a clean hook run as quiet as it was.
+    """
+    line = outcome.summary_line()
+    if outcome.detail:
+        # summary_line omits the detail. A json string keeps it on one line and
+        # keeps a quote inside the detail from splitting the field, and it is what
+        # names the cause of a swallowed exception.
+        line += f" detail={json.dumps(outcome.detail)}"
+    print(line, file=sys.stderr)
+
+
+def _report_process_failure(
+    job: str,
+    scope: str,
+    result: subprocess.CompletedProcess[str],
+    message: str,
+    *,
+    to_stdout: bool = False,
+) -> bool:
+    """Report a command that never ran to a verdict, and say whether it was one.
+
+    ``_run_command`` returns exit 3 for three unrelated things: a timeout, an
+    ``OSError`` starting the process, and a child that exits 3 itself. A
+    ``FileNotFoundError`` raised by the command never reaches a caller, because
+    ``_run_command`` catches it, so an ``except FileNotFoundError`` around a call
+    is dead code. This reads the two markers ``_run_command`` does leave and
+    prints one ``BLOCKED`` line: ``tool.absent`` for a missing binary,
+    ``script.failed`` for another start error, ``timeout`` for a kill. It returns
+    True so the caller can stop without calling the result a finding.
+    """
+    if isinstance(result, _ProcessStartFailure):
+        missing = isinstance(result.start_error, FileNotFoundError)
+        reason = REASON_TOOL_ABSENT if missing else REASON_SCRIPT_FAILED
+        detail = f"{result.args[0]} could not start: {result.start_error}"
+    elif _timed_out(result):
+        reason = REASON_TIMEOUT
+        detail = (result.stderr or "").strip().splitlines()[-1]
+    else:
+        return False
+    print(message, file=sys.stdout if to_stdout else sys.stderr)
+    _emit_outcome(CheckOutcome.blocked(job, reason=reason, scope=scope, detail=detail))
+    return True
 
 
 def _repo_root(args: argparse.Namespace) -> Path:
@@ -7943,7 +8222,16 @@ def _handle_branch_dashes(args: argparse.Namespace) -> int:
     """
     from checks_dash import validate_dash_prohibition
 
-    return 0 if validate_dash_prohibition(_repo_root(args)) else 1
+    from scripts.validation.evidence import coerce_outcome, pre_pr_policy
+
+    # The gate returns a CheckOutcome, which has no truth value (its __bool__
+    # raises), so the exit code comes from the policy the pre-PR runner uses:
+    # a FAIL blocks, and a local SKIP does not, exactly as True and False did.
+    # coerce_outcome keeps a bool-returning stand-in working.
+    outcome = coerce_outcome(
+        "validate_dash_prohibition", validate_dash_prohibition(_repo_root(args))
+    )
+    return 0 if pre_pr_policy().accepts(outcome) else 1
 
 
 def _handle_staged_action_pins(args: argparse.Namespace) -> int:

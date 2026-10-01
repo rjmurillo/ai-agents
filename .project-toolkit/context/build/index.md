@@ -11,7 +11,7 @@
 [Constraints]
 |Order: agents, agent-catalog, adr-index, skills, rules, lib, hooks, then binp... (see: .project-toolkit/context/build/details/constraints.md)
 [Dangerous assumptions]
-|`scripts/sync_plugin_lib.py` looks like a required first step; it is a deprec... (see: .project-toolkit/context/build/details/dangerous-assumptions.md)
+|Older docs mention `scripts/sync_plugin_lib.py` as a first step. It is retire... (see: .project-toolkit/context/build/details/dangerous-assumptions.md)
 [Dependencies]
 |`generate_pr_quality_prompts.py`: `.claude/skills/review/references/<role>.md... (see: .project-toolkit/context/build/details/dependencies.md)
 [Architecture]

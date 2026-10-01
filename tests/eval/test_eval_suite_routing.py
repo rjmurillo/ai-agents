@@ -72,10 +72,14 @@ ROUTING_CASES = [
     # Misrouted by the pre-fix table (issue #4882 reproduction).
     ("src/copilot-cli/instructions/canonical-source-mirror.instructions.md", "instructions"),
     ("src/copilot-cli/instructions/lsp-first.instructions.md", "instructions"),
-    ("src/copilot-cli/skills/context-optimizer/references/model-context-doctrine.md",
-     "skill_references"),
-    ("src/copilot-cli/skills/context-optimizer/references/rule-audit-procedure.md",
-     "skill_references"),
+    (
+        "src/copilot-cli/skills/context-optimizer/references/model-context-doctrine.md",
+        "skill_references",
+    ),
+    (
+        "src/copilot-cli/skills/context-optimizer/references/rule-audit-procedure.md",
+        "skill_references",
+    ),
     # Silently dropped into `other` by the pre-fix table.
     (".claude/rules/canonical-source-mirror.md", "rules"),
     (".claude/rules/lsp-first.md", "rules"),
@@ -271,9 +275,7 @@ def _representative_path(rule) -> str:
     return f"{rule.prefix}sample/{segment}sample{suffix}"
 
 
-@pytest.mark.parametrize(
-    "index", range(len(suite.ROUTING_RULES)), ids=lambda i: f"row{i}"
-)
+@pytest.mark.parametrize("index", range(len(suite.ROUTING_RULES)), ids=lambda i: f"row{i}")
 def test_no_routing_row_is_shadowed_by_an_earlier_row(index: int) -> None:
     """Ordering invariant: every row wins for its own representative path.
 
@@ -315,14 +317,15 @@ SHADOWED_ENTRYPOINTS = [
 ]
 
 # The subset of SHADOWED_ENTRYPOINTS that still exists in the tree, for the
-# negative control below. Excludes the two PR #5495 deleted; asserting they
-# are files would fail for a reason unrelated to routing, and reintroducing
-# either as a real fixture would put them back on the plugin loader's
-# dispatchable-agent scan, which is the exact defect #5495 removed.
+# negative control below. Excludes the two PR #5495 deleted and the skill-tree
+# root CLAUDE.md that issue #5503 moved; asserting they are files would fail for
+# a reason unrelated to routing, and reintroducing any of them as a real fixture
+# would put them back on the plugin loader's scan, the defect those changes removed.
 SHADOWED_ENTRYPOINTS_ON_DISK = [
     path
     for path in SHADOWED_ENTRYPOINTS
-    if path not in {".claude/agents/AGENTS.md", ".claude/agents/CLAUDE.md"}
+    if path
+    not in {".claude/agents/AGENTS.md", ".claude/agents/CLAUDE.md", ".claude/skills/CLAUDE.md"}
 ]
 
 
@@ -367,8 +370,19 @@ def test_negative_control_entrypoints_after_prefixes_recreates_the_shadowing() -
 # evaluable for the first time. `test_the_command_tree_is_empty` is the guard
 # that fails if a command comes back and the category is needed again.
 CONVERTED_COMMAND_SKILLS = [
-    "build", "checkpoint", "context-hub-setup", "plan", "pr-autofix", "pr-review",
-    "push-pr", "research", "retro", "ship", "spec", "sync", "test",
+    "build",
+    "checkpoint",
+    "context-hub-setup",
+    "plan",
+    "pr-autofix",
+    "pr-review",
+    "push-pr",
+    "research",
+    "retro",
+    "ship",
+    "spec",
+    "sync",
+    "test",
     "validate-pr-description",
 ]
 
@@ -424,8 +438,7 @@ def test_every_category_is_either_routed_or_explicitly_not_evaluated() -> None:
         routed = category in suite.RUNNER_BY_CATEGORY
         excused = category in suite.NOT_EVALUATED_REASONS
         assert routed != excused, (
-            f"{category} must appear in exactly one of RUNNER_BY_CATEGORY "
-            f"and NOT_EVALUATED_REASONS"
+            f"{category} must appear in exactly one of RUNNER_BY_CATEGORY and NOT_EVALUATED_REASONS"
         )
 
 
@@ -443,6 +456,7 @@ def test_classify_changes_returns_every_category_key() -> None:
 # RoutingRule matcher edges
 # ---------------------------------------------------------------------------
 
+
 def test_segment_matches_directories_only_not_the_basename() -> None:
     rule = suite.RoutingRule("skill_references", prefix=".claude/skills/", segment="references")
     assert rule.matches(".claude/skills/analyze/references/x.md")
@@ -456,9 +470,7 @@ def test_empty_suffix_disables_the_suffix_filter() -> None:
 
 
 def test_exclusions_reject_before_the_row_claims_the_path() -> None:
-    rule = suite.ROUTING_RULES[
-        [r.category for r in suite.ROUTING_RULES].index("agents")
-    ]
+    rule = suite.ROUTING_RULES[[r.category for r in suite.ROUTING_RULES].index("agents")]
     assert not rule.matches(f"{rule.prefix}README.md")
     assert not rule.matches(f"{rule.prefix}agent.template.md")
 
@@ -473,6 +485,7 @@ def test_empty_prefix_row_matches_at_any_depth() -> None:
 # ---------------------------------------------------------------------------
 # Rule id resolution and scenario lookup
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.parametrize(
     "path,expected",
@@ -521,6 +534,7 @@ def test_known_rule_scenario_is_discovered() -> None:
 # Routing plan: three evidence states, no silent categories
 # ---------------------------------------------------------------------------
 
+
 def _plan_for(paths: list[str]) -> list[dict]:
     return suite.build_routing_plan(suite.classify_changes(paths))
 
@@ -541,10 +555,12 @@ def test_plan_marks_a_scenarioless_rule_as_not_evaluated() -> None:
 
 
 def test_plan_splits_scenario_backed_and_scenarioless_rules() -> None:
-    entries = _plan_for([
-        ".claude/rules/code-quality.md",
-        ".claude/rules/canonical-source-mirror.md",
-    ])
+    entries = _plan_for(
+        [
+            ".claude/rules/code-quality.md",
+            ".claude/rules/canonical-source-mirror.md",
+        ]
+    )
     by_evidence = {e["evidence"]: e["files"] for e in entries}
     assert by_evidence[suite.EVIDENCE_SCENARIO] == [".claude/rules/code-quality.md"]
     assert by_evidence[suite.EVIDENCE_NONE] == [".claude/rules/canonical-source-mirror.md"]
@@ -591,6 +607,7 @@ def test_empty_classification_yields_an_empty_plan() -> None:
 # ---------------------------------------------------------------------------
 # find_rule_scenarios: defensive branches
 # ---------------------------------------------------------------------------
+
 
 def _scenario_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     scenario_dir = tmp_path / suite.RULE_SCENARIO_DIR
@@ -710,10 +727,12 @@ def test_a_real_adr_088_reference_scenario_is_skipped(
     """Non-empty skill_path AND reference_path, no rule_path: a valid skip."""
     scenario_dir = _scenario_root(tmp_path, monkeypatch)
     (scenario_dir / "ref.json").write_text(
-        json.dumps({
-            "skill_path": ".claude/skills/analyze/SKILL.md",
-            "reference_path": ".claude/skills/analyze/references/x.md",
-        }),
+        json.dumps(
+            {
+                "skill_path": ".claude/skills/analyze/SKILL.md",
+                "reference_path": ".claude/skills/analyze/references/x.md",
+            }
+        ),
         encoding="utf-8",
     )
     assert suite.find_rule_scenarios() == {}
@@ -732,14 +751,13 @@ def test_find_rule_scenarios_reads_a_valid_rule_target(
     (scenario_dir / "good.json").write_text(
         '{"rule_path": ".claude/rules/good.md"}', encoding="utf-8"
     )
-    assert suite.find_rule_scenarios() == {
-        "good": f"{suite.RULE_SCENARIO_DIR}/good.json"
-    }
+    assert suite.find_rule_scenarios() == {"good": f"{suite.RULE_SCENARIO_DIR}/good.json"}
 
 
 # ---------------------------------------------------------------------------
 # Dry-run output surface
 # ---------------------------------------------------------------------------
+
 
 def test_print_routing_plan_reports_nothing_to_route(
     capsys: pytest.CaptureFixture[str],
@@ -773,6 +791,7 @@ def test_print_routing_plan_shows_none_for_unrouted_categories(
 # run_rule_activation: reuses eval-rule-activation.py, never invents a harness
 # ---------------------------------------------------------------------------
 
+
 class _FakeCompleted:
     def __init__(self, stdout: str, returncode: int) -> None:
         self.stdout = stdout
@@ -802,11 +821,13 @@ def _output_path_from(cmd: list[str]) -> Path | None:
 # The default must carry a verdict. An earlier default of `{"rules": {}}`
 # certified that "child produced zero verdicts" was a passing, scored shape,
 # which is the bug that shape is now a negative test for.
-_SCORED_PAYLOAD = json.dumps({
-    "schema_version": 1,
-    "model_id": "test-model",
-    "rules": {"code-quality": {"summary": {"verdict": "PASS"}}},
-})
+_SCORED_PAYLOAD = json.dumps(
+    {
+        "schema_version": 1,
+        "model_id": "test-model",
+        "rules": {"code-quality": {"summary": {"verdict": "PASS"}}},
+    }
+)
 
 _NO_VERDICT_PAYLOAD = '{"schema_version": 1, "rules": {}}'
 
@@ -871,6 +892,7 @@ def test_run_rule_activation_reads_results_from_the_output_file_not_stdout(
 # Parseable is not scored: the verdict must actually be present
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.parametrize(
     "payload,ids",
     [
@@ -891,9 +913,9 @@ def test_a_parseable_payload_without_a_verdict_is_not_scored(
 ) -> None:
     """Valid JSON naming no verdict must not read as scored efficacy evidence."""
     _stub_child(monkeypatch, file_payload=payload, returncode=0)
-    entry = suite.run_rule_activation(
-        [".claude/rules/code-quality.md"], "test-model"
-    )["rules"]["code-quality"]
+    entry = suite.run_rule_activation([".claude/rules/code-quality.md"], "test-model")["rules"][
+        "code-quality"
+    ]
     assert entry["passed"] is False, ids
     assert entry["evidence"] == suite.EVIDENCE_SCENARIO, ids
     assert entry["exit_code"] == suite.EXIT_EXTERNAL, ids
@@ -902,13 +924,11 @@ def test_a_parseable_payload_without_a_verdict_is_not_scored(
 def test_a_present_verdict_is_scored_even_when_it_is_a_failure(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    payload = json.dumps(
-        {"rules": {"code-quality": {"summary": {"verdict": "FAIL"}}}}
-    )
+    payload = json.dumps({"rules": {"code-quality": {"summary": {"verdict": "FAIL"}}}})
     _stub_child(monkeypatch, file_payload=payload, returncode=1)
-    entry = suite.run_rule_activation(
-        [".claude/rules/code-quality.md"], "test-model"
-    )["rules"]["code-quality"]
+    entry = suite.run_rule_activation([".claude/rules/code-quality.md"], "test-model")["rules"][
+        "code-quality"
+    ]
     assert entry["evidence"] == suite.EVIDENCE_SCORED
     assert entry["passed"] is False
     assert entry["exit_code"] == 1
@@ -917,6 +937,7 @@ def test_a_present_verdict_is_scored_even_when_it_is_a_failure(
 # ---------------------------------------------------------------------------
 # Exit-code precedence: keep the child's own refusal code
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.parametrize(
     "child_exit,expected",
@@ -937,9 +958,9 @@ def test_child_refusal_code_survives_a_missing_results_file(
     file in either case. Flattening those to 3 would report an API failure for
     a config or auth fault."""
     _stub_child(monkeypatch, file_payload=None, returncode=child_exit)
-    entry = suite.run_rule_activation(
-        [".claude/rules/code-quality.md"], "test-model"
-    )["rules"]["code-quality"]
+    entry = suite.run_rule_activation([".claude/rules/code-quality.md"], "test-model")["rules"][
+        "code-quality"
+    ]
     assert entry["exit_code"] == expected
 
 
@@ -1030,9 +1051,7 @@ def test_run_rule_activation_reports_a_scenarioless_rule_as_not_evaluated(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls = _stub_child(monkeypatch)
-    result = suite.run_rule_activation(
-        [".claude/rules/canonical-source-mirror.md"], "test-model"
-    )
+    result = suite.run_rule_activation([".claude/rules/canonical-source-mirror.md"], "test-model")
     entry = result["rules"]["canonical-source-mirror"]
     assert entry["skipped"] is True
     assert entry["evidence"] == suite.EVIDENCE_NONE
@@ -1077,9 +1096,9 @@ def test_run_rule_activation_rejects_non_object_results(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _stub_child(monkeypatch, file_payload='["a", "list"]', returncode=0)
-    entry = suite.run_rule_activation(
-        [".claude/rules/code-quality.md"], "test-model"
-    )["rules"]["code-quality"]
+    entry = suite.run_rule_activation([".claude/rules/code-quality.md"], "test-model")["rules"][
+        "code-quality"
+    ]
     assert entry["exit_code"] == suite.EXIT_EXTERNAL
 
 
@@ -1108,13 +1127,12 @@ def test_a_timed_out_child_reduces_to_exit_external(
     no-code default and surfaced as exit 1, reporting a content failure for an
     evaluator that never finished.
     """
+
     def fake_run(cmd, **_kwargs):
         raise suite.subprocess.TimeoutExpired(cmd, 600)
 
     monkeypatch.setattr(suite.subprocess, "run", fake_run)
-    results = {"rules": suite.run_rule_activation(
-        [".claude/rules/code-quality.md"], "test-model"
-    )}
+    results = {"rules": suite.run_rule_activation([".claude/rules/code-quality.md"], "test-model")}
     assert suite.worst_exit_code(results, any_failure=True) == suite.EXIT_EXTERNAL
 
 
@@ -1130,7 +1148,7 @@ def test_every_timeout_path_records_an_external_exit_code() -> None:
     for line_no, line in enumerate(source.splitlines(), start=1):
         if '"reason": "timeout (' not in line:
             continue
-        window = source.splitlines()[max(0, line_no - 4):line_no]
+        window = source.splitlines()[max(0, line_no - 4) : line_no]
         assert any("EXIT_EXTERNAL" in w for w in window), (
             f"timeout record at line {line_no} has no explicit exit code"
         )
@@ -1165,6 +1183,7 @@ def test_run_rule_activation_pins_utf8_decoding(
 # ---------------------------------------------------------------------------
 # Real child CLI contract (no mock)
 # ---------------------------------------------------------------------------
+
 
 def _run_child(args: list[str], tmp_path: Path):
     import os
@@ -1210,8 +1229,11 @@ def test_child_cli_writes_no_results_file_during_dry_run(tmp_path: Path) -> None
     out = tmp_path / "results.json"
     proc = _run_child(
         [
-            "--scenarios", "tests/evals/rule-scenarios/code-quality.json",
-            "--dry-run", "--output", str(out),
+            "--scenarios",
+            "tests/evals/rule-scenarios/code-quality.json",
+            "--dry-run",
+            "--output",
+            str(out),
         ],
         tmp_path,
     )
@@ -1234,6 +1256,7 @@ def test_suite_invokes_the_child_with_output_and_without_dry_run(
 # ---------------------------------------------------------------------------
 # _run_evals wiring
 # ---------------------------------------------------------------------------
+
 
 class _Args:
     def __init__(self, scope: str) -> None:
@@ -1268,10 +1291,12 @@ def test_run_evals_sends_skill_references_to_the_skill_evaluator(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     seen = _record_runners(monkeypatch)
-    classified = suite.classify_changes([
-        ".claude/skills/analyze/SKILL.md",
-        "src/copilot-cli/skills/context-optimizer/references/model-context-doctrine.md",
-    ])
+    classified = suite.classify_changes(
+        [
+            ".claude/skills/analyze/SKILL.md",
+            "src/copilot-cli/skills/context-optimizer/references/model-context-doctrine.md",
+        ]
+    )
     suite._run_evals(classified, _Args("all"))
     assert seen["skills"] == [
         ".claude/skills/analyze/SKILL.md",
@@ -1284,10 +1309,12 @@ def test_run_evals_sends_rules_and_instructions_to_the_rule_evaluator(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     seen = _record_runners(monkeypatch)
-    classified = suite.classify_changes([
-        ".claude/rules/code-quality.md",
-        "src/copilot-cli/instructions/code-quality.instructions.md",
-    ])
+    classified = suite.classify_changes(
+        [
+            ".claude/rules/code-quality.md",
+            "src/copilot-cli/instructions/code-quality.instructions.md",
+        ]
+    )
     suite._run_evals(classified, _Args("all"))
     assert seen["rules"] == [
         ".claude/rules/code-quality.md",
@@ -1297,10 +1324,12 @@ def test_run_evals_sends_rules_and_instructions_to_the_rule_evaluator(
 
 def test_rules_scope_runs_rules_only(monkeypatch: pytest.MonkeyPatch) -> None:
     seen = _record_runners(monkeypatch)
-    classified = suite.classify_changes([
-        ".claude/rules/code-quality.md",
-        ".claude/agents/implementer.md",
-    ])
+    classified = suite.classify_changes(
+        [
+            ".claude/rules/code-quality.md",
+            ".claude/agents/implementer.md",
+        ]
+    )
     suite._run_evals(classified, _Args("rules"))
     assert "rules" in seen
     assert "agents" not in seen
@@ -1308,10 +1337,12 @@ def test_rules_scope_runs_rules_only(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_agents_scope_does_not_run_rules(monkeypatch: pytest.MonkeyPatch) -> None:
     seen = _record_runners(monkeypatch)
-    classified = suite.classify_changes([
-        ".claude/rules/code-quality.md",
-        ".claude/agents/implementer.md",
-    ])
+    classified = suite.classify_changes(
+        [
+            ".claude/rules/code-quality.md",
+            ".claude/agents/implementer.md",
+        ]
+    )
     suite._run_evals(classified, _Args("agents"))
     assert "agents" in seen
     assert "rules" not in seen
@@ -1335,11 +1366,13 @@ def test_run_evals_reports_no_failure_when_every_runner_passes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _record_runners(monkeypatch)
-    classified = suite.classify_changes([
-        ".claude/rules/code-quality.md",
-        ".claude/skills/analyze/SKILL.md",
-        ".claude/agents/implementer.md",
-    ])
+    classified = suite.classify_changes(
+        [
+            ".claude/rules/code-quality.md",
+            ".claude/skills/analyze/SKILL.md",
+            ".claude/agents/implementer.md",
+        ]
+    )
     _results, any_failure = suite._run_evals(classified, _Args("all"))
     assert any_failure is False
 
@@ -1401,14 +1434,18 @@ def test_plan_scope_gate_matches_run_evals_gate(
         classified = suite.classify_changes(SCOPED_PATHS)
         suite._run_evals(classified, _Args(scope))
         planned = {
-            e["category"] for e in suite.build_routing_plan(classified, scope)
+            e["category"]
+            for e in suite.build_routing_plan(classified, scope)
             if e["runner"] is not None
         }
         # _run_evals reports skills and prompts under one key each.
         actually_ran = set(seen)
         planned_runners = {
-            "skills" if c in ("skills", "skill_references") else
-            "rules" if c in ("rules", "instructions") else c
+            "skills"
+            if c in ("skills", "skill_references")
+            else "rules"
+            if c in ("rules", "instructions")
+            else c
             for c in planned
         }
         assert planned_runners - {"prompts"} == actually_ran - {"prompts"}, (
@@ -1424,6 +1461,7 @@ def test_category_in_scope_rejects_categories_with_no_runner() -> None:
 # ---------------------------------------------------------------------------
 # Reconciliation: the published plan must match what actually happened
 # ---------------------------------------------------------------------------
+
 
 def test_reconcile_promotes_an_evaluated_rule_to_scored() -> None:
     plan = suite.build_routing_plan(
@@ -1462,21 +1500,15 @@ def test_reconcile_counts_a_failing_run_as_scored() -> None:
             }
         }
     }
-    assert suite.reconcile_routing_plan(plan, results)[0]["evidence"] == (
-        suite.EVIDENCE_SCORED
-    )
+    assert suite.reconcile_routing_plan(plan, results)[0]["evidence"] == (suite.EVIDENCE_SCORED)
 
 
 def test_reconcile_leaves_a_skipped_rule_unscored() -> None:
     plan = suite.build_routing_plan(
         suite.classify_changes([".claude/rules/code-quality.md"]), "all"
     )
-    results = {
-        "rules": {"rules": {"code-quality": {"skipped": True, "reason": "no scenario"}}}
-    }
-    assert suite.reconcile_routing_plan(plan, results)[0]["evidence"] == (
-        suite.EVIDENCE_SCENARIO
-    )
+    results = {"rules": {"rules": {"code-quality": {"skipped": True, "reason": "no scenario"}}}}
+    assert suite.reconcile_routing_plan(plan, results)[0]["evidence"] == (suite.EVIDENCE_SCENARIO)
 
 
 @pytest.mark.parametrize(
@@ -1496,9 +1528,7 @@ def test_reconcile_leaves_a_skipped_rule_unscored() -> None:
     ],
     ids=["timeout", "missing_verdict", "passed_without_evidence_label"],
 )
-def test_reconcile_never_promotes_a_run_that_produced_no_verdict(
-    outcome: dict, label: str
-) -> None:
+def test_reconcile_never_promotes_a_run_that_produced_no_verdict(outcome: dict, label: str) -> None:
     """Promotion must key on the evidence label, not on `passed`.
 
     `passed` is False for a failing verdict, a timeout, and an unreadable
@@ -1526,13 +1556,15 @@ def test_reconcile_leaves_a_scenarioless_rule_entry_untouched() -> None:
 
 def test_reconcile_splits_a_mixed_entry_into_scored_and_unscored() -> None:
     """Two scenario-backed rules where only one actually ran."""
-    plan = [{
-        "category": "rules",
-        "files": [".claude/rules/code-quality.md", ".claude/rules/universal.md"],
-        "runner": "eval-rule-activation.py",
-        "evidence": suite.EVIDENCE_SCENARIO,
-        "reason": "activation scenario defined; run without --dry-run to score",
-    }]
+    plan = [
+        {
+            "category": "rules",
+            "files": [".claude/rules/code-quality.md", ".claude/rules/universal.md"],
+            "runner": "eval-rule-activation.py",
+            "evidence": suite.EVIDENCE_SCENARIO,
+            "reason": "activation scenario defined; run without --dry-run to score",
+        }
+    ]
     results = {
         "rules": {
             "rules": {
@@ -1566,6 +1598,7 @@ def test_reconcile_leaves_non_rule_categories_alone() -> None:
 # ---------------------------------------------------------------------------
 # End to end: the dry run the issue reproduced
 # ---------------------------------------------------------------------------
+
 
 def _git(repo: Path, *args: str) -> None:
     import subprocess as _subprocess
@@ -1716,6 +1749,4 @@ def test_dry_run_is_deterministic_across_runs(tmp_path: Path) -> None:
     first = _run_suite_in(repo, "--base-ref", "HEAD~1", "--dry-run")
     second = _run_suite_in(repo, "--base-ref", "HEAD~1", "--dry-run")
     assert first.returncode == 0 and second.returncode == 0
-    assert _json.loads(first.stdout)["routing_plan"] == (
-        _json.loads(second.stdout)["routing_plan"]
-    )
+    assert _json.loads(first.stdout)["routing_plan"] == (_json.loads(second.stdout)["routing_plan"])

@@ -156,8 +156,7 @@ that the number identifies a generation while the names "identify durable
 capability tiers that can advance on their own cadence". GPT-5.6 offers
 Sol, Terra, and Luna. GPT-6 offers Astra, Sol, and Luna.
 Anthropic's current tiers are Fable 5.1, Opus 5.5, Sonnet 5, and Haiku 4.5.
-Opus 5.5 is the default frontier model. Fable 5.1 is escalation only.
-Raise Opus effort before routing to Fable.
+Fable 5.1 is escalation only. Raise effort within a tier before moving up.
 Route each model by task shape and an external acceptance check.
 
 Behavior transfers across neither axis. Do not assume a fix for one model

@@ -1,0 +1,256 @@
+{
+  "baseline": {
+    "status": "VERIFIED",
+    "config": {
+      "model": "claude-haiku-4-5-20251001",
+      "harness": "claude",
+      "harness_version": "2.1.285",
+      "context_bytes": 0,
+      "retry_budget": 1,
+      "reviewer": "none",
+      "control": "current"
+    },
+    "verdict_counts": {
+      "ACCEPTED_DURABLE": 15,
+      "ACCEPTED_NOT_DURABLE": 0,
+      "REJECTED": 9,
+      "UNVERIFIED": 0
+    },
+    "per_task": [
+      {
+        "task_id": "RB-01-bounded-implementation",
+        "repeats": 3,
+        "durable_accepts": 0,
+        "verdicts": [
+          "REJECTED",
+          "REJECTED",
+          "REJECTED"
+        ]
+      },
+      {
+        "task_id": "RB-02-multi-file-invariants",
+        "repeats": 3,
+        "durable_accepts": 3,
+        "verdicts": [
+          "ACCEPTED_DURABLE",
+          "ACCEPTED_DURABLE",
+          "ACCEPTED_DURABLE"
+        ]
+      },
+      {
+        "task_id": "RB-03-investigate-before-edit",
+        "repeats": 3,
+        "durable_accepts": 0,
+        "verdicts": [
+          "REJECTED",
+          "REJECTED",
+          "REJECTED"
+        ]
+      },
+      {
+        "task_id": "RB-04-scope-expansion",
+        "repeats": 3,
+        "durable_accepts": 3,
+        "verdicts": [
+          "ACCEPTED_DURABLE",
+          "ACCEPTED_DURABLE",
+          "ACCEPTED_DURABLE"
+        ]
+      },
+      {
+        "task_id": "RB-05-plausible-but-wrong",
+        "repeats": 3,
+        "durable_accepts": 3,
+        "verdicts": [
+          "ACCEPTED_DURABLE",
+          "ACCEPTED_DURABLE",
+          "ACCEPTED_DURABLE"
+        ]
+      },
+      {
+        "task_id": "RB-06-architecture-resolved",
+        "repeats": 3,
+        "durable_accepts": 0,
+        "verdicts": [
+          "REJECTED",
+          "REJECTED",
+          "REJECTED"
+        ]
+      },
+      {
+        "task_id": "HR-01-top-scores-order",
+        "repeats": 3,
+        "durable_accepts": 3,
+        "verdicts": [
+          "ACCEPTED_DURABLE",
+          "ACCEPTED_DURABLE",
+          "ACCEPTED_DURABLE"
+        ]
+      },
+      {
+        "task_id": "HR-02-merge-settings-defaults",
+        "repeats": 3,
+        "durable_accepts": 3,
+        "verdicts": [
+          "ACCEPTED_DURABLE",
+          "ACCEPTED_DURABLE",
+          "ACCEPTED_DURABLE"
+        ]
+      }
+    ],
+    "zero_success_tasks": [
+      "RB-01-bounded-implementation",
+      "RB-03-investigate-before-edit",
+      "RB-06-architecture-resolved"
+    ],
+    "all_success_tasks": [
+      "RB-02-multi-file-invariants",
+      "RB-04-scope-expansion",
+      "RB-05-plausible-but-wrong",
+      "HR-01-top-scores-order",
+      "HR-02-merge-settings-defaults"
+    ],
+    "cost_percentiles_usd": {
+      "p10": 0.0464,
+      "p50": 0.1077,
+      "p90": 0.2189
+    },
+    "correction_minutes_percentiles": {
+      "p10": 0.0,
+      "p50": 0.2619,
+      "p90": 1.377
+    },
+    "headline": {
+      "cost_per_accepted_durable_task_usd": 0.2044,
+      "correction_minutes_per_accepted_durable_task": 0.8573,
+      "residual_risk": 6
+    }
+  },
+  "candidate": {
+    "status": "VERIFIED",
+    "config": {
+      "model": "claude-haiku-4-5-20251001",
+      "harness": "claude",
+      "harness_version": "2.1.285",
+      "context_bytes": 0,
+      "retry_budget": 1,
+      "reviewer": "none",
+      "control": "reduced"
+    },
+    "verdict_counts": {
+      "ACCEPTED_DURABLE": 14,
+      "ACCEPTED_NOT_DURABLE": 0,
+      "REJECTED": 10,
+      "UNVERIFIED": 0
+    },
+    "per_task": [
+      {
+        "task_id": "RB-01-bounded-implementation",
+        "repeats": 3,
+        "durable_accepts": 0,
+        "verdicts": [
+          "REJECTED",
+          "REJECTED",
+          "REJECTED"
+        ]
+      },
+      {
+        "task_id": "RB-02-multi-file-invariants",
+        "repeats": 3,
+        "durable_accepts": 3,
+        "verdicts": [
+          "ACCEPTED_DURABLE",
+          "ACCEPTED_DURABLE",
+          "ACCEPTED_DURABLE"
+        ]
+      },
+      {
+        "task_id": "RB-03-investigate-before-edit",
+        "repeats": 3,
+        "durable_accepts": 0,
+        "verdicts": [
+          "REJECTED",
+          "REJECTED",
+          "REJECTED"
+        ]
+      },
+      {
+        "task_id": "RB-04-scope-expansion",
+        "repeats": 3,
+        "durable_accepts": 3,
+        "verdicts": [
+          "ACCEPTED_DURABLE",
+          "ACCEPTED_DURABLE",
+          "ACCEPTED_DURABLE"
+        ]
+      },
+      {
+        "task_id": "RB-05-plausible-but-wrong",
+        "repeats": 3,
+        "durable_accepts": 2,
+        "verdicts": [
+          "ACCEPTED_DURABLE",
+          "ACCEPTED_DURABLE",
+          "REJECTED"
+        ]
+      },
+      {
+        "task_id": "RB-06-architecture-resolved",
+        "repeats": 3,
+        "durable_accepts": 0,
+        "verdicts": [
+          "REJECTED",
+          "REJECTED",
+          "REJECTED"
+        ]
+      },
+      {
+        "task_id": "HR-01-top-scores-order",
+        "repeats": 3,
+        "durable_accepts": 3,
+        "verdicts": [
+          "ACCEPTED_DURABLE",
+          "ACCEPTED_DURABLE",
+          "ACCEPTED_DURABLE"
+        ]
+      },
+      {
+        "task_id": "HR-02-merge-settings-defaults",
+        "repeats": 3,
+        "durable_accepts": 3,
+        "verdicts": [
+          "ACCEPTED_DURABLE",
+          "ACCEPTED_DURABLE",
+          "ACCEPTED_DURABLE"
+        ]
+      }
+    ],
+    "zero_success_tasks": [
+      "RB-01-bounded-implementation",
+      "RB-03-investigate-before-edit",
+      "RB-06-architecture-resolved"
+    ],
+    "all_success_tasks": [
+      "RB-02-multi-file-invariants",
+      "RB-04-scope-expansion",
+      "HR-01-top-scores-order",
+      "HR-02-merge-settings-defaults"
+    ],
+    "cost_percentiles_usd": {
+      "p10": 0.027,
+      "p50": 0.0934,
+      "p90": 0.1676
+    },
+    "correction_minutes_percentiles": {
+      "p10": 0.0,
+      "p50": 0.4118,
+      "p90": 1.0986
+    },
+    "headline": {
+      "cost_per_accepted_durable_task_usd": 0.1605,
+      "correction_minutes_per_accepted_durable_task": 0.7153,
+      "residual_risk": 6
+    }
+  },
+  "result": "MIXED"
+}

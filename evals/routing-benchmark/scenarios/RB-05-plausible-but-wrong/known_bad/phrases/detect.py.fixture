@@ -1,0 +1,21 @@
+"""Detect evidence text that contradicts a claim of completed work."""
+
+import re
+
+CONTRADICTION_PHRASES = (
+    "not available",
+    "skipped",
+    "N/A",
+    "deferred",
+    "will validate",
+    "will run",
+    "TODO",
+    "pending",
+    "TBD",
+)
+
+_PATTERN = re.compile("|".join(re.escape(phrase) for phrase in CONTRADICTION_PHRASES), re.IGNORECASE)
+
+
+def has_contradiction(text: str) -> bool:
+    return bool(_PATTERN.search(text))

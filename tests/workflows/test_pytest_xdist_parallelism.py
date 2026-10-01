@@ -103,8 +103,15 @@ class TestMatrixStructure:
         name = _job("test")["name"]
         assert "pytest (${{ matrix.partition }})" in name
 
-    def test_matrix_job_skips_when_python_inputs_are_unchanged(self) -> None:
-        assert _job("test")["if"] == "needs.check-paths.outputs.python-changed == 'true'"
+    def test_matrix_job_is_not_gated_by_a_path_filter(self) -> None:
+        """ADR-101 requirement 1: the partitions are part of the required chain.
+
+        A job-level `if:` or a `needs:` on check-paths would let a path filter
+        decide whether the tests behind the required context run at all.
+        """
+        job = _job("test")
+        assert "if" not in job
+        assert "needs" not in job
 
     def test_read_only_checkouts_do_not_persist_credentials(self) -> None:
         for job_name in ("coverage", "test-result"):
@@ -309,8 +316,14 @@ class TestCoverageJob:
 
     def test_coverage_job_needs_test(self) -> None:
         needs = _job("coverage")["needs"]
-        assert "test" in needs
-        assert "check-paths" in needs
+        assert needs == "test"
+
+    def test_coverage_job_is_not_gated_by_a_path_filter(self) -> None:
+        job = _job("coverage")
+        assert "check-paths" not in str(job["needs"])
+        assert "python-changed" not in job["if"]
+        assert "!cancelled()" in job["if"]
+        assert "needs.test.result == 'success'" in job["if"]
 
     def test_coverage_job_timeout(self) -> None:
         assert _job("coverage")["timeout-minutes"] == 10
@@ -371,43 +384,58 @@ class TestAggregateJob:
     def test_aggregate_job_name(self) -> None:
         assert _job("test-result")["name"] == "Run Python Tests"
 
-    def test_aggregate_runs_when_path_detection_fails(self) -> None:
+    def test_aggregate_has_only_the_cancellation_condition(self) -> None:
         """The gate must survive a failed dependency but not a cancelled run.
 
         `!cancelled()` replaced `always()` for #5097: both run when a
         dependency failed or was skipped, but `always()` also ran during
         cancellation and published a red required check for a superseded run.
         `tests/workflows/test_aggregator_cancellation_guard.py` carries the
-        full contract.
+        full contract. ADR-101 requirement 1 adds the other half: nothing
+        else may appear in the condition, because any other term is a
+        condition sourced outside the chain's own logic.
         """
-        condition = _job("test-result")["if"]
-        assert "!cancelled()" in condition
+        condition = str(_job("test-result")["if"])
+        assert condition.replace(" ", "") == "${{!cancelled()}}"
         assert "always()" not in condition
-        assert "needs.check-paths.result != 'success'" in condition
-        assert "needs.check-paths.outputs.python-changed == 'true'" in condition
+        assert "check-paths" not in condition
+        assert "python-changed" not in condition
 
-    def test_skip_job_requires_successful_path_detection(self) -> None:
-        condition = _job("skip-tests")["if"]
-        assert condition == (
-            "!cancelled() && "
-            "needs.check-paths.result == 'success' && "
-            "needs.check-paths.outputs.python-changed != 'true'"
-        )
+    def test_no_second_job_publishes_the_required_context(self) -> None:
+        """A same-named pass-through is what ADR-101 requirement 1 removed."""
+        jobs = _load_workflow()["jobs"]
+        publishers = [
+            key for key, job in jobs.items() if job.get("name") == "Run Python Tests"
+        ]
+        assert publishers == ["test-result"]
+        assert "skip-tests" not in jobs
 
     def test_aggregate_needs(self) -> None:
         needs = _job("test-result")["needs"]
-        assert "check-paths" in needs
+        assert "check-paths" not in needs
         assert "test" in needs
         assert "coverage" in needs
 
-    def test_aggregate_uses_require_job_results(self) -> None:
+    def test_aggregate_requires_every_dependency_to_have_succeeded(self) -> None:
+        """A skipped dependency must fail the context, never pass it."""
         steps = _job("test-result")["steps"]
         run_steps = [s for s in steps if isinstance(s.get("run"), str)]
         script_step = [s for s in run_steps if "require_job_results.py" in s["run"]][0]
-        assert "PATH_RESULT" in script_step.get("env", {})
-        assert "TEST_RESULT" in script_step.get("env", {})
-        assert "COVERAGE_RESULT" in script_step.get("env", {})
-        assert "--check PATH_RESULT success" in script_step["run"]
+        env = script_step.get("env", {})
+        needs = _job("test-result")["needs"]
+        assert "PATH_RESULT" not in env
+        assert "--check PATH_RESULT" not in script_step["run"]
+        for dependency in needs:
+            variable = {
+                "test": "TEST_RESULT",
+                "coverage": "COVERAGE_RESULT",
+                "zero-collection-guard": "ZERO_COLLECTION_RESULT",
+                "line-endings-guard": "LINE_ENDINGS_RESULT",
+                "context-output-guard": "CONTEXT_OUTPUT_RESULT",
+                "count-ratchet-guard": "COUNT_RATCHET_RESULT",
+            }[dependency]
+            assert f"needs.{dependency}.result" in env[variable]
+            assert f"--check {variable} success" in script_step["run"]
 
     def test_aggregate_timeout(self) -> None:
         assert _job("test-result")["timeout-minutes"] == 2

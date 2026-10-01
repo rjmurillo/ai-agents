@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Assert every shared lib package is registered in the sync registry (Issue #1909).
 
-`scripts/sync_plugin_lib.py` copies shared Python packages from `scripts/` to
+`build/scripts/lib_mirror.py` copies shared Python packages from `scripts/` to
 `.claude/lib/` so the plugin install layout ships them with relative imports.
 The list of pairs lives in `SYNC_PAIRS`. Nothing enforced that a newly added
 shared lib package was registered there, so a new package could silently miss
@@ -17,10 +17,10 @@ This gate closes that provenance gap. It asserts:
 2. Every package directory under `.claude/lib/` appears as a SYNC_PAIRS
    destination, or is named in an explicit allowlist (`LIB_ALLOWLIST`).
 
-`SYNC_PAIRS` is imported from `sync_plugin_lib`, the single source of truth, so
-this validator and the sync tool can never disagree about the registry contents.
+`SYNC_PAIRS` is imported from `lib_mirror`, the single source of truth, so
+this validator and the mirror can never disagree about the registry contents.
 
-Canonical: scripts/sync_plugin_lib.py defines the registry this validator reads.
+Canonical: build/scripts/lib_mirror.py defines the registry this validator reads.
 The relevant fragment, copied verbatim:
 
     SYNC_PAIRS: list[tuple[str, str]] = [
@@ -31,7 +31,7 @@ The relevant fragment, copied verbatim:
 
 See `.claude/rules/canonical-source-mirror.md`.
 
-Different than canonical: `sync_plugin_lib.py` consumes SYNC_PAIRS to copy
+Different than canonical: `lib_mirror.py` consumes SYNC_PAIRS to copy
 files. This validator only reads SYNC_PAIRS to assert registration coverage; it
 copies nothing and mutates nothing. It is a read-only provenance gate, not a
 second sync implementation.
@@ -39,7 +39,7 @@ second sync implementation.
 Exit codes (per ADR-035):
     0 - every shared lib package is registered (or allowlisted)
     1 - one or more package directories are unregistered
-    2 - config error (e.g. the repo root or sync_plugin_lib is missing)
+    2 - config error (e.g. the repo root or lib_mirror is missing)
 """
 
 from __future__ import annotations
@@ -48,13 +48,13 @@ import argparse
 import sys
 from pathlib import Path
 
-_SCRIPTS_DIR = Path(__file__).resolve().parents[1]
-if str(_SCRIPTS_DIR) not in sys.path:
-    sys.path.insert(0, str(_SCRIPTS_DIR))
+_BUILD_SCRIPTS_DIR = Path(__file__).resolve().parents[2] / "build" / "scripts"
+if str(_BUILD_SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(_BUILD_SCRIPTS_DIR))
 
 # Source directories whose package children MUST be registered as SYNC_PAIRS
 # sources. These are the shared lib roots called out by Issue #1909. Keep this
-# list aligned with the SYNC_PAIRS source paths in scripts/sync_plugin_lib.py:
+# list aligned with the SYNC_PAIRS source paths in build/scripts/lib_mirror.py:
 # every synced source root belongs here so its children are scanned too.
 SOURCE_ROOTS: tuple[str, ...] = (
     "scripts/github_core",
@@ -106,7 +106,7 @@ def _check_source_roots(
         root = repo_root / root_rel
         if not _is_package_dir(root):
             # A missing or non-package source root is not this gate's concern;
-            # sync_plugin_lib already warns when a source dir is absent.
+            # lib_mirror already fails closed when a source dir is absent.
             continue
         if root_rel not in registered:
             errors.append(
@@ -166,14 +166,14 @@ def find_unregistered(
 
 
 def _load_sync_pairs() -> list[tuple[str, str]]:
-    """Import SYNC_PAIRS from sync_plugin_lib (single source of truth).
+    """Import SYNC_PAIRS from lib_mirror (single source of truth).
 
     Raises ImportError if the module is missing; the caller maps that to the
     ADR-035 config-error exit code.
     """
-    import sync_plugin_lib
+    import lib_mirror
 
-    pairs: list[tuple[str, str]] = sync_plugin_lib.SYNC_PAIRS
+    pairs: list[tuple[str, str]] = lib_mirror.SYNC_PAIRS
     return pairs
 
 
@@ -197,7 +197,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         sync_pairs = _load_sync_pairs()
     except ImportError as exc:
-        print(f"[CONFIG] cannot import sync_plugin_lib: {exc}", file=sys.stderr)
+        print(f"[CONFIG] cannot import lib_mirror: {exc}", file=sys.stderr)
         return 2
 
     errors = find_unregistered(repo_root, sync_pairs)
@@ -207,7 +207,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  - {err}")
         print(
             "\nEvery shared lib package MUST be registered in "
-            "scripts/sync_plugin_lib.py:SYNC_PAIRS so it ships with the plugin. "
+            "build/scripts/lib_mirror.py:SYNC_PAIRS so it ships with the plugin. "
             "Add the (source, destination) pair there, or add a lib-only "
             "package to LIB_ALLOWLIST in this script with a justifying comment."
         )
