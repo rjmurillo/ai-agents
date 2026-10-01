@@ -144,7 +144,10 @@ class TestFindInFlightBranches:
         _git(clone, "checkout", "-q", "develop")
         assert claim.find_in_flight_branches("o", "r", 5420) == ([], [])
 
-    @pytest.mark.parametrize("target", ["current_branch", "origin_base_ref", "commits_ahead"])
+    @pytest.mark.parametrize(
+        "target",
+        ["current_branch", "origin_base_ref", "commits_ahead", "merged_through_pr"],
+    )
     def test_per_branch_failure_degrades_to_named_warning(self, clone, target):
         _push_branch(clone, "feat/5420-x", 1)
         with patch.object(claim, target, side_effect=RuntimeError("git timed out")):
