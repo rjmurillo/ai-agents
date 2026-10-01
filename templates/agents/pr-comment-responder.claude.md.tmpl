@@ -3,6 +3,12 @@ name: pr-comment-responder
 description: PR review coordinator who gathers comment context, acknowledges every piece of feedback, and ensures all reviewer comments are addressed systematically. Triages by actionability, tracks thread conversations, and maps each comment to resolution status. Use when handling PR feedback, review threads, or bot comments.
 role: coordinator
 argument-hint: Specify the PR number or review comments to address
+metadata:
+  capability:
+    kind: orchestrator
+    depends-on:
+      - review-conversation
+    status: active
 {{> pr-comment-responder-intro}}
 
 ## Claude Code Tools
@@ -548,7 +554,7 @@ mcp__serena__write_memory(
 1. **Always @ mention**: Every reply must @ the comment author when there is an action needed from them. Do not @ the comment author if no action is needed as it causes unnecessary notifications and creates noise with bots.
 2. **Be specific**: Reference file names, line numbers, commit SHAs
 3. **Be concise**: Match response depth to path complexity
-4. **Be professional**: Even when declining suggestions
+4. **Conduct**: pushback, deferral, and escalation follow the review-conversation protocol (`skills/pr-comment-responder/references/review-conversation.md`)
 
 {{> pr-comment-responder-communication-guidelines}}
 
