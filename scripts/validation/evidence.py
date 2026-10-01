@@ -83,6 +83,7 @@ Related: issue #5635. Callers: ``scripts/validation/pre_pr.py``,
 
 from __future__ import annotations
 
+import json
 import re
 from collections.abc import Iterable
 from dataclasses import dataclass, field, replace
@@ -500,6 +501,20 @@ class CheckOutcome:
         if self.findings:
             parts.append(f"findings={self.findings}")
         return " ".join(parts)
+
+    def report_line(self) -> str:
+        """Return :meth:`summary_line` plus the detail, as one greppable line.
+
+        ``summary_line`` omits the detail. A non-pass path that prints only the
+        summary names its state and reason but not its cause, so the reader
+        cannot tell which file was unreadable or which lookup failed. The detail
+        goes last as a JSON string: that keeps it on one line and keeps a quote
+        inside it from splitting the field.
+        """
+        line = self.summary_line()
+        if self.detail:
+            line += f" detail={json.dumps(self.detail)}"
+        return line
 
 
 #: What a gate row may return. ``bool`` stays legal so the migration can move

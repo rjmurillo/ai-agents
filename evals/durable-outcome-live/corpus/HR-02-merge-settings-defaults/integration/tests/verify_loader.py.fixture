@@ -1,0 +1,23 @@
+import unittest
+
+from settingskit import load_settings
+
+SHIPPED = {"debug": False, "limits": {"retries": 3, "timeout": 30}}
+
+
+class LoaderIntegration(unittest.TestCase):
+    def test_an_override_applies_to_its_own_load(self) -> None:
+        loaded = load_settings({"debug": True, "limits": {"retries": 9}})
+        self.assertEqual(loaded, {"debug": True, "limits": {"retries": 9, "timeout": 30}})
+
+    def test_the_next_load_starts_from_the_shipped_defaults(self) -> None:
+        load_settings({"debug": True, "limits": {"retries": 9}})
+        self.assertEqual(
+            load_settings({}),
+            SHIPPED,
+            "INTEGRATION_REGRESSION: an earlier load changed the shipped defaults",
+        )
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -138,6 +138,24 @@ def _branch_markdown_files(repo_root: Path) -> list[str] | _ScanUnavailable:
     return [p for p in stdout.splitlines() if p.endswith(".md") and not _is_vendored(p)]
 
 
+def _unreadable_outcome(relpath: str, exit_code: int) -> CheckOutcome:
+    """Type one blob the scan dropped: ``BLOCKED`` with ``entries.unreadable``.
+
+    The caller narrows scope rather than failing the scan, so each dropped path
+    prints this line; the aggregate result built in
+    :func:`validate_dash_prohibition` carries the same reason and the counts.
+    """
+    return CheckOutcome.blocked(
+        _VALIDATOR,
+        reason=REASON_ENTRIES_UNREADABLE,
+        scope=_SCOPE,
+        detail=(
+            f"{relpath} could not be read at HEAD (git show exited {exit_code}); "
+            "file skipped, scope narrowed"
+        ),
+    )
+
+
 def _find_dash_violations(
     repo_root: Path,
     paths: list[str],
@@ -173,11 +191,7 @@ def _find_dash_violations(
         )
         if exit_code != 0:
             skipped.append(relpath)
-            print(
-                f"[WARNING] Em/en-dash scan: {relpath} could not be read at "
-                f"HEAD (git show exited {exit_code}); file skipped, scope "
-                "narrowed",
-            )
+            print(_unreadable_outcome(relpath, exit_code).report_line())
             continue
         violations.extend(
             (relpath, line_num)

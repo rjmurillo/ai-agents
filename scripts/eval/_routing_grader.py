@@ -48,7 +48,7 @@ from _routing_scenario import (
 )
 
 OUTPUT_LIMIT_CHARS = 4000
-OVERLAY_NAMES: tuple[str, ...] = ("known_good", "known_bad")
+OVERLAY_NAMES: tuple[str, ...] = ("known_good", "known_bad", "hidden_regression")
 _IGNORED_PARTS = frozenset({"__pycache__"})
 _ENV_ALLOWLIST = ("PATH", "SYSTEMROOT", "TMPDIR", "TEMP", "TMP")
 
@@ -327,8 +327,102 @@ def _plausible_checks(scenario: Scenario, bad: GradeResult) -> list[ControlCheck
     ]
 
 
+def apply_changes(scenario: Scenario, workdir: Path, changed: Sequence[str], fresh: Path) -> None:
+    """Write `initial/` into `fresh`, then carry `changed` over from `workdir`.
+
+    A changed path that exists in `workdir` is copied; one that does not was
+    deleted by the driver, so it is deleted from `fresh` too.
+    """
+    materialize(scenario, fresh)
+    for relative in changed:
+        source, target = workdir / relative, fresh / relative
+        if source.is_file():
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(source.read_bytes())
+        elif target.is_file():
+            target.unlink()
+
+
+def grade_integration(scenario: Scenario, workdir: Path, changed: Sequence[str]) -> GradeResult:
+    """Run the post-integration check on the driver's change.
+
+    The change in `changed` is carried onto a fresh `initial/` copy, the
+    `integration/` files are added, and the `integration` validation runs. This
+    is the check that only exists after the change lands. It never reads
+    `judge_dimensions` and never decides acceptance: acceptance is `grade`.
+    """
+    integration = scenario.integration
+    if integration is None:
+        raise RoutingCorpusError(f"{scenario.scenario_id}: no integration check defined")
+    with tempfile.TemporaryDirectory(prefix="routing-integration-") as scratch_name:
+        fresh = Path(scratch_name) / "work"
+        apply_changes(scenario, workdir, changed, fresh)
+        _write_overlay(scenario.fixture_dir("integration"), fresh)
+        results = run_validation(integration.validation, fresh)
+    verdict = Verdict.PASS if all(result.passed for result in results) else Verdict.FAIL
+    return GradeResult(verdict, tuple(changed), (), (), results)
+
+
+def grade_integration_overlay(scenario: Scenario, overlay: str | None) -> GradeResult:
+    """Materialize `initial/` plus `overlay` and run the post-integration check on it."""
+    with tempfile.TemporaryDirectory(prefix="routing-state-") as scratch_name:
+        workdir = Path(scratch_name) / "work"
+        materialize(scenario, workdir, *([overlay] if overlay else []))
+        return grade_integration(scenario, workdir, changed_paths(scenario, workdir))
+
+
+def verify_integration_controls(scenario: Scenario) -> ControlReport:
+    """Prove the two-stage grader discriminates a hidden post-integration regression.
+
+    known-good passes the local check and the integration check. known-bad
+    fails the local check. The hidden regression passes the local check, which
+    is why it is hidden, and fails the integration check with the declared
+    marker. The untouched baseline fails the local check.
+    """
+    integration = scenario.integration
+    if integration is None:
+        raise RoutingCorpusError(f"{scenario.scenario_id}: no integration check defined")
+    good = grade_overlay(scenario, "known_good")
+    bad = grade_overlay(scenario, "known_bad")
+    hidden = grade_overlay(scenario, "hidden_regression")
+    integrated = grade_integration_overlay(scenario, "hidden_regression")
+    good_integrated = grade_integration_overlay(scenario, "known_good")
+    baseline = grade_overlay(scenario)
+    checks = [
+        ControlCheck("known_good_passes", good.verdict is Verdict.PASS, good.verdict.value),
+        ControlCheck(
+            "known_good_passes_integration",
+            good_integrated.verdict is Verdict.PASS,
+            good_integrated.verdict.value,
+        ),
+        ControlCheck("known_bad_fails", bad.verdict is Verdict.FAIL, bad.verdict.value),
+        ControlCheck(
+            "hidden_regression_passes_local",
+            hidden.verdict is Verdict.PASS,
+            f"local verdict {hidden.verdict.value}; the defect must be invisible locally",
+        ),
+        ControlCheck(
+            "hidden_regression_fails_integration",
+            integrated.verdict is Verdict.FAIL,
+            f"integration verdict {integrated.verdict.value}",
+        ),
+        ControlCheck(
+            "hidden_regression_evidence_matches",
+            integration.evidence_marker in integrated.output,
+            f"integration output carries marker {integration.evidence_marker!r}",
+        ),
+        ControlCheck(
+            "baseline_fails", baseline.verdict is Verdict.FAIL, f"verdict {baseline.verdict.value}"
+        ),
+        _reset_reproducible(scenario),
+    ]
+    return ControlReport(scenario.scenario_id, tuple(checks))
+
+
 def verify_controls(scenario: Scenario) -> ControlReport:
     """Prove the grader discriminates: known-good PASS, known-bad FAIL, baseline FAIL."""
+    if scenario.integration is not None:
+        return verify_integration_controls(scenario)
     good = grade_overlay(scenario, "known_good")
     bad = grade_overlay(scenario, "known_bad")
     baseline = grade_overlay(scenario)

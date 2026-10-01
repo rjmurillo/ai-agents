@@ -152,7 +152,7 @@ pre-commit:
 
           - name: python-autofix
             timeout: 5m
-            run: uv run --frozen --extra dev ruff check --fix --exit-zero -- {staged_files}
+            run: uv run --frozen python scripts/ci/report_advisory_result.py run --propagate-errors --validator python-autofix --scope "staged Python files" --timeout 240 --findings-exit 1 -- uv run --frozen --extra dev ruff check --fix -- {staged_files}
             glob: "**/*.py"
             stage_fixed: true
             skip:
@@ -161,7 +161,7 @@ pre-commit:
 
           - name: python-check
             timeout: 5m
-            run: uv run --frozen --extra dev ruff check --exit-zero -- {staged_files}
+            run: uv run --frozen python scripts/ci/report_advisory_result.py run --propagate-errors --validator python-check --scope "staged Python files" --timeout 240 --findings-exit 1 -- uv run --frozen --extra dev ruff check -- {staged_files}
             glob: "**/*.py"
 
           - name: workflow-validation
@@ -623,7 +623,7 @@ pre-push:
 
           - name: worktree-gc-report
             timeout: 2m
-            run: uv run --frozen python scripts/maintenance/gc_worktrees.py || echo "worktree-gc-report exited non-zero; ignored because this job is advisory (issue 4257)"
+            run: uv run --frozen python scripts/ci/report_advisory_result.py run --validator worktree-gc-report --scope "registered worktrees" --timeout 100 --findings-exit 1 -- uv run --frozen python scripts/maintenance/gc_worktrees.py
 
           # Runs the import-graph subset for the push when the graph can map
           # every changed file, and a whole-suite collection smoke when it
@@ -670,7 +670,7 @@ pre-push:
 
           - name: python-lint-advisory
             timeout: 2m
-            run: uv run --frozen --extra dev ruff check --exit-zero -- {push_files}
+            run: uv run --frozen python scripts/ci/report_advisory_result.py run --propagate-errors --validator python-lint-advisory --scope "pushed Python files" --timeout 100 --findings-exit 1 -- uv run --frozen --extra dev ruff check -- {push_files}
             glob: "**/*.py"
 
           - name: python-type-check

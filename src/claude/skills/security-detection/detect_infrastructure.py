@@ -57,6 +57,39 @@ MARKER_TRAILER_KEY = "Reviewed-By"
 SECURITY_AXIS = "security"
 GIT_TIMEOUT_SECONDS = 15
 
+# Typed result vocabulary for the ``security_review`` object. Mirrored, not
+# imported, from ``scripts/validation/evidence.py``: this skill ships as a
+# self-contained directory and a consumer install has no ``scripts/`` package
+# (``.claude/rules/plugin-self-containment.md``). Canonical source, quoted:
+#
+#     class EvidenceState(str, Enum):
+#         PASS = "PASS"  FAIL = "FAIL"  SKIP = "SKIP"
+#         BLOCKED = "BLOCKED"  UNKNOWN = "UNKNOWN"
+#     REASON_POLICY_EXEMPT = "policy.exempt"
+#     REASON_VIOLATIONS_FOUND = "violations.found"
+#     REASON_TOOL_ABSENT = "tool.absent"
+#     REASON_TIMEOUT = "timeout"
+#     REASON_MALFORMED_OUTPUT = "output.malformed"
+#     REASON_LOOKUP_FAILED = "lookup.failed"
+#
+# ``tests/skills/security-detection/test_typed_vocabulary_parity.py`` fails when
+# a value here is not in ``evidence.py``. ``PASS`` carries no reason, as in
+# ``CheckOutcome.__post_init__``.
+TYPED_RESULT_VOCABULARY = {
+    "PASS": "PASS",
+    "FAIL": "FAIL",
+    "SKIP": "SKIP",
+    "BLOCKED": "BLOCKED",
+    "UNKNOWN": "UNKNOWN",
+    "REASON_POLICY_EXEMPT": "policy.exempt",
+    "REASON_VIOLATIONS_FOUND": "violations.found",
+    "REASON_TOOL_ABSENT": "tool.absent",
+    "REASON_TIMEOUT": "timeout",
+    "REASON_MALFORMED_OUTPUT": "output.malformed",
+    "REASON_LOOKUP_FAILED": "lookup.failed",
+}
+_V = TYPED_RESULT_VOCABULARY
+
 # Same pattern as validate_review_marker._MARKER_VALUE_RE.
 _MARKER_VALUE_RE = re.compile(
     r"^/review@(?P<axes>[A-Za-z0-9_-]+(?:,[A-Za-z0-9_-]+)*) on "
@@ -180,13 +213,26 @@ def detect_infrastructure(
 
 
 class GitReadError(Exception):
-    """Git could not answer a marker question."""
+    """Git could not answer a marker question.
+
+    ``state`` and ``reason`` type the failure in the evidence vocabulary: a
+    missing binary, a spawn error, or a timeout means git never answered
+    (``BLOCKED``); output that would not decode means an answer came back and
+    could not be trusted (``UNKNOWN``).
+    """
+
+    def __init__(self, message: str, *, state: str = "BLOCKED", reason: str = "lookup.failed"):
+        super().__init__(message)
+        self.state = state
+        self.reason = reason
 
 
 def _git(args: list[str], repo_root: Path) -> str:
     """Run git in ``repo_root`` and return stdout, or raise ``GitReadError``."""
     if shutil.which("git") is None:
-        raise GitReadError("git not found on PATH")
+        raise GitReadError(
+            "git not found on PATH", state=_V["BLOCKED"], reason=_V["REASON_TOOL_ABSENT"]
+        )
     try:
         result = subprocess.run(  # subprocess-encoding: strict-ok
             ["git", "-C", str(repo_root), *args],
@@ -196,11 +242,23 @@ def _git(args: list[str], repo_root: Path) -> str:
             timeout=GIT_TIMEOUT_SECONDS,
         )
     except subprocess.TimeoutExpired as exc:
-        raise GitReadError(f"git {args[0]} timed out after {GIT_TIMEOUT_SECONDS}s") from exc
+        raise GitReadError(
+            f"git {args[0]} timed out after {GIT_TIMEOUT_SECONDS}s",
+            state=_V["BLOCKED"],
+            reason=_V["REASON_TIMEOUT"],
+        ) from exc
     except UnicodeDecodeError as exc:
-        raise GitReadError(f"git {args[0]} output was not valid UTF-8") from exc
+        raise GitReadError(
+            f"git {args[0]} output was not valid UTF-8",
+            state=_V["UNKNOWN"],
+            reason=_V["REASON_MALFORMED_OUTPUT"],
+        ) from exc
     except OSError as exc:
-        raise GitReadError(f"git {args[0]} could not run: {exc}") from exc
+        raise GitReadError(
+            f"git {args[0]} could not run: {exc}",
+            state=_V["BLOCKED"],
+            reason=_V["REASON_TOOL_ABSENT"],
+        ) from exc
     if result.returncode != 0:
         detail = result.stderr.strip() or f"exit {result.returncode}"
         raise GitReadError(f"git {args[0]} failed: {detail}")
@@ -247,21 +305,50 @@ def find_security_review_marker(ref: str, repo_root: Path) -> tuple[bool, str]:
     )
 
 
+def _review_result(
+    *, required: bool, satisfied: bool, state: str, reason: str, detail: str
+) -> dict[str, Any]:
+    """Build the ``security_review`` object: the old fields plus the typed pair."""
+    return {
+        "required": required,
+        "satisfied": satisfied,
+        "detail": detail,
+        "state": state,
+        "reason": reason,
+    }
+
+
 def enforce_security_review(result: dict[str, Any], ref: str, repo_root: Path) -> int:
-    """Return the exit code for ``--require-security-review`` and annotate ``result``."""
+    """Return the exit code for ``--require-security-review`` and annotate ``result``.
+
+    The annotation types every path. No CRITICAL finding is ``SKIP`` with
+    ``policy.exempt`` (the review does not apply). A bound marker is ``PASS``.
+    A CRITICAL finding without one is ``FAIL`` with ``violations.found``. A git
+    read that failed carries its own state and reason and exits 3.
+    """
     if result["highest_risk"] != "critical":
-        result["security_review"] = {
-            "required": False,
-            "satisfied": True,
-            "detail": "no CRITICAL finding",
-        }
+        result["security_review"] = _review_result(
+            required=False,
+            satisfied=True,
+            state=_V["SKIP"],
+            reason=_V["REASON_POLICY_EXEMPT"],
+            detail="no CRITICAL finding",
+        )
         return 0
     try:
         satisfied, detail = find_security_review_marker(ref, repo_root)
     except GitReadError as exc:
-        result["security_review"] = {"required": True, "satisfied": False, "detail": str(exc)}
+        result["security_review"] = _review_result(
+            required=True, satisfied=False, state=exc.state, reason=exc.reason, detail=str(exc)
+        )
         return 3
-    result["security_review"] = {"required": True, "satisfied": satisfied, "detail": detail}
+    result["security_review"] = _review_result(
+        required=True,
+        satisfied=satisfied,
+        state=_V["PASS"] if satisfied else _V["FAIL"],
+        reason="" if satisfied else _V["REASON_VIOLATIONS_FOUND"],
+        detail=detail,
+    )
     return 0 if satisfied else 1
 
 
@@ -313,6 +400,8 @@ def main() -> int:
     if args.require_security_review:
         repo_root = (args.repo_root or Path.cwd()).resolve()
         exit_code = enforce_security_review(result, args.ref, repo_root)
+        if not args.json:
+            _report_exempt(result)
 
     if args.json:
         print(json.dumps(result, indent=2))
@@ -346,12 +435,35 @@ def main() -> int:
     return exit_code if exit_code == 0 else _report_blocked(result, exit_code)
 
 
-def _report_blocked(result: dict[str, Any], exit_code: int) -> int:
-    """Print why ``--require-security-review`` blocked and return ``exit_code``."""
+def _report_exempt(result: dict[str, Any]) -> None:
+    """Print one typed ``SKIP`` line when the marker check did not apply.
+
+    Without it a push with no CRITICAL finding prints nothing about the check,
+    so a machine cannot tell "exempt" from "never ran". Only the exempt state
+    prints here: a pass is quiet, and the blocked states print in
+    ``_report_blocked``.
+    """
     review = result["security_review"]
-    state = "BLOCKED" if exit_code == 3 else "FAIL"
+    if review["state"] == _V["SKIP"]:
+        print(
+            f"[SKIP] detect_infrastructure reason={review['reason']} "
+            f"scope=security review marker on the pushed ref detail={json.dumps(review['detail'])}",
+            file=sys.stderr,
+        )
+
+
+def _report_blocked(result: dict[str, Any], exit_code: int) -> int:
+    """Print why ``--require-security-review`` blocked and return ``exit_code``.
+
+    The first line has the ``[STATE] validator reason=code scope=... detail=...``
+    shape ``CheckOutcome.report_line`` prints, so one grep counts this path with
+    the other typed gates.
+    """
+    review = result["security_review"]
+    detail = f"CRITICAL change without a security review marker: {review['detail']}"
     print(
-        f"[{state}] CRITICAL change without a security review marker: {review['detail']}",
+        f"[{review['state']}] detect_infrastructure reason={review['reason']} "
+        f"scope=security review marker on the pushed ref detail={json.dumps(detail)}",
         file=sys.stderr,
     )
     print(

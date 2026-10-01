@@ -1,0 +1,15 @@
+import unittest
+
+from tally import top_scores
+
+
+class VisibleRankingChecks(unittest.TestCase):
+    def test_returns_the_highest_first(self) -> None:
+        self.assertEqual(top_scores([4, 9, 1, 7], 2), [9, 7])
+
+    def test_an_empty_list_is_empty(self) -> None:
+        self.assertEqual(top_scores([], 3), [])
+
+
+if __name__ == "__main__":
+    unittest.main()

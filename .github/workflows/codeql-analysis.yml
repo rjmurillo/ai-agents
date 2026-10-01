@@ -178,6 +178,15 @@ jobs:
           # Optimized retention per .project-toolkit/devops/artifact-retention-policy.md
           retention-days: 7
 
+      # ADR-113 decision 2: persist this job's typed result for the promotion gate.
+      - name: Upload promotion evidence
+        if: always()
+        uses: ./.github/actions/upload-validator-evidence
+        with:
+          validator: analyze_${{ matrix.language }}
+          job-status: ${{ job.status }}
+          ran: ${{ needs.check-paths.outputs.should-run-analysis == 'true' }}
+
   skip-analysis:
     name: Skip CodeQL Analysis (No Changes)
     needs: check-paths
