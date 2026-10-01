@@ -53,13 +53,17 @@ class TestCandidatePlacement:
         repo, first, _ = clone
         assert main(self._args(repo, first, "--expect-tag", "v9")) == EXIT_CONFIG
 
-    def test_a_flag_shaped_ref_exits_three(self, clone: tuple[Path, str, str]) -> None:
+    def test_a_flag_shaped_ref_is_bad_input_and_exits_two(
+        self, clone: tuple[Path, str, str]
+    ) -> None:
         repo, first, _ = clone
-        assert main(self._args(repo, first, "--ancestor-of=--all")) == EXIT_EXTERNAL
+        assert main(self._args(repo, first, "--ancestor-of=--all")) == EXIT_CONFIG
 
-    def test_a_flag_shaped_tag_exits_three(self, clone: tuple[Path, str, str]) -> None:
+    def test_a_flag_shaped_tag_is_bad_input_and_exits_two(
+        self, clone: tuple[Path, str, str]
+    ) -> None:
         repo, first, _ = clone
-        assert main(self._args(repo, first, "--expect-tag=-v1")) == EXIT_EXTERNAL
+        assert main(self._args(repo, first, "--expect-tag=-v1")) == EXIT_CONFIG
 
     def test_an_unknown_ref_exits_three(self, clone: tuple[Path, str, str]) -> None:
         repo, first, _ = clone

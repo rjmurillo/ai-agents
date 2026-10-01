@@ -44,6 +44,7 @@ from scripts.validation.promotion_applicability import (  # noqa: E402
 )
 from scripts.validation.promotion_candidate import (  # noqa: E402
     CandidateCheckError,
+    InvalidCandidateNameError,
     candidate_files,
     candidate_on_branch,
     tag_names_candidate,
@@ -327,6 +328,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _config_error(f"{type(exc).__name__}: {exc}")
     try:
         problem = _candidate_problem(args, candidate)
+    except InvalidCandidateNameError as exc:
+        return _config_error(str(exc))
     except CandidateCheckError as exc:
         print(f"[BLOCKED] promotion gate: {json.dumps(str(exc))}", file=sys.stderr)
         return EXIT_EXTERNAL

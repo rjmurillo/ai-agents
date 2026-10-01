@@ -334,6 +334,11 @@ class TestHardening:
         _, rejected = load_evidence_dir(tmp_path)
         assert rejected[0].reason == REASON_MALFORMED
 
+    def test_extension_matching_is_case_sensitive_on_every_platform(self, tmp_path: Path) -> None:
+        (tmp_path / "Y.Json").write_text(json.dumps(_doc()), encoding="utf-8")
+        (tmp_path / "z.json.bak").write_text(json.dumps(_doc()), encoding="utf-8")
+        assert load_evidence_dir(tmp_path) == ((), ())
+
     def test_uppercase_extension_is_not_loaded(self, tmp_path: Path) -> None:
         (tmp_path / "x.JSON").write_text(json.dumps(_doc()), encoding="utf-8")
         assert load_evidence_dir(tmp_path) == ((), ())
