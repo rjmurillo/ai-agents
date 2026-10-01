@@ -183,7 +183,14 @@ class TestFailures:
 
     @pytest.mark.parametrize(
         "raw",
-        [b"not json", b"\xff\xfe", b"[1, 2]", b'"text"', b"null", b"x" * (1024 * 1024 + 5)],
+        [
+            pytest.param(b"not json", id="not-json"),
+            pytest.param(b"\xff\xfe", id="not-utf8"),
+            pytest.param(b"[1, 2]", id="array"),
+            pytest.param(b'"text"', id="string"),
+            pytest.param(b"null", id="null"),
+            pytest.param(b"x" * (1024 * 1024 + 5), id="oversized"),
+        ],
     )
     def test_a_response_that_is_not_a_json_object_is_refused(self, raw: bytes) -> None:
         api, _ = client(raw)

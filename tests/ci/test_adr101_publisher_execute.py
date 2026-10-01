@@ -263,3 +263,83 @@ class TestRun:
         ex.run_execute(make_env(), {}, FakeRunner(), tmp_path)
 
         assert list(tmp_path.iterdir()) == []
+
+
+class TestRealGit:
+    def _git(self, cwd: Path, *args: str) -> str:
+        env = {"PATH": "/usr/bin:/bin", "HOME": str(cwd), "GIT_CONFIG_NOSYSTEM": "1"}
+        done = subprocess.run(
+            ["git", "-c", "commit.gpgsign=false", *args],
+            cwd=cwd,
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            env=env,
+            check=True,
+        )
+        return done.stdout.strip()
+
+    @pytest.fixture
+    def upstream(self, tmp_path: Path) -> tuple[Path, str]:
+        """A clone whose origin holds ``refs/pull/5/head`` at a known commit."""
+        source = tmp_path / "source"
+        source.mkdir()
+        self._git(source, "init", "-q", "-b", "main")
+        self._git(source, "config", "user.email", "t@example.com")
+        self._git(source, "config", "user.name", "t")
+        (source / "tests").mkdir()
+        (source / "tests" / "test_a.py").write_text("def test_a():\n    pass\n", encoding="utf-8")
+        (source / ".gitattributes").write_text("tests/ export-ignore\n", encoding="utf-8")
+        self._git(source, "add", "-A")
+        self._git(source, "commit", "-q", "-m", "head")
+        sha = self._git(source, "rev-parse", "HEAD")
+        self._git(source, "update-ref", "refs/pull/5/head", sha)
+        clone = tmp_path / "tool"
+        self._git(tmp_path, "clone", "-q", str(source), str(clone))
+        return clone, sha
+
+    def test_the_head_is_fetched_by_ref_and_checked_out_with_a_readable_head(
+        self, upstream: tuple[Path, str], tmp_path: Path
+    ) -> None:
+        clone, sha = upstream
+        dest = tmp_path / "out" / "candidate"
+        dest.parent.mkdir()
+
+        ex.materialize_head(clone, "5", sha, dest)
+
+        assert (dest / "tests" / "test_a.py").read_text(encoding="utf-8").startswith("def test_a")
+        assert self._git(dest, "rev-parse", "HEAD") == sha
+        assert self._git(dest, "ls-files").splitlines() == [".gitattributes", "tests/test_a.py"]
+
+    def test_export_ignore_in_the_head_does_not_omit_a_file(
+        self, upstream: tuple[Path, str], tmp_path: Path
+    ) -> None:
+        clone, sha = upstream
+        dest = tmp_path / "out" / "candidate"
+        dest.parent.mkdir()
+
+        ex.materialize_head(clone, "5", sha, dest)
+
+        assert (dest / "tests" / "test_a.py").exists()
+
+    def test_a_different_event_sha_raises_moved_and_writes_nothing(
+        self, upstream: tuple[Path, str], tmp_path: Path
+    ) -> None:
+        clone, _ = upstream
+        dest = tmp_path / "out" / "candidate"
+
+        with pytest.raises(ex.MaterializeError) as caught:
+            ex.materialize_head(clone, "5", "f" * 40, dest)
+
+        assert caught.value.moved is True
+        assert not dest.exists()
+
+    def test_a_missing_pull_ref_raises_without_the_moved_flag(
+        self, upstream: tuple[Path, str], tmp_path: Path
+    ) -> None:
+        clone, sha = upstream
+
+        with pytest.raises(ex.MaterializeError) as caught:
+            ex.materialize_head(clone, "99", sha, tmp_path / "out" / "candidate")
+
+        assert caught.value.moved is False

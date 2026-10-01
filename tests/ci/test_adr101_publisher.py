@@ -13,6 +13,8 @@ The API is a recording fake. No test reaches the network.
 
 from __future__ import annotations
 
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -300,3 +302,53 @@ class TestExitCodes:
         self, outcome: CheckOutcome, expected: int
     ) -> None:
         assert exit_code(outcome) == expected
+
+
+class TestRealProcess:
+    """Drive the script as the workflow step does, with a scrubbed environment."""
+
+    def _run(self, command: str, **overrides: str) -> subprocess.CompletedProcess[str]:
+        env = {"PATH": "/usr/bin:/bin", **make_env(**overrides)}
+        return subprocess.run(
+            [sys.executable, str(SCRIPT), command],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            env=env,
+            check=False,
+            timeout=60,
+        )
+
+    def test_flag_off_exits_zero_with_a_skip_line(self) -> None:
+        result = self._run("publish", ADR101_PUBLISHER_ENABLED="false")
+
+        assert result.returncode == 0
+        assert "[SKIP]" in result.stdout
+
+    def test_flag_on_without_secrets_exits_four(self) -> None:
+        result = self._run("publish", ADR101_HAS_KEY="false")
+
+        assert result.returncode == 4
+        assert "[BLOCKED]" in result.stdout
+
+    def test_an_unknown_command_exits_two(self) -> None:
+        result = self._run("nonsense")
+
+        assert result.returncode == 2
+
+
+class TestExecuteUsesTheGivenEnvironment:
+    def test_main_passes_its_environ_to_the_execute_stage(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        seen: dict[str, object] = {}
+
+        def fake(env: PublisherEnv, environ: object = None) -> CheckOutcome:
+            seen["environ"] = environ
+            return CheckOutcome.passed("v", revision="r", scope="s")
+
+        monkeypatch.setattr(pub, "run_execute", fake)
+        given = make_env()
+
+        assert pub.main(["execute"], given) == 0
+        assert seen["environ"] is given
