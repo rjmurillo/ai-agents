@@ -69,7 +69,9 @@ jobs:
       - name: Setup code environment
         uses: ./.github/actions/setup-code-env
         with:
-          gh-token: ${{ secrets.GITHUB_TOKEN }}
+          # The setup action only checks that gh runs and exports this value as
+          # GH_TOKEN, so it gets none. Only the fetch steps hold a token.
+          gh-token: ''
           enable-pester: false
           enable-git-hooks: false
 

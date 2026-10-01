@@ -149,3 +149,10 @@ def test_no_job_triggers_on_a_pull_request_or_checks_out_a_head_ref(
     assert "pull_request_target" not in text
     assert "head_ref" not in text
     assert "github.event.pull_request" not in text
+
+
+def test_the_setup_action_in_the_gate_job_receives_no_token(workflow: dict[str, Any]) -> None:
+    steps = _jobs(workflow)["gate"]["steps"]
+    setup = next(s for s in steps if s.get("uses") == "./.github/actions/setup-code-env")
+    assert setup["with"]["gh-token"] == ""
+    assert "secrets." not in WORKFLOW.read_text(encoding="utf-8")
