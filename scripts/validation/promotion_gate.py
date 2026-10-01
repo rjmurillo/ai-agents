@@ -248,6 +248,16 @@ def _config_error(message: str) -> int:
     return EXIT_CONFIG
 
 
+def _argument_problem(args: argparse.Namespace) -> str | None:
+    """Return why the arguments cannot describe a run, or None."""
+    names = [*args.require, *args.build_validator]
+    if any(not name.strip() or not name.isprintable() for name in names):
+        return "--require and --build-validator names must be non-blank printable text"
+    if args.mode == MODE_ENFORCING and not args.ancestor_of:
+        return "enforcing mode requires --ancestor-of, so the candidate is a default-branch commit"
+    return None
+
+
 def _inputs(args: argparse.Namespace) -> tuple[Candidate, PreviousManifest | None]:
     candidate = Candidate(args.candidate_sha, args.candidate_digest)
     previous = load_previous_manifest(args.previous_manifest) if args.previous_manifest else None
@@ -275,7 +285,9 @@ def _write_outputs(args: argparse.Namespace, manifest: dict[str, Any]) -> None:
         text = json.dumps(manifest, indent=2, sort_keys=True) + "\n"
         args.output.write_text(text, encoding="utf-8")
     if args.github_output:
-        eligible = manifest["verdict"] == "promote" and manifest["enforced"]
+        eligible = (
+            manifest["verdict"] == "promote" and manifest["enforced"] and bool(args.expect_tag)
+        )
         with args.github_output.open("a", encoding="utf-8") as handle:
             handle.write(f"verdict={manifest['verdict']}\n")
             handle.write(f"release_eligible={'true' if eligible else 'false'}\n")
@@ -284,6 +296,9 @@ def _write_outputs(args: argparse.Namespace, manifest: dict[str, Any]) -> None:
 def main(argv: Sequence[str] | None = None) -> int:
     """CLI entry point. Returns an ADR-035 exit code."""
     args = _parser().parse_args(argv)
+    problem = _argument_problem(args)
+    if problem:
+        return _config_error(problem)
     try:
         candidate, previous = _inputs(args)
     except (ValueError, ManifestError, OSError) as exc:

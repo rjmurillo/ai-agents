@@ -171,23 +171,30 @@ def findings_for(record: EvidenceRecord) -> tuple[Finding, ...]:
     )
 
 
+def _shows_a_result(record: EvidenceRecord) -> bool:
+    """A PASS counts only when it says it examined something; a finding always counts."""
+    outcome = record.outcome
+    if outcome.state is EvidenceState.PASS:
+        return bool(outcome.examined)
+    return is_finding(outcome)
+
+
 def missing_outcomes(
     required: Iterable[str], bound: Iterable[EvidenceRecord], candidate: Candidate
 ) -> tuple[CheckOutcome, ...]:
     """Return one ``UNKNOWN`` outcome per required validator that proved nothing.
 
-    A validator counts as present when it has a bound ``PASS`` or a bound
-    record that already yields a finding. A lone ``SKIP`` with ``policy.exempt``
-    does not count: the record is candidate-writable, and ADR-113 decision 9
-    accepts the exempt row only for a validator the applicability table marks
+    A validator counts as present when it has a bound ``PASS`` that examined at
+    least one item, or a bound record that already yields a finding. A ``PASS``
+    that examined nothing (zero, or no count) proves nothing, which
+    ``.claude/rules/ci-scripts.md`` MUST 12 names as the silent pass.
+
+    A lone ``SKIP`` with ``policy.exempt`` does not count: the record is
+    candidate-writable, and ADR-113 decision 9 accepts the exempt row only for a validator the applicability table marks
     not applicable, which is separate work. Until then a required validator
     must show a result.
     """
-    present = {
-        record.outcome.validator
-        for record in bound
-        if record.outcome.state is EvidenceState.PASS or is_finding(record.outcome)
-    }
+    present = {record.outcome.validator for record in bound if _shows_a_result(record)}
     return tuple(
         CheckOutcome.unknown(
             validator,

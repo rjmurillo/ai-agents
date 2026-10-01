@@ -118,14 +118,14 @@ class TestFindingsFor:
 
 class TestMissingAndUnreadable:
     def test_required_validator_with_no_record_is_unknown(self) -> None:
-        present = EvidenceRecord(CheckOutcome.passed("a", revision=SHA, scope="s"))
+        present = EvidenceRecord(CheckOutcome.passed("a", revision=SHA, scope="s", examined=1))
         out = missing_outcomes(["a", "b"], [present], Candidate(SHA))
         assert [o.validator for o in out] == ["b"]
         assert out[0].state is EvidenceState.UNKNOWN
         assert out[0].reason == REASON_MISSING
 
     def test_nothing_missing_when_all_present(self) -> None:
-        present = EvidenceRecord(CheckOutcome.passed("a", revision=SHA, scope="s"))
+        present = EvidenceRecord(CheckOutcome.passed("a", revision=SHA, scope="s", examined=1))
         assert missing_outcomes(["a"], [present], Candidate(SHA)) == ()
 
     def test_unrequired_validators_are_not_missing(self) -> None:
@@ -352,3 +352,17 @@ class TestExemptDoesNotSatisfy:
     def test_a_failing_validator_is_present_not_also_missing(self) -> None:
         failing = EvidenceRecord(_fail("a"))
         assert missing_outcomes(["a"], [failing], Candidate(SHA)) == ()
+
+
+class TestPassThatExaminedNothing:
+    @pytest.mark.parametrize("examined", [0, None])
+    def test_a_pass_with_no_examined_count_leaves_the_validator_missing(
+        self, examined: int | None
+    ) -> None:
+        empty = EvidenceRecord(CheckOutcome.passed("a", revision=SHA, scope="s", examined=examined))
+        out = missing_outcomes(["a"], [empty], Candidate(SHA))
+        assert [o.validator for o in out] == ["a"]
+
+    def test_a_pass_that_examined_something_is_present(self) -> None:
+        ok = EvidenceRecord(CheckOutcome.passed("a", revision=SHA, scope="s", examined=3))
+        assert missing_outcomes(["a"], [ok], Candidate(SHA)) == ()

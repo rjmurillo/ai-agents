@@ -8,14 +8,13 @@ and the CLI tests assert the exit code, not only the manifest.
 from __future__ import annotations
 
 import json
-import os
-import subprocess
 from datetime import date
 from pathlib import Path
 from typing import Any
 
 import pytest
 
+from scripts.validation import promotion_gate as gate
 from scripts.validation.evidence import EvidenceState
 from scripts.validation.promotion_evidence import Candidate
 from scripts.validation.promotion_exceptions import EXCEPTIONS_RELATIVE_PATH, ExceptionsFileError
@@ -34,6 +33,7 @@ SHA = "a" * 40
 OTHER = "b" * 40
 DIGEST = "c" * 64
 TODAY = date(2026, 10, 1)
+ENFORCING = ("--mode", "enforcing", "--ancestor-of", "HEAD")
 
 
 def _evidence(**overrides: Any) -> dict[str, Any]:
@@ -258,6 +258,12 @@ class TestAdvisory:
 
 
 class TestCli:
+    @pytest.fixture(autouse=True)
+    def _git_answers_yes(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Mock the git boundary. test_promotion_candidate.py drives real repositories."""
+        monkeypatch.setattr(gate, "candidate_on_branch", lambda *_a: (True, "ok"))
+        monkeypatch.setattr(gate, "tag_names_candidate", lambda *_a: (True, "ok"))
+
     def _args(self, tmp_path: Path, *extra: str) -> list[str]:
         return [
             "--repo-root", str(tmp_path),
@@ -279,7 +285,7 @@ class TestCli:
 
     def test_enforcing_block_exits_one(self, tmp_path: Path) -> None:
         (tmp_path / "ev").mkdir()
-        assert main(self._args(tmp_path, "--mode", "enforcing")) == EXIT_LOGIC
+        assert main(self._args(tmp_path, *ENFORCING)) == EXIT_LOGIC
 
     def test_advisory_block_prints_would_block_and_exits_zero(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
@@ -348,7 +354,7 @@ class TestCli:
         _write(tmp_path / "ev", "pack.json", _evidence(validator="pack-size", digest=DIGEST))
         args = self._args(
             tmp_path, "--candidate-digest", DIGEST, "--build-validator", "pack-size",
-            "--require", "pack-size", "--mode", "enforcing",
+            "--require", "pack-size", *ENFORCING,
         )  # fmt: skip
         assert main(args) == EXIT_OK
         _write(tmp_path / "ev", "pack.json", _evidence(validator="pack-size"))
@@ -357,7 +363,7 @@ class TestCli:
     def test_unreadable_evidence_dir_entry_never_promotes(self, tmp_path: Path) -> None:
         _write(tmp_path / "ev", "pytest.json", _evidence())
         (tmp_path / "ev" / "dir.json").mkdir()
-        args = self._args(tmp_path, "--mode", "enforcing", "--require", "pytest")
+        args = self._args(tmp_path, *ENFORCING, "--require", "pytest")
         assert main(args) == EXIT_LOGIC
 
     def test_github_output_is_advisory_ineligible_even_when_the_verdict_is_promote(
@@ -372,22 +378,54 @@ class TestCli:
             "release_eligible=false",
         ]
 
-    def test_github_output_is_eligible_only_for_an_enforced_promote(self, tmp_path: Path) -> None:
+    def test_github_output_is_eligible_only_for_an_enforced_tag_checked_promote(
+        self, tmp_path: Path
+    ) -> None:
         _write(tmp_path / "ev", "pytest.json", _evidence())
         sink = tmp_path / "out.txt"
         args = self._args(
-            tmp_path, "--github-output", str(sink), "--require", "pytest", "--mode", "enforcing"
-        )
+            tmp_path, "--github-output", str(sink), "--require", "pytest", *ENFORCING,
+            "--expect-tag", "v1",
+        )  # fmt: skip
         assert main(args) == EXIT_OK
         assert sink.read_text(encoding="utf-8").splitlines() == [
             "verdict=promote",
             "release_eligible=true",
         ]
 
+    def test_an_enforced_promote_without_a_tag_check_is_ineligible(self, tmp_path: Path) -> None:
+        _write(tmp_path / "ev", "pytest.json", _evidence())
+        sink = tmp_path / "out.txt"
+        args = self._args(tmp_path, "--github-output", str(sink), "--require", "pytest", *ENFORCING)
+        assert main(args) == EXIT_OK
+        assert sink.read_text(encoding="utf-8").splitlines() == [
+            "verdict=promote",
+            "release_eligible=false",
+        ]
+
+    def test_enforcing_without_ancestor_check_exits_two(self, tmp_path: Path) -> None:
+        (tmp_path / "ev").mkdir()
+        assert main(self._args(tmp_path, "--mode", "enforcing")) == EXIT_CONFIG
+
+    @pytest.mark.parametrize("flag", ["--require", "--build-validator"])
+    @pytest.mark.parametrize("name", ["", "   ", "a\nb"])
+    def test_blank_or_unprintable_validator_names_exit_two(
+        self, tmp_path: Path, flag: str, name: str
+    ) -> None:
+        (tmp_path / "ev").mkdir()
+        assert main(self._args(tmp_path, flag, name)) == EXIT_CONFIG
+
+    def test_a_pass_that_examined_nothing_does_not_satisfy_a_required_validator(
+        self, tmp_path: Path
+    ) -> None:
+        _write(tmp_path / "ev", "pytest.json", _evidence(examined=0))
+        args = self._args(tmp_path, "--require", "pytest", *ENFORCING)
+        assert main(args) == EXIT_LOGIC
+
     def test_github_output_for_a_block_is_ineligible(self, tmp_path: Path) -> None:
         (tmp_path / "ev").mkdir()
         sink = tmp_path / "out.txt"
-        main(self._args(tmp_path, "--github-output", str(sink), "--mode", "enforcing"))
+        main(self._args(tmp_path, "--github-output", str(sink), *ENFORCING))
         assert sink.read_text(encoding="utf-8").splitlines() == [
             "verdict=block",
             "release_eligible=false",
@@ -403,114 +441,4 @@ class TestCli:
         _write(tmp_path / "ev", "pytest.json", _evidence())
         bad = tmp_path / "no-such-dir" / "out.txt"
         args = self._args(tmp_path, "--github-output", str(bad), "--require", "pytest")
-        assert main(args) == EXIT_EXTERNAL
-
-
-def _git(repo: Path, *args: str) -> str:
-    result = subprocess.run(
-        ["git", "-C", str(repo), *args],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        check=True,
-        env={"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@example.com",
-             "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@example.com",
-             "PATH": os.environ["PATH"], "HOME": str(repo)},
-    )  # fmt: skip
-    return result.stdout.strip()
-
-
-@pytest.fixture
-def clone(tmp_path: Path) -> tuple[Path, str, str]:
-    repo = tmp_path / "repo"
-    repo.mkdir()
-    _git(repo, "init", "-q", "-b", "main")
-    (repo / "a").write_text("1", encoding="utf-8")
-    _git(repo, "add", "a")
-    _git(repo, "commit", "-q", "-m", "one")
-    first = _git(repo, "rev-parse", "HEAD")
-    _git(repo, "checkout", "-q", "-b", "side")
-    (repo / "b").write_text("2", encoding="utf-8")
-    _git(repo, "add", "b")
-    _git(repo, "commit", "-q", "-m", "side")
-    side = _git(repo, "rev-parse", "HEAD")
-    _git(repo, "checkout", "-q", "main")
-    _git(repo, "tag", "v1", first)
-    return repo, first, side
-
-
-class TestCandidatePlacement:
-    def _args(self, repo: Path, sha: str, *extra: str) -> list[str]:
-        ev = repo.parent / "ev"
-        ev.mkdir(exist_ok=True)
-        return [
-            "--repo-root", str(repo), "--evidence-dir", str(ev), "--candidate-sha", sha,
-            "--today", TODAY.isoformat(), *extra,
-        ]  # fmt: skip
-
-    def test_an_ancestor_of_main_is_accepted(self, clone: tuple[Path, str, str]) -> None:
-        repo, first, _ = clone
-        assert main(self._args(repo, first, "--ancestor-of", "main")) == EXIT_OK
-
-    def test_a_commit_not_on_main_is_refused(self, clone: tuple[Path, str, str]) -> None:
-        repo, _, side = clone
-        assert main(self._args(repo, side, "--ancestor-of", "main")) == EXIT_CONFIG
-
-    def test_a_tag_naming_the_candidate_is_accepted(self, clone: tuple[Path, str, str]) -> None:
-        repo, first, _ = clone
-        assert main(self._args(repo, first, "--expect-tag", "v1")) == EXIT_OK
-
-    def test_a_tag_naming_another_commit_is_refused(self, clone: tuple[Path, str, str]) -> None:
-        repo, _, side = clone
-        assert main(self._args(repo, side, "--expect-tag", "v1")) == EXIT_CONFIG
-
-    def test_a_missing_tag_is_refused(self, clone: tuple[Path, str, str]) -> None:
-        repo, first, _ = clone
-        assert main(self._args(repo, first, "--expect-tag", "v9")) == EXIT_CONFIG
-
-    def test_a_flag_shaped_ref_exits_three(self, clone: tuple[Path, str, str]) -> None:
-        repo, first, _ = clone
-        assert main(self._args(repo, first, "--ancestor-of=--all")) == EXIT_EXTERNAL
-
-    def test_a_flag_shaped_tag_exits_three(self, clone: tuple[Path, str, str]) -> None:
-        repo, first, _ = clone
-        assert main(self._args(repo, first, "--expect-tag=-v1")) == EXIT_EXTERNAL
-
-    def test_an_unknown_ref_exits_three(self, clone: tuple[Path, str, str]) -> None:
-        repo, first, _ = clone
-        assert main(self._args(repo, first, "--ancestor-of", "nope")) == EXIT_EXTERNAL
-
-    def test_a_non_repository_exits_three(self, tmp_path: Path) -> None:
-        sha = "a" * 40
-        args = ["--repo-root", str(tmp_path), "--evidence-dir", str(tmp_path),
-                "--candidate-sha", sha, "--ancestor-of", "main"]  # fmt: skip
-        assert main(args) == EXIT_EXTERNAL
-
-
-class TestGitFailures:
-    def test_git_that_cannot_run_exits_three(
-        self, clone: tuple[Path, str, str], monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        repo, first, _ = clone
-
-        def boom(*_a: Any, **_k: Any) -> None:
-            raise subprocess.TimeoutExpired("git", 1)
-
-        monkeypatch.setattr(subprocess, "run", boom)
-        args = ["--repo-root", str(repo), "--evidence-dir", str(repo), "--candidate-sha", first,
-                "--ancestor-of", "main"]  # fmt: skip
-        assert main(args) == EXIT_EXTERNAL
-
-    def test_rev_parse_failure_other_than_missing_exits_three(
-        self, clone: tuple[Path, str, str], monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        repo, first, _ = clone
-
-        def failing(*_a: Any, **_k: Any) -> subprocess.CompletedProcess[str]:
-            return subprocess.CompletedProcess([], 128, "", "fatal")
-
-        monkeypatch.setattr(subprocess, "run", failing)
-        args = ["--repo-root", str(repo), "--evidence-dir", str(repo), "--candidate-sha", first,
-                "--expect-tag", "v1"]  # fmt: skip
         assert main(args) == EXIT_EXTERNAL
