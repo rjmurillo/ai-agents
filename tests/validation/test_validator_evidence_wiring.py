@@ -281,6 +281,7 @@ def test_a_sparse_checkout_ahead_of_a_call_carries_the_emitter_and_its_imports()
     needed = {path.relative_to(ROOT).as_posix() for path in _closure(EMITTER, set())}
     needed |= {
         "scripts/__init__.py",
+        "scripts/validation/__init__.py",
         ".github/actions/upload-validator-evidence/action.yml",
     }
     checked = 0
