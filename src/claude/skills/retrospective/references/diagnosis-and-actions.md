@@ -336,7 +336,7 @@ Use Memory Router for search and Serena tools for persistence (ADR-037):
 **Search for existing patterns (before creating new):**
 
 ```bash
-uv run python .claude/skills/memory/scripts/search_memory.py --query "{domain} {description} skill patterns"
+uv run python .claude/skills/memory/scripts/search_memory.py "{domain} {description} skill patterns"
 ```
 
 **Create new skills:**
@@ -360,7 +360,7 @@ content: "[Updated content with new observation appended]"
 **Deduplication Query:**
 
 ```bash
-uv run python .claude/skills/memory/scripts/search_memory.py --query "rootcause {Category} {Keywords from description}"
+uv run python .claude/skills/memory/scripts/search_memory.py "rootcause {Category} {Keywords from description}"
 ```
 
 If similar pattern exists (>70% similarity), UPDATE existing entity instead of creating new one.
