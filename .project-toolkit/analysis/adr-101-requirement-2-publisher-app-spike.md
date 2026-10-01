@@ -198,9 +198,10 @@ Names the code would read: environment `adr101-publisher`, secret `ADR101_PUBLIS
 Build, behind `ADR101_PUBLISHER_ENABLED` (default off), a base-owned workflow with these parts. It would deliver the identity, binding, and split properties above and nothing stronger, and its docstring would say so.
 
 - A Python module under `scripts/ci/` owning all logic, returning `evidence.CheckOutcome` values: SKIP with reason `publisher.disabled` when the flag is off, BLOCKED with `auth.unavailable` when the flag is on and the App id or key is absent, FAIL when the supervisor's recorded conclusion is not success or the SHAs moved, PASS only when the check run was published for the captured head and base.
-- Workflow YAML with triggers and calls only: an `execute` job on its own runner with `contents: read`, no secrets, no environment, running a base-owned harness over the candidate checked out as data; a `publish` job with `needs: execute`, `if: ${{ always() }}`, `environment: adr101-publisher`, and no candidate code.
+- Workflow YAML with triggers and calls only: an `execute` job on its own GitHub-hosted runner with `contents: read`, no secrets, no environment, running a base-owned harness over the candidate checked out as data; a `publish` job, also on a GitHub-hosted runner, with `needs: execute`, `if: ${{ always() }}`, `environment: adr101-publisher`, and no candidate code.
 - A verifier that reads the published check run through the API and checks `app.id`, `head_sha`, and `name`, then cross-checks the run against the workflow-run API for the same head SHA. It uses `external_id`, a digest of the captured SHAs, for correlation only, and rejects tampered or mismatched evidence as FAIL.
 - Tests for flag off (SKIP), flag on with secrets absent (BLOCKED), a mocked valid token and evidence (PASS), and tampered evidence (FAIL).
+- A test that fails when either job names a `self-hosted` label. ADR line 199 voids the job split on a persistent runner pool, because candidate filesystem state would reach the job holding the key.
 - A test or lint that fails when the publication job checks out the head, restores a cache, or interpolates a head-controlled string into `run:`, and a CODEOWNERS entry for the workflow file.
 - It would not join `scripts/ci/ruleset_required_contexts.py` or any ruleset.
 
