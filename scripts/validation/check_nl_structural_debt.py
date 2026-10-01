@@ -38,6 +38,7 @@ Exit codes (ADR-035):
 from __future__ import annotations
 
 import argparse
+import importlib
 import json
 import re
 import sys
@@ -52,8 +53,6 @@ for _path in (_SCRIPT_DIR, _SCRIPT_DIR.parents[1]):
 
 from check_capability_graph import TreeError, survey  # noqa: E402
 from nl_cardinality import FENCE_RE, derived_count_claims, simplify  # noqa: E402
-
-from scripts.validation.instruction_bytes_corpus import canonical_paths  # noqa: E402
 
 BASELINE_PATH = "scripts/validation/nl_structural_debt_baseline.json"
 MIN_BLOCK_LINES = 5
@@ -74,6 +73,17 @@ class ScanError(Exception):
     """The scan cannot answer the question, so a clean result would be vacuous."""
 
 
+def _canonical_paths(repo_root: Path) -> list[str]:
+    """Return the byte corpus's authored paths.
+
+    Imported by name at call time: a static import pulls `instruction_budget_globs` under
+    two module names (package and sibling form), which mypy rejects.
+    """
+    corpus = importlib.import_module("scripts.validation.instruction_bytes_corpus")
+    paths: list[str] = corpus.canonical_paths(repo_root)
+    return paths
+
+
 class GraphViolationError(Exception):
     """The capability graph is invalid, so fan-out derived from it would mislead."""
 
@@ -82,7 +92,7 @@ def authored_files(repo_root: Path) -> list[Path]:
     """Return authored sources: the byte corpus set, hand-kept prompts, skill references."""
     files = [
         repo_root / rel
-        for rel in canonical_paths(repo_root)
+        for rel in _canonical_paths(repo_root)
         if rel.endswith(NL_SUFFIXES) and not Path(rel).name.startswith(GENERATED_PROMPT_PREFIX)
     ]
     for subdir, pattern in EXTRA_AUTHORED_GLOBS:
