@@ -809,6 +809,39 @@ _ACT_PATHS_FILTER_BASE_PATTERN = re.compile(
     r"to be set in the event payload"
 )
 
+# The count-ratchet job in pytest.yml fetches the base ref through
+# ``github.base_ref || github.event.repository.default_branch``. act's synthetic
+# push payload resolves that to ``master``, which this repository's remote does
+# not have, so the ``Fetch the base ref`` step fails before any ratchet runs.
+# GitHub populates the real default branch, so CI never fetches ``master``.
+#
+# Pinned three ways so a real defect still blocks. The two act lines must carry
+# this job's label, the same label on both, and be adjacent: act prefixes a
+# step's own output with ``| `` after the label, so output a step echoes cannot
+# take the place of the ``Failure`` line act writes itself. And every
+# ``Failure - Main`` line in the log must name this step, so another failing
+# step or job keeps blocking. A contributor who edits this job can still print
+# the first line and fail the step; the unexplained ``::error::`` check and CI
+# remain the backstop for that, as for every rule here.
+_ACT_BASE_REF_JOB_LABEL = r"\[Python Tests/Check whole-tree count ratchets \(blocking\)\]"
+_ACT_BASE_REF_FETCH_PATTERN = re.compile(
+    rf"^[ \t]*(?P<job>{_ACT_BASE_REF_JOB_LABEL})[ \t]+\| "
+    r"fatal: couldn't find remote ref master[ \t]*\n"
+    r"[ \t]*(?P=job)[ \t]+\S+[ \t]+Failure - Main Fetch the base ref\b",
+    re.MULTILINE,
+)
+_ACT_MAIN_FAILURE_MARKER = "Failure - Main "
+_ACT_BASE_REF_STEP_NAME = "Failure - Main Fetch the base ref"
+
+
+def _is_act_base_ref_fetch_limitation(text: str) -> bool:
+    """True when the only failing act step is the master base-ref fetch."""
+    if not _ACT_BASE_REF_FETCH_PATTERN.search(text):
+        return False
+    failures = [line for line in text.splitlines() if _ACT_MAIN_FAILURE_MARKER in line]
+    return all(_ACT_BASE_REF_STEP_NAME in line for line in failures)
+
+
 # act stages a cached action into the container at /var/run/act/actions/<ref>/
 # and copies it with `docker cp`. Recent dockerd rejects that destination with
 # "path escapes from parent" before the action's own code runs, so the step
@@ -914,6 +947,13 @@ _ACT_LIMITATION_RULES: tuple[tuple[str | None, Callable[[str], bool], str], ...]
         "act's synthetic event payload omits repository.default_branch, so "
         "dorny/paths-filter cannot resolve a comparison base. GitHub always "
         "populates it, so this fails only in local act, not in CI.",
+    ),
+    (
+        None,
+        _is_act_base_ref_fetch_limitation,
+        "act's synthetic event payload resolves the default branch to master, so "
+        "the count-ratchet job cannot fetch its base ref. GitHub populates the "
+        "real default branch, so this fails only in local act, not in CI.",
     ),
     (
         None,

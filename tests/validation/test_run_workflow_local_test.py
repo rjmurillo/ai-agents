@@ -1640,6 +1640,61 @@ def test_act_limitation_hint_matches_known_patterns() -> None:
     assert w._act_limitation_hint("Error: job 'build' exited 2") is None
 
 
+_ACT_JOB = "[Python Tests/Check whole-tree count ratchets (blocking)]"
+_ACT_OTHER_JOB = "[Python Tests/Check context outputs (blocking)]"
+
+
+def _act_fetch_failure(
+    ref: str = "master", step: str = "Fetch the base ref", failing_job: str = _ACT_JOB
+) -> str:
+    return (
+        f"      {_ACT_JOB}   | fatal: couldn't find remote ref {ref}\n"
+        f"      {failing_job}   \u274c  Failure - Main {step} [572ms]\n"
+    )
+
+
+def test_act_limitation_hint_matches_the_master_base_ref_fetch_failure() -> None:
+    hint = w._act_limitation_hint(_act_fetch_failure())
+    assert hint is not None
+    assert "master" in hint
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        _act_fetch_failure(ref="main"),
+        _act_fetch_failure(ref="mastery"),
+        _act_fetch_failure(step="Run ruff count ratchet (whole tree)"),
+        _act_fetch_failure(failing_job=_ACT_OTHER_JOB),
+        f"{_ACT_JOB}   | fatal: couldn't find remote ref master\n",
+        f"{_ACT_JOB}   \u274c  Failure - Main Fetch the base ref [5ms]\n",
+        "",
+    ],
+)
+def test_act_limitation_hint_ignores_other_fetch_failures(text: str) -> None:
+    assert w._act_limitation_hint(text) is None
+
+
+def test_act_limitation_hint_requires_the_two_lines_to_be_adjacent() -> None:
+    first, second = _act_fetch_failure().splitlines(keepends=True)
+    interleaved = f"{first}      {_ACT_OTHER_JOB}   | other output\n{second}"
+    assert w._act_limitation_hint(interleaved) is None
+
+
+def test_act_limitation_hint_rejects_output_a_step_echoed() -> None:
+    """A step's own output carries act's `| ` prefix, so it cannot stand in for act's line."""
+    forged = (
+        f"      {_ACT_JOB}   | fatal: couldn't find remote ref master\n"
+        f"      {_ACT_JOB}   | \u274c  Failure - Main Fetch the base ref [1ms]\n"
+    )
+    assert w._act_limitation_hint(forged) is None
+
+
+def test_act_limitation_hint_blocks_when_another_step_also_failed() -> None:
+    other = f"      {_ACT_OTHER_JOB}   \u274c  Failure - Main Check manifest [3ms]\n"
+    assert w._act_limitation_hint(_act_fetch_failure() + other) is None
+
+
 def test_act_limitation_hint_matches_action_cache_copy_failure() -> None:
     """dockerd refusing act's action staging path is transport, not a defect."""
     text = (
