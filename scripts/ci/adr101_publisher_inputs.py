@@ -55,6 +55,10 @@ from scripts.validation.evidence import (  # noqa: E402
 VALIDATOR = "adr101_publisher"
 CHECK_NAME = "ADR-101 Published Result"
 SERVED_EVENT = "pull_request"
+# workflow_run loads this workflow from the default branch, so only a pull request
+# against that branch has a base this publisher owns.
+SERVED_BASE_REF = "main"
+REASON_BASE_NOT_SERVED = "base.not_served"
 SHA_LENGTH = 40
 
 # What a successful check run says. It never says "verified": under (2b) the

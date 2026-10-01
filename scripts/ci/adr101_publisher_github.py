@@ -53,6 +53,7 @@ class PullState:
 
     head_sha: str
     base_sha: str
+    base_ref: str = "main"
 
 
 @dataclass(frozen=True, slots=True)
@@ -190,7 +191,9 @@ class GitHubApi:
             raise ValueError("pull request number must be numeric")
         payload = self._call(self._read_token, "GET", f"/pulls/{number}")
         return PullState(
-            head_sha=_text(payload, "head", "sha"), base_sha=_text(payload, "base", "sha")
+            head_sha=_text(payload, "head", "sha"),
+            base_sha=_text(payload, "base", "sha"),
+            base_ref=_text(payload, "base", "ref"),
         )
 
     def get_run(self, run_id: str) -> RunState:

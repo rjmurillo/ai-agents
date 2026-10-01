@@ -71,9 +71,11 @@ from scripts.ci.adr101_publisher_inputs import (  # noqa: E402
     CHECK_NAME,
     EXIT_CONFIG,
     PUBLISHED_LABEL,
+    REASON_BASE_NOT_SERVED,
     REASON_EVIDENCE_MISMATCH,
     REASON_EXECUTION_FAILED,
     REASON_REVISION_MOVED,
+    SERVED_BASE_REF,
     VALIDATOR,
     PublisherEnv,
     exit_code,
@@ -248,6 +250,12 @@ def _publish_bound(env: PublisherEnv, api: PublisherApi) -> CheckOutcome:
             detail="the event names no pull request; nothing was published",
         )
     pull = api.get_pull(env.pull_number)
+    if pull.base_ref != SERVED_BASE_REF:
+        return CheckOutcome.skipped(
+            VALIDATOR,
+            reason=REASON_BASE_NOT_SERVED,
+            detail=f"the pull request base is not {SERVED_BASE_REF}; nothing was published",
+        )
     if pull.head_sha != env.head_sha:
         return _moved("the pull request head is not the SHA the event named")
     mismatch = _run_mismatch(env, api)

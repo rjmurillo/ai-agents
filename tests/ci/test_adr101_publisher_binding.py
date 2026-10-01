@@ -67,6 +67,17 @@ class TestTamperedEvidence:
         assert outcome.reason == "revision.moved"
         assert api.created == []
 
+    @pytest.mark.parametrize("ref", ["release", "feature/x", ""])
+    def test_a_base_other_than_main_publishes_nothing(self, ref: str) -> None:
+        api = FakeApi(pull=PullState(head_sha=HEAD, base_sha=BASE, base_ref=ref))
+
+        outcome = run_publish(api)
+
+        assert outcome.state is EvidenceState.SKIP
+        assert outcome.reason == "base.not_served"
+        assert api.created == []
+        assert exit_code(outcome) == 0
+
     def test_a_head_that_moves_between_the_two_reads_publishes_nothing(self) -> None:
         api = FakeApi(pull_after=PullState(head_sha="c" * 40, base_sha=BASE))
 

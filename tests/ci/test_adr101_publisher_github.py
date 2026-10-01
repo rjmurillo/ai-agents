@@ -60,7 +60,7 @@ def body(payload: Any) -> bytes:
 
 class TestReads:
     def test_get_pull_uses_the_read_token_and_the_fixed_host(self) -> None:
-        api, opener = client(body({"head": {"sha": HEAD}, "base": {"sha": BASE}}))
+        api, opener = client(body({"head": {"sha": HEAD}, "base": {"sha": BASE, "ref": "main"}}))
 
         pull = api.get_pull("42")
 
@@ -68,7 +68,7 @@ class TestReads:
         assert request.full_url == "https://api.github.com/repos/rjmurillo/ai-agents/pulls/42"
         assert request.get_header("Authorization") == f"Bearer {READ_TOKEN}"
         assert request.get_method() == "GET"
-        assert (pull.head_sha, pull.base_sha) == (HEAD, BASE)
+        assert (pull.head_sha, pull.base_sha, pull.base_ref) == (HEAD, BASE, "main")
 
     def test_get_run_reads_head_sha_and_status(self) -> None:
         api, opener = client(body({"head_sha": HEAD, "status": "completed"}))
@@ -196,6 +196,7 @@ class TestFailures:
         [
             {},
             {"head": {"sha": HEAD}},
+            {"head": {"sha": HEAD}, "base": {"sha": BASE}},
             {"head": {"sha": None}, "base": {"sha": BASE}},
             {"head": {"sha": 5}, "base": {"sha": BASE}},
             {"head": "x", "base": {"sha": BASE}},
@@ -239,7 +240,7 @@ class TestFailures:
         assert caught.value.status == 301
 
     def test_the_timeout_is_bounded(self) -> None:
-        api, opener = client(body({"head": {"sha": HEAD}, "base": {"sha": BASE}}))
+        api, opener = client(body({"head": {"sha": HEAD}, "base": {"sha": BASE, "ref": "main"}}))
 
         api.get_pull("42")
 
