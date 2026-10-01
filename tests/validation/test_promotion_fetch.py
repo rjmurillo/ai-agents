@@ -255,6 +255,16 @@ class TestUnusableArtifact:
         (item,) = _fetch(reader, tmp_path)
         assert (item.reason, item.state) == ("artifact.malformed", "UNKNOWN")
 
+    def test_a_record_for_another_commit_is_recorded_unknown(self, tmp_path: Path) -> None:
+        archive = _zip("run_python_tests.json", _evidence(revision="b" * 40))
+        (item,) = _fetch(_good(archives={77: archive}), tmp_path)
+        assert (item.accepted, item.reason, item.state) == (
+            False,
+            "artifact.revision_mismatch",
+            "UNKNOWN",
+        )
+        assert _record_file(tmp_path)["revision"] == SHA
+
     def test_a_failed_sibling_run_cannot_be_hidden_by_a_passing_one(self, tmp_path: Path) -> None:
         """Two verified runs of one workflow: the one with no artifact must still count."""
         reader = _good()

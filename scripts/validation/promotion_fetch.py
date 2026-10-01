@@ -71,12 +71,17 @@ REASON_ARTIFACT_EXPIRED = "artifact.expired"
 REASON_ARTIFACT_RUN = "artifact.run_mismatch"
 REASON_ARTIFACT_SIZE = "artifact.too_large"
 REASON_ARTIFACT_STALE = "artifact.stale"
+REASON_ARTIFACT_REVISION = "artifact.revision_mismatch"
 REASON_ARTIFACT_FORMAT = "artifact.malformed"
 REASON_RUN_ABSENT = "run.absent"
 REASON_ACCEPTED = "accepted"
 _SHA_RE = re.compile(r"[0-9a-f]{40}")
 _REPO_RE = re.compile(r"[A-Za-z0-9_-][A-Za-z0-9_.-]*/[A-Za-z0-9_.-]+")
 _BRANCH_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._/-]*")
+
+
+class RevisionMismatchError(ValueError):
+    """An artifact's record names a commit other than the candidate."""
 
 
 class GitHubApiError(Exception):
@@ -272,6 +277,8 @@ def _download_record(ctx: _Context, artifact: Mapping[str, Any], validator: str)
     record = parse_evidence_text(read_evidence_member(archive, validator), f"{validator}.json")
     if record.outcome.validator != validator:
         raise ValueError("the record names a different validator than its artifact")
+    if record.outcome.revision != ctx.candidate_sha:
+        raise RevisionMismatchError("the record names a commit other than the candidate")
     return record
 
 
@@ -327,6 +334,8 @@ def _handle_run(ctx: _Context, entry: Applicability, run: Mapping[str, Any]) -> 
         return _unusable(ctx, entry, run_id, reason)
     try:
         record = _download_record(ctx, artifact, entry.validator)
+    except RevisionMismatchError:
+        return _unusable(ctx, entry, run_id, REASON_ARTIFACT_REVISION)
     except (ValueError, RecursionError):
         return _unusable(ctx, entry, run_id, REASON_ARTIFACT_FORMAT)
     corroboration = corroborate(
