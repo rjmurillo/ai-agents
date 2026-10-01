@@ -65,3 +65,7 @@ Scope: the amendment diff to `.project-toolkit/architecture/ADR-101-enforcement-
 
 ### Next Steps
 Owner creates the App, the `adr101-publisher` environment with a `main` branch policy, the secret and variables, then writes the ruleset pin. Issue #5245 tracks (2b) as research.
+
+## Post-review edits
+
+Bot review of PR #6119 corrected three items: the environment sentence now says only what was measured, the build path is called planned, and the table syntax was repaired. No position changed.
