@@ -68,4 +68,4 @@ Owner creates the App, the `adr101-publisher` environment with a `main` branch p
 
 ## Post-review edits
 
-Bot review of PR #6119 corrected three items: the environment sentence now says only what was measured, the build path is called planned, and the table syntax was repaired. No position changed.
+Bot review of PR #6119 corrected three items: the environment sentence now says only what was measured, the build path is called planned, and the table syntax was repaired. A fourth comment found that the original requirement 2 opening reads as executing only the base ref. The amendment now says the candidate is checked out as content and executed as input to the base-owned verifier. No position changed.
