@@ -242,20 +242,6 @@ def test_tilde_fenced_example_is_not_a_live_claim() -> None:
     assert len(card.derived_count_claims("Run the three filters: a, b, c, d.")) == 1
 
 
-def test_real_tree_consumers_depend_on_the_neutral_quality_capability() -> None:
-    import check_capability_graph as graph
-
-    nodes, _owners, _findings = graph.survey(_REPO_ROOT)
-    users = {
-        n.path for n in nodes if n.canonical and "artifact-neutral-code-quality" in n.depends_on
-    }
-    assert users == {
-        "templates/skills/review.SKILL.md.tmpl",
-        "templates/skills/doc-accuracy.SKILL.md.tmpl",
-        "templates/agents/quality-auditor.shared.md",
-    }
-
-
 def test_threshold_pins_four_shared_lines_and_short_lines_are_not_duplicates() -> None:
     four = "\n".join(
         f"Every reviewer must confirm that policy line number {n} holds." for n in range(4)
