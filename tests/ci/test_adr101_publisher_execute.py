@@ -181,7 +181,10 @@ class TestRun:
         ex.run_execute(make_env(), {}, runner, tmp_path)
 
         argv, kwargs = runner.harness_calls()[0]
-        assert argv == ex.harness_argv()
+        scratch = Path(kwargs["cwd"])
+        assert argv == ex.harness_argv(scratch)
+        assert argv[argv.index("-c") + 1] == str(scratch / "pyproject.toml")
+        assert argv[argv.index("--rootdir") + 1] == str(scratch)
         assert argv[:4] == ["uv", "run", "--frozen", "--no-config"]
         assert str(ex._tool_root()) in argv
         assert HEAD not in argv
@@ -263,6 +266,54 @@ class TestRun:
         ex.run_execute(make_env(), {}, FakeRunner(), tmp_path)
 
         assert list(tmp_path.iterdir()) == []
+
+
+class TestConfigInstall:
+    @pytest.mark.parametrize(
+        "name", ["pytest.ini", ".pytest.ini", "pytest.toml", ".pytest.toml", "tox.ini", "setup.cfg"]
+    )
+    def test_a_directory_with_a_config_name_is_removed_not_fatal(
+        self, tmp_path: Path, name: str
+    ) -> None:
+        scratch = tmp_path / "scratch"
+        (scratch / name / "inner").mkdir(parents=True)
+        (scratch / "pyproject.toml").mkdir()
+
+        ex._install_base_pytest_config(ex._tool_root(), scratch)
+
+        assert (scratch / "pyproject.toml").read_bytes() == BASE_PYPROJECT
+        assert not (scratch / name).exists()
+
+    def test_a_symlink_to_a_directory_is_unlinked_without_touching_the_target(
+        self, tmp_path: Path
+    ) -> None:
+        target = tmp_path / "target"
+        target.mkdir()
+        (target / "keep.txt").write_text("keep", encoding="utf-8")
+        scratch = tmp_path / "scratch"
+        scratch.mkdir()
+        (scratch / "tox.ini").symlink_to(target, target_is_directory=True)
+
+        ex._install_base_pytest_config(ex._tool_root(), scratch)
+
+        assert (target / "keep.txt").read_text(encoding="utf-8") == "keep"
+        assert not (scratch / "tox.ini").exists()
+
+    def test_an_install_error_is_a_typed_fail_not_a_traceback(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def boom(tool_root: Path, scratch: Path) -> None:
+            raise PermissionError("denied")
+
+        monkeypatch.setattr(ex, "_install_base_pytest_config", boom)
+        runner = FakeRunner()
+
+        outcome = ex.run_execute(make_env(), {}, runner, tmp_path)
+
+        assert outcome.state is EvidenceState.FAIL
+        assert outcome.reason == "execution.failed"
+        assert "PermissionError" in outcome.detail
+        assert runner.harness_calls() == []
 
 
 class TestRealGit:

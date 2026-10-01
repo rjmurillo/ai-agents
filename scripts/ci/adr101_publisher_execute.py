@@ -72,7 +72,14 @@ from scripts.validation.evidence import (
 HARNESS_TIMEOUT_SECONDS = 2400
 GIT_TIMEOUT_SECONDS = 300
 _PULL_REF = "refs/pull/{number}/head"
-_COMPETING_CONFIGS = ("pytest.ini", ".pytest.ini", "tox.ini", "setup.cfg")
+_COMPETING_CONFIGS = (
+    "pytest.ini",
+    ".pytest.ini",
+    "pytest.toml",
+    ".pytest.toml",
+    "tox.ini",
+    "setup.cfg",
+)
 # A system or global gitconfig can register a filter driver (git-lfs) that
 # checkout would run on head blobs when the head's .gitattributes names it.
 _INERT_GIT = ("-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false")
@@ -92,11 +99,17 @@ class MaterializeError(Exception):
         self.moved = moved
 
 
-def harness_argv() -> list[str]:
-    """The base-owned test invocation. The candidate supplies no part of it."""
+def harness_argv(scratch: Path) -> list[str]:
+    """The base-owned test invocation. The candidate supplies no part of it.
+
+    ``-c`` names the base ``pyproject.toml`` copied into ``scratch`` and
+    ``--rootdir`` pins the root, so pytest never searches the candidate's
+    ``tests/`` directory or any ancestor for its own configuration file.
+    """
     return [
         "uv", "run", "--frozen", "--no-config", "--extra", "dev", "--project", str(_tool_root()),
         "python", "-m", "pytest", "-q", "-p", "no:cacheprovider",
+        "-c", str(scratch / "pyproject.toml"), "--rootdir", str(scratch),
         "-n", "auto", "--dist", "loadfile", "tests",
     ]  # fmt: skip
 
@@ -174,7 +187,7 @@ def _run_harness(
     """Run the harness. Return None when it exited 0, else the typed failure."""
     try:
         completed = runner(
-            harness_argv(),
+            harness_argv(scratch),
             cwd=scratch,
             env=_child_env(environ),
             check=False,
@@ -202,6 +215,14 @@ def _passed(head_sha: str) -> CheckOutcome:
     )
 
 
+def _remove(path: Path) -> None:
+    """Remove a file, a symlink (not its target), or a directory (not its links)."""
+    if path.is_dir() and not path.is_symlink():
+        shutil.rmtree(path)
+    else:
+        path.unlink(missing_ok=True)
+
+
 def _install_base_pytest_config(tool_root: Path, scratch: Path) -> None:
     """Make the base ``pyproject.toml`` the only pytest configuration at the root.
 
@@ -214,9 +235,12 @@ def _install_base_pytest_config(tool_root: Path, scratch: Path) -> None:
 
     This does not stop a candidate ``conftest.py`` or a plugin it imports from
     changing results. That is the (2b) gap, accepted and open.
+
+    Pytest is also pointed at this file with ``-c`` (see ``harness_argv``), so a
+    configuration file under the candidate's ``tests/`` directory is not found.
     """
     for name in (*_COMPETING_CONFIGS, "pyproject.toml"):
-        (scratch / name).unlink(missing_ok=True)
+        _remove(scratch / name)
     shutil.copyfile(tool_root / "pyproject.toml", scratch / "pyproject.toml")
 
 
@@ -243,7 +267,14 @@ def run_execute(
         except MaterializeError as exc:
             reason = REASON_REVISION_MOVED if exc.moved else REASON_EXECUTION_FAILED
             return CheckOutcome.failed(VALIDATOR, reason=reason, detail=str(exc))
-        _install_base_pytest_config(tool_root, scratch)
+        try:
+            _install_base_pytest_config(tool_root, scratch)
+        except OSError as exc:
+            return CheckOutcome.failed(
+                VALIDATOR,
+                reason=REASON_EXECUTION_FAILED,
+                detail=f"the base pytest config could not be installed ({type(exc).__name__})",
+            )
         failure = _run_harness(scratch, source, runner)
     if failure is None:
         return _passed(env.head_sha)

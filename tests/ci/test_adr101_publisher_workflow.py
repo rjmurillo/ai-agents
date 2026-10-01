@@ -204,6 +204,13 @@ class TestPublishJob:
                     assert name == "ADR101_HAS_KEY"
                     assert str(value) == allowed
 
+    def test_the_publish_step_runs_after_a_refused_mint(
+        self, jobs: dict[str, dict[str, Any]]
+    ) -> None:
+        publish = [s for s in steps_of(jobs["publish"]) if s.get("name") == "Publish"][0]
+
+        assert "always()" in publish["if"]
+
     def test_the_token_reaches_only_the_publish_step(
         self, jobs: dict[str, dict[str, Any]]
     ) -> None:

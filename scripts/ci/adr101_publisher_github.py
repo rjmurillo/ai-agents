@@ -30,7 +30,7 @@ from dataclasses import dataclass
 from email.message import Message
 from typing import IO, Any, Protocol
 
-from scripts.ci.adr101_publisher_inputs import CHECK_NAME, is_number, is_repository
+from scripts.ci.adr101_publisher_inputs import CHECK_NAME, is_number, is_repository, is_sha
 
 API_ROOT = "https://api.github.com"
 TIMEOUT_SECONDS = 30
@@ -190,11 +190,12 @@ class GitHubApi:
         if not is_number(number):
             raise ValueError("pull request number must be numeric")
         payload = self._call(self._read_token, "GET", f"/pulls/{number}")
-        return PullState(
-            head_sha=_text(payload, "head", "sha"),
-            base_sha=_text(payload, "base", "sha"),
-            base_ref=_text(payload, "base", "ref"),
-        )
+        head_sha = _text(payload, "head", "sha")
+        base_sha = _text(payload, "base", "sha")
+        if not (is_sha(head_sha) and is_sha(base_sha)):
+            raise ApiError(0, "pull request SHA is not 40 lowercase hex")
+        base_ref = _text(payload, "base", "ref")
+        return PullState(head_sha=head_sha, base_sha=base_sha, base_ref=base_ref)
 
     def get_run(self, run_id: str) -> RunState:
         """Read the triggering workflow run's head SHA and status."""

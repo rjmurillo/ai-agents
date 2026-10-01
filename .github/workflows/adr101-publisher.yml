@@ -137,7 +137,9 @@ jobs:
           private-key: ${{ secrets.ADR101_PUBLISHER_APP_PRIVATE_KEY }}
           permission-checks: write
 
+      # always(): a refused mint must still reach the typed BLOCKED outcome (exit 4).
       - name: Publish
+        if: ${{ always() }}
         env:
           ADR101_PUBLISHER_ENABLED: ${{ vars.ADR101_PUBLISHER_ENABLED }}
           ADR101_TRIGGER_EVENT: ${{ github.event.workflow_run.event }}

@@ -199,6 +199,16 @@ class TestFailures:
             api.get_pull("42")
 
     @pytest.mark.parametrize(
+        "head, base",
+        [("abc", BASE), (HEAD, "not-a-sha"), (HEAD.upper(), BASE), (HEAD, BASE + "0"), (HEAD, "")],
+    )
+    def test_a_pull_response_with_a_non_sha_pointer_is_refused(self, head: str, base: str) -> None:
+        api, _ = client(body({"head": {"sha": head}, "base": {"sha": base, "ref": "main"}}))
+
+        with pytest.raises(gh.ApiError):
+            api.get_pull("42")
+
+    @pytest.mark.parametrize(
         "payload",
         [
             {},
