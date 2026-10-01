@@ -1,0 +1,349 @@
+{
+  "artifact": ".project-toolkit/analysis/adr-101-requirement-2-publisher-app-spike.md",
+  "activation": {
+    "decision": "activate",
+    "reason": "vendor and api claims about GitHub Apps, actions, attestations, and docs"
+  },
+  "claims": [
+    {
+      "id": "C1",
+      "claim": "To create a check run, you must use a GitHub App.",
+      "category": "api",
+      "time_sensitive": false,
+      "source": {
+        "kind": "primary",
+        "url": "https://docs.github.com/en/rest/checks/runs",
+        "published": null,
+        "accessed": "2026-09-30",
+        "secondary_reason": null
+      },
+      "confidence": "high",
+      "disposition": "verified",
+      "final_wording": "\"To create a check run, you must use a GitHub App.\"",
+      "gap": ""
+    },
+    {
+      "id": "C2",
+      "claim": "create-github-app-token v3.2.0 resolves to commit bcd2ba49218906704ab6c1aa796996da409d3eb1",
+      "category": "vendor",
+      "time_sensitive": false,
+      "source": {
+        "kind": "primary",
+        "url": "https://github.com/actions/create-github-app-token/releases/tag/v3.2.0",
+        "published": "2026-05-12",
+        "accessed": "2026-09-30",
+        "secondary_reason": null
+      },
+      "confidence": "high",
+      "disposition": "verified",
+      "final_wording": "`actions/create-github-app-token` v3.2.0 is commit `bcd2ba49218906704ab6c1aa796996da409d3eb1`.",
+      "gap": ""
+    },
+    {
+      "id": "C3",
+      "claim": "The token is revoked at job end unless skip-token-revoke is set",
+      "category": "vendor",
+      "time_sensitive": false,
+      "source": {
+        "kind": "primary",
+        "url": "https://github.com/actions/create-github-app-token/blob/bcd2ba49218906704ab6c1aa796996da409d3eb1/action.yml",
+        "published": "2026-05-12",
+        "accessed": "2026-09-30",
+        "secondary_reason": null
+      },
+      "confidence": "high",
+      "disposition": "verified",
+      "final_wording": "The token is revoked at job end unless `skip-token-revoke` is set.",
+      "gap": ""
+    },
+    {
+      "id": "C4",
+      "claim": "actions/attest v4.2.2 is commit 1e69f48acb82d1966a394da916b4c1698aa569d6",
+      "category": "vendor",
+      "time_sensitive": false,
+      "source": {
+        "kind": "primary",
+        "url": "https://github.com/actions/attest/releases/tag/v4.2.2",
+        "published": "2026-08-04",
+        "accessed": "2026-09-30",
+        "secondary_reason": null
+      },
+      "confidence": "high",
+      "disposition": "verified",
+      "final_wording": "`actions/attest` v4.2.2 is commit `1e69f48acb82d1966a394da916b4c1698aa569d6`.",
+      "gap": ""
+    },
+    {
+      "id": "C5",
+      "claim": "gh attestation verify offers --signer-workflow, --signer-digest, --source-ref, --source-digest, --predicate-type, --deny-self-hosted-runners",
+      "category": "vendor",
+      "time_sensitive": false,
+      "source": {
+        "kind": "primary",
+        "url": "https://cli.github.com/manual/gh_attestation_verify",
+        "published": null,
+        "accessed": "2026-09-30",
+        "secondary_reason": null
+      },
+      "confidence": "high",
+      "disposition": "verified",
+      "final_wording": "`gh attestation verify` offers `--signer-workflow`, `--signer-digest`, `--source-ref`, `--source-digest`, `--predicate-type`, and `--deny-self-hosted-runners`.",
+      "gap": "Read from the local gh help output in this session, the same tool the manual documents."
+    },
+    {
+      "id": "C6",
+      "claim": "A candidate process in the execution job can request the OIDC token itself because the request variables are runner environment",
+      "category": "vendor",
+      "time_sensitive": false,
+      "source": {
+        "kind": "primary",
+        "url": "https://docs.github.com/en/actions/reference/security/oidc",
+        "published": null,
+        "accessed": "2026-09-30",
+        "secondary_reason": null
+      },
+      "confidence": "medium",
+      "disposition": "qualified",
+      "final_wording": "INFERRED from the documented `ACTIONS_ID_TOKEN_REQUEST_URL` mechanism",
+      "gap": "The docs name the request URL and token variables and require id-token: write. That a child process inherits them is inferred, not run."
+    },
+    {
+      "id": "C7",
+      "claim": "pull_request_target runs in the context of the default branch of the base repository",
+      "category": "api",
+      "time_sensitive": false,
+      "source": {
+        "kind": "primary",
+        "url": "https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows",
+        "published": null,
+        "accessed": "2026-09-30",
+        "secondary_reason": null
+      },
+      "confidence": "high",
+      "disposition": "verified",
+      "final_wording": "so the workflow definition comes from the default branch",
+      "gap": "The docs say default branch of the base repository. For a pull request against another branch the claim is not examined."
+    },
+    {
+      "id": "C8",
+      "claim": "Environment deployment branches can be limited to selected branches and tags",
+      "category": "vendor",
+      "time_sensitive": false,
+      "source": {
+        "kind": "primary",
+        "url": "https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments",
+        "published": null,
+        "accessed": "2026-09-30",
+        "secondary_reason": null
+      },
+      "confidence": "high",
+      "disposition": "verified",
+      "final_wording": "Set \"Deployment branches and tags\" to \"Selected branches and tags\" and add the branch `main`.",
+      "gap": ""
+    },
+    {
+      "id": "C9",
+      "claim": "Writing a repository ruleset needs the Administration repository permission",
+      "category": "api",
+      "time_sensitive": false,
+      "source": {
+        "kind": "primary",
+        "url": "https://docs.github.com/en/rest/repos/rules",
+        "published": null,
+        "accessed": "2026-09-30",
+        "secondary_reason": null
+      },
+      "confidence": "high",
+      "disposition": "verified",
+      "final_wording": "An App without `administration` cannot edit a ruleset, so a stolen key cannot touch P2.",
+      "gap": ""
+    },
+    {
+      "id": "C10",
+      "claim": "GitHub App registration offers Expire user authorization tokens and Request user authorization (OAuth) during installation options",
+      "category": "vendor",
+      "time_sensitive": false,
+      "source": {
+        "kind": "primary",
+        "url": "https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/registering-a-github-app",
+        "published": null,
+        "accessed": "2026-09-30",
+        "secondary_reason": null
+      },
+      "confidence": "high",
+      "disposition": "verified",
+      "final_wording": "Clear \"Expire user authorization tokens\" and \"Request user authorization (OAuth) during installation\".",
+      "gap": ""
+    },
+    {
+      "id": "C11",
+      "claim": "The GitHub App name must be unique across GitHub",
+      "category": "vendor",
+      "time_sensitive": false,
+      "source": {
+        "kind": "primary",
+        "url": "https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/registering-a-github-app",
+        "published": null,
+        "accessed": "2026-09-30",
+        "secondary_reason": null
+      },
+      "confidence": "high",
+      "disposition": "verified",
+      "final_wording": "If taken, append a short suffix and use the same name everywhere below.",
+      "gap": ""
+    },
+    {
+      "id": "C12",
+      "claim": "Metadata is a mandatory read permission for every App",
+      "category": "vendor",
+      "time_sensitive": false,
+      "source": {
+        "kind": "primary",
+        "url": "https://docs.github.com/en/rest/authentication/permissions-required-for-github-apps",
+        "published": null,
+        "accessed": "2026-09-30",
+        "secondary_reason": null
+      },
+      "confidence": "low",
+      "disposition": "qualified",
+      "final_wording": "Set read-only. Not separately verified as mandatory.",
+      "gap": "Permission lists show a Metadata category. The mandatory claim was not confirmed on a page."
+    },
+    {
+      "id": "C13",
+      "claim": "Sigstore public good is the default instance for attestations",
+      "category": "vendor",
+      "time_sensitive": false,
+      "source": {
+        "kind": "primary",
+        "url": "https://cli.github.com/manual/gh_attestation_verify",
+        "published": null,
+        "accessed": "2026-09-30",
+        "secondary_reason": null
+      },
+      "confidence": "medium",
+      "disposition": "qualified",
+      "final_wording": "`actions/attest` artifact attestation, Sigstore public good",
+      "gap": "The CLI help offers --no-public-good, which implies public good is the default. Not confirmed on a docs page."
+    },
+    {
+      "id": "C2b",
+      "claim": "create-github-app-token accepts client-id, app-id, private-key, owner, repositories, permission-* and skip-token-revoke inputs",
+      "category": "vendor",
+      "time_sensitive": false,
+      "source": {
+        "kind": "primary",
+        "url": "https://github.com/actions/create-github-app-token/blob/bcd2ba49218906704ab6c1aa796996da409d3eb1/action.yml",
+        "published": "2026-05-12",
+        "accessed": "2026-09-30",
+        "secondary_reason": null
+      },
+      "confidence": "high",
+      "disposition": "verified",
+      "final_wording": "Inputs include `client-id`, `app-id`, `private-key`, `owner`, `repositories`, `permission-checks`, `permission-contents`, `permission-pull-requests`, and `skip-token-revoke`.",
+      "gap": ""
+    },
+    {
+      "id": "C14",
+      "claim": "Ruleset 11104075 records integration_id 15368 on all nine required contexts",
+      "category": "api",
+      "time_sensitive": true,
+      "source": {
+        "kind": "primary",
+        "url": "https://api.github.com/repos/rjmurillo/ai-agents/rulesets/11104075",
+        "published": "2026-09-30",
+        "accessed": "2026-09-30",
+        "secondary_reason": null
+      },
+      "confidence": "high",
+      "disposition": "verified",
+      "final_wording": "As of 2026-09-30, `gh api repos/rjmurillo/ai-agents/rulesets/11104075` shows that every required context carries an `integration_id`.",
+      "gap": "Read once through gh api; the ruleset can change after this date."
+    },
+    {
+      "id": "C15",
+      "claim": "The repository is public and owned by a user account",
+      "category": "api",
+      "time_sensitive": false,
+      "source": {
+        "kind": "primary",
+        "url": "https://api.github.com/repos/rjmurillo/ai-agents",
+        "published": "2026-09-30",
+        "accessed": "2026-09-30",
+        "secondary_reason": null
+      },
+      "confidence": "high",
+      "disposition": "verified",
+      "final_wording": "which is public and user-owned (`gh api repos/rjmurillo/ai-agents`: `visibility: public`, owner type `User`)",
+      "gap": "Read once through gh api on 2026-09-30."
+    },
+    {
+      "id": "C16",
+      "claim": "The repository lists three environments, none with a deployment branch policy",
+      "category": "api",
+      "time_sensitive": true,
+      "source": {
+        "kind": "primary",
+        "url": "https://api.github.com/repos/rjmurillo/ai-agents/environments",
+        "published": "2026-09-30",
+        "accessed": "2026-09-30",
+        "secondary_reason": null
+      },
+      "confidence": "high",
+      "disposition": "verified",
+      "final_wording": "As of 2026-09-30 the repository lists three environments, `bot-secrets`, `copilot`, `vendor-provenance`",
+      "gap": "Read once through gh api; environments can change after this date."
+    },
+    {
+      "id": "C17",
+      "claim": "Ruleset integration_id is 15368 on every context, per the live ruleset",
+      "category": "api",
+      "time_sensitive": true,
+      "source": {
+        "kind": "primary",
+        "url": "https://api.github.com/repos/rjmurillo/ai-agents/rulesets/11104075",
+        "published": "2026-09-30",
+        "accessed": "2026-09-30",
+        "secondary_reason": null
+      },
+      "confidence": "high",
+      "disposition": "verified",
+      "final_wording": "As of 2026-09-30 the live ruleset records `integration_id: 15368` on every context (READ).",
+      "gap": "Same read as C14."
+    },
+    {
+      "id": "C10b",
+      "claim": "App registration offers a webhook Active toggle",
+      "category": "vendor",
+      "time_sensitive": false,
+      "source": {
+        "kind": "primary",
+        "url": "https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/registering-a-github-app",
+        "published": null,
+        "accessed": "2026-09-30",
+        "secondary_reason": null
+      },
+      "confidence": "high",
+      "disposition": "verified",
+      "final_wording": "Webhook: clear \"Active\".",
+      "gap": ""
+    },
+    {
+      "id": "C10c",
+      "claim": "App registration offers the Only on this account install option",
+      "category": "vendor",
+      "time_sensitive": false,
+      "source": {
+        "kind": "primary",
+        "url": "https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/registering-a-github-app",
+        "published": null,
+        "accessed": "2026-09-30",
+        "secondary_reason": null
+      },
+      "confidence": "high",
+      "disposition": "verified",
+      "final_wording": "Where can this GitHub App be installed: \"Only on this account\".",
+      "gap": ""
+    }
+  ]
+}
