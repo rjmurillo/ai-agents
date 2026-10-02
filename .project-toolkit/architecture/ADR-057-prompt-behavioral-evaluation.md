@@ -91,9 +91,11 @@ The gate blocks regressions. It does not mandate an improvement on every edit. A
 1. `after_score >= before_score` (no regression on existing scenarios). Both scores cover only scenarios with a stable base result; see criterion 4.
 2. No scenario with a stable base result flips from pass to fail. A scenario passes on its verdict alone (the controlled label the grader is told to emit); the free-text reason never decides pass or fail. Every such pass-to-fail flip is recorded in `regressions` and blocks the gate automatically; the gate has no mechanism to accept a "justified" regression. Where the gate runs as a blocking CI leg (currently the `/spec` eval in `.github/workflows/slash-command-quality.yml`), a deliberate behavior change normally lands by updating the scenario expectations alongside the prompt in the same change, so the new expectations move with the intended behavior and the gate passes without a bypass. Only accepting a regression against unchanged expectations requires a human override (admin merge) with the rationale documented in the PR. For prompt files with no blocking CI leg, the gate is advisory and PR review carries the same judgment (see Amendment 2026-07-22).
 3. Flakiness on any scenario stays at or below the 40% block threshold.
-4. At least one base scenario has a stable result. A base scenario is unstable when it meets the 2-of-3 pass threshold without passing every scored run (`is_base_unstable`: `passed` and `flaky`). The base prompt never changes, so that swing is sampling noise. A base that fails the threshold (for example 1 of 3) is not unstable: it counts as a base failure and cannot regress. An unstable scenario is excluded from `regressions` and from both scores, and is reported in `base_unstable_scenarios`. When every base scenario is unstable the gate has no baseline and fails closed (`has_stable_baseline`). A base that passes every scored run while the after side misses the 2-of-3 threshold is still a regression.
+4. A stable baseline exists. A base scenario is unstable when it meets the pass threshold without passing every scored run (`is_base_unstable`: `passed` and `flaky`), or when it was scored on fewer runs than the tier requires (3 non-security, 5 security; the constants behind `insufficient_scored_before`). Stability is judged on scored runs, not requested runs. The base prompt never changes, so a swing is sampling noise, and a base scored once says nothing about stability. A base that fails the threshold (for example 1 of 3) is not unstable: it satisfies the baseline and cannot regress, which is intended. An unstable scenario is excluded from `regressions` and from both scores, and is reported in `base_unstable_scenarios` (in `base_unstable_security_scenarios` on the security tier) with `excluded_count`. The comparison is conclusive only when `scored_scenario_count >= max(1, ceil(total_scenarios / 2))` (`has_stable_baseline`). Below that floor the verdict is FAIL with an `inconclusive_reason` naming the stable and total counts. A hand-built comparison that omits `scored_scenario_count` is treated as having every scenario stable. A base that passes every scored run while the after side misses the pass threshold is still a regression.
 
-Accepted limits of this criterion, stated so no reader assumes more: one stable scenario satisfies it, so the gate can pass with most scenarios excluded; a stable base (3 of 3) falling to 2 of 3 on the after side is not a regression, because the after side passes at 2 of 3; and a two-valued scenario such as D12 can be stable or pass by chance when the grader guesses, which removing the reason check no longer filters.
+The pass threshold is `ceil(2n/3)` of n scored runs, which is not monotone in the share of runs: required passes for n = 1 to 6 are 1, 2, 2, 3, 4, 4. The security tier is unchanged by this amendment: the after side must pass every scored run, and at least 5 runs must score.
+
+Accepted limits of this criterion, stated so no reader assumes more: up to half the scenarios can be excluded and the gate still passes; a stable base (3 of 3) falling to 2 of 3 on the after side is not a regression, because the after side passes at 2 of 3; and a two-valued scenario such as D12 can be stable or pass by chance when the grader guesses, which removing the reason check no longer filters.
 
 A right verdict with a reason lacking the expected substring is listed in `reason_mismatch_scenarios` (after side, passing runs only) for a reviewer to read. It does not fail the gate (Amendment 2026-09-30, Issue #5601).
 
@@ -122,7 +124,7 @@ Prompts in the security domain (security agent, quality gate security prompts) r
 For non-security prompts, when a scenario produces inconsistent results across runs:
 
 - MUST: Run the scenario 3 times minimum. Enforced by `DEFAULT_RUNS = 3` in eval-prompt-change.py.
-- MUST: A scenario passes if it succeeds in at least 2 of 3 runs. Enforced by `(runs * 2) // 3` threshold in run_scenario_multi().
+- MUST: A scenario passes if it succeeds in at least 2 of 3 runs. Enforced by the ceiling threshold `-(-scored * 2 // 3)` (ceil(2/3 of scored runs)) in run_scenario_multi().
 - MUST: If flakiness rate exceeds 40% on any scenario, the gate fails. Enforced by `FLAKINESS_BLOCK_THRESHOLD = 0.4` in acceptance_gate().
 - SHOULD: Document the flaky scenario in the PR with observed pass/fail ratio. Enforced by code review.
 
@@ -241,11 +243,11 @@ These gates run inside `eval-prompt-change.py`. They fire whenever the eval runn
 | Scenario file must contain >= 1 scenario | eval-prompt-change.py load_scenarios() | RuntimeError on empty file |
 | after_score >= before_score (no regression) | eval-prompt-change.py acceptance_gate() | Gate returns FAIL |
 | No stable-base scenario flips pass to fail | eval-prompt-change.py acceptance_gate() | Gate returns FAIL |
-| At least one stable base scenario (`has_stable_baseline`) | eval-prompt-change.py acceptance_gate() | Gate returns FAIL when `scored_scenario_count` is 0. Applies to the security tier too, at 5 runs |
+| Stable baseline (`has_stable_baseline`) | eval-prompt-change.py acceptance_gate() | Gate returns FAIL as inconclusive when `scored_scenario_count < max(1, ceil(total_scenarios / 2))`. A base scored on fewer than 3 runs (5 on the security tier) is unstable. Applies to the security tier too |
 | Flakiness > 40% blocks gate | eval-prompt-change.py acceptance_gate() | FLAKINESS_BLOCK_THRESHOLD = 0.4 |
 | Security prompts: 5 runs, 100% pass | eval-prompt-change.py --security-critical | Overrides runs, requires 100% pass_rate |
-| Non-security: 3 runs, 2/3 pass | eval-prompt-change.py DEFAULT_RUNS | (runs * 2) // 3 threshold |
-| --runs >= 1 | eval-prompt-change.py _parse_args() | parser.error on invalid value |
+| Non-security: 3 runs, 2/3 pass | eval-prompt-change.py DEFAULT_RUNS | ceiling threshold `-(-scored * 2 // 3)` |
+| --runs >= 1; non-security >= 3 | eval-prompt-change.py _parse_args() | parser.error on invalid value |
 | API keys from environment variables | _anthropic_api.py load_api_key() | Reads env var, never hardcoded |
 
 ### Not enforced (code review only)
@@ -287,7 +289,11 @@ Two defects made the `/spec` gate block changes that altered no behavior. A scen
 
 Decision: the verdict alone gates a scenario, and `expected_reason_contains` is an informational signal. A base scenario that meets the 2-of-3 threshold without passing every run is excluded from `regressions` and the score comparison, and the gate fails closed when no base scenario is stable. The Acceptance Gate section above states the resulting criteria.
 
-Trade-off: a real regression on a scenario that already passes only some base runs is reported, not blocked. Three further limits are accepted and deferred: a minimum stable count or fraction, a stricter after-side threshold for scenarios that were stable at base, and a chance correction for two-valued scenarios. Each needs a measured false-block rate from live runs, which this change did not have. A base that passes every scored run and an after side that fails still blocks. A structured grader field that keeps a right-answer-wrong-reason check remains an option, but it needs live grader runs to author.
+Follow-up decision (owner D3=A, after the full panel): the comparison needs a stable fraction. `has_stable_baseline` requires `scored_scenario_count >= max(1, ceil(total_scenarios / 2))`, and below it the verdict is FAIL as inconclusive. A base scored on fewer runs than the tier requires (3 non-security, 5 security) counts as unstable, so a single scored run cannot form the baseline. The security tier is unchanged: the after side must pass 5 of 5 scored runs. A failing base satisfies the baseline and cannot regress, which is intended.
+
+Trade-offs, accepted. Verdict-only scoring trades false blocks for false passes: a right-answer-wrong-reason pass is no longer caught, and a real regression on a scenario that passes only some base runs is reported, not blocked. The ceiling threshold is non-monotone: required passes for n = 1 to 6 scored runs are 1, 2, 2, 3, 4, 4.
+
+Accepted limits with revisit triggers. The stable set is drawn from one noisy 3-run base sample, so a 3/3 draw on a noisy base is treated as stable. Revisit after 10 live gate runs, when the base-unstable exclusion rate exceeds 25%, or when a scenario flips between stable and unstable across reruns. The long-term design is a pooled paired test. Two further limits share that trigger: a stricter after-side threshold for scenarios that were stable at base, and a chance correction for two-valued scenarios (critic findings 8 to 10 in the debate log). A provider outage exits 0 (pre-existing fail-open behavior). It must be fixed before this eval becomes a required check. A base that passes every scored run and an after side that fails still blocks. A structured grader field that keeps a right-answer-wrong-reason check remains an option, but it needs live grader runs to author.
 
 ## Reversibility Assessment
 

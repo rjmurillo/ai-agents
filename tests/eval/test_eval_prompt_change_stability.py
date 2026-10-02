@@ -324,3 +324,83 @@ def test_gate_summary_names_unstable_and_wording_signals(
     err = capsys.readouterr().err
     assert "Base unstable" in err and "['D12']" in err
     assert "Reason wording differs" in err and "['D6']" in err
+
+
+# ---------------------------------------------------------------------------
+# Stable-fraction floor and base minimum scored runs
+# ---------------------------------------------------------------------------
+
+
+def _floor_comparison(stable: int, total: int, runs: int = 3) -> dict[str, Any]:
+    """`stable` scenarios with a 3/3 base, the rest 2/3 (base unstable); after is 3/3."""
+    before = [_result(f"S{i}", 3 if i < stable else 2, runs) for i in range(total)]
+    after = [_result(f"S{i}", runs, runs) for i in range(total)]
+    comparison = _comparison(before, after)
+    comparison["scenario_count"] = total
+    comparison["scored_scenario_count"] = stable
+    return comparison
+
+
+@pytest.mark.parametrize(
+    ("stable", "total", "expected"),
+    [
+        (0, 4, "FAIL"),
+        (1, 4, "FAIL"),
+        (2, 4, "PASS"),
+        (3, 5, "PASS"),
+        (2, 5, "FAIL"),
+        (1, 1, "PASS"),
+    ],
+)
+def test_stable_fraction_floor(stable: int, total: int, expected: str) -> None:
+    gate = ev.acceptance_gate(_floor_comparison(stable, total))
+    assert gate["verdict"] == expected
+    assert gate["criteria"]["has_stable_baseline"] is (expected == "PASS")
+
+
+def test_below_floor_names_the_inconclusive_reason_and_excluded_count() -> None:
+    gate = ev.acceptance_gate(_floor_comparison(1, 4))
+    assert "inconclusive" in gate["inconclusive_reason"]
+    assert "1 of 4" in gate["inconclusive_reason"]
+    assert gate["excluded_count"] == 3
+    assert gate["base_unstable_scenarios"] == ["S1", "S2", "S3"]
+
+
+def test_floor_cleared_has_no_inconclusive_reason() -> None:
+    gate = ev.acceptance_gate(_floor_comparison(2, 4))
+    assert gate["inconclusive_reason"] is None
+
+
+def test_base_with_one_scored_run_is_unstable() -> None:
+    assert ev.is_base_unstable(_result("S", 1, 1), required_runs=3) is True
+    assert ev.is_base_unstable(_result("S", 3, 3), required_runs=3) is False
+
+
+def test_gate_excludes_a_base_scored_below_the_required_minimum() -> None:
+    before = [_result("A", 3, 3), _result("B", 1, 1), _result("C", 3, 3)]
+    after = [_result("A", 3, 3), _result("B", 0, 3), _result("C", 3, 3)]
+    comparison = _comparison(before, after)
+    gate = ev.acceptance_gate(comparison)
+    assert "B" in gate["base_unstable_scenarios"]
+    assert gate["regressions"] == []
+
+
+def test_security_tier_requires_five_scored_base_runs_and_lists_separately() -> None:
+    before = [_result("A", 5, 5), _result("B", 3, 3)]
+    after = [_result("A", 5, 5), _result("B", 5, 5)]
+    comparison = _comparison(before, after)
+    gate = ev.acceptance_gate(comparison, security_critical=True)
+    assert gate["base_unstable_scenarios"] == []
+    assert gate["base_unstable_security_scenarios"] == ["B"]
+    assert gate["excluded_count"] == 1
+
+
+def test_run_comparison_excludes_a_base_scored_once(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake(_k: str, prompt: str, scenario: dict[str, Any], _m: str, runs: int) -> dict[str, Any]:
+        if prompt == "base" and scenario["id"] == "D6":
+            return _result("D6", 1, 1)
+        return _result(scenario["id"], runs, runs)
+
+    monkeypatch.setattr(ev, "run_scenario_multi", fake)
+    out = ev.run_comparison("k", "base", "head", [D12, D6], "m", 3)
+    assert out["scored_scenario_count"] == 1
