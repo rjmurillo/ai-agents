@@ -11,7 +11,9 @@ Two defects, one negative control each:
 
 from __future__ import annotations
 
+import argparse
 import importlib.util
+import json
 import sys
 from pathlib import Path
 from typing import Any
@@ -135,6 +137,53 @@ def test_run_scenario_multi_counts_reason_mismatch_but_passes(
     assert out["passed"] is True
     assert out["passes"] == 3
     assert out["reason_mismatch_runs"] == 2
+
+
+@pytest.mark.parametrize(
+    ("runs", "passes", "expected"),
+    [
+        (1, 1, True),
+        (1, 0, False),
+        (2, 1, False),
+        (2, 2, True),
+        (3, 1, False),
+        (3, 2, True),
+        (4, 2, False),
+        (4, 3, True),
+        (5, 3, False),
+        (5, 4, True),
+        (6, 4, True),
+        (6, 3, False),
+    ],
+)
+def test_pass_threshold_is_ceiling_of_two_thirds(
+    monkeypatch: pytest.MonkeyPatch, runs: int, passes: int, expected: bool
+) -> None:
+    verdicts = iter(["PASS"] * passes + ["FAIL"] * (runs - passes))
+
+    def judge(*_a: Any, **_k: Any) -> dict[str, Any]:
+        return {"verdict": next(verdicts), "reason": "r", "raw": "", "not_scored": False}
+
+    monkeypatch.setattr(ev, "judge_scenario", judge)
+    monkeypatch.setattr(ev.time, "sleep", lambda _s: None)
+    out = ev.run_scenario_multi("k", "prompt", D12, "m", runs)
+    assert out["passed"] is expected
+
+
+def test_run_and_report_serializes_scored_scenario_count(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(
+        ev, "run_scenario_multi", _fake_multi({"D12": 2, "D6": 3}, {"D12": 0, "D6": 3})
+    )
+    out_file = tmp_path / "report.json"
+    args = argparse.Namespace(model="m", runs=3, security_critical=False, output=str(out_file))
+    with pytest.raises(SystemExit) as exc:
+        ev._run_and_report("k", "base", "head", [D12, D6], args, "test")
+    assert exc.value.code == 0
+    comparison = json.loads(out_file.read_text(encoding="utf-8"))["comparison"]
+    assert comparison["scenario_count"] == 2
+    assert comparison["scored_scenario_count"] == 1
 
 
 def test_behavior_preserving_edit_produces_no_regression(

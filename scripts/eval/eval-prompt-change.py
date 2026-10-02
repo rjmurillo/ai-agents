@@ -453,7 +453,7 @@ def run_scenario_multi(
     `not_scored_runs` reports how many were excluded. A scenario with zero
     scored runs cannot pass: `passed` requires `scored > 0`.
 
-    Non-security: passes if >= 2/3 of scored runs succeed.
+    Non-security: passes if >= ceil(2/3 * scored) of scored runs succeed.
     Security-critical: passes if 100% of scored runs succeed (enforced by
     caller).
     """
@@ -482,7 +482,7 @@ def run_scenario_multi(
         "requested_runs": runs,
         "not_scored_runs": not_scored_runs,
         "pass_rate": pass_rate,
-        "passed": scored > 0 and passes >= max(1, (scored * 2) // 3),  # 2/3 threshold
+        "passed": scored > 0 and passes >= -(-scored * 2 // 3),  # ceil(2/3 * scored)
         "flaky": 0 < passes < scored,
         "reason_mismatch_runs": reason_mismatch_runs,
         "per_run": run_results,
@@ -926,6 +926,7 @@ def _run_and_report(
             "after_score": comparison["after_score"],
             "delta": comparison["delta"],
             "scenario_count": comparison["scenario_count"],
+            "scored_scenario_count": comparison["scored_scenario_count"],
             "api_calls": comparison["api_calls"],
             "est_tokens": comparison["est_tokens"],
         },

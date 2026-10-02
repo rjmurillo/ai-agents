@@ -81,6 +81,8 @@ delta = after_score - before_score
 print(f"Before: {before_score:.0%}  After: {after_score:.0%}  Delta: {delta:+.0%}")
 ```
 
+This skeleton runs each side once and scores every scenario, so it does not exclude base-unstable scenarios. Use `scripts/eval/eval-prompt-change.py` for the repeated-run aggregation and the base-unstable exclusion (`run_scenario_multi`, `is_base_unstable`, `run_comparison`).
+
 ### Acceptance Gate
 
 A prompt change is acceptable when all three hold:
