@@ -225,11 +225,12 @@ def _has_path_reference(text: str) -> bool:
     return bool(_PATH_REF.search(text))
 
 
-def scan_file(path: Path) -> Violation | None:
+def scan_file(path: Path, repo_root: Path = _PROJECT_ROOT) -> Violation | None:
     """Scan a single file for an uncited mirror-claim.
 
     Returns a Violation if the file's top-level docstring or comments
-    contain a mirror-token but no path reference; otherwise None.
+    contain a mirror-token but no path reference; otherwise None. Import
+    ownership is judged against `repo_root`, the repository being scanned.
     """
     try:
         source = path.read_text(encoding="utf-8")
@@ -249,7 +250,7 @@ def scan_file(path: Path) -> Violation | None:
         return None
 
     if _has_path_reference(text) or structural_evidence(
-        text, imported_project_names(source, owned_roots(_PROJECT_ROOT, path.parent))
+        text, imported_project_names(source, owned_roots(repo_root, path.parent))
     ):
         return None
 
@@ -257,7 +258,7 @@ def scan_file(path: Path) -> Violation | None:
     return Violation(path=path, matched_token=token, excerpt=excerpt)
 
 
-def scan_copied_contract(path: Path) -> CopyFinding | None:
+def scan_copied_contract(path: Path, repo_root: Path = _PROJECT_ROOT) -> CopyFinding | None:
     """Return a finding when a mirror-claim carries a copy no structure backs.
 
     Advisory only: it never changes the exit code and is not counted by the
@@ -273,7 +274,7 @@ def scan_copied_contract(path: Path) -> CopyFinding | None:
         return None
     marker = copied_contract_marker(text)
     if marker is None or structural_evidence(
-        text, imported_project_names(source, owned_roots(_PROJECT_ROOT, path.parent))
+        text, imported_project_names(source, owned_roots(repo_root, path.parent))
     ):
         return None
     return CopyFinding(path=path, marker=marker)
@@ -281,7 +282,9 @@ def scan_copied_contract(path: Path) -> CopyFinding | None:
 
 def collect_copy_findings(repo_root: Path) -> list[CopyFinding]:
     """Scan all configured roots for unbacked copied contracts."""
-    findings = (scan_copied_contract(p) for p in _iter_python_files(_scan_roots(repo_root)))
+    findings = (
+        scan_copied_contract(p, repo_root) for p in _iter_python_files(_scan_roots(repo_root))
+    )
     return [f for f in findings if f is not None]
 
 
@@ -314,7 +317,7 @@ def collect_violations(repo_root: Path) -> list[Violation]:
         return []
     violations: list[Violation] = []
     for path in _iter_python_files(roots):
-        v = scan_file(path)
+        v = scan_file(path, repo_root)
         if v is not None:
             violations.append(v)
     return violations
