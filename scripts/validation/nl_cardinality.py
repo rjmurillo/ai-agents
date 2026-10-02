@@ -120,6 +120,9 @@ def _inline_items(rest: str, opener: str) -> int:
     parts = [part for part in _ITEM_SPLIT_RE.split(body) if part.strip()]
     if any(len(part.split()) > MAX_ITEM_WORDS or part.count("`") % 2 for part in parts):
         return 0
+    # A fragment carrying a number is a subtotal ("24 ... and 6 ..."), not an item.
+    if any(any(ch.isdigit() for ch in part) for part in parts):
+        return 0
     return len(parts)
 
 
@@ -180,7 +183,9 @@ def derived_count_claims(text: str) -> list[Claim]:
         actual = _inline_items(rest, match.group("open")) if rest.strip() else 0
         if match.group("open") == ":" and not rest.strip():
             actual = _bullet_items(lines, index)
-        if actual >= 2 and actual != stated:
+        # Far fewer items than the stated count reads as a partial example list,
+        # not an exhaustive enumeration, so decline to judge it.
+        if actual >= 2 and actual != stated and stated < 2 * actual:
             claims.append(Claim(index + 1, line.strip(), stated, actual))
     return claims
 
