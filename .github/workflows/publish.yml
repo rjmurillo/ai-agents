@@ -1,7 +1,19 @@
 # npm Publish
 #
-# Publishes @rjmurillo/ai-agents to npm with OIDC provenance on tag push.
-# Trigger: push a tag matching v* (e.g., v0.1.0).
+# Publishes @rjmurillo/ai-agents to npm with OIDC provenance, behind the ADR-113
+# promotion gate. The only live route is a manual run (workflow_dispatch) on the
+# default branch, with an optional candidate SHA, a dry-run switch, and an
+# optional release tag. A real publish runs the gate in enforcing mode, so it
+# publishes only when the gate promotes. A dry run runs the gate advisory.
+#
+# A push of a v* tag still triggers this workflow, and the first job refuses it:
+# a tag push runs the tagged commit's own copy of this file, so nothing on that
+# route can vouch for the gate until the owner creates the v* tag ruleset (issue
+# 5636, ADR-113 Resolved Question 2). The route is dormant and fails closed.
+#
+# Order, per ADR-113 decision 4: build the tarball once and hash it; the gate
+# binds the build evidence to that digest; the publish job downloads that exact
+# file and checks the digest again, directly before npm publish.
 #
 # Prerequisites:
 #   1. Link @rjmurillo/ai-agents scope to this GitHub repo in npm UI (one-time).
@@ -24,17 +36,38 @@ on:
         options:
           - 'true'
           - 'false'
+      candidate-sha:
+        description: 'Full SHA of a merged default-branch commit to publish (empty for the run commit)'
+        required: false
+        default: ''
+        type: string
+      release-tag:
+        description: 'Existing release tag, such as v1.2.3, to check and attach the manifest to (empty to skip)'
+        required: false
+        default: ''
+        type: string
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 
+permissions: {}
+
+env:
+  PACKAGE_DIR: candidate/packages/ai-agents-cli
+
 jobs:
-  validate:
-    name: Validate Package
+  resolve:
+    name: Resolve Publish Route
     runs-on: ubuntu-26.04-arm
+    timeout-minutes: 5
     permissions:
       contents: read
+    outputs:
+      candidate_sha: ${{ steps.route.outputs.candidate_sha }}
+      release_tag: ${{ steps.route.outputs.release_tag }}
+      dry_run: ${{ steps.route.outputs.dry_run }}
+      mode: ${{ steps.route.outputs.mode }}
     steps:
       - name: Harden Runner
         # yamllint disable-line rule:line-length
@@ -43,38 +76,162 @@ jobs:
           egress-policy: audit
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: scripts/ci/resolve_publish_route.py
+
+      - name: Decide the publish route
+        id: route
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF: ${{ github.ref }}
+          RUN_SHA: ${{ github.sha }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          CANDIDATE_INPUT: ${{ github.event.inputs.candidate-sha }}
+          DRY_RUN_INPUT: ${{ github.event.inputs.dry-run }}
+          RELEASE_TAG_INPUT: ${{ github.event.inputs.release-tag }}
+        run: >-
+          python3 scripts/ci/resolve_publish_route.py route
+          --event "$EVENT_NAME"
+          --ref "$REF"
+          --run-sha "$RUN_SHA"
+          --default-branch "$DEFAULT_BRANCH"
+          --candidate-input "$CANDIDATE_INPUT"
+          --dry-run-input "$DRY_RUN_INPUT"
+          --release-tag-input "$RELEASE_TAG_INPUT"
+          --github-output "$GITHUB_OUTPUT"
+
+  # Named for the applicability table rows npm_package_metadata and npm_pack_size,
+  # which this job's evidence satisfies. Tooling comes from the default branch
+  # checkout at the workspace root. The candidate's package is checked out under
+  # candidate/ and only built, never run as a gate.
+  build:
+    name: Validate Package
+    needs: resolve
+    runs-on: ubuntu-26.04-arm
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    outputs:
+      digest: ${{ steps.digest.outputs.digest }}
+    steps:
+      - name: Harden Runner
+        # yamllint disable-line rule:line-length
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1  # v2.21.1
+        with:
+          egress-policy: audit
+
+      - name: Check out the default branch tooling
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Check out the candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: ${{ needs.resolve.outputs.candidate_sha }}
+          path: candidate
+          persist-credentials: false
 
       - name: Setup Node
         # yamllint disable-line rule:line-length
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
         with:
           node-version: 'lts/*'
-          registry-url: 'https://registry.npmjs.org'
 
       - name: Verify package metadata
-        run: python3 scripts/ci/verify_npm_package_metadata.py --package-dir packages/ai-agents-cli
+        run: python3 scripts/ci/verify_npm_package_metadata.py --package-dir "$PACKAGE_DIR"
 
-      - name: Check tag matches package version
-        if: startsWith(github.ref, 'refs/tags/v')
-        working-directory: packages/ai-agents-cli
+      - name: Check the release tag matches the package version
         env:
-          TAG_REF: ${{ github.ref }}
-        run: |
-          TAG_VERSION="${TAG_REF#refs/tags/v}"
-          PKG_VERSION=$(node -p "require('./package.json').version")
-          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
-            echo "::error::Tag version ($TAG_VERSION) does not match package.json version ($PKG_VERSION)"
-            exit 1
-          fi
-          echo "Version match: $TAG_VERSION"
+          RELEASE_TAG: ${{ needs.resolve.outputs.release_tag }}
+        run: >-
+          python3 scripts/ci/resolve_publish_route.py tag-version
+          --package-dir "$PACKAGE_DIR" --release-tag "$RELEASE_TAG"
 
       - name: Measure pack size
-        run: python3 scripts/ci/measure_npm_pack_size.py --package-dir packages/ai-agents-cli
+        run: python3 scripts/ci/measure_npm_pack_size.py --package-dir "$PACKAGE_DIR"
+
+      - name: Install dependencies
+        working-directory: ${{ env.PACKAGE_DIR }}
+        run: npm ci
+
+      - name: Build
+        working-directory: ${{ env.PACKAGE_DIR }}
+        run: npm run build --if-present
+
+      - name: Pack the tarball once
+        working-directory: ${{ env.PACKAGE_DIR }}
+        run: npm pack --pack-destination "$RUNNER_TEMP/pack"
+
+      - name: Hash the tarball
+        id: digest
+        run: >-
+          python3 scripts/validation/tarball_digest.py compute
+          --dir "$RUNNER_TEMP/pack" --github-output "$GITHUB_OUTPUT"
+
+      - name: Upload the tarball
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: npm-tarball
+          path: ${{ runner.temp }}/pack
+          if-no-files-found: error
+          retention-days: 1
+
+      # ADR-113 decision 2 and 4. One call per applicability table row. Each
+      # record names the candidate commit and the tarball digest. The step runs
+      # only when the digest exists, since a build record without one cannot bind.
+      - name: Upload package metadata evidence
+        if: always() && steps.digest.outputs.digest != ''
+        uses: ./.github/actions/upload-validator-evidence
+        with:
+          validator: npm_package_metadata
+          job-status: ${{ job.status }}
+          kind: build
+          revision: ${{ needs.resolve.outputs.candidate_sha }}
+          digest: ${{ steps.digest.outputs.digest }}
+
+      - name: Upload pack size evidence
+        if: always() && steps.digest.outputs.digest != ''
+        uses: ./.github/actions/upload-validator-evidence
+        with:
+          validator: npm_pack_size
+          job-status: ${{ job.status }}
+          kind: build
+          revision: ${{ needs.resolve.outputs.candidate_sha }}
+          digest: ${{ steps.digest.outputs.digest }}
+
+  # The reusable gate runs from this workflow's default-branch copy. contents:
+  # write is the upper bound for its one release job (ADR-113 Resolved Question
+  # 3). The gate job inside it holds contents: read, actions: read, checks: read.
+  gate:
+    name: Promotion Gate
+    needs: [resolve, build]
+    permissions:
+      contents: write
+      actions: read
+      checks: read
+    uses: ./.github/workflows/promotion-gate.yml
+    with:
+      candidate-sha: ${{ needs.resolve.outputs.candidate_sha }}
+      candidate-digest: ${{ needs.build.outputs.digest }}
+      release-tag: ${{ needs.resolve.outputs.release_tag }}
+      mode: ${{ needs.resolve.outputs.mode }}
+      build-run-id: ${{ github.run_id }}
 
   publish:
     name: Publish to npm
-    needs: validate
+    needs: [resolve, build, gate]
+    # A dry run publishes nothing, so it needs only a good build. A real publish
+    # needs an enforced, digest-bound promote from the gate, which also fails this
+    # run when it blocks. !cancelled() is the repository's guard for a job that
+    # downloads an upstream artifact: a superseded run must not publish red.
+    if: >-
+      ${{ !cancelled() &&
+      ((needs.resolve.outputs.dry_run == 'true' && needs.build.result == 'success') ||
+      needs.gate.outputs.promoted == 'true') }}
     runs-on: ubuntu-26.04-arm
+    timeout-minutes: 15
     permissions:
       contents: read
       id-token: write
@@ -86,7 +243,17 @@ jobs:
         with:
           egress-policy: audit
 
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - name: Check out the default branch tooling
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Check out the candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: ${{ needs.resolve.outputs.candidate_sha }}
+          path: candidate
+          persist-credentials: false
 
       - name: Setup Node
         # yamllint disable-line rule:line-length
@@ -95,39 +262,37 @@ jobs:
           node-version: 'lts/*'
           registry-url: 'https://registry.npmjs.org'
 
-      - name: Install dependencies
-        working-directory: packages/ai-agents-cli
-        run: npm ci
+      - name: Download the tarball the gate bound
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8
+        with:
+          name: npm-tarball
+          path: ${{ runner.temp }}/tarball
 
-      - name: Build
-        working-directory: packages/ai-agents-cli
-        run: npm run build --if-present
+      # Directly before npm publish: recompute the digest of the downloaded file
+      # and compare it with the one the gate bound. A difference fails the job.
+      - name: Verify the tarball digest
+        id: verify
+        env:
+          BOUND_DIGEST: ${{ needs.build.outputs.digest }}
+        run: >-
+          python3 scripts/validation/tarball_digest.py verify
+          --dir "$RUNNER_TEMP/tarball" --expected "$BOUND_DIGEST"
+          --github-output "$GITHUB_OUTPUT"
 
       - name: Publish (dry-run)
-        # yamllint disable-line rule:line-length
-        if: >-
-          github.event_name == 'workflow_dispatch' &&
-          github.event.inputs.dry-run == 'true'
-        working-directory: packages/ai-agents-cli
+        if: ${{ needs.resolve.outputs.dry_run == 'true' }}
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm publish --provenance --access public --dry-run
+          TARBALL: ${{ steps.verify.outputs.file }}
+        run: npm publish "$TARBALL" --provenance --access public --dry-run
 
       - name: Publish
-        # yamllint disable-line rule:line-length
-        if: >-
-          github.event_name == 'push' ||
-          (github.event_name == 'workflow_dispatch' &&
-          github.event.inputs.dry-run == 'false')
-        working-directory: packages/ai-agents-cli
+        if: ${{ needs.resolve.outputs.dry_run == 'false' }}
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm publish --provenance --access public
+          TARBALL: ${{ steps.verify.outputs.file }}
+        run: npm publish "$TARBALL" --provenance --access public
 
       - name: Verify published package
-        # yamllint disable-line rule:line-length
-        if: >-
-          github.event_name == 'push' ||
-          (github.event_name == 'workflow_dispatch' &&
-          github.event.inputs.dry-run == 'false')
-        run: python3 scripts/ci/verify_npm_published.py --package-dir packages/ai-agents-cli
+        if: ${{ needs.resolve.outputs.dry_run == 'false' }}
+        run: python3 scripts/ci/verify_npm_published.py --package-dir "$PACKAGE_DIR"
