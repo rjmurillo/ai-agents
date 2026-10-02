@@ -167,3 +167,8 @@ def test_non_list_scenarios_field_counts_as_no_negative_case(tmp_path: Path) -> 
     payload = {"rule_path": ".claude/rules/odd-rule.md", "scenarios": "nope"}
     _write(tmp_path / gate.RULE_SCENARIOS_SUBDIR / "odd-rule.json", json.dumps(payload))
     assert report_mod._without_negative_case(tmp_path, "rule") == {"odd-rule"}
+
+
+def test_unknown_artifact_kind_fails_fast(tmp_path: Path) -> None:
+    with pytest.raises(gate.CoverageConfigError, match="unknown artifact kind"):
+        report_mod._without_negative_case(tmp_path, "agent")
