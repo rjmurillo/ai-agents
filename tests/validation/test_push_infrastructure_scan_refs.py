@@ -342,3 +342,27 @@ def test_config_error_stops_the_scan_before_later_refs(
     err = capsys.readouterr().err
     assert result == 2, err
     assert "refs/heads/feature/docs scores" not in err
+
+
+@pytest.mark.parametrize("later_exit", [2, 3])
+def test_later_typed_failure_overrides_an_earlier_unreviewed_exit(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, later_exit: int
+) -> None:
+    """Ref A returns 1, ref B returns 2 or 3: the typed failure is the overall exit."""
+    codes = {"refs/heads/a": 1, "refs/heads/b": later_exit}
+    scored: list[str] = []
+
+    def fake(push_ref: policy.PushRef, _root: Path, _deadline: float) -> int:
+        scored.append(push_ref.remote_ref)
+        return codes[push_ref.remote_ref]
+
+    monkeypatch.setattr(policy, "_check_ref_infrastructure", fake)
+    refs = [
+        policy.PushRef("refs/heads/a", "1" * 40, "refs/heads/a", ZERO),
+        policy.PushRef("refs/heads/b", "2" * 40, "refs/heads/b", ZERO),
+    ]
+
+    result = policy.check_pushed_infrastructure(refs, tmp_path)
+
+    assert result == later_exit
+    assert scored == ["refs/heads/a", "refs/heads/b"]

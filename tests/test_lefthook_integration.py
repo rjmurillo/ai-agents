@@ -6063,7 +6063,7 @@ def test_fetch_origin_main_failure_warns_and_continues(
     refreshed = policy._fetch_origin_main(tmp_path)
 
     assert refreshed is False
-    assert "using local ref" in capsys.readouterr().err
+    assert "push fails until origin/main refreshes" in capsys.readouterr().err
 
 
 def test_push_policy_blocks_main_and_preserves_destination_branch(

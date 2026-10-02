@@ -6476,7 +6476,11 @@ def _fetch_origin_main(repo_root: Path) -> bool:
     """Refresh origin/main; return False (after a warning) when the fetch fails."""
     result = _run_git(repo_root, ["fetch", "--no-tags", "--quiet", "origin", "main"])
     if result.returncode != 0:
-        print("WARNING: could not refresh origin/main; using local ref", file=sys.stderr)
+        print(
+            "WARNING: could not refresh origin/main; the infrastructure scan will not "
+            "score a push from a stale base, and the push fails until origin/main refreshes",
+            file=sys.stderr,
+        )
         return False
     return True
 
@@ -6777,7 +6781,7 @@ def check_pushed_infrastructure(
     checked-out HEAD. Tags are scored because a tag push runs the workflows of
     the tagged commit (`.github/workflows/publish.yml` triggers on `v*`).
     Deletions and other refs (notes, custom namespaces) are skipped, and the
-    skip is reported. Returns the first non-zero detector or config exit code.
+    skip is reported. Returns exit 2 or 3 as soon as a ref hits one, else the first exit 1.
     Every ref's git steps and detector run share one deadline (see
     PUSH_REF_POLICY_SCAN_DEADLINE_SECONDS). The scan stops at the first exit 2
     (no base or diff) or exit 3 (a timeout, a failed start, or a detector git
@@ -6814,10 +6818,10 @@ def check_pushed_infrastructure(
     first_failure = 0
     for push_ref in scanned_refs:
         result = _check_ref_infrastructure(push_ref, repo_root, deadline)
+        if result in _SCAN_STOP_EXITS:
+            return result
         if result != 0 and first_failure == 0:
             first_failure = result
-        if result in _SCAN_STOP_EXITS:
-            break
     return first_failure
 
 
