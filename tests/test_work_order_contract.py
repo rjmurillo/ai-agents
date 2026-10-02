@@ -127,12 +127,30 @@ def _synthesis(path: Path) -> str:
 SCENARIO_EXPECTATIONS = {
     "S15": ("BLOCK", "contract"),
     "S16": ("BLOCK", "contract"),
-    "S20": ("ROUTE", "synthesis"),
     "S21": ("BLOCK", "synthesis"),
     "S22": ("ROUTE", "contract"),
     "S23": ("BLOCK", "contract"),
     "S24": ("BLOCK", "contract"),
 }
+
+
+@pytest.mark.parametrize("path", ORCHESTRATOR_PATHS, ids=str)
+def test_conflicting_findings_scenario_grades_the_disposition(path: Path) -> None:
+    scenario = _scenario("S20")
+
+    assert scenario["expected_verdict"] == "CONTINUE"
+    assert scenario["verdict_options"] == ["CONTINUE", "RESTART", "BLOCK", "STOP"]
+    for disposition in scenario["verdict_options"]:
+        assert f"`{disposition}`" in _synthesis(path)
+
+
+@pytest.mark.parametrize("path", ORCHESTRATOR_PATHS, ids=str)
+def test_risk_tier_reuses_the_adr_112_labels(path: Path) -> None:
+    section = _contract(path)
+
+    assert (
+        "ADR-112 tier: read-only | reversible-local | shared-repository | consequential" in section
+    )
 
 
 @pytest.mark.parametrize("scenario_id", sorted(SCENARIO_EXPECTATIONS))

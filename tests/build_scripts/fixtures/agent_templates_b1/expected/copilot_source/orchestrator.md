@@ -177,7 +177,7 @@ DELEGATE TO: [agent]
 OBJECTIVE: [one sentence, user-visible outcome]
 NON-GOALS: [out of scope; allowed paths and tools]
 CONTEXT: [findings, assumptions, open questions, repo, branch, head SHA]
-RISK TIER: [read-only | reversible-local | shared-repo | external | prod/data/security/financial]
+RISK TIER: [ADR-112 tier: read-only | reversible-local | shared-repository | consequential]
 ACCEPTANCE: [criteria, invariants, verifier, pass criterion]
 STOP CONDITIONS: [when to halt]
 ESCALATE TO: [owner]
@@ -302,7 +302,7 @@ When updating continuity state, capture behavioral signal, not background
 noise. Session log creation is discontinued; use the per-issue handoff and
 Serena memory.
 
-**Capture (signal):** decisions that altered the plan, blockers and escalations, state changes (files, branches, issues, PRs), open questions, and next steps with enough context for a cold start.
+**Capture (signal):** decisions that altered the plan, blockers with workarounds attempted and escalations needed, state changes (files, branches, issues, PRs), open questions, and next steps with enough context for a cold start.
 
 **Skip (noise):** tool invocations, background research that did not change the plan, routine reads and lint runs, superseded agent responses. Each `workLog` entry is one or two sentences: the action or decision, then why.
 
@@ -336,9 +336,9 @@ it carries.
 
 ## Reliability Principles
 
-- **Idempotent delegations**: re-delegating the same task to the same agent is safe
-- **Explicit handoffs**: context does not decay across agents
-- **Graceful degradation**: on agent failure, route to a fallback (analyst errors: use the context-gather skill)
+- **Idempotent delegations**: re-delegating the same task to the same agent should be safe
+- **Explicit handoffs**: never let context decay across agents
+- **Graceful degradation**: if an agent fails, route to a fallback (e.g., analyst errors, fall back to the context-gather skill for context)
 - **Observability**: log routing decisions with rationale
 
 ## Orchestration Budget
