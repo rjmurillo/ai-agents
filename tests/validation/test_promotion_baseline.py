@@ -21,6 +21,7 @@ from scripts.validation.fetch_previous_manifest import EXIT_CONFIG, EXIT_EXTERNA
 from scripts.validation.promotion_baseline import (
     MANIFEST_ASSET_NAME,
     MAX_MANIFEST_BYTES,
+    NO_BASELINE_FILE,
     fetch_baseline,
     select_baseline,
 )
@@ -52,6 +53,7 @@ def _release(tag: str = "v1", assets: Any = None, **overrides: Any) -> dict[str,
     release: dict[str, Any] = {
         "tag_name": tag,
         "draft": False,
+        "prerelease": False,
         "assets": [_asset()] if assets is None else assets,
     }
     release.update(overrides)
@@ -71,14 +73,25 @@ def _manifest(sha: str = OLD, **overrides: Any) -> dict[str, Any]:
 
 
 class FakeReader:
-    def __init__(self, releases: Any, bodies: Mapping[int, bytes] | None = None) -> None:
+    """Serves ``releases`` as page 1, or one list per page when given a list of pages."""
+
+    def __init__(
+        self,
+        releases: Any,
+        bodies: Mapping[int, bytes] | None = None,
+        pages: list[Any] | None = None,
+    ) -> None:
         self.releases = releases
+        self.pages = pages
         self.bodies = bodies or {}
         self.calls: list[tuple[str, str | None]] = []
 
     def get_json(self, path: str, params: Mapping[str, str] | None = None) -> object:
         self.calls.append((path, None))
-        return self.releases
+        if self.pages is None:
+            return self.releases
+        page = int((params or {}).get("page", "1"))
+        return self.pages[min(page, len(self.pages)) - 1]
 
     def get_bytes(self, path: str, accept: str | None = None) -> bytes:
         self.calls.append((path, accept))
@@ -108,6 +121,8 @@ class TestSelect:
     @pytest.mark.parametrize(
         "release",
         [
+            _release(prerelease=True),
+            _release(prerelease=None),
             _release(draft=True),
             _release(draft=None),
             _release(tag_name=None),
@@ -169,23 +184,55 @@ class TestFetch:
             "application/octet-stream",
         )
 
-    def test_no_baseline_writes_nothing_and_downloads_nothing(self, tmp_path: Path) -> None:
+    def test_no_baseline_writes_the_marker_and_downloads_nothing(self, tmp_path: Path) -> None:
         reader = FakeReader([_release("v1", [])])
         assert fetch_baseline(reader, repo=REPO, exclude_tag="", output_dir=tmp_path / "o") is None
-        assert not (tmp_path / "o").exists()
+        assert sorted(p.name for p in (tmp_path / "o").iterdir()) == [NO_BASELINE_FILE]
         assert len(reader.calls) == 1
+
+    def test_a_baseline_writes_the_manifest_and_not_the_marker(self, tmp_path: Path) -> None:
+        reader = FakeReader([_release("v1")], {11: json.dumps(_manifest()).encode()})
+        fetch_baseline(reader, repo=REPO, exclude_tag="", output_dir=tmp_path / "o")
+        assert sorted(p.name for p in (tmp_path / "o").iterdir()) == [MANIFEST_ASSET_NAME]
+
+    def test_reading_stops_at_the_first_page_with_a_usable_asset(self, tmp_path: Path) -> None:
+        full = [_release(f"v{i}", []) for i in range(100)]
+        reader = FakeReader(
+            None, {11: json.dumps(_manifest()).encode()}, pages=[full, [_release("v1")]]
+        )
+        chosen = fetch_baseline(reader, repo=REPO, exclude_tag="", output_dir=tmp_path / "o")
+        assert chosen is not None
+        assert sum(1 for path, _ in reader.calls if path.endswith("/releases")) == 2
+
+    def test_a_usable_first_page_means_no_second_request(self, tmp_path: Path) -> None:
+        page = [_release("v1")] + [_release(f"w{i}", []) for i in range(99)]
+        reader = FakeReader(None, {11: json.dumps(_manifest()).encode()}, pages=[page, page])
+        fetch_baseline(reader, repo=REPO, exclude_tag="", output_dir=tmp_path / "o")
+        assert sum(1 for path, _ in reader.calls if path.endswith("/releases")) == 1
+
+    def test_more_releases_than_the_limit_without_a_baseline_raises(self, tmp_path: Path) -> None:
+        full = [_release(f"v{i}", []) for i in range(100)]
+        with pytest.raises(GitHubApiError, match="more than"):
+            fetch_baseline(
+                FakeReader(None, pages=[full]), repo=REPO, exclude_tag="", output_dir=tmp_path
+            )
+
+    def test_a_non_list_page_raises(self, tmp_path: Path) -> None:
+        with pytest.raises(GitHubApiError, match="list"):
+            fetch_baseline(FakeReader({"a": 1}), repo=REPO, exclude_tag="", output_dir=tmp_path)
 
     @pytest.mark.parametrize(
         "body",
         [
-            b"{nope",
-            b"[]",
-            b"\xff\xfe",
-            json.dumps(_manifest(verdict="block")).encode(),
-            json.dumps(_manifest(enforced=False)).encode(),
-            json.dumps(_manifest(schema_version="9")).encode(),
-            b"x" * (MAX_MANIFEST_BYTES + 1),
-            ("[" * 5000 + "]" * 5000).encode(),
+            pytest.param(b"{nope", id="bad-json"),
+            pytest.param(b"[]", id="list"),
+            pytest.param(b"\xff\xfe", id="not-utf8"),
+            pytest.param(json.dumps(_manifest(verdict="block")).encode(), id="blocked"),
+            pytest.param(json.dumps(_manifest(enforced=False)).encode(), id="advisory"),
+            pytest.param(json.dumps(_manifest(schema_version="9")).encode(), id="schema"),
+            pytest.param(b"x" * (MAX_MANIFEST_BYTES + 1), id="too-large"),
+            pytest.param(("[" * 5000 + "]" * 5000).encode(), id="deep-nesting"),
+            pytest.param(b'{"schema_version": NaN}', id="nan"),
         ],
     )
     def test_a_newest_asset_that_is_not_a_promoted_manifest_raises(
@@ -194,7 +241,7 @@ class TestFetch:
         reader = FakeReader([_release("v1")], {11: body})
         with pytest.raises(ManifestError):
             fetch_baseline(reader, repo=REPO, exclude_tag="", output_dir=tmp_path / "o")
-        assert not (tmp_path / "o").exists()
+        assert not (tmp_path / "o" / MANIFEST_ASSET_NAME).exists()
 
     def test_an_api_failure_propagates(self, tmp_path: Path) -> None:
         reader = FakeReader("not a list")
@@ -240,7 +287,7 @@ class TestCli:
     def test_the_current_tag_is_excluded(self, tmp_path: Path) -> None:
         reader = FakeReader([_release("v2")], {11: json.dumps(_manifest()).encode()})
         assert main(_argv(tmp_path, "--current-tag", "v2"), reader) == EXIT_OK
-        assert not (tmp_path / "prev").exists()
+        assert (tmp_path / "prev" / NO_BASELINE_FILE).is_file()
 
     @pytest.mark.parametrize("repo", ["owner", "../..", "o/..", "o/.", "a b/c"])
     def test_a_bad_repo_exits_two(self, tmp_path: Path, repo: str) -> None:
@@ -276,18 +323,26 @@ class TestGateFlag:
         return ["--repo-root", str(tmp_path), "--evidence-dir", str(tmp_path / "ev"),
                 "--candidate-sha", SHA, "--output", str(tmp_path / "m.json"), *extra]  # fmt: skip
 
-    def test_an_absent_file_in_the_directory_is_a_first_promotion(self, tmp_path: Path) -> None:
+    def test_the_marker_means_a_first_promotion(self, tmp_path: Path) -> None:
         (tmp_path / "prev").mkdir()
+        (tmp_path / "prev" / NO_BASELINE_FILE).write_text("{}", encoding="utf-8")
         assert (
             gate_main(self._args(tmp_path, "--previous-manifest-dir", str(tmp_path / "prev")))
             == GATE_OK
         )
         assert json.loads((tmp_path / "m.json").read_text("utf-8"))["remediated"] == []
 
-    def test_a_missing_directory_is_a_first_promotion(self, tmp_path: Path) -> None:
+    def test_a_directory_with_neither_file_is_refused(self, tmp_path: Path) -> None:
+        (tmp_path / "prev").mkdir()
+        assert (
+            gate_main(self._args(tmp_path, "--previous-manifest-dir", str(tmp_path / "prev")))
+            == GATE_CONFIG
+        )
+
+    def test_a_missing_directory_is_refused(self, tmp_path: Path) -> None:
         assert (
             gate_main(self._args(tmp_path, "--previous-manifest-dir", str(tmp_path / "none")))
-            == GATE_OK
+            == GATE_CONFIG
         )
 
     def test_a_present_file_must_parse(self, tmp_path: Path) -> None:

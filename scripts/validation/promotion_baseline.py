@@ -16,15 +16,19 @@ The asset name is ``promotion-manifest.json``, the file the ``release-manifest``
 job in ``.github/workflows/promotion-gate.yml`` uploads with
 ``gh release upload "$RELEASE_TAG" "$RUNNER_TEMP/manifest/promotion-manifest.json"``.
 
-Selection: among releases that are not drafts and not the tag being promoted,
+Selection: among releases that are neither drafts nor prereleases, and not the tag
+being promoted,
 take the asset of that name with the newest ``created_at``. An asset counts only
 when it is ``uploaded``, no larger than ``MAX_MANIFEST_BYTES``, and was uploaded
 by ``github-actions[bot]``, the identity the workflow token carries.
 
 The chosen asset is parsed with ``parse_previous_manifest`` from
 ``scripts/validation/promotion_findings.py``, which requires "an enforced
-``promote`` verdict". A newest asset that fails to parse raises: silently falling
-back to an older one would report fixes against a stale baseline.
+``promote`` verdict". The parse uses the gate's own strict loader
+(``parse_previous_manifest_bytes``). Releases are read newest first and reading
+stops at the first page that holds a usable asset. A newest asset that fails to
+parse raises: silently falling back to an older one would report fixes against a
+stale baseline.
 
 Stricter/looser/different than canonical: the uploader check is added here. Any
 workflow in this repository with ``contents: write`` could upload under that
@@ -35,18 +39,19 @@ token, not to the one release job. The baseline feeds only the non-blocking
 
 from __future__ import annotations
 
-import json
-from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from scripts.validation.promotion_fetch import GitHubApiError, GitHubReader, paginate
-from scripts.validation.promotion_findings import ManifestError, parse_previous_manifest
+from scripts.validation.promotion_fetch import GitHubApiError, GitHubReader
+from scripts.validation.promotion_findings import parse_previous_manifest_bytes
 
 MANIFEST_ASSET_NAME = "promotion-manifest.json"
 MANIFEST_FILE_NAME = MANIFEST_ASSET_NAME
+NO_BASELINE_FILE = "no-baseline.json"
+PAGE_SIZE = 100
+MAX_PAGES = 20
 UPLOADER_LOGIN = "github-actions[bot]"
 MAX_MANIFEST_BYTES = 1_048_576
 OCTET_STREAM = "application/octet-stream"
@@ -97,7 +102,9 @@ def select_baseline(releases: list[Any], exclude_tag: str) -> BaselineAsset | No
     """Return the newest usable manifest asset across releases, or None for a first promotion."""
     found: list[BaselineAsset] = []
     for release in releases:
-        if not isinstance(release, dict) or release.get("draft") is not False:
+        if not isinstance(release, dict):
+            continue
+        if release.get("draft") is not False or release.get("prerelease") is not False:
             continue
         tag = release.get("tag_name")
         if not isinstance(tag, str) or tag == exclude_tag:
@@ -115,27 +122,38 @@ def select_baseline(releases: list[Any], exclude_tag: str) -> BaselineAsset | No
         raise GitHubApiError("release asset times cannot be compared") from exc
 
 
+def _find_baseline(reader: GitHubReader, repo: str, exclude_tag: str) -> BaselineAsset | None:
+    """Read release pages newest first and stop at the first page holding a usable asset."""
+    path = f"repos/{repo}/releases"
+    for page in range(1, MAX_PAGES + 1):
+        body = reader.get_json(path, {"per_page": str(PAGE_SIZE), "page": str(page)})
+        if not isinstance(body, list):
+            raise GitHubApiError(f"{path} did not return a list")
+        chosen = select_baseline(body, exclude_tag)
+        if chosen is not None:
+            return chosen
+        if len(body) < PAGE_SIZE:
+            return None
+    limit = MAX_PAGES * PAGE_SIZE
+    raise GitHubApiError(f"{path} has more than {limit} releases without a baseline")
+
+
 def fetch_baseline(
     reader: GitHubReader, *, repo: str, exclude_tag: str, output_dir: Path
 ) -> BaselineAsset | None:
-    """Write the previous promoted manifest into ``output_dir`` and return its asset.
+    """Write the previous promoted manifest, or the no-baseline marker, into ``output_dir``.
 
-    Returns None, writing nothing, when no release holds a usable manifest.
+    Exactly one of ``promotion-manifest.json`` and ``no-baseline.json`` is written
+    on success, so the gate can tell a first promotion from a step that never ran.
     Raises ``GitHubApiError`` when GitHub cannot answer, and ``ManifestError``
     when the chosen asset is not a promoted manifest.
     """
-    releases = paginate(reader, f"repos/{repo}/releases", None, {})
-    chosen = select_baseline(releases, exclude_tag)
+    chosen = _find_baseline(reader, repo, exclude_tag)
+    output_dir.mkdir(parents=True, exist_ok=True)
     if chosen is None:
+        (output_dir / NO_BASELINE_FILE).write_text('{"baseline": "none"}\n', encoding="utf-8")
         return None
     body = reader.get_bytes(f"repos/{repo}/releases/assets/{chosen.asset_id}", OCTET_STREAM)
-    if len(body) > MAX_MANIFEST_BYTES:
-        raise ManifestError("the previous manifest is larger than the size cap")
-    try:
-        document: Mapping[str, Any] = json.loads(body.decode("utf-8"))
-    except (ValueError, RecursionError) as exc:
-        raise ManifestError(f"the previous manifest is not valid JSON: {exc}") from exc
-    parse_previous_manifest(document)
-    output_dir.mkdir(parents=True, exist_ok=True)
+    parse_previous_manifest_bytes(body)
     (output_dir / MANIFEST_FILE_NAME).write_bytes(body)
     return chosen

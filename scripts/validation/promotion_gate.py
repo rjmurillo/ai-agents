@@ -337,16 +337,23 @@ def _applicable(
 
 
 def _baseline_in(directory: Path | None) -> Path | None:
-    """Return ``promotion-manifest.json`` under ``directory`` when it exists, else None.
+    """Return the manifest the fetch step wrote under ``directory``, or None for a first promotion.
 
-    The fetch step writes that file only when a previous promoted release holds
-    one, and exits non-zero when GitHub cannot answer, so an absent file here
-    means a first promotion and not a failed download.
+    The fetch step writes ``promotion-manifest.json`` when a previous promoted
+    release holds one, and ``no-baseline.json`` when none does. With neither file
+    the step did not run, or ran against another directory, and that is refused:
+    an absent baseline must be stated, not inferred.
     """
     if directory is None:
         return None
-    candidate = directory / "promotion-manifest.json"
-    return candidate if candidate.is_file() else None
+    manifest = directory / "promotion-manifest.json"
+    if manifest.is_file():
+        return manifest
+    if (directory / "no-baseline.json").is_file():
+        return None
+    raise ManifestError(
+        "--previous-manifest-dir holds neither promotion-manifest.json nor no-baseline.json"
+    )
 
 
 def _inputs(args: argparse.Namespace) -> tuple[Candidate, PreviousManifest | None]:

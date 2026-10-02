@@ -96,8 +96,11 @@ jobs:
 
       # ADR-113 Resolved Question 3. The previous promoted manifest is a release
       # asset. It feeds only the non-blocking remediated class, and a first
-      # promotion has none. The step exits non-zero when GitHub cannot answer, so
-      # an absent file below means no baseline and not a failed download.
+      # promotion has none, which the step records in no-baseline.json. The gate
+      # refuses a directory with neither file. The step fails closed: it exits
+      # non-zero when GitHub cannot answer or the newest asset is not a promoted
+      # manifest, and that fails this job before any manifest is written, even
+      # though the gate itself is advisory.
       - name: Fetch the previous promoted manifest
         env:
           GH_TOKEN: ${{ github.token }}

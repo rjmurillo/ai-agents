@@ -4,7 +4,8 @@
 ADR-113 Resolved Question 3, issue #5636. A thin command over
 ``scripts/validation/promotion_baseline.py``. It writes
 ``<output-dir>/promotion-manifest.json`` and prints the tag it came from, or
-prints that there is none and writes nothing. A first promotion has no baseline.
+writes ``no-baseline.json`` and prints that there is none. A first promotion has no
+baseline, and the marker lets the gate tell that from a step that never ran.
 
 Exit codes (ADR-035): 0 a baseline was written or none exists; 2 invalid
 arguments or an asset that is not a promoted manifest; 3 GitHub could not answer.
