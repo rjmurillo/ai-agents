@@ -28,7 +28,9 @@ points back here for authority.
 Authors triage by prefix. Reviewers prefix every comment so the author knows whether it
 blocks merge. The prefix mapping (`Nit:`, `Optional:`, `FYI:`, and no prefix for a
 blocker) lives in the review-conversation protocol,
-`.claude/skills/pr-comment-responder/references/review-conversation.md`, under
+`.claude/skills/pr-comment-responder/references/review-conversation.md` in this
+repository, or `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/pr-comment-responder/references/review-conversation.md`
+in an installed plugin, under
 "Publishing a finding". That file ships with the plugins and is the one owner, so this
 file does not restate it.
 

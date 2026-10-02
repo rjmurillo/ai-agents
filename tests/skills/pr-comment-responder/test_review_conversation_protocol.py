@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import functools
 import re
 from pathlib import Path
 
@@ -24,6 +25,7 @@ _CONSUMERS = [
 ]
 
 
+@functools.cache
 def _text() -> str:
     return _PROTOCOL.read_text(encoding="utf-8")
 
@@ -65,7 +67,8 @@ def test_protocol_forbids_severity_mutation() -> None:
 
 
 def test_scenario_checklist_covers_all_eighteen() -> None:
-    section = _text().split("## Scenario checklist", 1)[1]
+    _head, marker, section = _text().partition("## Scenario checklist")
+    assert marker, "the '## Scenario checklist' header is missing from the protocol"
     numbers = re.findall(r"^(\d+)\. ", section, flags=re.MULTILINE)
     assert numbers == [str(n) for n in range(1, 19)]
 
