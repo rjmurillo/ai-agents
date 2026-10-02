@@ -1,11 +1,15 @@
-# Promotion Gate (advisory)
+# Promotion Gate
 #
 # ADR-113 decision 1: one checked-in program, scripts/validation/promotion_gate.py,
 # computes the release promotion verdict from persisted validator evidence.
-# This workflow only calls it. It is advisory: it writes a manifest and exits 0
-# whatever the verdict, and the manifest says so. publish.yml does not call it
-# yet. ADR-113 decision 5 keeps the gate advisory until the default-branch
-# entry point, the integration pin, and the tag ruleset exist.
+# This workflow only calls it. By hand (workflow_dispatch) the mode input
+# defaults to advisory: the program writes a manifest and exits 0 whatever the
+# verdict, and the manifest says so.
+# publish.yml calls it (workflow_call) with mode enforcing for a real publish and
+# advisory for a dry run. Enforcing mode exits 1 on a block, which fails the
+# job and so the publish. ADR-113 decision 5 keeps the tag route dormant until
+# the v* tag ruleset exists, and the job below runs only from the default
+# branch, so a tag push cannot reach it.
 #
 # Run it from the default branch only. The candidate SHA is an input. Evidence
 # comes from fetch_promotion_evidence.py, which downloads an artifact only from
@@ -15,6 +19,47 @@
 name: Promotion Gate
 
 on:
+  workflow_call:
+    inputs:
+      candidate-sha:
+        description: 'Full 40-character commit SHA of the promotion candidate'
+        required: true
+        type: string
+      candidate-digest:
+        description: 'SHA-256 digest of the built npm tarball'
+        required: false
+        default: ''
+        type: string
+      release-tag:
+        description: 'Existing release tag to attach the manifest to (empty to skip)'
+        required: false
+        default: ''
+        type: string
+      mode:
+        description: 'advisory or enforcing'
+        required: false
+        default: 'advisory'
+        type: string
+      build-run-id:
+        description: 'Run id holding the build-tier evidence (the caller run), empty for none'
+        required: false
+        default: ''
+        type: string
+      attach-manifest:
+        description: 'False when the caller attaches the manifest itself, after its publish'
+        required: false
+        default: true
+        type: boolean
+    outputs:
+      verdict:
+        description: 'promote or block'
+        value: ${{ jobs.gate.outputs.verdict }}
+      promoted:
+        description: 'true for an enforced, digest-bound promote verdict'
+        value: ${{ jobs.gate.outputs.promoted }}
+      release_eligible:
+        description: 'true when the promoted verdict also names a verified tag'
+        value: ${{ jobs.gate.outputs.release_eligible }}
   workflow_dispatch:
     inputs:
       candidate-sha:
@@ -31,6 +76,19 @@ on:
         required: false
         default: ''
         type: string
+      mode:
+        description: 'advisory writes a manifest and exits 0, enforcing exits 1 on a block'
+        required: false
+        default: 'advisory'
+        type: choice
+        options:
+          - 'advisory'
+          - 'enforcing'
+      attach-manifest:
+        description: 'Attach the manifest to the release named above when the verdict allows'
+        required: false
+        default: true
+        type: boolean
 
 concurrency:
   group: ${{ github.workflow }}-${{ inputs.candidate-sha }}
@@ -51,6 +109,8 @@ jobs:
       actions: read
       checks: read
     outputs:
+      verdict: ${{ steps.manifest.outputs.verdict }}
+      promoted: ${{ steps.manifest.outputs.promoted }}
       release_eligible: ${{ steps.manifest.outputs.release_eligible }}
     steps:
       - name: Harden Runner
@@ -87,20 +147,22 @@ jobs:
           CANDIDATE_SHA: ${{ inputs.candidate-sha }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           REPOSITORY: ${{ github.repository }}
+          BUILD_RUN_ID: ${{ inputs.build-run-id }}
         run: >-
           uv run --frozen python scripts/validation/fetch_promotion_evidence.py
           --repo "$REPOSITORY"
           --candidate-sha "$CANDIDATE_SHA"
           --default-branch "$DEFAULT_BRANCH"
           --evidence-dir "$RUNNER_TEMP/evidence"
+          --build-run-id "$BUILD_RUN_ID"
 
       # ADR-113 Resolved Question 3. The previous promoted manifest is a release
       # asset. It feeds only the non-blocking remediated class, and a first
       # promotion has none, which the step records in no-baseline.json. The gate
       # refuses a directory with neither file. The step fails closed: it exits
       # non-zero when GitHub cannot answer or the newest asset is not a promoted
-      # manifest, and that fails this job before any manifest is written, even
-      # though the gate itself is advisory.
+      # manifest, and that fails this job before any manifest is written, in advisory
+      # mode too.
       - name: Fetch the previous promoted manifest
         env:
           GH_TOKEN: ${{ github.token }}
@@ -118,6 +180,7 @@ jobs:
           CANDIDATE_SHA: ${{ inputs.candidate-sha }}
           CANDIDATE_DIGEST: ${{ inputs.candidate-digest }}
           RELEASE_TAG: ${{ inputs.release-tag }}
+          MODE: ${{ inputs.mode }}
         run: >-
           uv run --frozen python scripts/validation/promotion_gate.py
           --evidence-dir "$RUNNER_TEMP/evidence"
@@ -128,7 +191,7 @@ jobs:
           --previous-manifest-dir "$RUNNER_TEMP/previous"
           --output "$RUNNER_TEMP/promotion-manifest.json"
           --github-output "$GITHUB_OUTPUT"
-          --mode advisory
+          --mode "$MODE"
 
       - name: Upload the manifest
         if: ${{ !cancelled() }}
@@ -144,14 +207,15 @@ jobs:
   # It runs only for an enforced promote verdict, so a blocked or advisory
   # manifest never becomes the baseline for the remediated class (decision 9).
   # The gate step has already checked that the tag resolves to the candidate.
-  # This workflow runs advisory, so the job stays dormant until the gate is
-  # switched to enforcing under ADR-113 decision 5.
+  # A real publish runs the gate in enforcing mode, so this job runs after one;
+  # a dry run and a manual dispatch are advisory and never attach a manifest.
   release-manifest:
     name: Attach manifest to release
     needs: gate
     if: >-
       ${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
       && inputs.release-tag != ''
+      && inputs.attach-manifest
       && needs.gate.outputs.release_eligible == 'true' }}
     runs-on: ubuntu-26.04-arm
     timeout-minutes: 5

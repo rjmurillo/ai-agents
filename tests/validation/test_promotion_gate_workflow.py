@@ -32,10 +32,42 @@ def _normalized(expression: str) -> str:
     return " ".join(str(expression).split())
 
 
-def test_the_only_trigger_is_a_manual_dispatch(workflow: dict[str, Any]) -> None:
+def test_the_only_triggers_are_a_manual_dispatch_and_a_call(workflow: dict[str, Any]) -> None:
+    """No push, pull request, or schedule can start the gate."""
     # PyYAML reads the bare key `on` as the boolean True (YAML 1.1).
     triggers = next(value for key, value in workflow.items() if key in ("on", True))
-    assert set(triggers) == {"workflow_dispatch"}
+    assert set(triggers) == {"workflow_call", "workflow_dispatch"}
+
+
+def test_the_call_and_the_dispatch_take_the_same_inputs_plus_the_call_only_build_run(
+    workflow: dict[str, Any],
+) -> None:
+    triggers = next(value for key, value in workflow.items() if key in ("on", True))
+    called, dispatched = (
+        triggers["workflow_call"]["inputs"],
+        triggers["workflow_dispatch"]["inputs"],
+    )
+    assert set(dispatched) == {
+        "candidate-sha",
+        "candidate-digest",
+        "release-tag",
+        "mode",
+        "attach-manifest",
+    }
+    assert set(called) == set(dispatched) | {"build-run-id"}
+    assert called["attach-manifest"]["default"] is True is dispatched["attach-manifest"]["default"]
+    assert called["mode"]["default"] == "advisory" == dispatched["mode"]["default"]
+    assert dispatched["mode"]["options"] == ["advisory", "enforcing"]
+
+
+def test_the_call_exposes_the_verdict_the_publish_job_reads(workflow: dict[str, Any]) -> None:
+    triggers = next(value for key, value in workflow.items() if key in ("on", True))
+    outputs = triggers["workflow_call"]["outputs"]
+    assert set(outputs) == {"verdict", "promoted", "release_eligible"}
+    gate_outputs = _jobs(workflow)["gate"]["outputs"]
+    for name, spec in outputs.items():
+        assert spec["value"] == f"${{{{ jobs.gate.outputs.{name} }}}}"
+        assert gate_outputs[name] == f"${{{{ steps.manifest.outputs.{name} }}}}"
 
 
 def test_default_permissions_are_empty(workflow: dict[str, Any]) -> None:
@@ -68,7 +100,7 @@ def test_the_gate_job_condition_is_exactly_the_default_branch_guard(
 
 def test_the_release_job_condition_is_exactly_the_full_guard(workflow: dict[str, Any]) -> None:
     expected = (
-        f"${{{{ {DEFAULT_BRANCH_ONLY} && inputs.release-tag != '' "
+        f"${{{{ {DEFAULT_BRANCH_ONLY} && inputs.release-tag != '' && inputs.attach-manifest "
         "&& needs.gate.outputs.release_eligible == 'true' }}"
     )
     assert _normalized(_jobs(workflow)["release-manifest"]["if"]) == expected
@@ -94,12 +126,13 @@ def test_the_gate_job_is_read_only_and_does_not_persist_credentials(
     assert checkout["with"]["persist-credentials"] is False
 
 
-def test_the_gate_runs_advisory_and_checks_the_candidate_placement(
+def test_the_gate_takes_its_mode_from_an_input_and_checks_the_candidate_placement(
     workflow: dict[str, Any],
 ) -> None:
     step = next(s for s in _jobs(workflow)["gate"]["steps"] if s.get("id") == "manifest")
     command = _normalized(step["run"])
-    assert "--mode advisory" in command
+    assert '--mode "$MODE"' in command
+    assert step["env"]["MODE"] == "${{ inputs.mode }}"
     assert "--ancestor-of HEAD" in command
     assert '--expect-tag "$RELEASE_TAG"' in command
 

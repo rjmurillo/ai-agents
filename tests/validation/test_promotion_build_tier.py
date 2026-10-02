@@ -371,3 +371,24 @@ class TestFetchCliBuildRun:
         ]  # fmt: skip
         assert fetch_main(argv, reader) == 0
         assert not any(call.endswith(f"/runs/{RUN}") for call in reader.calls)
+
+
+class TestRunIdArgument:
+    """A workflow passes an empty string when it has no build run."""
+
+    def _parse(self, value: str) -> int:
+        from scripts.validation.fetch_promotion_evidence import _parser
+
+        base = ["--repo", "o/r", "--candidate-sha", "a" * 40, "--default-branch", "main"]
+        args = _parser().parse_args([*base, "--evidence-dir", "x", "--build-run-id", value])
+        return args.build_run_id
+
+    def test_empty_means_none_and_a_number_is_kept(self) -> None:
+        assert self._parse("") == 0
+        assert self._parse("123") == 123
+
+    @pytest.mark.parametrize("value", ["x", "-1", "0", "1.5", " "])
+    def test_anything_else_is_refused(self, value: str) -> None:
+        with pytest.raises(SystemExit) as stop:
+            self._parse(value)
+        assert stop.value.code == 2

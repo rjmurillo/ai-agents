@@ -42,6 +42,19 @@ from scripts.validation.promotion_fetch import (  # noqa: E402
 EXIT_OK, EXIT_CONFIG, EXIT_EXTERNAL = 0, 2, 3
 
 
+def _run_id(text: str) -> int:
+    """A run id, or empty for none. A workflow passes an empty string when it has no build run."""
+    if text == "":
+        return 0
+    try:
+        value = int(text)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("expected a positive integer or empty") from exc
+    if value <= 0:
+        raise argparse.ArgumentTypeError("expected a positive integer or empty")
+    return value
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=(__doc__ or "").splitlines()[0])
     parser.add_argument("--repo", required=True, help="owner/name")
@@ -51,9 +64,9 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--repo-root", type=Path, default=_PROJECT_ROOT)
     parser.add_argument(
         "--build-run-id",
-        type=int,
+        type=_run_id,
         default=0,
-        help="the entry workflow run holding the build-tier evidence; 0 fetches none",
+        help="the entry workflow run holding the build-tier evidence; empty fetches none",
     )
     return parser
 

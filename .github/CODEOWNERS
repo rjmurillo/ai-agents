@@ -109,3 +109,10 @@
 # previous promoted manifest that the remediated class compares against.
 /scripts/validation/promotion_baseline.py @rjmurillo
 /scripts/validation/fetch_previous_manifest.py @rjmurillo
+
+# Issue #5636, ADR-113 decisions 4 and 5: the route a run takes to publish and
+# the digest the publish job checks before npm publish.
+/scripts/ci/resolve_publish_route.py @rjmurillo
+/scripts/validation/tarball_digest.py @rjmurillo
+/.github/workflows/publish.yml @rjmurillo
+/.github/workflows/promotion-gate.yml @rjmurillo

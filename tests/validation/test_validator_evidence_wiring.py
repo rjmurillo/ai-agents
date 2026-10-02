@@ -128,8 +128,11 @@ def test_a_skip_job_records_the_skip_and_names_the_job_the_table_declares() -> N
 @pytest.mark.parametrize("call", _calls(), ids=lambda c: f"{c['file']}:{c['job_id']}")
 def test_the_call_runs_last_and_always_with_the_job_status(call: dict[str, Any]) -> None:
     step = call["step"]
-    assert call["is_last"]
-    assert step["if"] == "always()"
+    assert call["is_last"] or step["with"].get("kind") == "build"
+    expected = "always()"
+    if step["with"].get("kind") == "build":
+        expected = "always() && steps.digest.outputs.digest != ''"
+    assert step["if"] == expected
     assert step["with"]["job-status"] == "${{ job.status }}"
 
 
@@ -171,6 +174,8 @@ EXPECTED_RAN = {
     "validate_plugin_version_bump": None,
     "run_python_tests": None,
     "check_whole_tree_count_ratchets_blocking": None,
+    "npm_package_metadata": None,
+    "npm_pack_size": None,
 }
 
 
