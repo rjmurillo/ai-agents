@@ -34,9 +34,18 @@ push's own ``before..after`` range, and this module compares the candidate's fir
 parent diff. A skip means no path in the whole range matched, so none in the last
 commit's diff did either, and a matching path in that diff means the job should
 not have skipped. The check can therefore decline a valid skip, never accept an
-invalid one. Glob matching is wider than the action's: ``fnmatch`` lets ``*``
-cross ``/``, and a leading ``**/`` also matches a top-level file. Wider matching
-declines more.
+invalid one. Glob matching is wider than the action's for plain
+globs: ``fnmatch`` lets ``*`` cross ``/``, and a leading ``**/`` also matches a
+top-level file. Wider matching declines more. A filter using brace sets, ``!``,
+extglobs, or ``/**/`` is refused whole (``_is_plain_glob``), because ``fnmatch``
+can match less than the action for those.
+
+Assumption: the check diffs the candidate against its first parent. The run
+payload carries no ``before`` SHA. A push of several commits would leave earlier
+commits with no diff here, so the check assumes one commit per push to the
+default branch, which holds for squash and merge-commit merges. The shipped
+filters all match their own workflow file, so editing a workflow never reads as
+an irrelevant diff.
 """
 
 from __future__ import annotations
@@ -48,7 +57,7 @@ from typing import Any, Protocol
 
 import yaml
 
-from scripts.validation.evidence import CheckOutcome, EvidenceState
+from scripts.validation.evidence import REASON_POLICY_EXEMPT, CheckOutcome, EvidenceState
 from scripts.validation.promotion_applicability import Applicability
 from scripts.validation.promotion_candidate import (
     CandidateCheckError,
@@ -59,7 +68,8 @@ from scripts.validation.promotion_candidate import (
 from scripts.validation.promotion_evidence import EvidenceRecord
 
 REASON_NOT_RUN = "validator.not_run"
-REASON_EXEMPT = "policy.exempt"
+REASON_EXEMPT = REASON_POLICY_EXEMPT
+_UNSUPPORTED_GLOB_CHARS = frozenset("{}()!|+@[]")
 PATHS_FILTER_ACTION = "dorny/paths-filter"
 
 
@@ -95,9 +105,25 @@ def _filters_in(step: object) -> dict[str, Any] | None:
         return None
     try:
         document = yaml.safe_load(text)
-    except yaml.YAMLError:
+    except (yaml.YAMLError, RecursionError):
         return None
     return document if isinstance(document, dict) else None
+
+
+def _is_plain_glob(value: object) -> bool:
+    """True for a glob this module reads at least as widely as the action does.
+
+    The action expands brace sets and reads ``!`` as negation, and ``fnmatch`` does
+    neither, so a pattern using them could match less here and accept a skip
+    wrongly. It also reads ``a/**/b`` where ``fnmatch`` needs two slashes. Such a
+    filter is refused whole, and the exemption declines.
+    """
+    return (
+        isinstance(value, str)
+        and bool(value)
+        and not (set(value) & _UNSUPPORTED_GLOB_CHARS)
+        and "/**/" not in value
+    )
 
 
 def filter_globs(workflow_text: str, key: str) -> tuple[str, ...] | None:
@@ -109,7 +135,7 @@ def filter_globs(workflow_text: str, key: str) -> tuple[str, ...] | None:
     """
     try:
         document = yaml.safe_load(workflow_text)
-    except yaml.YAMLError:
+    except (yaml.YAMLError, RecursionError):
         return None
     jobs = document.get("jobs") if isinstance(document, dict) else None
     found: list[tuple[str, ...]] = []
@@ -118,7 +144,7 @@ def filter_globs(workflow_text: str, key: str) -> tuple[str, ...] | None:
         for step in steps if isinstance(steps, list) else []:
             filters = _filters_in(step)
             globs = filters.get(key) if filters else None
-            if isinstance(globs, list) and globs and all(isinstance(g, str) for g in globs):
+            if isinstance(globs, list) and globs and all(_is_plain_glob(g) for g in globs):
                 found.append(tuple(globs))
     return found[0] if len(found) == 1 else None
 

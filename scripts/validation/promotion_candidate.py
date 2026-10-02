@@ -19,6 +19,7 @@ answer. An unanswered question is not a pass.
 
 from __future__ import annotations
 
+import os
 import re
 import subprocess
 from pathlib import Path
@@ -47,6 +48,7 @@ def _git(repo_root: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
             errors="replace",
             timeout=GIT_TIMEOUT_SECONDS,
             check=False,
+            env={**os.environ, "LC_ALL": "C"},
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         raise CandidateCheckError(f"git {args[0]} could not run: {type(exc).__name__}") from exc
@@ -118,12 +120,14 @@ def candidate_files(repo_root: Path, sha: str) -> tuple[str, ...]:
 def changed_files(repo_root: Path, sha: str) -> tuple[str, ...]:
     """Return the paths the candidate commit changed against its first parent.
 
-    NUL-separated. Raises ``CandidateCheckError`` when git cannot answer, which
-    includes a root commit: with no parent there is no diff to compare.
+    NUL-separated. Renames are not detected, so a rename lists both its old and
+    new path and a filter on the old path still sees it. Raises
+    ``CandidateCheckError`` when git cannot answer, which includes a root commit:
+    with no parent there is no diff to compare.
     """
     if not _SHA_RE.fullmatch(sha):
         raise InvalidCandidateNameError(f"candidate {sha!r} is not a 40-character commit SHA")
-    result = _git(repo_root, ["diff", "--name-only", "-z", f"{sha}^1", sha])
+    result = _git(repo_root, ["diff", "--no-renames", "--name-only", "-z", f"{sha}^1", sha])
     if result.returncode != 0:
         raise CandidateCheckError(f"git diff failed with exit {result.returncode}")
     return tuple(name for name in result.stdout.split("\0") if name)

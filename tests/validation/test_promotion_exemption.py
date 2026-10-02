@@ -154,6 +154,22 @@ class TestFilterGlobs:
         assert filter_globs(WORKFLOW_TEXT, "scannable") == ("scripts/**", "**/*.py")
         assert filter_globs(WORKFLOW_TEXT, "docs") == ("**.md",)
 
+    @pytest.mark.parametrize(
+        "glob", ["src/{a,b}/**", "!docs/**", "a/**/b", "x/(a|b)", "a+(b)", "@(a)", "[ab]/**", "a|b"]
+    )
+    def test_a_glob_the_matcher_could_read_narrower_than_the_action_refuses_the_filter(
+        self, glob: str
+    ) -> None:
+        text = (
+            "jobs:\n  j:\n    steps:\n      - uses: dorny/paths-filter@x\n        with:\n"
+            "          filters: |\n            scannable:\n"
+            f"              - '{glob}'\n              - 'scripts/**'\n"
+        )
+        assert filter_globs(text, "scannable") is None
+
+    def test_deeply_nested_yaml_declines_instead_of_crashing(self) -> None:
+        assert filter_globs("[" * 50000, "scannable") is None
+
     def test_a_missing_key_is_none(self) -> None:
         assert filter_globs(WORKFLOW_TEXT, "nope") is None
 
@@ -246,6 +262,19 @@ class TestGit:
         repo, sha = _repo(tmp_path)
         assert sorted(changed_files(repo, sha)) == ["notes/n.txt", "weird\nname"]
 
+    def test_a_rename_lists_both_the_old_and_the_new_path(self, tmp_path: Path) -> None:
+        repo, _ = _repo(tmp_path)
+        (repo / "scripts").mkdir()
+        (repo / "scripts" / "a.py").write_text("print('a')\n" * 20, encoding="utf-8")
+        git(repo, "add", "-A")
+        git(repo, "commit", "-q", "-m", "add")
+        git(repo, "mv", "scripts/a.py", "elsewhere.txt")
+        git(repo, "commit", "-q", "-m", "rename out of the filtered path")
+        head = git(repo, "rev-parse", "HEAD")
+        assert sorted(changed_files(repo, head)) == ["elsewhere.txt", "scripts/a.py"]
+        record = _record()
+        assert apply_exemption(record, _entry(), head, GitDiffSource(repo)) is record
+
     def test_a_root_commit_has_no_diff_to_read(self, tmp_path: Path) -> None:
         repo, _ = _repo(tmp_path)
         root = git(repo, "rev-list", "--max-parents=0", "HEAD")
@@ -267,6 +296,7 @@ class TestGit:
         head = git(repo, "rev-parse", "HEAD")
         assert parent_file(repo, head, WORKFLOW) == WORKFLOW_TEXT
         assert parent_file(repo, sha, "notes/n.txt") is None
+        assert parent_file(repo, sha, "never/existed.txt") is None
 
     @pytest.mark.parametrize("path", ["/etc/passwd", "-x", "../x", "a/../b"])
     def test_parent_file_refuses_a_path_that_leaves_the_repository(
