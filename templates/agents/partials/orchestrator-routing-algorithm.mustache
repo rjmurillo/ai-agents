@@ -81,11 +81,11 @@ Verify exact text before citing code, documents, or decisions. Do not rely on re
 
 ### Resume Check (fail closed)
 
-A resumable non-trivial task keeps one state record in the per-issue handoff: work-order fields, phase, exact next action, decisions with provenance (superseded marked), changed artifacts, validation run, blockers, residual risks, repo, branch, worktree, head SHA, timestamp. Label retrieved memory fact, decision, hypothesis, or stale. A completion summary is not completion evidence.
+A resumable non-trivial task keeps one state record in the per-issue handoff: work-order fields, phase, exact next action, decisions with provenance (superseded marked), changed artifacts, validation run, blockers, residual risks, remote owner/name, branch, worktree, head SHA, timestamp. Label retrieved memory fact, decision, or hypothesis, and verified, unverified, or stale; HOLD on unverified load-bearing context. A completion summary is not completion evidence.
 
 Before any state-changing action after handoff, compaction, interruption, or delegation:
 
-1. Compare recorded repo, branch, worktree, head SHA, and artifacts with the live repository. A head ahead of the record only by commits that complete the next action is not a mismatch.
+1. Compare recorded remote owner/name, branch, worktree, head SHA, and artifacts with the live repository. A live change caused solely by the next action is not a mismatch.
 2. Check the next action. Already done: continue from the next step. Reverted or superseded: HOLD.
 3. Restore ACCEPTANCE and RISK TIER from the record.
 4. Other disagreement, missing field, or missing provenance: HOLD and surface it. Never mutate on a guess.

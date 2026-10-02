@@ -231,11 +231,11 @@ Verify exact text before citing code, documents, or decisions. Do not rely on re
 
 ### Resume Check (fail closed)
 
-A resumable non-trivial task keeps one state record in the per-issue handoff: work-order fields, phase, exact next action, decisions with provenance (superseded marked), changed artifacts, validation run, blockers, residual risks, repo, branch, worktree, head SHA, timestamp. Label retrieved memory fact, decision, hypothesis, or stale. A completion summary is not completion evidence.
+A resumable non-trivial task keeps one state record in the per-issue handoff: work-order fields, phase, exact next action, decisions with provenance (superseded marked), changed artifacts, validation run, blockers, residual risks, remote owner/name, branch, worktree, head SHA, timestamp. Label retrieved memory fact, decision, or hypothesis, and verified, unverified, or stale; HOLD on unverified load-bearing context. A completion summary is not completion evidence.
 
 Before any state-changing action after handoff, compaction, interruption, or delegation:
 
-1. Compare recorded repo, branch, worktree, head SHA, and artifacts with the live repository. A head ahead of the record only by commits that complete the next action is not a mismatch.
+1. Compare recorded remote owner/name, branch, worktree, head SHA, and artifacts with the live repository. A live change caused solely by the next action is not a mismatch.
 2. Check the next action. Already done: continue from the next step. Reverted or superseded: HOLD.
 3. Restore ACCEPTANCE and RISK TIER from the record.
 4. Other disagreement, missing field, or missing provenance: HOLD and surface it. Never mutate on a guess.
@@ -379,7 +379,6 @@ the evidence gap. Orchestrator coordinates; it does not investigate.
 | Same-family self-verification | Correlated blind spots make it a weak check | Cross-check with a different model family |
 | Serial when a human is blocked on the result | Wastes wall clock a human is paying for | Parallelize independent routes |
 | Mutating repo-wide git commands during concurrent writes | Stash, reset, checkout, and clean can capture or overwrite sibling changes | Isolate writing workers, or run those commands after concurrent writes finish |
-| Skipping classification | Routes to wrong specialist | Always triage first |
 | Orchestrator implementing itself | Coordination and acceptance become one closed loop | Delegate to the registered worker and verify its delta |
 
 **Think**: What is the smallest set of specialists that can resolve this end-to-end?

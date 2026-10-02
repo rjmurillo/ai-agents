@@ -32,15 +32,16 @@ ORCHESTRATOR_PATHS = (
 STATE_RECORD = (
     "work-order fields, phase, exact next action, decisions with provenance "
     "(superseded marked), changed artifacts, validation run, blockers, residual risks, "
-    "repo, branch, worktree, head SHA, timestamp"
+    "remote owner/name, branch, worktree, head SHA, timestamp"
 )
 
 RULES = (
-    "Label retrieved memory fact, decision, hypothesis, or stale",
+    "Label retrieved memory fact, decision, or hypothesis, and verified, unverified, or stale",
+    "HOLD on unverified load-bearing context",
     "A completion summary is not completion evidence.",
-    "Compare recorded repo, branch, worktree, head SHA, and artifacts with the live repository",
+    "Compare recorded remote owner/name, branch, worktree, head SHA, and artifacts with the live repository",
     "Reverted or superseded: HOLD",
-    "only by commits that complete the next action is not a mismatch",
+    "A live change caused solely by the next action is not a mismatch",
     "continue from the next step",
     "Restore ACCEPTANCE and RISK TIER",
     "HOLD and surface it",
@@ -87,7 +88,7 @@ def _scenario(scenario_id: str) -> dict:
     return matches[0]
 
 
-@pytest.mark.parametrize("scenario_id", ["S17", "S18", "S19", "S25", "S26"])
+@pytest.mark.parametrize("scenario_id", ["S17", "S18", "S19", "S25", "S26", "S29", "S30"])
 @pytest.mark.parametrize("path", ORCHESTRATOR_PATHS, ids=str)
 def test_graded_scenarios_stay_tied_to_the_resume_text(path: Path, scenario_id: str) -> None:
     scenario = _scenario(scenario_id)
@@ -126,7 +127,7 @@ COMPLETE_RECORD_TERMS = (
     "validation run",
     "blockers",
     "residual risks",
-    "repo ",
+    "rjmurillo/ai-agents",
     "branch",
     "worktree",
     "head ",
