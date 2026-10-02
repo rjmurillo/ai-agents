@@ -67,9 +67,10 @@ deleting a bad rule, not a raised ceiling.
 
 ## Scope: the comment does not generalise
 
-Four other records in this batch keep their prose status sections, because theirs
-carry nuance the enum cannot express and are therefore what ADR-073 actually
-contemplates:
+Four other records in this batch have no `## Status` section. Each carries its
+nuance under `## Provenance` or `## Acceptance Evidence` instead, because that
+nuance is not lifecycle state. This is what ADR-073 (amended 2026-09-29)
+permits:
 
 | Record | What its prose carries beyond the enum |
 |---|---|

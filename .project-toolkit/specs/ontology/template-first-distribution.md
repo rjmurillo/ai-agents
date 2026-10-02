@@ -61,7 +61,7 @@ Source: ADR-109. Elicited 2026-09-11 from the ADR's Decision, Context, and Imple
 ## O6 Bounded contexts
 
 - Template authoring (`templates/<class>/`): for a migrated class, this is where a contributor edits; the install tree is not hand-edited.
-- Generation (`build/scripts/`): gains a compile module per new class (agents, rules, hooks) and the binplace step; the lib step absorbs `scripts/sync_plugin_lib.py`'s copy logic.
+- Generation (`build/scripts/`): gains a compile module per new class (agents, rules, hooks) and the binplace step; the lib step absorbs `scripts/sync_plugin_lib.py`'s copy logic. <!-- orphan-ref-ignore -->
 - Validation (`scripts/validation/`): gains one drift-gate row per class in `pre_pr_sequence.py`.
 - Plugin distribution (`.claude-plugin/`, `.github/plugin/`): B6 collapses two Claude-side plugin roots (`claude-agents`, `project-toolkit`) into one, sourced at `src/claude/`.
 

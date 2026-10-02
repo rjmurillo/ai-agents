@@ -43,6 +43,10 @@ Fail-open vectors this gate refuses to treat as clean (all raise, none skip):
       measures no activation                                        -> exit 2
 
 A malformed or missing input is always a failure, never clean.
+
+This gate sees baseline exemption and scenario presence only. Per-artifact
+evidence states (issue #4882) come from `report_rule_activation_states.py`;
+scored efficacy needs a run of `scripts/eval/eval-rule-activation.py`.
 """
 
 from __future__ import annotations
@@ -447,7 +451,9 @@ def run(repo_root: Path, baseline_path: Path, update: bool) -> int:
 
     print(
         f"OK: {len(uncovered_rules)} uncovered rule(s) and "
-        f"{len(uncovered_skills)} uncovered skill(s), all within the baseline."
+        f"{len(uncovered_skills)} uncovered skill(s), all within the baseline. "
+        "Baseline membership is a non-regression inventory, not efficacy "
+        "evidence, and scenario presence is not a scored result."
     )
     return EXIT_OK
 

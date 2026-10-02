@@ -115,7 +115,7 @@ def test_approve_and_merge_steps_still_use_pat(workflow: dict) -> None:
     write_steps = [
         s
         for s in job["steps"]
-        if s.get("name") in {"Approve PR", "Enable auto-merge for non-major updates"}
+        if s.get("name") in {"Approve PR", "Enable auto-merge"}
     ]
     assert len(write_steps) == 2, "expected Approve PR + Enable auto-merge steps"
     for step in write_steps:

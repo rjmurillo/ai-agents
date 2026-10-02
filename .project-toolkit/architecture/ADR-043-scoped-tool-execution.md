@@ -11,10 +11,6 @@ implemented: true
 
 # ADR-043: Scoped Tool Execution
 
-## Status
-
-Accepted
-
 ## Date
 
 2026-01-21

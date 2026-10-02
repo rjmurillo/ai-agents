@@ -5,6 +5,14 @@ Pre-flight coordination for the competing-PR failure mode: a worker claims an
 issue before starting development. If another login already holds the issue, the
 claim is refused so two workers do not develop the same issue in parallel.
 
+The assignee check is a cooperative signal: it only works when every worker
+assigns itself first. A pushed branch is evidence, so a successful claim also
+probes ``git ls-remote --heads origin`` for branches that name the issue, are
+ahead of the origin default branch, and were not merged through a pull request.
+Those are reported in ``in_flight_branches`` as a warning, never a refusal, so a
+worker resuming its own branch is not blocked (issue #5428). A failed probe
+degrades to a named ``warnings`` entry.
+
 Exit codes follow ADR-035:
     0 - Claimed (now assigned to the current user) or already held by current user
     1 - Already claimed by a different login (do not start; coordinate)
@@ -18,6 +26,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 
@@ -49,6 +58,12 @@ from github_core.output import (
 )
 
 _GH_TIMEOUT_SECONDS = 30
+_BASE_CANDIDATES = ("main", "master", "develop", "trunk")
+_HEADS_PREFIX = "refs/heads/"
+_REMOTE_SLUG = re.compile(
+    r"^(?:[A-Za-z][A-Za-z0-9+.-]*://)?(?:[^/@]+@)?"
+    r"github\.com[:/](?P<owner>[^/]+)/(?P<repo>[^/]+?)(?:\.git)?/?$"
+)
 
 
 def _run(cmd: list[str]) -> subprocess.CompletedProcess[str]:
@@ -105,6 +120,185 @@ def issue_assignees(owner: str, repo: str, issue: int) -> list[str]:
         for login in [assignee.get("login")]
         if isinstance(login, str) and login
     ]
+
+
+def matching_remote_heads(ls_remote_output: str, issue: int) -> list[tuple[str, str]]:
+    """Return ``(branch, sha)`` pairs whose branch name carries the issue number.
+
+    The number must not touch another digit, so ``5420`` does not match
+    ``54200`` or ``15420``. Lines that are not branch heads are skipped.
+    """
+
+    number = re.compile(rf"(?<!\d){issue}(?!\d)")
+    matches: list[tuple[str, str]] = []
+    for line in ls_remote_output.splitlines():
+        sha, _, ref = line.partition("\t")
+        if not ref.startswith(_HEADS_PREFIX):
+            continue
+        branch = ref[len(_HEADS_PREFIX):]
+        if sha and number.search(branch):
+            matches.append((branch, sha))
+    return matches
+
+
+def origin_base_ref() -> str | None:
+    """Return the origin default branch as ``origin/<name>``, or ``None``.
+
+    Reads ``refs/remotes/origin/HEAD`` first, then the common default names, so a
+    consumer repository whose default branch is not ``main`` still classifies.
+    """
+
+    head = _run(["git", "symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD"])
+    ref = head.stdout.strip()
+    if head.returncode == 0 and ref.startswith("origin/"):
+        return ref
+    for name in _BASE_CANDIDATES:
+        probe = _run(["git", "rev-parse", "--verify", "--quiet", f"refs/remotes/origin/{name}"])
+        if probe.returncode == 0:
+            return f"origin/{name}"
+    return None
+
+
+def commits_ahead(sha: str, base_ref: str | None) -> int | None:
+    """Return how many commits ``sha`` has beyond ``base_ref``, or ``None``.
+
+    This is an ancestry count. ``None`` means git could not count (object not
+    fetched, no base ref). The caller treats that as unverified, not as zero.
+    """
+
+    if base_ref is None:
+        return None
+    result = _run(["git", "rev-list", "--count", sha, f"^{base_ref}"])
+    if result.returncode != 0:
+        return None
+    try:
+        return int(result.stdout.strip())
+    except ValueError:
+        return None
+
+
+def merged_through_pr(
+    owner: str, repo: str, branch: str, sha: str, base_ref: str | None,
+) -> bool:
+    """Return true when a PR merged into the default branch had ``sha`` as its head.
+
+    A PR merged into another base (a stacked or integration branch) does not
+    count: its commits can still be absent from the default branch. An unknown
+    ``base_ref`` returns false for the same reason.
+
+    Squash merges never make the original commits reachable from the default
+    branch, so ancestry alone reports a merged, retained branch as live work.
+    A lookup failure returns false: an unverifiable branch stays in the warning.
+    """
+
+    if base_ref is None:
+        return False
+    base = base_ref.removeprefix("origin/")
+    result = _run(
+        ["gh", "pr", "list", "--repo", f"{owner}/{repo}", "--head", branch,
+         "--base", base, "--state", "merged",
+         "--json", "headRefOid", "--jq", ".[].headRefOid"],
+    )
+    if result.returncode != 0:
+        return False
+    return sha in result.stdout.split()
+
+
+def current_branch() -> str:
+    """Return the checked-out branch name, or an empty string when unknown."""
+
+    result = _run(["git", "branch", "--show-current"])
+    return result.stdout.strip() if result.returncode == 0 else ""
+
+
+def find_in_flight_branches(
+    owner: str, repo: str, issue: int,
+) -> tuple[list[dict[str, object]], list[str]]:
+    """Probe origin for pushed branches that name the issue and carry unmerged work.
+
+    Returns ``(in_flight, warnings)``. A branch with 0 commits ahead of the
+    default branch, or whose head a merged PR already carried, is omitted. A
+    branch whose count cannot be read is kept with ``ahead`` set to ``None``,
+    since dropping it would hide possible live work. The caller's own branch is
+    omitted. Any failure in the probe, from ``ls-remote`` through the per-branch
+    checks, becomes a named warning and never fails the claim.
+    """
+
+    try:
+        return _probe_in_flight(owner, repo, issue), []
+    except RuntimeError as err:
+        return [], [f"remote branch probe skipped: {err}"]
+
+
+def require_origin_matches(owner: str, repo: str) -> None:
+    """Raise ``RuntimeError`` unless ``origin`` points at ``owner/repo``.
+
+    The claim targets the resolved repository, which ``--owner`` and ``--repo``
+    can set apart from the checkout. Branch heads from a different ``origin``
+    would describe unrelated work.
+    """
+
+    result = _run(["git", "config", "--get", "remote.origin.url"])
+    url = result.stdout.strip()
+    if result.returncode != 0 or not url:
+        raise RuntimeError("no origin remote to probe")
+    match = _REMOTE_SLUG.search(url)
+    if match is None:
+        raise RuntimeError("cannot read a GitHub owner and repo from the origin remote")
+    found = f"{match['owner']}/{match['repo']}"
+    if found.lower() != f"{owner}/{repo}".lower():
+        raise RuntimeError(f"origin is {found}, not the claim target {owner}/{repo}")
+
+
+def _probe_in_flight(owner: str, repo: str, issue: int) -> list[dict[str, object]]:
+    require_origin_matches(owner, repo)
+    listing = _run(["git", "ls-remote", "--heads", "origin"])
+    if listing.returncode != 0:
+        reason = listing.stderr.strip() or f"git ls-remote exited {listing.returncode}"
+        raise RuntimeError(reason)
+
+    mine = current_branch()
+    base_ref = origin_base_ref()
+    in_flight: list[dict[str, object]] = []
+    for branch, sha in matching_remote_heads(listing.stdout, issue):
+        if branch == mine:
+            continue
+        ahead = commits_ahead(sha, base_ref)
+        if ahead == 0 or merged_through_pr(owner, repo, branch, sha, base_ref):
+            continue
+        in_flight.append({"branch": branch, "sha": sha, "ahead": ahead})
+    return in_flight
+
+
+def describe_in_flight(in_flight: list[dict[str, object]]) -> str:
+    """Return a one-line warning naming each in-flight branch and its lead."""
+
+    parts = [
+        f"{item['branch']} ({'unverified' if item['ahead'] is None else str(item['ahead']) + ' ahead'})"
+        for item in in_flight
+    ]
+    return f"WARNING: pushed branches already carry work on this issue: {', '.join(parts)}."
+
+
+def write_claim_success(
+    data: dict[str, object],
+    summary: str,
+    probe: tuple[list[dict[str, object]], list[str]],
+    fmt: str,
+) -> None:
+    """Emit a PASS result with the remote-branch probe folded in."""
+
+    in_flight, warnings = probe
+    lines = [summary]
+    if in_flight:
+        lines.append(describe_in_flight(in_flight))
+    lines.extend(f"WARNING: {warning}" for warning in warnings)
+    write_skill_output(
+        {**data, "in_flight_branches": in_flight, "warnings": warnings},
+        output_format=fmt,
+        human_summary="\n".join(lines),
+        status="PASS", script_name="claim_issue.py",
+    )
 
 
 def write_already_claimed(
@@ -165,11 +359,10 @@ def main(argv: list[str] | None = None) -> int:
         raise SystemExit(1)
 
     if me and me in assignees:
-        write_skill_output(
+        write_claim_success(
             {"issue": args.issue, "assignees": assignees, "claimed": me},
-            output_format=fmt,
-            human_summary=f"Issue #{args.issue} already held by {me}.",
-            status="PASS", script_name="claim_issue.py",
+            f"Issue #{args.issue} already held by {me}.",
+            find_in_flight_branches(owner, repo, args.issue), fmt,
         )
         return 0
 
@@ -222,11 +415,10 @@ def main(argv: list[str] | None = None) -> int:
         write_already_claimed(args.issue, assignees_after_claim, others_after_claim, fmt)
         raise SystemExit(1)
 
-    write_skill_output(
+    write_claim_success(
         {"issue": args.issue, "claimed": me or "@me"},
-        output_format=fmt,
-        human_summary=f"Claimed issue #{args.issue} for {me or '@me'}.",
-        status="PASS", script_name="claim_issue.py",
+        f"Claimed issue #{args.issue} for {me or '@me'}.",
+        find_in_flight_branches(owner, repo, args.issue), fmt,
     )
     return 0
 
