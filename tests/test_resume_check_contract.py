@@ -89,12 +89,33 @@ def _scenario(scenario_id: str) -> dict:
     return matches[0]
 
 
+EXPECTED_VERDICTS = {
+    "S17": "BLOCK",
+    "S18": "CONTINUE",
+    "S19": "CONTINUE",
+    "S25": "BLOCK",
+    "S26": "BLOCK",
+    "S27": "REJECT",
+    "S28": "ACCEPT",
+    "S29": "BLOCK",
+    "S30": "CONTINUE",
+    "S31": "HOLD",
+}
+
+
+@pytest.mark.parametrize("scenario_id", sorted(EXPECTED_VERDICTS))
+def test_every_scenario_pins_its_intended_verdict(scenario_id: str) -> None:
+    scenario = _scenario(scenario_id)
+
+    assert scenario["expected_verdict"] == EXPECTED_VERDICTS[scenario_id]
+    assert scenario["expected_verdict"] in scenario["verdict_options"]
+
+
 @pytest.mark.parametrize("scenario_id", ["S17", "S18", "S19", "S25", "S26", "S29", "S30"])
 @pytest.mark.parametrize("path", ORCHESTRATOR_PATHS, ids=str)
 def test_graded_scenarios_stay_tied_to_the_resume_text(path: Path, scenario_id: str) -> None:
     scenario = _scenario(scenario_id)
 
-    assert scenario["expected_verdict"] in scenario["verdict_options"]
     assert scenario["expected_reason_contains"] in _section(path)
 
 
