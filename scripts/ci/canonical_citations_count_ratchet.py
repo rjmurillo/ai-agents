@@ -100,7 +100,7 @@ def current_count(repo_root: Path) -> int | None:
     for path_str in files:
         if not _in_scan_roots(path_str) or not (repo_root / path_str).is_file():
             continue
-        violation = scan_file(repo_root / path_str)
+        violation = scan_file(repo_root / path_str, repo_root)
         if violation is None:
             continue
         if violation.matched_token == _READ_ERROR_TOKEN:
