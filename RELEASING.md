@@ -59,10 +59,13 @@ open finding is fixed it will block.
 The workflow builds the tarball once, hashes it, runs the gate against that digest,
 and publishes the same file after checking the digest again.
 
+A real publish must use the head commit as the candidate, because npm provenance
+attests the run commit. A dry run may name an older candidate.
+
 The `v*` tag trigger is dormant. A tag push runs the tagged commit's own copy of
-the workflow, so the first job refuses it with the reason. It stays that way until
-the owner creates the `v*` tag ruleset (issue #5636). Pushing a tag does not
-publish.
+the workflow, so the first job refuses it with the reason. Each tag push therefore
+shows one red "Resolve Publish Route" run, and that is expected until the owner
+creates the `v*` tag ruleset (issue #5636). Pushing a tag does not publish.
 
 ### Manual dry-run
 
