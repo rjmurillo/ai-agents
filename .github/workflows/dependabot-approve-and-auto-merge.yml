@@ -1,12 +1,13 @@
 name: Auto-Approve and Auto-Merge Bot PRs
 
-# Auto-approves and enables auto-merge on non-major dependency updates from
-# Dependabot and Renovate so dependency PR debt does not accumulate.
-#
-# Major version bumps are excluded from auto-approval and require manual
-# review. Uses the BOT_PAT PAT (the rjmurillo-bot service account, ADR-026
-# Decision 5) so approvals come from a real user identity that satisfies
-# branch ruleset requirements. BOT_PAT is the canonical write PAT shared by
+# Auto-approves and enables auto-merge on every dependency update from
+# Dependabot and Renovate (major, minor, patch, security, grouped) so
+# dependency PR debt does not accumulate. The repo owner accepted that
+# majors merge without human review once required checks pass; auto-merge
+# still waits for the branch ruleset's required status checks. Uses the
+# BOT_PAT PAT (the rjmurillo-bot service account, ADR-026 Decision 5) so
+# approvals come from a real user identity that satisfies branch ruleset
+# requirements. BOT_PAT is the canonical write PAT shared by
 # every other PR-automation workflow in this repo; this workflow originally
 # referenced a bespoke GH_ACTIONS_PR_WRITE secret that was never provisioned,
 # which is why approvals failed with an empty GH_TOKEN. Fixes #2551.
@@ -67,8 +68,7 @@ jobs:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GH_TOKEN: ${{ secrets.BOT_PAT }}
 
-      - name: Enable auto-merge for non-major updates
-        if: steps.dependabot-metadata.outputs.update-type != '' && steps.dependabot-metadata.outputs.update-type != 'version-update:semver-major'
+      - name: Enable auto-merge
         run: gh pr merge --auto --squash "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
@@ -85,12 +85,8 @@ jobs:
     environment: bot-secrets
     if: github.actor == 'renovate[bot]'
     # Renovate handles auto-merge decisions via platformAutomerge and
-    # per-package automerge rules in renovate.json. This workflow only
-    # provides the required approval for non-major updates. Major-version
-    # bumps are excluded from auto-approval and require manual review.
-    # Major detection reads the 'renovate-major' label that renovate.json
-    # 'major.addLabels' applies on major PRs. Label-based detection is
-    # reliable; PR title regex was not (no marker configured upstream).
+    # automerge settings in renovate.json. This workflow only provides the
+    # approval, for every update type including major.
     steps:
       # Preflight: fail fast with a self-diagnosing annotation when the PAT
       # secret is empty (expired, rotated, renamed in repo settings). Without
@@ -107,21 +103,7 @@ jobs:
             exit 1
           fi
 
-      - name: Detect major update
-        id: detect-major
-        env:
-          GH_TOKEN: ${{ secrets.BOT_PAT }}
-          PR_URL: ${{ github.event.pull_request.html_url }}
-        run: |
-          labels=$(gh pr view "$PR_URL" --json labels --jq '[.labels[].name] | join(",")')
-          if printf '%s' "$labels" | grep -q '\brenovate-major\b'; then
-            echo "is_major=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "is_major=false" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: Approve PR
-        if: steps.detect-major.outputs.is_major != 'true'
         run: gh pr review --approve "$PR_URL"
         env:
           GH_TOKEN: ${{ secrets.BOT_PAT }}

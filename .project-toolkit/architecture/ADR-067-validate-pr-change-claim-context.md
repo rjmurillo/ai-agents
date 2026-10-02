@@ -11,10 +11,6 @@ implemented: true
 
 # ADR-067: validate-pr Check 1 default-flip - change-claim context required
 
-## Status
-
-Proposed
-
 ## Date
 
 2026-06-02

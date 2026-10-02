@@ -109,7 +109,7 @@ def _valid(number: int, **overrides: object) -> str:
     return "\n".join(f"{key}: {value}" for key, value in fields.items())
 
 
-_STATUS_SECTION = "\n## Status\n\nAccepted (2026-08-21).\n"
+_STATUS_SECTION = "\n## Status\n\nAccepted (2026-08-21). Conditions were cleared in review.\n"
 
 
 def _counts(tmp_path: Path) -> dict[str, int]:
@@ -580,19 +580,148 @@ def test_proposed_record_may_not_supersede(tmp_path):
 @pytest.mark.parametrize(
     "prose",
     [
-        "Accepted",
-        "**Accepted**",
         "Accepted (amended 2026-07-19: narrowed to hooks).",
         "`Accepted`. Supersedes nothing.",
         "> Accepted by repo-owner authorization.",
-        "accepted",
+        "Accepted 2026-06-19 by repo-owner authorization, bound to the debate log.",
     ],
 )
-def test_decorated_prose_matching_the_enum_passes(tmp_path, prose):
+def test_prose_with_nuance_matching_the_enum_passes(tmp_path, prose):
     adr_dir = _adr_dir(tmp_path)
     _write(adr_dir, 1, _valid(1), f"\n## Status\n\n{prose}\n")
 
     assert _counts(tmp_path)["prose-frontmatter-agree"] == 0
+
+
+@pytest.mark.parametrize(
+    "prose",
+    [
+        "Accepted",
+        "**Accepted**",
+        "accepted",
+        "Accepted.",
+        "`Accepted`",
+        "Accepted (2026-06-19)",
+        "Accepted 2026-06-19.",
+    ],
+)
+def test_a_bare_restatement_of_the_enum_is_forbidden(tmp_path, prose):
+    """ADR-073 amendment 2026-09-29: a `## Status` that only says the enum word."""
+    adr_dir = _adr_dir(tmp_path)
+    _write(adr_dir, 1, _valid(1), f"\n## Status\n\n{prose}\n")
+
+    details = _hits(tmp_path, "prose-frontmatter-agree")
+
+    assert len(details) == 1
+    assert "only restates frontmatter status: accepted" in details[0]
+
+
+def test_a_very_long_status_line_is_nuance_and_is_not_scanned_slowly(tmp_path):
+    """Edge: a 32k-space run must neither hang the gate nor read as a restatement."""
+    adr_dir = _adr_dir(tmp_path)
+    line = "Accepted" + " " * 32000 + "x"
+    _write(adr_dir, 1, _valid(1), f"\n## Status\n\n{line}\n")
+
+    assert _counts(tmp_path)["prose-frontmatter-agree"] == 0
+
+
+@pytest.mark.parametrize(
+    "prose",
+    [
+        "Superseded by ADR-042",
+        "Superseded by [ADR-042](ADR-042.md)",
+        "Superseded by ADR-042 on 2026-08-19",
+        "Superseded by ADR-042 (2026-08-19)",
+        "Superseded by ADR-042 2026-08-19.",
+        "Superseded on 2026-08-19",
+        "Superseded (2026-08-19) by ADR-042",
+    ],
+)
+def test_superseded_restatement_forms_are_forbidden(tmp_path, prose):
+    adr_dir = _adr_dir(tmp_path)
+    _write(adr_dir, 1, _valid(1, status="superseded"), f"\n## Status\n\n{prose}\n")
+
+    assert len(_hits(tmp_path, "prose-frontmatter-agree")) == 1
+
+
+@pytest.mark.parametrize(
+    "prose",
+    [
+        "Accepted on 2026-08-19",
+        "Accepted (2026-08-19)",
+        "Accepted on 2026-08-19.",
+    ],
+)
+def test_dated_accepted_restatement_forms_are_forbidden(tmp_path, prose):
+    adr_dir = _adr_dir(tmp_path)
+    _write(adr_dir, 1, _valid(1), f"\n## Status\n\n{prose}\n")
+
+    assert len(_hits(tmp_path, "prose-frontmatter-agree")) == 1
+
+
+@pytest.mark.parametrize(
+    ("status", "prose"),
+    [
+        ("accepted", "Accepted by ADR-042"),
+        ("accepted", "Accepted by [ADR-042](ADR-042.md)"),
+        ("proposed", "Proposed by ADR-042 on 2026-08-19"),
+        ("superseded", "Superseded by ADR-042 on 2026-08-19 (2026-08-20)"),
+        ("superseded", "Superseded by ADR-042 because it broke hooks"),
+        ("accepted", "Accepted on 2026-08-19 after the P1 findings cleared"),
+    ],
+)
+def test_forms_that_say_more_than_the_enum_are_not_restatements(tmp_path, status, prose):
+    """Negative: a successor on a non-superseded record, two dates, or trailing nuance."""
+    adr_dir = _adr_dir(tmp_path)
+    _write(adr_dir, 1, _valid(1, status=status), f"\n## Status\n\n{prose}\n")
+
+    assert _counts(tmp_path)["prose-frontmatter-agree"] == 0
+
+
+def test_a_superseded_restatement_naming_the_successor_is_forbidden(tmp_path):
+    """The ADR-005 shape the owner called duplicative: enum plus superseded-by."""
+    adr_dir = _adr_dir(tmp_path)
+    _write(adr_dir, 1, _valid(1, status="superseded"), "\n## Status\n\nSuperseded by ADR-042\n")
+
+    assert len(_hits(tmp_path, "prose-frontmatter-agree")) == 1
+
+
+def test_a_multi_line_status_section_is_nuance_not_restatement(tmp_path):
+    adr_dir = _adr_dir(tmp_path)
+    _write(
+        adr_dir,
+        1,
+        _valid(1),
+        "\n## Status\n\nAccepted\n\nConditions: clear the two P1 findings first.\n",
+    )
+
+    assert _counts(tmp_path)["prose-frontmatter-agree"] == 0
+
+
+def test_a_drifting_bare_word_is_one_violation_not_two(tmp_path):
+    """Drift wins: the restatement check runs only after the words agree."""
+    adr_dir = _adr_dir(tmp_path)
+    _write(adr_dir, 1, _valid(1, status="superseded"), "\n## Status\n\nAccepted\n")
+
+    details = _hits(tmp_path, "prose-frontmatter-agree")
+
+    assert len(details) == 1
+    assert "Frontmatter wins" in details[0]
+
+
+def test_a_fenced_status_sample_is_not_read_as_a_restatement(tmp_path):
+    adr_dir = _adr_dir(tmp_path)
+    _write(adr_dir, 1, _valid(1), "\n```markdown\n## Status\n\nAccepted\n```\n")
+
+    assert _counts(tmp_path)["prose-frontmatter-agree"] == 0
+
+
+def test_a_status_section_followed_by_another_section_is_still_bounded(tmp_path):
+    """The section ends at the next level-2 heading, so later prose is not its body."""
+    adr_dir = _adr_dir(tmp_path)
+    _write(adr_dir, 1, _valid(1), "\n## Status\n\nAccepted\n\n## Context\n\nWords.\n")
+
+    assert len(_hits(tmp_path, "prose-frontmatter-agree")) == 1
 
 
 def test_prose_naming_a_different_lifecycle_word_is_drift(tmp_path):
@@ -636,7 +765,7 @@ def test_absent_status_prose_is_not_a_violation(tmp_path):
     The repo owner rejected the opposite rule on review of ADR-005: with
     `status: superseded` and `superseded-by: ADR-042` in frontmatter, a prose line
     reading "Superseded by ADR-042" is duplication, not a reader service. ADR-073
-    line 57 agrees, saying the prose section "may carry" nuance rather than must.
+    agrees since its 2026-09-29 amendment: the section is optional.
     """
     adr_dir = _adr_dir(tmp_path)
     _write(adr_dir, 1, _valid(1), "\n## Context\n\nWords.\n")
@@ -1625,7 +1754,12 @@ def test_an_empty_status_section_does_not_borrow_the_next_heading(tmp_path):
 def test_a_status_section_with_prose_still_reads_its_prose(tmp_path):
     """Negative control: the empty-section guard must not blank real prose."""
     adr_dir = _adr_dir(tmp_path)
-    _write(adr_dir, 1, _valid(1), "\n## Status\n\nAccepted\n\n## Context\n\nWords.\n")
+    _write(
+        adr_dir,
+        1,
+        _valid(1),
+        "\n## Status\n\nAccepted after review.\n\n## Context\n\nWords.\n",
+    )
 
     assert _counts(tmp_path)["prose-frontmatter-agree"] == 0
 

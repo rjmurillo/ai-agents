@@ -11,10 +11,6 @@ implemented: true
 
 # ADR-093: A local run clears a red remote check only when it is the same checker
 
-## Status
-
-Proposed
-
 ## Date
 
 2026-08-07

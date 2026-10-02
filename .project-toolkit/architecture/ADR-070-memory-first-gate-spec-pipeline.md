@@ -11,10 +11,6 @@ implemented: true
 
 # ADR-070: Memory-First Gate Is a BLOCKING Step in the Spec Pipeline
 
-## Status
-
-Proposed
-
 ## Date
 
 2026-05-31

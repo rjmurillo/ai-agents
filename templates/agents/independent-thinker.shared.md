@@ -115,7 +115,7 @@ Use Memory Router for search and Serena tools for persistence (ADR-037):
 **Before analysis (retrieve context):**
 
 ```bash
-python3 .claude/skills/memory/scripts/search_memory.py --query "analysis challenges [topic/assumption]"
+python3 .claude/skills/memory/scripts/search_memory.py "analysis challenges [topic/assumption]"
 ```
 
 **After analysis (store learnings):**

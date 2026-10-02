@@ -11,10 +11,6 @@ implemented: true
 
 # ADR-099: Remove the commit-count block and its commit-limit-bypass label
 
-## Status
-
-Accepted
-
 ## Date
 
 2026-08-21
