@@ -59,6 +59,12 @@ from scripts.validation.promotion_evidence import (
     EvidenceRecord,
     parse_evidence_text,
 )
+from scripts.validation.promotion_exemption import (
+    REASON_EXEMPT,
+    DiffSource,
+    apply_exemption,
+    is_not_run_skip,
+)
 from scripts.validation.promotion_provenance import (
     combine,
     corroborate,
@@ -213,6 +219,7 @@ class _Context:
     default_branch: str
     check_runs: dict[int, Mapping[str, Any]]
     evidence_dir: Path
+    exemption_source: DiffSource | None = None
 
 
 def _int_id(value: object) -> int | None:
@@ -288,6 +295,8 @@ def _download_record(ctx: _Context, artifact: Mapping[str, Any], validator: str)
     record = parse_evidence_text(read_evidence_member(archive, validator), f"{validator}.json")
     if record.outcome.validator != validator:
         raise ValueError("the record names a different validator than its artifact")
+    if record.outcome.reason == REASON_EXEMPT:
+        raise ValueError("an artifact cannot carry policy.exempt; only the fetch sets it")
     if record.outcome.revision != ctx.candidate_sha:
         raise RevisionMismatchError("the record names a commit other than the candidate")
     return record
@@ -350,15 +359,30 @@ def _handle_run(ctx: _Context, entry: Applicability, run: Mapping[str, Any]) -> 
     except (ValueError, RecursionError):
         return _unusable(ctx, entry, run_id, REASON_ARTIFACT_FORMAT)
     corroboration = corroborate(
-        job_name=entry.job,
+        job_name=_corroborating_job(entry, record),
         run_id=run_id,
         repository=ctx.repo,
         latest_jobs=_latest_jobs(ctx, run_id),
         check_runs=ctx.check_runs,
     )
     written = combine(record, corroboration)
+    if ctx.exemption_source is not None:
+        written = apply_exemption(written, entry, ctx.candidate_sha, ctx.exemption_source)
     _write(ctx, written, run_id)
-    return Disposition(entry.validator, run_id, True, REASON_ACCEPTED, written.outcome.state.value)
+    reason = written.outcome.reason if written.outcome.reason == REASON_EXEMPT else REASON_ACCEPTED
+    return Disposition(entry.validator, run_id, True, reason, written.outcome.state.value)
+
+
+def _corroborating_job(entry: Applicability, record: EvidenceRecord) -> str:
+    """The job whose check-run corroborates the record.
+
+    A path-filter skip by a job-level condition runs only the row's ``skip_job``,
+    so that job, not the skipped one, is what succeeded.
+    """
+    skipped = is_not_run_skip(record)
+    if skipped and entry.path_filter is not None and entry.path_filter.skip_job:
+        return entry.path_filter.skip_job
+    return entry.job
 
 
 def _check_runs_by_id(reader: GitHubReader, repo: str, sha: str) -> dict[int, Mapping[str, Any]]:
@@ -378,6 +402,7 @@ def fetch_verified_evidence(
     default_branch: str,
     entries: Sequence[Applicability],
     evidence_dir: Path,
+    exemption_source: DiffSource | None = None,
 ) -> list[Disposition]:
     """Write one evidence file per accepted artifact and return every disposition.
 
@@ -404,7 +429,7 @@ def fetch_verified_evidence(
     )
     ctx = _Context(
         reader, repo, candidate_sha, default_branch,
-        _check_runs_by_id(reader, repo, candidate_sha), evidence_dir,
+        _check_runs_by_id(reader, repo, candidate_sha), evidence_dir, exemption_source,
     )  # fmt: skip
     dispositions: list[Disposition] = []
     for entry in wanted:

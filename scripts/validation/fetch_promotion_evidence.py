@@ -30,6 +30,7 @@ from scripts.validation.promotion_applicability import (  # noqa: E402
     ApplicabilityError,
     load_applicability,
 )
+from scripts.validation.promotion_exemption import GitDiffSource  # noqa: E402
 from scripts.validation.promotion_fetch import (  # noqa: E402
     GhCliReader,
     GitHubApiError,
@@ -67,6 +68,7 @@ def main(argv: Sequence[str] | None = None, reader: GitHubReader | None = None) 
             default_branch=args.default_branch,
             entries=entries,
             evidence_dir=args.evidence_dir,
+            exemption_source=GitDiffSource(args.repo_root),
         )
     except (ApplicabilityError, ValueError) as exc:
         return _fail("FAIL", f"{type(exc).__name__}: {exc}", EXIT_CONFIG)

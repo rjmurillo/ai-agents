@@ -162,13 +162,14 @@ class TestVerdict:
         )
         assert _run(tmp_path, required=["pytest"]).manifest["verdict"] == "promote"
 
-    def test_a_required_validator_showing_only_an_exempt_skip_blocks(self, tmp_path: Path) -> None:
-        """The record is candidate-writable, so it cannot exempt itself."""
+    def test_a_required_validator_with_a_verified_exempt_skip_is_present(
+        self, tmp_path: Path
+    ) -> None:
+        """The fetch step writes policy.exempt only after verifying a path-filter skip (D26)."""
         _write(tmp_path / "ev", "pytest.json", _evidence(state="SKIP", reason="policy.exempt"))
         result = _run(tmp_path, required=["pytest"], mode=MODE_ENFORCING)
-        assert result.manifest["verdict"] == "block"
-        assert result.manifest["findings"][0]["reason"] == "evidence.missing"
-        assert result.exit_code == EXIT_LOGIC
+        assert result.manifest["verdict"] == "promote"
+        assert result.manifest["findings"] == []
 
     def test_one_unrelated_pass_with_no_required_set_blocks(self, tmp_path: Path) -> None:
         """An empty required set is not a clean sheet."""
