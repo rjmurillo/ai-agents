@@ -219,4 +219,4 @@ fix or security-owner policy decision, not a justification-based bypass.
 ---
 
 **Supersedes**: None (extends ADR-041)
-**Amended by**: this record (2026-05-02 and 2026-09-29 amendments)
+**Amended by**: [Amendment 2026-09-29](#amendment-2026-09-29-the-900-second-budget-is-a-per-job-kill-ceiling); [Amendment 2026-05-02](#amendment-2026-05-02-cwe-22-scope-narrowing-for-the-security-scan-skill)

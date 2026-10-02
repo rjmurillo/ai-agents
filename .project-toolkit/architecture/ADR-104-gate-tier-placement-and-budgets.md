@@ -418,7 +418,7 @@ measurement.
 ADR-054's 900s budget for `security-scan` and the 300s pre-push target measure
 different things, so both stand. 900s is the per-job kill ceiling: the longest
 a single job may run before it is killed. 300s is the whole-hook target: what a
-push should cost end to end. One job can therefore pass 300s without reaching
+push should cost end to end. One job can therefore run longer than 300s without reaching
 its ceiling. ADR-054 carries the same reading in its 2026-09-29 amendment.
 Reconciled under issue #5318, item 5.
 
@@ -477,7 +477,7 @@ a status quo where the push does not complete.
 | Narrow the local selector to a per-path allowlist | Keeps local execution for real Python changes | An allowlist does not bound cost for a large Python change, where the graph maps everything and the subset is still large | Rejected as the primary fix. The fail-open objection an earlier revision gave was wrong: CI already maintains exactly such an allowlist and `runtime_read_patterns.txt` is nearly a copy of it. Making the two agree is worth doing and is issue #5318 |
 | Drop `python-tests` from pre-push entirely | Cheapest possible hook | A broken import would reach CI and burn a whole matrix | Rejected: gives up the defect class that most deserves a local gate |
 | Keep execution, drop the mutation, safe-push and pr-autofix partitions locally | Saves the measured 212s those three cost | Leaves the 258s bulk partition | Rejected as insufficient, though CI does run those three as separate matrix legs, so they were already duplicated |
-| A hard hook deadline that defers remaining gates to CI on expiry | Bounds the push directly | Untried here; needs a resume story | Not adopted. Weighed under issue #5318 item 4: the container-reclaim asymmetry is real, but #5813 measured whole pre-push hooks at 124s to 128s against the 300s target on the measured classes. `workflow-local-run` is unmeasured. Revisit when it is measured or a measured push passes 150s |
+| A hard hook deadline that defers remaining gates to CI on expiry | Bounds the push directly | Untried here; needs a resume story | Not adopted. Weighed under issue #5318, item 4: the container-reclaim asymmetry is real, but #5813 measured whole pre-push hooks at 124s to 128s against the 300s target on the measured classes. `workflow-local-run` is unmeasured. Revisit when it is measured or a measured push passes 150s |
 | Collect instead of execute on the fallback | 14s against 382s, still blocks import and syntax defects, CI executes the same commit | Gives up local assertion results for the fallback class | **Chosen** |
 
 ### Trade-offs

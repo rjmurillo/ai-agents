@@ -856,3 +856,10 @@ independent-thinker, security, analyst, and high-level-advisor.
 
 Dissent (independent-thinker): no measurement covers a loaded host. Captured in
 the revisit trigger above.
+
+### Post-review wording fixes
+
+Copilot review of the PR found three wording issues, fixed with no change to
+any decision or vote. The ADR-054 "Amended by" line now links both amendment
+sections instead of pointing at "this record". "Pass 300s" in ADR-104 now reads
+"run longer than 300s". The issue #5318 item references use one comma form.
