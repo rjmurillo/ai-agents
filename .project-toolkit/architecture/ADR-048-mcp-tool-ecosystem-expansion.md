@@ -11,10 +11,6 @@ implemented: false
 
 # ADR-048: MCP Tool Ecosystem Expansion
 
-## Status
-
-Proposed
-
 ## Date
 
 2026-02-23

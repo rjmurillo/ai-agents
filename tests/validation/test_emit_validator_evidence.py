@@ -67,6 +67,11 @@ def test_job_status_maps_to_the_typed_state(
     assert outcome.revision == SHA
 
 
+def test_a_pass_says_it_examined_the_one_job() -> None:
+    """The gate reads a PASS with no examined count as missing evidence."""
+    assert _outcome("success").examined == 1
+
+
 def test_a_green_job_that_did_no_work_is_never_a_pass() -> None:
     assert _outcome("success", ran=False).state is not EvidenceState.PASS
 
