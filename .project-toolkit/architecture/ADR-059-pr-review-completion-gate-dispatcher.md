@@ -11,10 +11,6 @@ implemented: true
 
 # ADR-059: /pr-review Completion Gate Dispatcher and pass_when DSL
 
-## Status
-
-Proposed
-
 ## Date
 
 2026-05-08

@@ -11,10 +11,6 @@ implemented: true
 
 # ADR-045: Framework Extraction via Plugin Marketplace
 
-## Status
-
-Accepted
-
 ## Date
 
 2026-02-07

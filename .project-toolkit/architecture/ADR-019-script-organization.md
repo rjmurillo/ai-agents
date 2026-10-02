@@ -11,10 +11,6 @@ implemented: true
 
 # ADR-019: Script Organization and Usage Patterns
 
-## Status
-
-Accepted
-
 ## Date
 
 2025-12-23

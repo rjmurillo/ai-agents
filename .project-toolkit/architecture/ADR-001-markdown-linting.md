@@ -11,10 +11,6 @@ implemented: true
 
 # ADR-001: Markdown Linting Configuration
 
-## Status
-
-Accepted
-
 ## Context
 
 The vs-code-agents repository contains 59 markdown files (agent templates, documentation, instruction files) with **1363 markdown lint violations** identified by markdownlint-cli2. These violations cause:

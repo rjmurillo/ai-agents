@@ -175,8 +175,9 @@ Rules the generator MUST honor:
 - `explainer` defaults to `null`. If the author supplies one, record the literal
   string only. MUST NOT fetch, resolve, or follow the URL (it is a poisoning and
   SSRF surface, CWE-918). It is display-only metadata for human click-through.
-- The frontmatter `status` enum is authoritative for tooling; the prose
-  `## Status` section carries the human-readable nuance.
+- The frontmatter `status` enum is authoritative for tooling. A prose `## Status`
+  section is optional: add it only for nuance the enum cannot carry, never to
+  restate the enum (ADR-073, amended 2026-09-29).
 
 ### Phase G4: Validate
 
