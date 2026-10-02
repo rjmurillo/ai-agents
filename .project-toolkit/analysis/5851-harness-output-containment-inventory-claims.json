@@ -7,20 +7,20 @@
   "claims": [
     {
       "id": "C1",
-      "claim": "Claude Code caps a successful Bash result at 1,000,000 characters by default, adjustable by CLAUDE_CODE_BASH_OUTPUT_LIMIT",
+      "claim": "Claude Code caps a valid Bash result inline at about 30,000 characters by default, adjustable through the bashOutputMaxChars setting up to 128,000 characters",
       "category": "vendor",
       "time_sensitive": false,
       "source": {
         "kind": "primary",
-        "url": "https://code.claude.com/docs/en/hooks",
+        "url": "https://code.claude.com/docs/en/tools-reference",
         "published": null,
-        "accessed": "2026-09-30",
+        "accessed": "2026-10-02",
         "secondary_reason": null
       },
       "confidence": "medium",
       "disposition": "qualified",
-      "final_wording": "Native cap on a successful Bash result. Default 1,000,000 characters.",
-      "gap": "Read through a page-summarizing fetch tool, not the raw page text. Recheck against the page before relying on the exact number."
+      "final_wording": "Native inline ceiling on a valid Bash result. Default about 30,000 characters, up to 128,000.",
+      "gap": "Replaces the 2026-09-30 wording (1,000,000 characters, CLAUDE_CODE_BASH_OUTPUT_LIMIT), which the vendor pages no longer carry. The unversioned page is the only source."
     },
     {
       "id": "C2",

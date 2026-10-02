@@ -8,7 +8,8 @@ Issue #5851 wants large command output kept out of model context. Full output st
 
 ## Method and evidence labels
 
-- PROBED: run on 2026-09-30 against the real binary with a throwaway hook. The result is the tool_result content the host sent toward the model, read from the host's stream-json event log, with a negative control. A model's own report is not used as evidence.
+- PROBED: run on 2026-09-30 against the real binary with a throwaway hook. The result is the tool_result content the host sent toward the model, read from the host's stream-json event log, with a negative control. A model's own report does not qualify; see the next label.
+- PROBED, model report only: run the same way, but the result is what the model said it saw. No event-log check. Weaker than PROBED; read it as a lead, not a confirmed result.
 - DOCUMENTED: stated in the vendor hook reference, fetched the same day. Not run here.
 - BINARY: string present in the installed binary. Effect not run.
 - NOT RUN: attempted and blocked, reason named.
@@ -21,7 +22,7 @@ Every DOCUMENTED row below comes from one of these pages, fetched 2026-09-30. Th
 
 | Harness | Page | Sections used |
 |---|---|---|
-| Claude Code | https://code.claude.com/docs/en/hooks | "Decision control" table (PreToolUse `updatedInput`, PostToolUse `updatedToolOutput`), "JSON output" (10,000 character cap), "Output limits" (`CLAUDE_CODE_BASH_OUTPUT_LIMIT`) |
+| Claude Code | https://code.claude.com/docs/en/hooks | "Decision control" table (PreToolUse `updatedInput`, PostToolUse `updatedToolOutput`), "JSON output" (10,000 character cap). Fetched 2026-10-02 from https://code.claude.com/docs/en/tools-reference: "Output limits" (`bashOutputMaxChars`) |
 | Copilot CLI | https://docs.github.com/en/copilot/reference/hooks-configuration | "`preToolUse` decision control" (`modifiedArgs`), "`postToolUse` output" (`modifiedResult`), hook output bound (10 MiB) |
 | Codex | https://learn.chatgpt.com/docs/hooks (redirect from https://developers.openai.com/codex/hooks) | "PreToolUse" rewriting, "PostToolUse" output handling, hook output spill |
 
@@ -40,7 +41,7 @@ BINARY rows come from `strings` on the Codex 0.157.1 binary shipped in the `@ope
 | PostToolUse `updatedToolOutput`, bare string | No. Ignored with no error. | PROBED. Negative control: the host's tool_result still held `REALOUTPUT-12345`. |
 | PostToolUseFailure (nonzero exit) | No. The hook fires with `error` set to `Exit code 3\n<stderr>\n<stdout>` and no `tool_response`. Returning `updatedToolOutput` or `additionalContext` changed nothing the model reported. | PROBED, model report only. Exit 3 command; the model quoted the original text. |
 | `additionalContext` | Adds context. Capped at 10,000 characters; larger text spills to a file with a 2,000 character preview. | DOCUMENTED. |
-| `CLAUDE_CODE_BASH_OUTPUT_LIMIT` (bytes) | Native cap on a successful Bash result. Default 1,000,000 characters. Truncates and names a debug log. Not applied to timeouts. | DOCUMENTED. |
+| `bashOutputMaxChars` setting (characters) | Native inline ceiling on a valid Bash result. Default about 30,000 characters, up to 128,000. Past the ceiling the result becomes a saved file path plus a 2,000 character preview. Failures get about 10,000 characters inline. `BASH_MAX_OUTPUT_LENGTH` (default 30,000, maximum 150,000) is ignored once the setting is set. | DOCUMENTED. Fetched 2026-10-02 from https://code.claude.com/docs/en/tools-reference ("Output limits") and https://code.claude.com/docs/en/env-vars. |
 
 Gap: a failing command's output cannot be replaced after the fact. Only the PreToolUse wrapper covers it.
 
@@ -69,7 +70,7 @@ Hooks do load in this install: SessionStart and UserPromptSubmit hooks ran durin
 
 | Harness | Seam | Why | First build step |
 |---|---|---|---|
-| Claude Code | PostToolUse `updatedToolOutput` (object form) for success. PreToolUse wrapper only if failing-command output proves too large. | Replaces output with no command rewrite, and the command identity stays intact. PROBED. | Write the receipt object with `stdout` set to the bounded text and the full output in an artifact file. Set `CLAUDE_CODE_BASH_OUTPUT_LIMIT` as the native backstop. |
+| Claude Code | PostToolUse `updatedToolOutput` (object form) for success. PreToolUse wrapper only if failing-command output proves too large. | Replaces output with no command rewrite, and the command identity stays intact. PROBED. | Write the receipt object with `stdout` set to the bounded text and the full output in an artifact file. Rely on the native inline ceiling (`bashOutputMaxChars`, about 30,000 characters by default) as the backstop. |
 | Copilot CLI | postToolUse `modifiedResult` through the generated adapter. | Documented for shell. No command rewrite. | Probe it inside this repo's own `.github/hooks` first, since the temp-repo probe never fired. If it does not fire, fall back to a preToolUse `modifiedArgs` wrapper. |
 | Codex | Native `tool_output_token_limit` if the probe shows it works. Otherwise a PreToolUse `updatedInput` wrapper script. | PostToolUse cannot replace output, so a wrapper is the only hook seam. | Re-run the config probe with credits. Unsupported: PostToolUse replacement. |
 
