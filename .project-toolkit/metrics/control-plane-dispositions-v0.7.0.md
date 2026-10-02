@@ -677,7 +677,7 @@ below.
   not by filename, and a still-documented manual import procedure names
   it. Deleting the blob without first retiring that procedure would leave
   the documented command pointing at nothing.
-- Evidence, archive: `.project-toolkit/projects/v0.3.0/` and `v0.3.1/` (audit
+- Evidence, delete: `.project-toolkit/projects/v0.3.0/` and `v0.3.1/` (audit
   finding 7) were frozen history under this owner's stated convention of
   archiving rather than deleting completed project state. Reclassified
   `DELETE` in issue #5588: the owner confirmed deletion after a caller

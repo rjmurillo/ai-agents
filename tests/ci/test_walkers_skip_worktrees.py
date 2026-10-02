@@ -25,6 +25,7 @@ from __future__ import annotations
 import shutil
 import subprocess
 from pathlib import Path, PurePosixPath
+from typing import ClassVar
 from unittest.mock import patch
 
 import pytest
@@ -99,7 +100,7 @@ class TestNoTrackedFileHidesBehindTheSkip:
     moment someone digs it.
     """
 
-    _KNOWN: frozenset[str] = frozenset()
+    _KNOWN: ClassVar[frozenset[str]] = frozenset()
 
     @pytest.mark.skipif(shutil.which("git") is None, reason="git not installed")
     def test_no_new_tracked_path_lands_under_a_worktrees_dir(self) -> None:
