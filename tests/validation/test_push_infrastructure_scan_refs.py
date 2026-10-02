@@ -170,6 +170,28 @@ def test_multi_ref_push_blocks_when_only_the_second_ref_is_unreviewed(
     assert "refs/heads/feature/ci scores 1 file(s)" in err
 
 
+def test_multi_ref_push_scores_every_unreviewed_ref_and_exits_one(
+    origin: Origin,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """An exit 1 on the first ref does not stop the scan before the second ref."""
+    work = work_clone(origin, tmp_path)
+    git(work, "checkout", "-q", "-b", "feature/ci-one", "origin/main")
+    first = commit(work, WORKFLOW, "on: push\n")
+    git(work, "checkout", "-q", "-b", "feature/ci-two", "origin/main")
+    second = commit(work, ".github/workflows/other.yml", "on: push\n")
+    payload = new_branch_line("feature/ci-one", first) + new_branch_line("feature/ci-two", second)
+
+    result = pre_push(work, payload, monkeypatch)
+
+    err = capsys.readouterr().err
+    assert result == 1, err
+    assert "refs/heads/feature/ci-one scores 1 file(s)" in err
+    assert "refs/heads/feature/ci-two scores 1 file(s)" in err
+
+
 def test_renaming_a_workflow_away_still_scores_the_workflow_path(
     origin: Origin,
     tmp_path: Path,
