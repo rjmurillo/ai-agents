@@ -136,7 +136,7 @@ A table replaces five `if`/`elif` branches with one lookup and one default.
 
 ## Fix Completeness
 
-Bot review rounds fail to converge because the fix for round N creates round N+1's findings. In the case measured in issue #5487, most findings in later rounds came from the previous fix. Check both causes before you push.
+Bot review rounds fail to converge because the fix for round N creates round N+1's findings. In the case measured in [issue #5487](https://github.com/rjmurillo/ai-agents/issues/5487) on [PR #5466](https://github.com/rjmurillo/ai-agents/pull/5466), most findings in later rounds came from the previous fix. Check both causes before you push.
 
 - **One value, one role at a contract boundary.** A value that serves Git and also a human reader is two contracts under one name. Split it (`base_ref` to resolve, `display_ref` to print). Distinct names make a mix-up visible in review; use distinct types where you need the checker to enforce it.
 - **List sibling call paths.** Find every caller of the function you changed: search the repo, and look for indirect calls, re-exports, and generated code. In the PR body, list the callers you found and the ones you verified.
