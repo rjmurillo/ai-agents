@@ -61,6 +61,11 @@ from scripts.ci.merge_tree_materialization import (
     remove_tree,
     run_git,
 )
+from scripts.ci.ratchet_registry_at_ref import (
+    RegistryEntries,
+    registry_drift,
+    registry_labels_at,
+)
 
 __all__ = [
     "CommitScratch",
@@ -69,6 +74,7 @@ __all__ = [
     "EXIT_OK",
     "EXIT_REGRESSION",
     "build_parser",
+    "fork_registry_verdict",
     "introduced_at",
     "measure_commit",
     "run",
@@ -176,6 +182,29 @@ def introduced_at(repo_root: Path, commit: str, script: str) -> bool:
     return baseline_absent_at_ref(repo_root, commit, repo_root / script)
 
 
+def branch_registry() -> RegistryEntries:
+    """Return label -> script path for the ratchets this branch registers."""
+    import importlib
+
+    registry = importlib.import_module("scripts.ci.merge_tree_ratchet_registry")
+    return {r.label: r.script_path for r in registry.RATCHETS}
+
+
+def fork_registry_verdict(
+    repo_root: Path, fork: str
+) -> tuple[RegistryEntries | None, list[str]]:
+    """Read the registry at ``fork`` and compare it with the branch's.
+
+    Returns the fork's entries (None when unreadable) and one message per label
+    the branch removed or re-pointed. The fork is read through ``git show``,
+    never from the working tree, so the branch cannot edit what it is held to.
+    """
+    entries = registry_labels_at(repo_root, fork)
+    if entries is None:
+        return None, []
+    return entries, registry_drift(entries, branch_registry())
+
+
 def _unreadable_fork_message(label: str, base_ref: str, *, shallow: bool) -> str:
     cause = (
         "this is a shallow clone, so there is no common history to read: run "
@@ -214,7 +243,19 @@ def _ceiling(
         )
         print(message, file=sys.stderr)
         return None, EXIT_EXTERNAL
-    if introduced_at(root, fork, introduced_by):
+    entries, drift = fork_registry_verdict(root, fork)
+    if entries is None:
+        print(
+            f"{label}: REGISTRY UNREADABLE. Could not read the ratchet registry at "
+            f"the fork point {fork[:12]}, so a removed or moved ratchet cannot be "
+            f"ruled out and the ratchet blocks.",
+            file=sys.stderr,
+        )
+        return None, EXIT_EXTERNAL
+    if drift:
+        print("\n".join(drift), file=sys.stderr)
+        return None, EXIT_REGRESSION
+    if label not in entries and introduced_at(root, fork, introduced_by):
         print(
             f"{label}: bootstrap. {args.base_ref} does not carry {introduced_by} "
             f"yet, so there is no earlier tree to hold this branch to. The "

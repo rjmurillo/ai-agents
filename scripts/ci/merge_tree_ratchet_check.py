@@ -61,7 +61,7 @@ if TYPE_CHECKING:
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from scripts.ci.base_derived_ratchet import CommitScratch, introduced_at
+from scripts.ci.base_derived_ratchet import CommitScratch, fork_registry_verdict, introduced_at
 from scripts.ci.merge_tree_materialization import (
     init_scratch_repo as _init_scratch_repo,
 )
@@ -316,6 +316,7 @@ def _check_base_derived(
     ratchet: MergeTreeRatchet,
     repo_root: Path,
     base_tip: CommitScratch,
+    fork_labels: frozenset[str],
     base_oid: str,
     scratch_root: Path,
 ) -> tuple[int, str]:
@@ -331,7 +332,7 @@ def _check_base_derived(
     merged = ratchet.current_count(scratch_root)
     if merged is None:
         return EXIT_EXTERNAL, f"{label}: EXTERNAL ERROR - counter returned None"
-    if introduced_at(repo_root, base_oid, ratchet.script_path):
+    if ratchet.label not in fork_labels and introduced_at(repo_root, base_oid, ratchet.script_path):
         return EXIT_OK, (
             f"{label}: bootstrap. The base ref does not carry "
             f"{ratchet.script_path} yet, so there is no earlier tree to measure."
@@ -352,11 +353,14 @@ def _check_registered(
     ratchet: MergeTreeRatchet,
     repo_root: Path,
     base_tip: CommitScratch,
+    fork_labels: frozenset[str],
     base_oid: str,
     scratch_root: Path,
 ) -> tuple[int, str]:
     if ratchet.baseline_path is None:
-        return _check_base_derived(ratchet, repo_root, base_tip, base_oid, scratch_root)
+        return _check_base_derived(
+            ratchet, repo_root, base_tip, fork_labels, base_oid, scratch_root
+        )
     base = _read_baseline_at_ref(repo_root, base_oid, ratchet.baseline_path)
     merged = _read_baseline_in_tree(scratch_root, ratchet.baseline_path)
     return _check_one(ratchet.label, ratchet.current_count(scratch_root), base, merged)
@@ -365,13 +369,29 @@ def _check_registered(
 def _evaluate_registered_ratchets(
     repo_root: Path, base_oid: str, scratch_root: Path
 ) -> int:
+    entries, drift = fork_registry_verdict(repo_root, base_oid)
+    if entries is None:
+        print(
+            f"merge-tree-ratchet: REGISTRY UNREADABLE. Could not read the ratchet "
+            f"registry at {base_oid[:12]}, so a removed or moved ratchet cannot be "
+            f"ruled out.",
+            file=sys.stderr,
+        )
+        return EXIT_EXTERNAL
+    if drift:
+        for message in drift:
+            print(f"merge-tree-ratchet: {message}", file=sys.stderr)
+        return EXIT_REGRESSION
+    fork_labels = frozenset(entries)
     exit_code = EXIT_OK
     # One base-tip scratch serves every base-derived ratchet, so the tree is
     # materialized once per run instead of once per ratchet.
     base_tip = CommitScratch(repo_root, base_oid)
     try:
         for ratchet in RATCHETS:
-            code, msg = _check_registered(ratchet, repo_root, base_tip, base_oid, scratch_root)
+            code, msg = _check_registered(
+                ratchet, repo_root, base_tip, fork_labels, base_oid, scratch_root
+            )
             exit_code = max(exit_code, code)
             if code != EXIT_OK:
                 print(f"merge-tree-ratchet: {msg}", file=sys.stderr)

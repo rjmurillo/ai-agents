@@ -106,6 +106,12 @@ _NOT_WORKFLOW_INVOKED: dict[str, str] = {
         "no main() and no shebang; tests/ci/test_merge_tree_materialization.py "
         "drives it directly."
     ),
+    "ratchet_registry_at_ref.py": (
+        "Library that reads the ratchet registry at a commit through git show for "
+        "base_derived_ratchet.py and merge_tree_ratchet_check.py, which "
+        "pr-validation.yml invokes. It has no main() and no shebang; "
+        "tests/ci/test_ratchet_registry_at_ref.py drives it directly."
+    ),
     "merge_tree_ratchet_registry.py": (
         "Library holding the single ownership registry of ratchets that "
         "merge_tree_ratchet_check.py evaluates, and pr-validation.yml invokes "
