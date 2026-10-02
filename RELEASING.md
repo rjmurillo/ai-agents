@@ -53,14 +53,14 @@ open finding is fixed it will block.
 1. Update the version in `packages/ai-agents-cli/package.json` and merge it to the default branch.
 2. Optional: create the release `vX.Y.Z` on that commit, so the gate can attach its manifest to it.
 3. Go to [Actions > npm Publish > Run workflow](https://github.com/rjmurillo/ai-agents/actions/workflows/publish.yml)
-   on the default branch. Set `dry-run: false`, optionally the `candidate-sha`
-   (default: the head commit) and the `release-tag`.
+   on the default branch. Set `dry-run: false` and optionally the `release-tag`.
 
 The workflow builds the tarball once, hashes it, runs the gate against that digest,
 and publishes the same file after checking the digest again.
 
-A real publish must use the head commit as the candidate, because npm provenance
-attests the run commit. A dry run may name an older candidate.
+The candidate is the head commit of the default branch, the commit the run starts
+from, because npm provenance attests the run commit and no job checks out a ref an
+input chose.
 
 The `v*` tag trigger is dormant. A tag push runs the tagged commit's own copy of
 the workflow, so the first job refuses it with the reason. Each tag push therefore

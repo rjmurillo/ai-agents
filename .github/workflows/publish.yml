@@ -2,8 +2,9 @@
 #
 # Publishes @rjmurillo/ai-agents to npm with OIDC provenance, behind the ADR-113
 # promotion gate. The only live route is a manual run (workflow_dispatch) on the
-# default branch, with an optional candidate SHA, a dry-run switch, and an
-# optional release tag. A real publish runs the gate in enforcing mode, so it
+# default branch, with a dry-run switch and an optional release tag. The candidate
+# is the run commit, the head of the default branch, so no job checks out a ref
+# that an input chose. A real publish runs the gate in enforcing mode, so it
 # publishes only when the gate promotes. A dry run runs the gate advisory.
 #
 # A push of a v* tag still triggers this workflow, and the first job refuses it:
@@ -36,11 +37,6 @@ on:
         options:
           - 'true'
           - 'false'
-      candidate-sha:
-        description: 'Full SHA of a merged default-branch commit to publish (empty for the run commit)'
-        required: false
-        default: ''
-        type: string
       release-tag:
         description: 'Existing release tag, such as v1.2.3, to check and attach the manifest to (empty to skip)'
         required: false
@@ -54,7 +50,7 @@ concurrency:
 permissions: {}
 
 env:
-  PACKAGE_DIR: candidate/packages/ai-agents-cli
+  PACKAGE_DIR: packages/ai-agents-cli
 
 jobs:
   resolve:
@@ -87,7 +83,6 @@ jobs:
           REF: ${{ github.ref }}
           RUN_SHA: ${{ github.sha }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-          CANDIDATE_INPUT: ${{ github.event.inputs.candidate-sha }}
           DRY_RUN_INPUT: ${{ github.event.inputs.dry-run }}
           RELEASE_TAG_INPUT: ${{ github.event.inputs.release-tag }}
         run: >-
@@ -96,15 +91,13 @@ jobs:
           --ref "$REF"
           --run-sha "$RUN_SHA"
           --default-branch "$DEFAULT_BRANCH"
-          --candidate-input "$CANDIDATE_INPUT"
           --dry-run-input "$DRY_RUN_INPUT"
           --release-tag-input "$RELEASE_TAG_INPUT"
           --github-output "$GITHUB_OUTPUT"
 
   # Named for the applicability table rows npm_package_metadata and npm_pack_size,
-  # which this job's evidence satisfies. Tooling comes from the default branch
-  # checkout at the workspace root. The candidate's package is checked out under
-  # candidate/ and only built, never run as a gate.
+  # which this job's evidence satisfies. The candidate is the run commit, so the
+  # checkout takes no ref from an input.
   build:
     name: Validate Package
     needs: resolve
@@ -121,16 +114,9 @@ jobs:
         with:
           egress-policy: audit
 
-      - name: Check out the default branch tooling
+      - name: Check out the run commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
-          persist-credentials: false
-
-      - name: Check out the candidate
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-        with:
-          ref: ${{ needs.resolve.outputs.candidate_sha }}
-          path: candidate
           persist-credentials: false
 
       - name: Setup Node
@@ -249,16 +235,9 @@ jobs:
         with:
           egress-policy: audit
 
-      - name: Check out the default branch tooling
+      - name: Check out the run commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
-          persist-credentials: false
-
-      - name: Check out the candidate
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-        with:
-          ref: ${{ needs.resolve.outputs.candidate_sha }}
-          path: candidate
           persist-credentials: false
 
       - name: Setup Node

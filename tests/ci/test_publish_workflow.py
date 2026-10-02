@@ -47,11 +47,7 @@ def test_triggers_are_a_tag_push_and_a_dispatch_only(workflow: dict[str, Any]) -
     triggers = next(value for key, value in workflow.items() if key in ("on", True))
     assert set(triggers) == {"push", "workflow_dispatch"}
     assert triggers["push"] == {"tags": ["v*"]}
-    assert set(triggers["workflow_dispatch"]["inputs"]) == {
-        "dry-run",
-        "candidate-sha",
-        "release-tag",
-    }
+    assert set(triggers["workflow_dispatch"]["inputs"]) == {"dry-run", "release-tag"}
     assert triggers["workflow_dispatch"]["inputs"]["dry-run"]["default"] == "true"
 
 
@@ -182,25 +178,32 @@ def test_the_build_job_is_named_for_the_table_rows(workflow: dict[str, Any]) -> 
         assert row.job == _jobs(workflow)["build"]["name"]
 
 
-def test_tooling_comes_from_the_default_branch_and_the_candidate_is_only_built(
+def test_no_checkout_takes_a_ref_from_an_input_or_an_upstream_output(
     workflow: dict[str, Any],
 ) -> None:
+    """The candidate is the run commit. A chosen ref would be an untrusted checkout (CodeQL)."""
+    for name, job in _jobs(workflow).items():
+        for step in job.get("steps", []):
+            if str(step.get("uses", "")).startswith("actions/checkout@"):
+                options = step.get("with", {})
+                assert "ref" not in options, (name, step.get("name"))
+                assert "path" not in options, (name, step.get("name"))
+                assert options.get("persist-credentials") is False, (name, step.get("name"))
     for job in ("build", "publish"):
         checkouts = [
             s
             for s in _steps(workflow, job)
             if str(s.get("uses", "")).startswith("actions/checkout@")
         ]
-        assert len(checkouts) == 2
-        tooling, candidate = checkouts
-        assert "ref" not in tooling.get("with", {})
-        assert candidate["with"]["ref"] == "${{ needs.resolve.outputs.candidate_sha }}"
-        assert candidate["with"]["path"] == "candidate"
-        assert all(c["with"]["persist-credentials"] is False for c in checkouts)
-    for step in _steps(workflow, "build"):
-        run = str(step.get("run", ""))
-        if "scripts/" in run:
-            assert "candidate/scripts" not in run
+        assert len(checkouts) == 1
+
+
+def test_the_candidate_output_is_the_run_commit_and_the_route_takes_no_candidate_input(
+    workflow: dict[str, Any],
+) -> None:
+    step = next(s for s in _steps(workflow, "resolve") if s.get("id") == "route")
+    assert step["env"]["RUN_SHA"] == "${{ github.sha }}"
+    assert "--candidate-input" not in step["run"]
 
 
 def test_candidate_package_commands_run_only_in_the_candidate_directory(
@@ -209,7 +212,7 @@ def test_candidate_package_commands_run_only_in_the_candidate_directory(
     for step in _steps(workflow, "build"):
         if re.search(r"\bnpm (ci|run|pack)\b", str(step.get("run", ""))):
             assert step["working-directory"] == "${{ env.PACKAGE_DIR }}"
-    assert workflow["env"]["PACKAGE_DIR"] == "candidate/packages/ai-agents-cli"
+    assert workflow["env"]["PACKAGE_DIR"] == "packages/ai-agents-cli"
 
 
 def test_the_route_is_decided_first_from_env_only(workflow: dict[str, Any]) -> None:

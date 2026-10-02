@@ -28,7 +28,6 @@ from scripts.ci.resolve_publish_route import (
 )
 
 SHA = "a" * 40
-OTHER = "b" * 40
 
 
 def _decide(**overrides: str):
@@ -37,7 +36,6 @@ def _decide(**overrides: str):
         "ref": "refs/heads/main",
         "run_sha": SHA,
         "default_branch": "main",
-        "candidate_input": "",
         "dry_run_input": "true",
         "release_tag_input": "",
     }
@@ -52,21 +50,13 @@ class TestDecideRoute:
         decision = _decide()
         assert (decision.candidate_sha, decision.dry_run, decision.mode) == (SHA, True, "advisory")
 
-    def test_a_real_publish_runs_the_gate_enforcing(self) -> None:
-        decision = _decide(dry_run_input="false", candidate_input=SHA, release_tag_input="v1.2.3")
+    def test_a_real_publish_runs_the_gate_enforcing_on_the_run_commit(self) -> None:
+        decision = _decide(dry_run_input="false", release_tag_input="v1.2.3")
         assert (decision.candidate_sha, decision.mode, decision.release_tag) == (
             SHA,
             "enforcing",
             "v1.2.3",
         )
-
-    def test_a_dry_run_may_name_an_older_candidate(self) -> None:
-        assert _decide(candidate_input=OTHER).candidate_sha == OTHER
-
-    def test_a_real_publish_of_another_candidate_is_refused(self) -> None:
-        with pytest.raises(RouteRefusedError, match="provenance") as caught:
-            _decide(dry_run_input="false", candidate_input=OTHER)
-        assert caught.value.code == EXIT_REFUSED
 
     def test_the_tag_route_is_refused_with_the_reason(self) -> None:
         with pytest.raises(RouteRefusedError, match="dormant") as caught:
@@ -93,10 +83,10 @@ class TestDecideRoute:
         with pytest.raises(RouteRefusedError):
             _decide(default_branch=branch, ref=f"refs/heads/{branch}")
 
-    @pytest.mark.parametrize("candidate", ["abc", "A" * 40, "g" * 40, SHA + "0", "--all"])
-    def test_a_malformed_candidate_is_refused(self, candidate: str) -> None:
+    @pytest.mark.parametrize("run_sha", ["abc", "A" * 40, "g" * 40, SHA + "0", "--all", ""])
+    def test_a_malformed_run_commit_is_refused(self, run_sha: str) -> None:
         with pytest.raises(RouteRefusedError) as caught:
-            _decide(candidate_input=candidate)
+            _decide(run_sha=run_sha)
         assert caught.value.code == EXIT_CONFIG
 
     @pytest.mark.parametrize("value", ["", "yes", "TRUE", "1", "false\n"])
@@ -120,7 +110,7 @@ class TestDecideRoute:
 def _argv(**overrides: str) -> list[str]:
     values = {
         "--event": "workflow_dispatch", "--ref": "refs/heads/main", "--run-sha": SHA,
-        "--default-branch": "main", "--dry-run-input": "false", "--candidate-input": "",
+        "--default-branch": "main", "--dry-run-input": "false",
         "--release-tag-input": "",
     }  # fmt: skip
     values.update(overrides)
@@ -151,7 +141,7 @@ class TestRouteCli:
         assert "dormant" in capsys.readouterr().err
 
     def test_a_config_error_exits_two(self) -> None:
-        assert main(_argv(**{"--candidate-input": "abc"})) == EXIT_CONFIG
+        assert main(_argv(**{"--run-sha": "abc"})) == EXIT_CONFIG
 
     def test_it_runs_without_an_output_file(self) -> None:
         assert main(_argv()) == EXIT_OK

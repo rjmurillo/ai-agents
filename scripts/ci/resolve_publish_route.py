@@ -13,12 +13,18 @@ ADR-113 decision 5 and Resolved Question 2, issue #5636. Quoted from
 
 Two routes reach ``publish.yml``:
 
-- ``workflow_dispatch`` on the default branch, with an optional candidate SHA
-  (default: the run's own commit), ``dry-run``, and an optional release tag. This
-  route is live. A real publish (``dry-run`` false) runs the gate in enforcing
-  mode, and a dry run runs it advisory. A candidate other than the run commit is
-  accepted for a dry run only: npm provenance attests the run commit, so a real
-  publish of an older candidate would be attested as the head.
+- ``workflow_dispatch`` on the default branch, with ``dry-run`` and an optional
+  release tag. This route is live. The candidate is the run commit, the head of
+  the default branch. A real publish (``dry-run`` false) runs the gate in
+  enforcing mode, and a dry run runs it advisory.
+
+Different than canonical: decision 5 says the entry point "takes the candidate
+SHA as input". This one does not. A candidate that an input chose would have to
+be checked out by ref in a job that holds default-branch caches, which CodeQL
+reports as cache poisoning (rule ``actions/cache-poisoning/poisonable-step``).
+npm provenance also attests the run commit, so a real publish of any other commit
+would be attested as the head. ``promotion-gate.yml`` still takes ``candidate-sha``
+for a manual advisory run.
 - A push of a ``v*`` tag. This route is dormant and fails closed: it exits 1 with
   the reason. A tag push runs the tagged commit's own copy of the workflow, so
   nothing on that route can vouch for the gate until the owner creates the ``v*``
@@ -88,11 +94,10 @@ def _dry_run(value: str) -> bool:
     return value == "true"
 
 
-def _candidate(value: str, run_sha: str) -> str:
-    sha = value or run_sha
-    if not _SHA_RE.fullmatch(sha):
-        raise RouteRefusedError("the candidate must be a 40-character lowercase SHA", EXIT_CONFIG)
-    return sha
+def _run_commit(run_sha: str) -> str:
+    if not _SHA_RE.fullmatch(run_sha):
+        raise RouteRefusedError("the run commit must be a 40-character lowercase SHA", EXIT_CONFIG)
+    return run_sha
 
 
 def _release_tag(value: str) -> str:
@@ -107,7 +112,6 @@ def decide_route(
     ref: str,
     run_sha: str,
     default_branch: str,
-    candidate_input: str,
     dry_run_input: str,
     release_tag_input: str,
 ) -> RouteDecision:
@@ -118,17 +122,11 @@ def decide_route(
         raise RouteRefusedError(f"event {event!r} cannot publish", EXIT_CONFIG)
     if not _BRANCH_RE.fullmatch(default_branch) or ref != f"refs/heads/{default_branch}":
         raise RouteRefusedError("publish runs only from the default branch")
-    decision = RouteDecision(
-        candidate_sha=_candidate(candidate_input, run_sha),
+    return RouteDecision(
+        candidate_sha=_run_commit(run_sha),
         release_tag=_release_tag(release_tag_input),
         dry_run=_dry_run(dry_run_input),
     )
-    if not decision.dry_run and decision.candidate_sha != run_sha:
-        raise RouteRefusedError(
-            "a real publish must use the run commit as the candidate: npm provenance "
-            "attests the run commit, so an older candidate would be attested as the head"
-        )
-    return decision
 
 
 def package_version(package_dir: Path) -> str:
@@ -146,7 +144,7 @@ def _parser() -> argparse.ArgumentParser:
     route = commands.add_parser("route", help="decide the publish route")
     for name in ("event", "ref", "run-sha", "default-branch"):
         route.add_argument(f"--{name}", required=True)
-    for name in ("candidate-input", "dry-run-input", "release-tag-input"):
+    for name in ("dry-run-input", "release-tag-input"):
         route.add_argument(f"--{name}", default="")
     route.add_argument("--github-output", type=Path, default=None)
     version = commands.add_parser("tag-version", help="check a tag against package.json")
@@ -162,7 +160,6 @@ def _run_route(args: argparse.Namespace) -> int:
             ref=args.ref,
             run_sha=args.run_sha,
             default_branch=args.default_branch,
-            candidate_input=args.candidate_input,
             dry_run_input=args.dry_run_input or "true",
             release_tag_input=args.release_tag_input,
         )
