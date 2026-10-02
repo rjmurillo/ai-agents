@@ -288,6 +288,20 @@ def collect_copy_findings(repo_root: Path) -> list[CopyFinding]:
     return [f for f in findings if f is not None]
 
 
+def collect_all(repo_root: Path) -> tuple[list[Violation], list[CopyFinding]]:
+    """Scan every configured file once and return violations and copy findings."""
+    violations: list[Violation] = []
+    findings: list[CopyFinding] = []
+    for path in _iter_python_files(_scan_roots(repo_root)):
+        violation = scan_file(path, repo_root)
+        if violation is not None:
+            violations.append(violation)
+        finding = scan_copied_contract(path, repo_root)
+        if finding is not None:
+            findings.append(finding)
+    return violations, findings
+
+
 def format_copy_findings(findings: list[CopyFinding]) -> str:
     """Format the advisory copied-contract section, empty when there are none."""
     if not findings:
@@ -430,9 +444,9 @@ def main(argv: list[str] | None = None) -> int:
         _report_non_pass(_no_roots_outcome())
         return 0
 
-    violations = collect_violations(repo_root)
+    violations, copy_findings = collect_all(repo_root)
     print(format_report(violations, strict=args.strict))
-    print(format_copy_findings(collect_copy_findings(repo_root)), end="")
+    print(format_copy_findings(copy_findings), end="")
 
     if violations:
         _report_non_pass(_violations_outcome(len(violations), strict=args.strict))
