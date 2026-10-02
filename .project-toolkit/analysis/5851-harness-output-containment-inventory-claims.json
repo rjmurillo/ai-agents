@@ -48,13 +48,13 @@
         "kind": "primary",
         "url": "https://docs.github.com/en/copilot/reference/hooks-configuration",
         "published": null,
-        "accessed": "2026-09-30",
+        "accessed": "2026-10-02",
         "secondary_reason": null
       },
       "confidence": "medium",
       "disposition": "qualified",
       "final_wording": "Bounded at 10 MiB per invocation, then truncated.",
-      "gap": "Read through a page-summarizing fetch tool, not the raw page text. Recheck against the page before relying on the exact number."
+      "gap": "Read through a page-summarizing fetch tool, not the raw page text. Recheck against the page before relying on the exact number. First fetched 2026-09-30, rechecked 2026-10-02."
     },
     {
       "id": "C4",
@@ -116,13 +116,132 @@
         "kind": "primary",
         "url": "https://learn.chatgpt.com/docs/hooks",
         "published": null,
-        "accessed": "2026-09-30",
+        "accessed": "2026-10-02",
         "secondary_reason": null
       },
       "confidence": "medium",
       "disposition": "qualified",
       "final_wording": "Hook `additionalContext` above about 2,500 tokens spills to disk with a head and tail preview.",
-      "gap": "Read through a page-summarizing fetch tool, not the raw page text. Recheck against the page before relying on the exact number."
+      "gap": "Read through a page-summarizing fetch tool, not the raw page text. Recheck against the page before relying on the exact number. First fetched 2026-09-30, rechecked 2026-10-02."
+    },
+    {
+      "id": "C8",
+      "claim": "Claude Code replaces a valid Bash result over the inline ceiling with a saved file path plus a preview of up to the first 2,000 characters",
+      "category": "vendor",
+      "time_sensitive": false,
+      "source": {
+        "kind": "primary",
+        "url": "https://code.claude.com/docs/en/tools-reference",
+        "published": null,
+        "accessed": "2026-10-02",
+        "secondary_reason": null
+      },
+      "confidence": "medium",
+      "disposition": "qualified",
+      "final_wording": "Past the ceiling the result becomes a saved file path plus a 2,000 character preview.",
+      "gap": "Unversioned vendor page; the fetch date is the pin."
+    },
+    {
+      "id": "C9",
+      "claim": "Claude Code returns a failing Bash result inline up to roughly 10,000 characters, as a head-and-tail excerpt with no file path",
+      "category": "vendor",
+      "time_sensitive": false,
+      "source": {
+        "kind": "primary",
+        "url": "https://code.claude.com/docs/en/tools-reference",
+        "published": null,
+        "accessed": "2026-10-02",
+        "secondary_reason": null
+      },
+      "confidence": "medium",
+      "disposition": "qualified",
+      "final_wording": "Failures get about 10,000 characters inline.",
+      "gap": "Unversioned vendor page; the fetch date is the pin."
+    },
+    {
+      "id": "C10",
+      "claim": "Claude Code BASH_MAX_OUTPUT_LENGTH defaults to 30,000 characters with a maximum of 150,000",
+      "category": "vendor",
+      "time_sensitive": false,
+      "source": {
+        "kind": "primary",
+        "url": "https://code.claude.com/docs/en/env-vars",
+        "published": null,
+        "accessed": "2026-10-02",
+        "secondary_reason": null
+      },
+      "confidence": "medium",
+      "disposition": "qualified",
+      "final_wording": "`BASH_MAX_OUTPUT_LENGTH` (default 30,000, maximum 150,000).",
+      "gap": "Unversioned vendor page; the fetch date is the pin."
+    },
+    {
+      "id": "C11",
+      "claim": "Claude Code ignores BASH_MAX_OUTPUT_LENGTH once the bashOutputMaxChars setting is set",
+      "category": "vendor",
+      "time_sensitive": false,
+      "source": {
+        "kind": "primary",
+        "url": "https://code.claude.com/docs/en/env-vars",
+        "published": null,
+        "accessed": "2026-10-02",
+        "secondary_reason": null
+      },
+      "confidence": "medium",
+      "disposition": "qualified",
+      "final_wording": "`BASH_MAX_OUTPUT_LENGTH` is ignored once the setting is set.",
+      "gap": "Unversioned vendor page; the fetch date is the pin."
+    },
+    {
+      "id": "C12",
+      "claim": "Copilot CLI postToolUse modifiedResult must carry resultType success; a failure result routes to postToolUseFailure",
+      "category": "vendor",
+      "time_sensitive": false,
+      "source": {
+        "kind": "primary",
+        "url": "https://docs.github.com/en/copilot/reference/hooks-configuration",
+        "published": null,
+        "accessed": "2026-10-02",
+        "secondary_reason": null
+      },
+      "confidence": "medium",
+      "disposition": "qualified",
+      "final_wording": "Replacement needs `resultType: \"success\"`.",
+      "gap": "Unversioned vendor page; the fetch date is the pin."
+    },
+    {
+      "id": "C13",
+      "claim": "Copilot CLI honors modifiedResult from SDK programmatic hooks and from command and HTTP config-file postToolUse hooks",
+      "category": "vendor",
+      "time_sensitive": false,
+      "source": {
+        "kind": "primary",
+        "url": "https://docs.github.com/en/copilot/reference/hooks-configuration",
+        "published": null,
+        "accessed": "2026-10-02",
+        "secondary_reason": null
+      },
+      "confidence": "medium",
+      "disposition": "qualified",
+      "final_wording": "Honored for command and HTTP config-file hooks.",
+      "gap": "Unversioned vendor page; the fetch date is the pin."
+    },
+    {
+      "id": "C14",
+      "claim": "Codex config-reference documents tool_output_token_limit as a token budget for storing individual tool outputs in history",
+      "category": "vendor",
+      "time_sensitive": false,
+      "source": {
+        "kind": "primary",
+        "url": "https://developers.openai.com/codex/config-reference",
+        "published": null,
+        "accessed": "2026-10-02",
+        "secondary_reason": null
+      },
+      "confidence": "medium",
+      "disposition": "qualified",
+      "final_wording": "Documented as a token budget for storing individual tool outputs in history.",
+      "gap": "Unversioned vendor page; the fetch date is the pin."
     }
   ]
 }
