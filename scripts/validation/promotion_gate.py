@@ -247,6 +247,12 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--require", action="append", default=[], metavar="VALIDATOR")
     parser.add_argument("--build-validator", action="append", default=[], metavar="VALIDATOR")
     parser.add_argument("--previous-manifest", type=Path, default=None)
+    parser.add_argument(
+        "--previous-manifest-dir",
+        type=Path,
+        default=None,
+        help="read promotion-manifest.json here if it exists; none means a first promotion",
+    )
     parser.add_argument("--output", type=Path, default=None)
     parser.add_argument(
         "--github-output",
@@ -302,6 +308,8 @@ def _blocked(message: str) -> _GateExitError:
 
 def _argument_problem(args: argparse.Namespace) -> str | None:
     """Return why the arguments cannot describe a run, or None."""
+    if args.previous_manifest and args.previous_manifest_dir:
+        return "--previous-manifest and --previous-manifest-dir are mutually exclusive"
     names = [*args.require, *args.build_validator]
     if any(not name.strip() or not name.isprintable() for name in names):
         return "--require and --build-validator names must be non-blank printable text"
@@ -328,10 +336,30 @@ def _applicable(
     return tuple(sorted(required)), build, bool(table), skipped
 
 
+def _baseline_in(directory: Path | None) -> Path | None:
+    """Return the manifest the fetch step wrote under ``directory``, or None for a first promotion.
+
+    The fetch step writes ``promotion-manifest.json`` when a previous promoted
+    release holds one, and ``no-baseline.json`` when none does. With neither file
+    the step did not run, or ran against another directory, and that is refused:
+    an absent baseline must be stated, not inferred.
+    """
+    if directory is None:
+        return None
+    manifest = directory / "promotion-manifest.json"
+    if manifest.is_file():
+        return manifest
+    if (directory / "no-baseline.json").is_file():
+        return None
+    raise ManifestError(
+        "--previous-manifest-dir holds neither promotion-manifest.json nor no-baseline.json"
+    )
+
+
 def _inputs(args: argparse.Namespace) -> tuple[Candidate, PreviousManifest | None]:
     candidate = Candidate(args.candidate_sha, args.candidate_digest)
-    previous = load_previous_manifest(args.previous_manifest) if args.previous_manifest else None
-    return candidate, previous
+    path = args.previous_manifest or _baseline_in(args.previous_manifest_dir)
+    return candidate, load_previous_manifest(path) if path else None
 
 
 def _candidate_problem(args: argparse.Namespace, candidate: Candidate) -> str | None:
