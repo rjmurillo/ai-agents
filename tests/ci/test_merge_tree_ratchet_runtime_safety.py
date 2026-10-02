@@ -73,15 +73,24 @@ def test_moving_base_ref_does_not_change_pinned_merge_or_baseline(
         patch.object(
             _m, "_read_baseline_at_ref", wraps=_m._read_baseline_at_ref
         ) as baseline_reader,
-        patch.object(_m, "measure_commit", wraps=_m.measure_commit) as measure,
+        patch.object(
+            _m.CommitScratch, "measure", autospec=True, side_effect=_m.CommitScratch.measure
+        ) as measure,
+        patch.object(
+            _m.CommitScratch,
+            "_materialize",
+            autospec=True,
+            side_effect=_m.CommitScratch._materialize,
+        ) as materialize,
     ):
         rc = _m.main(["--repo-root", str(repo), "--base-ref", "refs/remotes/origin/main"])
 
     assert rc == _m.EXIT_REGRESSION
     assert merge.call_args.args[1] == base_oid
     assert {call.args[1] for call in baseline_reader.call_args_list} == {base_oid}
-    assert {call.args[1] for call in measure.call_args_list} == {base_oid}
+    assert {call.args[0]._commit for call in measure.call_args_list} == {base_oid}
     assert measure.call_count == 4
+    assert materialize.call_count == 1
     assert _git(repo, "rev-parse", "refs/remotes/origin/main").stdout.strip() == moved_oid
 
 

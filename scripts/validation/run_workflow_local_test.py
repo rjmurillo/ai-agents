@@ -615,12 +615,15 @@ def _require_trusted_common_dir(repo_root: Path, common: Path) -> None:
         )
 
 
-def _require_mountable(path: Path) -> None:
-    """Refuse a path that docker's ``-v src:dst`` syntax cannot carry."""
+def _require_mountable(path: Path, remedy: str) -> None:
+    """Refuse a path that docker's ``-v src:dst`` syntax cannot carry.
+
+    ``remedy`` names the one fix that changes ``path``: the repository's common
+    git dir and the temp copy fail for different reasons.
+    """
     if ":" in str(path):
         raise GitMountError(
-            f"{path} contains ':' and cannot be bind-mounted into the act container; "
-            "move the repository or set TMPDIR to a path without ':'."
+            f"{path} contains ':' and cannot be bind-mounted into the act container; {remedy}."
         )
 
 
@@ -651,13 +654,13 @@ def _worktree_git_mount(repo_root: Path) -> Iterator[list[str]]:
     if gitdir.parent != common / "worktrees":
         yield []
         return
-    _require_mountable(common)
+    _require_mountable(common, "move the repository to a path without ':'")
     # mkdtemp creates the parent 0700; that, not the open modes on the copy,
     # keeps other host users out. Do not swap in a shared temp root.
     tmp = Path(tempfile.mkdtemp(prefix="act-gitdir-"))
     try:
         dest = tmp / "git"
-        _require_mountable(dest)
+        _require_mountable(dest, "set TMPDIR to a path without ':'")
         try:
             _copy_git_metadata(common, gitdir, dest)
         except (OSError, shutil.Error) as exc:

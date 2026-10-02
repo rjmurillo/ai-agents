@@ -156,7 +156,7 @@ What is lost, stated plainly: ADR-091 also relaxed `count_ratchet` and handed ba
 the bot, which covered `taste_count_baseline.txt` and `ruff_count_baseline.txt`. Removing the bot
 removes that coverage. This ADR restores `EXIT_REGRESSION` on an unrecorded improvement so the
 ratchets stay honest, and the baseline conflict class was tracked in issue #4171. The amendment
-"count baselines derive from the merge base" below closes it for four of the six ratchets.
+"count baselines derive from the merge base" below closes it for four of the seven ratchets.
 
 ## Consequences
 
@@ -247,7 +247,7 @@ Issue #5363 asked who owns count-baseline writes now that ADR-091's post-merge b
 | Fork tree cannot be measured | Exit 3. A missing ceiling never passes. |
 | Branch tree cannot be counted | Exit 3. |
 
-**Scope.** `cli_exit_contract_baseline.txt` and `subprocess_encoding_count_baseline.txt` keep their scalar. The issue did not name them, and measuring a second tree per run is not free for them (measured warm: cli-exit-contract 5.9s, subprocess-encoding 22.6s, against 0.1s to 3.3s for the four moved). A separate decision can move them.
+**Scope.** `cli_exit_contract_baseline.txt`, `subprocess_encoding_count_baseline.txt` and `canonical_citations_count_baseline.txt` keep their scalar. The issue did not name them. Measuring a second tree per run is not free for the first two (measured warm: cli-exit-contract 5.9s, subprocess-encoding 22.6s, against 0.1s to 3.3s for the four moved); canonical-citations was not timed. A separate decision can move them.
 
 **Known gap.** On a push to `main` the base ref is `main` itself, so the fork point is `HEAD` and the standalone run passes. Regressions are caught at PR time by the fork-point and merge-tree runs. The concurrent-admission hole (issue #4345) is unchanged. A regression that reaches `main` anyway, by a bypass merge or by two PRs admitted together, becomes the ceiling for every later branch with no alarm. Under the old scalar the next PR failed instead. Removing the stored number removes that alarm along with the conflict.
 

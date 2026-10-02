@@ -169,7 +169,7 @@ def test_unrelated_history_has_no_fork_point(
     assert _run(repo) == brd.EXIT_EXTERNAL
     err = capsys.readouterr().err
     assert "FORK POINT UNREADABLE" in err
-    assert "unrelated to main" in err
+    assert "shares no history" in err
 
 
 def test_a_shallow_clone_gets_the_fetch_remedy(

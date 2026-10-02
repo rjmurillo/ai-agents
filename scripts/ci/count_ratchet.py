@@ -9,12 +9,13 @@ baseline) blocks.
 
 Issue #5363 retired the committed scalar for the ruff, taste, type-ignore and
 memory-index ratchets, which now derive their ceiling from the merge base in
-``base_derived_ratchet.py``. Two gates still drive ``run`` here and still own a
-baseline file: ``cli_exit_contract_ratchet.py`` and
-``subprocess_encoding_count_ratchet.py``. Both cost more to count than the four moved
-(cli-exit-contract 5.9s, subprocess-encoding 22.6s warm), so measuring a
-second tree per run is not free for them; the issue did not name
-them, so they stay scalar until a separate decision moves them. The shared
+``base_derived_ratchet.py``. Three gates still drive ``run`` here and still own a
+baseline file: ``cli_exit_contract_ratchet.py``,
+``subprocess_encoding_count_ratchet.py`` and
+``canonical_citations_count_ratchet.py``. The first two cost more to count than
+the four moved (cli-exit-contract 5.9s, subprocess-encoding 22.6s warm), so
+measuring a second tree per run is not free for them. The issue did not name any
+of the three, so they stay scalar until a separate decision moves them. The shared
 helpers below (tracked-file enumeration, git environment, fork point, chunking)
 serve both modes.
 

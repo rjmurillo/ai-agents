@@ -61,7 +61,7 @@ if TYPE_CHECKING:
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from scripts.ci.base_derived_ratchet import introduced_at, measure_commit
+from scripts.ci.base_derived_ratchet import CommitScratch, introduced_at
 from scripts.ci.merge_tree_materialization import (
     init_scratch_repo as _init_scratch_repo,
 )
@@ -313,7 +313,11 @@ def _prepare_merged_tree(
 
 
 def _check_base_derived(
-    ratchet: MergeTreeRatchet, repo_root: Path, base_oid: str, scratch_root: Path
+    ratchet: MergeTreeRatchet,
+    repo_root: Path,
+    base_tip: CommitScratch,
+    base_oid: str,
+    scratch_root: Path,
 ) -> tuple[int, str]:
     """Merged count against the count measured on the base tip (issue #5363).
 
@@ -332,7 +336,7 @@ def _check_base_derived(
             f"{label}: bootstrap. The base ref does not carry "
             f"{ratchet.script_path} yet, so there is no earlier tree to measure."
         )
-    ceiling = measure_commit(repo_root, base_oid, ratchet.counter_module.current_count)
+    ceiling = base_tip.measure(ratchet.counter_module.current_count)
     if ceiling is None:
         return EXIT_EXTERNAL, f"{label}: EXTERNAL ERROR - could not measure the base ref"
     if merged > ceiling:
@@ -345,10 +349,14 @@ def _check_base_derived(
 
 
 def _check_registered(
-    ratchet: MergeTreeRatchet, repo_root: Path, base_oid: str, scratch_root: Path
+    ratchet: MergeTreeRatchet,
+    repo_root: Path,
+    base_tip: CommitScratch,
+    base_oid: str,
+    scratch_root: Path,
 ) -> tuple[int, str]:
     if ratchet.baseline_path is None:
-        return _check_base_derived(ratchet, repo_root, base_oid, scratch_root)
+        return _check_base_derived(ratchet, repo_root, base_tip, base_oid, scratch_root)
     base = _read_baseline_at_ref(repo_root, base_oid, ratchet.baseline_path)
     merged = _read_baseline_in_tree(scratch_root, ratchet.baseline_path)
     return _check_one(ratchet.label, ratchet.current_count(scratch_root), base, merged)
@@ -358,13 +366,23 @@ def _evaluate_registered_ratchets(
     repo_root: Path, base_oid: str, scratch_root: Path
 ) -> int:
     exit_code = EXIT_OK
-    for ratchet in RATCHETS:
-        code, msg = _check_registered(ratchet, repo_root, base_oid, scratch_root)
-        exit_code = max(exit_code, code)
-        if code != EXIT_OK:
-            print(f"merge-tree-ratchet: {msg}", file=sys.stderr)
-        else:
-            print(f"merge-tree-ratchet: {msg}")
+    # One base-tip scratch serves every base-derived ratchet, so the tree is
+    # materialized once per run instead of once per ratchet.
+    base_tip = CommitScratch(repo_root, base_oid)
+    try:
+        for ratchet in RATCHETS:
+            code, msg = _check_registered(ratchet, repo_root, base_tip, base_oid, scratch_root)
+            exit_code = max(exit_code, code)
+            if code != EXIT_OK:
+                print(f"merge-tree-ratchet: {msg}", file=sys.stderr)
+            else:
+                print(f"merge-tree-ratchet: {msg}")
+    finally:
+        cleanup_error = base_tip.close()
+    if cleanup_error:
+        print(cleanup_error, file=sys.stderr)
+        if exit_code == EXIT_OK:
+            exit_code = EXIT_EXTERNAL
     return exit_code
 
 

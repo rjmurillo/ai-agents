@@ -373,7 +373,8 @@ def validate_count_ratchets(repo_root: Path) -> bool:
     if failures:
         print(
             f"[ERROR] count ratchet(s) failed: {', '.join(failures)}. "
-            f"A count may not exceed the merge base; remove the violations "
+            f"A count may not exceed its ceiling (the merge base, or the "
+            f"recorded baseline for a scalar ratchet); remove the violations "
             f"rather than excusing them.",
             file=sys.stderr,
         )

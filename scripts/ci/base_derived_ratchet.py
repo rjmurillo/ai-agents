@@ -63,6 +63,7 @@ from scripts.ci.merge_tree_materialization import (
 )
 
 __all__ = [
+    "CommitScratch",
     "EXIT_CONFIG",
     "EXIT_EXTERNAL",
     "EXIT_OK",
@@ -96,31 +97,68 @@ def build_parser(description: str) -> argparse.ArgumentParser:
     return parser
 
 
+class CommitScratch:
+    """One commit's tree, materialized at most once and measured by many counters.
+
+    The tree is materialized into a scratch repository on first use, because
+    every counter reads tracked files through git and must not see the working
+    tree of the branch under test. ``close`` removes the scratch and returns a
+    cleanup error, or None; a caller that gets one must not trust a measurement.
+    """
+
+    def __init__(self, repo_root: Path, commit: str) -> None:
+        self._repo_root = repo_root
+        self._commit = commit
+        self._scratch: Path | None = None
+        self._ready: bool | None = None
+
+    def _materialize(self) -> bool:
+        proc = run_git(
+            self._repo_root,
+            "rev-parse",
+            "--verify",
+            f"{self._commit}^{{tree}}",
+            env=git_environment(),
+        )
+        if proc.returncode != 0:
+            sys.stderr.write(f"could not resolve the tree of {self._commit}: {proc.stderr}\n")
+            return False
+        tree_oid = proc.stdout.strip()
+        try:
+            self._scratch = Path(tempfile.mkdtemp(prefix="base-derived-ratchet-"))
+        except OSError as exc:
+            sys.stderr.write(f"scratch creation failed: {type(exc).__name__}: {exc}\n")
+            return False
+        return materialize_tree(self._repo_root, tree_oid, self._scratch) and init_scratch_repo(
+            self._scratch
+        )
+
+    def measure(self, counter: Counter) -> int | None:
+        """Count violations on the commit's tree, or None when it cannot be measured."""
+        if self._ready is None:
+            self._ready = self._materialize()
+        if not self._ready or self._scratch is None:
+            return None
+        return counter(self._scratch)
+
+    def close(self) -> str | None:
+        """Remove the scratch directory. Returns a cleanup error, or None."""
+        if self._scratch is None:
+            return None
+        return remove_tree(self._scratch, "base-derived ratchet scratch")
+
+
 def measure_commit(repo_root: Path, commit: str, counter: Counter) -> int | None:
     """Count violations on the tree of ``commit``, or None when it cannot be measured.
 
-    The tree is materialized into a scratch repository first, because every
-    counter reads tracked files through git and must not see the working tree
-    of the branch under test. Scratch is removed on every exit path.
+    Scratch is removed on every exit path. A failed cleanup is not a
+    measurement.
     """
-    proc = run_git(
-        repo_root, "rev-parse", "--verify", f"{commit}^{{tree}}", env=git_environment()
-    )
-    if proc.returncode != 0:
-        sys.stderr.write(f"could not resolve the tree of {commit}: {proc.stderr}\n")
-        return None
-    tree_oid = proc.stdout.strip()
+    tip = CommitScratch(repo_root, commit)
     try:
-        scratch = Path(tempfile.mkdtemp(prefix="base-derived-ratchet-"))
-    except OSError as exc:
-        sys.stderr.write(f"scratch creation failed: {type(exc).__name__}: {exc}\n")
-        return None
-    count: int | None = None
-    try:
-        if materialize_tree(repo_root, tree_oid, scratch) and init_scratch_repo(scratch):
-            count = counter(scratch)
+        count = tip.measure(counter)
     finally:
-        cleanup_error = remove_tree(scratch, "base-derived ratchet scratch")
+        cleanup_error = tip.close()
     if cleanup_error:
         sys.stderr.write(f"{cleanup_error}\n")
         return None
@@ -143,8 +181,8 @@ def _unreadable_fork_message(label: str, base_ref: str, *, shallow: bool) -> str
         "this is a shallow clone, so there is no common history to read: run "
         "`git fetch --unshallow` (or re-checkout at full depth) and re-run"
         if shallow
-        else f"this checkout's history is unrelated to {base_ref}: fetch the "
-        f"real base branch and re-run"
+        else f"{base_ref} is not fetched, is not a valid ref, or shares no history "
+        f"with this checkout: fetch the real base branch and re-run"
     )
     return (
         f"{label}: FORK POINT UNREADABLE. git could not name the commit where "

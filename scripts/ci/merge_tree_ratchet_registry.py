@@ -40,31 +40,19 @@ class MergeTreeRatchet:
         return counter(repo_root)
 
 
+def _base_derived(label: str, module: ModuleType) -> MergeTreeRatchet:
+    """Register a base-derived ratchet, reading its script path from the module.
+
+    ``_SCRIPT`` lives in the module that owns it, so a rename edits one place.
+    """
+    return MergeTreeRatchet(label, None, module, cast(str, module._SCRIPT))
+
+
 RATCHETS: tuple[MergeTreeRatchet, ...] = (
-    MergeTreeRatchet(
-        "ruff count ratchet",
-        None,
-        ruff_count_ratchet,
-        "scripts/ci/ruff_count_ratchet.py",
-    ),
-    MergeTreeRatchet(
-        "taste count ratchet",
-        None,
-        taste_count_ratchet,
-        "scripts/ci/taste_count_ratchet.py",
-    ),
-    MergeTreeRatchet(
-        "type-ignore count ratchet",
-        None,
-        type_ignore_count_ratchet,
-        "scripts/ci/type_ignore_count_ratchet.py",
-    ),
-    MergeTreeRatchet(
-        "memory-index count ratchet",
-        None,
-        memory_index_count_ratchet,
-        "scripts/ci/memory_index_count_ratchet.py",
-    ),
+    _base_derived("ruff count ratchet", ruff_count_ratchet),
+    _base_derived("taste count ratchet", taste_count_ratchet),
+    _base_derived("type-ignore count ratchet", type_ignore_count_ratchet),
+    _base_derived("memory-index count ratchet", memory_index_count_ratchet),
     MergeTreeRatchet(
         "cli exit contract ratchet",
         "scripts/ci/cli_exit_contract_baseline.txt",
