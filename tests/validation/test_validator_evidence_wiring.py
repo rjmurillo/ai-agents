@@ -120,6 +120,7 @@ def test_a_skip_job_records_the_skip_and_names_the_job_the_table_declares() -> N
     calls = _skip_calls()
     assert set(calls) == set(rows)
     for name, row in rows.items():
+        assert row.path_filter is not None
         assert calls[name]["job"]["name"] == row.path_filter.skip_job
         assert calls[name]["step"]["with"]["ran"] == "false"
 
