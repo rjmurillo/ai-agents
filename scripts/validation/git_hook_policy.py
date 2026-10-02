@@ -6715,7 +6715,8 @@ def _infrastructure_scan_files(
         raise PushUpdateConfigError(
             f"could not resolve merge-base({INFRASTRUCTURE_BASE_REF}, "
             f"{push_ref.local_sha[:12]}) for {push_ref.remote_ref}; the infrastructure "
-            "scan will not guess a base. Run `git fetch origin +refs/heads/main:refs/remotes/origin/main` (and "
+            "scan will not guess a base. Run "
+            "`git fetch origin +refs/heads/main:refs/remotes/origin/main` (and "
             "`git fetch --unshallow origin` in a shallow clone), then push again."
         )
     diff = _scan_git(
