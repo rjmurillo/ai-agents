@@ -45,7 +45,7 @@ RULES = (
     "Restore ACCEPTANCE and RISK TIER",
     "HOLD and surface it",
     "Never mutate on a guess",
-    "fails closed above read-only tier",
+    "Delegate returns follow the Handoff Contract completion record.",
 )
 
 
@@ -87,7 +87,7 @@ def _scenario(scenario_id: str) -> dict:
     return matches[0]
 
 
-@pytest.mark.parametrize("scenario_id", ["S17", "S18", "S19", "S25", "S26", "S27", "S28"])
+@pytest.mark.parametrize("scenario_id", ["S17", "S18", "S19", "S25", "S26"])
 @pytest.mark.parametrize("path", ORCHESTRATOR_PATHS, ids=str)
 def test_graded_scenarios_stay_tied_to_the_resume_text(path: Path, scenario_id: str) -> None:
     scenario = _scenario(scenario_id)
@@ -141,6 +141,24 @@ def test_continue_scenarios_carry_a_complete_valid_record(scenario_id: str) -> N
     for term in COMPLETE_RECORD_TERMS:
         assert term in text, f"{scenario_id} record is missing {term!r}"
     assert "shared-repo," not in text
+
+
+def _handoff_contract(path: Path) -> str:
+    text = (REPO_ROOT / path).read_text(encoding="utf-8").replace("\r\n", "\n")
+    start = text.index("## Handoff Contract")
+    boundary = re.search(r"(?m)^## ", text[start + 3 :])
+    return text[start : start + 3 + boundary.start()]
+
+
+@pytest.mark.parametrize("scenario_id", ["S27", "S28"])
+@pytest.mark.parametrize("path", ORCHESTRATOR_PATHS, ids=str)
+def test_delegate_return_scenarios_tie_to_the_handoff_contract(
+    path: Path, scenario_id: str
+) -> None:
+    scenario = _scenario(scenario_id)
+
+    assert scenario["expected_verdict"] in scenario["verdict_options"]
+    assert scenario["expected_reason_contains"] in _handoff_contract(path)
 
 
 def test_delegate_return_scenarios_grade_the_tier_boundary() -> None:
