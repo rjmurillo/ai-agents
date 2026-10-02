@@ -8,6 +8,7 @@ on Claude, so its failure would measure the harness, not the agent.
 from __future__ import annotations
 
 import json
+from functools import cache
 from typing import Any
 
 import pytest
@@ -15,12 +16,14 @@ import pytest
 from tests.eval._runtime_parity_test_support import FIXTURES, parity, runtime_parity
 
 
+@cache
 def _default_fixtures() -> list[dict[str, Any]]:
     return json.loads(FIXTURES.read_text(encoding="utf-8"))["fixtures"]
 
 
 def test_execute_reversible_tool_grants_read_and_write() -> None:
-    fixture = next(f for f in _default_fixtures() if f["id"] == "execute-reversible-tool")
+    fixture = next((f for f in _default_fixtures() if f["id"] == "execute-reversible-tool"), None)
+    assert fixture is not None, "execute-reversible-tool fixture is missing from the default corpus"
     assert set(fixture["tools"]) == {"read", "write"}
 
 
