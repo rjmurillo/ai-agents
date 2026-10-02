@@ -39,9 +39,23 @@ def test_protocol_defines_each_disposition(disposition: str) -> None:
     assert f"`{disposition}`" in _text()
 
 
-def test_protocol_defers_prefixes_to_review_norms() -> None:
-    assert "`code-review-norms`" in _text()
-    assert (_ROOT / ".agents" / "governance" / "code-review-norms.md").is_file()
+@pytest.mark.parametrize(
+    "row",
+    [
+        "| `BLOCKING` | none |",
+        "| `OPTIONAL` | `Optional:` |",
+        "| `NIT` | `Nit:` |",
+        "| `FYI` | `FYI:` |",
+    ],
+)
+def test_protocol_owns_the_prefix_mapping(row: str) -> None:
+    assert row in _text()
+
+
+def test_governance_points_to_the_protocol_for_prefixes() -> None:
+    norms = (_ROOT / ".agents" / "governance" / "code-review-norms.md").read_text(encoding="utf-8")
+    assert "references/review-conversation.md" in norms
+    assert "| `Nit:` |" not in norms
 
 
 def test_protocol_forbids_severity_mutation() -> None:

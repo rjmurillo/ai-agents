@@ -1,5 +1,7 @@
 # Review-conversation protocol
 
+<!-- vendor-portability: declared. The paths scripts/github_core/round_cap.py and .claude/skills/github/scripts/pr/check_pr_round_cap.py are cited as source-repository evidence for the round-count claim in the Bounded loops section; the check_pr_round_cap.py path ships with the github skill, and the round_cap.py citation names the rjmurillo/ai-agents source copy. -->
+
 Canonical contract owned by the `pr-comment-responder` skill (capability
 `review-conversation`). Every role that writes or answers a review comment
 applies this file instead of stating its own copy: human and AI reviewers,
@@ -39,10 +41,15 @@ review comments and pushback.
 The publisher renders a validated finding. It never changes the finding's
 technical severity.
 
-The dispositions are `BLOCKING`, `OPTIONAL`, `NIT`, and `FYI`. Their comment
-prefixes come from `code-review-norms`, the repository's review-culture
-authority; this protocol extends it and does not restate the mapping. Only
-`BLOCKING` gates merge.
+The dispositions are `BLOCKING`, `OPTIONAL`, `NIT`, and `FYI`. This table is
+the one owner of the prefix mapping. Only `BLOCKING` gates merge.
+
+| Disposition | Comment prefix | Meaning |
+|---|---|---|
+| `BLOCKING` | none | Must address before merge |
+| `OPTIONAL` | `Optional:` | Worth considering; author may defer |
+| `NIT` | `Nit:` | Minor or style; do not block on it |
+| `FYI` | `FYI:` | Future thought; no action needed |
 
 - Render the disposition the finding carries. Do not promote a nit to
   `BLOCKING` or demote `BLOCKING` to `NIT` or `FYI`.
@@ -110,9 +117,13 @@ pressure.
 - Round counts survive handoff. A new agent or context continues the
   persisted PR round count and never restarts it. That count lives in a PR
   comment marker owned by
-  `skills/github/scripts/pr/check_pr_round_cap.py`. Every active call advances
-  the round and writes the marker, so never call it only to read state; read
-  the latest marker comment instead. The `review` skill's self-audit cap
+  the `check_pr_round_cap.py` script of the `github` skill. Every call advances the
+  round (`scripts/github_core/round_cap.py:246` documents `evaluate_round_cap`
+  as "Advance round-cap state by one round and classify ACT vs ESCALATE.") and
+  `.claude/skills/github/scripts/pr/check_pr_round_cap.py:453-460` calls
+  `evaluate_round_cap(` and then `_persist_verdict(`. The marker is written
+  except for a repeat escalation already noted or recorded (`:414-415`). Never
+  call it only to read state; read the latest marker comment instead. The `review` skill's self-audit cap
   (3 rounds) is a separate counter, local to one invocation and not persisted.
 - A resolved thread reopens only with new contradicting evidence cited in the
   reopening comment.
@@ -136,6 +147,6 @@ Each scenario names the section that decides it.
 13. Human and AI disagree: attribution kept, reconcile or escalate (Mixed threads).
 14. Hostile human comment: AI stays neutral and technical (Mixed threads).
 15. Debt introduced by the PR: not deferred (Debt).
-16. Existing adjacent debt: tracked separately (Debt).
+16. Existing adjacent debt: tracked only when worth fixing, else no work item (Debt).
 17. Repeated replies, no new evidence: escalate (Bounded loops).
 18. Duplicate AI comments: deduplicated (Exemplary AI standard).
