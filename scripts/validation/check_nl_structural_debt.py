@@ -112,6 +112,7 @@ def authored_files(repo_root: Path) -> list[Path]:
     if skills.is_dir():
         for skill in sorted(p for p in skills.iterdir() if p.is_dir()):
             files.extend(sorted((skill / "references").glob("*.md")))
+            files.extend(sorted((skill / "resources").glob("**/*.md")))
             if skill.name not in templated and (skill / "SKILL.md").is_file():
                 files.append(skill / "SKILL.md")
     return files
@@ -121,8 +122,11 @@ def _body_lines(text: str) -> list[str]:
     """Return normalized non-trivial lines outside frontmatter and code fences."""
     lines = text.splitlines()
     if lines and lines[0].strip() == "---":
-        end = next((i for i in range(1, len(lines)) if lines[i].strip() == "---"), 0)
-        lines = lines[end + 1 :]
+        end = next((i for i in range(1, len(lines)) if lines[i].strip() == "---"), None)
+        # No closing delimiter: this is not frontmatter, so scan the whole file
+        # rather than a partial parse that drops only the first line.
+        if end is not None:
+            lines = lines[end + 1 :]
     kept: list[str] = []
     fence: Fence | None = None
     for line in lines:
@@ -171,9 +175,12 @@ def stale_counts(files: dict[str, str]) -> dict[str, str]:
     for rel, text in files.items():
         seen: dict[str, int] = defaultdict(int)
         for claim in derived_count_claims(text):
-            seen[claim.text] += 1
-            suffix = "" if seen[claim.text] == 1 else f"#{seen[claim.text]}"
-            found[f"{rel}::{claim.text}{suffix}"] = simplify(claim.text)
+            # Whitespace and case do not change the claim, so a reflow-only edit
+            # keeps the same baseline key. The value keeps the original text.
+            norm = " ".join(claim.text.split()).casefold()
+            seen[norm] += 1
+            suffix = "" if seen[norm] == 1 else f"#{seen[norm]}"
+            found[f"{rel}::{norm}{suffix}"] = simplify(claim.text)
     return dict(sorted(found.items()))
 
 
