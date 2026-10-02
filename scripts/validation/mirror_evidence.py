@@ -85,6 +85,13 @@ def _import_bases(repo_root: Path, file_dir: Path) -> tuple[Path, ...]:
 def _node_names(node: ast.AST, bases: tuple[Path, ...], file_dir: Path) -> list[str]:
     """Return the resolvable names one import statement binds."""
     if isinstance(node, ast.ImportFrom):
+        if node.module is None:
+            # `from . import foo` binds submodules of the anchor: each must exist.
+            return [
+                alias.asname or alias.name
+                for alias in node.names
+                if _resolves(alias.name, node.level, bases, file_dir)
+            ]
         if not _resolves(node.module, node.level, bases, file_dir):
             return []
         return [alias.asname or alias.name for alias in node.names]

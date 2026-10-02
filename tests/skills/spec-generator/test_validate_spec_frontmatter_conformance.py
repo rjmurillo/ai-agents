@@ -7,14 +7,30 @@ the validator docstring no longer needs a hand-copied table (issue #5399).
 
 from __future__ import annotations
 
+import importlib.util
 import re
 import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-sys.path.insert(0, str(REPO_ROOT / ".claude" / "skills" / "spec-generator" / "scripts"))
+_VALIDATOR_PATH = (
+    REPO_ROOT / ".claude" / "skills" / "spec-generator" / "scripts" / "validate_spec_frontmatter.py"
+)
 
-import validate_spec_frontmatter as validator
+
+def _load_validator():
+    """Load the validator by path under a private name, leaving sys.path untouched."""
+    spec = importlib.util.spec_from_file_location(
+        "validate_spec_frontmatter_conformance_under_test", _VALIDATOR_PATH
+    )
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+validator = _load_validator()
 
 SCHEMA = REPO_ROOT / ".agents" / "governance" / "spec-schemas.md"
 

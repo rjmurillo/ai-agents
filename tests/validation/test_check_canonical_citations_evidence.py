@@ -32,6 +32,9 @@ ccc = _load_module()
 @pytest.fixture()
 def repo(tmp_path: Path) -> Path:
     (tmp_path / "scripts" / "validation").mkdir(parents=True)
+    (tmp_path / "scripts" / "validate_session_json.py").write_text(
+        "CONTRADICTION_PATTERNS = ()\n", encoding="utf-8"
+    )
     return tmp_path
 
 
@@ -47,8 +50,8 @@ def _write(repo: Path, body: str) -> Path:
 def test_conformance_test_symbol_without_path_or_copy_is_accepted(repo: Path) -> None:
     doc = '"""Mirrors the session validator.\n\nConformance: test_session_conformance.\n"""\n'
     path = _write(repo, doc)
-    assert ccc.scan_file(path) is None
-    assert ccc.scan_copied_contract(path) is None
+    assert ccc.scan_file(path, repo) is None
+    assert ccc.scan_copied_contract(path, repo) is None
 
 
 def test_shared_import_is_accepted_without_path(repo: Path) -> None:
@@ -57,7 +60,7 @@ def test_shared_import_is_accepted_without_path(repo: Path) -> None:
         "from scripts.validate_session_json import CONTRADICTION_PATTERNS\n"
     )
     path = _write(repo, body)
-    assert ccc.scan_file(path) is None
+    assert ccc.scan_file(path, repo) is None
 
 
 def test_direct_import_alias_is_accepted_without_path(repo: Path) -> None:
@@ -65,7 +68,7 @@ def test_direct_import_alias_is_accepted_without_path(repo: Path) -> None:
         '"""Mirrors the session validator through the canonical alias."""\n'
         "import scripts.validate_session_json as canonical\n"
     )
-    assert ccc.scan_file(_write(repo, body)) is None
+    assert ccc.scan_file(_write(repo, body), repo) is None
 
 
 def test_direct_import_without_alias_is_accepted_by_dotted_name(repo: Path) -> None:
@@ -73,17 +76,17 @@ def test_direct_import_without_alias_is_accepted_by_dotted_name(repo: Path) -> N
         '"""Mirrors scripts.validate_session_json by importing it."""\n'
         "import scripts.validate_session_json\n"
     )
-    assert ccc.scan_file(_write(repo, body)) is None
+    assert ccc.scan_file(_write(repo, body), repo) is None
 
 
 def test_direct_stdlib_import_is_not_evidence(repo: Path) -> None:
     body = '"""Mirrors the os.path semantics."""\nimport os.path\n'
-    assert ccc.scan_file(_write(repo, body)) is not None
+    assert ccc.scan_file(_write(repo, body), repo) is not None
 
 
 def test_stdlib_import_is_not_evidence(repo: Path) -> None:
     body = '"""Mirrors the Path semantics."""\nfrom pathlib import Path\n'
-    assert ccc.scan_file(_write(repo, body)) is not None
+    assert ccc.scan_file(_write(repo, body), repo) is not None
 
 
 # --- 2. unsupported-equivalence: rejected -----------------------------------
@@ -100,7 +103,7 @@ def test_stdlib_import_is_not_evidence(repo: Path) -> None:
     ],
 )
 def test_unsupported_equivalence_is_rejected(repo: Path, docstring: str) -> None:
-    violation = ccc.scan_file(_write(repo, f'"""{docstring}"""\n'))
+    violation = ccc.scan_file(_write(repo, f'"""{docstring}"""\n'), repo)
     assert violation is not None
 
 
@@ -114,8 +117,8 @@ def test_divergence_with_reason_and_path_is_accepted_without_a_copy(repo: Path) 
         'CI bounced this check three times.\n"""\n'
     )
     path = _write(repo, doc)
-    assert ccc.scan_file(path) is None
-    assert ccc.scan_copied_contract(path) is None
+    assert ccc.scan_file(path, repo) is None
+    assert ccc.scan_copied_contract(path, repo) is None
 
 
 # --- 4. stale-copy: finding recommends eliminating the copy -----------------
@@ -127,7 +130,7 @@ def test_copied_contract_without_structure_yields_elimination_finding(repo: Path
         "Verbatim contract copied character-for-character from the validator:\n"
         '    PATTERN = a|b|c\n"""\n'
     )
-    finding = ccc.scan_copied_contract(_write(repo, doc))
+    finding = ccc.scan_copied_contract(_write(repo, doc), repo)
     assert finding is not None
     assert "eliminate the copy" in finding.remediation.lower()
     for option in ("import", "generate", "conformance test"):
@@ -140,7 +143,7 @@ def test_copy_backed_by_conformance_test_is_not_a_finding(repo: Path) -> None:
         "Copied verbatim here; test_session_conformance fails when the source moves.\n"
         '"""\n'
     )
-    assert ccc.scan_copied_contract(_write(repo, doc)) is None
+    assert ccc.scan_copied_contract(_write(repo, doc), repo) is None
 
 
 def test_copy_findings_are_reported_but_never_block(repo: Path, capsys) -> None:
@@ -159,8 +162,8 @@ def test_copy_findings_are_reported_but_never_block(repo: Path, capsys) -> None:
 def test_generated_projection_is_evidence_and_not_a_copy_finding(repo: Path) -> None:
     doc = '"""Mirrors the schema. Copied verbatim; generated from schema.yaml."""\n'
     path = _write(repo, doc)
-    assert ccc.scan_file(path) is None
-    assert ccc.scan_copied_contract(path) is None
+    assert ccc.scan_file(path, repo) is None
+    assert ccc.scan_copied_contract(path, repo) is None
 
 
 # --- 6. transaction-evidence: no durable copy is required -------------------
@@ -169,15 +172,15 @@ def test_generated_projection_is_evidence_and_not_a_copy_finding(repo: Path) -> 
 def test_path_reference_alone_passes_without_a_verbatim_quote(repo: Path) -> None:
     doc = '"""Matches scripts/validate_session_json.py exit codes."""\n'
     path = _write(repo, doc)
-    assert ccc.scan_file(path) is None
-    assert ccc.scan_copied_contract(path) is None
+    assert ccc.scan_file(path, repo) is None
+    assert ccc.scan_copied_contract(path, repo) is None
 
 
 def test_commit_scoped_verification_text_is_not_a_mirror_claim(repo: Path) -> None:
     doc = '"""Verified against scripts/a.py at commit abc1234; conformance passes."""\n'
     path = _write(repo, doc)
-    assert ccc.scan_file(path) is None
-    assert ccc.scan_copied_contract(path) is None
+    assert ccc.scan_file(path, repo) is None
+    assert ccc.scan_copied_contract(path, repo) is None
 
 
 def test_copy_findings_read_as_advisory_through_the_wrapper(repo: Path, capsys) -> None:
@@ -205,13 +208,13 @@ def test_copy_findings_read_as_advisory_through_the_wrapper(repo: Path, capsys) 
 def test_third_party_import_is_not_evidence(repo: Path, imports: str) -> None:
     doc = '"""Mirrors pytest fixture semantics: pytest, canonical, yaml.constructor."""'
     body = f"{doc}\n{imports}"
-    assert ccc.scan_file(_write(repo, body)) is not None
+    assert ccc.scan_file(_write(repo, body), repo) is not None
 
 
 def test_sibling_module_import_is_evidence(repo: Path) -> None:
     (repo / "scripts" / "validation" / "schema_rules.py").write_text("X = 1\n", encoding="utf-8")
     body = '"""Mirrors the SCHEMA_RULES contract."""\nfrom schema_rules import SCHEMA_RULES\n'
-    assert ccc.scan_file(_write(repo, body)) is None
+    assert ccc.scan_file(_write(repo, body), repo) is None
 
 
 def test_lib_package_import_is_evidence() -> None:
@@ -272,3 +275,21 @@ def test_relative_import_must_resolve_to_a_sibling(repo: Path) -> None:
     (repo / "scripts" / "validation" / "present.py").write_text("CONTRACT = 1\n", encoding="utf-8")
     ok = '"""Mirrors the CONTRACT by importing it."""\nfrom .present import CONTRACT\n'
     assert ccc.scan_file(_write(repo, ok), repo) is None
+
+
+def test_bare_relative_import_must_name_an_existing_sibling(repo: Path) -> None:
+    body = '"""Mirrors the CONTRACT by importing it."""\nfrom . import missing_mod\n'
+    assert ccc.scan_file(_write(repo, body), repo) is not None
+    (repo / "scripts" / "validation" / "present_mod.py").write_text("X = 1\n", encoding="utf-8")
+    ok = '"""Mirrors the present_mod contract by importing it."""\nfrom . import present_mod\n'
+    assert ccc.scan_file(_write(repo, ok), repo) is None
+
+
+def test_collect_all_matches_the_two_collectors(repo: Path) -> None:
+    _write(repo, '"""Mirrors scripts/a.py. Copied verbatim from the source."""\n')
+    other = repo / "scripts" / "validation" / "c.py"
+    other.write_text('"""Mirrors the contract."""\n', encoding="utf-8")
+    violations, findings = ccc.collect_all(repo)
+    assert [v.path for v in violations] == [v.path for v in ccc.collect_violations(repo)]
+    assert [f.path for f in findings] == [f.path for f in ccc.collect_copy_findings(repo)]
+    assert len(violations) == 1 and len(findings) == 1
