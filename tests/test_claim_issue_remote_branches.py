@@ -219,8 +219,25 @@ class TestRequireOriginMatches:
 
     def test_unparseable_url_raises(self, clone):
         _git(clone, "config", "remote.origin.url", "just-a-name")
-        with pytest.raises(RuntimeError, match="cannot read owner and repo"):
+        with pytest.raises(RuntimeError, match="cannot read a GitHub owner and repo"):
             claim.require_origin_matches("o", "r")
+
+    @pytest.mark.parametrize(
+        "url",
+        ["https://gitlab.com/o/r.git", "/tmp/o/r.git", "https://github.com.evil.io/o/r"],
+    )
+    def test_non_github_host_raises(self, clone, url):
+        _git(clone, "config", "remote.origin.url", url)
+        with pytest.raises(RuntimeError, match="cannot read a GitHub owner and repo"):
+            claim.require_origin_matches("o", "r")
+
+    def test_warning_never_echoes_the_remote_url(self, clone):
+        secret = "https://user:ghp_SECRET@gitlab.com/o/r.git"
+        _git(clone, "config", "remote.origin.url", secret)
+        _, warnings = claim.find_in_flight_branches("o", "r", 5420)
+        assert warnings
+        assert "ghp_SECRET" not in warnings[0]
+        assert "gitlab.com" not in warnings[0]
 
     def test_missing_origin_raises(self, clone):
         _git(clone, "remote", "remove", "origin")
@@ -260,17 +277,29 @@ class TestMergedThroughPr:
     def test_true_when_merged_pr_head_matches(self):
         done = subprocess.CompletedProcess(["gh"], 0, stdout="abc\ndef\n", stderr="")
         with patch.object(claim, "_run", return_value=done):
-            assert _REAL_MERGED("o", "r", "b", "def") is True
+            assert _REAL_MERGED("o", "r", "b", "def", "origin/main") is True
 
     def test_false_when_head_differs(self):
         done = subprocess.CompletedProcess(["gh"], 0, stdout="abc\n", stderr="")
         with patch.object(claim, "_run", return_value=done):
-            assert _REAL_MERGED("o", "r", "b", "zzz") is False
+            assert _REAL_MERGED("o", "r", "b", "zzz", "origin/main") is False
+
+    def test_query_is_scoped_to_the_default_base(self):
+        done = subprocess.CompletedProcess(["gh"], 0, stdout="abc\n", stderr="")
+        with patch.object(claim, "_run", return_value=done) as run:
+            assert _REAL_MERGED("o", "r", "b", "abc", "origin/develop") is True
+        cmd = run.call_args.args[0]
+        assert cmd[cmd.index("--base") + 1] == "develop"
+
+    def test_false_when_base_is_unknown(self):
+        with patch.object(claim, "_run") as run:
+            assert _REAL_MERGED("o", "r", "b", "abc", None) is False
+        run.assert_not_called()
 
     def test_false_when_lookup_fails(self):
         done = subprocess.CompletedProcess(["gh"], 1, stdout="", stderr="boom")
         with patch.object(claim, "_run", return_value=done):
-            assert _REAL_MERGED("o", "r", "b", "abc") is False
+            assert _REAL_MERGED("o", "r", "b", "abc", "origin/main") is False
 
 
 class TestCurrentBranch:

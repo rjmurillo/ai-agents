@@ -60,7 +60,10 @@ from github_core.output import (
 _GH_TIMEOUT_SECONDS = 30
 _BASE_CANDIDATES = ("main", "master", "develop", "trunk")
 _HEADS_PREFIX = "refs/heads/"
-_REMOTE_SLUG = re.compile(r"[:/](?P<owner>[^/:]+)/(?P<repo>[^/]+?)(?:\.git)?/?$")
+_REMOTE_SLUG = re.compile(
+    r"^(?:[A-Za-z][A-Za-z0-9+.-]*://)?(?:[^/@]+@)?"
+    r"github\.com[:/](?P<owner>[^/]+)/(?P<repo>[^/]+?)(?:\.git)?/?$"
+)
 
 
 def _run(cmd: list[str]) -> subprocess.CompletedProcess[str]:
@@ -174,17 +177,27 @@ def commits_ahead(sha: str, base_ref: str | None) -> int | None:
         return None
 
 
-def merged_through_pr(owner: str, repo: str, branch: str, sha: str) -> bool:
-    """Return true when a merged PR for ``branch`` had ``sha`` as its head.
+def merged_through_pr(
+    owner: str, repo: str, branch: str, sha: str, base_ref: str | None,
+) -> bool:
+    """Return true when a PR merged into the default branch had ``sha`` as its head.
+
+    A PR merged into another base (a stacked or integration branch) does not
+    count: its commits can still be absent from the default branch. An unknown
+    ``base_ref`` returns false for the same reason.
 
     Squash merges never make the original commits reachable from the default
     branch, so ancestry alone reports a merged, retained branch as live work.
     A lookup failure returns false: an unverifiable branch stays in the warning.
     """
 
+    if base_ref is None:
+        return False
+    base = base_ref.removeprefix("origin/")
     result = _run(
         ["gh", "pr", "list", "--repo", f"{owner}/{repo}", "--head", branch,
-         "--state", "merged", "--json", "headRefOid", "--jq", ".[].headRefOid"],
+         "--base", base, "--state", "merged",
+         "--json", "headRefOid", "--jq", ".[].headRefOid"],
     )
     if result.returncode != 0:
         return False
@@ -231,7 +244,7 @@ def require_origin_matches(owner: str, repo: str) -> None:
         raise RuntimeError("no origin remote to probe")
     match = _REMOTE_SLUG.search(url)
     if match is None:
-        raise RuntimeError(f"cannot read owner and repo from origin url {url!r}")
+        raise RuntimeError("cannot read a GitHub owner and repo from the origin remote")
     found = f"{match['owner']}/{match['repo']}"
     if found.lower() != f"{owner}/{repo}".lower():
         raise RuntimeError(f"origin is {found}, not the claim target {owner}/{repo}")
@@ -251,7 +264,7 @@ def _probe_in_flight(owner: str, repo: str, issue: int) -> list[dict[str, object
         if branch == mine:
             continue
         ahead = commits_ahead(sha, base_ref)
-        if ahead == 0 or merged_through_pr(owner, repo, branch, sha):
+        if ahead == 0 or merged_through_pr(owner, repo, branch, sha, base_ref):
             continue
         in_flight.append({"branch": branch, "sha": sha, "ahead": ahead})
     return in_flight
