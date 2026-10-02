@@ -157,7 +157,7 @@ A table replaces five `if`/`elif` branches with one lookup and one default.
 Bot review rounds fail to converge because the fix for round N creates round N+1's findings. In the case measured in [issue #5487](https://github.com/rjmurillo/ai-agents/issues/5487) on [PR #5466](https://github.com/rjmurillo/ai-agents/pull/5466), most findings in later rounds came from the previous fix. Check both causes before you push.
 
 - **One value, one role at a contract boundary.** A value that serves Git and also a human reader is two contracts under one name. Split it (`base_ref` to resolve, `display_ref` to print). Distinct names make a mix-up visible in review; use distinct types where you need the checker to enforce it.
-- **List sibling call paths.** Find every caller of the function you changed: search the repo, and look for indirect calls, re-exports, and generated code. In the PR body, list the callers you found and the ones you verified.
+- **List sibling call paths.** A sibling call path is any route that reaches the function you changed: direct callers, indirect calls, re-exports, and generated code. Search the repo for each. In the PR body, list the paths you found and the ones you verified.
 - **Optional unwire-and-fail check.** Where practical, unwire the fix at each call site and confirm a test fails. Per-fix, non-blocking, no repository-wide gate.
 
 ## Variable Scope and Lifetime
@@ -218,7 +218,7 @@ Before you mark work complete, walk this list:
 - [ ] Long branching uses tables when shapes match; polymorphism when they do not.
 - [ ] Tests describe behavior, follow Arrange/Act/Assert, and would catch a regression.
 - [ ] Variables live in the narrowest scope that satisfies their use.
-- [ ] Callers of every changed function are listed and checked.
+- [ ] Sibling call paths of every changed function are listed and checked.
 - [ ] No value crosses two contracts under one name; each role has its own name.
 - [ ] Comments explain _why_; the code explains _what_.
 - [ ] Errors are typed, traced, and logged without secrets.
