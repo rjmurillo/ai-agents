@@ -53,7 +53,7 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from scripts.validation.evidence import CheckOutcome, EvidenceState
-from scripts.validation.promotion_applicability import TIER_COMMIT, Applicability
+from scripts.validation.promotion_applicability import TIER_BUILD, TIER_COMMIT, Applicability
 from scripts.validation.promotion_evidence import (
     MAX_EVIDENCE_BYTES,
     EvidenceRecord,
@@ -66,6 +66,7 @@ from scripts.validation.promotion_exemption import (
     is_not_run_skip,
 )
 from scripts.validation.promotion_provenance import (
+    build_run_problem,
     combine,
     corroborate,
     is_repository_name,
@@ -265,7 +266,7 @@ def _artifact_problem(
     names_run = (
         isinstance(origin, dict)
         and origin.get("id") == run_id
-        and origin.get("head_sha") == ctx.candidate_sha
+        and origin.get("head_sha") == run.get("head_sha")
         and _int_id(artifact.get("id")) is not None
     )
     if not names_run:
@@ -337,16 +338,17 @@ def _unusable(ctx: _Context, entry: Applicability, run_id: int, reason: str) -> 
     return Disposition(entry.validator, run_id, False, reason, EvidenceState.UNKNOWN.value)
 
 
-def _handle_run(ctx: _Context, entry: Applicability, run: Mapping[str, Any]) -> Disposition:
+def _handle_run(
+    ctx: _Context, entry: Applicability, run: Mapping[str, Any], problem: str | None
+) -> Disposition:
+    """Take one run through artifact, record, corroboration, and write.
+
+    ``problem`` is the provenance verdict the caller computed for this run: the
+    commit tier and the build tier judge a run differently.
+    """
     run_id = _int_id(run.get("id"))
     if run_id is None:
         return Disposition(entry.validator, 0, False, "run.malformed")
-    problem = run_problem(
-        run,
-        candidate_sha=ctx.candidate_sha,
-        workflow=entry.workflow,
-        default_branch=ctx.default_branch,
-    )
     if problem:
         return Disposition(entry.validator, run_id, False, problem)
     artifact, reason = _select_artifact(ctx, run, entry.validator)
@@ -436,5 +438,55 @@ def fetch_verified_evidence(
         matching = [r for r in runs if isinstance(r, dict) and r.get("path") == entry.workflow]
         if not matching:
             dispositions.append(Disposition(entry.validator, 0, False, REASON_RUN_ABSENT))
-        dispositions.extend(_handle_run(ctx, entry, run) for run in matching)
+        for run in matching:
+            problem = run_problem(
+                run,
+                candidate_sha=candidate_sha,
+                workflow=entry.workflow,
+                default_branch=default_branch,
+            )
+            dispositions.append(_handle_run(ctx, entry, run, problem))
     return dispositions
+
+
+def fetch_build_evidence(
+    reader: GitHubReader,
+    *,
+    repo: str,
+    run_id: int,
+    candidate_sha: str,
+    default_branch: str,
+    entries: Sequence[Applicability],
+    evidence_dir: Path,
+) -> list[Disposition]:
+    """Write evidence for the build-tier rows from the entry workflow's own run.
+
+    ``run_id`` is the run the gate belongs to. Its build job has finished, so its
+    jobs can be corroborated. The record's revision must be the candidate, and the
+    gate binds its digest to the built tarball.
+    """
+    if not is_repository_name(repo) or not _SHA_RE.fullmatch(candidate_sha):
+        raise ValueError("repo must be owner/name and candidate_sha a 40-character SHA")
+    if not _BRANCH_RE.fullmatch(default_branch) or run_id <= 0:
+        raise ValueError("default_branch must be a plain name and run_id positive")
+    wanted = [e for e in entries if e.tier == TIER_BUILD and not e.never]
+    if not wanted:
+        return []
+    run = reader.get_json(f"repos/{repo}/actions/runs/{run_id}")
+    if not isinstance(run, dict) or not _SHA_RE.fullmatch(str(run.get("head_sha"))):
+        raise GitHubApiError(f"run {run_id} did not return a run with a head_sha")
+    ctx = _Context(
+        reader, repo, candidate_sha, default_branch,
+        _check_runs_by_id(reader, repo, str(run["head_sha"])), evidence_dir, None,
+    )  # fmt: skip
+    return [
+        _handle_run(
+            ctx,
+            entry,
+            run,
+            build_run_problem(
+                run, workflow=entry.workflow, default_branch=default_branch, run_id=run_id
+            ),
+        )
+        for entry in wanted
+    ]

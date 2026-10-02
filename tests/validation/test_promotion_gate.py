@@ -396,6 +396,7 @@ class TestCli:
         assert sink.read_text(encoding="utf-8").splitlines() == [
             "verdict=promote",
             "release_eligible=false",
+            "promoted=false",
         ]
 
     def _eligible_args(self, tmp_path: Path, sink: Path, *extra: str) -> list[str]:
@@ -416,7 +417,7 @@ class TestCli:
         sink = tmp_path / "out.txt"
         args = self._eligible_args(tmp_path, sink, "--expect-tag", "v1")
         assert main(args) == EXIT_OK
-        assert self._lines(sink) == ["verdict=promote", "release_eligible=true"]
+        assert self._lines(sink) == ["verdict=promote", "release_eligible=true", "promoted=true"]
 
     def test_a_commit_only_promote_is_ineligible_without_a_digest(self, tmp_path: Path) -> None:
         _write(tmp_path / "ev", "pytest.json", _evidence())
@@ -426,7 +427,7 @@ class TestCli:
             "--expect-tag", "v1",
         )  # fmt: skip
         assert main(args) == EXIT_OK
-        assert self._lines(sink) == ["verdict=promote", "release_eligible=false"]
+        assert self._lines(sink) == ["verdict=promote", "release_eligible=false", "promoted=false"]
 
     def test_a_digest_with_no_build_tier_result_is_ineligible(self, tmp_path: Path) -> None:
         _write(tmp_path / "ev", "pytest.json", _evidence())
@@ -436,7 +437,7 @@ class TestCli:
             "--expect-tag", "v1", "--candidate-digest", DIGEST,
         )  # fmt: skip
         assert main(args) == EXIT_OK
-        assert self._lines(sink) == ["verdict=promote", "release_eligible=false"]
+        assert self._lines(sink) == ["verdict=promote", "release_eligible=false", "promoted=false"]
 
     def test_the_manifest_records_whether_it_is_digest_bound(self, tmp_path: Path) -> None:
         sink = tmp_path / "out.txt"
@@ -453,6 +454,7 @@ class TestCli:
         assert sink.read_text(encoding="utf-8").splitlines() == [
             "verdict=promote",
             "release_eligible=false",
+            "promoted=false",
         ]
 
     def test_enforcing_without_ancestor_check_exits_two(self, tmp_path: Path) -> None:
@@ -481,6 +483,7 @@ class TestCli:
         assert sink.read_text(encoding="utf-8").splitlines() == [
             "verdict=block",
             "release_eligible=false",
+            "promoted=false",
         ]
 
     def test_unwritable_output_exits_three(self, tmp_path: Path) -> None:

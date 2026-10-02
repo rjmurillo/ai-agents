@@ -35,6 +35,7 @@ from scripts.validation.promotion_fetch import (  # noqa: E402
     GhCliReader,
     GitHubApiError,
     GitHubReader,
+    fetch_build_evidence,
     fetch_verified_evidence,
 )
 
@@ -48,6 +49,12 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--default-branch", required=True)
     parser.add_argument("--evidence-dir", type=Path, required=True)
     parser.add_argument("--repo-root", type=Path, default=_PROJECT_ROOT)
+    parser.add_argument(
+        "--build-run-id",
+        type=int,
+        default=0,
+        help="the entry workflow run holding the build-tier evidence; 0 fetches none",
+    )
     return parser
 
 
@@ -70,6 +77,16 @@ def main(argv: Sequence[str] | None = None, reader: GitHubReader | None = None) 
             evidence_dir=args.evidence_dir,
             exemption_source=GitDiffSource(args.repo_root),
         )
+        if args.build_run_id:
+            dispositions += fetch_build_evidence(
+                reader or GhCliReader(),
+                repo=args.repo,
+                run_id=args.build_run_id,
+                candidate_sha=args.candidate_sha,
+                default_branch=args.default_branch,
+                entries=entries,
+                evidence_dir=args.evidence_dir,
+            )
     except (ApplicabilityError, ValueError) as exc:
         return _fail("FAIL", f"{type(exc).__name__}: {exc}", EXIT_CONFIG)
     except GitHubApiError as exc:

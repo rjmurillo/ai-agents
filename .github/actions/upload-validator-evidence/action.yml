@@ -24,6 +24,18 @@ inputs:
     description: "'true' when the job did its validation work, 'false' when it short-circuited"
     required: false
     default: 'true'
+  kind:
+    description: "'commit' for a push or merge group run, 'build' for the entry workflow build job"
+    required: false
+    default: 'commit'
+  revision:
+    description: 'Commit the result is about. Empty means the run commit. A build job passes the candidate.'
+    required: false
+    default: ''
+  digest:
+    description: 'SHA-256 of the npm tarball. Required for kind build, refused otherwise.'
+    required: false
+    default: ''
 
 runs:
   using: 'composite'
@@ -35,7 +47,9 @@ runs:
         VALIDATOR: ${{ inputs.validator }}
         JOB_STATUS: ${{ inputs.job-status }}
         RAN: ${{ inputs.ran }}
-        REVISION: ${{ github.sha }}
+        REVISION: ${{ inputs.revision || github.sha }}
+        KIND: ${{ inputs.kind }}
+        DIGEST: ${{ inputs.digest }}
         EVENT_NAME: ${{ github.event_name }}
         REF: ${{ github.ref }}
         DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
@@ -54,6 +68,8 @@ runs:
         --ref "$REF"
         --default-branch "$DEFAULT_BRANCH"
         --job-id "$JOB_ID"
+        --kind "$KIND"
+        --digest "$DIGEST"
         --output-dir "$EVIDENCE_DIR"
         --github-output "$GITHUB_OUTPUT"
 
