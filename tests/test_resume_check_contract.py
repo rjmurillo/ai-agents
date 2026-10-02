@@ -39,7 +39,8 @@ RULES = (
     "Label retrieved memory fact, decision, or hypothesis, and verified, unverified, or stale",
     "HOLD on unverified load-bearing context",
     "A completion summary is not completion evidence.",
-    "Compare recorded remote owner/name, branch, worktree, head SHA, and artifacts with the live repository",
+    "Compare recorded remote owner/name, branch, worktree, head SHA, and artifacts "
+    "with the live repository",
     "Reverted or superseded: HOLD",
     "A live change caused solely by the next action is not a mismatch",
     "continue from the next step",
