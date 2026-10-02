@@ -43,6 +43,36 @@ _PARALLEL = ["-n", "auto", "--dist", "loadfile"]
 # immutable SHA, so this branch name is never the comparison authority there.
 _DEFAULT_BASE = "origin/main"
 
+# The nested test directories, split in two so each CI job stays under the ten
+# minute contract of issue #4854. Per-directory test time on a main run
+# (bulk-nested artifact, 27679 tests, 1504s summed): validation 645, ci 435,
+# skills 113, eval 103, commands 67, build_scripts 66, every other directory
+# under 17 each. `ci` holds the heaviest files, so the second partition takes
+# ci, skills, eval, commands and build_scripts (about 784s) and the first takes
+# validation plus the small directories (about 720s).
+_NESTED_CI_DIRS = ("build_scripts", "ci", "commands", "eval", "skills")
+_NESTED_REST_DIRS = (
+    "claude",
+    "claude_mem",
+    "context-optimizer",
+    "e2e",
+    "evals",
+    "external_signals",
+    "fixtures",
+    "hooks",
+    "integration",
+    "lib",
+    "llm_classification",
+    "maintenance",
+    "metrics",
+    "quality_gate",
+    "skillbook",
+    "test_selection",
+    "validation",
+    "validation_pre_pr",
+    "workflows",
+)
+
 # Full argument lists per partition, mirrored from the pytest.yml matrix. These
 # are the single source of truth now that the matrix no longer carries
 # pytest_args; test_run_pytest_selected.py locks them against drift.
@@ -60,31 +90,12 @@ _PARTITION_FULL_ARGS: dict[str, list[str]] = {
     ],
     "bulk-nested": [
         *_PARALLEL,
+        *(f"tests/{name}" for name in _NESTED_REST_DIRS),
+    ],
+    "bulk-nested-ci": [
+        *_PARALLEL,
         "--ignore=tests/skills/github/test_wait_for_unresolved_zero.py",
-        "tests/build_scripts",
-        "tests/ci",
-        "tests/claude",
-        "tests/claude_mem",
-        "tests/commands",
-        "tests/context-optimizer",
-        "tests/e2e",
-        "tests/eval",
-        "tests/evals",
-        "tests/external_signals",
-        "tests/fixtures",
-        "tests/hooks",
-        "tests/integration",
-        "tests/lib",
-        "tests/llm_classification",
-        "tests/maintenance",
-        "tests/metrics",
-        "tests/quality_gate",
-        "tests/skillbook",
-        "tests/skills",
-        "tests/test_selection",
-        "tests/validation",
-        "tests/validation_pre_pr",
-        "tests/workflows",
+        *(f"tests/{name}" for name in _NESTED_CI_DIRS),
     ],
     "mutation": [*_PARALLEL, "tests/mutation"],
     "safe-push": [
@@ -94,7 +105,7 @@ _PARTITION_FULL_ARGS: dict[str, list[str]] = {
     "pr-autofix": ["tests/test_pr_autofix_late_live_state_gate.py"],
 }
 
-_PARALLEL_PARTITIONS = frozenset({"bulk", "bulk-nested", "mutation"})
+_PARALLEL_PARTITIONS = frozenset({"bulk", "bulk-nested", "bulk-nested-ci", "mutation"})
 
 # Test files no partition runs as an ordinary member: bulk and bulk-nested
 # ignore them and they are covered by dedicated pin steps. If a change affects
@@ -129,6 +140,8 @@ def classify_partition(rel: str) -> str | None:
     segments = rel.split("/")
     if len(segments) == 2:
         return "bulk"
+    if segments[1] in _NESTED_CI_DIRS:
+        return "bulk-nested-ci"
     return "bulk-nested"
 
 
