@@ -62,6 +62,8 @@ NOT_EXECUTED_FAMILIES: dict[str, str] = {
 
 KINDS = frozenset({"explicit", "orchestrator", "specialist", "ambiguous", "none"})
 
+SCHEMA_VERSION = 1
+
 EXIT_OK = 0
 EXIT_FAIL = 1
 EXIT_CONFIG = 2
@@ -138,6 +140,10 @@ def load_scenarios(path: Path) -> list[Scenario]:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError) as exc:
         raise EvalConfigError(f"cannot read fixtures {path}: {exc}") from exc
+    if isinstance(data, dict) and data.get("schema_version") != SCHEMA_VERSION:
+        raise EvalConfigError(
+            f"{path}: schema_version must be {SCHEMA_VERSION}, got {data.get('schema_version')!r}"
+        )
     items = data.get("scenarios") if isinstance(data, dict) else None
     if not isinstance(items, list) or not items:
         raise EvalConfigError(f"{path}: 'scenarios' must be a non-empty list")
@@ -169,7 +175,10 @@ def _load_resolver_main() -> Callable[[list[str]], int]:
         spec.loader.exec_module(module)
     except (OSError, SyntaxError, ImportError) as exc:
         raise EvalConfigError(f"cannot load resolver {RESOLVER}: {exc}") from exc
-    main = cast(Callable[[list[str]], int], module.main)
+    main = getattr(module, "main", None)
+    if not callable(main):
+        raise EvalConfigError(f"resolver {RESOLVER} defines no callable main")
+    main = cast(Callable[[list[str]], int], main)
     _RESOLVER_CACHE[RESOLVER] = main
     return main
 
@@ -195,6 +204,9 @@ def run_resolver(request: str, skills_roots: list[str]) -> dict[str, Any]:
         raise EvalConfigError(f"resolver output has no valid kind: {out.getvalue()[:200]!r}")
     if result["kind"] not in KINDS:
         raise EvalConfigError(f"resolver output has no valid kind: {out.getvalue()[:200]!r}")
+    candidates = result.get("candidates", [])
+    if not isinstance(candidates, list) or not all(isinstance(c, str) for c in candidates):
+        raise EvalConfigError(f"resolver candidates must be a list of strings: {candidates!r:.200}")
     return result
 
 
@@ -285,7 +297,9 @@ def main(argv: list[str] | None = None) -> int:
     try:
         report = evaluate(load_scenarios(args.fixtures), args.skills_root)
         if args.output is not None:
-            args.output.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", "utf-8")
+            args.output.write_text(
+                json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+            )
     except (EvalConfigError, OSError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return EXIT_CONFIG

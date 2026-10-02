@@ -6,6 +6,7 @@ detect a regression in that family, not only pass on the happy path.
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import sys
 from pathlib import Path
@@ -13,11 +14,12 @@ from typing import Any
 
 import pytest
 
-_EVAL_DIR = Path(__file__).resolve().parents[2] / "scripts" / "eval"
-if str(_EVAL_DIR) not in sys.path:
-    sys.path.insert(0, str(_EVAL_DIR))
-
-import eval_autoplan_routes as ev  # noqa: E402
+_EVAL_SCRIPT = Path(__file__).resolve().parents[2] / "scripts" / "eval" / "eval_autoplan_routes.py"
+_spec = importlib.util.spec_from_file_location("eval_autoplan_routes", _EVAL_SCRIPT)
+assert _spec is not None and _spec.loader is not None
+ev = importlib.util.module_from_spec(_spec)
+sys.modules[_spec.name] = ev
+_spec.loader.exec_module(ev)
 
 
 def _scenario(**over: Any) -> dict[str, Any]:
@@ -33,7 +35,9 @@ def _scenario(**over: Any) -> dict[str, Any]:
 
 def _write(tmp_path: Path, *scenarios: dict[str, Any]) -> Path:
     path = tmp_path / "routes.json"
-    path.write_text(json.dumps({"scenarios": list(scenarios)}), encoding="utf-8")
+    path.write_text(
+        json.dumps({"schema_version": 1, "scenarios": list(scenarios)}), encoding="utf-8"
+    )
     return path
 
 
@@ -158,17 +162,27 @@ def test_bare_strips_namespace() -> None:
     [
         "not json",
         json.dumps([]),
-        json.dumps({"scenarios": []}),
-        json.dumps({"scenarios": ["x"]}),
-        json.dumps({"scenarios": [_scenario(id="")]}),
-        json.dumps({"scenarios": [_scenario(family="lifecycle")]}),
-        json.dumps({"scenarios": [_scenario(expect={"kind": "bogus"})]}),
-        json.dumps({"scenarios": [_scenario(expect={"kind": ["none"]})]}),
-        json.dumps({"scenarios": [_scenario(expect={"kind": {}})]}),
-        json.dumps({"scenarios": [_scenario(expect="none")]}),
-        json.dumps({"scenarios": [_scenario(expect={"kind": "none", "route": 3})]}),
-        json.dumps({"scenarios": [_scenario(expect={"kind": "none", "routes_absent": "x"})]}),
-        json.dumps({"scenarios": [_scenario(), _scenario()]}),
+        json.dumps({"schema_version": 1, "scenarios": []}),
+        json.dumps({"schema_version": 1, "scenarios": ["x"]}),
+        json.dumps({"schema_version": 1, "scenarios": [_scenario(id="")]}),
+        json.dumps({"schema_version": 1, "scenarios": [_scenario(family="lifecycle")]}),
+        json.dumps({"schema_version": 1, "scenarios": [_scenario(expect={"kind": "bogus"})]}),
+        json.dumps({"schema_version": 1, "scenarios": [_scenario(expect={"kind": ["none"]})]}),
+        json.dumps({"schema_version": 1, "scenarios": [_scenario(expect={"kind": {}})]}),
+        json.dumps({"schema_version": 1, "scenarios": [_scenario(expect="none")]}),
+        json.dumps(
+            {"schema_version": 1, "scenarios": [_scenario(expect={"kind": "none", "route": 3})]}
+        ),
+        json.dumps(
+            {
+                "schema_version": 1,
+                "scenarios": [_scenario(expect={"kind": "none", "routes_absent": "x"})],
+            }
+        ),
+        json.dumps({"schema_version": 1, "scenarios": [_scenario(), _scenario()]}),
+        json.dumps({"scenarios": [_scenario()]}),
+        json.dumps({"schema_version": 2, "scenarios": [_scenario()]}),
+        json.dumps({"schema_version": "1", "scenarios": [_scenario()]}),
     ],
 )
 def test_bad_fixtures_are_config_errors(
@@ -320,6 +334,27 @@ def test_resolver_kind_of_wrong_type_is_config_error(monkeypatch: pytest.MonkeyP
 def test_resolver_kind_outside_vocabulary_is_config_error(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(ev, "_load_resolver_main", _fake_main('{"kind": "bogus"}'))
     with pytest.raises(ev.EvalConfigError, match="no valid kind"):
+        ev.run_resolver("x", [])
+
+
+@pytest.mark.parametrize("candidates", ['"x"', '{"a": 1}', "[1]", "null"])
+def test_resolver_candidates_of_wrong_shape_is_config_error(
+    monkeypatch: pytest.MonkeyPatch, candidates: str
+) -> None:
+    stdout = '{"kind": "none", "candidates": ' + candidates + "}"
+    monkeypatch.setattr(ev, "_load_resolver_main", _fake_main(stdout))
+    with pytest.raises(ev.EvalConfigError, match="candidates must be a list of strings"):
+        ev.run_resolver("x", [])
+
+
+def test_resolver_without_callable_main_is_config_error(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    no_main = tmp_path / "no_main.py"
+    no_main.write_text("main = 3\n", encoding="utf-8")
+    monkeypatch.setattr(ev, "RESOLVER", no_main)
+    ev._RESOLVER_CACHE.clear()
+    with pytest.raises(ev.EvalConfigError, match="no callable main"):
         ev.run_resolver("x", [])
 
 
