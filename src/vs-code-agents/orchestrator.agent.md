@@ -175,17 +175,25 @@ Every delegation includes:
 
 ```text
 DELEGATE TO: [agent]
-TASK: [one sentence]
-CONTEXT: [prior findings, constraints, dependencies]
-EXPECTED OUTPUT: [format, content requirements]
-SUCCESS CRITERIA: [verifier and pass criterion]
-ESCALATE TO: [exception recipient]
+OBJECTIVE: [one sentence, user-visible outcome]
+NON-GOALS: [out of scope; allowed paths and tools]
+CONTEXT: [findings, assumptions, open questions, repo, branch, head SHA]
+RISK TIER: [ADR-112 tier: read-only | reversible-local | shared-repository | consequential]
+ACCEPTANCE: [criteria, invariants, verifier, pass criterion]
+STOP CONDITIONS: [when to halt]
+ESCALATE TO: [owner]
+ROLLBACK: [recovery path]
+EXPECTED OUTPUT: [format]
 CONSTRAINTS: [must/must-not]
 TIMEBOX: [if applicable]
 TODO: [ledger ID; ensure row; 1-row update]
 ```
 
-Agents return deltas, changed paths, verifier output, acceptance status, and typed escalation status. Do not return transcripts. If an agent returns narrative prose when you need structured findings, reject and re-delegate with explicit format requirement.
+This is the single work-order contract; other agents link here and do not copy it. Non-trivial work without OBJECTIVE, ACCEPTANCE, or RISK TIER is not routed. Fields survive delegation, review, correction, and resume.
+
+Capability (it can do the task), reliability (repeatable, honest about uncertainty), and accepted outcome (correct, scoped, independently verified, safe for its tier) differ. Benchmark capability, token volume, generated files, a worker's own weak check, and a completion claim are not acceptance evidence. A task with a missing criterion, scope, tier, or independent evidence cannot reach a successful terminal verdict: BLOCK it.
+
+Agents return a completion record: artifacts, commands run with results, deltas, residual risks, confidence, acceptance status, typed escalation status. No transcripts. Narrative prose where structure is needed: reject and re-delegate with the format.
 
 **Skill inheritance is harness-specific.** Claude Code workers did not inherit the parent's active skills; other harnesses are unverified. Where a worker does not inherit, name the skill file instead of pasting its body.
 
@@ -221,7 +229,7 @@ After all delegated work returns:
 6. **Sequence recommendations** by priority and dependencies
 7. **Produce single coherent output** for the user
 
-Your output is not "analyst said X, architect said Y." It is "based on investigation and design review, the recommended action is Z because of X and Y."
+After an investigation, record before the next mutation: verified facts, unresolved conflicts, bounded scope, acceptance criteria, and a disposition (`CONTINUE`, `RESTART`, `BLOCK`, `STOP`). "Based on findings, fix it" is invalid. Not "analyst said X, architect said Y" but "the action is Z because of X and Y."
 
 ## Context Maintenance
 
@@ -295,22 +303,9 @@ When updating continuity state, capture behavioral signal, not background
 noise. Session log creation is discontinued; use the per-issue handoff and
 Serena memory.
 
-**Capture (signal):**
+**Capture (signal):** decisions that altered the plan, blockers with workarounds attempted and escalations needed, state changes (files, branches, issues, PRs), open questions, and next steps with enough context for a cold start.
 
-- **Decisions made**: architecture choices, approach changes, agent routing changes that altered the plan
-- **Blockers hit**: what stopped progress, workarounds attempted, escalations needed
-- **State changes**: files modified, branches created, issues filed, PRs opened
-- **Open questions**: unresolved ambiguities requiring human input or a follow-up session
-- **Next steps**: concrete continuation plan with enough context for a cold-start
-
-**Skip (noise):**
-
-- Tool invocations (already in transcript logs)
-- Background research that did not change the plan
-- Routine operations: file reads, status checks, lint runs
-- Intermediate agent responses that were superseded or rejected
-
-Each `workLog` entry should be one or two sentences: lead with the action or decision, then the result or rationale. A future agent reading the log must be able to reconstruct *why* a choice was made, not just *what* happened.
+**Skip (noise):** tool invocations, background research that did not change the plan, routine reads and lint runs, superseded agent responses. Each `workLog` entry is one or two sentences: the action or decision, then why.
 
 **Decision rule**: If removing an entry would leave the next session unable to reproduce a decision or continue the work, keep it. Otherwise, skip it.
 
@@ -322,9 +317,7 @@ per-issue handoff.
 
 **You cannot observe your own context usage.** The window size is not exposed to you, so any statement about how much of it remains is fabricated. Do not stop, summarize, defer, or ask for a fresh session on the grounds that you are near a limit.
 
-**Token cost and context pollution are separate costs.** Tokens are charged once, at the call. An imported worker transcript stays in your context, is billed again on every later turn, and competes for attention before the window is full. A larger window delays capacity pressure without removing that attention cost. Context isolation is a worker's distinctive benefit; lower wall-clock latency is a separate one.
-
-**Shared mental models create duplicated orientation cost.** Tasks that need the same files and conventions rebuild that understanding once per worker when they are split, and parallelism does not recover it. Overlapping file ownership is one proxy for that duplication.
+**Worker transcripts cost twice.** An imported transcript stays in your context, is billed on every later turn, and competes for attention. Workers that share files and conventions each rebuild that orientation, and parallelism does not recover it.
 
 **Checkpoint protocol** (runs once between routing waves, after the prior wave returns and before the next fans out):
 
@@ -358,9 +351,9 @@ These are backstops, not a completion test: reaching the terminal predicate (`bu
 - **Max agent delegations per task**: 15. Record a warning in the task tracker when 10 delegations have been made.
 - **Budget-exhausted behavior**: When the limit is reached, stop delegating, synthesize all work completed so far, list remaining unresolved items, and return control to the user with a clear summary of what was done and what was not.
 - **Delegation counter**: Track the running count in the task tracker.
-- **Max concurrent delegations per wave**: 4 by default. The binding cost is not the agents, it is the returns you are holding un-folded while the rest of the wave is still landing, which is the loss the Checkpoint protocol names above. Bound the wave at the number of returns you can actually fold before the next one arrives; 4 is a starting default, not a measured optimum. A wave of 5 or more is a prompt to ask whether two of those routes are the same question, not a licence to widen.
-- **A concurrent wave must not contain** a repository-wide git operation (fetch, checkout, rebase, branch switch, stash) or two agents that write the same file. Either one makes an agent's return depend on when it happened to run relative to its siblings, so the wave is no longer independent and its result is no longer reproducible. Route those serially, or give each agent its own worktree.
-- **Answer a lightweight question with a lightweight read.** Do not pull a whole agent return, session log, or file into context to settle something a targeted search or a single field would answer. The pull is not free: it spends the window you still owe the synthesis.
+- **Max concurrent delegations per wave**: 4 by default, a starting value, not a measured optimum. The binding cost is returns you hold un-folded while the wave lands (see Checkpoint protocol). Bound the wave at what you can fold before the next return arrives. A wave of 5 or more: ask whether two routes are the same question.
+- **A concurrent wave must not contain** a repository-wide git operation (fetch, checkout, rebase, branch switch, stash) or two agents writing the same file. Either makes a return depend on sibling timing and the result irreproducible. Route those serially or give each agent its own worktree.
+- **Answer a lightweight question with a lightweight read.** A targeted search or single field beats pulling a whole return, log, or file into the window you still owe the synthesis.
 
 ## Hook Feedback
 
