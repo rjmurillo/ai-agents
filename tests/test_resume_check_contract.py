@@ -47,7 +47,7 @@ RULES = (
     "Restore ACCEPTANCE and RISK TIER",
     "HOLD and surface it",
     "Never mutate on a guess",
-    "Delegate returns follow the Handoff Contract completion record.",
+    "Delegate returns follow the Handoff Contract.",
 )
 
 
@@ -153,7 +153,7 @@ def _handoff_contract(path: Path) -> str:
     return text[start : start + 3 + boundary.start()]
 
 
-@pytest.mark.parametrize("scenario_id", ["S27", "S28"])
+@pytest.mark.parametrize("scenario_id", ["S27", "S28", "S31"])
 @pytest.mark.parametrize("path", ORCHESTRATOR_PATHS, ids=str)
 def test_delegate_return_scenarios_tie_to_the_handoff_contract(
     path: Path, scenario_id: str
@@ -168,6 +168,8 @@ def test_delegate_return_scenarios_grade_the_tier_boundary() -> None:
     assert _scenario("S27")["expected_verdict"] == "REJECT"
     assert "shared-repository" in _scenario("S27")["input"]
     assert _scenario("S28")["expected_verdict"] == "ACCEPT"
+    assert _scenario("S31")["expected_verdict"] == "HOLD"
+    assert "consequential" in _scenario("S31")["input"]
     assert "read-only" in _scenario("S28")["input"]
 
 
