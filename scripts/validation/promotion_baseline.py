@@ -157,11 +157,12 @@ def fetch_baseline(
     Raises ``GitHubApiError`` when GitHub cannot answer, and ``ManifestError``
     when the chosen asset is not a promoted manifest.
     """
-    chosen = _find_baseline(reader, repo, exclude_tag)
     output_dir.mkdir(parents=True, exist_ok=True)
-    # A reused directory must not carry an earlier run's answer into this one.
+    # A reused directory must not carry an earlier run's answer into this one, even
+    # when this run then fails, so the files go before anything can raise.
     for stale in (MANIFEST_FILE_NAME, NO_BASELINE_FILE):
         (output_dir / stale).unlink(missing_ok=True)
+    chosen = _find_baseline(reader, repo, exclude_tag)
     if chosen is None:
         (output_dir / NO_BASELINE_FILE).write_text('{"baseline": "none"}\n', encoding="utf-8")
         return None

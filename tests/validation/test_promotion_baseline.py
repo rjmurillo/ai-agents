@@ -237,6 +237,19 @@ class TestFetch:
         fetch_baseline(first, repo=REPO, exclude_tag="", output_dir=out)
         assert sorted(p.name for p in out.iterdir()) == [MANIFEST_ASSET_NAME]
 
+    def test_a_failed_run_leaves_no_earlier_answer_behind(self, tmp_path: Path) -> None:
+        out = tmp_path / "o"
+        first = FakeReader([_release("v1")], {11: json.dumps(_manifest()).encode()})
+        fetch_baseline(first, repo=REPO, exclude_tag="", output_dir=out)
+        with pytest.raises(GitHubApiError):
+            fetch_baseline(FakeReader({"not": "a list"}), repo=REPO, exclude_tag="", output_dir=out)
+        assert list(out.iterdir()) == []
+        with pytest.raises(ManifestError):
+            fetch_baseline(
+                FakeReader([_release("v1")], {11: b"{"}), repo=REPO, exclude_tag="", output_dir=out
+            )
+        assert list(out.iterdir()) == []
+
     def test_a_body_over_the_cap_is_refused_even_with_valid_content(self, tmp_path: Path) -> None:
         body = json.dumps(_manifest()).encode() + b" " * MAX_MANIFEST_BYTES
         reader = FakeReader([_release("v1")], {11: body})
