@@ -48,7 +48,7 @@ Out of scope: relocating `scripts/{hook_utilities,github_core,ai_review_common}/
 
 | File | Action | Description |
 |---|---|---|
-| `scripts/sync_plugin_lib.py` | Delete | Standalone entry point retired; its `SYNC_PAIRS`, `SYNC_FILE_PAIRS`, and `IMPORT_CONVERSIONS` logic moves, not its file | <!-- orphan-ref-ignore -->
+| `scripts/sync_plugin_lib.py` | Delete | Standalone entry point retired; its `SYNC_PAIRS`, `SYNC_FILE_PAIRS`, and `IMPORT_CONVERSIONS` logic moves, not its file <!-- orphan-ref-ignore --> |
 | `build/scripts/build_all.py` (`_build_lib`, existing) | Modify | Absorbs the whole-package sync (with import rewrite) and the two individual file copies; now also writes `src/claude/lib/` alongside the existing `src/copilot-cli/lib/` target |
 | `templates/platforms/binplace.yaml` | Modify | Add the `lib` row(s); add a row (or a second path on the `skills` row) covering `.claude/skills/review/scripts/validate_review_marker.py`, the `SYNC_FILE_PAIRS` destination outside every `lib` prefix |
 | `build/scripts/build_all.py` (`OWNED_PREFIXES`) | Modify | Widen to include `.claude/lib/` |
@@ -56,7 +56,7 @@ Out of scope: relocating `scripts/{hook_utilities,github_core,ai_review_common}/
 | `.claude/rules/generated-artifacts.md` | Modify | "Generator order: sync before build" section rewritten; the hazard it names is eliminated by construction |
 | `.github/CODEOWNERS` | Modify | Entries for `scripts/hook_utilities/`, `scripts/github_core/`, and their `.claude/lib/` copies |
 | `.agents/governance/GENERATOR-FILES.md` | Modify | The `_build_lib` row's source description updates from `.claude/lib/` (a mirror-of-a-mirror) to `scripts/{hook_utilities,github_core,ai_review_common}/` directly |
-| Any contributor tooling or documentation invoking `scripts/sync_plugin_lib.py` directly | Modify | Update to the equivalent `build_all.py` invocation | <!-- orphan-ref-ignore -->
+| Any contributor tooling or documentation invoking `scripts/sync_plugin_lib.py` directly | Modify | Update to the equivalent `build_all.py` invocation <!-- orphan-ref-ignore --> |
 
 ## Implementation Notes
 
