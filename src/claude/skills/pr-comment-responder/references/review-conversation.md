@@ -39,11 +39,10 @@ review comments and pushback.
 The publisher renders a validated finding. It never changes the finding's
 technical severity.
 
-Dispositions and their comment prefixes come from
-`code-review-norms`, the repository's review-culture authority; this protocol extends it and does not restate it. In this file
-`BLOCKING` means no prefix (must address before merge), `OPTIONAL` means
-`Optional:`, `NIT` means `Nit:`, and `FYI` means `FYI:`. Only `BLOCKING`
-gates merge.
+The dispositions are `BLOCKING`, `OPTIONAL`, `NIT`, and `FYI`. Their comment
+prefixes come from `code-review-norms`, the repository's review-culture
+authority; this protocol extends it and does not restate the mapping. Only
+`BLOCKING` gates merge.
 
 - Render the disposition the finding carries. Do not promote a nit to
   `BLOCKING` or demote `BLOCKING` to `NIT` or `FYI`.
@@ -79,7 +78,8 @@ Escalate only a material disagreement that survives one evidence-rich reply.
 
 - Debt this PR introduces is fixed before merge.
 - Existing debt the PR makes unsafe or materially worse is addressed now.
-- Other existing debt is tracked separately and does not widen the PR.
+- Other existing debt does not widen the PR. Track it separately only when it
+  is worth fixing; incidental debt needs no new work item.
 - A promise to "clean up later" in a thread is not tracking. A deferral
   needs a filed issue or the repository's TODO convention, referenced as
   `Refs #<issue>`.
@@ -107,10 +107,13 @@ pressure.
 
 - A reply cycle with no new evidence ends in escalation to the owner, not a
   third rebuttal.
-- Round counts survive handoff. Read the persisted count with
-  `skills/github/scripts/pr/check_pr_round_cap.py`; a new agent or
-  context continues that count and never restarts it. The `review` skill's
-  self-audit cap (3 rounds per invocation) binds the same way.
+- Round counts survive handoff. A new agent or context continues the
+  persisted PR round count and never restarts it. That count lives in a PR
+  comment marker owned by
+  `skills/github/scripts/pr/check_pr_round_cap.py`. Every active call advances
+  the round and writes the marker, so never call it only to read state; read
+  the latest marker comment instead. The `review` skill's self-audit cap
+  (3 rounds) is a separate counter, local to one invocation and not persisted.
 - A resolved thread reopens only with new contradicting evidence cited in the
   reopening comment.
 
