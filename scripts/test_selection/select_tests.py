@@ -4,8 +4,8 @@ Applies the fail-safe rules from issue #5050: any non-Python change that is not
 a narrowable content test input, any ``conftest.py`` change, any test input that
 is not a content file, any dynamic import in a changed file, or any file the
 import graph cannot map falls back to the full suite. Otherwise the import graph
-yields the exact set of test files that transitively import the changed files. A changed Markdown, JSON, or
-text test input narrows to its readers (issue #5377): tests whose string
+yields the exact set of test files that transitively import the changed files. A
+changed Markdown, JSON, or text test input narrows to its readers (issue #5377): tests whose string
 constants name the path, plus every test that walks a directory tree, since a
 walker can read any path. See `reader_map.py`.
 
