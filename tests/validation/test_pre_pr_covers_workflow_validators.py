@@ -61,6 +61,11 @@ EXEMPT: dict[str, str] = {
         "every push. It costs about 38 seconds, measured, and pre-pr-validation "
         "has a four minute timeout against a 192 second baseline."
     ),
+    "report_rule_activation_states": (
+        "Report writer, not a check. It only emits a JSON artifact for CI upload "
+        "and has no pass or fail result of its own. The ratchet over the same "
+        "inventory, check_rule_activation_coverage, is gated by pre_pr."
+    ),
     "run_install_parity_ci": (
         "Thin CI wrapper that fetches the base ref and calls "
         "build/scripts/validate_install_parity.py, which pre_pr runs through "
