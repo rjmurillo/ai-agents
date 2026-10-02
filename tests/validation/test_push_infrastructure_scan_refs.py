@@ -299,7 +299,7 @@ def test_shallow_clone_gets_the_unshallow_remedy_not_the_rebase_advice(
     """
     work = tmp_path / "shallow"
     subprocess.run(
-        ["git", "clone", "-q", "--depth", "1", f"file://{origin.bare}", str(work)],
+        ["git", "clone", "-q", "--depth", "1", origin.bare.resolve().as_uri(), str(work)],
         cwd=tmp_path,
         check=True,
         capture_output=True,
@@ -366,3 +366,27 @@ def test_later_typed_failure_overrides_an_earlier_unreviewed_exit(
 
     assert result == later_exit
     assert scored == ["refs/heads/a", "refs/heads/b"]
+
+
+def test_mixed_push_reports_each_skipped_ref(
+    origin: Origin,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A notes ref beside a scanned branch is skipped, and the skip is named."""
+    work = work_clone(origin, tmp_path)
+    git(work, "checkout", "-q", "-b", "feature/docs", "origin/main")
+    docs = commit(work, "docs/note.md", "note\n")
+    main_tip = git(work, "rev-parse", "origin/main")
+    git(work, "notes", "add", "-m", "note", main_tip)
+    notes = git(work, "rev-parse", "refs/notes/commits")
+    payload = new_branch_line("feature/docs", docs)
+    payload += f"refs/notes/commits {notes} refs/notes/commits {ZERO}\n"
+
+    result = pre_push(work, payload, monkeypatch)
+
+    err = capsys.readouterr().err
+    assert result == 0, err
+    assert "refs/heads/feature/docs scores 1 file(s)" in err
+    assert "skipped refs/notes/commits" in err

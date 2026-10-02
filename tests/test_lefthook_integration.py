@@ -6053,7 +6053,34 @@ def test_fetch_origin_main_refreshes_stale_tracking_ref(tmp_path: Path) -> None:
     assert _git(repo, "rev-parse", "origin/main").stdout.strip() == second
 
 
-def test_fetch_origin_main_failure_warns_and_continues(
+def test_fetch_origin_main_updates_tracking_ref_when_refspec_excludes_main(
+    tmp_path: Path,
+) -> None:
+    """A narrowed remote.origin.fetch makes a plain source fetch touch only FETCH_HEAD."""
+    remote = tmp_path / "remote.git"
+    writer = tmp_path / "writer"
+    repo = tmp_path / "repo"
+    subprocess.run(["git", "init", "--bare", "-q", str(remote)], check=True)
+    _init_repo(writer, branch="main")
+    first = _commit_file(writer, "tracked", "first\n")
+    _git(writer, "remote", "add", "origin", str(remote))
+    _git(writer, "push", "-q", "origin", "main")
+    subprocess.run(
+        ["git", "--git-dir", str(remote), "symbolic-ref", "HEAD", "refs/heads/main"],
+        check=True,
+    )
+    subprocess.run(["git", "clone", "-q", str(remote), str(repo)], check=True)
+    _git(repo, "config", "remote.origin.fetch", "+refs/heads/other:refs/remotes/origin/other")
+    second = _commit_file(writer, "tracked", "second\n")
+    _git(writer, "push", "-q", "origin", "main")
+    assert _git(repo, "rev-parse", "origin/main").stdout.strip() == first
+
+    assert policy._fetch_origin_main(repo) is True
+
+    assert _git(repo, "rev-parse", "origin/main").stdout.strip() == second
+
+
+def test_fetch_origin_main_failure_returns_false_without_a_duplicate_warning(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -6063,7 +6090,7 @@ def test_fetch_origin_main_failure_warns_and_continues(
     refreshed = policy._fetch_origin_main(tmp_path)
 
     assert refreshed is False
-    assert "push fails until origin/main refreshes" in capsys.readouterr().err
+    assert "WARNING" not in capsys.readouterr().err
 
 
 def test_push_policy_blocks_main_and_preserves_destination_branch(

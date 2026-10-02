@@ -6473,16 +6473,23 @@ def _branch_name(ref: str) -> str | None:
 
 
 def _fetch_origin_main(repo_root: Path) -> bool:
-    """Refresh origin/main; return False (after a warning) when the fetch fails."""
-    result = _run_git(repo_root, ["fetch", "--no-tags", "--quiet", "origin", "main"])
-    if result.returncode != 0:
-        print(
-            "WARNING: could not refresh origin/main; the infrastructure scan will not "
-            "score a push from a stale base, and the push fails until origin/main refreshes",
-            file=sys.stderr,
-        )
-        return False
-    return True
+    """Refresh origin/main into its tracking ref; return False when the fetch fails.
+
+    The destination is explicit. A plain `git fetch origin main` updates only
+    FETCH_HEAD when `remote.origin.fetch` does not map main, which leaves the
+    tracking ref stale. The caller reports the failure, so this prints nothing.
+    """
+    result = _run_git(
+        repo_root,
+        [
+            "fetch",
+            "--no-tags",
+            "--quiet",
+            "origin",
+            "+refs/heads/main:refs/remotes/origin/main",
+        ],
+    )
+    return result.returncode == 0
 
 
 # Environment variable that allows force-pushing a branch the actor owns.
@@ -6708,7 +6715,7 @@ def _infrastructure_scan_files(
         raise PushUpdateConfigError(
             f"could not resolve merge-base({INFRASTRUCTURE_BASE_REF}, "
             f"{push_ref.local_sha[:12]}) for {push_ref.remote_ref}; the infrastructure "
-            "scan will not guess a base. Run `git fetch origin main` (and "
+            "scan will not guess a base. Run `git fetch origin +refs/heads/main:refs/remotes/origin/main` (and "
             "`git fetch --unshallow origin` in a shallow clone), then push again."
         )
     diff = _scan_git(
@@ -6801,6 +6808,13 @@ def check_pushed_infrastructure(
             file=sys.stderr,
         )
         return 0
+    for ref in refs:
+        if ref not in scanned_refs:
+            print(
+                f"Infrastructure scan: skipped {ref.remote_ref} "
+                "(deletion or not a branch or tag ref)",
+                file=sys.stderr,
+            )
     if not origin_refreshed:
         print(
             "ERROR: the infrastructure scan will not score from a stale origin/main, "
