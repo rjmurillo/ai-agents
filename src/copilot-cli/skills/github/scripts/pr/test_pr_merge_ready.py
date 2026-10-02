@@ -827,12 +827,128 @@ def _paginate_contexts(
     return extras, False
 
 
+# Advisory agent checks (owner policy: no agent workflow blocks a merge).
+#
+# The list lives in pr-review-config.yaml, which the completion gate
+# byte-compares against the trusted ref. This reader goes one step further and
+# reads the list FROM the trusted ref with `git show`, never from the work
+# tree: a PR that edits its own copy of the list must not be able to exempt its
+# own failing check (CWE-829, the same concern as the dispositions registry).
+# Every failure path returns an empty set, which leaves every check blocking.
+_ADVISORY_TRUSTED_REF = "origin/main"
+_ADVISORY_KEY = "advisory_agent_checks"
+_ADVISORY_ITEM = re.compile(r"""^\s+-\s+(?:"([^"\n]+)"|'([^'\n]+)'|([^\s#'"][^#\n]*?))\s*(?:#.*)?$""")
+
+
+def _parse_advisory_agent_checks(config_text: str) -> frozenset[str]:
+    """Read the `advisory_agent_checks` list without a YAML dependency.
+
+    This script runs on the host's bare ``python3`` (see the Python 3.10 note
+    above), where PyYAML is not guaranteed. The list is a flat block sequence
+    of scalars, so a line parser covers it; anything else yields an empty set.
+    """
+    names: list[str] = []
+    in_list = False
+    for line in config_text.splitlines():
+        if not in_list:
+            in_list = line.rstrip() == f"{_ADVISORY_KEY}:"
+            continue
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        match = _ADVISORY_ITEM.match(line)
+        if not match:
+            break
+        names.append(next(group for group in match.groups() if group is not None))
+    return frozenset(names)
+
+
+def _advisory_config_repo_path(script_dir: str) -> str | None:
+    """Repo-relative path of the sibling pr-review config, or None.
+
+    The config sits at ``<skills root>/pr-review/pr-review-config.yaml`` and
+    this script at ``<skills root>/github/scripts/pr/``. Resolving from the
+    script keeps the path correct under every skills root (the in-repo tree and
+    both plugin source trees) without naming one.
+    """
+    config = os.path.normpath(
+        os.path.join(script_dir, "..", "..", "..", "pr-review", "pr-review-config.yaml")
+    )
+    try:
+        top = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            cwd=script_dir,
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=10,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if top.returncode != 0 or not top.stdout.strip():
+        return None
+    relative = os.path.relpath(config, os.path.realpath(top.stdout.strip()))
+    if relative.startswith(".."):
+        return None
+    return relative.replace(os.sep, "/")
+
+
+def _load_advisory_agent_checks(
+    trusted_ref: str = _ADVISORY_TRUSTED_REF,
+    cwd: str | None = None,
+) -> frozenset[str]:
+    """Return the advisory agent check names stored at ``trusted_ref``.
+
+    Fails closed: a missing git, an unresolvable ref, a missing file, or a
+    timeout returns an empty set, so no check is exempted.
+    """
+    script_dir = os.path.dirname(os.path.realpath(__file__))
+    config_path = _advisory_config_repo_path(script_dir)
+    if config_path is None:
+        return frozenset()
+    repo_dir = cwd or script_dir
+    try:
+        result = subprocess.run(
+            ["git", "show", f"{trusted_ref}:{config_path}"],
+            cwd=repo_dir,
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=10,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return frozenset()
+    if result.returncode != 0:
+        return frozenset()
+    return _parse_advisory_agent_checks(result.stdout)
+
+
+def _exempt_advisory_checks(
+    failed_non_required: list[str],
+    pending_non_required: list[str],
+    advisory: frozenset[str],
+) -> list[str]:
+    """Remove advisory names from the non-required buckets; return what moved.
+
+    Only the non-required lists are touched. A listed check that the ruleset
+    requires sits in a required bucket and keeps blocking.
+    """
+    exempted: list[str] = []
+    for bucket in (failed_non_required, pending_non_required):
+        for name in [n for n in bucket if n in advisory]:
+            bucket.remove(name)
+            exempted.append(name)
+    return exempted
+
+
 def _evaluate_ci_checks(
     pr: dict,
     ignore_ci: bool,
     include_non_required: bool,
     reasons: list[str],
     owner: str = "", repo: str = "", pr_number: int = 0,
+    advisory: frozenset[str] = frozenset(),
 ) -> tuple[list[str], list[str], list[str], list[str], int, bool, int, bool]:
     """Classify rollup contexts and append CI reasons.
 
@@ -910,6 +1026,16 @@ def _evaluate_ci_checks(
                 pending_non_required=pending_non_required,
                 skipped_names=skipped_names,
             )
+            exempted = _exempt_advisory_checks(
+                failed_non_required, pending_non_required, advisory,
+            )
+            if exempted:
+                logger.info(
+                    "op=advisory_agent_checks_exempted pr=%d names=%s",
+                    pr_number, ",".join(sorted(set(exempted))),
+                )
+            # Exempted names are neither blocked nor passed, like SKIP rows.
+            skipped_names.extend(exempted)
             passed_checks = _count_passed_checks(
                 contexts,
                 blocked=(failed_required + pending_required
@@ -1308,6 +1434,7 @@ def check_merge_readiness(
      rollup_rows, contexts_pages_complete) = _evaluate_ci_checks(
         pr, ignore_ci, include_non_required, reasons,
         owner=owner, repo=repo, pr_number=pr_number,
+        advisory=_load_advisory_agent_checks(),
     )
     # Non-required disposition check: undisposed failures block merge
     undisposed = _check_nonrequired_dispositions(

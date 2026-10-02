@@ -13,9 +13,9 @@ on:
     # No path filter. The validate-spec job decides its own scope in its
     # "Decide scope" step (scripts/ci/spec_coverage_scope.py).
 
-  merge_group:
-    branches: [main]
-
+  # merge_group is not a trigger: validate-spec is the only job that needs it, it
+  # needs a pull request, and environment approval cannot happen in a queue run.
+  # The `if:` below keeps its merge_group term as a guard.
   workflow_dispatch:
     inputs:
       pr_number:
@@ -82,7 +82,7 @@ jobs:
     if: github.event_name != 'merge_group' && always() && (needs.debounce.result == 'success' || needs.debounce.result == 'skipped')
     # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
     runs-on: ubuntu-26.04-arm
-    environment: bot-secrets
+    environment: agent-approval
     # Budget: ceil(sum(3 * step timeout + 1.5) + 5) for 3, 3.
     timeout-minutes: 26
 

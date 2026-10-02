@@ -79,6 +79,26 @@ scripts:
 # whole session, so each script fails with HTTP 403 and none of those failures
 # says anything about the PR. Discovering that per call costs one failed round
 # trip per operation and invites a retry of a condition that has no reset.
+# Check contexts of workflows that run an agent or model. Owner policy: these
+# never block a merge, whether waiting for environment approval, pending,
+# skipped, cancelled, or failed, and each job runs only after approval in the
+# agent-approval environment. test_pr_merge_ready.py reads this list from the
+# trusted ref (origin/main), never from the PR branch, so a PR cannot exempt its
+# own failing check by editing it (CWE-829). A check that the branch ruleset
+# requires stays blocking even when it is listed here. claude.yml is excluded.
+advisory_agent_checks:
+  - "Validate Spec Coverage"
+  - "validate-slash-commands"
+  - "Run retrospective agent"
+  - "Evaluate software-engineering-library activation"
+  - "Analyze PR Metrics"
+  - "process-prs"
+  - "Scan Artifacts for Insights"
+  - "Run skill overlap eval"
+  - "Smoke (ubuntu-latest)"
+  - "Smoke (macos-latest)"
+  - "Smoke (windows-latest)"
+
 transport_preflight:
   # BEFORE reading command_key below, run verify_trust. Every command in
   # this file is PR-controlled when /pr-review runs after `gh pr checkout`,

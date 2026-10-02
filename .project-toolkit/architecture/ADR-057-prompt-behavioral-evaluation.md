@@ -89,7 +89,7 @@ Each evaluation consists of:
 The gate blocks regressions. It does not mandate an improvement on every edit. A prompt change passes behavioral evaluation when these criteria hold:
 
 1. `after_score >= before_score` (no regression on existing scenarios). Both scores cover only scenarios with a stable base result; see criterion 4.
-2. No scenario with a stable base result flips from pass to fail. A scenario passes on its verdict alone (the controlled label the grader is told to emit); the free-text reason never decides pass or fail. Every such pass-to-fail flip is recorded in `regressions` and blocks the gate automatically; the gate has no mechanism to accept a "justified" regression. Where the gate runs as a blocking CI leg (currently the `/spec` eval in `.github/workflows/slash-command-quality.yml`), a deliberate behavior change normally lands by updating the scenario expectations alongside the prompt in the same change, so the new expectations move with the intended behavior and the gate passes without a bypass. Only accepting a regression against unchanged expectations requires a human override (admin merge) with the rationale documented in the PR. For prompt files with no blocking CI leg, the gate is advisory and PR review carries the same judgment (see Amendment 2026-07-22).
+2. No scenario with a stable base result flips from pass to fail. A scenario passes on its verdict alone (the controlled label the grader is told to emit); the free-text reason never decides pass or fail. Every such pass-to-fail flip is recorded in `regressions` and blocks the gate automatically; the gate has no mechanism to accept a "justified" regression. The gate returns FAIL, but no CI check blocks a merge on that result. The `/spec` eval in `.github/workflows/slash-command-quality.yml` runs only after a reviewer approves the `agent-approval` environment, and its check is non-blocking (see Amendment 2026-10-02). A deliberate behavior change still lands by updating the scenario expectations alongside the prompt in the same change, so the new expectations move with the intended behavior and the gate passes when it is run. A reviewer who sees a FAIL, or no eval run at all, carries the judgment at PR review (see Amendment 2026-07-22).
 3. Flakiness on any scenario stays at or below the 40% block threshold.
 4. A stable baseline exists. A base scenario is unstable when it meets the pass threshold without passing every scored run (`is_base_unstable`: `passed` and `flaky`), or when it was scored on fewer runs than the tier requires (3 non-security, 5 security; the constants behind `insufficient_scored_before`). Stability is judged on scored runs, not requested runs. The base prompt never changes, so a swing is sampling noise, and a base scored once says nothing about stability. A base that fails the threshold (for example 1 of 3) is not unstable: it satisfies the baseline and cannot regress, which is intended. An unstable scenario is excluded from `regressions` and from both scores, and is reported in `base_unstable_scenarios` (in `base_unstable_security_scenarios` on the security tier) with `excluded_count`. The comparison is conclusive only when `scored_scenario_count >= max(1, ceil(total_scenarios / 2))` (`has_stable_baseline`). Below that floor the verdict is FAIL with an `inconclusive_reason` naming the stable and total counts. A hand-built comparison that omits `scored_scenario_count` is treated as having every scenario stable. A base that passes every scored run while the after side misses the pass threshold is still a regression.
 
@@ -132,9 +132,9 @@ For non-security prompts, when a scenario produces inconsistent results across r
 
 | Trigger | Level | Enforced By | Rationale |
 |---------|-------|-------------|-----------|
-| Prompt change alters instructions, thresholds, or decision logic | MUST (obligation to run) | Enforcement advisory: run eval-prompt-change.py before PR; PR review verifies. No commit-time auto-block; the `/spec` CI leg is the one blocking exception (see Amendment 2026-07-22) | Direct behavioral impact |
+| Prompt change alters instructions, thresholds, or decision logic | MUST (obligation to run) | Enforcement advisory: run eval-prompt-change.py before PR; PR review verifies. No commit-time auto-block, and no blocking CI leg; the `/spec` CI leg runs only after environment approval and is non-blocking (see Amendments 2026-07-22 and 2026-10-02) | Direct behavioral impact |
 | Prompt change alters text structure only | N/A | N/A (structural tests suffice) | No behavioral risk |
-| Ambiguous (rewording that may shift semantics) | MUST (obligation to run) | Enforcement advisory: run eval-prompt-change.py before PR; PR review verifies. No commit-time auto-block; the `/spec` CI leg is the one blocking exception (see Amendment 2026-07-22) | When in doubt, treat as behavioral |
+| Ambiguous (rewording that may shift semantics) | MUST (obligation to run) | Enforcement advisory: run eval-prompt-change.py before PR; PR review verifies. No commit-time auto-block, and no blocking CI leg; the `/spec` CI leg runs only after environment approval and is non-blocking (see Amendments 2026-07-22 and 2026-10-02) | When in doubt, treat as behavioral |
 | Monthly for prompts under active iteration | SHOULD | Not automated (manual cadence) | Detect model drift |
 | After Anthropic model version bump | SHOULD | Not automated (manual trigger) | Catch interpretation shifts |
 
@@ -215,7 +215,7 @@ Define targeted scenarios with expected verdicts. Run before/after comparison on
 
 ### Positive
 
-- Behavioral regressions are caught before merge where the eval runs as a blocking CI leg (currently `/spec`); for other in-scope prompt files the eval is advisory at PR review (see Amendment 2026-07-22)
+- Behavioral regressions are no longer caught automatically before merge. The `/spec` eval runs only when a human approves the `agent-approval` environment, and its check never blocks; for every in-scope prompt file the eval is advisory at PR review (see Amendments 2026-07-22 and 2026-10-02)
 - Evaluation results are versioned and reproducible
 - Model drift is detectable through scheduled reruns
 - Completes the testing story that ADR-023 left open
@@ -236,7 +236,7 @@ Define targeted scenarios with expected verdicts. Run before/after comparison on
 
 ### Enforced (automated gates)
 
-These gates run inside `eval-prompt-change.py`. They fire whenever the eval runner is invoked: advisorily when a contributor runs it before a PR, and as a blocking check when the `/spec` CI leg (`.github/workflows/slash-command-quality.yml`) invokes it on a same-repo PR that changes the `/spec` command, its scenario set, or the eval runner. That leg always evaluates the `/spec` command behavior only; a change to the scenario set or the runner triggers a re-evaluation of that same command. No commit-time hook auto-invokes them (see Amendment 2026-07-22).
+These gates run inside `eval-prompt-change.py`. They fire whenever the eval runner is invoked: advisorily when a contributor runs it before a PR, and as a non-blocking check when the `/spec` CI leg (`.github/workflows/slash-command-quality.yml`) invokes it, after environment approval, on a same-repo PR that changes the `/spec` command, its scenario set, or the eval runner. That leg always evaluates the `/spec` command behavior only; a change to the scenario set or the runner triggers a re-evaluation of that same command. No commit-time hook auto-invokes them (see Amendment 2026-07-22).
 
 | Rule | Enforced By | Mechanism |
 |------|-------------|-----------|
@@ -254,7 +254,7 @@ These gates run inside `eval-prompt-change.py`. They fire whenever the eval runn
 
 | Rule | Why Not Automated | Mitigation |
 |------|-------------------|------------|
-| Prompt/skill/agent changes require eval evidence | No commit-time hook (deleted in #3184); one CI leg blocks for `spec.md` only, broader CI automation deferred (below) | PR reviewer checks for eval evidence; advisory except the `/spec` CI leg |
+| Prompt/skill/agent changes require eval evidence | No commit-time hook (deleted in #3184); no CI leg blocks (the `/spec` leg is approval-gated and non-blocking), broader CI automation deferred (below) | PR reviewer checks for eval evidence; advisory for every prompt, including the `/spec` CI leg |
 | >= 1 scenario per decision branch | Requires understanding prompt semantics | PR reviewer checks scenario adequacy |
 | >= 1 regression scenario | Same | PR reviewer checks |
 | Monthly drift reruns | Scheduling concern, not commit-time | Manual cadence, future cron job |
@@ -264,7 +264,7 @@ These gates run inside `eval-prompt-change.py`. They fire whenever the eval runn
 
 ### Enforcement Path
 
-- **Current**: No commit-time gate. The deleted PreToolUse hook that nominally blocked commits (`invoke_prompt_eval_gate.py`) was inert (it printed `{"decision":"deny"}` with exit 0, a payload the Claude Code harness ignores) and was removed in #3184. One CI leg does block: `.github/workflows/slash-command-quality.yml` runs the `eval-prompt-change.py` acceptance gate against `.claude/commands/spec.md` on same-repo PRs that change the `/spec` command, its scenario set (`tests/evals/spec-scenarios.json`), or the eval runner, and fails the check on regression. That leg covers `spec.md` only. For every other prompt, skill, and agent file the eval evidence requirement is advisory, verified at PR review. The `eval-prompt-change.py` acceptance gate enforces regression, flakiness, and security-critical rules only when it is run.
+- **Current**: No commit-time gate. The deleted PreToolUse hook that nominally blocked commits (`invoke_prompt_eval_gate.py`) was inert (it printed `{"decision":"deny"}` with exit 0, a payload the Claude Code harness ignores) and was removed in #3184. One CI leg runs the eval but does not block: `.github/workflows/slash-command-quality.yml` runs the `eval-prompt-change.py` acceptance gate against `.claude/skills/spec/SKILL.md` on same-repo PRs that change the `/spec` command, its scenario set (`tests/evals/spec-scenarios.json`), or the eval runner, only after a reviewer approves the `agent-approval` environment, and its check is listed in `advisory_agent_checks` so it never blocks a merge (Amendment 2026-10-02). That leg covers the `/spec` command only. For every other prompt, skill, and agent file the eval evidence requirement is advisory, verified at PR review. The `eval-prompt-change.py` acceptance gate enforces regression, flakiness, and security-critical rules only when it is run.
 - **Not automated**: Scenario adequacy, monthly cadence, cost tracking. These require human judgment or scheduling infrastructure not yet built.
 - **Future**: Broader CI automation of eval runs, beyond the `/spec` leg that already ships. Deferred until the eval runner stabilizes and the cost model is validated.
 
@@ -274,11 +274,11 @@ The original ADR claimed a deleted Claude Code PreToolUse hook (`invoke_prompt_e
 
 #3184 deleted the inert hook. This amendment corrects the resulting torn references (the Acceptance Gate note, the "When to Run" and "Confirmation" tables, the Consequences list, the Enforcement Path, and the dependent-components table) so the ADR no longer points at a deleted file or asserts an automated block that never existed, and it scopes the one real block (the `/spec` CI leg) precisely.
 
-Decision (Deliverable B of #3185): keep **enforcement** of the eval evidence requirement advisory (PR review) for every prompt file except the `/spec` CI leg that already blocks; the contributor obligation to run the eval on a behavioral change stays MUST. Do not add a new blocking gate. Rationale:
+Decision (Deliverable B of #3185): keep **enforcement** of the eval evidence requirement advisory (PR review) for every prompt file, including the `/spec` CI leg after Amendment 2026-10-02; the contributor obligation to run the eval on a behavioral change stays MUST. Do not add a new blocking gate. Rationale:
 
 - The hook-ROI reduction program (#3197) is removing gates and re-homing them into deterministic layers, not adding new blocking hooks.
 - Two distinct automation options exist, and they are not the same deliverable. Option 1 is Deliverable A of #3185: deterministic evidence enforcement (check that eval evidence exists for a changed prompt file) in `scripts/validation/pre_pr.py` plus a CI leg. It needs no LLM and no cost model, reusing changed-path detection (the paths-filter mechanism the `/spec` leg uses to trigger) and then checking for committed eval evidence; it is deferred only on ROI grounds. Option 2 is separate and out of scope for Deliverable A: running the behavioral evals themselves in CI on every prompt change, which spawns LLM calls per change and stays deferred until the cost model is validated.
-- This ADR's own Future path already defers broad CI eval automation "until the eval runner stabilizes and cost model is validated." One exception already shipped: the `/spec` leg runs the behavioral eval for `spec.md` because that command is high-traffic and its scenario set is maintained.
+- This ADR's own Future path already defers broad CI eval automation "until the eval runner stabilizes and cost model is validated." One exception shipped: the `/spec` leg runs the behavioral eval because that command is high-traffic and its scenario set is maintained. After Amendment 2026-10-02 it runs only on approval and never blocks.
 - The acceptance gate inside `eval-prompt-change.py` remains real and is used both by the `/spec` CI leg and by any contributor who runs an eval before a PR.
 
 If a broader deterministic gate is later warranted (Deliverable A), it belongs in `scripts/validation/pre_pr.py` plus a CI leg with real change-to-evidence matching, not a PreToolUse hook. Running the behavioral evals for all prompt files in CI stays deferred until the cost model this ADR defers is validated.
@@ -294,6 +294,14 @@ Follow-up decision (owner D3=A, after the full panel): the comparison needs a st
 Trade-offs, accepted. Verdict-only scoring trades false blocks for false passes: a right-answer-wrong-reason pass is no longer caught, and a real regression on a scenario that passes only some base runs is reported, not blocked. The ceiling threshold is non-monotone: required passes for n = 1 to 6 scored runs are 1, 2, 2, 3, 4, 4.
 
 Accepted limits with revisit triggers. The stable set is drawn from one noisy 3-run base sample, so a 3/3 draw on a noisy base is treated as stable. Revisit after 10 live gate runs, when the base-unstable exclusion rate exceeds 25%, or when a scenario flips between stable and unstable across reruns. The long-term design is a pooled paired test. Two further limits share that trigger: a stricter after-side threshold for scenarios that were stable at base, and a chance correction for two-valued scenarios (critic findings 8 to 10 in the debate log). A provider outage exits 0 (pre-existing fail-open behavior). It must be fixed before this eval becomes a required check. A base that passes every scored run and an after side that fails still blocks. A structured grader field that keeps a right-answer-wrong-reason check remains an option, but it needs live grader runs to author.
+
+## Amendment 2026-10-02: agent workflows are non-blocking and need approval
+
+Owner policy (decisions D4, D6, D8): no workflow that runs an agent or model starts automatically. Each such workflow must be non-blocking and must wait for approval before it runs. The mechanism is a GitHub environment, `agent-approval`, with required reviewers; a job that calls a model declares `environment: agent-approval`. `claude.yml` is excluded from this policy. The policy covers nine workflows, including `slash-command-quality.yml`, whose `validate-slash-commands` job runs the `/spec` eval.
+
+Decision: the `/spec` CI leg stays in place but no longer blocks a merge. Its check, `validate-slash-commands`, is listed in `advisory_agent_checks` in `.claude/skills/pr-review/pr-review-config.yaml`. `test_pr_merge_ready.py` reads that list from the trusted ref (`origin/main`), never the PR branch, and ignores a listed check whether it is waiting for approval, pending, skipped, cancelled, or failed. A check the branch ruleset requires stays blocking even when listed.
+
+Consequence, stated plainly: prompt regressions are no longer caught automatically before merge. A human must approve the `agent-approval` environment, or dispatch the workflow, for the eval to run, and a reviewer must read its result. The acceptance gate itself is unchanged: it still returns FAIL on a regression when it runs. Amendment 2026-07-22 and the 2026-09-30 amendment remain in force for everything else.
 
 ## Reversibility Assessment
 
@@ -313,7 +321,7 @@ Accepted limits with revisit triggers. The stable set is drawn from one noisy 3-
 |-----------|----------------|-----------------|------|
 | ADR-023 structural tests | Complementary | Add cross-reference to this ADR | Low |
 | PR template | Direct | Add eval score reporting fields | Low |
-| CI workflows | Indirect | `spec.md` evals run as a blocking CI leg (`.github/workflows/slash-command-quality.yml`); other prompt files are not CI-enforced yet | Low |
+| CI workflows | Indirect | `/spec` evals run as an approval-gated, non-blocking CI leg (`.github/workflows/slash-command-quality.yml`); other prompt files are not CI-enforced yet | Low |
 | `.project-toolkit/testing/prompt-eval-methodology.md` | Source document | Add ADR-057 back-reference | Low |
 
 ## Related Decisions
