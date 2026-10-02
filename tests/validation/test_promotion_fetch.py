@@ -334,7 +334,7 @@ class _Pages:
         self.asked.append((params or {})["page"])
         return self.pages[min(len(self.asked), len(self.pages)) - 1]
 
-    def get_bytes(self, path: str) -> bytes:  # pragma: no cover - unused
+    def get_bytes(self, path: str, accept: str | None = None) -> bytes:  # pragma: no cover - unused
         raise AssertionError
 
 
