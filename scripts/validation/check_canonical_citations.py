@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
-"""Heuristic check that mirror-claims cite a canonical path.
+"""Heuristic check that mirror-claims carry a canonical path or structural evidence.
 
 This script enforces the spirit of `.claude/rules/canonical-source-mirror.md`
 at the file-rule layer. When a Python source file under
 `.claude/hooks/`, `scripts/validation/`, `build/scripts/`, or `.claude/skills/` contains a
 docstring or top-level comment that asserts the file "matches", "mirrors",
-or is "aligned with" some other source, this check verifies that within the
-same file there is at least one path-like reference (e.g.
-`scripts/foo.py`, `.project-toolkit/architecture/ADR-001.md`,
-`build/scripts/bar.py`) somewhere in the docstrings or top-level comments.
+or is "aligned with" some other source, this check verifies that the file
+carries a canonical path or structural evidence. A path is a path-like
+reference (e.g. `scripts/foo.py`, `.project-toolkit/architecture/ADR-001.md`,
+`build/scripts/bar.py`) in the docstrings or top-level comments. Structural
+evidence is listed below.
 
 Evidence ranks per `scripts/validation/mirror_evidence.py`: a path reference,
 a conformance test identifier, a shared import of a project name, or a
@@ -71,7 +72,6 @@ from scripts.validation.mirror_evidence import (  # noqa: E402
     REMEDIATION,
     copied_contract_marker,
     imported_project_names,
-    owned_roots,
     structural_evidence,
 )
 
@@ -124,7 +124,7 @@ _MODULE_DOCSTRING_RE: re.Pattern[str] = re.compile(
 
 @dataclass
 class Violation:
-    """A file that triggers a mirror-claim with no path citation."""
+    """A file that triggers a mirror-claim with no canonical path or structural evidence."""
 
     path: Path
     matched_token: str
@@ -250,7 +250,7 @@ def scan_file(path: Path, repo_root: Path = _PROJECT_ROOT) -> Violation | None:
         return None
 
     if _has_path_reference(text) or structural_evidence(
-        text, imported_project_names(source, owned_roots(repo_root, path.parent))
+        text, imported_project_names(source, repo_root, path.parent)
     ):
         return None
 
@@ -274,7 +274,7 @@ def scan_copied_contract(path: Path, repo_root: Path = _PROJECT_ROOT) -> CopyFin
         return None
     marker = copied_contract_marker(text)
     if marker is None or structural_evidence(
-        text, imported_project_names(source, owned_roots(repo_root, path.parent))
+        text, imported_project_names(source, repo_root, path.parent)
     ):
         return None
     return CopyFinding(path=path, marker=marker)
@@ -333,8 +333,9 @@ def format_report(violations: list[Violation], strict: bool) -> str:
         f"{label} {len(violations)} uncited mirror-claim(s) found.",
         "",
         "These files contain a mirror-claim (matches/mirrors/aligned with) "
-        "in a docstring or top-level comment but cite no path-like "
-        "reference within those areas.",
+        "in a docstring or top-level comment but carry no canonical path "
+        "or structural evidence (conformance test, shared import, "
+        "generated-from statement).",
         "",
         "See `.claude/rules/canonical-source-mirror.md` for what to do.",
         "",

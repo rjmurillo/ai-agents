@@ -81,7 +81,7 @@ The reviewer cannot tell from the diff which level of evidence backed your claim
 - When you assert a behavior exists or does not exist, quote the test that proves it or the file location that defines it.
 - When you cannot get to level 1-3 in this session (the file is unreachable, the test cannot run, the API is offline), say so explicitly and downgrade the claim or remove it.
 
-A docstring that says "matches the validator" with no path is a level-4 claim dressed as level-1. The reviewer has no choice but to either trust it or open the validator themselves; if they trust it and you were wrong, the cost is a follow-up commit. Pay the cost at write time; it is roughly zero.
+A docstring that says "matches the validator" with neither a path nor structural evidence (a shared import, a conformance test, a generator) is a level-4 claim dressed as level-1. The reviewer has no choice but to either trust it or open the validator themselves; if they trust it and you were wrong, the cost is a follow-up commit. Pay the cost at write time; it is roughly zero.
 
 ## BLOCKING: Read Project Documentation First
 

@@ -244,3 +244,31 @@ def test_main_judges_imports_against_repo_root(repo: Path) -> None:
     (repo / "canonpkg").mkdir()
     _write(repo, '"""Mirrors the CANON contract."""\nfrom canonpkg import CANON\n')
     assert ccc.main(["--repo-root", str(repo), "--strict"]) == 0
+
+
+def test_missing_module_under_owned_root_is_not_evidence(repo: Path) -> None:
+    body = (
+        '"""Mirrors the CONTRACT by importing it."""\nfrom scripts.does_not_exist import CONTRACT\n'
+    )
+    path = _write(repo, body)
+    assert ccc.scan_file(path, repo) is not None
+    assert ccc.scan_copied_contract(path, repo) is None
+
+
+def test_missing_module_in_plain_import_is_not_evidence(repo: Path) -> None:
+    body = '"""Mirrors scripts.does_not_exist by importing it."""\nimport scripts.does_not_exist\n'
+    assert ccc.scan_file(_write(repo, body), repo) is not None
+
+
+def test_existing_dotted_module_is_evidence(repo: Path) -> None:
+    (repo / "scripts" / "canon.py").write_text("CONTRACT = 1\n", encoding="utf-8")
+    body = '"""Mirrors the CONTRACT by importing it."""\nfrom scripts.canon import CONTRACT\n'
+    assert ccc.scan_file(_write(repo, body), repo) is None
+
+
+def test_relative_import_must_resolve_to_a_sibling(repo: Path) -> None:
+    body = '"""Mirrors the CONTRACT by importing it."""\nfrom .missing import CONTRACT\n'
+    assert ccc.scan_file(_write(repo, body), repo) is not None
+    (repo / "scripts" / "validation" / "present.py").write_text("CONTRACT = 1\n", encoding="utf-8")
+    ok = '"""Mirrors the CONTRACT by importing it."""\nfrom .present import CONTRACT\n'
+    assert ccc.scan_file(_write(repo, ok), repo) is None
