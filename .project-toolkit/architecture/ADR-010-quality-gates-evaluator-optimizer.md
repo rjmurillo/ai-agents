@@ -11,10 +11,6 @@ implemented: false
 
 # ADR-010: Quality Gates with Evaluator-Optimizer Pattern
 
-## Status
-
-Accepted
-
 ## Date
 
 2025-12-20

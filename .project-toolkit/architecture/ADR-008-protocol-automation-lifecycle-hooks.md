@@ -11,10 +11,6 @@ implemented: true
 
 # ADR-008: Protocol Automation via Lifecycle Hooks
 
-## Status
-
-Accepted
-
 ## Date
 
 2025-12-20

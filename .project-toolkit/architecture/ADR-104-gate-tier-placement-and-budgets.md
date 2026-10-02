@@ -415,10 +415,25 @@ needs a measurement, not a guess. In a container they are clamped to 150s
 regardless, which is why the container bound does not wait on that
 measurement.
 
-ADR-054's 900s budget for `security-scan` is three times the 300s pre-push
-target. The target does not overturn it. Whichever record is wrong, they cannot
-both stand; reconciling them is out of scope here and named rather than left
-for a reader to notice.
+ADR-054's 900s budget for `security-scan` and the 300s pre-push target measure
+different things, so both stand. 900s is the per-job kill ceiling: the longest
+a single job may run before it is killed. 300s is the whole-hook target: what a
+push should cost end to end. One job can therefore run longer than 300s without reaching
+its ceiling. ADR-054 carries the same reading in its 2026-09-29 amendment.
+Reconciled under issue #5318, item 5.
+
+Measured in `.project-toolkit/metrics/gate-latency-v0.7.0.md` (PR #5813, one
+4-CPU container, n=2 per pre-push class): `security-scan` 9.96s worst, whole
+pre-push hooks 124s to 128s worst. That sample is small and carries no load
+average, so it supports "not warranted on the measured classes", not a general
+bound.
+
+A hook-level deadline (issue #5318, item 4) is not adopted on these numbers.
+The worst measured push was 128s, 43 percent of 300s. The `workflows` class,
+which fires `workflow-local-run` at a 30m cap, is outside that conclusion: it
+is unmeasured because it needs `act` and a container runtime, which the
+measuring environment lacks. Revisit the deadline when that job is measured or
+when any measured push passes 150s.
 
 ## Prior Art Investigation
 
@@ -462,7 +477,7 @@ a status quo where the push does not complete.
 | Narrow the local selector to a per-path allowlist | Keeps local execution for real Python changes | An allowlist does not bound cost for a large Python change, where the graph maps everything and the subset is still large | Rejected as the primary fix. The fail-open objection an earlier revision gave was wrong: CI already maintains exactly such an allowlist and `runtime_read_patterns.txt` is nearly a copy of it. Making the two agree is worth doing and is issue #5318 |
 | Drop `python-tests` from pre-push entirely | Cheapest possible hook | A broken import would reach CI and burn a whole matrix | Rejected: gives up the defect class that most deserves a local gate |
 | Keep execution, drop the mutation, safe-push and pr-autofix partitions locally | Saves the measured 212s those three cost | Leaves the 258s bulk partition | Rejected as insufficient, though CI does run those three as separate matrix legs, so they were already duplicated |
-| A hard hook deadline that defers remaining gates to CI on expiry | Bounds the push directly | Untried here; needs a resume story | Not chosen now, recorded because a container-reclaimed push is strictly worse than a self-aborted one, and that asymmetry deserves weighing (issue #5318) |
+| A hard hook deadline that defers remaining gates to CI on expiry | Bounds the push directly | Untried here; needs a resume story | Not adopted. Weighed under issue #5318, item 4: the container-reclaim asymmetry is real, but #5813 measured whole pre-push hooks at 124s to 128s against the 300s target on the measured classes. `workflow-local-run` is unmeasured. Revisit when it is measured or a measured push passes 150s |
 | Collect instead of execute on the fallback | 14s against 382s, still blocks import and syntax defects, CI executes the same commit | Gives up local assertion results for the fallback class | **Chosen** |
 
 ### Trade-offs
@@ -586,7 +601,8 @@ two that failed are recorded as failing rather than dropped quietly.
 - ADR-071: placed the credentialed CLI e2e smokes in pre-push. Not overturned;
   listed under Known non-conformances.
 - ADR-054: set the one prior pre-push cost bar, qualitatively, and an enforced
-  900s budget for `security-scan` that this record's 300s target contradicts.
+  900s per-job kill ceiling for `security-scan`. It is compatible with this
+  record's 300s whole-hook target (see Known non-conformances).
 - ADR-049: pre-PR validation gates.
 - ADR-101: enforcement planes. Complementary: that record asks whether a gate's
   verdict can be trusted, this one asks where a gate should run.

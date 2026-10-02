@@ -35,8 +35,7 @@ _SCRIPT_DIR = Path(__file__).resolve().parent
 _REPO_ROOT = _SCRIPT_DIR.parent.parent
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
-sys.path.insert(0, str(_SCRIPT_DIR))
-from check_rule_activation_coverage import (  # noqa: E402
+from scripts.validation.check_rule_activation_coverage import (  # noqa: E402
     DEFAULT_BASELINE_NAME,
     NEGATIVE_GATE,
     RULE_SCENARIOS_SUBDIR,
@@ -62,8 +61,10 @@ def _without_negative_case(repo_root: Path, kind: str) -> set[str]:
     """Ids whose scenario file has no negative case (`expected_gate` NEGATIVE_GATE)."""
     if kind == "rule":
         scenario_dir, artifact_dir, key = RULE_SCENARIOS_SUBDIR, RULES_SUBDIR, "rule_path"
-    else:
+    elif kind == "skill":
         scenario_dir, artifact_dir, key = SKILL_SCENARIOS_SUBDIR, SKILLS_SUBDIR, "skill_path"
+    else:
+        raise CoverageConfigError(f"unknown artifact kind {kind!r}; expected 'rule' or 'skill'")
     missing: set[str] = set()
     for path in sorted((repo_root / scenario_dir).glob("*.json")):
         data = _read_scenario_json(path)

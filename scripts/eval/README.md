@@ -819,7 +819,7 @@ Adding a new activation eval:
 
 ### Evidence states in the coverage gate
 
-`scripts/validation/report_rule_activation_states.py --output PATH` writes JSON that keeps three states apart, so baseline membership is never read as efficacy:
+`scripts/validation/report_rule_activation_states.py --output PATH` writes JSON that keeps each evidence state apart, so baseline membership is never read as efficacy:
 
 - `baseline_exempt`: no scenario exists and only the baseline allows it. Not evidence.
 - `scenario_defined_not_scored`: a scenario with a positive and a negative case exists. The evaluator accepts it; nothing says it was run.

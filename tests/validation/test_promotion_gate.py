@@ -266,7 +266,15 @@ class TestCli:
     @pytest.fixture(autouse=True)
     def _git_answers_yes(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Mock the git boundary. test_promotion_candidate.py drives real repositories."""
-        table = (Applicability("pytest", "commit", "Run Python Tests", ("always",), "test row"),)
+        row = Applicability(
+            validator="pytest",
+            tier="commit",
+            workflow=".github/workflows/pytest.yml",
+            job="Run Python Tests",
+            when=("always",),
+            rationale="test row",
+        )
+        table = (row,)
         monkeypatch.setattr(gate, "load_applicability", lambda _root: table)
         monkeypatch.setattr(gate, "candidate_files", lambda *_a: ())
         monkeypatch.setattr(gate, "candidate_on_branch", lambda *_a: (True, "ok"))

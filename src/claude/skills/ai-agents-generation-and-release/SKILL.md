@@ -99,7 +99,7 @@ Interpreter note: `build/generate_agents.py` and `build/scripts/build_all.py` bo
 | `.claude/skills/<name>/SKILL.md` (hand-maintained) or `templates/skills/<name>.SKILL.md.tmpl` (template-owned; ADR-108, ADR-109), plus `.claude/rules/` | `uv run python build/scripts/build_all.py` | commit source or template, plus both rendered copies for a template-owned skill. No manifest edit (Phase 4) |
 | `.claude/hooks/` or `.claude/settings.json` | `uv run python build/scripts/build_all.py` | same as above. The `build-all-check` pre-push job in `lefthook.yml` re-runs `build_all.py --check` at `git push` time and blocks if any generated output (including shims under `src/copilot-cli/hooks/`) drifts, so regenerate BEFORE pushing. |
 | `scripts/hook_utilities/`, `scripts/github_core/`, `scripts/ai_review_common/` | `uv run python build/scripts/build_all.py` (writes both lib trees, binplaces `.claude/lib/`, B5) | One command; no manifest edit. |
-| `src/claude/AGENTS.md`, `src/claude/claude-instructions.template.md` (root-level, hand-maintained; no template) | nothing to regenerate | commit directly; not one of the 31 agent stems |
+| `src/claude/AGENTS.md`, `src/claude/claude-instructions.template.md` (root-level, hand-maintained; no template) | nothing to regenerate | commit directly; not an agent stem |
 
 Useful flags, verified against source:
 

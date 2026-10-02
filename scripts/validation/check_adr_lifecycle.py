@@ -70,7 +70,8 @@ Checks, each named so the baseline tracks them separately:
                                   (both directions), plus no supersession cycles
     supersession-target-exists   every named id resolves to a file; no self-supersession
     proposed-cannot-supersede    a `proposed` record may not declare `supersedes`
-    prose-frontmatter-agree      the first `## Status` line matches the frontmatter enum
+    prose-frontmatter-agree      a `## Status` section, when present, opens with the frontmatter
+                                  enum and says more than that word (ADR-073, amended 2026-09-29)
     status-edge-consistency      status: superseded iff a superseded-by edge resolves
 
 `status-edge-consistency` closes a gap `supersession-reciprocal` leaves open
@@ -92,8 +93,9 @@ removal rationale.
 Checks 2 to 8 need parseable frontmatter, so a record failing `frontmatter-parses`
 contributes one violation, not eight. The same containment runs downstream:
 `prose-frontmatter-agree` is skipped when the status section is absent
-(the record simply has no prose status) or the enum value is invalid (`status-enum`
-owns that), and `supersession-reciprocal` ignores an edge that
+(the record simply has no prose status, which ADR-073 prefers to a
+restatement) or the enum value is invalid (`status-enum` owns that), and
+`supersession-reciprocal` ignores an edge that
 `supersession-target-exists` already rejected. Without it one defect would
 inflate several counts and the baseline would move for reasons the author did
 not cause.
@@ -618,6 +620,62 @@ def _status_prose(body: str) -> str | None:
     return inline.group(1).strip() if inline is not None else None
 
 
+# A status section that says nothing the frontmatter does not: the enum word,
+# optionally with a date or the supersession target, and closing punctuation.
+# ADR-073 amendment 2026-09-29 (issue #5242): such a section is forbidden.
+_RESTATEMENT_DATE = r"(?:on\s+)?\(?\d{4}-\d{2}-\d{2}\)?[\s.,]*"
+_RESTATEMENT_RE = re.compile(
+    r"^[*_`~>\[\s]*(?P<word>[A-Za-z]+)[*_`~\]\s.,]*"
+    rf"(?P<d1>{_RESTATEMENT_DATE})?"
+    r"(?P<succ>by\s+\[?ADR-\d+\]?(?:\([^)\s]*\))?[\s.,]*)?"
+    rf"(?P<d2>{_RESTATEMENT_DATE})?$",
+    re.IGNORECASE,
+)
+
+
+# A real restatement is a word, a date and a successor id. The cap keeps the
+# regex from backtracking over a long run of spaces inside one line, which
+# measured 4.3s at 32k spaces.
+_MAX_RESTATEMENT_LINE = 200
+
+
+def _status_section_lines(body: str) -> list[str]:
+    """Non-blank lines under the `## Status` heading, or empty when absent.
+
+    Same heading rule and code-block blanking as `_status_prose`, so the two
+    never disagree about which section is the record's own. The inline
+    `**Status**:` form is not a section and returns empty here.
+    """
+    prose = blank_non_prose_block_lines(body)
+    heading = _STATUS_HEADING_RE.search(prose)
+    if heading is None:
+        return []
+    lines: list[str] = []
+    for line in prose[heading.end() :].splitlines():
+        if _LEVEL_TWO_HEADING_RE.match(line):
+            break
+        if line.strip():
+            lines.append(line.strip())
+    return lines
+
+
+def _restates_status(lines: list[str]) -> bool:
+    """True when the whole section is one enum-word line and nothing else.
+
+    The caller has already proved the line's lead word equals the frontmatter
+    status, so this only decides whether anything follows the word: at most one
+    date (optionally after "on"), and for `superseded` a successor id or link.
+    """
+    if len(lines) != 1 or len(lines[0]) > _MAX_RESTATEMENT_LINE:
+        return False
+    match = _RESTATEMENT_RE.match(lines[0])
+    if match is None or (match.group("d1") and match.group("d2")):
+        return False
+    # A successor is part of a restatement only for `superseded`; "Accepted by
+    # ADR-042" names a different fact than the frontmatter carries.
+    return not match.group("succ") or match.group("word").lower() == "superseded"
+
+
 def _check_prose(record: Record) -> list[Violation]:
     """`prose-frontmatter-agree` for one record.
 
@@ -628,17 +686,18 @@ def _check_prose(record: Record) -> list[Violation]:
     ADR-042" is duplication, and duplication is a drift surface rather than a
     service to the reader.
 
-    ADR-073 does choose dual representation: the Decision retains the prose
-    section as a secondary rendering, so it stays in the template and this gate
-    reads it wherever it appears. What it never states is that every record must
-    restate the enum in prose; line 57 says the section "remains for humans and
-    **may** carry the nuance the enum cannot". Turning presence into a MUST is a
-    stronger rule than the ADR writes, and the owner declined it on the record
-    that first tripped it. Making it mandatory is an ADR-073 amendment, not a
-    validator default (raised on PR #5209).
+    ADR-073 as amended on 2026-09-29 (issue #5242, owner decision A) makes the
+    prose section optional. It is permitted when it carries nuance the enum
+    cannot, and forbidden when it only restates the frontmatter. Presence is
+    still not required, so this gate reads the section wherever it appears and
+    never asks for one. An earlier reading turned "may carry" in line 57 into a
+    MUST; the amendment rewrote that line so the rule is written down instead
+    of inferred.
 
-    What survives is the rule ADR-073 does state: when prose and frontmatter both
-    speak and disagree, frontmatter wins and the author reconciles the prose.
+    Two rules apply when a section exists. When prose and frontmatter disagree,
+    frontmatter wins and the author reconciles the prose. When the section is
+    one enum-word line (optionally dated or naming the successor), it restates
+    the frontmatter and is reported for deletion.
     Records like ADR-042 and ADR-055, whose prose carries debate-log citations and
     supersession reasoning, keep their sections and are still checked here.
 
@@ -663,6 +722,14 @@ def _check_prose(record: Record) -> list[Violation]:
         return []
     lead = _LEAD_WORD_RE.match(prose)
     if (lead.group(1).lower() if lead is not None else "") == status:
+        if _restates_status(_status_section_lines(record.body)):
+            detail = (
+                f"the `## Status` section only restates frontmatter status: {status}. "
+                "ADR-073 (amended 2026-09-29) makes the section optional and forbids "
+                "a bare restatement. Delete it, or keep it only for nuance the enum "
+                "cannot carry."
+            )
+            return [Violation("prose-frontmatter-agree", record.path, detail)]
         return []
     detail = (
         f"frontmatter says status: {status}, but the status section opens with "
