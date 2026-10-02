@@ -1042,8 +1042,9 @@ python3 scripts/eval/eval_durable_outcome.py --records RUN.jsonl --baseline BASE
 zero-success and all-success task lists, p10/p50/p90 of cost and correction
 time, and the headline. `--baseline` adds a matched `Comparison`: it refuses
 (exit 2) when the two files' RunConfigs differ in any field other than
-`control`, or when they cover different task sets, naming the differing
-field or the missing task ids. Otherwise it returns `BETTER`, `WORSE`, or
+`control` (`context_bytes` may differ only when `control` does), or when they
+cover different task sets, naming
+the differing field or the missing task ids. Otherwise it returns `BETTER`, `WORSE`, or
 `MIXED`. `BETTER` requires the candidate to have at least as many accepted
 durable tasks as the baseline, no higher cost per accepted durable task, and
 no task that drops from one or more durable accepts in the baseline to zero
@@ -1171,6 +1172,113 @@ corpus and detects model and effort mismatch, silent inheritance from the
 parent, a concurrency ceiling breach, broken reviewer isolation, a fresh-context
 or artifact handoff mismatch, and a harness failure kept apart from a task
 failure. Unknown telemetry stays `None` and is never written as zero.
+
+## Reduced-Control Ablation
+
+`eval_control_ablation.py` answers the question the Durable Outcome Report
+needs data for: does a smaller control plane (fewer always-loaded rule and
+memory files) deliver at least as much accepted durable work as the full
+one, on the same code tasks, model, and retry/correction budget (REQ-043,
+DESIGN-041, issue #5768)? It runs a small corpus of code-change tasks under
+two controls, `full` (every file `control_plane_baseline.always_loaded`
+reports for `claude_code`, at their real repository-relative paths) and
+`reduced` (none), grades each run with real commands (never a model judge),
+and writes one `OutcomeRecord` per live run.
+
+`--dry-run` proves the grader itself works before any run costs anything:
+it applies each task's `known_good` and `known_bad` fix in place of a real
+agent turn, grades both with the task's real `acceptance` and `followup`
+commands, and exits 1 if any `known_good` is not `ACCEPTED_DURABLE` or any
+`known_bad` is. No model is called in a dry run, and no records are written
+to `records-<control>.jsonl`: AC-11 scopes that file to live runs, though
+every dry run's record still appears in `report.json`.
+
+```bash
+uv run python scripts/eval/eval_control_ablation.py --dry-run \
+  --workspace-root "$(mktemp -d)" --output-dir /tmp/control-ablation-dry
+
+uv run python scripts/eval/eval_control_ablation.py \
+  --controls full,reduced --repeats 3 --model claude-sonnet-5 \
+  --workspace-root "$(mktemp -d)" --output-dir OUT
+python3 scripts/eval/eval_durable_outcome.py \
+  --records OUT/records-reduced.jsonl --baseline OUT/records-full.jsonl
+```
+
+Flags: `--tasks` (default `scripts/eval/examples/control-ablation-tasks.json`,
+`schema_version: 1`, one task per #5768 case: `ambiguous_requirement`,
+`stale_resume`, `plausible_but_wrong`, `consequential_hold`,
+`hidden_regression`, each exactly once), `--controls` (comma-separated,
+default `full,reduced`), `--repeats` (default 1), `--model` (default
+`claude-sonnet-5`), `--workspace-root` (default a fresh `mktemp -d`;
+refused, live or dry, when it inherits ancestor instruction files a CLI
+would load, reusing `require_isolated_workspace_root`), `--output-dir`
+(default a timestamped directory under `artifacts/control-ablation/`),
+`--max-runs` (default 30; a live run whose `tasks x controls x repeats`
+exceeds this refuses, exit 2, before any model call), `--claude-auth-file` (see below), `--timeout` (seconds
+for the Claude CLI call itself; the acceptance and follow-up commands each
+get a separate fixed 120 seconds), and `--dry-run`.
+
+Runs interleave: for each task, for each repeat, for each control, so
+wall-clock drift cannot separate one control's runs from the other's. Each
+run seeds an isolated git repository with the task's `setup_files` and the
+resolved control's files, invokes Claude with `--permission-mode
+acceptEdits` and a Bash allowlist of `python3`, `git`, `ls`, `cat`, writes
+the task's `followup_files` only after the agent exits (changed paths are
+diffed against a ref pinned at seed time, so work the agent commits still
+counts), then runs
+`acceptance` and `followup` for real (`PYTHONDONTWRITEBYTECODE=1`, so
+`python3 -m unittest` leaves no `__pycache__/` behind to confuse the
+changed-path measurement; any that still appear, along with stray `.pyc`
+files, are excluded from `scope_violations` and `produced_artifact`
+either way). A changed path outside the task's `allowed_paths` counts as a
+scope violation, excluding `.parity-profile/`, `.runtime/`, `__pycache__/`,
+and `*.pyc`. Control files are committed at seed, so an agent edit to one
+counts, and so does an agent edit at a follow-up path, because changed paths
+are read before follow-up files are written.
+
+Fields recorded by construction, because the run is unattended and has no
+reviewer: `durable.review_findings` (0, no reviewer), `durable.rework_minutes` (0, no
+human rework), `durable.rollback_events` (0, a single run has no integration step
+to roll back), `economics.tool_cost_usd` and `economics.human_correction_minutes`
+(0, local commands only, no human). None of these are measurements of a
+human in the loop; the report states this so a reader does not mistake a
+zero for evidence.
+
+Exit codes: `0` ok. `1` a dry run's grader failed to discriminate a
+known-good fix from a known-bad one. `2` config: a malformed task file, an
+unknown control name, `tasks x controls x repeats` over `--max-runs`, or an
+unisolated `--workspace-root`. `3` external: the Claude CLI is missing or
+times out, its stream-json output does not parse, its result event carries
+no `total_cost_usd`, or its resolved model differs from the one requested;
+no record is written for that run, and the batch continues with the
+remaining runs.
+
+Claude auth: `runtime_env` points `CLAUDE_CONFIG_DIR` at an isolated profile
+with no login, and passes only `ANTHROPIC_API_KEY` and `CLAUDE_CODE_OAUTH_TOKEN`
+from the operator's environment. This CLI moves `CLAUDE_CONFIG_DIR` to a
+sibling of the workspace, outside the agent's working tree, and the seed
+excludes `.parity-profile/` from the workspace's git. A subscription login needs
+`--claude-auth-file ~/.claude/.credentials.json`: the file is copied into each
+run's profile at mode `0600` for the duration of the Claude call only, then
+deleted before grading. Before each call the CLI reads only the file's
+`claudeAiOauth.expiresAt`; when the login has less than the call timeout plus
+300 seconds left, or no readable expiry, the batch stops (exit 3) before the
+call. A copied login that expires mid-call makes the isolated CLI refresh it,
+which rotates the refresh token inside a copy that is then deleted and fails
+every later run (observed 2026-09-28). Run `claude` once to refresh, then
+rerun only the missing cells with `--only-tasks id1,id2` and `--start-repeat N` into the same
+`--output-dir` (records append) and a fresh `--workspace-root`. A result event
+marked `is_error`, or a nonzero exit, is a harness failure with no record,
+never a rejected task. A batch refuses (exit 2) to append a `(task, repeat)`
+its `--output-dir` already records. With `--claude-auth-file`, the login's
+string values are redacted from each reply before the report or stdout sees
+it. The task file is trusted repository data: its `acceptance` and
+`followup` commands run under your environment (minus `GIT_*`), so pass
+`--tasks` only a file you would run as a test.
+Its contents are never written to a report. The agent
+under test can still read it by absolute path while it runs, so keep live
+workspaces and reports out of the repository.
+||||||| 7bc260179
 
 ## Held-Out-Gated Optimization
 
