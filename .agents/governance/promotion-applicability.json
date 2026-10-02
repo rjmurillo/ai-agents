@@ -1,10 +1,11 @@
 {
   "schema_version": "1",
-  "description": "Which validators must have run for a promotion candidate, ADR-113 decision 3. A validator absent from this table is never consulted by the promotion gate, so every required status check on the default branch ruleset has a row here and a test fails on drift. Build-tier rows also bind to the npm tarball digest. Issue 5636.",
+  "description": "Which validators must have run for a promotion candidate, ADR-113 decision 3. A validator absent from this table is never consulted by the promotion gate, so every required status check on the default branch ruleset has a row here and a test fails on drift. Each row names the workflow file whose run holds its job, which the provenance check requires. Build-tier rows also bind to the npm tarball digest. Issue 5636.",
   "entries": [
     {
       "validator": "analyze_actions",
       "tier": "commit",
+      "workflow": ".github/workflows/codeql-analysis.yml",
       "job": "Analyze (actions)",
       "when": "always",
       "rationale": "Required status check on the default branch ruleset 11104075, so a promotion needs its result."
@@ -12,6 +13,7 @@
     {
       "validator": "analyze_python",
       "tier": "commit",
+      "workflow": ".github/workflows/codeql-analysis.yml",
       "job": "Analyze (python)",
       "when": "always",
       "rationale": "Required status check on the default branch ruleset 11104075, so a promotion needs its result."
@@ -19,6 +21,7 @@
     {
       "validator": "check_whole_tree_count_ratchets_blocking",
       "tier": "commit",
+      "workflow": ".github/workflows/pytest.yml",
       "job": "Check whole-tree count ratchets (blocking)",
       "when": "always",
       "rationale": "Required status check on the default branch ruleset 11104075, so a promotion needs its result."
@@ -26,6 +29,7 @@
     {
       "validator": "run_python_tests",
       "tier": "commit",
+      "workflow": ".github/workflows/pytest.yml",
       "job": "Run Python Tests",
       "when": "always",
       "rationale": "Required status check on the default branch ruleset 11104075, so a promotion needs its result."
@@ -33,6 +37,7 @@
     {
       "validator": "validate_generated_files",
       "tier": "commit",
+      "workflow": ".github/workflows/validate-generated-agents.yml",
       "job": "Validate Generated Files",
       "when": "always",
       "rationale": "Required status check on the default branch ruleset 11104075, so a promotion needs its result."
@@ -40,6 +45,7 @@
     {
       "validator": "validate_path_normalization",
       "tier": "commit",
+      "workflow": ".github/workflows/validate-paths.yml",
       "job": "Validate Path Normalization",
       "when": "always",
       "rationale": "Required status check on the default branch ruleset 11104075, so a promotion needs its result."
@@ -47,20 +53,23 @@
     {
       "validator": "validate_pr",
       "tier": "commit",
+      "workflow": ".github/workflows/pr-validation.yml",
       "job": "Validate PR",
-      "when": "always",
-      "rationale": "Required status check on the default branch ruleset 11104075, so a promotion needs its result."
+      "when": "never",
+      "rationale": "PR-only checks; evidence lives on the PR, not the main SHA. Conservative reading for the owner to confirm."
     },
     {
       "validator": "validate_pr_title",
       "tier": "commit",
+      "workflow": ".github/workflows/semantic-pr-title-check.yml",
       "job": "Validate PR title",
-      "when": "always",
-      "rationale": "Required status check on the default branch ruleset 11104075, so a promotion needs its result."
+      "when": "never",
+      "rationale": "PR-only checks; evidence lives on the PR, not the main SHA. Conservative reading for the owner to confirm."
     },
     {
       "validator": "validate_plugin_version_bump",
       "tier": "commit",
+      "workflow": ".github/workflows/validate-plugin-version-bump.yml",
       "job": "Validate Plugin Version Bump",
       "when": "always",
       "rationale": "Required status check on the default branch ruleset 11104075, so a promotion needs its result."
@@ -68,6 +77,7 @@
     {
       "validator": "npm_package_metadata",
       "tier": "build",
+      "workflow": ".github/workflows/publish.yml",
       "job": "Validate Package",
       "when": "always",
       "rationale": "The publish workflow verifies package metadata before publishing."
@@ -75,6 +85,7 @@
     {
       "validator": "npm_pack_size",
       "tier": "build",
+      "workflow": ".github/workflows/publish.yml",
       "job": "Validate Package",
       "when": "always",
       "rationale": "The publish workflow measures the packed tarball before publishing."

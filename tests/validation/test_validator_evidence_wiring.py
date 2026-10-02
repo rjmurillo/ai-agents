@@ -65,21 +65,9 @@ def test_the_table_has_commit_tier_rows_to_cover() -> None:
     assert len(rows) >= 9
 
 
-# Validators whose jobs live in pytest.yml. A push that changes only that file
-# runs the whole suite in the pre-push hook, so its wiring is a separate change.
-# The follow-up that wires them empties this set, and the test below fails until
-# it does.
-AWAITING_WIRING = frozenset({"run_python_tests", "check_whole_tree_count_ratchets_blocking"})
-
-
 def test_every_commit_tier_validator_has_an_upload_step() -> None:
     wanted = {row.validator for row in load_applicability(ROOT) if row.tier == "commit"}
-    assert wanted - set(_uploaded()) == AWAITING_WIRING
-
-
-def test_a_validator_awaiting_wiring_has_no_upload_step_yet() -> None:
-    """Fails the moment a pending validator is wired, so the set cannot go stale."""
-    assert AWAITING_WIRING & set(_uploaded()) == set()
+    assert wanted - set(_uploaded()) == set()
 
 
 def test_no_upload_step_names_a_validator_the_table_lacks() -> None:
@@ -90,7 +78,7 @@ def test_no_upload_step_names_a_validator_the_table_lacks() -> None:
 def test_each_validator_is_uploaded_from_the_job_the_table_names() -> None:
     uploaded = _uploaded()
     for row in load_applicability(ROOT):
-        if row.tier != "commit" or row.validator in AWAITING_WIRING:
+        if row.tier != "commit":
             continue
         job_name = str(uploaded[row.validator]["job"]["name"])
         expected = row.job.split("(")[0].strip()
@@ -146,6 +134,8 @@ EXPECTED_RAN = {
         "&& github.actor != 'github-actions[bot]' && github.actor != 'renovate[bot]'"
     ),
     "validate_plugin_version_bump": None,
+    "run_python_tests": None,
+    "check_whole_tree_count_ratchets_blocking": None,
 }
 
 
@@ -239,6 +229,107 @@ def _third_party(path: Path, seen: set[Path]) -> set[str]:
         elif name.split(".")[0] not in sys.stdlib_module_names:
             bad.add(name)
     return bad
+
+
+def _module_file(name: str) -> Path:
+    module = ROOT.joinpath(*name.split("."))
+    return (
+        module.with_suffix(".py") if module.with_suffix(".py").exists() else module / "__init__.py"
+    )
+
+
+def _closure(path: Path, seen: set[Path]) -> set[Path]:
+    """Every repository file the emitter loads: its imports and each package marker above them.
+
+    Importing ``scripts.validation.evidence`` runs ``scripts/__init__.py`` and
+    ``scripts/validation/__init__.py`` first, and the second one imports
+    ``scripts.validation.models``, so those are part of the closure too.
+    """
+    if path in seen:
+        return seen
+    seen.add(path)
+    modules = [name for name in _imports(path) if name.startswith("scripts.")]
+    for name in modules:
+        parts = name.split(".")
+        for depth in range(1, len(parts) + 1):
+            _closure(_module_file(".".join(parts[:depth])), seen)
+    return seen
+
+
+def _sparse_checkout(call: dict[str, Any]) -> tuple[list[str], bool] | None:
+    """The sparse checkout in force at the call, or None when the last checkout is full.
+
+    Each checkout step replaces the workspace, so the last one before the call
+    decides which files exist.
+    """
+    steps = call["job"]["steps"]
+    current: tuple[list[str], bool] | None = None
+    for step in steps[: steps.index(call["step"])]:
+        if not str(step.get("uses", "")).startswith("actions/checkout@"):
+            continue
+        options = step.get("with") or {}
+        text = options.get("sparse-checkout")
+        if not text:
+            current = None
+            continue
+        lines = [line.strip() for line in str(text).splitlines() if line.strip()]
+        current = (lines, options.get("sparse-checkout-cone-mode", True) is not False)
+    return current
+
+
+def _is_checked_out(name: str, patterns: list[str], cone: bool) -> bool:
+    """Whether a sparse checkout includes ``name``.
+
+    A pattern names a file or a directory. Cone mode also includes the files
+    that sit directly in each parent directory of a listed directory, which is
+    why ``scripts/__init__.py`` arrives with ``scripts/validation``.
+    """
+    for pattern in patterns:
+        directory = pattern.rstrip("/")
+        if name == pattern or name.startswith(directory + "/"):
+            return True
+        parent = name.rpartition("/")[0]
+        if cone and directory.startswith(parent + "/"):
+            return True
+    return False
+
+
+def test_a_sparse_checkout_ahead_of_a_call_carries_the_emitter_and_its_imports() -> None:
+    """Some jobs check out only a few files, so the emitter must be in that list."""
+    needed = {path.relative_to(ROOT).as_posix() for path in _closure(EMITTER, set())}
+    needed |= {".github/actions/upload-validator-evidence/action.yml"}
+    for call in _calls():
+        sparse = _sparse_checkout(call)
+        if sparse is None:
+            continue
+        for name in needed:
+            assert _is_checked_out(name, *sparse), f"{call['file']}:{call['job_id']} omits {name}"
+
+
+def test_the_closure_includes_the_package_marker_imports() -> None:
+    names = {path.relative_to(ROOT).as_posix() for path in _closure(EMITTER, set())}
+    assert {
+        "scripts/__init__.py",
+        "scripts/validation/__init__.py",
+        "scripts/validation/models.py",
+    } <= names
+
+
+def test_a_later_full_checkout_replaces_an_earlier_sparse_one() -> None:
+    sparse = {"uses": "actions/checkout@x", "with": {"sparse-checkout": "a"}}
+    full = {"uses": "actions/checkout@x"}
+    call = {"job": {"steps": [sparse, full, {"id": "call"}]}, "step": {"id": "call"}}
+    assert _sparse_checkout(call) is None
+    call = {"job": {"steps": [full, sparse, {"id": "call"}]}, "step": {"id": "call"}}
+    assert _sparse_checkout(call) == (["a"], True)
+
+
+def test_a_sparse_checkout_check_notices_a_missing_file() -> None:
+    patterns = ["scripts/validation/evidence.py"]
+    assert not _is_checked_out("scripts/validation/promotion_evidence.py", patterns, cone=False)
+    assert _is_checked_out("scripts/validation/evidence.py", patterns, cone=False)
+    assert _is_checked_out("scripts/__init__.py", ["scripts/validation"], cone=True)
+    assert not _is_checked_out("scripts/__init__.py", ["scripts/validation"], cone=False)
 
 
 def test_the_emitter_imports_only_the_standard_library_transitively() -> None:

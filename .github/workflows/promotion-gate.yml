@@ -7,8 +7,10 @@
 # yet. ADR-113 decision 5 keeps the gate advisory until the default-branch
 # entry point, the integration pin, and the tag ruleset exist.
 #
-# Run it from the default branch only. The candidate SHA is an input, and the
-# job reads no artifact from a pull request.
+# Run it from the default branch only. The candidate SHA is an input. Evidence
+# comes from fetch_promotion_evidence.py, which downloads an artifact only from
+# a push or merge-queue run of the expected workflow on the candidate commit
+# (ADR-113 decision 5). The job reads no artifact from a pull request.
 
 name: Promotion Gate
 
@@ -46,6 +48,8 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: read
+      actions: read
+      checks: read
     outputs:
       release_eligible: ${{ steps.manifest.outputs.release_eligible }}
     steps:
@@ -65,14 +69,30 @@ jobs:
       - name: Setup code environment
         uses: ./.github/actions/setup-code-env
         with:
-          gh-token: ${{ secrets.GITHUB_TOKEN }}
+          # The setup action only checks that gh runs and exports this value as
+          # GH_TOKEN, so it gets none. Only the fetch steps hold a token.
+          gh-token: ''
           enable-pester: false
           enable-git-hooks: false
 
-      # No validator uploads evidence yet (ADR-113 decision 2), so this
-      # directory is empty and the gate reports that no evidence was bound.
-      - name: Prepare the evidence directory
-        run: mkdir -p "$RUNNER_TEMP/evidence"
+      # ADR-113 decisions 2 and 5. The program asks the API for the candidate's
+      # runs and downloads an artifact only from a run whose event, workflow,
+      # branch, and head SHA match, then keeps the worse of the artifact and the
+      # job's check-run. It runs here, from the default branch, so no pull
+      # request or candidate code decides what counts. Only this step holds a
+      # token, and it is read-only.
+      - name: Fetch verified evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_SHA: ${{ inputs.candidate-sha }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          REPOSITORY: ${{ github.repository }}
+        run: >-
+          uv run --frozen python scripts/validation/fetch_promotion_evidence.py
+          --repo "$REPOSITORY"
+          --candidate-sha "$CANDIDATE_SHA"
+          --default-branch "$DEFAULT_BRANCH"
+          --evidence-dir "$RUNNER_TEMP/evidence"
 
       - name: Compute the promotion manifest
         id: manifest

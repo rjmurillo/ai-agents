@@ -80,11 +80,6 @@ def test_mount_yields_nothing_for_normal_checkout(tmp_path):
         assert args == []
 
 
-def test_mount_yields_nothing_when_git_is_missing(tmp_path):
-    with w._worktree_git_mount(tmp_path) as args:
-        assert args == []
-
-
 def test_mount_yields_nothing_for_unrecognised_layout(trusted, tmp_path):
     worktree, _, _ = _linked_worktree(tmp_path, commondir=None)
     with w._worktree_git_mount(worktree) as args:
@@ -214,30 +209,47 @@ def test_mount_copy_matches_a_real_linked_worktree(tmp_path):
     assert head == expected
 
 
-def test_crafted_commondir_outside_the_reported_common_dir_is_refused(monkeypatch, tmp_path):
-    worktree, gitdir, _ = _linked_worktree(tmp_path)
+def test_host_common_dir_that_disagrees_with_the_pointer_is_refused(monkeypatch, tmp_path):
+    worktree, _, _ = _linked_worktree(tmp_path)
     elsewhere = tmp_path / "elsewhere"
-    (elsewhere / "worktrees").mkdir(parents=True)
-    (gitdir / "commondir").write_text(str(elsewhere) + "\n", encoding="utf-8")
-    monkeypatch.setattr(w, "_host_common_dir", lambda _root: (tmp_path / "main" / ".git").resolve())
+    elsewhere.mkdir()
+    monkeypatch.setattr(w, "_host_common_dir", lambda _root: elsewhere.resolve())
 
     with pytest.raises(w.UntrustedGitDirError, match="does not match"):
         with w._worktree_git_mount(worktree):
             pass
 
 
-def test_unresolvable_host_common_dir_is_refused(monkeypatch, tmp_path):
-    worktree, _, _ = _linked_worktree(tmp_path)
-    monkeypatch.setattr(w, "_host_common_dir", lambda _root: None)
+def test_crafted_commondir_is_an_unrecognised_layout_and_mounts_nothing(trusted, tmp_path):
+    worktree, gitdir, _ = _linked_worktree(tmp_path)
+    elsewhere = tmp_path / "elsewhere"
+    (elsewhere / "worktrees").mkdir(parents=True)
+    (gitdir / "commondir").write_text(str(elsewhere) + "\n", encoding="utf-8")
 
-    with pytest.raises(w.UntrustedGitDirError, match="unresolved"):
-        with w._worktree_git_mount(worktree):
-            pass
+    with w._worktree_git_mount(worktree) as args:
+        assert args == []
+
+
+def test_unrecognised_layout_without_a_backlink_still_yields_no_mount(trusted, tmp_path):
+    worktree, gitdir, _ = _linked_worktree(tmp_path, commondir=None)
+    (gitdir / "gitdir").unlink()
+
+    with w._worktree_git_mount(worktree) as args:
+        assert args == []
+
+
+def test_relative_backlink_resolves_against_the_admin_dir(trusted, tmp_path):
+    worktree, gitdir, _ = _linked_worktree(tmp_path)
+    (gitdir / "gitdir").write_text(
+        os.path.relpath(worktree / ".git", gitdir) + "\n", encoding="utf-8"
+    )
+
+    with w._worktree_git_mount(worktree) as args:
+        assert args[0] == "--container-options"
 
 
 def test_full_stage_fails_with_the_refusal_and_never_runs_act(monkeypatch, tmp_path):
-    worktree, gitdir, _ = _linked_worktree(tmp_path)
-    (gitdir / "commondir").write_text(str(tmp_path) + "\n", encoding="utf-8")
+    worktree, _, _ = _linked_worktree(tmp_path)
     monkeypatch.setattr(w, "_host_common_dir", lambda _root: None)
 
     def no_act(*_a, **_k):
@@ -387,6 +399,10 @@ def test_cleanup_failure_does_not_mask_a_body_exception(trusted, monkeypatch, tm
     assert "WARNING: leftover" in capsys.readouterr().err
 
 
+@pytest.mark.skipif(
+    os.name == "nt" or not hasattr(os, "mkfifo") or not hasattr(socket, "AF_UNIX"),
+    reason="needs POSIX FIFOs and Unix sockets",
+)
 def test_sockets_and_fifos_in_the_git_dir_are_skipped(trusted, monkeypatch, tmp_path):
     worktree, _, common = _linked_worktree(tmp_path)
     os.mkfifo(common / "fsmonitor.fifo")
@@ -427,7 +443,7 @@ def test_colon_in_the_common_dir_is_refused_up_front(monkeypatch, tmp_path):
     worktree, gitdir, common = _linked_worktree(tmp_path / "a:b")
     monkeypatch.setattr(w, "_host_common_dir", lambda _root: common.resolve())
 
-    with pytest.raises(w.GitMountError, match="contains ':'"):
+    with pytest.raises(w.GitMountError, match="move the repository"):
         with w._worktree_git_mount(worktree):
             pass
 
@@ -438,7 +454,38 @@ def test_colon_in_the_temp_root_is_refused(trusted, monkeypatch, tmp_path):
     weird.mkdir()
     monkeypatch.setattr(w.tempfile, "tempdir", str(weird))
 
-    with pytest.raises(w.GitMountError, match="contains ':'"):
+    with pytest.raises(w.GitMountError, match="set TMPDIR"):
         with w._worktree_git_mount(worktree):
             pass
     assert list(weird.iterdir()) == []
+
+
+def test_windows_yields_no_mount_instead_of_rejecting_drive_paths(monkeypatch, tmp_path):
+    worktree, _, _ = _linked_worktree(tmp_path)
+    monkeypatch.setattr(w, "_is_windows", lambda: True)
+    monkeypatch.setattr(w, "_host_common_dir", lambda _root: pytest.fail("no git call on Windows"))
+
+    with w._worktree_git_mount(worktree) as args:
+        assert args == []
+
+
+def test_is_windows_reads_os_name(monkeypatch):
+    monkeypatch.setattr(w.os, "name", "nt")
+    assert w._is_windows() is True
+    monkeypatch.setattr(w.os, "name", "posix")
+    assert w._is_windows() is False
+
+
+def test_host_common_dir_resolves_a_relative_answer_from_older_git(monkeypatch, tmp_path):
+    seen = {}
+
+    def fake_run(cmd, *, timeout, cwd=None, env=None):
+        seen["cmd"] = cmd
+        return 0, "../main/.git\n", ""
+
+    monkeypatch.setattr(w, "_run", fake_run)
+    repo = tmp_path / "wt"
+    repo.mkdir()
+
+    assert w._host_common_dir(repo) == (tmp_path / "main" / ".git").resolve()
+    assert "--path-format=absolute" not in seen["cmd"]

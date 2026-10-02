@@ -22,10 +22,11 @@ job that did nothing must not read as a pass. ``failure`` is ``FAIL``.
 adds the check-run conclusion as a second source and takes the worse of the
 two, and the aggregator verifies the producing workflow run (decision 5).
 
-Different than canonical: ``CheckOutcome`` ``PASS`` allows ``examined`` to be
-``None`` and this program leaves it ``None``, because a job conclusion counts no
-items. ``ci-scripts.md`` MUST 12 asks for an examined count where a checker can
-supply one; this program is not the checker.
+Examined count: a ``PASS`` counts as evidence at the gate only when it says it
+examined something (``promotion_findings._shows_a_result``: "A PASS counts only
+when it says it examined something"). A job conclusion counts one thing, the job,
+so ``examined`` is 1. ``ci-scripts.md`` MUST 12 asks for finer counts where a
+checker can supply them; this program is not the checker.
 
 Stdlib only transitively (``ci-scripts.md`` MUST 18): the calling jobs run it
 with bare ``python3``.
@@ -118,7 +119,7 @@ def build_outcome(
             reason=REASON_NOT_RUN,
             detail="the job concluded success but its validation steps did not run",
         )
-    return CheckOutcome.passed(validator, revision=revision, scope=scope)
+    return CheckOutcome.passed(validator, revision=revision, scope=scope, examined=1)
 
 
 def write_evidence(outcome: CheckOutcome, output_dir: Path) -> Path:

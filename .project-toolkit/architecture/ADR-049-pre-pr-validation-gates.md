@@ -11,10 +11,6 @@ implemented: true
 
 # ADR-049: Pre-PR Validation Gates
 
-## Status
-
-Proposed
-
 ## Date
 
 2026-02-24

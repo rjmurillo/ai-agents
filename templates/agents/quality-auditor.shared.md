@@ -47,7 +47,7 @@ You have access to:
 - **Bash**: Run `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/quality-grades/scripts/grade_domains.py"`
 - **Write/Edit**: Generate quality reports
 - **Memory Router** (ADR-037): Search across `.serena/memories/`
-  - `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" --query "topic"`
+  - `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" "topic"`
   - Keyword match on memory filenames; no semantic or graph search
 - **Serena write tools**: Memory persistence in `.serena/memories/`
   - `serena/write_memory`: Create new memory
