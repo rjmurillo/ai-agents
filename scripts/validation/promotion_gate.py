@@ -383,15 +383,14 @@ def _write_outputs(args: argparse.Namespace, manifest: dict[str, Any]) -> None:
         text = json.dumps(manifest, indent=2, sort_keys=True) + "\n"
         args.output.write_text(text, encoding="utf-8")
     if args.github_output:
-        eligible = (
-            manifest["verdict"] == "promote"
-            and manifest["enforced"]
-            and manifest["digest_bound"]
-            and bool(args.expect_tag)
+        promoted = (
+            manifest["verdict"] == "promote" and manifest["enforced"] and manifest["digest_bound"]
         )
+        eligible = promoted and bool(args.expect_tag)
         with args.github_output.open("a", encoding="utf-8") as handle:
             handle.write(f"verdict={manifest['verdict']}\n")
             handle.write(f"release_eligible={'true' if eligible else 'false'}\n")
+            handle.write(f"promoted={'true' if promoted else 'false'}\n")
 
 
 @dataclass(frozen=True, slots=True)

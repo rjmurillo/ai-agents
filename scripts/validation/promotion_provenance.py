@@ -82,6 +82,7 @@ REASON_RUN_SHA = "run.sha_mismatch"
 REASON_RUN_EVENT = "run.event_not_promotable"
 REASON_RUN_WORKFLOW = "run.workflow_mismatch"
 REASON_RUN_REF = "run.ref_mismatch"
+REASON_RUN_ID = "run.id_mismatch"
 REASON_RUN_FORK = "run.repository_mismatch"
 REASON_CHECK_ABSENT = "checkrun.absent"
 REASON_CHECK_APP = "checkrun.app_mismatch"
@@ -152,6 +153,37 @@ def run_problem(
     if head is None or head != base:
         return REASON_RUN_FORK
     return None
+
+
+def build_run_problem(
+    run: Mapping[str, Any], *, workflow: str, default_branch: str, run_id: int
+) -> str | None:
+    """Return the reason the entry workflow's own run may not supply build evidence, or None.
+
+    Build-tier evidence (decision 4) comes from the build job of the promotion
+    entry workflow, so the run is a ``workflow_dispatch`` on the default branch of
+    the expected workflow, and it is the run the gate itself is part of. The run is
+    still in progress while the gate reads it, so ``in_progress`` is accepted, and
+    its ``head_sha`` is the default branch head, not the candidate.
+
+    ``head_branch`` is a bare name, so a tag named like the default branch would
+    read the same. The emitter closes that: it writes build evidence only for the
+    full ref ``refs/heads/<default branch>``, and the gate job runs only from that
+    ref, so a dispatch from a tag produces no evidence for this check to accept.
+    """
+    if run.get("id") != run_id:
+        return REASON_RUN_ID
+    if run.get("status") not in ("in_progress", "completed"):
+        return REASON_RUN_INCOMPLETE
+    if run.get("event") != "workflow_dispatch":
+        return REASON_RUN_EVENT
+    if run.get("path") != workflow:
+        return REASON_RUN_WORKFLOW
+    branch = run.get("head_branch")
+    if not default_branch or branch != default_branch:
+        return REASON_RUN_REF
+    head, base = _repository_id(run, "head_repository"), _repository_id(run, "repository")
+    return None if head is not None and head == base else REASON_RUN_FORK
 
 
 def _conclusion_reason(conclusion: object) -> str:
