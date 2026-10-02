@@ -573,7 +573,7 @@ def _host_common_dir(repo_root: Path) -> Path | None:
     """Return the common git dir ``git rev-parse --git-common-dir`` reports, or None."""
     env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
     rc, out, _err = _run(
-        ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
+        ["git", "rev-parse", "--git-common-dir"],
         timeout=30,
         cwd=repo_root,
         env=env,
@@ -581,7 +581,9 @@ def _host_common_dir(repo_root: Path) -> Path | None:
     line = out.strip()
     if rc != 0 or not line:
         return None
-    return Path(line).resolve()
+    # Older git prints a path relative to the working directory, and
+    # --path-format=absolute needs git 2.31, so resolve against repo_root here.
+    return (repo_root / line).resolve()
 
 
 def _require_backlink(repo_root: Path, gitdir: Path) -> None:
@@ -596,7 +598,7 @@ def _require_backlink(repo_root: Path, gitdir: Path) -> None:
         back = (gitdir / "gitdir").read_text(encoding="utf-8").strip()
     except OSError:
         back = ""
-    if not back or Path(back).resolve() != (repo_root / ".git").resolve():
+    if not back or (gitdir / back).resolve() != (repo_root / ".git").resolve():
         raise UntrustedGitDirError(
             f"linked worktree admin dir {gitdir} does not point back at {repo_root / '.git'}; "
             "refusing to mount it into the act container."
@@ -619,12 +621,11 @@ def _require_trusted_common_dir(repo_root: Path, common: Path) -> None:
         )
 
 
-def _require_mountable(path: Path) -> None:
+def _require_mountable(path: Path, remedy: str) -> None:
     """Refuse a path that docker's ``-v src:dst`` syntax cannot carry."""
     if ":" in str(path):
         raise GitMountError(
-            f"{path} contains ':' and cannot be bind-mounted into the act container; "
-            "move the repository or set TMPDIR to a path without ':'."
+            f"{path} contains ':' and cannot be bind-mounted into the act container; {remedy}."
         )
 
 
@@ -652,18 +653,18 @@ def _worktree_git_mount(repo_root: Path) -> Iterator[list[str]]:
         return
     gitdir = Path(gitdir_text)
     common = _worktree_common_dir(gitdir)
-    _require_backlink(repo_root, gitdir)
-    _require_trusted_common_dir(repo_root, common)
     if gitdir.parent != common / "worktrees":
         yield []
         return
-    _require_mountable(common)
+    _require_backlink(repo_root, gitdir)
+    _require_trusted_common_dir(repo_root, common)
+    _require_mountable(common, "move the repository to a path without ':'")
     # mkdtemp creates the parent 0700; that, not the open modes on the copy,
     # keeps other host users out. Do not swap in a shared temp root.
     tmp = Path(tempfile.mkdtemp(prefix="act-gitdir-"))
     try:
         dest = tmp / "git"
-        _require_mountable(dest)
+        _require_mountable(dest, "set TMPDIR to a path without ':'")
         try:
             _copy_git_metadata(common, gitdir, dest)
         except (OSError, shutil.Error) as exc:
