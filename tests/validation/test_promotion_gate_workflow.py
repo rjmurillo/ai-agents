@@ -119,14 +119,14 @@ def test_every_action_is_pinned_to_a_full_commit_sha(workflow: dict[str, Any]) -
                 assert len(ref.split("@")[1]) == 40, ref
 
 
-def test_the_fetch_step_runs_before_the_gate_and_is_the_only_one_with_a_token(
+def test_the_fetch_steps_run_before_the_gate_and_are_the_only_ones_with_a_token(
     workflow: dict[str, Any],
 ) -> None:
     steps = _jobs(workflow)["gate"]["steps"]
     names = [step.get("name") for step in steps]
     assert names.index("Fetch verified evidence") < names.index("Compute the promotion manifest")
     holders = [step["name"] for step in steps if "GH_TOKEN" in step.get("env", {})]
-    assert holders == ["Fetch verified evidence"]
+    assert holders == ["Fetch verified evidence", "Fetch the previous promoted manifest"]
 
 
 def test_the_fetch_step_reads_the_candidate_from_env_and_names_the_default_branch(
@@ -156,3 +156,18 @@ def test_the_setup_action_in_the_gate_job_receives_no_token(workflow: dict[str, 
     setup = next(s for s in steps if s.get("uses") == "./.github/actions/setup-code-env")
     assert setup["with"]["gh-token"] == ""
     assert "secrets." not in WORKFLOW.read_text(encoding="utf-8")
+
+
+def test_the_previous_manifest_is_fetched_before_the_gate_reads_it(
+    workflow: dict[str, Any],
+) -> None:
+    steps = _jobs(workflow)["gate"]["steps"]
+    names = [step.get("name") for step in steps]
+    assert names.index("Fetch the previous promoted manifest") < names.index(
+        "Compute the promotion manifest"
+    )
+    fetch = steps[names.index("Fetch the previous promoted manifest")]
+    gate = steps[names.index("Compute the promotion manifest")]
+    assert fetch["env"]["RELEASE_TAG"] == "${{ inputs.release-tag }}"
+    assert '--output-dir "$RUNNER_TEMP/previous"' in _normalized(fetch["run"])
+    assert '--previous-manifest-dir "$RUNNER_TEMP/previous"' in _normalized(gate["run"])

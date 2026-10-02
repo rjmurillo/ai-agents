@@ -363,10 +363,8 @@ def parse_previous_manifest(document: object) -> PreviousManifest:
     return PreviousManifest(candidate_sha=sha, findings=still_open)
 
 
-def load_previous_manifest(path: Path) -> PreviousManifest:
-    """Read a previous manifest file. Raises ``ManifestError`` or ``OSError``."""
-    with path.open("rb") as handle:
-        data = handle.read(MAX_MANIFEST_BYTES + 1)
+def parse_previous_manifest_bytes(data: bytes) -> PreviousManifest:
+    """Decode and validate previous-manifest bytes. Raises ``ManifestError``."""
     if len(data) > MAX_MANIFEST_BYTES:
         raise ManifestError(f"previous manifest is larger than {MAX_MANIFEST_BYTES} bytes")
     try:
@@ -374,6 +372,12 @@ def load_previous_manifest(path: Path) -> PreviousManifest:
     except (ValueError, RecursionError) as exc:
         raise ManifestError(f"previous manifest is not valid JSON: {type(exc).__name__}") from exc
     return parse_previous_manifest(document)
+
+
+def load_previous_manifest(path: Path) -> PreviousManifest:
+    """Read a previous manifest file. Raises ``ManifestError`` or ``OSError``."""
+    with path.open("rb") as handle:
+        return parse_previous_manifest_bytes(handle.read(MAX_MANIFEST_BYTES + 1))
 
 
 def _reject_constant(name: str) -> object:

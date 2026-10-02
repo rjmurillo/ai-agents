@@ -11,11 +11,30 @@ implemented: true
 
 # ADR-054: Local Security Scanning
 
-**Status**: Accepted (amended 2026-05-02)
+**Status**: Accepted (amended 2026-05-02, 2026-09-29)
 **Date**: 2026-02-19
-**Revised**: 2026-07-20
+**Revised**: 2026-09-29
 **Deciders**: Security Agent, DevOps Agent
 **Context**: Pre-push security scanning to complement CI-based CodeQL
+
+---
+
+## Amendment 2026-09-29: the 900 second budget is a per-job kill ceiling
+
+Change: the 900 second `security-scan` budget in Implementation Notes is the
+per-job kill ceiling, the longest the job may run before Lefthook kills it. It
+is not an expected duration. ADR-104 sets a separate 300 second target for the
+whole pre-push hook. The two figures measure different things, so both stand. A
+single job can exceed the 300 second target without reaching its ceiling.
+
+Evidence: `.project-toolkit/metrics/gate-latency-v0.7.0.md` (PR #5813, one
+4-CPU container, 2026-09-16, n=2 per pre-push class). `security-scan` took 9.96
+seconds at worst. Whole pre-push hooks took 124 to 128 seconds.
+
+What this amendment does NOT change: the 900 second and 840 second budgets, and
+the scanner's rules.
+
+Refs: issue #5318, item 5.
 
 ---
 
@@ -200,4 +219,4 @@ fix or security-owner policy decision, not a justification-based bypass.
 ---
 
 **Supersedes**: None (extends ADR-041)
-**Amended by**: None
+**Amended by**: [Amendment 2026-09-29](#amendment-2026-09-29-the-900-second-budget-is-a-per-job-kill-ceiling); [Amendment 2026-05-02](#amendment-2026-05-02-cwe-22-scope-narrowing-for-the-security-scan-skill)
