@@ -144,12 +144,17 @@ def discover_known_axes(references_dir: Path) -> frozenset[str]:
 
 
 def default_known_axes(references_dir: Path | None = None) -> frozenset[str] | None:
-    """Return the discovered axis set, or ``None`` when there is no references dir.
+    """Return the discovered axis set, or ``None`` when no axis source exists.
 
-    ``references_dir`` wins over the directory beside this script.
+    ``references_dir`` wins over the directory beside this script. A directory
+    with no ``*.md`` prompt is a partial install, the same condition the axis
+    selector reports as exit 2, so it counts as no source: the hard-coded axes
+    alone would let a forged marker pass with every canonical prompt absent.
     """
     found = references_dir if references_dir is not None else find_references_dir()
     if found is None or not found.is_dir():
+        return None
+    if not any(found.glob("*.md")):
         return None
     return discover_known_axes(found)
 
@@ -508,7 +513,7 @@ def evaluate_marker_values(
         return ValidationOutcome(
             ok=False,
             exit_code=2,
-            message="review skill references/ directory not found; cannot check axis names",
+            message="review skill references/ directory missing or empty; cannot check axis names",
         )
 
     marker, axis_failure = select_valid_marker(markers, known_axes)

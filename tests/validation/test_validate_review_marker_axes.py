@@ -185,6 +185,33 @@ def test_validate_ref_config_error_without_references_dir(
     assert "references/" in outcome.message
 
 
+def test_default_known_axes_is_none_for_empty_references_dir(tmp_path: Path) -> None:
+    empty = tmp_path / "references"
+    empty.mkdir()
+    (empty / "notes.txt").write_text("not a prompt\n", encoding="utf-8")
+    assert vrm.default_known_axes(empty) is None
+
+
+def test_validate_ref_config_error_for_empty_references_dir(
+    git_repo: Path, tmp_path: Path
+) -> None:
+    """A forged /review@correctness must not pass when every axis prompt is absent."""
+    empty = tmp_path / "references"
+    empty.mkdir()
+    _marker_commit(git_repo, "correctness")
+    outcome = vrm.validate_ref("HEAD", git_repo, references_dir=empty)
+    assert outcome.exit_code == 2
+    assert "references/" in outcome.message
+
+
+def test_main_exit_2_for_empty_references_dir(git_repo: Path, tmp_path: Path) -> None:
+    empty = tmp_path / "references"
+    empty.mkdir()
+    _marker_commit(git_repo, "correctness")
+    code = vrm.main(["--repo-root", str(git_repo), "--references-dir", str(empty)])
+    assert code == 2
+
+
 def test_validate_ref_stale_marker_wins_over_missing_references(
     git_repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
