@@ -99,14 +99,22 @@ class FakeReader:
 
 
 class TestSelect:
-    def test_the_newest_manifest_asset_wins(self) -> None:
+    def test_the_first_release_in_listing_order_with_a_manifest_wins(self) -> None:
         releases = [
-            _release("v1", [_asset(1, "2026-08-01T00:00:00Z")]),
-            _release("v2", [_asset(2, "2026-09-01T00:00:00Z")]),
+            _release("v2", [_asset(2, "2026-08-01T00:00:00Z")]),
+            _release("v1", [_asset(1, "2026-09-09T00:00:00Z")]),
         ]
         chosen = select_baseline(releases, "")
         assert chosen is not None
         assert (chosen.tag, chosen.asset_id) == ("v2", 2)
+
+    def test_within_one_release_the_newest_asset_wins(self) -> None:
+        release = _release(
+            "v1", [_asset(1, "2026-08-01T00:00:00Z"), _asset(2, "2026-09-01T00:00:00Z")]
+        )
+        chosen = select_baseline([release], "")
+        assert chosen is not None
+        assert chosen.asset_id == 2
 
     def test_no_releases_means_a_first_promotion(self) -> None:
         assert select_baseline([], "") is None
@@ -164,12 +172,11 @@ class TestSelect:
         assert chosen.asset_id == 1
 
     def test_times_that_cannot_be_ordered_raise(self) -> None:
-        releases = [
-            _release("v1", [_asset(1, "2026-08-01T00:00:00")]),
-            _release("v2", [_asset(2, "2026-09-01T00:00:00Z")]),
-        ]
+        release = _release(
+            "v1", [_asset(1, "2026-08-01T00:00:00"), _asset(2, "2026-09-01T00:00:00Z")]
+        )
         with pytest.raises(GitHubApiError, match="compared"):
-            select_baseline(releases, "")
+            select_baseline([release], "")
 
 
 class TestFetch:
@@ -220,6 +227,22 @@ class TestFetch:
     def test_a_non_list_page_raises(self, tmp_path: Path) -> None:
         with pytest.raises(GitHubApiError, match="list"):
             fetch_baseline(FakeReader({"a": 1}), repo=REPO, exclude_tag="", output_dir=tmp_path)
+
+    def test_a_reused_directory_does_not_carry_an_earlier_answer(self, tmp_path: Path) -> None:
+        out = tmp_path / "o"
+        first = FakeReader([_release("v1")], {11: json.dumps(_manifest()).encode()})
+        fetch_baseline(first, repo=REPO, exclude_tag="", output_dir=out)
+        fetch_baseline(FakeReader([]), repo=REPO, exclude_tag="", output_dir=out)
+        assert sorted(p.name for p in out.iterdir()) == [NO_BASELINE_FILE]
+        fetch_baseline(first, repo=REPO, exclude_tag="", output_dir=out)
+        assert sorted(p.name for p in out.iterdir()) == [MANIFEST_ASSET_NAME]
+
+    def test_a_body_over_the_cap_is_refused_even_with_valid_content(self, tmp_path: Path) -> None:
+        body = json.dumps(_manifest()).encode() + b" " * MAX_MANIFEST_BYTES
+        reader = FakeReader([_release("v1")], {11: body})
+        with pytest.raises(ManifestError, match="larger than"):
+            fetch_baseline(reader, repo=REPO, exclude_tag="", output_dir=tmp_path / "o")
+        assert not (tmp_path / "o" / MANIFEST_ASSET_NAME).exists()
 
     @pytest.mark.parametrize(
         "body",

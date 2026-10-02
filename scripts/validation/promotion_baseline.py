@@ -16,9 +16,9 @@ The asset name is ``promotion-manifest.json``, the file the ``release-manifest``
 job in ``.github/workflows/promotion-gate.yml`` uploads with
 ``gh release upload "$RELEASE_TAG" "$RUNNER_TEMP/manifest/promotion-manifest.json"``.
 
-Selection: among releases that are neither drafts nor prereleases, and not the tag
-being promoted,
-take the asset of that name with the newest ``created_at``. An asset counts only
+Selection: the first release, in the API's newest-first order, that is neither a
+draft nor a prerelease and is not the tag being promoted, and that holds a usable
+asset of that name (the newest ``created_at`` if it holds several). An asset counts only
 when it is ``uploaded``, no larger than ``MAX_MANIFEST_BYTES``, and was uploaded
 by ``github-actions[bot]``, the identity the workflow token carries.
 
@@ -45,7 +45,7 @@ from pathlib import Path
 from typing import Any
 
 from scripts.validation.promotion_fetch import GitHubApiError, GitHubReader
-from scripts.validation.promotion_findings import parse_previous_manifest_bytes
+from scripts.validation.promotion_findings import ManifestError, parse_previous_manifest_bytes
 
 MANIFEST_ASSET_NAME = "promotion-manifest.json"
 MANIFEST_FILE_NAME = MANIFEST_ASSET_NAME
@@ -99,8 +99,13 @@ def _asset_candidate(asset: object, tag: str) -> BaselineAsset | None:
 
 
 def select_baseline(releases: list[Any], exclude_tag: str) -> BaselineAsset | None:
-    """Return the newest usable manifest asset across releases, or None for a first promotion."""
-    found: list[BaselineAsset] = []
+    """Return the manifest asset of the first usable release, or None for a first promotion.
+
+    ``releases`` is in the API's order, newest release first, so the first release
+    holding a usable manifest is the most recent promotion. Within that release the
+    newest asset wins. An older release that gains a manifest later does not
+    displace a newer release's.
+    """
     for release in releases:
         if not isinstance(release, dict):
             continue
@@ -110,12 +115,16 @@ def select_baseline(releases: list[Any], exclude_tag: str) -> BaselineAsset | No
         if not isinstance(tag, str) or tag == exclude_tag:
             continue
         assets = release.get("assets")
-        for asset in assets if isinstance(assets, list) else []:
-            candidate = _asset_candidate(asset, tag)
-            if candidate is not None:
-                found.append(candidate)
-    if not found:
-        return None
+        candidates = (
+            [_asset_candidate(item, tag) for item in assets] if isinstance(assets, list) else []
+        )
+        found = [candidate for candidate in candidates if candidate is not None]
+        if found:
+            return _newest(found)
+    return None
+
+
+def _newest(found: list[BaselineAsset]) -> BaselineAsset:
     try:
         return max(found, key=lambda item: item.created_at)
     except TypeError as exc:  # naive and aware times cannot be ordered
@@ -150,10 +159,15 @@ def fetch_baseline(
     """
     chosen = _find_baseline(reader, repo, exclude_tag)
     output_dir.mkdir(parents=True, exist_ok=True)
+    # A reused directory must not carry an earlier run's answer into this one.
+    for stale in (MANIFEST_FILE_NAME, NO_BASELINE_FILE):
+        (output_dir / stale).unlink(missing_ok=True)
     if chosen is None:
         (output_dir / NO_BASELINE_FILE).write_text('{"baseline": "none"}\n', encoding="utf-8")
         return None
     body = reader.get_bytes(f"repos/{repo}/releases/assets/{chosen.asset_id}", OCTET_STREAM)
+    if len(body) > MAX_MANIFEST_BYTES:
+        raise ManifestError(f"the previous manifest is larger than {MAX_MANIFEST_BYTES} bytes")
     parse_previous_manifest_bytes(body)
     (output_dir / MANIFEST_FILE_NAME).write_bytes(body)
     return chosen
