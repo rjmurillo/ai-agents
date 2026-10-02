@@ -98,6 +98,12 @@ new = dict(tr, stdout="CONTAINED-BY-HOOK-PROBE") if isinstance(tr, dict) else "C
 print(json.dumps({"hookSpecificOutput": {"hookEventName": "PostToolUse", "updatedToolOutput": new}}))
 ```
 
+Negative control: replace the `new = ...` line with the bare string and keep the rest unchanged.
+
+```python
+new = "CONTAINED-BY-HOOK-PROBE"
+```
+
 Run with `--output-format stream-json --verbose` and read the `tool_result` block of each `user` event. With `new` as the bare string the tool_result was `REALOUTPUT-12345` (negative control). With the object form it was `CONTAINED-BY-HOOK-PROBE` and the original marker did not appear. The logged `tool_response` was `{"stdout": "REALOUTPUT-12345", "stderr": "", "interrupted": false, "isImage": false, "noOutputExpected": false}`.
 
 Probe B, PreToolUse rewrite: the hook printed `{"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "allow", "updatedInput": {"command": "echo REWRITTEN-BY-PRE-HOOK"}}}`. The model-bound output was `REWRITTEN-BY-PRE-HOOK`, read from the model's reply in that run; the stream-json check was repeated only for Probe A.
