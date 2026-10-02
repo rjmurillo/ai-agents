@@ -147,6 +147,7 @@ def _handoff_contract(path: Path) -> str:
     text = (REPO_ROOT / path).read_text(encoding="utf-8").replace("\r\n", "\n")
     start = text.index("## Handoff Contract")
     boundary = re.search(r"(?m)^## ", text[start + 3 :])
+    assert boundary is not None, f"{path} has no section after the Handoff Contract"
     return text[start : start + 3 + boundary.start()]
 
 
