@@ -344,7 +344,9 @@ def _handle_run(
     """Take one run through artifact, record, corroboration, and write.
 
     ``problem`` is the provenance verdict the caller computed for this run: the
-    commit tier and the build tier judge a run differently.
+    commit tier and the build tier judge a run differently. ``None`` means the
+    run passed. Only ``fetch_verified_evidence`` and ``fetch_build_evidence`` call
+    this, and a test per entry point asserts a run that fails is never downloaded.
     """
     run_id = _int_id(run.get("id"))
     if run_id is None:

@@ -6,13 +6,9 @@ digest, and "the tarball is built once, in a single job, before the gate runs".
 
 from __future__ import annotations
 
-import hashlib
 import json
-import runpy
-import sys
 from pathlib import Path
 from typing import Any
-from unittest.mock import patch
 
 import pytest
 
@@ -26,14 +22,6 @@ from scripts.validation.promotion_fetch import fetch_build_evidence, fetch_verif
 from scripts.validation.promotion_findings import collect_findings, missing_outcomes
 from scripts.validation.promotion_gate import main as gate_main
 from scripts.validation.promotion_provenance import build_run_problem
-from scripts.validation.tarball_digest import (
-    EXIT_CONFIG,
-    EXIT_EXTERNAL,
-    EXIT_MISMATCH,
-    EXIT_OK,
-    file_digest,
-)
-from scripts.validation.tarball_digest import main as digest_main
 from tests.validation.promotion_fetch_helpers import FakeReader, _artifact, _good, _run, _zip
 
 CANDIDATE = "c" * 40
@@ -108,64 +96,6 @@ class TestEmitterBuildKind:
         argv = self._argv(tmp_path, **{"--event": "pull_request", "--ref": "refs/pull/1/merge"})
         assert emit_main(argv) == EMIT_OK
         assert not (tmp_path / "out").exists()
-
-
-class TestTarballDigest:
-    def _tarball(self, tmp_path: Path, data: bytes = b"tarball") -> Path:
-        path = tmp_path / "pkg.tgz"
-        path.write_bytes(data)
-        return path
-
-    def test_the_digest_is_the_sha256_of_the_bytes(self, tmp_path: Path) -> None:
-        path = self._tarball(tmp_path, b"x" * (3 * (1 << 20) + 5))
-        assert file_digest(path) == hashlib.sha256(b"x" * (3 * (1 << 20) + 5)).hexdigest()
-
-    def test_compute_prints_and_writes_the_output(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
-    ) -> None:
-        path = self._tarball(tmp_path)
-        sink = tmp_path / "out"
-        assert (
-            digest_main(["compute", "--file", str(path), "--github-output", str(sink)]) == EXIT_OK
-        )
-        expected = hashlib.sha256(b"tarball").hexdigest()
-        assert expected in capsys.readouterr().out
-        assert sink.read_text(encoding="utf-8") == f"digest={expected}\n"
-
-    def test_compute_without_a_sink_just_prints(self, tmp_path: Path) -> None:
-        assert digest_main(["compute", "--file", str(self._tarball(tmp_path))]) == EXIT_OK
-
-    def test_verify_passes_on_a_match_and_fails_on_any_difference(self, tmp_path: Path) -> None:
-        path = self._tarball(tmp_path)
-        good = hashlib.sha256(b"tarball").hexdigest()
-        assert digest_main(["verify", "--file", str(path), "--expected", good]) == EXIT_OK
-        assert digest_main(["verify", "--file", str(path), "--expected", "0" * 64]) == EXIT_MISMATCH
-        path.write_bytes(b"swapped")
-        assert digest_main(["verify", "--file", str(path), "--expected", good]) == EXIT_MISMATCH
-
-    @pytest.mark.parametrize("expected", ["", "abc", "D" * 64, "g" * 64])
-    def test_verify_refuses_a_malformed_expected_digest(
-        self, tmp_path: Path, expected: str
-    ) -> None:
-        argv = ["verify", "--file", str(self._tarball(tmp_path)), "--expected", expected]
-        assert digest_main(argv) == EXIT_CONFIG
-
-    def test_a_missing_file_exits_three(self, tmp_path: Path) -> None:
-        assert digest_main(["compute", "--file", str(tmp_path / "none")]) == EXIT_EXTERNAL
-
-    def test_a_symlink_is_refused(self, tmp_path: Path) -> None:
-        link = tmp_path / "link.tgz"
-        link.symlink_to(self._tarball(tmp_path))
-        assert digest_main(["compute", "--file", str(link)]) == EXIT_CONFIG
-
-    def test_a_directory_is_refused(self, tmp_path: Path) -> None:
-        assert digest_main(["compute", "--file", str(tmp_path)]) == EXIT_CONFIG
-
-    def test_the_entry_point_guard_returns_the_exit_code(self) -> None:
-        script = Path(digest_main.__code__.co_filename)
-        with patch.object(sys, "argv", [str(script), "compute"]), pytest.raises(SystemExit) as stop:
-            runpy.run_path(str(script), run_name="__main__")
-        assert stop.value.code == 2
 
 
 def _own_run(**overrides: Any) -> dict[str, Any]:

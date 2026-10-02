@@ -241,6 +241,13 @@ def test_the_action_keeps_evidence_for_the_adr_015_standard_tier() -> None:
     assert upload["with"]["retention-days"] == 7
 
 
+def test_only_a_build_call_may_name_a_commit_other_than_the_run_commit() -> None:
+    run = next(s for s in _action()["runs"]["steps"] if s.get("id") == "emit")
+    assert (
+        run["env"]["REVISION"] == "${{ (inputs.kind == 'build' && inputs.revision) || github.sha }}"
+    )
+
+
 def test_the_action_passes_context_through_env_never_into_the_script() -> None:
     run = next(s for s in _action()["runs"]["steps"] if s.get("id") == "emit")
     assert "${{" not in run["run"]

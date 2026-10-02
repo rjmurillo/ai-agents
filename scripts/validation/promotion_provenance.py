@@ -165,6 +165,11 @@ def build_run_problem(
     the expected workflow, and it is the run the gate itself is part of. The run is
     still in progress while the gate reads it, so ``in_progress`` is accepted, and
     its ``head_sha`` is the default branch head, not the candidate.
+
+    ``head_branch`` is a bare name, so a tag named like the default branch would
+    read the same. The emitter closes that: it writes build evidence only for the
+    full ref ``refs/heads/<default branch>``, and the gate job runs only from that
+    ref, so a dispatch from a tag produces no evidence for this check to accept.
     """
     if run.get("id") != run_id:
         return REASON_RUN_ID

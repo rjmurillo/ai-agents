@@ -47,7 +47,8 @@ runs:
         VALIDATOR: ${{ inputs.validator }}
         JOB_STATUS: ${{ inputs.job-status }}
         RAN: ${{ inputs.ran }}
-        REVISION: ${{ inputs.revision || github.sha }}
+        # Only a build job may name a commit other than the run's own.
+        REVISION: ${{ (inputs.kind == 'build' && inputs.revision) || github.sha }}
         KIND: ${{ inputs.kind }}
         DIGEST: ${{ inputs.digest }}
         EVENT_NAME: ${{ github.event_name }}
