@@ -80,7 +80,10 @@ def _canonical_paths(repo_root: Path) -> list[str]:
     two module names (package and sibling form), which mypy rejects.
     """
     corpus = importlib.import_module("scripts.validation.instruction_bytes_corpus")
-    paths: list[str] = corpus.canonical_paths(repo_root)
+    try:
+        paths: list[str] = corpus.canonical_paths(repo_root)
+    except corpus.CorpusError as exc:
+        raise ScanError(str(exc)) from exc
     return paths
 
 
@@ -157,12 +160,32 @@ def duplicate_blocks(files: dict[str, str]) -> dict[str, int]:
 
 
 def stale_counts(files: dict[str, str]) -> dict[str, str]:
-    """Map `path::claim` keys to a simplification of each contradicted count."""
+    """Map `path::claim` keys to a simplification of each contradicted count.
+
+    A claim repeated verbatim in one file gets an occurrence suffix (`#2`, `#3`)
+    on every repeat after the first, so each added copy is a new key and grows
+    the debt. The first occurrence keeps the bare key, so existing baseline
+    entries stay valid.
+    """
     found: dict[str, str] = {}
     for rel, text in files.items():
+        seen: dict[str, int] = defaultdict(int)
         for claim in derived_count_claims(text):
-            found[f"{rel}::{claim.text}"] = simplify(claim.text)
+            seen[claim.text] += 1
+            suffix = "" if seen[claim.text] == 1 else f"#{seen[claim.text]}"
+            found[f"{rel}::{claim.text}{suffix}"] = simplify(claim.text)
     return dict(sorted(found.items()))
+
+
+def _read_authored(repo_root: Path, path: Path) -> str:
+    """Read one authored file, refusing a target that resolves outside the checkout (CWE-22)."""
+    resolved = path.resolve()
+    if not resolved.is_relative_to(repo_root.resolve()):
+        raise ScanError(
+            f"{path.relative_to(repo_root).as_posix()} resolves outside the repository; "
+            "an authored artifact must live inside the checkout"
+        )
+    return resolved.read_text(encoding="utf-8", errors="replace")
 
 
 def measure(repo_root: Path) -> dict[str, dict[str, Any]]:
@@ -170,10 +193,7 @@ def measure(repo_root: Path) -> dict[str, dict[str, Any]]:
     paths = authored_files(repo_root)
     if not paths:
         raise ScanError("no authored artifacts found; an empty scan would pass vacuously")
-    files = {
-        p.relative_to(repo_root).as_posix(): p.read_text(encoding="utf-8", errors="replace")
-        for p in paths
-    }
+    files = {p.relative_to(repo_root).as_posix(): _read_authored(repo_root, p) for p in paths}
     return {"duplicate_blocks": duplicate_blocks(files), "cardinality": stale_counts(files)}
 
 
@@ -254,8 +274,29 @@ def validate_nl_structural_debt(repo_root: Path) -> bool:
     return run(repo_root, update=False) == 0
 
 
+def _refuses_write_from_outside(repo_root: Path) -> bool:
+    """True when the process is not standing inside ``repo_root``.
+
+    ``.claude/rules/ci-scripts.md`` MUST-7: a script that resolves the repository
+    root and then writes to it confirms the current directory is inside that root
+    before the first write. Without it, running this script by absolute path from
+    another worktree rewrites the baseline of the checkout that holds the script.
+    """
+    cwd = Path.cwd().resolve()
+    if cwd.is_relative_to(repo_root.resolve()):
+        return False
+    print(
+        f"[FAIL] Refusing to write the baseline in {repo_root} while running from {cwd}. "
+        "--update-baseline records the checkout it is run from.",
+        file=sys.stderr,
+    )
+    return True
+
+
 def run(repo_root: Path, update: bool, report: bool = False) -> int:
     """Measure, compare, and return an ADR-035 exit code."""
+    if update and _refuses_write_from_outside(repo_root):
+        return 2
     try:
         current = measure(repo_root)
         path = repo_root / BASELINE_PATH
