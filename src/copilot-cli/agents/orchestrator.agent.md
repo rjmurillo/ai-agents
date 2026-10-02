@@ -178,7 +178,7 @@ DELEGATE TO: [agent]
 OBJECTIVE: [one sentence, user-visible outcome]
 NON-GOALS: [out of scope; allowed paths and tools]
 CONTEXT: [findings, assumptions, open questions, repo, branch, head SHA]
-RISK TIER: [read-only | reversible-local | shared-repo | external | prod/data/security/financial]
+RISK TIER: [ADR-112 tier: read-only | reversible-local | shared-repository | consequential]
 ACCEPTANCE: [criteria, invariants, verifier, pass criterion]
 STOP CONDITIONS: [when to halt]
 ESCALATE TO: [owner]
@@ -308,7 +308,7 @@ Use when drift is detected: wrong approach, lost context after compaction, exper
 
 ### Session Capture Protocol
 
-Capture signal in the state record above. Session log creation is discontinued; use the per-issue handoff and Serena memory. Skip tool invocations, research that did not change the plan, routine reads, and superseded responses. A `workLog` entry is one or two sentences: the action or decision, then why. Keep it only if removing it would leave the next session unable to reproduce a decision or continue.
+Capture signal in the state record above. Session log creation is discontinued; use the per-issue handoff and Serena memory. Record blockers with workarounds attempted. Skip tool invocations, research that did not change the plan, routine reads, and superseded responses. A `workLog` entry is one or two sentences: the action or decision, then why. Keep it only if removing it would leave the next session unable to reproduce a decision or continue.
 
 ## Context Budget Management
 
@@ -332,9 +332,9 @@ per-issue handoff.
 
 ## Reliability Principles
 
-- **Idempotent delegations**: re-delegating the same task to the same agent is safe
-- **Explicit handoffs**: context does not decay across agents
-- **Graceful degradation**: on agent failure, route to a fallback (analyst errors: use the context-gather skill)
+- **Idempotent delegations**: re-delegating the same task to the same agent should be safe
+- **Explicit handoffs**: never let context decay across agents
+- **Graceful degradation**: if an agent fails, route to a fallback (e.g., analyst errors, fall back to the context-gather skill for context)
 - **Observability**: log routing decisions with rationale
 
 ## Orchestration Budget
