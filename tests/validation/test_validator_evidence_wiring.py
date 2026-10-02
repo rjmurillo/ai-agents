@@ -57,7 +57,24 @@ def _expanded_validators(call: dict[str, Any]) -> list[str]:
 
 
 def _uploaded() -> dict[str, dict[str, Any]]:
-    return {name: call for call in _calls() for name in _expanded_validators(call)}
+    """The call from each validator's main job. A skip job's call is in ``_skip_calls``."""
+    skip_jobs = {r.path_filter.skip_job for r in load_applicability(ROOT) if r.path_filter}
+    return {
+        name: call
+        for call in _calls()
+        if call["job"].get("name") not in skip_jobs
+        for name in _expanded_validators(call)
+    }
+
+
+def _skip_calls() -> dict[str, dict[str, Any]]:
+    skip_jobs = {r.path_filter.skip_job for r in load_applicability(ROOT) if r.path_filter}
+    return {
+        name: call
+        for call in _calls()
+        if call["job"].get("name") in skip_jobs
+        for name in _expanded_validators(call)
+    }
 
 
 def test_the_table_has_commit_tier_rows_to_cover() -> None:
@@ -85,9 +102,26 @@ def test_each_validator_is_uploaded_from_the_job_the_table_names() -> None:
         assert job_name.replace("${{ matrix.language }}", "").split("(")[0].strip() == expected
 
 
-def test_no_validator_is_uploaded_twice() -> None:
+def test_no_validator_is_uploaded_twice_except_by_its_declared_skip_job() -> None:
     names = [name for call in _calls() for name in _expanded_validators(call)]
-    assert len(names) == len(set(names))
+    declared = {
+        r.validator for r in load_applicability(ROOT) if r.path_filter and r.path_filter.skip_job
+    }
+    repeated = {name for name in names if names.count(name) > 1}
+    assert repeated == declared
+    assert all(names.count(name) == 2 for name in repeated)
+
+
+def test_a_skip_job_records_the_skip_and_names_the_job_the_table_declares() -> None:
+    rows = {
+        r.validator: r for r in load_applicability(ROOT) if r.path_filter and r.path_filter.skip_job
+    }
+    assert rows
+    calls = _skip_calls()
+    assert set(calls) == set(rows)
+    for name, row in rows.items():
+        assert calls[name]["job"]["name"] == row.path_filter.skip_job
+        assert calls[name]["step"]["with"]["ran"] == "false"
 
 
 @pytest.mark.parametrize("call", _calls(), ids=lambda c: f"{c['file']}:{c['job_id']}")
@@ -161,7 +195,14 @@ def test_the_emitter_checkout_in_a_conditional_job_fetches_only_what_it_needs() 
     for call in _calls():
         for step in call["job"]["steps"]:
             if step.get("name") == "Check out the evidence emitter":
-                assert step["if"] == "always() && steps.checkout.outcome != 'success'"
+                earlier = call["job"]["steps"][: call["job"]["steps"].index(step)]
+                has_checkout_id = any(e.get("id") == "checkout" for e in earlier)
+                expected = (
+                    "always() && steps.checkout.outcome != 'success'"
+                    if has_checkout_id
+                    else "always()"
+                )
+                assert step["if"] == expected
                 assert step["with"]["persist-credentials"] is False
                 sparse = step["with"]["sparse-checkout"]
                 assert "scripts/validation" in sparse

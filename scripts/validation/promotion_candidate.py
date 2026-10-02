@@ -113,3 +113,36 @@ def candidate_files(repo_root: Path, sha: str) -> tuple[str, ...]:
     if result.returncode != 0:
         raise CandidateCheckError(f"git ls-tree failed with exit {result.returncode}")
     return tuple(name for name in result.stdout.split("\0") if name)
+
+
+def changed_files(repo_root: Path, sha: str) -> tuple[str, ...]:
+    """Return the paths the candidate commit changed against its first parent.
+
+    NUL-separated. Raises ``CandidateCheckError`` when git cannot answer, which
+    includes a root commit: with no parent there is no diff to compare.
+    """
+    if not _SHA_RE.fullmatch(sha):
+        raise InvalidCandidateNameError(f"candidate {sha!r} is not a 40-character commit SHA")
+    result = _git(repo_root, ["diff", "--name-only", "-z", f"{sha}^1", sha])
+    if result.returncode != 0:
+        raise CandidateCheckError(f"git diff failed with exit {result.returncode}")
+    return tuple(name for name in result.stdout.split("\0") if name)
+
+
+def parent_file(repo_root: Path, sha: str, path: str) -> str | None:
+    """Return ``path`` as the candidate's first parent held it, or None if it did not.
+
+    Raises ``CandidateCheckError`` when git cannot run or the parent is unreadable.
+    """
+    if not _SHA_RE.fullmatch(sha):
+        raise InvalidCandidateNameError(f"candidate {sha!r} is not a 40-character commit SHA")
+    if path.startswith(("/", "-")) or ".." in path.split("/"):
+        raise InvalidCandidateNameError("path must be repository-relative")
+    result = _git(repo_root, ["show", f"{sha}^1:{path}"])
+    if result.returncode == 0:
+        return result.stdout
+    if result.returncode == 128 and "exists on disk, but not in" in result.stderr:
+        return None
+    if result.returncode == 128 and "does not exist in" in result.stderr:
+        return None
+    raise CandidateCheckError(f"git show failed with exit {result.returncode}")

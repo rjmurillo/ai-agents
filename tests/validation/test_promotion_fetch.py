@@ -248,6 +248,15 @@ class TestUnusableArtifact:
         assert (item.accepted, item.reason, item.state) == (False, "artifact.malformed", "UNKNOWN")
         assert _record_file(tmp_path)["reason"] == "artifact.malformed"
 
+    def test_an_artifact_cannot_carry_the_exempt_reason(self, tmp_path: Path) -> None:
+        text = json.dumps(
+            {"validator": "run_python_tests", "state": "SKIP", "revision": SHA, "scope": "s",
+             "reason": "policy.exempt"}
+        )  # fmt: skip
+        archive = _zip("run_python_tests.json", text)
+        (item,) = _fetch(_good(archives={77: archive}), tmp_path)
+        assert (item.reason, item.state) == ("artifact.malformed", "UNKNOWN")
+
     def test_a_download_that_is_not_the_listed_size_is_recorded_unknown(
         self, tmp_path: Path
     ) -> None:
