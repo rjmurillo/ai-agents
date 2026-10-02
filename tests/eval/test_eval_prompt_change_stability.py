@@ -67,9 +67,16 @@ def _result(sid: str, passes: int, runs: int = 3) -> dict[str, Any]:
     }
 
 
-def _comparison(before: list[dict[str, Any]], after: list[dict[str, Any]]) -> dict[str, Any]:
-    """Build a comparison the way run_comparison does: scores cover stable base scenarios."""
-    pairs = [(b, a) for b, a in zip(before, after, strict=True) if not ev.is_base_unstable(b)]
+def _comparison(
+    before: list[dict[str, Any]],
+    after: list[dict[str, Any]],
+    security_critical: bool = False,
+) -> dict[str, Any]:
+    """Build a comparison the way run_comparison does, including the tier's base minimum."""
+    required = ev.SECURITY_RUNS if security_critical else ev.DEFAULT_RUNS
+    pairs = [
+        (b, a) for b, a in zip(before, after, strict=True) if not ev.is_base_unstable(b, required)
+    ]
     n = max(1, len(pairs))
     bs = sum(b["passed"] for b, _a in pairs) / n
     as_ = sum(a["passed"] for _b, a in pairs) / n
@@ -79,6 +86,8 @@ def _comparison(before: list[dict[str, Any]], after: list[dict[str, Any]]) -> di
         "before_score": bs,
         "after_score": as_,
         "delta": as_ - bs,
+        "scenario_count": len(before),
+        "scored_scenario_count": len(pairs),
     }
 
 
@@ -335,10 +344,7 @@ def _floor_comparison(stable: int, total: int, runs: int = 3) -> dict[str, Any]:
     """`stable` scenarios with a 3/3 base, the rest 2/3 (base unstable); after is 3/3."""
     before = [_result(f"S{i}", 3 if i < stable else 2, runs) for i in range(total)]
     after = [_result(f"S{i}", runs, runs) for i in range(total)]
-    comparison = _comparison(before, after)
-    comparison["scenario_count"] = total
-    comparison["scored_scenario_count"] = stable
-    return comparison
+    return _comparison(before, after)
 
 
 @pytest.mark.parametrize(
@@ -404,3 +410,81 @@ def test_run_comparison_excludes_a_base_scored_once(monkeypatch: pytest.MonkeyPa
     monkeypatch.setattr(ev, "run_scenario_multi", fake)
     out = ev.run_comparison("k", "base", "head", [D12, D6], "m", 3)
     assert out["scored_scenario_count"] == 1
+
+
+def _without_counts(comparison: dict[str, Any]) -> dict[str, Any]:
+    """A hand-built comparison that omits the counts run_comparison supplies."""
+    return {
+        k: v for k, v in comparison.items() if k not in ("scenario_count", "scored_scenario_count")
+    }
+
+
+def test_floor_derives_from_the_gate_exclusion_set_when_counts_are_omitted() -> None:
+    gate = ev.acceptance_gate(_without_counts(_floor_comparison(1, 4)))
+    assert gate["verdict"] == "FAIL"
+    assert "1 of 4" in gate["inconclusive_reason"]
+
+
+def test_hand_built_comparison_with_all_stable_and_no_counts_passes() -> None:
+    gate = ev.acceptance_gate(_without_counts(_floor_comparison(4, 4)))
+    assert gate["verdict"] == "PASS"
+
+
+def test_a_larger_supplied_count_cannot_raise_the_stable_count() -> None:
+    comparison = _floor_comparison(1, 4)
+    comparison["scored_scenario_count"] = 4
+    gate = ev.acceptance_gate(comparison)
+    assert gate["verdict"] == "FAIL"
+
+
+def test_a_smaller_supplied_count_lowers_the_stable_count() -> None:
+    comparison = _floor_comparison(4, 4)
+    comparison["scored_scenario_count"] = 1
+    gate = ev.acceptance_gate(comparison)
+    assert gate["verdict"] == "FAIL"
+
+
+def test_security_tier_one_of_four_stable_is_inconclusive() -> None:
+    before = [_result("S0", 5, 5)] + [_result(f"S{i}", 3, 3) for i in range(1, 4)]
+    after = [_result(f"S{i}", 5, 5) for i in range(4)]
+    gate = ev.acceptance_gate(_comparison(before, after, security_critical=True), True)
+    assert gate["verdict"] == "FAIL"
+    assert "1 of 4" in gate["inconclusive_reason"]
+    assert gate["base_unstable_security_scenarios"] == ["S1", "S2", "S3"]
+    assert gate["excluded_count"] == 3
+
+
+def test_failing_base_scored_below_the_minimum_is_excluded() -> None:
+    before = [_result("A", 3, 3), _result("B", 0, 1), _result("C", 3, 3)]
+    after = [_result("A", 3, 3), _result("B", 3, 3), _result("C", 3, 3)]
+    gate = ev.acceptance_gate(_comparison(before, after))
+    assert gate["base_unstable_scenarios"] == ["B"]
+    assert gate["improvements"] == []
+
+
+def test_run_comparison_security_floor_end_to_end(monkeypatch: pytest.MonkeyPatch) -> None:
+    scenarios = [{**D12, "id": f"S{i}"} for i in range(4)]
+
+    def fake(_k: str, prompt: str, scenario: dict[str, Any], _m: str, runs: int) -> dict[str, Any]:
+        if prompt == "base" and scenario["id"] != "S0":
+            return _result(scenario["id"], 3, 3)
+        return _result(scenario["id"], 5, 5)
+
+    monkeypatch.setattr(ev, "run_scenario_multi", fake)
+    out = ev.run_comparison("k", "base", "head", scenarios, "m", 5, security_critical=True)
+    assert out["scored_scenario_count"] == 1
+    assert ev.acceptance_gate(out, security_critical=True)["verdict"] == "FAIL"
+
+
+def test_inconclusive_fail_exits_nonzero(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setattr(
+        ev, "run_scenario_multi", _fake_multi({"D12": 2, "D6": 2}, {"D12": 3, "D6": 3})
+    )
+    out_file = tmp_path / "report.json"
+    args = argparse.Namespace(model="m", runs=3, security_critical=False, output=str(out_file))
+    with pytest.raises(SystemExit) as exc:
+        ev._run_and_report("k", "base", "head", [D12, D6], args, "test")
+    assert exc.value.code == 1
+    gate = json.loads(out_file.read_text(encoding="utf-8"))["gate"]
+    assert gate["verdict"] == "FAIL"
+    assert "inconclusive" in gate["inconclusive_reason"]

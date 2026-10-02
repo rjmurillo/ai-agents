@@ -1115,15 +1115,30 @@ class TestAcceptanceGate:
 
     def test_insufficient_before_is_reported_but_not_blocking(self):
         # A stale base-ref result thin on scored runs must not, by itself,
-        # block a current change that meets the minimum.
-        before = [self._r("S1", True, pass_rate=1.0, runs=1)]
-        after = [self._r("S1", True, pass_rate=1.0, runs=3)]
+        # block a current change that meets the minimum. It is excluded from
+        # the baseline (unstable), and the stable floor still clears on the rest.
+        before = [
+            self._r("S1", True, pass_rate=1.0, runs=1),
+            self._r("S2", True, pass_rate=1.0, runs=3),
+            self._r("S3", True, pass_rate=1.0, runs=3),
+        ]
+        after = [self._r(sid, True, pass_rate=1.0, runs=3) for sid in ("S1", "S2", "S3")]
         comp = self._comparison(before, after, before_score=1.0, after_score=1.0)
         comp["delta"] = 0.0
         gate = eval_mod.acceptance_gate(comp)
         assert gate["passed"] is True
         assert gate["insufficient_scored_scenarios"] == []
         assert "S1" in gate["insufficient_scored_before"]
+        assert gate["base_unstable_scenarios"] == ["S1"]
+
+    def test_thin_base_alone_is_inconclusive(self):
+        before = [self._r("S1", True, pass_rate=1.0, runs=1)]
+        after = [self._r("S1", True, pass_rate=1.0, runs=3)]
+        comp = self._comparison(before, after, before_score=1.0, after_score=1.0)
+        comp["delta"] = 0.0
+        gate = eval_mod.acceptance_gate(comp)
+        assert gate["passed"] is False
+        assert "inconclusive" in gate["inconclusive_reason"]
 
 
 # ---------------------------------------------------------------------------
@@ -1616,10 +1631,19 @@ class TestMainCLI:
             )
 
         monkeypatch.setattr(eval_mod, "_run_and_report", boom_run)
-        monkeypatch.setattr(sys, "argv", [
-            "prog", "--before", str(before), "--after", str(after),
-            "--scenarios", str(scen),
-        ])
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            [
+                "prog",
+                "--before",
+                str(before),
+                "--after",
+                str(after),
+                "--scenarios",
+                str(scen),
+            ],
+        )
         with pytest.raises(SystemExit) as exc:
             eval_mod.main()
         assert exc.value.code == 3

@@ -1,7 +1,7 @@
 ---
 id: ADR-057
 status: accepted
-date: 2026-09-30
+date: 2026-10-02
 decision-makers: [architect, user]
 supersedes: []
 superseded-by: null
@@ -144,7 +144,7 @@ Minimum requirements for scenario coverage:
 
 - MUST: A prompt with 0 scenarios does not satisfy the gate. Enforced by load_scenarios() which rejects empty scenario files.
 - SHOULD: At least one scenario per decision branch the prompt change introduces or modifies. Enforced by code review.
-- SHOULD: At least one scenario that passes every base run. A scenario that passes only 2 of 3 base runs gives no regression protection (Amendment 2026-09-30). A file whose base scenarios are all unstable fails closed.
+- SHOULD: Enough scenarios that pass every base run to clear the stable floor. A scenario that passes only 2 of 3 base runs gives no regression protection (Amendment 2026-09-30). The gate is inconclusive (FAIL) unless at least `max(1, ceil(total_scenarios / 2))` scenarios have a stable base result.
 - SHOULD: At least one regression scenario for existing behavior the change could affect. Enforced by code review.
 - SHOULD: Scenario coverage reviewed as part of the PR review process. Enforced by code review.
 

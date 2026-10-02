@@ -504,7 +504,9 @@ def is_base_unstable(before: dict[str, Any], required_runs: int = 1) -> bool:
     between 0/3, 2/3, and 3/3 is sampling noise, not a property of the change
     under test (issue #5601). Such a scenario cannot serve as the baseline for
     a regression. It is reported, never gated. A scenario the base side fails
-    outright (`passed` False) is not unstable: it cannot regress.
+    outright with at least `required_runs` scored runs (`passed` False) is not
+    unstable: it cannot regress. A failing base scored on fewer runs than
+    `required_runs` is unstable: the run-count check comes first.
     """
     if before["runs"] < required_runs:
         return True
@@ -710,9 +712,14 @@ def acceptance_gate(
     # Inconclusive, not clean: when every base scenario is unstable there is no
     # stable baseline to compare against, and the zero scores would let any
     # after result pass (issue #5601 review). Hand-built comparisons that omit
-    # `scored_scenario_count` are treated as having a baseline.
+    # `scored_scenario_count` rely on the gate's own exclusion set.
     total_scenarios = comparison.get("scenario_count", len(before_results))
-    stable_count = comparison.get("scored_scenario_count", len(before_results))
+    # The floor derives from the gate's own exclusion set. A comparison that
+    # carries `scored_scenario_count` and disagrees can only lower the count
+    # (fail closed), never raise it.
+    stable_count = total_scenarios - len(base_unstable_scenarios)
+    if "scored_scenario_count" in comparison:
+        stable_count = min(stable_count, comparison["scored_scenario_count"])
     min_stable = min_stable_scenarios(total_scenarios)
     has_stable_baseline = stable_count >= min_stable
     inconclusive_reason = None
