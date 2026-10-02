@@ -57,11 +57,12 @@ def test_triggers_are_a_tag_push_and_a_dispatch_only(workflow: dict[str, Any]) -
 
 def test_the_jobs_run_in_the_documented_order(workflow: dict[str, Any]) -> None:
     jobs = _jobs(workflow)
-    assert set(jobs) == {"resolve", "build", "gate", "publish"}
+    assert set(jobs) == {"resolve", "build", "gate", "publish", "attach"}
     assert "needs" not in jobs["resolve"]
     assert jobs["build"]["needs"] == "resolve"
     assert jobs["gate"]["needs"] == ["resolve", "build"]
     assert jobs["publish"]["needs"] == ["resolve", "build", "gate"]
+    assert jobs["attach"]["needs"] == ["resolve", "gate", "publish"]
 
 
 def test_the_default_permissions_are_empty(workflow: dict[str, Any]) -> None:
@@ -77,8 +78,9 @@ def test_only_the_gate_call_holds_a_write_permission_and_publish_holds_the_token
         for name, job in jobs.items()
         if any(level == "write" for level in job.get("permissions", {}).values())
     }
-    assert writers == {"gate", "publish"}
+    assert writers == {"gate", "publish", "attach"}
     assert jobs["gate"]["permissions"] == {"contents": "write", "actions": "read", "checks": "read"}
+    assert jobs["attach"]["permissions"] == {"contents": "write"}
     assert jobs["publish"]["permissions"] == {"contents": "read", "id-token": "write"}
     for name in ("resolve", "build"):
         assert jobs[name]["permissions"] == {"contents": "read"}
@@ -96,6 +98,7 @@ def test_the_gate_is_the_reusable_workflow_and_takes_the_build_outputs(
         "release-tag": "${{ needs.resolve.outputs.release_tag }}",
         "mode": "${{ needs.resolve.outputs.mode }}",
         "build-run-id": "${{ github.run_id }}",
+        "attach-manifest": False,
     }
 
 
@@ -103,7 +106,8 @@ def test_publish_runs_only_for_a_good_dry_run_or_a_promoted_gate(workflow: dict[
     condition = _normalized(_jobs(workflow)["publish"]["if"])
     assert condition == (
         "${{ !cancelled() && ((needs.resolve.outputs.dry_run == 'true' && "
-        "needs.build.result == 'success') || needs.gate.outputs.promoted == 'true') }}"
+        "needs.build.result == 'success') || (needs.gate.result == 'success' && "
+        "needs.gate.outputs.promoted == 'true')) }}"
     )
 
 
@@ -223,6 +227,25 @@ def test_nothing_reaches_the_shell_through_an_expression(workflow: dict[str, Any
             assert "${{" not in str(step.get("run", "")), (name, step.get("name"))
 
 
+def test_the_manifest_is_attached_only_after_a_successful_real_publish(
+    workflow: dict[str, Any],
+) -> None:
+    attach = _jobs(workflow)["attach"]
+    assert _normalized(attach["if"]) == (
+        "${{ !cancelled() && needs.publish.result == 'success' "
+        "&& needs.resolve.outputs.dry_run == 'false' "
+        "&& needs.resolve.outputs.release_tag != '' "
+        "&& needs.gate.outputs.release_eligible == 'true' }}"
+    )
+    uses = [str(s.get("uses", "")) for s in attach["steps"]]
+    assert not any(u.startswith("actions/checkout") for u in uses)
+    runs = [str(s["run"]) for s in attach["steps"] if "run" in s]
+    assert len(runs) == 1
+    assert "gh release upload" in runs[0]
+    assert "gh release create" not in runs[0]
+    assert "scripts/" not in runs[0]
+
+
 def test_the_secret_is_read_only_by_the_publish_steps(workflow: dict[str, Any]) -> None:
     text = PUBLISH.read_text(encoding="utf-8")
     assert text.count("secrets.NPM_TOKEN") == 2
@@ -249,7 +272,7 @@ def test_the_tag_route_is_refused_by_the_first_job_and_nothing_downstream_runs_w
     workflow: dict[str, Any],
 ) -> None:
     jobs = _jobs(workflow)
-    for name in ("build", "gate", "publish"):
+    for name in ("build", "gate", "publish", "attach"):
         needs = jobs[name]["needs"]
         assert "resolve" in (needs if isinstance(needs, list) else [needs])
     assert jobs["resolve"]["outputs"]["candidate_sha"] == "${{ steps.route.outputs.candidate_sha }}"

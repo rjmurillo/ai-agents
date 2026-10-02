@@ -77,6 +77,16 @@ class TestSingleTarball:
         with pytest.raises(TarballError):
             single_tarball(tmp_path)
 
+    @pytest.mark.parametrize("name", ["a\nfile=/tmp/x.tgz", "a b.tgz", "a;b.tgz", "a$b.tgz"])
+    def test_a_name_npm_pack_would_not_produce_is_refused(self, tmp_path: Path, name: str) -> None:
+        _tarball(tmp_path, name.replace("/", "_"))
+        with pytest.raises(TarballError, match="character"):
+            single_tarball(tmp_path)
+
+    def test_a_scoped_package_name_is_accepted(self, tmp_path: Path) -> None:
+        path = _tarball(tmp_path, "rjmurillo-ai-agents-0.6.0-rc.1.tgz")
+        assert single_tarball(tmp_path) == path
+
     def test_a_missing_directory_is_an_os_error(self, tmp_path: Path) -> None:
         with pytest.raises(FileNotFoundError):
             single_tarball(tmp_path / "none")
@@ -110,6 +120,15 @@ class TestCli:
         argv = ["verify", "--file", str(path), "--expected", GOOD, "--github-output", str(sink)]
         assert digest_main(argv) == EXIT_MISMATCH
         assert not sink.exists()
+
+    def test_a_mismatch_is_reported_on_stderr(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        argv = ["verify", "--file", str(_tarball(tmp_path)), "--expected", "0" * 64]
+        digest_main(argv)
+        captured = capsys.readouterr()
+        assert "does not match" in captured.err
+        assert captured.out == ""
 
     def test_verify_fails_for_another_bound_digest(self, tmp_path: Path) -> None:
         argv = ["verify", "--file", str(_tarball(tmp_path)), "--expected", "0" * 64]

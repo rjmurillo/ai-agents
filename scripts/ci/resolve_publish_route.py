@@ -16,7 +16,9 @@ Two routes reach ``publish.yml``:
 - ``workflow_dispatch`` on the default branch, with an optional candidate SHA
   (default: the run's own commit), ``dry-run``, and an optional release tag. This
   route is live. A real publish (``dry-run`` false) runs the gate in enforcing
-  mode, and a dry run runs it advisory.
+  mode, and a dry run runs it advisory. A candidate other than the run commit is
+  accepted for a dry run only: npm provenance attests the run commit, so a real
+  publish of an older candidate would be attested as the head.
 - A push of a ``v*`` tag. This route is dormant and fails closed: it exits 1 with
   the reason. A tag push runs the tagged commit's own copy of the workflow, so
   nothing on that route can vouch for the gate until the owner creates the ``v*``
@@ -116,11 +118,17 @@ def decide_route(
         raise RouteRefusedError(f"event {event!r} cannot publish", EXIT_CONFIG)
     if not _BRANCH_RE.fullmatch(default_branch) or ref != f"refs/heads/{default_branch}":
         raise RouteRefusedError("publish runs only from the default branch")
-    return RouteDecision(
+    decision = RouteDecision(
         candidate_sha=_candidate(candidate_input, run_sha),
         release_tag=_release_tag(release_tag_input),
         dry_run=_dry_run(dry_run_input),
     )
+    if not decision.dry_run and decision.candidate_sha != run_sha:
+        raise RouteRefusedError(
+            "a real publish must use the run commit as the candidate: npm provenance "
+            "attests the run commit, so an older candidate would be attested as the head"
+        )
+    return decision
 
 
 def package_version(package_dir: Path) -> str:

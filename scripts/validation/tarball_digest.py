@@ -42,6 +42,7 @@ from pathlib import Path
 EXIT_OK, EXIT_MISMATCH, EXIT_CONFIG, EXIT_EXTERNAL = 0, 1, 2, 3
 CHUNK = 1 << 20
 _DIGEST_RE = re.compile(r"[0-9a-f]{64}")
+_TARBALL_NAME_RE = re.compile(r"[A-Za-z0-9._@-]+\.tgz")
 
 
 class TarballError(Exception):
@@ -84,6 +85,8 @@ def single_tarball(directory: Path) -> Path:
     found = sorted(p for p in directory.iterdir() if p.name.endswith(".tgz"))
     if len(found) != 1:
         raise TarballError(f"expected exactly one .tgz, found {len(found)}")
+    if not _TARBALL_NAME_RE.fullmatch(found[0].name):
+        raise TarballError("the tarball name holds a character npm pack does not produce")
     return found[0]
 
 
@@ -124,7 +127,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         return EXIT_EXTERNAL
     if args.command == "verify":
         if actual != args.expected:
-            print(f"[FAIL] tarball digest: {actual} does not match the bound {args.expected}")
+            print(
+                f"[FAIL] tarball digest: {actual} does not match the bound {args.expected}",
+                file=sys.stderr,
+            )
             return EXIT_MISMATCH
         print(f"[PASS] tarball digest: {actual} matches the bound digest")
         return _write_output(args, f"file={target}")

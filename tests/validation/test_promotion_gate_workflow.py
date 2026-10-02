@@ -47,8 +47,15 @@ def test_the_call_and_the_dispatch_take_the_same_inputs_plus_the_call_only_build
         triggers["workflow_call"]["inputs"],
         triggers["workflow_dispatch"]["inputs"],
     )
-    assert set(dispatched) == {"candidate-sha", "candidate-digest", "release-tag", "mode"}
+    assert set(dispatched) == {
+        "candidate-sha",
+        "candidate-digest",
+        "release-tag",
+        "mode",
+        "attach-manifest",
+    }
     assert set(called) == set(dispatched) | {"build-run-id"}
+    assert called["attach-manifest"]["default"] is True is dispatched["attach-manifest"]["default"]
     assert called["mode"]["default"] == "advisory" == dispatched["mode"]["default"]
     assert dispatched["mode"]["options"] == ["advisory", "enforcing"]
 
@@ -93,7 +100,7 @@ def test_the_gate_job_condition_is_exactly_the_default_branch_guard(
 
 def test_the_release_job_condition_is_exactly_the_full_guard(workflow: dict[str, Any]) -> None:
     expected = (
-        f"${{{{ {DEFAULT_BRANCH_ONLY} && inputs.release-tag != '' "
+        f"${{{{ {DEFAULT_BRANCH_ONLY} && inputs.release-tag != '' && inputs.attach-manifest "
         "&& needs.gate.outputs.release_eligible == 'true' }}"
     )
     assert _normalized(_jobs(workflow)["release-manifest"]["if"]) == expected

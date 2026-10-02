@@ -53,10 +53,20 @@ class TestDecideRoute:
         assert (decision.candidate_sha, decision.dry_run, decision.mode) == (SHA, True, "advisory")
 
     def test_a_real_publish_runs_the_gate_enforcing(self) -> None:
-        decision = _decide(dry_run_input="false", candidate_input=OTHER, release_tag_input="v1.2.3")
+        decision = _decide(dry_run_input="false", candidate_input=SHA, release_tag_input="v1.2.3")
         assert (decision.candidate_sha, decision.mode, decision.release_tag) == (
-            OTHER, "enforcing", "v1.2.3",
-        )  # fmt: skip
+            SHA,
+            "enforcing",
+            "v1.2.3",
+        )
+
+    def test_a_dry_run_may_name_an_older_candidate(self) -> None:
+        assert _decide(candidate_input=OTHER).candidate_sha == OTHER
+
+    def test_a_real_publish_of_another_candidate_is_refused(self) -> None:
+        with pytest.raises(RouteRefusedError, match="provenance") as caught:
+            _decide(dry_run_input="false", candidate_input=OTHER)
+        assert caught.value.code == EXIT_REFUSED
 
     def test_the_tag_route_is_refused_with_the_reason(self) -> None:
         with pytest.raises(RouteRefusedError, match="dormant") as caught:
