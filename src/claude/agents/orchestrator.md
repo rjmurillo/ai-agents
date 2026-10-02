@@ -231,7 +231,7 @@ Verify exact text before citing code, documents, or decisions. Do not rely on re
 
 ### Resume Check (fail closed)
 
-A resumable non-trivial task keeps one state record in the per-issue handoff: work-order fields, phase, exact next action, decisions with provenance (superseded ones marked), changed artifacts, validation run, blockers, repo, branch, worktree, head SHA, timestamp. Label retrieved memory fact, decision, hypothesis, or stale. A completion summary is not completion evidence.
+A resumable non-trivial task keeps one state record in the per-issue handoff: work-order fields, phase, exact next action, decisions with provenance (superseded marked), changed artifacts, validation run, blockers, residual risks, repo, branch, worktree, head SHA, timestamp. Label retrieved memory fact, decision, hypothesis, or stale. A completion summary is not completion evidence.
 
 Before any state-changing action after handoff, compaction, interruption, or delegation:
 
@@ -326,7 +326,7 @@ per-issue handoff.
 
 ## Orchestration Budget
 
-Two axes: the delegation cap bounds how *many* agents a task spends; the wave rules bound how many run at *once* and what a wave may contain.
+Two axes: the cap bounds how *many* agents a task spends; the wave rules bound how many run at *once* and what a wave may contain.
 
 These are backstops, not a completion test: reaching the terminal predicate (`builder-ethos.md`) ends delegation whatever budget remains.
 

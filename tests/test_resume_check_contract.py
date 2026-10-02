@@ -31,7 +31,7 @@ ORCHESTRATOR_PATHS = (
 
 STATE_RECORD = (
     "work-order fields, phase, exact next action, decisions with provenance "
-    "(superseded ones marked), changed artifacts, validation run, blockers, "
+    "(superseded marked), changed artifacts, validation run, blockers, residual risks, "
     "repo, branch, worktree, head SHA, timestamp"
 )
 
@@ -87,7 +87,7 @@ def _scenario(scenario_id: str) -> dict:
     return matches[0]
 
 
-@pytest.mark.parametrize("scenario_id", ["S17", "S18", "S19", "S25", "S26"])
+@pytest.mark.parametrize("scenario_id", ["S17", "S18", "S19", "S25", "S26", "S27", "S28"])
 @pytest.mark.parametrize("path", ORCHESTRATOR_PATHS, ids=str)
 def test_graded_scenarios_stay_tied_to_the_resume_text(path: Path, scenario_id: str) -> None:
     scenario = _scenario(scenario_id)
@@ -110,22 +110,44 @@ def test_missing_field_and_reverted_scenarios_hold(scenario_id: str) -> None:
     assert _scenario(scenario_id)["expected_verdict"] == "BLOCK"
 
 
-def test_matching_record_scenario_carries_every_state_field() -> None:
-    text = _scenario("S18")["input"]
+COMPLETE_RECORD_TERMS = (
+    "objective",
+    "non-goals",
+    "shared-repository",
+    "acceptance",
+    "stop conditions",
+    "escalation owner",
+    "rollback",
+    "phase",
+    "next action",
+    "decisions",
+    "provenance",
+    "changed artifacts",
+    "validation run",
+    "blockers",
+    "residual risks",
+    "repo ",
+    "branch",
+    "worktree",
+    "head ",
+    "timestamp",
+)
 
-    for field in (
-        "worktree",
-        "timestamp",
-        "phase",
-        "risk tier",
-        "acceptance",
-        "provenance",
-        "changed artifacts",
-        "validation run",
-        "blockers",
-        "next action",
-    ):
-        assert field in text, field
+
+@pytest.mark.parametrize("scenario_id", ["S18", "S19"])
+def test_continue_scenarios_carry_a_complete_valid_record(scenario_id: str) -> None:
+    text = _scenario(scenario_id)["input"]
+
+    for term in COMPLETE_RECORD_TERMS:
+        assert term in text, f"{scenario_id} record is missing {term!r}"
+    assert "shared-repo," not in text
+
+
+def test_delegate_return_scenarios_grade_the_tier_boundary() -> None:
+    assert _scenario("S27")["expected_verdict"] == "REJECT"
+    assert "shared-repository" in _scenario("S27")["input"]
+    assert _scenario("S28")["expected_verdict"] == "ACCEPT"
+    assert "read-only" in _scenario("S28")["input"]
 
 
 def test_matching_and_already_done_scenarios_continue() -> None:
