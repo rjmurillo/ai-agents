@@ -87,7 +87,11 @@ def _measure_entries(
 
 
 def canonical_paths(repo_root: Path) -> list[str]:
-    """Return every authored file path, relative and sorted per group; empty groups are fine."""
+    """Return every authored file path, relative and sorted per group; empty groups are fine.
+
+    Raises CorpusError for a path that resolves outside the repository (CWE-22), the
+    same refusal ``read_sized`` applies.
+    """
     seen: set[str] = set()
     paths: list[str] = []
     for _label, entries in _CANONICAL_GROUPS:
@@ -95,6 +99,8 @@ def canonical_paths(repo_root: Path) -> list[str]:
             for rel in _expand(repo_root, subdir, pattern):
                 if rel not in seen:
                     seen.add(rel)
+                    if _resolve_safe(repo_root, rel) is None:
+                        raise CorpusError(f"{rel} resolves outside the repository")
                     paths.append(rel)
     return paths
 

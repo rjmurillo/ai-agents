@@ -234,6 +234,13 @@ jobs:
       - name: Check rule scope declarations (paths:)
         run: uv run --frozen python3 scripts/validation/check_rule_scope_keys.py
 
+      # Issue #5397: the NL structural debt ratchet (duplicate normative blocks
+      # and stale derived counts in authored rules, skills, and agents). Hosted
+      # here because pre_pr.py is not invoked by any workflow, so the pre-push
+      # job alone would leave a push from the web editor or the API unchecked.
+      - name: Check NL structural debt ratchet
+        run: uv run --frozen python3 scripts/validation/check_nl_structural_debt.py
+
       # Issue #2967: ADR-006 forbids business logic in workflow `run:` blocks.
       # The burn-down count started at 93 at audit time and reached zero. The
       # ratchet ceiling is now fixed at 0: the scanner exits 1 when the count
