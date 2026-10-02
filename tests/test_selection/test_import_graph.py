@@ -115,7 +115,9 @@ def test_load_or_build_reuses_fresh_cache(tmp_path: Path) -> None:
         (
             f'{{"version": {import_graph.CACHE_VERSION}, '
             '"graph": {"sentinel.py": ["marker.py"]}, '
-            '"wildcard_dependents": ["tests/test_dynamic.py"]}'
+            '"wildcard_dependents": ["tests/test_dynamic.py"], '
+            '"string_literals": {"tests/test_read.py": ["AGENTS.md"]}, '
+            '"tree_walkers": ["tests/test_walk.py"]}'
         ),
         encoding="utf-8",
     )
@@ -124,6 +126,60 @@ def test_load_or_build_reuses_fresh_cache(tmp_path: Path) -> None:
     graph_data = import_graph.load_or_build_data(tmp_path, cache)
     assert graph_data.graph == {"sentinel.py": frozenset({"marker.py"})}
     assert graph_data.wildcard_dependents == frozenset({"tests/test_dynamic.py"})
+    assert graph_data.string_literals == {"tests/test_read.py": frozenset({"AGENTS.md"})}
+    assert graph_data.tree_walkers == frozenset({"tests/test_walk.py"})
+
+
+def test_cache_without_read_signals_is_rebuilt(tmp_path: Path) -> None:
+    _make_repo(tmp_path)
+    cache = tmp_path / ".cache" / "graph.json"
+    import_graph.load_or_build(tmp_path, cache)
+    cache.write_text(
+        f'{{"version": {import_graph.CACHE_VERSION}, "graph": {{"sentinel.py": []}}}}',
+        encoding="utf-8",
+    )
+    future = import_graph._newest_source_mtime(tmp_path) + 100
+    os.utime(cache, (future, future))
+    graph_data = import_graph.load_or_build_data(tmp_path, cache)
+    assert "sentinel.py" not in graph_data.graph
+
+
+@pytest.mark.parametrize(
+    ("source", "walks"),
+    [
+        ("import pathlib\nlist(pathlib.Path('.').rglob('*.md'))\n", True),
+        ("import glob\nglob.glob('*.md')\n", True),
+        ("from glob import glob\nglob('*.md')\n", True),
+        ("import os\nlist(os.walk('.'))\n", True),
+        ("import os\nos.listdir('.')\nos.scandir('.')\n", True),
+        ("from pathlib import Path\nPath('.').iterdir()\n", True),
+        ("import subprocess\nsubprocess.run(['git', 'ls-files'])\n", True),
+        ("from pathlib import Path\nPath('AGENTS.md').read_text()\n", False),
+    ],
+)
+def test_read_signals_detect_tree_walks(source: str, walks: bool) -> None:
+    import ast
+
+    _, found = import_graph._read_signals(ast.parse(source))
+    assert found is walks
+
+
+def test_read_signals_keep_path_like_literals_only() -> None:
+    import ast
+
+    keep = "k" * 299
+    drop = "z" * 300
+    tree = ast.parse(f"a = 'AGENTS.md'\nb = 'x'\nc = 'two\\nlines'\nd = '{drop}'\ne = '{keep}'\n")
+    literals, _ = import_graph._read_signals(tree)
+    assert literals == frozenset({"AGENTS.md", keep})
+
+
+def test_build_records_literals_and_walkers(tmp_path: Path) -> None:
+    _write(tmp_path, "tests/test_read.py", "open('AGENTS.md')\n")
+    _write(tmp_path, "tests/test_walk.py", "import pathlib\npathlib.Path('.').rglob('*.md')\n")
+    data = import_graph.build_graph_data(tmp_path)
+    assert "AGENTS.md" in data.string_literals["tests/test_read.py"]
+    assert data.tree_walkers == frozenset({"tests/test_walk.py"})
 
 
 def test_cache_stale_when_source_is_newer(tmp_path: Path) -> None:
