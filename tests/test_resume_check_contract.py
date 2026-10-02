@@ -11,6 +11,7 @@ graded by the eval harness through scenarios ``S17``, ``S18``, and ``S19`` in
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -28,22 +29,18 @@ ORCHESTRATOR_PATHS = (
     Path("src/vs-code-agents/orchestrator.agent.md"),
 )
 
-STATE_FIELDS = (
-    "work-order fields",
-    "exact next action",
-    "decisions with provenance",
-    "validation run",
-    "head SHA",
-    "worktree",
-    "timestamp",
+STATE_RECORD = (
+    "work-order fields, phase, exact next action, decisions with provenance "
+    "(superseded ones marked), changed artifacts, validation run, blockers, "
+    "repo, branch, worktree, head SHA, timestamp"
 )
 
 RULES = (
     "Label retrieved memory fact, decision, hypothesis, or stale",
-    "not completion evidence",
+    "A completion summary is not completion evidence.",
     "Compare recorded branch, worktree, head SHA, and artifacts with the live repository",
     "Reverted or superseded: HOLD",
-    "not a mismatch",
+    "only by commits that complete the next action is not a mismatch",
     "continue from the next step",
     "Restore ACCEPTANCE and RISK TIER",
     "HOLD and surface it",
@@ -53,19 +50,18 @@ RULES = (
 
 
 def _section(path: Path) -> str:
-    text = (REPO_ROOT / path).read_text(encoding="utf-8")
+    text = (REPO_ROOT / path).read_text(encoding="utf-8").replace("\r\n", "\n")
     assert text.count(HEADING) == 1, f"{path} must carry {HEADING!r} once"
     rest = text[text.find(HEADING) + len(HEADING) :]
-    end = rest.find("\n## ")
-    return rest if end == -1 else rest[:end]
+    boundary = re.search(r"(?m)^## ", rest)
+    return rest if boundary is None else rest[: boundary.start()]
 
 
 @pytest.mark.parametrize("path", ORCHESTRATOR_PATHS, ids=str)
 def test_state_record_lists_every_required_field(path: Path) -> None:
     section = _section(path)
 
-    for field in STATE_FIELDS:
-        assert field in section, f"{path} Resume Check is missing {field!r}"
+    assert STATE_RECORD in " ".join(section.split()), f"{path} state record drifted"
 
 
 @pytest.mark.parametrize("path", ORCHESTRATOR_PATHS, ids=str)
