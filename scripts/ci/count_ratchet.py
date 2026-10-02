@@ -909,8 +909,8 @@ def _base_ref_verdict(
 
     That gate evaluates exactly the ratchets listed in
     ``scripts/ci/merge_tree_ratchet_registry.py::RATCHETS``, which at the time
-    of writing is five of the six count ratchets in ``scripts/ci``; the
-    subprocess-encoding ratchet is not among them. A caller that is not
+    of writing is five of the seven count ratchets in ``scripts/ci``; the
+    subprocess-encoding and canonical-citations ratchets are not among them. A caller that is not
     registered passes ``merge_tree_backed=False`` and keeps the old blocking
     behaviour, because for it this comparison was the whole guard.
     ``tests/ci/test_merge_tree_backing_declarations.py`` pins each caller's
