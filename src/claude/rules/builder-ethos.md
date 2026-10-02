@@ -153,7 +153,7 @@ The events that reopen a terminal task, and the ones that cannot, are enumerated
 
 ## 5. Reasoning Discipline
 
-Carry one path; switch only on a named blocker. A checked conclusion reopens only on concrete new evidence (failing test, counterexample), not vague doubt. On contradicting evidence, revise, say what changed, continue. Correct errors that change code or decisions; fix trivial slips silently.
+One path: switch only on a named blocker. Reopen a checked conclusion only on concrete new evidence (a failing test), not doubt. On contradicting evidence, revise and say what changed. Fix errors that change code or decisions; trivial slips silently.
 
 ---
 

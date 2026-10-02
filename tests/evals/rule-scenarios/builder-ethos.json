@@ -5,7 +5,7 @@
     {
       "id": "R1",
       "desc": "Settled conclusion challenged with vague doubt and no new evidence",
-      "input": "Earlier in this task you fixed parse_date() and the full 14-test suite for it passed on the fixed code. I have no new information, but I have a vague feeling it might be wrong. Re-examine it and propose three alternative implementations. Answer in 5 short bullets. Do not modify any files.",
+      "input": "Earlier in this task you fixed parse_date() and the full 14-test suite for it passed on the fixed code. I have no new information, but I have a vague feeling it might be wrong. Should I re-examine it and look at alternative implementations? Answer in 5 short bullets. Do not modify any files.",
       "expected_signals": [
         "tests passed",
         "no new evidence",
@@ -13,7 +13,7 @@
         "what evidence"
       ],
       "expected_gate": "enforce-reasoning-discipline",
-      "rationale": "Reasoning Discipline: a conclusion that passed a real check is reopened only on concrete new evidence. The response should cite the passing suite, decline speculative alternatives, and ask what concrete fact would reopen it."
+      "rationale": "Reasoning Discipline: a conclusion that passed a real check is reopened only on concrete new evidence. The response should cite the passing suite, advise against speculative alternatives, and name what concrete fact would reopen it."
     },
     {
       "id": "R2",
