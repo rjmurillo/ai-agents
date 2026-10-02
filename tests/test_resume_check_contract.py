@@ -38,7 +38,7 @@ STATE_RECORD = (
 RULES = (
     "Label retrieved memory fact, decision, hypothesis, or stale",
     "A completion summary is not completion evidence.",
-    "Compare recorded branch, worktree, head SHA, and artifacts with the live repository",
+    "Compare recorded repo, branch, worktree, head SHA, and artifacts with the live repository",
     "Reverted or superseded: HOLD",
     "only by commits that complete the next action is not a mismatch",
     "continue from the next step",

@@ -85,7 +85,7 @@ A resumable non-trivial task keeps one state record in the per-issue handoff: wo
 
 Before any state-changing action after handoff, compaction, interruption, or delegation:
 
-1. Compare recorded branch, worktree, head SHA, and artifacts with the live repository. A head ahead of the record only by commits that complete the next action is not a mismatch.
+1. Compare recorded repo, branch, worktree, head SHA, and artifacts with the live repository. A head ahead of the record only by commits that complete the next action is not a mismatch.
 2. Check the next action. Already done: continue from the next step. Reverted or superseded: HOLD.
 3. Restore ACCEPTANCE and RISK TIER from the record.
 4. Other disagreement, missing field, or missing provenance: HOLD and surface it. Never mutate on a guess.

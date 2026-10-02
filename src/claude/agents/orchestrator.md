@@ -235,7 +235,7 @@ A resumable non-trivial task keeps one state record in the per-issue handoff: wo
 
 Before any state-changing action after handoff, compaction, interruption, or delegation:
 
-1. Compare recorded branch, worktree, head SHA, and artifacts with the live repository. A head ahead of the record only by commits that complete the next action is not a mismatch.
+1. Compare recorded repo, branch, worktree, head SHA, and artifacts with the live repository. A head ahead of the record only by commits that complete the next action is not a mismatch.
 2. Check the next action. Already done: continue from the next step. Reverted or superseded: HOLD.
 3. Restore ACCEPTANCE and RISK TIER from the record.
 4. Other disagreement, missing field, or missing provenance: HOLD and surface it. Never mutate on a guess.
@@ -287,7 +287,7 @@ Use when drift is detected: wrong approach, lost context after compaction, exper
 
 1. **ASSESS**: Is the approach fundamentally flawed? If so, stop and re-plan before touching code.
 2. **CLEANUP**: Delete temp files, scratch scripts, and experimental code.
-3. **REVERT**: Restore the last known working state (stash, checkout, or targeted revert).
+3. **REVERT**: Restore the last known working state (stash, checkout, or targeted revert) only for changes you own. Unclear ownership: HOLD and surface it.
 4. **VERIFY**: `git status` clean, only intended changes remain.
 5. **DOCUMENT**: Log the failed pattern to `memory/feedback-log.md` (or Serena memory).
 6. **IMPLEMENT**: Try the researched alternative.
@@ -330,9 +330,8 @@ Two axes: the cap bounds how *many* agents a task spends; the wave rules bound h
 
 These are backstops, not a completion test: reaching the terminal predicate (`builder-ethos.md`) ends delegation whatever budget remains.
 
-- **Max agent delegations per task**: 15. Record a warning in the task tracker when 10 delegations have been made.
+- **Max agent delegations per task**: 15, counted in the task tracker. Record a warning when 10 have been made.
 - **Budget-exhausted behavior**: At the limit, stop delegating, synthesize completed work, list unresolved items, and return control to the user with what was and was not done.
-- **Delegation counter**: Track the running count in the task tracker.
 - **Max concurrent delegations per wave**: 4 by default, a starting value, not a measured optimum. The binding cost is returns you hold un-folded while the wave lands (see Checkpoint protocol). Bound the wave at what you can fold before the next return arrives. A wave of 5 or more: ask whether two routes are the same question.
 - **A concurrent wave must not contain** a repository-wide git operation (fetch, checkout, rebase, branch switch, stash) or two agents writing the same file. Either makes a return depend on sibling timing and the result irreproducible. Route those serially or give each agent its own worktree.
 - **Answer a lightweight question with a lightweight read.** A targeted search or single field beats pulling a whole return, log, or file into the window you still owe the synthesis.
