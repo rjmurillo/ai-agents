@@ -221,3 +221,26 @@ def test_lib_package_import_is_evidence() -> None:
     assert {"scripts", "build", "ai_review_common"} <= owned
     assert "pytest" not in owned
     assert "os" not in owned
+
+
+def test_import_ownership_uses_the_scanned_repo_root(repo: Path) -> None:
+    (repo / "canonpkg").mkdir()
+    body = '"""Mirrors the CANON contract by importing it."""\nfrom canonpkg import CANON\n'
+    path = _write(repo, body)
+    assert ccc.scan_file(path, repo) is None
+    assert ccc.scan_copied_contract(path, repo) is None
+    assert ccc.collect_violations(repo) == []
+
+
+def test_checkout_only_package_is_not_evidence_in_another_repo(repo: Path) -> None:
+    assert (REPO_ROOT / "build").is_dir()
+    body = '"""Mirrors the build contract by importing it."""\nfrom build import contract\n'
+    path = _write(repo, body)
+    assert ccc.scan_file(path, repo) is not None
+    assert [v.path for v in ccc.collect_violations(repo)] == [path]
+
+
+def test_main_judges_imports_against_repo_root(repo: Path) -> None:
+    (repo / "canonpkg").mkdir()
+    _write(repo, '"""Mirrors the CANON contract."""\nfrom canonpkg import CANON\n')
+    assert ccc.main(["--repo-root", str(repo), "--strict"]) == 0
