@@ -60,7 +60,7 @@ def _result(sid: str, passes: int, runs: int = 3) -> dict[str, Any]:
         "passes": passes,
         "runs": runs,
         "pass_rate": passes / runs,
-        "passed": passes >= max(1, (runs * 2) // 3),
+        "passed": passes >= -(-runs * 2 // 3),
         "flaky": 0 < passes < runs,
         "reason_mismatch_runs": 0,
         "per_run": [],
