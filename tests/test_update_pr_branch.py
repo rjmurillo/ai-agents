@@ -366,3 +366,64 @@ class TestSkillDoc:
         row = next(line for line in text.splitlines() if "`update_pr_branch.py`" in line)
         assert "--expected-head-sha" in row
         assert "--wait" in row
+        for code in ("Exit 0", "exit 1", "exit 3", "exit 4"):
+            assert code in row, code
+
+
+class TestErrorPaths:
+    def test_gh_timeout_exits_3(self, capsys):
+        """AC9: a hung gh call becomes an exit-3 Timeout envelope."""
+        def _hangs(cmd, **kwargs):
+            raise subprocess.TimeoutExpired(cmd, 30)
+
+        rc = _run(["--pull-request", "50"], _hangs)
+        assert rc == 3
+        assert _envelope(capsys)["Error"]["Type"] == "Timeout"
+
+    @pytest.mark.parametrize("body", ["not json", "[1, 2]"])
+    def test_unparseable_pr_state_exits_3(self, capsys, body):
+        """AC9: a PR view that is not a JSON object is an external failure."""
+        fake = _FakeGh(pr_views=[body])
+        rc = _run(["--pull-request", "50"], fake)
+        assert rc == 3
+        assert _envelope(capsys)["Error"]["Type"] == "ApiError"
+        assert fake.put_calls() == []
+
+    @pytest.mark.parametrize(
+        ("stderr", "code", "error_type"),
+        [
+            ("HTTP 403: Resource not accessible by integration", 4, "AuthError"),
+            ("HTTP 502: Bad Gateway", 3, "ApiError"),
+        ],
+    )
+    def test_pr_lookup_failure_maps_exit_code(self, capsys, stderr, code, error_type):
+        """AC6, AC9: lookup failures split into auth (4) and external (3)."""
+        def _fails(cmd, **kwargs):
+            return _completed(stderr=stderr, rc=1)
+
+        rc = _run(["--pull-request", "50"], _fails)
+        assert rc == code
+        assert _envelope(capsys)["Error"]["Type"] == error_type
+
+    def test_missing_head_skips_compare_and_reports_precheck(self, capsys):
+        """No head SHA means no compare call; GitHub still adjudicates."""
+        fake = _FakeGh(pr_views=[_pr_json(head="")])
+        rc = _run(["--pull-request", "50"], fake)
+        env = _envelope(capsys)
+        assert rc == 0
+        assert env["Data"]["precheck"] == "unavailable: PR head SHA or base ref missing"
+        assert not any("/compare/" in " ".join(c) for c in fake.calls)
+
+    def test_non_object_api_body_gives_empty_message(self, capsys):
+        """A 202 body that is not an object yields an empty message, not a crash."""
+        fake = _FakeGh(put=_completed(stdout="[]"))
+        rc = _run(["--pull-request", "50"], fake)
+        assert rc == 0
+        assert _envelope(capsys)["Data"]["message"] == ""
+
+    def test_nonpositive_timeout_exits_1(self, capsys):
+        """A zero wait bound is refused before any call."""
+        fake = _FakeGh()
+        rc = _run(["--pull-request", "50", "--wait", "--timeout-seconds", "0"], fake)
+        assert rc == 1
+        assert fake.calls == []
