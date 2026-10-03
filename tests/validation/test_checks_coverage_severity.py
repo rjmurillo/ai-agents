@@ -50,6 +50,9 @@ def _repo(tmp_path: Path, *, with_script: bool) -> Path:
         (dest / "validate_review_marker.py").write_text(
             source.read_text(encoding="utf-8"), encoding="utf-8"
         )
+        references = repo / ".claude" / "skills" / "review" / "references"
+        references.mkdir(parents=True)
+        (references / "analyst.md").write_text("axis\n", encoding="utf-8")
 
     _git(repo, "init", "-q")
     _git(repo, "config", "user.email", "t@example.com")
