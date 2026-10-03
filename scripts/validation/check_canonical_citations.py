@@ -1,14 +1,21 @@
 #!/usr/bin/env python3
-"""Heuristic check that mirror-claims cite a canonical path.
+"""Heuristic check that mirror-claims carry a canonical path or structural evidence.
 
 This script enforces the spirit of `.claude/rules/canonical-source-mirror.md`
 at the file-rule layer. When a Python source file under
 `.claude/hooks/`, `scripts/validation/`, `build/scripts/`, or `.claude/skills/` contains a
 docstring or top-level comment that asserts the file "matches", "mirrors",
-or is "aligned with" some other source, this check verifies that within the
-same file there is at least one path-like reference (e.g.
-`scripts/foo.py`, `.project-toolkit/architecture/ADR-001.md`,
-`build/scripts/bar.py`) somewhere in the docstrings or top-level comments.
+or is "aligned with" some other source, this check verifies that the file
+carries a canonical path or structural evidence. A path is a path-like
+reference (e.g. `scripts/foo.py`, `.project-toolkit/architecture/ADR-001.md`,
+`build/scripts/bar.py`) in the docstrings or top-level comments. Structural
+evidence is listed below.
+
+Evidence ranks per `scripts/validation/mirror_evidence.py`: a path reference,
+a conformance test identifier, a shared import of a project name, or a
+"generated from" statement each satisfies the claim. A claim that carries a
+hand-copied contract with none of the structural forms also gets an advisory
+copied-contract finding that recommends eliminating the copy.
 
 The check is intentionally a heuristic. It is designed to catch the
 specific failure mode documented in the PR #1887 retrospective
@@ -61,6 +68,12 @@ from scripts.validation.evidence import (  # noqa: E402
     WORKING_TREE,
     CheckOutcome,
 )
+from scripts.validation.mirror_evidence import (  # noqa: E402
+    REMEDIATION,
+    copied_contract_marker,
+    imported_project_names,
+    structural_evidence,
+)
 
 _VALIDATOR = "validate_canonical_citations"
 _SCOPE = "docstrings and top-level comments that claim to mirror a source"
@@ -111,11 +124,20 @@ _MODULE_DOCSTRING_RE: re.Pattern[str] = re.compile(
 
 @dataclass
 class Violation:
-    """A file that triggers a mirror-claim with no path citation."""
+    """A file that triggers a mirror-claim with no canonical path or structural evidence."""
 
     path: Path
     matched_token: str
     excerpt: str
+
+
+@dataclass
+class CopyFinding:
+    """A mirror-claim backed only by a hand-copied contract."""
+
+    path: Path
+    marker: str
+    remediation: str = REMEDIATION
 
 
 def _scan_roots(repo_root: Path) -> list[Path]:
@@ -203,11 +225,12 @@ def _has_path_reference(text: str) -> bool:
     return bool(_PATH_REF.search(text))
 
 
-def scan_file(path: Path) -> Violation | None:
+def scan_file(path: Path, repo_root: Path = _PROJECT_ROOT) -> Violation | None:
     """Scan a single file for an uncited mirror-claim.
 
     Returns a Violation if the file's top-level docstring or comments
-    contain a mirror-token but no path reference; otherwise None.
+    contain a mirror-token but no path reference; otherwise None. Import
+    ownership is judged against `repo_root`, the repository being scanned.
     """
     try:
         source = path.read_text(encoding="utf-8")
@@ -226,11 +249,68 @@ def scan_file(path: Path) -> Violation | None:
     if token is None:
         return None
 
-    if _has_path_reference(text):
+    if _has_path_reference(text) or structural_evidence(
+        text, imported_project_names(source, repo_root, path.parent)
+    ):
         return None
 
     excerpt = _excerpt_for_token(text, token)
     return Violation(path=path, matched_token=token, excerpt=excerpt)
+
+
+def scan_copied_contract(path: Path, repo_root: Path = _PROJECT_ROOT) -> CopyFinding | None:
+    """Return a finding when a mirror-claim carries a copy no structure backs.
+
+    Advisory only: it never changes the exit code and is not counted by the
+    ratchet. Structural evidence (conformance test, shared import, generated
+    marker) clears it, because the copy is then a checked projection.
+    """
+    try:
+        source = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return None
+    text = _extract_docstring_and_top_comments(source)
+    if not text or _find_mirror_token(text) is None:
+        return None
+    marker = copied_contract_marker(text)
+    if marker is None or structural_evidence(
+        text, imported_project_names(source, repo_root, path.parent)
+    ):
+        return None
+    return CopyFinding(path=path, marker=marker)
+
+
+def collect_copy_findings(repo_root: Path) -> list[CopyFinding]:
+    """Scan all configured roots for unbacked copied contracts."""
+    findings = (
+        scan_copied_contract(p, repo_root) for p in _iter_python_files(_scan_roots(repo_root))
+    )
+    return [f for f in findings if f is not None]
+
+
+def collect_all(repo_root: Path) -> tuple[list[Violation], list[CopyFinding]]:
+    """Scan every configured file once and return violations and copy findings."""
+    violations: list[Violation] = []
+    findings: list[CopyFinding] = []
+    for path in _iter_python_files(_scan_roots(repo_root)):
+        violation = scan_file(path, repo_root)
+        if violation is not None:
+            violations.append(violation)
+        finding = scan_copied_contract(path, repo_root)
+        if finding is not None:
+            findings.append(finding)
+    return violations, findings
+
+
+def format_copy_findings(findings: list[CopyFinding]) -> str:
+    """Format the advisory copied-contract section, empty when there are none."""
+    if not findings:
+        return ""
+    lines = [f"[WARN] {len(findings)} copied-contract finding(s), advisory.", ""]
+    for f in findings:
+        lines.append(f"  - {f.path} (marker: {f.marker!r})")
+    lines += ["", f"  {REMEDIATION}", ""]
+    return "\n".join(lines)
 
 
 def _excerpt_for_token(text: str, token: str) -> str:
@@ -251,7 +331,7 @@ def collect_violations(repo_root: Path) -> list[Violation]:
         return []
     violations: list[Violation] = []
     for path in _iter_python_files(roots):
-        v = scan_file(path)
+        v = scan_file(path, repo_root)
         if v is not None:
             violations.append(v)
     return violations
@@ -267,8 +347,9 @@ def format_report(violations: list[Violation], strict: bool) -> str:
         f"{label} {len(violations)} uncited mirror-claim(s) found.",
         "",
         "These files contain a mirror-claim (matches/mirrors/aligned with) "
-        "in a docstring or top-level comment but cite no path-like "
-        "reference within those areas.",
+        "in a docstring or top-level comment but carry no canonical path "
+        "or structural evidence (conformance test, shared import, "
+        "generated-from statement).",
         "",
         "See `.claude/rules/canonical-source-mirror.md` for what to do.",
         "",
@@ -363,8 +444,9 @@ def main(argv: list[str] | None = None) -> int:
         _report_non_pass(_no_roots_outcome())
         return 0
 
-    violations = collect_violations(repo_root)
+    violations, copy_findings = collect_all(repo_root)
     print(format_report(violations, strict=args.strict))
+    print(format_copy_findings(copy_findings), end="")
 
     if violations:
         _report_non_pass(_violations_outcome(len(violations), strict=args.strict))
