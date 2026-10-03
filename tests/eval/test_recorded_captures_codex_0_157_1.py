@@ -83,4 +83,6 @@ def test_pinned_0_157_1_the_waited_run_and_the_compaction_verify(tmp_path: Path)
 def test_pinned_0_157_1_the_aborted_children_run_still_does_not_verify(tmp_path: Path) -> None:
     report = recorded_cli.run(_matrix_pinned(tmp_path, "codex-cli 0.157.1"), PLAN)
 
-    assert _captures(report)[NOWAIT]["status"] == "UNVERIFIED"
+    capture = _captures(report)[NOWAIT]
+    assert capture["status"] == "UNVERIFIED"
+    assert "No rollout capture shows a spawn refused" in str(capture["detail"])
