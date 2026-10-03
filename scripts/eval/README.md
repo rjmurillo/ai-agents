@@ -2076,6 +2076,15 @@ See `examples/example-scenarios.json` for a working template.
 Required fields: `id`, `desc`, `input`, `expected_verdict`.
 Optional: `expected_reason_contains`, `rationale`.
 
+`eval-prompt-change.py` scores a scenario on the verdict alone (issue #5601):
+
+- **Verdict only.** `expected_reason_contains` is an informational signal. A right verdict with a reason that lacks the substring is listed under `Reason wording differs` and does not fail the scenario.
+- **Pass threshold.** A scenario passes with at least `ceil(2/3 * scored)` passing runs. Required passes for 1 to 6 scored runs are 1, 2, 2, 3, 4, 4.
+- **Base unstable.** A base side is excluded from the regression list and from the before and after scores when it passes the threshold without passing every scored run, or when it was scored on fewer runs than the tier requires (3, or 5 with `--security-critical`). It is listed under `Base unstable` with an excluded count.
+- **Stable-baseline floor.** The verdict is FAIL as inconclusive unless at least `max(1, ceil(total / 2))` scenarios keep a stable base. Thin or flaky base scoring can therefore fail the gate even when no regression is found.
+- **Narrow exclusion.** An excluded scenario can still block through after-side flakiness above `FLAKINESS_BLOCK_THRESHOLD`, an after side scored on fewer than the required runs, or the security all-runs criterion. A base that passes every scored run while the after side fails still blocks.
+- **Single-sample limit.** Each base side is sampled once per eval, so a base that draws 3/3 on this sample is treated as stable, and a 0/3 after side then counts as a regression. Repeated baseline sampling is not implemented. Issue #5601 reported 0/3, 2/3, and 3/3 on the same base, and only the 2/3 case is covered.
+
 ## Scenario File Locations
 
 | Prompt Type | Scenario Location |
