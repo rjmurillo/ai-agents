@@ -80,9 +80,11 @@ def load_api_key() -> str:
     for env_path in candidates:
         if env_path.is_symlink() or not env_path.exists():
             continue
-        value = parse_dotenv(env_path.read_text(encoding="utf-8"), ("ANTHROPIC_API_KEY",))
-        if "ANTHROPIC_API_KEY" in value:
-            return value["ANTHROPIC_API_KEY"]
+        found: dict[str, str] = parse_dotenv(
+            env_path.read_text(encoding="utf-8"), ("ANTHROPIC_API_KEY",)
+        )
+        if "ANTHROPIC_API_KEY" in found:
+            return found["ANTHROPIC_API_KEY"]
 
     raise RuntimeError(
         "ANTHROPIC_API_KEY not found in environment or repo-root .env file. "
@@ -190,10 +192,7 @@ def _reachable_model_hint(api_key: str) -> str:
             file=sys.stderr,
         )
         return ""
-    return (
-        ". Requested model is unavailable; query the models endpoint "
-        "for reachable model IDs"
-    )
+    return ". Requested model is unavailable; query the models endpoint for reachable model IDs"
 
 
 def _read_messages_response(

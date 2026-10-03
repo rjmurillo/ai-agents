@@ -13,6 +13,11 @@ from tests.eval._credential_test_support import _cli_credentials as creds
 SECRET = "tok-" + "S" * 12
 
 
+def _counted(calls: list[int]) -> str:
+    calls.append(1)
+    return SECRET
+
+
 def _spec(
     *,
     disk: str | None = None,
@@ -29,10 +34,18 @@ def _spec(
     )
 
 
-def _resolve(spec: creds.CredentialSpec, environ: dict[str, str], **kwargs: object):
+def _resolve(
+    spec: creds.CredentialSpec,
+    environ: dict[str, str],
+    fifo_timeout: float | None = None,
+) -> creds.ResolvedCredential:
     return creds.resolve_credential(
-        spec, executable="fake", environ=environ, stdin_is_tty=False, **kwargs
-    )  # type: ignore[arg-type]
+        spec,
+        executable="fake",
+        environ=environ,
+        stdin_is_tty=False,
+        fifo_timeout=fifo_timeout,
+    )
 
 
 def _dotenv(tmp_path: Path, text: str, name: str = "a.env") -> str:
@@ -190,7 +203,7 @@ def test_resolution_is_cached_per_transport_and_steps_are_recorded() -> None:
         transport="cache-cli",
         env_names=("X",),
         inject_env="X",
-        read_disk=lambda environ: calls.append(1) or SECRET,
+        read_disk=lambda environ: _counted(calls),
         login_probe=lambda executable, environ: False,
         missing_message="m",
     )
