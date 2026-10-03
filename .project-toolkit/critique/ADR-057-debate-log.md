@@ -176,3 +176,22 @@ No P0 findings. Findings 8, 9, 10, and 12 from 2026-09-30 stay deferred, under t
 Dissent: the provider outage stays fail-open, and the stable set still depends on base sampling noise. Both are recorded as accepted limits with triggers. The critic voted on `1aa33a691`, and its two P1 findings were fixed after that vote in `bbd22c03f`.
 
 **Outcome: 6/6 Accept or Disagree and Commit. Strategic checklist: Chesterton's Fence PASS, Path Dependence PASS (rollback is a revert), Core vs Context N/A, Second-System N/A.**
+
+---
+
+## Correction 2026-10-03 (Issue #5601): criterion 4 fallback wording
+
+A review thread on PR #6079 found that criterion 4 still said a comparison without `scored_scenario_count` is treated as having every scenario stable. The code derives the stable count from the gate's own exclusion set (finding 29). The sentence now says so. This edit changes wording only, so a reduced panel of architect and critic reviewed it.
+
+| # | Agent | Priority | Finding | Resolution |
+|---|-------|----------|---------|------------|
+| 32 | architect | none | The sentence matches `eval-prompt-change.py:731-738`. | None. |
+| 33 | critic | P2 | The two supplied-count tests assert only the FAIL verdict, not the inconclusive reason. | Not changed. Recorded for a later test pass. |
+| 34 | critic | P2 | `test_gate_without_scored_count_assumes_a_baseline` keeps the old wording in its name. | Not changed. Recorded for a later test pass. |
+
+### Votes
+
+| Agent | Vote |
+|-------|------|
+| architect | Accept |
+| critic | Accept |
