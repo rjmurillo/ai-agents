@@ -46,17 +46,32 @@ Subsequent publishes inherit the access level.
 
 ### Standard release (from CI)
 
-1. Update the version in `packages/ai-agents-cli/package.json`.
-2. Commit: `git commit -m "chore(cli): bump version to X.Y.Z"`.
-3. Tag: `git tag vX.Y.Z`.
-4. Push: `git push origin main --tags`.
+Publishing goes through the ADR-113 promotion gate. A real publish runs the gate
+in enforcing mode, so it publishes only when the gate promotes, and until every
+open finding is fixed it will block.
 
-The `publish.yml` workflow triggers on `v*` tags and publishes automatically.
+1. Update the version in `packages/ai-agents-cli/package.json` and merge it to the default branch.
+2. Optional: create the release `vX.Y.Z` on that commit, so the gate can attach its manifest to it.
+3. Go to [Actions > npm Publish > Run workflow](https://github.com/rjmurillo/ai-agents/actions/workflows/publish.yml)
+   on the default branch. Set `dry-run: false` and optionally the `release-tag`.
+
+The workflow builds the tarball once, hashes it, runs the gate against that digest,
+and publishes the same file after checking the digest again.
+
+The candidate is the head commit of the default branch, the commit the run starts
+from, because npm provenance attests the run commit and no job checks out a ref an
+input chose.
+
+The `v*` tag trigger is dormant. A tag push runs the tagged commit's own copy of
+the workflow, so the first job refuses it with the reason. Each tag push therefore
+shows one red "Resolve Publish Route" run, and that is expected until the owner
+creates the `v*` tag ruleset (issue #5636). Pushing a tag does not publish.
 
 ### Manual dry-run
 
 Go to [Actions > npm Publish > Run workflow](https://github.com/rjmurillo/ai-agents/actions/workflows/publish.yml)
-and select `dry-run: true`. This validates the package without publishing.
+and select `dry-run: true` (the default). This builds and validates the package, runs
+the gate advisory, and runs `npm publish --dry-run` without publishing.
 
 ## Rollback procedures
 
@@ -74,8 +89,8 @@ npm deprecate @rjmurillo/ai-agents@X.Y.Z "reason for deprecation"
 cd packages/ai-agents-cli
 # Fix the issue, bump patch version
 npm version patch
-git push origin main --tags
-# CI publishes the new version automatically
+git push origin main
+# Merge the bump, then run the npm Publish workflow with dry-run false
 ```
 
 ### Remove from search (yank)
@@ -121,5 +136,7 @@ linking back to this repository's publish workflow.
 | `ENEEDAUTH` | Missing npm token or OIDC not configured | Add `NPM_TOKEN` to `npm` environment, or verify OIDC setup |
 | `E403 Forbidden` | 2FA not enabled or scope not linked | Enable 2FA, link scope to repo in npm UI |
 | OIDC provenance error | `id-token: write` missing | `publish.yml` contains `id-token: write` on publish job |
-| Tag/version mismatch | Tag `vX.Y.Z` does not match `package.json` version | Update `package.json` version before tagging |
+| Tag/version mismatch | `release-tag` does not match the `package.json` version | Use the tag `vX.Y.Z` for the version on the candidate commit |
+| Publish blocked | The promotion gate found open findings | Read the gate job's manifest artifact, fix or accept the findings |
+| Tag push does nothing | The `v*` tag route is dormant until the tag ruleset exists | Run the workflow by dispatch from the default branch |
 | Pack size warning | Bundle exceeds 50MB | Review `files` allowlist in `package.json`, exclude unnecessary assets |

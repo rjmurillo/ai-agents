@@ -58,17 +58,24 @@ def test_conftest_change_is_full(tmp_path: Path) -> None:
 
 
 def test_test_input_pattern_is_full(tmp_path: Path) -> None:
-    """A policy-named path the import graph cannot trace runs everything.
+    """A policy-named path outside the content suffixes runs everything.
 
-    The path is Markdown, so the non-Python rule below would also return full.
-    The reason string is what discriminates: this asserts the policy rule fired
-    first and named the glob that matched, which is what issue #5377 will act
-    on when the non-Python rule stops being a blanket full-suite trigger.
+    Markdown, JSON, and text inputs narrow to their readers (issue #5377); an
+    SVG under a policy tree cannot be traced, so the policy rule fires and names
+    the glob that matched.
     """
     _make_repo(tmp_path)
-    result = _select(tmp_path, ["docs/guide.md"])
+    result = _select(tmp_path, ["docs/diagram.svg"])
     assert result.full
-    assert result.reason == "docs/guide.md matches test-input pattern docs/**"
+    assert result.reason == "docs/diagram.svg matches test-input pattern docs/**"
+
+
+def test_content_test_input_narrows_instead_of_running_everything(tmp_path: Path) -> None:
+    _make_repo(tmp_path)
+    _write(tmp_path, "tests/test_reads_guide.py", "open('docs/guide.md')\n")
+    result = _select(tmp_path, ["docs/guide.md"])
+    assert not result.full
+    assert result.tests == ("tests/test_reads_guide.py",)
 
 
 def test_unpoliced_non_python_change_is_not_attributed_to_the_policy(tmp_path: Path) -> None:
