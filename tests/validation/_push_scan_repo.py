@@ -20,6 +20,7 @@ DETECTOR = ".claude/skills/security-detection/detect_infrastructure.py"
 MARKER_VALIDATOR = "scripts/validation/validate_review_marker.py"
 ZERO = "0" * 40
 WORKFLOW = ".github/workflows/ci.yml"
+REFERENCES = ".claude/skills/review/references"
 
 
 def git(repo: Path, *args: str) -> str:
@@ -65,12 +66,17 @@ def marker(repo: Path) -> str:
 
 
 def install_scripts(repo: Path, *, detector: bool = True) -> None:
-    """Place the scripts the hook runs by repo-relative path, untracked."""
+    """Place the scripts and review references the hook reads, untracked.
+
+    The hook passes ``--references-dir`` from the checked-out clone, so the
+    clone needs the review skill's ``references/`` to build the axis set.
+    """
     names = [MARKER_VALIDATOR, *([DETECTOR] if detector else [])]
     for name in names:
         target = repo / name
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(REPO_ROOT / name, target)
+    shutil.copytree(REPO_ROOT / REFERENCES, repo / REFERENCES, dirs_exist_ok=True)
     exclude = repo / ".git/info/exclude"
     exclude.write_text("scripts/\n.claude/\n", encoding="utf-8")
 
