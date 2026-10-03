@@ -125,7 +125,7 @@ def _synthesis(path: Path) -> str:
 
 
 SCENARIO_EXPECTATIONS = {
-    "S15": ("BLOCK", "contract"),
+    "S15": ("DELEGATE", "contract"),
     "S16": ("BLOCK", "contract"),
     "S21": ("BLOCK", "synthesis"),
     "S22": ("ROUTE", "contract"),
