@@ -169,7 +169,10 @@ If monthly costs exceed $100:
 
 - pester-tests (blocks merge)
 - validate-generated-agents (blocks merge)
-- ai-spec-validation (blocks merge)
+
+### Agent Workflows (Approval-Gated, Non-Blocking)
+
+- ai-spec-validation (runs only after `agent-approval` environment approval; never blocks merge, ADR-114)
 
 ## Best Practices
 

@@ -1,8 +1,9 @@
-"""Advisory agent checks never block a merge (owner policy, D4/D6).
+"""Advisory agent workflows never block a merge (owner policy, D4/D6/D9).
 
-The list comes from the trusted ref, so a PR cannot exempt its own failing
-check by editing it (CWE-829). A listed check that the ruleset requires stays
-blocking.
+A non-required check is exempt only when its CheckRun belongs to a listed
+workflow file. The list comes from the trusted ref, so a PR cannot exempt its
+own failing check (CWE-829). A required check, a status context, and a check
+from an unlisted workflow all keep blocking.
 """
 
 from __future__ import annotations
@@ -20,8 +21,15 @@ from tests.test_test_pr_merge_ready import _OPEN_PR, _mod
 check_merge_readiness = _mod.check_merge_readiness
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+WORKFLOWS = REPO_ROOT / ".github" / "workflows"
 CONFIG_PATH = ".claude/skills/pr-review/pr-review-config.yaml"
+LISTED = ".github/workflows/ai-spec-validation.yml"
+UNLISTED = ".github/workflows/pytest.yml"
 AGENT_CHECK = "Validate Spec Coverage"
+
+
+def _resource(workflow_file: str, owner: str = "o", repo: str = "r") -> str:
+    return f"/{owner}/{repo}/actions/workflows/{Path(workflow_file).name}"
 
 
 def _pr_with(*rows: dict) -> dict:
@@ -34,26 +42,46 @@ def _pr_with(*rows: dict) -> dict:
     return pr_data
 
 
-def _row(name: str, conclusion: str | None, status: str = "COMPLETED", required: bool = False):
-    return {
+def _row(
+    name: str,
+    conclusion: str | None,
+    status: str = "COMPLETED",
+    required: bool = False,
+    workflow: str | None = LISTED,
+    resource: str | None = None,
+) -> dict:
+    row: dict = {
         "__typename": "CheckRun",
         "name": name,
         "status": status,
         "conclusion": conclusion,
         "isRequired": required,
+        "checkSuite": {"workflowRun": None},
     }
+    if workflow or resource:
+        row["checkSuite"] = {
+            "workflowRun": {"workflow": {"resourcePath": resource or _resource(workflow)}}
+        }
+    return row
 
 
-def _readiness(pr_data: dict, advisory: set[str], include_non_required: bool = False) -> dict:
+def _status_context(name: str, state: str, required: bool = False) -> dict:
+    return {"__typename": "StatusContext", "context": name, "state": state, "isRequired": required}
+
+
+def _readiness(pr_data: dict, listed: set[str], include_non_required: bool = False) -> dict:
     with (
         patch("test_pr_merge_ready.gh_graphql", return_value=pr_data),
-        patch("test_pr_merge_ready._load_advisory_agent_checks", return_value=frozenset(advisory)),
+        patch(
+            "test_pr_merge_ready._load_advisory_agent_workflows",
+            return_value=frozenset(listed),
+        ),
     ):
         return check_merge_readiness("o", "r", 42, include_non_required=include_non_required)
 
 
 # ---------------------------------------------------------------------------
-# Positive: a listed agent check does not block in any state
+# Positive: a check from a listed workflow does not block in any state
 # ---------------------------------------------------------------------------
 
 
@@ -71,45 +99,102 @@ def _readiness(pr_data: dict, advisory: set[str], include_non_required: bool = F
         ("COMPLETED", "TIMED_OUT"),
     ],
 )
-def test_listed_agent_check_never_blocks(
+def test_listed_workflow_check_never_blocks(
     status: str, conclusion: str | None, include_non_required: bool
 ) -> None:
+    """FAILED is intended to be non-blocking: an agent verdict is advisory."""
     pr_data = _pr_with(_row(AGENT_CHECK, conclusion, status))
-    result = _readiness(pr_data, {AGENT_CHECK}, include_non_required)
+    result = _readiness(pr_data, {LISTED}, include_non_required)
     assert result["CanMerge"] is True, result["Reasons"]
     assert result["UndisposedNonRequiredFailures"] == []
     assert result["CIPassing"] is True
 
 
 # ---------------------------------------------------------------------------
-# Negative: an unlisted non-required failure still blocks
+# Negative: everything else keeps its normal verdict
 # ---------------------------------------------------------------------------
 
 
-def test_unlisted_nonrequired_failure_still_blocks() -> None:
-    pr_data = _pr_with(_row("Run Python Tests", "FAILURE"))
-    result = _readiness(pr_data, {AGENT_CHECK})
+def test_unlisted_workflow_failure_still_blocks() -> None:
+    pr_data = _pr_with(_row("Run Python Tests", "FAILURE", workflow=UNLISTED))
+    result = _readiness(pr_data, {LISTED})
     assert result["CanMerge"] is False
     assert result["UndisposedNonRequiredFailures"] == ["Run Python Tests"]
 
 
-def test_unlisted_pending_still_blocks_when_non_required_count() -> None:
-    pr_data = _pr_with(_row("Run Python Tests", None, "IN_PROGRESS"))
-    result = _readiness(pr_data, {AGENT_CHECK}, include_non_required=True)
+def test_unlisted_workflow_using_a_listed_job_name_still_blocks() -> None:
+    """Spoof: the job name matches a listed workflow's job, the workflow does not."""
+    pr_data = _pr_with(_row(AGENT_CHECK, "FAILURE", workflow=UNLISTED))
+    result = _readiness(pr_data, {LISTED})
+    assert result["CanMerge"] is False
+    assert result["UndisposedNonRequiredFailures"] == [AGENT_CHECK]
+
+
+def test_a_name_shared_with_an_unlisted_workflow_is_not_exempt() -> None:
+    pr_data = _pr_with(
+        _row(AGENT_CHECK, "FAILURE", workflow=LISTED),
+        _row(AGENT_CHECK, "FAILURE", workflow=UNLISTED),
+    )
+    result = _readiness(pr_data, {LISTED})
     assert result["CanMerge"] is False
 
 
-def test_listed_check_does_not_hide_an_unlisted_failure_beside_it() -> None:
-    pr_data = _pr_with(_row(AGENT_CHECK, "FAILURE"), _row("Run Python Tests", "FAILURE"))
-    result = _readiness(pr_data, {AGENT_CHECK})
+def test_status_context_with_a_listed_job_name_still_blocks() -> None:
+    pr_data = _pr_with(_status_context(AGENT_CHECK, "FAILURE"))
+    result = _readiness(pr_data, {LISTED})
+    assert result["CanMerge"] is False
+    assert result["UndisposedNonRequiredFailures"] == [AGENT_CHECK]
+
+
+def test_a_status_context_cannot_ride_beside_a_listed_check_row() -> None:
+    pr_data = _pr_with(
+        _row(AGENT_CHECK, "FAILURE", workflow=LISTED),
+        _status_context(AGENT_CHECK, "FAILURE"),
+    )
+    result = _readiness(pr_data, {LISTED})
+    assert result["CanMerge"] is False
+
+
+def test_check_run_without_a_workflow_run_still_blocks() -> None:
+    pr_data = _pr_with(_row(AGENT_CHECK, "FAILURE", workflow=None))
+    result = _readiness(pr_data, {LISTED})
+    assert result["CanMerge"] is False
+
+
+@pytest.mark.parametrize(
+    "resource",
+    [
+        "/other/repo/actions/workflows/ai-spec-validation.yml",
+        "/o/r/actions/workflows/sub/ai-spec-validation.yml",
+        "/o/r/actions/workflows/",
+        "/o/r/ai-spec-validation.yml",
+    ],
+)
+def test_a_resource_path_from_another_repo_or_shape_is_not_exempt(resource: str) -> None:
+    pr_data = _pr_with(_row(AGENT_CHECK, "FAILURE", workflow=None, resource=resource))
+    result = _readiness(pr_data, {LISTED})
+    assert result["CanMerge"] is False
+
+
+def test_unlisted_pending_still_blocks_when_non_required_count() -> None:
+    pr_data = _pr_with(_row("Run Python Tests", None, "IN_PROGRESS", workflow=UNLISTED))
+    result = _readiness(pr_data, {LISTED}, include_non_required=True)
+    assert result["CanMerge"] is False
+
+
+def test_a_listed_check_does_not_hide_an_unlisted_failure_beside_it() -> None:
+    pr_data = _pr_with(
+        _row(AGENT_CHECK, "FAILURE"),
+        _row("Run Python Tests", "FAILURE", workflow=UNLISTED),
+    )
+    result = _readiness(pr_data, {LISTED})
     assert result["CanMerge"] is False
     assert result["UndisposedNonRequiredFailures"] == ["Run Python Tests"]
 
 
 def test_empty_list_exempts_nothing() -> None:
     pr_data = _pr_with(_row(AGENT_CHECK, "FAILURE"))
-    result = _readiness(pr_data, set())
-    assert result["CanMerge"] is False
+    assert _readiness(pr_data, set())["CanMerge"] is False
 
 
 # ---------------------------------------------------------------------------
@@ -120,7 +205,7 @@ def test_empty_list_exempts_nothing() -> None:
 @pytest.mark.parametrize(("status", "conclusion"), [("COMPLETED", "FAILURE"), ("WAITING", None)])
 def test_listed_but_required_check_still_blocks(status: str, conclusion: str | None) -> None:
     pr_data = _pr_with(_row(AGENT_CHECK, conclusion, status, required=True))
-    result = _readiness(pr_data, {AGENT_CHECK})
+    result = _readiness(pr_data, {LISTED})
     assert result["CanMerge"] is False
     assert any(AGENT_CHECK in reason for reason in result["Reasons"])
 
@@ -134,13 +219,14 @@ def _git(repo: Path, *args: str) -> None:
     subprocess.run(["git", *args], cwd=repo, check=True, capture_output=True, timeout=30)
 
 
-def _config(names: list[str]) -> str:
-    items = "".join(f'  - "{name}"\n' for name in names)
-    return f"scripts: {{}}\nadvisory_agent_checks:\n{items}\ntransport_preflight: {{}}\n"
+def _config(paths: list[str]) -> str:
+    entries = "".join(
+        f'  - path: "{path}"\n    reason: "test"\n    owner: "rjmurillo"\n' for path in paths
+    )
+    return f"scripts: {{}}\nadvisory_agent_workflows:\n{entries}\ntransport_preflight: {{}}\n"
 
 
-@pytest.fixture
-def clone(tmp_path: Path) -> Path:
+def _init_origin(tmp_path: Path) -> tuple[Path, Path]:
     bare = tmp_path / "origin.git"
     subprocess.run(["git", "init", "-q", "--bare", "-b", "main", str(bare)], check=True)
     work = tmp_path / "work"
@@ -149,87 +235,211 @@ def clone(tmp_path: Path) -> Path:
     _git(work, "config", "user.name", "t")
     target = work / CONFIG_PATH
     target.parent.mkdir(parents=True)
-    target.write_text(_config([AGENT_CHECK]), encoding="utf-8")
+    target.write_text(_config([LISTED]), encoding="utf-8")
     _git(work, "add", "-A")
     _git(work, "commit", "-q", "-m", "base")
     _git(work, "push", "-q", "origin", "HEAD:main")
     _git(work, "fetch", "-q", "origin", "main")
-    return work
+    return bare, work
+
+
+@pytest.fixture
+def origin_and_clone(tmp_path: Path) -> tuple[Path, Path]:
+    return _init_origin(tmp_path)
+
+
+@pytest.fixture
+def clone(origin_and_clone: tuple[Path, Path]) -> Path:
+    return origin_and_clone[1]
 
 
 def test_loader_reads_the_trusted_ref(clone: Path) -> None:
-    assert _mod._load_advisory_agent_checks(cwd=str(clone)) == {AGENT_CHECK}
+    assert _mod._load_advisory_agent_workflows(cwd=str(clone)) == {LISTED}
 
 
 def test_branch_edited_list_is_ignored(clone: Path) -> None:
-    target = clone / CONFIG_PATH
-    target.write_text(_config([AGENT_CHECK, "Run Python Tests"]), encoding="utf-8")
+    (clone / CONFIG_PATH).write_text(_config([LISTED, UNLISTED]), encoding="utf-8")
     _git(clone, "commit", "-qam", "branch edits the list")
-    assert _mod._load_advisory_agent_checks(cwd=str(clone)) == {AGENT_CHECK}
+    assert _mod._load_advisory_agent_workflows(cwd=str(clone)) == {LISTED}
 
 
 def test_uncommitted_edit_is_ignored(clone: Path) -> None:
-    (clone / CONFIG_PATH).write_text(_config(["Run Python Tests"]), encoding="utf-8")
-    assert _mod._load_advisory_agent_checks(cwd=str(clone)) == {AGENT_CHECK}
+    (clone / CONFIG_PATH).write_text(_config([UNLISTED]), encoding="utf-8")
+    assert _mod._load_advisory_agent_workflows(cwd=str(clone)) == {LISTED}
 
 
-def test_missing_trusted_ref_fails_closed(clone: Path) -> None:
-    assert _mod._load_advisory_agent_checks(trusted_ref="origin/absent", cwd=str(clone)) == set()
+def test_absent_ref_fails_closed_and_warns(clone: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    result = _mod._load_advisory_agent_workflows(trusted_ref="origin/absent", cwd=str(clone))
+    assert result == frozenset()
+    err = capsys.readouterr().err
+    assert "WARNING" in err
+    assert "cannot read" in err
+    assert "origin/absent" in err
 
 
-def test_not_a_repository_fails_closed(tmp_path: Path) -> None:
-    assert _mod._load_advisory_agent_checks(cwd=str(tmp_path)) == set()
+def test_shallow_clone_without_the_ref_fails_closed_and_warns(
+    origin_and_clone: tuple[Path, Path],
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    bare, work = origin_and_clone
+    _git(work, "checkout", "-q", "-b", "feature")
+    (work / "note.txt").write_text("x\n", encoding="utf-8")
+    _git(work, "add", "-A")
+    _git(work, "commit", "-q", "-m", "feature")
+    _git(work, "push", "-q", "origin", "feature")
+    shallow = tmp_path / "shallow"
+    subprocess.run(
+        [
+            "git",
+            "clone",
+            "-q",
+            "--depth",
+            "1",
+            "--single-branch",
+            "--branch",
+            "feature",
+            bare.resolve().as_uri(),
+            str(shallow),
+        ],
+        check=True,
+        capture_output=True,
+    )
+    result = _mod._load_advisory_agent_workflows(cwd=str(shallow))
+    assert result == frozenset()
+    err = capsys.readouterr().err
+    assert "WARNING" in err
+    assert "shallow clone" in err
+
+
+def test_unparseable_list_fails_closed_and_warns(
+    clone: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    (clone / CONFIG_PATH).write_text(
+        'advisory_agent_workflows:\n  - path: "x.yml"\n    owner: "o"\n', encoding="utf-8"
+    )
+    _git(clone, "commit", "-qam", "list without a reason")
+    _git(clone, "push", "-q", "origin", "HEAD:main")
+    _git(clone, "fetch", "-q", "origin", "main")
+    assert _mod._load_advisory_agent_workflows(cwd=str(clone)) == frozenset()
+    err = capsys.readouterr().err
+    assert "parse error" in err
+
+
+def test_not_a_repository_fails_closed_and_warns(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert _mod._load_advisory_agent_workflows(cwd=str(tmp_path)) == frozenset()
+    assert "WARNING" in capsys.readouterr().err
 
 
 def test_end_to_end_branch_edit_does_not_exempt_a_failing_check(clone: Path) -> None:
-    (clone / CONFIG_PATH).write_text(_config([AGENT_CHECK, "Run Python Tests"]), encoding="utf-8")
+    (clone / CONFIG_PATH).write_text(_config([LISTED, UNLISTED]), encoding="utf-8")
     _git(clone, "commit", "-qam", "branch edits the list")
-    trusted = _mod._load_advisory_agent_checks(cwd=str(clone))
-    result = _readiness(_pr_with(_row("Run Python Tests", "FAILURE")), set(trusted))
-    assert result["CanMerge"] is False
+    trusted = _mod._load_advisory_agent_workflows(cwd=str(clone))
+    pr_data = _pr_with(_row("Run Python Tests", "FAILURE", workflow=UNLISTED))
+    assert _readiness(pr_data, set(trusted))["CanMerge"] is False
 
 
 # ---------------------------------------------------------------------------
-# Parser and shipped contract
+# Parser
 # ---------------------------------------------------------------------------
 
 
-def test_parser_reads_quoted_and_bare_items_and_stops_at_the_next_key() -> None:
+def test_parser_reads_quoted_entries_and_stops_at_the_next_key() -> None:
     text = (
-        "other: 1\nadvisory_agent_checks:\n"
-        "  - \"Quoted Name\"\n  # a comment\n  - 'Single'\n  - bare name # note\n"
-        "next_key: 2\n  - not-in-list\n"
+        "other: 1\nadvisory_agent_workflows:\n"
+        '  - path: ".github/workflows/a.yml"\n    reason: "r"\n    owner: "o"\n'
+        "  # comment\n"
+        "  - path: '.github/workflows/b.yml'\n    reason: r # note\n    owner: o\n"
+        "next_key: 2\n"
     )
-    assert _mod._parse_advisory_agent_checks(text) == {"Quoted Name", "Single", "bare name"}
+    assert _mod._parse_advisory_agent_workflows(text) == {
+        ".github/workflows/a.yml",
+        ".github/workflows/b.yml",
+    }
 
 
-def test_parser_returns_empty_without_the_key() -> None:
-    assert _mod._parse_advisory_agent_checks("scripts: {}\n") == frozenset()
+@pytest.mark.parametrize(
+    "text",
+    [
+        "scripts: {}\n",
+        'advisory_agent_workflows:\n  - path: "a.yml"\n    owner: "o"\n',
+        'advisory_agent_workflows:\n  - path: "a.yml"\n    reason: "r"\n',
+        'advisory_agent_workflows:\n    reason: "r"\n',
+        'advisory_agent_workflows:\n  - reason: "r"\n',
+        "advisory_agent_workflows:\n  - garbage\n",
+    ],
+)
+def test_parser_rejects_malformed_lists(text: str) -> None:
+    with pytest.raises(ValueError):
+        _mod._parse_advisory_agent_workflows(text)
 
 
-def _gated_check_names() -> set[str]:
-    names: set[str] = set()
-    for path in (REPO_ROOT / ".github" / "workflows").glob("*.yml"):
-        doc = yaml.safe_load(path.read_text(encoding="utf-8"))
-        for key, job in (doc.get("jobs") or {}).items():
-            if job.get("environment") != "agent-approval":
-                continue
-            name = job.get("name", key)
-            matrix = (job.get("strategy") or {}).get("matrix") or {}
-            if "${{ matrix.os }}" in name:
-                names.update(name.replace("${{ matrix.os }}", os_) for os_ in matrix["os"])
-            else:
-                names.add(name)
-    return names
+# ---------------------------------------------------------------------------
+# Shipped contract and drift
+# ---------------------------------------------------------------------------
 
 
-def test_shipped_list_equals_the_agent_approval_gated_jobs() -> None:
-    shipped = yaml.safe_load((REPO_ROOT / CONFIG_PATH).read_text(encoding="utf-8"))
-    listed = set(shipped["advisory_agent_checks"])
-    assert listed == _gated_check_names()
-    assert _mod._parse_advisory_agent_checks((REPO_ROOT / CONFIG_PATH).read_text("utf-8")) == listed
+def _workflow_docs() -> dict[str, dict]:
+    return {
+        f".github/workflows/{path.name}": yaml.safe_load(path.read_text(encoding="utf-8"))
+        for path in sorted(WORKFLOWS.glob("*.yml"))
+    }
+
+
+def _triggers(doc: dict) -> set[str]:
+    on = doc.get(True) if True in doc else doc.get("on")
+    return set(on) if isinstance(on, dict) else {on} if isinstance(on, str) else set(on or [])
+
+
+def _gated_jobs(doc: dict) -> list[str]:
+    return [
+        k for k, j in (doc.get("jobs") or {}).items() if j.get("environment") == "agent-approval"
+    ]
+
+
+def _shipped_entries() -> list[dict]:
+    return yaml.safe_load((REPO_ROOT / CONFIG_PATH).read_text(encoding="utf-8"))[
+        "advisory_agent_workflows"
+    ]
+
+
+def test_shipped_list_parses_to_the_yaml_paths() -> None:
+    text = (REPO_ROOT / CONFIG_PATH).read_text(encoding="utf-8")
+    assert _mod._parse_advisory_agent_workflows(text) == {e["path"] for e in _shipped_entries()}
+
+
+def test_every_entry_carries_a_reason_and_the_owner() -> None:
+    for entry in _shipped_entries():
+        assert entry["reason"].strip()
+        assert entry["owner"] == "rjmurillo"
+
+
+def test_every_listed_path_exists_and_gates_its_model_jobs() -> None:
+    docs = _workflow_docs()
+    for entry in _shipped_entries():
+        assert entry["path"] in docs, entry["path"]
+        assert _gated_jobs(docs[entry["path"]]), f"{entry['path']} has no agent-approval job"
+
+
+def test_every_listed_workflow_triggers_on_pull_request() -> None:
+    docs = _workflow_docs()
+    for entry in _shipped_entries():
+        assert "pull_request" in _triggers(docs[entry["path"]]), entry["path"]
+
+
+def test_every_pull_request_workflow_with_an_approval_job_is_listed() -> None:
+    """Drift: a new agent job on a pull_request workflow must join the list."""
+    listed = {e["path"] for e in _shipped_entries()}
+    expected = {
+        path
+        for path, doc in _workflow_docs().items()
+        if "pull_request" in _triggers(doc) and _gated_jobs(doc)
+    }
+    assert listed == expected
 
 
 def test_claude_workflow_is_not_gated() -> None:
-    text = (REPO_ROOT / ".github" / "workflows" / "claude.yml").read_text(encoding="utf-8")
+    text = (WORKFLOWS / "claude.yml").read_text(encoding="utf-8")
     assert "agent-approval" not in text
