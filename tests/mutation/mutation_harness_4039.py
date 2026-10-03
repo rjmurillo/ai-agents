@@ -80,13 +80,24 @@ def run_mutants(repo_root: Path) -> None:
         ),
     ]
 
+    # Control: the unmutated tree must pass. Without it, a test run that fails
+    # for any reason makes every mutant look killed.
+    print("\n--- Control: unmutated tree ---")
+    control_rc = _run_tests(repo_root)
+    if control_rc != 0:
+        print(f"  FAIL: the tests fail on the unmutated tree (exit {control_rc})")
+        sys.exit(1)
+    print("  PASS: the tests pass on the unmutated tree")
+
     failures = []
     for name, old, new in mutants:
         print(f"\n--- Mutant: {name} ---")
         try:
             mutated = _apply_mutant(original_bytes, old, new)
         except ValueError as exc:
-            print(f"  SKIP: {exc}")
+            # A target that moved or became ambiguous means the mutant never ran.
+            failures.append(f"DID-NOT-APPLY: '{name}' - {exc}")
+            print(f"  FAIL: DID-NOT-APPLY: {exc}")
             continue
 
         ratchet.write_bytes(mutated)
@@ -105,7 +116,7 @@ def run_mutants(repo_root: Path) -> None:
         assert restored == original_bytes, "Restore was not byte-identical!"
 
     if failures:
-        print("\n\nSURVIVING MUTANTS DETECTED:")
+        print("\n\nMUTATION HARNESS FAILED:")
         for msg in failures:
             print(f"  {msg}")
         sys.exit(1)

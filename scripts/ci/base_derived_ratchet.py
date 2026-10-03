@@ -20,9 +20,11 @@ Three outcomes are explicit and blocking or non-blocking on purpose:
   silently skipped the comparison would read as a pass.
 * No fork point (shallow clone, unrelated history): exit 3, the same class as
   a git read failure.
-* Bootstrap: the fork point does not yet carry the ratchet's own script, so the
-  branch introduces the ratchet and there is no earlier tree to hold it to.
-  Exit 0 with a message that names the state.
+* Bootstrap: the registry at the fork point does not list the ratchet's label
+  and the fork does not carry its script, so the branch introduces the ratchet
+  and there is no earlier tree to hold it to. Exit 0 with a message that names
+  the state. A label the fork registers that the branch removes or re-points
+  exits 1 instead (``ratchet_registry_at_ref.py``).
 
 Every other failure to measure the fork tree is exit 3. A ceiling that could not
 be measured never becomes a pass.
