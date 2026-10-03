@@ -55,9 +55,12 @@ class FakeReader:
         self.checks: list[dict[str, Any]] = fixtures.get("checks", [])
         self.archives: dict[int, bytes] = fixtures.get("archives", {})
         self.calls: list[str] = []
+        self.run_detail: Any = fixtures.get("run_detail")
 
     def get_json(self, path: str, params: Mapping[str, str] | None = None) -> object:
         self.calls.append(path)
+        if self.run_detail is not None and path.rsplit("/", 2)[-2] == "runs":
+            return self.run_detail
         if path.endswith("/actions/runs"):
             return {"workflow_runs": self.runs}
         if path.endswith("/artifacts"):
@@ -79,7 +82,7 @@ class FakeReader:
             listed.append(item)
         return listed
 
-    def get_bytes(self, path: str) -> bytes:
+    def get_bytes(self, path: str, accept: str | None = None) -> bytes:
         self.calls.append(path)
         return self.archives[int(path.split("/")[-2])]
 

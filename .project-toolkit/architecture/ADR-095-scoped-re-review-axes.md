@@ -126,9 +126,14 @@ One finding in that log is live and independent of this rejection. Fourteen
 `Reviewed-By: /review@` marker commits exist across all refs; three name the
 full 15-axis set and eleven name a subset, four of those naming a `code-review`
 axis for which no `references/code-review.md` exists.
-`validate_review_marker.py` parses the axis list and never checks membership or
-completeness, so a subset marker passes today. That is a gap in the existing
-gate, not in this rejected proposal, and it wants its own issue.
+Update (issue #5113): `validate_review_marker.py` once parsed the axis list
+without checking membership. A subset is by design, because `/review` selects
+axes by change risk. The validator now rejects unknown and duplicate axis names.
+A subset still passes. The valid set is the `references/*.md` stems, the four
+local skill axes, and `correctness`. The four `code-review` markers above would
+now fail. The pre-push hook reads that set from the pushing checkout. It blocks
+an honest push with a bad axis list. A pusher can add a reference file to
+bypass it, because the marker is a self-attested trailer.
 
 ## References
 
