@@ -893,7 +893,7 @@ uv run python scripts/eval/eval_autoplan_routes.py                  # local, abo
 uv run python scripts/eval/eval_autoplan_routes.py --output r.json  # also write the JSON report
 ```
 
-Exit 0 means every scenario matched. Exit 1 prints a diff per failure: expected kind and route, observed kind and route, and any skill from `routes_absent` that was selected. Exit 2 is a bad fixture file or a resolver that could not run.
+Exit 0 means every scenario matched. Exit 1 prints a diff per failure: expected kind and route, observed kind and route, and any skill from `routes_absent` that was selected. Exit 2 is an invalid command-line argument, a bad fixture file, a resolver that could not run, or a failure to write the JSON report.
 
 The layers stay separate, as #5389 requires:
 

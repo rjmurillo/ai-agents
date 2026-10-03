@@ -22,6 +22,22 @@ sys.modules[_spec.name] = ev
 _spec.loader.exec_module(ev)
 
 
+@pytest.fixture(autouse=True)
+def _restore_resolver_globals() -> Any:
+    """Undo the resolver cache and module registration each test may change."""
+    name = "autoplan_resolve_route"
+    cache = ev._RESOLVER_CACHE.copy()
+    had_module = name in sys.modules
+    module = sys.modules.get(name)
+    yield
+    ev._RESOLVER_CACHE.clear()
+    ev._RESOLVER_CACHE.update(cache)
+    if had_module:
+        sys.modules[name] = module
+    else:
+        sys.modules.pop(name, None)
+
+
 def _scenario(**over: Any) -> dict[str, Any]:
     base: dict[str, Any] = {
         "id": "s1",
