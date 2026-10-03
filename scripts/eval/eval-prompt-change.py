@@ -1001,6 +1001,27 @@ def _print_informational_signals(gate: dict[str, Any]) -> None:
             print(f"  {label}: {gate[key]}", file=sys.stderr)
 
 
+# Gate keys printed as `label: value` when truthy, in output order.
+_GATE_LINES_BEFORE_SIGNALS = (
+    ("improvements", "Improvements"),
+    ("regressions", "Regressions"),
+    ("flaky_scenarios", "Flaky"),
+)
+_GATE_LINES_AFTER_SIGNALS = (
+    ("excluded_count", "Excluded base-unstable scenarios"),
+    ("inconclusive_reason", "INCONCLUSIVE"),
+    ("not_scored_scenarios", "Not scored (excluded runs)"),
+    ("high_flakiness_scenarios", "BLOCKED (>40% flaky)"),
+)
+
+
+def _print_gate_lines(gate: dict[str, Any], lines: tuple[tuple[str, str], ...]) -> None:
+    """Print each truthy gate key as `label: value` to stderr."""
+    for key, label in lines:
+        if gate.get(key):
+            print(f"  {label}: {gate[key]}", file=sys.stderr)
+
+
 def _print_gate_summary(gate: dict[str, Any]) -> None:
     """Print acceptance gate summary to stderr."""
     print(f"\n{'=' * 60}", file=sys.stderr)
@@ -1020,21 +1041,9 @@ def _print_gate_summary(gate: dict[str, Any]) -> None:
             mark = "PASS" if passed else "FAIL"
             print(f"    {criterion}: {mark}", file=sys.stderr)
 
-    if gate["improvements"]:
-        print(f"  Improvements: {gate['improvements']}", file=sys.stderr)
-    if gate["regressions"]:
-        print(f"  Regressions: {gate['regressions']}", file=sys.stderr)
-    if gate["flaky_scenarios"]:
-        print(f"  Flaky: {gate['flaky_scenarios']}", file=sys.stderr)
+    _print_gate_lines(gate, _GATE_LINES_BEFORE_SIGNALS)
     _print_informational_signals(gate)
-    if gate.get("excluded_count"):
-        print(f"  Excluded base-unstable scenarios: {gate['excluded_count']}", file=sys.stderr)
-    if gate.get("inconclusive_reason"):
-        print(f"  INCONCLUSIVE: {gate['inconclusive_reason']}", file=sys.stderr)
-    if gate.get("not_scored_scenarios"):
-        print(f"  Not scored (excluded runs): {gate['not_scored_scenarios']}", file=sys.stderr)
-    if gate.get("high_flakiness_scenarios"):
-        print(f"  BLOCKED (>40% flaky): {gate['high_flakiness_scenarios']}", file=sys.stderr)
+    _print_gate_lines(gate, _GATE_LINES_AFTER_SIGNALS)
     if gate.get("insufficient_scored_scenarios"):
         print(
             f"  BLOCKED (< {gate['required_scored_runs']} scored runs, after): "
