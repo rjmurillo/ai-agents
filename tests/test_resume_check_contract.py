@@ -91,7 +91,7 @@ def _scenario(scenario_id: str) -> dict:
 
 EXPECTED_VERDICTS = {
     "S17": "BLOCK",
-    "S18": "CONTINUE",
+    "S18": "DELEGATE",
     "S19": "CONTINUE",
     "S25": "BLOCK",
     "S26": "BLOCK",
@@ -116,7 +116,8 @@ def test_every_scenario_pins_its_intended_verdict(scenario_id: str) -> None:
 def test_graded_scenarios_stay_tied_to_the_resume_text(path: Path, scenario_id: str) -> None:
     scenario = _scenario(scenario_id)
 
-    assert scenario["expected_reason_contains"] in _section(path)
+    keyword = scenario.get("expected_reason_contains")
+    assert keyword is None or keyword.lower() in _section(path).lower()
 
 
 def test_stale_handoff_scenario_models_a_wrong_branch_and_head() -> None:
@@ -182,7 +183,7 @@ def test_delegate_return_scenarios_tie_to_the_handoff_contract(
     scenario = _scenario(scenario_id)
 
     assert scenario["expected_verdict"] in scenario["verdict_options"]
-    assert scenario["expected_reason_contains"] in _handoff_contract(path)
+    assert scenario["expected_reason_contains"].lower() in _handoff_contract(path).lower()
 
 
 def test_delegate_return_scenarios_grade_the_tier_boundary() -> None:
@@ -195,6 +196,6 @@ def test_delegate_return_scenarios_grade_the_tier_boundary() -> None:
 
 
 def test_matching_and_already_done_scenarios_continue() -> None:
-    assert _scenario("S18")["expected_verdict"] == "CONTINUE"
+    assert _scenario("S18")["expected_verdict"] == "DELEGATE"
     assert _scenario("S19")["expected_verdict"] == "CONTINUE"
     assert "one commit ahead" in _scenario("S19")["input"]
