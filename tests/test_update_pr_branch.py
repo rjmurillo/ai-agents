@@ -202,6 +202,9 @@ class TestHeadMoved:
         assert env["Data"]["expected_head_sha"] == _OLD_HEAD
         # The head read before the PUT is stale once GitHub refuses it.
         assert env["Data"]["current_head_sha"] is None
+        assert env["Error"]["Message"].endswith(
+            f"head is no longer {_OLD_HEAD}. Re-read the head and retry.",
+        )
         assert len(fake.put_calls()) == 1
 
     @pytest.mark.parametrize("behind", ["0", "3"])
@@ -214,6 +217,7 @@ class TestHeadMoved:
         assert rc == 1
         assert env["Data"]["reason"] == "head_moved"
         assert env["Data"]["current_head_sha"] == _OLD_HEAD
+        assert f"the PR head is {_OLD_HEAD}, not {_OTHER_HEAD}." in env["Error"]["Message"]
         assert fake.put_calls() == []
 
     def test_other_422_exits_3(self, capsys):
