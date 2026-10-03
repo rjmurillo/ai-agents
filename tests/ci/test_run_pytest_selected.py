@@ -17,7 +17,9 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
     ("rel", "expected"),
     [
         ("tests/test_leaf.py", "bulk"),
-        ("tests/ci/test_thing.py", "bulk-nested"),
+        ("tests/ci/test_thing.py", "bulk-nested-ci"),
+        ("tests/skills/x/test_thing.py", "bulk-nested-ci"),
+        ("tests/validation/test_thing.py", "bulk-nested"),
         ("tests/mutation/test_x.py", "mutation"),
         ("tests/test_safe_push_pr_branch.py", "safe-push"),
         ("tests/test_mutation_workspace_signals.py", "safe-push"),

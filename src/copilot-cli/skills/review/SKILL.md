@@ -71,7 +71,7 @@ The skill body MUST NOT hard-fail when the `.claude/` path is missing; it MUST a
 
 | Script | Purpose | Exit codes |
 |--------|---------|------------|
-| `scripts/validate_review_marker.py` | Validates the SHA-bound `Reviewed-By: /review@...` marker that `/ship` requires. | `0` valid marker, `1` missing or stale marker, `2` config error |
+| `scripts/validate_review_marker.py` | Validates the SHA-bound `Reviewed-By: /review@...` marker `/ship` requires. | `0` valid, `1` missing, stale, or bad axis list, `2` config error |
 | `select_axes.py` (same directory) | Selects the Stage-2 canonical axes and the local-only skill axes from verified changed paths and diff effects. Emits the selection, per-axis reasons, and skips as JSON. | `0` selection emitted, `2` config error (unknown pinned axis, or references directory missing or empty) |
 
 ## Process
