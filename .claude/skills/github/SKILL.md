@@ -125,6 +125,7 @@ Need GitHub data?
    ├─ Process AI triage → invoke_pr_comment_processing.py
    ├─ Assign Copilot → invoke_copilot_assignment.py
    ├─ Enable/disable auto-merge → set_pr_auto_merge.py
+   ├─ Update PR branch with its base (server side) → update_pr_branch.py
    ├─ Close PR → close_pr.py
    └─ Merge PR → merge_pr.py
 ```
@@ -195,6 +196,7 @@ scripts and `github_core` import with the anthropic SDK blocked.
 | `invoke_pr_comment_processing.py` | Process AI triage output | `--pr-number`, `--verdict`, `--findings-json` |
 | `new_pr.py` | Create PR with validation | `--title`, `--body`, `--base` |
 | `validate_pr_description.py` | Validate PR description | `--title`, `--body`, `--body-file`, `--fail-on-violation` |
+| `update_pr_branch.py` | Server-side "Update branch": merges the base into the PR head. Exit 0 when the update is requested, completed, or already up to date (`already_up_to_date: true`); exit 1 for a PR that is not open, or a head that differs from `--expected-head-sha` (`reason: head_moved`); exit 2 when the PR is not found; exit 3 for another API failure or a `--wait` timeout (the wait ends only when compare shows the PR is not behind); exit 4 for an auth failure. Unattended callers should pass `--expected-head-sha` | `--pull-request`, `--expected-head-sha`, `--wait`, `--timeout-seconds` |
 | `close_pr.py` | Close PR with comment | `--pull-request`, `--comment` |
 | `merge_pr.py` | Merge pinned to the reviewed head, then read back and audited (ADR-112) | `--pull-request`, `--expected-head-sha`, `--strategy`, `--delete-branch`, `--auto` |
 | `audit_closing_claims.py` | Fleet audit of open-PR closing claims: extracts closing keywords from PR bodies, commit messages, and auto-merge overrides; classifies Markdown context (body) and plain-text context (commits/overrides); flags a claim unsupported when it can reach the eventual squash commit without a matching active body claim (exit 1). Needs a token with administration read: reachability depends on the repository's `squash_merge_commit_message` setting, which GitHub omits for anyone else, and the audit exits 3 rather than reporting a clean fleet it cannot verify | `--state open`, `--artifact`, `--resume-from`, `--output-format {json,human,auto}` |
