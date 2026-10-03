@@ -11,10 +11,6 @@ implemented: true
 
 # ADR-046: Planning Agent Rename for Role Clarity
 
-## Status
-
-Accepted
-
 ## Date
 
 2026-02-08

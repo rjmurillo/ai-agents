@@ -16,7 +16,10 @@ that still passes the acceptance fixtures?
 - **Ladders.** Claude: Haiku 4.5, Sonnet 5, Opus 5.5. GPT-6: Luna, Sol, Astra.
   Each ladder is routed on its own. The question is which rung of one vendor's
   ladder a task needs, not which vendor wins.
-- **Subjects.** 17 agents on their `evals/<agent>-spike/fixtures/` corpus. Six
+- **Subjects.** 17 agents on their `evals/<agent>-spike/fixtures/` corpus. That
+  is the roster as measured on 2026-09-24, and it is the denominator behind every
+  count in Findings below. One of the 17, `backlog-generator`, was retired
+  afterward (issue #5701), so the rollup command names the 16 that remain. Six
   skills run as the skill variant (`--skill-path`) over a paired agent's
   fixtures: analyze on analyst, security-review on security, adr-review on
   architect, plan on milestone-planner, spec on explainer, review on critic.
@@ -50,14 +53,23 @@ python3 scripts/eval/eval-agent-vs-baseline.py --agent critic \
 
 Then roll up:
 
+> Retirement note (issue #5701): the `backlog-generator` agent was retired, so it is
+> absent from `--agents` below and the command runs as written. The committed report
+> and routing record keep its rows as the 2026-09-24 measurement; its recommended
+> models no longer apply. The command below also sets `--out-dir`, because the
+> default is this directory and the rollup rewrites both committed files every run.
+> Writing to the ignored audit path lets you reproduce the numbers and diff them
+> without destroying the record you are comparing against.
+
 ```bash
 python3 scripts/eval/eval_model_routing.py \
-  --agents analyst,architect,backlog-generator,critic,devops,explainer,high-level-advisor,implementer,independent-thinker,issue-feature-review,milestone-planner,orchestrator,qa,roadmap,security,skillbook,task-decomposer \
+  --agents analyst,architect,critic,devops,explainer,high-level-advisor,implementer,independent-thinker,issue-feature-review,milestone-planner,orchestrator,qa,roadmap,security,skillbook,task-decomposer \
   --skill analyze=analyst --skill security-review=security \
   --skill adr-review=architect --skill plan=milestone-planner \
   --skill spec=explainer --skill review=critic \
   --ladder claude=claude-haiku-4-5,claude-sonnet-5,claude-opus-5-5 \
-  --ladder gpt6=gpt-6-luna,gpt-6-sol,gpt-6-astra
+  --ladder gpt6=gpt-6-luna,gpt-6-sol,gpt-6-astra \
+  --out-dir build/audit/model-routing
 ```
 
 ## Findings

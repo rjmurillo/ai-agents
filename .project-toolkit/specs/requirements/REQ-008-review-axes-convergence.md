@@ -174,7 +174,7 @@ SO THAT `/review` callers do not implement bespoke verdict-extraction regex and 
 
 ### Acceptance Criteria
 
-- [ ] Module exists at `.claude/lib/ai_review_common/` (Python package; synced from `scripts/ai_review_common/` via `scripts/sync_plugin_lib.py`). The package re-exports `merge_verdicts`, `get_verdict_emoji`, and `extract_verdict` from `verdict.py` and `issue_triage.py` submodules.
+- [ ] Module exists at `.claude/lib/ai_review_common/` (Python package; synced from `scripts/ai_review_common/` via `scripts/sync_plugin_lib.py`). The package re-exports `merge_verdicts`, `get_verdict_emoji`, and `extract_verdict` from `verdict.py` and `issue_triage.py` submodules. <!-- orphan-ref-ignore -->
 - [ ] `merge_verdicts` handles tokens: `PASS`, `WARN`, `CRITICAL_FAIL`, `REJECTED`, `FAIL`, `UNKNOWN`.
 - [ ] `merge_verdicts([])` returns `UNKNOWN`.
 - [ ] `merge_verdicts(["UNKNOWN"])` returns `UNKNOWN`.

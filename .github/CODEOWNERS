@@ -89,3 +89,30 @@
 # validator job claims, so it needs the owner.
 /scripts/validation/emit_validator_evidence.py @rjmurillo
 /.github/actions/upload-validator-evidence/ @rjmurillo
+
+# ADR-101 requirement 2a publisher (issue #5245). The workflow holds the App
+# credential and the scripts decide what it publishes, so a change to either
+# needs owner review before it can reach the key.
+/.github/workflows/adr101-publisher.yml     @rjmurillo
+/scripts/ci/adr101_publisher.py             @rjmurillo
+/scripts/ci/adr101_publisher_execute.py     @rjmurillo
+/scripts/ci/adr101_publisher_github.py      @rjmurillo
+/scripts/ci/adr101_publisher_inputs.py      @rjmurillo
+
+# Issue #5636, ADR-113 decision 5: these programs decide which workflow runs and
+# artifacts count as evidence. A change to them changes what a promotion trusts.
+/scripts/validation/promotion_provenance.py @rjmurillo
+/scripts/validation/promotion_fetch.py @rjmurillo
+/scripts/validation/fetch_promotion_evidence.py @rjmurillo
+
+# Issue #5636, ADR-113 Resolved Question 3: these programs choose and read the
+# previous promoted manifest that the remediated class compares against.
+/scripts/validation/promotion_baseline.py @rjmurillo
+/scripts/validation/fetch_previous_manifest.py @rjmurillo
+
+# Issue #5636, ADR-113 decisions 4 and 5: the route a run takes to publish and
+# the digest the publish job checks before npm publish.
+/scripts/ci/resolve_publish_route.py @rjmurillo
+/scripts/validation/tarball_digest.py @rjmurillo
+/.github/workflows/publish.yml @rjmurillo
+/.github/workflows/promotion-gate.yml @rjmurillo

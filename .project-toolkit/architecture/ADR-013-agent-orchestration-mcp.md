@@ -11,10 +11,6 @@ implemented: false
 
 # ADR-013: Agent Orchestration MCP
 
-## Status
-
-Proposed
-
 ## Date
 
 2025-12-21
