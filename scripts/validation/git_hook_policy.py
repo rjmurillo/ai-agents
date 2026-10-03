@@ -7078,6 +7078,8 @@ def _check_review_marker(update: PushUpdate, repo_root: Path) -> int:
             update.head,
             "--repo-root",
             str(repo_root),
+            "--references-dir",
+            str(repo_root / ".claude" / "skills" / "review" / "references"),
         ],
         repo_root,
     )
