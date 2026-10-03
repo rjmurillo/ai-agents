@@ -142,8 +142,9 @@ def test_a_missing_base_ref_is_a_config_error(
 
 
 def test_a_fork_point_without_the_ratchet_is_the_bootstrap_case(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    monkeypatch.setattr(brd, "branch_registry", lambda: {"fake ratchet": MARKER})
     repo = _init(tmp_path / "boot", 1, marker=False)
     _git(repo, "checkout", "-qb", "topic")
     _commit(repo, 500, marker=True, message="introduce the ratchet")
@@ -151,6 +152,30 @@ def test_a_fork_point_without_the_ratchet_is_the_bootstrap_case(
     out = capsys.readouterr().out
     assert "bootstrap" in out
     assert MARKER in out
+
+
+def test_run_arguments_cannot_name_their_own_bootstrap(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Security: a label or script path absent from the branch registry is refused."""
+    monkeypatch.setattr(brd, "branch_registry", lambda: {"other ratchet": MARKER})
+    repo = _init(tmp_path / "boot", 1, marker=False)
+    _git(repo, "checkout", "-qb", "topic")
+    _commit(repo, 500, marker=True, message="introduce the ratchet")
+    assert _run(repo) == brd.EXIT_REGRESSION
+    assert "BOOTSTRAP REFUSED" in capsys.readouterr().err
+
+
+def test_a_registered_label_with_a_different_script_path_is_refused(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Security: the registry path must equal the introduced_by argument."""
+    monkeypatch.setattr(brd, "branch_registry", lambda: {"fake ratchet": "scripts/ci/x.py"})
+    repo = _init(tmp_path / "boot", 1, marker=False)
+    _git(repo, "checkout", "-qb", "topic")
+    _commit(repo, 500, marker=True, message="introduce the ratchet")
+    assert _run(repo) == brd.EXIT_REGRESSION
+    assert "BOOTSTRAP REFUSED" in capsys.readouterr().err
 
 
 def test_a_branch_that_introduces_a_higher_count_after_bootstrap_still_regresses(

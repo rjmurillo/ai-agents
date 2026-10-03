@@ -258,6 +258,14 @@ def _ceiling(
         print("\n".join(drift), file=sys.stderr)
         return None, EXIT_REGRESSION
     if label not in entries and introduced_at(root, fork, introduced_by):
+        if branch_registry().get(label) != introduced_by:
+            print(
+                f"{label}: BOOTSTRAP REFUSED. The branch registry does not map "
+                f"this label to {introduced_by}, so the run arguments cannot "
+                f"name their own bootstrap. Register the ratchet and re-run.",
+                file=sys.stderr,
+            )
+            return None, EXIT_REGRESSION
         print(
             f"{label}: bootstrap. {args.base_ref} does not carry {introduced_by} "
             f"yet, so there is no earlier tree to hold this branch to. The "
