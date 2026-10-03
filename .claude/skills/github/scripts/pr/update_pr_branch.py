@@ -12,13 +12,18 @@ Behavior:
 - A PR that is not behind its base (compare ``behind_by == 0``) is reported as
   success with ``already_up_to_date: true`` and no PUT. A 422 saying the base
   has no new commits is reported the same way.
-- ``--expected-head-sha`` is forwarded as ``expected_head_sha``. GitHub answers
-  422 when the head moved; that maps to exit 1, error type VerificationFailed,
+- ``--expected-head-sha`` is checked against the PR head first, then forwarded
+  as ``expected_head_sha``. A local mismatch, or GitHub's 422 when the head
+  moved in between, maps to exit 1, error type VerificationFailed,
   ``reason: head_moved``.
 - Without ``--wait`` the script returns after the 202 with the old head SHA and
-  the API message. With ``--wait`` it polls until the head SHA changes or the
-  PR is no longer behind, bounded by ``--timeout-seconds``, then reports the new
-  head SHA. A timeout exits 3 and says the update was already requested.
+  the API message. With ``--wait`` it polls until compare shows the PR is no
+  longer behind, then reports the new head SHA. The deadline is
+  ``--timeout-seconds``; a poll already in flight can overrun it by up to two
+  gh calls of 30s each. A head change alone does not end the wait, since an unrelated push can
+  move the head. A timeout exits 3 and says the update was already requested.
+- Without ``--expected-head-sha`` the update applies to whatever head GitHub
+  sees when it runs. Unattended callers should pass the SHA they reviewed.
 
 All output goes through the standard skill envelope per ADR-056.
 
@@ -41,6 +46,7 @@ import sys
 import time
 from dataclasses import dataclass
 from typing import Any, NoReturn
+from urllib.parse import quote
 
 _plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
 _workspace = os.environ.get("GITHUB_WORKSPACE")
@@ -239,7 +245,7 @@ def _behind_by(ctx: _Context, snap: _PrSnapshot) -> tuple[int | None, str]:
     result = _run_gh(
         [
             "gh", "api",
-            f"repos/{ctx.repo_flag}/compare/{snap.base_ref}...{snap.head_sha}",
+            f"repos/{ctx.repo_flag}/compare/{quote(snap.base_ref, safe='/')}...{snap.head_sha}",
             "--jq", ".behind_by",
         ],
         ctx,
@@ -269,7 +275,7 @@ def _api_message(stdout: str) -> str:
     return ""
 
 
-def _request_update(ctx: _Context, snap: _PrSnapshot) -> tuple[bool, str]:
+def _request_update(ctx: _Context) -> tuple[bool, str]:
     """PUT update-branch. Return (already up to date, API message)."""
     result = _run_gh(
         _build_update_args(ctx.pr, ctx.repo_flag, ctx.expected_head_sha),
@@ -277,33 +283,31 @@ def _request_update(ctx: _Context, snap: _PrSnapshot) -> tuple[bool, str]:
         "Update-branch request",
     )
     if result.returncode == 0:
-        return False, _api_message(result.stdout)
+        return False, sanitize_failure_detail(_api_message(result.stdout))
     text = _fail_text(result)
     if _has_marker(text, _UP_TO_DATE_MARKERS):
-        return True, _api_message(result.stdout) or "No new commits on the base branch"
-    _fail_update(result, text, ctx, snap)
+        message = sanitize_failure_detail(_api_message(result.stdout))
+        return True, message or "No new commits on the base branch"
+    _fail_update(result, text, ctx)
 
 
 def _fail_update(
     result: subprocess.CompletedProcess[str],
     text: str,
     ctx: _Context,
-    snap: _PrSnapshot,
 ) -> NoReturn:
     detail = sanitize_failure_detail(_api_message(result.stdout) or text)
     if _has_marker(text, _HEAD_MOVED_MARKERS):
-        _emit_error(
-            f"PR #{ctx.pr} head moved: GitHub refused the update because the head "
-            f"is not {ctx.expected_head_sha}. Re-read the head and retry.",
-            1, "VerificationFailed", ctx.output_format, ctx.pr,
-            reason="head_moved",
-            expected_head_sha=ctx.expected_head_sha,
-            current_head_sha=snap.head_sha or None,
-        )
+        _head_moved(ctx, "", "GitHub refused the update because")
     if is_auth_failure_text(text):
         _emit_error(
             f"Not authorized to update PR #{ctx.pr}: {detail}",
             4, "AuthError", ctx.output_format, ctx.pr,
+        )
+    if _has_marker(text, _NOT_FOUND_MARKERS):
+        _emit_error(
+            f"PR #{ctx.pr} not found in {ctx.repo_flag} when updating",
+            2, "NotFound", ctx.output_format, ctx.pr,
         )
     _emit_error(
         f"Update-branch for PR #{ctx.pr} failed: {detail}",
@@ -312,22 +316,31 @@ def _fail_update(
 
 
 def _wait_for_update(ctx: _Context, old_head: str, timeout: int) -> tuple[str, str]:
-    """Poll until the head changes or the PR is not behind. Return (head, why)."""
+    """Poll until compare shows the PR is not behind. Return (head, why).
+
+    A head change alone is not proof: an unrelated push can move the head
+    while the PR stays behind. Only when compare is unreadable does a head
+    change end the wait, labelled ``head_changed_unverified``.
+    """
     deadline = _monotonic() + timeout
     while True:
         snap = _fetch_pr(ctx)
-        if snap.head_sha and snap.head_sha != old_head:
-            return snap.head_sha, "head_changed"
-        behind, _ = _behind_by(ctx, snap)
+        behind, precheck = _behind_by(ctx, snap)
+        moved = bool(snap.head_sha) and snap.head_sha != old_head
         if behind == 0:
-            return snap.head_sha, "not_behind"
+            return snap.head_sha, "head_changed" if moved else "not_behind"
+        if behind is None and moved:
+            return snap.head_sha, "head_changed_unverified"
         remaining = deadline - _monotonic()
         if remaining <= 0:
             _emit_error(
-                f"PR #{ctx.pr} head did not change within {timeout}s. The update "
-                "was requested (202); re-run with --wait to keep polling.",
+                f"PR #{ctx.pr} was still behind its base after {timeout}s. The "
+                "update was requested (202); re-run with --wait to request and "
+                "poll again.",
                 3, "Timeout", ctx.output_format, ctx.pr,
                 old_head_sha=old_head,
+                last_head_sha=snap.head_sha or None,
+                last_precheck=precheck,
                 update_requested=True,
             )
         _sleep(min(_POLL_INTERVAL_SECONDS, remaining))
@@ -369,12 +382,31 @@ def _require_auth(fmt: str, pr: int) -> None:
 
 
 def _require_open(ctx: _Context, snap: _PrSnapshot) -> None:
-    if snap.state in ("CLOSED", "MERGED"):
+    if snap.state != "OPEN":
+        shown = snap.state.lower() or "in an unknown state"
         _emit_error(
-            f"PR #{ctx.pr} is {snap.state.lower()}; only an open PR can be updated",
+            f"PR #{ctx.pr} is {shown}; only an open PR can be updated",
             1, "InvalidParams", ctx.output_format, ctx.pr,
-            state=snap.state,
+            state=snap.state or None,
         )
+
+
+def _head_moved(ctx: _Context, current_head: str, source: str) -> NoReturn:
+    _emit_error(
+        f"PR #{ctx.pr} head moved: {source} the head is "
+        f"{current_head or 'unknown'}, not {ctx.expected_head_sha}. Re-read the "
+        "head and retry.",
+        1, "VerificationFailed", ctx.output_format, ctx.pr,
+        reason="head_moved",
+        expected_head_sha=ctx.expected_head_sha,
+        current_head_sha=current_head or None,
+    )
+
+
+def _require_expected_head(ctx: _Context, snap: _PrSnapshot) -> None:
+    """Refuse locally when the pin already disagrees with the PR head."""
+    if ctx.expected_head_sha and snap.head_sha.lower() != ctx.expected_head_sha.lower():
+        _head_moved(ctx, snap.head_sha, "the PR reports")
 
 
 def _up_to_date_result(ctx: _Context, snap: _PrSnapshot, behind: int | None, msg: str) -> int:
@@ -406,11 +438,12 @@ def main(argv: list[str] | None = None) -> int:
 
     snap = _fetch_pr(ctx)
     _require_open(ctx, snap)
+    _require_expected_head(ctx, snap)
     behind, precheck = _behind_by(ctx, snap)
     if behind == 0:
         return _up_to_date_result(ctx, snap, behind, "Head already contains the base")
 
-    up_to_date, message = _request_update(ctx, snap)
+    up_to_date, message = _request_update(ctx)
     if up_to_date:
         return _up_to_date_result(ctx, snap, behind, message)
 

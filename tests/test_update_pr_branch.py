@@ -187,20 +187,32 @@ class TestUpdateRequested:
 
 class TestHeadMoved:
     def test_422_head_moved_exits_1_typed(self, capsys):
-        """AC3: GitHub 422 on a moved head maps to exit 1 VerificationFailed."""
+        """AC3: GitHub 422 on a head that moved after the read maps to exit 1."""
         fake = _FakeGh(put=_completed(
             stdout=_HEAD_MOVED_BODY,
             stderr="gh: expected head sha didn't match current head ref. (HTTP 422)",
             rc=1,
         ))
-        rc = _run(["--pull-request", "50", "--expected-head-sha", _OTHER_HEAD], fake)
+        rc = _run(["--pull-request", "50", "--expected-head-sha", _OLD_HEAD], fake)
         env = _envelope(capsys)
         assert rc == 1
         assert env["Success"] is False
         assert env["Error"]["Type"] == "VerificationFailed"
         assert env["Data"]["reason"] == "head_moved"
-        assert env["Data"]["expected_head_sha"] == _OTHER_HEAD
+        assert env["Data"]["expected_head_sha"] == _OLD_HEAD
+        assert len(fake.put_calls()) == 1
+
+    @pytest.mark.parametrize("behind", ["0", "3"])
+    def test_local_pin_mismatch_exits_1_without_put(self, capsys, behind):
+        """AC3: a pin that already disagrees with the PR head is refused locally,
+        even when the PR is already up to date."""
+        fake = _FakeGh(behind=[behind])
+        rc = _run(["--pull-request", "50", "--expected-head-sha", _OTHER_HEAD], fake)
+        env = _envelope(capsys)
+        assert rc == 1
+        assert env["Data"]["reason"] == "head_moved"
         assert env["Data"]["current_head_sha"] == _OLD_HEAD
+        assert fake.put_calls() == []
 
     def test_other_422_exits_3(self, capsys):
         """AC9: a 422 that is neither head-moved nor up-to-date is external."""
@@ -217,15 +229,18 @@ class TestHeadMoved:
 
 
 class TestRefusedStates:
-    @pytest.mark.parametrize("state", ["CLOSED", "MERGED"])
-    def test_closed_or_merged_pr_exits_1_without_put(self, capsys, state):
-        """AC4: closed and merged PRs are refused before any mutation."""
+    @pytest.mark.parametrize(
+        ("state", "shown"),
+        [("CLOSED", "closed"), ("MERGED", "merged"), ("", "unknown state")],
+    )
+    def test_non_open_pr_exits_1_without_put(self, capsys, state, shown):
+        """AC4: closed, merged, and unreadable states are refused before any mutation."""
         fake = _FakeGh(pr_views=[_pr_json(state=state)])
         rc = _run(["--pull-request", "50"], fake)
         env = _envelope(capsys)
         assert rc == 1
         assert env["Error"]["Type"] == "InvalidParams"
-        assert state.lower() in env["Error"]["Message"]
+        assert shown in env["Error"]["Message"]
         assert fake.put_calls() == []
 
     def test_invalid_sha_exits_1_before_any_call(self, capsys):
@@ -314,11 +329,11 @@ class TestAuth:
 
 class TestWait:
     def test_wait_reports_new_head(self, capsys):
-        """AC7: poll until the head changes, then report it."""
+        """AC7: poll until compare shows the new head is not behind, then report it."""
         clock = _FakeClock()
         fake = _FakeGh(
             pr_views=[_pr_json(), _pr_json(), _pr_json(head=_NEW_HEAD)],
-            behind=["2"],
+            behind=["2", "2", "0"],
         )
         with patch.object(_mod, "_monotonic", clock.monotonic), patch.object(
             _mod, "_sleep", clock.sleep,
@@ -329,7 +344,36 @@ class TestWait:
         assert env["Data"]["action"] == "updated"
         assert env["Data"]["old_head_sha"] == _OLD_HEAD
         assert env["Data"]["new_head_sha"] == _NEW_HEAD
+        assert env["Data"]["wait_result"] == "head_changed"
         assert clock.sleeps, "expected at least one poll interval"
+
+    def test_wait_ignores_head_change_while_still_behind(self, capsys):
+        """AC8: an unrelated push moves the head but the PR stays behind; that is
+        not success, so the bounded wait times out."""
+        clock = _FakeClock()
+        fake = _FakeGh(pr_views=[_pr_json(), _pr_json(head=_NEW_HEAD)], behind=["2"])
+        with patch.object(_mod, "_monotonic", clock.monotonic), patch.object(
+            _mod, "_sleep", clock.sleep,
+        ):
+            rc = _run(["--pull-request", "50", "--wait", "--timeout-seconds", "12"], fake)
+        env = _envelope(capsys)
+        assert rc == 3
+        assert env["Data"]["last_head_sha"] == _NEW_HEAD
+
+    def test_wait_head_change_with_unreadable_compare_is_unverified(self, capsys):
+        """AC7: compare fails mid-wait; a head change ends the wait but is labelled."""
+        clock = _FakeClock()
+        fake = _FakeGh(
+            pr_views=[_pr_json(), _pr_json(head=_NEW_HEAD)],
+            behind=["2", "2", "garbage"],
+        )
+        with patch.object(_mod, "_monotonic", clock.monotonic), patch.object(
+            _mod, "_sleep", clock.sleep,
+        ):
+            rc = _run(["--pull-request", "50", "--wait", "--timeout-seconds", "60"], fake)
+        env = _envelope(capsys)
+        assert rc == 0
+        assert env["Data"]["wait_result"] == "head_changed_unverified"
 
     def test_wait_stops_when_no_longer_behind(self, capsys):
         """AC7: compare reaching 0 also ends the wait."""
@@ -356,6 +400,7 @@ class TestWait:
         assert env["Error"]["Type"] == "Timeout"
         assert env["Data"]["old_head_sha"] == _OLD_HEAD
         assert env["Data"]["update_requested"] is True
+        assert env["Data"]["last_precheck"] == "ok"
         assert clock.now <= 12
 
 
@@ -366,7 +411,7 @@ class TestSkillDoc:
         row = next(line for line in text.splitlines() if "`update_pr_branch.py`" in line)
         assert "--expected-head-sha" in row
         assert "--wait" in row
-        for code in ("Exit 0", "exit 1", "exit 3", "exit 4"):
+        for code in ("Exit 0", "exit 1", "exit 2", "exit 3", "exit 4"):
             assert code in row, code
 
 
@@ -420,6 +465,22 @@ class TestErrorPaths:
         rc = _run(["--pull-request", "50"], fake)
         assert rc == 0
         assert _envelope(capsys)["Data"]["message"] == ""
+
+    def test_put_not_found_exits_2(self, capsys):
+        """AC9: a PR deleted between the read and the PUT maps to not found."""
+        fake = _FakeGh(put=_completed(stderr="gh: Not Found (HTTP 404)", rc=1))
+        rc = _run(["--pull-request", "50"], fake)
+        assert rc == 2
+        assert _envelope(capsys)["Error"]["Type"] == "NotFound"
+
+    def test_base_ref_is_url_quoted_in_compare(self, capsys):
+        """A base ref with '#' cannot truncate the compare path."""
+        fake = _FakeGh(pr_views=[json.dumps(
+            {"state": "OPEN", "headRefOid": _OLD_HEAD, "baseRefName": "rel/v1#x"},
+        )])
+        assert _run(["--pull-request", "50"], fake) == 0
+        compare = next(c for c in fake.calls if "/compare/" in " ".join(c))
+        assert f"compare/rel/v1%23x...{_OLD_HEAD}" in compare[2]
 
     def test_nonpositive_timeout_exits_1(self, capsys):
         """A zero wait bound is refused before any call."""
