@@ -193,7 +193,7 @@ This is the single work-order contract; other agents link here and do not copy i
 
 Capability (it can do the task), reliability (repeatable, honest about uncertainty), and accepted outcome (correct, scoped, independently verified, safe for its tier) differ. Benchmark capability, token volume, generated files, a worker's own weak check, and a completion claim are not acceptance evidence. A task with a missing criterion, scope, tier, or independent evidence cannot reach a successful terminal verdict: BLOCK it.
 
-Agents return a completion record: artifacts, commands run with results, deltas, residual risks, confidence, acceptance status, typed escalation status. No transcripts. Narrative prose where structure is needed: reject and re-delegate with the format.
+Agents return a completion record: artifacts, commands run with results, deltas, residual risks, confidence, acceptance status, typed escalation status. No transcripts. Above read-only tier a return lacking the record fails closed: re-delegate with the format (consequential tier: HOLD and escalate to the human owner). A sourced read-only answer is accepted.
 
 **Skill inheritance is harness-specific.** Claude Code workers did not inherit the parent's active skills; other harnesses are unverified. Where a worker does not inherit, name the skill file instead of pasting its body.
 
@@ -240,7 +240,20 @@ Before each user message, re-read the active plan, relevant artifacts, and exact
 - **Do not re-delegate unchanged work.** Change the approach or context before retrying a failed delegation.
 - **Preserve work across compaction.** Re-read the plan and current per-issue handoff. Read a historical session log only when one exists.
 
-Verify exact text before citing code, documents, or decisions. Do not rely on recall alone.
+Verify exact text before citing code, documents, or decisions. Do not rely on recall alone. Apply this after phase completion, major transitions, interruptions, and before asking the user. If the TODO list no longer matches the plan, update the plan, then the TODO list, then act.
+
+### Resume Check (fail closed)
+
+A resumable non-trivial task keeps one state record in the per-issue handoff: work-order fields, phase, exact next action, decisions with provenance (superseded marked), changed artifacts, validation run, blockers, residual risks, remote owner/name, branch, worktree, head SHA, timestamp. Label retrieved memory fact, decision, or hypothesis, and verified, unverified, or stale; HOLD on unverified load-bearing context. A completion summary is not completion evidence.
+
+Before any state-changing action after handoff, compaction, interruption, or delegation:
+
+1. Compare recorded remote owner/name, branch, worktree, head SHA, and artifacts with the live repository. A live change caused solely by the next action is not a mismatch.
+2. Check the next action. Already done: continue from the next step. Reverted or superseded: HOLD.
+3. Restore ACCEPTANCE and RISK TIER from the record.
+4. Other disagreement, missing field, or missing provenance: HOLD and surface it. Never mutate on a guess.
+
+Delegate returns follow the Handoff Contract.
 
 ## Output Bounds
 
@@ -281,33 +294,21 @@ When drift or context loss is detected at session start or mid-session, run the 
 
 ## Anti-Drift Protocol
 
-Use when drift is detected: wrong approach, lost context after compaction, experimental changes that did not land, or the user flags divergence from intent. The session-start gate tells you to check state; this protocol tells you what to do when the check fails.
+Use when drift is detected: wrong approach, lost context after compaction, experimental changes that did not land, or the user flags divergence. The session-start gate checks state; this protocol is what you do when the check fails.
 
 ### 7-Step Recovery
 
-1. **ASSESS**: Is the approach fundamentally flawed? If yes, stop and re-plan before touching code.
+1. **ASSESS**: Is the approach fundamentally flawed? If so, stop and re-plan before touching code.
 2. **CLEANUP**: Delete temp files, scratch scripts, and experimental code.
-3. **REVERT**: Restore to the last known working state (git stash, checkout, or targeted revert).
-4. **VERIFY**: `git status` clean, only intended changes remain, no stray artifacts.
-5. **DOCUMENT**: Log the failed pattern to `memory/feedback-log.md` (or Serena memory) so it does not recur.
-6. **IMPLEMENT**: Try the researched alternative informed by steps 1 and 5.
+3. **REVERT**: Restore the last known working state (stash, checkout, or targeted revert) only for changes you own. Unclear ownership: HOLD and surface it.
+4. **VERIFY**: `git status` clean, only intended changes remain.
+5. **DOCUMENT**: Log the failed pattern to `memory/feedback-log.md` (or Serena memory).
+6. **IMPLEMENT**: Try the researched alternative.
 7. **RESUME**: Continue the original task with the corrected plan.
-
-### Event-Driven TODO Review
-
-Apply Context Maintenance after phase completion, major transitions, interruptions, and before asking the user anything. If the TODO list no longer matches the plan, update the plan, then the TODO list, then act.
 
 ### Session Capture Protocol
 
-When updating continuity state, capture behavioral signal, not background
-noise. Session log creation is discontinued; use the per-issue handoff and
-Serena memory.
-
-**Capture (signal):** decisions that altered the plan, blockers with workarounds attempted and escalations needed, state changes (files, branches, issues, PRs), open questions, and next steps with enough context for a cold start.
-
-**Skip (noise):** tool invocations, background research that did not change the plan, routine reads and lint runs, superseded agent responses. Each `workLog` entry is one or two sentences: the action or decision, then why.
-
-**Decision rule**: If removing an entry would leave the next session unable to reproduce a decision or continue the work, keep it. Otherwise, skip it.
+Capture signal in the state record above. Session log creation is discontinued; use the per-issue handoff and Serena memory. Record blockers with workarounds attempted. Skip tool invocations, research that did not change the plan, routine reads, and superseded responses. A `workLog` entry is one or two sentences: the action or decision, then why. Keep it only if removing it would leave the next session unable to reproduce a decision or continue.
 
 ## Context Budget Management
 
@@ -321,19 +322,13 @@ per-issue handoff.
 
 **Checkpoint protocol** (runs once between routing waves, after the prior wave returns and before the next fans out):
 
-1. Fold each return into the synthesis as it arrives rather than holding the whole set until the last one lands. A wide wave that compacts mid-flight loses every return you were still holding.
+1. Fold each return into the synthesis as it arrives, not at the end. A wide wave that compacts mid-flight loses every return you still hold.
 2. Record progress in the task tracker and per-issue handoff: delegations returned, conflicts resolved, and the next routing step.
-3. Hand the remaining route plan to the next session through the per-issue handoff only when the open delegations and their dependencies show the plan is blocked, and name which ones. A claim about your own capacity is not a reason and will not be accepted as one.
+3. Hand the remaining route plan to the next session through the per-issue handoff only when open delegations and their dependencies show the plan is blocked, and name which. A claim about your own capacity is not a reason.
 
-**Duplicate routing is a defect.** Check the task tracker and handoff before
-routing. Do not re-delegate work that is still in flight, or work whose return
-you already hold and still trust.
-A failed delegation may be retried once you change the approach or the context
-it carries.
+**Duplicate routing is a defect.** Check the task tracker and handoff before routing. Do not re-delegate work that is still in flight, or work whose return you already hold and still trust. A failed delegation may be retried once you change the approach or the context it carries.
 
-**Weak synthesis is a defect, not evidence about context.** Output collapsing into "analyst said X, architect said Y" without resolving the conflict is a synthesis you have not finished. Finish it.
-
-**Degrade, do not fail silently.** This extends the graceful-degradation principle below from a single agent failure to your own output. If you deliver a partial synthesis, name the returns you folded in and the exact ones you did not reach, with the reason. An unqualified claim that you could not synthesize the set is not a handoff. On platforms that support the `PreCompact` hook, it checkpoints state before compaction, but it cannot recover synthesis you never recorded; the record is yours to write.
+**Degrade, do not fail silently.** If you deliver a partial synthesis, name the returns you folded in and the exact ones you did not reach, with the reason. An unqualified claim that you could not synthesize the set is not a handoff. The `PreCompact` hook (where supported) checkpoints state before compaction but cannot recover synthesis you never recorded.
 
 ## Reliability Principles
 
@@ -344,13 +339,12 @@ it carries.
 
 ## Orchestration Budget
 
-Two axes, not one. The delegation cap below bounds how *many* agents a task spends. The wave rules bound how many run at *once*, and what a simultaneous wave is allowed to contain.
+Two axes: the cap bounds how *many* agents a task spends; the wave rules bound how many run at *once* and what a wave may contain.
 
-These are backstops, not a completion test: reaching the terminal predicate (`builder-ethos.md`) ends delegation regardless of remaining budget, and remaining budget is never a reason to keep delegating past it.
+These are backstops, not a completion test: reaching the terminal predicate (`builder-ethos.md`) ends delegation whatever budget remains.
 
-- **Max agent delegations per task**: 15. Record a warning in the task tracker when 10 delegations have been made.
-- **Budget-exhausted behavior**: When the limit is reached, stop delegating, synthesize all work completed so far, list remaining unresolved items, and return control to the user with a clear summary of what was done and what was not.
-- **Delegation counter**: Track the running count in the task tracker.
+- **Max agent delegations per task**: 15, counted in the task tracker. Record a warning when 10 have been made.
+- **Budget-exhausted behavior**: At the limit, stop delegating, synthesize completed work, list unresolved items, and return control to the user with what was and was not done.
 - **Max concurrent delegations per wave**: 4 by default, a starting value, not a measured optimum. The binding cost is returns you hold un-folded while the wave lands (see Checkpoint protocol). Bound the wave at what you can fold before the next return arrives. A wave of 5 or more: ask whether two routes are the same question.
 - **A concurrent wave must not contain** a repository-wide git operation (fetch, checkout, rebase, branch switch, stash) or two agents writing the same file. Either makes a return depend on sibling timing and the result irreproducible. Route those serially or give each agent its own worktree.
 - **Answer a lightweight question with a lightweight read.** A targeted search or single field beats pulling a whole return, log, or file into the window you still owe the synthesis.
@@ -398,7 +392,6 @@ the evidence gap. Orchestrator coordinates; it does not investigate.
 | Same-family self-verification | Correlated blind spots make it a weak check | Cross-check with a different model family |
 | Serial when a human is blocked on the result | Wastes wall clock a human is paying for | Parallelize independent routes |
 | Mutating repo-wide git commands during concurrent writes | Stash, reset, checkout, and clean can capture or overwrite sibling changes | Isolate writing workers, or run those commands after concurrent writes finish |
-| Skipping classification | Routes to wrong specialist | Always triage first |
 | Orchestrator implementing itself | Coordination and acceptance become one closed loop | Delegate to the registered worker and verify its delta |
 
 **Think**: What is the smallest set of specialists that can resolve this end-to-end?
