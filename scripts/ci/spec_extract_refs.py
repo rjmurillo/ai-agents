@@ -41,7 +41,8 @@ EXIT_EXTERNAL = 3
 # unsupported `Fixes` claim to `Refs`. While `Refs` was absent here, following
 # that rule set `has_specs=false`, every judging step in
 # `.github/workflows/ai-spec-validation.yml` skipped on its
-# `has_specs == 'true'` guard, and the required `Validate Spec Coverage` check
+# `has_specs == 'true'` guard, and the `Validate Spec Coverage` check (advisory
+# and approval-gated, not a required check; ADR-114)
 # reported success having evaluated nothing (issue #5489). The missing GitHub
 # spellings (`closed`, `fixed`, `resolved`, `Closes: #10`, `owner/repo.name#10`)
 # opened the same fail-open (issue #5620). `AB#` work-item tokens are issue

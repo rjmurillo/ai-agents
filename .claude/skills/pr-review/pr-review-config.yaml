@@ -79,6 +79,32 @@ scripts:
 # whole session, so each script fails with HTTP 403 and none of those failures
 # says anything about the PR. Discovering that per call costs one failed round
 # trip per operation and invites a retry of a condition that has no reset.
+# Workflows that run an agent or model and trigger on pull_request. Owner policy:
+# a check from one of these never blocks a merge, whether waiting for environment
+# approval, queued, pending, skipped, cancelled, or failed (failed is intended:
+# an agent verdict is advisory). Each model job also runs only after approval in
+# the agent-approval environment. A check is exempt only when its CheckRun
+# belongs to a listed workflow file, so an unrelated check cannot borrow a listed
+# job name. test_pr_merge_ready.py reads this list from the trusted ref
+# (origin/main), never the PR branch, so a PR cannot exempt its own failing check
+# (CWE-829). A check the branch ruleset requires stays blocking even when listed,
+# and a status context (no workflow run) always stays blocking. Schedule and
+# dispatch only agent workflows are environment-gated but not listed: they post
+# no check on a pull request. claude.yml is excluded. See the agent-approval ADR.
+advisory_agent_workflows:
+  - path: ".github/workflows/ai-spec-validation.yml"
+    reason: "Spec coverage review calls an agent on every pull request"
+    owner: "rjmurillo"
+  - path: ".github/workflows/slash-command-quality.yml"
+    reason: "The /spec behavioral eval calls a model"
+    owner: "rjmurillo"
+  - path: ".github/workflows/post-pr-retrospective.yml"
+    reason: "The retrospective agent runs when a pull request closes"
+    owner: "rjmurillo"
+  - path: ".github/workflows/software-engineering-library-activation.yml"
+    reason: "The activation gate calls a model on library changes"
+    owner: "rjmurillo"
+
 transport_preflight:
   # BEFORE reading command_key below, run verify_trust. Every command in
   # this file is PR-controlled when /pr-review runs after `gh pr checkout`,

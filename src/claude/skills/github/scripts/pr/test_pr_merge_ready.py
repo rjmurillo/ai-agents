@@ -124,6 +124,13 @@ query($owner: String!, $repo: String!, $oid: GitObjectID!, $number: Int!, $curso
                                 conclusion
                                 detailsUrl
                                 isRequired(pullRequestNumber: $number)
+                                checkSuite {
+                                    workflowRun {
+                                        workflow {
+                                            resourcePath
+                                        }
+                                    }
+                                }
                             }
                             ... on StatusContext {
                                 __typename
@@ -176,6 +183,13 @@ query($owner: String!, $repo: String!, $number: Int!) {
                                         conclusion
                                         detailsUrl
                                         isRequired(pullRequestNumber: $number)
+                                        checkSuite {
+                                            workflowRun {
+                                                workflow {
+                                                    resourcePath
+                                                }
+                                            }
+                                        }
                                     }
                                     ... on StatusContext {
                                         __typename
@@ -827,12 +841,231 @@ def _paginate_contexts(
     return extras, False
 
 
+# Advisory agent workflows (owner policy: no agent workflow blocks a merge).
+#
+# A non-required check is exempt only when its CheckRun belongs to a workflow
+# file named in the advisory list. The identity is the workflow file, not the
+# check name: a name is free text any workflow can reuse, so a bare-name list
+# lets an unrelated check borrow a listed name and escape blocking (spoofing).
+# GitHub's GraphQL `Workflow` type has no `path` field; `resourcePath` carries
+# `/<owner>/<repo>/actions/workflows/<file>`, which maps to the file path.
+#
+# The list lives in pr-review-config.yaml, which the completion gate
+# byte-compares against the trusted ref. This reader goes one step further and
+# reads the list FROM the trusted ref with `git show`, never from the work
+# tree: a PR that edits its own copy must not exempt its own failing check
+# (CWE-829, the same concern as the dispositions registry). Every failure path
+# returns an empty set, which leaves every check blocking, and prints the
+# reason to stderr so an empty list is never silent.
+#
+# By design a listed workflow's check never blocks in any state: waiting for
+# approval, queued, pending, skipped, cancelled, or FAILED. Failed is included
+# on purpose (owner policy), because an agent verdict is advisory. A check the
+# branch ruleset requires keeps blocking, and a StatusContext row (no workflow
+# run) always keeps blocking.
+_ADVISORY_TRUSTED_REF = "origin/main"
+_ADVISORY_KEY = "advisory_agent_workflows"
+_ADVISORY_FIELD = re.compile(r"""^\s+(?:-\s+)?(path|reason|owner):\s*(?:"([^"\n]*)"|'([^'\n]*)'|([^#\n]*?))\s*(?:#.*)?$""")
+
+
+def _parse_advisory_agent_workflows(config_text: str) -> frozenset[str]:
+    """Read `advisory_agent_workflows` entries without a YAML dependency.
+
+    This script runs on the host's bare ``python3`` (see the Python 3.10 note
+    above), where PyYAML is not guaranteed. Each entry is a block mapping with
+    ``path``, ``reason`` and ``owner``. An entry missing any field, a stray
+    line, or an absent key raises ``ValueError``; the caller fails closed.
+    """
+    entries: list[dict[str, str]] = []
+    in_list = False
+    for line in config_text.splitlines():
+        if not in_list:
+            in_list = line.rstrip() == f"{_ADVISORY_KEY}:"
+            continue
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        if not line.startswith(" "):
+            break
+        match = _ADVISORY_FIELD.match(line)
+        if not match:
+            raise ValueError(f"unrecognized line in {_ADVISORY_KEY}: {line.strip()[:60]!r}")
+        field = match.group(1)
+        value = next(g for g in match.groups()[1:] if g is not None).strip()
+        if line.lstrip().startswith("- "):
+            if field != "path":
+                raise ValueError(f"{_ADVISORY_KEY} entry must start with path")
+            entries.append({})
+        if not entries:
+            raise ValueError(f"{_ADVISORY_KEY} field before the first entry")
+        entries[-1][field] = value
+    if not in_list:
+        raise ValueError(f"no {_ADVISORY_KEY} key")
+    for entry in entries:
+        if not all(entry.get(k) for k in ("path", "reason", "owner")):
+            raise ValueError(f"{_ADVISORY_KEY} entry lacks path, reason, or owner")
+    return frozenset(entry["path"] for entry in entries)
+
+
+def _advisory_config_repo_path(script_dir: str) -> str | None:
+    """Repo-relative path of the sibling pr-review config, or None.
+
+    The config sits at ``<skills root>/pr-review/pr-review-config.yaml`` and
+    this script at ``<skills root>/github/scripts/pr/``. Resolving from the
+    script keeps the path correct under every skills root (the in-repo tree and
+    both plugin source trees) without naming one.
+    """
+    config = os.path.normpath(
+        os.path.join(script_dir, "..", "..", "..", "pr-review", "pr-review-config.yaml")
+    )
+    try:
+        top = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            cwd=script_dir,
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=10,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if top.returncode != 0 or not top.stdout.strip():
+        return None
+    relative = os.path.relpath(config, os.path.realpath(top.stdout.strip()))
+    if relative.startswith(".."):
+        return None
+    return relative.replace(os.sep, "/")
+
+
+def _warn_advisory_unreadable(reason: str) -> frozenset[str]:
+    """Fail closed: print why the advisory list is empty, return no exemptions."""
+    print(
+        f"WARNING: advisory agent workflow list unavailable ({reason}); "
+        "no check is exempted and every non-required check keeps its normal verdict",
+        file=sys.stderr,
+    )
+    return frozenset()
+
+
+def _is_shallow(repo_dir: str) -> bool:
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--is-shallow-repository"],
+            cwd=repo_dir, capture_output=True, encoding="utf-8",
+            errors="replace", timeout=10, check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return result.stdout.strip() == "true"
+
+
+def _load_advisory_agent_workflows(
+    trusted_ref: str = _ADVISORY_TRUSTED_REF,
+    cwd: str | None = None,
+) -> frozenset[str]:
+    """Return the advisory workflow file paths stored at ``trusted_ref``.
+
+    Fails closed with a stderr warning naming the reason: git missing, the ref
+    absent or unreadable (a shallow clone is named as such), or a list that
+    does not parse.
+    """
+    script_dir = os.path.dirname(os.path.realpath(__file__))
+    config_path = _advisory_config_repo_path(script_dir)
+    if config_path is None:
+        return _warn_advisory_unreadable("the config is not inside a git repository")
+    repo_dir = cwd or script_dir
+    try:
+        result = subprocess.run(
+            ["git", "show", f"{trusted_ref}:{config_path}"],
+            cwd=repo_dir,
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=10,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        return _warn_advisory_unreadable(f"git failed: {type(exc).__name__}")
+    if result.returncode != 0:
+        shape = "shallow clone, " if _is_shallow(repo_dir) else ""
+        return _warn_advisory_unreadable(
+            f"{shape}cannot read {config_path} at {trusted_ref}"
+        )
+    try:
+        return _parse_advisory_agent_workflows(result.stdout)
+    except ValueError as exc:
+        return _warn_advisory_unreadable(f"parse error: {exc}")
+
+
+def _workflow_file_of(context: dict, owner: str, repo: str) -> str | None:
+    """Workflow file path of a CheckRun row, or None (StatusContext, other repo)."""
+    if context.get("__typename") != "CheckRun":
+        return None
+    resource = (
+        ((context.get("checkSuite") or {}).get("workflowRun") or {})
+        .get("workflow") or {}
+    ).get("resourcePath")
+    prefix = f"/{owner}/{repo}/actions/workflows/".lower()
+    if not isinstance(resource, str) or not owner or not repo:
+        return None
+    if not resource.lower().startswith(prefix):
+        return None
+    name = resource[len(prefix):]
+    if not name or "/" in name:
+        return None
+    return f".github/workflows/{name}"
+
+
+def _advisory_check_names(
+    contexts: list[dict],
+    advisory: frozenset[str],
+    owner: str,
+    repo: str,
+) -> set[str]:
+    """Check names every row of which comes from a listed workflow.
+
+    Rows dedupe by name, so a name is exempt only when no row of that name is a
+    StatusContext or a CheckRun from an unlisted workflow. That closes the
+    spoof where an unlisted check reuses a listed job name.
+    """
+    verdicts: dict[str, list[bool]] = defaultdict(list)
+    for ctx in contexts:
+        typename = ctx.get("__typename")
+        if typename == "CheckRun":
+            name = ctx.get("name", "unknown")
+        elif typename == "StatusContext":
+            name = ctx.get("context", "unknown")
+        else:
+            continue
+        verdicts[name].append(_workflow_file_of(ctx, owner, repo) in advisory)
+    return {name for name, flags in verdicts.items() if flags and all(flags)}
+
+
+def _exempt_advisory_checks(
+    failed_non_required: list[str],
+    pending_non_required: list[str],
+    exempt_names: set[str],
+) -> list[str]:
+    """Remove exempt names from the non-required buckets; return what moved.
+
+    Only the non-required lists are touched. A listed check that the ruleset
+    requires sits in a required bucket and keeps blocking.
+    """
+    exempted: list[str] = []
+    for bucket in (failed_non_required, pending_non_required):
+        for name in [n for n in bucket if n in exempt_names]:
+            bucket.remove(name)
+            exempted.append(name)
+    return exempted
+
+
 def _evaluate_ci_checks(
     pr: dict,
     ignore_ci: bool,
     include_non_required: bool,
     reasons: list[str],
     owner: str = "", repo: str = "", pr_number: int = 0,
+    advisory: frozenset[str] = frozenset(),
 ) -> tuple[list[str], list[str], list[str], list[str], int, bool, int, bool]:
     """Classify rollup contexts and append CI reasons.
 
@@ -910,6 +1143,17 @@ def _evaluate_ci_checks(
                 pending_non_required=pending_non_required,
                 skipped_names=skipped_names,
             )
+            exempted = _exempt_advisory_checks(
+                failed_non_required, pending_non_required,
+                _advisory_check_names(contexts, advisory, owner, repo),
+            )
+            if exempted:
+                logger.info(
+                    "op=advisory_agent_workflows_exempted pr=%d names=%s",
+                    pr_number, ",".join(sorted(set(exempted))),
+                )
+            # Exempted names are neither blocked nor passed, like SKIP rows.
+            skipped_names.extend(exempted)
             passed_checks = _count_passed_checks(
                 contexts,
                 blocked=(failed_required + pending_required
@@ -1308,6 +1552,8 @@ def check_merge_readiness(
      rollup_rows, contexts_pages_complete) = _evaluate_ci_checks(
         pr, ignore_ci, include_non_required, reasons,
         owner=owner, repo=repo, pr_number=pr_number,
+        # `ignore_ci` skips CI classification, so the trusted list is not read.
+        advisory=frozenset() if ignore_ci else _load_advisory_agent_workflows(),
     )
     # Non-required disposition check: undisposed failures block merge
     undisposed = _check_nonrequired_dispositions(

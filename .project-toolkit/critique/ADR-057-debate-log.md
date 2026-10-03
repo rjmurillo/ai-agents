@@ -195,3 +195,26 @@ A review thread on PR #6079 found that criterion 4 still said a comparison witho
 |-------|------|
 | architect | Accept |
 | critic | Accept |
+
+---
+
+## Amendment 2026-10-03 (owner policy on agent workflows): pointer to ADR-114
+
+PR #6131 changes ADR-057. The `/spec` CI leg in `slash-command-quality.yml` no longer blocks merges and runs only after environment approval. The full policy lives in ADR-114. ADR-057 keeps a pointer and the status of the `/spec` leg.
+
+### Panel
+
+All six agents reviewed the first version, which put the whole policy in ADR-057. Their findings and votes are in `.project-toolkit/critique/ADR-114-debate-log.md`, Round 1. The architect's main finding was that the policy did not belong in ADR-057. The owner agreed (decision D9), and the text moved to ADR-114.
+
+### Changes to ADR-057
+
+| Area | Change |
+|------|--------|
+| Acceptance gate lead, criterion 2, FAIL verdict paragraph | A FAIL verdict no longer blocks a merge. It is reported when the eval runs. |
+| When to Run rows, Confirmation row, Enforcement Path | The `/spec` leg runs after approval and does not block. |
+| 2026-07-22 decision line | Marked as the state at that date. |
+| Amendment 2026-10-02 section | Reduced to a pointer to ADR-114 and the `/spec` leg status. |
+
+### Votes
+
+The six seats voted on the ADR-057 version in ADR-114 Round 1: six Disagree-and-Commit. The pointer text was reviewed again as part of ADR-114 Round 2.
