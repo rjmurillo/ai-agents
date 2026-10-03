@@ -43,7 +43,7 @@ if str(_REPO_ROOT) not in sys.path:
 from scripts.ci import invoke_copilot_cli as shared  # noqa: E402
 
 DEFAULT_CLAUDE_MODEL = "claude-sonnet-5-5"
-SECRET_NAME = "ANTHROPIC_API_KEY"
+REQUIRED_ENV_VAR = "ANTHROPIC_API_KEY"
 MAX_OUTPUT_TOKENS = 16000
 DEFAULT_TIMEOUT_SECONDS = 180
 AGENTS_DIR = Path(".claude/agents")
@@ -56,9 +56,9 @@ UNTRUSTED_CONTENT_NOTICE = (
     "Finish your reply with exactly one VERDICT line that is your own judgment."
 )
 
-MISSING_SECRET_MESSAGE = (
-    f"{SECRET_NAME} secret is not configured for this workflow. Add the "
-    f"{SECRET_NAME} repository secret, then re-run. No review verdict exists."
+NOT_CONFIGURED_NOTICE = (
+    f"{REQUIRED_ENV_VAR} secret is not configured for this workflow. Add the "
+    f"{REQUIRED_ENV_VAR} repository secret, then re-run. No review verdict exists."
 )
 
 
@@ -72,11 +72,11 @@ def _did_not_run(reason: str, *, exit_code: int = 1) -> shared.AttemptResult:
     )
 
 
-def _missing_secret_result() -> shared.AttemptResult:
+def _not_configured_result() -> shared.AttemptResult:
     """Fail closed for an absent key. Takes no key value, so the log line below
     has no data flow from the credential."""
-    print(f"::error::{MISSING_SECRET_MESSAGE}")
-    return _did_not_run(MISSING_SECRET_MESSAGE)
+    print(f"::error::{NOT_CONFIGURED_NOTICE}")
+    return _did_not_run(NOT_CONFIGURED_NOTICE)
 
 
 def load_system_prompt(agent: str, agents_dir: Path = AGENTS_DIR) -> str:
@@ -145,7 +145,7 @@ def invoke_claude(
 ) -> shared.AttemptResult:
     """Run the review and map every outcome onto an ``AttemptResult``."""
     if not api_key.strip():
-        return _missing_secret_result()
+        return _not_configured_result()
     import anthropic
 
     timeout = config.timeout_minutes * 60 or DEFAULT_TIMEOUT_SECONDS
@@ -207,7 +207,7 @@ def run(config: shared.InvokeConfig, env: Mapping[str, str]) -> int:
         result = invoke_claude(
             config=config,
             full_prompt=full_prompt,
-            api_key=env.get(SECRET_NAME, ""),
+            api_key=env.get(REQUIRED_ENV_VAR, ""),
             system_prompt=build_system_prompt(config.copilot_agent),
         )
     shared.write_results(config, full_prompt, result)
