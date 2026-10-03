@@ -289,6 +289,9 @@ jobs:
           - partition: bulk-nested
             coverage_file: artifacts/.coverage.bulk-nested
             junit_file: artifacts/pytest-results-bulk-nested.xml
+          - partition: bulk-nested-ci
+            coverage_file: artifacts/.coverage.bulk-nested-ci
+            junit_file: artifacts/pytest-results-bulk-nested-ci.xml
           - partition: mutation
             coverage_file: artifacts/.coverage.mutation
             junit_file: artifacts/pytest-results-mutation.xml
@@ -515,6 +518,7 @@ jobs:
           uv run --frozen python scripts/ci/combine_pin_coverage.py \
             --main-data artifacts/.coverage.bulk \
             --main-data artifacts/.coverage.bulk-nested \
+            --main-data artifacts/.coverage.bulk-nested-ci \
             --main-data artifacts/.coverage.mutation \
             --main-data artifacts/.coverage.safe-push \
             --main-data artifacts/.coverage.pr-autofix \
