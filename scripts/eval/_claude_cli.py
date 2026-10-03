@@ -33,10 +33,11 @@ from. What is left for the CLI to authenticate with is
 (https://code.claude.com/docs/en/claude-directory, read 2026-09-16). Pointing
 it at a fresh directory is what keeps user-level CLAUDE.md, settings, and
 plugins out of a cell whose subject is usually those very files, and it is
-also why this transport needs the token in the environment: a relocated
-config directory has no stored login in it. That is a deliberate trade, the
-same one `eval_runtime_parity.py` already makes, and the refusal names the
-command that produces a token.
+also why an injected token is needed on those steps: a relocated config
+directory has no stored login in it. That is a deliberate trade, the same one
+`eval_runtime_parity.py` already makes. Credential order and its steps live in
+`_cli_credentials`. Only the `existing-login` step skips the relocation and
+the injected token, so user config may load there; the run records that step.
 
 Working directory is a fresh empty temporary directory, so the repository's
 own `CLAUDE.md` and `AGENTS.md` cannot leak into the cell. Tools and MCP are
@@ -48,10 +49,17 @@ not to compare a `claude-cli` score against an HTTP provider's.
 from __future__ import annotations
 
 import json
+import os
 import tempfile
 from pathlib import Path
 from typing import Any
 
+from _cli_credential_sources import claude_disk_token, claude_login_probe
+from _cli_credentials import (
+    CredentialSpec,
+    ResolvedCredential,
+    resolve_cached,
+)
 from _cli_transport import (
     BASE_ENV_ALLOWLIST,
     build_envelope,
@@ -81,7 +89,29 @@ _BLOCKED_BILLING_ENV = frozenset(
     }
 )
 
-_ENV_ALLOWLIST = BASE_ENV_ALLOWLIST | {OAUTH_TOKEN_ENV}
+#: `CLAUDE_CONFIG_DIR` is not allowlisted: the transport sets it to an isolated
+#: profile. Only the `existing-login` step forwards the operator's own value.
+_ENV_ALLOWLIST = BASE_ENV_ALLOWLIST
+
+_MISSING_CREDENTIAL_MESSAGE = (
+    f"{PROVIDER_LABEL} found no subscription credential. Tried, in order: "
+    f"{OAUTH_TOKEN_ENV} in the environment or a dotenv file (EVAL_DOTENV_FILES), "
+    "the token Claude Code stored under its config directory, the CLI's own "
+    "claude.ai login, and a prompt (stdin is not a terminal). Run "
+    f"`claude setup-token` and export the result as {OAUTH_TOKEN_ENV}, run "
+    "`claude auth login`, or select the claude-api cell to run on "
+    "ANTHROPIC_API_KEY instead."
+)
+
+#: Variability for the shared credential order in `_cli_credentials`.
+CREDENTIAL_SPEC = CredentialSpec(
+    transport="claude-cli",
+    env_names=(OAUTH_TOKEN_ENV,),
+    inject_env=OAUTH_TOKEN_ENV,
+    read_disk=claude_disk_token,
+    login_probe=claude_login_probe,
+    missing_message=_MISSING_CREDENTIAL_MESSAGE,
+)
 
 #: Every built-in that can touch the filesystem, the network, a shell, or
 #: another agent. A text eval needs none of them, and each one that stays
@@ -106,6 +136,7 @@ class _ClaudeCLIProvider:
         self._timeout = validate_timeout(timeout)
         self._provider_label = PROVIDER_LABEL
         self.system_fingerprint: str | None = None
+        self.credential_step: str | None = None
 
     def _build_argv(self, model: str) -> list[str]:
         """Build the fixed, shell-free Claude Code CLI invocation."""
@@ -127,36 +158,32 @@ class _ClaudeCLIProvider:
             "--no-session-persistence",
         ]
 
-    def _build_env(self, config_dir: Path) -> dict[str, str]:
+    def _build_env(
+        self, config_dir: Path, credential: ResolvedCredential
+    ) -> dict[str, str]:
+        """Build the child environment for the resolved credential step.
+
+        An injected token runs under a relocated, empty config directory. The
+        `existing-login` step instead leaves the operator's config directory
+        alone, because that is where the login it relies on lives.
+        """
+        overrides: dict[str, str] = {}
+        if credential.secret is not None:
+            overrides = {
+                "CLAUDE_CONFIG_DIR": str(config_dir),
+                OAUTH_TOKEN_ENV: credential.secret,
+            }
+        elif forwarded := os.environ.get("CLAUDE_CONFIG_DIR"):
+            overrides = {"CLAUDE_CONFIG_DIR": forwarded}
         # `_cli_transport` is a flat sibling module, so mypy resolves it to Any
         # under `ignore_missing_imports`. Pin the contract at this boundary
         # rather than letting Any leak into the subprocess call.
         env: dict[str, str] = minimal_process_env(
             allow=_ENV_ALLOWLIST,
             blocked=_BLOCKED_BILLING_ENV,
-            overrides={"CLAUDE_CONFIG_DIR": str(config_dir)},
+            overrides=overrides,
         )
         return env
-
-    @staticmethod
-    def _require_subscription_credential(env: dict[str, str]) -> None:
-        """Refuse a run that has no subscription credential to spend.
-
-        Without this the CLI would fail somewhere inside its own auth flow and
-        report a generic non-zero exit, which reads as a provider outage and
-        gets retried. The cell's contract is one specific variable, so say so.
-        """
-        if env.get(OAUTH_TOKEN_ENV):
-            return
-        raise RuntimeError(
-            f"{PROVIDER_LABEL} needs {OAUTH_TOKEN_ENV} to bill this run to a "
-            "Claude subscription. This transport relocates CLAUDE_CONFIG_DIR "
-            "to an isolated profile so user-level memory and settings stay "
-            "out of the measurement, and a relocated profile carries no "
-            "stored login. Run `claude setup-token` and export the result, "
-            "or select the claude-api cell to run on ANTHROPIC_API_KEY "
-            "instead."
-        )
 
     def _read_answer(self, stdout: str, model: str) -> tuple[str, str | None]:
         """Return answer text and the model the CLI reported answering with.
@@ -252,8 +279,9 @@ class _ClaudeCLIProvider:
         prompt = build_envelope(PROVIDER_LABEL, messages, system)
         self.system_fingerprint = None
         with tempfile.TemporaryDirectory(prefix="eval-claude-cli-") as profile:
-            env = self._build_env(Path(profile))
-            self._require_subscription_credential(env)
+            credential = resolve_cached(CREDENTIAL_SPEC, executable=self._executable)
+            self.credential_step = credential.step
+            env = self._build_env(Path(profile), credential)
             completed = run_cli(
                 self._build_argv(model),
                 prompt,

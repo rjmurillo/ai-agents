@@ -40,6 +40,7 @@ from _billing_matrix import (
     apply_selection,
     provider_help_text,
 )
+from _cli_credentials import recorded_steps
 from _eval_agent_types import (
     SCHEMA_VERSION,
     Assertion,
@@ -1040,6 +1041,7 @@ def _generate_report(
                 wall_clock_seconds=wall_clock_seconds,
                 recommendation="form-factor-invalid",
                 system_fingerprints=system_fingerprints,
+                credential_steps=recorded_steps(),
                 seed=seed,
             )
             print(
@@ -1073,6 +1075,7 @@ def _generate_report(
         wall_clock_seconds=wall_clock_seconds,
         recommendation="halt-due-to-flakiness" if halt else None,
         system_fingerprints=system_fingerprints,
+        credential_steps=recorded_steps(),
         seed=seed,
         form_factor=form_factor,
     )
