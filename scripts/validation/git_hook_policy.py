@@ -6607,11 +6607,26 @@ def check_push_refs(stream: TextIO, repo_root: Path) -> int:
     if active_refs:
         warn_if_push_files_incomplete(active_refs, repo_root)
         origin_refreshed = _fetch_origin_main(repo_root)
-    if not origin_refreshed and not any(_is_infrastructure_scanned(ref) for ref in refs):
-        # The infrastructure scan reports a failed refresh as its exit 3. With
-        # no ref to scan, this warning is the only report the failure gets.
-        print("WARNING: could not refresh origin/main; using local ref", file=sys.stderr)
     return _check_ref_updates(refs, active_refs, repo_root, job_started, origin_refreshed)
+
+
+STALE_ORIGIN_WARNING = "WARNING: could not refresh origin/main; using local ref"
+
+
+def _warn_stale_origin() -> None:
+    print(STALE_ORIGIN_WARNING, file=sys.stderr)
+
+
+def _check_branch_policies(active_refs: Sequence[PushRef], repo_root: Path) -> int:
+    """Resolve every pushed update and run the per-update branch policies."""
+    updates = []
+    for push_ref in active_refs:
+        try:
+            updates.append(resolve_push_update(push_ref, repo_root))
+        except PushUpdateConfigError as error:
+            print(f"ERROR: {error}", file=sys.stderr)
+            return 2
+    return _check_push_updates(updates, repo_root)
 
 
 def _check_ref_updates(
@@ -6621,17 +6636,18 @@ def _check_ref_updates(
     job_started: float,
     origin_refreshed: bool,
 ) -> int:
-    """Run the per-update branch policies, then the infrastructure scan."""
-    updates = []
-    for push_ref in active_refs:
-        try:
-            updates.append(resolve_push_update(push_ref, repo_root))
-        except PushUpdateConfigError as error:
-            print(f"ERROR: {error}", file=sys.stderr)
-            return 2
-    updates_result = _check_push_updates(updates, repo_root)
-    if updates_result != 0:
-        return updates_result
+    """Run the per-update branch policies, then the infrastructure scan.
+
+    A failed origin/main refresh is reported exactly once: here when a branch
+    policy fails first (it may have failed because the base was stale), in the
+    scan's skip report when no ref is scanned, and as the scan's exit 3
+    otherwise.
+    """
+    policy_result = _check_branch_policies(active_refs, repo_root)
+    if policy_result != 0:
+        if not origin_refreshed:
+            _warn_stale_origin()
+        return policy_result
     return check_pushed_infrastructure(
         refs, repo_root, job_started=job_started, origin_refreshed=origin_refreshed
     )
@@ -6813,6 +6829,8 @@ def check_pushed_infrastructure(
             "Infrastructure scan: skipped, no branch or tag ref in this push carries commits",
             file=sys.stderr,
         )
+        if not origin_refreshed:
+            _warn_stale_origin()
         return 0
     for ref in refs:
         if ref not in scanned_refs:

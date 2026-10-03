@@ -104,6 +104,27 @@ def test_branch_policy_failure_returns_before_the_scan(
     assert scanned == []
 
 
+def test_failed_refresh_is_reported_when_a_branch_policy_fails_first(
+    origin: Origin,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The scan never runs, so the policy failure carries the stale-base warning once."""
+    work = work_clone(origin, tmp_path)
+    git(work, "checkout", "-q", "-b", "feature/docs")
+    head = commit(work, "docs/note.md", "note\n")
+    git(work, "remote", "set-url", "origin", str(tmp_path / "missing.git"))
+    monkeypatch.setattr(policy, "_check_push_updates", lambda *_args: 1)
+
+    result = pre_push(work, new_branch_line("feature/docs", head), monkeypatch)
+
+    err = capsys.readouterr().err
+    assert result == 1, err
+    assert err.count("could not refresh origin/main") == 1
+    assert "will not score from a stale origin/main" not in err
+
+
 def test_tag_push_with_workflow_change_and_no_marker_is_blocked(
     origin: Origin,
     tmp_path: Path,
@@ -166,7 +187,7 @@ def test_failed_refresh_with_nothing_to_scan_still_warns(
 
     err = capsys.readouterr().err
     assert result == 0, err
-    assert "WARNING: could not refresh origin/main; using local ref" in err
+    assert err.count("WARNING: could not refresh origin/main; using local ref") == 1
     assert "will not score from a stale origin/main" not in err
 
 
