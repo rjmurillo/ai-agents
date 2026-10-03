@@ -2576,6 +2576,10 @@ class TestMainFunction:
             "_PROJECT_ROOT",
             valid_session_file.parents[2],
         )
+        # Pin the artifact root so a plugin-root copy of paths.py cached in
+        # sys.modules by another test module (it anchors on .agents) cannot
+        # move the QA root away from .project-toolkit.
+        monkeypatch.setenv("AI_AGENTS_ARTIFACT_ROOT", str(valid_session_file.parents[1]))
         monkeypatch.setattr(
             "sys.argv",
             ["validate_session_json.py", str(valid_session_file)],
