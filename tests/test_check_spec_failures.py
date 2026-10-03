@@ -121,7 +121,7 @@ class TestMain:
         assert rc == 1
         output = capsys.readouterr().out
         assert "infrastructure failure" in output.lower()
-        assert "rotate the COPILOT_GITHUB_TOKEN secret" in output
+        assert "check the ANTHROPIC_API_KEY secret" in output
         assert "fails closed" in output
         assert "Not blocking merge" not in output
         assert "Spec validation passed" not in output
@@ -169,7 +169,7 @@ class TestMain:
         assert rc == 1
         output = capsys.readouterr().out
         assert "Traceability check did not run" in output
-        assert "rotate the COPILOT_GITHUB_TOKEN secret" in output
+        assert "check the ANTHROPIC_API_KEY secret" in output
         assert "Spec validation passed" not in output
 
     def test_completeness_infra_failure_only_fails_closed(self, capsys):
@@ -181,7 +181,7 @@ class TestMain:
         assert rc == 1
         output = capsys.readouterr().out
         assert "Completeness check did not run" in output
-        assert "rotate the COPILOT_GITHUB_TOKEN secret" in output
+        assert "check the ANTHROPIC_API_KEY secret" in output
         assert "Spec validation passed" not in output
 
     def test_real_fail_not_masked_by_infra(self):
@@ -308,7 +308,7 @@ class TestStepOutcome:
         ))
         assert rc == 1
         output = capsys.readouterr().out
-        assert "rotate the COPILOT_GITHUB_TOKEN secret" in output
+        assert "check the ANTHROPIC_API_KEY secret" in output
         assert "Traceability check did not complete" not in output
 
     def test_outcomes_read_from_environment(self, monkeypatch, capsys):

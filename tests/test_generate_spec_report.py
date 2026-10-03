@@ -301,7 +301,7 @@ class TestMainInfraFailure:
     def test_both_infra_failures_yield_infra_failure_verdict(self, tmp_path, monkeypatch):
         """Positive: both sides failing on infra never reads as PASS or FAIL,
         the summary table never shows a bare CRITICAL_FAIL cell, and the raw
-        Copilot CLI output survives (labeled) instead of being deleted."""
+        reviewer output survives (labeled) instead of being deleted."""
         _setup_output(tmp_path, monkeypatch)
         report_dir = tmp_path / "ai-review-results"
         with patch(
@@ -323,7 +323,7 @@ class TestMainInfraFailure:
         assert "Final Verdict: FAIL" not in report
         assert "Final Verdict: PASS" not in report
         assert "fails closed" in report
-        assert "rotate the `COPILOT_GITHUB_TOKEN` secret" in report
+        assert "check the `ANTHROPIC_API_KEY` secret" in report
         assert "does not block merge" not in report
         # The summary table cell is the displayed verdict an operator scans;
         # it must show the honest label, never the bare raw verdict.
@@ -331,9 +331,9 @@ class TestMainInfraFailure:
         assert "| Implementation Completeness | `INFRA_FAILURE (did not run)` |" in report
         assert "| Requirements Traceability | `CRITICAL_FAIL` |" not in report
         assert "| Implementation Completeness | `CRITICAL_FAIL` |" not in report
-        assert "COPILOT_GITHUB_TOKEN" in report
+        assert "ANTHROPIC_API_KEY" in report
         assert "infrastructure failure" in report.lower()
-        # Observability (issue #5738 follow-up): the raw Copilot CLI output
+        # Observability (issue #5738 follow-up): the raw reviewer output
         # is retained, not deleted, but only inside its side's own labeled
         # details block, after the "did not run" label, never as a bare
         # verdict line ahead of it.

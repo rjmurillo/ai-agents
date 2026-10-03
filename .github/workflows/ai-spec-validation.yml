@@ -1,6 +1,6 @@
 name: Spec-to-Implementation Validation
 
-# AI-powered requirements traceability using GitHub Copilot CLI
+# AI-powered requirements traceability using Claude (Anthropic Messages API)
 
 # Verifies that PR changes implement requirements from linked specs
 
@@ -49,7 +49,11 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  GH_TOKEN: ${{ secrets.BOT_PAT }}
+  # BOT_PAT is unset (the bot-secrets environment lists no secrets), which left
+  # GH_TOKEN empty and failed Load Spec Content on every issue-linked PR with
+  # "set the GH_TOKEN environment variable". The runner token reads issues on
+  # this public repository, so it is the fallback.
+  GH_TOKEN: ${{ secrets.BOT_PAT || github.token }}
   PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
 
 jobs:
@@ -144,7 +148,8 @@ jobs:
           prompt-file: .github/prompts/spec-trace-requirements.md
           timeout-minutes: 3
           bot-pat: ${{ secrets.BOT_PAT }}
-          copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+          provider: claude
+          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
 
       - name: Report traceability check result
         run: >-
@@ -169,7 +174,8 @@ jobs:
           prompt-file: .github/prompts/spec-check-completeness.md
           timeout-minutes: 3
           bot-pat: ${{ secrets.BOT_PAT }}
-          copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+          provider: claude
+          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
 
       - name: Report completeness check result
         run: >-

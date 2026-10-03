@@ -136,7 +136,7 @@ def _is_infra_failure(flag: str) -> bool:
 def _findings_section(is_infra: bool, findings: str) -> str:
     """Return a side's findings body, labeled when that side is infra-flagged.
 
-    The raw Copilot CLI output stays visible: dropping it loses observability
+    The raw reviewer output stays visible: dropping it loses observability
     on this infrastructure-failure path (issue #5738). An infra-flagged side's raw verdict
     (typically `CRITICAL_FAIL`) describes a process that never completed, not
     a code-quality judgement, so it is prefixed with a label stating the
@@ -147,8 +147,8 @@ def _findings_section(is_infra: bool, findings: str) -> str:
         return findings
     return (
         "> [!NOTE]\n"
-        "> This check did not run (infrastructure failure). The raw Copilot "
-        "CLI output follows, unevaluated:\n"
+        "> This check did not run (infrastructure failure). The raw "
+        "reviewer output follows, unevaluated:\n"
         "\n"
         f"{findings}"
     )
@@ -216,7 +216,7 @@ def _build_full_report(
 
     An infra-failed side's summary-table cell and final verdict never show
     its raw AI-review verdict (typically `CRITICAL_FAIL`): that verdict
-    describes a Copilot CLI process that never completed, not a code-quality
+    describes a reviewer call that never completed, not a code-quality
     judgement. The raw text is still shown in that side's details block
     (`_findings_section`), so the failure path keeps its observability, but
     labeled so it reads as unevaluated output, not a verdict (issue #5738).
@@ -247,21 +247,21 @@ def _build_full_report(
 > [!WARNING]
 > **Infrastructure failure on one side; the other side's FAIL is real.** A
 > check marked `INFRA_FAILURE (did not run)` below contributed no verdict:
-> Copilot CLI failed after retries and never evaluated that side of this PR.
+> The Claude review failed after retries and never evaluated that side of this PR.
 > The **Final Verdict: FAIL** above comes from the side that did run, and it
 > fails `Check for Failures`. The infrastructure failure would also fail that
-> step on its own (fail closed). Rotate the `COPILOT_GITHUB_TOKEN` secret, then re-run.
+> step on its own (fail closed). Check the `ANTHROPIC_API_KEY` secret, then re-run.
 """
         else:
             infra_note = """
 > [!WARNING]
 > **Infrastructure failure detected.** A check marked `INFRA_FAILURE (did not run)`
-> below is not a code-quality result: Copilot CLI failed after retries and never
+> below is not a code-quality result: the Claude review failed after retries and never
 > evaluated this PR. This check fails closed: `Check for Failures` stays red
 > until validation runs, which blocks merge when branch protection requires
-> `Validate Spec Coverage`. Operator action: rotate the `COPILOT_GITHUB_TOKEN` secret,
-> then re-run the workflow. Also check the Copilot monthly quota, rate limits,
-> and network connectivity.
+> `Validate Spec Coverage`. Operator action: check the `ANTHROPIC_API_KEY` secret
+> (missing, expired, or out of credit), then re-run the workflow. Also check the
+> Anthropic rate limits and network connectivity.
 """
 
     trace_findings_body = _findings_section(trace_infra, trace_findings)
