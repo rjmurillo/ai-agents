@@ -1,7 +1,6 @@
 {
   "_comment": "Ratchet of rules and skills that lack an activation scenario. Each id here is allowed to stay uncovered; the gate fails when a rule or skill NOT listed here becomes uncovered. Shrink these lists by adding scenarios; never widen them to route around the gate. This is necessary-not-sufficient: a scenario proves a rule CAN be measured, not that routing to it works.",
   "uncovered_rules": [
-    "builder-ethos",
     "canonical-source-mirror",
     "ci-scripts",
     "claude-agents",
@@ -15,8 +14,7 @@
     "python",
     "retros",
     "templates",
-    "testing",
-    "voice"
+    "testing"
   ],
   "uncovered_skills": [
     "adr-generator",
