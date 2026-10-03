@@ -49,7 +49,11 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  GH_TOKEN: ${{ secrets.BOT_PAT }}
+  # BOT_PAT is unset (the bot-secrets environment lists no secrets), which left
+  # GH_TOKEN empty and failed Load Spec Content on every issue-linked PR with
+  # "set the GH_TOKEN environment variable". The runner token reads issues on
+  # this public repository, so it is the fallback.
+  GH_TOKEN: ${{ secrets.BOT_PAT || github.token }}
   PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
 
 jobs:
