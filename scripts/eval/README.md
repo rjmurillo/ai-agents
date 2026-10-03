@@ -46,7 +46,7 @@ column shells out to the CLI that holds a seat the operator already pays for.
 | codex | api | `openai` | OpenAI Chat Completions via the `openai` SDK | `OPENAI_API_KEY` | usd | UNVERIFIED |
 | codex | subscription | `codex-cli` | Codex CLI subprocess (`codex exec`) | `CODEX_ACCESS_TOKEN` | requests | UNVERIFIED |
 | copilot | api | `copilot-api` | OpenAI-compatible HTTP endpoint at COPILOT_API_BASE_URL (operator-supplied) | `COPILOT_API_KEY`, `GITHUB_COPILOT_TOKEN` | requests | UNVERIFIED |
-| copilot | subscription | `copilot-cli` | GitHub Copilot CLI subprocess over ACP | none (CLI login) | requests | VERIFIED |
+| copilot | subscription | `copilot-cli` | GitHub Copilot CLI subprocess over ACP | `COPILOT_GITHUB_TOKEN`, `GH_TOKEN`, `GITHUB_TOKEN` | requests | VERIFIED |
 
 Either spelling works:
 
@@ -112,6 +112,48 @@ credential can come from a CLI login on disk that no environment check reads.
   `COPILOT_API_BASE_URL` to an OpenAI-compatible endpoint you are entitled to
   use and `COPILOT_API_HEADERS` to any JSON header object it requires. It
   refuses to run rather than guessing.
+
+### Credential resolution order for subscription cells
+
+`claude-cli`, `codex-cli`, and `copilot-cli` find their credential the same
+way. `scripts/eval/_cli_credentials.py` owns the order; each transport only
+names its variables, its on-disk login, and how to ask its CLI whether it is
+signed in. First hit wins:
+
+1. **Environment, then dotenv.** The matrix's Credential column lists the
+   variables, in the CLI's own precedence. Codex takes `CODEX_ACCESS_TOKEN`.
+   If none is exported, dotenv files are read. `EVAL_DOTENV_FILES` is a
+   colon-separated list; `~` and globs expand, and it defaults to the
+   repository-root `.env`. A 1Password environment mount works as an example:
+   `EVAL_DOTENV_FILES="$HOME/.config/1password-env/*.env"`. A named pipe is
+   read with a 5 second timeout, and a timeout reads as not found.
+2. **The CLI's own login on disk.** Claude: `claudeAiOauth.accessToken` in
+   `.credentials.json` under `CLAUDE_CONFIG_DIR` or `~/.claude`, skipped once
+   `expiresAt` has passed. Codex: `$CODEX_HOME/auth.json` (default
+   `~/.codex/auth.json`), copied into a private `CODEX_HOME` for the run, and
+   refused when it carries an `OPENAI_API_KEY`. Copilot: `gh auth token`, the
+   GitHub CLI token that `copilot login --help` lists as a supported token. A
+   missing, corrupt, or expired file falls through.
+3. **The CLI as it stands** (`claude -p`, `codex exec`, `copilot -p`), taken
+   only when `claude auth status` reports a `claude.ai` login,
+   `codex login status` reports a ChatGPT login, or the Copilot config records
+   a logged-in user. No config directory is relocated and no token is
+   injected, so user config may load. Every other isolation flag stays.
+4. **A prompt**, only when stdin is a terminal. Otherwise the run exits with
+   the transport's message naming what to set.
+
+Every step strips the metered variables (`ANTHROPIC_API_KEY`,
+`ANTHROPIC_AUTH_TOKEN`, `OPENAI_API_KEY`, `CODEX_API_KEY`, and the Copilot
+BYOK set), so no path bills a paid key. `report.json` records which steps ran
+as `credential_steps` (`env`, `dotenv`, `disk`, `existing-login`, `prompt`)
+and `REPORT.md` prints a `Credential step` line. `existing-login` reads
+`existing login: user config may load`. The value is never recorded.
+
+Not read: the Copilot CLI's own credential store (the OS keychain, or a
+plain-text file under `COPILOT_HOME` whose layout is undocumented). Step 3
+covers it, because the CLI reads that store itself. The runtime-parity harness
+(`_runtime_harness.py`) and its isolated profile keep their own environment
+checks.
 
 ### Do not compare across cells
 

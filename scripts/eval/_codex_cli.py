@@ -48,6 +48,8 @@ are stripped from the child environment. What is left is the `codex login`
 session under `CODEX_HOME`, or `CODEX_ACCESS_TOKEN` for automation holding
 one. `--ignore-user-config` drops `config.toml` without touching that login,
 which is why the config directory can stay where the operator's session is.
+Credential order and its steps live in `_cli_credentials`; the `disk` step
+copies the login into an isolated `CODEX_HOME` instead.
 """
 
 from __future__ import annotations
@@ -57,6 +59,13 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+from _cli_credential_sources import codex_auth_file_text, codex_login_probe
+from _cli_credentials import (
+    STEP_DISK,
+    CredentialSpec,
+    ResolvedCredential,
+    resolve_cached,
+)
 from _cli_transport import (
     BASE_ENV_ALLOWLIST,
     build_envelope,
@@ -77,7 +86,31 @@ UNVERIFIED_MODEL_ENV = "EVAL_CODEX_ALLOW_UNVERIFIED_MODEL"
 #: Credentials that would move the run onto metered OpenAI billing.
 _BLOCKED_BILLING_ENV = frozenset({"CODEX_API_KEY", "OPENAI_API_KEY", "OPENAI_BASE_URL"})
 
-_ENV_ALLOWLIST = BASE_ENV_ALLOWLIST | {"CODEX_ACCESS_TOKEN", "CODEX_HOME"}
+ACCESS_TOKEN_ENV = "CODEX_ACCESS_TOKEN"
+
+#: `CODEX_HOME` stays inherited so the `existing-login` step finds the
+#: operator's login. The `disk` step overrides it with an isolated copy.
+_ENV_ALLOWLIST = BASE_ENV_ALLOWLIST | {ACCESS_TOKEN_ENV, "CODEX_HOME"}
+
+_MISSING_CREDENTIAL_MESSAGE = (
+    f"{PROVIDER_LABEL} found no subscription credential. Tried, in order: "
+    f"{ACCESS_TOKEN_ENV} in the environment or a dotenv file (EVAL_DOTENV_FILES), "
+    "the ChatGPT login in $CODEX_HOME/auth.json, the CLI's own login "
+    "(`codex login status`), and a prompt (stdin is not a terminal). Run "
+    f"`codex login` or export {ACCESS_TOKEN_ENV}."
+)
+
+#: Variability for the shared credential order in `_cli_credentials`. The disk
+#: step yields the whole `auth.json` text, because Codex ignores
+#: `CODEX_ACCESS_TOKEN` for a ChatGPT login and reads only that file.
+CREDENTIAL_SPEC = CredentialSpec(
+    transport="codex-cli",
+    env_names=(ACCESS_TOKEN_ENV,),
+    inject_env=ACCESS_TOKEN_ENV,
+    read_disk=codex_auth_file_text,
+    login_probe=codex_login_probe,
+    missing_message=_MISSING_CREDENTIAL_MESSAGE,
+)
 
 _LAST_MESSAGE_FILE = "last-message.txt"
 
@@ -118,6 +151,7 @@ class _CodexCLIProvider:
         self._timeout = validate_timeout(timeout)
         self._provider_label = PROVIDER_LABEL
         self.system_fingerprint: str | None = None
+        self.credential_step: str | None = None
 
     def _build_argv(self, model: str, last_message: Path, prompt: str) -> list[str]:
         """Build the fixed, shell-free `codex exec` invocation.
@@ -142,15 +176,44 @@ class _CodexCLIProvider:
             prompt,
         ]
 
-    def _build_env(self) -> dict[str, str]:
+    def _build_env(
+        self, credential: ResolvedCredential, codex_home: Path | None
+    ) -> dict[str, str]:
+        """Build the child environment for the resolved credential step.
+
+        The `disk` step points `CODEX_HOME` at an isolated directory holding a
+        copy of the plan login. Other token steps inject the access token, and
+        `existing-login` injects nothing and keeps the operator's `CODEX_HOME`.
+        """
+        overrides: dict[str, str] = {}
+        if codex_home is not None:
+            overrides["CODEX_HOME"] = str(codex_home)
+        elif credential.secret is not None and credential.step != STEP_DISK:
+            overrides[ACCESS_TOKEN_ENV] = credential.secret
         # See the note in `_claude_cli._build_env`: sibling modules resolve to
         # Any, so the contract is pinned here.
         env: dict[str, str] = minimal_process_env(
             allow=_ENV_ALLOWLIST,
             blocked=_BLOCKED_BILLING_ENV,
-            overrides={},
+            overrides=overrides,
         )
         return env
+
+    @staticmethod
+    def _write_isolated_home(root: Path, auth_text: str) -> Path:
+        """Copy the plan login into a private `CODEX_HOME`, mode 0600.
+
+        The copy keeps the operator's `config.toml`, history, and rollouts out
+        of the run. Codex may refresh the tokens in the copy; the original is
+        not touched.
+        """
+        home = root / "codex-home"
+        home.mkdir(mode=0o700)
+        target = home / "auth.json"
+        fd = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(auth_text)
+        return home
 
     @classmethod
     def _unverified_model_allowed(cls) -> bool:
@@ -218,8 +281,15 @@ class _CodexCLIProvider:
         self._require_model_attribution_optin()
         prompt = build_envelope(PROVIDER_LABEL, messages, system)
         self.system_fingerprint = None
-        env = self._build_env()
+        credential = resolve_cached(CREDENTIAL_SPEC, executable=self._executable)
+        self.credential_step = credential.step
         with tempfile.TemporaryDirectory(prefix="eval-codex-cli-") as outbox:
+            codex_home = (
+                self._write_isolated_home(Path(outbox), credential.secret)
+                if credential.step == STEP_DISK and credential.secret is not None
+                else None
+            )
+            env = self._build_env(credential, codex_home)
             last_message = Path(outbox) / _LAST_MESSAGE_FILE
             run_cli(
                 self._build_argv(model, last_message, prompt),

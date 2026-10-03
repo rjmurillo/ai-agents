@@ -28,6 +28,9 @@ _ALL_CREDENTIAL_VARS = (
     "CLAUDE_CODE_OAUTH_TOKEN",
     "CODEX_ACCESS_TOKEN",
     "COPILOT_API_BASE_URL",
+    "COPILOT_GITHUB_TOKEN",
+    "GH_TOKEN",
+    "GITHUB_TOKEN",
     "COPILOT_API_HEADERS",
     "COPILOT_API_KEY",
     "GITHUB_COPILOT_TOKEN",
@@ -260,6 +263,20 @@ def test_an_optional_credential_with_the_cli_present_is_unknown_not_ready(
 
     assert rows[0]["readiness"] == cli.UNKNOWN
     assert "does not read" in rows[0]["missing"][0]
+
+
+@pytest.mark.parametrize("harness", ["claude", "copilot"])
+def test_claude_and_copilot_subscription_cells_are_unknown_without_a_variable(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    harness: str,
+) -> None:
+    """The shared order falls back to disk and the CLI's own login."""
+    monkeypatch.setattr(cli.shutil, "which", lambda name: f"/usr/bin/{name}")
+
+    rows = _rows(capsys, "--harness", harness, "--billing", "subscription")
+
+    assert rows[0]["readiness"] == cli.UNKNOWN
 
 
 def test_require_ready_exits_external_on_a_missing_requirement(
