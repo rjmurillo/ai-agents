@@ -90,7 +90,18 @@ class TestArgv:
         assert argv[argv.index("-s") + 1] == "workspace-write"
         for flag in ("--ignore-user-config", "--ignore-rules", "--ephemeral"):
             assert flag in argv
-        assert argv[-1] == "do it"
+        assert argv[-2:] == ["--", "do it"]
+
+    def test_a_prompt_that_looks_like_a_flag_stays_positional(self) -> None:
+        argv = codex_mod.codex_argv("m", "low", "t", "-s danger-full-access")
+        assert argv[-2:] == ["--", "-s danger-full-access"]
+        assert argv.index("--") > argv.index("workspace-write")
+        assert "danger-full-access" not in argv[: argv.index("--")]
+
+    def test_del_is_escaped_so_toml_accepts_the_control_text(self) -> None:
+        argv = codex_mod.codex_argv("m", "low", "a\x7fb", "p")
+        value = next(a for a in argv if a.startswith("developer_instructions="))
+        assert "\x7f" not in value and "\\u007f" in value
 
     def test_control_text_is_a_toml_string_that_round_trips(self) -> None:
         text = 'quote " backslash \\ newline\n tab\t unicode é'

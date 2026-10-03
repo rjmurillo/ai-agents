@@ -11,7 +11,7 @@ the committed fixtures under `tests/eval/fixtures/harness_capability/`):
 
 * argv: `codex exec --json --skip-git-repo-check --ignore-user-config
   --ignore-rules --ephemeral -s workspace-write -m MODEL
-  -c model_reasoning_effort=EFFORT -c developer_instructions=TEXT PROMPT`.
+  -c model_reasoning_effort=EFFORT -c developer_instructions=TEXT -- PROMPT`.
   `developer_instructions` is the Codex config key for text appended to the
   model's instructions; it plays the part of Claude's
   `--append-system-prompt-file`. The prompt is positional, as in `_codex_cli`.
@@ -22,6 +22,8 @@ the committed fixtures under `tests/eval/fixtures/harness_capability/`):
   and skills still load in every run, under both controls, so the control text
   is not the only instruction source; `--ignore-user-config` drops only
   `config.toml`. Read the reduced-control result with that constant in mind.
+  `-s workspace-write` limits writes, not reads, so a model-generated command
+  can read files outside the workspace. The Claude driver has the same limit.
 * stdout (`--json`): `thread.started`, `turn.started`, `item.completed`,
   `turn.completed` with `usage`, and `turn.failed` or `error` on failure. It
   carries no model and no effort, which is why the model and effort come from
@@ -62,6 +64,11 @@ _BLOCKED_BILLING_ENV = frozenset({"CODEX_API_KEY", "OPENAI_API_KEY", "OPENAI_BAS
 _ENV_ALLOWLIST = BASE_ENV_ALLOWLIST | {"CODEX_HOME"}
 
 
+def _toml_string(text: str) -> str:
+    """A TOML basic string for `text`. JSON escapes control characters but leaves DEL raw."""
+    return json.dumps(text, ensure_ascii=False).replace("\x7f", "\\u007f")
+
+
 def codex_argv(model: str, effort: str, control_text: str, prompt: str) -> list[str]:
     """Shell-free argv for one `codex exec` run. The control text is a TOML string."""
     return [
@@ -79,7 +86,8 @@ def codex_argv(model: str, effort: str, control_text: str, prompt: str) -> list[
         "-c",
         f"model_reasoning_effort={effort}",
         "-c",
-        f"developer_instructions={json.dumps(control_text, ensure_ascii=False)}",
+        f"developer_instructions={_toml_string(control_text)}",
+        "--",
         prompt,
     ]
 
