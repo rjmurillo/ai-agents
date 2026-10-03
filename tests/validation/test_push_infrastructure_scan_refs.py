@@ -148,6 +148,28 @@ def test_tag_on_main_scores_nothing_and_notes_refs_are_skipped(
     assert "skipped, no branch or tag ref in this push carries commits" in note_err
 
 
+def test_failed_refresh_with_nothing_to_scan_still_warns(
+    origin: Origin,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A notes-only push gets no scan, so the failed refresh is reported as a warning."""
+    work = work_clone(origin, tmp_path, detector=False)
+    git(work, "checkout", "-q", "-b", "feature/other", "origin/main")
+    main_tip = git(work, "rev-parse", "origin/main")
+    git(work, "notes", "add", "-m", "note", main_tip)
+    notes = git(work, "rev-parse", "refs/notes/commits")
+    git(work, "remote", "set-url", "origin", str(tmp_path / "missing.git"))
+
+    result = pre_push(work, f"refs/notes/commits {notes} refs/notes/commits {ZERO}\n", monkeypatch)
+
+    err = capsys.readouterr().err
+    assert result == 0, err
+    assert "WARNING: could not refresh origin/main; using local ref" in err
+    assert "will not score from a stale origin/main" not in err
+
+
 def test_multi_ref_push_blocks_when_only_the_second_ref_is_unreviewed(
     origin: Origin,
     tmp_path: Path,
@@ -232,6 +254,7 @@ def test_failed_fetch_fails_closed_instead_of_scoring_a_stale_base(
     assert result == 3, err
     assert "will not score from a stale origin/main" in err
     assert "scores" not in err
+    assert "WARNING: could not refresh origin/main" not in err
 
 
 def _branch_deleting_a_workflow_main_added_after_a_stale_ref(

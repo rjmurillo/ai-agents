@@ -6607,6 +6607,10 @@ def check_push_refs(stream: TextIO, repo_root: Path) -> int:
     if active_refs:
         warn_if_push_files_incomplete(active_refs, repo_root)
         origin_refreshed = _fetch_origin_main(repo_root)
+    if not origin_refreshed and not any(_is_infrastructure_scanned(ref) for ref in refs):
+        # The infrastructure scan reports a failed refresh as its exit 3. With
+        # no ref to scan, this warning is the only report the failure gets.
+        print("WARNING: could not refresh origin/main; using local ref", file=sys.stderr)
     return _check_ref_updates(refs, active_refs, repo_root, job_started, origin_refreshed)
 
 
@@ -6775,6 +6779,11 @@ def _check_ref_infrastructure(push_ref: PushRef, repo_root: Path, deadline: floa
     return result.returncode
 
 
+def _is_infrastructure_scanned(ref: PushRef) -> bool:
+    """A branch or tag ref that carries commits is scored by the scan."""
+    return not ref.is_deletion and ref.remote_ref.startswith(INFRASTRUCTURE_SCANNED_REF_PREFIXES)
+
+
 def check_pushed_infrastructure(
     refs: Sequence[PushRef],
     repo_root: Path,
@@ -6798,11 +6807,7 @@ def check_pushed_infrastructure(
     base can hide a deletion of a workflow main added after it, since the path
     is then absent at both ends of the diff.
     """
-    scanned_refs = [
-        ref
-        for ref in refs
-        if not ref.is_deletion and ref.remote_ref.startswith(INFRASTRUCTURE_SCANNED_REF_PREFIXES)
-    ]
+    scanned_refs = [ref for ref in refs if _is_infrastructure_scanned(ref)]
     if not scanned_refs:
         print(
             "Infrastructure scan: skipped, no branch or tag ref in this push carries commits",
