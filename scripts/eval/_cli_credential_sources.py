@@ -146,7 +146,8 @@ def copilot_disk_token(environ: Mapping[str, str]) -> str | None:
     except (OSError, subprocess.SubprocessError):
         return None
     token = (completed.stdout or "").strip()
-    if completed.returncode != 0 or not re.fullmatch(r"\S+", token) or token.startswith("ghp_"):
+    refused = token.startswith(("ghp_", "ghs_"))
+    if completed.returncode != 0 or not re.fullmatch(r"\S+", token) or refused:
         return None
     return token
 
@@ -204,7 +205,7 @@ def copilot_login_probe(executable: str, environ: Mapping[str, str]) -> bool:
     path = _home_dir(environ, "COPILOT_HOME", ".copilot") / "config.json"
     try:
         text = _read_regular_text(path)
-    except OSError:
+    except (OSError, ValueError):
         return False
     body = "\n".join(line for line in text.splitlines() if not line.lstrip().startswith("//"))
     try:

@@ -141,6 +141,7 @@ class TestCopilotDisk:
             _FakeRun(stdout="", returncode=0),
             _FakeRun(stdout=TOKEN, returncode=1),
             _FakeRun(stdout="ghp_classic"),
+            _FakeRun(stdout="ghs_installation"),
             _FakeRun(stdout="two words"),
             _FakeRun(error=FileNotFoundError()),
             _FakeRun(error=subprocess.TimeoutExpired("gh", 1)),
@@ -240,3 +241,8 @@ def test_read_regular_text_refuses_fifo_and_oversize(tmp_path):
 def test_probe_env_drops_gh_host():
     env = src._probe_env({"GH_HOST": "ghe.example", "HOME": "/h"})
     assert "GH_HOST" not in env
+
+
+def test_copilot_login_probe_survives_non_utf8_config(tmp_path):
+    (tmp_path / "config.json").write_bytes(b"\xff\xfe\x00bad")
+    assert src.copilot_login_probe("copilot", {"COPILOT_HOME": str(tmp_path)}) is False
