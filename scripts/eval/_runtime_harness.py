@@ -307,14 +307,12 @@ def runtime_env(workspace: Path, harness: str) -> dict[str, str]:
     # 2026-09-06) as Codex's non-interactive auth variables, but a live probe
     # falsifies that for a ChatGPT-login account: setting CODEX_ACCESS_TOKEN to
     # the account's ChatGPT access token produced a 401 "Missing bearer"
-    # against api.openai.com (probed 2026-09-24, codex-cli 0.156.0). A
-    # ChatGPT-login Codex authenticates only through `$CODEX_HOME/auth.json`,
-    # which this isolated profile does not carry, so a codex probe run through
-    # this environment has no working auth by default. A caller can opt in to
-    # one by copying an `auth.json` into the isolated `CODEX_HOME` before the
-    # probe runs; `eval_harness_capability.py --codex-auth-file` does exactly
-    # that. Both variables stay in the allowlist regardless, in case an
-    # API-key-based (non-ChatGPT) login honors one of them; only the
+    # against api.openai.com (probed 2026-09-24, codex-cli 0.156.0).
+    # Isolated codex probes carry no login, so they cannot make paid calls.
+    # The repo never copies or links a credential file. Use the stored login
+    # through the real CODEX_HOME in drivers that do not isolate it. Both
+    # variables stay in the allowlist regardless, in case an API-key-based
+    # (non-ChatGPT) login honors one of them; only the
     # ChatGPT-token-in-CODEX_ACCESS_TOKEN combination above is falsified.
     # OPENAI_API_KEY is documented elsewhere only as a value piped into the
     # interactive `codex login --with-api-key` command, not as an ambient
