@@ -208,12 +208,15 @@ significance claim.
 ### What limits this result
 
 - **Ambient instructions.** Codex runs with the operator's own `CODEX_HOME`, so `~/.codex/AGENTS.md`
-  (9,533 bytes), skills, and rules load under both controls. The `reduced` control is the 2,076-byte AGENTS.md plus that
+  (9,533 bytes) and skills load under both controls. The `reduced` control is the 2,076-byte AGENTS.md plus that
   constant, not AGENTS.md alone. An earlier draft isolated the home with a link to the login file. It was removed
   because the repository never links, copies, or reads a credential file. Two launches from that draft are in no result.
 - `current` is 40,854 bytes here and was 40,774 for the Claude runs, because `main` moved.
 - `review_findings`, `rollback_events`, `unsupported_claims`, `unresolved_uncertainty`: same by-construction and proxy
   limits as the Claude runs.
+- `unapproved_external_actions` can under-count on Codex. A failed shell command counts as a tool error, as a failed
+  Bash call does on Claude, and the driver subtracts tool errors from calls outside the allowed set, so a failing test run
+  can offset one real non-shell call. Neither run produced a non-shell call, so the count was not affected here.
 - A model-generated command can read files outside the workspace, because `-s workspace-write` limits writes and not
   reads. The same holds for the Claude driver's `Bash(python:*)`.
 
