@@ -5259,3 +5259,34 @@ class TestCreationMode:
             errors="replace",
         )
         assert r.returncode == 0, f"Expected PASS, got:\n{r.stdout}"
+
+
+class TestArtifactDirIsPinnedToTheClaudeLib:
+    """`paths` also names the copilot-cli lib (root `.agents`); import order must not matter."""
+
+    def test_artifact_dir_ignores_a_previously_imported_copilot_paths(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import importlib
+        import importlib.util
+        import sys
+
+        from scripts import validate_session_json
+
+        repo = Path(validate_session_json.__file__).resolve().parents[1]
+        copilot = repo / "src" / "copilot-cli" / "lib" / "paths.py"
+        spec = importlib.util.spec_from_file_location("paths", copilot)
+        assert spec is not None and spec.loader is not None
+        imposter = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(imposter)
+        monkeypatch.setitem(sys.modules, "paths", imposter)
+        monkeypatch.delenv("AI_AGENTS_ARTIFACT_ROOT", raising=False)
+
+        reloaded = importlib.reload(validate_session_json)
+        try:
+            assert imposter.artifact_dir("qa", base=tmp_path).parts[-2] != ".project-toolkit"
+            qa_root = reloaded.artifact_dir("qa", base=tmp_path)
+            assert qa_root.parts[-2:] == (".project-toolkit", "qa")
+        finally:
+            monkeypatch.undo()
+            importlib.reload(validate_session_json)

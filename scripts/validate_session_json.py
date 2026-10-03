@@ -29,10 +29,12 @@ See: ADR-035 Exit Code Standardization
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import re
 import subprocess
 import sys
+from collections.abc import Callable
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, cast
@@ -49,7 +51,6 @@ sys.path.insert(0, str(_PROJECT_ROOT))
 _CLAUDE_LIB_DIR = _PROJECT_ROOT / ".claude" / "lib"
 sys.path.insert(0, str(_CLAUDE_LIB_DIR))
 
-from paths import artifact_dir  # noqa: E402
 from qa_report import (  # noqa: E402
     session_log_identity,
     session_qa_binding,
@@ -59,6 +60,28 @@ from qa_report import (  # noqa: E402
 from scripts.utils.path_validation import validate_safe_path  # noqa: E402
 from scripts.validation.models import ValidationResult  # noqa: E402
 from scripts.validation.session_scope import session_log_is_new  # noqa: E402
+
+
+def _load_claude_artifact_dir() -> Callable[..., Path]:
+    """Return `artifact_dir` from `.claude/lib/paths.py`, loaded by absolute path.
+
+    `src/copilot-cli/lib/paths.py` is also a top-level module named `paths`, and
+    its default artifact root is `.agents`, not `.project-toolkit`. A plain
+    `from paths import artifact_dir` binds whichever copy a process imported
+    first, so the QA and session roots this validator checks depend on import
+    order. Loading by path pins the `.claude/lib` copy.
+    """
+    spec = importlib.util.spec_from_file_location(
+        "_session_validator_claude_paths", _CLAUDE_LIB_DIR / "paths.py"
+    )
+    if spec is None or spec.loader is None:
+        raise ImportError(f"cannot load {_CLAUDE_LIB_DIR / 'paths.py'}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return cast(Callable[..., Path], module.artifact_dir)
+
+
+artifact_dir = _load_claude_artifact_dir()
 
 SCHEMA_PATH = _PROJECT_ROOT / ".agents" / "schemas" / "session-log.schema.json"
 
