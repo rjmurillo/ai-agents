@@ -74,6 +74,20 @@ inputs:
       disagree.
     required: false
     default: 'gpt-5.6-luna'
+  provider:
+    description: |
+      Reviewer backend: "copilot" (default, Copilot CLI) or "claude" (Anthropic
+      Messages API, scripts/ci/invoke_claude_review.py). Issue #5738.
+    required: false
+    default: 'copilot'
+  anthropic-api-key:
+    description: 'ANTHROPIC_API_KEY secret. Used only when provider is "claude"; a missing key fails closed.'
+    required: false
+    default: ''
+  claude-model:
+    description: 'Claude model id used when provider is "claude".'
+    required: false
+    default: 'claude-sonnet-5-5'
   enable-diagnostics:
     description: |
       Enable Copilot CLI diagnostic test before main invocation.
@@ -105,7 +119,7 @@ outputs:
     value: ${{ steps.parse.outputs.milestone }}
   findings:
     description: 'Detailed findings (raw output from model)'
-    value: ${{ steps.invoke.outputs.raw_output }}
+    value: ${{ (steps.invoke.outputs.raw_output || steps.invoke_claude.outputs.raw_output) }}
   exit-code:
     description: 'Exit code (0=pass, 1=fail)'
     value: ${{ steps.parse.outputs.exit_code }}
@@ -113,14 +127,14 @@ outputs:
   # Falls back to 'true' when context build fails (e.g., missing BOT_PAT for first-time contributor PRs)
   infrastructure-failure:
     description: 'Whether failure was infrastructure-related (true/false)'
-    value: ${{ steps.invoke.outputs.infrastructure_failure || steps.infra_gate.outputs.infrastructure_failure || 'false' }}
+    value: ${{ (steps.invoke.outputs.infrastructure_failure || steps.invoke_claude.outputs.infrastructure_failure) || steps.infra_gate.outputs.infrastructure_failure || 'false' }}
   retry-count:
     description: 'Number of retry attempts made (0 = no retries)'
-    value: ${{ steps.invoke.outputs.retry_count || steps.infra_gate.outputs.retry_count }}
+    value: ${{ (steps.invoke.outputs.retry_count || steps.invoke_claude.outputs.retry_count) || steps.infra_gate.outputs.retry_count }}
   # Debug outputs for AI agents and humans
   full-prompt:
     description: 'Complete prompt sent to the model (for debugging)'
-    value: ${{ steps.invoke.outputs.full_prompt }}
+    value: ${{ (steps.invoke.outputs.full_prompt || steps.invoke_claude.outputs.full_prompt) }}
   agent-definition:
     description: 'Agent definition used (for debugging)'
     value: ${{ steps.agent.outputs.agent_definition }}
@@ -135,7 +149,7 @@ outputs:
     value: ${{ steps.context.outputs.context_mode }}
   copilot-exit-code:
     description: 'Raw exit code from Copilot CLI'
-    value: ${{ steps.invoke.outputs.copilot_exit_code }}
+    value: ${{ (steps.invoke.outputs.copilot_exit_code || steps.invoke_claude.outputs.copilot_exit_code) }}
   copilot-version:
     description: 'Copilot CLI version used'
     value: ${{ steps.install.outputs.copilot_version }}
@@ -148,7 +162,7 @@ outputs:
     value: ${{ steps.diagnose.outputs.health_status }}
   copilot-stderr:
     description: 'Stderr output from Copilot CLI (if any)'
-    value: ${{ steps.invoke.outputs.stderr_output }}
+    value: ${{ (steps.invoke.outputs.stderr_output || steps.invoke_claude.outputs.stderr_output) }}
   auth-status:
     description: 'GitHub authentication status details'
     value: ${{ steps.diagnose.outputs.auth_status }}
@@ -179,6 +193,7 @@ runs:
 
     - name: Install GitHub Copilot CLI
       id: install
+      if: inputs.provider != 'claude'
       shell: bash
       run: |
         export COPILOT_VERSION="1.0.63"
@@ -210,7 +225,7 @@ runs:
 
     - name: Diagnose Copilot CLI
       id: diagnose
-      if: inputs.enable-diagnostics == 'true'
+      if: inputs.enable-diagnostics == 'true' && inputs.provider != 'claude'
       shell: bash
       env:
         # Use dedicated Copilot token if provided, otherwise fall back to bot-pat
@@ -248,12 +263,33 @@ runs:
         CONTEXT_INFRA_FAILURE: ${{ steps.context.outputs.context_infra_failure }}
       run: python3 "$GITHUB_WORKSPACE/scripts/ci/check_ai_review_infra_gate.py"
 
+    - name: Install uv (Claude provider)
+      if: inputs.provider == 'claude'
+      uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7  # v10.2.0
+
+    - name: Invoke Claude (Anthropic Messages API)
+      id: invoke_claude
+      if: inputs.provider == 'claude' && steps.infra_gate.outputs.skip != 'true'
+      shell: bash
+      env:
+        ANTHROPIC_API_KEY: ${{ inputs.anthropic-api-key }}
+        CLAUDE_MODEL: ${{ inputs.claude-model }}
+        REVIEW_AGENT: ${{ inputs.agent }}
+        GH_TOKEN: ${{ inputs.github-token || github.token || inputs.bot-pat }}
+        AI_REVIEW_OUTPUT_FILE: ${{ steps.infra_gate.outputs.output_file }}
+        ADDITIONAL_CONTEXT: ${{ inputs.additional-context }}
+        TIMEOUT_MINUTES: ${{ inputs.timeout-minutes }}
+        AI_REVIEW_ACTION_DEADLINE_EPOCH: ${{ steps.deadline.outputs.deadline_epoch }}
+        CONTEXT_MODE: ${{ steps.context.outputs.context_mode }}
+        CONTEXT_FILE: ${{ steps.context.outputs.context_file }}
+      run: uv run --frozen python "$GITHUB_WORKSPACE/scripts/ci/invoke_claude_review.py"
+
     - name: Invoke Copilot CLI (with retry for infrastructure failures)
       id: invoke
       # Skip the Copilot invocation when the Build context step reported an
       # infrastructure failure. The gate step owns the skip decision and wrote
       # the DID_NOT_RUN verdict file the parse step reads (ADR-006, issue #2967).
-      if: steps.infra_gate.outputs.skip != 'true'
+      if: inputs.provider != 'claude' && steps.infra_gate.outputs.skip != 'true'
       shell: bash
       env:
         # Use dedicated Copilot token if provided, otherwise fall back to bot-pat
@@ -287,7 +323,7 @@ runs:
       env:
         GH_TOKEN: ${{ inputs.bot-pat }}
         AI_VERDICT: ${{ steps.parse.outputs.verdict }}
-        AI_FINDINGS: ${{ steps.invoke.outputs.raw_output }}
+        AI_FINDINGS: ${{ (steps.invoke.outputs.raw_output || steps.invoke_claude.outputs.raw_output) }}
         AI_LABELS: ${{ steps.parse.outputs.labels }}
         PR_NUMBER: ${{ inputs.pr-number }}
         EXECUTE_SCRIPT: ${{ inputs.execute-script }}

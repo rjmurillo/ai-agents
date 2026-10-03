@@ -1,6 +1,6 @@
 name: Spec-to-Implementation Validation
 
-# AI-powered requirements traceability using GitHub Copilot CLI
+# AI-powered requirements traceability using Claude (Anthropic Messages API)
 
 # Verifies that PR changes implement requirements from linked specs
 
@@ -144,7 +144,8 @@ jobs:
           prompt-file: .github/prompts/spec-trace-requirements.md
           timeout-minutes: 3
           bot-pat: ${{ secrets.BOT_PAT }}
-          copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+          provider: claude
+          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
 
       - name: Report traceability check result
         run: >-
@@ -169,7 +170,8 @@ jobs:
           prompt-file: .github/prompts/spec-check-completeness.md
           timeout-minutes: 3
           bot-pat: ${{ secrets.BOT_PAT }}
-          copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+          provider: claude
+          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
 
       - name: Report completeness check result
         run: >-
