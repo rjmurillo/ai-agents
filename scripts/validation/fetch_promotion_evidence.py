@@ -30,14 +30,29 @@ from scripts.validation.promotion_applicability import (  # noqa: E402
     ApplicabilityError,
     load_applicability,
 )
+from scripts.validation.promotion_exemption import GitDiffSource  # noqa: E402
 from scripts.validation.promotion_fetch import (  # noqa: E402
     GhCliReader,
     GitHubApiError,
     GitHubReader,
+    fetch_build_evidence,
     fetch_verified_evidence,
 )
 
 EXIT_OK, EXIT_CONFIG, EXIT_EXTERNAL = 0, 2, 3
+
+
+def _run_id(text: str) -> int:
+    """A run id, or empty for none. A workflow passes an empty string when it has no build run."""
+    if text == "":
+        return 0
+    try:
+        value = int(text)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("expected a positive integer or empty") from exc
+    if value <= 0:
+        raise argparse.ArgumentTypeError("expected a positive integer or empty")
+    return value
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -47,6 +62,12 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--default-branch", required=True)
     parser.add_argument("--evidence-dir", type=Path, required=True)
     parser.add_argument("--repo-root", type=Path, default=_PROJECT_ROOT)
+    parser.add_argument(
+        "--build-run-id",
+        type=_run_id,
+        default=0,
+        help="the entry workflow run holding the build-tier evidence; empty fetches none",
+    )
     return parser
 
 
@@ -67,7 +88,18 @@ def main(argv: Sequence[str] | None = None, reader: GitHubReader | None = None) 
             default_branch=args.default_branch,
             entries=entries,
             evidence_dir=args.evidence_dir,
+            exemption_source=GitDiffSource(args.repo_root),
         )
+        if args.build_run_id:
+            dispositions += fetch_build_evidence(
+                reader or GhCliReader(),
+                repo=args.repo,
+                run_id=args.build_run_id,
+                candidate_sha=args.candidate_sha,
+                default_branch=args.default_branch,
+                entries=entries,
+                evidence_dir=args.evidence_dir,
+            )
     except (ApplicabilityError, ValueError) as exc:
         return _fail("FAIL", f"{type(exc).__name__}: {exc}", EXIT_CONFIG)
     except GitHubApiError as exc:

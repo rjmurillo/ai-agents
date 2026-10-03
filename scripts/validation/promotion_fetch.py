@@ -53,13 +53,20 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from scripts.validation.evidence import CheckOutcome, EvidenceState
-from scripts.validation.promotion_applicability import TIER_COMMIT, Applicability
+from scripts.validation.promotion_applicability import TIER_BUILD, TIER_COMMIT, Applicability
 from scripts.validation.promotion_evidence import (
     MAX_EVIDENCE_BYTES,
     EvidenceRecord,
     parse_evidence_text,
 )
+from scripts.validation.promotion_exemption import (
+    REASON_EXEMPT,
+    DiffSource,
+    apply_exemption,
+    is_not_run_skip,
+)
 from scripts.validation.promotion_provenance import (
+    build_run_problem,
     combine,
     corroborate,
     is_repository_name,
@@ -98,8 +105,8 @@ class GitHubReader(Protocol):
     def get_json(self, path: str, params: Mapping[str, str] | None = None) -> object:
         """Return the decoded JSON body of a GET."""
 
-    def get_bytes(self, path: str) -> bytes:
-        """Return the raw body of a GET, following redirects."""
+    def get_bytes(self, path: str, accept: str | None = None) -> bytes:
+        """Return the raw body of a GET, following redirects, asking for ``accept`` if given."""
 
 
 class GhCliReader:
@@ -130,8 +137,9 @@ class GhCliReader:
         except ValueError as exc:
             raise GitHubApiError(f"gh api returned invalid JSON for {path}") from exc
 
-    def get_bytes(self, path: str) -> bytes:
-        return self._run([path])
+    def get_bytes(self, path: str, accept: str | None = None) -> bytes:
+        headers = ["-H", f"Accept: {accept}"] if accept else []
+        return self._run([path, *headers])
 
 
 @dataclass(frozen=True, slots=True)
@@ -158,8 +166,13 @@ class Disposition:
         return f"{head} rejected {self.reason}{recorded}"
 
 
-def paginate(reader: GitHubReader, path: str, key: str, params: Mapping[str, str]) -> list[Any]:
+def paginate(
+    reader: GitHubReader, path: str, key: str | None, params: Mapping[str, str]
+) -> list[Any]:
     """Return every item under ``key`` across pages, failing closed on a short read.
+
+    With ``key`` None the response body is itself the list, as for the releases
+    endpoint.
 
     A page limit reached with a full page means more items exist, so the list is
     refused rather than returned truncated.
@@ -167,13 +180,13 @@ def paginate(reader: GitHubReader, path: str, key: str, params: Mapping[str, str
     items: list[Any] = []
     for page in range(1, MAX_PAGES + 1):
         body = reader.get_json(path, {**params, "per_page": str(PAGE_SIZE), "page": str(page)})
-        batch = body.get(key) if isinstance(body, dict) else None
+        batch = body if key is None else body.get(key) if isinstance(body, dict) else None
         if not isinstance(batch, list):
-            raise GitHubApiError(f"{path} did not return a '{key}' list")
+            raise GitHubApiError(f"{path} did not return a '{key or 'JSON'}' list")
         items.extend(batch)
         if len(batch) < PAGE_SIZE:
             return items
-    raise GitHubApiError(f"{path} has more than {MAX_PAGES * PAGE_SIZE} {key}")
+    raise GitHubApiError(f"{path} has more than {MAX_PAGES * PAGE_SIZE} {key or 'items'}")
 
 
 def read_evidence_member(archive: bytes, validator: str) -> str:
@@ -207,6 +220,7 @@ class _Context:
     default_branch: str
     check_runs: dict[int, Mapping[str, Any]]
     evidence_dir: Path
+    exemption_source: DiffSource | None = None
 
 
 def _int_id(value: object) -> int | None:
@@ -252,7 +266,7 @@ def _artifact_problem(
     names_run = (
         isinstance(origin, dict)
         and origin.get("id") == run_id
-        and origin.get("head_sha") == ctx.candidate_sha
+        and origin.get("head_sha") == run.get("head_sha")
         and _int_id(artifact.get("id")) is not None
     )
     if not names_run:
@@ -282,6 +296,8 @@ def _download_record(ctx: _Context, artifact: Mapping[str, Any], validator: str)
     record = parse_evidence_text(read_evidence_member(archive, validator), f"{validator}.json")
     if record.outcome.validator != validator:
         raise ValueError("the record names a different validator than its artifact")
+    if record.outcome.reason == REASON_EXEMPT:
+        raise ValueError("an artifact cannot carry policy.exempt; only the fetch sets it")
     if record.outcome.revision != ctx.candidate_sha:
         raise RevisionMismatchError("the record names a commit other than the candidate")
     return record
@@ -322,16 +338,19 @@ def _unusable(ctx: _Context, entry: Applicability, run_id: int, reason: str) -> 
     return Disposition(entry.validator, run_id, False, reason, EvidenceState.UNKNOWN.value)
 
 
-def _handle_run(ctx: _Context, entry: Applicability, run: Mapping[str, Any]) -> Disposition:
+def _handle_run(
+    ctx: _Context, entry: Applicability, run: Mapping[str, Any], problem: str | None
+) -> Disposition:
+    """Take one run through artifact, record, corroboration, and write.
+
+    ``problem`` is the provenance verdict the caller computed for this run: the
+    commit tier and the build tier judge a run differently. ``None`` means the
+    run passed. Only ``fetch_verified_evidence`` and ``fetch_build_evidence`` call
+    this, and a test per entry point asserts a run that fails is never downloaded.
+    """
     run_id = _int_id(run.get("id"))
     if run_id is None:
         return Disposition(entry.validator, 0, False, "run.malformed")
-    problem = run_problem(
-        run,
-        candidate_sha=ctx.candidate_sha,
-        workflow=entry.workflow,
-        default_branch=ctx.default_branch,
-    )
     if problem:
         return Disposition(entry.validator, run_id, False, problem)
     artifact, reason = _select_artifact(ctx, run, entry.validator)
@@ -344,15 +363,30 @@ def _handle_run(ctx: _Context, entry: Applicability, run: Mapping[str, Any]) -> 
     except (ValueError, RecursionError):
         return _unusable(ctx, entry, run_id, REASON_ARTIFACT_FORMAT)
     corroboration = corroborate(
-        job_name=entry.job,
+        job_name=_corroborating_job(entry, record),
         run_id=run_id,
         repository=ctx.repo,
         latest_jobs=_latest_jobs(ctx, run_id),
         check_runs=ctx.check_runs,
     )
     written = combine(record, corroboration)
+    if ctx.exemption_source is not None:
+        written = apply_exemption(written, entry, ctx.candidate_sha, ctx.exemption_source)
     _write(ctx, written, run_id)
-    return Disposition(entry.validator, run_id, True, REASON_ACCEPTED, written.outcome.state.value)
+    reason = written.outcome.reason if written.outcome.reason == REASON_EXEMPT else REASON_ACCEPTED
+    return Disposition(entry.validator, run_id, True, reason, written.outcome.state.value)
+
+
+def _corroborating_job(entry: Applicability, record: EvidenceRecord) -> str:
+    """The job whose check-run corroborates the record.
+
+    A path-filter skip by a job-level condition runs only the row's ``skip_job``,
+    so that job, not the skipped one, is what succeeded.
+    """
+    skipped = is_not_run_skip(record)
+    if skipped and entry.path_filter is not None and entry.path_filter.skip_job:
+        return entry.path_filter.skip_job
+    return entry.job
 
 
 def _check_runs_by_id(reader: GitHubReader, repo: str, sha: str) -> dict[int, Mapping[str, Any]]:
@@ -372,6 +406,7 @@ def fetch_verified_evidence(
     default_branch: str,
     entries: Sequence[Applicability],
     evidence_dir: Path,
+    exemption_source: DiffSource | None = None,
 ) -> list[Disposition]:
     """Write one evidence file per accepted artifact and return every disposition.
 
@@ -398,12 +433,62 @@ def fetch_verified_evidence(
     )
     ctx = _Context(
         reader, repo, candidate_sha, default_branch,
-        _check_runs_by_id(reader, repo, candidate_sha), evidence_dir,
+        _check_runs_by_id(reader, repo, candidate_sha), evidence_dir, exemption_source,
     )  # fmt: skip
     dispositions: list[Disposition] = []
     for entry in wanted:
         matching = [r for r in runs if isinstance(r, dict) and r.get("path") == entry.workflow]
         if not matching:
             dispositions.append(Disposition(entry.validator, 0, False, REASON_RUN_ABSENT))
-        dispositions.extend(_handle_run(ctx, entry, run) for run in matching)
+        for run in matching:
+            problem = run_problem(
+                run,
+                candidate_sha=candidate_sha,
+                workflow=entry.workflow,
+                default_branch=default_branch,
+            )
+            dispositions.append(_handle_run(ctx, entry, run, problem))
     return dispositions
+
+
+def fetch_build_evidence(
+    reader: GitHubReader,
+    *,
+    repo: str,
+    run_id: int,
+    candidate_sha: str,
+    default_branch: str,
+    entries: Sequence[Applicability],
+    evidence_dir: Path,
+) -> list[Disposition]:
+    """Write evidence for the build-tier rows from the entry workflow's own run.
+
+    ``run_id`` is the run the gate belongs to. Its build job has finished, so its
+    jobs can be corroborated. The record's revision must be the candidate, and the
+    gate binds its digest to the built tarball.
+    """
+    if not is_repository_name(repo) or not _SHA_RE.fullmatch(candidate_sha):
+        raise ValueError("repo must be owner/name and candidate_sha a 40-character SHA")
+    if not _BRANCH_RE.fullmatch(default_branch) or run_id <= 0:
+        raise ValueError("default_branch must be a plain name and run_id positive")
+    wanted = [e for e in entries if e.tier == TIER_BUILD and not e.never]
+    if not wanted:
+        return []
+    run = reader.get_json(f"repos/{repo}/actions/runs/{run_id}")
+    if not isinstance(run, dict) or not _SHA_RE.fullmatch(str(run.get("head_sha"))):
+        raise GitHubApiError(f"run {run_id} did not return a run with a head_sha")
+    ctx = _Context(
+        reader, repo, candidate_sha, default_branch,
+        _check_runs_by_id(reader, repo, str(run["head_sha"])), evidence_dir, None,
+    )  # fmt: skip
+    return [
+        _handle_run(
+            ctx,
+            entry,
+            run,
+            build_run_problem(
+                run, workflow=entry.workflow, default_branch=default_branch, run_id=run_id
+            ),
+        )
+        for entry in wanted
+    ]
