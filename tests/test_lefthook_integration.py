@@ -92,6 +92,7 @@ POLICY_SUPPORT_FILES = (
     "scripts/validation/__init__.py",
     "scripts/validation/validate_review_marker.py",
     "build/scripts/validate_plugin_version_bump.py",
+    ".claude/skills/security-detection/detect_infrastructure.py",
 )
 
 
@@ -547,7 +548,6 @@ def test_configuration_uses_named_native_jobs() -> None:
         "python-type-check",
         "security-scan",
         "security-suppression-policy",
-        "infrastructure-advisory",
         "workflow-local-run",
         "path-normalization",
         "planning-artifacts",
@@ -786,13 +786,12 @@ def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
     ]
     assert len(markdown_groups) == 1
     assert markdown_groups[0].get("piped") is True
-    infrastructure_run = pre_push_jobs["infrastructure-advisory"]["run"]
-    assert isinstance(infrastructure_run, str)
-    assert "--files {push_files}" in infrastructure_run
+    # Issue #6076: the security marker gate left `{push_files}` for
+    # push-ref-policy, which scores merge-base(origin/main, pushed SHA).
+    assert "infrastructure-advisory" not in pre_push_jobs
     for name in (
         "python-lint-advisory",
         "python-type-check",
-        "infrastructure-advisory",
         "workflow-local-run",
     ):
         run = pre_push_jobs[name]["run"]
@@ -1435,20 +1434,23 @@ def test_doublestar_selects_root_level_push_file(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     _init_repo(repo)
     _copy_runtime_config(repo)
-    detector = repo / ".claude/skills/security-detection/detect_infrastructure.py"
-    detector.parent.mkdir(parents=True, exist_ok=True)
+    # Issue #6076 moved infrastructure-advisory off `{push_files}`, so the
+    # root-level selection is pinned on python-type-check, whose `**/*.py`
+    # glob is the same doublestar shape. The policy script is a recorder.
+    recorder = repo / "scripts/validation/git_hook_policy.py"
+    recorder.parent.mkdir(parents=True, exist_ok=True)
     _write_lf(
-        detector,
+        recorder,
         "from pathlib import Path\nimport sys\n"
         "Path('root-job-ran.txt').write_text(','.join(sys.argv[1:]), encoding='utf-8')\n",
     )
-    _write_lf(repo / "root-only.txt", "base\n")
+    _write_lf(repo / "root_only.py", "BASE = 1\n")
     _git(repo, "add", ".")
     _git(repo, "commit", "-qm", "test: base")
     base_sha = _git(repo, "rev-parse", "HEAD").stdout.strip()
     _git(repo, "update-ref", "refs/remotes/origin/main", base_sha)
-    _write_lf(repo / "root-only.txt", "head\n")
-    _git(repo, "add", "root-only.txt")
+    _write_lf(repo / "root_only.py", "BASE = 2\n")
+    _git(repo, "add", "root_only.py")
     _git(repo, "commit", "-qm", "test: root-only push")
     head_sha = _git(repo, "rev-parse", "HEAD").stdout.strip()
     push_input = f"refs/heads/feature/test {head_sha} refs/heads/feature/test {base_sha}\n"
@@ -1458,15 +1460,15 @@ def test_doublestar_selects_root_level_push_file(tmp_path: Path) -> None:
         "run",
         "pre-push",
         "--job",
-        "infrastructure-advisory",
+        "python-type-check",
         "--force",
         stdin=push_input,
     )
 
-    assert _git(repo, "diff", "--name-only", base_sha, head_sha).stdout == "root-only.txt\n"
+    assert _git(repo, "diff", "--name-only", base_sha, head_sha).stdout == "root_only.py\n"
     selected_files = (repo / "root-job-ran.txt").read_text(encoding="utf-8").split(",")
-    assert selected_files[0] == "--files"
-    assert "root-only.txt" in selected_files
+    assert selected_files[0] == "mypy"
+    assert "root_only.py" in selected_files
 
 
 def test_doublestar_matches_nested_and_root_pre_commit_files(tmp_path: Path) -> None:
@@ -1700,6 +1702,12 @@ def test_native_dispatch_forwards_argument_stdin_and_failures(tmp_path: Path) ->
     _init_repo(repo)
     _copy_runtime_config(repo)
     base_sha = _commit_file(repo, "tracked.txt", "base\n")
+    # A reachable origin whose main is base_sha: push-ref-policy refreshes
+    # origin/main and fails the infrastructure scan closed when it cannot.
+    origin = tmp_path / "origin.git"
+    _git(tmp_path, "clone", "-q", "--bare", str(repo), str(origin))
+    _git(origin, "update-ref", "refs/heads/main", base_sha)
+    _git(repo, "remote", "add", "origin", str(origin))
     _git(repo, "update-ref", "refs/remotes/origin/main", base_sha)
     head_sha = _commit_file(repo, "tracked.txt", "head\n")
     message = repo / "message.txt"
@@ -6045,16 +6053,44 @@ def test_fetch_origin_main_refreshes_stale_tracking_ref(tmp_path: Path) -> None:
     assert _git(repo, "rev-parse", "origin/main").stdout.strip() == second
 
 
-def test_fetch_origin_main_failure_warns_and_continues(
+def test_fetch_origin_main_updates_tracking_ref_when_refspec_excludes_main(
+    tmp_path: Path,
+) -> None:
+    """A narrowed remote.origin.fetch makes a plain source fetch touch only FETCH_HEAD."""
+    remote = tmp_path / "remote.git"
+    writer = tmp_path / "writer"
+    repo = tmp_path / "repo"
+    subprocess.run(["git", "init", "--bare", "-q", str(remote)], check=True)
+    _init_repo(writer, branch="main")
+    first = _commit_file(writer, "tracked", "first\n")
+    _git(writer, "remote", "add", "origin", str(remote))
+    _git(writer, "push", "-q", "origin", "main")
+    subprocess.run(
+        ["git", "--git-dir", str(remote), "symbolic-ref", "HEAD", "refs/heads/main"],
+        check=True,
+    )
+    subprocess.run(["git", "clone", "-q", str(remote), str(repo)], check=True)
+    _git(repo, "config", "remote.origin.fetch", "+refs/heads/other:refs/remotes/origin/other")
+    second = _commit_file(writer, "tracked", "second\n")
+    _git(writer, "push", "-q", "origin", "main")
+    assert _git(repo, "rev-parse", "origin/main").stdout.strip() == first
+
+    assert policy._fetch_origin_main(repo) is True
+
+    assert _git(repo, "rev-parse", "origin/main").stdout.strip() == second
+
+
+def test_fetch_origin_main_failure_returns_false_without_a_duplicate_warning(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     monkeypatch.setattr(policy, "_run_git", lambda *_args: _completed(1))
 
-    policy._fetch_origin_main(tmp_path)
+    refreshed = policy._fetch_origin_main(tmp_path)
 
-    assert "using local ref" in capsys.readouterr().err
+    assert refreshed is False
+    assert "WARNING" not in capsys.readouterr().err
 
 
 def test_push_policy_blocks_main_and_preserves_destination_branch(
@@ -6076,6 +6112,8 @@ def test_push_policy_blocks_main_and_preserves_destination_branch(
 
     monkeypatch.setattr(policy, "_check_review_marker", capture_marker)
     monkeypatch.setattr(policy, "_check_plugin_version", lambda *_args: 0)
+    # The infrastructure scan has its own suite (test_push_infrastructure_scan.py).
+    monkeypatch.setattr(policy, "check_pushed_infrastructure", lambda *_args, **_kwargs: 0)
 
     blocked = policy.check_push_refs(
         io.StringIO(f"refs/heads/local {head} refs/heads/main {remote}\n"),
@@ -6272,7 +6310,7 @@ def test_check_push_refs_blocks_force_push_end_to_end(
     side_sha = _commit_file(repo, "f.txt", "side\n")
     _git(repo, "checkout", "-q", "feature/test")
     feature_sha = _commit_file(repo, "f.txt", "feature\n")
-    monkeypatch.setattr(policy, "_fetch_origin_main", lambda _repo_root: None)
+    monkeypatch.setattr(policy, "_fetch_origin_main", lambda _repo_root: True)
     monkeypatch.setattr(policy, "warn_if_push_files_incomplete", lambda *_args: None)
     stream = io.StringIO(
         f"refs/heads/feature/test {feature_sha} refs/heads/feature/test {side_sha}\n"
@@ -6300,7 +6338,7 @@ def test_check_push_refs_multi_ref_catches_second_rewrite(
     side_sha = _commit_file(repo, "f.txt", "side\n")
     _git(repo, "checkout", "-q", "feature/test")
     feature_sha = _commit_file(repo, "f.txt", "feature\n")
-    monkeypatch.setattr(policy, "_fetch_origin_main", lambda _repo_root: None)
+    monkeypatch.setattr(policy, "_fetch_origin_main", lambda _repo_root: True)
     monkeypatch.setattr(policy, "warn_if_push_files_incomplete", lambda *_args: None)
     zero = "0" * 40
     stream = io.StringIO(

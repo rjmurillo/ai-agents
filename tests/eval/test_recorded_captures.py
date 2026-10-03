@@ -345,15 +345,16 @@ def test_every_owed_live_probe_names_its_blocker_and_command() -> None:
 
     owed = {r.harness: r.pending_live_probes for r in records}
 
-    assert {h: len(p) for h, p in owed.items()} == {"codex": 2, "copilot": 2}
-    assert any("402" in p.blocker for p in owed["copilot"])
+    assert {h: len(p) for h, p in owed.items()} == {"codex": 2, "copilot": 0}
+    assert all("0.157.1" in p.blocker for p in owed["codex"])
 
 
 def test_the_report_carries_the_owed_probes() -> None:
     report = capability.build_report(capability.load_matrix(MATRIX))
 
-    copilot = _harness(report, "copilot")
-    assert copilot["pending_live_probes"][0]["scope"].startswith("copilot GitHub-routed")
+    codex = _harness(report, "codex")
+    assert codex["pending_live_probes"][0]["scope"].startswith("codex concurrency_limit")
+    assert "pending_live_probes" not in _harness(report, "copilot")
 
 
 def test_a_record_with_nothing_owed_omits_the_field() -> None:
