@@ -296,29 +296,9 @@ in its `env`; `observe_model`/`observe_effort` then read `response.model` and
 without this variable stays UNVERIFIED with a detail naming it, never a
 silent guess.
 
-### `--codex-auth-file`: opt-in credential for an isolated codex probe
+### Codex login in isolated probes
 
-A ChatGPT-login Codex authenticates only through `$CODEX_HOME/auth.json`;
-`CODEX_ACCESS_TOKEN` is ignored for that login method (probed 2026-09-24,
-codex-cli 0.156.0: a ChatGPT access token in that variable produced a 401
-"Missing bearer" against api.openai.com). The isolated profile a behavioral
-probe runs under therefore has no working codex auth by default. Pass
-`--codex-auth-file PATH` to copy that file into each codex probe's isolated
-`CODEX_HOME` as `auth.json`, mode `0600` inside a profile directory mode
-`0700`, before the probe runs, and deletes the copy once that probe has run,
-whether it succeeded or raised:
-
-```bash
-uv run python scripts/eval/eval_harness_capability.py \
-  --behavioral-probes scripts/eval/examples/harness-capability-probes.json \
-  --codex-auth-file ~/.codex/auth.json \
-  --output artifacts/harness-capability/report.json
-```
-
-The flag is opt-in and ignored for non-codex probes. The file is copied, not
-referenced, so the operator's real `auth.json` is never opened by the probed
-CLI, and its contents are never logged. A path that is not a regular file
-fails closed (exit 2) before any CLI runs.
+Isolated codex probes carry no login, so they cannot make paid calls. The repo never copies or links a credential file. Use the stored login through the real CODEX_HOME in drivers that do not isolate it.
 
 ### Copilot: the client-label finding and BYOK
 
