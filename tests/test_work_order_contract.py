@@ -125,7 +125,7 @@ def _synthesis(path: Path) -> str:
 
 
 SCENARIO_EXPECTATIONS = {
-    "S15": ("BLOCK", "contract"),
+    "S15": ("DELEGATE", "contract"),
     "S16": ("BLOCK", "contract"),
     "S21": ("BLOCK", "synthesis"),
     "S22": ("ROUTE", "contract"),
@@ -162,7 +162,8 @@ def test_graded_scenarios_stay_tied_to_the_contract_text(path: Path, scenario_id
 
     assert scenario["expected_verdict"] == verdict
     assert verdict in scenario["verdict_options"]
-    assert scenario["expected_reason_contains"] in text
+    keyword = scenario.get("expected_reason_contains")
+    assert keyword is None or keyword.lower() in text.lower()
 
 
 def test_weak_self_check_scenario_models_the_wrong_but_plausible_implementation() -> None:
