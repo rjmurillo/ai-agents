@@ -11,10 +11,6 @@ implemented: false
 
 # ADR-088: Progressive Disclosure for Book-Derived Rules
 
-## Status
-
-Proposed
-
 ## Date
 
 2026-07-27

@@ -11,10 +11,6 @@ implemented: false
 
 # ADR-022: Architecture vs Governance Decision Split Criteria
 
-## Status
-
-Proposed
-
 ## Date
 
 2025-12-23

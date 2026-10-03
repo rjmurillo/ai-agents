@@ -11,10 +11,6 @@ implemented: true
 
 # ADR-029: Skill File Line Ending Normalization
 
-## Status
-
-Accepted
-
 ## Date
 
 2025-12-27

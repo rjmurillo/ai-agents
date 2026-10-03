@@ -11,10 +11,6 @@ implemented: true
 
 # ADR-053: ADR Exception Criteria (Chesterton's Fence)
 
-## Status
-
-Accepted
-
 ## Date
 
 2026-03-07

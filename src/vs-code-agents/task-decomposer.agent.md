@@ -70,7 +70,7 @@ Use Memory Router for search and Serena tools for persistence (ADR-037):
 **Before breakdown (retrieve context):**
 
 ```bash
-python3 .claude/skills/memory/scripts/search_memory.py --query "task estimation patterns [feature type]"
+python3 .claude/skills/memory/scripts/search_memory.py "task estimation patterns [feature type]"
 ```
 
 **After breakdown (store learnings):**
