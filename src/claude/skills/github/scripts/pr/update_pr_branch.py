@@ -1,35 +1,27 @@
 #!/usr/bin/env python3
 """Update a pull request's head branch with its base, server side.
 
-Calls GitHub's update-branch endpoint
-(``PUT /repos/{owner}/{repo}/pulls/{pull_number}/update-branch``), the API
+Calls ``PUT /repos/{owner}/{repo}/pulls/{pull_number}/update-branch``, the API
 behind the "Update branch" button. GitHub merges the base into the head on the
-server and answers 202 Accepted before the merge commit exists, so the call is
-asynchronous. No local git hook runs on that merge.
+server and answers 202 before the merge exists. No local git hook runs on it.
 
 Behavior:
-- A closed or merged PR is refused before any mutation (exit 1).
-- A PR that is not behind its base (compare ``behind_by == 0``) is reported as
-  success with ``already_up_to_date: true`` and no PUT. A 422 saying the base
-  has no new commits is reported the same way.
-- ``--expected-head-sha`` is checked against the PR head first, then forwarded
-  as ``expected_head_sha``. A local mismatch, or GitHub's 422 when the head
-  moved in between, maps to exit 1, error type VerificationFailed,
-  ``reason: head_moved``.
+- A PR that is not OPEN is refused before any mutation (exit 1).
+- A PR whose compare shows ``behind_by == 0``, or whose PUT gets a 422 saying
+  the base has no new commits, is success with ``already_up_to_date: true``.
+- ``--expected-head-sha`` is checked against the PR head, then forwarded as
+  ``expected_head_sha``. A mismatch, local or GitHub's 422, exits 1 with error
+  type VerificationFailed and ``reason: head_moved``. Without it, the update
+  applies to whatever head GitHub sees, so unattended callers should pass it.
 - Without ``--wait`` the script returns after the 202 with the old head SHA and
-  the API message. With ``--wait`` it polls until compare shows the PR is no
-  longer behind, then reports the new head SHA. The deadline is
-  ``--timeout-seconds``; a poll already in flight can overrun it by up to two
-  gh calls of 30s each. A head change alone does not end the wait, since an unrelated push can
-  move the head. A timeout exits 3 and says the update was already requested.
-- Without ``--expected-head-sha`` the update applies to whatever head GitHub
-  sees when it runs. Unattended callers should pass the SHA they reviewed.
+  the API message. ``--wait`` polls until compare shows the PR is no longer
+  behind; a head change alone does not count, since any push moves the head.
+  Each gh call in the wait is capped at the time left. A timeout exits 3 and
+  says the update was already requested.
 
-All output goes through the standard skill envelope per ADR-056.
-
-Exit codes follow ADR-035:
+Output uses the standard skill envelope (ADR-056). Exit codes follow ADR-035:
     0 - Success (update requested, completed, or already up to date)
-    1 - Invalid parameters / logic error (closed or merged PR, head moved)
+    1 - Invalid parameters / logic error (PR not open, head moved)
     2 - Not found
     3 - External error (API failure, wait timeout)
     4 - Auth error
@@ -123,7 +115,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--wait", action="store_true",
-        help="Poll until the head SHA changes or the PR is no longer behind.",
+        help="Poll until compare shows the PR is no longer behind its base.",
     )
     parser.add_argument(
         "--timeout-seconds", type=int, default=None,
@@ -153,18 +145,38 @@ def _emit_error(
     raise SystemExit(code)
 
 
-def _run_gh(args: list[str], ctx: _Context, what: str) -> subprocess.CompletedProcess[str]:
-    """Run one gh command; a timeout becomes an exit-3 envelope."""
+class _WaitBudgetSpentError(Exception):
+    """A --wait poll ran out of time; the wait loop reports its own timeout."""
+
+
+def _run_gh(
+    args: list[str],
+    ctx: _Context,
+    what: str,
+    budget: float | None = None,
+) -> subprocess.CompletedProcess[str]:
+    """Run one gh command; a timeout becomes an exit-3 envelope.
+
+    ``budget`` is the time left in a ``--wait``. It caps the call, and running
+    out raises ``_WaitBudgetSpentError`` so the wait loop can report it.
+    """
+    limit = float(_GH_TIMEOUT_SECONDS)
+    if budget is not None:
+        if budget <= 0:
+            raise _WaitBudgetSpentError
+        limit = min(limit, budget)
     try:
         return subprocess.run(
             args,
             capture_output=True,
             encoding="utf-8",
             errors="replace",
-            timeout=_GH_TIMEOUT_SECONDS,
+            timeout=limit,
             check=False,
         )
     except subprocess.TimeoutExpired:
+        if budget is not None:
+            raise _WaitBudgetSpentError(f"{what} timed out") from None
         _emit_error(
             f"{what} for PR #{ctx.pr} timed out after {_GH_TIMEOUT_SECONDS}s; "
             "outcome unknown",
@@ -184,7 +196,7 @@ def _has_marker(text: str, markers: tuple[str, ...]) -> bool:
     return any(marker in lowered for marker in markers)
 
 
-def _fetch_pr(ctx: _Context) -> _PrSnapshot:
+def _fetch_pr(ctx: _Context, budget: float | None = None) -> _PrSnapshot:
     """Read state, head SHA, and base ref; emit an envelope on failure."""
     result = _run_gh(
         [
@@ -193,6 +205,7 @@ def _fetch_pr(ctx: _Context) -> _PrSnapshot:
         ],
         ctx,
         "Reading PR state",
+        budget,
     )
     if result.returncode != 0:
         _fail_lookup(result, ctx)
@@ -231,11 +244,12 @@ def _fail_lookup(result: subprocess.CompletedProcess[str], ctx: _Context) -> NoR
     )
 
 
-def _behind_by(ctx: _Context, snap: _PrSnapshot) -> tuple[int | None, str]:
+def _behind_by(
+    ctx: _Context, snap: _PrSnapshot, budget: float | None = None,
+) -> tuple[int | None, str]:
     """Return (commits the head is behind its base, precheck note).
 
-    ``None`` means the compare could not be read. The caller still lets GitHub
-    adjudicate the update, and the note says why the precheck is missing.
+    ``None`` means compare was unreadable; the note says why.
     """
     if not snap.head_sha or not snap.base_ref:
         return None, "unavailable: PR head SHA or base ref missing"
@@ -247,6 +261,7 @@ def _behind_by(ctx: _Context, snap: _PrSnapshot) -> tuple[int | None, str]:
         ],
         ctx,
         "Comparing head with base",
+        budget,
     )
     raw = (result.stdout or "").strip()
     if result.returncode != 0 or not raw.isdigit():
@@ -316,32 +331,43 @@ def _fail_update(
     )
 
 
+def _wait_timeout(
+    ctx: _Context, old_head: str, timeout: int, last_head: str, precheck: str,
+) -> NoReturn:
+    _emit_error(
+        f"PR #{ctx.pr} was not confirmed up to date within {timeout}s "
+        f"(last precheck: {precheck}). The update was requested (202); "
+        "re-run with --wait to request and poll again.",
+        3, "Timeout", ctx.output_format, ctx.pr,
+        old_head_sha=old_head,
+        last_head_sha=last_head or None,
+        last_precheck=precheck,
+        update_requested=True,
+    )
+
+
 def _wait_for_update(ctx: _Context, old_head: str, timeout: int) -> tuple[str, str]:
     """Poll until compare shows the PR is not behind. Return (head, why).
 
-    A head change alone is not proof: an unrelated push can move the head
-    while the PR stays behind. An unreadable compare never ends the wait; the
-    timeout envelope carries the last precheck note instead.
+    A head change alone is not proof, and an unreadable compare never ends the
+    wait: the timeout envelope carries the last precheck note instead.
     """
     deadline = _monotonic() + timeout
+    last_head, precheck = old_head, "not polled"
     while True:
-        snap = _fetch_pr(ctx)
-        behind, precheck = _behind_by(ctx, snap)
-        moved = bool(snap.head_sha) and snap.head_sha != old_head
+        try:
+            snap = _fetch_pr(ctx, deadline - _monotonic())
+            last_head = snap.head_sha
+            behind, precheck = _behind_by(ctx, snap, deadline - _monotonic())
+        except _WaitBudgetSpentError as spent:
+            note = f"{precheck}; {spent}" if str(spent) else precheck
+            _wait_timeout(ctx, old_head, timeout, last_head, note)
         if behind == 0:
+            moved = bool(snap.head_sha) and snap.head_sha != old_head
             return snap.head_sha, "head_changed" if moved else "not_behind"
         remaining = deadline - _monotonic()
         if remaining <= 0:
-            _emit_error(
-                f"PR #{ctx.pr} was not confirmed up to date within {timeout}s "
-                f"(last precheck: {precheck}). The update was requested (202); "
-                "re-run with --wait to request and poll again.",
-                3, "Timeout", ctx.output_format, ctx.pr,
-                old_head_sha=old_head,
-                last_head_sha=snap.head_sha or None,
-                last_precheck=precheck,
-                update_requested=True,
-            )
+            _wait_timeout(ctx, old_head, timeout, last_head, precheck)
         _sleep(min(_POLL_INTERVAL_SECONDS, remaining))
 
 
@@ -391,11 +417,8 @@ def _require_open(ctx: _Context, snap: _PrSnapshot) -> None:
 
 
 def _head_moved(ctx: _Context, current_head: str, source: str) -> NoReturn:
-    """Exit 1 for a head that is not the pinned SHA.
-
-    ``current_head`` is empty when GitHub refused the PUT: the head read
-    before the call is stale by then, so it is reported as null, not guessed.
-    """
+    """Exit 1 for a head that is not the pinned SHA. ``current_head`` is empty
+    when GitHub refused the PUT, since the head read before it is stale."""
     _emit_error(
         f"PR #{ctx.pr} head moved: {source}. Re-read the head and retry.",
         1, "VerificationFailed", ctx.output_format, ctx.pr,
