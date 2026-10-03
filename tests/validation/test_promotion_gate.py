@@ -162,13 +162,14 @@ class TestVerdict:
         )
         assert _run(tmp_path, required=["pytest"]).manifest["verdict"] == "promote"
 
-    def test_a_required_validator_showing_only_an_exempt_skip_blocks(self, tmp_path: Path) -> None:
-        """The record is candidate-writable, so it cannot exempt itself."""
+    def test_a_required_validator_with_a_verified_exempt_skip_is_present(
+        self, tmp_path: Path
+    ) -> None:
+        """The fetch step writes policy.exempt only after verifying a path-filter skip (D26)."""
         _write(tmp_path / "ev", "pytest.json", _evidence(state="SKIP", reason="policy.exempt"))
         result = _run(tmp_path, required=["pytest"], mode=MODE_ENFORCING)
-        assert result.manifest["verdict"] == "block"
-        assert result.manifest["findings"][0]["reason"] == "evidence.missing"
-        assert result.exit_code == EXIT_LOGIC
+        assert result.manifest["verdict"] == "promote"
+        assert result.manifest["findings"] == []
 
     def test_one_unrelated_pass_with_no_required_set_blocks(self, tmp_path: Path) -> None:
         """An empty required set is not a clean sheet."""
@@ -395,6 +396,7 @@ class TestCli:
         assert sink.read_text(encoding="utf-8").splitlines() == [
             "verdict=promote",
             "release_eligible=false",
+            "promoted=false",
         ]
 
     def _eligible_args(self, tmp_path: Path, sink: Path, *extra: str) -> list[str]:
@@ -415,7 +417,7 @@ class TestCli:
         sink = tmp_path / "out.txt"
         args = self._eligible_args(tmp_path, sink, "--expect-tag", "v1")
         assert main(args) == EXIT_OK
-        assert self._lines(sink) == ["verdict=promote", "release_eligible=true"]
+        assert self._lines(sink) == ["verdict=promote", "release_eligible=true", "promoted=true"]
 
     def test_a_commit_only_promote_is_ineligible_without_a_digest(self, tmp_path: Path) -> None:
         _write(tmp_path / "ev", "pytest.json", _evidence())
@@ -425,7 +427,7 @@ class TestCli:
             "--expect-tag", "v1",
         )  # fmt: skip
         assert main(args) == EXIT_OK
-        assert self._lines(sink) == ["verdict=promote", "release_eligible=false"]
+        assert self._lines(sink) == ["verdict=promote", "release_eligible=false", "promoted=false"]
 
     def test_a_digest_with_no_build_tier_result_is_ineligible(self, tmp_path: Path) -> None:
         _write(tmp_path / "ev", "pytest.json", _evidence())
@@ -435,7 +437,7 @@ class TestCli:
             "--expect-tag", "v1", "--candidate-digest", DIGEST,
         )  # fmt: skip
         assert main(args) == EXIT_OK
-        assert self._lines(sink) == ["verdict=promote", "release_eligible=false"]
+        assert self._lines(sink) == ["verdict=promote", "release_eligible=false", "promoted=false"]
 
     def test_the_manifest_records_whether_it_is_digest_bound(self, tmp_path: Path) -> None:
         sink = tmp_path / "out.txt"
@@ -452,6 +454,7 @@ class TestCli:
         assert sink.read_text(encoding="utf-8").splitlines() == [
             "verdict=promote",
             "release_eligible=false",
+            "promoted=false",
         ]
 
     def test_enforcing_without_ancestor_check_exits_two(self, tmp_path: Path) -> None:
@@ -480,6 +483,7 @@ class TestCli:
         assert sink.read_text(encoding="utf-8").splitlines() == [
             "verdict=block",
             "release_eligible=false",
+            "promoted=false",
         ]
 
     def test_unwritable_output_exits_three(self, tmp_path: Path) -> None:

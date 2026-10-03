@@ -31,6 +31,12 @@ with :func:`fnmatch.fnmatchcase`, where ``*`` also crosses ``/``. That reads a
 pattern wider than a shell glob does, which can only add a required validator,
 never drop one. ``tier`` is ``"commit"`` or ``"build"`` (decision 4).
 
+``path_filter`` is optional. It names the paths-filter key a validator's own job
+uses to skip itself, as ``{"key": "scannable", "skip_job": "..."}``. Only a row
+that has one can ever be exempted for a skip (owner decision D26), and only
+after ``promotion_exemption.py`` checks the skip against that filter and the
+candidate's diff. A row without it has no exemption path at all.
+
 The loader raises ``ApplicabilityError`` for any bad entry. A missing file is
 an empty table, which the gate reports as ``applicability.absent``, so a deleted
 table blocks promotion instead of excusing every validator.
@@ -70,6 +76,9 @@ NEVER = "never"
 
 _SHOWN_PATH = APPLICABILITY_RELATIVE_PATH.as_posix()
 _KEYS = frozenset({"validator", "tier", "workflow", "job", "when", "rationale"})
+_OPTIONAL_KEYS = frozenset({"path_filter"})
+_FILTER_KEYS = frozenset({"key", "skip_job"})
+_FILTER_KEY_RE = re.compile(r"[A-Za-z][A-Za-z0-9_-]{0,63}")
 _WORKFLOW_RE = re.compile(r"\.github/workflows/[A-Za-z0-9][A-Za-z0-9._-]*\.ya?ml")
 _VALIDATOR_RE = re.compile(r"[a-z][a-z0-9_.-]*")
 _TIERS = frozenset({TIER_COMMIT, TIER_BUILD})
@@ -77,6 +86,20 @@ _TIERS = frozenset({TIER_COMMIT, TIER_BUILD})
 
 class ApplicabilityError(Exception):
     """The applicability file is unreadable or holds an invalid entry."""
+
+
+@dataclass(frozen=True, slots=True)
+class PathFilter:
+    """The paths-filter key a validator's own job uses to skip itself (decision D26).
+
+    ``key`` names a filter under the workflow's ``dorny/paths-filter`` step.
+    ``skip_job`` names the job that runs, and reports success, when the main job
+    is skipped by a job-level condition, so its check-run can corroborate the
+    skip. Empty when the main job always runs and skips its own steps.
+    """
+
+    key: str
+    skip_job: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -89,6 +112,7 @@ class Applicability:
     job: str
     when: tuple[str, ...]
     rationale: str
+    path_filter: PathFilter | None = None
 
     @property
     def always(self) -> bool:
@@ -168,7 +192,7 @@ def _entry_problems(entry: object) -> list[str]:
         return ["entry must be a JSON object"]
     problems: list[str] = []
     missing = sorted(_KEYS - set(entry))
-    extra = sorted(set(entry) - _KEYS)
+    extra = sorted(set(entry) - _KEYS - _OPTIONAL_KEYS)
     if missing:
         problems.append(f"missing {', '.join(missing)}")
     if extra:
@@ -183,7 +207,31 @@ def _entry_problems(entry: object) -> list[str]:
     when_problem = _when_problem(entry["when"])
     if when_problem:
         problems.append(when_problem)
+    if "path_filter" in entry:
+        problems.extend(_path_filter_problems(entry["path_filter"]))
     return problems
+
+
+def _path_filter_problems(value: object) -> list[str]:
+    if not isinstance(value, dict):
+        return ["'path_filter' must be an object with 'key' and optional 'skip_job'"]
+    problems: list[str] = []
+    if set(value) - _FILTER_KEYS or "key" not in value:
+        problems.append("'path_filter' needs 'key' and allows only 'key' and 'skip_job'")
+        return problems
+    key = value["key"]
+    if not isinstance(key, str) or not _FILTER_KEY_RE.fullmatch(key):
+        problems.append("'path_filter.key' must be a plain filter name")
+    skip_job = value.get("skip_job", "")
+    if not isinstance(skip_job, str) or any(not c.isprintable() for c in skip_job):
+        problems.append("'path_filter.skip_job' must be printable text")
+    return problems
+
+
+def _build_filter(value: object) -> PathFilter | None:
+    if not isinstance(value, dict):
+        return None
+    return PathFilter(key=str(value["key"]), skip_job=str(value.get("skip_job", "")))
 
 
 def _build(entry: dict[str, object]) -> Applicability:
@@ -197,6 +245,7 @@ def _build(entry: dict[str, object]) -> Applicability:
         if when in (ALWAYS, NEVER)
         else tuple(str(item) for item in cast("list[object]", when)),
         rationale=str(entry["rationale"]),
+        path_filter=_build_filter(entry.get("path_filter")),
     )
 
 

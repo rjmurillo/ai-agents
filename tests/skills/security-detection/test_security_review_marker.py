@@ -363,7 +363,11 @@ def test_lefthook_pre_push_job_requires_marker_and_pre_commit_does_not() -> None
         walk(config[stage]["jobs"])
         return found
 
-    assert [j["run"] for j in jobs("pre-push")]
-    assert all("--require-security-review" in str(j["run"]) for j in jobs("pre-push"))
+    # Issue #6076: the pre-push gate runs inside push-ref-policy
+    # (`git_hook_policy.py pre-push`), which scores each pushed SHA from
+    # merge-base(origin/main, SHA). A lefthook job fed `{push_files}` would
+    # diff against the local `main` ref again. Wiring and behavior are pinned
+    # in tests/validation/test_push_infrastructure_scan.py.
+    assert jobs("pre-push") == []
     assert jobs("pre-commit")
     assert all("--require-security-review" not in str(j["run"]) for j in jobs("pre-commit"))

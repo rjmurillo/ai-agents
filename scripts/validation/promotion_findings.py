@@ -172,11 +172,19 @@ def findings_for(record: EvidenceRecord) -> tuple[Finding, ...]:
 
 
 def _shows_a_result(record: EvidenceRecord) -> bool:
-    """A PASS counts only when it says it examined something; a finding always counts."""
+    """A PASS counts only when it says it examined something; a finding always counts.
+
+    A ``SKIP`` with ``policy.exempt`` also counts. ``fetch_promotion_evidence.py``
+    writes that record only after ``promotion_exemption.py`` has checked a
+    path-filter skip against the workflow's filter and the candidate's diff
+    (owner decision D26), and it refuses an artifact that arrives already carrying
+    the reason.
+    """
     outcome = record.outcome
     if outcome.state is EvidenceState.PASS:
         return bool(outcome.examined)
-    return is_finding(outcome)
+    exempt = outcome.state is EvidenceState.SKIP and outcome.reason == REASON_POLICY_EXEMPT
+    return exempt or is_finding(outcome)
 
 
 def missing_outcomes(
@@ -189,10 +197,9 @@ def missing_outcomes(
     that examined nothing (zero, or no count) proves nothing, which
     ``.claude/rules/ci-scripts.md`` MUST 12 names as the silent pass.
 
-    A lone ``SKIP`` with ``policy.exempt`` does not count: the record is
-    candidate-writable, and ADR-113 decision 9 accepts the exempt row only for a
-    validator the applicability table marks not applicable, which is separate
-    work. Until then a required validator must show a result.
+    A ``SKIP`` with ``policy.exempt`` counts as present and is no finding. The
+    evidence directory holds one only when the fetch step verified it (see
+    ``_shows_a_result``), so the gate does not re-derive the check.
     """
     present = {record.outcome.validator for record in bound if _shows_a_result(record)}
     return tuple(
@@ -356,10 +363,8 @@ def parse_previous_manifest(document: object) -> PreviousManifest:
     return PreviousManifest(candidate_sha=sha, findings=still_open)
 
 
-def load_previous_manifest(path: Path) -> PreviousManifest:
-    """Read a previous manifest file. Raises ``ManifestError`` or ``OSError``."""
-    with path.open("rb") as handle:
-        data = handle.read(MAX_MANIFEST_BYTES + 1)
+def parse_previous_manifest_bytes(data: bytes) -> PreviousManifest:
+    """Decode and validate previous-manifest bytes. Raises ``ManifestError``."""
     if len(data) > MAX_MANIFEST_BYTES:
         raise ManifestError(f"previous manifest is larger than {MAX_MANIFEST_BYTES} bytes")
     try:
@@ -367,6 +372,12 @@ def load_previous_manifest(path: Path) -> PreviousManifest:
     except (ValueError, RecursionError) as exc:
         raise ManifestError(f"previous manifest is not valid JSON: {type(exc).__name__}") from exc
     return parse_previous_manifest(document)
+
+
+def load_previous_manifest(path: Path) -> PreviousManifest:
+    """Read a previous manifest file. Raises ``ManifestError`` or ``OSError``."""
+    with path.open("rb") as handle:
+        return parse_previous_manifest_bytes(handle.read(MAX_MANIFEST_BYTES + 1))
 
 
 def _reject_constant(name: str) -> object:

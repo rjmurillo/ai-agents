@@ -391,11 +391,15 @@ class TestRemediated:
         assert passed_scopes([ok, bad]) == frozenset({("a", "x")})
 
 
-class TestExemptDoesNotSatisfy:
-    def test_a_lone_exempt_skip_leaves_a_required_validator_missing(self) -> None:
+class TestExemptSatisfies:
+    def test_a_verified_exempt_skip_is_present_not_missing(self) -> None:
         exempt = EvidenceRecord(CheckOutcome.skipped("a", reason="policy.exempt", scope="s"))
-        out = missing_outcomes(["a"], [exempt], Candidate(SHA))
-        assert [o.validator for o in out] == ["a"]
+        assert missing_outcomes(["a"], [exempt], Candidate(SHA)) == ()
+
+    def test_any_other_skip_is_still_a_finding_and_present(self) -> None:
+        other = EvidenceRecord(CheckOutcome.skipped("a", reason="validator.not_run", scope="s"))
+        assert missing_outcomes(["a"], [other], Candidate(SHA)) == ()
+        assert len(collect_findings([other], ())) == 1
 
     def test_a_failing_validator_is_present_not_also_missing(self) -> None:
         failing = EvidenceRecord(_fail("a"))

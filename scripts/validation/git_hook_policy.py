@@ -1108,8 +1108,12 @@ def _append_timeout_bytes(stderr: bytes, message: bytes) -> bytes:
 def _run_git(
     repo_root: Path,
     args: Sequence[str],
+    *,
+    timeout_seconds: float | None = None,
 ) -> subprocess.CompletedProcess[str]:
-    return _run_command(_git_command(args), repo_root)
+    if timeout_seconds is None:
+        return _run_command(_git_command(args), repo_root)
+    return _run_command(_git_command(args), repo_root, timeout_seconds=timeout_seconds)
 
 
 def _run_git_bytes(
@@ -6468,10 +6472,24 @@ def _branch_name(ref: str) -> str | None:
     return ref[len(prefix) :] if ref.startswith(prefix) else None
 
 
-def _fetch_origin_main(repo_root: Path) -> None:
-    result = _run_git(repo_root, ["fetch", "--no-tags", "--quiet", "origin", "main"])
-    if result.returncode != 0:
-        print("WARNING: could not refresh origin/main; using local ref", file=sys.stderr)
+def _fetch_origin_main(repo_root: Path) -> bool:
+    """Refresh origin/main into its tracking ref; return False when the fetch fails.
+
+    The destination is explicit. A plain `git fetch origin main` updates only
+    FETCH_HEAD when `remote.origin.fetch` does not map main, which leaves the
+    tracking ref stale. The caller reports the failure, so this prints nothing.
+    """
+    result = _run_git(
+        repo_root,
+        [
+            "fetch",
+            "--no-tags",
+            "--quiet",
+            "origin",
+            "+refs/heads/main:refs/remotes/origin/main",
+        ],
+    )
+    return result.returncode == 0
 
 
 # Environment variable that allows force-pushing a branch the actor owns.
@@ -6559,6 +6577,7 @@ def _check_all_non_fast_forward(refs: list[PushRef], repo_root: Path) -> int:
 
 
 def check_push_refs(stream: TextIO, repo_root: Path) -> int:
+    job_started = time.monotonic()
     active_operation_result = check_active_git_operation(repo_root)
     if active_operation_result != 0:
         return active_operation_result
@@ -6584,9 +6603,22 @@ def check_push_refs(stream: TextIO, repo_root: Path) -> int:
     if nff_result != 0:
         return nff_result
     active_refs = [push_ref for push_ref in refs if not push_ref.is_deletion]
+    origin_refreshed = True
     if active_refs:
         warn_if_push_files_incomplete(active_refs, repo_root)
-        _fetch_origin_main(repo_root)
+        origin_refreshed = _fetch_origin_main(repo_root)
+    return _check_ref_updates(refs, active_refs, repo_root, job_started, origin_refreshed)
+
+
+STALE_ORIGIN_WARNING = "WARNING: could not refresh origin/main; using local ref"
+
+
+def _warn_stale_origin() -> None:
+    print(STALE_ORIGIN_WARNING, file=sys.stderr)
+
+
+def _check_branch_policies(active_refs: Sequence[PushRef], repo_root: Path) -> int:
+    """Resolve every pushed update and run the per-update branch policies."""
     updates = []
     for push_ref in active_refs:
         try:
@@ -6595,6 +6627,240 @@ def check_push_refs(stream: TextIO, repo_root: Path) -> int:
             print(f"ERROR: {error}", file=sys.stderr)
             return 2
     return _check_push_updates(updates, repo_root)
+
+
+def _check_ref_updates(
+    refs: Sequence[PushRef],
+    active_refs: Sequence[PushRef],
+    repo_root: Path,
+    job_started: float,
+    origin_refreshed: bool,
+) -> int:
+    """Run the per-update branch policies, then the infrastructure scan.
+
+    A failed origin/main refresh is reported exactly once: here when a branch
+    policy fails first (it may have failed because the base was stale), in the
+    scan's skip report when no ref is scanned, and as the scan's exit 3
+    otherwise.
+    """
+    policy_result = _check_branch_policies(active_refs, repo_root)
+    if policy_result != 0:
+        if not origin_refreshed:
+            _warn_stale_origin()
+        return policy_result
+    return check_pushed_infrastructure(
+        refs, repo_root, job_started=job_started, origin_refreshed=origin_refreshed
+    )
+
+
+# Issue #6076: the pushed file set for the security review marker gate. Lefthook
+# `{push_files}` diffs a new branch against the local `main` ref, so a stale
+# local `main` leaked main's own infrastructure changes into the list and
+# blocked the push. The base here is computed from immutable SHAs instead.
+DETECT_INFRASTRUCTURE_SCRIPT = ".claude/skills/security-detection/detect_infrastructure.py"
+INFRASTRUCTURE_BASE_REF = "origin/main"
+INFRASTRUCTURE_SCANNED_REF_PREFIXES = ("refs/heads/", "refs/tags/")
+# The scan's merge-base, diff, and detector steps for every ref share one
+# deadline: 60s from the scan's start, and never later than 110s after
+# push-ref-policy started, 10s inside its 2m lefthook cap (lefthook.yml). So
+# the scan reports a typed exit 3 instead of being killed by the cap without a
+# diagnosis, however long the fetch and branch policies before it took. A
+# per-ref cap let two stalled runs spend the full 2m.
+DETECT_INFRASTRUCTURE_TIMEOUT_SECONDS = 60.0
+PUSH_REF_POLICY_SCAN_DEADLINE_SECONDS = 110.0
+# `_run_command` reports a timeout or a failed start as exit 3, the external
+# failure code. Git itself exits 0, 1, 128, or 129, so 3 from a git step means
+# it never completed.
+_EXTERNAL_FAILURE_EXIT = 3
+# A config error or an external failure ends the scan; a finding (exit 1) does
+# not, so a multi-ref push names every unreviewed ref at once.
+_SCAN_STOP_EXITS = frozenset({2, _EXTERNAL_FAILURE_EXIT})
+# `git merge-base` exits 1 when the two commits share no history. It also exits
+# 1 in a shallow clone, but check_push_refs never reaches the scan there:
+# _check_history_integrity blocks a shallow repository first, with the
+# `git fetch --unshallow origin` remedy.
+_MERGE_BASE_NO_COMMON_HISTORY = 1
+
+
+class InfrastructureScanExternalError(RuntimeError):
+    """A git step of the infrastructure scan timed out or could not start."""
+
+
+def _remaining(deadline: float) -> float:
+    return deadline - time.monotonic()
+
+
+def _scan_git(
+    repo_root: Path, args: list[str], what: str, deadline: float
+) -> subprocess.CompletedProcess[str]:
+    """Run one scan git step; raise the external error when it did not complete."""
+    remaining = _remaining(deadline)
+    if remaining <= 0:
+        raise InfrastructureScanExternalError(f"scan deadline passed before git {what}")
+    result = _run_git(repo_root, args, timeout_seconds=remaining)
+    if result.returncode == _EXTERNAL_FAILURE_EXIT:
+        _print_process_output(result)
+        raise InfrastructureScanExternalError(f"git {what} did not complete")
+    if result.returncode != 0:
+        _print_process_output(result)
+    return result
+
+
+def _infrastructure_scan_files(
+    push_ref: PushRef, repo_root: Path, deadline: float
+) -> tuple[str, list[str]]:
+    """Return the base SHA and the files changed from it to the pushed SHA.
+
+    The base is merge-base(origin/main, pushed SHA). There is no fallback to
+    local `main` or to the empty tree: either would score files the branch
+    never changed. Raises ``PushUpdateConfigError`` when git answers that the
+    base or the diff does not exist, and ``InfrastructureScanExternalError``
+    when a git step times out or cannot start.
+    """
+    merge_base = _scan_git(
+        repo_root,
+        ["merge-base", INFRASTRUCTURE_BASE_REF, push_ref.local_sha],
+        "merge-base",
+        deadline,
+    )
+    base = merge_base.stdout.strip() if merge_base.returncode == 0 else ""
+    if merge_base.returncode == _MERGE_BASE_NO_COMMON_HISTORY:
+        raise PushUpdateConfigError(
+            f"{push_ref.local_sha[:12]} for {push_ref.remote_ref} shares no history with "
+            f"{INFRASTRUCTURE_BASE_REF}; the infrastructure scan will not score the whole "
+            f"tree. Rebase the branch onto {INFRASTRUCTURE_BASE_REF}, or recreate it from "
+            f"{INFRASTRUCTURE_BASE_REF}, then push again."
+        )
+    if not base:
+        raise PushUpdateConfigError(
+            f"could not resolve merge-base({INFRASTRUCTURE_BASE_REF}, "
+            f"{push_ref.local_sha[:12]}) for {push_ref.remote_ref}; the infrastructure "
+            "scan will not guess a base. Run "
+            "`git fetch origin +refs/heads/main:refs/remotes/origin/main` (and "
+            "`git fetch --unshallow origin` in a shallow clone), then push again."
+        )
+    diff = _scan_git(
+        repo_root,
+        ["diff", "--name-only", "-z", "--no-renames", base, push_ref.local_sha, "--"],
+        "diff",
+        deadline,
+    )
+    if diff.returncode != 0:
+        raise PushUpdateConfigError(
+            f"could not diff {base[:12]}..{push_ref.local_sha[:12]} for {push_ref.remote_ref}"
+        )
+    return base, [path for path in diff.stdout.split("\0") if path]
+
+
+def _check_ref_infrastructure(push_ref: PushRef, repo_root: Path, deadline: float) -> int:
+    """Run the security review marker gate over one pushed branch or tag ref."""
+    try:
+        base, files = _infrastructure_scan_files(push_ref, repo_root, deadline)
+    except PushUpdateConfigError as error:
+        print(f"ERROR: {error}", file=sys.stderr)
+        return 2
+    except InfrastructureScanExternalError as error:
+        print(f"ERROR: {error} for {push_ref.remote_ref}", file=sys.stderr)
+        return 3
+    print(
+        f"Infrastructure scan: {push_ref.remote_ref} scores {len(files)} file(s) "
+        f"in {base[:12]}..{push_ref.local_sha[:12]}",
+        file=sys.stderr,
+    )
+    if not files:
+        return 0
+    remaining = _remaining(deadline)
+    if remaining <= 0:
+        print(
+            f"ERROR: infrastructure scan deadline passed before scoring {push_ref.remote_ref}",
+            file=sys.stderr,
+        )
+        return 3
+    result = _run_command(
+        [
+            sys.executable,
+            DETECT_INFRASTRUCTURE_SCRIPT,
+            "--files-from-stdin",
+            "--require-security-review",
+            "--ref",
+            push_ref.local_sha,
+            "--repo-root",
+            str(repo_root),
+        ],
+        repo_root,
+        input_text="\0".join(files) + "\0",
+        timeout_seconds=remaining,
+    )
+    _print_process_output(result)
+    return result.returncode
+
+
+def _is_infrastructure_scanned(ref: PushRef) -> bool:
+    """A branch or tag ref that carries commits is scored by the scan."""
+    return not ref.is_deletion and ref.remote_ref.startswith(INFRASTRUCTURE_SCANNED_REF_PREFIXES)
+
+
+def check_pushed_infrastructure(
+    refs: Sequence[PushRef],
+    repo_root: Path,
+    *,
+    job_started: float | None = None,
+    origin_refreshed: bool = True,
+) -> int:
+    """Block a pushed branch or tag that carries a CRITICAL path without a marker.
+
+    Each branch or tag ref is scored from merge-base(origin/main, pushed SHA)
+    to the pushed SHA, and its marker is checked on that SHA, not on
+    checked-out HEAD. Tags are scored because a tag push runs the workflows of
+    the tagged commit (`.github/workflows/publish.yml` triggers on `v*`).
+    Deletions and other refs (notes, custom namespaces) are skipped, and the
+    skip is reported. Returns exit 2 or 3 as soon as a ref hits one, else the first exit 1.
+    Every ref's git steps and detector run share one deadline (see
+    PUSH_REF_POLICY_SCAN_DEADLINE_SECONDS). The scan stops at the first exit 2
+    (no base or diff) or exit 3 (a timeout, a failed start, or a detector git
+    read error); after an exit 1 it keeps going so every unreviewed ref is named.
+    It fails closed with exit 3 when origin/main could not be refreshed: a stale
+    base can hide a deletion of a workflow main added after it, since the path
+    is then absent at both ends of the diff.
+    """
+    scanned_refs = [ref for ref in refs if _is_infrastructure_scanned(ref)]
+    if not scanned_refs:
+        print(
+            "Infrastructure scan: skipped, no branch or tag ref in this push carries commits",
+            file=sys.stderr,
+        )
+        if not origin_refreshed:
+            _warn_stale_origin()
+        return 0
+    for ref in refs:
+        if ref not in scanned_refs:
+            print(
+                f"Infrastructure scan: skipped {ref.remote_ref} "
+                "(deletion or not a branch or tag ref)",
+                file=sys.stderr,
+            )
+    if not origin_refreshed:
+        print(
+            "ERROR: the infrastructure scan will not score from a stale origin/main, "
+            "because a stale base can hide a deleted workflow. Check access to origin "
+            "and push again.",
+            file=sys.stderr,
+        )
+        return _EXTERNAL_FAILURE_EXIT
+    now = time.monotonic()
+    started = now if job_started is None else job_started
+    deadline = min(
+        now + DETECT_INFRASTRUCTURE_TIMEOUT_SECONDS,
+        started + PUSH_REF_POLICY_SCAN_DEADLINE_SECONDS,
+    )
+    first_failure = 0
+    for push_ref in scanned_refs:
+        result = _check_ref_infrastructure(push_ref, repo_root, deadline)
+        if result in _SCAN_STOP_EXITS:
+            return result
+        if result != 0 and first_failure == 0:
+            first_failure = result
+    return first_failure
 
 
 def warn_if_push_files_incomplete(
@@ -6812,6 +7078,8 @@ def _check_review_marker(update: PushUpdate, repo_root: Path) -> int:
             update.head,
             "--repo-root",
             str(repo_root),
+            "--references-dir",
+            str(repo_root / ".claude" / "skills" / "review" / "references"),
         ],
         repo_root,
     )
