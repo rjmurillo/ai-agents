@@ -7,13 +7,17 @@ PRs from conflicting on a shared line. ``--update`` explicitly lowers the
 baseline when a maintainer chooses to close slack. A regression (count >
 baseline) blocks.
 
-Two gates use this: ``ruff_count_ratchet.py`` (issue #2993) and
-``taste_count_ratchet.py`` (issue #3779). Only the counting differs. Everything
-else, which is where the actual policy lives, is identical between them: the
-baseline may only fall, a regression blocks, ``--update`` lowers, and
-``--base-ref`` catches a PR that widens the allowance instead of fixing code.
-Holding that policy in one place is the point. When the semantics change they
-must change for every gate at once, and two copies would drift.
+Issue #5363 retired the committed scalar for the ruff, taste, type-ignore and
+memory-index ratchets, which now derive their ceiling from the merge base in
+``base_derived_ratchet.py``. Three gates still drive ``run`` here and still own a
+baseline file: ``cli_exit_contract_ratchet.py``,
+``subprocess_encoding_count_ratchet.py`` and
+``canonical_citations_count_ratchet.py``. The first two cost more to count than
+the four moved (cli-exit-contract 5.9s, subprocess-encoding 22.6s warm), so
+measuring a second tree per run is not free for them. The issue did not name any
+of the three, so they stay scalar until a separate decision moves them. The shared
+helpers below (tracked-file enumeration, git environment, fork point, chunking)
+serve both modes.
 
 Scope is git-TRACKED files, never a directory walk. ``os.walk`` also visits
 untracked scratch, nested worktrees, and vendored caches that a contributor
@@ -905,8 +909,8 @@ def _base_ref_verdict(
 
     That gate evaluates exactly the ratchets listed in
     ``scripts/ci/merge_tree_ratchet_registry.py::RATCHETS``, which at the time
-    of writing is five of the six count ratchets in ``scripts/ci``; the
-    subprocess-encoding ratchet is not among them. A caller that is not
+    of writing is five of the seven count ratchets in ``scripts/ci``; the
+    subprocess-encoding and canonical-citations ratchets are not among them. A caller that is not
     registered passes ``merge_tree_backed=False`` and keeps the old blocking
     behaviour, because for it this comparison was the whole guard.
     ``tests/ci/test_merge_tree_backing_declarations.py`` pins each caller's
