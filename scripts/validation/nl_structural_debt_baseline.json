@@ -1,5 +1,8 @@
 {
-  "cardinality": {},
+  "cardinality": {
+    "templates/agents/orchestrator.shared.md::**skip (noise):** tool invocations, background research that did not change the plan, routine reads and lint runs, superseded agent responses. each `worklog` entry is one or two sentences: the action or decision, then why.": "**Skip (noise):** tool invocations, background research that did not change the plan, routine reads and lint runs, superseded agent responses. Each `workLog` entry is one or sentences: the action or decision, then why.",
+    "templates/agents/partials/orchestrator-pre-close-sequence.mustache::**skip (noise):** tool invocations, background research that did not change the plan, routine reads and lint runs, superseded agent responses. each `worklog` entry is one or two sentences: the action or decision, then why.": "**Skip (noise):** tool invocations, background research that did not change the plan, routine reads and lint runs, superseded agent responses. Each `workLog` entry is one or sentences: the action or decision, then why."
+  },
   "duplicate_blocks": {
     ".agents/governance/code-quality.md|templates/rules/code-quality.md": 4,
     ".agents/governance/spec-schemas.md|.claude/skills/spec-generator/references/spec-schemas.md": 92,
@@ -192,7 +195,7 @@
     "templates/agents/critic.shared.md|templates/agents/implementer.shared.md": 4,
     "templates/agents/critic.shared.md|templates/agents/independent-thinker.shared.md": 4,
     "templates/agents/critic.shared.md|templates/agents/partials/critic-adversarial-coverage-checklist.mustache": 75,
-    "templates/agents/critic.shared.md|templates/agents/partials/critic-degraded-mode-protocol.mustache": 6,
+    "templates/agents/critic.shared.md|templates/agents/partials/critic-degraded-mode-protocol.mustache": 7,
     "templates/agents/critic.shared.md|templates/agents/partials/critic-intro.mustache": 12,
     "templates/agents/critic.shared.md|templates/agents/partials/serena-worktree-write-guard.mustache": 4,
     "templates/agents/critic.shared.md|templates/agents/pr-comment-responder.shared.md": 4,
@@ -380,9 +383,9 @@
     "templates/agents/orchestrator.claude.md.tmpl|templates/agents/orchestrator.copilot.md.tmpl": 5,
     "templates/agents/orchestrator.shared.md|templates/agents/partials/orchestrator-core-behavior.mustache": 50,
     "templates/agents/orchestrator.shared.md|templates/agents/partials/orchestrator-intro.mustache": 3,
-    "templates/agents/orchestrator.shared.md|templates/agents/partials/orchestrator-pre-close-sequence.mustache": 85,
+    "templates/agents/orchestrator.shared.md|templates/agents/partials/orchestrator-pre-close-sequence.mustache": 75,
     "templates/agents/orchestrator.shared.md|templates/agents/partials/orchestrator-reasoning-protocol.mustache": 3,
-    "templates/agents/orchestrator.shared.md|templates/agents/partials/orchestrator-routing-algorithm.mustache": 39,
+    "templates/agents/orchestrator.shared.md|templates/agents/partials/orchestrator-routing-algorithm.mustache": 41,
     "templates/agents/orchestrator.shared.md|templates/agents/partials/orchestrator-target-recon-before-triage.mustache": 2,
     "templates/agents/partials/architect-intro.mustache|templates/agents/partials/debug-intro.mustache": 2,
     "templates/agents/partials/architect-intro.mustache|templates/agents/partials/high-level-advisor-intro.mustache": 2,
