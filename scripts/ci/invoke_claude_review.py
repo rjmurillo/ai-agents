@@ -72,6 +72,13 @@ def _did_not_run(reason: str, *, exit_code: int = 1) -> shared.AttemptResult:
     )
 
 
+def _missing_secret_result() -> shared.AttemptResult:
+    """Fail closed for an absent key. Takes no key value, so the log line below
+    has no data flow from the credential."""
+    print(f"::error::{MISSING_SECRET_MESSAGE}")
+    return _did_not_run(MISSING_SECRET_MESSAGE)
+
+
 def load_system_prompt(agent: str, agents_dir: Path = AGENTS_DIR) -> str:
     """Return the agent definition text, or "" when the agent has no file."""
     if not agent or "/" in agent or "\\" in agent or agent.startswith("."):
@@ -138,8 +145,7 @@ def invoke_claude(
 ) -> shared.AttemptResult:
     """Run the review and map every outcome onto an ``AttemptResult``."""
     if not api_key.strip():
-        print(f"::error::{MISSING_SECRET_MESSAGE}")
-        return _did_not_run(MISSING_SECRET_MESSAGE)
+        return _missing_secret_result()
     import anthropic
 
     timeout = config.timeout_minutes * 60 or DEFAULT_TIMEOUT_SECONDS
