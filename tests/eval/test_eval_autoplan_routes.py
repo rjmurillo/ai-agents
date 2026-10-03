@@ -180,6 +180,37 @@ def test_bare_strips_namespace() -> None:
             }
         ),
         json.dumps({"schema_version": 1, "scenarios": [_scenario(), _scenario()]}),
+        json.dumps({"schema_version": 1, "scenarios": [_scenario(expect={"kind": "specialist"})]}),
+        json.dumps(
+            {
+                "schema_version": 1,
+                "scenarios": [_scenario(expect={"kind": "specialist", "route": None})],
+            }
+        ),
+        json.dumps(
+            {
+                "schema_version": 1,
+                "scenarios": [_scenario(expect={"kind": "specialist", "route": ""})],
+            }
+        ),
+        json.dumps(
+            {
+                "schema_version": 1,
+                "scenarios": [_scenario(expect={"kind": "none"})],
+            }
+        ),
+        json.dumps(
+            {
+                "schema_version": 1,
+                "scenarios": [_scenario(expect={"kind": "none", "route": "dx-review"})],
+            }
+        ),
+        json.dumps(
+            {
+                "schema_version": 1,
+                "scenarios": [_scenario(expect={"kind": "ambiguous", "route": "dx-review"})],
+            }
+        ),
         json.dumps({"scenarios": [_scenario()]}),
         json.dumps({"schema_version": 2, "scenarios": [_scenario()]}),
         json.dumps({"schema_version": "1", "scenarios": [_scenario()]}),
@@ -341,7 +372,7 @@ def test_resolver_kind_outside_vocabulary_is_config_error(monkeypatch: pytest.Mo
 def test_resolver_candidates_of_wrong_shape_is_config_error(
     monkeypatch: pytest.MonkeyPatch, candidates: str
 ) -> None:
-    stdout = '{"kind": "none", "candidates": ' + candidates + "}"
+    stdout = '{"kind": "none", "route": null, "candidates": ' + candidates + "}"
     monkeypatch.setattr(ev, "_load_resolver_main", _fake_main(stdout))
     with pytest.raises(ev.EvalConfigError, match="candidates must be a list of strings"):
         ev.run_resolver("x", [])
@@ -362,3 +393,44 @@ def test_resolver_main_is_loaded_once() -> None:
     ev._RESOLVER_CACHE.clear()
     first = ev._load_resolver_main()
     assert ev._load_resolver_main() is first
+
+
+@pytest.mark.parametrize(
+    ("stdout", "match"),
+    [
+        ('{"kind": "none"}', "lacks route, candidates"),
+        ('{"kind": "none", "route": null}', "lacks candidates"),
+        ('{"kind": "none", "candidates": []}', "lacks route"),
+        ('{"kind": "specialist", "route": {}, "candidates": []}', "route must be a string or null"),
+        ('{"kind": "specialist", "route": 3, "candidates": []}', "route must be a string or null"),
+    ],
+)
+def test_incomplete_or_malformed_resolver_payload_is_config_error(
+    monkeypatch: pytest.MonkeyPatch, stdout: str, match: str
+) -> None:
+    monkeypatch.setattr(ev, "_load_resolver_main", _fake_main(stdout))
+    with pytest.raises(ev.EvalConfigError, match=match):
+        ev.run_resolver("x", [])
+
+
+def test_incomplete_payload_fails_a_none_scenario_as_exit_2(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    fixtures = _write(tmp_path, _scenario(expect={"kind": "none", "route": None}))
+    monkeypatch.setattr(ev, "_load_resolver_main", _fake_main('{"kind": "none"}'))
+    assert ev.main(["--fixtures", str(fixtures)]) == ev.EXIT_CONFIG
+    assert "ERROR" in capsys.readouterr().err
+
+
+def test_single_domain_specialist_resolved_to_the_orchestrator_fails_and_counts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    fixtures = _write(tmp_path, _scenario(request="developer friction audit please"))
+    payload = '{"kind": "orchestrator", "route": "orchestrator", "candidates": ["orchestrator"]}'
+    monkeypatch.setattr(ev, "_load_resolver_main", _fake_main(payload))
+    code = ev.main(["--fixtures", str(fixtures)])
+    out = capsys.readouterr().out
+    assert code == ev.EXIT_FAIL
+    assert "orchestrator fallback: 1/1" in out
+    assert "unresolved (none): 0/1" in out
+    assert "kind: expected specialist, observed orchestrator" in out

@@ -61,6 +61,8 @@ NOT_EXECUTED_FAMILIES: dict[str, str] = {
 }
 
 KINDS = frozenset({"explicit", "orchestrator", "specialist", "ambiguous", "none"})
+# Kinds whose fixture must name the route it asserts; the others carry null.
+ROUTE_KINDS = frozenset({"explicit", "orchestrator", "specialist"})
 
 SCHEMA_VERSION = 1
 
@@ -113,9 +115,15 @@ def _expectation(scenario_id: str, expect: object) -> tuple[str, str | None, tup
     kind = expect.get("kind")
     if not isinstance(kind, str) or kind not in KINDS:
         raise EvalConfigError(f"{scenario_id}: expect.kind must be one of {sorted(KINDS)}")
-    route = expect.get("route")
-    if route is not None and not isinstance(route, str):
-        raise EvalConfigError(f"{scenario_id}: expect.route must be a string or null")
+    if "route" not in expect:
+        raise EvalConfigError(f"{scenario_id}: expect.route is required (use null for none)")
+    route = expect["route"]
+    if kind in ROUTE_KINDS and not (isinstance(route, str) and route.strip()):
+        raise EvalConfigError(
+            f"{scenario_id}: expect.route must be a non-empty string for kind {kind}"
+        )
+    if kind not in ROUTE_KINDS and route is not None:
+        raise EvalConfigError(f"{scenario_id}: expect.route must be null for kind {kind}")
     absent = expect.get("routes_absent", [])
     if not isinstance(absent, list) or not all(isinstance(a, str) for a in absent):
         raise EvalConfigError(f"{scenario_id}: expect.routes_absent must be a list of strings")
@@ -183,6 +191,22 @@ def _load_resolver_main() -> Callable[[list[str]], int]:
     return main
 
 
+def _validate_resolver_payload(result: object, raw: str) -> None:
+    """Fail closed unless the resolver payload carries every contract field."""
+    if not isinstance(result, dict) or not isinstance(result.get("kind"), str):
+        raise EvalConfigError(f"resolver output has no valid kind: {raw[:200]!r}")
+    if result["kind"] not in KINDS:
+        raise EvalConfigError(f"resolver output has no valid kind: {raw[:200]!r}")
+    missing = [key for key in ("route", "candidates") if key not in result]
+    if missing:
+        raise EvalConfigError(f"resolver output lacks {', '.join(missing)}: {raw[:200]!r}")
+    candidates = result["candidates"]
+    if not isinstance(candidates, list) or not all(isinstance(c, str) for c in candidates):
+        raise EvalConfigError(f"resolver candidates must be a list of strings: {candidates!r:.200}")
+    if result["route"] is not None and not isinstance(result["route"], str):
+        raise EvalConfigError(f"resolver route must be a string or null: {result['route']!r:.200}")
+
+
 def run_resolver(request: str, skills_roots: list[str]) -> dict[str, Any]:
     """Run the real resolver `main` for one request and parse its JSON line."""
     argv = ["--request", request]
@@ -200,13 +224,7 @@ def run_resolver(request: str, skills_roots: list[str]) -> dict[str, Any]:
         result = json.loads(out.getvalue())
     except ValueError as exc:
         raise EvalConfigError(f"resolver output is not JSON: {out.getvalue()[:200]!r}") from exc
-    if not isinstance(result, dict) or not isinstance(result.get("kind"), str):
-        raise EvalConfigError(f"resolver output has no valid kind: {out.getvalue()[:200]!r}")
-    if result["kind"] not in KINDS:
-        raise EvalConfigError(f"resolver output has no valid kind: {out.getvalue()[:200]!r}")
-    candidates = result.get("candidates", [])
-    if not isinstance(candidates, list) or not all(isinstance(c, str) for c in candidates):
-        raise EvalConfigError(f"resolver candidates must be a list of strings: {candidates!r:.200}")
+    _validate_resolver_payload(result, out.getvalue())
     return result
 
 
