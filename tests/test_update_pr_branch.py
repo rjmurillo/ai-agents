@@ -200,6 +200,8 @@ class TestHeadMoved:
         assert env["Error"]["Type"] == "VerificationFailed"
         assert env["Data"]["reason"] == "head_moved"
         assert env["Data"]["expected_head_sha"] == _OLD_HEAD
+        # The head read before the PUT is stale once GitHub refuses it.
+        assert env["Data"]["current_head_sha"] is None
         assert len(fake.put_calls()) == 1
 
     @pytest.mark.parametrize("behind", ["0", "3"])
@@ -360,8 +362,9 @@ class TestWait:
         assert rc == 3
         assert env["Data"]["last_head_sha"] == _NEW_HEAD
 
-    def test_wait_head_change_with_unreadable_compare_is_unverified(self, capsys):
-        """AC7: compare fails mid-wait; a head change ends the wait but is labelled."""
+    def test_wait_with_unreadable_compare_times_out_not_succeeds(self, capsys):
+        """AC8: compare fails mid-wait; a head change is unverifiable, so the wait
+        fails closed to the timeout and names the precheck failure."""
         clock = _FakeClock()
         fake = _FakeGh(
             pr_views=[_pr_json(), _pr_json(head=_NEW_HEAD)],
@@ -370,10 +373,11 @@ class TestWait:
         with patch.object(_mod, "_monotonic", clock.monotonic), patch.object(
             _mod, "_sleep", clock.sleep,
         ):
-            rc = _run(["--pull-request", "50", "--wait", "--timeout-seconds", "60"], fake)
+            rc = _run(["--pull-request", "50", "--wait", "--timeout-seconds", "12"], fake)
         env = _envelope(capsys)
-        assert rc == 0
-        assert env["Data"]["wait_result"] == "head_changed_unverified"
+        assert rc == 3
+        assert env["Data"]["last_head_sha"] == _NEW_HEAD
+        assert env["Data"]["last_precheck"].startswith("unavailable")
 
     def test_wait_stops_when_no_longer_behind(self, capsys):
         """AC7: compare reaching 0 also ends the wait."""

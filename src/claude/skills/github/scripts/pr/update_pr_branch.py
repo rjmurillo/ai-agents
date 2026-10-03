@@ -298,7 +298,7 @@ def _fail_update(
 ) -> NoReturn:
     detail = sanitize_failure_detail(_api_message(result.stdout) or text)
     if _has_marker(text, _HEAD_MOVED_MARKERS):
-        _head_moved(ctx, "", "GitHub refused the update because")
+        _head_moved(ctx, "", "GitHub refused the update because the head is no longer")
     if is_auth_failure_text(text):
         _emit_error(
             f"Not authorized to update PR #{ctx.pr}: {detail}",
@@ -319,8 +319,8 @@ def _wait_for_update(ctx: _Context, old_head: str, timeout: int) -> tuple[str, s
     """Poll until compare shows the PR is not behind. Return (head, why).
 
     A head change alone is not proof: an unrelated push can move the head
-    while the PR stays behind. Only when compare is unreadable does a head
-    change end the wait, labelled ``head_changed_unverified``.
+    while the PR stays behind. An unreadable compare never ends the wait; the
+    timeout envelope carries the last precheck note instead.
     """
     deadline = _monotonic() + timeout
     while True:
@@ -329,8 +329,6 @@ def _wait_for_update(ctx: _Context, old_head: str, timeout: int) -> tuple[str, s
         moved = bool(snap.head_sha) and snap.head_sha != old_head
         if behind == 0:
             return snap.head_sha, "head_changed" if moved else "not_behind"
-        if behind is None and moved:
-            return snap.head_sha, "head_changed_unverified"
         remaining = deadline - _monotonic()
         if remaining <= 0:
             _emit_error(
@@ -392,10 +390,14 @@ def _require_open(ctx: _Context, snap: _PrSnapshot) -> None:
 
 
 def _head_moved(ctx: _Context, current_head: str, source: str) -> NoReturn:
+    """Exit 1 for a head that is not the pinned SHA.
+
+    ``current_head`` is empty when GitHub refused the PUT: the head read
+    before the call is stale by then, so it is reported as null, not guessed.
+    """
     _emit_error(
-        f"PR #{ctx.pr} head moved: {source} the head is "
-        f"{current_head or 'unknown'}, not {ctx.expected_head_sha}. Re-read the "
-        "head and retry.",
+        f"PR #{ctx.pr} head moved: {source}, not {ctx.expected_head_sha}. "
+        "Re-read the head and retry.",
         1, "VerificationFailed", ctx.output_format, ctx.pr,
         reason="head_moved",
         expected_head_sha=ctx.expected_head_sha,
@@ -406,7 +408,7 @@ def _head_moved(ctx: _Context, current_head: str, source: str) -> NoReturn:
 def _require_expected_head(ctx: _Context, snap: _PrSnapshot) -> None:
     """Refuse locally when the pin already disagrees with the PR head."""
     if ctx.expected_head_sha and snap.head_sha.lower() != ctx.expected_head_sha.lower():
-        _head_moved(ctx, snap.head_sha, "the PR reports")
+        _head_moved(ctx, snap.head_sha, f"the PR head is {snap.head_sha or 'unknown'}")
 
 
 def _up_to_date_result(ctx: _Context, snap: _PrSnapshot, behind: int | None, msg: str) -> int:
