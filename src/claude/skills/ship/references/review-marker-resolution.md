@@ -48,5 +48,5 @@ The default form, when nothing else resolves, is
 | Code | Meaning | What ship does |
 |------|---------|----------------|
 | 0 | HEAD is a review marker commit whose `Reviewed-By: /review@<axes> on <sha>` trailer binds the reviewed tip, its parent | Check 3 PASSES |
-| 1 | No marker, a stale marker, or new code landed after review | Check 3 FAILS: run review, then re-run ship |
+| 1 | No marker, a stale marker, new code after review, or an unknown or repeated axis name | Check 3 FAILS: run review, then re-run ship |
 | 2 | Configuration error | Check 3 FAILS |

@@ -277,6 +277,11 @@ def _taste_repo_stopped_mid_merge(tmp_path: Path) -> tuple[Path, str]:
     repo.mkdir()
     _init_repo(repo)
     _install_linter(repo)
+    marker = repo / "scripts" / "ci" / "taste_count_ratchet.py"
+    marker.parent.mkdir(parents=True)
+    marker.write_text("# bootstrap marker for base_derived_ratchet\n", encoding="utf-8")
+    _commit_all(repo, "ratchet lands")
+    _git(repo, "tag", "ratchet-landed")
     big = repo / "big.py"
     big.write_text(_oversized("base"), encoding="utf-8")
     _commit_all(repo, "base")
@@ -331,11 +336,9 @@ def test_one_run_prints_the_mid_merge_note_once(tmp_path, capsys):
     would pass just as well if the second read never happened at all.
     """
     repo, _ = _taste_repo_stopped_mid_merge(tmp_path)
-    baseline = tmp_path / "baseline.txt"
-    baseline.write_text("0\n", encoding="utf-8")
 
     rc = taste_count_ratchet.main(
-        ["--repo-root", str(repo), "--baseline", str(baseline)]
+        ["--repo-root", str(repo), "--base-ref", "ratchet-landed"]
     )
 
     err = capsys.readouterr().err

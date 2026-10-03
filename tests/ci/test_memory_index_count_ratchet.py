@@ -11,24 +11,18 @@ those two calls were ever reordered or one were dropped.
 from __future__ import annotations
 
 import subprocess
-import sys
 from pathlib import Path
 
 import pytest
 
 from scripts.ci import count_ratchet
 from scripts.ci import memory_index_count_ratchet as ratchet
-from tests.ci.ratchet_test_helpers import make_baseline_writer
 
 ATOMIC_WARNING = "git/rebase-costs.md: not referenced by any domain index"
 INDEX_WARNING = "skills-copilot-index.md: not referenced by memory-index.md"
 UNTRACKED_WARNING = "scratch/draft.md: not referenced by any domain index"
 
-
-_write_baseline = make_baseline_writer(
-    "memory_index_count_baseline.txt",
-    trailing_newline=True,
-)
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def _repo(tmp_path: Path) -> Path:
@@ -64,15 +58,15 @@ def _fake(
             # (":(exclude).serena/memories/**"), which empties the tracked set
             # and reports zero violations. Terra's adversarial review found both
             # the missing-glob and the added-exclusion shapes of this hole.
-            assert argv[argv.index("--") + 1:] == [f"{ratchet._MEMORIES_DIR}/**"], (
+            assert argv[argv.index("--") + 1 :] == [f"{ratchet._MEMORIES_DIR}/**"], (
                 f"git ls-files must scope to exactly the memories tree, got: {argv}"
             )
             stdout = "".join(f".serena/memories/{name}\0" for name in tracked)
             return subprocess.CompletedProcess(cmd, git_rc, stdout=stdout, stderr="")
         if str(ratchet._VALIDATOR) in argv:
-            body = leading_stdout + "".join(
-                f"{warning_prefix}{w}\n" for w in warnings
-            ) + extra_stdout
+            body = (
+                leading_stdout + "".join(f"{warning_prefix}{w}\n" for w in warnings) + extra_stdout
+            )
             if not omit_summary:
                 total = len(warnings) if declared is None else declared
                 body += f"Memory tier validation passed. {total} warning(s).\n"
@@ -227,8 +221,8 @@ class TestCurrentCount:
     ) -> None:
         """A non-zero exit is an error, not a warning count.
 
-        Returning 0 here would let ``--update`` write a zero baseline and
-        permanently disarm the gate.
+        Returning 0 here would make every later run look like a clean
+        tree and permanently disarm the gate.
         """
         monkeypatch.setattr(subprocess, "run", _fake(validator_rc=1))
         assert ratchet.current_count(_repo(tmp_path)) is None
@@ -281,8 +275,8 @@ class TestOutputFormatGuard:
     Raised as High severity by an adversarial review on a second model family.
     A validator that renames its prefix or moves warnings to stderr still exits
     0, prefix matching then finds nothing, and the ratchet reports a healthy 0
-    for a tree carrying 425 violations. ``--update`` would write that 0 into the
-    baseline and disarm the gate for good.
+    for a tree carrying 425 violations. A low count passes the ratchet and
+    disarms the gate for good.
     """
 
     def test_renamed_warning_prefix_is_an_error_not_a_zero(
@@ -333,9 +327,7 @@ class TestOutputFormatGuard:
     def test_the_guard_names_the_cause_on_stderr(
         self, tmp_path: Path, capsys: pytest.CaptureFixture, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        monkeypatch.setattr(
-            subprocess, "run", _fake(warnings=(ATOMIC_WARNING,), declared=99)
-        )
+        monkeypatch.setattr(subprocess, "run", _fake(warnings=(ATOMIC_WARNING,), declared=99))
         ratchet.current_count(_repo(tmp_path))
         err = capsys.readouterr().err
         assert "declared 99 warnings" in err
@@ -391,7 +383,7 @@ class TestWindowsPathSeparators:
     reports ``git/rebase-costs.md``. Before normalization every nested memory
     looked untracked on Windows, so a contributor there counted 49 instead of
     425. That direction is the dangerous one: a low count passes the ratchet
-    and ``--update`` would write it into the baseline permanently. Windows is a
+    on every Windows run. Windows is a
     supported platform (``.github/workflows/pytest.yml``), so this is reachable.
     """
 
@@ -454,85 +446,39 @@ class TestWindowsPathSeparators:
 
 
 class TestConstants:
-    def test_baseline_filename_is_canonical(self) -> None:
-        assert ratchet._BASELINE_PATH.name == "memory_index_count_baseline.txt"
-
     def test_validator_path_matches_the_lefthook_job(self) -> None:
         assert str(ratchet._VALIDATOR) == "scripts/validate_memory_tier.py"
 
+    def test_script_marker_names_a_tracked_file(self) -> None:
+        assert (REPO_ROOT / ratchet._SCRIPT).is_file()
+
 
 class TestMain:
-    def test_ok_when_count_equals_baseline(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        baseline = _write_baseline(tmp_path, "425")
-        monkeypatch.setattr(ratchet, "_BASELINE_PATH", baseline)
-        monkeypatch.setattr(ratchet, "current_count", lambda _: 425)
-        assert ratchet.main([]) == count_ratchet.EXIT_OK
-        assert "OK" in capsys.readouterr().out
-
-    def test_regression_when_a_new_unindexed_memory_appears(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        baseline = _write_baseline(tmp_path, "425")
-        monkeypatch.setattr(ratchet, "_BASELINE_PATH", baseline)
-        monkeypatch.setattr(ratchet, "current_count", lambda _: 426)
-        monkeypatch.setattr(ratchet, "list_violations", lambda *_: [ATOMIC_WARNING])
-        assert ratchet.main([]) == count_ratchet.EXIT_REGRESSION
-        err = capsys.readouterr().err
-        assert "REGRESSION" in err
-        assert ATOMIC_WARNING in err
-
-    def test_indexing_a_memory_passes_without_updating(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        baseline = _write_baseline(tmp_path, "425")
-        monkeypatch.setattr(ratchet, "_BASELINE_PATH", baseline)
-        monkeypatch.setattr(ratchet, "current_count", lambda _: 424)
-        assert ratchet.main([]) == count_ratchet.EXIT_OK
-        assert baseline.read_text(encoding="utf-8").strip() == "425"
-
-    def test_update_lowers_the_baseline(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        baseline = _write_baseline(tmp_path, "425")
-        monkeypatch.setattr(ratchet, "_BASELINE_PATH", baseline)
-        monkeypatch.setattr(ratchet, "current_count", lambda _: 400)
-        assert ratchet.main(["--update"]) == count_ratchet.EXIT_OK
-        assert baseline.read_text(encoding="utf-8").strip() == "400"
-
-    def test_update_never_raises_the_baseline(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        baseline = _write_baseline(tmp_path, "425")
-        monkeypatch.setattr(ratchet, "_BASELINE_PATH", baseline)
-        monkeypatch.setattr(ratchet, "current_count", lambda _: 426)
-        monkeypatch.setattr(ratchet, "list_violations", lambda *_: [])
-        ratchet.main(["--update"])
-        assert baseline.read_text(encoding="utf-8").strip() == "425"
-
-    def test_config_error_when_baseline_missing(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        monkeypatch.setattr(ratchet, "_BASELINE_PATH", tmp_path / "absent.txt")
+    def test_config_error_without_base_ref(self, capsys: pytest.CaptureFixture) -> None:
         assert ratchet.main([]) == count_ratchet.EXIT_CONFIG
+        captured = capsys.readouterr()
+        assert "--base-ref" in captured.err + captured.out
 
-    def test_external_error_when_the_scan_fails(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        baseline = _write_baseline(tmp_path, "425")
-        monkeypatch.setattr(ratchet, "_BASELINE_PATH", baseline)
+    def test_external_error_when_the_scan_fails(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(ratchet, "current_count", lambda _: None)
-        assert ratchet.main([]) == count_ratchet.EXIT_EXTERNAL
+        assert ratchet.main(["--base-ref", "HEAD"]) == count_ratchet.EXIT_EXTERNAL
 
-    def test_cli_entry_point_runs_against_the_real_repo(self) -> None:
-        """End to end, no fakes: the shipped baseline must match the real tree."""
-        repo_root = Path(__file__).resolve().parents[2]
-        proc = subprocess.run(
-            [sys.executable, "scripts/ci/memory_index_count_ratchet.py"],
-            cwd=repo_root,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        assert proc.returncode == count_ratchet.EXIT_OK, proc.stdout + proc.stderr
+    def test_wires_this_ratchet_into_the_base_derived_run(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        seen: dict = {}
+
+        def _run(args, **kwargs):
+            seen.update(kwargs)
+            return 0
+
+        monkeypatch.setattr(ratchet, "run", _run)
+        assert ratchet.main(["--base-ref", "origin/main"]) == 0
+        assert seen["label"] == "memory index count ratchet"
+        assert seen["introduced_by"] == ratchet._SCRIPT
+        assert seen["counter"] is ratchet.current_count
+        assert seen["lister"] is ratchet.list_violations
+
+    def test_end_to_end_against_head_passes_on_the_real_repo(self) -> None:
+        rc = ratchet.main(["--base-ref", "HEAD", "--repo-root", str(REPO_ROOT)])
+        assert rc == count_ratchet.EXIT_OK

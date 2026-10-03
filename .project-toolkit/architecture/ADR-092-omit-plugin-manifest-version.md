@@ -155,8 +155,8 @@ that can fail to fire.
 What is lost, stated plainly: ADR-091 also relaxed `count_ratchet` and handed baseline `--update` to
 the bot, which covered `taste_count_baseline.txt` and `ruff_count_baseline.txt`. Removing the bot
 removes that coverage. This ADR restores `EXIT_REGRESSION` on an unrecorded improvement so the
-ratchets stay honest, and the baseline conflict class is tracked separately in issue #4171 rather than
-being treated as solved here.
+ratchets stay honest, and the baseline conflict class was tracked in issue #4171. The amendment
+"count baselines derive from the merge base" below closes it for four of the seven ratchets.
 
 ## Consequences
 
@@ -218,14 +218,38 @@ Migration for the roughly 25 open PRs that carry a bump hunk: each hits a confli
 
 This ADR closes one conflict class: the plugin manifests, where every
 plugin-source PR had to write the same single line. It does not close the
-general shared-single-line class. Two per-repo counters remain, and this PR
-touches both: `scripts/ci/taste_count_baseline.txt` (one exact integer, so two
+general shared-single-line class. Two per-repo counters remained when this ADR landed, and its PR
+touched both (the taste baseline is deleted by the amendment below): `scripts/ci/taste_count_baseline.txt` (one exact integer, so two
 PRs that each lower it conflict, and equal values merge to a baseline that is
 too high for the combined tree until someone re-runs `--update`) and
 `scripts/validation/vendor_portability_baseline.txt` (append-at-end, so two PRs
 adding a path conflict). Those are ratchet files rather than published metadata,
 their gates carry an `--update` path, and the fix shape is different from
 deleting a field. They are out of scope here and tracked separately.
+
+## Amendment 2026-09-29: count baselines derive from the merge base
+
+Issue #5363 asked who owns count-baseline writes now that ADR-091's post-merge bot is superseded. The owner chose to delete the scalar, following this ADR's precedent for the plugin version.
+
+**Decision.** The taste, ruff, type-ignore and memory-index count ratchets store no baseline. Each run measures the tree at `git merge-base HEAD <base-ref>` and blocks when the branch's own count is higher. `scripts/ci/base_derived_ratchet.py` owns this rule. `scripts/ci/merge_tree_ratchet_check.py` measures the merged tree against the base tip for the same four.
+
+**Why.** Two PRs that each lower a shared integer conflict on one line. A branch that clears violations but skips `--update` leaves slack. Deleting the number removes both problems. A PR cannot raise a ceiling that is never written down.
+
+**What changes about "ratchet".** There is no recorded floor. The ceiling is whatever the merge base measured, so it follows `main` in both directions.
+
+**Explicit states.**
+
+| State | Result |
+|---|---|
+| No `--base-ref` | Exit 2. No ceiling exists. |
+| Fork point unreadable (shallow clone, unrelated history) | Exit 3, `FORK POINT UNREADABLE`. |
+| Fork point lacks the ratchet's own script | Bootstrap: exit 0 and a message that says so. |
+| Fork tree cannot be measured | Exit 3. A missing ceiling never passes. |
+| Branch tree cannot be counted | Exit 3. |
+
+**Scope.** `cli_exit_contract_baseline.txt`, `subprocess_encoding_count_baseline.txt` and `canonical_citations_count_baseline.txt` keep their scalar. The issue did not name them. Measuring a second tree per run is not free for the first two (measured warm: cli-exit-contract 5.9s, subprocess-encoding 22.6s, against 0.1s to 3.3s for the four moved); canonical-citations was not timed. A separate decision can move them.
+
+**Known gap.** On a push to `main` the base ref is `main` itself, so the fork point is `HEAD` and the standalone run passes. Regressions are caught at PR time by the fork-point and merge-tree runs. The concurrent-admission hole (issue #4345) is unchanged. A regression that reaches `main` anyway, by a bypass merge or by two PRs admitted together, becomes the ceiling for every later branch with no alarm. Under the old scalar the next PR failed instead. Removing the stored number removes that alarm along with the conflict.
 
 ## Acceptance Criteria
 

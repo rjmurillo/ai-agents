@@ -38,9 +38,9 @@ Stdlib only: this runs by path in CI (``python scripts/ci/<name>.py``) and must
 not depend on the project's import graph.
 
 Exit codes (AGENTS.md contract):
-    0 - ok (count <= baseline, or --update records a decrease)
-    1 - regression (count > baseline, or baseline raised vs --base-ref)
-    2 - config error (baseline missing or malformed, bad args)
+    0 - ok (count <= count at the merge base, or bootstrap)
+    1 - regression (count > count at the merge base)
+    2 - config error (no --base-ref, bad args)
     3 - external error (the validator could not run)
 """
 
@@ -54,13 +54,15 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from scripts.ci.count_ratchet import (
+from scripts.ci.base_derived_ratchet import (
     EXIT_CONFIG,
     EXIT_EXTERNAL,
     EXIT_OK,
     EXIT_REGRESSION,
     build_parser,
     run,
+)
+from scripts.ci.count_ratchet import (
     tracked_files,
 )
 
@@ -69,22 +71,13 @@ __all__ = [
     "EXIT_EXTERNAL",
     "EXIT_OK",
     "EXIT_REGRESSION",
-    "MERGE_TREE_BACKED",
     "current_count",
     "list_violations",
     "main",
 ]
 
-_BASELINE_PATH = Path(__file__).with_name("memory_index_count_baseline.txt")
+_SCRIPT = "scripts/ci/memory_index_count_ratchet.py"
 
-MERGE_TREE_BACKED = True
-"""This baseline is registered in ``merge_tree_ratchet_registry.py::RATCHETS``.
-
-Registration is what lets ``count_ratchet.run`` pass a branch that merely holds
-a number ``main`` lowered underneath it: the merged result is measured by
-``scripts/ci/merge_tree_ratchet_check.py`` instead. Pinned against the registry
-by ``tests/ci/test_merge_tree_backing_declarations.py``.
-"""
 
 _VALIDATOR = Path("scripts/validate_memory_tier.py")
 
@@ -104,7 +97,7 @@ def _warning_lines(repo_root: Path) -> list[str] | None:
 
     Returning None rather than an empty list on any failure is load-bearing. A
     zero from a crashed validator would look like a fully indexed tree, and
-    ``--update`` would write that zero into the baseline and permanently disarm
+    a zero ceiling measured from a crashed scan would permanently disarm
     the gate.
 
     A clean exit is not enough on its own. If the validator ever renames its
@@ -213,8 +206,7 @@ def _subject(warning: str) -> str:
     while ``git ls-files`` always reports ``/``. Normalizing here keeps the two
     comparable on every platform. Without it a Windows run matches only the
     top-level memories and silently under-counts, which is the direction that
-    disarms the gate: a low count passes the ratchet and ``--update`` would
-    write it into the baseline.
+    disarms the gate: a low count passes the ratchet.
     """
     subject, _, _ = warning.partition(": ")
     return subject.replace("\\", "/")
@@ -273,9 +265,7 @@ def list_violations(
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = build_parser(
-        "Whole-repo unindexed-memory count ratchet (issue #4313).", _BASELINE_PATH
-    )
+    parser = build_parser("Whole-repo unindexed-memory count ratchet (issue #4313).")
     args = parser.parse_args(sys.argv[1:] if argv is None else argv)
     return run(
         args,
@@ -289,7 +279,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             "can reach it (issue #4313)."
         ),
         lister=list_violations,
-        merge_tree_backed=MERGE_TREE_BACKED,
+        introduced_by=_SCRIPT,
     )
 
 
