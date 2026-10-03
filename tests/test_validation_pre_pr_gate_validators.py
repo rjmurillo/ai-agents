@@ -126,6 +126,10 @@ class TestValidateReviewMarker:
             (dest / "validate_review_marker.py").write_text(
                 real.read_text(encoding="utf-8"), encoding="utf-8"
             )
+            references = repo / ".claude" / "skills" / "review" / "references"
+            references.mkdir(parents=True)
+            for axis in ("analyst", "security"):
+                (references / f"{axis}.md").write_text("axis\n", encoding="utf-8")
         self._git(repo, "init", "-q")
         self._git(repo, "config", "user.email", "t@example.com")
         self._git(repo, "config", "user.name", "Tester")

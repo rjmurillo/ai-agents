@@ -1,0 +1,8 @@
+{"timestamp":"2026-10-03T13:48:23.975Z","type":"session_meta","payload":{"id":"01a10205-e7b1-7673-b786-a03071869458","timestamp":"2026-10-03T13:48:23.857Z","cli_version":"0.157.1","source":"exec","thread_source":"user"}}
+{"timestamp":"2026-10-03T13:48:23.976Z","type":"event_msg","payload":{"type":"task_started","turn_id":"01a10205-e81f-7111-a8dc-397893cd6558","started_at":1791035303}}
+{"timestamp":"2026-10-03T13:48:25.482Z","type":"turn_context","payload":{"turn_id":"01a10205-e81f-7111-a8dc-397893cd6558","model":"gpt-5.6-sol","effort":"low"}}
+{"timestamp":"2026-10-03T13:48:47.034Z","type":"compacted","payload":{"message":"","replacement_history":[]}}
+{"timestamp":"2026-10-03T13:48:47.034Z","type":"turn_context","payload":{"turn_id":"01a10205-e81f-7111-a8dc-397893cd6558","model":"gpt-5.6-sol","effort":"low"}}
+{"timestamp":"2026-10-03T13:49:02.537Z","type":"compacted","payload":{"message":"","replacement_history":[]}}
+{"timestamp":"2026-10-03T13:49:02.537Z","type":"turn_context","payload":{"turn_id":"01a10205-e81f-7111-a8dc-397893cd6558","model":"gpt-5.6-sol","effort":"low"}}
+{"timestamp":"2026-10-03T13:49:05.564Z","type":"event_msg","payload":{"type":"task_complete","turn_id":"01a10205-e81f-7111-a8dc-397893cd6558","started_at":1791035303,"completed_at":1791035345,"duration_ms":41595}}
