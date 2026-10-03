@@ -9,6 +9,7 @@ import pytest
 from scripts.validation.instruction_bytes_corpus import (
     CorpusError,
     canonical_files,
+    canonical_paths,
     generated_files,
     group_summary,
     measure_corpus,
@@ -100,6 +101,16 @@ class TestCanonicalFiles:
         assert not any(
             p.startswith("templates/hooks") or p.endswith("toolsets.yaml") for p in paths
         )
+
+    def test_a_symlinked_template_leaving_the_root_is_refused_by_canonical_paths(
+        self, tmp_path: Path
+    ) -> None:
+        build_repo(tmp_path)
+        outside = tmp_path.parent / f"{tmp_path.name}-outside.md"
+        outside.write_text("secret\n", encoding="utf-8")
+        (tmp_path / "templates/rules/escape.md").symlink_to(outside)
+        with pytest.raises(CorpusError, match="outside the repository"):
+            canonical_paths(tmp_path)
 
     def test_generated_mirrors_never_enter_canonical(self, tmp_path: Path) -> None:
         build_repo(tmp_path)
