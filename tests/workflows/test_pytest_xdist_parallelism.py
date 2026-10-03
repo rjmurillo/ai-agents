@@ -14,6 +14,7 @@ import re
 from pathlib import Path
 from typing import Any
 
+import pytest
 import yaml
 
 from scripts.ci import run_pytest_selected
@@ -55,6 +56,10 @@ def _job_steps(job: str) -> list[dict[str, Any]]:
     return _load_workflow()["jobs"][job]["steps"]
 
 
+def _selected_dirs(args: list[str]) -> set[str]:
+    return {t for t in args if t.startswith("tests/") and not t.startswith("--ignore=")}
+
+
 def _matrix() -> list[dict[str, Any]]:
     return _job("test")["strategy"]["matrix"]["include"]
 
@@ -77,7 +82,7 @@ def _partition_args(name: str) -> list[str]:
 
 
 class TestMatrixStructure:
-    """The test job is a five-partition matrix."""
+    """The test job is a six-partition matrix."""
 
     def test_node_uses_the_runner_system_ca(self) -> None:
         assert _job("test")["env"]["NODE_OPTIONS"] == "--use-system-ca"
@@ -89,11 +94,12 @@ class TestMatrixStructure:
         assert "env.ACT == 'true'" in output
         assert "env.ACT != 'true'" in filter_step["if"]
 
-    def test_five_partitions_exist(self) -> None:
+    def test_six_partitions_exist(self) -> None:
         partitions = [e["partition"] for e in _matrix()]
         assert partitions == [
             "bulk",
             "bulk-nested",
+            "bulk-nested-ci",
             "mutation",
             "safe-push",
             "pr-autofix",
@@ -126,8 +132,8 @@ class TestMatrixStructure:
         for entry in _matrix():
             assert "coverage_file" in entry, f"{entry['partition']} missing coverage_file"
             assert "junit_file" in entry, f"{entry['partition']} missing junit_file"
-        assert len({entry["coverage_file"] for entry in _matrix()}) == 5
-        assert len({entry["junit_file"] for entry in _matrix()}) == 5
+        assert len({entry["coverage_file"] for entry in _matrix()}) == 6
+        assert len({entry["junit_file"] for entry in _matrix()}) == 6
 
     def test_every_partition_has_runner_args(self) -> None:
         matrix_partitions = {entry["partition"] for entry in _matrix()}
@@ -143,23 +149,39 @@ class TestMatrixStructure:
         assert args[-1] == "tests/"
         assert "-m" not in args, "CI must not drop integration-marked tests"
 
-    def test_nested_bulk_covers_every_non_mutation_test_directory(self) -> None:
-        args = _partition_args("bulk-nested")
-        ignored = {
-            token.removeprefix("--ignore=") for token in args if token.startswith("--ignore=")
-        }
-        selected = {
-            token
-            for token in args
-            if token.startswith("tests/") and not token.startswith("--ignore=")
-        }
+    def test_nested_partitions_cover_every_non_mutation_directory_once(self) -> None:
+        """The two nested legs together own each test directory exactly once."""
+        first = _selected_dirs(_partition_args("bulk-nested"))
+        second = _selected_dirs(_partition_args("bulk-nested-ci"))
         expected = {
             f"tests/{path.name}"
             for path in (_WORKFLOW.parents[2] / "tests").iterdir()
             if path.is_dir() and path.name not in {"__pycache__", "mutation"}
         }
-        assert ignored == _NESTED_BULK_IGNORES
-        assert selected == expected
+        assert not first & second, f"directories run twice: {sorted(first & second)}"
+        assert first | second == expected
+        assert len(first) + len(second) == len(expected)
+
+    def test_only_the_leg_that_owns_skills_ignores_the_pin_file(self) -> None:
+        for partition, owns_skills in (("bulk-nested", False), ("bulk-nested-ci", True)):
+            ignored = {
+                token.removeprefix("--ignore=")
+                for token in _partition_args(partition)
+                if token.startswith("--ignore=")
+            }
+            assert ignored == (_NESTED_BULK_IGNORES if owns_skills else set())
+
+    def test_classify_partition_agrees_with_the_nested_arg_lists(self) -> None:
+        tests_root = _WORKFLOW.parents[2] / "tests"
+        owners = {
+            "bulk-nested": _selected_dirs(_partition_args("bulk-nested")),
+            "bulk-nested-ci": _selected_dirs(_partition_args("bulk-nested-ci")),
+        }
+        for partition, dirs in owners.items():
+            for directory in dirs:
+                probe = f"{directory}/test_probe.py"
+                assert run_pytest_selected.classify_partition(probe) == partition, probe
+        assert (tests_root / "ci").is_dir()
 
     def test_mutation_runs_only_tests_mutation(self) -> None:
         args = _partition_args("mutation")
@@ -184,8 +206,9 @@ class TestXdistParallelism:
         args = _partition_args("bulk")
         assert args[:4] == ["-n", "auto", "--dist", "loadfile"]
 
-    def test_nested_bulk_uses_xdist(self) -> None:
-        args = _partition_args("bulk-nested")
+    @pytest.mark.parametrize("partition", ["bulk-nested", "bulk-nested-ci"])
+    def test_nested_bulk_uses_xdist(self, partition: str) -> None:
+        args = _partition_args(partition)
         assert args[:4] == ["-n", "auto", "--dist", "loadfile"]
 
     def test_mutation_uses_xdist(self) -> None:
@@ -334,13 +357,14 @@ class TestCoverageJob:
         assert dl["with"]["pattern"] == "pytest-results-*"
         assert dl["with"]["merge-multiple"] is True
 
-    def test_combine_uses_five_main_data_inputs(self) -> None:
+    def test_combine_uses_six_main_data_inputs(self) -> None:
         steps = _job("coverage")["steps"]
         combine = [s for s in steps if s.get("name") == "Combine coverage data"][0]
         run = combine["run"]
         assert re.findall(r"--main-data\s+(\S+)", run) == [
             "artifacts/.coverage.bulk",
             "artifacts/.coverage.bulk-nested",
+            "artifacts/.coverage.bulk-nested-ci",
             "artifacts/.coverage.mutation",
             "artifacts/.coverage.safe-push",
             "artifacts/.coverage.pr-autofix",
@@ -404,9 +428,7 @@ class TestAggregateJob:
     def test_no_second_job_publishes_the_required_context(self) -> None:
         """A same-named pass-through is what ADR-101 requirement 1 removed."""
         jobs = _load_workflow()["jobs"]
-        publishers = [
-            key for key, job in jobs.items() if job.get("name") == "Run Python Tests"
-        ]
+        publishers = [key for key, job in jobs.items() if job.get("name") == "Run Python Tests"]
         assert publishers == ["test-result"]
         assert "skip-tests" not in jobs
 

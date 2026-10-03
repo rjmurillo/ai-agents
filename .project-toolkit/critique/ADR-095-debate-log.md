@@ -266,3 +266,24 @@ Two items here are not about ADR-095 and should not be discarded with it.
 2. The re-measurement discipline in the verification section above. One role's
    headline number did not reproduce and was caught only because it was
    re-measured before it entered a committed artifact.
+
+## Addendum: 2026-09-30 edit for issue #5113
+
+Reduced panel (architect, critic): the edit is prose only. It replaces the
+"never checks membership" paragraph in the ADR with the validator's new
+behavior. Both passes returned ACCEPT_WITH_CHANGES.
+
+Findings applied:
+
+1. The hook reads the axis set from the pushing checkout, not the pushed tree.
+   The ADR now says so.
+2. "Advisory" read as non-blocking. The ADR now says the hook blocks an honest
+   push and a pusher can bypass it.
+3. One sentence ran about 30 words. It is split.
+4. The paragraph now starts with "Update (issue #5113)" so history and current
+   behavior stay distinct, and it names the four `code-review` markers that the
+   new validator would reject.
+
+Editing a rejected record is acceptable here. The decision, the rationale, and
+the debate-log reference are unchanged, and a stale claim is worse than an
+update.

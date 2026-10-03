@@ -23,7 +23,7 @@ _BAD_FRONTMATTER = "---\nid: ADR-002\nstatus: [unclosed\n---\n\n# ADR-002: Bad\n
 _GOOD = (
     "---\nid: ADR-001\nstatus: accepted\ndate: 2026-08-21\nsupersedes: []\n"
     "superseded-by: null\nimplemented: true\n---\n\n# ADR-001: Thing\n\n"
-    "## Status\n\nAccepted (2026-08-21).\n"
+    "## Status\n\nAccepted (2026-08-21). Conditions were cleared in review.\n"
 )
 
 

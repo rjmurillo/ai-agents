@@ -55,7 +55,7 @@ def test_cli_install_uses_exact_versions(smoke_job: dict[str, Any]) -> None:
         assert f"{package}@${{{env_name}}}" in command
 
 
-def test_cli_pins_receive_reviewed_renovate_updates(
+def test_cli_pins_receive_renovate_updates(
     smoke_job: dict[str, Any], renovate_config: dict[str, Any]
 ) -> None:
     """Edge: vendor updates stay visible without restoring floating installs."""
@@ -73,18 +73,9 @@ def test_cli_pins_receive_reviewed_renovate_updates(
         for rule in renovate_config["packageRules"]
         if set(rule.get("matchPackageNames") or {}) == set(PACKAGE_VERSION_ENV)
     )
-    assert package_rule["automerge"] is False
+    assert package_rule["automerge"] is True
+    assert package_rule["minimumReleaseAge"] == "7 days"
     assert set(package_rule["matchUpdateTypes"]) == {"major", "minor", "patch"}
-
-    for rule in renovate_config["packageRules"]:
-        if rule.get("automerge") is not True:
-            continue
-        excluded = {
-            name.removeprefix("!")
-            for name in rule.get("matchPackageNames", [])
-            if name.startswith("!")
-        }
-        assert set(PACKAGE_VERSION_ENV) <= excluded
 
 
 def test_install_step_has_no_secret_environment(smoke_job: dict[str, Any]) -> None:

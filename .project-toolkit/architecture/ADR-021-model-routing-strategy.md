@@ -11,10 +11,6 @@ implemented: true
 
 # ADR-021: AI Review Model Routing Strategy
 
-## Status
-
-Accepted
-
 ## Date
 
 2025-12-23

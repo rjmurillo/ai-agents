@@ -1,0 +1,36 @@
+{
+  "captures": [
+    {
+      "harness": "codex",
+      "capability": "concurrency_limit",
+      "parent": "../../../tests/eval/fixtures/harness_capability/codex-0.157.1/concurrency-cap3-wait.parent.rollout.jsonl",
+      "children": [
+        "../../../tests/eval/fixtures/harness_capability/codex-0.157.1/concurrency-cap3-wait.child-1.rollout.jsonl",
+        "../../../tests/eval/fixtures/harness_capability/codex-0.157.1/concurrency-cap3-wait.child-2.rollout.jsonl",
+        "../../../tests/eval/fixtures/harness_capability/codex-0.157.1/concurrency-cap3-wait.child-3.rollout.jsonl"
+      ],
+      "configured_max_threads": 3
+    },
+    {
+      "harness": "codex",
+      "capability": "concurrency_limit",
+      "parent": "../../../tests/eval/fixtures/harness_capability/codex-0.157.1/concurrency-cap3-nowait.parent.rollout.jsonl",
+      "children": [
+        "../../../tests/eval/fixtures/harness_capability/codex-0.157.1/concurrency-cap3-nowait.child-1.rollout.jsonl",
+        "../../../tests/eval/fixtures/harness_capability/codex-0.157.1/concurrency-cap3-nowait.child-2.rollout.jsonl",
+        "../../../tests/eval/fixtures/harness_capability/codex-0.157.1/concurrency-cap3-nowait.child-3.rollout.jsonl"
+      ],
+      "configured_max_threads": 3
+    },
+    {
+      "harness": "codex",
+      "capability": "context_reset_observability",
+      "rollout": "../../../tests/eval/fixtures/harness_capability/codex-0.157.1/compaction-limit2000.rollout.jsonl"
+    },
+    {
+      "harness": "codex",
+      "capability": "context_reset_observability",
+      "rollout": "../../../tests/eval/fixtures/harness_capability/codex-0.157.1/compaction-limit2000-killed.rollout.jsonl"
+    }
+  ]
+}

@@ -11,10 +11,6 @@ implemented: false
 
 # ADR-011: Session State MCP
 
-## Status
-
-Proposed
-
 ## Date
 
 2025-12-21

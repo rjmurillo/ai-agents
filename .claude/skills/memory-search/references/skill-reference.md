@@ -28,14 +28,14 @@ Agent-facing skill script that searches the two file-based memory stores. The se
 
 ```bash
 search_memory.py
-    --query <String>
+    <query>
     [--max-results <Int32>]
     [--format <String>]
 ```
 
 ### Parameters
 
-#### --query
+#### query
 
 Search query string.
 
@@ -157,7 +157,7 @@ array-handling          Episodes  0.85  Common array gotchas include...
 #### Example 1: Basic Search
 
 ```bash
-python3 .claude/skills/memory/scripts/search_memory.py --query "git hooks"
+python3 .claude/skills/memory/scripts/search_memory.py "git hooks"
 ```
 
 Output:
@@ -183,7 +183,7 @@ Output:
 
 ```bash
 python3 .claude/skills/memory/scripts/search_memory.py \
-    --query "PowerShell arrays" \
+    "PowerShell arrays" \
     --format table
 ```
 
@@ -200,7 +200,7 @@ powershell-arrays        Serena 1.0   Common array operations incl...
 
 ```bash
 python3 .claude/skills/memory/scripts/search_memory.py \
-    --query "authentication" \
+    "authentication" \
     --max-results 3
 ```
 
@@ -208,7 +208,7 @@ python3 .claude/skills/memory/scripts/search_memory.py \
 
 ```bash
 result=$(python3 .claude/skills/memory/scripts/search_memory.py \
-    --query "CI pipelines" \
+    "CI pipelines" \
     --max-results 5)
 
 echo "$result" | python3 -c "import sys,json; data=json.load(sys.stdin); [print(f'=== {m[\"Name\"]} ===\n{m[\"Content\"]}') for m in data['Results']]"
@@ -281,7 +281,7 @@ except Exception as e:
 ```bash
 # At session start - search relevant context
 context=$(python3 .claude/skills/memory/scripts/search_memory.py \
-    --query "[session objectives]" \
+    "[session objectives]" \
     --max-results 10)
 
 echo "$context" | python3 -c "
@@ -299,7 +299,7 @@ if data['Count'] > 0:
 ```bash
 # Before making technical decisions
 patterns=$(python3 .claude/skills/memory/scripts/search_memory.py \
-    --query "[decision topic] patterns")
+    "[decision topic] patterns")
 
 echo "$patterns" | python3 -c "
 import sys, json, re
