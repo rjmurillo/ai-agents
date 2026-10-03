@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import json
 import re
+import stat
 import subprocess
 import time
 from collections.abc import Mapping
@@ -53,7 +54,6 @@ _PROBE_ENV_NAMES = frozenset(
         "CLAUDE_CONFIG_DIR",
         "CODEX_HOME",
         "COPILOT_HOME",
-        "GH_HOST",
         "HOME",
         "PATH",
         "SSL_CERT_DIR",
@@ -71,9 +71,24 @@ def _home_dir(environ: Mapping[str, str], name: str, default: str) -> Path:
     return Path(environ.get("HOME") or Path.home()) / default
 
 
+_MAX_FILE_BYTES = 64 * 1024
+
+
+def _read_regular_text(path: Path) -> str:
+    """Read a small regular file; a FIFO, device, or oversized file raises OSError.
+
+    Refusing non-regular files keeps a FIFO at an operator-set config path from
+    hanging the run (CWE-400).
+    """
+    info = path.stat()
+    if not stat.S_ISREG(info.st_mode) or info.st_size > _MAX_FILE_BYTES:
+        raise OSError(f"not a small regular file: {path.name}")
+    return path.read_text(encoding="utf-8")
+
+
 def _read_json(path: Path) -> object:
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        return json.loads(_read_regular_text(path))
     except (OSError, ValueError):
         return None
 
@@ -101,7 +116,7 @@ def codex_auth_file_text(environ: Mapping[str, str]) -> str | None:
     """
     path = _home_dir(environ, "CODEX_HOME", ".codex") / "auth.json"
     try:
-        text = path.read_text(encoding="utf-8")
+        text = _read_regular_text(path)
         payload = json.loads(text)
     except (OSError, ValueError):
         return None
@@ -188,7 +203,7 @@ def copilot_login_probe(executable: str, environ: Mapping[str, str]) -> bool:
     del executable
     path = _home_dir(environ, "COPILOT_HOME", ".copilot") / "config.json"
     try:
-        text = path.read_text(encoding="utf-8")
+        text = _read_regular_text(path)
     except OSError:
         return False
     body = "\n".join(line for line in text.splitlines() if not line.lstrip().startswith("//"))

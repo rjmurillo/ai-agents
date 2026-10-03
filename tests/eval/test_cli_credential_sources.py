@@ -220,3 +220,23 @@ class TestLoginProbes:
 
     def test_copilot_missing_config_is_false(self, tmp_path: Path) -> None:
         assert not src.copilot_login_probe("copilot", {"HOME": str(tmp_path)})
+
+
+def test_read_regular_text_refuses_fifo_and_oversize(tmp_path):
+    import os
+
+    fifo = tmp_path / "auth.json"
+    os.mkfifo(fifo)
+    big = tmp_path / "big.json"
+    big.write_text("x" * (64 * 1024 + 1), encoding="utf-8")
+    for path in (fifo, big):
+        try:
+            src._read_regular_text(path)
+        except OSError:
+            continue
+        raise AssertionError(f"{path.name} should have been refused")
+
+
+def test_probe_env_drops_gh_host():
+    env = src._probe_env({"GH_HOST": "ghe.example", "HOME": "/h"})
+    assert "GH_HOST" not in env

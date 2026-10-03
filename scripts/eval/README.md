@@ -147,7 +147,7 @@ Every step strips the metered variables (`ANTHROPIC_API_KEY`,
 BYOK set), so no path bills a paid key. `report.json` records which steps ran
 as `credential_steps` (`env`, `dotenv`, `disk`, `existing-login`, `prompt`)
 and `REPORT.md` prints a `Credential step` line. `existing-login` reads
-`existing login: user config may load`. The value is never recorded.
+`existing login: user config may load`. A `settings.json` env block in that user config can also set `ANTHROPIC_API_KEY` or a base URL, which moves billing off the subscription. The value is never recorded.
 
 Not read: the Copilot CLI's own credential store (the OS keychain, or a
 plain-text file under `COPILOT_HOME` whose layout is undocumented). Step 3
