@@ -185,7 +185,7 @@ class TestParse:
         assert codex_mod.parse_codex_run(_stdout(usage=usage), "").input_tokens == 0
 
     def test_tool_items_map_to_allowed_names_and_failures_count(self) -> None:
-        items = [
+        items: list[dict[str, Any]] = [
             {"type": "command_execution", "exit_code": 0, "status": "completed"},
             {"type": "command_execution", "exit_code": 2, "status": "completed"},
             {"type": "file_change", "status": "failed"},
