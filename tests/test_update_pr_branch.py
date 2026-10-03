@@ -53,11 +53,12 @@ _ACCEPTED_BODY = json.dumps({
     "message": "Updating pull request branch.",
     "url": "https://github.com/o/r/pull/50",
 })
-_HEAD_MOVED_BODY = json.dumps({
-    "message": "expected head sha didn't match current head ref.",
-    "documentation_url": "https://docs.github.com/rest",
-    "status": "422",
-})
+# Bodies captured live from GitHub on 2026-10-03 against PR #6139. Note the
+# curly apostrophe in the head-moved message.
+_HEAD_MOVED_MESSAGE = "expected head sha didn\u2019t match current head ref."
+_HEAD_MOVED_BODY = json.dumps(
+    {"message": _HEAD_MOVED_MESSAGE, "status": "422"}, ensure_ascii=False,
+)
 
 
 def _completed(stdout: str = "", stderr: str = "", rc: int = 0):
@@ -83,7 +84,7 @@ class _FakeGh:
         self.put = put if put is not None else _completed(stdout=_ACCEPTED_BODY)
         self.calls: list[list[str]] = []
 
-    def _next(self, queue: list):
+    def _next(self, queue: list):  # The last response repeats.
         return queue.pop(0) if len(queue) > 1 else queue[0]
 
     def __call__(self, cmd, **kwargs):
@@ -191,7 +192,7 @@ class TestHeadMoved:
         """AC3: GitHub 422 on a head that moved after the read maps to exit 1."""
         fake = _FakeGh(put=_completed(
             stdout=_HEAD_MOVED_BODY,
-            stderr="gh: expected head sha didn't match current head ref. (HTTP 422)",
+            stderr=f"gh: {_HEAD_MOVED_MESSAGE} (HTTP 422)",
             rc=1,
         ))
         rc = _run(["--pull-request", "50", "--expected-head-sha", _OLD_HEAD], fake)
