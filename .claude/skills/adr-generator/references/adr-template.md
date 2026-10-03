@@ -31,18 +31,17 @@ comments on PR #5209 (ADR-005 "Duplicative. Already in frontmatter", ADR-024
 
 The rule: prose says what frontmatter cannot, and never restates it alone.
 
-`## Status` remains available and is NOT discouraged. ADR-073 retains it as the
-human-readable secondary rendering, and says it "may carry the nuance the enum
-cannot": a review verdict, the condition still blocking acceptance, the
-conditional state ADR-072 uses. Include it whenever you have such nuance. When
-you do, open it with the enum word, because the lifecycle gate reconciles the
-two and frontmatter wins on disagreement; "Accepted. Conditional on X shipping."
-satisfies both the gate and the reader.
+`## Status` is optional. ADR-073 (amended 2026-09-29) permits it when it carries
+nuance the enum cannot: a review verdict, the condition still blocking
+acceptance, the conditional state ADR-072 uses. Include it whenever you have
+such nuance. When you do, open it with the enum word, because the lifecycle
+gate reconciles the two and frontmatter wins on disagreement; "Accepted.
+Conditional on X shipping." satisfies both the gate and the reader.
 
 Omit it when you have nothing the enum does not already say. A section reading
-only "Superseded by ADR-042" beside `superseded-by: ADR-042` is drift surface,
-not a service to the reader. Omitting it is not a violation: the gate treats a
-missing prose status as fine, because ADR-073 says "may", not "must".
+only "Accepted", or only "Superseded by ADR-042" beside `superseded-by:
+ADR-042`, is forbidden: the gate reports it as `prose-frontmatter-agree`.
+Omitting the section is never a violation.
 
 Where the nuance is not about lifecycle at all, name the section for what it
 holds (`## Acceptance Evidence`, `## Provenance`) so no reader mistakes it for a

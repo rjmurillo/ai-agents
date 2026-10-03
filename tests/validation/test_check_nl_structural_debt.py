@@ -169,8 +169,9 @@ def test_grown_overlap_exceeds_baseline(repo: Path) -> None:
 
 
 def test_shrunk_debt_demands_baseline_update(
-    repo: Path, capsys: pytest.CaptureFixture[str]
+    repo: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    monkeypatch.chdir(repo)
     _baseline(repo, dup={"templates/rules/a.md|templates/rules/gone.md": 2})
     assert gate.run(repo, update=False) == 1
     assert "--update-baseline" in capsys.readouterr().err
@@ -179,13 +180,17 @@ def test_shrunk_debt_demands_baseline_update(
     assert gate.run(repo, update=False) == 0
 
 
-def test_update_baseline_refuses_growth(repo: Path) -> None:
+def test_update_baseline_refuses_growth(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.chdir(repo)
     _write(repo, "templates/rules/b.md", "Beta intro.\n" + _POLICY)
     assert gate.run(repo, update=True) == 1
     assert json.loads((repo / gate.BASELINE_PATH).read_text())["duplicate_blocks"] == {}
 
 
-def test_update_baseline_creates_a_missing_baseline(repo: Path) -> None:
+def test_update_baseline_creates_a_missing_baseline(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(repo)
     (repo / gate.BASELINE_PATH).unlink()
     assert gate.run(repo, update=True) == 0
     assert (repo / gate.BASELINE_PATH).is_file()

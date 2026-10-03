@@ -238,7 +238,7 @@ See `universal.md` MUST NOT 11 and issue #5061.
 
 ## Handoff
 
-You cannot delegate. Return to orchestrator with:
+You cannot delegate. Return to orchestrator with (fields per the orchestrator Handoff Contract):
 
 1. Verdict and confidence
 2. Path to critique document

@@ -72,6 +72,12 @@ _CONTRACT_RE = re.compile(
     re.IGNORECASE,
 )
 
+# A digit after one of these words names a position ("Phase 1"), not a quantity.
+_LABEL_RE = re.compile(
+    r"\b(phase|step|stage|section|part|tier|gate|round|rule|item|issue|level|chapter)\s+$",
+    re.IGNORECASE,
+)
+
 # An item longer than this is prose, not an enumerated name, so the count is unsafe to judge.
 MAX_ITEM_WORDS = 5
 _BULLET_RE = re.compile(r"^(\s*)(?:[-*+]|\d+[.)])\s+\S")
@@ -114,6 +120,9 @@ def _inline_items(rest: str, opener: str) -> int:
     parts = [part for part in _ITEM_SPLIT_RE.split(body) if part.strip()]
     if any(len(part.split()) > MAX_ITEM_WORDS or part.count("`") % 2 for part in parts):
         return 0
+    # A fragment carrying a number is a subtotal ("24 ... and 6 ..."), not an item.
+    if any(any(ch.isdigit() for ch in part) for part in parts):
+        return 0
     return len(parts)
 
 
@@ -128,6 +137,9 @@ def _bullet_items(lines: list[str], start: int) -> int:
             continue
         match = _BULLET_RE.match(line)
         if not match:
+            # A wrapped item continues on a line indented past its bullet.
+            if first is not None and len(line) - len(line.lstrip()) > first:
+                continue
             break
         indent = len(match.group(1))
         if first is None:
@@ -137,6 +149,11 @@ def _bullet_items(lines: list[str], start: int) -> int:
         elif indent < first:
             break
     return count
+
+
+def _is_position_label(prefix: str, number: str) -> bool:
+    """Return True when a digit is an ordinal label such as "Phase 1", not a count."""
+    return number.isdigit() and bool(_LABEL_RE.search(prefix))
 
 
 def _is_contractual(prefix: str) -> bool:
@@ -156,14 +173,19 @@ def derived_count_claims(text: str) -> list[Claim]:
         if fence is not None:
             continue
         match = _CLAIM_RE.search(line)
-        if line.lstrip().startswith("|") or not match or _is_contractual(line[: match.start()]):
+        if line.lstrip().startswith("|") or not match:
+            continue
+        prefix = line[: match.start()]
+        if _is_contractual(prefix) or _is_position_label(prefix, match.group("num")):
             continue
         stated = _number(match.group("num"))
         rest = match.group("rest")
         actual = _inline_items(rest, match.group("open")) if rest.strip() else 0
         if match.group("open") == ":" and not rest.strip():
             actual = _bullet_items(lines, index)
-        if actual >= 2 and actual != stated:
+        # Far fewer items than the stated count reads as a partial example list,
+        # not an exhaustive enumeration, so decline to judge it.
+        if actual >= 2 and actual != stated and stated < 2 * actual:
             claims.append(Claim(index + 1, line.strip(), stated, actual))
     return claims
 

@@ -41,6 +41,7 @@
         "parity-result.txt": "pending\n"
       },
       "tools": [
+        "read",
         "write"
       ],
       "assertions": [

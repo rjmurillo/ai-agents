@@ -1,10 +1,7 @@
 {
   "cardinality": {
-    ".agents/governance/FAIL-OPEN-INVENTORY.md::30 candidates: 24 `dorny/paths-filter` workflows and 6 with a top-level": "candidates: 24 `dorny/paths-filter` workflows and 6 with a top-level",
-    ".agents/governance/FAIL-OPEN-INVENTORY.md::Counts on 2026-09-29, 72 classified rows: `A` 4, `B` 47, `C` 10, `RESOLVED` 11.": "Counts on 2026-09-29, classified rows: `A` 4, `B` 47, `C` 10, `RESOLVED` 11.",
-    "templates/skills/ai-agents-research-methodology.SKILL.md.tmpl::`decision-<short-slug>` with five fields: question, conventional answer with": "`decision-<short-slug>` with fields: question, conventional answer with",
-    "templates/skills/business-strategy.SKILL.md.tmpl::description: \"Route a founder problem to the right business framework, then load that framework on demand. Distills 14 business books (customer discovery, positioning, pricing, sales, growth, persuasion) into scored, decision-tree skills. Use when you say diagnose my business problem, what framework applies, how do I validate demand, price this, position this, generate leads, or close deals. Do NOT use for software design (use the engineering rules) or for a single named decision (use decision-critic).\"": "description: \"Route a founder problem to the right business framework, then load that framework on demand. Distills business books (customer discovery, positioning, pricing, sales, growth, persuasion) into scored, decision-tree skills. Use when you say diagnose my business problem, what framework applies, how do I validate demand, price this, position this, generate leads, or close deals. Do NOT use for software design (use the engineering rules) or for a single named decision (use decision-critic).\"",
-    "templates/skills/checkpoint.SKILL.md.tmpl::The three phases expand into eight steps: resolve the timestamp and branch, find": "The three phases expand into steps: resolve the timestamp and branch, find"
+    "templates/agents/orchestrator.shared.md::**skip (noise):** tool invocations, background research that did not change the plan, routine reads and lint runs, superseded agent responses. each `worklog` entry is one or two sentences: the action or decision, then why.": "**Skip (noise):** tool invocations, background research that did not change the plan, routine reads and lint runs, superseded agent responses. Each `workLog` entry is one or sentences: the action or decision, then why.",
+    "templates/agents/partials/orchestrator-pre-close-sequence.mustache::**skip (noise):** tool invocations, background research that did not change the plan, routine reads and lint runs, superseded agent responses. each `worklog` entry is one or two sentences: the action or decision, then why.": "**Skip (noise):** tool invocations, background research that did not change the plan, routine reads and lint runs, superseded agent responses. Each `workLog` entry is one or sentences: the action or decision, then why."
   },
   "duplicate_blocks": {
     ".agents/governance/code-quality.md|templates/rules/code-quality.md": 4,
@@ -19,6 +16,7 @@
     ".claude/skills/analyze/references/reliability-observability-pillars.md|.claude/skills/observability/references/three-pillars-reference.md": 1,
     ".claude/skills/analyze/references/strategy-ooda-loop.md|.claude/skills/planner/references/strategy-ooda-loop.md": 4,
     ".claude/skills/analyze/references/strategy-ooda-loop.md|.claude/skills/pre-mortem/references/strategy-ooda-loop.md": 4,
+    ".claude/skills/autoplan/references/writing-style-and-confusion-protocol.md|.claude/skills/review/resources/writing-style.md": 16,
     ".claude/skills/autoplan/references/writing-style-and-confusion-protocol.md|.claude/skills/spec/references/writing-style-and-confusion-protocol.md": 34,
     ".claude/skills/autoplan/references/writing-style-and-confusion-protocol.md|templates/skills/partials/completeness-scores.mustache": 10,
     ".claude/skills/autoplan/references/writing-style-and-confusion-protocol.md|templates/skills/partials/confusion-protocol.mustache": 14,
@@ -127,6 +125,9 @@
     ".claude/skills/review/references/roadmap.md|.claude/skills/review/references/security.md": 31,
     ".claude/skills/review/references/roadmap.md|.claude/skills/review/references/spec-compliance.md": 18,
     ".claude/skills/review/references/security.md|.claude/skills/review/references/spec-compliance.md": 17,
+    ".claude/skills/review/resources/writing-style.md|.claude/skills/spec/references/writing-style-and-confusion-protocol.md": 16,
+    ".claude/skills/review/resources/writing-style.md|templates/skills/partials/completeness-scores.mustache": 10,
+    ".claude/skills/review/resources/writing-style.md|templates/skills/partials/writing-style.mustache": 2,
     ".claude/skills/spec/references/writing-style-and-confusion-protocol.md|templates/skills/partials/completeness-scores.mustache": 10,
     ".claude/skills/spec/references/writing-style-and-confusion-protocol.md|templates/skills/partials/confusion-protocol.mustache": 14,
     ".claude/skills/spec/references/writing-style-and-confusion-protocol.md|templates/skills/partials/writing-style.mustache": 2,
@@ -194,7 +195,7 @@
     "templates/agents/critic.shared.md|templates/agents/implementer.shared.md": 4,
     "templates/agents/critic.shared.md|templates/agents/independent-thinker.shared.md": 4,
     "templates/agents/critic.shared.md|templates/agents/partials/critic-adversarial-coverage-checklist.mustache": 75,
-    "templates/agents/critic.shared.md|templates/agents/partials/critic-degraded-mode-protocol.mustache": 6,
+    "templates/agents/critic.shared.md|templates/agents/partials/critic-degraded-mode-protocol.mustache": 7,
     "templates/agents/critic.shared.md|templates/agents/partials/critic-intro.mustache": 12,
     "templates/agents/critic.shared.md|templates/agents/partials/serena-worktree-write-guard.mustache": 4,
     "templates/agents/critic.shared.md|templates/agents/pr-comment-responder.shared.md": 4,
@@ -382,9 +383,9 @@
     "templates/agents/orchestrator.claude.md.tmpl|templates/agents/orchestrator.copilot.md.tmpl": 5,
     "templates/agents/orchestrator.shared.md|templates/agents/partials/orchestrator-core-behavior.mustache": 50,
     "templates/agents/orchestrator.shared.md|templates/agents/partials/orchestrator-intro.mustache": 3,
-    "templates/agents/orchestrator.shared.md|templates/agents/partials/orchestrator-pre-close-sequence.mustache": 85,
+    "templates/agents/orchestrator.shared.md|templates/agents/partials/orchestrator-pre-close-sequence.mustache": 75,
     "templates/agents/orchestrator.shared.md|templates/agents/partials/orchestrator-reasoning-protocol.mustache": 3,
-    "templates/agents/orchestrator.shared.md|templates/agents/partials/orchestrator-routing-algorithm.mustache": 39,
+    "templates/agents/orchestrator.shared.md|templates/agents/partials/orchestrator-routing-algorithm.mustache": 41,
     "templates/agents/orchestrator.shared.md|templates/agents/partials/orchestrator-target-recon-before-triage.mustache": 2,
     "templates/agents/partials/architect-intro.mustache|templates/agents/partials/debug-intro.mustache": 2,
     "templates/agents/partials/architect-intro.mustache|templates/agents/partials/high-level-advisor-intro.mustache": 2,

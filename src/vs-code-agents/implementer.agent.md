@@ -797,7 +797,7 @@ Before marking complete:
 
 ## Handoff Validation
 
-Before handing off, validate ALL items in the applicable checklist:
+Validate ALL items in the applicable checklist before handing off. Work-order fields and the completion record follow the orchestrator Handoff Contract.
 
 ### Completion Handoff (to qa)
 
@@ -835,7 +835,7 @@ Before handing off, validate ALL items in the applicable checklist:
 
 If ANY checklist item cannot be completed:
 
-1. **Do not handoff** - incomplete handoffs waste downstream agent cycles
+1. **Do not handoff** incomplete work
 2. **Complete missing items** - run tests, make commits, document rationale
 3. **Document blockers** - if items truly cannot be completed, explain why and route appropriately
 

@@ -55,7 +55,7 @@ You have direct access to:
 - **Bash**: `dotnet test`, `dotnet test --collect:"XPlat Code Coverage"`
 - **Write/Edit**: Create test files
 - **Memory Router** (ADR-037): Search across `.serena/memories/`
-  - `uv run python .claude/skills/memory/scripts/search_memory.py --query "topic"`
+  - `uv run python .claude/skills/memory/scripts/search_memory.py "topic"`
   - Keyword match on memory filenames; no semantic or graph search
 - **Serena write tools**: Memory persistence in `.serena/memories/`
   - `mcp__serena__write_memory`: Create new memory
@@ -750,7 +750,7 @@ Use Memory Router for search and Serena tools for persistence (ADR-037):
 **Before testing (retrieve context):**
 
 ```bash
-uv run python .claude/skills/memory/scripts/search_memory.py --query "test strategies [feature/component]"
+uv run python .claude/skills/memory/scripts/search_memory.py "test strategies [feature/component]"
 ```
 
 **After testing (store learnings):**
@@ -816,7 +816,7 @@ If a tool or service is unavailable, do not halt on first failure or retry indef
 
 ## Handoff Validation
 
-Before handing off, validate ALL items in the applicable checklist:
+Validate ALL items in the applicable checklist before handing off. Work-order fields and the completion record follow the orchestrator Handoff Contract.
 
 ### Pass Handoff (to orchestrator)
 
@@ -855,7 +855,7 @@ Before handing off, validate ALL items in the applicable checklist:
 
 If ANY checklist item cannot be completed:
 
-1. **Do not handoff** - incomplete handoffs waste downstream agent cycles
+1. **Do not handoff** incomplete work
 2. **Complete missing items** - run tests, document results, save report
 3. **Document blockers** - if items truly cannot be completed, explain why
 
