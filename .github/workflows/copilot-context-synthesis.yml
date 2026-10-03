@@ -67,6 +67,7 @@ jobs:
     name: Synthesize Context and Assign Copilot
     # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
     runs-on: ubuntu-26.04-arm
+    environment: agent-approval
 
     # Run for:
     # - Label trigger with copilot-ready label
@@ -119,6 +120,7 @@ jobs:
     name: Sweep Missed Issues
     # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
     runs-on: ubuntu-26.04-arm
+    environment: agent-approval
 
     # Run for:
     # - Scheduled trigger (cron)

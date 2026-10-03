@@ -78,7 +78,7 @@ jobs:
     # scope decision. ADR-101 requirement 1: whether spec validation applies is
     # decided by this job's own "Decide scope" step below, not by a sibling
     # job's output. `github.event_name != 'merge_group'` stays: a queue run has
-    # no pull request to validate and this job holds an environment secret.
+    # no pull request to validate and this job runs behind an environment.
     if: github.event_name != 'merge_group' && always() && (needs.debounce.result == 'success' || needs.debounce.result == 'skipped')
     # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
     runs-on: ubuntu-26.04-arm

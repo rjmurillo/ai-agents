@@ -1552,7 +1552,8 @@ def check_merge_readiness(
      rollup_rows, contexts_pages_complete) = _evaluate_ci_checks(
         pr, ignore_ci, include_non_required, reasons,
         owner=owner, repo=repo, pr_number=pr_number,
-        advisory=_load_advisory_agent_workflows(),
+        # `ignore_ci` skips CI classification, so the trusted list is not read.
+        advisory=frozenset() if ignore_ci else _load_advisory_agent_workflows(),
     )
     # Non-required disposition check: undisposed failures block merge
     undisposed = _check_nonrequired_dispositions(
