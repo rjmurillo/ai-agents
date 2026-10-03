@@ -903,7 +903,7 @@ The layers stay separate, as #5389 requires:
 | Scored route accuracy, deterministic resolver families | this script |
 | Scored route accuracy, model-driven families | not built yet |
 
-Executed families: `explicit-skill`, `long-tail-single-domain`, `multi-domain-handoff`, `negative-noise`, `failure-fallback`. A scenario that expects a specialist fails when the resolver returns the orchestrator or `none`, and the report counts orchestrator handoffs and `none` results as separate rates. A fixture route without a namespace matches that skill in any plugin namespace. A qualified route such as `gstack:dx-review` must match exactly, which pins the namespace in a mixed catalog. Every report lists `high-traffic-direct`, `conditional-adjunct`, `lifecycle`, and `composition-order` as not executed, because the autoplan table and the parent skills' prose are read by a model.
+Executed families: `explicit-skill`, `long-tail-single-domain`, `multi-domain-handoff`, `negative-noise`, `failure-fallback`. A scenario that expects a specialist fails when the resolver returns the orchestrator or `none`, and the report counts orchestrator handoffs and `none` results as separate rates. A fixture route without a namespace matches that skill in any plugin namespace. A qualified route such as `gstack:dx-review` must match exactly, which pins the namespace in a mixed catalog. Every report lists `high-traffic-direct`, `conditional-adjunct`, `lifecycle`, and `composition-order` as not executed, because a model reads the autoplan table and the parent skills' prose.
 
 ## Skill Overlap Eval
 
