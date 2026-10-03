@@ -435,6 +435,15 @@ def reason_signal(result: dict[str, Any], scenario: dict[str, Any]) -> bool | No
 # ---------------------------------------------------------------------------
 
 
+def required_passes(scored: int) -> int:
+    """Passes needed out of `scored` runs: ceil(2/3 * scored), in integers.
+
+    `-(-a // b)` is ceiling division. Required passes for 1 to 6 scored runs
+    are 1, 2, 2, 3, 4, 4 (ADR-057).
+    """
+    return -(-scored * 2 // 3)
+
+
 def run_scenario_multi(
     api_key: str,
     prompt_text: str,
@@ -481,7 +490,7 @@ def run_scenario_multi(
         "requested_runs": runs,
         "not_scored_runs": not_scored_runs,
         "pass_rate": pass_rate,
-        "passed": scored > 0 and passes >= -(-scored * 2 // 3),  # ceil(2/3 * scored)
+        "passed": scored > 0 and passes >= required_passes(scored),
         "flaky": 0 < passes < scored,
         "reason_mismatch_runs": reason_mismatch_runs,
         "per_run": run_results,
@@ -493,7 +502,7 @@ def run_scenario_multi(
 # ---------------------------------------------------------------------------
 
 
-def is_base_unstable(before: dict[str, Any], required_runs: int = 1) -> bool:
+def is_base_unstable(before: dict[str, Any], required_runs: int = DEFAULT_RUNS) -> bool:
     """True when the base side cannot serve as a baseline.
 
     Two shapes qualify: the base passed only some of its scored runs, or it was
@@ -516,6 +525,15 @@ def is_base_unstable(before: dict[str, Any], required_runs: int = 1) -> bool:
 def min_stable_scenarios(total: int) -> int:
     """Smallest stable-base scenario count that makes a comparison conclusive."""
     return max(1, -(-total // 2))
+
+
+def _base_tag(before: dict[str, Any], required_runs: int) -> str:
+    """Progress tag for the base side, naming why a base is excluded."""
+    if before["runs"] < required_runs:
+        return f" [base unstable: {before['runs']} of {required_runs} required runs scored]"
+    if is_base_unstable(before, required_runs):
+        return " [FLAKY, base unstable]"
+    return " [FLAKY]" if before["flaky"] else ""
 
 
 def run_comparison(
@@ -552,11 +570,7 @@ def run_comparison(
 
         b_tag = "PASS" if before["passed"] else "FAIL"
         a_tag = "PASS" if after["passed"] else "FAIL"
-        flaky_b = (
-            " [FLAKY, base unstable]"
-            if is_base_unstable(before, required_runs)
-            else (" [FLAKY]" if before["flaky"] else "")
-        )
+        flaky_b = _base_tag(before, required_runs)
         flaky_a = " [FLAKY]" if after["flaky"] else ""
         before_not_scored = before.get("not_scored_runs", 0)
         after_not_scored = after.get("not_scored_runs", 0)
@@ -620,12 +634,14 @@ def acceptance_gate(
     a pre-existing scenario already failed on the base ref (before_score < 1.0
     with zero targeted improvements). See ADR-057 (2026-06-01 relaxation note).
 
-    Two signals never gate (issue #5601). A scenario whose base side is
+    One signal never gates and one can (issue #5601). A scenario whose base side is
     non-deterministic (`is_base_unstable`) is excluded from `regressions` and
     from the score comparison, so base-side sampling noise cannot manufacture
-    a regression; it is listed in `base_unstable_scenarios`. A run whose
-    reason lacks `expected_reason_contains` is listed in
-    `reason_mismatch_scenarios`. A base that passes every scored run and an
+    a regression; it is listed in `base_unstable_scenarios`. The exclusion has
+    one gating effect: when fewer than half the scenarios keep a stable base,
+    `has_stable_baseline` is False and the verdict is FAIL as inconclusive. A
+    run whose reason lacks `expected_reason_contains` is listed in
+    `reason_mismatch_scenarios` and never gates. A base that passes every scored run and an
     after side that fails still counts as a regression.
 
     Security-critical tier: all runs must pass (100% pass rate). Unchanged.
@@ -983,9 +999,11 @@ def _run_and_report(
     sys.exit(0 if gate["passed"] else 1)
 
 
-# Gate keys that describe a scenario without gating it (issue #5601).
+# Gate keys that describe a scenario without failing it (issue #5601). Excluded
+# base scenarios still count toward the stable-baseline floor, which can fail the
+# gate as inconclusive.
 _INFORMATIONAL_SIGNALS = (
-    ("base_unstable_scenarios", "Base unstable (excluded from regressions, informational)"),
+    ("base_unstable_scenarios", "Base unstable (excluded from regressions and scores)"),
     (
         "base_unstable_security_scenarios",
         "Base unstable, security tier (excluded from regressions)",
@@ -997,6 +1015,27 @@ _INFORMATIONAL_SIGNALS = (
 def _print_informational_signals(gate: dict[str, Any]) -> None:
     """Print the non-gating scenario lists to stderr."""
     for key, label in _INFORMATIONAL_SIGNALS:
+        if gate.get(key):
+            print(f"  {label}: {gate[key]}", file=sys.stderr)
+
+
+# Gate keys printed as `label: value` when truthy, in output order.
+_GATE_LINES_BEFORE_SIGNALS = (
+    ("improvements", "Improvements"),
+    ("regressions", "Regressions"),
+    ("flaky_scenarios", "Flaky"),
+)
+_GATE_LINES_AFTER_SIGNALS = (
+    ("excluded_count", "Excluded base-unstable scenarios"),
+    ("inconclusive_reason", "INCONCLUSIVE"),
+    ("not_scored_scenarios", "Not scored (excluded runs)"),
+    ("high_flakiness_scenarios", "BLOCKED (>40% flaky)"),
+)
+
+
+def _print_gate_lines(gate: dict[str, Any], lines: tuple[tuple[str, str], ...]) -> None:
+    """Print each truthy gate key as `label: value` to stderr."""
+    for key, label in lines:
         if gate.get(key):
             print(f"  {label}: {gate[key]}", file=sys.stderr)
 
@@ -1020,21 +1059,9 @@ def _print_gate_summary(gate: dict[str, Any]) -> None:
             mark = "PASS" if passed else "FAIL"
             print(f"    {criterion}: {mark}", file=sys.stderr)
 
-    if gate["improvements"]:
-        print(f"  Improvements: {gate['improvements']}", file=sys.stderr)
-    if gate["regressions"]:
-        print(f"  Regressions: {gate['regressions']}", file=sys.stderr)
-    if gate["flaky_scenarios"]:
-        print(f"  Flaky: {gate['flaky_scenarios']}", file=sys.stderr)
+    _print_gate_lines(gate, _GATE_LINES_BEFORE_SIGNALS)
     _print_informational_signals(gate)
-    if gate.get("excluded_count"):
-        print(f"  Excluded base-unstable scenarios: {gate['excluded_count']}", file=sys.stderr)
-    if gate.get("inconclusive_reason"):
-        print(f"  INCONCLUSIVE: {gate['inconclusive_reason']}", file=sys.stderr)
-    if gate.get("not_scored_scenarios"):
-        print(f"  Not scored (excluded runs): {gate['not_scored_scenarios']}", file=sys.stderr)
-    if gate.get("high_flakiness_scenarios"):
-        print(f"  BLOCKED (>40% flaky): {gate['high_flakiness_scenarios']}", file=sys.stderr)
+    _print_gate_lines(gate, _GATE_LINES_AFTER_SIGNALS)
     if gate.get("insufficient_scored_scenarios"):
         print(
             f"  BLOCKED (< {gate['required_scored_runs']} scored runs, after): "

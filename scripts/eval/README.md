@@ -816,6 +816,17 @@ Adding a new activation eval:
 6. Iterate on the rule or skill `description` field until the `description` mechanism passes on its own. Treat `full` as ceiling diagnostics, not as a passing route.
 7. Read the `Routing:` caveat before accepting a `description` pass. One skill router fronts every sibling reference, and a sibling resolves for your target as readily as the target does. That caveat counts the positive cells whose router never opened the reference under test, so a pass reported beside a nonzero count is partly a measurement of some other reference.
 
+### Evidence states in the coverage gate
+
+`scripts/validation/report_rule_activation_states.py --output PATH` writes JSON that keeps each evidence state apart, so baseline membership is never read as efficacy:
+
+- `baseline_exempt`: no scenario exists and only the baseline allows it. Not evidence.
+- `scenario_defined_not_scored`: a scenario with a positive and a negative case exists. The evaluator accepts it; nothing says it was run.
+- `scenario_defined_not_runnable`: the scenario has no negative case. The coverage gate counts it as covered, but `eval-rule-activation.py` refuses it before scoring.
+- `scored`: always `null` in this report. Scored efficacy comes from a live run of `eval-rule-activation.py`, and `eval-suite.py` labels those results `scored` in its routing plan.
+
+An uncovered artifact outside the baseline appears under `not_baselined` and fails the ratchet. The report never fails on a ratchet regression; `check_rule_activation_coverage.py` owns that decision. Issue #4871 reads this file, plus the `evidence` field of each `eval-suite.py --dry-run` routing-plan entry, to record whether each retained always-on unit has behavioral evidence.
+
 ### Software Engineering Library Rollback Gate
 
 ADR-088 moved these eight book-derived references behind `software-engineering-library`:
@@ -2065,7 +2076,14 @@ See `examples/example-scenarios.json` for a working template.
 Required fields: `id`, `desc`, `input`, `expected_verdict`.
 Optional: `expected_reason_contains`, `rationale`.
 
-`eval-prompt-change.py` scores a scenario on the verdict alone. `expected_reason_contains` is an informational signal: when a run has the right verdict and a reason without the substring, the gate summary lists the scenario under `Reason wording differs` and does not fail it (issue #5601). A scenario whose base side passes the 2/3 threshold but not every scored run (`passed` and `flaky`) is listed under `Base unstable`, excluded from the regression list and from the before and after scores. The exclusion is narrow: that scenario can still block through after-side flakiness above `FLAKINESS_BLOCK_THRESHOLD`, an after side scored on fewer than the required runs, or the security-critical all-runs criterion. A base that passes every scored run while the after side fails still blocks. Each base side is sampled once per eval, so a base that draws 3/3 on this sample is treated as stable, and a 0/3 after side then counts as a regression. Repeated baseline sampling is not implemented (issue #5601 reported 0/3, 2/3, and 3/3 on the same base; only the 2/3 case is covered).
+`eval-prompt-change.py` scores a scenario on the verdict alone (issue #5601):
+
+- **Verdict only.** `expected_reason_contains` is an informational signal. A right verdict with a reason that lacks the substring is listed under `Reason wording differs` and does not fail the scenario.
+- **Pass threshold.** A scenario passes with at least `ceil(2/3 * scored)` passing runs. Required passes for 1 to 6 scored runs are 1, 2, 2, 3, 4, 4.
+- **Base unstable.** A base side is excluded from the regression list and from the before and after scores when it passes the threshold without passing every scored run, or when it was scored on fewer runs than the tier requires (3, or 5 with `--security-critical`). It is listed under `Base unstable` with an excluded count.
+- **Stable-baseline floor.** The verdict is FAIL as inconclusive unless at least `max(1, ceil(total / 2))` scenarios keep a stable base. Thin or flaky base scoring can therefore fail the gate even when no regression is found.
+- **Narrow exclusion.** An excluded scenario can still block through after-side flakiness above `FLAKINESS_BLOCK_THRESHOLD`, an after side scored on fewer than the required runs, or the security all-runs criterion. A base that passes every scored run while the after side fails still blocks.
+- **Single-sample limit.** Each base side is sampled once per eval, so a base that draws 3/3 on this sample is treated as stable, and a 0/3 after side then counts as a regression. Repeated baseline sampling is not implemented. Issue #5601 reported 0/3, 2/3, and 3/3 on the same base, and only the 2/3 case is covered.
 
 ## Scenario File Locations
 

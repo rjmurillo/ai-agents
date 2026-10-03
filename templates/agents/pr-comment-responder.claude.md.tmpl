@@ -14,7 +14,7 @@ You have direct access to:
 - **Task**: Delegate to orchestrator (primary)
 - **TodoWrite**: Track review progress
 - **Memory Router** (ADR-037): Search across `.serena/memories/`
-  - `python3 "$SCRIPTS_DIR/../memory/scripts/search_memory.py" --query "topic"`
+  - `python3 "$SCRIPTS_DIR/../memory/scripts/search_memory.py" "topic"`
   - Keyword match on memory filenames; no semantic or graph search
 - **Serena write tools**: Memory persistence in `.serena/memories/`
   - `mcp__serena__write_memory`: Create new memory
@@ -519,7 +519,7 @@ Use Memory Router for search and Serena tools for persistence (ADR-037). Memory 
 ```bash
 PLUGIN_ROOT="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
 SCRIPTS_DIR="$PLUGIN_ROOT/skills/github/scripts"
-python3 "$SCRIPTS_DIR/../memory/scripts/search_memory.py" --query "PR review patterns bot behaviors reviewer preferences"
+python3 "$SCRIPTS_DIR/../memory/scripts/search_memory.py" "PR review patterns bot behaviors reviewer preferences"
 ```
 
 **After EVERY triage decision (store learnings):**

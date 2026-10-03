@@ -179,6 +179,25 @@ Dissent: the provider outage stays fail-open, and the stable set still depends o
 
 ---
 
+## Correction 2026-10-03 (Issue #5601): criterion 4 fallback wording
+
+A review thread on PR #6079 found that criterion 4 still said a comparison without `scored_scenario_count` is treated as having every scenario stable. The code derives the stable count from the gate's own exclusion set (finding 29). The sentence now says so. This edit changes wording only, so a reduced panel of architect and critic reviewed it.
+
+| # | Agent | Priority | Finding | Resolution |
+|---|-------|----------|---------|------------|
+| 32 | architect | none | The sentence matches `eval-prompt-change.py:731-738`. | None. |
+| 33 | critic | P2 | The two supplied-count tests assert only the FAIL verdict, not the inconclusive reason. | Not changed. Recorded for a later test pass. |
+| 34 | critic | P2 | `test_gate_without_scored_count_assumes_a_baseline` keeps the old wording in its name. | Not changed. Recorded for a later test pass. |
+
+### Votes
+
+| Agent | Vote |
+|-------|------|
+| architect | Accept |
+| critic | Accept |
+
+---
+
 ## Amendment 2026-10-03 (owner policy on agent workflows): pointer to ADR-114
 
 PR #6131 changes ADR-057. The `/spec` CI leg in `slash-command-quality.yml` no longer blocks merges and runs only after environment approval. The full policy lives in ADR-114. ADR-057 keeps a pointer and the status of the `/spec` leg.

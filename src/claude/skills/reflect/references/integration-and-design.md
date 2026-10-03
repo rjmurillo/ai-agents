@@ -24,7 +24,7 @@ Skill memories integrate with the memory system:
 
 ```bash
 # Search skill sidecar learnings
-python3 .claude/skills/memory/scripts/search_memory.py --query "github-observations constraints"
+python3 .claude/skills/memory/scripts/search_memory.py "github-observations constraints"
 
 # Read specific skill sidecar
 Read .serena/memories/github/github-observations.md

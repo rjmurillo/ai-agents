@@ -181,7 +181,7 @@ Use Memory Router for search and Serena tools for persistence:
 **Before pipeline work (retrieve context):**
 
 ```bash
-python3 .claude/skills/memory/scripts/search_memory.py --query "devops patterns [pipeline/infrastructure]"
+python3 .claude/skills/memory/scripts/search_memory.py "devops patterns [pipeline/infrastructure]"
 ```
 
 **After pipeline work (store learnings):**

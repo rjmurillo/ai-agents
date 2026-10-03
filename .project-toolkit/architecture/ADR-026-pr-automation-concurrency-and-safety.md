@@ -11,10 +11,6 @@ implemented: true
 
 # ADR-026: PR Automation Concurrency and Safety Controls
 
-## Status
-
-Accepted
-
 ## Context
 
 The PR maintenance automation script (`scripts/Invoke-PRMaintenance.ps1`) requires architectural decisions about:
