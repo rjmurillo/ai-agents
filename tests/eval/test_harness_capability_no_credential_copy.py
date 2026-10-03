@@ -10,8 +10,14 @@ import pytest
 
 from tests.eval._harness_capability_test_support import UNPROBED_MATRIX, cli
 
-_SCRIPTS = Path(cli.__file__).resolve().parent
-_SOURCES = (_SCRIPTS / "eval_harness_capability.py", _SCRIPTS / "_runtime_harness.py")
+_SCRIPTS = Path(str(cli.__file__)).resolve().parent
+_SOURCES = (
+    _SCRIPTS / "eval_harness_capability.py",
+    _SCRIPTS / "_runtime_harness.py",
+    _SCRIPTS / "_durable_live.py",
+    _SCRIPTS / "eval_durable_live.py",
+    _SCRIPTS / "_routing_live.py",
+)
 _FORBIDDEN = (
     "auth.json",
     ".credentials.json",
@@ -68,6 +74,7 @@ def test_a_codex_probe_leaves_no_credential_in_the_isolated_home(
     )
     frame = '{"type":"response.completed","response":{"reasoning":{"effort":"low"}}}'
     homes: list[list[str]] = []  # entry names seen under CODEX_HOME during the probe
+    links: list[str] = []  # symlinks of any name seen under CODEX_HOME during the probe
 
     def runner(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
         args = [str(value) for value in argv]
@@ -75,7 +82,9 @@ def test_a_codex_probe_leaves_no_credential_in_the_isolated_home(
             return subprocess.CompletedProcess(args, 0, "codex-cli 0.156.0", "")
         env = kwargs.get("env")
         assert isinstance(env, dict)
-        homes.append(sorted(path.name for path in Path(str(env["CODEX_HOME"])).rglob("*")))
+        home = Path(str(env["CODEX_HOME"]))
+        homes.append(sorted(path.name for path in home.rglob("*")))
+        links.extend(path.name for path in home.rglob("*") if path.is_symlink())
         stdout = json.dumps({"type": "turn.completed", "data": {"usage": {}}}) + "\n"
         return subprocess.CompletedProcess(
             args, 0, stdout, f"TRACE tungstenite::protocol: Received message {frame}\n"
@@ -89,3 +98,4 @@ def test_a_codex_probe_leaves_no_credential_in_the_isolated_home(
     assert code == 0
     assert len(homes) == 1
     assert "auth.json" not in homes[0]
+    assert links == []
