@@ -11,10 +11,6 @@ implemented: true
 
 # ADR-015: Artifact Storage Minimization Strategy
 
-## Status
-
-Accepted
-
 ## Date
 
 2025-12-22

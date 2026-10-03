@@ -11,10 +11,6 @@ implemented: true
 
 # ADR-038: Reflexion Memory Schema
 
-## Status
-
-Proposed
-
 ## Date
 
 2026-01-01
