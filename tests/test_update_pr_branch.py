@@ -13,6 +13,7 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -101,7 +102,7 @@ class _FakeGh:
         return [c for c in self.calls if c[:4] == ["gh", "api", "-X", "PUT"]]
 
 
-def _run(argv: list[str], fake: _FakeGh, *, auth: GhAuthResult | None = None):
+def _run(argv: list[str], fake: Any, *, auth: Any = None):
     """Run main with gh mocked; return (exit code, parsed envelope)."""
     auth = auth or GhAuthResult(GhAuthStatus.AUTHENTICATED)
     with patch.object(_mod, "check_gh_auth", return_value=auth), patch.object(
