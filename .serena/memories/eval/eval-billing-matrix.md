@@ -7,7 +7,7 @@
 | Harness | Billing | Provider name | Credential | Basis |
 |---|---|---|---|---|
 | claude | api | `anthropic` (urllib default), `anthropic-sdk` | `ANTHROPIC_API_KEY` | usd |
-| claude | subscription | `claude-cli` | `CLAUDE_CODE_OAUTH_TOKEN` | requests |
+| claude | subscription | `claude-cli` | `CLAUDE_CODE_OAUTH_TOKEN`, then the on-disk login, then `claude -p` (see below) | requests |
 | codex | api | `openai`, `codex` | `OPENAI_API_KEY` | usd |
 | codex | subscription | `codex-cli` | `codex login` under `CODEX_HOME`, or `CODEX_ACCESS_TOKEN` | requests |
 | copilot | api | `copilot-api` | `COPILOT_API_KEY` plus a required `COPILOT_API_BASE_URL` | requests |
@@ -24,6 +24,7 @@ Adding a transport, choosing what a run costs, or wondering why a provider name 
 - **copilot/api has no default endpoint and refuses to run without one.** GitHub documents no public inference API billed apart from a Copilot seat; `api.githubcopilot.com/chat/completions` is live but undocumented for third parties and its headers are community-observed. GitHub Models, which used to fill this cell, returned HTTP 410 when re-probed 2026-09-16. `COPILOT_API_BASE_URL` and optional `COPILOT_API_HEADERS` (a JSON object) are the seam.
 - **`registry_classification_gaps()` fails a test, not an import**, when a `_REGISTRY` row has no cell. That is the guard against the defect where `copilot-cli` was absent from the quota set and a subscription CLI quoted a Claude Sonnet token rate.
 - **Model attribution differs per cell.** `copilot-cli` reads its session transcript, `claude-cli` reads `modelUsage` from `--output-format json` (measured 2026-09-16 on CLI 2.1.273: an alias yields two keys, the alias and the resolved dated id, so every key must belong to the requested family rather than there being exactly one), `codex-cli` has none and refuses until `EVAL_CODEX_ALLOW_UNVERIFIED_MODEL=1`.
+- **Subscription cells share one credential order (#6151, 2026-10-04).** Environment, then dotenv files, then the CLI's own login on disk, then the signed-in CLI, then a prompt on a terminal only. `scripts/eval/_cli_credentials.py` owns it. `scripts/eval/README.md` section "Credential resolution order for subscription cells" is the binding description. The owner set this order after a metered key ran out of credit mid-eval. A paid `ANTHROPIC_API_KEY` is never a fallback.
 - **Status is evidence, not intent.** Only claude/api and copilot/subscription are `VERIFIED`. The rest are implemented and covered offline; no live run through them is recorded.
 
 ## CodeQL and the `payer` field
