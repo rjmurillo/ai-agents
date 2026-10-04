@@ -68,6 +68,7 @@ if _lib_dir not in sys.path:
 from github_core.api import (
     assert_gh_authenticated,
     resolve_repo_params,
+    sanitize_failure_detail,
 )
 from github_core.output import (
     add_output_format_arg,
@@ -315,8 +316,16 @@ def _fetch_pr_state(
     )
     if pr_result.returncode != 0:
         output = pr_result.stderr or pr_result.stdout
-        if _is_not_found(f"{pr_result.stdout}\n{pr_result.stderr}"):
-            _emit_error(f"PR #{pr} not found in {repo_flag}", 2, "NotFound", output_format, pr)
+        combined = f"{pr_result.stdout}\n{pr_result.stderr}"
+        if _is_not_found(combined):
+            # Keep gh's words: a 404 from a wrong host or repo also lands here.
+            _emit_error(
+                f"PR #{pr} not found in {repo_flag}: {sanitize_failure_detail(combined)}",
+                2,
+                "NotFound",
+                output_format,
+                pr,
+            )
         _emit_error(f"Failed to get PR state: {output}", 3, "ApiError", output_format, pr)
 
     try:
