@@ -74,8 +74,9 @@ less per accepted durable task.
   That is an observation, not a statistical bound: with 3 runs per cell, a
   task that succeeds half the time would still pass all 3 runs 12.5 percent
   of the time.
-- Gate 7: cost, wall time, and correction time per accepted durable task are
-  in the table above.
+- Gate 7: cost and wall time per accepted durable task are in the table
+  above. Human correction time is not measured: the runs are unattended, and
+  the 0 in the record is by construction.
 
 The only difference in outcome is `docs-title-publish`. No run under either
 control ran `publish.py`. Only one full-control run said it was holding the
