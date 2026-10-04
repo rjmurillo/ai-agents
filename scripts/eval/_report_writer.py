@@ -17,6 +17,7 @@ import os
 import tempfile
 from pathlib import Path
 
+from _cli_credentials import step_label
 from _eval_agent_types import REPORT_SCHEMA_VERSION
 from _report_aggregator import AggregateResult, FormFactorComparison
 
@@ -71,6 +72,7 @@ def _build_report_json(
     system_fingerprints: list[str] | None = None,
     seed: int | None = None,
     form_factor: FormFactorComparison | None = None,
+    credential_steps: list[str] | None = None,
 ) -> dict[str, object]:
     """Serialize the AggregateResult into the report.json shape.
 
@@ -116,6 +118,7 @@ def _build_report_json(
         "error_count": aggregate.error_count,
         "pricing_rate_as_of": aggregate.pricing_rate_as_of,
         "system_fingerprints": system_fingerprints or [],
+        "credential_steps": credential_steps or [],
         "seed": seed,
         "recommendation": recommendation,
     }
@@ -349,6 +352,7 @@ def _render_markdown(
     system_fingerprints: list[str] | None = None,
     seed: int | None = None,
     form_factor: FormFactorComparison | None = None,
+    credential_steps: list[str] | None = None,
 ) -> str:
     """Compose REPORT.md in stepdown order: header → summary → details."""
     header = (
@@ -362,6 +366,9 @@ def _render_markdown(
     if system_fingerprints:
         rendered = ", ".join(f"`{value}`" for value in system_fingerprints)
         header += f"- System fingerprints: {rendered}\n"
+    if credential_steps:
+        rendered = ", ".join(step_label(step) for step in credential_steps)
+        header += f"- Credential step: {rendered}\n"
     if seed is not None:
         header += f"- Seed: `{seed}`\n"
     sections = [
@@ -398,6 +405,7 @@ class ReportWriter:
         system_fingerprints: list[str] | None = None,
         seed: int | None = None,
         form_factor: FormFactorComparison | None = None,
+        credential_steps: list[str] | None = None,
     ) -> tuple[Path, Path]:
         """Render both files. Returns (json_path, markdown_path)."""
         run_reports_dir = self._reports_dir / run_id
@@ -415,6 +423,7 @@ class ReportWriter:
             system_fingerprints=system_fingerprints,
             seed=seed,
             form_factor=form_factor,
+            credential_steps=credential_steps,
         )
         report_md = _render_markdown(
             aggregate=aggregate,
@@ -429,6 +438,7 @@ class ReportWriter:
             system_fingerprints=system_fingerprints,
             seed=seed,
             form_factor=form_factor,
+            credential_steps=credential_steps,
         )
         json_path = run_reports_dir / "report.json"
         md_path = run_reports_dir / "REPORT.md"

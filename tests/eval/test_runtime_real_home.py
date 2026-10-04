@@ -8,6 +8,7 @@ link to, copy of, or read of a credential file, and the report records that
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 import pytest
@@ -110,7 +111,6 @@ def test_the_claude_cli_grader_uses_the_real_home_only_under_the_opt_in(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     import importlib.util
-    import sys
 
     eval_dir = str(Path(__file__).resolve().parents[2] / "scripts" / "eval")
     sys.path.insert(0, eval_dir)
@@ -123,12 +123,43 @@ def test_the_claude_cli_grader_uses_the_real_home_only_under_the_opt_in(
     monkeypatch.delenv(ENV, raising=False)
     monkeypatch.delenv("CLAUDE_CODE_OAUTH_TOKEN", raising=False)
     provider = claude_cli._ClaudeCLIProvider()
-    isolated = provider._build_env(tmp_path / "profile")
+    token = claude_cli.ResolvedCredential(claude_cli.STEP_ENV, "tok")
+    isolated = provider._build_env(tmp_path / "profile", token)
     assert isolated["CLAUDE_CONFIG_DIR"] == str(tmp_path / "profile")
-    with pytest.raises(RuntimeError, match="CLAUDE_CODE_OAUTH_TOKEN"):
-        provider._require_subscription_credential(isolated)
     monkeypatch.setenv(ENV, "1")
-    real = provider._build_env(tmp_path / "profile")
+    login = provider._resolve_credential("claude")
+    assert login.step == claude_cli.STEP_EXISTING_LOGIN
+    assert login.secret is None
+    real = provider._build_env(tmp_path / "profile", login)
     assert real["HOME"] == str(tmp_path)
     assert "CLAUDE_CONFIG_DIR" not in real
-    provider._require_subscription_credential(real)
+    assert "CLAUDE_CODE_OAUTH_TOKEN" not in real
+
+
+def test_the_real_home_grader_forwards_an_exported_token_without_reading_disk(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    eval_dir = str(Path(__file__).resolve().parents[2] / "scripts" / "eval")
+    sys.path.insert(0, eval_dir)
+    try:
+        import _claude_cli as claude_cli
+    finally:
+        sys.path.remove(eval_dir)
+
+    def _no_resolve(*args: object, **kwargs: object) -> None:
+        raise AssertionError("real-HOME must not walk the disk credential order")
+
+    monkeypatch.setattr(claude_cli, "resolve_cached", _no_resolve)
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv(ENV, "1")
+    monkeypatch.setenv("CLAUDE_CODE_OAUTH_TOKEN", "tok")
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path / "ambient"))
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "paid")
+    provider = claude_cli._ClaudeCLIProvider()
+    credential = provider._resolve_credential("claude")
+    assert credential.step == claude_cli.STEP_ENV
+    env = provider._build_env(tmp_path / "profile", credential)
+    assert env["CLAUDE_CODE_OAUTH_TOKEN"] == "tok"
+    assert env["HOME"] == str(tmp_path)
+    assert "CLAUDE_CONFIG_DIR" not in env
+    assert "ANTHROPIC_API_KEY" not in env
