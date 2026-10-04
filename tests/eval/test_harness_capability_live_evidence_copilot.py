@@ -317,7 +317,7 @@ def test_checked_in_versions_are_the_first_line_probe_version_would_return(tmp_p
         text = (
             "GitHub Copilot CLI 1.0.89-1.\nRun 'copilot update' to check for updates.\n"
             if args[0] == "copilot"
-            else "codex-cli 0.156.0\n"
+            else "codex-cli 0.160.0\n"
         )
         return subprocess.CompletedProcess(args, 0, text, "")
 
@@ -331,7 +331,7 @@ def test_checked_in_versions_are_the_first_line_probe_version_would_return(tmp_p
     codex_record = next(
         record for record in capability.load_matrix(MATRIX) if record.harness == "codex"
     )
-    assert codex_version == codex_record.version == "codex-cli 0.156.0"
+    assert codex_version == codex_record.version == "codex-cli 0.160.0"
     assert copilot_version == _copilot_record().version == "GitHub Copilot CLI 1.0.89-1."
 
 

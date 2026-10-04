@@ -1,0 +1,8 @@
+{"type":"thread.started","thread_id":"01a104bc-0821-7dd3-806b-2d568e41c23f"}
+{"type":"turn.started"}
+{"type":"item.started","item":{"id":"item_0","type":"collab_tool_call","tool":"wait","sender_thread_id":"01a104bc-0821-7dd3-806b-2d568e41c23f","receiver_thread_ids":[],"prompt":null,"agents_states":{},"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_0","type":"collab_tool_call","tool":"wait","sender_thread_id":"01a104bc-0821-7dd3-806b-2d568e41c23f","receiver_thread_ids":[],"prompt":null,"agents_states":{},"status":"completed"}}
+{"type":"item.started","item":{"id":"item_1","type":"collab_tool_call","tool":"wait","sender_thread_id":"01a104bc-0821-7dd3-806b-2d568e41c23f","receiver_thread_ids":[],"prompt":null,"agents_states":{},"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_1","type":"collab_tool_call","tool":"wait","sender_thread_id":"01a104bc-0821-7dd3-806b-2d568e41c23f","receiver_thread_ids":[],"prompt":null,"agents_states":{},"status":"completed"}}
+{"type":"item.completed","item":{"id":"item_2","type":"agent_message","text":"none=NONE all=ZEBRA-7731"}}
+{"type":"turn.completed","usage":{"input_tokens":104019,"cached_input_tokens":93696,"cache_write_input_tokens":0,"output_tokens":209,"reasoning_output_tokens":34}}

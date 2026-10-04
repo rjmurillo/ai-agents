@@ -1,7 +1,7 @@
 """Codex live-evidence re-derivation (issue #5423 reopen).
 
-The checked-in matrix (`MATRIX`) is a claim: codex-cli 0.156.0, probed live
-on 2026-09-24, produced these capability statuses. This file is the check on
+The checked-in matrix (`MATRIX`) is a claim: codex-cli 0.160.0, probed live
+on 2026-10-03, produced these capability statuses. This file is the check on
 that claim. For every codex capability the matrix marks `VERIFIED`, it loads
 the exact fixture the matrix's `detail` field cites and re-derives the same
 verdict from it using only the in-tree parsers (`_codex_frames`,
@@ -35,7 +35,7 @@ from tests.eval._harness_capability_test_support import (
 CapabilityStatus = capability.CapabilityStatus
 EvidenceKind = capability.EvidenceKind
 
-CODEX_FIXTURES = FIXTURES / "codex-0.156.0"
+CODEX_FIXTURES = FIXTURES / "codex-0.160.0"
 
 
 def _frames(name: str):
@@ -244,20 +244,40 @@ def test_sol_ultra_catalog_lists_ultra_for_gpt_6_sol_and_not_gpt_6_luna() -> Non
     assert "ultra" not in luna_efforts
 
 
-# --- concurrency_limit (UNVERIFIED, not VERIFIED) ---------------------------------
+# --- concurrency_limit and context_reset_observability (rollout captures) ---------
 
 
-def test_concurrency_limit_peak_overlap_matches_the_checked_in_value() -> None:
-    frames = _frames("concurrency-3-requested.trace.log")
-    spans = codex_frames.response_spans(frames)
+def _recorded_cell(key: str) -> dict[str, Any]:
+    from tests.eval._harness_capability_test_support import recorded_cli
 
-    peak = codex_frames.peak_overlap(spans, model="gpt-6-luna")
+    plan = MATRIX.parent / "harness-capability-recorded-captures-0.160.0.json"
+    report = recorded_cli.run(MATRIX, plan)
+    codex = next(h for h in report["harnesses"] if h["harness"] == "codex")
+    cell: dict[str, Any] = codex["capabilities"][key]
+    return cell
 
-    record = _codex_record()
-    concurrency = record.capabilities["concurrency_limit"]
-    assert peak == concurrency.value == 2
-    assert concurrency.status is CapabilityStatus.UNVERIFIED, (
-        "3 was requested and only 2 overlapped, so this cell must stay short of VERIFIED"
+
+def test_concurrency_limit_reproduces_verified_from_the_waited_rollouts() -> None:
+    cell = _recorded_cell("concurrency_limit")
+    matrix_cell = _codex_record().capabilities["concurrency_limit"]
+
+    assert cell["status"] == "VERIFIED" and cell["value"] == 3
+    assert matrix_cell.status is CapabilityStatus.VERIFIED and matrix_cell.value == 3
+
+
+def test_free_running_children_never_overlap_without_a_cap() -> None:
+    """3 luna children were requested with no cap and the backend never overlapped them."""
+    spans = codex_frames.response_spans(_frames("concurrency-3-requested.trace.log"))
+
+    assert codex_frames.peak_overlap(spans, model="gpt-6-luna") == 1
+
+
+def test_context_reset_observability_reproduces_verified_from_the_compaction_rollout() -> None:
+    cell = _recorded_cell("context_reset_observability")
+
+    assert cell["status"] == "VERIFIED"
+    assert _codex_record().capabilities["context_reset_observability"].status is (
+        CapabilityStatus.VERIFIED
     )
 
 
@@ -277,6 +297,8 @@ _REPRODUCED_CODEX_VERIFIED_KEYS = frozenset(
         "single_agent",
         "fresh_session",
         "durable_artifact_handoff",
+        "concurrency_limit",
+        "context_reset_observability",
     }
 )
 
@@ -298,7 +320,7 @@ def test_every_verified_codex_capability_is_reproduced_here() -> None:
 #: only holds at a word/non-word boundary, and `n`/`l` are both word
 #: characters, so the engine is forced to keep matching through the `l`.
 _FIXTURE_CITATION = re.compile(
-    r"[\w.\-]+/[\w.\-]+\.(?:trace\.log|stdout\.jsonl|events\.jsonl|wire\.log|json|stderr\.txt)\b"
+    r"[\w.\-]+/[\w.\-]+\.(?:trace\.log|rollout\.jsonl|stdout\.jsonl|events\.jsonl|wire\.log|json|stderr\.txt)\b"
 )
 
 
@@ -306,7 +328,7 @@ def test_checked_in_matrix_verified_cells_cite_real_evidence() -> None:
     """Every VERIFIED cell must carry backend evidence and cite a real fixture.
 
     Replaces the old all-`UNVERIFIED` pin (issue #5423 reopen): live probes
-    against codex-cli 0.156.0 and copilot-cli 1.0.89 on 2026-09-24 produced
+    against codex-cli 0.160.0 (2026-10-03) and copilot-cli 1.0.89 (2026-09-24) produced
     real `VERIFIED` cells, so pinning "nothing is ever verified" would now
     be false. What still must hold is that a `VERIFIED` cell is never a bare
     assertion: it needs `BACKEND` evidence, a `probe_command`, a `date`, and
