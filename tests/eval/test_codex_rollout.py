@@ -62,7 +62,7 @@ def test_recorded_capture_bounds_the_limit_at_exactly_six() -> None:
 
     ceiling = rollout.spawn_ceiling(parent, children)
 
-    assert ceiling is not None
+    assert isinstance(ceiling, rollout.SpawnCeiling)
     assert (ceiling.lower_bound, ceiling.upper_bound, ceiling.refusals) == (6, 6, 3)
     assert ceiling.exact
     assert ceiling.captured_on == "2026-09-10"
@@ -249,17 +249,17 @@ def test_idle_time_between_turns_is_not_counted() -> None:
 def test_a_child_that_never_ran_a_turn_measures_nothing() -> None:
     bare = rollout.parse_rollout(rollout_lines("a", start=T0, end=T1, parent="p", turns=()))
 
-    assert rollout.peak_running_children([bare]) is None
+    assert rollout.peak_running_children([bare]) is rollout.NoCeiling.NO_CHILD_TURNS
 
 
 def test_no_children_measure_nothing() -> None:
-    assert rollout.peak_running_children([]) is None
+    assert rollout.peak_running_children([]) is rollout.NoCeiling.NO_CHILD_TURNS
 
 
 def test_an_unclosed_child_makes_the_peak_unmeasurable() -> None:
     children = [_child("a", T0, T2), _child("b", T1, T3, balanced=False)]
 
-    assert rollout.peak_running_children(children) is None
+    assert rollout.peak_running_children(children) is rollout.NoCeiling.UNPAIRED_TURNS
 
 
 # --- Spawn ceiling -------------------------------------------------------------
@@ -272,23 +272,31 @@ def _parent(*refusals: str, version: str = "0.154.0") -> rollout.Rollout:
 
 
 def test_no_refusal_gives_no_ceiling() -> None:
-    assert rollout.spawn_ceiling(_parent(), [_child("a", T0, T1)]) is None
+    assert rollout.spawn_ceiling(_parent(), [_child("a", T0, T1)]) is rollout.NoCeiling.NO_REFUSAL
 
 
 def test_a_child_of_another_parent_is_refused() -> None:
     stray = rollout.parse_rollout(rollout_lines("a", start=T0, end=T1, parent="other"))
 
-    assert rollout.spawn_ceiling(_parent(T2), [stray]) is None
+    assert rollout.spawn_ceiling(_parent(T2), [stray]) is rollout.NoCeiling.FOREIGN_PARENT
 
 
 def test_children_from_another_version_are_refused() -> None:
     other = _child("a", T0, T1, version="0.155.1")
 
-    assert rollout.spawn_ceiling(_parent(T2), [other]) is None
+    assert rollout.spawn_ceiling(_parent(T2), [other]) is rollout.NoCeiling.MIXED_VERSIONS
 
 
 def test_an_unmeasurable_peak_gives_no_ceiling() -> None:
-    assert rollout.spawn_ceiling(_parent(T2), [_child("a", T0, T1, balanced=False)]) is None
+    result = rollout.spawn_ceiling(_parent(T2), [_child("a", T0, T1, balanced=False)])
+
+    assert result is rollout.NoCeiling.UNPAIRED_TURNS
+
+
+def test_a_child_with_no_turn_gives_no_ceiling() -> None:
+    bare = rollout.parse_rollout(rollout_lines("a", start=T0, end=T1, parent="p", turns=()))
+
+    assert rollout.spawn_ceiling(_parent(T2), [bare]) is rollout.NoCeiling.NO_CHILD_TURNS
 
 
 def test_the_upper_bound_counts_only_children_spawned_before_the_refusal() -> None:
@@ -297,7 +305,7 @@ def test_the_upper_bound_counts_only_children_spawned_before_the_refusal() -> No
 
     ceiling = rollout.spawn_ceiling(_parent(T1), [early, late])
 
-    assert ceiling is not None
+    assert isinstance(ceiling, rollout.SpawnCeiling)
     assert ceiling.upper_bound == 1
 
 
@@ -306,7 +314,7 @@ def test_bounds_that_do_not_meet_are_not_exact() -> None:
 
     ceiling = rollout.spawn_ceiling(_parent(T3), kids)
 
-    assert ceiling is not None
+    assert isinstance(ceiling, rollout.SpawnCeiling)
     assert (ceiling.lower_bound, ceiling.upper_bound) == (1, 3)
     assert not ceiling.exact
 
@@ -316,14 +324,14 @@ def test_the_tightest_refusal_sets_the_upper_bound() -> None:
 
     ceiling = rollout.spawn_ceiling(_parent(T1, T3), kids)
 
-    assert ceiling is not None
+    assert isinstance(ceiling, rollout.SpawnCeiling)
     assert ceiling.upper_bound == 2
 
 
 def test_a_refusal_before_the_children_it_bounds_is_inconsistent() -> None:
     running = [_child("a", T1, T3), _child("b", T1, T3)]
 
-    assert rollout.spawn_ceiling(_parent(T0), running) is None
+    assert rollout.spawn_ceiling(_parent(T0), running) is rollout.NoCeiling.INCONSISTENT_BOUNDS
 
 
 def test_ceiling_carries_the_version_it_was_seen_on() -> None:
@@ -331,7 +339,7 @@ def test_ceiling_carries_the_version_it_was_seen_on() -> None:
 
     ceiling = rollout.spawn_ceiling(parent, [_child("a", T0, T1)])
 
-    assert ceiling is not None
+    assert isinstance(ceiling, rollout.SpawnCeiling)
     assert ceiling.cli_version == "0.154.0"
 
 
@@ -363,5 +371,5 @@ def test_refusals_at_the_same_instant_bound_once() -> None:
 
     ceiling = rollout.spawn_ceiling(_parent(T1, T1), kids)
 
-    assert ceiling is not None
+    assert isinstance(ceiling, rollout.SpawnCeiling)
     assert (ceiling.lower_bound, ceiling.upper_bound, ceiling.refusals) == (2, 2, 2)

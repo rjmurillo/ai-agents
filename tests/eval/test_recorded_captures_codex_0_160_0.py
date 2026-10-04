@@ -52,16 +52,18 @@ def test_the_compaction_capture_verifies_context_reset_observability() -> None:
 
 
 def test_a_parent_that_does_not_wait_yields_no_ceiling() -> None:
-    """Negative control: children end in turn_aborted, so no spawn refusal is read.
+    """Negative control: children end in turn_aborted, so no ceiling is read.
 
-    The parent did hold refusals (see the stdout fixture), which is the reader
-    defect tracked in the issue filed for it. This test pins the current output.
+    The parent held refusals, so the detail names the unpaired turns and not a
+    missing refusal (issue #6157).
     """
     report = recorded_cli.run(MATRIX, PLAN)
 
     capture = _captures(report)[NOWAIT]
+    detail = str(capture["detail"])
     assert capture["status"] == "UNVERIFIED" and capture["value"] is None
-    assert "No rollout capture shows a spawn refused" in str(capture["detail"])
+    assert "turn_aborted" in detail
+    assert "No rollout capture shows a spawn refused" not in detail
 
 
 def test_a_capture_from_another_version_moves_no_cell(tmp_path: Path) -> None:

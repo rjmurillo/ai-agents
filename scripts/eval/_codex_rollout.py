@@ -56,6 +56,7 @@ import json
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
+from enum import Enum
 from pathlib import Path
 
 #: Verbatim refusal text; see `codex-0.156.0/thread-limit-1.trace.log`.
@@ -80,6 +81,17 @@ class Rollout:
     compacted_records: int
     context_compacted_events: int
     spawn_refusals: tuple[datetime, ...]
+
+
+class NoCeiling(Enum):
+    """Why a recorded session yields no ceiling. Each member is one cause."""
+
+    NO_REFUSAL = "no spawn was refused at the thread limit"
+    FOREIGN_PARENT = "a child names a different parent"
+    MIXED_VERSIONS = "the parent and a child ran different CLI versions"
+    UNPAIRED_TURNS = "a child's turns do not pair up, as when the parent ended it mid-turn"
+    NO_CHILD_TURNS = "no child ran a turn"
+    INCONSISTENT_BOUNDS = "the refusals came before as many children as ran at once"
 
 
 @dataclass(frozen=True, slots=True)
@@ -249,21 +261,24 @@ def load_rollout(path: Path) -> Rollout:
     return parse_rollout(text.splitlines())
 
 
-def peak_running_children(children: Sequence[Rollout]) -> int | None:
-    """Return the most children with a turn open at once, or `None`.
+def peak_running_children(children: Sequence[Rollout]) -> int | NoCeiling:
+    """Return the most children with a turn open at once, or why there is none.
 
-    Counts turn spans only, never a file's whole lifetime. Returns `None` for
-    a child whose turns do not pair up cleanly, and when no child ran a turn:
-    a span that never closed has not shown when it stopped, so the peak among
-    the rest could be a false low (the rule
+    Counts turn spans only, never a file's whole lifetime. Returns
+    `UNPAIRED_TURNS` for a child whose turns do not pair up cleanly (a child
+    ended in `turn_aborted` is one), and `NO_CHILD_TURNS` when no child ran a
+    turn: a span that never closed has not shown when it stopped, so the peak
+    among the rest could be a false low (the rule
     `_capability_topology.max_concurrent_children` applies). At an equal
     instant an end sorts before a start: touching spans do not overlap.
     """
-    if not children or not all(child.turns_balanced for child in children):
-        return None
+    if not children:
+        return NoCeiling.NO_CHILD_TURNS
+    if not all(child.turns_balanced for child in children):
+        return NoCeiling.UNPAIRED_TURNS
     spans = [span for child in children for span in child.turn_spans]
     if not spans:
-        return None
+        return NoCeiling.NO_CHILD_TURNS
     edges = [(start, 1) for start, _ in spans] + [(end, -1) for _, end in spans]
     depth = peak = 0
     for _, step in sorted(edges, key=lambda edge: (edge[0], edge[1])):
@@ -272,28 +287,29 @@ def peak_running_children(children: Sequence[Rollout]) -> int | None:
     return peak
 
 
-def spawn_ceiling(parent: Rollout, children: Sequence[Rollout]) -> SpawnCeiling | None:
+def spawn_ceiling(parent: Rollout, children: Sequence[Rollout]) -> SpawnCeiling | NoCeiling:
     """Bound the child-thread limit from a parent and its children.
 
-    Returns `None` when there is no refusal (no upper bound exists), when the
-    peak is unmeasurable, or when a child names a different parent. A capture
-    spanning two CLI versions is refused: the ceiling belongs to one runtime.
+    Returns the `NoCeiling` cause when there is no refusal (no upper bound
+    exists), when the peak is unmeasurable, or when a child names a different
+    parent. A capture spanning two CLI versions is refused: the ceiling belongs
+    to one runtime.
     """
     if not parent.spawn_refusals:
-        return None
+        return NoCeiling.NO_REFUSAL
     if any(child.parent_thread_id != parent.thread_id for child in children):
-        return None
+        return NoCeiling.FOREIGN_PARENT
     if any(child.cli_version != parent.cli_version for child in children):
-        return None
+        return NoCeiling.MIXED_VERSIONS
     lower = peak_running_children(children)
-    if lower is None:
-        return None
+    if isinstance(lower, NoCeiling):
+        return lower
     upper = min(
         sum(1 for child in children if child.started_at <= refusal)
         for refusal in parent.spawn_refusals
     )
     if upper < lower:
-        return None
+        return NoCeiling.INCONSISTENT_BOUNDS
     return SpawnCeiling(
         cli_version=parent.cli_version,
         lower_bound=lower,
