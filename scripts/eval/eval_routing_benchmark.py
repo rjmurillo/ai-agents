@@ -113,6 +113,12 @@ def _parser() -> argparse.ArgumentParser:
         help="hard cap on paid invocations across the run; required with --live",
     )
     parser.add_argument(
+        "--arms",
+        default=None,
+        help="live only: run just these arm letters (for example CD). The config is still "
+        "validated whole, because arms C and D need A for the held-constant check",
+    )
+    parser.add_argument(
         "--repetitions",
         type=int,
         default=1,
@@ -196,11 +202,23 @@ def _run_row(
     return item, result.status is RunStatus.HARNESS_FAILED, False
 
 
+def _only_arms(plan: Plan, arms: str) -> Plan:
+    """The plan with only the rows of the named arm letters kept, in plan order."""
+    wanted = frozenset(arms.upper())
+    kept = tuple(row for row in plan.rows if row.arm in wanted)
+    return Plan(kept, plan.problems)
+
+
 def _live_budget(args: argparse.Namespace) -> InvocationBudget | None:
     """The run's invocation budget, `None` when not live. Raises `ValueError` on a bad mix."""
     if not args.live:
-        if args.real_home or args.max_invocations is not None or args.repetitions != 1:
-            raise ValueError("--real-home, --max-invocations and --repetitions need --live")
+        if (
+            args.real_home
+            or args.max_invocations is not None
+            or args.repetitions != 1
+            or args.arms is not None
+        ):
+            raise ValueError("--real-home, --max-invocations, --repetitions and --arms need --live")
         return None
     if args.max_invocations is None or args.max_invocations < 1 or args.repetitions < 1:
         raise ValueError("--live requires --max-invocations >= 1 and --repetitions >= 1")
@@ -241,6 +259,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     except LiveGateError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return EXIT_AUTH
+    if args.arms is not None:
+        plan = _only_arms(plan, args.arms)
+        if not plan.planned:
+            print(f"error: --arms {args.arms} selects no planned row", file=sys.stderr)
+            return EXIT_NOTHING_PLANNED
     return _run_live(
         plan,
         config,

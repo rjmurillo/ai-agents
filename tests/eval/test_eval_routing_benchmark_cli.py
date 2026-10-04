@@ -493,3 +493,40 @@ def test_repetitions_run_the_whole_plan_per_pass_with_the_repetition_outermost(
     reps = [line["repetition"] for line in lines]
     assert exit_code == cli.EXIT_OK and len(lines) == 2 * 6 * 2 * 2
     assert reps == sorted(reps) and set(reps) == {1, 2}
+
+
+def test_arms_runs_only_the_named_arms_but_validates_the_whole_config(
+    verified: Path,
+    small_config: Path,
+    tmp_path: Path,
+    scripted_live: type[ScriptedLive],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("CODEX_API_KEY", "a")
+    monkeypatch.setenv("GH_TOKEN", "b")
+    output = tmp_path / "results.jsonl"
+
+    exit_code = cli.main([*_live_args(verified, small_config, output), "--arms", "e"])
+
+    lines = [json.loads(line) for line in output.read_text(encoding="utf-8").splitlines()]
+    assert exit_code == cli.EXIT_OK and len(lines) == 2 * 6
+    assert {line["arm"] for line in lines} == {"E"}
+
+
+def test_arms_that_select_nothing_do_not_spend(
+    verified: Path,
+    small_config: Path,
+    tmp_path: Path,
+    scripted_live: type[ScriptedLive],
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setenv("CODEX_API_KEY", "a")
+    monkeypatch.setenv("GH_TOKEN", "b")
+    output = tmp_path / "results.jsonl"
+
+    exit_code = cli.main([*_live_args(verified, small_config, output), "--arms", "Z"])
+
+    assert exit_code == cli.EXIT_NOTHING_PLANNED
+    assert "selects no planned row" in capsys.readouterr().err
+    assert scripted_live.created == [] and not output.exists()
