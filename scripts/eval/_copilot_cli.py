@@ -85,11 +85,10 @@ CREDENTIAL_SPEC = CredentialSpec(
     own_login_first=True,
     disk_step=STEP_DISK_GH_FALLBACK,
     missing_message=(
-        f"{PROVIDER_LABEL} found no subscription credential. Tried, in order: "
-        f"{_TOKEN_ENV}, GH_TOKEN, or GITHUB_TOKEN in the environment or a dotenv "
-        "file (EVAL_DOTENV_FILES), the CLI's own login, the GitHub CLI token "
-        "(`gh auth token`), and a prompt (stdin is not a terminal). Run "
-        "`copilot login` or `gh auth login`."
+        f"{PROVIDER_LABEL} found no subscription credential. Tried, in order: {_TOKEN_ENV}, "
+        "GH_TOKEN, or GITHUB_TOKEN in the environment or a dotenv file (EVAL_DOTENV_FILES), "
+        "the CLI's own login, the GitHub CLI token (`gh auth token`), and a prompt (stdin "
+        "is not a terminal). Run `copilot login` or `gh auth login`."
     ),
 )
 _TRUST_BOUNDARY = (
