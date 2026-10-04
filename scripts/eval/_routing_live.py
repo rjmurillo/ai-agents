@@ -134,8 +134,32 @@ def require_live_authorization(
         raise LiveGateError("live run refused, no credential for: " + "; ".join(missing))
 
 
+def change_surface(scenario: Scenario) -> str:
+    """The legal change surface as prompt text, identical for every arm.
+
+    Raises `ValueError` when the scenario declares no allowed path: a prompt
+    that names no surface is the defect behind the RB-01 shared scope violation,
+    so rendering one is refused instead of defaulting.
+    """
+    if not scenario.allowed_paths:
+        raise ValueError(f"{scenario.scenario_id}: no allowed paths, cannot state a change surface")
+    lines = [
+        "Change surface: edit only these paths, and no other file, including tests "
+        "and fixtures not listed:",
+        *(f"- {path}" for path in scenario.allowed_paths),
+    ]
+    if scenario.forbidden_paths:
+        lines.append("Never edit these paths:")
+        lines.extend(f"- {path}" for path in scenario.forbidden_paths)
+    return "\n".join(lines)
+
+
 def role_prompt(request: InvocationRequest, scenario: Scenario) -> str:
-    """The minimal role prompt. Prompt design for a comparison belongs to #5426."""
+    """The minimal role prompt. Prompt design for a comparison belongs to #5426.
+
+    Worker prompts end with `change_surface`. The plan and review prompts write
+    or edit no source file, so they carry no surface.
+    """
     task = scenario.requirement
     if request.role == "reviewer":
         return (
@@ -143,7 +167,7 @@ def role_prompt(request: InvocationRequest, scenario: Scenario) -> str:
         )
     if request.phase_id == "plan":
         return f"Write implementation-plan.md for this requirement. Edit no source file.\n\n{task}"
-    return f"Complete this requirement in the working tree.\n\n{task}"
+    return f"Complete this requirement in the working tree.\n\n{task}\n\n{change_surface(scenario)}"
 
 
 def live_argv(harness: str, model: str, effort: str, prompt: str) -> list[str]:
