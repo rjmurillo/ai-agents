@@ -66,8 +66,12 @@ class ScriptedLive:
     created: list[str] = []
     script = backend_mod.Script()
 
-    def __init__(self, harness: str) -> None:
+    kwargs: list[dict[str, Any]] = []
+
+    def __init__(self, harness: str, **kwargs: Any) -> None:
         type(self).created.append(harness)
+        type(self).kwargs.append(kwargs)
+        self._budget = kwargs.get("budget")
         self._inner = backend_mod.ScriptedBackend(default=type(self).script)
 
     def __enter__(self) -> ScriptedLive:
@@ -77,6 +81,8 @@ class ScriptedLive:
         return None
 
     def invoke(self, request: Any, scenario: Any) -> Any:
+        if self._budget is not None:
+            self._budget.take()
         return self._inner.invoke(request, scenario)
 
     def grade(self, scenario: Any, round_index: int) -> Any:
@@ -86,6 +92,7 @@ class ScriptedLive:
 @pytest.fixture
 def scripted_live(monkeypatch: pytest.MonkeyPatch) -> type[ScriptedLive]:
     ScriptedLive.created = []
+    ScriptedLive.kwargs = []
     ScriptedLive.script = backend_mod.Script()
     monkeypatch.setattr(cli, "LiveBackend", ScriptedLive)
     return ScriptedLive
@@ -242,6 +249,8 @@ def test_live_without_credentials_fails_closed_before_anything_starts(
     exit_code = cli.main(
         [
             "--live",
+            "--max-invocations",
+            "1000",
             "--output",
             str(output),
             "--matrix",
@@ -270,6 +279,8 @@ def test_live_with_a_credential_for_only_one_harness_still_refuses(
     exit_code = cli.main(
         [
             "--live",
+            "--max-invocations",
+            "1000",
             "--output",
             str(output),
             "--matrix",
@@ -299,7 +310,9 @@ def test_live_with_credentials_but_nothing_plannable_does_not_spend(
     ]
     matrix = write_matrix(tmp_path / "m.json", records)
 
-    exit_code = cli.main(["--live", "--output", str(output), "--matrix", str(matrix)])
+    exit_code = cli.main(
+        ["--live", "--max-invocations", "10", "--output", str(output), "--matrix", str(matrix)]
+    )
 
     assert exit_code == cli.EXIT_NOTHING_PLANNED
     assert scripted_live.created == [] and not output.exists()
@@ -308,6 +321,8 @@ def test_live_with_credentials_but_nothing_plannable_does_not_spend(
 def _live_args(verified: Path, small_config: Path, output: Path) -> list[str]:
     return [
         "--live",
+        "--max-invocations",
+        "1000",
         "--output",
         str(output),
         "--matrix",
@@ -384,3 +399,97 @@ def test_plan_report_omits_model_calls_outside_dry_run() -> None:
 
     assert "model_calls" not in cli.plan_report(empty, "live")
     assert cli.plan_report(empty, "dry-run")["model_calls"] == 0
+
+
+# --- Budget, repetitions, and real home (issue #5424 live) ------------------------
+
+
+def test_live_requires_an_invocation_budget(
+    verified: Path,
+    small_config: Path,
+    tmp_path: Path,
+    scripted_live: type[ScriptedLive],
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    output = tmp_path / "results.jsonl"
+    args = _live_args(verified, small_config, output)
+    without = args[:1] + args[3:]
+
+    assert cli.main(without) == cli.EXIT_CONFIG
+    assert "--max-invocations" in capsys.readouterr().err
+    assert cli.main([*args[:2], "0", *args[3:]]) == cli.EXIT_CONFIG
+    assert scripted_live.created == [] and not output.exists()
+
+
+@pytest.mark.parametrize(
+    "flag", [["--real-home"], ["--max-invocations", "5"], ["--repetitions", "2"]]
+)
+def test_live_only_flags_are_refused_without_live(flag: list[str], capsys: Any) -> None:
+    assert cli.main(flag) == cli.EXIT_CONFIG
+    assert "need --live" in capsys.readouterr().err
+
+
+def test_real_home_opens_the_gate_for_a_codex_only_plan(
+    verified: Path,
+    tmp_path: Path,
+    scripted_live: type[ScriptedLive],
+) -> None:
+    document = config_dict()
+    document["harnesses"] = [h for h in document["harnesses"] if h["harness"] == "codex"]
+    document["strategies"] = [s for s in document["strategies"] if s["arm"] == "E"]
+    config = tmp_path / "codex-only.json"
+    config.write_text(json.dumps(document), encoding="utf-8")
+    output = tmp_path / "results.jsonl"
+    args = ["--live", "--real-home", "--max-invocations", "100", "--output", str(output)]
+
+    exit_code = cli.main([*args, "--matrix", str(verified), "--config", str(config)])
+
+    lines = [json.loads(line) for line in output.read_text(encoding="utf-8").splitlines()]
+    assert exit_code == cli.EXIT_OK and lines
+    assert all(item["ambient_home"]["codex_home"] == "real" for item in lines)
+    assert all(kw.get("real_home") is True for kw in scripted_live.kwargs)
+
+
+def test_the_budget_cuts_the_run_and_every_later_row_is_not_run(
+    verified: Path,
+    small_config: Path,
+    tmp_path: Path,
+    scripted_live: type[ScriptedLive],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("CODEX_API_KEY", "a")
+    monkeypatch.setenv("GH_TOKEN", "b")
+    output = tmp_path / "results.jsonl"
+    args = _live_args(verified, small_config, output)
+    args[2] = "5"
+
+    exit_code = cli.main(args)
+
+    lines = [json.loads(line) for line in output.read_text(encoding="utf-8").splitlines()]
+    ran = [line for line in lines if line["status"] != "NOT_RUN"]
+    cut = [line for line in lines if line["status"] == "NOT_RUN"]
+    assert exit_code == cli.EXIT_OK and len(lines) == 2 * 6 * 2
+    assert ran and cut and lines.index(cut[0]) == len(ran)
+    assert "mid-row" in cut[0]["reason"] and {c["reason"] for c in cut[1:]} == {
+        "invocation budget spent"
+    }
+    assert all("repetition" in line for line in lines)
+
+
+def test_repetitions_run_the_whole_plan_per_pass_with_the_repetition_outermost(
+    verified: Path,
+    small_config: Path,
+    tmp_path: Path,
+    scripted_live: type[ScriptedLive],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("CODEX_API_KEY", "a")
+    monkeypatch.setenv("GH_TOKEN", "b")
+    output = tmp_path / "results.jsonl"
+
+    exit_code = cli.main([*_live_args(verified, small_config, output), "--repetitions", "2"])
+
+    lines = [json.loads(line) for line in output.read_text(encoding="utf-8").splitlines()]
+    reps = [line["repetition"] for line in lines]
+    assert exit_code == cli.EXIT_OK and len(lines) == 2 * 6 * 2 * 2
+    assert reps == sorted(reps) and set(reps) == {1, 2}

@@ -34,7 +34,13 @@ from pathlib import Path
 
 from _harness_capability import HarnessCapabilityError, load_matrix
 from _routing_config import BenchmarkConfig, RoutingConfigError, load_config
-from _routing_live import LiveBackend, LiveGateError, require_live_authorization
+from _routing_live import (
+    BudgetExhaustedError,
+    InvocationBudget,
+    LiveBackend,
+    LiveGateError,
+    require_live_authorization,
+)
 from _routing_plan import Plan, PlanRow, build_plan
 from _routing_result import RunStatus, result_to_dict
 from _routing_run import run_planned
@@ -95,28 +101,110 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--corpus", type=Path, default=DEFAULT_CORPUS)
     parser.add_argument("--live", action="store_true", help="spend: run the planned rows")
     parser.add_argument("--output", type=Path, help="JSONL results path, required with --live")
+    parser.add_argument(
+        "--real-home",
+        action="store_true",
+        help="run Codex on the real CODEX_HOME and its own login (ambient instructions load)",
+    )
+    parser.add_argument(
+        "--max-invocations",
+        type=int,
+        default=None,
+        help="hard cap on paid invocations across the run; required with --live",
+    )
+    parser.add_argument(
+        "--repetitions",
+        type=int,
+        default=1,
+        help="passes over the planned rows, repetition outermost (default 1)",
+    )
     return parser
 
 
+def _not_run(row: PlanRow, repetition: int, reason: str) -> dict[str, object]:
+    return {
+        "status": "NOT_RUN",
+        "scenario_id": row.scenario_id,
+        "arm": row.arm,
+        "harness": row.harness,
+        "repetition": repetition,
+        "reason": reason,
+    }
+
+
 def _run_live(
-    plan: Plan, config: BenchmarkConfig, scenarios: dict[str, Scenario], output: Path
+    plan: Plan,
+    config: BenchmarkConfig,
+    scenarios: dict[str, Scenario],
+    output: Path,
+    *,
+    real_home: bool,
+    budget: InvocationBudget,
+    repetitions: int,
 ) -> int:
-    results: list[dict[str, object]] = []
+    """Run the planned rows, repetition outermost, and stop at the budget.
+
+    Each row is appended to `output` as it finishes, so an interrupted run keeps
+    what it spent. A row the budget cuts off, and every row after it, is written
+    as `NOT_RUN` with the reason. Nothing is substituted for a row that did not run.
+    """
     failed = False
-    for row in plan.planned:
-        # A fresh backend per row gives each arm its own scratch copy of the scenario,
-        # so no arm starts from another arm's edits.
-        with LiveBackend(row.harness) as backend:
+    spent_out = False
+    with output.open("w", encoding="utf-8") as handle:
+        for repetition in range(1, repetitions + 1):
+            for row in plan.planned:
+                if spent_out:
+                    item = _not_run(row, repetition, "invocation budget spent")
+                else:
+                    item, failed_row, spent_out = _run_row(
+                        row, config, scenarios, budget, repetition, real_home
+                    )
+                    failed = failed or failed_row
+                handle.write(json.dumps(item) + "\n")
+                handle.flush()
+    return EXIT_HARNESS_FAILURE if failed else EXIT_OK
+
+
+def _run_row(
+    row: PlanRow,
+    config: BenchmarkConfig,
+    scenarios: dict[str, Scenario],
+    budget: InvocationBudget,
+    repetition: int,
+    real_home: bool,
+) -> tuple[dict[str, object], bool, bool]:
+    """Run one row. Returns (result, harness failed, budget spent)."""
+    # A fresh backend per row gives each arm its own scratch copy of the scenario,
+    # so no arm starts from another arm's edits.
+    try:
+        with LiveBackend(row.harness, real_home=real_home, budget=budget) as backend:
             result = run_planned(
                 row,
                 config.strategy_for(row.arm, row.harness),
                 scenarios[row.scenario_id],
                 backend,
             )
-        failed = failed or result.status is RunStatus.HARNESS_FAILED
-        results.append(result_to_dict(result))
-    output.write_text("".join(json.dumps(item) + "\n" for item in results), encoding="utf-8")
-    return EXIT_HARNESS_FAILURE if failed else EXIT_OK
+    except BudgetExhaustedError:
+        return _not_run(row, repetition, "invocation budget spent mid-row"), False, True
+    item = result_to_dict(result)
+    item["repetition"] = repetition
+    if real_home:
+        item["ambient_home"] = {
+            "codex_home": "real",
+            "confound": "~/.codex AGENTS.md and skills load in every invocation",
+        }
+    return item, result.status is RunStatus.HARNESS_FAILED, False
+
+
+def _live_budget(args: argparse.Namespace) -> InvocationBudget | None:
+    """The run's invocation budget, `None` when not live. Raises `ValueError` on a bad mix."""
+    if not args.live:
+        if args.real_home or args.max_invocations is not None or args.repetitions != 1:
+            raise ValueError("--real-home, --max-invocations and --repetitions need --live")
+        return None
+    if args.max_invocations is None or args.max_invocations < 1 or args.repetitions < 1:
+        raise ValueError("--live requires --max-invocations >= 1 and --repetitions >= 1")
+    return InvocationBudget(args.max_invocations)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -126,6 +214,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         return EXIT_CONFIG
     if args.output is not None and not args.live:
         print("error: --output is only valid with --live", file=sys.stderr)
+        return EXIT_CONFIG
+    try:
+        budget = _live_budget(args)
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
         return EXIT_CONFIG
     try:
         config = load_config(args.config)
@@ -142,11 +235,21 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(json.dumps(plan_report(plan, "dry-run"), indent=2))
         return EXIT_OK
     try:
-        require_live_authorization(sorted({row.harness for row in plan.planned}), os.environ)
+        require_live_authorization(
+            sorted({row.harness for row in plan.planned}), os.environ, real_home=args.real_home
+        )
     except LiveGateError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return EXIT_AUTH
-    return _run_live(plan, config, {s.scenario_id: s for s in scenarios}, args.output)
+    return _run_live(
+        plan,
+        config,
+        {s.scenario_id: s for s in scenarios},
+        args.output,
+        real_home=args.real_home,
+        budget=budget or InvocationBudget(1),
+        repetitions=args.repetitions,
+    )
 
 
 if __name__ == "__main__":
