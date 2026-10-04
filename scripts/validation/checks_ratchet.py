@@ -33,24 +33,17 @@ corpus rather than argued, 0 mismatches. Measured after both, at load average
 carried this change, `count-ratchets` reported 49.45s against 80s on the same
 machine before it.
 
-Every entry in :data:`RATCHETS` is spawned, including the five whose counters
+Every entry in :data:`RATCHETS` is spawned, including the four whose counters
 ``scripts/ci/merge_tree_ratchet_check.py`` runs a second time against the
 merged tree. Issue #5510 asked for that second run to be dropped as duplicate
-work. It is not dropped, because the two runs answer different questions:
-``scripts/ci/count_ratchet.py::_base_ref_verdict`` says so in its own words,
-"this check reads the fork point, which the merge-tree gate never does, and it
-evaluates the branch's own tree rather than the merged one. Neither subsumes
-the other."
-
-Probed on this tree, with the merged pass called directly. A taste baseline of
-615 over a base of 575 with a count of 575 returns
-``(0, 'taste count ratchet: OK. 575 <= 575.')`` from
-``merge_tree_ratchet_check._check_one``, while the standalone run exits 1 with
-BASELINE ABOVE BASE. A ruff baseline of 130 over a tree measuring 118 returns
-``(0, 'ruff count ratchet: OK. 118 <= 130.')``, while
-``count_ratchet.baseline_health(118, 130)`` reports "a gap of 12 above the
-permitted 6". Dropping the spawn would leave both verdicts enforced in CI and
-in no local gate, which is the property issue #5482 exists to remove.
+work. It is not dropped, because the two runs answer different questions. The
+standalone run holds the branch's own tree to the count at its fork point
+(``scripts/ci/base_derived_ratchet.py``, issue #5363). The merge-tree run holds
+the merged result to the count on the base tip. A branch that improved nothing
+passes the first while a ``main`` that improved after the fork fails the
+second. Neither subsumes the other, and dropping the spawn would leave one
+verdict enforced in CI and in no local gate, which is the property issue #5482
+exists to remove.
 
 The pre-push hook and pre-PR runner both delegate to this module. Keeping the
 ratchet set and command construction here avoids nine parallel hook jobs
@@ -380,8 +373,9 @@ def validate_count_ratchets(repo_root: Path) -> bool:
     if failures:
         print(
             f"[ERROR] count ratchet(s) failed: {', '.join(failures)}. "
-            f"A baseline may only fall; lower the count rather than raising "
-            f"the baseline.",
+            f"A count may not exceed its ceiling (the merge base, or the "
+            f"recorded baseline for a scalar ratchet); remove the violations "
+            f"rather than excusing them.",
             file=sys.stderr,
         )
         return False

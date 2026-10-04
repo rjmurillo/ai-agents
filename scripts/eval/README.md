@@ -184,6 +184,7 @@ Copilot equivalent.
 | `eval-e2e-delivery.py` | End-to-end delivery eval (plan-rubric proxy). Feeds a vague germ, captures each agent's plan, LLM-judges it against hidden acceptance criteria. Core in `_e2e_delivery_core.py`. | #2859 |
 | `eval-model-sweep.py` | Sweep one agent's fixtures across candidate models; scored KEEP_PIN/DROP_PIN verdict with effect size, plus the lightest sufficient model for routing. Core in `_model_sweep_core.py`. | #2840 |
 | `eval_model_routing.py` | Roll per-model sweep reports for many agents and skills into `evals/model-routing/` routing tables. | #5883, #5889 |
+| `eval_autoplan_routes.py` | Score the autoplan long-tail resolver (`resolve_route.py`) against `tests/evals/autoplan-routes/routes.json`. Offline, no model. Reports per-family accuracy, the orchestrator-fallback rate, and the families it does not execute. | #5389 |
 | `eval_runtime_parity.py` | Run the same fixture through real Claude and Copilot CLIs with isolated agent profiles, resolved-model checks, traces, and deterministic controls. | #4853 |
 | `eval_harness_capability.py` | Run fail-closed live capability probes from a shell-free JSON plan and derive the #5422 arm matrix. | #5423 |
 | `eval_recorded_capabilities.py` | Classify recorded Codex rollouts and Copilot event files offline for `concurrency_limit` and `context_reset_observability`. | #5423 |
@@ -296,29 +297,9 @@ in its `env`; `observe_model`/`observe_effort` then read `response.model` and
 without this variable stays UNVERIFIED with a detail naming it, never a
 silent guess.
 
-### `--codex-auth-file`: opt-in credential for an isolated codex probe
+### Codex login in isolated probes
 
-A ChatGPT-login Codex authenticates only through `$CODEX_HOME/auth.json`;
-`CODEX_ACCESS_TOKEN` is ignored for that login method (probed 2026-09-24,
-codex-cli 0.156.0: a ChatGPT access token in that variable produced a 401
-"Missing bearer" against api.openai.com). The isolated profile a behavioral
-probe runs under therefore has no working codex auth by default. Pass
-`--codex-auth-file PATH` to copy that file into each codex probe's isolated
-`CODEX_HOME` as `auth.json`, mode `0600` inside a profile directory mode
-`0700`, before the probe runs, and deletes the copy once that probe has run,
-whether it succeeded or raised:
-
-```bash
-uv run python scripts/eval/eval_harness_capability.py \
-  --behavioral-probes scripts/eval/examples/harness-capability-probes.json \
-  --codex-auth-file ~/.codex/auth.json \
-  --output artifacts/harness-capability/report.json
-```
-
-The flag is opt-in and ignored for non-codex probes. The file is copied, not
-referenced, so the operator's real `auth.json` is never opened by the probed
-CLI, and its contents are never logged. A path that is not a regular file
-fails closed (exit 2) before any CLI runs.
+Isolated codex probes carry no login, so they cannot make paid calls. The repo never copies or links a credential file. Use the stored login through the real CODEX_HOME in drivers that do not isolate it.
 
 ### Copilot: the client-label finding and BYOK
 
@@ -882,6 +863,27 @@ rollback tracking issue, and fails the repository gate. The restoration PR must
 restore the failing book reference to the always-on rule surface or strengthen the
 skill trigger and scenario coverage. It must include the latest gate report and pass
 this workflow before merge.
+
+## Autoplan Route Eval
+
+`eval_autoplan_routes.py` is part 1 of #5389. It calls the real `resolve_route.py` `main`, not a copy of its lookup, so a change to the resolver or to any skill's `metadata.routing.intents` moves the score.
+
+```bash
+uv run python scripts/eval/eval_autoplan_routes.py                  # local, about 5 seconds, no API key
+uv run python scripts/eval/eval_autoplan_routes.py --output r.json  # also write the JSON report
+```
+
+Exit 0 means every scenario matched. Exit 1 prints a diff per failure: expected kind and route, observed kind and route, and any skill from `routes_absent` that was selected. Exit 2 is an invalid command-line argument, a bad fixture file, a resolver that could not run, or a failure to write the JSON report.
+
+The layers stay separate, as #5389 requires:
+
+| Layer | Where it lives |
+|---|---|
+| Classified, structurally reachable, scenario present | `check_skill_routing_roles.py --report` |
+| Scored route accuracy, deterministic resolver families | this script |
+| Scored route accuracy, model-driven families | not built yet |
+
+Executed families: `explicit-skill`, `long-tail-single-domain`, `multi-domain-handoff`, `negative-noise`, `failure-fallback`. A scenario that expects a specialist fails when the resolver returns the orchestrator or `none`, and the report counts orchestrator handoffs and `none` results as separate rates. A fixture route without a namespace matches that skill in any plugin namespace. A qualified route such as `gstack:dx-review` must match exactly, which pins the namespace in a mixed catalog. Every report lists `high-traffic-direct`, `conditional-adjunct`, `lifecycle`, and `composition-order` as not executed, because a model reads the autoplan table and the parent skills' prose.
 
 ## Skill Overlap Eval
 
@@ -2075,6 +2077,15 @@ See `examples/example-scenarios.json` for a working template.
 
 Required fields: `id`, `desc`, `input`, `expected_verdict`.
 Optional: `expected_reason_contains`, `rationale`.
+
+`eval-prompt-change.py` scores a scenario on the verdict alone (issue #5601):
+
+- **Verdict only.** `expected_reason_contains` is an informational signal. A right verdict with a reason that lacks the substring is listed under `Reason wording differs` and does not fail the scenario.
+- **Pass threshold.** A scenario passes with at least `ceil(2/3 * scored)` passing runs. Required passes for 1 to 6 scored runs are 1, 2, 2, 3, 4, 4.
+- **Base unstable.** A base side is excluded from the regression list and from the before and after scores when it passes the threshold without passing every scored run, or when it was scored on fewer runs than the tier requires (3, or 5 with `--security-critical`). It is listed under `Base unstable` with an excluded count.
+- **Stable-baseline floor.** The verdict is FAIL as inconclusive unless at least `max(1, ceil(total / 2))` scenarios keep a stable base. Thin or flaky base scoring can therefore fail the gate even when no regression is found.
+- **Narrow exclusion.** An excluded scenario can still block through after-side flakiness above `FLAKINESS_BLOCK_THRESHOLD`, an after side scored on fewer than the required runs, or the security all-runs criterion. A base that passes every scored run while the after side fails still blocks.
+- **Single-sample limit.** Each base side is sampled once per eval, so a base that draws 3/3 on this sample is treated as stable, and a 0/3 after side then counts as a regression. Repeated baseline sampling is not implemented. Issue #5601 reported 0/3, 2/3, and 3/3 on the same base, and only the 2/3 case is covered.
 
 ## Scenario File Locations
 

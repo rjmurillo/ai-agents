@@ -1,0 +1,111 @@
+{
+  "status": "VERIFIED",
+  "config": {
+    "model": "gpt-5.6-luna",
+    "harness": "codex",
+    "harness_version": "codex-cli 0.160.0",
+    "context_bytes": 0,
+    "retry_budget": 1,
+    "reviewer": "none",
+    "control": "current"
+  },
+  "verdict_counts": {
+    "ACCEPTED_DURABLE": 6,
+    "ACCEPTED_NOT_DURABLE": 0,
+    "REJECTED": 2,
+    "UNVERIFIED": 0
+  },
+  "per_task": [
+    {
+      "task_id": "RB-01-bounded-implementation",
+      "repeats": 1,
+      "durable_accepts": 1,
+      "verdicts": [
+        "ACCEPTED_DURABLE"
+      ]
+    },
+    {
+      "task_id": "RB-02-multi-file-invariants",
+      "repeats": 1,
+      "durable_accepts": 0,
+      "verdicts": [
+        "REJECTED"
+      ]
+    },
+    {
+      "task_id": "RB-03-investigate-before-edit",
+      "repeats": 1,
+      "durable_accepts": 1,
+      "verdicts": [
+        "ACCEPTED_DURABLE"
+      ]
+    },
+    {
+      "task_id": "RB-04-scope-expansion",
+      "repeats": 1,
+      "durable_accepts": 1,
+      "verdicts": [
+        "ACCEPTED_DURABLE"
+      ]
+    },
+    {
+      "task_id": "RB-05-plausible-but-wrong",
+      "repeats": 1,
+      "durable_accepts": 1,
+      "verdicts": [
+        "ACCEPTED_DURABLE"
+      ]
+    },
+    {
+      "task_id": "RB-06-architecture-resolved",
+      "repeats": 1,
+      "durable_accepts": 0,
+      "verdicts": [
+        "REJECTED"
+      ]
+    },
+    {
+      "task_id": "HR-01-top-scores-order",
+      "repeats": 1,
+      "durable_accepts": 1,
+      "verdicts": [
+        "ACCEPTED_DURABLE"
+      ]
+    },
+    {
+      "task_id": "HR-02-merge-settings-defaults",
+      "repeats": 1,
+      "durable_accepts": 1,
+      "verdicts": [
+        "ACCEPTED_DURABLE"
+      ]
+    }
+  ],
+  "zero_success_tasks": [
+    "RB-02-multi-file-invariants",
+    "RB-06-architecture-resolved"
+  ],
+  "all_success_tasks": [
+    "RB-01-bounded-implementation",
+    "RB-03-investigate-before-edit",
+    "RB-04-scope-expansion",
+    "RB-05-plausible-but-wrong",
+    "HR-01-top-scores-order",
+    "HR-02-merge-settings-defaults"
+  ],
+  "cost_percentiles_usd": {
+    "p10": 0.0,
+    "p50": 0.0,
+    "p90": 0.0
+  },
+  "correction_minutes_percentiles": {
+    "p10": 0.0,
+    "p50": 0.0,
+    "p90": 0.6743
+  },
+  "headline": {
+    "cost_per_accepted_durable_task_usd": 0.0,
+    "correction_minutes_per_accepted_durable_task": 0.3411,
+    "residual_risk": 0
+  }
+}

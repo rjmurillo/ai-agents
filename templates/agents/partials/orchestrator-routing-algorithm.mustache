@@ -30,7 +30,7 @@ This is the single work-order contract; other agents link here and do not copy i
 
 Capability (it can do the task), reliability (repeatable, honest about uncertainty), and accepted outcome (correct, scoped, independently verified, safe for its tier) differ. Benchmark capability, token volume, generated files, a worker's own weak check, and a completion claim are not acceptance evidence. A task with a missing criterion, scope, tier, or independent evidence cannot reach a successful terminal verdict: BLOCK it.
 
-Agents return a completion record: artifacts, commands run with results, deltas, residual risks, confidence, acceptance status, typed escalation status. No transcripts. Narrative prose where structure is needed: reject and re-delegate with the format.
+Agents return a completion record: artifacts, commands run with results, deltas, residual risks, confidence, acceptance status, typed escalation status. No transcripts. Above read-only tier a return lacking the record fails closed: re-delegate with the format (consequential tier: HOLD and escalate to the human owner). A sourced read-only answer is accepted.
 
 **Skill inheritance is harness-specific.** Claude Code workers did not inherit the parent's active skills; other harnesses are unverified. Where a worker does not inherit, name the skill file instead of pasting its body.
 
@@ -77,7 +77,20 @@ Before each user message, re-read the active plan, relevant artifacts, and exact
 - **Do not re-delegate unchanged work.** Change the approach or context before retrying a failed delegation.
 - **Preserve work across compaction.** Re-read the plan and current per-issue handoff. Read a historical session log only when one exists.
 
-Verify exact text before citing code, documents, or decisions. Do not rely on recall alone.
+Verify exact text before citing code, documents, or decisions. Do not rely on recall alone. Apply this after phase completion, major transitions, interruptions, and before asking the user. If the TODO list no longer matches the plan, update the plan, then the TODO list, then act.
+
+### Resume Check (fail closed)
+
+A resumable non-trivial task keeps one state record in the per-issue handoff: work-order fields, phase, exact next action, decisions with provenance (superseded marked), changed artifacts, validation run, blockers, residual risks, remote owner/name, branch, worktree, head SHA, timestamp. Label retrieved memory fact, decision, or hypothesis, and verified, unverified, or stale; HOLD on unverified load-bearing context. A completion summary is not completion evidence.
+
+Before any state-changing action after handoff, compaction, interruption, or delegation:
+
+1. Compare recorded remote owner/name, branch, worktree, head SHA, and artifacts with the live repository. A live change caused solely by the next action is not a mismatch.
+2. Check the next action. Already done: continue from the next step. Reverted or superseded: HOLD.
+3. Restore ACCEPTANCE and RISK TIER from the record.
+4. Other disagreement, missing field, or missing provenance: HOLD and surface it. Never mutate on a guess.
+
+Delegate returns follow the Handoff Contract.
 
 ## Output Bounds
 

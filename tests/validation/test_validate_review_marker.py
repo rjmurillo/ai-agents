@@ -22,6 +22,7 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+REFERENCES_DIR = REPO_ROOT / ".claude" / "skills" / "review" / "references"
 SCRIPT_PATH = REPO_ROOT / "scripts" / "validation" / "validate_review_marker.py"
 
 
@@ -236,7 +237,7 @@ def test_select_returns_none_for_empty_values() -> None:
 def test_validate_ref_passes_when_marker_binds_reviewed_tip(git_repo: Path) -> None:
     """An empty marker commit naming its parent (the reviewed tip) validates."""
     reviewed_tip, _ = _write_marker_commit(git_repo, "analyst,security")
-    outcome = vrm.validate_ref("HEAD", git_repo)
+    outcome = vrm.validate_ref("HEAD", git_repo, references_dir=REFERENCES_DIR)
     assert outcome.ok is True
     assert outcome.exit_code == 0
     assert reviewed_tip[:12] in outcome.message
@@ -492,7 +493,7 @@ def test_validate_ref_passes_with_extra_unrelated_trailers(git_repo: Path) -> No
         "--trailer",
         f"Reviewed-By: /review@qa on {reviewed_tip}",
     )
-    outcome = vrm.validate_ref("HEAD", git_repo)
+    outcome = vrm.validate_ref("HEAD", git_repo, references_dir=REFERENCES_DIR)
     assert outcome.ok is True
     assert outcome.exit_code == 0
 
@@ -524,7 +525,7 @@ def test_validate_ref_fails_on_root_commit(tmp_path: Path) -> None:
 def test_main_returns_zero_on_valid_marker(git_repo: Path) -> None:
     """CLI ``main`` returns 0 when HEAD carries a binding marker."""
     _write_marker_commit(git_repo, "analyst")
-    rc = vrm.main(["--repo-root", str(git_repo)])
+    rc = vrm.main(["--repo-root", str(git_repo), "--references-dir", str(REFERENCES_DIR)])
     assert rc == 0
 
 
@@ -532,7 +533,8 @@ def test_cli_defaults_repo_root_to_current_working_directory(git_repo: Path) -> 
     """Vendored validator invocations validate the consumer repo by default."""
     _write_marker_commit(git_repo, "analyst")
     result = subprocess.run(
-        [sys.executable, str(SCRIPT_PATH), "--ref", "HEAD"],
+        [sys.executable, str(SCRIPT_PATH), "--ref", "HEAD",
+         "--references-dir", str(REFERENCES_DIR)],
         cwd=git_repo,
         capture_output=True,
         text=True, encoding="utf-8",
