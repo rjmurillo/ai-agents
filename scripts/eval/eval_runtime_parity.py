@@ -28,12 +28,14 @@ from typing import cast
 
 from _runtime_grader import GraderProtocol, grade_semantic_assertions, resolve_grader
 from _runtime_harness import (
+    REAL_HOME_ENV,
     SENTINEL,
     copilot_instruction_path,
     copilot_routing,
     hash_installed_agent,
     prepare_workspace,
     probe_version,
+    real_home_enabled,
     require_isolated_workspace_root,
     resolve_cwd,
     runtime_env,
@@ -953,6 +955,14 @@ def _base_report(
     # `resolve_copilot = harnesses != "claude"` gate in `_resolve_ablation`.
     if harnesses != "claude":
         report["copilot_routing"] = copilot_routing(os.environ)
+    if real_home_enabled():
+        report["ambient_home"] = {
+            "claude_home": "real",
+            "confound": (
+                "Claude ran with the operator's real HOME. ~/.claude instructions, "
+                "rules, and skills load ambiently in every scenario."
+            ),
+        }
     return report
 
 
@@ -1057,6 +1067,11 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--grader-provider", default=DEFAULT_GRADER_PROVIDER)
     parser.add_argument("--grader-model", default=DEFAULT_GRADER_MODEL)
     parser.add_argument("--workspace-root", type=Path)
+    parser.add_argument(
+        "--real-home",
+        action="store_true",
+        help="run Claude with the real HOME and its stored login (ambient instructions load)",
+    )
     return parser
 
 
@@ -1068,6 +1083,8 @@ def main(argv: Sequence[str] | None = None, *, runner: Runner = _run_in_process_
     if isinstance(args.timeout, bool) or not math.isfinite(args.timeout) or args.timeout <= 0:
         print("Error: --timeout must be finite and greater than zero.", file=sys.stderr)
         return EXIT_CONFIG
+    if args.real_home:
+        os.environ[REAL_HOME_ENV] = "1"
     output = (args.output or _default_output()).resolve()
     try:
         verify_worktree_identity()

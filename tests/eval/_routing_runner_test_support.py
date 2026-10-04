@@ -29,7 +29,7 @@ CORPUS = cli.DEFAULT_CORPUS
 
 BOUNDED = "RB-01-bounded-implementation"
 MULTI_FILE = "RB-02-multi-file-invariants"
-CODEX_VERSION = "codex-cli 0.156.0"
+CODEX_VERSION = "codex-cli 0.160.0"
 COPILOT_VERSION = "GitHub Copilot CLI 1.0.89-1."
 MODELS = ("gpt-5.6-luna", "gpt-5.6-sol", "gpt-5.6-terra")
 EFFORTS = ("high", "low", "medium")

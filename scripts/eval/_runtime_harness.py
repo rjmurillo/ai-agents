@@ -287,6 +287,30 @@ HARNESS_AUTH_ENV: dict[str, set[str]] = {
 }
 
 
+REAL_HOME_ENV = "EVAL_RUNTIME_REAL_HOME"
+_REAL_HOME_KEYS = ("HOME", "USERPROFILE", "XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME")
+
+
+def real_home_enabled() -> bool:
+    """True when the operator opted into the real Claude home (`--real-home`)."""
+    return os.environ.get(REAL_HOME_ENV) == "1"
+
+
+def _use_real_claude_home(env: dict[str, str]) -> None:
+    """Hand the Claude CLI the operator's own home so it finds its own login.
+
+    Nothing is linked, copied, or read here: the child gets the same HOME it
+    would have in a shell, and `CLAUDE_CONFIG_DIR` is left unset so the CLI
+    resolves `~/.claude` itself. The cost is a confound the report records:
+    `~/.claude` instructions, rules, and skills load in every scenario.
+    """
+    for key in _REAL_HOME_KEYS:
+        if key in os.environ:
+            env[key] = os.environ[key]
+        else:
+            env.pop(key, None)
+
+
 def runtime_env(workspace: Path, harness: str) -> dict[str, str]:
     """Build an allowlisted environment rooted at an isolated CLI profile."""
     allow = {
@@ -331,7 +355,9 @@ def runtime_env(workspace: Path, harness: str) -> dict[str, str]:
     profile = workspace / ".parity-profile" / harness
     profile.mkdir(parents=True, exist_ok=True)
     env.update(_profile_roots(profile))
-    if harness == "claude":
+    if harness == "claude" and real_home_enabled():
+        _use_real_claude_home(env)
+    elif harness == "claude":
         env["CLAUDE_CONFIG_DIR"] = str(profile)
     elif harness == "copilot":
         session_state = profile / "session-state"

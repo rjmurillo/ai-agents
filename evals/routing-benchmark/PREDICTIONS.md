@@ -144,3 +144,28 @@ status from the sets above. With fewer than 12 accepted ordinary runs or fewer
 than the fallback rule for any compared arm, the decision is
 `INSUFFICIENT_EVIDENCE`. A recommendation is published only at the strength
 the data supports.
+
+## Amendment 1 (2026-10-04): role prompt names the change surface
+
+Decided by the owner on 2026-10-04 (D31). The predictions, hypotheses H1 to H4,
+task classes, thresholds, and decision rules above are unchanged. The version
+stays `predictions-v1`. Only the run protocol changes.
+
+What changed. Worker role prompts built by `role_prompt` in
+`scripts/eval/_routing_live.py` now end with the scenario's legal change
+surface, rendered by `change_surface` from `allowed_scope` in `scenario.json`.
+The text lists the allowed paths, and the forbidden paths when the scenario
+declares any. Every arm receives the same text for a given scenario. A scenario
+with no allowed path fails closed and renders no prompt. Plan and review
+prompts edit no source file and carry no surface.
+
+Why. In `results-2026-10-03/`, arms A, B, and C each failed RB-01 with the same
+scope violation, an edit to `tests/check_visible_slugify.py`. The prompt said
+only "Complete this requirement in the working tree" and never named the legal
+change surface. The failure came from the prompt, not from an arm, so it could
+not separate arms.
+
+Reporting. The 21 runs in `results-2026-10-03/` used the old prompt. They are
+reported separately and are never pooled with runs made after this amendment.
+They do not count toward the evidence floor in the decision rules. Every run
+after this amendment uses the amended prompt.
