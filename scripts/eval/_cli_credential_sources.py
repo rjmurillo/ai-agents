@@ -195,7 +195,9 @@ def claude_login_probe(executable: str, environ: Mapping[str, str]) -> bool:
 def codex_login_probe(executable: str, environ: Mapping[str, str]) -> bool:
     """True when `codex login status` reports the ChatGPT plan login."""
     output = _probe_output([executable, "login", "status"], environ)
-    return output is not None and "ChatGPT" in output
+    if output is None:
+        return False
+    return any(line.strip() == "Logged in using ChatGPT" for line in output.splitlines())
 
 
 def copilot_login_probe(executable: str, environ: Mapping[str, str]) -> bool:

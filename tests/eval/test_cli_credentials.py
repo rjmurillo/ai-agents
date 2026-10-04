@@ -153,6 +153,36 @@ def test_fifo_timeout_falls_through(tmp_path: Path) -> None:
     assert result.step == creds.STEP_DISK
 
 
+def test_an_oversized_dotenv_file_is_refused_whole(tmp_path: Path) -> None:
+    limit = creds._MAX_DOTENV_BYTES
+    at_limit = _dotenv(tmp_path, "PRIMARY_TOKEN=ok\n".ljust(limit, "#"), "at.env")
+    over = _dotenv(tmp_path, "#" * (limit - 8) + "\nPRIMARY_TOKEN=cut-off\n", "over.env")
+
+    assert creds._read_dotenv_file(at_limit, 1.0, allow_symlink=True) is not None
+    assert creds._read_dotenv_file(over, 1.0, allow_symlink=True) is None
+
+
+def test_an_oversized_fifo_is_refused_whole(tmp_path: Path) -> None:
+    import threading
+
+    fifo = tmp_path / "op.env"
+    os.mkfifo(fifo)
+
+    def write() -> None:
+        try:
+            with open(fifo, "w", encoding="utf-8") as handle:
+                handle.write("#" * creds._MAX_DOTENV_BYTES + "\nPRIMARY_TOKEN=cut-off\n")
+        except BrokenPipeError:
+            pass
+
+    writer = threading.Thread(target=write, daemon=True)
+    writer.start()
+    result = creds._read_dotenv_file(str(fifo), 5.0, allow_symlink=True)
+    writer.join(timeout=5)
+
+    assert result is None
+
+
 def test_disk_wins_over_existing_login() -> None:
     result = _resolve(_spec(disk=SECRET, probe=True), {})
 

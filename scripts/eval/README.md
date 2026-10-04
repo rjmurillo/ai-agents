@@ -122,9 +122,9 @@ signed in. First hit wins:
 
 1. **Environment, then dotenv.** The matrix's Credential column lists the
    variables, in the CLI's own precedence. Codex takes `CODEX_ACCESS_TOKEN`.
-   If none is exported, dotenv files are read. `EVAL_DOTENV_FILES` is a
-   colon-separated list; `~` and globs expand, and it defaults to the
-   repository-root `.env`. A 1Password environment mount works as an example:
+   If none is exported, dotenv files are read. `EVAL_DOTENV_FILES` is a list
+   separated by `os.pathsep` (`:` on POSIX, `;` on Windows); `~` and globs
+   expand, and it defaults to the repository-root `.env`. A 1Password environment mount works as an example:
    `EVAL_DOTENV_FILES="$HOME/.config/1password-env/*.env"`. A named pipe is
    read with a 5 second timeout, and a timeout reads as not found.
 2. **The CLI's own login on disk.** Claude: `claudeAiOauth.accessToken` in

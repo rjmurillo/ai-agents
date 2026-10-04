@@ -10,9 +10,10 @@ declares a `CredentialSpec` with its variability and calls
 The order, first hit wins:
 
 1. `env`: the transport's subscription variables, then dotenv files. The file
-   list is `EVAL_DOTENV_FILES` (colon-separated, `~` and globs expanded) and
-   defaults to the repository-root `.env`. A named pipe (a 1Password mount, for
-   example) is read with a timeout, and a timeout reads as not found.
+   list is `EVAL_DOTENV_FILES` (`os.pathsep`-separated: `:` on POSIX, `;` on
+   Windows; `~` and globs expanded) and defaults to the repository-root `.env`.
+   A named pipe (a 1Password mount, for example) is read with a timeout, and a
+   timeout reads as not found.
    Recorded as `env` for the process environment and `dotenv` for a file.
 2. `disk`: the credential the CLI itself stored. Recorded as `disk`. A spec
    that sets `own_login_first` swaps steps 2 and 3, so the CLI's own stored
@@ -170,7 +171,9 @@ def _read_fifo(path: str, timeout: float) -> str | None:
         return None
     finally:
         os.close(fd)
-    return b"".join(chunks).decode("utf-8", errors="replace") if chunks else None
+    if not chunks or size > _MAX_DOTENV_BYTES:
+        return None
+    return b"".join(chunks).decode("utf-8", errors="replace")
 
 
 def _read_dotenv_file(path: str, timeout: float, *, allow_symlink: bool) -> str | None:
@@ -187,9 +190,13 @@ def _read_dotenv_file(path: str, timeout: float, *, allow_symlink: bool) -> str 
         return None
     try:
         with open(path, "rb") as handle:
-            return handle.read(_MAX_DOTENV_BYTES).decode("utf-8", errors="replace")
+            data = handle.read(_MAX_DOTENV_BYTES + 1)
     except OSError:
         return None
+    # A cut-off file could yield a truncated token, so refuse it whole.
+    if len(data) > _MAX_DOTENV_BYTES:
+        return None
+    return data.decode("utf-8", errors="replace")
 
 
 def _dotenv_candidates(environ: Mapping[str, str]) -> list[tuple[str, bool]]:

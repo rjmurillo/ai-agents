@@ -199,6 +199,9 @@ class TestLoginProbes:
         self._probe(monkeypatch, stdout="Logged in using an API key\n")
         assert not src.codex_login_probe("codex", {})
 
+        self._probe(monkeypatch, stdout="Not logged in using ChatGPT\n")
+        assert not src.codex_login_probe("codex", {})
+
         self._probe(monkeypatch, error=OSError())
         assert not src.codex_login_probe("codex", {})
 
