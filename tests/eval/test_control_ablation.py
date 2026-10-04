@@ -1,4 +1,4 @@
-"""Tests for scripts/eval/_control_ablation.py (REQ-043, DESIGN-041).
+"""Tests for scripts/eval/_control_ablation.py (REQ-046, DESIGN-044).
 
 Behavior under test: the task loader (AC-1), the control resolver (AC-9),
 and the grade-to-record builder (AC-5 to AC-7). Pure functions, no mocks,
@@ -25,7 +25,7 @@ from tests.eval._control_ablation_test_support import (
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 # ---------------------------------------------------------------------------
-# load_tasks (REQ-043 AC-1)
+# load_tasks (REQ-046 AC-1)
 # ---------------------------------------------------------------------------
 
 
@@ -113,7 +113,7 @@ def test_load_tasks_refuses_empty_tasks_array() -> None:
 
 
 def test_load_tasks_accepts_empty_response_checks() -> None:
-    # REQ-043 AC-1 does not list an empty response_checks among the refusal
+    # REQ-046 AC-1 does not list an empty response_checks among the refusal
     # cases (only allowed_paths must be non-empty); an empty list means no
     # check is required, so objective_satisfied trivially passes. Real
     # evidence: scripts/eval/examples/control-ablation-tasks.json's
@@ -173,7 +173,7 @@ def test_load_tasks_file_refuses_invalid_json(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# resolve_control (REQ-043 AC-9)
+# resolve_control (REQ-046 AC-9)
 # ---------------------------------------------------------------------------
 
 
@@ -209,7 +209,7 @@ def test_resolve_full_control_refuses_on_claude_code_exclusion(tmp_path: Path) -
 
 
 # ---------------------------------------------------------------------------
-# Grade-to-record helpers (DESIGN-041 "Grade to record")
+# Grade-to-record helpers (DESIGN-044 "Grade to record")
 # ---------------------------------------------------------------------------
 
 
@@ -222,7 +222,7 @@ def test_produced_artifact_false_when_nothing_changed_inside_allowed() -> None:
 
 
 def test_produced_artifact_ignores_pycache_byproducts() -> None:
-    # Coordinator addendum to DESIGN-041 (2026-09-28): a __pycache__ or .pyc
+    # Coordinator addendum to DESIGN-044 (2026-09-28): a __pycache__ or .pyc
     # byproduct never counts as evidence of a produced artifact, even when
     # it would otherwise match an allowed_paths glob.
     pycache_path = "calc/__pycache__/core.cpython-314.pyc"
@@ -383,7 +383,7 @@ def test_residual_defects_one_when_unparseable() -> None:
 
 
 # ---------------------------------------------------------------------------
-# build_record (DESIGN-041 "Grade to record")
+# build_record (DESIGN-044 "Grade to record")
 # ---------------------------------------------------------------------------
 
 

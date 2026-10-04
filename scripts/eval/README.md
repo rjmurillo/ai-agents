@@ -1191,8 +1191,8 @@ failure. Unknown telemetry stays `None` and is never written as zero.
 `eval_control_ablation.py` answers the question the Durable Outcome Report
 needs data for: does a smaller control plane (fewer always-loaded rule and
 memory files) deliver at least as much accepted durable work as the full
-one, on the same code tasks, model, and retry/correction budget (REQ-043,
-DESIGN-041, issue #5768)? It runs a small corpus of code-change tasks under
+one, on the same code tasks, model, and retry/correction budget (REQ-046,
+DESIGN-044, issue #5768)? It runs a small corpus of code-change tasks under
 two controls, `full` (every file `control_plane_baseline.always_loaded`
 reports for `claude_code`, at their real repository-relative paths) and
 `reduced` (none), grades each run with real commands (never a model judge),
@@ -1227,7 +1227,7 @@ refused, live or dry, when it inherits ancestor instruction files a CLI
 would load, reusing `require_isolated_workspace_root`), `--output-dir`
 (default a timestamped directory under `artifacts/control-ablation/`),
 `--max-runs` (default 30; a live run whose `tasks x controls x repeats`
-exceeds this refuses, exit 2, before any model call), `--claude-auth-file` (see below), `--timeout` (seconds
+exceeds this refuses, exit 2, before any model call), `--real-home` (see below), `--timeout` (seconds
 for the Claude CLI call itself; the acceptance and follow-up commands each
 get a separate fixed 120 seconds), and `--dry-run`.
 
@@ -1270,28 +1270,21 @@ Claude auth: `runtime_env` points `CLAUDE_CONFIG_DIR` at an isolated profile
 with no login, and passes only `ANTHROPIC_API_KEY` and `CLAUDE_CODE_OAUTH_TOKEN`
 from the operator's environment. This CLI moves `CLAUDE_CONFIG_DIR` to a
 sibling of the workspace, outside the agent's working tree, and the seed
-excludes `.parity-profile/` from the workspace's git. A subscription login needs
-`--claude-auth-file ~/.claude/.credentials.json`: the file is copied into each
-run's profile at mode `0600` for the duration of the Claude call only, then
-deleted before grading. Before each call the CLI reads only the file's
-`claudeAiOauth.expiresAt`; when the login has less than the call timeout plus
-300 seconds left, or no readable expiry, the batch stops (exit 3) before the
-call. A copied login that expires mid-call makes the isolated CLI refresh it,
-which rotates the refresh token inside a copy that is then deleted and fails
-every later run (observed 2026-09-28). Run `claude` once to refresh, then
-rerun only the missing cells with `--only-tasks id1,id2` and `--start-repeat N` into the same
+excludes `.parity-profile/` from the workspace's git. The isolated profile
+carries no login, so a subscription login needs `--real-home`. It sets
+`EVAL_RUNTIME_REAL_HOME=1`: the CLI keeps your HOME and finds its own stored
+login. Nothing is copied, linked, or read. The cost is a confound the report
+records (`real_home` and `confound`): your `~/.claude` instructions, rules, and
+skills load under every control, so `reduced` is not AGENTS-free. Rerun only
+the missing cells with `--only-tasks id1,id2` and `--start-repeat N` into the same
 `--output-dir` (records append) and a fresh `--workspace-root`. A result event
 marked `is_error`, or a nonzero exit, is a harness failure with no record,
 never a rejected task. A batch refuses (exit 2) to append a `(task, repeat)`
-its `--output-dir` already records. With `--claude-auth-file`, the login's
-string values are redacted from each reply before the report or stdout sees
-it. The task file is trusted repository data: its `acceptance` and
+its `--output-dir` already records. The task file is trusted repository data: its `acceptance` and
 `followup` commands run under your environment (minus `GIT_*`), so pass
-`--tasks` only a file you would run as a test.
-Its contents are never written to a report. The agent
-under test can still read it by absolute path while it runs, so keep live
-workspaces and reports out of the repository.
-||||||| 7bc260179
+`--tasks` only a file you would run as a test. Under `--real-home` the agent
+under test can read your `~/.claude` by absolute path while it runs, so keep
+live workspaces and reports out of the repository.
 
 ## Held-Out-Gated Optimization
 

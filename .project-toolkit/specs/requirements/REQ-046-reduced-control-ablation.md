@@ -1,14 +1,14 @@
 ---
 type: requirement
-id: REQ-043
+id: REQ-046
 title: Compare the full control plane with a reduced one on identical code tasks
 status: draft
 priority: P1
 category: functional
 source: issue-5768
 related:
-  - DESIGN-041
-  - TASK-052
+  - DESIGN-044
+  - TASK-055
   - REQ-042
   - REQ-022
 created: 2026-09-28
@@ -20,7 +20,7 @@ tags:
   - v0.7.0
 ---
 
-# REQ-043: Compare the full control plane with a reduced one on identical code tasks
+# REQ-046: Compare the full control plane with a reduced one on identical code tasks
 
 ## Step 0 First Principles
 
@@ -98,7 +98,7 @@ reduced control plane and records the outcome.
 
 ## Data model
 
-Task file, `schema_version: 1`, shape in DESIGN-041. Invariants: task ids are
+Task file, `schema_version: 1`, shape in DESIGN-044. Invariants: task ids are
 unique; every task names one of the five #5768 cases; every case appears once;
 `allowed_paths` is non-empty; follow-up files never exist before the agent run.
 
@@ -124,9 +124,8 @@ no record is written for that run.
 
 The agent runs with `--permission-mode acceptEdits` and a Bash allowlist of
 `python3`, `git`, `ls`, and `cat`. The env is `runtime_env(..., "claude")`, an
-allowlist. Task text is public test data. No credential is written to a report.
-The `stream-json` output is stored raw, so it must not carry the auth token;
-Claude Code does not echo it.
+allowlist. Task text is public test data. No credential file is copied, linked,
+or read, so none can reach a report.
 
 ## Observability
 
@@ -172,7 +171,7 @@ this works is the dry run: 5 of 5 `known_good` accepted durable, 0 of 5
 - Copilot and Codex harnesses (user decision D2).
 - The #5424 six-arm routing runner and the #5422 routing verdict.
 - A model judge. Every field is deterministic or recorded as zero by
-  construction (see DESIGN-041, "Fields recorded by construction").
+  construction (see DESIGN-044, "Fields recorded by construction").
 - An independent reviewer stage.
 
 ## Deferred
@@ -183,8 +182,9 @@ this works is the dry run: 5 of 5 `known_good` accepted durable, 0 of 5
 ## Open questions
 
 None. Claude auth for the isolated profile was open; it is resolved by the
-opt-in `--claude-auth-file` flag (operator decision 2026-09-28: use the
-installed subscription CLIs, no extra API keys).
+opt-in `--real-home` flag, which keeps the operator's HOME so the CLI finds its
+own login. The repository never copies, links, or reads a credential file
+(owner rule, 2026-10-03). The report records the ambient-instruction confound.
 
 ## CVA summary
 

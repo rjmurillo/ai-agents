@@ -1,4 +1,4 @@
-"""Task data model and loader for the reduced-control ablation (REQ-043 AC-1).
+"""Task data model and loader for the reduced-control ablation (REQ-046 AC-1).
 
 Pure, stdlib only. `load_tasks_file` refuses (`ControlAblationConfigError`)
 a duplicate id, an unknown or missing case, an empty `allowed_paths`, a
@@ -28,7 +28,7 @@ CASES: frozenset[str] = frozenset(
 
 
 class ControlAblationConfigError(ValueError):
-    """A task file, control name, or grade input is invalid (REQ-043 AC-1)."""
+    """A task file, control name, or grade input is invalid (REQ-046 AC-1)."""
 
 
 # ---------------------------------------------------------------------------
@@ -52,7 +52,7 @@ class TaskControl:
 
 @dataclass(frozen=True, slots=True)
 class Task:
-    """One code change request (REQ-043 ontology)."""
+    """One code change request (REQ-046 ontology)."""
 
     id: str
     case: str
@@ -68,7 +68,7 @@ class Task:
 
 
 # ---------------------------------------------------------------------------
-# Task loader (REQ-043 AC-1)
+# Task loader (REQ-046 AC-1)
 # ---------------------------------------------------------------------------
 
 _TASK_KEYS = frozenset(
@@ -110,7 +110,7 @@ def _require_relative_path(value: object, path: str) -> str:
     ParityConfigError(...)". Same as canonical: absolute paths and any `..`
     segment refuse. Different than canonical: this raises
     `ControlAblationConfigError`, this module's own exception type, since
-    DESIGN-041 defines no shared error type with `_runtime_parity`.
+    DESIGN-044 defines no shared error type with `_runtime_parity`.
     """
     raw = _require_str(value, path)
     candidate = Path(raw)
@@ -237,7 +237,7 @@ def _load_task(value: object, index: int) -> Task:
 
 
 def load_tasks(payload: Mapping[str, Any]) -> list[Task]:
-    """Parse and validate a control-ablation task corpus (REQ-043 AC-1).
+    """Parse and validate a control-ablation task corpus (REQ-046 AC-1).
 
     Refuses (`ControlAblationConfigError`) a duplicate id, an unknown case,
     a missing case (every one of the five #5768 cases must appear exactly
@@ -274,7 +274,7 @@ def load_tasks(payload: Mapping[str, Any]) -> list[Task]:
 
 
 def load_tasks_file(path: Path) -> list[Task]:
-    """Read and parse a task corpus file (REQ-043 AC-1)."""
+    """Read and parse a task corpus file (REQ-046 AC-1)."""
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError) as exc:

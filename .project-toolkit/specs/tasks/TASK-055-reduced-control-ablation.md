@@ -1,12 +1,12 @@
 ---
 type: task
-id: TASK-052
+id: TASK-055
 title: Build the reduced-control ablation runner and its five-task corpus
 status: draft
 priority: P1
 related:
-  - REQ-043
-  - DESIGN-041
+  - REQ-046
+  - DESIGN-044
 created: 2026-09-28
 updated: 2026-09-28
 author: plan
@@ -16,7 +16,7 @@ tags:
   - v0.7.0
 ---
 
-# TASK-052: Build the reduced-control ablation runner and its five-task corpus
+# TASK-055: Build the reduced-control ablation runner and its five-task corpus
 
 ## Milestones
 
@@ -46,7 +46,7 @@ tags:
 |---|---|
 | Auth unavailable in the isolated profile | Live run waits on the operator; build and dry run need none |
 | Graders that always pass | AC-2 dry run with known-bad controls |
-| Scope creep into #5424 | Out of scope list in REQ-043 |
+| Scope creep into #5424 | Out of scope list in REQ-046 |
 
 ## Size
 

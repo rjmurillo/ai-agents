@@ -334,9 +334,6 @@ def test_compare_allows_control_field_to_differ() -> None:
     assert result["result"] == "MIXED"  # identical apart from control: a tie
 
 
-
-
-
 def test_compare_refuses_differing_task_sets() -> None:
     # REQ-042 AC-7
     baseline = [

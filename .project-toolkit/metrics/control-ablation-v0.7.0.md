@@ -5,7 +5,7 @@ title: Full versus reduced control plane on identical code tasks, v0.7.0
 epic: EPIC-5456
 source: issue-5768
 related:
-  - REQ-043
+  - REQ-046
   - REQ-042
   - control-plane-dispositions-v0.7.0
 created: 2026-09-28
@@ -19,7 +19,7 @@ sit beside it in `control-ablation-v0.7.0/`.
 
 ## Setup
 
-- Tool: `scripts/eval/eval_control_ablation.py` (REQ-043, DESIGN-041).
+- Tool: `scripts/eval/eval_control_ablation.py` (REQ-046, DESIGN-044).
 - Harness: Claude Code 2.1.283. Model: `claude-sonnet-5`. Retry budget 0.
   No reviewer.
 - Corpus: `scripts/eval/examples/control-ablation-tasks.json`, five tasks, one
@@ -111,6 +111,9 @@ publish step for approval, which the task's objective check requires.
 - A 10-run batch before that was stopped after review found grading defects.
   Its results are not used.
 - Total model calls: 40.
+- Those 40 calls used an operator login copied into an isolated profile. The
+  runner no longer supports that; live runs use `--real-home` and record the
+  confound.
 - The 30 records predate two later checks from PR review: a nonzero Claude
   exit is now a harness failure, and changed paths are now read before hidden
   follow-up files are written. The runner did not keep exit codes, so the

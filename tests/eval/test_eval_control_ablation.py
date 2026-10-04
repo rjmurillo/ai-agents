@@ -1,4 +1,4 @@
-"""Tests for scripts/eval/eval_control_ablation.py (REQ-043 AC-2, AC-3, AC-8, AC-11).
+"""Tests for scripts/eval/eval_control_ablation.py (REQ-046 AC-2, AC-3, AC-8, AC-11).
 
 The Claude CLI is never invoked for real; `FakeClaudeRunner` plays its part
 by applying a task's known control and emitting canned stream-json, the

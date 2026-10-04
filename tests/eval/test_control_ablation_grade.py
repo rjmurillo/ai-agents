@@ -1,7 +1,7 @@
-"""Tests for scripts/eval/_control_ablation_grade.py (REQ-043 AC-4, AC-5).
+"""Tests for scripts/eval/_control_ablation_grade.py (REQ-046 AC-4, AC-5).
 
 Real temporary git repositories and real `python3` commands, per
-TASK-052 milestone 3. No mocks for git or the interpreter; the only
+TASK-055 milestone 3. No mocks for git or the interpreter; the only
 double in this file is the task fixture data itself.
 """
 
@@ -37,7 +37,7 @@ def test_seed_workspace_creates_a_git_repo_with_setup_files_committed(tmp_path: 
     assert (workspace / ".git").is_dir()
     assert (workspace / "calc" / "core.py").is_file()
     assert (workspace / "tests" / "test_core.py").is_file()
-    # No follow-up file before the agent runs (REQ-043 data-model invariant).
+    # No follow-up file before the agent runs (REQ-046 data-model invariant).
     assert not (workspace / "followup" / "test_hidden.py").exists()
 
 

@@ -1,4 +1,4 @@
-"""Workspace I/O for the reduced-control ablation runner (REQ-043, DESIGN-041).
+"""Workspace I/O for the reduced-control ablation runner (REQ-046, DESIGN-044).
 
 Everything here touches a filesystem, `git`, or a subprocess. The pure
 classification logic (what a changed-path list, an exit code, or a reply
@@ -21,7 +21,7 @@ from pathlib import Path
 from _control_ablation_tasks import ControlAblationConfigError, Task
 from _runtime_parity import ParityConfigError, safe_workspace_file
 
-#: DESIGN-041 "Task file": "Command timeouts are a fixed 120 seconds."
+#: DESIGN-044 "Task file": "Command timeouts are a fixed 120 seconds."
 GRADE_TIMEOUT = 120.0
 
 _GIT_CONTEXT_VARIABLES = ("GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE")
@@ -57,7 +57,7 @@ def _nested_git_env() -> dict[str, str]:
     """Scrub ambient GIT_* variables before running `git` in a fresh workspace.
 
     Mirrors `_runtime_harness._nested_git_env` (not imported: that symbol is
-    private to its module and outside DESIGN-041's reuse list). Without
+    private to its module and outside DESIGN-044's reuse list). Without
     this, a `git init` run from inside this repository's own worktree can
     inherit `GIT_DIR`/`GIT_WORK_TREE` from the parent process and operate on
     the wrong repository.
@@ -77,7 +77,7 @@ def _run_git(args: Sequence[str], workspace: Path) -> subprocess.CompletedProces
         text=True,
         encoding="utf-8",
         errors="replace",
-        timeout=30,
+        timeout=GRADE_TIMEOUT,
         check=False,
     )
 
@@ -90,7 +90,7 @@ def _write_files(workspace: Path, files: Mapping[str, str]) -> None:
 
 
 def seed_workspace(workspace: Path, task: Task, control_files: Mapping[str, str]) -> None:
-    """Create the isolated workspace: `git init`, write files, commit (DESIGN-041 step 1).
+    """Create the isolated workspace: `git init`, write files, commit (DESIGN-044 step 1).
 
     Writes `task.setup_files` and then `control_files` (the resolved
     control's installed set), so a control file with the same relative path
@@ -141,7 +141,7 @@ def apply_control_files(workspace: Path, files: Mapping[str, str]) -> None:
 
 
 def write_followup_files(workspace: Path, task: Task) -> None:
-    """Write `task.followup_files` (DESIGN-041 step 3: only after the agent exits)."""
+    """Write `task.followup_files` (DESIGN-044 step 3: only after the agent exits)."""
     _write_files(workspace, task.followup_files)
 
 
@@ -231,7 +231,7 @@ def _run_command(
 
 
 def run_acceptance(workspace: Path, task: Task) -> subprocess.CompletedProcess[str]:
-    """Run the task's acceptance command (DESIGN-041 step 3)."""
+    """Run the task's acceptance command (DESIGN-044 step 3)."""
     return _run_command(task.acceptance, workspace)
 
 

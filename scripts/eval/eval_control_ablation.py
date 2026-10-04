@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run a code-task corpus under the full and a reduced control plane (REQ-043).
+"""Run a code-task corpus under the full and a reduced control plane (REQ-046).
 
 Compares the current control plane (every file `always_loaded` loads for
 Claude Code) against a reduced one (none) on identical tasks, model, and
@@ -9,7 +9,7 @@ model call. A live run writes one `OutcomeRecord` per run to
 `records-<control>.jsonl` under `--output-dir`, which `eval_durable_outcome.py
 --baseline` then compares.
 
-Exit codes follow AGENTS.md and DESIGN-041: 0 ok; 1 dry-run discrimination
+Exit codes follow AGENTS.md and DESIGN-044: 0 ok; 1 dry-run discrimination
 failure; 2 config (bad task file, unknown control, budget exceeded,
 unisolated workspace root); 3 external (CLI missing, timeout, unparsable
 stream, missing cost, model mismatch).
@@ -20,6 +20,7 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -41,7 +42,12 @@ import _control_ablation_grade as grade  # noqa: E402
 import _control_ablation_tasks as ablation_tasks  # noqa: E402
 import _durable_outcome as durable_outcome  # noqa: E402
 import _outcome_record as outcome_record  # noqa: E402
-from _runtime_harness import probe_version, require_isolated_workspace_root  # noqa: E402
+from _runtime_harness import (  # noqa: E402
+    REAL_HOME_ENV,
+    probe_version,
+    real_home_enabled,
+    require_isolated_workspace_root,
+)
 from _runtime_output import redacted_argv  # noqa: E402
 from _runtime_parity import ParityConfigError  # noqa: E402
 
@@ -67,7 +73,7 @@ _HARNESS_ERRORS = (
 
 
 # ---------------------------------------------------------------------------
-# Dry run (REQ-043 AC-2)
+# Dry run (REQ-046 AC-2)
 # ---------------------------------------------------------------------------
 
 
@@ -141,7 +147,7 @@ def _run_dry_run(
 
 
 # ---------------------------------------------------------------------------
-# Live run (REQ-043 AC-3, AC-4, AC-8, AC-11)
+# Live run (REQ-046 AC-3, AC-4, AC-8, AC-11)
 # ---------------------------------------------------------------------------
 
 
@@ -154,12 +160,11 @@ def _grade_live_run(
     harness_version: str,
     timeout: float,
     runner: claude_run.Runner,
-    auth_file: Path | None,
 ) -> tuple[dict[str, object], list[str], str]:
     """Run one task under one control/repeat; raise `claude_run.HarnessFailureError` (AC-8)."""
     grade.seed_workspace(workspace, task, control.files)
     events, reply, cost, wall_seconds, argv = claude_run.invoke_claude(
-        workspace, task, model, timeout, runner, auth_file
+        workspace, task, model, timeout, runner
     )
     # Measure the agent's changes before hidden follow-up files exist, so an
     # agent edit at a follow-up path is not overwritten out of the diff.
@@ -195,7 +200,7 @@ def _run_plan(
     repeats: range,
     controls: Mapping[str, ablation.ControlFiles],
 ) -> Iterator[tuple[ablation_tasks.Task, int, str, ablation.ControlFiles]]:
-    """DESIGN-041 "Run sequence (live)": for each task, each repeat, each control."""
+    """DESIGN-044 "Run sequence (live)": for each task, each repeat, each control."""
     for task in tasks:
         for repeat in repeats:
             for name, control in controls.items():
@@ -224,7 +229,6 @@ def _run_live(
     workspace_root: Path,
     output_dir: Path,
     runner: claude_run.Runner,
-    auth_file: Path | None = None,
 ) -> tuple[dict[str, object], int]:
     harness_version = probe_version(
         claude_run.CLAUDE_EXECUTABLE, "claude", workspace_root / "_probe", runner, timeout
@@ -247,13 +251,10 @@ def _run_live(
                     harness_version,
                     timeout,
                     runner,
-                    auth_file,
                 )
             except _HARNESS_ERRORS as exc:
                 any_harness_failure = True
                 runs.append(_failure_entry(task, name, repeat, model, exc))
-                if isinstance(exc, claude_run.AuthExpiryError):
-                    break
                 continue
             writers[name].write(json.dumps(record) + "\n")
             runs.append(
@@ -269,7 +270,17 @@ def _run_live(
     finally:
         for handle in writers.values():
             handle.close()
-    report = {"mode": "live", "harness_version": harness_version, "runs": runs}
+    report: dict[str, object] = {
+        "mode": "live",
+        "harness_version": harness_version,
+        "real_home": real_home_enabled(),
+        "runs": runs,
+    }
+    if real_home_enabled():
+        report["confound"] = (
+            "real HOME: ~/.claude instructions, rules, and skills load under every control, "
+            "so `reduced` is not AGENTS-free"
+        )
     return report, (EXIT_EXTERNAL if any_harness_failure else EXIT_OK)
 
 
@@ -325,7 +336,7 @@ def _refuse_recorded_cells(
             continue
         recorded = {
             (row["task_id"], row["repeat"])
-            for row in map(json.loads, path.read_text(encoding="utf-8").splitlines())
+            for row in _record_rows(path)
         }
         clash = sorted(planned & recorded)
         if clash:
@@ -340,6 +351,19 @@ def _default_output_dir() -> Path:
     return REPO_ROOT / "artifacts" / "control-ablation" / run_id
 
 
+def _record_rows(path: Path) -> Iterator[dict[str, object]]:
+    """Yield each JSON row of a records file; blank lines are skipped, bad JSON refuses."""
+    for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+        if not line.strip():
+            continue
+        try:
+            yield json.loads(line)
+        except ValueError as exc:
+            raise ablation_tasks.ControlAblationConfigError(
+                f"{path} line {number} is not valid JSON: {exc}"
+            ) from exc
+
+
 def _resolve_workspace_root(raw: Path | None) -> Path:
     """Resolve and validate `--workspace-root` before creating anything.
 
@@ -347,9 +371,15 @@ def _resolve_workspace_root(raw: Path | None) -> Path:
     refused root must not leave a stray directory behind in a location the
     check just said is unsafe, such as inside this repository's own tree.
     """
-    root = raw.resolve() if raw else Path(tempfile.mkdtemp(prefix="control-ablation-"))
+    if raw is not None:
+        root = raw.resolve()
+        require_isolated_workspace_root(root)
+        root.mkdir(parents=True, exist_ok=True)
+        return root
+    parent = Path(tempfile.gettempdir()).resolve()
+    root = parent / f"control-ablation-{uuid.uuid4().hex}"
     require_isolated_workspace_root(root)
-    root.mkdir(parents=True, exist_ok=True)
+    root.mkdir(mode=0o700)
     return root
 
 
@@ -370,13 +400,9 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--max-runs", type=int, default=DEFAULT_MAX_RUNS)
     parser.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT)
     parser.add_argument(
-        "--claude-auth-file",
-        type=Path,
-        default=None,
-        help=(
-            "Opt-in: copy this Claude Code .credentials.json into each live run's "
-            "isolated CLAUDE_CONFIG_DIR for the duration of the Claude call."
-        ),
+        "--real-home",
+        action="store_true",
+        help="run Claude with the real HOME and its stored login (ambient instructions load)",
     )
     parser.add_argument(
         "--only-tasks",
@@ -393,6 +419,8 @@ def _run(
     tasks = _select_tasks(ablation_tasks.load_tasks_file(args.tasks.resolve()), args.only_tasks)
     if args.dry_run:
         return _run_dry_run(tasks, workspace_root)
+    if args.real_home:
+        os.environ[REAL_HOME_ENV] = "1"
     control_names = _requested_controls(args.controls)
     if args.start_repeat < 0 or args.repeats < 1:
         raise ablation_tasks.ControlAblationConfigError(
@@ -403,11 +431,6 @@ def _run(
         raise ablation_tasks.ControlAblationConfigError(
             f"{total_runs} runs (tasks x controls x repeats) exceeds --max-runs {args.max_runs}; "
             "refusing before any model call (AC-3)"
-        )
-    auth_file = args.claude_auth_file.resolve() if args.claude_auth_file else None
-    if auth_file is not None and not auth_file.is_file():
-        raise ablation_tasks.ControlAblationConfigError(
-            f"--claude-auth-file {auth_file} is not a regular file"
         )
     repeats = range(args.start_repeat, args.start_repeat + args.repeats)
     _refuse_recorded_cells(output_dir, control_names, tasks, repeats)
@@ -421,7 +444,6 @@ def _run(
         workspace_root=workspace_root,
         output_dir=output_dir,
         runner=runner,
-        auth_file=auth_file,
     )
 
 

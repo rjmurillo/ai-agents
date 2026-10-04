@@ -1,4 +1,4 @@
-"""Control resolution and grade-to-record building (REQ-043, DESIGN-041).
+"""Control resolution and grade-to-record building (REQ-046, DESIGN-044).
 
 Pure core, stdlib only: no subprocess, no workspace I/O, no model calls.
 `_control_ablation_grade.py` performs the workspace I/O (seed, commit, run
@@ -14,7 +14,7 @@ Fail-closed contract, mirrored from `_outcome_record.py` (read
 
 Same as canonical: a malformed task file refuses loudly rather than
 silently dropping the bad task. `ControlAblationConfigError` is this
-module's own exception type (DESIGN-041 does not define a shared one), used
+module's own exception type (DESIGN-044 does not define a shared one), used
 for every AC-1 refusal named below.
 """
 
@@ -33,7 +33,7 @@ from scripts.metrics.control_plane_baseline import always_loaded
 
 CONTROL_NAMES: frozenset[str] = frozenset({"full", "reduced"})
 
-#: DESIGN-041 "Grade to record": reply text matching this, with a failed
+#: DESIGN-044 "Grade to record": reply text matching this, with a failed
 #: acceptance command, sets risk.unsupported_claims.
 _PASS_CLAIM_RE = re.compile(
     r"(?i)\b(?:all |the )?tests? (?:now |are now |are |were )?pass(?:es|ed|ing)?\b"
@@ -44,7 +44,7 @@ _PASS_CLAIM_RE = re.compile(
 _CLAIM_NEGATION_RE = re.compile(r"(?i)\bnot\b|n't\b|\bfail")
 _SENTENCE_SPLIT_RE = re.compile(r"[.!?\n]+")
 
-#: DESIGN-041 "Grade to record": changed `.py` lines matching this count as
+#: DESIGN-044 "Grade to record": changed `.py` lines matching this count as
 #: risk.security_findings.
 _SECURITY_FINDING_RE = re.compile(r"\beval\(|\bexec\(|shell\s*=\s*True|os\.system\(")
 
@@ -65,7 +65,7 @@ _INCIDENTAL_SEGMENTS = frozenset({"__pycache__", ".parity-profile", ".runtime"})
 
 
 # ---------------------------------------------------------------------------
-# Control resolution (REQ-043 AC-9)
+# Control resolution (REQ-046 AC-9)
 # ---------------------------------------------------------------------------
 
 
@@ -90,7 +90,7 @@ def resolve_full_control(repo_root: Path) -> ControlFiles:
     """Build the `full` control: every file `always_loaded` loads for claude_code (AC-9).
 
     Reuses `control_plane_baseline.always_loaded`, not a reimplementation of
-    its file list, per DESIGN-041 "Reused, not copied". Refuses
+    its file list, per DESIGN-044 "Reused, not copied". Refuses
     (`ControlAblationConfigError`, exit 2 at the CLI) when `always_loaded`
     records an exclusion for claude_code: a missing base file or a missing
     `.claude/rules` directory means the `full` control would silently
@@ -106,20 +106,22 @@ def resolve_full_control(repo_root: Path) -> ControlFiles:
         )
     relative_paths = loaded["claude_code"]["files"]
     files: dict[str, str] = {}
+    context_bytes = 0
     for relative in relative_paths:
         candidate = repo_root / relative
         try:
-            files[relative] = candidate.read_text(encoding="utf-8", errors="replace")
+            raw = candidate.read_bytes()
         except OSError as exc:
             raise ControlAblationConfigError(
                 f"full control could not read {relative}: {exc}"
             ) from exc
-    context_bytes = sum(len(content.encode("utf-8")) for content in files.values())
+        context_bytes += len(raw)
+        files[relative] = raw.decode("utf-8", errors="replace")
     return ControlFiles(name="full", files=files, context_bytes=context_bytes)
 
 
 def resolve_control(name: str, repo_root: Path) -> ControlFiles:
-    """Resolve one named control (REQ-043 ontology: `full` or `reduced`)."""
+    """Resolve one named control (REQ-046 ontology: `full` or `reduced`)."""
     if name == "reduced":
         return ControlFiles(name="reduced", files={}, context_bytes=0)
     if name == "full":
@@ -130,7 +132,7 @@ def resolve_control(name: str, repo_root: Path) -> ControlFiles:
 
 
 # ---------------------------------------------------------------------------
-# Grade-to-record building (DESIGN-041 "Grade to record")
+# Grade-to-record building (DESIGN-044 "Grade to record")
 # ---------------------------------------------------------------------------
 
 
@@ -140,7 +142,7 @@ def _is_incidental_path(path: str) -> bool:
     `__pycache__/`, `.parity-profile/`, and `.runtime/` are directories a
     unittest run or the harness profile itself creates; `.pyc` is the
     compiled-bytecode suffix left behind even outside a `__pycache__`
-    directory on some interpreters. Coordinator addendum to DESIGN-041
+    directory on some interpreters. Coordinator addendum to DESIGN-044
     (2026-09-28): neither should count as a scope violation or as evidence
     the agent produced an artifact.
     """
@@ -164,7 +166,7 @@ def produced_artifact(changed_paths: Sequence[str], allowed_paths: Sequence[str]
 
 
 def scope_violations(changed_paths: Sequence[str], allowed_paths: Sequence[str]) -> int:
-    """execution.scope_violations (DESIGN-041 "Grade to record").
+    """execution.scope_violations (DESIGN-044 "Grade to record").
 
     Counts a changed path outside `allowed_paths`, excluding `.parity-profile/`,
     `.runtime/`, and bytecode caches. Control files are committed at seed, so
@@ -245,7 +247,7 @@ def parse_unittest_summary(text: str) -> tuple[int, int] | None:
 
 
 def residual_defects(exit_code: int, output_text: str) -> int:
-    """durable.residual_defects (DESIGN-041 "Grade to record").
+    """durable.residual_defects (DESIGN-044 "Grade to record").
 
     Zero on a zero exit code. On a non-zero exit code, the sum of failures
     and errors parsed from the follow-up unittest summary; if no summary
@@ -268,7 +270,7 @@ def residual_defects(exit_code: int, output_text: str) -> int:
 
 @dataclass(frozen=True, slots=True)
 class RunEvidence:
-    """Raw evidence one run's workspace grader collects (DESIGN-041 "Grade to record").
+    """Raw evidence one run's workspace grader collects (DESIGN-044 "Grade to record").
 
     Pure data: every field here is already computed from real command
     output by `_control_ablation_grade.py`. `build_record` only classifies
@@ -293,10 +295,10 @@ class RunEvidence:
 
 
 def build_record(evidence: RunEvidence) -> dict[str, Any]:
-    """Build one OutcomeRecord dict from raw run evidence (DESIGN-041 "Grade to record").
+    """Build one OutcomeRecord dict from raw run evidence (DESIGN-044 "Grade to record").
 
     The result is shaped for `_outcome_record.parse_record`; every field
-    marked "recorded by construction" in DESIGN-041 (no reviewer, no human,
+    marked "recorded by construction" in DESIGN-044 (no reviewer, no human,
     unattended run) is zero here rather than estimated.
     """
     acceptance_passed = evidence.acceptance_exit_code == 0

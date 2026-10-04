@@ -1,4 +1,4 @@
-"""Matched-comparison refusal around `context_bytes` (REQ-042 AC-7, REQ-043 AC-10)."""
+"""Matched-comparison refusal around `context_bytes` (REQ-042 AC-7, REQ-046 AC-10)."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from tests.eval._durable_outcome_test_support import (
 
 
 def test_compare_allows_control_and_context_bytes_to_differ_together() -> None:
-    # REQ-043 AC-10/DESIGN-041 "Comparison change": a reduced control differs
+    # REQ-046 AC-10/DESIGN-044 "Comparison change": a reduced control differs
     # in context_bytes by construction, so the comparison must not refuse on
     # that field when it is the only other difference from `control`.
     baseline_data = durable_record("t1", "reduced")

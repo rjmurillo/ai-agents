@@ -1,12 +1,12 @@
 ---
 type: design
-id: DESIGN-041
+id: DESIGN-044
 title: Reduced-control ablation runner on the runtime-parity modules
 status: draft
 priority: P1
 related:
-  - REQ-043
-  - TASK-052
+  - REQ-046
+  - TASK-055
   - DESIGN-040
 created: 2026-09-28
 updated: 2026-09-28
@@ -17,7 +17,7 @@ tags:
   - v0.7.0
 ---
 
-# DESIGN-041: Reduced-control ablation runner on the runtime-parity modules
+# DESIGN-044: Reduced-control ablation runner on the runtime-parity modules
 
 ## Design Overview
 
@@ -96,13 +96,14 @@ are a fixed 120 seconds.
    --tools Read,Edit,Write,Glob,Grep,Bash
    --allowedTools Bash(python3:*),Bash(git:*),Bash(ls:*),Bash(cat:*)`
    under `runtime_env(workspace, "claude")`, with `CLAUDE_CONFIG_DIR` moved
-   beside the workspace. A nonzero exit, an `is_error` result, a missing
+   beside the workspace. Under `--real-home` the operator's HOME is kept and
+   `CLAUDE_CONFIG_DIR` is left unset; no credential file is copied or read. A nonzero exit, an `is_error` result, a missing
    `total_cost_usd`, or a model mismatch is a harness failure: no record.
 3. After exit, read changed paths against the seed ref, then write
    `followup_files`, run `acceptance`, then `followup`. Reading changes first
    keeps an agent edit at a follow-up path in the diff.
-4. Build the record. With `--claude-auth-file`, the login's string values are
-   redacted from the reply before it reaches the report or stdout.
+4. Build the record. The report states `real_home` and, when true, the
+   ambient-instruction confound.
 
 Runs interleave: for each task, for each repeat, for each control.
 

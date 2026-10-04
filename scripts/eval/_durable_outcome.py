@@ -335,8 +335,8 @@ def build_report(records: Sequence[OutcomeRecord]) -> dict[str, object]:
 def _require_configs_match_except_control(baseline: RunConfig, candidate: RunConfig) -> None:
     """Refuse a comparison whose configs differ outside `control`/`context_bytes`.
 
-    `context_bytes` is exempt only when `control` also differs (REQ-043 AC-10,
-    DESIGN-041 "Comparison change"): the control determines the bytes loaded,
+    `context_bytes` is exempt only when `control` also differs (REQ-046 AC-10,
+    DESIGN-044 "Comparison change"): the control determines the bytes loaded,
     so a reduced control differs in `context_bytes` by construction. Two runs
     under the same control with different bytes loaded different instructions,
     so that pair still refuses.
