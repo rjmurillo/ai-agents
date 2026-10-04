@@ -8499,7 +8499,12 @@ def _handle_branch_dashes(args: argparse.Namespace) -> int:
     outcome = coerce_outcome(
         "validate_dash_prohibition", validate_dash_prohibition(_repo_root(args))
     )
-    return 0 if pre_pr_policy().accepts(outcome) else 1
+    if pre_pr_policy().accepts(outcome):
+        return 0
+    # A scan that never ran (FAIL under CI, reason base_ref.unresolved or
+    # diff.failed) prints no violation list, so name the state and reason here.
+    print(outcome.summary_line(), file=sys.stderr)
+    return 1
 
 
 def _handle_staged_action_pins(args: argparse.Namespace) -> int:
