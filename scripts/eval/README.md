@@ -131,9 +131,10 @@ signed in. First hit wins:
    `.credentials.json` under `CLAUDE_CONFIG_DIR` or `~/.claude`, skipped once
    `expiresAt` has passed. Codex: `$CODEX_HOME/auth.json` (default
    `~/.codex/auth.json`), copied into a private `CODEX_HOME` for the run, and
-   refused when it carries an `OPENAI_API_KEY`. Copilot: `gh auth token`, the
-   GitHub CLI token that `copilot login --help` lists as a supported token. A
-   missing, corrupt, or expired file falls through.
+   refused when it carries an `OPENAI_API_KEY`. Copilot: its own login first (step 3
+   below), then `gh auth token` as the last disk source. The GitHub CLI token
+   usually carries wider scopes than Copilot needs, so it is recorded as
+   `disk-gh-fallback`. A missing, corrupt, or expired file falls through.
 3. **The CLI as it stands** (`claude -p`, `codex exec`, `copilot -p`), taken
    only when `claude auth status` reports a `claude.ai` login,
    `codex login status` reports a ChatGPT login, or the Copilot config records
@@ -145,7 +146,7 @@ signed in. First hit wins:
 Every step strips the metered variables (`ANTHROPIC_API_KEY`,
 `ANTHROPIC_AUTH_TOKEN`, `OPENAI_API_KEY`, `CODEX_API_KEY`, and the Copilot
 BYOK set), so no path bills a paid key. `report.json` records which steps ran
-as `credential_steps` (`env`, `dotenv`, `disk`, `existing-login`, `prompt`)
+as `credential_steps` (`env`, `dotenv`, `disk`, `disk-gh-fallback`, `existing-login`, `prompt`)
 and `REPORT.md` prints a `Credential step` line. `existing-login` reads
 `existing login: user config may load`. A `settings.json` env block in that user config can also set `ANTHROPIC_API_KEY` or a base URL, which moves billing off the subscription. The value is never recorded.
 

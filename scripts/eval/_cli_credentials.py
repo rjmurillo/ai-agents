@@ -14,7 +14,12 @@ The order, first hit wins:
    defaults to the repository-root `.env`. A named pipe (a 1Password mount, for
    example) is read with a timeout, and a timeout reads as not found.
    Recorded as `env` for the process environment and `dotenv` for a file.
-2. `disk`: the credential the CLI itself stored. Recorded as `disk`.
+2. `disk`: the credential the CLI itself stored. Recorded as `disk`. A spec
+   that sets `own_login_first` swaps steps 2 and 3, so the CLI's own stored
+   login wins and the disk source is the last resort. Copilot sets it: its own
+   login is preferred over `gh auth token`, whose OAuth token usually carries
+   wider scopes than Copilot needs. That fallback is recorded as
+   `disk-gh-fallback`, never `disk`.
 3. `existing-login`: the already-authenticated CLI as it stands, with no
    relocated config directory and no injected token. Taken only when the CLI
    reports a subscription login. Recorded as `existing-login`.
@@ -45,6 +50,7 @@ __all__ = [
     "DOTENV_FILES_ENV",
     "EXISTING_LOGIN_NOTE",
     "STEP_DISK",
+    "STEP_DISK_GH_FALLBACK",
     "STEP_DOTENV",
     "STEP_ENV",
     "STEP_EXISTING_LOGIN",
@@ -67,6 +73,7 @@ DOTENV_FILES_ENV = "EVAL_DOTENV_FILES"
 STEP_ENV = "env"
 STEP_DOTENV = "dotenv"
 STEP_DISK = "disk"
+STEP_DISK_GH_FALLBACK = "disk-gh-fallback"
 STEP_EXISTING_LOGIN = "existing-login"
 STEP_PROMPT = "prompt"
 
@@ -98,6 +105,10 @@ class CredentialSpec:
     login_probe: Callable[[str, Mapping[str, str]], bool]
     #: Raised at step 4 when stdin is not a terminal.
     missing_message: str
+    #: True swaps steps 2 and 3: the CLI's own login beats the disk source.
+    own_login_first: bool = False
+    #: The step name recorded when the disk source hits.
+    disk_step: str = STEP_DISK
 
 
 @dataclass(frozen=True)
@@ -240,9 +251,11 @@ def resolve_credential(
         return ResolvedCredential(STEP_ENV, token)
     if (token := _from_dotenv(spec.env_names, env, wait)) is not None:
         return ResolvedCredential(STEP_DOTENV, token)
+    if spec.own_login_first and spec.login_probe(executable, env):
+        return ResolvedCredential(STEP_EXISTING_LOGIN)
     if (token := spec.read_disk(env)) is not None:
-        return ResolvedCredential(STEP_DISK, token)
-    if spec.login_probe(executable, env):
+        return ResolvedCredential(spec.disk_step, token)
+    if not spec.own_login_first and spec.login_probe(executable, env):
         return ResolvedCredential(STEP_EXISTING_LOGIN)
     tty = sys.stdin.isatty() if stdin_is_tty is None else stdin_is_tty
     if tty and (token := _prompt_for_token(spec)) is not None:

@@ -57,6 +57,7 @@ class Rig:
     token_env: str
     run: Callable[[pytest.MonkeyPatch], dict[str, Any]]
     disk_text: str = DISK_VALUE
+    disk_step: str = creds.STEP_DISK
     extra: dict[str, Any] = field(default_factory=dict)
 
 
@@ -117,7 +118,13 @@ RIGS = {
         _run_codex,
         disk_text=json.dumps({"tokens": {"access_token": DISK_VALUE}}),
     ),
-    "copilot": Rig("copilot", "_copilot_cli", "COPILOT_GITHUB_TOKEN", _run_copilot),
+    "copilot": Rig(
+        "copilot",
+        "_copilot_cli",
+        "COPILOT_GITHUB_TOKEN",
+        _run_copilot,
+        disk_step=creds.STEP_DISK_GH_FALLBACK,
+    ),
 }
 ALL_TOKEN_NAMES = (
     "CLAUDE_CODE_OAUTH_TOKEN",
@@ -183,9 +190,9 @@ def test_env_beats_dotenv_beats_disk_beats_existing_login(
     assert creds.recorded_steps() == [creds.STEP_DOTENV]
 
     monkeypatch.setenv("EVAL_DOTENV_FILES", str(tmp_path / "gone.env"))
-    _sources(monkeypatch, rig, disk=True, probe=True)
+    _sources(monkeypatch, rig, disk=True, probe=False)
     assert _injected(rig, rig.run(monkeypatch)) == DISK_VALUE
-    assert creds.recorded_steps() == [creds.STEP_DISK]
+    assert creds.recorded_steps() == [rig.disk_step]
 
     _sources(monkeypatch, rig, disk=False, probe=True)
     assert _injected(rig, rig.run(monkeypatch)) is None
@@ -210,12 +217,12 @@ def test_fifo_timeout_falls_through(
     os.mkfifo(fifo)
     monkeypatch.setenv("EVAL_DOTENV_FILES", str(fifo))
     monkeypatch.setattr(creds, "FIFO_TIMEOUT_SECONDS", 0.2)
-    _sources(monkeypatch, rig, disk=True, probe=True)
+    _sources(monkeypatch, rig, disk=True, probe=False)
 
     result = rig.run(monkeypatch)
 
     assert _injected(rig, result) == DISK_VALUE
-    assert creds.recorded_steps() == [creds.STEP_DISK]
+    assert creds.recorded_steps() == [rig.disk_step]
 
 
 def test_non_terminal_at_the_last_step_exits_before_any_process(
@@ -274,13 +281,13 @@ def test_billing_env_is_stripped_on_every_step(
 ) -> None:
     for name, value in BILLING_ENV.items():
         monkeypatch.setenv(name, value)
-    _sources(monkeypatch, rig, disk=step == creds.STEP_DISK, probe=True)
+    _sources(monkeypatch, rig, disk=step == creds.STEP_DISK, probe=step != creds.STEP_DISK)
     if step == creds.STEP_ENV:
         monkeypatch.setenv(rig.token_env, ENV_VALUE)
 
     env = rig.run(monkeypatch)["env"]
 
-    assert creds.recorded_steps() == [step]
+    assert creds.recorded_steps() == [rig.disk_step if step == creds.STEP_DISK else step]
     assert not set(BILLING_ENV) & set(env)
     assert not any(value in json.dumps(env) for value in BILLING_ENV.values())
 
@@ -334,3 +341,35 @@ def test_copilot_reads_gh_token_after_its_own_variable(monkeypatch: pytest.Monke
 
     assert creds.recorded_steps() == [creds.STEP_ENV]
     assert result["env"]["COPILOT_GITHUB_TOKEN"] == ENV_VALUE
+
+
+def test_copilot_own_login_beats_the_gh_token(monkeypatch: pytest.MonkeyPatch) -> None:
+    rig = RIGS["copilot"]
+    _sources(monkeypatch, rig, disk=True, probe=True)
+
+    result = rig.run(monkeypatch)
+
+    assert creds.recorded_steps() == [creds.STEP_EXISTING_LOGIN]
+    assert rig.token_env not in result["env"]
+    assert DISK_VALUE not in json.dumps(result["env"])
+
+
+def test_copilot_uses_the_gh_token_only_when_no_own_login_exists(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    rig = RIGS["copilot"]
+    _sources(monkeypatch, rig, disk=True, probe=False)
+
+    result = rig.run(monkeypatch)
+
+    assert creds.recorded_steps() == [creds.STEP_DISK_GH_FALLBACK]
+    assert result["env"][rig.token_env] == DISK_VALUE
+
+
+def test_the_gh_fallback_is_named_in_the_report_json(monkeypatch: pytest.MonkeyPatch) -> None:
+    rig = RIGS["copilot"]
+    _sources(monkeypatch, rig, disk=True, probe=False)
+    rig.run(monkeypatch)
+
+    assert "disk-gh-fallback" in creds.recorded_steps()
+    assert creds.step_label("disk-gh-fallback") == "disk-gh-fallback"

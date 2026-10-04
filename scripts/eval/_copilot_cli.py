@@ -20,7 +20,12 @@ from pathlib import Path
 from typing import cast
 
 from _cli_credential_sources import copilot_disk_token, copilot_login_probe
-from _cli_credentials import CredentialSpec, ResolvedCredential, resolve_cached
+from _cli_credentials import (
+    STEP_DISK_GH_FALLBACK,
+    CredentialSpec,
+    ResolvedCredential,
+    resolve_cached,
+)
 from _copilot_cli_acp import (
     ACPProcessError,
     run_acp_completion,
@@ -77,11 +82,13 @@ CREDENTIAL_SPEC = CredentialSpec(
     inject_env=_TOKEN_ENV,
     read_disk=copilot_disk_token,
     login_probe=copilot_login_probe,
+    own_login_first=True,
+    disk_step=STEP_DISK_GH_FALLBACK,
     missing_message=(
         f"{PROVIDER_LABEL} found no subscription credential. Tried, in order: "
         f"{_TOKEN_ENV}, GH_TOKEN, or GITHUB_TOKEN in the environment or a dotenv "
-        "file (EVAL_DOTENV_FILES), the GitHub CLI token (`gh auth token`), the "
-        "CLI's own login, and a prompt (stdin is not a terminal). Run "
+        "file (EVAL_DOTENV_FILES), the CLI's own login, the GitHub CLI token "
+        "(`gh auth token`), and a prompt (stdin is not a terminal). Run "
         "`copilot login` or `gh auth login`."
     ),
 )

@@ -23,6 +23,8 @@ def _spec(
     disk: str | None = None,
     probe: bool = False,
     names: tuple[str, ...] = ("PRIMARY_TOKEN", "SECOND_TOKEN"),
+    own_login_first: bool = False,
+    disk_step: str = creds.STEP_DISK,
 ) -> creds.CredentialSpec:
     return creds.CredentialSpec(
         transport="fake-cli",
@@ -31,6 +33,8 @@ def _spec(
         read_disk=lambda environ: disk,
         login_probe=lambda executable, environ: probe,
         missing_message="no credential anywhere",
+        own_login_first=own_login_first,
+        disk_step=disk_step,
     )
 
 
@@ -153,6 +157,42 @@ def test_disk_wins_over_existing_login() -> None:
     result = _resolve(_spec(disk=SECRET, probe=True), {})
 
     assert (result.step, result.secret) == (creds.STEP_DISK, SECRET)
+
+
+def test_own_login_beats_the_disk_source_when_the_spec_says_so() -> None:
+    spec = _spec(disk=SECRET, probe=True, own_login_first=True)
+
+    result = _resolve(spec, {})
+
+    assert (result.step, result.secret) == (creds.STEP_EXISTING_LOGIN, None)
+
+
+def test_disk_is_the_last_resort_and_records_its_own_step_name() -> None:
+    spec = _spec(
+        disk=SECRET,
+        probe=False,
+        own_login_first=True,
+        disk_step=creds.STEP_DISK_GH_FALLBACK,
+    )
+
+    result = _resolve(spec, {})
+
+    assert (result.step, result.secret) == (creds.STEP_DISK_GH_FALLBACK, SECRET)
+
+
+def test_own_login_first_still_yields_to_env_and_dotenv(tmp_path: Path) -> None:
+    spec = _spec(disk=SECRET, probe=True, own_login_first=True)
+
+    assert _resolve(spec, {"PRIMARY_TOKEN": "e"}).step == creds.STEP_ENV
+    path = _dotenv(tmp_path, "PRIMARY_TOKEN=d\n")
+    assert _resolve(spec, {creds.DOTENV_FILES_ENV: path}).step == creds.STEP_DOTENV
+
+
+def test_own_login_first_with_nothing_found_exits_with_the_message() -> None:
+    spec = _spec(probe=False, own_login_first=True)
+
+    with pytest.raises(creds.CredentialNotFoundError):
+        _resolve(spec, {})
 
 
 def test_existing_login_injects_no_token() -> None:

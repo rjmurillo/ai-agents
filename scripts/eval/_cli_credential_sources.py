@@ -21,6 +21,9 @@ Sources, each read on 2026-10-03:
   `codex login status` prints `Logged in using ChatGPT` for the plan login.
 - Copilot: `copilot login --help` (CLI 1.0.91) lists the OAuth token from the
   GitHub CLI app as a supported token, so `gh auth token` is the disk source.
+  Its OAuth token usually carries wider scopes than Copilot needs, so the
+  Copilot spec ranks the CLI's own login first and records this source as
+  `disk-gh-fallback`.
   A classic `ghp_` token is refused, as the same help text refuses it. The
   CLI's own store is the OS credential store or a plain-text file under
   `COPILOT_HOME`; its field layout is not documented, so it is not read here.
