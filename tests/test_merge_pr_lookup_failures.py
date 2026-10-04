@@ -16,10 +16,13 @@ from unittest.mock import patch
 import pytest
 
 _SCRIPT = Path(__file__).resolve().parents[1] / ".claude/skills/github/scripts/pr/merge_pr.py"
-_SPEC = importlib.util.spec_from_file_location("merge_pr", _SCRIPT)
+# A private module name: test_merge_pr.py owns sys.modules["merge_pr"] and patches
+# "merge_pr.*", so re-registering that name here would break its patches.
+_MODULE_NAME = "merge_pr_under_lookup_test"
+_SPEC = importlib.util.spec_from_file_location(_MODULE_NAME, _SCRIPT)
 assert _SPEC is not None and _SPEC.loader is not None
 _MOD = importlib.util.module_from_spec(_SPEC)
-sys.modules["merge_pr"] = _MOD
+sys.modules[_MODULE_NAME] = _MOD
 _SPEC.loader.exec_module(_MOD)
 
 _HEAD = "a" * 40
