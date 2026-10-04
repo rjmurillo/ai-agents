@@ -7,6 +7,7 @@ prove that a real codex or copilot process behaves this way.
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import shutil
 import subprocess
@@ -176,6 +177,65 @@ def test_role_prompts_differ_by_role_and_carry_the_same_requirement() -> None:
     assert all(scenario.requirement in prompt for prompt in prompts.values())
     assert "implementation-plan.md" in prompts["orchestrator-plan"]
     assert "report defects only" in prompts["reviewer-review"]
+
+
+def _worker_prompts(scenario: Any, arm: str) -> list[str]:
+    config = parse(config_dict())
+    requests = dag_mod.build_requests(config.strategy_for(arm, "codex"), scenario)
+    return [
+        live_mod.role_prompt(r, scenario)
+        for r in requests
+        if r.role != "reviewer" and r.phase_id != "plan"
+    ]
+
+
+def test_worker_prompt_states_the_scenario_allowed_paths() -> None:
+    scenario = _scenario()
+    prompt = _worker_prompts(scenario, "E")[0]
+
+    assert live_mod.change_surface(scenario) in prompt
+    assert "- slugger/core.py" in prompt
+    assert "tests/check_visible_slugify.py" not in prompt
+
+
+def test_change_surface_lists_forbidden_paths_when_the_scenario_has_them() -> None:
+    scenario = next(s for s in scenarios() if s.forbidden_paths)
+    text = live_mod.change_surface(scenario)
+
+    assert "Never edit these paths:" in text
+    assert all(f"- {path}" in text for path in scenario.allowed_paths + scenario.forbidden_paths)
+
+
+def test_change_surface_fails_closed_without_allowed_paths() -> None:
+    bare = dataclasses.replace(_scenario(), allowed_paths=())
+
+    with pytest.raises(ValueError, match="no allowed paths"):
+        live_mod.change_surface(bare)
+    with pytest.raises(ValueError, match="no allowed paths"):
+        _worker_prompts(bare, "E")
+
+
+def test_every_arm_gets_the_identical_surface_text() -> None:
+    scenario = _scenario()
+    surface = live_mod.change_surface(scenario)
+    tails = set()
+    for arm in "ABCDEF":
+        prompts = _worker_prompts(scenario, arm)
+        assert prompts, arm
+        for prompt in prompts:
+            assert prompt.endswith(surface), arm
+            tails.add(prompt[prompt.index("Change surface:") :])
+
+    assert tails == {surface}
+
+
+def test_plan_and_review_prompts_carry_no_surface() -> None:
+    scenario = _scenario()
+    requests = dag_mod.build_requests(parse(config_dict()).strategy_for("B", "codex"), scenario)
+    other = [r for r in requests if r.role == "reviewer" or r.phase_id == "plan"]
+
+    assert other
+    assert all("Change surface:" not in live_mod.role_prompt(r, scenario) for r in other)
 
 
 def test_backend_runs_in_a_scratch_copy_with_an_allowlisted_environment(

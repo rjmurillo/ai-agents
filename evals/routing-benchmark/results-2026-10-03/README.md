@@ -30,7 +30,7 @@ The evidence floor is 8 runs per arm in a class. One repetition of RB-01 gives 1
 
 ## Observations that are not verdicts
 
-- On RB-01 the three fan-out arms (A, B, C) each failed deterministic grading after 2 correction rounds with the same scope violation: a change to `tests/check_visible_slugify.py`, which the scenario does not allow. Arm F, plan then a fresh single agent, was accepted. Arms D and E did not complete. The role prompt says only "Complete this requirement in the working tree", so it does not name the legal change surface. One scenario cannot separate an arm effect from a prompt effect.
+- On RB-01 the three fan-out arms (A, B, C) each failed deterministic grading after 2 correction rounds with the same scope violation: a change to `tests/check_visible_slugify.py`, which the scenario does not allow. Arm F, plan then a fresh single agent, was accepted. Arms D and E did not complete. The role prompt says only "Complete this requirement in the working tree", so it does not name the legal change surface. One scenario cannot separate an arm effect from a prompt effect. Amendment 1 of `../PREDICTIONS.md` (2026-10-04) adds the change surface to the role prompt. These runs used the old prompt and are not pooled with later runs.
 - A smoke run before the batch (arm E, RB-01, `gpt-5.6-sol` high) was accepted in 1 invocation with backend-confirmed model and effort. It is not part of these files.
 
 ## Confounds
