@@ -21,9 +21,9 @@ Stdlib only: this runs by path in CI and must not depend on the project's
 import graph.
 
 Exit codes (AGENTS.md contract):
-    0 - ok (count <= baseline)
-    1 - regression (count > baseline, or baseline raised vs --base-ref)
-    2 - config error (baseline missing or malformed, bad args)
+    0 - ok (count <= count at the merge base, or bootstrap)
+    1 - regression (count > count at the merge base)
+    2 - config error (no --base-ref, bad args)
     3 - external error (could not read files)
 """
 
@@ -36,13 +36,15 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from scripts.ci.count_ratchet import (
+from scripts.ci.base_derived_ratchet import (
     EXIT_CONFIG,
     EXIT_EXTERNAL,
     EXIT_OK,
     EXIT_REGRESSION,
     build_parser,
     run,
+)
+from scripts.ci.count_ratchet import (
     tracked_files,
 )
 
@@ -51,22 +53,13 @@ __all__ = [
     "EXIT_EXTERNAL",
     "EXIT_OK",
     "EXIT_REGRESSION",
-    "MERGE_TREE_BACKED",
     "_SELF_REFERENTIAL_FILES",
     "current_count",
     "main",
 ]
 
-_BASELINE_PATH = Path(__file__).with_name("type_ignore_count_baseline.txt")
+_SCRIPT = "scripts/ci/type_ignore_count_ratchet.py"
 
-MERGE_TREE_BACKED = True
-"""This baseline is registered in ``merge_tree_ratchet_registry.py::RATCHETS``.
-
-Registration is what lets ``count_ratchet.run`` pass a branch that merely holds
-a number ``main`` lowered underneath it: the merged result is measured by
-``scripts/ci/merge_tree_ratchet_check.py`` instead. Pinned against the registry
-by ``tests/ci/test_merge_tree_backing_declarations.py``.
-"""
 
 # Match ``# type: ignore`` with optional bracket qualifier, allowing whitespace
 # variations. Only Python (.py) files are counted; other extensions do not use
@@ -76,7 +69,7 @@ _TYPE_IGNORE_RE = re.compile(r"#\s*type:\s*ignore(?:\[[^\]]*\])?")
 _PY_GLOBS = ("*.py",)
 
 # Files that describe or test the ``# type: ignore`` syntax without using it as
-# a real mypy suppression. Counting them would inflate the baseline by the
+# a real mypy suppression. Counting them would inflate the count by the
 # number of string literals and docstring examples they contain, making the
 # ratchet 20% noise about itself (issue #4039).
 #
@@ -139,12 +132,11 @@ def current_count(repo_root: Path) -> int | None:
 
     Returns the total count, or None if a file could not be read. Returning
     None rather than 0 on any I/O failure is load-bearing: a zero from a
-    crashed read would look like a clean tree and ``--update`` would write that
-    zero into the baseline, permanently disarming the gate.
+    crashed read would look like a clean tree and permanently disarm the gate.
 
     Files in ``_SELF_REFERENTIAL_FILES`` are excluded: they describe or test
     the ``# type: ignore`` syntax in string literals and docstrings without
-    using it as a real suppression, and counting them inflates the baseline
+    using it as a real suppression, and counting them inflates the count
     with noise about the gate itself (issue #4039).
     """
     files = tracked_files(repo_root, _PY_GLOBS)
@@ -172,10 +164,7 @@ def current_count(repo_root: Path) -> int | None:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = build_parser(
-        "Whole-repo type-ignore comment-count ratchet (issue #4039).",
-        _BASELINE_PATH,
-    )
+    parser = build_parser("Whole-repo type-ignore comment-count ratchet (issue #4039).")
     args = parser.parse_args(sys.argv[1:] if argv is None else argv)
     return run(
         args,
@@ -184,10 +173,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         scan_error="could not read tracked Python files",
         regression_advice=(
             "New '# type" ": ignore' comments cannot merge. Fix the type error, "
-            "or if suppression is genuinely required, coordinate a baseline "
-            "update with a reasoned explanation (issue #4039)."
+            "or if suppression is genuinely required, remove another one in the "
+            "same change (issue #4039)."
         ),
-        merge_tree_backed=MERGE_TREE_BACKED,
+        introduced_by=_SCRIPT,
     )
 
 

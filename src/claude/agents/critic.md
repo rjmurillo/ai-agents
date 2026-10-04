@@ -252,7 +252,7 @@ If a tool or service is unavailable, do not halt on first failure or retry indef
 
 ## Handoff
 
-You cannot delegate. Return to orchestrator with:
+You cannot delegate. Return to orchestrator with (fields per the orchestrator Handoff Contract):
 
 1. Verdict and confidence
 2. Path to critique document

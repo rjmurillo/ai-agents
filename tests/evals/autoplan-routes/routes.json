@@ -1,0 +1,164 @@
+{
+  "schema_version": 1,
+  "scenarios": [
+    {
+      "id": "lt-business-strategy",
+      "family": "long-tail-single-domain",
+      "request": "Evaluate our business model against a new competitive strategy.",
+      "expect": {
+        "kind": "specialist",
+        "route": "business-strategy",
+        "routes_absent": [
+          "orchestrator"
+        ]
+      },
+      "rationale": "Three business-strategy intents match; no adjacent specialist should."
+    },
+    {
+      "id": "lt-world-model",
+      "family": "long-tail-single-domain",
+      "request": "Diagnose why the agent's assumptions about the world model keep failing.",
+      "expect": {
+        "kind": "specialist",
+        "route": "world-model-diagnostic",
+        "routes_absent": [
+          "orchestrator"
+        ]
+      },
+      "rationale": "Named skill from #5389; must not fall through to the orchestrator."
+    },
+    {
+      "id": "lt-dx-review",
+      "family": "long-tail-single-domain",
+      "request": "Audit our CLI onboarding workflow for developer friction.",
+      "expect": {
+        "kind": "specialist",
+        "route": "dx-review",
+        "routes_absent": [
+          "orchestrator"
+        ]
+      },
+      "rationale": "Positive dx-review activation."
+    },
+    {
+      "id": "lt-programming-advisor",
+      "family": "long-tail-single-domain",
+      "request": "Is there an existing library for parsing YAML before we build one?",
+      "expect": {
+        "kind": "specialist",
+        "route": "programming-advisor",
+        "routes_absent": [
+          "buy-vs-build-framework"
+        ]
+      },
+      "rationale": "Library-reuse question: programming-advisor, not the strategic build/buy skill."
+    },
+    {
+      "id": "lt-buy-vs-build",
+      "family": "long-tail-single-domain",
+      "request": "Compare build vs buy vs partner vs defer with total cost of ownership.",
+      "expect": {
+        "kind": "specialist",
+        "route": "buy-vs-build-framework",
+        "routes_absent": [
+          "programming-advisor"
+        ]
+      },
+      "rationale": "Strategic sourcing question: buy-vs-build-framework, not programming-advisor."
+    },
+    {
+      "id": "lt-boundary-mixed",
+      "family": "long-tail-single-domain",
+      "request": "Is there an existing library for this, or should we weigh build vs buy on total cost of ownership?",
+      "expect": {
+        "kind": "specialist",
+        "route": "buy-vs-build-framework",
+        "routes_absent": [
+          "programming-advisor"
+        ]
+      },
+      "rationale": "Boundary: more strategic intents match, so buy-vs-build wins the tie-break."
+    },
+    {
+      "id": "explicit-slash",
+      "family": "explicit-skill",
+      "request": "run /dx-review on this change",
+      "expect": {
+        "kind": "explicit",
+        "route": "dx-review",
+        "routes_absent": [
+          "autoplan",
+          "orchestrator"
+        ]
+      },
+      "rationale": "A named skill is honored without autoplan recursion."
+    },
+    {
+      "id": "explicit-self",
+      "family": "explicit-skill",
+      "request": "use the autoplan skill to audit our CLI onboarding for developer friction",
+      "expect": {
+        "kind": "specialist",
+        "route": "dx-review",
+        "routes_absent": [
+          "autoplan"
+        ]
+      },
+      "rationale": "A self-reference is dropped and routing continues; autoplan is never returned."
+    },
+    {
+      "id": "multi-parallel",
+      "family": "multi-domain-handoff",
+      "request": "Refactor the loader and update the docs in parallel across services.",
+      "expect": {
+        "kind": "orchestrator",
+        "route": "orchestrator",
+        "routes_absent": [
+          "dx-review"
+        ]
+      },
+      "rationale": "A multi-domain marker routes to the orchestrator with the marker as the reason."
+    },
+    {
+      "id": "noise-unrelated",
+      "family": "negative-noise",
+      "request": "Make me a sandwich.",
+      "expect": {
+        "kind": "none",
+        "route": null,
+        "routes_absent": [
+          "dx-review",
+          "business-strategy",
+          "programming-advisor"
+        ]
+      },
+      "rationale": "No intent matches: no specialist is selected."
+    },
+    {
+      "id": "noise-adjacent-word",
+      "family": "negative-noise",
+      "request": "Explain how developers experience jet lag.",
+      "expect": {
+        "kind": "none",
+        "route": null,
+        "routes_absent": [
+          "dx-review"
+        ]
+      },
+      "rationale": "Shares words with dx-review, not an intent: the specialist must not fire."
+    },
+    {
+      "id": "fallback-unknown-skill",
+      "family": "failure-fallback",
+      "request": "use the nonexistent-skill skill",
+      "expect": {
+        "kind": "none",
+        "route": null,
+        "routes_absent": [
+          "orchestrator"
+        ]
+      },
+      "rationale": "An unknown skill reference resolves to none, never a guessed route."
+    }
+  ]
+}

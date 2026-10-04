@@ -136,20 +136,26 @@ class TestAggregateBudgetIsConsistentWithLefthook:
 
 
 def ci_baseline_ratchet_scripts() -> list[str]:
-    """Every count ratchet that owns a baseline under ``scripts/ci``.
+    """Every count ratchet under ``scripts/ci``, whichever way it gets its ceiling.
 
-    Derived from the baseline files rather than a hand-written list, so the
-    next ratchet is covered on the day its baseline lands. The name mapping is
-    the repository's own convention, ``<name>_baseline.txt`` beside
-    ``<name>_ratchet.py``; a module that breaks it is caught by
-    ``test_every_derived_ratchet_script_exists`` rather than silently dropping
-    out of the inventory.
+    Two sources, unioned. A scalar ratchet owns ``<name>_baseline.txt`` beside
+    ``<name>_ratchet.py``. A base-derived ratchet (issue #5363) owns no file, so
+    it is found by importing ``base_derived_ratchet``. Deriving the second set
+    from the import rather than a hand-written list keeps deletion of a
+    baseline from dropping a ratchet out of this inventory, which would turn
+    every wiring test below into a check of nothing.
     """
     ci_dir = REPO_ROOT / "scripts" / "ci"
-    return sorted(
+    scalar = {
         f"scripts/ci/{path.name.removesuffix('_baseline.txt')}_ratchet.py"
         for path in ci_dir.glob("*_baseline.txt")
-    )
+    }
+    derived = {
+        f"scripts/ci/{path.name}"
+        for path in ci_dir.glob("*_ratchet.py")
+        if "from scripts.ci.base_derived_ratchet import" in path.read_text(encoding="utf-8")
+    }
+    return sorted(scalar | derived)
 
 
 def unregistered_ratchet_scripts(registered: set[str]) -> list[str]:

@@ -287,6 +287,30 @@ HARNESS_AUTH_ENV: dict[str, set[str]] = {
 }
 
 
+REAL_HOME_ENV = "EVAL_RUNTIME_REAL_HOME"
+_REAL_HOME_KEYS = ("HOME", "USERPROFILE", "XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME")
+
+
+def real_home_enabled() -> bool:
+    """True when the operator opted into the real Claude home (`--real-home`)."""
+    return os.environ.get(REAL_HOME_ENV) == "1"
+
+
+def _use_real_claude_home(env: dict[str, str]) -> None:
+    """Hand the Claude CLI the operator's own home so it finds its own login.
+
+    Nothing is linked, copied, or read here: the child gets the same HOME it
+    would have in a shell, and `CLAUDE_CONFIG_DIR` is left unset so the CLI
+    resolves `~/.claude` itself. The cost is a confound the report records:
+    `~/.claude` instructions, rules, and skills load in every scenario.
+    """
+    for key in _REAL_HOME_KEYS:
+        if key in os.environ:
+            env[key] = os.environ[key]
+        else:
+            env.pop(key, None)
+
+
 def runtime_env(workspace: Path, harness: str) -> dict[str, str]:
     """Build an allowlisted environment rooted at an isolated CLI profile."""
     allow = {
@@ -307,14 +331,12 @@ def runtime_env(workspace: Path, harness: str) -> dict[str, str]:
     # 2026-09-06) as Codex's non-interactive auth variables, but a live probe
     # falsifies that for a ChatGPT-login account: setting CODEX_ACCESS_TOKEN to
     # the account's ChatGPT access token produced a 401 "Missing bearer"
-    # against api.openai.com (probed 2026-09-24, codex-cli 0.156.0). A
-    # ChatGPT-login Codex authenticates only through `$CODEX_HOME/auth.json`,
-    # which this isolated profile does not carry, so a codex probe run through
-    # this environment has no working auth by default. A caller can opt in to
-    # one by copying an `auth.json` into the isolated `CODEX_HOME` before the
-    # probe runs; `eval_harness_capability.py --codex-auth-file` does exactly
-    # that. Both variables stay in the allowlist regardless, in case an
-    # API-key-based (non-ChatGPT) login honors one of them; only the
+    # against api.openai.com (probed 2026-09-24, codex-cli 0.156.0).
+    # Isolated codex probes carry no login, so they cannot make paid calls.
+    # The repo never copies or links a credential file. Use the stored login
+    # through the real CODEX_HOME in drivers that do not isolate it. Both
+    # variables stay in the allowlist regardless, in case an API-key-based
+    # (non-ChatGPT) login honors one of them; only the
     # ChatGPT-token-in-CODEX_ACCESS_TOKEN combination above is falsified.
     # OPENAI_API_KEY is documented elsewhere only as a value piped into the
     # interactive `codex login --with-api-key` command, not as an ambient
@@ -333,7 +355,9 @@ def runtime_env(workspace: Path, harness: str) -> dict[str, str]:
     profile = workspace / ".parity-profile" / harness
     profile.mkdir(parents=True, exist_ok=True)
     env.update(_profile_roots(profile))
-    if harness == "claude":
+    if harness == "claude" and real_home_enabled():
+        _use_real_claude_home(env)
+    elif harness == "claude":
         env["CLAUDE_CONFIG_DIR"] = str(profile)
     elif harness == "copilot":
         session_state = profile / "session-state"

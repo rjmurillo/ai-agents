@@ -132,6 +132,10 @@ class HarnessCapabilityRecord:
     probe_command: str
     date: str
     pending_live_probes: tuple[PendingLiveProbe, ...] = ()
+    #: Owner direction (2026-10-03): the harness is out of eval support. Its
+    #: cells stay as history, it is never a peer for a matched comparison, and
+    #: every arm reads UNSUPPORTED for it.
+    dropped: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -477,6 +481,7 @@ def _load_record(value: object, index: int) -> HarnessCapabilityRecord:
         ),
         date=_string(raw.get("date"), f"{field}.date"),
         pending_live_probes=_pending_probes(raw, field),
+        dropped=_dropped_flag(raw, field),
     )
     validate_record(record)
     return record
@@ -606,6 +611,13 @@ def _capability_dict(capability: Capability) -> dict[str, object]:
     return result
 
 
+def _dropped_flag(raw: Mapping[str, object], field: str) -> bool:
+    value = raw.get("dropped", False)
+    if not isinstance(value, bool):
+        raise HarnessCapabilityError(f"{field}.dropped must be a boolean")
+    return value
+
+
 def _record_dict(record: HarnessCapabilityRecord) -> dict[str, object]:
     result: dict[str, object] = {
         "harness": record.harness,
@@ -624,6 +636,8 @@ def _record_dict(record: HarnessCapabilityRecord) -> dict[str, object]:
     }
     if record.pending_live_probes:
         result["pending_live_probes"] = [p.as_dict() for p in record.pending_live_probes]
+    if record.dropped:
+        result["dropped"] = True
     return result
 
 
@@ -651,19 +665,35 @@ def _worst_eligibility(verdicts: Sequence[ArmEligibility]) -> ArmEligibility:
     return ArmEligibility.UNVERIFIED
 
 
+def _record_eligibility(
+    arm: Arm, harness: HarnessCapabilityRecord, records: Sequence[HarnessCapabilityRecord]
+) -> ArmEligibility:
+    """Eligibility of one harness for one arm against the active peers.
+
+    A dropped harness is UNSUPPORTED and is nobody's peer. An active harness
+    with no active peer is checked against itself: capabilities and models must
+    still be VERIFIED, but a comparison across harnesses is impossible, so the
+    best it reaches is `ELIGIBLE_UNMATCHED` (a within-harness comparison only).
+    """
+    if harness.dropped:
+        return ArmEligibility.UNSUPPORTED
+    peers = [r for r in records if r.harness != harness.harness and not r.dropped]
+    if not peers:
+        alone = derive_arm_eligibility(arm, harness, harness)
+        matched = alone is ArmEligibility.ELIGIBLE_MATCHED
+        return ArmEligibility.ELIGIBLE_UNMATCHED if matched else alone
+    return _worst_eligibility([derive_arm_eligibility(arm, harness, peer) for peer in peers])
+
+
 def _arm_eligibility_dict(
     records: Sequence[HarnessCapabilityRecord],
 ) -> list[dict[str, object]]:
     rows: list[dict[str, object]] = []
     for arm in ARMS:
-        eligibility: dict[str, str] = {}
-        for harness in records:
-            peers = [peer for peer in records if peer.harness != harness.harness]
-            if not peers:
-                eligibility[harness.harness] = ArmEligibility.UNVERIFIED.value
-                continue
-            verdicts = [derive_arm_eligibility(arm, harness, peer) for peer in peers]
-            eligibility[harness.harness] = _worst_eligibility(verdicts).value
+        eligibility = {
+            harness.harness: _record_eligibility(arm, harness, records).value
+            for harness in records
+        }
         rows.append({"arm": arm.arm_id, "summary": arm.summary, "eligibility": eligibility})
     return rows
 

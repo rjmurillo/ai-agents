@@ -15,14 +15,14 @@ from __future__ import annotations
 
 import ast
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
-CACHE_VERSION = 3
+CACHE_VERSION = 4
 
 # Directory names that never contribute import edges. Path-relative so an agent
 # worktree nested under one of these names does not hide the whole checkout.
@@ -37,6 +37,40 @@ class ImportGraphData:
 
     graph: dict[str, frozenset[str]]
     wildcard_dependents: frozenset[str]
+    string_literals: dict[str, frozenset[str]] = field(default_factory=dict)
+    tree_walkers: frozenset[str] = frozenset()
+
+
+# Attribute or bare-name calls that enumerate a directory. A module that makes
+# one can read any file under the tree, so no literal can bound what it reads.
+_TREE_WALK_NAMES = frozenset({"rglob", "glob", "iterdir", "walk", "scandir", "listdir"})
+_MAX_LITERAL = 300
+
+
+def _is_tree_walk(node: ast.AST) -> bool:
+    if isinstance(node, ast.Attribute):
+        return node.attr in _TREE_WALK_NAMES
+    if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+        return node.func.id in _TREE_WALK_NAMES
+    return False
+
+
+def _read_signals(tree: ast.AST) -> tuple[frozenset[str], bool]:
+    """String constants a module could open as paths, and whether it walks a tree.
+
+    A ``git ls-files`` literal counts as a walk: it enumerates the tracked tree
+    through a subprocess instead of a directory call.
+    """
+    literals: set[str] = set()
+    walks = False
+    for node in ast.walk(tree):
+        walks = walks or _is_tree_walk(node)
+        if isinstance(node, ast.Constant) and isinstance(node.value, str):
+            value = node.value
+            if 1 < len(value) < _MAX_LITERAL and "\n" not in value:
+                literals.add(value)
+                walks = walks or "ls-files" in value
+    return frozenset(literals), walks
 
 
 def find_repo_root() -> Path:
@@ -201,6 +235,8 @@ def build_graph_data(repo_root: Path) -> ImportGraphData:
     index = _source_index(rels)
     graph: dict[str, frozenset[str]] = {}
     wildcard_dependents: set[str] = set()
+    string_literals: dict[str, frozenset[str]] = {}
+    tree_walkers: set[str] = set()
     for path, rel in zip(files, rels, strict=True):
         try:
             source = path.read_text(encoding="utf-8")
@@ -223,7 +259,15 @@ def build_graph_data(repo_root: Path) -> ImportGraphData:
         if wildcard:
             wildcard_dependents.add(rel)
         graph[rel] = frozenset(reached - {rel})
-    return ImportGraphData(graph=graph, wildcard_dependents=frozenset(wildcard_dependents))
+        string_literals[rel], walks = _read_signals(tree)
+        if walks:
+            tree_walkers.add(rel)
+    return ImportGraphData(
+        graph=graph,
+        wildcard_dependents=frozenset(wildcard_dependents),
+        string_literals=string_literals,
+        tree_walkers=frozenset(tree_walkers),
+    )
 
 
 def build_graph(repo_root: Path) -> dict[str, frozenset[str]]:
@@ -271,11 +315,20 @@ def _read_cache(cache_path: Path) -> ImportGraphData | None:
         return None
     raw_graph = payload.get("graph")
     raw_wildcards = payload.get("wildcard_dependents", [])
-    if not isinstance(raw_graph, dict) or not isinstance(raw_wildcards, list):
+    raw_literals = payload.get("string_literals")
+    raw_walkers = payload.get("tree_walkers")
+    if (
+        not isinstance(raw_graph, dict)
+        or not isinstance(raw_wildcards, list)
+        or not isinstance(raw_literals, dict)
+        or not isinstance(raw_walkers, list)
+    ):
         return None
     return ImportGraphData(
         graph={key: frozenset(value) for key, value in raw_graph.items()},
         wildcard_dependents=frozenset(raw_wildcards),
+        string_literals={key: frozenset(value) for key, value in raw_literals.items()},
+        tree_walkers=frozenset(raw_walkers),
     )
 
 
@@ -285,6 +338,10 @@ def _write_cache(cache_path: Path, graph_data: ImportGraphData) -> None:
         "version": CACHE_VERSION,
         "graph": {key: sorted(value) for key, value in sorted(graph_data.graph.items())},
         "wildcard_dependents": sorted(graph_data.wildcard_dependents),
+        "string_literals": {
+            key: sorted(value) for key, value in sorted(graph_data.string_literals.items())
+        },
+        "tree_walkers": sorted(graph_data.tree_walkers),
     }
     cache_path.write_text(json.dumps(payload), encoding="utf-8")
 

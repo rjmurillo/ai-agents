@@ -19,10 +19,6 @@ informed: []
 
 # ADR-034: Investigation Session QA Exemption
 
-## Status
-
-Accepted
-
 ## Date
 
 2025-12-30

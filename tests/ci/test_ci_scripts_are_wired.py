@@ -43,6 +43,21 @@ _WORKFLOW_DIRS = (
 # non-empty reason, so that adding one is a decision rather than a way to
 # silence this test.
 _NOT_WORKFLOW_INVOKED: dict[str, str] = {
+    "adr101_publisher_execute.py": (
+        "Library imported by adr101_publisher.py, which adr101-publisher.yml "
+        "invokes. Holds the execute stage. Covered by tests/ci/test_adr101_publisher_execute.py "
+        "(issue #5245)."
+    ),
+    "adr101_publisher_github.py": (
+        "Library imported by adr101_publisher.py, which adr101-publisher.yml "
+        "invokes. Holds the GitHub API client. Covered by tests/ci/test_adr101_publisher_github.py "
+        "(issue #5245)."
+    ),
+    "adr101_publisher_inputs.py": (
+        "Library imported by adr101_publisher.py, which adr101-publisher.yml "
+        "invokes. Holds the shared contract and gates. Covered by "
+        "tests/ci/test_adr101_publisher_binding.py (issue #5245)."
+    ),
     "cli_exit_contract_coverage.py": (
         "Library holding the test-coverage analysis for "
         "cli_exit_contract_ratchet.py, which is workflow-invoked from "
@@ -62,6 +77,13 @@ _NOT_WORKFLOW_INVOKED: dict[str, str] = {
         "taste_count_ratchet.py, both of which are workflow-invoked. It has no "
         "main() and no shebang; tests/ci/test_count_ratchet.py covers it "
         "directly (issue #3779)."
+    ),
+    "base_derived_ratchet.py": (
+        "Library holding the merge-base ceiling policy shared by "
+        "taste_count_ratchet.py, ruff_count_ratchet.py, "
+        "type_ignore_count_ratchet.py and memory_index_count_ratchet.py, all of "
+        "which are workflow-invoked. It has no main() and no shebang; "
+        "tests/ci/test_base_derived_ratchet.py covers it directly (issue #5363)."
     ),
     "lefthook_budget_model.py": (
         "Library holding the lefthook scheduling model shared by "
@@ -83,6 +105,12 @@ _NOT_WORKFLOW_INVOKED: dict[str, str] = {
         "for merge_tree_ratchet_check.py, which pr-validation.yml invokes. It has "
         "no main() and no shebang; tests/ci/test_merge_tree_materialization.py "
         "drives it directly."
+    ),
+    "ratchet_registry_at_ref.py": (
+        "Library that reads the ratchet registry at a commit through git show for "
+        "base_derived_ratchet.py and merge_tree_ratchet_check.py, which "
+        "pr-validation.yml invokes. It has no main() and no shebang; "
+        "tests/ci/test_ratchet_registry_at_ref.py drives it directly."
     ),
     "merge_tree_ratchet_registry.py": (
         "Library holding the single ownership registry of ratchets that "

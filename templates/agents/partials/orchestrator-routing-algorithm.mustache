@@ -12,17 +12,25 @@ Every delegation includes:
 
 ```text
 DELEGATE TO: [agent]
-TASK: [one sentence]
-CONTEXT: [prior findings, constraints, dependencies]
-EXPECTED OUTPUT: [format, content requirements]
-SUCCESS CRITERIA: [verifier and pass criterion]
-ESCALATE TO: [exception recipient]
+OBJECTIVE: [one sentence, user-visible outcome]
+NON-GOALS: [out of scope; allowed paths and tools]
+CONTEXT: [findings, assumptions, open questions, repo, branch, head SHA]
+RISK TIER: [ADR-112 tier: read-only | reversible-local | shared-repository | consequential]
+ACCEPTANCE: [criteria, invariants, verifier, pass criterion]
+STOP CONDITIONS: [when to halt]
+ESCALATE TO: [owner]
+ROLLBACK: [recovery path]
+EXPECTED OUTPUT: [format]
 CONSTRAINTS: [must/must-not]
 TIMEBOX: [if applicable]
 TODO: [ledger ID; ensure row; 1-row update]
 ```
 
-Agents return deltas, changed paths, verifier output, acceptance status, and typed escalation status. Do not return transcripts. If an agent returns narrative prose when you need structured findings, reject and re-delegate with explicit format requirement.
+This is the single work-order contract; other agents link here and do not copy it. Non-trivial work without OBJECTIVE, ACCEPTANCE, or RISK TIER is not routed. Fields survive delegation, review, correction, and resume.
+
+Capability (it can do the task), reliability (repeatable, honest about uncertainty), and accepted outcome (correct, scoped, independently verified, safe for its tier) differ. Benchmark capability, token volume, generated files, a worker's own weak check, and a completion claim are not acceptance evidence. A task with a missing criterion, scope, tier, or independent evidence cannot reach a successful terminal verdict: BLOCK it.
+
+Agents return a completion record: artifacts, commands run with results, deltas, residual risks, confidence, acceptance status, typed escalation status. No transcripts. Above read-only tier a return lacking the record fails closed: re-delegate with the format (consequential tier: HOLD and escalate to the human owner). A sourced read-only answer is accepted.
 
 **Skill inheritance is harness-specific.** Claude Code workers did not inherit the parent's active skills; other harnesses are unverified. Where a worker does not inherit, name the skill file instead of pasting its body.
 
@@ -58,7 +66,7 @@ After all delegated work returns:
 6. **Sequence recommendations** by priority and dependencies
 7. **Produce single coherent output** for the user
 
-Your output is not "analyst said X, architect said Y." It is "based on investigation and design review, the recommended action is Z because of X and Y."
+After an investigation, record before the next mutation: verified facts, unresolved conflicts, bounded scope, acceptance criteria, and a disposition (`CONTINUE`, `RESTART`, `BLOCK`, `STOP`). "Based on findings, fix it" is invalid. Not "analyst said X, architect said Y" but "the action is Z because of X and Y."
 
 ## Context Maintenance
 
@@ -69,7 +77,20 @@ Before each user message, re-read the active plan, relevant artifacts, and exact
 - **Do not re-delegate unchanged work.** Change the approach or context before retrying a failed delegation.
 - **Preserve work across compaction.** Re-read the plan and current per-issue handoff. Read a historical session log only when one exists.
 
-Verify exact text before citing code, documents, or decisions. Do not rely on recall alone.
+Verify exact text before citing code, documents, or decisions. Do not rely on recall alone. Apply this after phase completion, major transitions, interruptions, and before asking the user. If the TODO list no longer matches the plan, update the plan, then the TODO list, then act.
+
+### Resume Check (fail closed)
+
+A resumable non-trivial task keeps one state record in the per-issue handoff: work-order fields, phase, exact next action, decisions with provenance (superseded marked), changed artifacts, validation run, blockers, residual risks, remote owner/name, branch, worktree, head SHA, timestamp. Label retrieved memory fact, decision, or hypothesis, and verified, unverified, or stale; HOLD on unverified load-bearing context. A completion summary is not completion evidence.
+
+Before any state-changing action after handoff, compaction, interruption, or delegation:
+
+1. Compare recorded remote owner/name, branch, worktree, head SHA, and artifacts with the live repository. A live change caused solely by the next action is not a mismatch.
+2. Check the next action. Already done: continue from the next step. Reverted or superseded: HOLD.
+3. Restore ACCEPTANCE and RISK TIER from the record.
+4. Other disagreement, missing field, or missing provenance: HOLD and surface it. Never mutate on a guess.
+
+Delegate returns follow the Handoff Contract.
 
 ## Output Bounds
 

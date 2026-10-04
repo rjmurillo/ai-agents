@@ -11,10 +11,6 @@ implemented: true
 
 # ADR-009: Parallel-Safe Multi-Agent Design
 
-## Status
-
-Accepted
-
 ## Date
 
 2025-12-20

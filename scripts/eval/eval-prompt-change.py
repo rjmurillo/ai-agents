@@ -238,7 +238,6 @@ def load_prompt_from_file(path: str) -> str:
     return p.read_text(encoding="utf-8")
 
 
-
 def _reference_names_from_ref(prompt_path: str, ref: str) -> list[str]:
     """Reference Markdown filenames beside *prompt_path* at *ref*, sorted."""
     refs_dir = f"{PurePosixPath(prompt_path).parent}/references"
@@ -401,30 +400,48 @@ def check_scenario_pass(result: dict[str, Any], scenario: dict[str, Any]) -> boo
           `expected_verdict`. This is checked first so a scenario whose
           `expected_verdict` happens to be "ERROR" or "NOT_SCORED" cannot
           pass on a refusal.
-        - Otherwise, verdict matches if `result["verdict"]` equals
-          `expected_verdict` (uppercased).
-        - If `expected_reason_contains` is set, the substring must appear in
-          `result["reason"]` (case-insensitive).
-        - Both checks must pass.
+        - Otherwise the scenario passes when `result["verdict"]` equals
+          `expected_verdict` (uppercased). The verdict is the label the
+          grader is instructed to emit.
+
+    `expected_reason_contains` does not affect the result (issue #5601). The
+    reason is free text the grader words differently on every run, so a
+    substring assertion scored wording, not behavior. `reason_signal` reports
+    it as an informational signal instead.
     """
     if result.get("not_scored"):
         return False
 
     expected_upper = str(scenario["expected_verdict"]).strip().upper()
     actual_upper = str(result.get("verdict", "")).strip().upper()
-    verdict_match = actual_upper == expected_upper
+    return actual_upper == expected_upper
 
-    reason_match = True
+
+def reason_signal(result: dict[str, Any], scenario: dict[str, Any]) -> bool | None:
+    """Report whether the grader's reason carries `expected_reason_contains`.
+
+    Returns None when the scenario sets no substring or the run was not scored.
+    Never gates: a False answers "right verdict, different words", which is a
+    reason to read the transcript, not evidence of a regression (issue #5601).
+    """
     expected_substr = scenario.get("expected_reason_contains")
-    if expected_substr:
-        reason_match = str(expected_substr).lower() in str(result.get("reason", "")).lower()
-
-    return verdict_match and reason_match
+    if not expected_substr or result.get("not_scored"):
+        return None
+    return str(expected_substr).lower() in str(result.get("reason", "")).lower()
 
 
 # ---------------------------------------------------------------------------
 # Multi-run with flakiness protocol (ADR-057)
 # ---------------------------------------------------------------------------
+
+
+def required_passes(scored: int) -> int:
+    """Passes needed out of `scored` runs: ceil(2/3 * scored), in integers.
+
+    `-(-a // b)` is ceiling division. Required passes for 1 to 6 scored runs
+    are 1, 2, 2, 3, 4, 4 (ADR-057).
+    """
+    return -(-scored * 2 // 3)
 
 
 def run_scenario_multi(
@@ -444,7 +461,7 @@ def run_scenario_multi(
     `not_scored_runs` reports how many were excluded. A scenario with zero
     scored runs cannot pass: `passed` requires `scored > 0`.
 
-    Non-security: passes if >= 2/3 of scored runs succeed.
+    Non-security: passes if >= ceil(2/3 * scored) of scored runs succeed.
     Security-critical: passes if 100% of scored runs succeed (enforced by
     caller).
     """
@@ -452,6 +469,7 @@ def run_scenario_multi(
     for _ in range(runs):
         result = judge_scenario(api_key, prompt_text, scenario, model)
         result["passed"] = check_scenario_pass(result, scenario)
+        result["reason_match"] = reason_signal(result, scenario)
         result["model_used"] = model
         run_results.append(result)
         time.sleep(RATE_LIMIT_SLEEP_SEC)
@@ -461,6 +479,9 @@ def run_scenario_multi(
     not_scored_runs = runs - scored
     passes = sum(1 for r in scored_results if r["passed"])
     pass_rate = passes / scored if scored > 0 else 0.0
+    reason_mismatch_runs = sum(
+        1 for r in scored_results if r["passed"] and r["reason_match"] is False
+    )
 
     return {
         "scenario_id": scenario["id"],
@@ -469,8 +490,9 @@ def run_scenario_multi(
         "requested_runs": runs,
         "not_scored_runs": not_scored_runs,
         "pass_rate": pass_rate,
-        "passed": scored > 0 and passes >= max(1, (scored * 2) // 3),  # 2/3 threshold
+        "passed": scored > 0 and passes >= required_passes(scored),
         "flaky": 0 < passes < scored,
+        "reason_mismatch_runs": reason_mismatch_runs,
         "per_run": run_results,
     }
 
@@ -480,6 +502,40 @@ def run_scenario_multi(
 # ---------------------------------------------------------------------------
 
 
+def is_base_unstable(before: dict[str, Any], required_runs: int = DEFAULT_RUNS) -> bool:
+    """True when the base side cannot serve as a baseline.
+
+    Two shapes qualify: the base passed only some of its scored runs, or it was
+    scored on fewer than `required_runs` runs. A base scored once says nothing
+    about stability, so it never forms the baseline.
+
+    The base prompt is the same on every run, so a base result that swings
+    between 0/3, 2/3, and 3/3 is sampling noise, not a property of the change
+    under test (issue #5601). Such a scenario cannot serve as the baseline for
+    a regression. It is reported, never gated. A scenario the base side fails
+    outright with at least `required_runs` scored runs (`passed` False) is not
+    unstable: it cannot regress. A failing base scored on fewer runs than
+    `required_runs` is unstable: the run-count check comes first.
+    """
+    if before["runs"] < required_runs:
+        return True
+    return bool(before["passed"] and before["flaky"])
+
+
+def min_stable_scenarios(total: int) -> int:
+    """Smallest stable-base scenario count that makes a comparison conclusive."""
+    return max(1, -(-total // 2))
+
+
+def _base_tag(before: dict[str, Any], required_runs: int) -> str:
+    """Progress tag for the base side, naming why a base is excluded."""
+    if before["runs"] < required_runs:
+        return f" [base unstable: {before['runs']} of {required_runs} required runs scored]"
+    if is_base_unstable(before, required_runs):
+        return " [FLAKY, base unstable]"
+    return " [FLAKY]" if before["flaky"] else ""
+
+
 def run_comparison(
     api_key: str,
     before_text: str,
@@ -487,6 +543,7 @@ def run_comparison(
     scenarios: list[dict[str, Any]],
     model: str,
     runs: int,
+    security_critical: bool = False,
 ) -> dict[str, Any]:
     """Run all scenarios against before and after prompt text.
 
@@ -497,6 +554,7 @@ def run_comparison(
     api_call_count = 0
 
     total = len(scenarios)
+    required_runs = SECURITY_RUNS if security_critical else DEFAULT_RUNS
     for i, scenario in enumerate(scenarios):
         print(f"  [{i + 1}/{total}] {scenario['id']}: {scenario['desc'][:60]}...", file=sys.stderr)
 
@@ -512,7 +570,7 @@ def run_comparison(
 
         b_tag = "PASS" if before["passed"] else "FAIL"
         a_tag = "PASS" if after["passed"] else "FAIL"
-        flaky_b = " [FLAKY]" if before["flaky"] else ""
+        flaky_b = _base_tag(before, required_runs)
         flaky_a = " [FLAKY]" if after["flaky"] else ""
         before_not_scored = before.get("not_scored_runs", 0)
         after_not_scored = after.get("not_scored_runs", 0)
@@ -523,8 +581,17 @@ def run_comparison(
             file=sys.stderr,
         )
 
-    before_score = sum(1 for r in before_results if r["passed"]) / total
-    after_score = sum(1 for r in after_results if r["passed"]) / total
+    # Scores cover the scenarios with a stable base result. A base-unstable
+    # scenario would put a coin flip into the before score and let it decide
+    # the no_regression criterion (issue #5601).
+    stable_pairs = [
+        (b, a)
+        for b, a in zip(before_results, after_results, strict=True)
+        if not is_base_unstable(b, required_runs)
+    ]
+    scored_total = len(stable_pairs)
+    before_score = sum(1 for b, _a in stable_pairs if b["passed"]) / max(1, scored_total)
+    after_score = sum(1 for _b, a in stable_pairs if a["passed"]) / max(1, scored_total)
 
     est_tokens = api_call_count * EST_TOKENS_PER_CALL
     print(f"\n  Cost: {api_call_count} API calls, ~{est_tokens:,} tokens", file=sys.stderr)
@@ -534,6 +601,7 @@ def run_comparison(
         "after_score": round(after_score, 4),
         "delta": round(after_score - before_score, 4),
         "scenario_count": total,
+        "scored_scenario_count": scored_total,
         "api_calls": api_call_count,
         "est_tokens": est_tokens,
         "model": model,
@@ -566,6 +634,16 @@ def acceptance_gate(
     a pre-existing scenario already failed on the base ref (before_score < 1.0
     with zero targeted improvements). See ADR-057 (2026-06-01 relaxation note).
 
+    One signal never gates and one can (issue #5601). A scenario whose base side is
+    non-deterministic (`is_base_unstable`) is excluded from `regressions` and
+    from the score comparison, so base-side sampling noise cannot manufacture
+    a regression; it is listed in `base_unstable_scenarios`. The exclusion has
+    one gating effect: when fewer than half the scenarios keep a stable base,
+    `has_stable_baseline` is False and the verdict is FAIL as inconclusive. A
+    run whose reason lacks `expected_reason_contains` is listed in
+    `reason_mismatch_scenarios` and never gates. A base that passes every scored run and an
+    after side that fails still counts as a regression.
+
     Security-critical tier: all runs must pass (100% pass rate). Unchanged.
 
     REQ-037 AC-11: excluding refusal/token_limit/incomplete runs from the
@@ -589,16 +667,22 @@ def acceptance_gate(
     improvements = []
     regressions = []
     flaky_scenarios = []
+    base_unstable_scenarios = []
+    reason_mismatch_scenarios = []
     not_scored_scenarios = []
     insufficient_scored_scenarios = []
     insufficient_scored_before = []
 
     for b, a in zip(before_results, after_results, strict=True):
         sid = b["scenario_id"]
-        if not b["passed"] and a["passed"]:
+        if is_base_unstable(b, required_scored_runs):
+            base_unstable_scenarios.append(sid)
+        elif not b["passed"] and a["passed"]:
             improvements.append(sid)
         elif b["passed"] and not a["passed"]:
             regressions.append(sid)
+        if a.get("reason_mismatch_runs"):
+            reason_mismatch_scenarios.append(sid)
         if a.get("flaky"):
             flaky_scenarios.append(sid)
         # REQ-037: surfaced for visibility only. A scenario that lost every
@@ -641,6 +725,26 @@ def acceptance_gate(
 
     no_high_flakiness = len(high_flakiness_scenarios) == 0
 
+    # Inconclusive, not clean: when every base scenario is unstable there is no
+    # stable baseline to compare against, and the zero scores would let any
+    # after result pass (issue #5601 review). Hand-built comparisons that omit
+    # `scored_scenario_count` rely on the gate's own exclusion set.
+    total_scenarios = comparison.get("scenario_count", len(before_results))
+    # The floor derives from the gate's own exclusion set. A comparison that
+    # carries `scored_scenario_count` and disagrees can only lower the count
+    # (fail closed), never raise it.
+    stable_count = total_scenarios - len(base_unstable_scenarios)
+    if "scored_scenario_count" in comparison:
+        stable_count = min(stable_count, comparison["scored_scenario_count"])
+    min_stable = min_stable_scenarios(total_scenarios)
+    has_stable_baseline = stable_count >= min_stable
+    inconclusive_reason = None
+    if not has_stable_baseline:
+        inconclusive_reason = (
+            f"inconclusive: {stable_count} of {total_scenarios} scenarios have a stable "
+            f"base result, at least {min_stable} required"
+        )
+
     # A non-regressing change passes even with zero improvements. A real
     # regression still fails: any pass->fail flip populates `regressions`, so
     # no_unexplained_regressions=False blocks the change. This holds even when
@@ -652,6 +756,7 @@ def acceptance_gate(
         and no_unexplained_regressions
         and no_high_flakiness
         and no_insufficient_scored_runs
+        and has_stable_baseline
     )
     if security_critical:
         passed = passed and security_pass
@@ -668,10 +773,18 @@ def acceptance_gate(
             "no_unexplained_regressions": no_unexplained_regressions,
             "no_high_flakiness": no_high_flakiness,
             "no_insufficient_scored_runs": no_insufficient_scored_runs,
+            "has_stable_baseline": has_stable_baseline,
         },
         "improvements": improvements,
         "regressions": regressions,
         "flaky_scenarios": flaky_scenarios,
+        "base_unstable_scenarios": [] if security_critical else base_unstable_scenarios,
+        "base_unstable_security_scenarios": base_unstable_scenarios if security_critical else [],
+        "excluded_count": len(base_unstable_scenarios),
+        "scored_scenario_count": stable_count,
+        "min_stable_scenarios": min_stable,
+        "inconclusive_reason": inconclusive_reason,
+        "reason_mismatch_scenarios": reason_mismatch_scenarios,
         "not_scored_scenarios": not_scored_scenarios,
         "high_flakiness_scenarios": high_flakiness_scenarios,
         "insufficient_scored_scenarios": insufficient_scored_scenarios,
@@ -747,8 +860,7 @@ def _parse_args() -> argparse.Namespace:
         default=None,
         choices=list(HARNESSES),
         help=(
-            "Harness axis of the transport matrix. Pair with --billing; "
-            "either alone is refused."
+            "Harness axis of the transport matrix. Pair with --billing; either alone is refused."
         ),
     )
     parser.add_argument(
@@ -828,9 +940,7 @@ def _load_before_across_rename(args: argparse.Namespace) -> tuple[str, str]:
             f"reading the 'before' side from {args.renamed_from}",
             file=sys.stderr,
         )
-        return args.renamed_from, load_prompt_surface_from_ref(
-            args.renamed_from, args.base_ref
-        )
+        return args.renamed_from, load_prompt_surface_from_ref(args.renamed_from, args.base_ref)
 
 
 def _run_and_report(
@@ -847,7 +957,15 @@ def _run_and_report(
     print(msg, file=sys.stderr)
     print(f"{'=' * 60}", file=sys.stderr)
 
-    comparison = run_comparison(api_key, before_text, after_text, scenarios, args.model, args.runs)
+    comparison = run_comparison(
+        api_key,
+        before_text,
+        after_text,
+        scenarios,
+        args.model,
+        args.runs,
+        security_critical=args.security_critical,
+    )
     gate = acceptance_gate(comparison, security_critical=args.security_critical)
 
     output = {
@@ -862,6 +980,7 @@ def _run_and_report(
             "after_score": comparison["after_score"],
             "delta": comparison["delta"],
             "scenario_count": comparison["scenario_count"],
+            "scored_scenario_count": comparison["scored_scenario_count"],
             "api_calls": comparison["api_calls"],
             "est_tokens": comparison["est_tokens"],
         },
@@ -878,6 +997,47 @@ def _run_and_report(
 
     _print_gate_summary(gate)
     sys.exit(0 if gate["passed"] else 1)
+
+
+# Gate keys that describe a scenario without failing it (issue #5601). Excluded
+# base scenarios still count toward the stable-baseline floor, which can fail the
+# gate as inconclusive.
+_INFORMATIONAL_SIGNALS = (
+    ("base_unstable_scenarios", "Base unstable (excluded from regressions and scores)"),
+    (
+        "base_unstable_security_scenarios",
+        "Base unstable, security tier (excluded from regressions)",
+    ),
+    ("reason_mismatch_scenarios", "Reason wording differs (informational, non-gating)"),
+)
+
+
+def _print_informational_signals(gate: dict[str, Any]) -> None:
+    """Print the non-gating scenario lists to stderr."""
+    for key, label in _INFORMATIONAL_SIGNALS:
+        if gate.get(key):
+            print(f"  {label}: {gate[key]}", file=sys.stderr)
+
+
+# Gate keys printed as `label: value` when truthy, in output order.
+_GATE_LINES_BEFORE_SIGNALS = (
+    ("improvements", "Improvements"),
+    ("regressions", "Regressions"),
+    ("flaky_scenarios", "Flaky"),
+)
+_GATE_LINES_AFTER_SIGNALS = (
+    ("excluded_count", "Excluded base-unstable scenarios"),
+    ("inconclusive_reason", "INCONCLUSIVE"),
+    ("not_scored_scenarios", "Not scored (excluded runs)"),
+    ("high_flakiness_scenarios", "BLOCKED (>40% flaky)"),
+)
+
+
+def _print_gate_lines(gate: dict[str, Any], lines: tuple[tuple[str, str], ...]) -> None:
+    """Print each truthy gate key as `label: value` to stderr."""
+    for key, label in lines:
+        if gate.get(key):
+            print(f"  {label}: {gate[key]}", file=sys.stderr)
 
 
 def _print_gate_summary(gate: dict[str, Any]) -> None:
@@ -899,16 +1059,9 @@ def _print_gate_summary(gate: dict[str, Any]) -> None:
             mark = "PASS" if passed else "FAIL"
             print(f"    {criterion}: {mark}", file=sys.stderr)
 
-    if gate["improvements"]:
-        print(f"  Improvements: {gate['improvements']}", file=sys.stderr)
-    if gate["regressions"]:
-        print(f"  Regressions: {gate['regressions']}", file=sys.stderr)
-    if gate["flaky_scenarios"]:
-        print(f"  Flaky: {gate['flaky_scenarios']}", file=sys.stderr)
-    if gate.get("not_scored_scenarios"):
-        print(f"  Not scored (excluded runs): {gate['not_scored_scenarios']}", file=sys.stderr)
-    if gate.get("high_flakiness_scenarios"):
-        print(f"  BLOCKED (>40% flaky): {gate['high_flakiness_scenarios']}", file=sys.stderr)
+    _print_gate_lines(gate, _GATE_LINES_BEFORE_SIGNALS)
+    _print_informational_signals(gate)
+    _print_gate_lines(gate, _GATE_LINES_AFTER_SIGNALS)
     if gate.get("insufficient_scored_scenarios"):
         print(
             f"  BLOCKED (< {gate['required_scored_runs']} scored runs, after): "
@@ -967,8 +1120,7 @@ def _run_or_exit(
     except RuntimeError as error:
         if _is_provider_outage(error):
             print(
-                "SKIP: behavioral eval could not run, model provider "
-                f"unavailable: {error}",
+                f"SKIP: behavioral eval could not run, model provider unavailable: {error}",
                 file=sys.stderr,
             )
             sys.exit(0)

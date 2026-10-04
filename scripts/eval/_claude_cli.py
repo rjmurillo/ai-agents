@@ -48,6 +48,7 @@ not to compare a `claude-cli` score against an HTTP provider's.
 from __future__ import annotations
 
 import json
+import os
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -82,6 +83,15 @@ _BLOCKED_BILLING_ENV = frozenset(
 )
 
 _ENV_ALLOWLIST = BASE_ENV_ALLOWLIST | {OAUTH_TOKEN_ENV}
+
+#: Same variable `eval_runtime_parity.py --real-home` sets (issue #5404). Under
+#: it the CLI runs on the operator's own HOME, so it finds its own stored
+#: login and loads `~/.claude` instructions ambiently. Off by default.
+REAL_HOME_ENV = "EVAL_RUNTIME_REAL_HOME"
+
+
+def _real_home_requested() -> bool:
+    return os.environ.get(REAL_HOME_ENV) == "1"
 
 #: Every built-in that can touch the filesystem, the network, a shell, or
 #: another agent. A text eval needs none of them, and each one that stays
@@ -128,6 +138,13 @@ class _ClaudeCLIProvider:
         ]
 
     def _build_env(self, config_dir: Path) -> dict[str, str]:
+        if _real_home_requested():
+            # The operator's own HOME, no relocated config. The CLI finds its
+            # own login. Nothing is linked, copied, or read here.
+            env = minimal_process_env(
+                allow=_ENV_ALLOWLIST | {"HOME"}, blocked=_BLOCKED_BILLING_ENV, overrides={}
+            )
+            return dict(env)
         # `_cli_transport` is a flat sibling module, so mypy resolves it to Any
         # under `ignore_missing_imports`. Pin the contract at this boundary
         # rather than letting Any leak into the subprocess call.
@@ -146,7 +163,7 @@ class _ClaudeCLIProvider:
         report a generic non-zero exit, which reads as a provider outage and
         gets retried. The cell's contract is one specific variable, so say so.
         """
-        if env.get(OAUTH_TOKEN_ENV):
+        if env.get(OAUTH_TOKEN_ENV) or _real_home_requested():
             return
         raise RuntimeError(
             f"{PROVIDER_LABEL} needs {OAUTH_TOKEN_ENV} to bill this run to a "
