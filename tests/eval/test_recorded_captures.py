@@ -22,10 +22,30 @@ from tests.eval._harness_capability_test_support import (
     pending,
     recorded_cli,
 )
-from tests.eval._rollout_test_support import FIXTURES, REFUSAL
+from tests.eval._rollout_test_support import FIXTURES
 
 PLAN = MATRIX.parent / "harness-capability-recorded-captures.json"
 EXAMPLES = MATRIX.parent
+
+
+PLAN_0_160_0 = MATRIX.parent / "harness-capability-recorded-captures-0.160.0.json"
+
+#: What the codex record held before any rollout capture applied: both
+#: capture-derived cells unverified and one live probe owed. The mechanics
+#: tests below start from it so a capture has something to replace.
+_PRE_CAPTURE_PENDING = {
+    "scope": "codex concurrency_limit at 0.156.0",
+    "blocker": "On 0.157.1 a capture showed 3 children; this baseline pins an older version.",
+    "command": "c",
+}
+
+
+def _pre_capture_codex(record: dict[str, Any]) -> None:
+    for key in ("concurrency_limit", "context_reset_observability"):
+        cell = record["capabilities"][key]
+        cell.update(status="UNVERIFIED", value=None, detail="No capture applied.")
+        cell.pop("date", None)
+    record["pending_live_probes"] = [_PRE_CAPTURE_PENDING]
 
 
 def _matrix_at(tmp_path: Path, **versions: str) -> Path:
@@ -33,6 +53,8 @@ def _matrix_at(tmp_path: Path, **versions: str) -> Path:
     for record in document["harnesses"]:
         if record["harness"] in versions:
             record["version"] = versions[record["harness"]]
+        if record["harness"] == "codex" and "codex" in versions:
+            _pre_capture_codex(record)
     path = tmp_path / "matrix.json"
     path.write_text(json.dumps(document), encoding="utf-8")
     return path
@@ -345,15 +367,25 @@ def test_every_owed_live_probe_names_its_blocker_and_command() -> None:
 
     owed = {r.harness: r.pending_live_probes for r in records}
 
-    assert {h: len(p) for h, p in owed.items()} == {"codex": 2, "copilot": 2}
-    assert any("402" in p.blocker for p in owed["copilot"])
+    assert {h: len(p) for h, p in owed.items()} == {"codex": 0, "copilot": 0}
 
 
-def test_the_report_carries_the_owed_probes() -> None:
-    report = capability.build_report(capability.load_matrix(MATRIX))
+def test_a_baseline_record_still_names_its_blocker_and_command(tmp_path: Path) -> None:
+    records = capability.load_matrix(_matrix_at(tmp_path, codex="codex-cli 0.154.0"))
 
-    copilot = _harness(report, "copilot")
-    assert copilot["pending_live_probes"][0]["scope"].startswith("copilot GitHub-routed")
+    owed = next(r for r in records if r.harness == "codex").pending_live_probes
+
+    assert len(owed) == 1 and owed[0].blocker and owed[0].command
+
+
+def test_the_report_carries_the_owed_probes(tmp_path: Path) -> None:
+    report = capability.build_report(
+        capability.load_matrix(_matrix_at(tmp_path, codex="codex-cli 0.154.0"))
+    )
+
+    codex = _harness(report, "codex")
+    assert codex["pending_live_probes"][0]["scope"].startswith("codex concurrency_limit")
+    assert "pending_live_probes" not in _harness(report, "copilot")
 
 
 def test_a_record_with_nothing_owed_omits_the_field() -> None:
@@ -367,10 +399,10 @@ def test_a_record_with_nothing_owed_omits_the_field() -> None:
 
 
 def test_matrix_context_reset_cells_lead_with_what_the_capture_derives() -> None:
-    report = recorded_cli.run(MATRIX, PLAN)
-    found = _by_key(report)
+    plans = {"codex": PLAN_0_160_0, "copilot": PLAN}
 
     for record in capability.load_matrix(MATRIX):
+        found = _by_key(recorded_cli.run(MATRIX, plans[record.harness]))
         cell = record.capabilities["context_reset_observability"]
         derived = found[(record.harness, "context_reset_observability")]
         assert cell.status.value == derived["status"]
@@ -382,6 +414,8 @@ def test_matrix_concurrency_cell_states_the_recorded_bounds() -> None:
         "concurrency_limit"
     ]
 
-    assert cell.status is capability.CapabilityStatus.UNVERIFIED
-    assert "between 6 and 6 child threads" in cell.detail
-    assert REFUSAL in cell.detail
+    assert cell.status is capability.CapabilityStatus.VERIFIED
+    assert cell.value == 3
+    assert cell.detail.startswith(
+        "With agents.max_threads=3, 3 children ran at once and 2 further spawn(s) were refused."
+    )

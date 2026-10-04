@@ -2,22 +2,23 @@
 """Plan, and only when told to run, the live reduced-control experiment (issue #5768).
 
 Runs the #5425 routing corpus under two instruction-control configurations
-on the Claude harness and writes `OutcomeRecord` JSONL that
+on the Claude or Codex harness and writes `OutcomeRecord` JSONL that
 `eval_durable_outcome.py` reads. See `_durable_live.py` for why this is not the
 #6031 routing runner and which record fields are measured or proxies.
 
     eval_durable_live.py                                   # dry run, zero spend
     eval_durable_live.py --live --use-stored-login --output-dir DIR
+    eval_durable_live.py --harness codex --live --use-stored-login --output-dir DIR
 
 The default is a dry run: it prints the control sizes and the launch upper
 bound, and starts no process. `--live` spends, and also needs
 `--use-stored-login`, the operator's acknowledgement that the run bills to the
-Claude login stored on this machine. The credential file is never read here.
+Claude or Codex login stored on this machine. No credential file is read here.
 
 Exit codes (AGENTS.md): 0 every task produced a record. 1 the comparison is
 WORSE or UNVERIFIED. 2 invalid arguments, corpus, or control files. 3 a
 harness failure left a task without a record. 4 `--live` without
-`--use-stored-login`, or `claude` is not on PATH.
+`--use-stored-login`, or the harness CLI is not on PATH.
 """
 
 from __future__ import annotations
@@ -33,6 +34,7 @@ from pathlib import Path
 from _durable_live import (
     CONTROLS,
     DEFAULT_MAX_TURNS,
+    HARNESSES,
     ExperimentResult,
     InvocationBudget,
     LiveRunError,
@@ -57,6 +59,7 @@ DEFAULT_CORPUS = REPO_ROOT / "evals" / "routing-benchmark" / "scenarios"
 BASELINE_CONTROL = "current"
 CANDIDATE_CONTROL = "reduced"
 _FAILING_RESULTS = frozenset({"WORSE", "UNVERIFIED"})
+DEFAULT_MODEL = {"claude": "haiku", "codex": "gpt-5.6-luna"}
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -68,7 +71,12 @@ def _parser() -> argparse.ArgumentParser:
         type=Path,
         help="directory of post_integration_regression scenarios, run after --corpus",
     )
-    parser.add_argument("--model", default="haiku", help="model alias or id passed to claude")
+    parser.add_argument("--harness", choices=HARNESSES, default="claude")
+    parser.add_argument(
+        "--model",
+        help=f"model passed to the harness (default: {DEFAULT_MODEL['claude']} for claude, "
+        f"{DEFAULT_MODEL['codex']} for codex)",
+    )
     parser.add_argument("--effort", default="low")
     parser.add_argument("--max-turns", type=int, default=DEFAULT_MAX_TURNS)
     parser.add_argument("--retry-budget", type=int, default=1, help="correction rounds per task")
@@ -77,7 +85,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--max-invocations", type=int, default=60, help="hard launch cap")
     parser.add_argument("--tasks", help="comma-separated scenario ids to run (default: all)")
     parser.add_argument("--controls", help="comma-separated controls to run (default: all)")
-    parser.add_argument("--live", action="store_true", help="spend: launch claude")
+    parser.add_argument("--live", action="store_true", help="spend: launch the harness CLI")
     parser.add_argument("--use-stored-login", action="store_true")
     parser.add_argument("--output-dir", type=Path)
     return parser
@@ -143,7 +151,8 @@ def plan_report(
     return {
         "mode": "dry-run",
         "model_calls": 0,
-        "harness": "claude",
+        "harness": args.harness,
+        "model": args.model or DEFAULT_MODEL[args.harness],
         "tasks": [s.scenario_id for s in scenarios],
         "controls": {
             name: {"files": list(CONTROLS[name]), "bytes": len(text.encode("utf-8"))}
@@ -188,10 +197,46 @@ def _analyze(result: ExperimentResult, out: Path) -> tuple[dict[str, object], in
     ] in _FAILING_RESULTS else EXIT_OK
 
 
+def _codex_version() -> str:
+    done = subprocess.run(
+        ["codex", "--version"],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+        stdin=subprocess.DEVNULL,
+    )
+    return done.stdout.strip() if done.returncode == 0 else ""
+
+
+def _effort_fields(args: argparse.Namespace, result: ExperimentResult) -> dict[str, object]:
+    """Requested and observed effort. Verified only when the backend named it every time."""
+    if args.harness == "claude":
+        return {
+            "effort_verified": False,
+            "effort_observed": "unobservable: the claude stream does not report effort",
+        }
+    seen = sorted({e for i in result.invocations for e in i.facts.efforts})
+    every = bool(result.invocations) and all(i.facts.efforts for i in result.invocations)
+    return {
+        "effort_verified": every and seen == [args.effort],
+        "effort_observed": seen or "none: no backend frame named an effort",
+    }
+
+
 def _run_live(
     scenarios: Sequence[Scenario], texts: Mapping[str, str], args: argparse.Namespace
 ) -> int:
-    settings = RunSettings(args.model, args.effort, args.max_turns, args.retry_budget)
+    model = args.model or DEFAULT_MODEL[args.harness]
+    settings = RunSettings(
+        model,
+        args.effort,
+        args.max_turns,
+        args.retry_budget,
+        harness=args.harness,
+        cli_version=_codex_version() if args.harness == "codex" else "",
+    )
     budget = InvocationBudget(args.max_invocations)
     result = run_experiment(
         scenarios,
@@ -207,12 +252,12 @@ def _run_live(
     summary, code = _analyze(result, out)
     summary.update(
         {
-            "harness_scope": "claude only, not cross-harness",
+            "harness_scope": f"{args.harness} only, not cross-harness",
+            "harness": args.harness,
             "commit": _git_head(args.repo_root),
-            "requested_model": args.model,
+            "requested_model": model,
             "requested_effort": args.effort,
-            "effort_verified": False,
-            "effort_observed": "unobservable: the claude stream does not report effort",
+            **_effort_fields(args, result),
             "first_repeat": args.first_repeat,
             "repeats": args.repeats,
             "launches": budget.used,
@@ -245,11 +290,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(json.dumps(plan_report(scenarios, texts, args), indent=2))
         return EXIT_OK
     if not args.use_stored_login:
-        message = "--live needs --use-stored-login (bills to the stored Claude login)"
+        message = f"--live needs --use-stored-login (bills to the stored {args.harness} login)"
         print(f"error: {message}", file=sys.stderr)
         return EXIT_AUTH
-    if shutil.which("claude") is None:
-        print("error: claude is not on PATH", file=sys.stderr)
+    if shutil.which(args.harness) is None:
+        print(f"error: {args.harness} is not on PATH", file=sys.stderr)
         return EXIT_AUTH
     try:
         return _run_live(scenarios, texts, args)

@@ -249,6 +249,14 @@ jobs:
       - name: Run subprocess encoding count ratchet (whole tree)
         run: uv run --frozen python scripts/ci/subprocess_encoding_count_ratchet.py --base-ref FETCH_HEAD
 
+      # ADR-113 decision 2: persist this job's typed result for the promotion gate.
+      - name: Upload promotion evidence
+        if: always()
+        uses: ./.github/actions/upload-validator-evidence
+        with:
+          validator: check_whole_tree_count_ratchets_blocking
+          job-status: ${{ job.status }}
+
   test:
     name: "pytest (${{ matrix.partition }})"
     # ADR-101 requirement 1: no `needs:` and no job-level `if:`. The partitions
@@ -281,6 +289,9 @@ jobs:
           - partition: bulk-nested
             coverage_file: artifacts/.coverage.bulk-nested
             junit_file: artifacts/pytest-results-bulk-nested.xml
+          - partition: bulk-nested-ci
+            coverage_file: artifacts/.coverage.bulk-nested-ci
+            junit_file: artifacts/pytest-results-bulk-nested-ci.xml
           - partition: mutation
             coverage_file: artifacts/.coverage.mutation
             junit_file: artifacts/pytest-results-mutation.xml
@@ -507,6 +518,7 @@ jobs:
           uv run --frozen python scripts/ci/combine_pin_coverage.py \
             --main-data artifacts/.coverage.bulk \
             --main-data artifacts/.coverage.bulk-nested \
+            --main-data artifacts/.coverage.bulk-nested-ci \
             --main-data artifacts/.coverage.mutation \
             --main-data artifacts/.coverage.safe-push \
             --main-data artifacts/.coverage.pr-autofix \
@@ -552,7 +564,16 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          sparse-checkout: scripts/ci/require_job_results.py
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            scripts/ci/require_job_results.py
+            scripts/__init__.py
+            scripts/validation/__init__.py
+            scripts/validation/models.py
+            scripts/validation/evidence.py
+            scripts/validation/promotion_evidence.py
+            scripts/validation/emit_validator_evidence.py
+            .github/actions/upload-validator-evidence
 
       - name: Require test, coverage, and repository guard success
         env:
@@ -570,6 +591,14 @@ jobs:
           --check LINE_ENDINGS_RESULT success "line-endings-guard failed or was cancelled: {value}"
           --check CONTEXT_OUTPUT_RESULT success "context-output-guard failed or was cancelled: {value}"
           --check COUNT_RATCHET_RESULT success "count-ratchet-guard failed or was cancelled: {value}"
+
+      # ADR-113 decision 2: persist this job's typed result for the promotion gate.
+      - name: Upload promotion evidence
+        if: always()
+        uses: ./.github/actions/upload-validator-evidence
+        with:
+          validator: run_python_tests
+          job-status: ${{ job.status }}
 
   security:
     name: Python Security Checks

@@ -138,3 +138,24 @@ jobs:
     steps:
       - name: Skip validation (no relevant files changed)
         run: echo "No plugin source files changed - skipping version-bump validation"
+
+      # ADR-113 decision 2 and owner decision D26. This job runs, and succeeds,
+      # exactly when the validation job is skipped by its path filter. It records
+      # that skip as typed evidence. The gate accepts it as policy.exempt only
+      # after checking the skip against the filter and the candidate's diff.
+      - name: Check out the evidence emitter
+        if: always()
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            scripts/validation
+            .github/actions/upload-validator-evidence
+
+      - name: Upload promotion evidence
+        if: always()
+        uses: ./.github/actions/upload-validator-evidence
+        with:
+          validator: validate_plugin_version_bump
+          job-status: ${{ job.status }}
+          ran: 'false'

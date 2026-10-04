@@ -264,6 +264,19 @@ def _read_regular_file(path: Path) -> str:
     return data.decode("utf-8")
 
 
+def parse_evidence_text(text: str, source: str = "") -> EvidenceRecord:
+    """Decode strict JSON text and validate it as one evidence record.
+
+    Refuses a duplicate key and a non-finite number, so the same bytes read the
+    same way whichever caller loads them. Raises ``ValueError`` (including
+    ``EvidenceError``) or ``RecursionError`` for text that is not valid evidence.
+    """
+    document = json.loads(
+        text, object_pairs_hook=_reject_duplicate_keys, parse_constant=_reject_constant
+    )
+    return parse_evidence(document, source)
+
+
 def _load_one(path: Path) -> EvidenceRecord | RejectedEvidence:
     source = _clean(path.name)
     try:
@@ -271,10 +284,7 @@ def _load_one(path: Path) -> EvidenceRecord | RejectedEvidence:
     except (OSError, UnicodeDecodeError) as exc:
         return RejectedEvidence(source, "", REASON_UNREADABLE, str(exc))
     try:
-        document = json.loads(
-            text, object_pairs_hook=_reject_duplicate_keys, parse_constant=_reject_constant
-        )
-        return parse_evidence(document, source)
+        return parse_evidence_text(text, source)
     except (ValueError, RecursionError) as exc:
         validator = _validator_hint(text)
         return RejectedEvidence(source, validator, REASON_MALFORMED, str(exc))

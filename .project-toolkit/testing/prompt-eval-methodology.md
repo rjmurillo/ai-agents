@@ -66,7 +66,8 @@ def judge_scenario(prompt_text: str, scenario: dict) -> dict:
 def score(results, scenarios):
     passed = 0
     for r, s in zip(results, scenarios):
-        if r["verdict"] == s["expected_verdict"] and s["expected_reason_contains"] in r["reason"]:
+        # The verdict is the controlled label. The reason is free text and does not gate.
+        if r["verdict"] == s["expected_verdict"]:
             passed += 1
     return passed / len(scenarios)
 
@@ -79,6 +80,8 @@ delta = after_score - before_score
 
 print(f"Before: {before_score:.0%}  After: {after_score:.0%}  Delta: {delta:+.0%}")
 ```
+
+This skeleton runs each side once and scores every scenario, so it does not exclude base-unstable scenarios. Use `scripts/eval/eval-prompt-change.py` for the repeated-run aggregation and the base-unstable exclusion (`run_scenario_multi`, `is_base_unstable`, `run_comparison`).
 
 ### Acceptance Gate
 

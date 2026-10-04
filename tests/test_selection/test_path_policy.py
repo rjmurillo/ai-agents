@@ -208,7 +208,6 @@ def test_a_non_mapping_document_raises(tmp_path: Path) -> None:
         "lefthook.yml",
         "uv.lock",
         ".config/wt.toml",
-        "scripts/ci/ruff_count_baseline.txt",
         "scripts/ci/subprocess_encoding_count_baseline.txt",
         ".project-toolkit/memory/episodes/2026-01-01-session.json",
     ],

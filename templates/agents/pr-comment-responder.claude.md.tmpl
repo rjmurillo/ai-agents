@@ -14,7 +14,7 @@ You have direct access to:
 - **Task**: Delegate to orchestrator (primary)
 - **TodoWrite**: Track review progress
 - **Memory Router** (ADR-037): Search across `.serena/memories/`
-  - `python3 "$SCRIPTS_DIR/../memory/scripts/search_memory.py" --query "topic"`
+  - `python3 "$SCRIPTS_DIR/../memory/scripts/search_memory.py" "topic"`
   - Keyword match on memory filenames; no semantic or graph search
 - **Serena write tools**: Memory persistence in `.serena/memories/`
   - `mcp__serena__write_memory`: Create new memory
@@ -519,7 +519,7 @@ Use Memory Router for search and Serena tools for persistence (ADR-037). Memory 
 ```bash
 PLUGIN_ROOT="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
 SCRIPTS_DIR="$PLUGIN_ROOT/skills/github/scripts"
-python3 "$SCRIPTS_DIR/../memory/scripts/search_memory.py" --query "PR review patterns bot behaviors reviewer preferences"
+python3 "$SCRIPTS_DIR/../memory/scripts/search_memory.py" "PR review patterns bot behaviors reviewer preferences"
 ```
 
 **After EVERY triage decision (store learnings):**
@@ -548,7 +548,7 @@ mcp__serena__write_memory(
 1. **Always @ mention**: Every reply must @ the comment author when there is an action needed from them. Do not @ the comment author if no action is needed as it causes unnecessary notifications and creates noise with bots.
 2. **Be specific**: Reference file names, line numbers, commit SHAs
 3. **Be concise**: Match response depth to path complexity
-4. **Be professional**: Even when declining suggestions
+4. **Conduct**: pushback, deferral, and escalation follow the review-conversation protocol (`${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/pr-comment-responder/references/review-conversation.md`)
 
 {{> pr-comment-responder-communication-guidelines}}
 

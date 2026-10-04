@@ -12,7 +12,12 @@ from typing import Any
 
 import pytest
 
-from tests.eval._durable_outcome_test_support import durable, make_config, make_record, outcome
+from tests.eval._durable_outcome_test_support import (
+    durable,
+    durable_record,
+    make_record,
+    outcome,
+)
 
 
 def _classify_record(**section_overrides: dict[str, Any]) -> durable.Verdict:
@@ -291,14 +296,8 @@ def test_build_report_residual_risk_excludes_rejected_defects() -> None:
 # ---------------------------------------------------------------------------
 
 
-def _durable_record(task_id: str, control: str, cost: float = 1.0) -> dict[str, Any]:
-    data = make_record(task_id=task_id, repeat=0, config=make_config(control=control))
-    data["economics"] = {**data["economics"], "model_cost_usd": cost}
-    return data
-
-
 def _rejected_record(task_id: str, control: str, cost: float = 1.0) -> dict[str, Any]:
-    data = _durable_record(task_id, control, cost)
+    data = durable_record(task_id, control, cost)
     data["execution"] = {**data["execution"], "deterministic_acceptance": "FAIL"}
     return data
 
@@ -315,12 +314,12 @@ def _repeat_run(
 
 def test_compare_requires_nonempty_each_side() -> None:
     with pytest.raises(outcome.DurableOutcomeError, match="at least one record"):
-        durable.compare([], [outcome.parse_record(_durable_record("t1", "full"))])
+        durable.compare([], [outcome.parse_record(durable_record("t1", "full"))])
 
 
 def test_compare_refuses_differing_config_field() -> None:
-    baseline = [outcome.parse_record(_durable_record("t1", "reduced"))]
-    candidate_data = _durable_record("t1", "full")
+    baseline = [outcome.parse_record(durable_record("t1", "reduced"))]
+    candidate_data = durable_record("t1", "full")
     candidate_data["config"] = {**candidate_data["config"], "harness": "codex"}
     candidate = [outcome.parse_record(candidate_data)]
     with pytest.raises(outcome.DurableOutcomeError, match="harness"):
@@ -329,8 +328,8 @@ def test_compare_refuses_differing_config_field() -> None:
 
 def test_compare_allows_control_field_to_differ() -> None:
     # REQ-042 AC-7/ontology: matched when every field except `control` is equal.
-    baseline = [outcome.parse_record(_durable_record("t1", "reduced"))]
-    candidate = [outcome.parse_record(_durable_record("t1", "full"))]
+    baseline = [outcome.parse_record(durable_record("t1", "reduced"))]
+    candidate = [outcome.parse_record(durable_record("t1", "full"))]
     result = durable.compare(baseline, candidate)
     assert result["result"] == "MIXED"  # identical apart from control: a tie
 
@@ -338,12 +337,12 @@ def test_compare_allows_control_field_to_differ() -> None:
 def test_compare_refuses_differing_task_sets() -> None:
     # REQ-042 AC-7
     baseline = [
-        outcome.parse_record(_durable_record("t1", "reduced")),
-        outcome.parse_record(_durable_record("t2", "reduced")),
+        outcome.parse_record(durable_record("t1", "reduced")),
+        outcome.parse_record(durable_record("t2", "reduced")),
     ]
     candidate = [
-        outcome.parse_record(_durable_record("t1", "full")),
-        outcome.parse_record(_durable_record("t3", "full")),
+        outcome.parse_record(durable_record("t1", "full")),
+        outcome.parse_record(durable_record("t3", "full")),
     ]
     with pytest.raises(outcome.DurableOutcomeError, match="task sets differ"):
         durable.compare(baseline, candidate)
@@ -352,12 +351,12 @@ def test_compare_refuses_differing_task_sets() -> None:
 def test_compare_returns_better() -> None:
     # REQ-042 AC-8: same durable count, lower cost, no zero-drop.
     baseline = [
-        outcome.parse_record(_durable_record("t1", "reduced", cost=1.0)),
-        outcome.parse_record(_durable_record("t2", "reduced", cost=1.0)),
+        outcome.parse_record(durable_record("t1", "reduced", cost=1.0)),
+        outcome.parse_record(durable_record("t2", "reduced", cost=1.0)),
     ]
     candidate = [
-        outcome.parse_record(_durable_record("t1", "full", cost=0.5)),
-        outcome.parse_record(_durable_record("t2", "full", cost=0.5)),
+        outcome.parse_record(durable_record("t1", "full", cost=0.5)),
+        outcome.parse_record(durable_record("t2", "full", cost=0.5)),
     ]
     result = durable.compare(baseline, candidate)
     assert result["result"] == "BETTER"
@@ -365,12 +364,12 @@ def test_compare_returns_better() -> None:
 
 def test_compare_returns_worse() -> None:
     baseline = [
-        outcome.parse_record(_durable_record("t1", "reduced", cost=1.0)),
-        outcome.parse_record(_durable_record("t2", "reduced", cost=1.0)),
+        outcome.parse_record(durable_record("t1", "reduced", cost=1.0)),
+        outcome.parse_record(durable_record("t2", "reduced", cost=1.0)),
     ]
     candidate = [
-        outcome.parse_record(_durable_record("t1", "full", cost=2.0)),
-        outcome.parse_record(_durable_record("t2", "full", cost=2.0)),
+        outcome.parse_record(durable_record("t1", "full", cost=2.0)),
+        outcome.parse_record(durable_record("t2", "full", cost=2.0)),
     ]
     result = durable.compare(baseline, candidate)
     assert result["result"] == "WORSE"
@@ -379,12 +378,12 @@ def test_compare_returns_worse() -> None:
 def test_compare_returns_mixed_on_a_tradeoff() -> None:
     # candidate: more accepted durable tasks, but a higher cost per task.
     baseline = [
-        outcome.parse_record(_durable_record("t1", "reduced", cost=1.0)),
+        outcome.parse_record(durable_record("t1", "reduced", cost=1.0)),
         outcome.parse_record(_rejected_record("t2", "reduced", cost=0.1)),
     ]
     candidate = [
-        outcome.parse_record(_durable_record("t1", "full", cost=1.0)),
-        outcome.parse_record(_durable_record("t2", "full", cost=5.0)),
+        outcome.parse_record(durable_record("t1", "full", cost=1.0)),
+        outcome.parse_record(durable_record("t2", "full", cost=5.0)),
     ]
     result = durable.compare(baseline, candidate)
     assert result["result"] == "MIXED"
@@ -395,16 +394,16 @@ def test_compare_treats_a_zero_durable_baseline_as_cost_free() -> None:
     # None, so a candidate cannot be "more expensive" than it; the candidate
     # only has to avoid a zero-drop (there is nothing to drop from).
     baseline = [outcome.parse_record(_rejected_record("t1", "reduced"))]
-    candidate = [outcome.parse_record(_durable_record("t1", "full"))]
+    candidate = [outcome.parse_record(durable_record("t1", "full"))]
     result = durable.compare(baseline, candidate)
     assert result["result"] == "BETTER"
 
 
 def test_compare_returns_unverified_when_either_side_unverified() -> None:
-    baseline_data = _durable_record("t1", "reduced")
+    baseline_data = durable_record("t1", "reduced")
     baseline_data["durable"] = {**baseline_data["durable"], "residual_defects": None}
     baseline = [outcome.parse_record(baseline_data)]
-    candidate = [outcome.parse_record(_durable_record("t1", "full"))]
+    candidate = [outcome.parse_record(durable_record("t1", "full"))]
     result = durable.compare(baseline, candidate)
     assert result["result"] == "UNVERIFIED"
 
@@ -413,14 +412,14 @@ def test_compare_better_requires_no_zero_drop_even_with_better_average() -> None
     # REQ-042 AC-8: equal durable accepts at a lower cost are not enough for
     # BETTER when a task that had >=1 durable accept in the baseline drops to zero.
     baseline = [
-        _repeat_run(_durable_record, "t1", 0, "reduced", 1.0),
+        _repeat_run(durable_record, "t1", 0, "reduced", 1.0),
         _repeat_run(_rejected_record, "t1", 1, "reduced", 1.0),
-        _repeat_run(_durable_record, "t2", 0, "reduced", 1.0),
+        _repeat_run(durable_record, "t2", 0, "reduced", 1.0),
         _repeat_run(_rejected_record, "t2", 1, "reduced", 1.0),
     ]
     candidate = [
-        _repeat_run(_durable_record, "t1", 0, "full", 0.05),
-        _repeat_run(_durable_record, "t1", 1, "full", 0.05),
+        _repeat_run(durable_record, "t1", 0, "full", 0.05),
+        _repeat_run(durable_record, "t1", 1, "full", 0.05),
         _repeat_run(_rejected_record, "t2", 0, "full", 0.05),
         _repeat_run(_rejected_record, "t2", 1, "full", 0.05),
     ]
@@ -440,10 +439,10 @@ def test_no_artifact_rejects() -> None:
 
 def test_compare_refuses_differing_repeat_counts() -> None:
     """REQ-042 AC-7: extra candidate repeats cannot inflate durable accepts."""
-    baseline = [outcome.parse_record(_durable_record("t1", "reduced"))]
+    baseline = [outcome.parse_record(durable_record("t1", "reduced"))]
     candidate = [
-        outcome.parse_record(_durable_record("t1", "full")),
-        outcome.parse_record({**_durable_record("t1", "full"), "repeat": 1}),
+        outcome.parse_record(durable_record("t1", "full")),
+        outcome.parse_record({**durable_record("t1", "full"), "repeat": 1}),
     ]
     with pytest.raises(outcome.DurableOutcomeError, match="repeat counts differ"):
         durable.compare(baseline, candidate)
@@ -451,7 +450,7 @@ def test_compare_refuses_differing_repeat_counts() -> None:
 
 def test_compare_cost_gate_uses_unrounded_cost() -> None:
     """REQ-042 AC-8: a cost increase below the display rounding still counts."""
-    baseline = [outcome.parse_record(_durable_record("t1", "reduced", cost=1.0))]
-    candidate = [outcome.parse_record(_durable_record("t1", "full", cost=1.00004))]
+    baseline = [outcome.parse_record(durable_record("t1", "reduced", cost=1.0))]
+    candidate = [outcome.parse_record(durable_record("t1", "full", cost=1.00004))]
     result = durable.compare(baseline, candidate)
     assert result["result"] == "WORSE"

@@ -33,6 +33,7 @@ def _entry(**overrides: Any) -> dict[str, Any]:
     entry: dict[str, Any] = {
         "validator": "run_python_tests",
         "tier": "commit",
+        "workflow": ".github/workflows/pytest.yml",
         "job": "Run Python Tests",
         "when": "always",
         "rationale": "Required status check.",
@@ -64,10 +65,23 @@ class TestParse:
         assert not entry.always
         assert entry.when == (".github/workflows/*.yml",)
 
+    def test_never_marks_a_validator_not_applicable_to_any_candidate(self) -> None:
+        (entry,) = parse_applicability(_doc(_entry(when="never")))
+        assert entry.never
+        assert not entry.always
+        assert not entry.applies_to(["a.py", ".github/workflows/x.yml"])
+        assert not entry.applies_to([])
+
+    def test_the_shipped_table_marks_the_two_pr_only_checks_never(self) -> None:
+        table = {e.validator: e for e in load_applicability(REPO_ROOT)}
+        for name in ("validate_pr", "validate_pr_title"):
+            assert table[name].never
+            assert "PR-only" in table[name].rationale
+
     def test_empty_table_is_valid(self) -> None:
         assert parse_applicability(_doc()) == ()
 
-    @pytest.mark.parametrize("field", ["validator", "tier", "job", "when", "rationale"])
+    @pytest.mark.parametrize("field", ["validator", "tier", "workflow", "job", "when", "rationale"])
     def test_each_field_is_required(self, field: str) -> None:
         entry = _entry()
         del entry[field]
@@ -88,6 +102,30 @@ class TestParse:
         with pytest.raises(ApplicabilityError, match="tier"):
             parse_applicability(_doc(_entry(tier=bad)))
 
+    @pytest.mark.parametrize(
+        "bad",
+        [
+            "",
+            "pytest.yml",
+            ".github/workflows/",
+            ".github/workflows/a/b.yml",
+            ".github/workflows/../x.yml",
+            "/.github/workflows/pytest.yml",
+            ".github/workflows/pytest.txt",
+            ".github/workflows/pytest.yml\n",
+            ".github/workflows/pytest.yml@refs/heads/main",
+            5,
+            None,
+        ],
+    )
+    def test_workflow_must_be_a_workflow_file_path(self, bad: Any) -> None:
+        with pytest.raises(ApplicabilityError, match="workflow"):
+            parse_applicability(_doc(_entry(workflow=bad)))
+
+    def test_workflow_is_carried_on_the_entry(self) -> None:
+        (entry,) = parse_applicability(_doc(_entry(workflow=".github/workflows/x-y.yaml")))
+        assert entry.workflow == ".github/workflows/x-y.yaml"
+
     @pytest.mark.parametrize("field", ["job", "rationale"])
     @pytest.mark.parametrize("bad", ["", "  ", 5, "a\nb"])
     def test_text_fields_are_checked(self, field: str, bad: Any) -> None:
@@ -105,6 +143,8 @@ class TestParse:
             ["/abs/*"],
             ["../x/*"],
             "ALWAYS",
+            "NEVER",
+            "Never",
             None,
             [".github/workflows/"],
             ["./x/*"],
@@ -236,11 +276,17 @@ class TestShippedTable:
         jobs = {entry.job for entry in load_applicability(REPO_ROOT)}
         assert REQUIRED_CONTEXTS <= jobs, sorted(REQUIRED_CONTEXTS - jobs)
 
-    def test_every_required_check_applies_to_every_candidate(self) -> None:
-        """A required check scoped to some paths would not be required for the rest."""
+    def test_every_required_check_applies_to_every_candidate_but_the_pr_only_two(self) -> None:
+        """A required check scoped to some paths would not be required for the rest.
+
+        The two PR-only checks never run on a main commit, so they are marked never.
+        """
+        pr_only = {"validate_pr", "validate_pr_title"}
         rows = [e for e in load_applicability(REPO_ROOT) if e.job in REQUIRED_CONTEXTS]
         assert rows
-        assert all(row.always for row in rows), [r.validator for r in rows if not r.always]
+        always = [r for r in rows if r.validator not in pr_only]
+        assert all(row.always for row in always), [r.validator for r in always if not r.always]
+        assert {r.validator for r in rows if r.never} == pr_only
 
     def test_the_package_checks_bind_on_the_tarball_digest(self) -> None:
         build = build_tier_validators(load_applicability(REPO_ROOT))

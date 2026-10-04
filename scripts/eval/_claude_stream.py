@@ -43,6 +43,7 @@ class StreamFacts:
     completed: bool = False
     failure: str = ""
     limit_hit: str = ""
+    efforts: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -65,6 +66,7 @@ class Invocation:
             "exit_code": self.exit_code,
             "wall_seconds": round(self.wall_seconds, 3),
             "observed_models": list(facts.models),
+            "observed_efforts": list(facts.efforts),
             "cli_version": facts.cli_version,
             "completed": facts.completed,
             "failure": facts.failure,

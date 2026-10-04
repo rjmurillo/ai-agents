@@ -17,6 +17,7 @@ from tests.eval._cli_transport_test_support import (
     claude_payload,
     install_runner,
 )
+from tests.eval._credential_test_support import set_sources
 
 # --- Claude Code CLI ----------------------------------------------------
 
@@ -101,6 +102,7 @@ def test_claude_cli_refuses_without_the_subscription_credential(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.delenv("CLAUDE_CODE_OAUTH_TOKEN", raising=False)
+    set_sources(monkeypatch, "_claude_cli", probe=False)
     recorder = Recorder(stdout=claude_payload())
     install_runner(monkeypatch, recorder)
 

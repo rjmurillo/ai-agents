@@ -11,10 +11,6 @@ implemented: false
 
 # ADR-012: Skill Catalog MCP
 
-## Status
-
-Proposed
-
 ## Date
 
 2025-12-21

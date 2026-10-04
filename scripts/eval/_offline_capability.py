@@ -26,7 +26,7 @@ from __future__ import annotations
 import re
 from functools import partial
 
-from _codex_rollout import SpawnCeiling
+from _codex_rollout import NoCeiling, SpawnCeiling
 from _context_reset import ResetObservation
 from _harness_capability import (
     Capability,
@@ -61,8 +61,27 @@ def _mismatch(record: HarnessCapabilityRecord, observed: str) -> str:
     )
 
 
+_NO_CEILING_DETAIL = {
+    NoCeiling.NO_REFUSAL: "No rollout capture shows a spawn refused at the thread limit.",
+    NoCeiling.FOREIGN_PARENT: "A child rollout names a different parent, so no ceiling is read.",
+    NoCeiling.MIXED_VERSIONS: (
+        "The parent and a child ran different CLI versions, so no ceiling is read."
+    ),
+    NoCeiling.UNPAIRED_TURNS: (
+        "The parent refused spawns, but a child's turns do not pair up (a child ended in "
+        "turn_aborted when the parent finished without waiting), so the peak of running "
+        "children is unmeasurable and no ceiling is read. The parent must wait for its children."
+    ),
+    NoCeiling.NO_CHILD_TURNS: "No child rollout ran a turn, so no ceiling is read.",
+    NoCeiling.INCONSISTENT_BOUNDS: (
+        "The refusals came before as many children as ran at once, so the bounds are "
+        "inconsistent and no ceiling is read."
+    ),
+}
+
+
 def classify_spawn_ceiling(
-    ceiling: SpawnCeiling | None,
+    ceiling: SpawnCeiling | NoCeiling,
     record: HarnessCapabilityRecord,
     configured_max_threads: int | None = None,
 ) -> Capability:
@@ -76,11 +95,11 @@ def classify_spawn_ceiling(
     which is enforcement observed rather than echoed. Anything else is
     `UNVERIFIED`, with the reason. The rollout's upper bound never decides.
     """
-    if ceiling is None:
+    if isinstance(ceiling, NoCeiling):
         return Capability(
             CapabilityStatus.UNVERIFIED,
             EvidenceKind.NONE,
-            "No rollout capture shows a spawn refused at the thread limit.",
+            _NO_CEILING_DETAIL[ceiling],
         )
     bounds = f"between {ceiling.lower_bound} and {ceiling.upper_bound} child threads"
     seen = f"{ceiling.refusals} refused spawn(s) on {ceiling.cli_version} bound the limit {bounds}."

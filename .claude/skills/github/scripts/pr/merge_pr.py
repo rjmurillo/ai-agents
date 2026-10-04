@@ -68,6 +68,7 @@ if _lib_dir not in sys.path:
 from github_core.api import (
     assert_gh_authenticated,
     resolve_repo_params,
+    sanitize_failure_detail,
 )
 from github_core.output import (
     add_output_format_arg,
@@ -77,6 +78,8 @@ from github_core.output import (
 from github_core.placeholder_identity import filter_coauthor_trailers
 
 _SCRIPT_NAME = "merge_pr.py"
+# Matched case-insensitively against the stdout and stderr of a failed PR view.
+_NOT_FOUND_MARKERS = ("could not resolve to a pullrequest", "not found")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -284,6 +287,16 @@ def _emit_error(
     raise SystemExit(code)
 
 
+def _is_not_found(gh_output: str) -> bool:
+    """Return True when failed gh output says the PR does not exist.
+
+    gh reports a missing PR as "Could not resolve to a PullRequest", not
+    "not found", so both markers are matched case-insensitively.
+    """
+    lowered = gh_output.lower()
+    return any(marker in lowered for marker in _NOT_FOUND_MARKERS)
+
+
 def _fetch_pr_state(
     pr: int,
     repo_flag: str,
@@ -303,8 +316,16 @@ def _fetch_pr_state(
     )
     if pr_result.returncode != 0:
         output = pr_result.stderr or pr_result.stdout
-        if "not found" in output:
-            _emit_error(f"PR #{pr} not found in {repo_flag}", 2, "NotFound", output_format, pr)
+        combined = f"{pr_result.stdout}\n{pr_result.stderr}"
+        if _is_not_found(combined):
+            # Keep gh's words: a 404 from a wrong host or repo also lands here.
+            _emit_error(
+                f"PR #{pr} not found in {repo_flag}: {sanitize_failure_detail(combined)}",
+                2,
+                "NotFound",
+                output_format,
+                pr,
+            )
         _emit_error(f"Failed to get PR state: {output}", 3, "ApiError", output_format, pr)
 
     try:

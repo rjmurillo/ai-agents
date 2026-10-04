@@ -21,6 +21,7 @@ from typing import Any, cast
 # Sibling imports; loaded under the same EVAL_DIR sys.path entry every
 # caller of this module already uses to reach them by bare name.
 from _anthropic_response import MessageResponse, parse_message_response
+from _cli_credentials import parse_dotenv
 from _eval_common import (
     call_with_temperature_fallback,
     is_temperature_deprecated_message,
@@ -79,16 +80,11 @@ def load_api_key() -> str:
     for env_path in candidates:
         if env_path.is_symlink() or not env_path.exists():
             continue
-        for raw_line in env_path.read_text(encoding="utf-8").splitlines():
-            line = raw_line.strip()
-            if line.startswith("#") or "=" not in line:
-                continue
-            k, v = line.split("=", 1)
-            if k.strip() == "ANTHROPIC_API_KEY":
-                value = v.strip()
-                if len(value) >= 2 and value[0] == value[-1] and value[0] in ('"', "'"):
-                    value = value[1:-1]
-                return value
+        found: dict[str, str] = parse_dotenv(
+            env_path.read_text(encoding="utf-8"), ("ANTHROPIC_API_KEY",)
+        )
+        if "ANTHROPIC_API_KEY" in found:
+            return found["ANTHROPIC_API_KEY"]
 
     raise RuntimeError(
         "ANTHROPIC_API_KEY not found in environment or repo-root .env file. "
@@ -196,10 +192,7 @@ def _reachable_model_hint(api_key: str) -> str:
             file=sys.stderr,
         )
         return ""
-    return (
-        ". Requested model is unavailable; query the models endpoint "
-        "for reachable model IDs"
-    )
+    return ". Requested model is unavailable; query the models endpoint for reachable model IDs"
 
 
 def _read_messages_response(
