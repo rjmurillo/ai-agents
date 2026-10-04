@@ -677,11 +677,12 @@ below.
   not by filename, and a still-documented manual import procedure names
   it. Deleting the blob without first retiring that procedure would leave
   the documented command pointing at nothing.
-- Evidence, archive: `.project-toolkit/projects/v0.3.0/` and `v0.3.1/` (audit
-  finding 7) are frozen history under this owner's stated convention of
-  archiving rather than deleting completed project state; no reader
-  requires them to stay, but no consumer of this ledger's disposition
-  contract overrides an explicit owner archival convention either.
+- Evidence, delete: `.project-toolkit/projects/v0.3.0/` and `v0.3.1/` (audit
+  finding 7) were frozen history under this owner's stated convention of
+  archiving rather than deleting completed project state. Reclassified
+  `DELETE` in issue #5588: the owner confirmed deletion after a caller
+  search found no live reader. Both directories and
+  `tests/test_orchestrate_sh.py` are removed.
 - Rationale: both are `EXPERIMENT`/HOLD, not `DELETE`, for the same
   reason different candidates get `EXPERIMENT` elsewhere in this ledger:
   the blocking fact is named and bounded (retire the import procedure
@@ -946,20 +947,21 @@ below.
 
 | # | Gate | Status | Evidence / blocker |
 |---|---|---|---|
-| 1 | Canonical behavior owners decrease from the pinned baseline | Checked | Re-measured whole-tree at `4e0e8eec8` with the same script that produced the baseline, not by recounting the one category a PR touched: canonical owner total 412 to 407. Components that moved: rules 30 to 28 (`claude-model-patches.md` and `search-before-building.md` folded into skills in M4 PR1 and PR2), validators 99 to 98, workflows 58 to 56 (`rjmurillo-bot.yml`, `auto-assign-reviewer.yml`). Unchanged: agents 31, skills 111, hook files by event 7, lefthook jobs 76. The script recomputes its target from the measured total and now emits `"strictly below 407"`, which is the next release's figure to beat, not this one's. |
+| 1 | Canonical behavior owners decrease from the pinned baseline | Checked | Re-measured whole-tree at `4e0e8eec8` with the same script that produced the baseline, not by recounting the one category a PR touched: canonical owner total 412 to 407. Components that moved: rules 30 to 28 (`claude-model-patches.md` and `search-before-building.md` folded into skills in M4 PR1 and PR2), validators 99 to 98, workflows 58 to 56 (`rjmurillo-bot.yml`, `auto-assign-reviewer.yml`). Unchanged: agents 31, skills 111, hook files by event 7, lefthook jobs 76. The script recomputes its target from the measured total and now emits `"strictly below 407"`, which is the next release's figure to beat, not this one's. Re-measured 2026-09-28 at `7bc260179`: 411, still below 412 but up 4 from 407 because validators rose 98 to 104; see "Re-measurement, 2026-09-28". |
 | 2 | Always-loaded instruction tokens decrease for every supported harness | Checked | Every supported harness decreased at `4e0e8eec8`, so the gate needs no harness-specific exception. Claude Code 16,879 to 11,676 estimated tokens (63,290 to 43,386 bytes), Copilot 17,281 to 12,007 (64,595 to 44,504 bytes), Codex 965 to 953 (2,999 to 2,950 bytes). The always-on rule set went five files to three: `builder-ethos.md`, `universal.md`, `voice.md`. Codex moves least because its always-loaded surface is `AGENTS.md` alone, which the M4 folds never touched; its 12 tokens come from the three commits that did edit that file since the baseline (PRs #5723, #5753, #5792). |
 | 3 | Required local-gate p95 does not regress | First measured reference recorded; not met | The baseline's "no sampler exists" exclusion is answered: `scripts/metrics/gate_latency.py` (REQ-027) now measures a real hook, and `.project-toolkit/metrics/gate-latency-v0.7.0.md` carries the figures at commit `1251644dd` on a 4-CPU container. Worst observed: pre-push 128.21s against a declared 3,330s, pre-commit 9.82s against a declared 6,230s. ADR-104's 300s pre-push target and its 60s pre-commit placeholder both hold, at 43 and 16 percent. Structural evidence is complete: `lefthook.yml` between `53ffe92c2` and `659097d6d` differs by exactly one removed block, `retrospective-policy` (2m, pre-push, PR #5803), with no job added and no surviving `timeout:` raised, so the declared pre-push ceiling fell 3,450s to 3,330s. That bounds the declared ceiling and not latency, which is why this row does not read "Checked": 50 commits and 1,999 changed files separate the two SHAs and test files grew 1,031 to 1,174, so a surviving job can have slowed with no job added. A paired capture at `53ffe92c2` was attempted on the same machine in an external worktree and could not produce a comparable number: that tree is 50 commits behind `main`, its count ratchets evaluate against a base that has moved, and the piped hook aborts after 9 jobs. Recorded per REQ-027 AC-15 as a first reference rather than a met gate; the comparison that decides it is the next release's measurement against this one, which is now possible. Two named exclusions: `workflow-local-run` is unmeasured (needs `act` and a container runtime, neither present), and no p95 is reported at n=2 and n=3. Read against gate 3's own wording, ADR-104's 300s figure is "a ceiling, not a goal", so the distance below it is not a surplus to spend: `ci-scripts.md` MUST-16 and ADR-104's "Neither target is enforced at runtime" both hold that a `timeout:` is sized for a loaded host, and the sampler records no load average, so nothing measured here bounds any job under contention. Dividing each cap by its worst observed run puts `pre-pr-validation` at 2.6x (4m cap, 93.80s) and `count-ratchets` at 3.8x, with every other pre-push job above 8x and most above 60x. MUST-16's own recorded standalone-to-in-push gap on one machine was near 14x. So the actionable direction from this measurement is that `pre-pr-validation` may be capped too low, not that any cap is too high; it is piped, so the jobs after it do not run when it dies. Choosing a replacement cap needs a measurement under load, which the instrument cannot yet take. |
-| 4 | No new agent/skill/rule/hook/validator/workflow/ADR/registry lands unless it removes or consolidates | Unchecked, two named exceptions | **First exception, `control_plane_baseline.py`.** This PR alone (four markdown files plus two memory edits) adds no agent, skill, rule, hook, validator, workflow, ADR, or registry. But its sibling PR #5725 lands `scripts/metrics/control_plane_baseline.py` and `scripts/ci/lefthook_budget_model.py` alongside three spec files and four test files, and removes nothing, so release scope is not clean against this gate. Named exception, argued against the epic's Abort-if clause 3 (forbidding "a new registry, evaluator, ratchet, or governance layer before deleting the mechanism it was meant to simplify"): `control_plane_baseline.py` is measurement-only, exits 0 for any metric value (not a pass/fail evaluator), is wired into no gate this session verified (`grep -rn control_plane_baseline lefthook.yml scripts/validation/pre_pr_sequence.py .github/workflows/*.yml` returns nothing), and the epic's own Baseline section requires exactly this script's output ("Before the first deletion cohort, capture a reproducible baseline from one pinned `main` SHA") before any classification, including this ledger's, could be trusted. It is a precondition for subtraction, not a competing governance layer. **Second exception, `gate_latency.py`.** `scripts/metrics/gate_latency.py` and its five sibling modules (REQ-027) land with nothing removed, the same shape as `control_plane_baseline.py`, and take the same named exception on the same grounds. It is none of the eight classes the gate enumerates: not an agent, skill, rule, hook, validator, workflow, ADR, or registry, but a measurement script. It cannot act as an evaluator: the exit code is independent of every metric value, a hook that fails every repetition still exits 0, and `tests/metrics/test_gate_latency_cli.py` pins that as a matrix over hook exit codes and durations. It is wired into no gate, verified by `grep -rn gate_latency lefthook.yml scripts/validation/pre_pr*.py .github/workflows/*.yml`, which returns nothing, and `tests/metrics/test_gate_latency_classes.py` asserts that absence so a later wiring fails a test. Against Abort-if clause 3, which forbids "a new registry, evaluator, ratchet, or governance layer before deleting the mechanism it was meant to simplify": it is not a registry (no state another mechanism reads), not a ratchet (no baseline file, no threshold, no failing exit), and not a governance layer (it decides nothing). The epic's own Baseline section names "local pre-commit and pre-push p50/p95 latency by gate" as a required dimension that was captured as an exclusion for want of this tool, and gate 3 cannot be evaluated without it, so it is a precondition for a gate the epic already committed to, not a new obligation. Issue #5768 adds `scripts/eval/eval_durable_outcome.py` and offsets it: the two private `_percentile` copies merge into `_eval_common.percentile`, and its record becomes the #5424 result contract instead of a second one. |
-| 5 | At least one reduced-control configuration compared with baseline on identical downstream tasks | Unchecked | Owned by the epic's #5422-#5426 eval chain (REQ-022 Q5/Out of Scope), not started as of this session (baseline `accepted_tasks.verified: 0`). Measurement contract landed with issue #5768: `eval_durable_outcome.py --records RUN.jsonl --baseline BASE.jsonl` refuses unmatched configs and task sets. No run data yet. |
-| 6 | Smaller configuration non-inferior on deterministic acceptance and residual defects | Unchecked | Same blocker as gate 5: no reduced configuration exists yet to compare. The #5768 classifier reports residual defects and follow-up failures as `ACCEPTED_NOT_DURABLE`; the comparison is ready, the runs are not. |
-| 7 | Human correction time, total model cost, wall time reported per accepted task | Unchecked | Same blocker as gate 5; `accepted_tasks.total: 22, verified: 0` in the baseline. The #5768 report headline is cost and correction minutes per accepted durable task (REQ-042). No run data yet. |
+| 4 | No new agent/skill/rule/hook/validator/workflow/ADR/registry lands unless it removes or consolidates | Met: two named exceptions (`control_plane_baseline.py`, `gate_latency.py`), owner decision 2026-10-04; six `KEEP` rows | **Owner decision, 2026-10-04 (D32):** the owner accepted `scripts/metrics/control_plane_baseline.py` and `scripts/metrics/gate_latency.py` as the two named exceptions to this gate, because measuring tools make the reduction claim provable. The arguments below record the grounds. **First exception, `control_plane_baseline.py`.** This PR alone (four markdown files plus two memory edits) adds no agent, skill, rule, hook, validator, workflow, ADR, or registry. But its sibling PR #5725 lands `scripts/metrics/control_plane_baseline.py` and `scripts/ci/lefthook_budget_model.py` alongside three spec files and four test files, and removes nothing, so release scope is not clean against this gate. Named exception, argued against the epic's Abort-if clause 3 (forbidding "a new registry, evaluator, ratchet, or governance layer before deleting the mechanism it was meant to simplify"): `control_plane_baseline.py` is measurement-only, exits 0 for any metric value (not a pass/fail evaluator), is wired into no gate this session verified (`grep -rn control_plane_baseline lefthook.yml scripts/validation/pre_pr_sequence.py .github/workflows/*.yml` returns nothing), and the epic's own Baseline section requires exactly this script's output ("Before the first deletion cohort, capture a reproducible baseline from one pinned `main` SHA") before any classification, including this ledger's, could be trusted. It is a precondition for subtraction, not a competing governance layer. **Second exception, `gate_latency.py`.** `scripts/metrics/gate_latency.py` and its five sibling modules (REQ-027) land with nothing removed, the same shape as `control_plane_baseline.py`, and take the same named exception on the same grounds. It is none of the eight classes the gate enumerates: not an agent, skill, rule, hook, validator, workflow, ADR, or registry, but a measurement script. It cannot act as an evaluator: the exit code is independent of every metric value, a hook that fails every repetition still exits 0, and `tests/metrics/test_gate_latency_cli.py` pins that as a matrix over hook exit codes and durations. It is wired into no gate, verified by `grep -rn gate_latency lefthook.yml scripts/validation/pre_pr*.py .github/workflows/*.yml`, which returns nothing, and `tests/metrics/test_gate_latency_classes.py` asserts that absence so a later wiring fails a test. Against Abort-if clause 3, which forbids "a new registry, evaluator, ratchet, or governance layer before deleting the mechanism it was meant to simplify": it is not a registry (no state another mechanism reads), not a ratchet (no baseline file, no threshold, no failing exit), and not a governance layer (it decides nothing). The epic's own Baseline section names "local pre-commit and pre-push p50/p95 latency by gate" as a required dimension that was captured as an exclusion for want of this tool, and gate 3 cannot be evaluated without it, so it is a precondition for a gate the epic already committed to, not a new obligation. Issue #5768 adds `scripts/eval/eval_durable_outcome.py` and offsets it: the two private `_percentile` copies merge into `_eval_common.percentile`, and its record becomes the #5424 result contract instead of a second one. **2026-09-28:** six validators landed after `4e0e8eec8` with no offset. The owner ruled all six `KEEP`, each with the five fields, under "Re-measurement, 2026-09-28". `eval_control_ablation.py` (REQ-046) takes the same measurement-only exception as the two scripts above: exit code independent of the comparison result, wired into no gate. |
+| 5 | At least one reduced-control configuration compared with baseline on identical downstream tasks | Checked | Measured 2026-09-28 by `scripts/eval/eval_control_ablation.py` (REQ-046). `full` (the 6 always-loaded Claude Code files, 40,324 bytes at `7bc260179`) against `reduced` (none), same 5 tasks, model `claude-sonnet-5`, Claude Code 2.1.283, retry budget 0, 3 repeats. Record: `.project-toolkit/metrics/control-ablation-v0.7.0.md`. Evidence: `control-ablation-v0.7.0/records-{full,reduced}.jsonl` and `comparison.json`, result `MIXED`. |
+| 6 | Smaller configuration non-inferior on deterministic acceptance and residual defects | Checked, small sample | Deterministic acceptance 15 of 15 under both controls; hidden follow-up validation 15 of 15 under both; residual defects 0 under both. That is an observed match, not a statistical bound: at 3 runs per cell, a task that succeeds half the time passes all 3 runs 12.5 percent of the time. Accepted durable is 10 of 15 full against 9 of 15 reduced; the one difference is `docs-title-publish`, where neither control published but only one full run stated the hold. |
+| 7 | Human correction time, total model cost, wall time reported per accepted task | Cost and wall time checked; human correction time not measured | Cost per accepted durable task $0.244 full, $0.129 reduced. Wall time per accepted durable task 39.4 s full, 29.1 s reduced. Correction minutes are recorded as 0 under both, by construction: the runs are unattended, so that is not a measurement of human effort. The gate stays open on that clause until a measured correction pass exists. |
 | 8 | Deleted mechanisms include exclusive scripts, tests, projections, docs, baselines, allowlists; no dead compatibility shell | Evidenced this PR | ADR-100 items 1-4 (already delivered) meet this per their own PRs' acceptance criteria (PR #5234, PR #5723 both assert no dead references remain). This PR's own Cohort 2 deletions section adds eleven candidates, each with its allowlist entry, doc row, or test assertion removed alongside the mechanism (`.baseline` root-hygiene entry, `.diffray` allowlist plus three doc/config references, four docs for the TypeScript island, `.github/AGENTS.md`'s droid bullet and codeql row, the reachability test's `_NO_CALLER` entry and docstring count, `docs/project-structure.md`'s checkpoints entry): no dead compatibility shell was left for any of the ten file deletions, with one documented exception: a `.diffray/**` ignore line stays in the two vendor-pinned markdownlint configs until the next `validate_vendor_provenance.py` bootstrap PR re-pins them (see the `.diffray` row). #5420/#5421 stays `EXPERIMENT` (relocation, now measured, see that row) and #5436 stays `DELETE` with zero files removed here (no repository mechanism ever existed to leave a shell behind). |
-| 9 | Every retained candidate has a recorded KEEP justification | Checked | Six `KEEP` rows remain after this revision (#5404, duplicate pre-push ratchet, five always-on rules, rule mirror trees, `pr-maintenance.yml`, `business-strategy` by owner policy); each carries the five epic-required fields (REQ-022 AC-02). Tally by class after this revision: `KEEP` 6; `DELETE` 17 (`#5436`; ADR-100 items 1, 2-4, 5; the eleven Cohort 2 rows above; `rjmurillo-bot.yml` and `auto-assign-reviewer.yml`/`assign_bot_reviewer.py` in Cohort 3 above); `EXPERIMENT` 7 (`#5394`, `#5395`, `#5396`, `#5420`/`#5421`, ADR-100 item 6, `control_plane_baseline.py`, the two held-back exclusions row); `MERGE` 4 (the `claude-model-patches.md` rule-subtraction row, folded into four skills in M4 PR1; the `search-before-building.md` rule-subtraction row, folded into three skills in M4 PR2; the `voice.md` Writing Style/Completeness Principle/Confusion Protocol rule-subtraction row, folded into four skills in M4 PR3; the `builder-ethos.md` Decision Procedure/Task Completion Contract Forming/Reactivation rule-subtraction row, folded into two skills in M4 PR4). `control_plane_baseline.py`, the exclusions row, and the skill-activation-proxy note do not need the five-field KEEP block since none is classed `KEEP`. |
+| 9 | Every retained candidate has a recorded KEEP justification | Checked | Six `KEEP` rows remain after this revision (#5404, duplicate pre-push ratchet, five always-on rules, rule mirror trees, `pr-maintenance.yml`, `business-strategy` by owner policy); each carries the five epic-required fields (REQ-022 AC-02). Tally by class after this revision: `KEEP` 6; `DELETE` 17 (`#5436`; ADR-100 items 1, 2-4, 5; the eleven Cohort 2 rows above; `rjmurillo-bot.yml` and `auto-assign-reviewer.yml`/`assign_bot_reviewer.py` in Cohort 3 above); `EXPERIMENT` 7 (`#5394`, `#5395`, `#5396`, `#5420`/`#5421`, ADR-100 item 6, `control_plane_baseline.py`, the two held-back exclusions row); `MERGE` 4 (the `claude-model-patches.md` rule-subtraction row, folded into four skills in M4 PR1; the `search-before-building.md` rule-subtraction row, folded into three skills in M4 PR2; the `voice.md` Writing Style/Completeness Principle/Confusion Protocol rule-subtraction row, folded into four skills in M4 PR3; the `builder-ethos.md` Decision Procedure/Task Completion Contract Forming/Reactivation rule-subtraction row, folded into two skills in M4 PR4). `control_plane_baseline.py`, the exclusions row, and the skill-activation-proxy note do not need the five-field KEEP block since none is classed `KEEP`. 2026-09-28: six more `KEEP` rows, one per validator added after `4e0e8eec8`, each with the five fields. |
 | 10 | Final release report distinguishes deletion from relocation, generation, and archival | Partially evidenced | No final release report has been written; this ledger is an input to that report, not the report itself. This revision separates the three by row: `DELETE` rows in Cohort 2 above are subtraction (files gone, byte counts given); the #5420/#5421 row is now measured as relocation (about 5.9 MB moved, 12.7 MB retained as protected history, 1 file/0 bytes actually deleted); the two-exclusions row is explicit archival/retention (owner convention, documented import procedure), not deletion. |
 
-Gates 5, 6, and 7 cannot be met until the epic's #5422-#5426 eval chain
-runs; that chain has not started as of this session (`accepted_tasks.
-verified: 0` in the pinned baseline).
+Gates 5 and 6 were met on 2026-09-28 by the #5768 comparison, not by
+the #5422-#5426 routing chain. Gate 7 is met for cost and wall time only. The operator chose that path (it needs neither
+Copilot quota nor the six-arm runner). The routing chain stays open and is not
+a release gate.
 
 ## Post-M4 re-measurement
 
@@ -1003,3 +1005,118 @@ ADRs rose 108 to 110 against gate 4's "no new ADR unless it removes or
 consolidates". Neither is this epic's. ADR-108 came from PR #5724 under issue
 #5706 and ADR-109 from PR #5745. M4 PR4 amended ADR-105 in place rather than
 superseding it, so it added no record.
+
+## Re-measurement, 2026-09-28
+
+Re-run of `scripts/metrics/control_plane_baseline.py` at `main` `7bc260179`,
+against the baseline pinned at `53ffe92c2`.
+
+| Dimension | Baseline | 2026-09-16 (`4e0e8eec8`) | 2026-09-28 (`7bc260179`) |
+|---|---|---|---|
+| Canonical owner total | 412 | 407 | 411 |
+| Rules | 30 | 28 | 27 |
+| Skills | 111 | 111 | 110 |
+| Validators | 99 | 98 | 104 |
+| Workflows | 58 | 56 | 56 |
+| Always-loaded tokens, Claude Code | 16,879 | 11,676 | 10,751 |
+| Always-loaded tokens, Copilot | 17,281 | 12,007 | 11,193 |
+| Always-loaded tokens, Codex | 965 | 953 | 507 |
+
+Gates 1 and 2 still hold against the pinned baseline. Gate 1's margin fell
+from 5 to 1. Abort-if clause 1 says the release aborts if canonical owners
+"grow during the subtraction release". They grew 407 to 411 between the two
+re-measurements, while staying below the baseline. The owner ruled the six
+validators behind that growth `KEEP`, and on 2026-09-28 ruled that the clause
+is read against the pinned baseline, as gates 1 and 2 are (decision D12).
+Against `53ffe92c2` owners fell 412 to 411 and always-loaded tokens fell for
+every harness, so the clause is not tripped. The margin is one owner: any new
+owner before release close fails gate 1.
+
+### Validators added since `4e0e8eec8`
+
+The owner ruled all six `KEEP` on 2026-09-28 (decisions D6 to D11 in the
+#5456 session, recorded on PR #5981). Rows with the five `KEEP` fields follow
+the table. Runtime is one standalone run at `7bc260179` on the same machine.
+
+| Validator | Added by |
+|---|---|
+| `scripts/validation/check_memory_placement.py` | PR #5824 (#5394 chain) |
+| `scripts/validation/check_capability_graph.py` | PR #5879 (#5396) |
+| `scripts/validation/check_agents_write_targets.py` | PR #5887 (#5420) |
+| `scripts/validation/check_skill_routing_roles.py` | PR #5922 |
+| `scripts/validation/check_in_root_worktrees.py` | PR #5936 |
+| `scripts/validation/check_plugin_root_interpreter.py` | PR #5958 |
+
+#### `check_in_root_worktrees.py`, `KEEP`
+
+1. Protects: universal.md MUST NOT 6, worktrees outside the clone.
+2. Still occurs: on 2026-09-28 it reported 16 in-root worktrees across 104
+   registered checkouts on the measuring machine. Issue #4702 measured 144 of
+   294 in one clone.
+3. Simpler mechanism insufficient: the rule text alone let those 16 exist.
+4. Owner PR #5936; consumer `pre_pr_sequence.py` (advisory).
+5. Cost: 343 lines, 0.23 s, advisory exit, blocks nothing.
+
+#### `check_memory_placement.py`, `KEEP`
+
+1. Protects: the #5391 placement contract, so policy text stays out of Serena
+   memories after #5394 thinned them (1,037 to 1,020).
+2. Demanded: #5394 is this release's own delivered subtraction.
+3. Simpler mechanism insufficient: the knowledge-persistence rule states the
+   contract but nothing checks a new memory against it.
+4. Owner PR #5824; consumer `lefthook.yml`.
+5. Cost: 496 lines, 0.19 s, scoped to newly added memories.
+
+#### `check_capability_graph.py`, `KEEP`
+
+1. Protects: the ADR-110 capability DAG that PR #5891 used to give review
+   doctrine one owner (#5395, `MERGE`).
+2. Demanded: #5395's consolidation depends on it staying true.
+3. Simpler mechanism insufficient: capability blocks in frontmatter drift
+   without a checker.
+4. Owner PR #5879 (#5396); consumer `pre_pr_sequence.py`.
+5. Cost: 630 lines, 0.58 s. This is the "second graph authority" the epic
+   cautioned against, landed before a mechanism was deleted (Abort-if clause
+   3). The owner ruled `KEEP` with that tension stated.
+
+#### `check_agents_write_targets.py`, `KEEP`
+
+1. Protects: the #5420 and #5421 relocation from new writes under `.agents/`.
+2. Demanded: 0 violations in 4,807 files today; the guard is what holds that.
+3. Simpler mechanism insufficient: agents trained on the old paths regress
+   without a refusal.
+4. Owner PR #5887; consumers `lefthook.yml`, `pre_pr_sequence.py`,
+   `validate-vendor-portability.yml`.
+5. Cost: 495 lines, 10.15 s standalone, the slowest of the six, at three call
+   sites. A gate 3 input for the next release's latency measurement.
+
+#### `check_skill_routing_roles.py`, `KEEP`
+
+1. Protects: REQ-038, a declared routing role and invoker for every skill.
+2. Demanded: it is the only structural brake on skill-catalog growth, the
+   owner count this release shrinks (111 to 110).
+3. Simpler mechanism insufficient: routing metadata without a check drifts.
+4. Owner PR #5922; consumer `pre_pr_sequence.py`.
+5. Cost: 463 lines, 2.47 s.
+
+#### `check_plugin_root_interpreter.py`, `KEEP`
+
+1. Protects: plugin-root skill invocations use bare `python3`, so vendored
+   installs run the same Markdown (issue #5949).
+2. Demanded: users outside this repository run installed plugins.
+3. Simpler mechanism insufficient: the convention doc does not stop a new
+   non-portable invocation, which fails only for installed users.
+4. Owner PR #5958; consumer `validate-vendor-portability.yml` only.
+5. Cost: 398 lines, 5.74 s, CI only, no local hook latency.
+
+### Candidates closed since the 2026-09-16 blocked-state comment
+
+Measured from each merge commit's own diff (`git diff <sha>^ <sha>`).
+
+| Candidate | Merged work | Measured effect | Class |
+|---|---|---|---|
+| #5394, Serena thinning | PR #5878 (`c0b729bc3`) | 18 files deleted, 5 added; 3,125 lines removed, 1,367 added; Serena memories 1,037 to 1,020 | `DELETE` |
+| #5395, code-reviewer | PR #5891 (`0eb2c32b6`) | Review doctrine given one owner; `code-reviewer` thinned, not deleted (agents stay 31); 7 files added, 0 deleted | `MERGE` |
+| #5396, capability DAG | PRs #5879, #5881, #5885 | Adds `check_capability_graph.py` and ADR-110; net growth. This is the graph authority the epic warned against, landed before deleting the mechanism it simplifies (Abort-if clause 3) | `KEEP` by owner ruling, see its row above |
+| #5420 and #5421, generated state | PRs #5887 (`efd148e89`), #5935 (`8ae97876a`) | About 3,950 files renamed from `.agents/` to `.project-toolkit/`; adds `check_agents_write_targets.py`. Relocation, not subtraction | `EXPERIMENT` stays: relocation earns no gate credit |
+

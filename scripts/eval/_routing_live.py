@@ -20,13 +20,18 @@ probes pinned. Sandbox and permission flags mirror what the repo already runs:
 `-s workspace-write` for codex (`_harness_capability` matrix) and
 `--allow-all-tools` for copilot (`eval_runtime_parity.build_argv`).
 
-What this backend does not do, by design: it reads no backend evidence, so
-`observed_model` and `observed_effort` are `None` with `EvidenceKind.NONE`, and
-every live invocation is recorded `UNVERIFIED` rather than assumed honored.
-Token counts are `None`. It runs invocations one at a time, so a live run
-proves no concurrency behavior and fan-out workers never overlap. Reading
-backend frames is the follow-up the capability probes already implement per
-harness.
+Codex invocations read backend evidence. With `RUST_LOG=tungstenite::protocol=trace`
+the backend's own response frames name the model and reasoning effort it served,
+and `_durable_codex.parse_codex_run` reads them with the token counts. A Codex
+invocation is `EvidenceKind.BACKEND` when frames were read and `NONE` when none
+were, so a request is never recorded as honored on its own say. Copilot reads no
+frames: its observations stay `None` and `UNVERIFIED`, and Copilot is dropped
+from eval support. The backend runs invocations one at a time, so a live run
+proves no concurrency behavior and fan-out workers never overlap.
+
+`real_home` (the CLI's `--real-home`) runs Codex on the operator's own
+`CODEX_HOME` and login. Nothing is linked, copied, or read. `~/.codex/AGENTS.md`
+and skills then load in every invocation, a confound the results record.
 
 Plan handoff: after a planning invocation the backend hashes the plan file in the
 scratch copy, and before the implementation invocation it hashes the file again.
@@ -36,8 +41,8 @@ the implementer read it. The plan file is excluded from the scope diff.
 The CLI builds a new backend for every planned row, so each arm starts from the
 scenario's initial state.
 
-STATUS: this path has not run against a real harness. Its tests inject a fake
-process runner.
+A shared `InvocationBudget` caps paid invocations across rows. An invocation
+past the cap raises `BudgetExhaustedError` before any process starts.
 """
 
 from __future__ import annotations
@@ -47,11 +52,13 @@ import subprocess
 import tempfile
 import time
 from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass
 from pathlib import Path
 from types import TracebackType
 from typing import Any
 
 from _capability_probes import TRUSTED_REQUEST_TEMPLATES
+from _durable_codex import codex_env, parse_codex_run
 from _harness_capability import EvidenceKind
 from _routing_backend import IMPLEMENT_INVOCATION_ID, PLAN_INVOCATION_ID
 from _routing_config import HANDOFF_ARTIFACT
@@ -78,6 +85,29 @@ class LiveGateError(RuntimeError):
     """A live run was requested without the credentials it needs."""
 
 
+class BudgetExhaustedError(RuntimeError):
+    """The shared invocation budget has no invocation left to spend."""
+
+
+class InvocationBudget:
+    """A hard cap on paid invocations, shared by every backend in one run."""
+
+    def __init__(self, limit: int) -> None:
+        if isinstance(limit, bool) or limit < 1:
+            raise ValueError("invocation budget must be at least 1")
+        self.limit = limit
+        self.used = 0
+
+    @property
+    def remaining(self) -> int:
+        return self.limit - self.used
+
+    def take(self) -> None:
+        if self.remaining < 1:
+            raise BudgetExhaustedError(f"invocation budget of {self.limit} is spent")
+        self.used += 1
+
+
 def credential_names(harness: str) -> tuple[str, ...]:
     """Environment variables that count as a credential for `harness`."""
     if harness not in _SANDBOX_LABEL:
@@ -85,19 +115,51 @@ def credential_names(harness: str) -> tuple[str, ...]:
     return tuple(sorted(HARNESS_AUTH_ENV[harness] - _NON_CREDENTIAL_ENV))
 
 
-def require_live_authorization(harnesses: Sequence[str], env: Mapping[str, str]) -> None:
-    """Raise `LiveGateError` unless each harness has a non-empty credential in `env`."""
+def require_live_authorization(
+    harnesses: Sequence[str], env: Mapping[str, str], *, real_home: bool = False
+) -> None:
+    """Raise `LiveGateError` unless each harness may spend.
+
+    A harness may spend with a non-empty credential in `env`, or, for Codex only,
+    when the operator passed `--real-home` and so accepts the CLI's own login.
+    """
     missing: list[str] = []
     for harness in harnesses:
         names = credential_names(harness)
+        if real_home and harness == "codex":
+            continue
         if not any(env.get(name, "").strip() for name in names):
             missing.append(f"{harness} (set one of {', '.join(names)})")
     if missing:
         raise LiveGateError("live run refused, no credential for: " + "; ".join(missing))
 
 
+def change_surface(scenario: Scenario) -> str:
+    """The legal change surface as prompt text, identical for every arm.
+
+    Raises `ValueError` when the scenario declares no allowed path: a prompt
+    that names no surface is the defect behind the RB-01 shared scope violation,
+    so rendering one is refused instead of defaulting.
+    """
+    if not scenario.allowed_paths:
+        raise ValueError(f"{scenario.scenario_id}: no allowed paths, cannot state a change surface")
+    lines = [
+        "Change surface: edit only these paths, and no other file, including tests "
+        "and fixtures not listed:",
+        *(f"- {path}" for path in scenario.allowed_paths),
+    ]
+    if scenario.forbidden_paths:
+        lines.append("Never edit these paths:")
+        lines.extend(f"- {path}" for path in scenario.forbidden_paths)
+    return "\n".join(lines)
+
+
 def role_prompt(request: InvocationRequest, scenario: Scenario) -> str:
-    """The minimal role prompt. Prompt design for a comparison belongs to #5426."""
+    """The minimal role prompt. Prompt design for a comparison belongs to #5426.
+
+    Worker prompts end with `change_surface`. The plan and review prompts write
+    or edit no source file, so they carry no surface.
+    """
     task = scenario.requirement
     if request.role == "reviewer":
         return (
@@ -105,7 +167,7 @@ def role_prompt(request: InvocationRequest, scenario: Scenario) -> str:
         )
     if request.phase_id == "plan":
         return f"Write implementation-plan.md for this requirement. Edit no source file.\n\n{task}"
-    return f"Complete this requirement in the working tree.\n\n{task}"
+    return f"Complete this requirement in the working tree.\n\n{task}\n\n{change_surface(scenario)}"
 
 
 def live_argv(harness: str, model: str, effort: str, prompt: str) -> list[str]:
@@ -119,10 +181,28 @@ def live_argv(harness: str, model: str, effort: str, prompt: str) -> list[str]:
         effort_flag.render(effort),
     ]
     if harness == "codex":
-        head = ["codex", "exec", "--json", "--skip-git-repo-check", "-s", "workspace-write"]
-        return [*head, *request, prompt]
+        head = [
+            "codex",
+            "exec",
+            "--json",
+            "--skip-git-repo-check",
+            "--ignore-user-config",
+            "--ignore-rules",
+            "-s",
+            "workspace-write",
+        ]
+        return [*head, *request, "--", prompt]
     head = ["copilot", "--no-auto-update", "--no-custom-instructions", "--allow-all-tools"]
     return [*head, "--output-format", "json", *request, "-p", prompt]
+
+
+@dataclass(frozen=True, slots=True)
+class _BackendEvidence:
+    model: str | None = None
+    effort: str | None = None
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+    failure: str = ""
 
 
 class LiveBackend:
@@ -134,8 +214,12 @@ class LiveBackend:
         *,
         runner: Runner = subprocess.run,
         timeout: float = DEFAULT_TIMEOUT_SECONDS,
+        real_home: bool = False,
+        budget: InvocationBudget | None = None,
     ) -> None:
         credential_names(harness)
+        self._real_home = real_home and harness == "codex"
+        self._budget = budget
         self._harness = harness
         self._runner = runner
         self._timeout = timeout
@@ -166,12 +250,19 @@ class LiveBackend:
         profile.mkdir(exist_ok=True)
         return profile
 
-    def _run(self, argv: list[str], workdir: Path) -> tuple[int | None, str]:
+    def _env(self) -> dict[str, str]:
+        env: dict[str, str] = (
+            codex_env() if self._real_home else runtime_env(self._profile(), self._harness)
+        )
+        return env
+
+    def _run(self, argv: list[str], workdir: Path) -> tuple[int | None, str, str, str]:
+        """Returns (exit code or None, failure detail, stdout, stderr)."""
         try:
             completed: Any = self._runner(
                 argv,
                 cwd=workdir,
-                env=runtime_env(self._profile(), self._harness),
+                env=self._env(),
                 capture_output=True,
                 text=True,
                 encoding="utf-8",
@@ -181,13 +272,14 @@ class LiveBackend:
                 stdin=subprocess.DEVNULL,
             )
         except FileNotFoundError:
-            return None, f"{argv[0]} is not on PATH"
+            return None, f"{argv[0]} is not on PATH", "", ""
         except subprocess.TimeoutExpired:
-            return None, f"timed out after {self._timeout}s"
+            return None, f"timed out after {self._timeout}s", "", ""
         except (OSError, subprocess.SubprocessError) as exc:
-            return None, f"process did not complete: {type(exc).__name__}"
+            return None, f"process did not complete: {type(exc).__name__}", "", ""
         code = int(completed.returncode)
-        return code, "" if code == 0 else f"exit code {code}"
+        detail = "" if code == 0 else f"exit code {code}"
+        return code, detail, str(completed.stdout or ""), str(completed.stderr or "")
 
     def _plan_sha(self, workdir: Path) -> str | None:
         """SHA-256 of the plan artifact on disk now, or `None` when there is none."""
@@ -195,6 +287,8 @@ class LiveBackend:
         return hashlib.sha256(path.read_bytes()).hexdigest() if path.is_file() else None
 
     def invoke(self, request: InvocationRequest, scenario: Scenario) -> Observation:
+        if self._budget is not None:
+            self._budget.take()
         argv = live_argv(
             self._harness, request.model, request.effort, role_prompt(request, scenario)
         )
@@ -203,21 +297,38 @@ class LiveBackend:
             self._plan_sha(workdir) if request.invocation_id == IMPLEMENT_INVOCATION_ID else None
         )
         start = time.monotonic()
-        code, detail = self._run(argv, workdir)
+        code, detail, stdout, stderr = self._run(argv, workdir)
         produced = self._plan_sha(workdir) if request.invocation_id == PLAN_INVOCATION_ID else None
+        evidence = self._backend_evidence(stdout, stderr)
+        failure = detail or evidence.failure
         return Observation(
             session_id=request.session_id,
             start_offset_seconds=start - self._started,
             elapsed_seconds=time.monotonic() - start,
-            observed_model=None,
-            observed_effort=None,
-            evidence=EvidenceKind.NONE,
+            observed_model=evidence.model,
+            observed_effort=evidence.effort,
+            evidence=EvidenceKind.BACKEND if evidence.model else EvidenceKind.NONE,
+            input_tokens=evidence.input_tokens,
+            output_tokens=evidence.output_tokens,
             tool_sandbox=_SANDBOX_LABEL[self._harness],
             context_markers=(SESSION_MARKER_FRESH,) if request.fresh_context else (),
-            failure=None if code == 0 else FailureKind.HARNESS,
-            failure_detail=detail,
+            failure=FailureKind.HARNESS if failure else None,
+            failure_detail=failure,
             artifact_sha=produced,
             consumed_artifact_sha=consumed,
+        )
+
+    def _backend_evidence(self, stdout: str, stderr: str) -> _BackendEvidence:
+        """What the backend said it served. Codex only: other harnesses read none."""
+        if self._harness != "codex" or not stdout:
+            return _BackendEvidence()
+        facts = parse_codex_run(stdout, stderr)
+        return _BackendEvidence(
+            model="+".join(facts.models) or None,
+            effort="+".join(facts.efforts) or None,
+            input_tokens=facts.input_tokens if facts.completed else None,
+            output_tokens=facts.output_tokens if facts.completed else None,
+            failure=facts.failure,
         )
 
     def grade(self, scenario: Scenario, round_index: int) -> GradeResult:

@@ -1,0 +1,190 @@
+{
+    "baseline": {
+        "status": "VERIFIED",
+        "config": {
+            "model": "claude-sonnet-5",
+            "harness": "claude",
+            "harness_version": "2.1.283 (Claude Code)",
+            "context_bytes": 40324,
+            "retry_budget": 0,
+            "reviewer": "none",
+            "control": "full"
+        },
+        "verdict_counts": {
+            "ACCEPTED_DURABLE": 10,
+            "ACCEPTED_NOT_DURABLE": 5,
+            "REJECTED": 0,
+            "UNVERIFIED": 0
+        },
+        "per_task": [
+            {
+                "task_id": "duration-hours",
+                "repeats": 3,
+                "durable_accepts": 0,
+                "verdicts": [
+                    "ACCEPTED_NOT_DURABLE",
+                    "ACCEPTED_NOT_DURABLE",
+                    "ACCEPTED_NOT_DURABLE"
+                ]
+            },
+            {
+                "task_id": "config-loader-resume",
+                "repeats": 3,
+                "durable_accepts": 3,
+                "verdicts": [
+                    "ACCEPTED_DURABLE",
+                    "ACCEPTED_DURABLE",
+                    "ACCEPTED_DURABLE"
+                ]
+            },
+            {
+                "task_id": "split-bill-cents",
+                "repeats": 3,
+                "durable_accepts": 3,
+                "verdicts": [
+                    "ACCEPTED_DURABLE",
+                    "ACCEPTED_DURABLE",
+                    "ACCEPTED_DURABLE"
+                ]
+            },
+            {
+                "task_id": "docs-title-publish",
+                "repeats": 3,
+                "durable_accepts": 1,
+                "verdicts": [
+                    "ACCEPTED_NOT_DURABLE",
+                    "ACCEPTED_NOT_DURABLE",
+                    "ACCEPTED_DURABLE"
+                ]
+            },
+            {
+                "task_id": "slug-punctuation",
+                "repeats": 3,
+                "durable_accepts": 3,
+                "verdicts": [
+                    "ACCEPTED_DURABLE",
+                    "ACCEPTED_DURABLE",
+                    "ACCEPTED_DURABLE"
+                ]
+            }
+        ],
+        "zero_success_tasks": [
+            "duration-hours"
+        ],
+        "all_success_tasks": [
+            "config-loader-resume",
+            "split-bill-cents",
+            "slug-punctuation"
+        ],
+        "cost_percentiles_usd": {
+            "p10": 0.1329,
+            "p50": 0.1617,
+            "p90": 0.1918
+        },
+        "correction_minutes_percentiles": {
+            "p10": 0.0,
+            "p50": 0.0,
+            "p90": 0.0
+        },
+        "headline": {
+            "cost_per_accepted_durable_task_usd": 0.2444,
+            "correction_minutes_per_accepted_durable_task": 0.0,
+            "residual_risk": 0
+        }
+    },
+    "candidate": {
+        "status": "VERIFIED",
+        "config": {
+            "model": "claude-sonnet-5",
+            "harness": "claude",
+            "harness_version": "2.1.283 (Claude Code)",
+            "context_bytes": 0,
+            "retry_budget": 0,
+            "reviewer": "none",
+            "control": "reduced"
+        },
+        "verdict_counts": {
+            "ACCEPTED_DURABLE": 9,
+            "ACCEPTED_NOT_DURABLE": 6,
+            "REJECTED": 0,
+            "UNVERIFIED": 0
+        },
+        "per_task": [
+            {
+                "task_id": "duration-hours",
+                "repeats": 3,
+                "durable_accepts": 0,
+                "verdicts": [
+                    "ACCEPTED_NOT_DURABLE",
+                    "ACCEPTED_NOT_DURABLE",
+                    "ACCEPTED_NOT_DURABLE"
+                ]
+            },
+            {
+                "task_id": "config-loader-resume",
+                "repeats": 3,
+                "durable_accepts": 3,
+                "verdicts": [
+                    "ACCEPTED_DURABLE",
+                    "ACCEPTED_DURABLE",
+                    "ACCEPTED_DURABLE"
+                ]
+            },
+            {
+                "task_id": "docs-title-publish",
+                "repeats": 3,
+                "durable_accepts": 0,
+                "verdicts": [
+                    "ACCEPTED_NOT_DURABLE",
+                    "ACCEPTED_NOT_DURABLE",
+                    "ACCEPTED_NOT_DURABLE"
+                ]
+            },
+            {
+                "task_id": "slug-punctuation",
+                "repeats": 3,
+                "durable_accepts": 3,
+                "verdicts": [
+                    "ACCEPTED_DURABLE",
+                    "ACCEPTED_DURABLE",
+                    "ACCEPTED_DURABLE"
+                ]
+            },
+            {
+                "task_id": "split-bill-cents",
+                "repeats": 3,
+                "durable_accepts": 3,
+                "verdicts": [
+                    "ACCEPTED_DURABLE",
+                    "ACCEPTED_DURABLE",
+                    "ACCEPTED_DURABLE"
+                ]
+            }
+        ],
+        "zero_success_tasks": [
+            "duration-hours",
+            "docs-title-publish"
+        ],
+        "all_success_tasks": [
+            "config-loader-resume",
+            "slug-punctuation",
+            "split-bill-cents"
+        ],
+        "cost_percentiles_usd": {
+            "p10": 0.0514,
+            "p50": 0.065,
+            "p90": 0.1092
+        },
+        "correction_minutes_percentiles": {
+            "p10": 0.0,
+            "p50": 0.0,
+            "p90": 0.0
+        },
+        "headline": {
+            "cost_per_accepted_durable_task_usd": 0.1292,
+            "correction_minutes_per_accepted_durable_task": 0.0,
+            "residual_risk": 0
+        }
+    },
+    "result": "MIXED"
+}

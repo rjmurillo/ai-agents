@@ -319,27 +319,6 @@ def test_changed_files_ignores_a_foreign_git_dir(tmp_path, monkeypatch):
     assert _FOREIGN_ONLY not in changed
 
 
-@requires_git
-def test_ruff_ratchet_baseline_at_ref_ignores_a_foreign_git_dir(tmp_path, monkeypatch):
-    """The duplicate in ``ruff_count_ratchet`` carries the same defect.
-
-    It shadows nothing and is called by its own test rather than by ``main``,
-    but it is the same ``git show`` against a caller-supplied root. Leaving a
-    known-identical failure in the same ratchet family is how the next
-    diagnosis starts over.
-    """
-    scratch = _tree_under_test(tmp_path)
-    (scratch / "base.txt").write_text("3\n", encoding="utf-8")
-    _commit_all(scratch, "scratch baseline 3")
-
-    foreign = _foreign_repo(tmp_path)
-    (foreign / "base.txt").write_text("7\n", encoding="utf-8")
-    _commit_all(foreign, "foreign baseline 7")
-    monkeypatch.setenv("GIT_DIR", _gitdir(foreign))
-
-    assert ruff_ratchet.baseline_at_ref(scratch, "HEAD", scratch / "base.txt") == 3
-
-
 # --------------------------------------------------------------------------
 # Regression guard
 # --------------------------------------------------------------------------

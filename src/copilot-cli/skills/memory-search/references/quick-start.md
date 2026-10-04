@@ -65,12 +65,12 @@ for episode in get_episodes(outcome="failure"):
 ```bash
 # Basic search with JSON output
 python3 .claude/skills/memory/scripts/search_memory.py \
-    --query "git hooks" \
+    "git hooks" \
     --format json
 
 # Table format for quick review
 python3 .claude/skills/memory/scripts/search_memory.py \
-    --query "session protocol" \
+    "session protocol" \
     --format table
 ```
 

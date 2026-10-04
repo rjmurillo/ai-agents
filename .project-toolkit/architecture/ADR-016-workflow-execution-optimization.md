@@ -11,10 +11,6 @@ implemented: true
 
 # ADR-016: Workflow Execution Optimization Strategy
 
-## Status
-
-Accepted
-
 ## Date
 
 2025-12-22

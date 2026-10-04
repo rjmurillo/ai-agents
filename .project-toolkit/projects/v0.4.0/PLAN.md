@@ -756,7 +756,7 @@ The increase from 15-22 to 30-39 sessions accounts for:
 
 - [ADR-045: Framework Extraction via Plugin Marketplace](../../architecture/ADR-045-framework-extraction-via-plugin-marketplace.md)
 - [Plugin Marketplace Research](../../analysis/claude-code-plugin-marketplaces.md)
-- [v0.3.1 PowerShell Migration](../v0.3.1/PowerShell-migration.md)
+- v0.3.1 PowerShell Migration (plan removed; the script migration completed, and no .ps1 or .psm1 files were tracked at removal)
 - [ADR-045 Debate Log](../../critique/ADR-045-debate-log.md)
 - [ADR-045 Security Review](../../security/ADR-045-framework-extraction-security-review.md)
 - [ADR-045 Feasibility Analysis](../../analysis/adr-045-feasibility-analysis.md)

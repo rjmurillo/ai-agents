@@ -421,17 +421,16 @@ staged-but-uncommitted files. A `git add` that was never committed is invisible
 to `git log`, to `git diff HEAD` without `--cached`, and to a HEAD versus
 `origin/main` comparison, yet it moves the measurement.
 
-Measured: `tests/ci/test_count_ratchet_against_real_git.py` failed on a
-checkout whose HEAD was byte-identical to `origin/main`:
+Measured: the taste count ratchet failed on a checkout whose HEAD was
+byte-identical to `origin/main`:
 
 ```
-taste_count_baseline.txt: baseline is 583 but the tree measures 587:
-4 violation(s) were added. Remove them rather than raising the baseline.
+taste count ratchet: REGRESSION. 587 violations > 583 at the merge base (+4).
 ```
 
 `git status --porcelain | grep -v '^??'` returned 68 staged additions left by
-another agent. After `git restore --staged .`, the same test returned
-`12 passed`. Main was green throughout.
+another agent. After `git restore --staged .`, the same ratchet passed. Main
+was green throughout.
 
 Check the index before believing any whole-tree ratchet failure. Untracked
 (`??`) entries are usually harmless; staged entries are not. Clear them with
@@ -1005,49 +1004,13 @@ answers this in seconds and is the only way to tell the two cases apart:
 
 ```bash
 git worktree add --detach <path> origin/main
-cd <path> && uv run --frozen python scripts/ci/taste_count_ratchet.py
+cd <path> && uv run --frozen python scripts/ci/taste_count_ratchet.py --base-ref HEAD~1
 ```
 
 And the usual "diff my per-file counts against `origin/main`" recipe returns
 nothing when main is the thing that is red, because your branch and main are
-both at the higher number. Diff against the commit that last wrote the baseline
-file instead:
-
-```bash
-git log -1 --format=%h -- scripts/ci/taste_count_baseline.txt
-```
-
-Check out that commit in a detached worktree and diff its violation list
-against HEAD's. The offender is the one net-new entry.
-## Deleting code turns main red on the taste-count baseline
-
-The taste ratchet script passes on `count <= baseline`, so removing a violation
-looks free. A separate test does not:
-`tests/ci/test_count_ratchet_against_real_git.py::test_the_shipped_baseline_matches_the_tracked_tree`
-asserts `count == baseline` exactly, because a baseline above the real count is
-dead allowance that lets violations creep back in unnoticed.
-
-The consequence is counter-intuitive and it has already landed on main twice.
-Anyone who deletes code, or adds a `taste-lint: ignore` directive, lowers the
-count and must lower `scripts/ci/taste_count_baseline.txt` in the same commit.
-Nobody expects a deletion to require a lint-baseline edit, and the pre-push
-ratchet stays green while it happens, so the failure surfaces only in the full
-suite after the merge.
-
-Measured on this repository:
-
-| Commit | Count | Baseline | Exact-match test |
-|---|---|---|---|
-| `a355a9e27^` | 594 | 595 | red |
-| `a355a9e27` (#4428, added an ignore and lowered the baseline) | 593 | 593 | green |
-| `ad61b51c4` (#4101, deleted a recovery path) | 592 | 593 | red |
-
-Check before you push with
-`uv run --frozen python scripts/ci/taste_count_ratchet.py`. It prints
-`OK (count == baseline N)` when the two agree and `OK. N violations <= baseline M`
-when they do not, and only the first form passes the test. Raising a baseline to
-clear a blocked push is still prohibited; this is the opposite direction.
-
+both at the higher number. Diff against the parent of the commit that first
+raised the count instead. The offender is the one net-new entry.
 
 ## Built-in `explore` and `research` subagent types cannot write anything
 
@@ -1081,71 +1044,6 @@ file, run a command, touch session state, or call the GitHub API needs
 deliverable is a change rather than an answer, it is the wrong type.
 
 Refs #4692.
-## A count ratchet script can report OK on a tree its own test rejects
-
-The four commands above answer "did this branch add violations". They do not
-answer "does this tree pass the ratchet's tests", and the two can disagree.
-
-`scripts/ci/taste_count_ratchet.py` passes when `actual <= baseline`. The test
-the same ratchet ships,
-`tests/ci/test_count_ratchet_against_real_git.py::test_the_shipped_baseline_matches_the_tracked_tree`,
-requires `actual == baseline`. Any slack satisfies the script and fails the
-test. Measured on a pristine `origin/main` worktree:
-
-```text
-$ uv run --frozen python scripts/ci/taste_count_ratchet.py --base-ref origin/main
-taste count ratchet: OK. 594 violations <= baseline 595 (-1 slack).
-
-$ uv run --frozen python -m pytest tests/ci/test_count_ratchet_against_real_git.py -q
-AssertionError: baseline is 595 but current tree has 594 violations
-assert 594 == 595
-1 failed, 11 passed
-```
-
-Both statements are about the same tree at the same commit. The script exits 0.
-
-The exact-equality is deliberate. From the test's docstring: "A baseline above
-the real count is dead allowance: violations could be added up to the gap
-without the gate noticing." A ratchet carrying slack is not a ratchet, so the
-number has to be true, not merely not-exceeded.
-
-**Symptom.** `git push` fails on `test_the_shipped_baseline_matches_the_tracked_tree`
-after the ratchet scripts all printed OK. Nothing in your diff is implicated,
-and the failure reproduces on a detached worktree at `origin/main`.
-
-**Why it recurs.** Lowering a violation count and lowering the baseline are two
-edits that usually live in different pull requests. Each is green against its
-own base, and they meet for the first time on main. That is the merge race in
-issue #3755, whose thesis was that
-`strict_required_status_checks_policy: false` let a green check describe a tree
-that no longer existed. That remedy shipped as `true` on 2026-08-04 but has
-since been returned to `false` (measured 2026-08-15). The count ratchets block
-a behind branch only when main lowers a relevant baseline; they do not enforce
-universal freshness.
-
-What remains is the case neither strict nor the ratchets cover. Ruleset
-11104075 still has no `merge_queue` rule and no workflow handles a
-`merge_group` event, so admission is serialized only by the one-front landing
-protocol (see `docs/landing-workflow.md`), not by testing the combined result
-before the merge. The exact-equality assertion above is therefore the gate that
-still catches a baseline and a count arriving out of step, and it fires locally
-on a tree nobody's diff touched.
-
-**Fix.** Set `scripts/ci/taste_count_baseline.txt` to the count your tree
-actually measures, in the same commit that moves the count. Lowering a baseline
-to match a genuine improvement is required. Raising one to absorb a regression
-is forbidden (`.github/instructions/ci-scripts.instructions.md`, MUST NOT 4);
-the sanctioned escape for a file you cannot shrink is a reasoned
-`# taste-lint: ignore <rule>` comment inside the first 10 lines.
-
-**Check the test, not the script**, before any push that touches file sizes:
-
-```bash
-uv run --frozen python -m pytest tests/ci/test_count_ratchet_against_real_git.py -q
-```
-
-Three seconds. Failing on your branch *and* on a pristine `origin/main` worktree
-means main is red and it is not yours to fix.
 ## Merging main clears an inherited red; check that before debugging your diff
 
 A pre-push failure in tests your change never touched is usually a stale base,

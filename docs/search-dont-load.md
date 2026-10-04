@@ -45,7 +45,7 @@ Interactive search across all memory tiers. Good for exploratory queries.
 ### CLI: Python Script
 
 ```bash
-python3 .claude/skills/memory/scripts/search_memory.py --query "pr review patterns"
+python3 .claude/skills/memory/scripts/search_memory.py "pr review patterns"
 ```
 
 Unified search across Serena and the episode store with token budget warnings per ADR-037.

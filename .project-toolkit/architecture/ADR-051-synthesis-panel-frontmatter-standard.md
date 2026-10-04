@@ -11,10 +11,6 @@ implemented: true
 
 # ADR-051: Synthesis Panel Frontmatter Standard
 
-## Status
-
-Accepted
-
 ## Author
 
 Session 2026-03-07-session-01

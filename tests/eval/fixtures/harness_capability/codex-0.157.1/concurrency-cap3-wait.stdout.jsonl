@@ -1,0 +1,12 @@
+{"type":"thread.started","thread_id":"01a101ff-bbff-79b2-866f-f66acafe6119"}
+{"type":"turn.started"}
+{"type":"item.completed","item":{"id":"item_0","type":"agent_message","text":"Starting five sequential spawn attempts with no inherited turns. I will not wait until all five attempts finish."}}
+{"type":"item.completed","item":{"id":"item_1","type":"agent_message","text":"All five attempts are complete. Spawns 1 through 3 succeeded; attempts 4 and 5 hit the agent thread limit. Waiting for the three spawned agents now."}}
+{"type":"item.started","item":{"id":"item_2","type":"collab_tool_call","tool":"wait","sender_thread_id":"01a101ff-bbff-79b2-866f-f66acafe6119","receiver_thread_ids":[],"prompt":null,"agents_states":{},"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_2","type":"collab_tool_call","tool":"wait","sender_thread_id":"01a101ff-bbff-79b2-866f-f66acafe6119","receiver_thread_ids":[],"prompt":null,"agents_states":{},"status":"completed"}}
+{"type":"item.started","item":{"id":"item_3","type":"collab_tool_call","tool":"wait","sender_thread_id":"01a101ff-bbff-79b2-866f-f66acafe6119","receiver_thread_ids":[],"prompt":null,"agents_states":{},"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_3","type":"collab_tool_call","tool":"wait","sender_thread_id":"01a101ff-bbff-79b2-866f-f66acafe6119","receiver_thread_ids":[],"prompt":null,"agents_states":{},"status":"completed"}}
+{"type":"item.started","item":{"id":"item_4","type":"collab_tool_call","tool":"wait","sender_thread_id":"01a101ff-bbff-79b2-866f-f66acafe6119","receiver_thread_ids":[],"prompt":null,"agents_states":{},"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_4","type":"collab_tool_call","tool":"wait","sender_thread_id":"01a101ff-bbff-79b2-866f-f66acafe6119","receiver_thread_ids":[],"prompt":null,"agents_states":{},"status":"completed"}}
+{"type":"item.completed","item":{"id":"item_5","type":"agent_message","text":"1. `{\"task_name\":\"/root/river_1\"}`  \n   Finished. Reply index: `1`\n\n2. `{\"task_name\":\"/root/river_2\"}`  \n   Finished. Reply index: `2`\n\n3. `{\"task_name\":\"/root/river_3\"}`  \n   Finished. Reply index: `3`\n\n4. `collab spawn failed: agent thread limit reached`\n\n5. `collab spawn failed: agent thread limit reached`"}}
+{"type":"turn.completed","usage":{"input_tokens":193656,"cached_input_tokens":174720,"cache_write_input_tokens":0,"output_tokens":673,"reasoning_output_tokens":105}}

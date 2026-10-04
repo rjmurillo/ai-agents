@@ -75,6 +75,7 @@ from typing import Any
 
 from _claude_stream import Invocation, StreamFacts, parse_stream
 from _cli_transport import BASE_ENV_ALLOWLIST, minimal_process_env
+from _durable_codex import codex_argv, codex_env, parse_codex_run
 from _durable_live_record import Session, build_record
 from _outcome_record import OutcomeRecord
 from _routing_grader import GradeResult, Verdict, grade, materialize
@@ -139,14 +140,24 @@ class TaskRun:
     note: str = ""
 
 
+HARNESSES = ("claude", "codex")
+
+
 @dataclass(frozen=True, slots=True)
 class RunSettings:
+    """Run parameters. `max_turns` and `max_budget_usd` bind claude only.
+
+    `cli_version` is the `codex --version` text, recorded for the codex harness.
+    """
+
     model: str
     effort: str
     max_turns: int = DEFAULT_MAX_TURNS
     retry_budget: int = 1
     timeout: float = DEFAULT_TIMEOUT_SECONDS
     max_budget_usd: float = DEFAULT_MAX_BUDGET_USD
+    harness: str = "claude"
+    cli_version: str = ""
 
 
 def control_text(repo_root: Path, control: str) -> str:
@@ -203,19 +214,20 @@ def claude_env() -> dict[str, str]:
     return env
 
 
-def run_claude(
+def run_process(
     argv: Sequence[str],
     workdir: Path,
+    env: Mapping[str, str],
     *,
     runner: Runner = subprocess.run,
     timeout: float = DEFAULT_TIMEOUT_SECONDS,
-) -> tuple[int | None, str, str]:
-    """Launch one process. Returns (exit code or None, stdout, failure detail)."""
+) -> tuple[int | None, str, str, str]:
+    """Launch one process. Returns (exit code or None, stdout, stderr, failure detail)."""
     try:
         done: Any = runner(
             list(argv),
             cwd=workdir,
-            env=claude_env(),
+            env=dict(env),
             capture_output=True,
             text=True,
             encoding="utf-8",
@@ -225,13 +237,27 @@ def run_claude(
             stdin=subprocess.DEVNULL,
         )
     except FileNotFoundError:
-        return None, "", "claude is not on PATH"
+        return None, "", "", f"{argv[0]} is not on PATH"
     except subprocess.TimeoutExpired:
-        return None, "", f"timed out after {timeout}s"
+        return None, "", "", f"timed out after {timeout}s"
     except (OSError, subprocess.SubprocessError) as exc:
-        return None, "", f"process did not complete: {type(exc).__name__}"
+        return None, "", "", f"process did not complete: {type(exc).__name__}"
     code = int(done.returncode)
-    return code, str(done.stdout or ""), "" if code == 0 else f"exit code {code}"
+    detail = "" if code == 0 else f"exit code {code}"
+    return code, str(done.stdout or ""), str(done.stderr or ""), detail
+
+
+def run_claude(
+    argv: Sequence[str],
+    workdir: Path,
+    *,
+    runner: Runner = subprocess.run,
+    timeout: float = DEFAULT_TIMEOUT_SECONDS,
+) -> tuple[int | None, str, str]:
+    """Launch one claude process. Returns (exit code or None, stdout, failure detail)."""
+    env = claude_env()
+    code, stdout, _, detail = run_process(argv, workdir, env, runner=runner, timeout=timeout)
+    return code, stdout, detail
 
 
 def _invoke(
@@ -247,17 +273,36 @@ def _invoke(
     runner: Runner,
 ) -> Invocation:
     budget.spend()
-    argv = claude_argv(settings, control_file, prompt)
     start = time.monotonic()
-    code, stdout, detail = run_claude(argv, workdir, runner=runner, timeout=settings.timeout)
+    if settings.harness == "codex":
+        code, facts, detail = _run_codex(prompt, workdir, control_file, settings, runner)
+    else:
+        argv = claude_argv(settings, control_file, prompt)
+        code, stdout, detail = run_claude(argv, workdir, runner=runner, timeout=settings.timeout)
+        facts = parse_stream(stdout)
     wall = time.monotonic() - start
-    facts = parse_stream(stdout)
     # `claude -p` exits 1 when the agent hits its turn or budget limit and still emits a
     # valid `result` event (observed 2026-09-30). Trust that event; any other nonzero exit,
     # timeout, or missing binary is a harness failure.
     if detail and not facts.limit_hit:
         facts = _with_failure(facts, detail)
     return Invocation(control, scenario.scenario_id, round_index, code, wall, facts)
+
+
+def _run_codex(
+    prompt: str,
+    workdir: Path,
+    control_file: Path,
+    settings: RunSettings,
+    runner: Runner,
+) -> tuple[int | None, StreamFacts, str]:
+    """One `codex exec` run."""
+    text = control_file.read_text(encoding="utf-8")
+    argv = codex_argv(settings.model, settings.effort, text, prompt)
+    code, stdout, stderr, detail = run_process(
+        argv, workdir, codex_env(), runner=runner, timeout=settings.timeout
+    )
+    return code, parse_codex_run(stdout, stderr, settings.cli_version), detail
 
 
 def _with_failure(facts: StreamFacts, detail: str) -> StreamFacts:
@@ -360,6 +405,8 @@ def run_experiment(
     Repeat indices are `first_repeat` to `first_repeat + repeats - 1`, so a
     later chunk or a re-run of one failed cell keeps unique `task_id`/`repeat` pairs.
     """
+    if settings.harness not in HARNESSES:
+        raise LiveRunError(f"unknown harness {settings.harness!r}; expected one of {HARNESSES}")
     records: dict[str, list[OutcomeRecord]] = {name: [] for name in controls}
     invocations: list[Invocation] = []
     failures: list[tuple[str, str, str]] = []
@@ -368,7 +415,7 @@ def run_experiment(
             control_file = Path(name) / f"{control}.md"
             control_file.write_text(text, encoding="utf-8")
             base = {
-                "harness": "claude",
+                "harness": settings.harness,
                 "context_bytes": 0,
                 "retry_budget": settings.retry_budget,
                 "reviewer": "none",

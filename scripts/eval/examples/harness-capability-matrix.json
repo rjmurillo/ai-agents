@@ -1,10 +1,10 @@
 {
   "schema_version": 1,
-  "note": "Live capability state for issue #5423, probed on 2026-09-24 with codex-cli 0.156.0 and GitHub Copilot CLI 1.0.89. scripts/eval/examples/harness-capability-probes.json holds the single-agent override plan; the topology, isolation, and handoff probes are recorded per cell. Every VERIFIED cell cites a trimmed backend capture under tests/eval/fixtures/harness_capability/, and tests/eval/test_harness_capability_live_evidence.py re-derives each VERIFIED cell from that capture. Codex backend model and effort come from websocket response frames logged with RUST_LOG=tungstenite::protocol=trace; codex --json stdout carries neither. GitHub-routed Copilot calls returned HTTP 402 (monthly quota exceeded), so Copilot behavioral cells were probed through the documented BYOK Anthropic provider and GitHub-routed Sol, Luna, and Terra models remain unobserved. VERIFIED is reserved for backend evidence only. Provider/model/pricing authority stays in scripts/eval/_providers.py and scripts/eval/_eval_common.py; supported_models here is the observed-live set, not a registry.",
+  "note": "Live capability state for issue #5423, Codex cells re-probed on 2026-10-03 with codex-cli 0.160.0; Copilot cells are from GitHub Copilot CLI 1.0.89 (probed 2026-09-24) and Copilot is dropped from eval support. The Codex pin tracks the installed CLI: a codex auto-update invalidates it, and every Codex cell must then be re-probed before a run. scripts/eval/examples/harness-capability-probes.json holds the single-agent override plan; the topology, isolation, and handoff probes are recorded per cell. Every VERIFIED cell cites a trimmed backend capture under tests/eval/fixtures/harness_capability/, and tests/eval/test_harness_capability_live_evidence.py re-derives each VERIFIED cell from that capture. Codex backend model and effort come from websocket response frames logged with RUST_LOG=tungstenite::protocol=trace; codex --json stdout carries neither. GitHub-routed Copilot calls returned HTTP 402 (monthly quota exceeded), so Copilot behavioral cells were probed through the documented BYOK Anthropic provider and GitHub-routed Sol, Luna, and Terra models remain unobserved. VERIFIED is reserved for backend evidence only. Provider/model/pricing authority stays in scripts/eval/_providers.py and scripts/eval/_eval_common.py; supported_models here is the observed-live set, not a registry. On 2026-10-03 the owner dropped Copilot from eval support, so no Copilot live probe is owed and its cells stay as last observed. Codex captures on 0.157.1 (tests/eval/fixtures/harness_capability/codex-0.157.1/) are reported in scripts/eval/examples/harness-capability-recorded-captures-0.157.1.json and move no cell, because this matrix pins 0.156.0.",
   "harnesses": [
     {
       "harness": "codex",
-      "version": "codex-cli 0.156.0",
+      "version": "codex-cli 0.160.0",
       "version_evidence": "backend",
       "supported_models": [
         "gpt-5.6-luna",
@@ -34,108 +34,98 @@
       ],
       "failure_retry_behavior": "On a 401 Codex emitted 'Reconnecting... n/5' error events for 5 websocket attempts, fell back to HTTPS, retried 5 more times, then emitted turn.failed and exited 1 (codex-0.156.0/isolated-auth-401.stdout.jsonl). A benchmark must count that as one failed invocation. No cost field and no elapsed-time field appear in --json output; elapsed time is only derivable from trace-line timestamps.",
       "probe_command": "RUST_LOG=tungstenite::protocol=trace codex exec --json --skip-git-repo-check --ephemeral --ignore-user-config --ignore-rules -s read-only -m <model> -c model_reasoning_effort=<effort> <prompt>",
-      "date": "2026-09-24",
+      "date": "2026-10-03",
       "capabilities": {
         "model_override": {
           "status": "VERIFIED",
           "evidence": "backend",
-          "detail": "Parent gpt-5.6-sol spawned children with spawn_agent model=gpt-6-luna, and every child response.created frame reports model gpt-6-luna while the parent frames report gpt-5.6-sol. Top-level -m gpt-5.6-terra also reports gpt-5.6-terra. Evidence: codex-0.156.0/subagent-luna-high.trace.log, codex-0.156.0/terra-high.trace.log.",
+          "detail": "Parent gpt-5.6-sol spawned children with spawn_agent model=gpt-6-luna, and every child response.created frame reports model gpt-6-luna while the parent frames report gpt-5.6-sol. Top-level -m gpt-5.6-terra reports gpt-5.6-terra and -m gpt-5.6-luna reports gpt-5.6-luna. Evidence: codex-0.160.0/subagent-luna-high.trace.log, codex-0.160.0/terra-high.trace.log, codex-0.160.0/luna-high.trace.log.",
           "value": null,
           "probe_command": "RUST_LOG=tungstenite::protocol=trace codex exec --json --skip-git-repo-check --ephemeral --ignore-user-config --ignore-rules -s read-only -m gpt-5.6-sol -c model_reasoning_effort=medium 'Spawn exactly 3 subagents at the same time, in parallel, each using model gpt-6-luna with reasoning effort high. Each subagent must reply with only its index number (1, 2, or 3). Wait for all three, then reply with the three answers joined by commas. Do not run shell commands.'",
-          "date": "2026-09-24"
+          "date": "2026-10-03"
         },
         "effort_override": {
           "status": "VERIFIED",
           "evidence": "backend",
-          "detail": "Children requested reasoning_effort=high against a medium parent, and every child response.created frame reports reasoning.effort high while the parent frames report medium. Top-level -c model_reasoning_effort=low on gpt-6-sol reports low. An ultra request reports max, see sol_ultra. Evidence: codex-0.156.0/subagent-luna-high.trace.log, codex-0.156.0/sol-6-low.trace.log.",
+          "detail": "Children requested reasoning_effort=high against a medium parent, and every child response.created frame reports reasoning.effort high while the parent frames report medium. Top-level -c model_reasoning_effort=low on gpt-6-sol reports low. An ultra request reports max, see sol_ultra. Evidence: codex-0.160.0/subagent-luna-high.trace.log, codex-0.160.0/sol-6-low.trace.log.",
           "value": null,
           "probe_command": "RUST_LOG=tungstenite::protocol=trace codex exec --json --skip-git-repo-check --ephemeral --ignore-user-config --ignore-rules -s read-only -m gpt-6-sol -c model_reasoning_effort=low 'Reply with the single word OK.'",
-          "date": "2026-09-24"
+          "date": "2026-10-03"
         },
         "subagent_support": {
           "status": "VERIFIED",
           "evidence": "backend",
-          "detail": "The parent issued spawn_agent and wait_agent calls, and child responses ran on the requested child model. Evidence: codex-0.156.0/subagent-luna-high.trace.log.",
+          "detail": "The parent issued spawn_agent and wait_agent calls, and child responses ran on the requested child model. Evidence: codex-0.160.0/subagent-luna-high.trace.log.",
           "value": null,
           "probe_command": "RUST_LOG=tungstenite::protocol=trace codex exec --json --skip-git-repo-check --ephemeral --ignore-user-config --ignore-rules -s read-only -m gpt-5.6-sol -c model_reasoning_effort=medium 'Spawn exactly 3 subagents at the same time, in parallel, each using model gpt-6-luna with reasoning effort high. Each subagent must reply with only its index number (1, 2, or 3). Wait for all three, then reply with the three answers joined by commas. Do not run shell commands.'",
-          "date": "2026-09-24"
+          "date": "2026-10-03"
         },
         "concurrency_limit": {
-          "status": "UNVERIFIED",
+          "status": "VERIFIED",
           "evidence": "backend",
-          "detail": "Three concurrent gpt-6-luna children were requested, and at most 2 child responses overlapped (codex-0.156.0/concurrency-3-requested.trace.log). The backend reports parallel_tool_calls=false, so the parent issues one spawn per response. The limit control is -c agents.max_threads=N and it is enforced: with N=1 a second concurrent spawn failed with 'collab spawn failed: agent thread limit reached' (codex-0.156.0/thread-limit-1.trace.log). The root thread is not counted, and N=0 is rejected with 'agents.max_concurrent_threads_per_session must be at least 1'. A limit of 3 was not reached, so it stays UNVERIFIED. Recorded rollouts add a bound from another version: at codex-cli 0.154.0, 3 refused spawns ('collab spawn failed: agent thread limit reached') after 6 child threads had run at once put the limit between 6 and 6 child threads (tests/eval/fixtures/harness_capability/codex-0.154.0-rollouts/, read by scripts/eval/_codex_rollout.py). The capture is not from the pinned 0.156.0, and whether agents.max_threads was set for that session is not recorded, so the cell stays UNVERIFIED.",
-          "value": 2,
-          "probe_command": "RUST_LOG=tungstenite::protocol=trace codex exec --json --skip-git-repo-check --ephemeral --ignore-user-config --ignore-rules -s read-only -m gpt-5.6-sol -c model_reasoning_effort=medium 'Spawn 3 subagents using model gpt-6-luna with reasoning effort high. Spawn all three before waiting on any of them. Subagent N must write a 250-word paragraph about the number N and then reply with only the digit N. After all three finish, reply with their digits joined by commas. Do not run shell commands.' ; limit check: RUST_LOG=tungstenite::protocol=trace codex exec --json --skip-git-repo-check --ephemeral --ignore-user-config --ignore-rules -c agents.max_threads=1 -s read-only -m gpt-5.6-sol -c model_reasoning_effort=low 'Spawn subagent task_name a (fork_turns none, message '\"'\"'Write 300 words about rivers, then reply A'\"'\"'). Immediately, before waiting, spawn subagent task_name b (fork_turns none, message '\"'\"'Reply B'\"'\"'). Then wait for both. Reply with each result or the exact spawn error text for any spawn that failed. Do not run shell commands.'",
-          "date": "2026-09-24"
+          "detail": "With agents.max_threads=3, 3 children ran at once and 2 further spawn(s) were refused. The parent waited, so every child closed its turn. Derived from codex-0.160.0/concurrency-cap3-wait.parent.rollout.jsonl and its 3 child rollouts by eval_recorded_capabilities.py. A parent that does not wait ends its children in turn_aborted and yields no ceiling (codex-0.160.0/concurrency-cap3-nowait.parent.rollout.jsonl), so every benchmark parent must wait. Without a cap, 3 requested luna children never overlapped more than 1 at a time (codex-0.160.0/concurrency-3-requested.trace.log), and with agents.max_threads=1 the second spawn was refused (codex-0.160.0/thread-limit-1.stdout.jsonl).",
+          "value": 3,
+          "probe_command": "RUST_LOG=tungstenite::protocol=trace codex exec --json --skip-git-repo-check --ignore-user-config --ignore-rules -c agents.max_threads=3 -s read-only -m gpt-5.6-sol -c model_reasoning_effort=low 'Spawn 5 subagents one after another with fork_turns none, each told to write 300 words about a river and then reply with its index. Do not wait on any before spawning all 5. Reply with each spawn result or the exact spawn error. Then wait for every spawned child to finish before you reply.' ; then: python3 scripts/eval/eval_recorded_capabilities.py --captures scripts/eval/examples/harness-capability-recorded-captures-0.160.0.json",
+          "date": "2026-10-03"
         },
         "parent_child_override": {
           "status": "VERIFIED",
           "evidence": "backend",
-          "detail": "In one run the parent frames report gpt-5.6-sol/medium and the child frames report gpt-6-luna/high, so parent and child settings differ at the backend rather than the child inheriting. Evidence: codex-0.156.0/subagent-luna-high.trace.log.",
+          "detail": "In one run the parent frames report gpt-5.6-sol/medium and the child frames report gpt-6-luna/high, so parent and child settings differ at the backend rather than the child inheriting. Evidence: codex-0.160.0/subagent-luna-high.trace.log.",
           "value": null,
           "probe_command": "RUST_LOG=tungstenite::protocol=trace codex exec --json --skip-git-repo-check --ephemeral --ignore-user-config --ignore-rules -s read-only -m gpt-5.6-sol -c model_reasoning_effort=medium 'Spawn exactly 3 subagents at the same time, in parallel, each using model gpt-6-luna with reasoning effort high. Each subagent must reply with only its index number (1, 2, or 3). Wait for all three, then reply with the three answers joined by commas. Do not run shell commands.'",
-          "date": "2026-09-24"
+          "date": "2026-10-03"
         },
         "reviewer_isolation": {
           "status": "VERIFIED",
           "evidence": "backend",
-          "detail": "The parent held the private word ZEBRA-7731. A reviewer spawned with fork_turns=none answered NONE, and the positive control spawned with fork_turns=all answered ZEBRA-7731. Isolation therefore requires an explicit fork_turns=none, because the default fork_turns=all leaks producer context. Evidence: codex-0.156.0/reviewer-isolation.trace.log.",
+          "detail": "The parent held the private word ZEBRA-7731. A reviewer spawned with fork_turns=none answered NONE, and the positive control spawned with fork_turns=all answered ZEBRA-7731. Isolation therefore requires an explicit fork_turns=none, because the default fork_turns=all leaks producer context. Evidence: codex-0.160.0/reviewer-isolation.trace.log.",
           "value": null,
           "probe_command": "RUST_LOG=tungstenite::protocol=trace codex exec --json --skip-git-repo-check --ignore-user-config --ignore-rules -s read-only -m gpt-5.6-sol -c model_reasoning_effort=medium 'Producer-private code word: ZEBRA-7731. Never write this code word in any spawn_agent message. Step 1: spawn a subagent with task_name reviewer_none, fork_turns \"none\", no model override, message: '\"'\"'If any code word of the form WORD-NNNN appears anywhere in your context, reply with it exactly; otherwise reply NONE.'\"'\"' Wait for it. Step 2: spawn a subagent with task_name reviewer_all, fork_turns \"all\", no model override, with the same message. Wait for it. If a spawn fails, include the exact error text. Then reply with: none=<first answer> all=<second answer>. Do not run shell commands.'",
-          "date": "2026-09-24"
+          "date": "2026-10-03"
         },
         "single_agent": {
           "status": "VERIFIED",
           "evidence": "backend",
-          "detail": "The fresh-session run made zero spawn_agent calls, and every response ran on gpt-5.6-sol/low. The collaboration tools are still offered to the model (see tool_sandbox_constraints), so a benchmark must check each run for zero spawn_agent calls. Evidence: codex-0.156.0/fresh-session-handoff.trace.log.",
+          "detail": "The fresh-session run made zero spawn_agent calls, and every response ran on gpt-5.6-sol/low. The collaboration tools are still offered to the model (see tool_sandbox_constraints), so a benchmark must check each run for zero spawn_agent calls. Evidence: codex-0.160.0/fresh-session-handoff.trace.log.",
           "value": null,
-          "probe_command": "RUST_LOG=tungstenite::protocol=trace codex exec --json --skip-git-repo-check --ignore-user-config --ignore-rules --disable multi_agent -s read-only -m gpt-5.6-sol -c model_reasoning_effort=low 'Read implementation-plan.md in the current directory. Reply on one line: plan=<the TOKEN value> memory=<any code word of the form MANGO-NNNN you know from earlier conversation, else NONE>.'",
-          "date": "2026-09-24"
+          "probe_command": "RUST_LOG=tungstenite::protocol=trace codex exec --json --skip-git-repo-check --ephemeral --ignore-user-config --ignore-rules --disable multi_agent -s read-only -m gpt-5.6-sol -c model_reasoning_effort=low 'Read implementation-plan.md in the current directory. Reply on one line: plan=<the TOKEN value> memory=<any code word of the form MANGO-NNNN you know from earlier conversation, else NONE>.'",
+          "date": "2026-10-03"
         },
         "fresh_session": {
           "status": "VERIFIED",
           "evidence": "backend",
-          "detail": "A second codex exec in the same workspace started a new thread, its first response has previous_response_id null, and it answered memory=NONE for a word only the first session saw. Evidence: codex-0.156.0/plan-writer.stdout.jsonl, codex-0.156.0/fresh-session-handoff.stdout.jsonl, codex-0.156.0/fresh-session-handoff.trace.log.",
+          "detail": "A second codex exec in the same workspace started a new thread, its first response has previous_response_id null, and it answered memory=NONE for a word only the first session saw. Evidence: codex-0.160.0/plan-writer.stdout.jsonl, codex-0.160.0/fresh-session-handoff.stdout.jsonl, codex-0.160.0/fresh-session-handoff.trace.log.",
           "value": null,
-          "probe_command": "RUST_LOG=tungstenite::protocol=trace codex exec --json --skip-git-repo-check --ignore-user-config --ignore-rules --disable multi_agent -s read-only -m gpt-5.6-sol -c model_reasoning_effort=low 'Read implementation-plan.md in the current directory. Reply on one line: plan=<the TOKEN value> memory=<any code word of the form MANGO-NNNN you know from earlier conversation, else NONE>.'",
-          "date": "2026-09-24"
+          "probe_command": "RUST_LOG=tungstenite::protocol=trace codex exec --json --skip-git-repo-check --ephemeral --ignore-user-config --ignore-rules --disable multi_agent -s read-only -m gpt-5.6-sol -c model_reasoning_effort=low 'Read implementation-plan.md in the current directory. Reply on one line: plan=<the TOKEN value> memory=<any code word of the form MANGO-NNNN you know from earlier conversation, else NONE>.'",
+          "date": "2026-10-03"
         },
         "durable_artifact_handoff": {
           "status": "VERIFIED",
           "evidence": "backend",
-          "detail": "The writer session created implementation-plan.md containing 'TOKEN: PLAN-4417' under -s workspace-write. A separate fresh session read the file and answered plan=PLAN-4417. Evidence: codex-0.156.0/plan-writer.stdout.jsonl, codex-0.156.0/fresh-session-handoff.trace.log.",
+          "detail": "The writer session created implementation-plan.md containing 'TOKEN: PLAN-4417' under -s workspace-write. A separate fresh session read the file and answered plan=PLAN-4417. Evidence: codex-0.160.0/plan-writer.stdout.jsonl, codex-0.160.0/fresh-session-handoff.trace.log.",
           "value": null,
-          "probe_command": "codex exec --json --skip-git-repo-check --ignore-user-config --ignore-rules -s workspace-write -m gpt-5.6-sol -c model_reasoning_effort=low 'Private session code word: MANGO-2208. Do not write it to any file. Create a file named implementation-plan.md in the current directory whose only content is the line: TOKEN: PLAN-4417. Then reply DONE.' ; then: RUST_LOG=tungstenite::protocol=trace codex exec --json --skip-git-repo-check --ignore-user-config --ignore-rules --disable multi_agent -s read-only -m gpt-5.6-sol -c model_reasoning_effort=low 'Read implementation-plan.md in the current directory. Reply on one line: plan=<the TOKEN value> memory=<any code word of the form MANGO-NNNN you know from earlier conversation, else NONE>.'",
-          "date": "2026-09-24"
+          "probe_command": "codex exec --json --skip-git-repo-check --ephemeral --ignore-user-config --ignore-rules -s workspace-write -m gpt-5.6-sol -c model_reasoning_effort=low 'Private session code word: MANGO-2208. Do not write it to any file. Create a file named implementation-plan.md in the current directory whose only content is the line: TOKEN: PLAN-4417. Then reply DONE.' ; then: RUST_LOG=tungstenite::protocol=trace codex exec --json --skip-git-repo-check --ephemeral --ignore-user-config --ignore-rules --disable multi_agent -s read-only -m gpt-5.6-sol -c model_reasoning_effort=low 'Read implementation-plan.md in the current directory. Reply on one line: plan=<the TOKEN value> memory=<any code word of the form MANGO-NNNN you know from earlier conversation, else NONE>.'",
+          "date": "2026-10-03"
         },
         "context_reset_observability": {
-          "status": "UNVERIFIED",
+          "status": "VERIFIED",
           "evidence": "backend",
-          "detail": "0.154.0 recorded 1 compaction(s), 0 failed, 0 truncation(s). Capture is from 0.154.0; the matrix pins 0.156.0, so it is not evidence for that version. Codex writes a top-level 'compacted' rollout record when it compacts (tests/eval/fixtures/harness_capability/codex-0.154.0-rollouts/compaction.rollout.jsonl); no rollout from 0.156.0 holds one.",
+          "detail": "0.160.0 recorded 4 compaction(s), 0 failed, 0 truncation(s). Run with -c model_auto_compact_token_limit=2000; the 'compacted' rollout records were read by eval_recorded_capabilities.py from codex-0.160.0/compaction-limit2000.rollout.jsonl.",
           "value": null,
-          "probe_command": "python3 scripts/eval/eval_recorded_capabilities.py --captures scripts/eval/examples/harness-capability-recorded-captures.json"
+          "probe_command": "RUST_LOG=tungstenite::protocol=trace codex exec --json --skip-git-repo-check --ignore-user-config --ignore-rules -s read-only -m gpt-5.6-sol -c model_reasoning_effort=low -c model_auto_compact_token_limit=2000 'Read every file under the current directory and summarise each in one line.' ; then: python3 scripts/eval/eval_recorded_capabilities.py --captures scripts/eval/examples/harness-capability-recorded-captures-0.160.0.json",
+          "date": "2026-10-03"
         },
         "sol_ultra": {
           "status": "UNVERIFIED",
           "evidence": "backend",
-          "detail": "Not verified as a distinct tier. Control: -c model_reasoning_effort=ultra on gpt-6-sol or gpt-5.6-sol. The codex-cli 0.156.0 backend model catalog lists ultra for gpt-6-sol, gpt-6-astra, gpt-5.6-sol, and gpt-5.6-terra, not for gpt-6-luna or gpt-5.6-luna, and describes it as 'Maximum reasoning with automatic task delegation'. For an ultra request the backend response.created frame reports reasoning.effort max and mode standard, so the effort field the backend reports for ultra is max, and ultra is never aliased to max here. Whether ultra also changes delegation behavior was not observed. Evidence: codex-0.156.0/sol-6-ultra.trace.log, codex-0.156.0/sol-5.6-ultra.trace.log, codex-0.156.0/models-catalog.json.",
+          "detail": "Not verified as a distinct tier. Control: -c model_reasoning_effort=ultra on gpt-6-sol or gpt-5.6-sol. The codex-cli 0.160.0 backend model catalog lists ultra for gpt-6-sol, gpt-6-astra, gpt-6.1-sol, gpt-5.6-sol, and gpt-5.6-terra, not for gpt-6-luna or gpt-5.6-luna, and describes it as 'Maximum reasoning with automatic task delegation'. For an ultra request the backend response.created frame reports reasoning.effort max and mode standard, so the effort field the backend reports for ultra is max, and ultra is never aliased to max here. Whether ultra also changes delegation behavior was not observed. Evidence: codex-0.160.0/sol-6-ultra.trace.log, codex-0.160.0/sol-5.6-ultra.trace.log, codex-0.160.0/models-catalog.json.",
           "value": null,
           "probe_command": "RUST_LOG=tungstenite::protocol=trace codex exec --json --skip-git-repo-check --ephemeral --ignore-user-config --ignore-rules -s read-only -m gpt-6-sol -c model_reasoning_effort=ultra 'Reply with the single word OK.'",
-          "date": "2026-09-24"
+          "date": "2026-10-03"
         }
       },
-      "pending_live_probes": [
-        {
-          "scope": "codex concurrency_limit at 0.156.0",
-          "blocker": "Needs a paid model call on 0.156.0 with agents.max_threads set, in which the parent spawns more children than the cap without waiting. The limit is a per-invocation setting, so a capture verifies only with the configured value stated. The 0.156.0 run peaked at 2 of 3 because the backend reports parallel_tool_calls=false. Rollouts are only written without --ephemeral. The prompt is untested.",
-          "command": "RUST_LOG=tungstenite::protocol=trace codex exec --json --skip-git-repo-check --ignore-user-config --ignore-rules -s read-only -m gpt-5.6-sol -c model_reasoning_effort=low -c agents.max_threads=3 'Spawn 5 subagents one after another with fork_turns none, each told to write 300 words about a river and then reply with its index. Do not wait on any before spawning all 5. Reply with each spawn result or the exact spawn error.' ; then add the parent and child rollouts under CODEX_HOME/sessions to the concurrency_limit entry of scripts/eval/examples/harness-capability-recorded-captures.json with \"configured_max_threads\": 3 and run python3 scripts/eval/eval_recorded_capabilities.py --captures scripts/eval/examples/harness-capability-recorded-captures.json"
-        },
-        {
-          "scope": "codex context_reset_observability at 0.156.0",
-          "blocker": "Needs a paid model call on 0.156.0 that compacts. The codex 0.157.1 binary contains the config key model_auto_compact_token_limit; its effect under codex exec is untested. Rollouts are only written without --ephemeral.",
-          "command": "RUST_LOG=tungstenite::protocol=trace codex exec --json --skip-git-repo-check --ignore-user-config --ignore-rules -s read-only -m gpt-5.6-sol -c model_reasoning_effort=low -c model_auto_compact_token_limit=2000 'Read every file under the current directory and summarise each in one line.' ; then add the new rollout under CODEX_HOME/sessions to the context_reset_observability entry of scripts/eval/examples/harness-capability-recorded-captures.json and run python3 scripts/eval/eval_recorded_capabilities.py --captures scripts/eval/examples/harness-capability-recorded-captures.json"
-        }
-      ]
+      "pending_live_probes": []
     },
     {
       "harness": "copilot",
@@ -258,18 +248,7 @@
           "date": "2026-09-24"
         }
       },
-      "pending_live_probes": [
-        {
-          "scope": "copilot GitHub-routed model_override, effort_override, subagent_support, and parent_child_override for Sol, Luna, and Terra",
-          "blocker": "HTTP 402 'You have exceeded your monthly quota' on every GitHub-routed model (tests/eval/fixtures/harness_capability/copilot-1.0.89/quota-402.stdout.jsonl). The cells above were observed through the documented BYOK Anthropic provider, so GitHub-routed Sol, Luna, and Terra are unobserved.",
-          "command": "python3 scripts/eval/eval_harness_capability.py --behavioral-probes scripts/eval/examples/harness-capability-probes.json"
-        },
-        {
-          "scope": "copilot context_reset_observability at 1.0.89-1",
-          "blocker": "No 1.0.89-1 session has compacted. Copilot compacts when the context window fills, so the capture needs a long session on 1.0.89-1; its events.jsonl is under ~/.copilot/session-state/<session-id>/.",
-          "command": "add that events.jsonl to the context_reset_observability entry of scripts/eval/examples/harness-capability-recorded-captures.json and run python3 scripts/eval/eval_recorded_capabilities.py --captures scripts/eval/examples/harness-capability-recorded-captures.json"
-        }
-      ]
+      "dropped": true
     }
   ]
 }
