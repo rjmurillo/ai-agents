@@ -64,10 +64,30 @@ def test_version_token_takes_the_last_word_without_the_period(line: str, token: 
 # --- Spawn ceiling -------------------------------------------------------------
 
 
-def test_no_ceiling_is_unverified_with_no_evidence() -> None:
-    cell = offline.classify_spawn_ceiling(None, _record("codex", "codex-cli 0.154.0"))
+@pytest.mark.parametrize("cause", list(rollout.NoCeiling))
+def test_no_ceiling_is_unverified_with_no_evidence(cause: rollout.NoCeiling) -> None:
+    cell = offline.classify_spawn_ceiling(cause, _record("codex", "codex-cli 0.154.0"))
 
     assert (cell.status, cell.evidence) == (Status.UNVERIFIED, Evidence.NONE)
+
+
+def test_only_a_missing_refusal_says_no_spawn_was_refused() -> None:
+    record = _record("codex", "codex-cli 0.154.0")
+    said = {
+        cause: "No rollout capture shows a spawn refused"
+        in offline.classify_spawn_ceiling(cause, record).detail
+        for cause in rollout.NoCeiling
+    }
+
+    assert said == {cause: cause is rollout.NoCeiling.NO_REFUSAL for cause in rollout.NoCeiling}
+
+
+def test_aborted_children_name_the_unpaired_turns_and_the_waiting_parent() -> None:
+    cell = offline.classify_spawn_ceiling(
+        rollout.NoCeiling.UNPAIRED_TURNS, _record("codex", "codex-cli 0.154.0")
+    )
+
+    assert "turn_aborted" in cell.detail and "must wait" in cell.detail
 
 
 def test_a_configured_cap_that_was_reached_and_refused_verifies() -> None:
