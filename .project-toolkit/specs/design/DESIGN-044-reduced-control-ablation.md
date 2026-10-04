@@ -41,7 +41,7 @@ a test.
 |---|---|
 | `scripts/eval/_control_ablation_tasks.py` | Task data model and loader (AC-1). Pure. |
 | `scripts/eval/_control_ablation.py` | Pure core: control resolver, grade-to-record builder. No subprocess. |
-| `scripts/eval/_control_ablation_claude.py` | Claude argv, isolated profile beside the workspace, opt-in login copy, stream-json result. |
+| `scripts/eval/_control_ablation_claude.py` | Claude argv, isolated profile beside the workspace or real HOME under `--real-home`, stream-json result. |
 | `scripts/eval/_control_ablation_grade.py` | Workspace I/O: seed, commit, pin `refs/control-ablation/seed`, run commands, read changed paths against that ref. |
 | `scripts/eval/eval_control_ablation.py` | Thin CLI: argument parsing, budget guard, run loop, report. |
 | `scripts/eval/examples/control-ablation-tasks.json` | The five-task corpus. |
