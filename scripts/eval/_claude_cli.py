@@ -38,6 +38,8 @@ directory has no stored login in it. That is a deliberate trade, the same one
 `eval_runtime_parity.py` already makes. Credential order and its steps live in
 `_cli_credentials`. Only the `existing-login` step skips the relocation and
 the injected token, so user config may load there; the run records that step.
+The `EVAL_RUNTIME_REAL_HOME` opt-in also skips the relocation and reads no
+credential file: it forwards an exported token or uses the CLI's own login.
 
 Working directory is a fresh empty temporary directory, so the repository's
 own `CLAUDE.md` and `AGENTS.md` cannot leak into the cell. Tools and MCP are
@@ -56,6 +58,8 @@ from typing import Any
 
 from _cli_credential_sources import claude_disk_token, claude_login_probe
 from _cli_credentials import (
+    STEP_ENV,
+    STEP_EXISTING_LOGIN,
     CredentialSpec,
     ResolvedCredential,
     resolve_cached,
@@ -113,6 +117,16 @@ CREDENTIAL_SPEC = CredentialSpec(
     missing_message=_MISSING_CREDENTIAL_MESSAGE,
 )
 
+#: Same variable `eval_runtime_parity.py --real-home` sets (issue #5404). Under
+#: it the CLI runs on the operator's own HOME, so it finds its own stored
+#: login and loads `~/.claude` instructions ambiently. Off by default.
+REAL_HOME_ENV = "EVAL_RUNTIME_REAL_HOME"
+
+
+def _real_home_requested() -> bool:
+    return os.environ.get(REAL_HOME_ENV) == "1"
+
+
 #: Every built-in that can touch the filesystem, the network, a shell, or
 #: another agent. A text eval needs none of them, and each one that stays
 #: enabled is tool schema occupying the context the eval is measuring.
@@ -165,25 +179,43 @@ class _ClaudeCLIProvider:
 
         An injected token runs under a relocated, empty config directory. The
         `existing-login` step instead leaves the operator's config directory
-        alone, because that is where the login it relies on lives.
+        alone, because that is where the login it relies on lives. Under the
+        real-HOME opt-in, HOME passes through and no config directory is set.
         """
         overrides: dict[str, str] = {}
         if credential.secret is not None:
-            overrides = {
-                "CLAUDE_CONFIG_DIR": str(config_dir),
-                OAUTH_TOKEN_ENV: credential.secret,
-            }
+            overrides = {OAUTH_TOKEN_ENV: credential.secret}
+        allow = _ENV_ALLOWLIST
+        if _real_home_requested():
+            # The operator's own HOME, no relocated config. The CLI finds its
+            # own login. Nothing is linked, copied, or read here.
+            allow = _ENV_ALLOWLIST | {"HOME"}
+        elif credential.secret is not None:
+            overrides["CLAUDE_CONFIG_DIR"] = str(config_dir)
         elif forwarded := os.environ.get("CLAUDE_CONFIG_DIR"):
             overrides = {"CLAUDE_CONFIG_DIR": forwarded}
         # `_cli_transport` is a flat sibling module, so mypy resolves it to Any
         # under `ignore_missing_imports`. Pin the contract at this boundary
         # rather than letting Any leak into the subprocess call.
         env: dict[str, str] = minimal_process_env(
-            allow=_ENV_ALLOWLIST,
+            allow=allow,
             blocked=_BLOCKED_BILLING_ENV,
             overrides=overrides,
         )
         return env
+
+    @staticmethod
+    def _resolve_credential(executable: str) -> ResolvedCredential:
+        """Walk the shared credential order, or the real-HOME subset.
+
+        Under the real-HOME opt-in no credential file or dotenv FIFO is read:
+        an exported token is forwarded, else the CLI uses its own login.
+        """
+        if not _real_home_requested():
+            return resolve_cached(CREDENTIAL_SPEC, executable=executable)
+        if token := os.environ.get(OAUTH_TOKEN_ENV):
+            return ResolvedCredential(STEP_ENV, token)
+        return ResolvedCredential(STEP_EXISTING_LOGIN)
 
     def _read_answer(self, stdout: str, model: str) -> tuple[str, str | None]:
         """Return answer text and the model the CLI reported answering with.
@@ -279,7 +311,7 @@ class _ClaudeCLIProvider:
         prompt = build_envelope(PROVIDER_LABEL, messages, system)
         self.system_fingerprint = None
         with tempfile.TemporaryDirectory(prefix="eval-claude-cli-") as profile:
-            credential = resolve_cached(CREDENTIAL_SPEC, executable=self._executable)
+            credential = self._resolve_credential(self._executable)
             self.credential_step = credential.step
             env = self._build_env(Path(profile), credential)
             completed = run_cli(

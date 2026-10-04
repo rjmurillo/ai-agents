@@ -66,8 +66,12 @@ class ScriptedLive:
     created: list[str] = []
     script = backend_mod.Script()
 
-    def __init__(self, harness: str) -> None:
+    kwargs: list[dict[str, Any]] = []
+
+    def __init__(self, harness: str, **kwargs: Any) -> None:
         type(self).created.append(harness)
+        type(self).kwargs.append(kwargs)
+        self._budget = kwargs.get("budget")
         self._inner = backend_mod.ScriptedBackend(default=type(self).script)
 
     def __enter__(self) -> ScriptedLive:
@@ -77,6 +81,8 @@ class ScriptedLive:
         return None
 
     def invoke(self, request: Any, scenario: Any) -> Any:
+        if self._budget is not None:
+            self._budget.take()
         return self._inner.invoke(request, scenario)
 
     def grade(self, scenario: Any, round_index: int) -> Any:
@@ -86,6 +92,7 @@ class ScriptedLive:
 @pytest.fixture
 def scripted_live(monkeypatch: pytest.MonkeyPatch) -> type[ScriptedLive]:
     ScriptedLive.created = []
+    ScriptedLive.kwargs = []
     ScriptedLive.script = backend_mod.Script()
     monkeypatch.setattr(cli, "LiveBackend", ScriptedLive)
     return ScriptedLive
@@ -242,6 +249,8 @@ def test_live_without_credentials_fails_closed_before_anything_starts(
     exit_code = cli.main(
         [
             "--live",
+            "--max-invocations",
+            "1000",
             "--output",
             str(output),
             "--matrix",
@@ -270,6 +279,8 @@ def test_live_with_a_credential_for_only_one_harness_still_refuses(
     exit_code = cli.main(
         [
             "--live",
+            "--max-invocations",
+            "1000",
             "--output",
             str(output),
             "--matrix",
@@ -299,7 +310,9 @@ def test_live_with_credentials_but_nothing_plannable_does_not_spend(
     ]
     matrix = write_matrix(tmp_path / "m.json", records)
 
-    exit_code = cli.main(["--live", "--output", str(output), "--matrix", str(matrix)])
+    exit_code = cli.main(
+        ["--live", "--max-invocations", "10", "--output", str(output), "--matrix", str(matrix)]
+    )
 
     assert exit_code == cli.EXIT_NOTHING_PLANNED
     assert scripted_live.created == [] and not output.exists()
@@ -308,6 +321,8 @@ def test_live_with_credentials_but_nothing_plannable_does_not_spend(
 def _live_args(verified: Path, small_config: Path, output: Path) -> list[str]:
     return [
         "--live",
+        "--max-invocations",
+        "1000",
         "--output",
         str(output),
         "--matrix",
