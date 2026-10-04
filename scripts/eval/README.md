@@ -2156,3 +2156,19 @@ overlay that passes the local check and fails the integration check.
 pairs. `eval_durable_repetitions.py --records A.jsonl [--records B.jsonl]` prints
 per-repeat verdict counts, cost per durable accept, and mean, sample standard deviation,
 minimum, and maximum across repeats. It reports spread only and makes no significance claim.
+
+### Real home for Claude runtime parity (issue #5404)
+
+The isolated Claude profile carries no login, and the owner ruled out API keys and OAuth tokens for this run. `--real-home` runs Claude, and the `claude-cli` grader, on the operator's own `HOME` with `CLAUDE_CONFIG_DIR` unset, so the CLI finds its own stored login. The harness creates no link to, copy of, or read of a credential file.
+
+The confound: `~/.claude` instructions, rules, and skills load ambiently in every scenario, under the control and the candidate alike. The report records it as `ambient_home` and the init events in each raw output list what loaded. Results are evidence for Claude Code on this operator's configuration, not for a clean profile.
+
+Use the full model id for `--model` and `--grader-model` (`claude-haiku-4-5`). The alias `haiku` resolves to a dated id, and both the parity comparison and the CLI model-attribution check refuse the mismatch.
+
+```bash
+uv run python scripts/eval/eval_runtime_parity.py \
+  --fixtures tests/evals/completion-terminal-runtime-fixtures.json \
+  --model claude-haiku-4-5 --harnesses claude --real-home \
+  --grader-provider claude-cli --grader-model claude-haiku-4-5 \
+  --workspace-root "$(mktemp -d)" --output report.json
+```
