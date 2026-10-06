@@ -217,14 +217,27 @@ def defined_tests(repo_root: Path) -> frozenset[str]:
     return frozenset(names)
 
 
-def _test_function_names(tree: ast.AST) -> set[str]:
-    """Return names of real `test_*` function definitions, not text in strings."""
-    return {
+def _test_function_names(tree: ast.Module) -> set[str]:
+    """Return the `test_*` names pytest would collect.
+
+    Those are module-level functions and the methods of top-level `Test*`
+    classes. A `def test_...` nested inside a helper is not collected, so it is
+    not evidence.
+    """
+    names = set(_collected_test_names(tree.body))
+    for node in tree.body:
+        if isinstance(node, ast.ClassDef) and node.name.startswith("Test"):
+            names.update(_collected_test_names(node.body))
+    return names
+
+
+def _collected_test_names(body: list[ast.stmt]) -> list[str]:
+    return [
         node.name
-        for node in ast.walk(tree)
+        for node in body
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
         and node.name.startswith("test_")
-    }
+    ]
 
 
 def _names_defined_test(text: str, tests: frozenset[str]) -> bool:

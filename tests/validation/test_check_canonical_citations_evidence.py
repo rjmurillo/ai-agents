@@ -400,3 +400,14 @@ def test_async_and_method_tests_are_defined_tests(repo: Path) -> None:
 def test_test_file_with_syntax_error_is_skipped(repo: Path) -> None:
     (repo / "tests" / "test_broken.py").write_text("def test_x(:\n", encoding="utf-8")
     assert "test_session_conformance" in ccc.defined_tests(repo)
+
+
+def test_nested_and_uncollected_test_defs_are_not_defined_tests(repo: Path) -> None:
+    (repo / "tests" / "test_nested.py").write_text(
+        "def helper():\n    def test_nested_contract():\n        pass\n\n"
+        "class Helper:\n    def test_uncollected_parity(self):\n        pass\n",
+        encoding="utf-8",
+    )
+    found = ccc.defined_tests(repo)
+    assert "test_nested_contract" not in found
+    assert "test_uncollected_parity" not in found
