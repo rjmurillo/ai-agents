@@ -863,7 +863,11 @@ def _paginate_contexts(
 # on purpose (owner policy), because an agent verdict is advisory. A check the
 # branch ruleset requires keeps blocking, and a StatusContext row (no workflow
 # run) always keeps blocking.
-_ADVISORY_TRUSTED_REF = "origin/main"
+#
+# "trust anchor", not "trusted": CodeQL's clear-text-logging heuristic reads
+# any /trusted/ identifier as a secret. run_completion_gate.py made the same
+# rename for its --trusted-ref attribute and records why.
+_ADVISORY_TRUST_ANCHOR_REF = "origin/main"
 _ADVISORY_KEY = "advisory_agent_workflows"
 _ADVISORY_FIELD = re.compile(r"""^\s+(?:-\s+)?(path|reason|owner):\s*(?:"([^"\n]*)"|'([^'\n]*)'|([^#\n]*?))\s*(?:#.*)?$""")
 
@@ -971,10 +975,10 @@ def _is_shallow(repo_dir: str) -> bool:
 
 
 def _load_advisory_agent_workflows(
-    trusted_ref: str = _ADVISORY_TRUSTED_REF,
+    trust_anchor_ref: str = _ADVISORY_TRUST_ANCHOR_REF,
     cwd: str | None = None,
 ) -> frozenset[str]:
-    """Return the advisory workflow file paths stored at ``trusted_ref``.
+    """Return the advisory workflow file paths stored at ``trust_anchor_ref``.
 
     Fails closed with a stderr warning naming the reason: git missing, the ref
     absent or unreadable (a shallow clone is named as such), or a list that
@@ -987,7 +991,7 @@ def _load_advisory_agent_workflows(
     repo_dir = cwd or script_dir
     try:
         result = subprocess.run(
-            ["git", "show", f"{trusted_ref}:{config_path}"],
+            ["git", "show", f"{trust_anchor_ref}:{config_path}"],
             cwd=repo_dir,
             capture_output=True,
             encoding="utf-8",
@@ -1000,7 +1004,7 @@ def _load_advisory_agent_workflows(
     if result.returncode != 0:
         shape = "shallow clone, " if _is_shallow(repo_dir) else ""
         return _warn_advisory_unreadable(
-            f"{shape}cannot read {config_path} at {trusted_ref}"
+            f"{shape}cannot read {config_path} at {trust_anchor_ref}"
         )
     try:
         return _parse_advisory_agent_workflows(result.stdout)

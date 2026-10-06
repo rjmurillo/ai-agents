@@ -270,7 +270,7 @@ def test_uncommitted_edit_is_ignored(clone: Path) -> None:
 
 
 def test_absent_ref_fails_closed_and_warns(clone: Path, capsys: pytest.CaptureFixture[str]) -> None:
-    result = _mod._load_advisory_agent_workflows(trusted_ref="origin/absent", cwd=str(clone))
+    result = _mod._load_advisory_agent_workflows(trust_anchor_ref="origin/absent", cwd=str(clone))
     assert result == frozenset()
     err = capsys.readouterr().err
     assert "WARNING" in err
