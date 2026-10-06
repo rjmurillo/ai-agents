@@ -93,8 +93,7 @@ class TestCheckOne:
         code, message = _m._check_one("ruff", 140, _value(308), _value(126))
         assert code == _m.EXIT_REGRESSION
         assert message.endswith(
-            "140 > effective baseline 126 (+14); base ref records 308, "
-            "merged tree records 126."
+            "140 > effective baseline 126 (+14); base ref records 308, merged tree records 126."
         )
 
 

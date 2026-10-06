@@ -14,3 +14,23 @@ import pytest
 @pytest.fixture(autouse=True)
 def _skip_model_preflight(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("EVAL_SKIP_MODEL_PREFLIGHT", "1")
+
+
+@pytest.fixture(autouse=True)
+def _hermetic_credential_sources(monkeypatch: pytest.MonkeyPatch):
+    """Keep the subscription transports off the operator's real logins.
+
+    The shared credential order reads dotenv files, the CLIs' on-disk logins,
+    and runs `claude auth status`, `codex login status`, and `gh auth token`.
+    A unit test must reach none of that. Each transport's spec is replaced
+    with one that has no disk credential and reports an existing login, which
+    is the state every pre-existing transport test already assumed. A test
+    about credential order replaces the spec again with `set_sources`.
+    """
+    from tests.eval._credential_test_support import install_inert_sources
+
+    install_inert_sources(monkeypatch)
+    yield
+    from tests.eval._credential_test_support import reset_cache
+
+    reset_cache()

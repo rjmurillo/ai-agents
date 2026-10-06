@@ -46,7 +46,7 @@ column shells out to the CLI that holds a seat the operator already pays for.
 | codex | api | `openai` | OpenAI Chat Completions via the `openai` SDK | `OPENAI_API_KEY` | usd | UNVERIFIED |
 | codex | subscription | `codex-cli` | Codex CLI subprocess (`codex exec`) | `CODEX_ACCESS_TOKEN` | requests | UNVERIFIED |
 | copilot | api | `copilot-api` | OpenAI-compatible HTTP endpoint at COPILOT_API_BASE_URL (operator-supplied) | `COPILOT_API_KEY`, `GITHUB_COPILOT_TOKEN` | requests | UNVERIFIED |
-| copilot | subscription | `copilot-cli` | GitHub Copilot CLI subprocess over ACP | none (CLI login) | requests | VERIFIED |
+| copilot | subscription | `copilot-cli` | GitHub Copilot CLI subprocess over ACP | `COPILOT_GITHUB_TOKEN`, `GH_TOKEN`, `GITHUB_TOKEN` | requests | VERIFIED |
 
 Either spelling works:
 
@@ -112,6 +112,49 @@ credential can come from a CLI login on disk that no environment check reads.
   `COPILOT_API_BASE_URL` to an OpenAI-compatible endpoint you are entitled to
   use and `COPILOT_API_HEADERS` to any JSON header object it requires. It
   refuses to run rather than guessing.
+
+### Credential resolution order for subscription cells
+
+`claude-cli`, `codex-cli`, and `copilot-cli` find their credential the same
+way. `scripts/eval/_cli_credentials.py` owns the order; each transport only
+names its variables, its on-disk login, and how to ask its CLI whether it is
+signed in. First hit wins:
+
+1. **Environment, then dotenv.** The matrix's Credential column lists the
+   variables, in the CLI's own precedence. Codex takes `CODEX_ACCESS_TOKEN`.
+   If none is exported, dotenv files are read. `EVAL_DOTENV_FILES` is a list
+   separated by `os.pathsep` (`:` on POSIX, `;` on Windows); `~` and globs
+   expand, and it defaults to the repository-root `.env`. A 1Password environment mount works as an example:
+   `EVAL_DOTENV_FILES="$HOME/.config/1password-env/*.env"`. A named pipe is
+   read with a 5 second timeout, and a timeout reads as not found.
+2. **The CLI's own login on disk.** Claude: `claudeAiOauth.accessToken` in
+   `.credentials.json` under `CLAUDE_CONFIG_DIR` or `~/.claude`, skipped once
+   `expiresAt` has passed. Codex: `$CODEX_HOME/auth.json` (default
+   `~/.codex/auth.json`), copied into a private `CODEX_HOME` for the run, and
+   refused when it carries an `OPENAI_API_KEY`. Copilot: its own login first (step 3
+   below), then `gh auth token` as the last disk source. The GitHub CLI token
+   usually carries wider scopes than Copilot needs, so it is recorded as
+   `disk-gh-fallback`. A missing, corrupt, or expired file falls through.
+3. **The CLI as it stands** (`claude -p`, `codex exec`, `copilot -p`), taken
+   only when `claude auth status` reports a `claude.ai` login,
+   `codex login status` reports a ChatGPT login, or the Copilot config records
+   a logged-in user. No config directory is relocated and no token is
+   injected, so user config may load. Every other isolation flag stays.
+4. **A prompt**, only when stdin is a terminal. Otherwise the run exits with
+   the transport's message naming what to set.
+
+Every step strips the metered variables (`ANTHROPIC_API_KEY`,
+`ANTHROPIC_AUTH_TOKEN`, `OPENAI_API_KEY`, `CODEX_API_KEY`, and the Copilot
+BYOK set), so no path bills a paid key. `report.json` records which steps ran
+as `credential_steps` (`env`, `dotenv`, `disk`, `disk-gh-fallback`, `existing-login`, `prompt`)
+and `REPORT.md` prints a `Credential step` line. `existing-login` reads
+`existing login: user config may load`. A `settings.json` env block in that user config can also set `ANTHROPIC_API_KEY` or a base URL, which moves billing off the subscription. The value is never recorded.
+
+Not read: the Copilot CLI's own credential store (the OS keychain, or a
+plain-text file under `COPILOT_HOME` whose layout is undocumented). Step 3
+covers it, because the CLI reads that store itself. The runtime-parity harness
+(`_runtime_harness.py`) and its isolated profile keep their own environment
+checks.
 
 ### Do not compare across cells
 
@@ -184,6 +227,7 @@ Copilot equivalent.
 | `eval-e2e-delivery.py` | End-to-end delivery eval (plan-rubric proxy). Feeds a vague germ, captures each agent's plan, LLM-judges it against hidden acceptance criteria. Core in `_e2e_delivery_core.py`. | #2859 |
 | `eval-model-sweep.py` | Sweep one agent's fixtures across candidate models; scored KEEP_PIN/DROP_PIN verdict with effect size, plus the lightest sufficient model for routing. Core in `_model_sweep_core.py`. | #2840 |
 | `eval_model_routing.py` | Roll per-model sweep reports for many agents and skills into `evals/model-routing/` routing tables. | #5883, #5889 |
+| `eval_autoplan_routes.py` | Score the autoplan long-tail resolver (`resolve_route.py`) against `tests/evals/autoplan-routes/routes.json`. Offline, no model. Reports per-family accuracy, the orchestrator-fallback rate, and the families it does not execute. | #5389 |
 | `eval_runtime_parity.py` | Run the same fixture through real Claude and Copilot CLIs with isolated agent profiles, resolved-model checks, traces, and deterministic controls. | #4853 |
 | `eval_harness_capability.py` | Run fail-closed live capability probes from a shell-free JSON plan and derive the #5422 arm matrix. | #5423 |
 | `eval_recorded_capabilities.py` | Classify recorded Codex rollouts and Copilot event files offline for `concurrency_limit` and `context_reset_observability`. | #5423 |
@@ -296,29 +340,9 @@ in its `env`; `observe_model`/`observe_effort` then read `response.model` and
 without this variable stays UNVERIFIED with a detail naming it, never a
 silent guess.
 
-### `--codex-auth-file`: opt-in credential for an isolated codex probe
+### Codex login in isolated probes
 
-A ChatGPT-login Codex authenticates only through `$CODEX_HOME/auth.json`;
-`CODEX_ACCESS_TOKEN` is ignored for that login method (probed 2026-09-24,
-codex-cli 0.156.0: a ChatGPT access token in that variable produced a 401
-"Missing bearer" against api.openai.com). The isolated profile a behavioral
-probe runs under therefore has no working codex auth by default. Pass
-`--codex-auth-file PATH` to copy that file into each codex probe's isolated
-`CODEX_HOME` as `auth.json`, mode `0600` inside a profile directory mode
-`0700`, before the probe runs, and deletes the copy once that probe has run,
-whether it succeeded or raised:
-
-```bash
-uv run python scripts/eval/eval_harness_capability.py \
-  --behavioral-probes scripts/eval/examples/harness-capability-probes.json \
-  --codex-auth-file ~/.codex/auth.json \
-  --output artifacts/harness-capability/report.json
-```
-
-The flag is opt-in and ignored for non-codex probes. The file is copied, not
-referenced, so the operator's real `auth.json` is never opened by the probed
-CLI, and its contents are never logged. A path that is not a regular file
-fails closed (exit 2) before any CLI runs.
+Isolated codex probes carry no login, so they cannot make paid calls. The repo never copies or links a credential file. Use the stored login through the real CODEX_HOME in drivers that do not isolate it.
 
 ### Copilot: the client-label finding and BYOK
 
@@ -883,6 +907,27 @@ restore the failing book reference to the always-on rule surface or strengthen t
 skill trigger and scenario coverage. It must include the latest gate report and pass
 this workflow before merge.
 
+## Autoplan Route Eval
+
+`eval_autoplan_routes.py` is part 1 of #5389. It calls the real `resolve_route.py` `main`, not a copy of its lookup, so a change to the resolver or to any skill's `metadata.routing.intents` moves the score.
+
+```bash
+uv run python scripts/eval/eval_autoplan_routes.py                  # local, about 5 seconds, no API key
+uv run python scripts/eval/eval_autoplan_routes.py --output r.json  # also write the JSON report
+```
+
+Exit 0 means every scenario matched. Exit 1 prints a diff per failure: expected kind and route, observed kind and route, and any skill from `routes_absent` that was selected. Exit 2 is an invalid command-line argument, a bad fixture file, a resolver that could not run, or a failure to write the JSON report.
+
+The layers stay separate, as #5389 requires:
+
+| Layer | Where it lives |
+|---|---|
+| Classified, structurally reachable, scenario present | `check_skill_routing_roles.py --report` |
+| Scored route accuracy, deterministic resolver families | this script |
+| Scored route accuracy, model-driven families | not built yet |
+
+Executed families: `explicit-skill`, `long-tail-single-domain`, `multi-domain-handoff`, `negative-noise`, `failure-fallback`. A scenario that expects a specialist fails when the resolver returns the orchestrator or `none`, and the report counts orchestrator handoffs and `none` results as separate rates. A fixture route without a namespace matches that skill in any plugin namespace. A qualified route such as `gstack:dx-review` must match exactly, which pins the namespace in a mixed catalog. Every report lists `high-traffic-direct`, `conditional-adjunct`, `lifecycle`, and `composition-order` as not executed, because a model reads the autoplan table and the parent skills' prose.
+
 ## Skill Overlap Eval
 
 `eval-skill-overlap.py` answers a question `eval-knowledge-integration.py`
@@ -1053,8 +1098,9 @@ python3 scripts/eval/eval_durable_outcome.py --records RUN.jsonl --baseline BASE
 zero-success and all-success task lists, p10/p50/p90 of cost and correction
 time, and the headline. `--baseline` adds a matched `Comparison`: it refuses
 (exit 2) when the two files' RunConfigs differ in any field other than
-`control`, or when they cover different task sets, naming the differing
-field or the missing task ids. Otherwise it returns `BETTER`, `WORSE`, or
+`control` (`context_bytes` may differ only when `control` does), or when they
+cover different task sets, naming
+the differing field or the missing task ids. Otherwise it returns `BETTER`, `WORSE`, or
 `MIXED`. `BETTER` requires the candidate to have at least as many accepted
 durable tasks as the baseline, no higher cost per accepted durable task, and
 no task that drops from one or more durable accepts in the baseline to zero
@@ -1182,6 +1228,106 @@ corpus and detects model and effort mismatch, silent inheritance from the
 parent, a concurrency ceiling breach, broken reviewer isolation, a fresh-context
 or artifact handoff mismatch, and a harness failure kept apart from a task
 failure. Unknown telemetry stays `None` and is never written as zero.
+
+## Reduced-Control Ablation
+
+`eval_control_ablation.py` answers the question the Durable Outcome Report
+needs data for: does a smaller control plane (fewer always-loaded rule and
+memory files) deliver at least as much accepted durable work as the full
+one, on the same code tasks, model, and retry/correction budget (REQ-046,
+DESIGN-044, issue #5768)? It runs a small corpus of code-change tasks under
+two controls, `full` (every file `control_plane_baseline.always_loaded`
+reports for `claude_code`, at their real repository-relative paths) and
+`reduced` (none), grades each run with real commands (never a model judge),
+and writes one `OutcomeRecord` per live run.
+
+`--dry-run` proves the grader itself works before any run costs anything:
+it applies each task's `known_good` and `known_bad` fix in place of a real
+agent turn, grades both with the task's real `acceptance` and `followup`
+commands, and exits 1 if any `known_good` is not `ACCEPTED_DURABLE` or any
+`known_bad` is. No model is called in a dry run, and no records are written
+to `records-<control>.jsonl`: AC-11 scopes that file to live runs, though
+every dry run's record still appears in `report.json`.
+
+```bash
+uv run python scripts/eval/eval_control_ablation.py --dry-run \
+  --workspace-root "$(mktemp -d)" --output-dir /tmp/control-ablation-dry
+
+uv run python scripts/eval/eval_control_ablation.py \
+  --controls full,reduced --repeats 3 --model claude-sonnet-5 \
+  --workspace-root "$(mktemp -d)" --output-dir OUT
+python3 scripts/eval/eval_durable_outcome.py \
+  --records OUT/records-reduced.jsonl --baseline OUT/records-full.jsonl
+```
+
+Flags: `--tasks` (default `scripts/eval/examples/control-ablation-tasks.json`,
+`schema_version: 1`, one task per #5768 case: `ambiguous_requirement`,
+`stale_resume`, `plausible_but_wrong`, `consequential_hold`,
+`hidden_regression`, each exactly once), `--controls` (comma-separated,
+default `full,reduced`), `--repeats` (default 1), `--model` (default
+`claude-sonnet-5`), `--workspace-root` (default a fresh `mktemp -d`;
+refused, live or dry, when it inherits ancestor instruction files a CLI
+would load, reusing `require_isolated_workspace_root`), `--output-dir`
+(default a timestamped directory under `artifacts/control-ablation/`),
+`--max-runs` (default 30; a live run whose `tasks x controls x repeats`
+exceeds this refuses, exit 2, before any model call), `--real-home` (see below), `--timeout` (seconds
+for the Claude CLI call itself; the acceptance and follow-up commands each
+get a separate fixed 120 seconds), and `--dry-run`.
+
+Runs interleave: for each task, for each repeat, for each control, so
+wall-clock drift cannot separate one control's runs from the other's. Each
+run seeds an isolated git repository with the task's `setup_files` and the
+resolved control's files, invokes Claude with `--permission-mode
+acceptEdits` and a Bash allowlist of `python3`, `git`, `ls`, `cat`, writes
+the task's `followup_files` only after the agent exits (changed paths are
+diffed against a ref pinned at seed time, so work the agent commits still
+counts), then runs
+`acceptance` and `followup` for real (`PYTHONDONTWRITEBYTECODE=1`, so
+`python3 -m unittest` leaves no `__pycache__/` behind to confuse the
+changed-path measurement; any that still appear, along with stray `.pyc`
+files, are excluded from `scope_violations` and `produced_artifact`
+either way). A changed path outside the task's `allowed_paths` counts as a
+scope violation, excluding `.parity-profile/`, `.runtime/`, `__pycache__/`,
+and `*.pyc`. Control files are committed at seed, so an agent edit to one
+counts, and so does an agent edit at a follow-up path, because changed paths
+are read before follow-up files are written.
+
+Fields recorded by construction, because the run is unattended and has no
+reviewer: `durable.review_findings` (0, no reviewer), `durable.rework_minutes` (0, no
+human rework), `durable.rollback_events` (0, a single run has no integration step
+to roll back), `economics.tool_cost_usd` and `economics.human_correction_minutes`
+(0, local commands only, no human). None of these are measurements of a
+human in the loop; the report states this so a reader does not mistake a
+zero for evidence.
+
+Exit codes: `0` ok. `1` a dry run's grader failed to discriminate a
+known-good fix from a known-bad one. `2` config: a malformed task file, an
+unknown control name, `tasks x controls x repeats` over `--max-runs`, or an
+unisolated `--workspace-root`. `3` external: the Claude CLI is missing or
+times out, its stream-json output does not parse, its result event carries
+no `total_cost_usd`, or its resolved model differs from the one requested;
+no record is written for that run, and the batch continues with the
+remaining runs.
+
+Claude auth: `runtime_env` points `CLAUDE_CONFIG_DIR` at an isolated profile
+with no login, and passes only `ANTHROPIC_API_KEY` and `CLAUDE_CODE_OAUTH_TOKEN`
+from the operator's environment. This CLI moves `CLAUDE_CONFIG_DIR` to a
+sibling of the workspace, outside the agent's working tree, and the seed
+excludes `.parity-profile/` from the workspace's git. The isolated profile
+carries no login, so a subscription login needs `--real-home`. It sets
+`EVAL_RUNTIME_REAL_HOME=1`: the CLI keeps your HOME and finds its own stored
+login. Nothing is copied, linked, or read. The cost is a confound the report
+records (`real_home` and `confound`): your `~/.claude` instructions, rules, and
+skills load under every control, so `reduced` is not AGENTS-free. Rerun only
+the missing cells with `--only-tasks id1,id2` and `--start-repeat N` into the same
+`--output-dir` (records append) and a fresh `--workspace-root`. A result event
+marked `is_error`, or a nonzero exit, is a harness failure with no record,
+never a rejected task. A batch refuses (exit 2) to append a `(task, repeat)`
+its `--output-dir` already records. The task file is trusted repository data: its `acceptance` and
+`followup` commands run under your environment (minus `GIT_*`), so pass
+`--tasks` only a file you would run as a test. Under `--real-home` the agent
+under test can read your `~/.claude` by absolute path while it runs, so keep
+live workspaces and reports out of the repository.
 
 ## Held-Out-Gated Optimization
 
@@ -2154,3 +2300,19 @@ overlay that passes the local check and fails the integration check.
 pairs. `eval_durable_repetitions.py --records A.jsonl [--records B.jsonl]` prints
 per-repeat verdict counts, cost per durable accept, and mean, sample standard deviation,
 minimum, and maximum across repeats. It reports spread only and makes no significance claim.
+
+### Real home for Claude runtime parity (issue #5404)
+
+The isolated Claude profile carries no login, and the owner ruled out API keys and OAuth tokens for this run. `--real-home` runs Claude, and the `claude-cli` grader, on the operator's own `HOME` with `CLAUDE_CONFIG_DIR` unset, so the CLI finds its own stored login. The harness creates no link to, copy of, or read of a credential file.
+
+The confound: `~/.claude` instructions, rules, and skills load ambiently in every scenario, under the control and the candidate alike. The report records it as `ambient_home` and the init events in each raw output list what loaded. Results are evidence for Claude Code on this operator's configuration, not for a clean profile.
+
+Use the full model id for `--model` and `--grader-model` (`claude-haiku-4-5`). The alias `haiku` resolves to a dated id, and both the parity comparison and the CLI model-attribution check refuse the mismatch.
+
+```bash
+uv run python scripts/eval/eval_runtime_parity.py \
+  --fixtures tests/evals/completion-terminal-runtime-fixtures.json \
+  --model claude-haiku-4-5 --harnesses claude --real-home \
+  --grader-provider claude-cli --grader-model claude-haiku-4-5 \
+  --workspace-root "$(mktemp -d)" --output report.json
+```

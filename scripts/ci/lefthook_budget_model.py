@@ -72,7 +72,6 @@ CONTAINER_UNCLAMPED_JOBS = frozenset(
         "zero-collection-tests",
         "worktree-gc-report",
         "python-lint-advisory",
-        "infrastructure-advisory",
     }
 )
 

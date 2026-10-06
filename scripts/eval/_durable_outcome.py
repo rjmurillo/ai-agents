@@ -333,8 +333,19 @@ def build_report(records: Sequence[OutcomeRecord]) -> dict[str, object]:
 
 
 def _require_configs_match_except_control(baseline: RunConfig, candidate: RunConfig) -> None:
+    """Refuse a comparison whose configs differ outside `control`/`context_bytes`.
+
+    `context_bytes` is exempt only when `control` also differs (REQ-046 AC-10,
+    DESIGN-044 "Comparison change"): the control determines the bytes loaded,
+    so a reduced control differs in `context_bytes` by construction. Two runs
+    under the same control with different bytes loaded different instructions,
+    so that pair still refuses.
+    """
+    exempt = {"control"}
+    if baseline.control != candidate.control:
+        exempt.add("context_bytes")
     for field in dataclasses.fields(RunConfig):
-        if field.name == "control":
+        if field.name in exempt:
             continue
         base_value = getattr(baseline, field.name)
         candidate_value = getattr(candidate, field.name)
@@ -406,8 +417,9 @@ def compare(
     """Compare a baseline and candidate configuration on the same task set.
 
     REQ-042 AC-7: refuses when the configs differ in any field except
-    `control`, or the task sets differ, naming the differing field or the
-    missing task ids. AC-8: `BETTER` requires at least as many accepted
+    `control` and `context_bytes`, or the task sets differ, naming the
+    differing field or the missing task ids. AC-8: `BETTER` requires at least
+    as many accepted
     durable tasks, no higher cost per accepted durable task, and no task that
     drops from one or more durable accepts to zero; `WORSE` is the mirror;
     anything else is `MIXED`. Either side `UNVERIFIED` makes the comparison

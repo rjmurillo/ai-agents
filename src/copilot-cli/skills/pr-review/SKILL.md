@@ -7,6 +7,10 @@ allowed-tools: Bash(git:*), Bash(gh:*), Bash(python3:*), Bash(pwsh:*), Task, Ski
 argument-hint: '<PR_NUMBERS> [--parallel --cleanup --dry-run]'
 user-invocable: true
 metadata:
+  capability:
+    kind: orchestrator
+    depends-on: [review-conversation]
+    status: active
   routing:
     role: conditional-adjunct
     invoker: pr-autofix
@@ -148,6 +152,10 @@ Push any changes per worktree. Clean up worktrees if `--cleanup`. Check `worktre
 ### Step 6: Generate Summary
 
 Report per-PR status using `output_constraints.summary_format` from config. Required columns: `output_constraints.summary_required_columns`. The only currently supported value of `summary_format` is `table`, so render a markdown table with one row per PR. If a future config introduces another value, update both this step and the allowed values in `output_constraints.summary_format` together.
+
+## Reply Conduct
+
+Wording, pushback, deferral, and escalation of review comments follow the review-conversation protocol (capability `review-conversation`), loaded from `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/pr-comment-responder/references/review-conversation.md`.
 
 ## Thread Resolution
 

@@ -10,7 +10,7 @@ prints an error the author correctly learns to ignore. That is the same training
 signal that teaches people to ignore the naming and complexity rules riding in
 the same output.
 
-Existing debt is recorded in ``taste_count_baseline.txt``, measured with the
+Existing debt is the count at the merge base (issue #5363), measured with the
 linter itself rather than a reimplementation of it. This freezes the ceiling
 and blocks growth, the same shape ``ruff_count_ratchet.py`` uses for lint debt.
 Every currently-failing file keeps passing on day one and no contributor's
@@ -29,9 +29,9 @@ Stdlib only: this runs by path in CI and must not depend on the project's
 import graph.
 
 Exit codes (AGENTS.md contract):
-    0 - ok (count <= baseline, or --update records a decrease)
-    1 - regression (count > baseline, or baseline raised vs --base-ref)
-    2 - config error (baseline missing or malformed, bad args)
+    0 - ok (count <= count at the merge base, or bootstrap)
+    1 - regression (count > count at the merge base)
+    2 - config error (no --base-ref, bad args)
     3 - external error (the linter could not run)
 """
 
@@ -45,14 +45,16 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from scripts.ci.count_ratchet import (
+from scripts.ci.base_derived_ratchet import (
     EXIT_CONFIG,
     EXIT_EXTERNAL,
     EXIT_OK,
     EXIT_REGRESSION,
     build_parser,
-    chunk,
     run,
+)
+from scripts.ci.count_ratchet import (
+    chunk,
     tracked_files,
 )
 
@@ -61,21 +63,12 @@ __all__ = [
     "EXIT_EXTERNAL",
     "EXIT_OK",
     "EXIT_REGRESSION",
-    "MERGE_TREE_BACKED",
     "current_count",
     "main",
 ]
 
-_BASELINE_PATH = Path(__file__).with_name("taste_count_baseline.txt")
+_SCRIPT = "scripts/ci/taste_count_ratchet.py"
 
-MERGE_TREE_BACKED = True
-"""This baseline is registered in ``merge_tree_ratchet_registry.py::RATCHETS``.
-
-Registration is what lets ``count_ratchet.run`` pass a branch that merely holds
-a number ``main`` lowered underneath it: the merged result is measured by
-``scripts/ci/merge_tree_ratchet_check.py`` instead. Pinned against the registry
-by ``tests/ci/test_merge_tree_backing_declarations.py``.
-"""
 
 _LINTER = Path(".claude/skills/taste-lints/scripts/taste_lints.py")
 
@@ -89,8 +82,7 @@ def current_count(repo_root: Path) -> int | None:
     """Total tracked-file error-severity violations, or None if the scan failed.
 
     Returning None rather than 0 on any failure is load-bearing. A zero from a
-    crashed linter would look like a clean tree, and ``--update`` would write
-    that zero into the baseline and permanently disarm the gate.
+    crashed linter would look like a clean tree and disarm the gate.
 
     "Any failure" includes a report that parsed as JSON but is not a mapping.
     ``format_json`` in ``.claude/skills/taste-lints/scripts/taste_lints.py``
@@ -291,9 +283,7 @@ def list_violations(
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = build_parser(
-        "Whole-repo taste-lint error-count ratchet (issue #3779).", _BASELINE_PATH
-    )
+    parser = build_parser("Whole-repo taste-lint error-count ratchet (issue #3779).")
     args = parser.parse_args(sys.argv[1:] if argv is None else argv)
     return run(
         args,
@@ -306,7 +296,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             "of the file explaining why the rule does not apply (issue #3779)."
         ),
         lister=list_violations,
-        merge_tree_backed=MERGE_TREE_BACKED,
+        introduced_by=_SCRIPT,
     )
 
 

@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "harnesses": [
-    {"harness": "codex", "version": "codex-cli 0.156.0"},
+    {"harness": "codex", "version": "codex-cli 0.160.0"},
     {"harness": "copilot", "version": "GitHub Copilot CLI 1.0.89-1."}
   ],
   "strategies": [

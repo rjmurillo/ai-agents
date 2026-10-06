@@ -1,0 +1,22 @@
+{
+  "current_status": "VERIFIED",
+  "reduced_status": "VERIFIED",
+  "comparison": "WORSE",
+  "harness_scope": "codex only, not cross-harness",
+  "harness": "codex",
+  "commit": "75c32c4f92245dfdfe07b34b30e688d296a1e2d8",
+  "requested_model": "gpt-5.6-luna",
+  "requested_effort": "low",
+  "effort_verified": true,
+  "effort_observed": [
+    "low"
+  ],
+  "first_repeat": 0,
+  "repeats": 1,
+  "launches": 24,
+  "harness_failures": [],
+  "control_bytes": {
+    "current": 40854,
+    "reduced": 2076
+  }
+}

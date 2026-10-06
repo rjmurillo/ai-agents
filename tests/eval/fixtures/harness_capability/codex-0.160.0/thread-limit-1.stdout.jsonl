@@ -1,0 +1,6 @@
+{"type":"thread.started","thread_id":"01a104bc-0828-7b90-b6bf-28623b8dc3bb"}
+{"type":"turn.started"}
+{"type":"item.started","item":{"id":"item_0","type":"collab_tool_call","tool":"wait","sender_thread_id":"01a104bc-0828-7b90-b6bf-28623b8dc3bb","receiver_thread_ids":[],"prompt":null,"agents_states":{},"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_0","type":"collab_tool_call","tool":"wait","sender_thread_id":"01a104bc-0828-7b90-b6bf-28623b8dc3bb","receiver_thread_ids":[],"prompt":null,"agents_states":{},"status":"completed"}}
+{"type":"item.completed","item":{"id":"item_1","type":"agent_message","text":"a: A\n\nb: `collab spawn failed: agent thread limit reached`"}}
+{"type":"turn.completed","usage":{"input_tokens":82662,"cached_input_tokens":72576,"cache_write_input_tokens":0,"output_tokens":174,"reasoning_output_tokens":57}}

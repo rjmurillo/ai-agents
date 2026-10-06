@@ -13,6 +13,7 @@ license: MIT
 metadata:
   capability:
     kind: orchestrator
+    owns: [review-conversation]
     depends-on:
       - untrusted-content-handling
     status: active
@@ -265,6 +266,9 @@ See [references/templates.md](references/templates.md) for:
 - Resolution replies
 
 ### Bot Handling
+
+Conduct, pushback, deferral, and escalation rules for every reply live in
+[references/review-conversation.md](references/review-conversation.md).
 
 See [references/bots.md](references/bots.md) for:
 

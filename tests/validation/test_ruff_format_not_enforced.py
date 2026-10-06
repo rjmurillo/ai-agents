@@ -49,6 +49,30 @@ _ENFORCEMENT_GLOBS = (
 _SHELL_INVOCATION = re.compile(r"\bruff\s+format\b")
 _LIST_INVOCATION = re.compile(r"""(['"])ruff\1\s*,\s*(['"])format\2""")
 
+# The summary line `ruff format --check` prints, e.g. "1637 files would be
+# reformatted, 1472 files already formatted". ruff 0.16 replaced the per-file
+# "Would reformat: <path>" lines with diagnostic blocks, so counting those lines
+# read 0 on a tree with 1808 unformatted files. The summary line is the same on
+# 0.15 and 0.16, so count from it instead.
+_WOULD_REFORMAT_SUMMARY = re.compile(r"^(\d+) files? would be reformatted\b", re.MULTILINE)
+
+
+def _would_reformat_count(returncode: int, stdout: str) -> int:
+    """Return how many files ``ruff format --check`` would reformat.
+
+    Exit 0 means every file is formatted. Exit 1 must carry the summary line;
+    an unreadable summary fails instead of reading as 0, because 0 is the one
+    value that would wrongly declare the tree conforming.
+    """
+    if returncode == 0:
+        return 0
+    match = _WOULD_REFORMAT_SUMMARY.search(stdout)
+    assert match, (
+        f"`ruff format --check` exited {returncode} without a "
+        f"'N files would be reformatted' summary; output tail: {stdout[-500:]!r}"
+    )
+    return int(match.group(1))
+
 
 def _strip_comment_lines(text: str) -> str:
     """Drop whole-line comments, the only place these files discuss tooling.
@@ -119,6 +143,38 @@ def test_scanner_ignores_ruff_check() -> None:
     assert _invocations(surface) == []
 
 
+def test_count_reads_the_ruff_0_15_summary() -> None:
+    stdout = (
+        "Would reformat: a.py\nWould reformat: b.py\n"
+        "1637 files would be reformatted, 1472 files already formatted\n"
+    )
+
+    assert _would_reformat_count(1, stdout) == 1637
+
+
+def test_count_reads_the_ruff_0_16_summary() -> None:
+    stdout = (
+        "unformatted: File would be reformatted\n"
+        "    --> a.py:1:1\n"
+        "1808 files would be reformatted, 6387 files already formatted\n"
+    )
+
+    assert _would_reformat_count(1, stdout) == 1808
+
+
+def test_count_reads_the_singular_summary() -> None:
+    assert _would_reformat_count(1, "1 file would be reformatted, 9 files already formatted\n") == 1
+
+
+def test_count_is_zero_when_ruff_exits_clean() -> None:
+    assert _would_reformat_count(0, "42 files already formatted\n") == 0
+
+
+def test_count_fails_when_the_summary_is_missing() -> None:
+    with pytest.raises(AssertionError, match="without a 'N files would be reformatted' summary"):
+        _would_reformat_count(2, "error: Failed to parse pyproject.toml\n")
+
+
 def test_tree_is_still_materially_non_conforming_to_ruff_format() -> None:
     """The rule's second premise: the formatter disagrees with most of main.
 
@@ -138,9 +194,7 @@ def test_tree_is_still_materially_non_conforming_to_ruff_format() -> None:
         cwd=REPO_ROOT,
         check=False,
     )
-    would_reformat = sum(
-        1 for line in result.stdout.splitlines() if line.startswith("Would reformat:")
-    )
+    would_reformat = _would_reformat_count(result.returncode, result.stdout)
 
     assert would_reformat > 100, (
         "the tree now nearly conforms to `ruff format` "

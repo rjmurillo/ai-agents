@@ -16,6 +16,7 @@ if str(EVAL_DIR) not in sys.path:
     sys.path.insert(0, str(EVAL_DIR))
 
 import _claude_stream as stream_mod  # noqa: E402
+import _durable_codex as codex_mod  # noqa: E402
 import _durable_live as live_mod  # noqa: E402
 import _durable_live_record as record_mod  # noqa: E402
 import _routing_grader as grader_mod  # noqa: E402
@@ -38,6 +39,7 @@ __all__ = [
     "GOOD_TASK",
     "PLAUSIBLE_TASK",
     "cli",
+    "codex_mod",
     "fake_runner",
     "grader_mod",
     "live_mod",

@@ -2479,6 +2479,7 @@ class TestReportWriter:
         assert payload["schemaVersion"] == REPORT_SCHEMA_VERSION
         assert payload["recommendation"] is None  # T4-7 fills in
         assert payload["system_fingerprints"] == []
+        assert payload["credential_steps"] == []
 
     def test_report_json_includes_system_fingerprints(self, tmp_path):
         writer = ReportWriter(tmp_path / "reports")
@@ -2615,6 +2616,48 @@ class TestRunnerEndToEndReport:
         report_json = next(reports_root.iterdir()) / "report.json"
         payload = json.loads(report_json.read_text(encoding="utf-8"))
         assert payload["system_fingerprints"] == ["fp-3475"]
+
+    def test_e2e_records_the_credential_step_never_the_value(self, tmp_path, monkeypatch):
+        self._setup(tmp_path, monkeypatch)
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-e2e")
+        fixtures_dir = tmp_path / "fixtures"
+        fixtures_dir.mkdir()
+        _write_fixture(fixtures_dir, "F001.json", _valid_fixture_payload())
+        credentials = sys.modules["_cli_credentials"]
+        credentials.reset_credential_cache()
+        secret = "tok-" + "Z" * 12
+        credentials._RESOLVED["claude-cli"] = credentials.ResolvedCredential(
+            credentials.STEP_EXISTING_LOGIN, secret
+        )
+        adapter = _StubAdapter(
+            [
+                APICallResult(
+                    outcome="success",
+                    raw_response="IDENTIFY: clean",
+                    tokens_in=100,
+                    tokens_out=50,
+                    latency_ms=10.0,
+                    error_category=None,
+                    attempts=1,
+                )
+                for _ in range(6)
+            ]
+        )
+        monkeypatch.setattr(cli_mod, "AnthropicAPIAdapter", lambda **_: adapter)
+
+        rc = cli_main(
+            ["--agent", "security", "--fixtures", str(fixtures_dir), "--n-runs", "3"]
+        )
+
+        credentials.reset_credential_cache()
+        assert rc == 0
+        reports_root = tmp_path / "evals" / "security-spike" / "reports"
+        run_dir = next(reports_root.iterdir())
+        payload = json.loads((run_dir / "report.json").read_text(encoding="utf-8"))
+        markdown = (run_dir / "REPORT.md").read_text(encoding="utf-8")
+        assert payload["credential_steps"] == ["existing-login"]
+        assert "existing login: user config may load" in markdown
+        assert secret not in json.dumps(payload) + markdown
 
     def test_e2e_persists_seed_to_records_and_report(self, tmp_path, monkeypatch):
         self._setup(tmp_path, monkeypatch)

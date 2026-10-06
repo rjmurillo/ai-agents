@@ -51,7 +51,6 @@ python:
   - '.claude/rules/**'
   - '.github/instructions/**'
   - 'src/copilot-cli/instructions/**'
-  - 'scripts/ci/ruff_count_baseline.txt'
   - 'scripts/ci/subprocess_encoding_count_baseline.txt'
   - '**/pyproject.toml'
   - '**/ruff.toml'

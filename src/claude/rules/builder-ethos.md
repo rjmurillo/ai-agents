@@ -151,6 +151,12 @@ The events that reopen a terminal task, and the ones that cannot, are enumerated
 
 ---
 
+## 5. Reasoning Discipline
+
+One path: switch only on a named blocker. Reopen a checked conclusion only on concrete new evidence (a failing test), not doubt. On contradicting evidence, revise and say what changed. Fix errors that change code or decisions; trivial slips silently.
+
+---
+
 ## How They Work Together
 
 Boil the Lake says: **do the complete thing.**

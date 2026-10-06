@@ -150,10 +150,10 @@ _CELLS: tuple[MatrixCell, ...] = (
         aliases=("claude-cli", "claude-subscription", "claude-code"),
         transport="Claude Code CLI subprocess (`claude --print`)",
         env_vars_read=("CLAUDE_CODE_OAUTH_TOKEN",),
-        # Required, not optional: this transport relocates CLAUDE_CONFIG_DIR
-        # to an isolated profile, and a relocated profile carries no stored
-        # login for the CLI to fall back on.
-        env_var_required=True,
+        # Optional: `_cli_credentials` falls back to the token Claude Code
+        # stored on disk, then to the CLI's own login, so the variable is
+        # only the first step of the order.
+        env_var_required=False,
         cost_basis=COST_BASIS_REQUESTS,
         status=STATUS_UNVERIFIED,
         note=(
@@ -246,12 +246,14 @@ _CELLS: tuple[MatrixCell, ...] = (
         provider="copilot-cli",
         aliases=("copilot-cli", "copilot", "copilot-subscription"),
         transport="GitHub Copilot CLI subprocess over ACP",
-        env_vars_read=(),
+        env_vars_read=("COPILOT_GITHUB_TOKEN", "GH_TOKEN", "GITHUB_TOKEN"),
         env_var_required=False,
         cost_basis=COST_BASIS_REQUESTS,
         status=STATUS_VERIFIED,
         note=(
-            "Reuses the operator's Copilot CLI login and needs no key. Live "
+            "Resolves a credential in the order `_cli_credentials` defines, "
+            "ending at the operator's own Copilot CLI login, so no variable "
+            "is required. Live "
             "runs through it are recorded in scripts/eval/README.md and in "
             "the rule-audit instrument, including the 2026-07-29 token "
             "measurement behind --no-custom-instructions."
