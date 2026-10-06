@@ -890,7 +890,7 @@ def _apply_advisory_line(line: str, entries: list[dict[str, str]]) -> None:
     """Fold one indented line of the block into ``entries``, or raise."""
     match = _ADVISORY_FIELD.match(line)
     if not match:
-        raise ValueError(f"unrecognized line in {_ADVISORY_KEY}: {line.strip()[:60]!r}")
+        raise ValueError(f"unrecognized line in {_ADVISORY_KEY}")
     field = match.group(1)
     value = next(g for g in match.groups()[1:] if g is not None).strip()
     if line.lstrip().startswith("- "):
