@@ -10,8 +10,9 @@ with the lookup in ``set_issue_milestone.py``, so a misspelled milestone exits
 automation repairs the milestone with set_issue_milestone.py instead of
 re-creating the issue.
 
-new_issue.py loads this module by path after it puts the plugin ``lib``
-directory on ``sys.path``, so ``github_core`` resolves here.
+``set_issue_milestone.py`` puts the plugin ``lib`` directory on ``sys.path``
+when it loads, so this module reuses its ``write_skill_error`` rather than
+repeating that bootstrap.
 """
 
 from __future__ import annotations
@@ -20,8 +21,6 @@ import importlib.util
 import os
 import subprocess
 import sys
-
-from github_core.output import write_skill_error
 
 
 def _load_lookup():
@@ -41,6 +40,7 @@ def _load_lookup():
 
 
 _lookup = _load_lookup()
+write_skill_error = _lookup.write_skill_error
 
 
 def _error(message: str, code: int, error_type: str, fmt: str, extra: dict[str, object]) -> int:
