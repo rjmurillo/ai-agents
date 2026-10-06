@@ -184,7 +184,7 @@ def _top_level_names(body: list[ast.stmt]) -> set[str]:
     return names
 
 
-def _assigned_names(stmt: ast.stmt) -> set[str]:
+def _assigned_names(stmt: ast.Assign | ast.AnnAssign | ast.AugAssign) -> set[str]:
     targets = stmt.targets if isinstance(stmt, ast.Assign) else [stmt.target]
     return {
         node.id for target in targets for node in ast.walk(target) if isinstance(node, ast.Name)
