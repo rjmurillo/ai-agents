@@ -50,7 +50,7 @@ Land all of this in **the same commit** that introduces the claim. The imagined-
 
 When you review a PR that touches these paths and the diff includes the words **matches**, **mirrors**, **aligned with**, or similar:
 
-- Open the cited canonical source. Confirm the evidence holds: the import resolves, the conformance test fails when A changes, the generator output matches. If a copy exists, check it character for character and ask whether ranks 1 to 3 could replace it. Whitespace and boundary-token differences are not minor.
+- Open the cited canonical source. Confirm the evidence holds: the import resolves, the conformance test fails when A changes, the generator output matches. If a copy exists, check it character for character and ask whether ranks 1 to 4 could replace it. Whitespace and boundary-token differences are not minor.
 - Confirm the divergence section names every behavioral difference, not just the most obvious one.
 - If the cited source is itself absent or wrong, treat the PR as blocked until the citation is fixed. A wrong citation is worse than no citation; it weaponizes the next reader's trust.
 

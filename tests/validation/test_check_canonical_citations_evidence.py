@@ -244,7 +244,9 @@ def test_third_party_import_is_not_evidence(repo: Path, imports: str) -> None:
 
 
 def test_sibling_module_import_is_evidence(repo: Path) -> None:
-    (repo / "scripts" / "validation" / "schema_rules.py").write_text("X = 1\n", encoding="utf-8")
+    (repo / "scripts" / "validation" / "schema_rules.py").write_text(
+        "SCHEMA_RULES = 1\n", encoding="utf-8"
+    )
     body = '"""Mirrors the SCHEMA_RULES contract."""\nfrom schema_rules import SCHEMA_RULES\n'
     assert ccc.scan_file(_write(repo, body), repo) is None
 
@@ -258,8 +260,13 @@ def test_lib_package_import_is_evidence() -> None:
     assert "os" not in owned
 
 
-def test_import_ownership_uses_the_scanned_repo_root(repo: Path) -> None:
+def _make_canonpkg(repo: Path) -> None:
     (repo / "canonpkg").mkdir()
+    (repo / "canonpkg" / "__init__.py").write_text("CANON = 1\n", encoding="utf-8")
+
+
+def test_import_ownership_uses_the_scanned_repo_root(repo: Path) -> None:
+    _make_canonpkg(repo)
     body = '"""Mirrors the CANON contract by importing it."""\nfrom canonpkg import CANON\n'
     path = _write(repo, body)
     assert ccc.scan_file(path, repo) is None
@@ -276,7 +283,7 @@ def test_checkout_only_package_is_not_evidence_in_another_repo(repo: Path) -> No
 
 
 def test_main_judges_imports_against_repo_root(repo: Path) -> None:
-    (repo / "canonpkg").mkdir()
+    _make_canonpkg(repo)
     _write(repo, '"""Mirrors the CANON contract."""\nfrom canonpkg import CANON\n')
     assert ccc.main(["--repo-root", str(repo), "--strict"]) == 0
 
@@ -325,3 +332,71 @@ def test_collect_all_matches_the_two_collectors(repo: Path) -> None:
     assert [v.path for v in violations] == [v.path for v in ccc.collect_violations(repo)]
     assert [f.path for f in findings] == [f.path for f in ccc.collect_copy_findings(repo)]
     assert len(violations) == 1 and len(findings) == 1
+
+
+# --- review hardening: symbols and test definitions must be real -------------
+
+
+def test_import_of_symbol_the_module_does_not_define_is_not_evidence(repo: Path) -> None:
+    (repo / "scripts" / "validation" / "schema_rules.py").write_text("X = 1\n", encoding="utf-8")
+    body = '"""Mirrors the SCHEMA_RULES contract."""\nfrom schema_rules import SCHEMA_RULES\n'
+    path = _write(repo, body)
+    assert ccc.scan_file(path, repo) is not None
+    assert ccc.scan_copied_contract(path, repo) is None
+
+
+@pytest.mark.parametrize(
+    "module_source",
+    [
+        "def SCHEMA_RULES():\n    pass\n",
+        "class SCHEMA_RULES:\n    pass\n",
+        "SCHEMA_RULES: int = 1\n",
+        "a, SCHEMA_RULES = 1, 2\n",
+        "from elsewhere import SCHEMA_RULES\n",
+        "try:\n    SCHEMA_RULES = 1\nexcept ImportError:\n    SCHEMA_RULES = 2\n",
+        "if True:\n    SCHEMA_RULES = 1\n",
+    ],
+)
+def test_import_of_defined_symbol_is_evidence(repo: Path, module_source: str) -> None:
+    (repo / "scripts" / "validation" / "schema_rules.py").write_text(
+        module_source, encoding="utf-8"
+    )
+    body = '"""Mirrors the SCHEMA_RULES contract."""\nfrom schema_rules import SCHEMA_RULES\n'
+    assert ccc.scan_file(_write(repo, body), repo) is None
+
+
+def test_import_of_submodule_of_a_package_is_evidence(repo: Path) -> None:
+    pkg = repo / "scripts" / "validation" / "rulepkg"
+    pkg.mkdir()
+    (pkg / "schema_rules.py").write_text("Y = 1\n", encoding="utf-8")
+    body = '"""Mirrors the schema_rules contract."""\nfrom rulepkg import schema_rules\n'
+    assert ccc.scan_file(_write(repo, body), repo) is None
+
+
+def test_import_from_module_with_syntax_error_is_not_evidence(repo: Path) -> None:
+    (repo / "scripts" / "validation" / "schema_rules.py").write_text("def (\n", encoding="utf-8")
+    body = '"""Mirrors the SCHEMA_RULES contract."""\nfrom schema_rules import SCHEMA_RULES\n'
+    assert ccc.scan_file(_write(repo, body), repo) is not None
+
+
+def test_test_name_inside_a_string_is_not_a_defined_test(repo: Path) -> None:
+    (repo / "tests" / "test_text.py").write_text(
+        'TEXT = "def test_contract_in_a_string(): pass"\n', encoding="utf-8"
+    )
+    assert "test_contract_in_a_string" not in ccc.defined_tests(repo)
+    doc = '"""Mirrors the validator; see test_contract_in_a_string."""\n'
+    assert ccc.scan_file(_write(repo, doc), repo) is not None
+
+
+def test_async_and_method_tests_are_defined_tests(repo: Path) -> None:
+    (repo / "tests" / "test_more.py").write_text(
+        "class TestX:\n    def test_method_contract(self):\n        pass\n\n"
+        "async def test_async_parity():\n    pass\n",
+        encoding="utf-8",
+    )
+    assert {"test_method_contract", "test_async_parity"} <= ccc.defined_tests(repo)
+
+
+def test_test_file_with_syntax_error_is_skipped(repo: Path) -> None:
+    (repo / "tests" / "test_broken.py").write_text("def test_x(:\n", encoding="utf-8")
+    assert "test_session_conformance" in ccc.defined_tests(repo)
