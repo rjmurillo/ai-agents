@@ -105,6 +105,23 @@ class TestAppendRemovalRecord:
         assert record["branch"] is None
         assert record["head"] is None
 
+    def test_fsyncs_the_record_before_returning(self, tmp_path, monkeypatch):
+        """The record reaches disk, not only the OS buffer, before the call returns."""
+        log_path = tmp_path / "audit.jsonl"
+        synced: list[str] = []
+
+        def _fsync(fd: int) -> None:
+            synced.append(log_path.read_text(encoding="utf-8"))
+
+        monkeypatch.setattr("scripts.maintenance._gc_apply.os.fsync", _fsync)
+
+        _gc_apply._append_removal_record(
+            "/repo/wt-a", "feat/a", _STUB_HEAD, "merged to base", log_path=log_path
+        )
+
+        assert len(synced) == 1
+        assert json.loads(synced[0])["path"] == "/repo/wt-a"
+
 
 class TestApplyRemovalsAuditIntegration:
     """``apply_removals`` writes the audit record only for a removal it commits."""
@@ -281,6 +298,20 @@ class TestAuditLogPathFor:
         resolved = _gc_apply.audit_log_path_for(_MAIN)
 
         assert not resolved.is_relative_to(_MAIN)
+
+    def test_suite_fixture_default_log_accepts_a_write(self):
+        """Writes a line to the shared default log; the next test must not see it."""
+        resolved = _gc_apply.audit_log_path_for(_MAIN)
+
+        _gc_apply._append_removal_record(
+            "/repo/leftover", "feat/x", _STUB_HEAD, "merged to base", log_path=resolved
+        )
+
+        assert resolved.exists()
+
+    def test_suite_fixture_starts_each_test_with_no_default_log(self):
+        """The shared default log is cleared before each test, so no state leaks."""
+        assert not _gc_apply.audit_log_path_for(_MAIN).exists()
 
 
 def _one_candidate_report() -> GcReport:

@@ -271,8 +271,13 @@ def _isolate_gc_worktree_audit_log(
     The path sits in the session base temp directory, which pytest creates
     once per session (once per xdist worker), so this fixture adds no
     per-test directory to a suite of tens of thousands of tests.
+
+    The file is shared by every test on a worker, so it is unlinked before each
+    test. Tests on one worker run in series, so each one starts with no log and
+    cannot see lines a previous test wrote.
     """
     log_path = tmp_path_factory.getbasetemp() / "gc-worktree-removals.jsonl"
+    log_path.unlink(missing_ok=True)
     monkeypatch.setattr("scripts.maintenance._gc_apply.audit_log_path_for", lambda _main: log_path)
 
 

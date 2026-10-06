@@ -29,6 +29,7 @@ when" without having captured that run's output.
 from __future__ import annotations
 
 import json
+import os
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -66,6 +67,11 @@ def _append_removal_record(
     session can trust that a line present today stays present tomorrow.
     The parent directory is created if missing so a fresh clone that has
     not yet run GC does not fail the first removal on a missing directory.
+
+    Each line is flushed and fsynced before returning. The removal it records
+    has already happened on disk, so a record left in the OS buffer could be
+    lost to a crash or power cut while the removal survives. Removals are rare,
+    so one fsync per removal costs nothing a reader would notice.
     """
     record = {
         "schemaVersion": 1,
@@ -78,6 +84,8 @@ def _append_removal_record(
     log_path.parent.mkdir(parents=True, exist_ok=True)
     with log_path.open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(record, sort_keys=True) + "\n")
+        handle.flush()
+        os.fsync(handle.fileno())
 
 
 def apply_removals(
