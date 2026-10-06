@@ -1,4 +1,4 @@
-# taste-lint: ignore file-size -- one suite owns the shared git clone fixtures and the full advisory-check matrix.
+# taste-lint: ignore file-size -- one suite owns the shared git fixtures and check matrix.
 """Advisory agent workflows never block a merge (owner policy, D4/D6/D9).
 
 A non-required check is exempt only when its CheckRun belongs to a listed
