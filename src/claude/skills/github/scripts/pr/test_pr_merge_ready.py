@@ -868,14 +868,8 @@ _ADVISORY_KEY = "advisory_agent_workflows"
 _ADVISORY_FIELD = re.compile(r"""^\s+(?:-\s+)?(path|reason|owner):\s*(?:"([^"\n]*)"|'([^'\n]*)'|([^#\n]*?))\s*(?:#.*)?$""")
 
 
-def _parse_advisory_agent_workflows(config_text: str) -> frozenset[str]:
-    """Read `advisory_agent_workflows` entries without a YAML dependency.
-
-    This script runs on the host's bare ``python3`` (see the Python 3.10 note
-    above), where PyYAML is not guaranteed. Each entry is a block mapping with
-    ``path``, ``reason`` and ``owner``. An entry missing any field, a stray
-    line, or an absent key raises ``ValueError``; the caller fails closed.
-    """
+def _collect_advisory_entries(config_text: str) -> list[dict[str, str]]:
+    """Scan the `advisory_agent_workflows` block into raw entry mappings."""
     entries: list[dict[str, str]] = []
     in_list = False
     for line in config_text.splitlines():
@@ -886,20 +880,37 @@ def _parse_advisory_agent_workflows(config_text: str) -> frozenset[str]:
             continue
         if not line.startswith(" "):
             break
-        match = _ADVISORY_FIELD.match(line)
-        if not match:
-            raise ValueError(f"unrecognized line in {_ADVISORY_KEY}: {line.strip()[:60]!r}")
-        field = match.group(1)
-        value = next(g for g in match.groups()[1:] if g is not None).strip()
-        if line.lstrip().startswith("- "):
-            if field != "path":
-                raise ValueError(f"{_ADVISORY_KEY} entry must start with path")
-            entries.append({})
-        if not entries:
-            raise ValueError(f"{_ADVISORY_KEY} field before the first entry")
-        entries[-1][field] = value
+        _apply_advisory_line(line, entries)
     if not in_list:
         raise ValueError(f"no {_ADVISORY_KEY} key")
+    return entries
+
+
+def _apply_advisory_line(line: str, entries: list[dict[str, str]]) -> None:
+    """Fold one indented line of the block into ``entries``, or raise."""
+    match = _ADVISORY_FIELD.match(line)
+    if not match:
+        raise ValueError(f"unrecognized line in {_ADVISORY_KEY}: {line.strip()[:60]!r}")
+    field = match.group(1)
+    value = next(g for g in match.groups()[1:] if g is not None).strip()
+    if line.lstrip().startswith("- "):
+        if field != "path":
+            raise ValueError(f"{_ADVISORY_KEY} entry must start with path")
+        entries.append({})
+    if not entries:
+        raise ValueError(f"{_ADVISORY_KEY} field before the first entry")
+    entries[-1][field] = value
+
+
+def _parse_advisory_agent_workflows(config_text: str) -> frozenset[str]:
+    """Read `advisory_agent_workflows` entries without a YAML dependency.
+
+    This script runs on the host's bare ``python3`` (see the Python 3.10 note
+    above), where PyYAML is not guaranteed. Each entry is a block mapping with
+    ``path``, ``reason`` and ``owner``. An entry missing any field, a stray
+    line, or an absent key raises ``ValueError``; the caller fails closed.
+    """
+    entries = _collect_advisory_entries(config_text)
     for entry in entries:
         if not all(entry.get(k) for k in ("path", "reason", "owner")):
             raise ValueError(f"{_ADVISORY_KEY} entry lacks path, reason, or owner")
