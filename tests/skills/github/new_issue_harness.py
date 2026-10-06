@@ -40,24 +40,33 @@ def _make_proc(returncode: int = 0, stdout: str = "", stderr: str = "") -> Magic
 
 
 class FakeGh:
-    """Route each gh call by its subcommand and record every call."""
+    """Route each gh call by its subcommand and record every call.
+
+    A route holding an exception instance raises it instead of returning, so a
+    test can simulate ``subprocess.TimeoutExpired``.
+    """
 
     def __init__(
         self,
         label_create: MagicMock | None = None,
         issue_create: MagicMock | None = None,
         issue_edit: MagicMock | None = None,
+        extra_routes: "dict[tuple[str, str], MagicMock | BaseException] | None" = None,
     ) -> None:
         self.routes = {
             ("label", "create"): label_create or _make_proc(),
             ("issue", "create"): issue_create or _make_proc(stdout=ISSUE_URL),
             ("issue", "edit"): issue_edit or _make_proc(),
         }
+        self.routes.update(extra_routes or {})
         self.calls: list[list[str]] = []
 
     def __call__(self, args, **_kwargs):
         self.calls.append(list(args))
-        return self.routes[(args[1], args[2])]
+        route = self.routes[(args[1], args[2])]
+        if isinstance(route, BaseException):
+            raise route
+        return route
 
     def find(self, group: str, verb: str) -> list[str]:
         return next(c for c in self.calls if c[1:3] == [group, verb])
