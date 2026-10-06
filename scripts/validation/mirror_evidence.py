@@ -6,16 +6,26 @@ test, generated projection, symbolic path reference, copied prose last.
 `check_canonical_citations.py` uses these helpers to accept the first three
 without a path (a shared import counts only when its module resolves on
 disk), and to report a copied contract that no structure backs.
+
+A conformance test counts only when a named test token resolves to a
+`def test_...` under the repository's `tests/` tree. A token that names no
+defined test is not evidence. Limit: the resolver proves the test exists, not
+that it reads the canonical source or fails when the source changes; a reviewer
+still opens it, per the rule's reviewer checklist.
 """
 
 from __future__ import annotations
 
 import ast
 import re
+from functools import lru_cache
 from pathlib import Path
 
 # A test identifier that names conformance, parity, contract, or equivalence.
 _CONFORMANCE_TEST = re.compile(r"\btest_\w*(?:conform|parity|contract|equival)\w*", re.IGNORECASE)
+
+# A test function definition; the name is what a docstring token must resolve to.
+_TEST_DEF = re.compile(r"^\s*(?:async\s+)?def\s+(test_\w+)", re.MULTILINE)
 
 # The file says it is generated from a source, so it is a projection.
 _GENERATED = re.compile(r"\bgenerated\s+(?:from|by|via)\b", re.IGNORECASE)
@@ -122,9 +132,32 @@ def _exists_under(base: Path, parts: list[str]) -> bool:
     return target.is_dir() or target.with_suffix(".py").is_file()
 
 
-def structural_evidence(text: str, imported: frozenset[str]) -> str | None:
-    """Name the structural evidence the text carries, or None."""
-    if _CONFORMANCE_TEST.search(text):
+@lru_cache(maxsize=8)
+def defined_tests(repo_root: Path) -> frozenset[str]:
+    """Return every `test_*` function name defined under `repo_root/tests`."""
+    names: set[str] = set()
+    tests_dir = repo_root / "tests"
+    if not tests_dir.is_dir():
+        return frozenset()
+    for path in tests_dir.rglob("*.py"):
+        try:
+            names.update(_TEST_DEF.findall(path.read_text(encoding="utf-8")))
+        except (OSError, UnicodeDecodeError):
+            continue
+    return frozenset(names)
+
+
+def _names_defined_test(text: str, tests: frozenset[str]) -> bool:
+    return any(match.group(0) in tests for match in _CONFORMANCE_TEST.finditer(text))
+
+
+def structural_evidence(text: str, imported: frozenset[str], tests: frozenset[str]) -> str | None:
+    """Name the structural evidence the text carries, or None.
+
+    `tests` is the set of test names defined under the repository's tests tree;
+    a conformance token that is not in it is not evidence.
+    """
+    if _names_defined_test(text, tests):
         return "conformance-test"
     if _GENERATED.search(text):
         return "generated"

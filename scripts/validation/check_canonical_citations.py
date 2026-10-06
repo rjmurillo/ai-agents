@@ -17,6 +17,12 @@ a conformance test identifier, a shared import of a project name, or a
 hand-copied contract with none of the structural forms also gets an advisory
 copied-contract finding that recommends eliminating the copy.
 
+Limit: a path reference alone clears a claim. The rule asks rank 4 to be paired
+with rank 2 when the cited contract is mutable, but mutability is not
+machine-decidable from a docstring, so this check accepts ranks 1 to 4 as the
+rule's own text says ("accepts ranks 1 to 4") and leaves the mutable-contract
+pairing to the reviewer checklist.
+
 The check is intentionally a heuristic. It is designed to catch the
 specific failure mode documented in the PR #1887 retrospective
 (`.project-toolkit/retrospective/2026-05-05-pr-1887-iteration-paradox.md`): a
@@ -71,6 +77,7 @@ from scripts.validation.evidence import (  # noqa: E402
 from scripts.validation.mirror_evidence import (  # noqa: E402
     REMEDIATION,
     copied_contract_marker,
+    defined_tests,
     imported_project_names,
     structural_evidence,
 )
@@ -250,7 +257,7 @@ def scan_file(path: Path, repo_root: Path = _PROJECT_ROOT) -> Violation | None:
         return None
 
     if _has_path_reference(text) or structural_evidence(
-        text, imported_project_names(source, repo_root, path.parent)
+        text, imported_project_names(source, repo_root, path.parent), defined_tests(repo_root)
     ):
         return None
 
@@ -274,7 +281,7 @@ def scan_copied_contract(path: Path, repo_root: Path = _PROJECT_ROOT) -> CopyFin
         return None
     marker = copied_contract_marker(text)
     if marker is None or structural_evidence(
-        text, imported_project_names(source, repo_root, path.parent)
+        text, imported_project_names(source, repo_root, path.parent), defined_tests(repo_root)
     ):
         return None
     return CopyFinding(path=path, marker=marker)

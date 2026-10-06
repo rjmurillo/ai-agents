@@ -29,9 +29,19 @@ def _load_module():
 ccc = _load_module()
 
 
+@pytest.fixture(autouse=True)
+def _fresh_test_index() -> None:
+    """The defined-test index is cached per repo root; each test builds its own."""
+    ccc.defined_tests.cache_clear()
+
+
 @pytest.fixture()
 def repo(tmp_path: Path) -> Path:
     (tmp_path / "scripts" / "validation").mkdir(parents=True)
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "tests" / "test_session.py").write_text(
+        "def test_session_conformance():\n    pass\n", encoding="utf-8"
+    )
     (tmp_path / "scripts" / "validate_session_json.py").write_text(
         "CONTRADICTION_PATTERNS = ()\n", encoding="utf-8"
     )
@@ -52,6 +62,28 @@ def test_conformance_test_symbol_without_path_or_copy_is_accepted(repo: Path) ->
     path = _write(repo, doc)
     assert ccc.scan_file(path, repo) is None
     assert ccc.scan_copied_contract(path, repo) is None
+
+
+def test_conformance_token_naming_no_defined_test_is_not_evidence(repo: Path) -> None:
+    doc = '"""Mirrors the session validator; see test_contract_nowhere."""\n'
+    path = _write(repo, doc)
+    violation = ccc.scan_file(path, repo)
+    assert violation is not None
+    assert violation.matched_token == "mirrors the"
+
+
+def test_copy_naming_no_defined_test_is_still_a_finding(repo: Path) -> None:
+    doc = '"""Mirrors the validator. Copied verbatim; test_contract_nowhere guards it."""\n'
+    assert ccc.scan_copied_contract(_write(repo, doc), repo) is not None
+
+
+def test_repo_without_tests_dir_yields_no_defined_tests(tmp_path: Path) -> None:
+    assert ccc.defined_tests(tmp_path) == frozenset()
+
+
+def test_unreadable_test_file_is_skipped(repo: Path) -> None:
+    (repo / "tests" / "test_binary.py").write_bytes(b"\xff\xfe\x00bad")
+    assert "test_session_conformance" in ccc.defined_tests(repo)
 
 
 def test_shared_import_is_accepted_without_path(repo: Path) -> None:

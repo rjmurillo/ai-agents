@@ -12,6 +12,8 @@ import re
 import sys
 from pathlib import Path
 
+import pytest
+
 REPO_ROOT = Path(__file__).resolve().parents[3]
 _VALIDATOR_PATH = (
     REPO_ROOT / ".claude" / "skills" / "spec-generator" / "scripts" / "validate_spec_frontmatter.py"
@@ -35,7 +37,9 @@ validator = _load_validator()
 SCHEMA = REPO_ROOT / ".agents" / "governance" / "spec-schemas.md"
 
 _TYPE_LINE = re.compile(r"^type: (requirement|design|task)\s*$")
-_ENUM_LINE = re.compile(r"^(status|priority|category|complexity): (.+\|.+)$")
+# A YAML template line: values are pipe-separated plain words, no backticks, with
+# an optional trailing YAML comment. Prose and table rows carry backticks.
+_ENUM_LINE = re.compile(r"^(status|priority|category|complexity): ([^`#]+\|[^`#]+?)\s*(?:#.*)?$")
 _ID_ROW = re.compile(r"Pattern: `((?:REQ|DESIGN|TASK)-\\d\{\d+\})`")
 _ID_TYPES = {"REQ": "requirement", "DESIGN": "design", "TASK": "task"}
 
@@ -51,8 +55,10 @@ def schema_enums(text: str) -> dict[str, dict[str, frozenset[str]]]:
             continue
         enum_match = _ENUM_LINE.match(line)
         if enum_match and current is not None:
-            values = frozenset(v.strip() for v in enum_match.group(2).split("|"))
-            current[enum_match.group(1)] = values
+            field = enum_match.group(1)
+            if field in current:
+                raise ValueError(f"schema defines {field} twice for one document type: {line!r}")
+            current[field] = frozenset(v.strip() for v in enum_match.group(2).split("|"))
     return result
 
 
@@ -79,6 +85,24 @@ def validator_enums() -> dict[str, dict[str, frozenset[str]]]:
             "complexity": validator._COMPLEXITY,
         },
     }
+
+
+def test_schema_enums_ignores_prose_and_backticked_rows() -> None:
+    text = (
+        "type: task\nstatus: todo | done\nstatus: `a` | `b`\npriority: use P0 | P1 in prose `x`\n"
+    )
+    assert schema_enums(text) == {"task": {"status": frozenset({"todo", "done"})}}
+
+
+def test_schema_enums_strips_trailing_yaml_comment() -> None:
+    text = "type: design\npriority: P0 | P1 | P2  # urgency\n"
+    assert schema_enums(text) == {"design": {"priority": frozenset({"P0", "P1", "P2"})}}
+
+
+def test_schema_enums_rejects_a_field_defined_twice() -> None:
+    text = "type: task\nstatus: todo | done\nstatus: todo | blocked\n"
+    with pytest.raises(ValueError, match="defines status twice"):
+        schema_enums(text)
 
 
 def test_enums_equal_schema() -> None:
