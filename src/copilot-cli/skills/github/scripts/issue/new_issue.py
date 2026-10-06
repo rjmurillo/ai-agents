@@ -18,18 +18,15 @@ or a body that already carries a ``## Step 0`` block with ``### Q3`` and
 ``source:<value>`` label is created in the target repository when missing and
 passed to ``gh issue create`` itself, so an issue never exists without it.
 ``--source human`` also appends ``<!-- source:human -->`` to the body, the
-assertion the repository labeler honors (epic #5698, AC-3).
-
-Milestone (issue #6033): ``--milestone`` assigns a milestone after creation
-(``new_issue_milestone.py``). A failed assignment keeps the issue and reports
-its number.
+assertion the repository labeler honors (epic #5698, AC-3). ``--milestone``
+(issue #6033) is checked before creation and set after it.
 
 Exit codes follow ADR-035:
     0 - Success
     1 - Logic failure after argument parsing
     2 - Usage/configuration error (invalid CLI args, file not found, missing or
         invalid --source, missing or hedged Step 0 evidence, conflicting
-        source label, milestone not found after creation)
+        source label, milestone not found; no issue is created)
     3 - External error (API failure, milestone query or assignment failure)
     4 - Auth error (not authenticated)
 """
@@ -183,7 +180,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--milestone",
-        help="Milestone title to assign after creation (set_issue_milestone.py lookup).",
+        type=str.strip,
+        help="Milestone title, checked before creation (set_issue_milestone.py lookup).",
     )
     add_output_format_arg(parser)
     return parser
@@ -226,7 +224,7 @@ def _validate_request(args: argparse.Namespace, fmt: str) -> tuple[str, str] | i
     if not args.title or not args.title.strip():
         return _usage_error("Title cannot be empty.", fmt)
 
-    if args.milestone is not None and not args.milestone.strip():
+    if args.milestone is not None and not args.milestone:
         return _usage_error("Milestone cannot be empty.", fmt)
 
     body = _read_body(args, fmt)
@@ -455,6 +453,9 @@ def main(argv: list[str] | None = None) -> int:
     if isinstance(auth_result, int):
         return auth_result
     owner, repo = auth_result
+    error: int | None = _milestone.check_milestone(owner, repo, args.milestone, fmt)
+    if error is not None:
+        return error
 
     source_label = f"source:{args.source}"
     provenance.ensure_source_label(owner, repo, source_label, args.source)
@@ -467,8 +468,7 @@ def main(argv: list[str] | None = None) -> int:
     if label_error is not None:
         return label_error
 
-    error: int | None = _milestone.apply_milestone(
-        owner, repo, issue_number, output_text, args.milestone, fmt)
+    error = _milestone.assign_milestone(owner, repo, issue_number, output_text, args.milestone, fmt)
     if error is not None:
         return error
 

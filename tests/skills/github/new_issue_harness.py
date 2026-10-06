@@ -51,9 +51,9 @@ class FakeGh:
         label_create: MagicMock | None = None,
         issue_create: MagicMock | None = None,
         issue_edit: MagicMock | None = None,
-        extra_routes: "dict[tuple[str, str], MagicMock | BaseException] | None" = None,
+        extra_routes: dict[tuple[str, str], MagicMock | BaseException] | None = None,
     ) -> None:
-        self.routes = {
+        self.routes: dict[tuple[str, str], MagicMock | BaseException] = {
             ("label", "create"): label_create or _make_proc(),
             ("issue", "create"): issue_create or _make_proc(stdout=ISSUE_URL),
             ("issue", "edit"): issue_edit or _make_proc(),
@@ -70,6 +70,9 @@ class FakeGh:
 
     def find(self, group: str, verb: str) -> list[str]:
         return next(c for c in self.calls if c[1:3] == [group, verb])
+
+    def milestone_edits(self) -> list[list[str]]:
+        return [c for c in self.calls if c[1:3] == ["issue", "edit"] and "--milestone" in c]
 
     def verbs(self) -> list[tuple[str, str]]:
         return [(c[1], c[2]) for c in self.calls]
