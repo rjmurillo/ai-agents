@@ -117,8 +117,8 @@ Set up GitHub billing alerts at:
 
 | Workflow | Est. Monthly Cost | Optimization Status |
 |----------|------------------|---------------------|
-| ai-spec-validation | $8-12 | ✅ ARM, concurrency, path filter |
-| copilot-context-synthesis | $8-12 | ✅ ARM, concurrency |
+| ai-spec-validation | $8-12 | ✅ ARM, concurrency (no path filter; the job decides its own scope) |
+| copilot-context-synthesis | $8-12 | ✅ ARM, concurrency, approval-gated |
 | validate-generated-agents | $5-10 | ⚠️ Windows (no ARM), concurrency, path filter |
 | drift-detection | $3-5 | ✅ ARM, concurrency, path filter |
 
@@ -169,7 +169,23 @@ If monthly costs exceed $100:
 
 - pester-tests (blocks merge)
 - validate-generated-agents (blocks merge)
-- ai-spec-validation (blocks merge)
+
+### Agent Workflows (Approval-Gated, Non-Blocking)
+
+These ten workflows run a model or an agent. Each model job declares `environment: agent-approval` and runs after a reviewer approves it (ADR-114). Their checks never block merge.
+
+- ai-spec-validation
+- slash-command-quality
+- post-pr-retrospective
+- software-engineering-library-activation
+- ai-metrics-analysis
+- pr-maintenance
+- artifact-insight-scanner
+- skill-overlap-eval
+- nightly-cli-smoke
+- copilot-context-synthesis
+
+claude.yml is excluded from approval. Its model job uses the unprotected `agent-claude` environment.
 
 ## Best Practices
 
