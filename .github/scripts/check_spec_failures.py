@@ -39,16 +39,16 @@ from scripts.ai_review_common import spec_validation_failed  # noqa: E402
 # .claude/rules/security.md MUST 7: "A required security review that does not
 # run MUST produce a blocking verdict. Infrastructure failure is not a
 # security pass."
-# Copilot CLI authenticates with COPILOT_GITHUB_TOKEN, so an infrastructure
-# failure points at that secret first (issue #5738). Recent runs reported
-# "You have exceeded your monthly quota", so the account behind the token
-# matters as much as the token.
+# The reviewer is Claude through the Anthropic Messages API, authenticated by
+# the ANTHROPIC_API_KEY secret, so an infrastructure failure points at that
+# secret first (issue #5738, owner decision D28). The Copilot reviewer was
+# retired after "You have exceeded your monthly quota" failed every run.
 INFRA_FAILURE_ERROR = (
     "::error::Spec validation could not run due to infrastructure failure, "
-    "so this check fails closed. Operator action: rotate the "
-    "COPILOT_GITHUB_TOKEN secret (it is likely expired or revoked), then "
-    "re-run this workflow. Also check the Copilot monthly quota, rate "
-    "limits, and network connectivity."
+    "so this check fails closed. Operator action: check the "
+    "ANTHROPIC_API_KEY secret (it is missing, expired, or out of credit), "
+    "then re-run this workflow. Also check the Anthropic rate limits and "
+    "network connectivity."
 )
 
 INCOMPLETE_ERROR = (

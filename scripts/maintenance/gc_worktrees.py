@@ -22,6 +22,11 @@ DEFAULT IS DRY-RUN. Nothing is removed unless ``--apply`` is passed. Dry-run
 prints the removal candidates and the kept-with-reason list and exits without
 mutating anything.
 
+Every path ``--apply`` actually removes is also appended to a durable,
+append-only audit log at ``.project-toolkit/metrics/gc-worktree-removals.jsonl``
+(see ``_gc_apply._append_removal_record``), independent of stdout or
+``--json``. Issue #4790.
+
 USAGE:
   # Preview what would be removed (safe, default):
   uv run python scripts/maintenance/gc_worktrees.py

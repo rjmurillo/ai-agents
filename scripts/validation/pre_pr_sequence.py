@@ -137,6 +137,7 @@ from checks_tooling import (
     validate_instruction_budget,
     validate_instruction_bytes,
     validate_markdown_lint,
+    validate_nl_structural_debt_ratchet,
     validate_path_normalization,
     validate_planning_artifacts,
     validate_rule_scope_declarations,
@@ -630,6 +631,12 @@ _SEQUENCE: tuple[_Gate, ...] = (
     _Gate(
         "Capability Graph (metadata.capability)",
         _root_only(validate_capability_graph_declarations),
+    ),
+    # Ratchets authored duplicate normative blocks and stale derived counts in
+    # natural-language artifacts; generated mirrors are excluded (issue #5397).
+    _Gate(
+        "NL Structural Debt Ratchet",
+        _root_only(validate_nl_structural_debt_ratchet),
     ),
     # Refuses a skill template with no `metadata.routing` block, an invalid
     # role, a role/invoker contradiction, a missing explicit-only rationale,

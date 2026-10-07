@@ -361,9 +361,13 @@ class TestBuildReport:
 
 
 class TestApplyRemovals:
-    """Removal execution. Only runs on candidates; never in dry-run."""
+    """Removal execution. Only runs on candidates; never in dry-run.
 
-    def test_apply_removes_each_candidate(self):
+    Every test here passes ``audit_log_path`` pointed at ``tmp_path`` so none
+    of them touch the real ``.project-toolkit/metrics/`` audit log on disk.
+    """
+
+    def test_apply_removes_each_candidate(self, tmp_path):
         report = GcReport(
             timestamp="t",
             base_ref=_BASE,
@@ -377,14 +381,17 @@ class TestApplyRemovals:
                 Decision("/repo/c", "feat/c", remove=False, reason=KEEP_LOCKED),
             ],
         )
+        log_path = tmp_path / "audit.jsonl"
         with (
             patch("scripts.maintenance.gc_worktrees._gc_apply.remove_worktree") as remove,
         ):
-            _gc_apply.apply_removals(report, revalidate=_agrees(report), run_git=_forbidden_git)
+            _gc_apply.apply_removals(
+                report, revalidate=_agrees(report), run_git=_forbidden_git, audit_log_path=log_path
+            )
         assert [c.args[0] for c in remove.call_args_list] == ["/repo/a", "/repo/b"]
         assert report.removed == ["/repo/a", "/repo/b"]
 
-    def test_apply_stops_at_the_first_failed_removal(self):
+    def test_apply_stops_at_the_first_failed_removal(self, tmp_path):
         """``git worktree remove`` is not atomic.
 
         Verified against real git: with the admin directory unwritable it
@@ -410,17 +417,21 @@ class TestApplyRemovals:
             if path == "/repo/a":
                 raise RuntimeError("locked by index")
 
+        log_path = tmp_path / "audit.jsonl"
         with (
             patch(
                 "scripts.maintenance.gc_worktrees._gc_apply.remove_worktree",
                 side_effect=fail_on_a,
             ) as remove,
         ):
-            _gc_apply.apply_removals(report, revalidate=_agrees(report), run_git=_forbidden_git)
+            _gc_apply.apply_removals(
+                report, revalidate=_agrees(report), run_git=_forbidden_git, audit_log_path=log_path
+            )
         assert [c.args[0] for c in remove.call_args_list] == ["/repo/a"]
         assert report.removed == []
         assert len(report.remove_errors) == 1
         assert "/repo/a" in report.remove_errors[0]
+        assert not log_path.exists()
 
 
 class TestFormatReport:

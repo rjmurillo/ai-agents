@@ -178,7 +178,7 @@ From `claims.json`, filter to `quantitative` and `behavioral` claims. Group by t
 
 ### Phase 6: Structure and Quality (Agent)
 
-Validate documentation structure (indexes, navigation, completeness). Apply comment quality framework (accuracy, completeness, long-term value, misleading elements, improvements) to a 20% sample of source comments.
+Duplication, cohesion, and coupling findings belong to `code-qualities-assessment`; apply its `references/executable-nl-artifacts.md` and do not restate the model here. Validate documentation structure (indexes, navigation, completeness). Apply comment quality framework (accuracy, completeness, long-term value, misleading elements, improvements) to a 20% sample of source comments.
 
 ### Reconciliation (Interactive)
 
