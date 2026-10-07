@@ -31,6 +31,7 @@ def test_check_create_assign_in_one_call(capsys, tmp_path, monkeypatch):
 
     assert rc == 0
     assert gh.verbs() == [MILESTONES, ("label", "create"), ("issue", "create"), ("issue", "edit")]
+    assert "--paginate" in gh.find(*MILESTONES)
     edit = gh.milestone_edits()[0]
     assert edit[3] == "42"
     assert edit[edit.index("--repo") + 1] == "owner/repo"
@@ -65,20 +66,22 @@ def test_labels_apply_before_milestone(label_edit, code, milestone_edits):
 
 
 @pytest.mark.parametrize(
-    ("edit_route", "error_type", "message"),
+    ("edit_route", "code", "error_type", "message"),
     [
-        (_make_proc(returncode=1, stderr="edit boom"), "ApiError", "failed: edit boom"),
-        (_make_proc(returncode=1, stdout="from stdout"), "ApiError", "failed: from stdout"),
-        (subprocess.TimeoutExpired(cmd="gh", timeout=30), "Timeout", "timed out after"),
+        (_make_proc(returncode=1, stderr="edit boom"), 3, "ApiError", "failed: edit boom"),
+        (_make_proc(returncode=1, stdout="from stdout"), 3, "ApiError", "failed: from stdout"),
+        (subprocess.TimeoutExpired(cmd="gh", timeout=30), 3, "Timeout", "timed out after"),
+        (_make_proc(returncode=1, stderr="authentication required"), 4, "AuthError",
+         "failed: authentication required"),
     ],
-    ids=["edit-fails", "edit-fails-stdout-only", "edit-times-out"],
+    ids=["edit-fails", "edit-fails-stdout-only", "edit-times-out", "edit-auth-fails"],
 )
-def test_assignment_failure_keeps_issue_number(capsys, edit_route, error_type, message):
+def test_assignment_failure_keeps_issue_number(capsys, edit_route, code, error_type, message):
     gh = FakeGh(issue_edit=edit_route, extra_routes={MILESTONES: LIST_OK})
 
     rc, _ = _run(ARGS, gh)
 
-    assert rc == 3
+    assert rc == code
     data = json.loads(capsys.readouterr().out)
     assert data["Error"]["Type"] == error_type
     assert data["Error"]["Message"].startswith("Issue #42 created but milestone assignment")

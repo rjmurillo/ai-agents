@@ -41,6 +41,14 @@ def _load_lookup():
 
 _lookup = _load_lookup()
 write_skill_error = _lookup.write_skill_error
+# Loading the lookup imported github_core.api; reuse its shared classifier
+# rather than adding another copy of the auth markers.
+_is_auth_failure = sys.modules["github_core.api"].is_auth_failure_text
+
+
+def _failure_kind(message: str) -> tuple[int, str]:
+    """Map a failed gh call to exit 4 for a credential fault, else exit 3."""
+    return (4, "AuthError") if _is_auth_failure(message) else (3, "ApiError")
 
 
 def _error(message: str, code: int, error_type: str, fmt: str, extra: dict[str, object]) -> int:
@@ -70,7 +78,11 @@ def check_milestone(owner: str, repo: str, milestone: str | None, fmt: str) -> i
     except _lookup._MilestoneTimeoutError as err:
         return _error(f"{err}. No issue was created.", 3, "Timeout", fmt, extra)
     except _lookup._MilestoneQueryError as err:
-        return _error(f"{err}. No issue was created.", 3, "ApiError", fmt, extra)
+        code, error_type = _failure_kind(str(err))
+        return _error(f"{err}. No issue was created.", code, error_type, fmt, extra)
+    except FileNotFoundError:
+        message = "GitHub CLI (gh) is not installed or not on PATH. No issue was created."
+        return _error(message, 4, "AuthError", fmt, extra)
     if milestone in titles:
         return None
     message = f"Milestone '{milestone}' does not exist in {owner}/{repo}. No issue was created."
@@ -117,4 +129,5 @@ def assign_milestone(
     if result.returncode == 0:
         return None
     error_str = result.stderr.strip() or result.stdout.strip()
-    return _error(f"{prefix} failed: {error_str}", 3, "ApiError", fmt, extra)
+    code, error_type = _failure_kind(error_str)
+    return _error(f"{prefix} failed: {error_str}", code, error_type, fmt, extra)

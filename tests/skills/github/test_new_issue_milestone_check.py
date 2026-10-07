@@ -42,8 +42,11 @@ def test_absent_flag_makes_no_milestone_calls(capsys, tmp_path, monkeypatch):
         (LIST_OK, "v9.9.9", 2, "NotFound", "Milestone 'v9.9.9' does not exist in owner/repo."),
         (_make_proc(returncode=1, stderr="boom"), "v0.7.0", 3, "ApiError", "boom"),
         (subprocess.TimeoutExpired(cmd="gh", timeout=30), "v0.7.0", 3, "Timeout", "Timed out"),
+        (_make_proc(returncode=1, stderr="HTTP 401: Bad credentials"), "v0.7.0", 4, "AuthError",
+         "Bad credentials"),
+        (FileNotFoundError("gh"), "v0.7.0", 4, "AuthError", "gh) is not installed"),
     ],
-    ids=["missing", "query-fails", "query-times-out"],
+    ids=["missing", "query-fails", "query-times-out", "query-auth-fails", "gh-missing"],
 )
 def test_lookup_failure_creates_no_issue(
     capsys, milestones_route, milestone, code, error_type, message
