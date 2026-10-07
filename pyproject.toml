@@ -80,6 +80,8 @@ markers = [
     "safe_push_transport: Safe-push tests that touch a non-local transport and are excluded from pre-push.",
     "security: Security-focused tests",
     "smoke: Real-CLI smoke tests (need auth/credits; nightly only). The smoke gate asserts these were not skipped (issue #2231 item 4).",
+    "claude: Real-CLI tests that need the claude CLI and its credential. The nightly smoke selects them on the claude matrix leg.",
+    "copilot: Real-CLI tests that need the copilot CLI and its credential. The nightly smoke selects them on the copilot matrix leg.",
     "windows_path: Tests that exercise Windows path handling and must run on a Windows runner.",
 ]
 

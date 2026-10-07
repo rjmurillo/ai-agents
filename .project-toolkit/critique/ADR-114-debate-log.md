@@ -72,3 +72,90 @@ The Block rests on finding 12 and finding 13. Both need repository settings that
 - Path Dependence: PASS. Rollback is a revert of the workflow lines and the list.
 - Core vs Context: N/A.
 - Second-System: PASS. The split into dedicated files is deferred with a trigger.
+
+## Round 3 (2026-10-07: per-provider environments)
+
+Scope: the owner replaced the single `agent-approval` environment with one environment per provider and gated `claude.yml`. Decisions 1, 2, 3, 5, 11, and 12 changed, and the smoke job split by CLI.
+
+### Owner decisions
+
+| ID | Decision |
+|----|----------|
+| D13 | Create `agent-claude`, `agent-codex`, `agent-copilot`, and `agent-droid`, each with required reviewer `rjmurillo`. "Prevent self-review" is off because the owner is the only reviewer. |
+| D14 | Gate `claude.yml` through `agent-claude`. This reverses D4's `claude.yml` exclusion. |
+| D15 | Scope each vendor key to its environment under the vendor's documented name, and delete the repository-level `ANTHROPIC_API_KEY`. |
+| D16 | Split the nightly smoke by CLI so each leg reads one provider's key. |
+
+### Panel
+
+Reduced panel of architect and critic, with the critic also covering security. The change touches workflow gates, so AGENTS.md calls for the full panel. The owner's session cap allows three subagents in total, and one built the change. This round therefore ran two seats. The owner decides whether a full panel is needed before acceptance.
+
+| # | Seat | Priority | Finding | Resolution |
+|---|------|----------|---------|------------|
+| 1 | architect, critic | P1 | ADR-057 lines 92 and 267 still named `agent-approval`. | Fixed. Both name `agent-claude`. |
+| 2 | architect | P1 | Counts disagreed: "Ten workflows", "other six", and "eleven" in the docs. | Fixed. Decision 2 names eleven, and Decision 5 lists `claude.yml`. |
+| 3 | architect | P1 | `claude.yml` triggers on `pull_request` and now waits for approval, but it was not listed. A rejected approval would block a merge. | Fixed. `claude.yml` joins `advisory_agent_workflows`, and a test pins it. |
+| 4 | architect | P1 | Decision 12 still called the `claude.yml` triggers a spend actor that runs by design. | Fixed. The clause is removed. |
+| 5 | critic | P1 | Four moved jobs read `BOT_PAT`, which exists nowhere. | Stated in Decision 11 item 5. The gap predates this change. |
+| 6 | architect, critic | P2 | The rollback row said the jobs return to `bot-secrets`. That environment has no secrets now. | Fixed. Rollback must re-create the repository-level secrets. |
+| 7 | critic | P2 | "Each leg needs its own approval" is likely wrong. Approval is per environment. | Fixed. A smoke run waits on two environments. |
+| 8 | architect | P2 | A dispatch cancels smoke legs that are waiting for approval. | Fixed. Stated under Negative consequences. |
+| 9 | critic | P2 | Decision 12 listed environments without their contents. | Fixed. Reviewers and secret counts, read from the Environments API on 2026-10-07. |
+| 10 | critic | P2 | The `assert_smoke_ran.py` docstring described the old two-CLI count. | Fixed. |
+| 11 | critic | P2 | The first `uv run` in a smoke step syncs the project with a key in scope (CWE-829). | Deferred. It predates this change. It is flagged in the pull request body. |
+| 12 | architect | P2 | Frontmatter `date` is not updated. | Kept. `date` records creation. The index row is regenerated. |
+
+### Votes
+
+| Seat | Vote |
+|------|------|
+| architect | Disagree-and-Commit |
+| critic | Disagree-and-Commit |
+
+Both seats voted before the fixes above. Both conditioned their votes on the P1 fixes, and all four P1 findings are fixed. No seat re-voted on the fixed head.
+
+### /review pass (2026-10-07)
+
+The repository `/review` ran Stage 1 plus eight risk-selected axes and the correctness pass on tip `7084dfe36`. Stage 1 and all eight axes returned PASS. The correctness pass returned WARN.
+
+| # | Axis | Finding | Resolution |
+|---|------|---------|------------|
+| 13 | correctness, qa | The negative drift test rebuilt the rule inline and tested its own copy. | Fixed. Both tests now call one helper, and fake workflows drive the negative cases. |
+| 14 | analyst | Decision 5 said four workflows, the deferred table said four entries, and the Decision 2 table had no `claude.yml` row. | Fixed. |
+| 15 | devops | The doubled smoke legs double runner minutes. | Fixed. Stated under Negative consequences. |
+| 16 | reliability | The next scheduled run also cancels legs that wait for approval. | Fixed. Stated under Negative consequences. |
+| 17 | correctness | The drift check missed the bracket form `secrets['NAME']`. | Fixed. The check matches both forms, and a test pins it. |
+
+### Full panel completion (2026-10-07)
+
+A Devin review on PR #6197 pointed out that round 3 ran two seats where AGENTS.md requires six. The owner chose to run the four missing seats. They reviewed head `13d02d1b0`.
+
+| # | Seat | Priority | Finding | Resolution |
+|---|------|----------|---------|------------|
+| 18 | security | P1 | Self-review is allowed and the owner is the only reviewer. A process holding the owner's token can approve its own pending deployment through the REST API. | Recorded as Decision 11 item 7. A settings deny rule only slows this, so it is an owner decision, not a fix in this change. |
+| 19 | security | P2 | The `claude.yml` approval controls spend, not prompt injection. | Fixed. Decision 3 says so and tells the reviewer to read the triggering event. |
+| 20 | security | P2 | The Dependabot secret store was not checked. | Fixed. It holds 0 secrets, recorded in Decision 11 item 4. |
+| 21 | security | P2 | Repository-level `FACTORY_API_KEY` shadows the `agent-droid` copy. | Recorded in Decision 11 item 4. The owner deletes it. |
+| 22 | analyst | P2 | ADR-114 cited ADR-101:261. The sentence is at :269. | Fixed. |
+| 23 | analyst | P2 | The `always()` line reference was stale. | Fixed. It is line 87. |
+| 24 | analyst | P2 | `copilot-context-synthesis.yml` reads no provider secret, so its gate rests on the stanza alone. | Fixed. Decision 10 and the Positive consequence name it. |
+| 25 | analyst | P2 | `docs/COST-GOVERNANCE.md` said agent checks never block. | Fixed. It now matches Decisions 5 and 7. |
+| 26 | independent-thinker | P2 | `claude.yml` approval volume is larger than `@claude` replies, and waiting runs pile up with no concurrency group. | Recorded under Negative consequences, with run counts from the Actions API and a trigger. |
+| 27 | independent-thinker | P2 | One review can approve several environments. | Fixed. Cited the REST API. |
+| 28 | independent-thinker | P2 | Decision 12 shipped "not re-verified in this session". | Fixed. Quoted GitHub's documentation, read 2026-10-07. |
+| 29 | independent-thinker | P2 | `agent-approval` is unused configuration. | Recorded as Decision 11 item 6. The owner decides. |
+
+The high-level-advisor ruled every finding above as a fix or a record in this change. It ruled that the settings deny rule stays an owner decision.
+
+### Votes (full panel)
+
+| Seat | Vote |
+|------|------|
+| architect | Disagree-and-Commit |
+| critic | Disagree-and-Commit |
+| security | Disagree-and-Commit |
+| analyst | Accept |
+| independent-thinker | Disagree-and-Commit. The round 2 Block is lifted: the seat read the live API and found keys scoped and reviewers set. |
+| high-level-advisor | Disagree-and-Commit |
+
+All six seats Accept or Disagree-and-Commit. No seat blocks. The four late seats voted on head `13d02d1b0`. Their fixes landed in the next commit, and no seat re-voted on it.

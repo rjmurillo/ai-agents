@@ -63,7 +63,7 @@ import sys
 import warnings
 from collections.abc import Callable
 from pathlib import Path
-from typing import NoReturn
+from typing import NoReturn, TypeVar
 
 import pytest
 import yaml
@@ -251,14 +251,30 @@ def _cli_budget(*subprocess_timeouts: int) -> pytest.MarkDecorator:
 
 _PLUGIN_ROOT_ENV_KEYS = {"CLAUDE_PLUGIN_ROOT", "CLAUDE_PROJECT_DIR", "COPILOT_PLUGIN_ROOT"}
 
-requires_copilot = pytest.mark.skipif(
-    not (_RUN and shutil.which("copilot")),
-    reason="needs RUN_CLI_E2E=1 and the copilot CLI on PATH (real auth + credits)",
-)
-requires_claude = pytest.mark.skipif(
-    not (_RUN and shutil.which("claude")),
-    reason="needs RUN_CLI_E2E=1 and the claude CLI on PATH (real auth + credits)",
-)
+F = TypeVar("F", bound=Callable[..., object])
+
+
+def _requires_cli(cli: str) -> Callable[[F], F]:
+    """Skip without RUN_CLI_E2E=1 and the CLI, and tag the test with its CLI.
+
+    The ``claude`` and ``copilot`` markers let the nightly smoke select one
+    provider's tests per matrix leg (``-m "smoke and claude"``), so each leg
+    needs only its own credential.
+    """
+    skip = pytest.mark.skipif(
+        not (_RUN and shutil.which(cli)),
+        reason=f"needs RUN_CLI_E2E=1 and the {cli} CLI on PATH (real auth + credits)",
+    )
+    tag = getattr(pytest.mark, cli)
+
+    def decorate(test: F) -> F:
+        return tag(skip(test))
+
+    return decorate
+
+
+requires_copilot = _requires_cli("copilot")
+requires_claude = _requires_cli("claude")
 
 
 def _clean_env() -> dict[str, str]:

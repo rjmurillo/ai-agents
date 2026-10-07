@@ -87,7 +87,7 @@ jobs:
     if: github.event_name != 'merge_group' && always() && (needs.debounce.result == 'success' || needs.debounce.result == 'skipped')
     # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
     runs-on: ubuntu-26.04-arm
-    environment: agent-approval
+    environment: agent-claude
     # Budget: ceil(sum(3 * step timeout + 1.5) + 5) for 3, 3.
     timeout-minutes: 26
 
