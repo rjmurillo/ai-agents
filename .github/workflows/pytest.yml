@@ -355,8 +355,13 @@ jobs:
       - name: Run mypy ratchet (changed Python files)
         if: matrix.partition == 'bulk'
         timeout-minutes: 3
+        # Base per event. pull_request checks out GitHub's merge commit, whose
+        # first parent can be newer than pull_request.base.sha; HEAD^1 is the
+        # exact base, so newer main lines are never charged to the PR.
+        # merge_group uses the group's base_sha so every batched PR is in
+        # scope, not only the last one that HEAD~1 would cover.
         env:
-          MYPY_RATCHET_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before || 'HEAD~1' }}
+          MYPY_RATCHET_BASE_REF: ${{ github.event_name == 'pull_request' && 'HEAD^1' || github.event.merge_group.base_sha || github.event.before || 'HEAD~1' }}
         run: python scripts/ci/mypy_ratchet.py
 
       - name: Check security suppressions in diff (pull request, issue 4061)
