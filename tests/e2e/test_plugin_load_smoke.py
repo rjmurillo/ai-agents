@@ -230,12 +230,16 @@ _CLAUDE_EXTERNAL_BLOCK_PATTERNS: tuple[str, ...] = (
 )
 _CLAUDE_AUTH_BLOCK_PATTERNS = _CLAUDE_EXTERNAL_BLOCK_PATTERNS[:3]
 
-_CLI_TIMEOUT_SECONDS = 240
+# A healthy run takes under 10s; a spent Copilot quota retried for 72s before
+# exiting (issue #6181). The ceiling also bounds an all-hang push: every smoke
+# test stops at its first CLI timeout, and that sum must stay under the
+# pre-push cap, CLI_E2E_TIMEOUT_SECONDS in git_hook_policy.py.
+_CLI_TIMEOUT_SECONDS = 120
 _VERSION_TIMEOUT_SECONDS = 60
-# pyproject sets a global --timeout of 120s. Each real-CLI test spends up to
-# _CLI_TIMEOUT_SECONDS per subprocess, so the global kill landed first and the
-# CLI output never reached the block classifier (issue #6181). Each such test
-# declares its own budget: the sum of its subprocess timeouts plus this margin.
+# pyproject sets a global --timeout of 120s, which shares one budget across
+# every subprocess in a test. It killed two-run tests before their CLI output
+# reached the block classifier (issue #6181). Each real-CLI test declares its
+# own budget: the sum of its subprocess timeouts plus this margin.
 _PYTEST_MARGIN_SECONDS = 30
 
 
@@ -1527,19 +1531,38 @@ def _timeout_mark_seconds(test: Callable[..., object]) -> float | None:
 def test_every_real_cli_test_outlasts_its_subprocess_timeout() -> None:
     """The pytest kill must land after the subprocess timeout, not before.
 
-    The global --timeout is below _CLI_TIMEOUT_SECONDS, so a smoke test with
-    no marker of its own is killed before the CLI output reaches the block
-    classifier (issue #6181).
+    The global --timeout does not exceed _CLI_TIMEOUT_SECONDS, so a smoke test
+    with no marker of its own is killed before the CLI output reaches the
+    block classifier (issue #6181).
     """
-    smoke_tests = _smoke_tests()
+    budgets = {test.__name__: _timeout_mark_seconds(test) for test in _smoke_tests()}
 
-    assert len(smoke_tests) == 8, [test.__name__ for test in smoke_tests]
+    assert budgets, "found no smoke tests; the marker scan is broken"
     short = {
-        test.__name__: _timeout_mark_seconds(test)
-        for test in smoke_tests
-        if (_timeout_mark_seconds(test) or 0) <= _CLI_TIMEOUT_SECONDS
+        name: seconds
+        for name, seconds in budgets.items()
+        if (seconds or 0) <= _CLI_TIMEOUT_SECONDS
     }
     assert not short, f"smoke tests without a budget above the CLI timeout: {short}"
+
+
+def test_an_all_hang_run_fits_the_pre_push_cap() -> None:
+    """When every CLI hangs, each smoke test stops at its first CLI timeout.
+
+    Two tests run ``--version`` before their first real call. The sum must stay
+    under the pre-push cap, or the cap kills the run and the hung test goes
+    unnamed (issue #6181).
+    """
+    from scripts.validation.git_hook_policy import CLI_E2E_TIMEOUT_SECONDS
+
+    worst_case = (
+        len(_smoke_tests()) * _CLI_TIMEOUT_SECONDS + 2 * _VERSION_TIMEOUT_SECONDS
+    )
+
+    assert worst_case < CLI_E2E_TIMEOUT_SECONDS, (
+        f"an all-hang run needs {worst_case}s; the pre-push cap is "
+        f"{CLI_E2E_TIMEOUT_SECONDS}s"
+    )
 
 
 @pytest.mark.parametrize(
