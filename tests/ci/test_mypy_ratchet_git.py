@@ -116,19 +116,23 @@ def test_falls_back_from_a_stale_base_and_judges_against_it(
     assert mypy_ratchet.os.environ[MYPY_RATCHET_BASE_REF_ENV] == "origin/main"
 
 
-def test_merge_commit_first_parent_keeps_newer_main_lines_out_of_scope(tmp_path: Path) -> None:
+def test_merge_commit_first_parent_keeps_newer_main_lines_out_of_scope(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     repo, base = make_repo_with_type_debt(tmp_path)
     check_git(repo, "checkout", "-q", "-b", "pr")
     write(repo, SAMPLE_PATH, PRE_EXISTING_ERROR + "\nVALUE: int = 1\n")
     commit(repo, "pr: well-typed change")
     # main moves past the PR's recorded base and adds its own type error.
     check_git(repo, "checkout", "-q", "main")
-    write(repo, "app/main_only.py", 'NAME: int = "main"\n')
+    main_only = "app/main_only.py"
+    write(repo, main_only, 'NAME: int = "main"\n')
     commit(repo, "main: mistyped file")
     # GitHub's pull_request checkout: a merge commit whose first parent is main.
     check_git(repo, "merge", "-q", "--no-ff", "-m", "synthetic merge", "pr")
 
     # The PR's recorded base would charge main's new error to the PR.
     assert mypy_ratchet.main(["--repo-root", str(repo), "--base-ref", base]) == 1
+    assert f"{main_only}:1: error" in capsys.readouterr().out
     # The merge commit's first parent scopes the check to the PR's change.
     assert mypy_ratchet.main(["--repo-root", str(repo), "--base-ref", "HEAD^1"]) == 0
