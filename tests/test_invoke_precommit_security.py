@@ -27,6 +27,7 @@ import pytest
 
 from scripts.security.invoke_precommit_security import (
     PSSCRIPTANALYZER_INSTALL_TIMEOUT_SECONDS,
+    PSSCRIPTANALYZER_VERSION,
     SUBPROCESS_TIMEOUT_SECONDS,
     PreCommitResult,
     PreCommitSecurityCheck,
@@ -82,7 +83,7 @@ class TestEnsurePsscriptanalyzerTimeout:
     ) -> None:
         with patch(
             "scripts.security.invoke_precommit_security.subprocess.run",
-            return_value=_completed(0, stdout="PSScriptAnalyzer 1.0"),
+            return_value=_completed(0),
         ) as run_mock:
             assert check._ensure_psscriptanalyzer() is True
         assert run_mock.call_args.kwargs["timeout"] == SUBPROCESS_TIMEOUT_SECONDS
@@ -102,10 +103,10 @@ class TestEnsurePsscriptanalyzerTimeout:
     def test_install_timeout_returns_false(
         self, check: PreCommitSecurityCheck
     ) -> None:
-        # First call (Get-Module) succeeds but reports module absent; second
-        # call (Install-Module) times out.
+        # First call (Get-Module) exits 1 because the pinned version is
+        # absent; second call (Install-Module) times out.
         side_effects = [
-            _completed(0, stdout="no module here"),
+            _completed(1),
             subprocess.TimeoutExpired(
                 cmd=["pwsh"],
                 timeout=PSSCRIPTANALYZER_INSTALL_TIMEOUT_SECONDS,
@@ -130,6 +131,70 @@ class TestEnsurePsscriptanalyzerTimeout:
             side_effect=FileNotFoundError("pwsh"),
         ):
             assert check._ensure_psscriptanalyzer() is False
+
+
+class TestEnsurePsscriptanalyzerPinnedVersion:
+    """Detection, install, and import all target one exact release."""
+
+    def test_version_is_exact_semver(self) -> None:
+        assert re.fullmatch(r"\d+\.\d+\.\d+", PSSCRIPTANALYZER_VERSION)
+
+    def test_detection_requires_pinned_version(
+        self, check: PreCommitSecurityCheck
+    ) -> None:
+        with patch(
+            "scripts.security.invoke_precommit_security.subprocess.run",
+            return_value=_completed(0),
+        ) as run_mock:
+            assert check._ensure_psscriptanalyzer() is True
+
+        command = run_mock.call_args.args[0][3]
+        assert f"Where-Object Version -eq '{PSSCRIPTANALYZER_VERSION}'" in command
+        assert run_mock.call_count == 1
+
+    def test_other_installed_version_triggers_pinned_install(
+        self, check: PreCommitSecurityCheck
+    ) -> None:
+        # A different release on disk makes detection exit 1, so the hook
+        # installs the pinned release side by side.
+        with patch(
+            "scripts.security.invoke_precommit_security.subprocess.run",
+            side_effect=[_completed(1, stdout="PSScriptAnalyzer 1.0"), _completed(0)],
+        ) as run_mock:
+            assert check._ensure_psscriptanalyzer() is True
+
+        install_command = run_mock.call_args_list[1].args[0][3]
+        assert "Install-Module -Name PSScriptAnalyzer" in install_command
+        assert f"-RequiredVersion {PSSCRIPTANALYZER_VERSION}" in install_command
+
+    def test_failed_install_returns_false(
+        self, check: PreCommitSecurityCheck
+    ) -> None:
+        with patch(
+            "scripts.security.invoke_precommit_security.subprocess.run",
+            side_effect=[_completed(1), _completed(1, stderr="gallery offline")],
+        ):
+            assert check._ensure_psscriptanalyzer() is False
+
+    def test_analyzer_imports_pinned_version(
+        self, check: PreCommitSecurityCheck
+    ) -> None:
+        with (
+            patch.object(check, "_read_staged_blob", return_value=b"Write-Host test"),
+            patch(
+                "scripts.security.invoke_precommit_security.subprocess.run",
+                return_value=_completed(0, stdout="null"),
+            ) as run_mock,
+        ):
+            result = check._run_psscriptanalyzer([Path("/repo/script.ps1")])
+
+        command = run_mock.call_args.args[0][3]
+        assert result.passed is True
+        pinned_import = (
+            f"Import-Module PSScriptAnalyzer -RequiredVersion {PSSCRIPTANALYZER_VERSION}"
+        )
+        assert pinned_import in command
+        assert command.index(pinned_import) < command.index("Invoke-ScriptAnalyzer")
 
 
 class TestFetchCodeqlAlertsTimeout:
