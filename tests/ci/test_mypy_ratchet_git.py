@@ -51,7 +51,7 @@ def test_passes_when_the_only_error_predates_the_change(
     out = capsys.readouterr().out
     assert exit_code == 0, out
     assert error_at(2) in out, "pre-existing debt must stay visible"
-    assert "Mypy ratchet passed for 1 changed Python file(s)" in out
+    assert "no blocking errors in 1 changed Python file(s)" in out
 
 
 def test_blocks_an_error_on_an_added_line(

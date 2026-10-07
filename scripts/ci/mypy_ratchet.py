@@ -100,15 +100,20 @@ def main(argv: Sequence[str] | None = None) -> int:
     os.environ[MYPY_RATCHET_BASE_REF_ENV] = resolved_base_ref
     print(f"Type-checking {len(files)} changed Python file(s) against {resolved_base_ref}...")
     exit_code = run_mypy(files, repo_root)
+    # run_mypy skips verbatim generated mirrors and files that no longer differ
+    # from the base, so the pass line names candidates, not files mypy read.
+    # It also folds a type error, a mypy crash or timeout, and an unresolved
+    # diff base into one exit code, so the failure line names all three.
     if exit_code == EXIT_OK:
         print(
-            f"Mypy ratchet passed for {len(files)} changed Python file(s): "
-            "no errors on added or modified lines."
+            f"Mypy ratchet passed: no blocking errors in {len(files)} changed "
+            "Python file(s). Generated mirrors and unchanged files are skipped."
         )
     else:
         print(
-            f"Mypy ratchet failed (exit {exit_code}): see the errors above on lines "
-            "this change added or modified.",
+            f"Mypy ratchet failed (exit {exit_code}): a mypy error on an added or "
+            "modified line, a mypy crash or timeout, or an unresolved diff base. "
+            "The mypy output above shows which.",
             file=sys.stderr,
         )
     return exit_code

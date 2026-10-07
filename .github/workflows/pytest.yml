@@ -349,8 +349,12 @@ jobs:
       # mypy ran only in the pre-push hook and pre_pr.py, so a push that skipped
       # lefthook merged type errors unchecked. Same diff-line ratchet as the
       # hook: pre-existing errors print, errors on changed lines block.
+      # Each mypy call has a 60s cap, but the calls run in series. The step cap
+      # keeps a stall from eating the pytest steps' share of the job's 10 min.
+      # Measured: 40 scripts/validation files with a cold cache took 6.7s.
       - name: Run mypy ratchet (changed Python files)
         if: matrix.partition == 'bulk'
+        timeout-minutes: 3
         env:
           MYPY_RATCHET_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before || 'HEAD~1' }}
         run: python scripts/ci/mypy_ratchet.py
