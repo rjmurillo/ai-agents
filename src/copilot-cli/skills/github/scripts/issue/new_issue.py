@@ -18,15 +18,16 @@ or a body that already carries a ``## Step 0`` block with ``### Q3`` and
 ``source:<value>`` label is created in the target repository when missing and
 passed to ``gh issue create`` itself, so an issue never exists without it.
 ``--source human`` also appends ``<!-- source:human -->`` to the body, the
-assertion the repository labeler honors (epic #5698, AC-3).
+assertion the repository labeler honors (epic #5698, AC-3). ``--milestone``
+(issue #6033) is checked before creation and set after it.
 
 Exit codes follow ADR-035:
     0 - Success
     1 - Logic failure after argument parsing
     2 - Usage/configuration error (invalid CLI args, file not found, missing or
         invalid --source, missing or hedged Step 0 evidence, conflicting
-        source label)
-    3 - External error (API failure)
+        source label, milestone not found; no issue is created)
+    3 - External error (API failure, milestone query or assignment failure)
     4 - Auth error (not authenticated)
 """
 
@@ -70,24 +71,21 @@ from github_core.output import (
 from github_core.validation import escaped_newline_body_error
 
 
-def _load_provenance():
-    """Load issue_provenance.py from beside this script, by file path.
-
-    Loading by path keeps a same-named module elsewhere on sys.path from
-    replacing the provenance rules.
-    """
-    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "issue_provenance.py")
-    spec = importlib.util.spec_from_file_location("_new_issue_provenance", path)
+def _load_sibling(filename: str, module_name: str):
+    """Load a sibling by path so a same-named module on sys.path cannot replace it."""
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), filename)
+    spec = importlib.util.spec_from_file_location(module_name, path)
     if spec is None or spec.loader is None:
-        raise ImportError(f"Cannot load provenance rules: {path}")
+        raise ImportError(f"Cannot load sibling module: {path}")
     module = importlib.util.module_from_spec(spec)
-    # dataclasses in the redactor it loads resolve modules through sys.modules.
+    # dataclasses in the modules it loads resolve modules through sys.modules.
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
 
 
-provenance = _load_provenance()
+provenance = _load_sibling("issue_provenance.py", "_new_issue_provenance")
+_milestone = _load_sibling("new_issue_milestone.py", "_new_issue_milestone")
 
 
 # Markers that confirm a real authentication failure in gh stderr. A transient
@@ -180,6 +178,11 @@ def build_parser() -> argparse.ArgumentParser:
             "Step 0 block."
         ),
     )
+    parser.add_argument(
+        "--milestone",
+        type=str.strip,
+        help="Milestone title, checked before creation (set_issue_milestone.py lookup).",
+    )
     add_output_format_arg(parser)
     return parser
 
@@ -220,6 +223,9 @@ def _validate_request(args: argparse.Namespace, fmt: str) -> tuple[str, str] | i
     """
     if not args.title or not args.title.strip():
         return _usage_error("Title cannot be empty.", fmt)
+
+    if args.milestone is not None and not args.milestone:
+        return _usage_error("Milestone cannot be empty.", fmt)
 
     body = _read_body(args, fmt)
     if isinstance(body, int):
@@ -447,6 +453,9 @@ def main(argv: list[str] | None = None) -> int:
     if isinstance(auth_result, int):
         return auth_result
     owner, repo = auth_result
+    error: int | None = _milestone.check_milestone(owner, repo, args.milestone, fmt)
+    if error is not None:
+        return error
 
     source_label = f"source:{args.source}"
     provenance.ensure_source_label(owner, repo, source_label, args.source)
@@ -459,6 +468,12 @@ def main(argv: list[str] | None = None) -> int:
     if label_error is not None:
         return label_error
 
+    error = _milestone.assign_milestone(owner, repo, issue_number, output_text, args.milestone, fmt)
+    if error is not None:
+        return error
+
+    summary = f"Created issue #{issue_number} ({source_label}): {args.title}"
+    summary += f" [milestone {args.milestone}]" if args.milestone is not None else ""
     write_skill_output(
         {
             "number": issue_number,
@@ -466,19 +481,17 @@ def main(argv: list[str] | None = None) -> int:
             "url": output_text,
             "title": args.title,
             "source": args.source,
+            "milestone": args.milestone,
         },
         output_format=fmt,
-        human_summary=f"Created issue #{issue_number} ({source_label}): {args.title}",
+        human_summary=summary,
         script_name="new_issue.py",
     )
 
-    _write_github_output(
-        {
-            "success": "true",
-            "issue_number": str(issue_number),
-            "issue_url": output_text,
-        }
-    )
+    outputs = {"success": "true", "issue_number": str(issue_number), "issue_url": output_text}
+    if args.milestone is not None:
+        outputs["milestone"] = args.milestone
+    _write_github_output(outputs)
 
     return 0
 
