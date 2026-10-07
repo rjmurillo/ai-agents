@@ -68,11 +68,25 @@ def _collected_count(test_file: str, cli: str) -> int:
     env = {k: v for k, v in os.environ.items() if k != "RUN_CLI_E2E"}
     result = subprocess.run(
         [
-            sys.executable, "-m", "pytest", test_file, "-m", f"smoke and {cli}",
-            "--collect-only", "-q", "-o", "addopts=",
+            sys.executable,
+            "-m",
+            "pytest",
+            test_file,
+            "-m",
+            f"smoke and {cli}",
+            "--collect-only",
+            "-q",
+            "-o",
+            "addopts=",
         ],
-        cwd=REPO_ROOT, env=env, capture_output=True, text=True, encoding="utf-8", check=False,
-    )  # fmt: skip
+        cwd=REPO_ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+    )
     assert result.returncode == 0, result.stdout + result.stderr
     return sum(1 for line in result.stdout.splitlines() if "::" in line)
 
