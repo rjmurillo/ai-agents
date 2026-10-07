@@ -59,9 +59,12 @@ def _error_at(line: int) -> str:
 
 @pytest.fixture
 def clean_env(monkeypatch: pytest.MonkeyPatch) -> pytest.MonkeyPatch:
-    # monkeypatch restores the variable that main() writes, so no test leaks it.
-    monkeypatch.delenv("GITHUB_EVENT_NAME", raising=False)
-    monkeypatch.delenv(MYPY_RATCHET_BASE_REF_ENV, raising=False)
+    # main() writes MYPY_RATCHET_BASE_REF into os.environ. delenv on an absent
+    # key records nothing to restore, so setenv first: teardown then removes
+    # the value main() wrote instead of leaking it into later tests.
+    for name in ("GITHUB_EVENT_NAME", MYPY_RATCHET_BASE_REF_ENV):
+        monkeypatch.setenv(name, "")
+        monkeypatch.delenv(name)
     return monkeypatch
 
 
@@ -215,3 +218,21 @@ def test_cli_exits_nonzero_so_the_workflow_step_fails(
 
     assert result.returncode == 1, result.stdout + result.stderr
     assert _error_at(4) in result.stdout
+
+
+def test_cli_falls_back_from_a_stale_base_and_judges_against_it(
+    clean_env: pytest.MonkeyPatch, repo_with_type_debt: tuple[Path, str]
+) -> None:
+    repo, base = repo_with_type_debt
+    _check_git(repo, "update-ref", "refs/remotes/origin/main", base)
+    _write(repo, SAMPLE_PATH, PRE_EXISTING_ERROR + "\nVALUE: int = 1\n")
+    _commit(repo, "add a well-typed constant")
+    # A SHA the repository does not hold, like a force-pushed-away `before`.
+    clean_env.setenv(MYPY_RATCHET_BASE_REF_ENV, "1" * 40)
+
+    exit_code = mypy_ratchet.main(["--repo-root", str(repo)])
+
+    # Without repinning the base to origin/main, run_mypy would read the stale
+    # SHA, lose the line map, and block on the pre-existing error at line 2.
+    assert exit_code == 0
+    assert mypy_ratchet.os.environ[MYPY_RATCHET_BASE_REF_ENV] == "origin/main"

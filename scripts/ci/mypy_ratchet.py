@@ -5,7 +5,8 @@
 lefthook job and ``pre_pr.py`` (``checks_mypy.py``). No workflow ran either, so
 a push from a clone without ``lefthook install``, the web editor, or the API
 merged type errors with nothing on the remote to catch them. A gate that only
-fires locally is not a gate.
+fires locally is not a gate. The pull request and merge queue runs are the
+gate; a push to the default branch diffs against itself and checks nothing.
 
 This script is the remote copy of the pre-push gate, not a second
 implementation. It reuses ``git_hook_policy.run_mypy``, which owns the
