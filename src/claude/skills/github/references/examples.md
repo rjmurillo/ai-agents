@@ -150,6 +150,9 @@ python3 "$SCRIPTS_DIR/issue/new_issue.py" --title "Bug: Login fails" --body "Ste
 python3 "$SCRIPTS_DIR/issue/new_issue.py" --title "Bug: Login fails" --body "Steps..." --source agent \
     --blocked-by "Checkout team, blocked on login after deploy 412" --signal "auth 500s at 40/min since run 9981"
 
+# Create an issue and assign a milestone in one call
+python3 "$SCRIPTS_DIR/issue/new_issue.py" --title "Bug: Login fails" --body "Steps..." --source human --milestone v0.7.0
+
 # Create PR with validation
 python3 "$SCRIPTS_DIR/pr/new_pr.py" --title "feat: Add feature" --body "Description"
 
