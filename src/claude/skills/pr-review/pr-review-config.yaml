@@ -92,7 +92,7 @@ scripts:
 # and a status context (no workflow run) always stays blocking. Schedule and
 # dispatch only agent workflows are environment-gated but not listed: they post
 # no check on a pull request. claude.yml is environment-gated by agent-claude
-# but not listed. See ADR-114.
+# and listed, because it triggers on pull_request. See ADR-114.
 advisory_agent_workflows:
   - path: ".github/workflows/ai-spec-validation.yml"
     reason: "Spec coverage review calls an agent on every pull request"
@@ -105,6 +105,9 @@ advisory_agent_workflows:
     owner: "rjmurillo"
   - path: ".github/workflows/software-engineering-library-activation.yml"
     reason: "The activation gate calls a model on library changes"
+    owner: "rjmurillo"
+  - path: ".github/workflows/claude.yml"
+    reason: "The Claude agent answers @claude mentions and pull request events"
     owner: "rjmurillo"
 
 transport_preflight:

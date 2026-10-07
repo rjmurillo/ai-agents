@@ -479,18 +479,19 @@ def test_every_pull_request_workflow_with_a_provider_gated_job_is_listed() -> No
     expected = {
         path
         for path, doc in _workflow_docs().items()
-        if "pull_request" in _triggers(doc)
-        and _gated_jobs(doc)
-        and path != ".github/workflows/claude.yml"
+        if "pull_request" in _triggers(doc) and _gated_jobs(doc)
     }
     assert listed == expected
 
 
-def test_claude_workflow_is_gated_by_agent_claude_and_not_listed_as_advisory() -> None:
+def test_claude_workflow_is_gated_by_agent_claude_and_listed_as_advisory() -> None:
+    """claude.yml triggers on pull_request and waits for approval, so a rejected
+    or timed-out approval must not leave a blocking check (ADR-114 Decision 3)."""
     doc = _workflow_docs()[".github/workflows/claude.yml"]
     assert _gated_jobs(doc) == ["claude-response"]
+    assert "pull_request" in _triggers(doc)
     listed = {e["path"] for e in _shipped_entries()}
-    assert ".github/workflows/claude.yml" not in listed
+    assert ".github/workflows/claude.yml" in listed
 
 
 def test_no_workflow_uses_the_retired_agent_approval_environment() -> None:

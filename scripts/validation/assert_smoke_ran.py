@@ -21,9 +21,9 @@ Contract (JUnit XML, the format pytest's ``--junitxml`` writes):
   ``test_cli_hook_e2e``) because JUnit XML does not record pytest markers. The
   default targets the file that holds the ``@pytest.mark.smoke`` tests, so the
   selection tracks the marked set without parsing pytest internals.
-- The gate expects both real-CLI hook smoke cases by default
-  (``--expected-count 2``), so losing either the Copilot or Claude case fails
-  closed instead of passing on the remaining case.
+- The default ``--expected-count`` is 2, one hook smoke case per CLI. The
+  nightly workflow runs one leg per CLI and passes ``--expected-count 1``, so
+  each leg fails closed when its own case is lost.
 
 Exit codes (per AGENTS.md / ADR-035):
 - 0: at least one smoke test ran and none were skipped, failed, or errored.
