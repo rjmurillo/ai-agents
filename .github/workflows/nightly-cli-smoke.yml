@@ -1,7 +1,10 @@
 # Nightly Real-CLI Smoke (issue #2231 items 3-4, ADR-071; issue #2736)
 #
-# Installs the real Copilot and Claude CLIs and runs two real-CLI smokes end to
-# end on ubuntu/macos/windows:
+# Runs one matrix leg per CLI (claude, copilot) per OS. Each leg installs only
+# its own CLI, runs inside the matching agent-<cli> environment, and receives
+# only that environment's credential. Tests carry `claude` / `copilot` markers
+# and each leg selects `-m "smoke and <cli>"`. The smokes, on
+# ubuntu/macos/windows:
 #   - Hook smoke (test_cli_hook_e2e.py): a plugin hook resolves and runs from the
 #     install tree. The authenticated cross-platform smoke ADR-071 deferred; the
 #     no-auth gates (validate_hook_anchoring, test_generate_hooks_runtime_contract)
@@ -32,9 +35,9 @@
 #   JUnit report and fails the job if the smoke was skipped or not collected, so
 #   a missing auth secret surfaces as a red run, not a silent green one.
 #
-# Local equivalent:
-#   RUN_CLI_E2E=1 uv run pytest tests/e2e/test_cli_hook_e2e.py -m smoke -v
-#   RUN_CLI_E2E=1 uv run pytest tests/e2e/test_plugin_load_smoke.py -m smoke -v
+# Local equivalent (swap `claude` for `copilot` to run the other leg):
+#   RUN_CLI_E2E=1 uv run pytest tests/e2e/test_cli_hook_e2e.py -m "smoke and claude" -v
+#   RUN_CLI_E2E=1 uv run pytest tests/e2e/test_plugin_load_smoke.py -m "smoke and claude" -v
 
 name: Nightly CLI Smoke
 
@@ -83,16 +86,17 @@ jobs:
           echo "trusted=$trusted" >> "$GITHUB_OUTPUT"
 
   smoke:
-    name: Smoke (${{ matrix.os }})
+    name: Smoke (${{ matrix.cli }}, ${{ matrix.os }})
     needs: authorize
     if: needs.authorize.outputs.trusted == 'true'
     runs-on: ${{ matrix.os }}
-    environment: agent-approval
+    environment: agent-${{ matrix.cli }}
     permissions:
       contents: read
     strategy:
       fail-fast: false
       matrix:
+        cli: [claude, copilot]
         os: [ubuntu-latest, macos-latest, windows-latest]
     env:
       RUN_CLI_E2E: '1'
@@ -130,36 +134,62 @@ jobs:
           node-version: 'lts/*'
 
       # Keep credentials out of npm lifecycle scripts (CWE-829).
-      - name: Install pinned Claude and Copilot CLIs
+      - name: Install pinned Claude CLI
+        if: matrix.cli == 'claude'
         shell: bash
-        run: >-
-          npm install -g
-          "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}"
-          "@github/copilot@${COPILOT_CLI_VERSION}"
+        run: npm install -g "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}"
 
-      - name: Run real-CLI hook smoke
+      # Keep credentials out of npm lifecycle scripts (CWE-829).
+      - name: Install pinned Copilot CLI
+        if: matrix.cli == 'copilot'
+        shell: bash
+        run: npm install -g "@github/copilot@${COPILOT_CLI_VERSION}"
+
+      - name: Run real-CLI hook smoke (claude)
+        if: matrix.cli == 'claude'
         shell: bash
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: >-
+          uv run pytest tests/e2e/test_cli_hook_e2e.py -m "smoke and claude"
+          --junitxml=smoke-report.xml
+
+      - name: Run real-CLI hook smoke (copilot)
+        if: matrix.cli == 'copilot'
+        shell: bash
+        env:
           COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
-        run: uv run pytest tests/e2e/test_cli_hook_e2e.py -m smoke --junitxml=smoke-report.xml
+        run: >-
+          uv run pytest tests/e2e/test_cli_hook_e2e.py -m "smoke and copilot"
+          --junitxml=smoke-report.xml
 
       - name: Assert the hook smoke actually ran
         # always(): the gate must run even if the smoke step failed, so a skip
         # (which pytest exits 0 for) is still caught and reported as a red job.
         if: always()
         shell: bash
-        run: uv run python scripts/validation/assert_smoke_ran.py smoke-report.xml
+        run: >-
+          uv run python scripts/validation/assert_smoke_ran.py smoke-report.xml
+          --expected-count 1
 
-      - name: Run real-CLI plugin-load smoke
+      - name: Run real-CLI plugin-load smoke (claude)
         # always(): run even if the hook smoke step failed so both smokes report.
-        if: always()
+        if: always() && matrix.cli == 'claude'
         shell: bash
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: >-
+          uv run pytest tests/e2e/test_plugin_load_smoke.py -m "smoke and claude"
+          --junitxml=plugin-load-report.xml
+
+      - name: Run real-CLI plugin-load smoke (copilot)
+        # always(): run even if the hook smoke step failed so both smokes report.
+        if: always() && matrix.cli == 'copilot'
+        shell: bash
+        env:
           COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
         run: >-
-          uv run pytest tests/e2e/test_plugin_load_smoke.py -m smoke
+          uv run pytest tests/e2e/test_plugin_load_smoke.py -m "smoke and copilot"
           --junitxml=plugin-load-report.xml
 
       - name: Assert the plugin-load smoke actually ran
@@ -170,7 +200,7 @@ jobs:
           uv run python scripts/validation/assert_smoke_ran.py
           plugin-load-report.xml
           --smoke-substr test_plugin_load_smoke
-          --expected-count 5
+          --expected-count 4
 
       # Issue #3324: the isolation fix this covers is Windows-specific
       # (Path.home() reads USERPROFILE first), and the test skips without the
@@ -184,7 +214,9 @@ jobs:
       # non-CLI-steps credential policy test stays intact without an exemption.
       - name: Run Copilot install isolation smoke
         # always(): run even if an earlier smoke failed so all three report.
-        if: always()
+        # Copilot leg only: this test needs the copilot CLI, which the claude
+        # leg does not install.
+        if: always() && matrix.cli == 'copilot'
         shell: bash
         run: >-
           uv run pytest
@@ -193,7 +225,7 @@ jobs:
 
       - name: Assert the install isolation smoke actually ran
         # always(): pytest exits 0 on a skip, so the skip needs its own gate.
-        if: always()
+        if: always() && matrix.cli == 'copilot'
         shell: bash
         run: >-
           uv run python scripts/validation/assert_smoke_ran.py
