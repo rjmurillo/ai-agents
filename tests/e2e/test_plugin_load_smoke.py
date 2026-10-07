@@ -76,6 +76,7 @@ _original_sys_path = sys.path.copy()
 try:
     sys.path.insert(0, str(REPO_ROOT / "scripts"))
     from cli_exec import resolve_executable
+    from redact_secrets import redact
 finally:
     sys.path[:] = _original_sys_path
 
@@ -306,41 +307,90 @@ def _json_events(run: subprocess.CompletedProcess[str]) -> list[dict[str, object
     return events
 
 
-def _claude_init_tools(agent: str) -> set[str]:
-    run = _run_cli(
-        [
-            resolve_executable("claude"),
-            "-p",
-            "--agent",
-            agent,
-            "--setting-sources",
-            "project",
-            "--strict-mcp-config",
-            "--mcp-config",
-            '{"mcpServers":{}}',
-            "--allowedTools",
-            "Bash",
-            "--permission-mode",
-            "dontAsk",
-            "--output-format",
-            "stream-json",
-            "--verbose",
-            "Reply exactly READY.",
-        ],
-        cwd=REPO_ROOT,
-        timeout=_CLI_TIMEOUT_SECONDS,
+def _skip_on_claude_block(run: subprocess.CompletedProcess[str], subject: str) -> None:
+    """Skip when a Claude auth or quota marker explains the failed run."""
+    haystack = f"{run.stderr or ''}\n{run.stdout or ''}".lower()
+    if not any(re.search(pattern, haystack) for pattern in _CLAUDE_EXTERNAL_BLOCK_PATTERNS):
+        return
+    if any(re.search(pattern, haystack) for pattern in _CLAUDE_AUTH_BLOCK_PATTERNS):
+        reason = "OAuth session expired or could not authenticate"
+    else:
+        reason = "quota or external service limit reached"
+    pytest.skip(f"Claude {reason} for {subject}; retry after the external condition clears.")
+
+
+def _decode_partial(output: bytes | str | None) -> str:
+    """Decode partial output; subprocess.run hands it back as bytes on POSIX."""
+    if isinstance(output, bytes):
+        return output.decode("utf-8", errors="replace")
+    return output or ""
+
+
+def _redacted_tail(text: str) -> str:
+    return repr(redact(text[-600:]).text)
+
+
+def _skip_or_fail_timeout(
+    subject: str,
+    exc: subprocess.TimeoutExpired,
+    skip_on_block: Callable[[subprocess.CompletedProcess[str]], None],
+) -> NoReturn:
+    """Skip when the partial output names a block; otherwise fail the timeout.
+
+    A spent quota or rate limit can keep the CLI retrying past its budget.
+    The marker it printed before the kill is still a classified block. A
+    timeout with no marker is a real hang and must stay red (issue #6181).
+    """
+    partial = subprocess.CompletedProcess(
+        exc.cmd,
+        -9,
+        stdout=_decode_partial(exc.stdout),
+        stderr=_decode_partial(exc.stderr),
     )
+    skip_on_block(partial)
+    raise AssertionError(
+        f"{subject} exceeded {exc.timeout}s with no block marker. "
+        f"stdout={_redacted_tail(partial.stdout)} stderr={_redacted_tail(partial.stderr)}"
+    ) from exc
+
+
+def _skip_or_fail_copilot_timeout(subject: str, exc: subprocess.TimeoutExpired) -> NoReturn:
+    _skip_or_fail_timeout(subject, exc, _skip_on_copilot_block)
+
+
+def _skip_or_fail_claude_timeout(subject: str, exc: subprocess.TimeoutExpired) -> NoReturn:
+    _skip_or_fail_timeout(subject, exc, lambda run: _skip_on_claude_block(run, subject))
+
+
+def _claude_init_tools(agent: str) -> set[str]:
+    try:
+        run = _run_cli(
+            [
+                resolve_executable("claude"),
+                "-p",
+                "--agent",
+                agent,
+                "--setting-sources",
+                "project",
+                "--strict-mcp-config",
+                "--mcp-config",
+                '{"mcpServers":{}}',
+                "--allowedTools",
+                "Bash",
+                "--permission-mode",
+                "dontAsk",
+                "--output-format",
+                "stream-json",
+                "--verbose",
+                "Reply exactly READY.",
+            ],
+            cwd=REPO_ROOT,
+            timeout=_CLI_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired as exc:
+        _skip_or_fail_claude_timeout(f"claude agent probe for {agent}", exc)
     if run.returncode != 0:
-        haystack = f"{run.stderr or ''}\n{run.stdout or ''}".lower()
-        if any(re.search(pattern, haystack) for pattern in _CLAUDE_EXTERNAL_BLOCK_PATTERNS):
-            if any(re.search(pattern, haystack) for pattern in _CLAUDE_AUTH_BLOCK_PATTERNS):
-                reason = "OAuth session expired or could not authenticate"
-            else:
-                reason = "quota or external service limit reached"
-            pytest.skip(
-                f"Claude {reason} for agent {agent!r}; retry after the "
-                "external condition clears."
-            )
+        _skip_on_claude_block(run, f"agent {agent!r}")
         raise AssertionError(
             f"claude agent probe failed for {agent} (rc={run.returncode}). "
             f"stdout={run.stdout[-600:]!r} stderr={run.stderr[-600:]!r}"
@@ -428,33 +478,6 @@ def _read_agent_tools_from_file(agent: str) -> set[str]:
     return set(tools)
 
 
-def _decode_partial(output: bytes | str | None) -> str:
-    """Decode partial output; subprocess.run hands it back as bytes on POSIX."""
-    if isinstance(output, bytes):
-        return output.decode("utf-8", errors="replace")
-    return output or ""
-
-
-def _fail_or_skip_copilot_timeout(agent: str, exc: subprocess.TimeoutExpired) -> NoReturn:
-    """Skip when the partial output names a block; otherwise fail the timeout.
-
-    A spent quota or rate limit can keep the CLI retrying past its budget.
-    The marker it printed before the kill is still a classified block. A
-    timeout with no marker is a real hang and must stay red (issue #6181).
-    """
-    partial = subprocess.CompletedProcess(
-        exc.cmd,
-        -9,
-        stdout=_decode_partial(exc.stdout),
-        stderr=_decode_partial(exc.stderr),
-    )
-    _skip_on_copilot_block(partial)
-    raise AssertionError(
-        f"copilot agent probe for {agent} exceeded {exc.timeout}s with no block "
-        f"marker. stdout={partial.stdout[-600:]!r} stderr={partial.stderr[-600:]!r}"
-    ) from exc
-
-
 def _run_copilot_agent(agent: str, prompt: str) -> list[dict[str, object]]:
     try:
         run = _run_cli(
@@ -472,7 +495,7 @@ def _run_copilot_agent(agent: str, prompt: str) -> list[dict[str, object]]:
             timeout=_CLI_TIMEOUT_SECONDS,
         )
     except subprocess.TimeoutExpired as exc:
-        _fail_or_skip_copilot_timeout(agent, exc)
+        _skip_or_fail_copilot_timeout(f"copilot agent probe for {agent}", exc)
     _skip_on_copilot_block(run)
     assert run.returncode == 0, (
         f"copilot agent probe failed for {agent} (rc={run.returncode}). "
@@ -650,8 +673,8 @@ def test_claude_agent_inventory_excludes_the_non_agent_documents(tmp_path: Path)
             cwd=tmp_path,
             timeout=_CLI_TIMEOUT_SECONDS,
         )
-    except subprocess.TimeoutExpired:
-        pytest.skip(f"claude plugin details exceeded {_CLI_TIMEOUT_SECONDS}s (CLI/infra latency)")
+    except subprocess.TimeoutExpired as exc:
+        _skip_or_fail_claude_timeout("claude plugin details", exc)
 
     assert details.returncode == 0, (
         f"claude plugin details failed (rc={details.returncode}). "
@@ -739,10 +762,8 @@ def test_copilot_plugin_loads_expected_skills(tmp_path: Path) -> None:
     write_marker_probe_plugin(probe_plugin, marker)
     try:
         fired = run_copilot_plugin_dir(probe_plugin, cwd=userland, timeout=_CLI_TIMEOUT_SECONDS)
-    except subprocess.TimeoutExpired:
-        pytest.skip(
-            f"copilot --plugin-dir probe exceeded {_CLI_TIMEOUT_SECONDS}s (CLI/infra latency)"
-        )
+    except subprocess.TimeoutExpired as exc:
+        _skip_or_fail_copilot_timeout("copilot --plugin-dir probe", exc)
     _skip_on_copilot_block(fired)
     assert fired.returncode == 0, (
         f"copilot --plugin-dir probe run failed (rc={fired.returncode}). "
@@ -768,8 +789,8 @@ def test_copilot_plugin_loads_expected_skills(tmp_path: Path) -> None:
             cwd=tmp_path,
             timeout=_CLI_TIMEOUT_SECONDS,
         )
-    except subprocess.TimeoutExpired:
-        pytest.skip(f"copilot skill list exceeded {_CLI_TIMEOUT_SECONDS}s (CLI/infra latency)")
+    except subprocess.TimeoutExpired as exc:
+        _skip_or_fail_copilot_timeout("copilot skill list", exc)
 
     _skip_on_copilot_block(run)
     assert run.returncode == 0, (
@@ -845,10 +866,8 @@ def test_copilot_empty_plugin_dir_does_not_fire_probe_hook(tmp_path: Path) -> No
     userland.mkdir()
     try:
         run = run_copilot_plugin_dir(empty_plugin, cwd=userland, timeout=_CLI_TIMEOUT_SECONDS)
-    except subprocess.TimeoutExpired:
-        pytest.skip(
-            f"copilot --plugin-dir empty exceeded {_CLI_TIMEOUT_SECONDS}s (CLI/infra latency)"
-        )
+    except subprocess.TimeoutExpired as exc:
+        _skip_or_fail_copilot_timeout("copilot --plugin-dir empty", exc)
     _skip_on_copilot_block(run)
     assert not marker.is_file(), (
         "negative control failed: copilot fired the probe hook while pointed at an EMPTY "
@@ -888,8 +907,8 @@ def test_claude_plugin_loads_expected_skills(tmp_path: Path) -> None:
             cwd=tmp_path,
             timeout=_CLI_TIMEOUT_SECONDS,
         )
-    except subprocess.TimeoutExpired:
-        pytest.skip(f"claude plugin list exceeded {_CLI_TIMEOUT_SECONDS}s (CLI/infra latency)")
+    except subprocess.TimeoutExpired as exc:
+        _skip_or_fail_claude_timeout("claude plugin list", exc)
 
     assert listing.returncode == 0, (
         f"claude plugin list failed (rc={listing.returncode}). "
@@ -909,8 +928,8 @@ def test_claude_plugin_loads_expected_skills(tmp_path: Path) -> None:
             cwd=tmp_path,
             timeout=_CLI_TIMEOUT_SECONDS,
         )
-    except subprocess.TimeoutExpired:
-        pytest.skip(f"claude plugin details exceeded {_CLI_TIMEOUT_SECONDS}s (CLI/infra latency)")
+    except subprocess.TimeoutExpired as exc:
+        _skip_or_fail_claude_timeout("claude plugin details", exc)
 
     assert details.returncode == 0, (
         f"claude plugin details failed (rc={details.returncode}). "
@@ -1496,6 +1515,157 @@ def test_copilot_agent_timeout_without_block_marker_fails(
 
     with pytest.raises(AssertionError, match="no block marker"):
         _run_copilot_agent("security", "Reply exactly READY.")
+
+
+def test_timeout_failure_message_redacts_secrets(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A credential in the partial output never reaches the failure log."""
+    secret = "ghp_" + "A" * 36
+    monkeypatch.setattr(
+        "tests.e2e.test_plugin_load_smoke._run_cli",
+        _raise_timeout(f"token={secret}\n".encode(), None),
+    )
+
+    with pytest.raises(AssertionError, match="no block marker") as failure:
+        _run_copilot_agent("security", "Reply exactly READY.")
+
+    assert secret not in str(failure.value)
+    assert "redacted" in str(failure.value)
+
+
+_FAKE_CLI_QUOTA = (
+    "import sys, time\n"
+    "sys.stderr.write('You have exceeded your monthly quota\\n')\n"
+    "sys.stderr.flush()\n"
+    "time.sleep(60)\n"
+)
+_FAKE_CLI_SILENT_HANG = "import time\ntime.sleep(60)\n"
+
+
+@pytest.mark.parametrize(
+    ("script", "outcome"),
+    [(_FAKE_CLI_QUOTA, pytest.skip.Exception), (_FAKE_CLI_SILENT_HANG, AssertionError)],
+    ids=["quota-then-hang", "silent-hang"],
+)
+def test_copilot_agent_timeout_classifies_real_partial_output(
+    monkeypatch: pytest.MonkeyPatch, script: str, outcome: type[BaseException]
+) -> None:
+    """A real child process killed at its deadline still reaches the classifier.
+
+    Crosses the process boundary the synthetic cases skip: subprocess.run
+    returns the captured partial output as bytes on POSIX.
+    """
+    monkeypatch.setattr("tests.e2e.test_plugin_load_smoke._CLI_TIMEOUT_SECONDS", 2)
+    monkeypatch.setattr(
+        "tests.e2e.test_plugin_load_smoke.copilot_command",
+        lambda *_: [sys.executable, "-c", script],
+    )
+
+    with pytest.raises(outcome):
+        _run_copilot_agent("security", "Reply exactly READY.")
+
+
+def _raise_timeout_after_version(
+    stderr: bytes,
+) -> Callable[..., subprocess.CompletedProcess[str]]:
+    """Fake _run_cli: `--version` succeeds; every other call times out."""
+
+    def fake_run_cli(argv: list[str], **_: object) -> subprocess.CompletedProcess[str]:
+        if "--version" in argv:
+            return subprocess.CompletedProcess(argv, 0, stdout="1.0.0", stderr="")
+        raise subprocess.TimeoutExpired(argv, _CLI_TIMEOUT_SECONDS, output=None, stderr=stderr)
+
+    return fake_run_cli
+
+
+def _patch_copilot_plugin_timeouts(monkeypatch: pytest.MonkeyPatch, stderr: bytes) -> None:
+    def fake_run_plugin(plugin_dir: Path, **_: object) -> subprocess.CompletedProcess[str]:
+        raise subprocess.TimeoutExpired(
+            ["copilot"], _CLI_TIMEOUT_SECONDS, output=None, stderr=stderr
+        )
+
+    monkeypatch.setattr("tests.e2e.test_plugin_load_smoke.copilot_command", lambda *a: a)
+    monkeypatch.setattr(
+        "tests.e2e.test_plugin_load_smoke._run_cli", _raise_timeout_after_version(stderr)
+    )
+    monkeypatch.setattr(
+        "tests.e2e.test_plugin_load_smoke.run_copilot_plugin_dir", fake_run_plugin
+    )
+
+
+def _patch_claude_plugin_timeouts(monkeypatch: pytest.MonkeyPatch, stderr: bytes) -> None:
+    monkeypatch.setattr(
+        "tests.e2e.test_plugin_load_smoke.resolve_executable", lambda name: name
+    )
+    monkeypatch.setattr(
+        "tests.e2e.test_plugin_load_smoke._run_cli", _raise_timeout_after_version(stderr)
+    )
+
+
+_PLUGIN_SMOKES = [
+    pytest.param(
+        "test_copilot_plugin_loads_expected_skills",
+        _patch_copilot_plugin_timeouts,
+        b"You have exceeded your monthly quota\n",
+        id="copilot-plugin-load",
+    ),
+    pytest.param(
+        "test_copilot_empty_plugin_dir_does_not_fire_probe_hook",
+        _patch_copilot_plugin_timeouts,
+        b"You have exceeded your monthly quota\n",
+        id="copilot-empty-plugin",
+    ),
+    pytest.param(
+        "test_claude_plugin_loads_expected_skills",
+        _patch_claude_plugin_timeouts,
+        b"monthly spend limit\n",
+        id="claude-plugin-load",
+    ),
+    pytest.param(
+        "test_claude_agent_inventory_excludes_the_non_agent_documents",
+        _patch_claude_plugin_timeouts,
+        b"monthly spend limit\n",
+        id="claude-agent-inventory",
+    ),
+]
+
+
+@pytest.mark.parametrize(("smoke", "patch_timeouts", "block_marker"), _PLUGIN_SMOKES)
+def test_plugin_smoke_timeout_without_block_marker_fails(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    smoke: str,
+    patch_timeouts: Callable[[pytest.MonkeyPatch, bytes], None],
+    block_marker: bytes,
+) -> None:
+    """A hung plugin smoke fails instead of skipping as CLI latency."""
+    patch_timeouts(monkeypatch, b"still working\n")
+
+    with pytest.raises(AssertionError, match="no block marker"):
+        globals()[smoke](tmp_path)
+
+
+@pytest.mark.parametrize(("smoke", "patch_timeouts", "block_marker"), _PLUGIN_SMOKES)
+def test_plugin_smoke_timeout_with_block_marker_skips(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    smoke: str,
+    patch_timeouts: Callable[[pytest.MonkeyPatch, bytes], None],
+    block_marker: bytes,
+) -> None:
+    """A plugin smoke killed while the CLI reports a block skips with the reason."""
+    patch_timeouts(monkeypatch, block_marker)
+
+    with pytest.raises(pytest.skip.Exception, match="quota"):
+        globals()[smoke](tmp_path)
+
+
+def test_claude_agent_probe_timeout_without_block_marker_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_claude_plugin_timeouts(monkeypatch, b"still working\n")
+
+    with pytest.raises(AssertionError, match="claude agent probe for analyst"):
+        _claude_init_tools("analyst")
 
 
 def test_copilot_agent_quota_exit_skips(monkeypatch: pytest.MonkeyPatch) -> None:
