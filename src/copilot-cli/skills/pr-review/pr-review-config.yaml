@@ -83,14 +83,16 @@ scripts:
 # a check from one of these never blocks a merge, whether waiting for environment
 # approval, queued, pending, skipped, cancelled, or failed (failed is intended:
 # an agent verdict is advisory). Each model job also runs only after approval in
-# the agent-approval environment. A check is exempt only when its CheckRun
+# the environment of its provider (agent-claude, agent-copilot, agent-codex,
+# or agent-droid). A check is exempt only when its CheckRun
 # belongs to a listed workflow file, so an unrelated check cannot borrow a listed
 # job name. test_pr_merge_ready.py reads this list from the trusted ref
 # (origin/main), never the PR branch, so a PR cannot exempt its own failing check
 # (CWE-829). A check the branch ruleset requires stays blocking even when listed,
 # and a status context (no workflow run) always stays blocking. Schedule and
 # dispatch only agent workflows are environment-gated but not listed: they post
-# no check on a pull request. claude.yml is excluded. See the agent-approval ADR.
+# no check on a pull request. claude.yml is environment-gated by agent-claude
+# but not listed. See ADR-114.
 advisory_agent_workflows:
   - path: ".github/workflows/ai-spec-validation.yml"
     reason: "Spec coverage review calls an agent on every pull request"

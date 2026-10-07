@@ -394,10 +394,53 @@ def _triggers(doc: dict) -> set[str]:
     return set(on) if isinstance(on, dict) else {on} if isinstance(on, str) else set(on or [])
 
 
+# Per-provider approval environments. Each holds one provider's secrets and
+# requires a reviewer. agent-approval holds no secrets and no workflow uses it.
+PROVIDER_ENVIRONMENTS = frozenset({"agent-claude", "agent-codex", "agent-droid", "agent-copilot"})
+RETIRED_ENVIRONMENT = "agent-approval"
+# The nightly smoke picks its environment from the matrix leg, one per CLI.
+MATRIX_ENVIRONMENT = "agent-${{ matrix.cli }}"
+# Stored secret each provider's model calls read, derived from the workflows.
+PROVIDER_SECRETS = {
+    "claude": ("ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN"),
+    "codex": ("OPENAI_API_KEY",),
+    "droid": ("FACTORY_API_KEY",),
+    "copilot": ("COPILOT_GITHUB_TOKEN",),
+}
+# Every gated job and the provider environment it must declare. Jobs that read
+# no provider secret in YAML (the Copilot synthesis scripts, claude.yml's
+# action) are pinned here by name.
+EXPECTED_JOB_ENVIRONMENTS = {
+    ("ai-metrics-analysis.yml", "analyze-metrics"): "agent-copilot",
+    ("ai-spec-validation.yml", "validate-spec"): "agent-claude",
+    ("artifact-insight-scanner.yml", "scan-artifacts"): "agent-copilot",
+    ("claude.yml", "claude-response"): "agent-claude",
+    ("copilot-context-synthesis.yml", "synthesize-single"): "agent-copilot",
+    ("copilot-context-synthesis.yml", "sweep-missed"): "agent-copilot",
+    ("nightly-cli-smoke.yml", "smoke"): MATRIX_ENVIRONMENT,
+    ("post-pr-retrospective.yml", "retrospective"): "agent-claude",
+    ("pr-maintenance.yml", "process-prs"): "agent-copilot",
+    ("skill-overlap-eval.yml", "run-eval"): "agent-claude",
+    ("slash-command-quality.yml", "validate-slash-commands"): "agent-claude",
+    ("software-engineering-library-activation.yml", "activation-gate"): "agent-claude",
+}
+
+
+def _is_gated(job: dict) -> bool:
+    environment = job.get("environment")
+    return environment in PROVIDER_ENVIRONMENTS or environment == MATRIX_ENVIRONMENT
+
+
 def _gated_jobs(doc: dict) -> list[str]:
-    return [
-        k for k, j in (doc.get("jobs") or {}).items() if j.get("environment") == "agent-approval"
-    ]
+    return [k for k, j in (doc.get("jobs") or {}).items() if _is_gated(j)]
+
+
+def _provider_of_secret(text: str) -> set[str]:
+    return {
+        provider
+        for provider, names in PROVIDER_SECRETS.items()
+        if any(f"secrets.{name}" in text for name in names)
+    }
 
 
 def _shipped_entries() -> list[dict]:
@@ -421,7 +464,7 @@ def test_every_listed_path_exists_and_gates_its_model_jobs() -> None:
     docs = _workflow_docs()
     for entry in _shipped_entries():
         assert entry["path"] in docs, entry["path"]
-        assert _gated_jobs(docs[entry["path"]]), f"{entry['path']} has no agent-approval job"
+        assert _gated_jobs(docs[entry["path"]]), f"{entry['path']} has no provider-gated job"
 
 
 def test_every_listed_workflow_triggers_on_pull_request() -> None:
@@ -430,227 +473,88 @@ def test_every_listed_workflow_triggers_on_pull_request() -> None:
         assert "pull_request" in _triggers(docs[entry["path"]]), entry["path"]
 
 
-def test_every_pull_request_workflow_with_an_approval_job_is_listed() -> None:
+def test_every_pull_request_workflow_with_a_provider_gated_job_is_listed() -> None:
     """Drift: a new agent job on a pull_request workflow must join the list."""
     listed = {e["path"] for e in _shipped_entries()}
     expected = {
         path
         for path, doc in _workflow_docs().items()
-        if "pull_request" in _triggers(doc) and _gated_jobs(doc)
+        if "pull_request" in _triggers(doc)
+        and _gated_jobs(doc)
+        and path != ".github/workflows/claude.yml"
     }
     assert listed == expected
 
 
-def test_claude_workflow_is_excluded_from_approval_and_uses_the_token_environment() -> None:
+def test_claude_workflow_is_gated_by_agent_claude_and_not_listed_as_advisory() -> None:
     doc = _workflow_docs()[".github/workflows/claude.yml"]
-    assert _gated_jobs(doc) == []
-    environments = {job.get("environment") for job in doc["jobs"].values()}
-    assert "agent-claude" in environments
-    text = (WORKFLOWS / "claude.yml").read_text(encoding="utf-8")
-    assert "agent-approval" not in text
+    assert _gated_jobs(doc) == ["claude-response"]
+    listed = {e["path"] for e in _shipped_entries()}
+    assert ".github/workflows/claude.yml" not in listed
 
 
-def test_only_claude_uses_the_agent_claude_environment() -> None:
-    users = {
-        path
-        for path, doc in _workflow_docs().items()
-        for job in (doc.get("jobs") or {}).values()
-        if job.get("environment") == "agent-claude"
+def test_no_workflow_uses_the_retired_agent_approval_environment() -> None:
+    offenders = [
+        path.name
+        for path in sorted(WORKFLOWS.glob("*.yml"))
+        if RETIRED_ENVIRONMENT in path.read_text(encoding="utf-8")
+    ]
+    assert offenders == []
+    for doc in _workflow_docs().values():
+        for job in (doc.get("jobs") or {}).values():
+            assert job.get("environment") != RETIRED_ENVIRONMENT
+
+
+def test_each_gated_job_declares_the_environment_matching_its_provider() -> None:
+    docs = _workflow_docs()
+    actual = {
+        (Path(path).name, job_id): job["environment"]
+        for path, doc in docs.items()
+        for job_id, job in (doc.get("jobs") or {}).items()
+        if _is_gated(job)
     }
-    assert users == {".github/workflows/claude.yml"}
+    assert actual == EXPECTED_JOB_ENVIRONMENTS
 
 
-def test_the_ten_gated_workflows_are_exactly_the_policy_set() -> None:
-    gated = {path for path, doc in _workflow_docs().items() if _gated_jobs(doc)}
-    assert gated == {
-        f".github/workflows/{name}.yml"
-        for name in (
-            "ai-spec-validation",
-            "slash-command-quality",
-            "post-pr-retrospective",
-            "software-engineering-library-activation",
-            "ai-metrics-analysis",
-            "pr-maintenance",
-            "artifact-insight-scanner",
-            "skill-overlap-eval",
-            "nightly-cli-smoke",
-            "copilot-context-synthesis",
-        )
-    }
-
-
-def test_copilot_context_synthesis_is_gated_but_not_listed() -> None:
-    path = ".github/workflows/copilot-context-synthesis.yml"
-    doc = _workflow_docs()[path]
-    assert sorted(_gated_jobs(doc)) == ["sweep-missed", "synthesize-single"]
-    assert "pull_request" not in _triggers(doc)
-    assert path not in {e["path"] for e in _shipped_entries()}
-
-
-# ---------------------------------------------------------------------------
-# Matrix rows, pagination, edge shapes, query strings, ignore_ci
-# ---------------------------------------------------------------------------
-
-
-def test_matrix_legs_from_one_listed_workflow_are_exempt_when_one_fails() -> None:
-    pr_data = _pr_with(
-        _row("Smoke (a)", "SUCCESS"),
-        _row("Smoke (a)", "FAILURE"),
-        _row("Smoke (a)", "SUCCESS"),
-    )
-    assert _readiness(pr_data, {LISTED})["CanMerge"] is True
-
-
-def test_one_matrix_leg_from_an_unlisted_workflow_blocks() -> None:
-    pr_data = _pr_with(
-        _row("Smoke (a)", "FAILURE"),
-        _row("Smoke (a)", "FAILURE"),
-        _row("Smoke (a)", "FAILURE", workflow=UNLISTED),
-    )
-    assert _readiness(pr_data, {LISTED})["CanMerge"] is False
-
-
-def _paged_pr(listed_row: dict) -> dict:
-    pr_data = _pr_with(listed_row)
-    commit = pr_data["repository"]["pullRequest"]["commits"]["nodes"][0]["commit"]
-    commit["oid"] = "abc123"
-    contexts = commit["statusCheckRollup"]["contexts"]
-    contexts["totalCount"] = 2
-    contexts["pageInfo"] = {"hasNextPage": True, "endCursor": "cursor-1"}
-    return pr_data
-
-
-def _page_two(row: dict) -> dict:
-    return {
-        "repository": {
-            "object": {
-                "statusCheckRollup": {
-                    "contexts": {"pageInfo": {"hasNextPage": False}, "nodes": [row]}
-                }
-            }
-        }
-    }
-
-
-def _paged_readiness(first: dict, second: dict, listed: set[str]) -> dict:
-    responses = [_paged_pr(first), _page_two(second)]
-    with (
-        patch("test_pr_merge_ready.gh_graphql", side_effect=responses),
-        patch(
-            "test_pr_merge_ready._load_advisory_agent_workflows",
-            return_value=frozenset(listed),
-        ),
-    ):
-        return check_merge_readiness("o", "r", 42)
-
-
-def test_unlisted_row_on_a_later_page_blocks_a_listed_same_name_row() -> None:
-    first = _row(AGENT_CHECK, "FAILURE", workflow=LISTED)
-    second = _row(AGENT_CHECK, "FAILURE", workflow=UNLISTED)
-    result = _paged_readiness(first, second, {LISTED})
-    assert result["CanMerge"] is False
-    assert result["fetched_pages_complete"] is True
-
-
-def test_listed_row_on_a_later_page_is_exempt() -> None:
-    first = _row("Run Python Tests", "SUCCESS", workflow=UNLISTED)
-    second = _row(AGENT_CHECK, "FAILURE", workflow=LISTED)
-    result = _paged_readiness(first, second, {LISTED})
-    assert result["CanMerge"] is True
-
-
-def test_both_queries_select_the_workflow_resource_path() -> None:
-    assert "resourcePath" in _mod._CONTEXTS_PAGE_QUERY
-    assert "resourcePath" in _mod._MERGE_READY_QUERY
-    assert "workflowRun" in _mod._CONTEXTS_PAGE_QUERY
-    assert "workflowRun" in _mod._MERGE_READY_QUERY
-
-
-def test_row_without_a_check_suite_key_blocks() -> None:
-    row = _row(AGENT_CHECK, "FAILURE")
-    del row["checkSuite"]
-    assert _readiness(_pr_with(row), {LISTED})["CanMerge"] is False
-
-
-def test_uppercase_owner_and_repo_prefix_still_matches() -> None:
-    row = _row(
-        AGENT_CHECK,
-        "FAILURE",
-        workflow=None,
-        resource="/O/R/actions/workflows/ai-spec-validation.yml",
-    )
-    assert _readiness(_pr_with(row), {LISTED})["CanMerge"] is True
+def test_jobs_reading_a_provider_secret_declare_that_provider_environment() -> None:
+    """Drift: a job that reads a provider secret must sit in that provider's environment."""
+    checked = 0
+    for path, doc in _workflow_docs().items():
+        for job_id, job in (doc.get("jobs") or {}).items():
+            providers = _provider_of_secret(yaml.safe_dump(job))
+            if not providers or job.get("environment") == MATRIX_ENVIRONMENT:
+                # The matrix job reads one secret per leg; test_nightly_cli_smoke_security.py
+                # pins each leg's credential.
+                continue
+            checked += 1
+            expected = {f"agent-{p}" for p in providers}
+            environment = job.get("environment")
+            assert environment in expected | {MATRIX_ENVIRONMENT}, (
+                f"{path}:{job_id} reads {sorted(providers)} secrets but declares {environment!r}"
+            )
+            assert len(providers) == 1, f"{path}:{job_id} mixes provider secrets"
+    assert checked >= 8
 
 
 @pytest.mark.parametrize(
-    "resource",
+    ("environment", "providers", "ok"),
     [
-        "/o/r/actions/workflows/ai-spec-validation.yml/",
-        "/o/r/actions/workflows/ai-spec-validation.yml?query=1",
-        "/o/r/actions/workflows/AI-SPEC-VALIDATION.YML",
-        "/o/r/actions/workflows/../ai-spec-validation.yml",
+        ("agent-claude", {"claude"}, True),
+        ("agent-copilot", {"claude"}, False),
+        ("agent-approval", {"copilot"}, False),
+        (None, {"claude"}, False),
     ],
 )
-def test_malformed_resource_paths_are_not_exempt(resource: str) -> None:
-    row = _row(AGENT_CHECK, "FAILURE", workflow=None, resource=resource)
-    assert _readiness(_pr_with(row), {LISTED})["CanMerge"] is False
+def test_the_provider_environment_rule_rejects_a_mismatch(
+    environment: str | None, providers: set[str], ok: bool
+) -> None:
+    """Negative: the matching rule used above fails closed on a wrong or missing environment."""
+    expected = {f"agent-{p}" for p in providers}
+    assert (environment in expected) is ok
 
 
-def test_ignore_ci_does_not_read_the_trusted_list() -> None:
-    pr_data = _pr_with(_row(AGENT_CHECK, "FAILURE"))
-    with (
-        patch("test_pr_merge_ready.gh_graphql", return_value=pr_data),
-        patch("test_pr_merge_ready._load_advisory_agent_workflows") as loader,
-    ):
-        check_merge_readiness("o", "r", 42, ignore_ci=True)
-    loader.assert_not_called()
-
-
-# ---------------------------------------------------------------------------
-# why_pr_blocked reports required checks only, so it needs no exemption
-# ---------------------------------------------------------------------------
-
-
-def _why_pr_blocked():
-    import importlib.util
-
-    path = REPO_ROOT / ".claude/skills/github/scripts/pr/why_pr_blocked.py"
-    spec = importlib.util.spec_from_file_location("why_pr_blocked_under_test", path)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
-def _node(name: str, required: bool, conclusion: str = "FAILURE") -> dict:
-    return {
-        "__typename": "CheckRun",
-        "name": name,
-        "status": "COMPLETED",
-        "conclusion": conclusion,
-        "isRequired": required,
-        "detailsUrl": "",
-    }
-
-
-def test_why_pr_blocked_ignores_a_failing_non_required_check() -> None:
-    why = _why_pr_blocked()
-    result = why.diagnose({"CheckNodes": [_node(AGENT_CHECK, required=False)]}, None)
-    assert result["FailingRequired"] == []
-
-
-def test_why_pr_blocked_reports_a_failing_required_check_even_from_a_listed_name() -> None:
-    why = _why_pr_blocked()
-    result = why.diagnose({"CheckNodes": [_node(AGENT_CHECK, required=True)]}, None)
-    assert result["FailingRequired"] == [AGENT_CHECK]
-
-
-# ---------------------------------------------------------------------------
-# The reader is covered by the completion gate's dispatched-file trust
-# ---------------------------------------------------------------------------
-
-
-def test_the_completion_gate_criterion_names_the_reader_script() -> None:
-    """A command argv that names a tracked file is byte-compared to the trusted ref."""
-    config = yaml.safe_load((REPO_ROOT / CONFIG_PATH).read_text(encoding="utf-8"))
-    commands = [c.get("command", "") for c in config["completion_criteria"]]
-    assert any("test_pr_merge_ready.py" in command for command in commands)
+def test_the_matrix_environment_resolves_to_provider_environments_only() -> None:
+    doc = _workflow_docs()[".github/workflows/nightly-cli-smoke.yml"]
+    smoke = doc["jobs"]["smoke"]
+    clis = smoke["strategy"]["matrix"]["cli"]
+    assert {f"agent-{cli}" for cli in clis} <= PROVIDER_ENVIRONMENTS

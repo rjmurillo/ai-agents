@@ -172,7 +172,16 @@ If monthly costs exceed $100:
 
 ### Agent Workflows (Approval-Gated, Non-Blocking)
 
-These ten workflows run a model or an agent. Each model job declares `environment: agent-approval` and runs after a reviewer approves it (ADR-114). Their checks never block merge.
+These eleven workflows run a model or an agent. Each model job declares the environment of its provider and runs after a reviewer approves it (ADR-114). Their checks never block merge.
+
+| Environment | Provider | Secrets |
+|-------------|----------|---------|
+| `agent-claude` | Claude | `ANTHROPIC_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN` |
+| `agent-copilot` | Copilot | `COPILOT_GITHUB_TOKEN` |
+| `agent-codex` | Codex | `OPENAI_API_KEY` |
+| `agent-droid` | Droid | `FACTORY_API_KEY` |
+
+All four require a reviewer. `agent-approval` holds no secrets and no workflow uses it.
 
 - ai-spec-validation
 - slash-command-quality
@@ -184,8 +193,9 @@ These ten workflows run a model or an agent. Each model job declares `environmen
 - skill-overlap-eval
 - nightly-cli-smoke
 - copilot-context-synthesis
+- claude
 
-claude.yml is excluded from approval. Its model job uses the unprotected `agent-claude` environment.
+nightly-cli-smoke runs one matrix leg per CLI. The leg runs in `agent-claude` or `agent-copilot` and receives only that provider's credential.
 
 ## Best Practices
 
