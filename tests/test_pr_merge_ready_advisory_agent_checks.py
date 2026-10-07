@@ -558,3 +558,200 @@ def test_the_matrix_environment_resolves_to_provider_environments_only() -> None
     smoke = doc["jobs"]["smoke"]
     clis = smoke["strategy"]["matrix"]["cli"]
     assert {f"agent-{cli}" for cli in clis} <= PROVIDER_ENVIRONMENTS
+
+
+def test_the_eleven_gated_workflows_are_exactly_the_policy_set() -> None:
+    gated = {path for path, doc in _workflow_docs().items() if _gated_jobs(doc)}
+    assert gated == {
+        f".github/workflows/{name}.yml"
+        for name in (
+            "ai-spec-validation",
+            "slash-command-quality",
+            "post-pr-retrospective",
+            "software-engineering-library-activation",
+            "ai-metrics-analysis",
+            "pr-maintenance",
+            "artifact-insight-scanner",
+            "skill-overlap-eval",
+            "nightly-cli-smoke",
+            "copilot-context-synthesis",
+            "claude",
+        )
+    }
+
+
+def test_copilot_context_synthesis_is_gated_but_not_listed() -> None:
+    path = ".github/workflows/copilot-context-synthesis.yml"
+    doc = _workflow_docs()[path]
+    assert sorted(_gated_jobs(doc)) == ["sweep-missed", "synthesize-single"]
+    assert "pull_request" not in _triggers(doc)
+    assert path not in {e["path"] for e in _shipped_entries()}
+
+
+# ---------------------------------------------------------------------------
+# Matrix rows, pagination, edge shapes, query strings, ignore_ci
+# ---------------------------------------------------------------------------
+
+
+def test_matrix_legs_from_one_listed_workflow_are_exempt_when_one_fails() -> None:
+    pr_data = _pr_with(
+        _row("Smoke (a)", "SUCCESS"),
+        _row("Smoke (a)", "FAILURE"),
+        _row("Smoke (a)", "SUCCESS"),
+    )
+    assert _readiness(pr_data, {LISTED})["CanMerge"] is True
+
+
+def test_one_matrix_leg_from_an_unlisted_workflow_blocks() -> None:
+    pr_data = _pr_with(
+        _row("Smoke (a)", "FAILURE"),
+        _row("Smoke (a)", "FAILURE"),
+        _row("Smoke (a)", "FAILURE", workflow=UNLISTED),
+    )
+    assert _readiness(pr_data, {LISTED})["CanMerge"] is False
+
+
+def _paged_pr(listed_row: dict) -> dict:
+    pr_data = _pr_with(listed_row)
+    commit = pr_data["repository"]["pullRequest"]["commits"]["nodes"][0]["commit"]
+    commit["oid"] = "abc123"
+    contexts = commit["statusCheckRollup"]["contexts"]
+    contexts["totalCount"] = 2
+    contexts["pageInfo"] = {"hasNextPage": True, "endCursor": "cursor-1"}
+    return pr_data
+
+
+def _page_two(row: dict) -> dict:
+    return {
+        "repository": {
+            "object": {
+                "statusCheckRollup": {
+                    "contexts": {"pageInfo": {"hasNextPage": False}, "nodes": [row]}
+                }
+            }
+        }
+    }
+
+
+def _paged_readiness(first: dict, second: dict, listed: set[str]) -> dict:
+    responses = [_paged_pr(first), _page_two(second)]
+    with (
+        patch("test_pr_merge_ready.gh_graphql", side_effect=responses),
+        patch(
+            "test_pr_merge_ready._load_advisory_agent_workflows",
+            return_value=frozenset(listed),
+        ),
+    ):
+        return check_merge_readiness("o", "r", 42)
+
+
+def test_unlisted_row_on_a_later_page_blocks_a_listed_same_name_row() -> None:
+    first = _row(AGENT_CHECK, "FAILURE", workflow=LISTED)
+    second = _row(AGENT_CHECK, "FAILURE", workflow=UNLISTED)
+    result = _paged_readiness(first, second, {LISTED})
+    assert result["CanMerge"] is False
+    assert result["fetched_pages_complete"] is True
+
+
+def test_listed_row_on_a_later_page_is_exempt() -> None:
+    first = _row("Run Python Tests", "SUCCESS", workflow=UNLISTED)
+    second = _row(AGENT_CHECK, "FAILURE", workflow=LISTED)
+    result = _paged_readiness(first, second, {LISTED})
+    assert result["CanMerge"] is True
+
+
+def test_both_queries_select_the_workflow_resource_path() -> None:
+    assert "resourcePath" in _mod._CONTEXTS_PAGE_QUERY
+    assert "resourcePath" in _mod._MERGE_READY_QUERY
+    assert "workflowRun" in _mod._CONTEXTS_PAGE_QUERY
+    assert "workflowRun" in _mod._MERGE_READY_QUERY
+
+
+def test_row_without_a_check_suite_key_blocks() -> None:
+    row = _row(AGENT_CHECK, "FAILURE")
+    del row["checkSuite"]
+    assert _readiness(_pr_with(row), {LISTED})["CanMerge"] is False
+
+
+def test_uppercase_owner_and_repo_prefix_still_matches() -> None:
+    row = _row(
+        AGENT_CHECK,
+        "FAILURE",
+        workflow=None,
+        resource="/O/R/actions/workflows/ai-spec-validation.yml",
+    )
+    assert _readiness(_pr_with(row), {LISTED})["CanMerge"] is True
+
+
+@pytest.mark.parametrize(
+    "resource",
+    [
+        "/o/r/actions/workflows/ai-spec-validation.yml/",
+        "/o/r/actions/workflows/ai-spec-validation.yml?query=1",
+        "/o/r/actions/workflows/AI-SPEC-VALIDATION.YML",
+        "/o/r/actions/workflows/../ai-spec-validation.yml",
+    ],
+)
+def test_malformed_resource_paths_are_not_exempt(resource: str) -> None:
+    row = _row(AGENT_CHECK, "FAILURE", workflow=None, resource=resource)
+    assert _readiness(_pr_with(row), {LISTED})["CanMerge"] is False
+
+
+def test_ignore_ci_does_not_read_the_trusted_list() -> None:
+    pr_data = _pr_with(_row(AGENT_CHECK, "FAILURE"))
+    with (
+        patch("test_pr_merge_ready.gh_graphql", return_value=pr_data),
+        patch("test_pr_merge_ready._load_advisory_agent_workflows") as loader,
+    ):
+        check_merge_readiness("o", "r", 42, ignore_ci=True)
+    loader.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# why_pr_blocked reports required checks only, so it needs no exemption
+# ---------------------------------------------------------------------------
+
+
+def _why_pr_blocked():
+    import importlib.util
+
+    path = REPO_ROOT / ".claude/skills/github/scripts/pr/why_pr_blocked.py"
+    spec = importlib.util.spec_from_file_location("why_pr_blocked_under_test", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _node(name: str, required: bool, conclusion: str = "FAILURE") -> dict:
+    return {
+        "__typename": "CheckRun",
+        "name": name,
+        "status": "COMPLETED",
+        "conclusion": conclusion,
+        "isRequired": required,
+        "detailsUrl": "",
+    }
+
+
+def test_why_pr_blocked_ignores_a_failing_non_required_check() -> None:
+    why = _why_pr_blocked()
+    result = why.diagnose({"CheckNodes": [_node(AGENT_CHECK, required=False)]}, None)
+    assert result["FailingRequired"] == []
+
+
+def test_why_pr_blocked_reports_a_failing_required_check_even_from_a_listed_name() -> None:
+    why = _why_pr_blocked()
+    result = why.diagnose({"CheckNodes": [_node(AGENT_CHECK, required=True)]}, None)
+    assert result["FailingRequired"] == [AGENT_CHECK]
+
+
+# ---------------------------------------------------------------------------
+# The reader is covered by the completion gate's dispatched-file trust
+# ---------------------------------------------------------------------------
+
+
+def test_the_completion_gate_criterion_names_the_reader_script() -> None:
+    """A command argv that names a tracked file is byte-compared to the trusted ref."""
+    config = yaml.safe_load((REPO_ROOT / CONFIG_PATH).read_text(encoding="utf-8"))
+    commands = [c.get("command", "") for c in config["completion_criteria"]]
+    assert any("test_pr_merge_ready.py" in command for command in commands)
