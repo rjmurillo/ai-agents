@@ -342,8 +342,11 @@ jobs:
       # failing new violations in changed Python files.
       - name: Run ruff ratchet (changed Python files)
         if: matrix.partition == 'bulk'
+        # Same per-event base as the mypy ratchet below: HEAD^1 is the exact
+        # base of the pull_request merge checkout, and merge_group.base_sha
+        # keeps every batched PR in scope.
         env:
-          RUFF_RATCHET_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before || 'HEAD~1' }}
+          RUFF_RATCHET_BASE_REF: ${{ github.event_name == 'pull_request' && 'HEAD^1' || github.event.merge_group.base_sha || github.event.before || 'HEAD~1' }}
         run: python scripts/ci/ruff_ratchet.py
 
       # mypy ran only in the pre-push hook and pre_pr.py, so a push that skipped
