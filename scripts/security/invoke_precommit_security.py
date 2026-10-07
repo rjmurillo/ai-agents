@@ -550,9 +550,10 @@ class PreCommitSecurityCheck:
                     "pwsh",
                     "-NoProfile",
                     "-Command",
+                    # Without -ErrorAction Stop, a failed install still exits 0.
                     "Install-Module -Name PSScriptAnalyzer "
                     f"-RequiredVersion {PSSCRIPTANALYZER_VERSION} "
-                    "-Force -Scope CurrentUser -AllowClobber",
+                    "-Force -Scope CurrentUser -AllowClobber -ErrorAction Stop",
                 ],
                 capture_output=True,
                 encoding="utf-8",

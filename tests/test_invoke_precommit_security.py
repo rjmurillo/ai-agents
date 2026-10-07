@@ -170,11 +170,16 @@ class TestEnsurePsscriptanalyzerPinnedVersion:
     def test_failed_install_returns_false(
         self, check: PreCommitSecurityCheck
     ) -> None:
+        # The install command carries -ErrorAction Stop, so a failed install
+        # exits 1 in real pwsh. Without it, pwsh exits 0 on failure.
         with patch(
             "scripts.security.invoke_precommit_security.subprocess.run",
             side_effect=[_completed(1), _completed(1, stderr="gallery offline")],
-        ):
+        ) as run_mock:
             assert check._ensure_psscriptanalyzer() is False
+
+        install_command = run_mock.call_args_list[1].args[0][3]
+        assert install_command.endswith("-ErrorAction Stop")
 
     def test_analyzer_imports_pinned_version(
         self, check: PreCommitSecurityCheck
@@ -235,7 +240,7 @@ def _pinned_psscriptanalyzer_available() -> bool:
             check=False,
             timeout=120,
         )
-    except FileNotFoundError:
+    except (FileNotFoundError, subprocess.TimeoutExpired):
         return False
     return probe.returncode == 0
 
