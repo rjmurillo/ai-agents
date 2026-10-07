@@ -72,3 +72,44 @@ The Block rests on finding 12 and finding 13. Both need repository settings that
 - Path Dependence: PASS. Rollback is a revert of the workflow lines and the list.
 - Core vs Context: N/A.
 - Second-System: PASS. The split into dedicated files is deferred with a trigger.
+
+## Round 3 (2026-10-07: per-provider environments)
+
+Scope: the owner replaced the single `agent-approval` environment with one environment per provider and gated `claude.yml`. Decisions 1, 2, 3, 5, 11, and 12 changed, and the smoke job split by CLI.
+
+### Owner decisions
+
+| ID | Decision |
+|----|----------|
+| D13 | Create `agent-claude`, `agent-codex`, `agent-copilot`, and `agent-droid`, each with required reviewer `rjmurillo`. "Prevent self-review" is off because the owner is the only reviewer. |
+| D14 | Gate `claude.yml` through `agent-claude`. This reverses D4's `claude.yml` exclusion. |
+| D15 | Scope each vendor key to its environment under the vendor's documented name, and delete the repository-level `ANTHROPIC_API_KEY`. |
+| D16 | Split the nightly smoke by CLI so each leg reads one provider's key. |
+
+### Panel
+
+Reduced panel of architect and critic, with the critic also covering security. The change touches workflow gates, so AGENTS.md calls for the full panel. The owner's session cap allows three subagents in total, and one built the change. This round therefore ran two seats. The owner decides whether a full panel is needed before acceptance.
+
+| # | Seat | Priority | Finding | Resolution |
+|---|------|----------|---------|------------|
+| 1 | architect, critic | P1 | ADR-057 lines 92 and 267 still named `agent-approval`. | Fixed. Both name `agent-claude`. |
+| 2 | architect | P1 | Counts disagreed: "Ten workflows", "other six", and "eleven" in the docs. | Fixed. Decision 2 names eleven, and Decision 5 lists `claude.yml`. |
+| 3 | architect | P1 | `claude.yml` triggers on `pull_request` and now waits for approval, but it was not listed. A rejected approval would block a merge. | Fixed. `claude.yml` joins `advisory_agent_workflows`, and a test pins it. |
+| 4 | architect | P1 | Decision 12 still called the `claude.yml` triggers a spend actor that runs by design. | Fixed. The clause is removed. |
+| 5 | critic | P1 | Four moved jobs read `BOT_PAT`, which exists nowhere. | Stated in Decision 11 item 5. The gap predates this change. |
+| 6 | architect, critic | P2 | The rollback row said the jobs return to `bot-secrets`. That environment has no secrets now. | Fixed. Rollback must re-create the repository-level secrets. |
+| 7 | critic | P2 | "Each leg needs its own approval" is likely wrong. Approval is per environment. | Fixed. A smoke run waits on two environments. |
+| 8 | architect | P2 | A dispatch cancels smoke legs that are waiting for approval. | Fixed. Stated under Negative consequences. |
+| 9 | critic | P2 | Decision 12 listed environments without their contents. | Fixed. Reviewers and secret counts, read from the Environments API on 2026-10-07. |
+| 10 | critic | P2 | The `assert_smoke_ran.py` docstring described the old two-CLI count. | Fixed. |
+| 11 | critic | P2 | The first `uv run` in a smoke step syncs the project with a key in scope (CWE-829). | Deferred. It predates this change. It is flagged in the pull request body. |
+| 12 | architect | P2 | Frontmatter `date` is not updated. | Kept. `date` records creation. The index row is regenerated. |
+
+### Votes
+
+| Seat | Vote |
+|------|------|
+| architect | Disagree-and-Commit |
+| critic | Disagree-and-Commit |
+
+Both seats voted before the fixes above. Both conditioned their votes on the P1 fixes, and all four P1 findings are fixed. No seat re-voted on the fixed head.

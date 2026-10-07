@@ -14,34 +14,36 @@ review-by: 2027-04-03
 
 ## Context
 
-Ten workflows call a model or an agent, and they start on pull request events, schedules, issue labels, or dispatch with no person in the loop. The readiness check also lets their results hold a merge: `test_pr_merge_ready.py` blocks a failed non-required check that has no disposition (issue #4902), and with `--include-non-required` it blocks a waiting or pending one too. The owner set the policy that no agent workflow starts without approval and none blocks a merge (decisions D4, D6, D8 to D12), and ADR-057 says the `/spec` eval is a blocking CI leg, which conflicts with it.
+Ten workflows call a model or an agent, and `claude.yml` answers `@claude` mentions with one, and they start on pull request events, schedules, issue labels, or dispatch with no person in the loop. The readiness check also lets their results hold a merge: `test_pr_merge_ready.py` blocks a failed non-required check that has no disposition (issue #4902), and with `--include-non-required` it blocks a waiting or pending one too. The owner set the policy that no agent workflow starts without approval and none blocks a merge (decisions D4, D6, D8 to D12), and ADR-057 says the `/spec` eval is a blocking CI leg, which conflicts with it.
 
 ## Decision
 
-1. **Approval before running.** Every job that calls a model declares `environment: agent-approval`. The environment is meant to carry required reviewers, so a run waits for a reviewer before the job starts. A job takes one environment, so these jobs swap `environment: bot-secrets` for `agent-approval`. The `bot-secrets` environment holds 0 secrets and 0 variables (Environments API, 2026-10-02), so the swap moves no secret or variable. A comment in `ai-spec-validation.yml` once said the job "holds an environment secret". That comment predated the API check and was stale, and this change rewords it.
+1. **Approval before running, one environment per provider.** Every job that calls a model declares the environment for the provider whose secret it reads: `agent-claude`, `agent-copilot`, `agent-codex`, or `agent-droid`. Each environment has required reviewers, so a run waits for a reviewer before the job starts, and each holds only its own provider's secrets. A job takes one environment, so these jobs swap `environment: bot-secrets` for their provider environment. The first version of this ADR used a single `agent-approval` environment. The owner replaced it with per-provider environments so each key lives in one place and a job can read only the key it needs. No workflow uses `agent-approval` now. The `bot-secrets` environment holds 0 secrets and 0 variables (Environments API, 2026-10-02), so the swap moves no secret or variable. A comment in `ai-spec-validation.yml` once said the job "holds an environment secret". That comment predated the API check and was stale, and this change rewords it.
 
-2. **Ten workflows are in scope.** Gated jobs:
+2. **Eleven workflows are in scope: the ten below and `claude.yml` (Decision 3).** Gated jobs:
 
-   | Workflow | Gated job | Model call |
-   |----------|-----------|------------|
-   | `ai-spec-validation.yml` | `validate-spec` | `.github/actions/ai-review` |
-   | `slash-command-quality.yml` | `validate-slash-commands` | `ANTHROPIC_API_KEY`, `scripts/eval/eval-prompt-change.py` |
-   | `post-pr-retrospective.yml` | `retrospective` | `anthropics/claude-code-action` |
-   | `software-engineering-library-activation.yml` | `activation-gate` | `ANTHROPIC_API_KEY` |
-   | `ai-metrics-analysis.yml` | `analyze-metrics` | `.github/actions/ai-review` |
-   | `pr-maintenance.yml` | `process-prs` | `.github/actions/ai-review` |
-   | `artifact-insight-scanner.yml` | `scan-artifacts` | `.github/actions/ai-review` |
-   | `skill-overlap-eval.yml` | `run-eval` | `ANTHROPIC_API_KEY` |
-   | `nightly-cli-smoke.yml` | `smoke` (3 matrix legs) | steps "Run real-CLI hook smoke" and "Run real-CLI plugin-load smoke" run `claude -p` and `copilot -p` through `tests/e2e/test_cli_hook_e2e.py` and `tests/e2e/test_plugin_load_smoke.py` |
-   | `copilot-context-synthesis.yml` | `synthesize-single`, `sweep-missed` | assigns the issue to the Copilot agent after synthesizing context |
+   | Workflow | Gated job | Environment | Model call |
+   |----------|-----------|-------------|------------|
+   | `ai-spec-validation.yml` | `validate-spec` | `agent-claude` | `.github/actions/ai-review` with `ANTHROPIC_API_KEY` |
+   | `slash-command-quality.yml` | `validate-slash-commands` | `agent-claude` | `ANTHROPIC_API_KEY`, `scripts/eval/eval-prompt-change.py` |
+   | `post-pr-retrospective.yml` | `retrospective` | `agent-claude` | `anthropics/claude-code-action` with `CLAUDE_CODE_OAUTH_TOKEN` |
+   | `software-engineering-library-activation.yml` | `activation-gate` | `agent-claude` | `ANTHROPIC_API_KEY` |
+   | `skill-overlap-eval.yml` | `run-eval` | `agent-claude` | `ANTHROPIC_API_KEY` |
+   | `ai-metrics-analysis.yml` | `analyze-metrics` | `agent-copilot` | `.github/actions/ai-review` with `COPILOT_GITHUB_TOKEN` |
+   | `pr-maintenance.yml` | `process-prs` | `agent-copilot` | `.github/actions/ai-review` with `COPILOT_GITHUB_TOKEN` |
+   | `artifact-insight-scanner.yml` | `scan-artifacts` | `agent-copilot` | `.github/actions/ai-review` with `COPILOT_GITHUB_TOKEN` |
+   | `copilot-context-synthesis.yml` | `synthesize-single`, `sweep-missed` | `agent-copilot` | assigns the issue to the Copilot agent after synthesizing context |
+   | `nightly-cli-smoke.yml` | `smoke` (matrix `cli` x `os`) | `agent-${{ matrix.cli }}` | each leg runs one CLI (`claude -p` or `copilot -p`) through `tests/e2e/test_cli_hook_e2e.py` and `tests/e2e/test_plugin_load_smoke.py`, with only that CLI's key |
+
+   The smoke job was one leg per OS that ran both CLIs with both keys. A job takes one environment, so the matrix now splits by CLI and each leg gets one provider's key. No workflow calls Codex or Droid yet. Their environments exist so a future job has a scoped key from the start.
 
    Jobs in those workflows that call no model keep their existing environment.
 
-3. **`claude.yml` is excluded from approval.** It answers a human `@claude` mention or an assigned issue and already runs its own authorization check (`check-authorization`, `tests/workflows/test_claude_authorization.py`). An approval click per reply would defeat its interactive purpose. Its `claude-response` job moves from `bot-secrets` to `environment: agent-claude`, an environment with no required reviewers. It exists only to hold `CLAUDE_CODE_OAUTH_TOKEN` once the owner scopes the token to it. No other line of `claude.yml` changes.
+3. **`claude.yml` is approval-gated too.** Its `claude-response` job runs in `agent-claude`, which has required reviewers, so each `@claude` reply waits for a click. The first version of this ADR excluded `claude.yml` because an approval click per reply defeats its interactive purpose. The owner reversed that on 2026-10-07: no agent run starts without approval. The workflow keeps its own authorization check (`check-authorization`, `tests/workflows/test_claude_authorization.py`), which still runs before the job asks for approval. `claude.yml` triggers on `pull_request`, so its check appears on pull requests. A rejected or timed-out approval would leave a failed non-required check, which blocks under issue #4902. `claude.yml` is therefore added to `advisory_agent_workflows`. The list works per file, so a failure of its `check-authorization` job is also non-blocking. Review of the workflow diff is the control, as for the other listed files.
 
 4. **Checks are advisory, identified by workflow file.** A non-required check is exempt from blocking only when its CheckRun belongs to a listed workflow file. The identity is read from `checkSuite.workflowRun.workflow.resourcePath`, which maps to `.github/workflows/<file>`. The GraphQL `Workflow` type has no `path` field (introspected 2026-10-02: `createdAt`, `databaseId`, `id`, `name`, `resourcePath`, `runs`, `state`, `updatedAt`, `url`). A check name is free text any workflow can reuse, so a name list lets an unrelated check borrow a listed name. The resource path must also match the pull request's own repository. Both GraphQL queries select the field, including the pagination query, and a test pins that.
 
-5. **The list is `advisory_agent_workflows` in `.claude/skills/pr-review/pr-review-config.yaml`.** Each entry has `path`, `reason`, and `owner` (`rjmurillo`). It holds the four workflows that trigger on `pull_request`: `ai-spec-validation.yml`, `slash-command-quality.yml`, `post-pr-retrospective.yml`, and `software-engineering-library-activation.yml`. The other six are gated but not listed. Their triggers are schedule, issue label, or dispatch only. A scheduled run attaches to the default branch and posts no check on a pull request. A `workflow_dispatch` run on a pull request branch is different: GitHub attaches check runs to the commit, so such a run is expected to appear in that pull request's rollup (expected from the commit-scoped check model, not observed here). If that run fails, its non-required check blocks until a disposition covers it. The owner chose the pruned list and accepts this residual. Trigger to revisit: the first dispatch of an unlisted agent workflow on a pull request branch.
+5. **The list is `advisory_agent_workflows` in `.claude/skills/pr-review/pr-review-config.yaml`.** Each entry has `path`, `reason`, and `owner` (`rjmurillo`). It holds the four workflows that trigger on `pull_request`: `ai-spec-validation.yml`, `slash-command-quality.yml`, `post-pr-retrospective.yml`, and `software-engineering-library-activation.yml`. `claude.yml` is listed too (Decision 3). The other six are gated but not listed. Their triggers are schedule, issue label, or dispatch only. A scheduled run attaches to the default branch and posts no check on a pull request. A `workflow_dispatch` run on a pull request branch is different: GitHub attaches check runs to the commit, so such a run is expected to appear in that pull request's rollup (expected from the commit-scoped check model, not observed here). If that run fails, its non-required check blocks until a disposition covers it. The owner chose the pruned list and accepts this residual. Trigger to revisit: the first dispatch of an unlisted agent workflow on a pull request branch.
 
 6. **The list is read from the trusted ref.** `test_pr_merge_ready.py` runs `git show origin/main:<config>` and never reads the work tree, so a pull request that edits its copy cannot exempt its own failing check (CWE-829). When the ref or the list cannot be read (absent ref, shallow clone without the ref, parse error, no git), the reader returns an empty list and prints a stderr warning naming the reason. Empty means every check keeps its normal verdict. The reader skips the load when `ignore_ci` is set. The completion gate's criterion command names `test_pr_merge_ready.py`, so the gate byte-compares that script against the trusted ref before it runs (dispatched-file trust, ADR-059). A direct run of the script from a pull request tree, outside the gate, is not covered. Trigger to revisit: the first exemption-related incident.
 
@@ -51,21 +53,22 @@ Ten workflows call a model or an agent, and they start on pull request events, s
 
 9. **`merge_group` leaves `ai-spec-validation.yml`.** Approval cannot happen inside a merge-queue run, and `validate-spec` was the only job the trigger fed. The `if:` term stays as a guard. The ADR-101 line references to this file (`:102`, `:97-102`) were already stale before this change: `always()` sits at line 82 on `main`.
 
-10. **The gate is not a trust boundary.** ADR-101:261 states that a stanza on a job in a head-defined workflow contains nothing: the pull request can delete the stanza and request the repository-level secret directly. It also rejects an environment with required reviewers as the fix, because it reintroduces a human decision on every pull request. This ADR overrides that rejection for spend control only, by owner decision. The `agent-approval` environment is repository configuration, which is plane P2 in ADR-101. The `environment:` line in a workflow is P0 content a writer can edit. The gate binds only when the model secrets are scoped to the environment. Then a job that deletes the stanza receives no secret, and a job that keeps it waits for a reviewer.
+10. **The gate is not a trust boundary.** ADR-101:261 states that a stanza on a job in a head-defined workflow contains nothing: the pull request can delete the stanza and request the repository-level secret directly. It also rejects an environment with required reviewers as the fix, because it reintroduces a human decision on every pull request. This ADR overrides that rejection for spend control only, by owner decision. The provider environments are repository configuration, which is plane P2 in ADR-101. The `environment:` line in a workflow is P0 content a writer can edit. The gate binds only when the model secrets are scoped to the environment. Then a job that deletes the stanza receives no secret, and a job that keeps it waits for a reviewer.
 
-11. **Owner actions before the policy is true.** Until they are done, automatic spend is not stopped. `ANTHROPIC_API_KEY` is a repository-level secret (Actions secrets API, 2026-10-02), so any job that references it runs without approval, with or without the stanza. `CLAUDE_CODE_OAUTH_TOKEN`, `BOT_PAT`, and `COPILOT_GITHUB_TOKEN` did not appear in the repository secret list, and organization-level secrets could not be listed with the available token (HTTP 404). Their scope is unverified, and the same bypass applies to any that is not environment-scoped. Required actions, in order:
-    1. Create `agent-approval` in Settings > Environments with required reviewers and "prevent self-review". Record evidence (a screenshot or the Environments API output) in the pull request body.
-    2. Create `agent-claude` with no reviewers.
-    3. Move `ANTHROPIC_API_KEY` into `agent-approval` and `CLAUDE_CODE_OAUTH_TOKEN` into `agent-claude`. Delete the repository-level and organization-level copies.
-    4. Split `BOT_PAT` into a model-only token for `ai-review` and the tokens that act on pull requests, so the approval gate guards the token that calls a model.
+11. **Owner actions and their state.** The gate binds only when each model secret is scoped to its environment. State on 2026-10-07, read from the Environments and Actions secrets APIs:
+    1. Done. `agent-claude`, `agent-copilot`, `agent-codex`, and `agent-droid` exist, each with required reviewer `rjmurillo`. "Prevent self-review" is off: the owner is the only reviewer, and with it on, no run the owner starts could be approved. Trigger to revisit: a second reviewer is added.
+    2. Done. Secrets: `agent-claude` holds `ANTHROPIC_API_KEY` and `CLAUDE_CODE_OAUTH_TOKEN`, `agent-copilot` holds `COPILOT_GITHUB_TOKEN`, `agent-codex` holds `OPENAI_API_KEY`, and `agent-droid` holds `FACTORY_API_KEY`. The names follow each vendor's documented variable.
+    3. Done. The repository-level `ANTHROPIC_API_KEY` is deleted.
+    4. Open. Repository-level `SMOKE_ANTHROPIC_API_KEY` and `FACTORY_API_KEY` remain. No workflow on `main` reads them, but a job on a branch that names them runs without approval.
+    5. Open. `BOT_PAT` appears in no environment and not in the repository secret list. `validate-spec`, `analyze-metrics`, `scan-artifacts`, and `process-prs` read it, so they run with an empty value until it exists. This was already true before this change. Split it into a model-only token for `ai-review` and the tokens that act on pull requests, and scope the model token to its environment.
 
-12. **An unprotected environment fails silently.** GitHub's documentation says a workflow that references a missing environment creates it with no protection (docs.github.com, "Managing environments for deployment"; not re-verified in this session). Then runs are unapproved and their checks still never block, so nothing signals the gap. Residual spend actors even when the environment is protected: a writer who edits a workflow on a branch, a writer who dispatches a workflow, and the `claude.yml` triggers, which run by design. As of 2026-10-02 the environments are `bot-secrets`, `copilot`, and `vendor-provenance`.
+12. **An unprotected environment fails silently.** GitHub's documentation says a workflow that references a missing environment creates it with no protection (docs.github.com, "Managing environments for deployment"; not re-verified in this session). Then runs are unapproved and their checks still never block, so nothing signals the gap. Residual spend actors even when the environments are protected: a writer who edits a workflow on a branch, and a writer who dispatches a workflow. A writer can also point a branch job at any unprotected environment, which matters only when that environment holds a secret. As of 2026-10-07 the environments are `agent-claude`, `agent-codex`, `agent-copilot`, and `agent-droid` (required reviewers, provider secrets), `agent-approval` (required reviewers, 0 secrets, unused), and `bot-secrets`, `copilot`, and `vendor-provenance` (no reviewers, 0 secrets).
 
 ## Deferred Items
 
 | Item | Why deferred | Trigger to revisit |
 |------|--------------|--------------------|
-| In-repo probe that `agent-approval` has required reviewers | Reading protection rules needs an admin-scoped token. CI has none. | An admin-scoped CI token exists. |
+| In-repo probe that each provider environment has required reviewers | Reading protection rules needs an admin-scoped token. CI has none. | An admin-scoped CI token exists. |
 | Registry expiry for the list, and merging it into `dispositions.json` | Four entries with one owner do not need a registry. | The list exceeds 12 entries, or a second consumer of the list appears. |
 | Detector for a listed workflow that gains a non-agent job | Review of the workflow diff is the control today. | The gap is accepted explicitly until a trigger below fires. |
 | Split agent jobs into dedicated `agent-*.yml` files so a path means "agent only" | Granularity is per file, so a non-agent job added to a listed file becomes non-blocking. | A tenth PR-triggered agent workflow lands. |
@@ -109,7 +112,9 @@ Required precedence follows ADR-101: a required context is matched by name in th
 
 ### Negative
 
-- Until the owner actions in Decision 11 are done, repository-level model secrets stay a bypass. This ADR does not claim automatic spend is stopped before then.
+- Until the open owner actions in Decision 11 are done, the remaining repository-level model secrets stay a bypass for a job that names them.
+- Every `@claude` reply waits for a reviewer click, so `claude.yml` is no longer interactive when the owner is away.
+- The nightly smoke runs twice as many legs, one per CLI and OS. A run waits on two environments, `agent-claude` and `agent-copilot`, and each needs a reviewer. The workflow cancels an in-progress run on a new dispatch, so a dispatch while the nightly run waits for approval cancels the waiting legs.
 - Prompt regressions are no longer caught automatically before merge. The `/spec` eval runs only after approval. Review of prompt-file diffs is human-only, with no named owner for dispatching the eval, until the first prompt regression found after merge (ADR-057 Amendment 2026-10-02).
 - A pull request that edits a listed workflow file can add a non-agent job there, and that job's failure becomes non-blocking. Review is the control.
 - Scheduled workflows now wait for a click. An unattended run stalls until a reviewer approves or the run times out.
@@ -117,14 +122,14 @@ Required precedence follows ADR-101: a required context is matched by name in th
 
 ### Neutral
 
-- `claude.yml` keeps its own authorization model and gains an unprotected environment.
+- `claude.yml` keeps its own authorization model, and its environment now carries required reviewers.
 
 ## Impact on Dependent Components
 
 | Component | Change |
 |-----------|--------|
-| Ten workflows and `claude.yml` | `environment: agent-approval` on each model job, `agent-claude` on the Claude job |
-| `.claude/skills/pr-review/pr-review-config.yaml` and mirrors | New `advisory_agent_workflows` list |
+| Ten workflows and `claude.yml` | Each model job declares its provider environment (`agent-claude` or `agent-copilot`); the smoke matrix splits by CLI |
+| `.claude/skills/pr-review/pr-review-config.yaml` and mirrors | New `advisory_agent_workflows` list, with `claude.yml` added in the follow-up |
 | `.claude/skills/github/scripts/pr/test_pr_merge_ready.py` and mirrors | Reads the list from the trusted ref, exempts by workflow path, both GraphQL queries select `resourcePath` |
 | ADR-057 | `/spec` leg is non-blocking and approval-gated |
 | `gate-ladder.md`, `docs/COST-GOVERNANCE.md`, `ci-scripts.md`, `spec_extract_refs.py` | Stop describing `Validate Spec Coverage` as blocking or required |
@@ -133,7 +138,7 @@ Required precedence follows ADR-101: a required context is matched by name in th
 
 | Criterion | Assessment |
 |-----------|------------|
-| Rollback | Revert the pull request. The jobs return to `bot-secrets` and the list disappears. No data migrates. |
+| Rollback | Revert the pull requests. The jobs return to `bot-secrets` and the list disappears. `bot-secrets` holds no secrets and the repository-level `ANTHROPIC_API_KEY` is deleted, so the owner must re-create the repository-level secrets in the same step, or every model job runs with an empty key. |
 | External dependency | GitHub environments and required reviewers. A change to that feature changes this gate. |
 | Partial rollback | Remove one entry to make that workflow's check blocking again, or remove its `environment` line. |
 
@@ -147,5 +152,6 @@ Required precedence follows ADR-101: a required context is matched by name in th
 ## References
 
 - Issue #4902: non-required failure dispositions.
-- Pull request #6131: the change that implements this ADR.
+- Pull request #6131: the change that implements this ADR with one `agent-approval` environment.
+- The follow-up pull request that moves each job to its provider environment and splits the smoke matrix.
 - Pull request #6130: the live pull request used to confirm the `resourcePath` field.
