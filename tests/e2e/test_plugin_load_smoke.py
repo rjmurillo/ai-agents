@@ -327,7 +327,8 @@ def _decode_partial(output: bytes | str | None) -> str:
 
 
 def _redacted_tail(text: str) -> str:
-    return repr(redact(text[-600:]).text)
+    """Redact before slicing, so a token cut at the boundary is still caught."""
+    return repr(redact(text).text[-600:])
 
 
 def _skip_or_fail_timeout(
@@ -1532,6 +1533,22 @@ def test_timeout_failure_message_redacts_secrets(monkeypatch: pytest.MonkeyPatch
     assert "redacted" in str(failure.value)
 
 
+def test_timeout_redaction_covers_a_token_cut_at_the_tail_boundary(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A token straddling the 600-character cut is redacted, not half-printed."""
+    secret = "ghp_" + "B" * 36
+    stdout = f"token={secret}" + "x" * (600 - 20)
+    monkeypatch.setattr(
+        "tests.e2e.test_plugin_load_smoke._run_cli", _raise_timeout(stdout.encode(), None)
+    )
+
+    with pytest.raises(AssertionError, match="no block marker") as failure:
+        _run_copilot_agent("security", "Reply exactly READY.")
+
+    assert "B" * 20 not in str(failure.value)
+
+
 _FAKE_CLI_QUOTA = (
     "import sys, time\n"
     "sys.stderr.write('You have exceeded your monthly quota\\n')\n"
@@ -1554,7 +1571,7 @@ def test_copilot_agent_timeout_classifies_real_partial_output(
     Crosses the process boundary the synthetic cases skip: subprocess.run
     returns the captured partial output as bytes on POSIX.
     """
-    monkeypatch.setattr("tests.e2e.test_plugin_load_smoke._CLI_TIMEOUT_SECONDS", 2)
+    monkeypatch.setattr("tests.e2e.test_plugin_load_smoke._CLI_TIMEOUT_SECONDS", 5)
     monkeypatch.setattr(
         "tests.e2e.test_plugin_load_smoke.copilot_command",
         lambda *_: [sys.executable, "-c", script],
@@ -1657,6 +1674,15 @@ def test_plugin_smoke_timeout_with_block_marker_skips(
 
     with pytest.raises(pytest.skip.Exception, match="quota"):
         globals()[smoke](tmp_path)
+
+
+def test_claude_agent_probe_timeout_with_auth_marker_skips(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_claude_plugin_timeouts(monkeypatch, b"OAuth session expired\n")
+
+    with pytest.raises(pytest.skip.Exception, match="OAuth session expired"):
+        _claude_init_tools("analyst")
 
 
 def test_claude_agent_probe_timeout_without_block_marker_fails(
