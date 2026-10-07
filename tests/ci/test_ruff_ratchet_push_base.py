@@ -129,3 +129,21 @@ def test_linked_worktree_stale_local_main_uses_origin_main(tmp_path: Path) -> No
 
     assert _changed_python_files(linked) == ["feature.py"]
     assert sorted(_changed_python_files(linked, "main")) == ["feature.py", "main_only.py"]
+
+
+def test_pull_request_merge_checkout_scopes_to_first_parent(tmp_path: Path) -> None:
+    # GitHub's pull_request checkout is a merge commit whose first parent can
+    # be newer than the event's base.sha. The workflow passes HEAD^1 for that.
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    recorded_base = _check_git(repo, "rev-parse", "HEAD")
+    _check_git(repo, "checkout", "-qb", "feature")
+    _write(repo, "feature.py", "value = 2\n")
+    _commit(repo, "feature")
+    _check_git(repo, "checkout", "main")
+    _write(repo, "main_only.py", "value = 3\n")
+    _commit(repo, "main moves past the recorded base")
+    _check_git(repo, "merge", "-q", "--no-ff", "-m", "synthetic merge", "feature")
+
+    assert sorted(_changed_python_files(repo, recorded_base)) == ["feature.py", "main_only.py"]
+    assert _changed_python_files(repo, "HEAD^1") == ["feature.py"]
