@@ -79,3 +79,18 @@ def test_the_suite_regresses_on_the_comparable_sum(tmp_path: Path) -> None:
     assert result.modules == []
     assert result.suite is not None
     assert (result.suite.seconds, result.suite.baseline) == (170.0, 100.0)
+
+
+def test_a_replaced_test_with_the_same_count_is_not_compared(tmp_path: Path) -> None:
+    """Two tests ran on main; a PR swaps t1 for a new test, so the count still matches."""
+    history, _ = load_history(write_history(tmp_path, [10.0, 10.0]))
+    report = tmp_path / "swap.xml"
+    report.write_text(
+        '<testsuites><testsuite time="60"><testcase classname="tests.test_alpha" name="t0" '
+        'time="10" /><testcase classname="tests.test_alpha" name="t_new" time="50" />'
+        "</testsuite></testsuites>", encoding="utf-8")
+
+    result = compare(build_snapshot([report], "now", NOW), history, DEFAULT_LIMITS)
+
+    assert result.comparable == 0
+    assert result.modules == [] and result.suite is None

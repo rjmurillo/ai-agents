@@ -1,11 +1,12 @@
 """Compare one duration snapshot with the median of earlier snapshots.
 
 A module's baseline is the median of its seconds across history snapshots that
-ran the same number of tests in it. Change-scoped CI runs execute a subset of
-the suite, so a module total is only comparable when the same tests ran. One
-consequence: a change that adds a test to a module and also slows it has no
-baseline until main records the new count, so that slowdown is not flagged on
-the pull request that made it.
+ran exactly the same tests in it, matched by a digest of the test IDs.
+Change-scoped CI runs execute a subset of the suite, and a pull request can
+replace a test with another, so a module total is only comparable when the
+same tests ran. One consequence: a change that adds, removes, or renames a test
+in a module has no baseline for that module until main records the new set, so
+a slowdown in that module is not flagged on the pull request that made it.
 
 The suite baseline is the sum of per-module medians over the comparable
 modules, not a median of whole-run totals, because whole runs differ in which
@@ -56,12 +57,12 @@ class Comparison:
     suite: Regression | None = None
 
 
-def module_baseline(module: str, tests: int, history: Sequence[Snapshot]) -> list[float]:
+def module_baseline(module: str, ids: str, history: Sequence[Snapshot]) -> list[float]:
     """Seconds this module took in each past snapshot that ran the same tests."""
     return [
         s.modules[module]["seconds"]
         for s in history
-        if module in s.modules and s.modules[module]["tests"] == tests
+        if module in s.modules and s.modules[module]["ids"] == ids
     ]
 
 
@@ -74,7 +75,7 @@ def compare(current: Snapshot, history: Sequence[Snapshot], limits: Thresholds) 
     """Measure every comparable module, and their sum, against the history median."""
     result = Comparison()
     for module, entry in current.modules.items():
-        samples = module_baseline(module, int(entry["tests"]), history)
+        samples = module_baseline(module, entry["ids"], history)
         if not samples:
             continue
         baseline = statistics.median(samples)

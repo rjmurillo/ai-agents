@@ -24,7 +24,10 @@ def test_a_missing_file_is_an_empty_history_with_no_note(tmp_path: Path) -> None
 @pytest.mark.parametrize(
     ("body", "fragment"),
     [("not json", "unreadable"), ('{"schema": 99, "snapshots": []}', "schema 99"),
-     ('{"schema": 1}', "unreadable"), ("[]", "unreadable")],
+     ('{"schema": 1}', "unreadable"), ("[]", "unreadable"),
+     ('{"schema": 1, "snapshots": [{"sha": "s", "recorded_at": "t", "partitions": {}, '
+      '"modules": {"tests/test_alpha.py": {"tests": 2, "seconds": "10", "ids": "x"}}}]}',
+      "seconds is str")],
 )
 def test_a_malformed_history_is_reported_and_treated_as_empty(
     tmp_path: Path, body: str, fragment: str
@@ -71,3 +74,22 @@ def test_history_read_and_written_in_place_keeps_the_old_entries(tmp_path: Path)
     assert trend.main([str(report), "--history", str(history),
                        "--write-history", str(history), "--sha", "third"]) == 0
     assert _shas(history) == ["sha0", "sha1", "third"]
+
+
+def test_a_history_with_a_string_seconds_value_reseeds_instead_of_crashing(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Valid JSON, wrong field type: the report says so and main writes a fresh history."""
+    report = write_junit(tmp_path, "p", {"tests.test_alpha": [1.0, 1.0]}, 2.0)
+    history = tmp_path / "history.json"
+    history.write_text(json.dumps({"schema": 1, "snapshots": [{
+        "sha": "bad", "recorded_at": "t", "partitions": {},
+        "modules": {"tests/test_alpha.py": {"tests": 2, "seconds": "10", "ids": "x"}}}]}),
+        encoding="utf-8")
+
+    rc = trend.main([str(report), "--history", str(history), "--write-history", str(history),
+                     "--sha", "fresh"])
+
+    assert rc == 0
+    assert "Note: history unreadable, starting fresh" in capsys.readouterr().out
+    assert _shas(history) == ["fresh"]

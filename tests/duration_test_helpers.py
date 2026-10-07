@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from scripts.testing.duration_compare import Thresholds
+from scripts.testing.duration_schema import ids_digest
 from scripts.testing.duration_snapshot import Snapshot
 
 NOW = datetime(2026, 10, 7, tzinfo=UTC)
@@ -30,14 +31,20 @@ def write_junit(tmp_path: Path, name: str, cases: dict[str, list[float]], wall: 
     return path
 
 
+def alpha_ids(tests: int) -> str:
+    """The digest ``write_junit`` produces for ``tests`` cases in tests.test_alpha."""
+    return ids_digest(f"tests/test_alpha.py::t{i}" for i in range(tests))
+
+
 def write_history(tmp_path: Path, module_seconds: list[float], tests: int = 2) -> Path:
-    """Write a history whose snapshots each ran ``tests`` tests in tests/test_alpha.py."""
+    """Write a history whose snapshots each ran tests t0..t{tests-1} in tests/test_alpha.py."""
     snapshots = [
         Snapshot(
             sha=f"sha{i}",
             recorded_at="2026-10-01T00:00:00+00:00",
             partitions={"pytest-results": {"tests": tests, "wall_seconds": s}},
-            modules={"tests/test_alpha.py": {"seconds": s, "tests": tests}},
+            modules={"tests/test_alpha.py": {"seconds": s, "tests": tests,
+                                             "ids": alpha_ids(tests)}},
         ).to_dict()
         for i, s in enumerate(module_seconds)
     ]
