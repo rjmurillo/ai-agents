@@ -61,7 +61,9 @@ import shutil
 import subprocess
 import sys
 import warnings
+from collections.abc import Callable
 from pathlib import Path
+from typing import NoReturn
 
 import pytest
 import yaml
@@ -229,6 +231,19 @@ _CLAUDE_EXTERNAL_BLOCK_PATTERNS: tuple[str, ...] = (
 _CLAUDE_AUTH_BLOCK_PATTERNS = _CLAUDE_EXTERNAL_BLOCK_PATTERNS[:3]
 
 _CLI_TIMEOUT_SECONDS = 240
+_VERSION_TIMEOUT_SECONDS = 60
+# pyproject sets a global --timeout of 120s. Each real-CLI test spends up to
+# _CLI_TIMEOUT_SECONDS per subprocess, so the global kill landed first and the
+# CLI output never reached the block classifier (issue #6181). Each such test
+# declares its own budget: the sum of its subprocess timeouts plus this margin.
+_PYTEST_MARGIN_SECONDS = 30
+
+
+def _cli_budget(*subprocess_timeouts: int) -> pytest.MarkDecorator:
+    """pytest-timeout marker that outlasts every subprocess timeout in a test."""
+    return pytest.mark.timeout(sum(subprocess_timeouts) + _PYTEST_MARGIN_SECONDS)
+
+
 _PLUGIN_ROOT_ENV_KEYS = {"CLAUDE_PLUGIN_ROOT", "CLAUDE_PROJECT_DIR", "COPILOT_PLUGIN_ROOT"}
 
 requires_copilot = pytest.mark.skipif(
@@ -409,21 +424,51 @@ def _read_agent_tools_from_file(agent: str) -> set[str]:
     return set(tools)
 
 
-def _run_copilot_agent(agent: str, prompt: str) -> list[dict[str, object]]:
-    run = _run_cli(
-        copilot_command(
-            "--agent",
-            agent,
-            "--no-ask-user",
-            "--allow-all-tools",
-            "--output-format",
-            "json",
-            "--prompt",
-            prompt,
-        ),
-        cwd=REPO_ROOT,
-        timeout=_CLI_TIMEOUT_SECONDS,
+def _decode_partial(output: bytes | str | None) -> str:
+    """Decode partial output; subprocess.run hands it back as bytes on POSIX."""
+    if isinstance(output, bytes):
+        return output.decode("utf-8", errors="replace")
+    return output or ""
+
+
+def _fail_or_skip_copilot_timeout(agent: str, exc: subprocess.TimeoutExpired) -> NoReturn:
+    """Skip when the partial output names a block; otherwise fail the timeout.
+
+    A spent quota or rate limit can keep the CLI retrying past its budget.
+    The marker it printed before the kill is still a classified block. A
+    timeout with no marker is a real hang and must stay red (issue #6181).
+    """
+    partial = subprocess.CompletedProcess(
+        exc.cmd,
+        -9,
+        stdout=_decode_partial(exc.stdout),
+        stderr=_decode_partial(exc.stderr),
     )
+    _skip_on_copilot_block(partial)
+    raise AssertionError(
+        f"copilot agent probe for {agent} exceeded {exc.timeout}s with no block "
+        f"marker. stdout={partial.stdout[-600:]!r} stderr={partial.stderr[-600:]!r}"
+    ) from exc
+
+
+def _run_copilot_agent(agent: str, prompt: str) -> list[dict[str, object]]:
+    try:
+        run = _run_cli(
+            copilot_command(
+                "--agent",
+                agent,
+                "--no-ask-user",
+                "--allow-all-tools",
+                "--output-format",
+                "json",
+                "--prompt",
+                prompt,
+            ),
+            cwd=REPO_ROOT,
+            timeout=_CLI_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired as exc:
+        _fail_or_skip_copilot_timeout(agent, exc)
     _skip_on_copilot_block(run)
     assert run.returncode == 0, (
         f"copilot agent probe failed for {agent} (rc={run.returncode}). "
@@ -569,6 +614,7 @@ def _parse_component_inventory(text: str, label: str) -> set[str]:
 
 @pytest.mark.smoke
 @requires_claude
+@_cli_budget(_CLI_TIMEOUT_SECONDS)
 def test_claude_agent_inventory_excludes_the_non_agent_documents(tmp_path: Path) -> None:
     """The loader's own agent listing carries none of the #5493 documents.
 
@@ -661,6 +707,7 @@ def test_non_agent_document_stems_are_absent_from_the_agent_tree() -> None:
 
 @pytest.mark.smoke
 @requires_copilot
+@_cli_budget(_VERSION_TIMEOUT_SECONDS, _CLI_TIMEOUT_SECONDS, _CLI_TIMEOUT_SECONDS)
 def test_copilot_plugin_loads_expected_skills(tmp_path: Path) -> None:
     """copilot loads the plugin, proven by a fired hook, with no loader warning.
 
@@ -676,7 +723,7 @@ def test_copilot_plugin_loads_expected_skills(tmp_path: Path) -> None:
     """
     version = _run_cli(
         copilot_command("--version"),
-        timeout=60,
+        timeout=_VERSION_TIMEOUT_SECONDS,
     )
     print(f"copilot --version: {version.stdout.strip() or version.stderr.strip()}")
 
@@ -761,6 +808,7 @@ def test_copilot_plugin_loads_expected_skills(tmp_path: Path) -> None:
 
 @pytest.mark.smoke
 @requires_copilot
+@_cli_budget(_CLI_TIMEOUT_SECONDS)
 def test_copilot_empty_plugin_dir_does_not_fire_probe_hook(tmp_path: Path) -> None:
     """Negative control: the fired-hook load signal fails when nothing loads.
 
@@ -808,6 +856,7 @@ def test_copilot_empty_plugin_dir_does_not_fire_probe_hook(tmp_path: Path) -> No
 
 @pytest.mark.smoke
 @requires_claude
+@_cli_budget(_VERSION_TIMEOUT_SECONDS, _CLI_TIMEOUT_SECONDS, _CLI_TIMEOUT_SECONDS)
 def test_claude_plugin_loads_expected_skills(tmp_path: Path) -> None:
     """claude --plugin-dir loads project-toolkit at the manifest version.
 
@@ -817,7 +866,7 @@ def test_claude_plugin_loads_expected_skills(tmp_path: Path) -> None:
     """
     version = _run_cli(
         [resolve_executable("claude"), "--version"],
-        timeout=60,
+        timeout=_VERSION_TIMEOUT_SECONDS,
     )
     print(f"claude --version: {version.stdout.strip() or version.stderr.strip()}")
 
@@ -880,6 +929,7 @@ def test_claude_plugin_loads_expected_skills(tmp_path: Path) -> None:
 
 @pytest.mark.smoke
 @requires_claude
+@_cli_budget(_CLI_TIMEOUT_SECONDS, _CLI_TIMEOUT_SECONDS)
 def test_claude_analyst_runtime_uses_exact_allowlist_with_executor_control() -> None:
     """Claude loads only reviewed analyst tools while implementer exposes writes."""
     analyst_tools = _claude_init_tools("analyst")
@@ -898,6 +948,7 @@ def test_claude_analyst_runtime_uses_exact_allowlist_with_executor_control() -> 
 
 @pytest.mark.smoke
 @requires_claude
+@_cli_budget(_CLI_TIMEOUT_SECONDS, _CLI_TIMEOUT_SECONDS)
 def test_claude_security_runtime_grants_no_shell_with_executor_control() -> None:
     """Claude resolves the security agent to the reviewed read-and-report set.
 
@@ -930,6 +981,7 @@ def test_claude_security_runtime_grants_no_shell_with_executor_control() -> None
 
 @pytest.mark.smoke
 @requires_copilot
+@_cli_budget(_CLI_TIMEOUT_SECONDS, _CLI_TIMEOUT_SECONDS)
 def test_copilot_security_runtime_has_no_shell_with_executor_control() -> None:
     """Copilot's security agent cannot execute a command, and says so.
 
@@ -963,6 +1015,7 @@ def test_copilot_security_runtime_has_no_shell_with_executor_control() -> None:
 
 @pytest.mark.smoke
 @requires_copilot
+@_cli_budget(_CLI_TIMEOUT_SECONDS, _CLI_TIMEOUT_SECONDS)
 def test_copilot_analyst_runtime_uses_exact_allowlist_with_executor_control() -> None:
     """Copilot resolves only reviewed analyst tools, with an execution control."""
     analyst_shell_events = _run_copilot_agent(
@@ -1381,6 +1434,134 @@ def test_claude_probe_succeeds_when_rc_zero(
     )
     tools = _claude_init_tools("analyst")
     assert tools == {"Bash"}
+
+
+# ---------------------------------------------------------------------------
+# Copilot agent timeout classification (issue #6181, always-on, no runtime)
+# ---------------------------------------------------------------------------
+
+
+def _raise_timeout(
+    stdout: bytes | str | None, stderr: bytes | str | None
+) -> Callable[..., subprocess.CompletedProcess[str]]:
+    def fake_run_cli(argv: list[str], **_: object) -> subprocess.CompletedProcess[str]:
+        raise subprocess.TimeoutExpired(
+            argv, _CLI_TIMEOUT_SECONDS, output=stdout, stderr=stderr
+        )
+
+    return fake_run_cli
+
+
+@pytest.mark.parametrize(
+    ("stdout", "stderr"),
+    [
+        (None, b"\nYou have exceeded your monthly quota (Request ID: X)\n"),
+        (b'{"errorCode":"quota_exceeded"}\n', None),
+        ("", "You have exceeded your monthly quota"),
+    ],
+    ids=["bytes-stderr", "bytes-json-stdout", "str-stderr"],
+)
+def test_copilot_agent_timeout_with_quota_marker_skips(
+    monkeypatch: pytest.MonkeyPatch,
+    stdout: bytes | str | None,
+    stderr: bytes | str | None,
+) -> None:
+    """A run killed while retrying a spent quota skips with the quota reason."""
+    monkeypatch.setattr(
+        "tests.e2e.test_plugin_load_smoke._run_cli", _raise_timeout(stdout, stderr)
+    )
+
+    with pytest.raises(pytest.skip.Exception, match="monthly quota is exhausted"):
+        _run_copilot_agent("security", "Reply exactly READY.")
+
+
+@pytest.mark.parametrize(
+    ("stdout", "stderr"),
+    [(None, None), (b'{"type":"session.start"}\n', b"working...\n")],
+    ids=["no-output", "unclassified-output"],
+)
+def test_copilot_agent_timeout_without_block_marker_fails(
+    monkeypatch: pytest.MonkeyPatch,
+    stdout: bytes | str | None,
+    stderr: bytes | str | None,
+) -> None:
+    """A real hang with no block marker stays red instead of skipping."""
+    monkeypatch.setattr(
+        "tests.e2e.test_plugin_load_smoke._run_cli", _raise_timeout(stdout, stderr)
+    )
+
+    with pytest.raises(AssertionError, match="no block marker"):
+        _run_copilot_agent("security", "Reply exactly READY.")
+
+
+def test_copilot_agent_quota_exit_skips(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A run that exits on a spent quota skips before any event parsing."""
+    blocked = subprocess.CompletedProcess(
+        ["copilot"], 1, stdout="", stderr="You have exceeded your monthly quota"
+    )
+    monkeypatch.setattr(
+        "tests.e2e.test_plugin_load_smoke._run_cli", lambda *a, **kw: blocked
+    )
+
+    with pytest.raises(pytest.skip.Exception, match="monthly quota is exhausted"):
+        _run_copilot_agent("security", "Reply exactly READY.")
+
+
+def _smoke_tests() -> list[Callable[..., object]]:
+    return [
+        obj
+        for name, obj in sorted(globals().items())
+        if name.startswith("test_")
+        and callable(obj)
+        and any(mark.name == "smoke" for mark in getattr(obj, "pytestmark", []))
+    ]
+
+
+def _timeout_mark_seconds(test: Callable[..., object]) -> float | None:
+    for mark in getattr(test, "pytestmark", []):
+        if mark.name == "timeout":
+            return float(mark.args[0])
+    return None
+
+
+def test_every_real_cli_test_outlasts_its_subprocess_timeout() -> None:
+    """The pytest kill must land after the subprocess timeout, not before.
+
+    The global --timeout is below _CLI_TIMEOUT_SECONDS, so a smoke test with
+    no marker of its own is killed before the CLI output reaches the block
+    classifier (issue #6181).
+    """
+    smoke_tests = _smoke_tests()
+
+    assert len(smoke_tests) == 8, [test.__name__ for test in smoke_tests]
+    short = {
+        test.__name__: _timeout_mark_seconds(test)
+        for test in smoke_tests
+        if (_timeout_mark_seconds(test) or 0) <= _CLI_TIMEOUT_SECONDS
+    }
+    assert not short, f"smoke tests without a budget above the CLI timeout: {short}"
+
+
+@pytest.mark.parametrize(
+    "test",
+    [
+        test_copilot_security_runtime_has_no_shell_with_executor_control,
+        test_copilot_analyst_runtime_uses_exact_allowlist_with_executor_control,
+    ],
+    ids=lambda test: test.__name__,
+)
+def test_two_run_copilot_agent_tests_outlast_both_runs(
+    test: Callable[..., object],
+) -> None:
+    """Both agent runs can time out on their own before the test is killed."""
+    assert (_timeout_mark_seconds(test) or 0) > 2 * _CLI_TIMEOUT_SECONDS
+
+
+def test_cli_budget_adds_the_margin_to_the_subprocess_timeouts() -> None:
+    mark = _cli_budget(60, 240, 240).mark
+
+    assert mark.name == "timeout"
+    assert mark.args == (60 + 240 + 240 + _PYTEST_MARGIN_SECONDS,)
 
 
 # ---------------------------------------------------------------------------
