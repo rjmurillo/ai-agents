@@ -19,9 +19,7 @@ from __future__ import annotations
 
 import json
 import re
-import shutil
 import subprocess
-import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -224,20 +222,21 @@ class TestFetchCodeqlAlertsTimeout:
 
 
 def _pinned_psscriptanalyzer_available() -> bool:
-    if shutil.which("pwsh") is None:
+    try:
+        probe = subprocess.run(
+            [
+                "pwsh",
+                "-NoProfile",
+                "-Command",
+                f"Import-Module PSScriptAnalyzer -RequiredVersion {PSSCRIPTANALYZER_VERSION} "
+                "-ErrorAction Stop",
+            ],
+            capture_output=True,
+            check=False,
+            timeout=120,
+        )
+    except FileNotFoundError:
         return False
-    probe = subprocess.run(
-        [
-            "pwsh",
-            "-NoProfile",
-            "-Command",
-            f"Import-Module PSScriptAnalyzer -RequiredVersion {PSSCRIPTANALYZER_VERSION} "
-            "-ErrorAction Stop",
-        ],
-        capture_output=True,
-        check=False,
-        timeout=120,
-    )
     return probe.returncode == 0
 
 
@@ -256,7 +255,7 @@ class TestRunPsscriptAnalyzerIntegration:
     ) -> None:
         wildcard_root = tmp_path / "tmp[1]*?"
         wildcard_root.mkdir()
-        monkeypatch.setattr(tempfile, "tempdir", str(wildcard_root))
+        monkeypatch.setattr("tempfile.tempdir", str(wildcard_root))
 
         with patch.object(check, "_read_staged_blob", return_value=b"Write-Output 'ok'\n"):
             result = check._run_psscriptanalyzer([Path("/repo/clean.ps1")])
