@@ -172,7 +172,7 @@ If monthly costs exceed $100:
 
 ### Agent Workflows (Approval-Gated, Non-Blocking)
 
-These eleven workflows run a model or an agent. Each model job declares the environment of its provider and runs after a reviewer approves it (ADR-114). Their checks never block merge.
+These eleven workflows run a model or an agent. Each model job declares the environment of its provider and runs after a reviewer approves it (ADR-114). Checks from listed workflows never block merge unless the branch ruleset requires them (ADR-114 Decisions 5 and 7).
 
 | Environment | Provider | Secrets |
 |-------------|----------|---------|

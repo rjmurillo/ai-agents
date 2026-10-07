@@ -125,3 +125,37 @@ The repository `/review` ran Stage 1 plus eight risk-selected axes and the corre
 | 15 | devops | The doubled smoke legs double runner minutes. | Fixed. Stated under Negative consequences. |
 | 16 | reliability | The next scheduled run also cancels legs that wait for approval. | Fixed. Stated under Negative consequences. |
 | 17 | correctness | The drift check missed the bracket form `secrets['NAME']`. | Fixed. The check matches both forms, and a test pins it. |
+
+### Full panel completion (2026-10-07)
+
+A Devin review on PR #6197 pointed out that round 3 ran two seats where AGENTS.md requires six. The owner chose to run the four missing seats. They reviewed head `13d02d1b0`.
+
+| # | Seat | Priority | Finding | Resolution |
+|---|------|----------|---------|------------|
+| 18 | security | P1 | Self-review is allowed and the owner is the only reviewer. A process holding the owner's token can approve its own pending deployment through the REST API. | Recorded as Decision 11 item 7. A settings deny rule only slows this, so it is an owner decision, not a fix in this change. |
+| 19 | security | P2 | The `claude.yml` approval controls spend, not prompt injection. | Fixed. Decision 3 says so and tells the reviewer to read the triggering event. |
+| 20 | security | P2 | The Dependabot secret store was not checked. | Fixed. It holds 0 secrets, recorded in Decision 11 item 4. |
+| 21 | security | P2 | Repository-level `FACTORY_API_KEY` shadows the `agent-droid` copy. | Recorded in Decision 11 item 4. The owner deletes it. |
+| 22 | analyst | P2 | ADR-114 cited ADR-101:261. The sentence is at :269. | Fixed. |
+| 23 | analyst | P2 | The `always()` line reference was stale. | Fixed. It is line 87. |
+| 24 | analyst | P2 | `copilot-context-synthesis.yml` reads no provider secret, so its gate rests on the stanza alone. | Fixed. Decision 10 and the Positive consequence name it. |
+| 25 | analyst | P2 | `docs/COST-GOVERNANCE.md` said agent checks never block. | Fixed. It now matches Decisions 5 and 7. |
+| 26 | independent-thinker | P2 | `claude.yml` approval volume is larger than `@claude` replies, and waiting runs pile up with no concurrency group. | Recorded under Negative consequences, with run counts from the Actions API and a trigger. |
+| 27 | independent-thinker | P2 | One review can approve several environments. | Fixed. Cited the REST API. |
+| 28 | independent-thinker | P2 | Decision 12 shipped "not re-verified in this session". | Fixed. Quoted GitHub's documentation, read 2026-10-07. |
+| 29 | independent-thinker | P2 | `agent-approval` is unused configuration. | Recorded as Decision 11 item 6. The owner decides. |
+
+The high-level-advisor ruled every finding above as a fix or a record in this change. It ruled that the settings deny rule stays an owner decision.
+
+### Votes (full panel)
+
+| Seat | Vote |
+|------|------|
+| architect | Disagree-and-Commit |
+| critic | Disagree-and-Commit |
+| security | Disagree-and-Commit |
+| analyst | Accept |
+| independent-thinker | Disagree-and-Commit. The round 2 Block is lifted: the seat read the live API and found keys scoped and reviewers set. |
+| high-level-advisor | Disagree-and-Commit |
+
+All six seats Accept or Disagree-and-Commit. No seat blocks. The four late seats voted on head `13d02d1b0`. Their fixes landed in the next commit, and no seat re-voted on it.
