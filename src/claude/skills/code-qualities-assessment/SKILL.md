@@ -1,9 +1,14 @@
 ---
 name: code-qualities-assessment
-description: Assess code maintainability through 5 foundational qualities (cohesion, coupling, encapsulation, testability, non-redundancy) with quantifiable scoring rubrics. Works at method/class/module levels across multiple languages. Produces markdown reports with remediation guidance. Use when you ask to "assess maintainability", "score cohesion/coupling/testability" on specific code. Do NOT use for a full pre-merge review (use review) or repo-wide domain grading (use quality-grades).
-version: 1.1.0
+description: Assess maintainability of code through 5 foundational qualities (cohesion, coupling, encapsulation, testability, non-redundancy) with quantifiable scoring rubrics. assess.py scores source code only; rules, skills, and agents are assessed manually against the same qualities per references/executable-nl-artifacts.md. Works at method/class/module levels across multiple languages. Produces markdown reports with remediation guidance. Use when you ask to "assess maintainability", "score cohesion/coupling/testability" on specific code. Do NOT use for a full pre-merge review (use review) or repo-wide domain grading (use quality-grades).
+version: 1.2.0
 license: MIT
 metadata:
+  capability:
+    kind: reusable-primitive
+    owns:
+      - artifact-neutral-code-quality
+    status: active
   routing:
     role: lifecycle
     invoker: review
@@ -13,7 +18,7 @@ metadata:
 
 # Code Qualities Assessment
 
-Evaluate code maintainability using 5 timeless design qualities with quantifiable scoring rubrics.
+Evaluate maintainability of code using 5 timeless design qualities with quantifiable scoring rubrics. assess.py scores source code only. Rules, skills, and agents are assessed manually against the same qualities. For artifact mapping, the minimal-implementation ladder, and change amplification, see [executable-nl-artifacts.md](references/executable-nl-artifacts.md).
 
 ## Triggers
 
@@ -430,8 +435,6 @@ diff baseline.md post-implementation.md
 
 ### With analyze
 
-Combine broad analysis with focused quality metrics:
-
 ```bash
 # First: broad exploration
 analyze --target src/
@@ -459,6 +462,7 @@ For detailed methodology and examples:
 
 | File | Content |
 |------|---------|
+| [executable-nl-artifacts.md](references/executable-nl-artifacts.md) | Artifact-neutral model for rules, skills, agents: mapping, ladder, change amplification |
 | [dotnet-performance-patterns.md](references/dotnet-performance-patterns.md) | Allocation-free .NET patterns with quality scoring calibration |
 
 ---
