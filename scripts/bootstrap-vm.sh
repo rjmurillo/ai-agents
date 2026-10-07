@@ -316,6 +316,17 @@ else
         Install-Module -Name powershell-yaml -RequiredVersion $POWERSHELL_YAML_VERSION -Force -Scope CurrentUser -EA SilentlyContinue
     " 2>/dev/null || true
 fi
+# PowerShell installs module versions side by side and an unqualified
+# import loads the highest one. Remove other user-installed versions so the
+# pin is the version that resolves, then confirm which version wins.
+pwsh -NoProfile -Command "
+    Get-InstalledModule -Name powershell-yaml -AllVersions -EA SilentlyContinue |
+        Where-Object { \$_.Version -ne [version]'$POWERSHELL_YAML_VERSION' } |
+        ForEach-Object { Uninstall-Module -Name powershell-yaml -RequiredVersion \$_.Version -Force -EA SilentlyContinue }
+" &>/dev/null || true
+if ! pwsh -NoProfile -Command "\$top = Get-Module -ListAvailable -Name powershell-yaml | Sort-Object Version -Descending | Select-Object -First 1; if (\$top -and \$top.Version -eq [version]'$POWERSHELL_YAML_VERSION') { exit 0 }; exit 1" &>/dev/null; then
+    echo "WARNING: powershell-yaml resolves to a version other than $POWERSHELL_YAML_VERSION; a copy outside CurrentUser may shadow it." >&2
+fi
 
 echo "=== Git Configuration ==="
 git config --global core.autocrlf input
