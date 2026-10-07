@@ -251,7 +251,18 @@ else
 fi
 
 echo "=== markdownlint-cli2 ==="
-if ! command -v markdownlint-cli2 &>/dev/null; then
+# Match the version .github/actions/setup-code-env/action.yml installs in CI.
+MARKDOWNLINT_CLI2_VERSION="0.23.1"
+# `--help` exits 2 but its first line is the version banner. `--version` is
+# not a flag: the CLI treats it as a glob and lints the working directory.
+markdownlint_cli2_pinned() {
+    local banner
+    banner=$(markdownlint-cli2 --help 2>/dev/null || true)
+    [[ "${banner%%$'\n'*}" == "markdownlint-cli2 v${MARKDOWNLINT_CLI2_VERSION} "* ]]
+}
+if markdownlint_cli2_pinned; then
+    echo "markdownlint-cli2 $MARKDOWNLINT_CLI2_VERSION already installed; skipping"
+else
     if command -v npm &>/dev/null; then
         NPM_PATH=$(command -v npm)
 
@@ -260,19 +271,22 @@ if ! command -v markdownlint-cli2 &>/dev/null; then
 
         if [[ "$(id -u)" -eq 0 ]]; then
             # Running as root - use npm directly with absolute path
-            "$NPM_PATH" install -g markdownlint-cli2
+            "$NPM_PATH" install -g "markdownlint-cli2@${MARKDOWNLINT_CLI2_VERSION}"
         elif [[ "$NPM_PREFIX" =~ \.nvm ]]; then
             # nvm installation - prefix is user-writable, no sudo needed
-            "$NPM_PATH" install -g markdownlint-cli2
+            "$NPM_PATH" install -g "markdownlint-cli2@${MARKDOWNLINT_CLI2_VERSION}"
         else
             # System npm - use sudo with safe PATH and absolute npm path
             NPM_DIR=$(dirname "$NPM_PATH")
             SAFE_PATH="${NPM_DIR}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-            sudo env "PATH=$SAFE_PATH" "$NPM_PATH" install -g markdownlint-cli2
+            sudo env "PATH=$SAFE_PATH" "$NPM_PATH" install -g "markdownlint-cli2@${MARKDOWNLINT_CLI2_VERSION}"
         fi
     else
         echo "npm not found. Please install Node.js (which includes npm) from https://nodejs.org or via your package manager, then re-run this script to complete markdownlint setup." >&2
         exit 1
+    fi
+    if ! markdownlint_cli2_pinned; then
+        echo "WARNING: markdownlint-cli2 on PATH is not $MARKDOWNLINT_CLI2_VERSION after install; another copy may shadow it." >&2
     fi
 fi
 
@@ -290,16 +304,17 @@ else
 fi
 
 echo "=== powershell-yaml ==="
-if pwsh -NoProfile -Command 'if (Get-Module -ListAvailable -Name powershell-yaml) { exit 0 }; exit 1' &>/dev/null; then
-    echo "powershell-yaml already installed; skipping"
+POWERSHELL_YAML_VERSION="0.4.12"
+if pwsh -NoProfile -Command "if (Get-Module -ListAvailable -Name powershell-yaml | Where-Object Version -eq '$POWERSHELL_YAML_VERSION') { exit 0 }; exit 1" &>/dev/null; then
+    echo "powershell-yaml $POWERSHELL_YAML_VERSION already installed; skipping"
 else
     # Trust PSGallery here too: with the Pester install skipped on warm
     # containers, this branch can no longer rely on the Pester block having
     # set the policy first.
-    pwsh -NoProfile -Command '
+    pwsh -NoProfile -Command "
         Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
-        Install-Module -Name powershell-yaml -Force -Scope CurrentUser -EA SilentlyContinue
-    ' 2>/dev/null || true
+        Install-Module -Name powershell-yaml -RequiredVersion $POWERSHELL_YAML_VERSION -Force -Scope CurrentUser -EA SilentlyContinue
+    " 2>/dev/null || true
 fi
 
 echo "=== Git Configuration ==="
@@ -330,15 +345,25 @@ if ! command -v actionlint &>/dev/null; then
         exit 1
     fi
 fi
-if ! command -v yamllint &>/dev/null; then
+YAMLLINT_VERSION="1.38.0"
+yamllint_pinned() {
+    [[ "$(yamllint --version 2>/dev/null || true)" == "yamllint ${YAMLLINT_VERSION}" ]]
+}
+if yamllint_pinned; then
+    echo "yamllint $YAMLLINT_VERSION already installed; skipping"
+else
     # `uv tool install` puts the yamllint shim into ~/.local/bin (on PATH);
     # a `uv pip install` into the uv-managed interpreter would land the
     # entry point in the interpreter's own bin dir, off PATH.
-    uv tool install --quiet yamllint
+    # --force replaces an older uv-managed yamllint in place.
+    uv tool install --quiet --force "yamllint==${YAMLLINT_VERSION}"
 
     if ! command -v yamllint &>/dev/null; then
         echo "yamllint installation failed: binary not found on PATH" >&2
         exit 1
+    fi
+    if ! yamllint_pinned; then
+        echo "WARNING: yamllint on PATH is not $YAMLLINT_VERSION after install; another copy may shadow it." >&2
     fi
 fi
 

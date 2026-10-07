@@ -86,4 +86,4 @@ def test_vm_bootstrap_installs_actionlint_and_yamllint() -> None:
     text = VM_BOOTSTRAP_PATH.read_text(encoding="utf-8")
 
     assert "actionlint" in text
-    assert "uv tool install --quiet yamllint" in text
+    assert 'uv tool install --quiet --force "yamllint==${YAMLLINT_VERSION}"' in text
