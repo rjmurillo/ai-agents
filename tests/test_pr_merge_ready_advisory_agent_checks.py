@@ -59,10 +59,10 @@ def _row(
         "isRequired": required,
         "checkSuite": {"workflowRun": None},
     }
-    if workflow or resource:
-        row["checkSuite"] = {
-            "workflowRun": {"workflow": {"resourcePath": resource or _resource(workflow)}}
-        }
+    if not resource and workflow:
+        resource = _resource(workflow)
+    if resource:
+        row["checkSuite"] = {"workflowRun": {"workflow": {"resourcePath": resource}}}
     return row
 
 
