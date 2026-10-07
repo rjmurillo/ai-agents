@@ -554,6 +554,94 @@ jobs:
           overwrite: true
           retention-days: 7
 
+  # Test duration trend. Reads the JUnit reports the partitions already wrote,
+  # writes per-partition wall time and the slowest modules to the job summary,
+  # and compares per-module seconds with the median of earlier main runs. A
+  # module or the suite that crosses both the ratio and the seconds threshold
+  # fails this job and raises a warning annotation. The history rides in the
+  # Actions cache, saved only from pushes to main, so a pull request reads the
+  # main baseline and never writes it. ADR-015 caps artifact retention at
+  # 7 days, which is why the history is not an artifact. Two overlapping main
+  # runs restore the same history, so the later save drops one snapshot; the
+  # median absorbs a missing sample. Not a dependency of test-result: runner
+  # timing noise must not block a merge.
+  test-durations:
+    name: Test duration trend
+    needs: test
+    if: "!cancelled() && needs.test.result == 'success'"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup code environment
+        uses: ./.github/actions/setup-code-env
+        with:
+          gh-token: ${{ secrets.GITHUB_TOKEN }}
+          enable-pester: false
+          enable-git-hooks: false
+
+      - name: Download partition artifacts
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          pattern: pytest-results-*
+          merge-multiple: true
+          path: artifacts
+
+      - name: Restore main duration history
+        id: restore-history
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: test-durations/history.json
+          key: test-duration-history-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: test-duration-history-
+
+      - name: Report test duration trend
+        id: duration-trend
+        env:
+          RUN_SHA: ${{ github.sha }}
+          HISTORY_KEY: ${{ steps.restore-history.outputs.cache-matched-key }}
+        run: >-
+          echo "history restored from cache key: ${HISTORY_KEY:-none}" &&
+          uv run --frozen python scripts/testing/duration_trend.py
+          artifacts/pytest-results*.xml
+          --history test-durations/history.json
+          --write-history test-durations/history.json
+          --snapshot-out test-durations/snapshot.json
+          --sha "$RUN_SHA"
+          --summary "$GITHUB_STEP_SUMMARY"
+
+      # The script writes the history even when it reports a regression, so
+      # a slowdown that lands on main joins the baseline instead of failing
+      # every later run. hashFiles is empty only when nothing was restored and
+      # the script could not write; otherwise an exit 3 re-saves the restored
+      # history unchanged.
+      - name: Save main duration history
+        if: >-
+          github.event_name == 'push' && github.ref == 'refs/heads/main'
+          && hashFiles('test-durations/history.json') != '' && !cancelled()
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: test-durations/history.json
+          key: test-duration-history-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Upload duration report
+        if: steps.duration-trend.outcome != 'skipped' && !cancelled()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: test-durations
+          path: test-durations/
+          retention-days: 7
+
   # The only job that publishes the required "Run Python Tests" context. It
   # replaces a same-named pair (this job plus a skip-tests pass-through that
   # answered when a path filter said no Python inputs changed). ADR-101
