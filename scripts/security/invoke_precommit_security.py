@@ -590,14 +590,17 @@ class PreCommitSecurityCheck:
                         failed_files.append(str(file_path))
                         continue
 
-                    analyzer_path = Path(temp_dir) / f"{index}{extension}"
-                    analyzer_path.write_bytes(staged_content)
-                    literal_path = _powershell_single_quoted_literal(str(analyzer_path))
+                    # PSScriptAnalyzer 1.25.0 has no -LiteralPath, and -Path expands
+                    # wildcards. Run from the temp directory with a generated bare
+                    # file name so no wildcard character from the directory reaches -Path.
+                    analyzer_name = f"{index}{extension}"
+                    (Path(temp_dir) / analyzer_name).write_bytes(staged_content)
+                    literal_path = _powershell_single_quoted_literal(analyzer_name)
                     analyzer_command = (
                         "$ErrorActionPreference = 'Stop'\n"
                         "Import-Module PSScriptAnalyzer "
                         f"-RequiredVersion {PSSCRIPTANALYZER_VERSION} -ErrorAction Stop\n"
-                        f"$findings = Invoke-ScriptAnalyzer -LiteralPath {literal_path} "
+                        f"$findings = Invoke-ScriptAnalyzer -Path {literal_path} "
                         "-Severity Error,Warning -ErrorAction Stop\n"
                         "$findings | ConvertTo-Json -Depth 3"
                     )
@@ -613,6 +616,7 @@ class PreCommitSecurityCheck:
                         errors="replace",
                         check=False,
                         timeout=SUBPROCESS_TIMEOUT_SECONDS,
+                        cwd=temp_dir,
                     )
 
                     if result.returncode != 0 or result.stderr.strip():
