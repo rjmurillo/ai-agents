@@ -17,7 +17,7 @@ jobs:
     name: Run skill overlap eval
     # Issue #1949: quarterly eval checks skill redundancy drift.
     runs-on: ubuntu-26.04-arm
-    environment: agent-approval
+    environment: agent-claude
     timeout-minutes: 60
 
     steps:

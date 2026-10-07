@@ -45,7 +45,7 @@ jobs:
 
   validate-slash-commands:
     runs-on: ubuntu-26.04-arm
-    environment: agent-approval
+    environment: agent-claude
     needs: check-paths
     if: needs.check-paths.outputs.spec_evals_changed == 'true'
     permissions:
