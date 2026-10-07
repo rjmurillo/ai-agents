@@ -113,3 +113,15 @@ Reduced panel of architect and critic, with the critic also covering security. T
 | critic | Disagree-and-Commit |
 
 Both seats voted before the fixes above. Both conditioned their votes on the P1 fixes, and all four P1 findings are fixed. No seat re-voted on the fixed head.
+
+### /review pass (2026-10-07)
+
+The repository `/review` ran Stage 1 plus eight risk-selected axes and the correctness pass on tip `7084dfe36`. Stage 1 and all eight axes returned PASS. The correctness pass returned WARN.
+
+| # | Axis | Finding | Resolution |
+|---|------|---------|------------|
+| 13 | correctness, qa | The negative drift test rebuilt the rule inline and tested its own copy. | Fixed. Both tests now call one helper, and fake workflows drive the negative cases. |
+| 14 | analyst | Decision 5 said four workflows, the deferred table said four entries, and the Decision 2 table had no `claude.yml` row. | Fixed. |
+| 15 | devops | The doubled smoke legs double runner minutes. | Fixed. Stated under Negative consequences. |
+| 16 | reliability | The next scheduled run also cancels legs that wait for approval. | Fixed. Stated under Negative consequences. |
+| 17 | correctness | The drift check missed the bracket form `secrets['NAME']`. | Fixed. The check matches both forms, and a test pins it. |

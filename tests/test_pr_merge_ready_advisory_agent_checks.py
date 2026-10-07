@@ -10,6 +10,7 @@ from an unlisted workflow all keep blocking.
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 from pathlib import Path
 from unittest.mock import patch
@@ -436,11 +437,38 @@ def _gated_jobs(doc: dict) -> list[str]:
 
 
 def _provider_of_secret(text: str) -> set[str]:
+    """Providers whose secret the text reads, in dot or bracket form."""
     return {
         provider
         for provider, names in PROVIDER_SECRETS.items()
-        if any(f"secrets.{name}" in text for name in names)
+        if any(
+            re.search(rf"secrets(?:\.{name}\b|\[\s*['\"]{name}['\"]\s*\])", text) for name in names
+        )
     }
+
+
+def _provider_environment_violations(docs: dict[str, dict]) -> tuple[list[str], int]:
+    """Return (violations, jobs checked) for jobs that read a provider secret.
+
+    The matrix job reads one secret per leg; test_nightly_cli_smoke_security.py
+    pins each leg's credential, so it is skipped here.
+    """
+    violations: list[str] = []
+    checked = 0
+    for path, doc in docs.items():
+        for job_id, job in (doc.get("jobs") or {}).items():
+            providers = _provider_of_secret(yaml.safe_dump(job))
+            if not providers or job.get("environment") == MATRIX_ENVIRONMENT:
+                continue
+            checked += 1
+            environment = job.get("environment")
+            if len(providers) != 1:
+                violations.append(f"{path}:{job_id} mixes provider secrets {sorted(providers)}")
+            elif environment not in {f"agent-{p}" for p in providers}:
+                where = f"{path}:{job_id}"
+                reads = sorted(providers)
+                violations.append(f"{where} reads {reads} secrets but declares {environment!r}")
+    return violations, checked
 
 
 def _shipped_entries() -> list[dict]:
@@ -519,39 +547,48 @@ def test_each_gated_job_declares_the_environment_matching_its_provider() -> None
 
 def test_jobs_reading_a_provider_secret_declare_that_provider_environment() -> None:
     """Drift: a job that reads a provider secret must sit in that provider's environment."""
-    checked = 0
-    for path, doc in _workflow_docs().items():
-        for job_id, job in (doc.get("jobs") or {}).items():
-            providers = _provider_of_secret(yaml.safe_dump(job))
-            if not providers or job.get("environment") == MATRIX_ENVIRONMENT:
-                # The matrix job reads one secret per leg; test_nightly_cli_smoke_security.py
-                # pins each leg's credential.
-                continue
-            checked += 1
-            expected = {f"agent-{p}" for p in providers}
-            environment = job.get("environment")
-            assert environment in expected | {MATRIX_ENVIRONMENT}, (
-                f"{path}:{job_id} reads {sorted(providers)} secrets but declares {environment!r}"
-            )
-            assert len(providers) == 1, f"{path}:{job_id} mixes provider secrets"
+    violations, checked = _provider_environment_violations(_workflow_docs())
+    assert violations == []
     assert checked >= 8
 
 
 @pytest.mark.parametrize(
-    ("environment", "providers", "ok"),
+    ("environment", "secret_ref", "ok"),
     [
-        ("agent-claude", {"claude"}, True),
-        ("agent-copilot", {"claude"}, False),
-        ("agent-approval", {"copilot"}, False),
-        (None, {"claude"}, False),
+        ("agent-claude", "${{ secrets.ANTHROPIC_API_KEY }}", True),
+        ("agent-claude", "${{ secrets['ANTHROPIC_API_KEY'] }}", True),
+        ("agent-copilot", "${{ secrets.ANTHROPIC_API_KEY }}", False),
+        ("agent-copilot", '${{ secrets["ANTHROPIC_API_KEY"] }}', False),
+        ("agent-approval", "${{ secrets.COPILOT_GITHUB_TOKEN }}", False),
+        (None, "${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}", False),
     ],
 )
 def test_the_provider_environment_rule_rejects_a_mismatch(
-    environment: str | None, providers: set[str], ok: bool
+    environment: str | None, secret_ref: str, ok: bool
 ) -> None:
-    """Negative: the matching rule used above fails closed on a wrong or missing environment."""
-    expected = {f"agent-{p}" for p in providers}
-    assert (environment in expected) is ok
+    """Negative: the real drift check fails closed on a wrong or missing environment."""
+    job: dict = {"runs-on": "ubuntu-latest", "steps": [{"env": {"KEY": secret_ref}}]}
+    if environment is not None:
+        job["environment"] = environment
+    violations, checked = _provider_environment_violations({"fake.yml": {"jobs": {"j": job}}})
+    assert checked == 1
+    assert (violations == []) is ok
+
+
+def test_the_provider_environment_rule_rejects_mixed_provider_secrets() -> None:
+    step_env = {
+        "A": "${{ secrets.ANTHROPIC_API_KEY }}",
+        "B": "${{ secrets.COPILOT_GITHUB_TOKEN }}",
+    }
+    job = {"environment": "agent-claude", "steps": [{"env": step_env}]}
+    violations, _ = _provider_environment_violations({"fake.yml": {"jobs": {"j": job}}})
+    assert len(violations) == 1
+    assert "mixes provider secrets" in violations[0]
+
+
+def test_a_job_with_no_provider_secret_is_not_checked() -> None:
+    job = {"steps": [{"env": {"T": "${{ secrets.GITHUB_TOKEN }}"}}]}
+    assert _provider_environment_violations({"fake.yml": {"jobs": {"j": job}}}) == ([], 0)
 
 
 def test_the_matrix_environment_resolves_to_provider_environments_only() -> None:
