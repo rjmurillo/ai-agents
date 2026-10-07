@@ -128,8 +128,17 @@ class TestRuffStepGating:
         assert "${{" not in step["run"]
 
     def test_ruff_step_gets_base_ref_from_environment(self) -> None:
+        """The base comes from env, chosen per event.
+
+        pull_request uses HEAD^1, the first parent of GitHub's merge commit;
+        pull_request.base.sha can be older and charge newer main lines to the
+        PR. merge_group uses its base_sha so every batched PR is in scope.
+        """
         step = _find_ruff_step()
         assert step is not None
         env = step.get("env")
         assert isinstance(env, dict)
-        assert "github.event.pull_request.base.sha" in env["RUFF_RATCHET_BASE_REF"]
+        base_ref = env["RUFF_RATCHET_BASE_REF"]
+        assert "github.event_name == 'pull_request' && 'HEAD^1'" in base_ref
+        assert "github.event.merge_group.base_sha" in base_ref
+        assert "github.event.pull_request.base.sha" not in base_ref
