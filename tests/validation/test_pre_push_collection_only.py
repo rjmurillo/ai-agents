@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import ast
 import inspect
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -97,3 +99,16 @@ def test_collection_command_silences_the_node_listing(tmp_path: Path) -> None:
     878 with three. Hook output is a token cost this stand-in exists to cut.
     """
     assert git_hook_policy._pytest_collection_command(tmp_path).count("-q") == 3
+
+
+def test_the_pytest_subcommand_rejects_a_path_argument() -> None:
+    """AC5: argparse exits 2, so no caller can hand the hook a subset to run."""
+    result = subprocess.run(
+        [sys.executable, inspect.getfile(git_hook_policy), "pytest", "somefile.py"],
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=60,
+    )
+    assert result.returncode == 2
+    assert "unrecognized arguments: somefile.py" in result.stderr
