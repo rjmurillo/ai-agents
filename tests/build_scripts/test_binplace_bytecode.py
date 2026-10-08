@@ -135,11 +135,12 @@ def test_binplace_does_not_report_install_tree_bytecode_unowned(tmp_path: Path) 
     _plugin_dir, install_dir = _lib_trees(root)
     (install_dir / "__pycache__").mkdir()
     (install_dir / "__pycache__" / "api.cpython-314.pyc").write_bytes(b"\x00")
+    (install_dir / "stray.md").write_bytes(b"real unowned file\n")
 
     result = binplace_manifest.binplace(root, check=True)
 
     assert result.exit_code == 0
-    assert result.unowned == []
+    assert result.unowned == [str(install_dir / "stray.md")]
 
 
 def test_claude_allowlist_excludes_plugin_tree_bytecode(tmp_path: Path) -> None:
