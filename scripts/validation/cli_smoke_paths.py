@@ -54,6 +54,7 @@ HOOK_E2E_GLOBS: tuple[str, ...] = (
 
 PLUGIN_E2E_GLOBS: tuple[str, ...] = (
     ".claude-plugin/marketplace.json",
+    ".github/plugin/marketplace.json",
     "src/claude/**",
     "src/copilot-cli/**",
     ".claude/skills/**",
@@ -63,6 +64,12 @@ PLUGIN_E2E_GLOBS: tuple[str, ...] = (
     "tests/e2e/copilot_hook_probe.py",
     ".github/workflows/plugin-cli-smoke.yml",
     "scripts/validation/cli_smoke_paths.py",
+    "scripts/validation/assert_smoke_ran.py",
+    "scripts/validation/assert_trusted_smoke_context.py",
+    "scripts/ci/require_job_results.py",
+    "tests/integration/test_e2e_install.py",
+    "pyproject.toml",
+    "uv.lock",
 )
 
 # Union in first-seen order. The CI filter uses this, so a change that affects

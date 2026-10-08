@@ -7,6 +7,7 @@ guard that fails when ``lefthook.yml`` globs differ from the module tuples.
 
 from __future__ import annotations
 
+import re
 import subprocess
 from pathlib import Path
 
@@ -43,6 +44,14 @@ def test_union_has_no_duplicates() -> None:
         "tests/e2e/test_cli_hook_e2e.py",
         ".github/workflows/plugin-cli-smoke.yml",
         "scripts/validation/cli_smoke_paths.py",
+        ".github/plugin/marketplace.json",
+        "scripts/validation/assert_smoke_ran.py",
+        "scripts/validation/assert_trusted_smoke_context.py",
+        "scripts/ci/require_job_results.py",
+        "tests/integration/test_e2e_install.py",
+        "tests/e2e/copilot_hook_probe.py",
+        "pyproject.toml",
+        "uv.lock",
     ],
 )
 def test_smoke_paths_trigger_a_run(changed: str) -> None:
@@ -216,3 +225,33 @@ def test_drift_guard_fails_when_a_glob_is_removed() -> None:
     drifted = paths.PLUGIN_E2E_GLOBS[:-1]
     assert drifted != paths.PLUGIN_E2E_GLOBS
     assert _lefthook_globs("plugin-load-e2e") != drifted
+
+
+_WORKFLOW = _REPO_ROOT / ".github" / "workflows" / "plugin-cli-smoke.yml"
+_REPO_PATH_RE = re.compile(r"(?<![\w.-])((?:scripts|tests)/[\w./-]+\.py)")
+
+
+def _workflow_invoked_repo_paths() -> set[str]:
+    doc = yaml.safe_load(_WORKFLOW.read_text(encoding="utf-8"))
+    return {
+        match
+        for job in doc["jobs"].values()
+        for step in job["steps"]
+        for match in _REPO_PATH_RE.findall(str(step.get("run", "")))
+    }
+
+
+def test_workflow_invokes_repo_scripts_and_tests() -> None:
+    """Guard: the extraction below finds the paths it is meant to check."""
+    invoked = _workflow_invoked_repo_paths()
+
+    assert "scripts/validation/assert_smoke_ran.py" in invoked
+    assert "tests/e2e/test_plugin_load_smoke.py" in invoked
+    assert "tests/integration/test_e2e_install.py" in invoked
+
+
+def test_every_repo_path_the_workflow_runs_matches_the_smoke_globs() -> None:
+    """A change to a script or test the smoke runs must trigger the smoke."""
+    unmatched = sorted(p for p in _workflow_invoked_repo_paths() if not paths.should_run([p]))
+
+    assert unmatched == []
