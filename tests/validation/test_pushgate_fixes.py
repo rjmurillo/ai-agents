@@ -372,7 +372,10 @@ class TestPushFilesGuard:
         )
 
         assert rc == 2
-        assert "requires at least one of copilot, claude, or codex" in capsys.readouterr().err
+        err = capsys.readouterr().err
+        assert "requires at least one of copilot, claude, or codex" in err
+        for package in ("@anthropic-ai/claude-code", "@github/copilot", "@openai/codex"):
+            assert package in err
 
     def test_cli_plugin_e2e_subcommand_accepts_files_arg(self) -> None:
         """The cli-plugin-e2e subcommand accepts --files."""

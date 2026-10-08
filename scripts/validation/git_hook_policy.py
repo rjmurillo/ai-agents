@@ -640,6 +640,11 @@ PYTEST_FULL_SUITE_LOCALLY_ENV = "AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY"
 CLI_E2E_TIMEOUT_SECONDS = 1_140
 # CLIs the local smoke can drive; any one on PATH satisfies the gate (REQ-047).
 CLI_E2E_BINARIES = ("copilot", "claude", "codex")
+# npm packages that provide those binaries, named in the missing-CLI error.
+CLI_E2E_INSTALL_HINT = (
+    "npm install -g @anthropic-ai/claude-code (claude), "
+    "@github/copilot (copilot), or @openai/codex (codex)"
+)
 # Issue #4823: direct and CI bulk pytest use xdist `auto`, one worker per
 # logical CPU. Local pre-push is different because it shares the machine with
 # sibling hook jobs, so issue #4710 adds a process-visible cap there only.
@@ -8175,7 +8180,8 @@ def run_cli_e2e(
         return 2
     if not any(shutil.which(binary) for binary in CLI_E2E_BINARIES):
         print(
-            "ERROR: CLI E2E requires at least one of copilot, claude, or codex on PATH",
+            "ERROR: CLI E2E requires at least one of copilot, claude, or codex on PATH. "
+            f"Install one: {CLI_E2E_INSTALL_HINT}",
             file=sys.stderr,
         )
         return 2
