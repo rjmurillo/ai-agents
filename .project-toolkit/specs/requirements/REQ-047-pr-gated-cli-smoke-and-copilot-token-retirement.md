@@ -107,7 +107,7 @@ The smoke result job prints which legs ran, which were skipped by the path filte
 
 ## Acceptance criteria
 
-1. WHEN `ai-metrics-analysis.yml`, `artifact-insight-scanner.yml`, or `pr-maintenance.yml` calls `ai-review`, the call SHALL set `provider: claude`, pass `ANTHROPIC_API_KEY`, and run in `agent-claude`.
+1. WHEN `ai-metrics-analysis.yml`, `artifact-insight-scanner.yml`, or `pr-maintenance.yml` calls `ai-review`, the call SHALL pass `ANTHROPIC_API_KEY` to the Claude-only action, and run in `agent-claude`.
 2. The `ai-review` action SHALL NOT read `COPILOT_GITHUB_TOKEN` or install the Copilot CLI. Its Copilot-only inputs, steps, and scripts with no remaining caller SHALL be removed.
 3. The only workflow that reads `COPILOT_GITHUB_TOKEN` SHALL be the CLI smoke, on its Copilot legs, in `agent-copilot`.
 4. WHEN a pull request changes a file in the smoke path list, the CLI smoke SHALL run Claude, Copilot, and Codex legs on Ubuntu, macOS, and Windows.
