@@ -22,10 +22,8 @@
 copilot --no-auto-update --version
 ```
 
-Compare with the version configured by the failing surface:
-
-- Required reviews: `COPILOT_VERSION` in `.github/actions/ai-review/action.yml`
-- Nightly smoke: `COPILOT_CLI_VERSION` in `.github/workflows/nightly-cli-smoke.yml`
+Compare with the version configured by the failing surface. The PR-gated CLI
+smoke pins it as `COPILOT_CLI_VERSION` in `.github/workflows/plugin-cli-smoke.yml`.
 
 The binary may auto-update independently of the npm package.
 

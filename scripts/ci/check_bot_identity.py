@@ -4,10 +4,10 @@ ADR-026 Decision 5 configures ``BOT_PAT`` so automated actions run as the
 ``rjmurillo-bot`` service account (id 250269933) with its own API budget.
 Issue #4607 measured that the secret held a token for the human account
 ``rjmurillo`` (id 6811113), so CI and every interactive agent session shared
-one rate-limit budget, and nothing in any run log made that visible: the only
-identity diagnostic (``verify_github_auth.py``) is gated behind
-``enable-diagnostics: 'true'``, which defaults to false, and it prints the
-login without comparing the id. A configured control with no test is an
+one rate-limit budget, and nothing in any run log made that visible. History:
+the only identity diagnostic then was ``verify_github_auth.py``, gated behind an
+``enable-diagnostics`` input that defaulted to false and printing the login
+without comparing the id. Both have since been deleted. A configured control with no test is an
 assumption (retrospective 2026-08-05-pr-queue-and-doctrine.md, Learning 4).
 
 This module makes the acceptance criterion of issue #4607 checkable from any
