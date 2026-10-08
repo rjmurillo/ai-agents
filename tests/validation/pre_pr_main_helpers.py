@@ -82,7 +82,7 @@ def sequence_with_passing_corpus_gates() -> tuple[Any, ...]:
         # Spawns `build/scripts/build_all.py --check` against the real
         # repository root. That child is not mocked: the gate reaches it
         # through `subprocess.Popen`
-        # (scripts/validation/check_generated_staleness.py:239) and
+        # (scripts/validation/check_generated_staleness.py:224) and
         # the tests that use these stubs patch `subprocess.run` only. So this gate is not merely
         # real-corpus-dependent like the ones above, it MUTATES the real
         # corpus: build_all regenerates every generator-owned file and then
