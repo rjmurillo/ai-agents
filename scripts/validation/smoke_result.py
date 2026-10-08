@@ -27,6 +27,9 @@ non-integer, or an unreadable file is warned about and ignored, and the count
 then reads ``unknown``. The message prints as a ``::notice::`` and is appended
 to ``GITHUB_STEP_SUMMARY`` when set. ``--count-message`` needs ``--count-dir``.
 
+``--preset NAME`` expands to a stored argument list (``PRESETS``) placed before
+any other flags, so the workflow stays a one-line call (ADR-006).
+
 Exit codes (ADR-035): 0 every check matched, 1 a check failed, 2 usage.
 """
 
@@ -59,6 +62,31 @@ _RESULT_HINTS = {
         "failed or its condition was false. Next: check the jobs listed in `needs`."
     ),
 }
+
+# The plugin-cli-smoke.yml summary gate, as the generic flags it replaced.
+_PLUGIN_CLI_SMOKE = (
+    *("--check", "CHANGES_RESULT", "success", "Smoke path filter result: {value}"),
+    *("--skip-when", "RUN", "false"),
+    *("--skip-message", "No smoke path changed; CLI smoke legs skipped."),
+    *("--skippable-check", "AUTHORIZE_RESULT", "success", "Trusted-context gate result: {value}"),
+    *(
+        "--guarded-check",
+        *("AUTHORIZE_RESULT", "success", "TRUSTED", "true"),
+        "Untrusted context: this change touches smoke paths from a fork pull request or a "
+        "non-default ref. Forks get no secrets, so the CLI smoke cannot run. A maintainer "
+        "must rerun it from a same-repo branch.",
+    ),
+    *("--skippable-check", "SMOKE_RESULT", "success", "Claude and Copilot smoke result: {value}"),
+    *("--skippable-check", "CODEX_RESULT", "success", "Codex smoke result: {value}"),
+    *("--success-message", "CLI smoke passed for Claude, Copilot, and Codex on all platforms."),
+    *("--count-dir", "quota-skips"),
+    *(
+        "--count-message",
+        "CLI smoke passed with {count} prompt checks quota-skipped. "
+        "Load tests passed on every leg.",
+    ),
+)
+PRESETS = {"plugin-cli-smoke": _PLUGIN_CLI_SMOKE}
 
 
 def failing_checks(checks: Sequence[tuple[str, str, str]], environ: Mapping[str, str]) -> list[str]:
@@ -115,6 +143,7 @@ def _build_parser() -> argparse.ArgumentParser:
         metavar=("GUARD_NAME", "GUARD_VALUE", *names),
         help="Like --skippable-check, evaluated only when GUARD_NAME equals GUARD_VALUE.",
     )
+    parser.add_argument("--preset", choices=sorted(PRESETS), help="Stored flag set.")
     parser.add_argument("--skip-when", nargs=2, metavar=("NAME", "VALUE"))
     parser.add_argument("--skip-message", default="", help="Printed when the skip held.")
     parser.add_argument("--success-message", default="", help="Printed when all matched.")
@@ -153,7 +182,9 @@ def _usage_problem(
 
 def main(argv: list[str] | None = None) -> int:
     """Evaluate every check. Returns an ADR-035 exit code."""
-    args = _build_parser().parse_args(argv)
+    parser = _build_parser()
+    given = sys.argv[1:] if argv is None else argv
+    args = parser.parse_args([*PRESETS.get(parser.parse_args(given).preset, ()), *given])
     always = [tuple(c) for c in args.check or []]
     skippable = [tuple(c) for c in args.skippable_check or []]
     problem = _usage_problem(args, always, skippable)

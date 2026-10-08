@@ -11,6 +11,7 @@ from typing import Any
 
 import pytest
 
+from scripts.validation.smoke_result import PRESETS
 from tests.lib.cli_smoke_workflow import (
     CLIS,
     PLUGIN_GATE,
@@ -123,5 +124,7 @@ def test_result_job_downloads_and_sums_the_quota_skip_counts(
     assert download["with"]["path"] == "quota-skips"
     assert re.search(r"@[0-9a-f]{40}$", download["uses"].split()[0])
     report = _step_by_name({"steps": steps}, "Report")["run"]
-    assert "--count-dir quota-skips" in report
-    assert "{count} prompt checks quota-skipped" in report
+    assert report.strip().endswith("smoke_result.py --preset plugin-cli-smoke")
+    argv = " ".join(PRESETS["plugin-cli-smoke"])
+    assert "--count-dir quota-skips" in argv
+    assert "{count} prompt checks quota-skipped" in argv

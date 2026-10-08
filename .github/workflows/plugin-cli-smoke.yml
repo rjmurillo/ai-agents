@@ -531,20 +531,4 @@ jobs:
           TRUSTED: ${{ needs.authorize.outputs.trusted }}
           SMOKE_RESULT: ${{ needs.smoke.result }}
           CODEX_RESULT: ${{ needs.smoke-codex.result }}
-        run: |
-          python3 -I trusted-base/scripts/validation/smoke_result.py \
-            --check CHANGES_RESULT success \
-              "Smoke path filter result: {value}" \
-            --skip-when RUN false \
-            --skip-message "No smoke path changed; CLI smoke legs skipped." \
-            --skippable-check AUTHORIZE_RESULT success \
-              "Trusted-context gate result: {value}" \
-            --guarded-check AUTHORIZE_RESULT success TRUSTED true \
-              "Untrusted context: this change touches smoke paths from a fork pull request or a non-default ref. Forks get no secrets, so the CLI smoke cannot run. A maintainer must rerun it from a same-repo branch." \
-            --skippable-check SMOKE_RESULT success \
-              "Claude and Copilot smoke result: {value}" \
-            --skippable-check CODEX_RESULT success \
-              "Codex smoke result: {value}" \
-            --success-message "CLI smoke passed for Claude, Copilot, and Codex on all platforms." \
-            --count-dir quota-skips \
-            --count-message "CLI smoke passed with {count} prompt checks quota-skipped. Load tests passed on every leg."
+        run: python3 -I trusted-base/scripts/validation/smoke_result.py --preset plugin-cli-smoke
