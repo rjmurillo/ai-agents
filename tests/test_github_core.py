@@ -1518,7 +1518,10 @@ class TestGetUnresolvedReviewThreads:
             }
         )
 
-        with patch("subprocess.run", side_effect=[_completed(stdout=page_one)]) as mock_run:
+        with (
+            patch("subprocess.run", side_effect=[_completed(stdout=page_one)]) as mock_run,
+            pytest.warns(UserWarning, match="Reason: cursor_missing"),
+        ):
             result = get_unresolved_review_threads("owner", "repo", 42)
 
         assert mock_run.call_count == 1, "Loop did not stop on empty endCursor"
