@@ -43,7 +43,9 @@ def test_result_job_checks_every_leg_and_names_the_fork(workflow_doc: dict[Any, 
     assert env["TRUSTED"] == "${{ needs.authorize.outputs.trusted }}"
     assert env["RUN"] == "${{ needs.changes.outputs.run }}"
     assert "--skip-when RUN false" in report["run"]
-    assert "TRUSTED true" in report["run"]
+    assert "--guarded-check AUTHORIZE_RESULT success TRUSTED true" in " ".join(
+        report["run"].split()
+    )
     assert "fork pull request" in report["run"]
     assert "smoke_result.py" in report["run"]
 
@@ -57,3 +59,11 @@ def test_result_job_filter_failure_is_not_skippable(workflow_doc: dict[Any, Any]
 
 def test_nightly_workflow_is_removed() -> None:
     assert not (REPO_ROOT / ".github" / "workflows" / "nightly-cli-smoke.yml").exists()
+
+
+def test_quota_skip_download_cannot_hide_a_green_smoke(workflow_doc: dict[Any, Any]) -> None:
+    """An artifact-service failure must not fail the gate; a missing dir counts as zero."""
+    download = _step_by_name(workflow_doc["jobs"]["smoke-result"], "Download quota-skip counts")
+
+    assert download["continue-on-error"] is True
+    assert download["if"] == "needs.smoke.result == 'success'"

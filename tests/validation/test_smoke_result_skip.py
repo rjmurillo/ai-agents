@@ -65,3 +65,42 @@ def test_skippable_check_without_a_skip_condition_always_runs(
     monkeypatch.setenv("S", observed)
 
     assert main(_BARE_SKIPPABLE) == expected_rc
+
+
+_GUARDED = [
+    *("--check", "AUTHORIZE_RESULT", "success", "authorize: {value}"),
+    *("--guarded-check", "AUTHORIZE_RESULT", "success", "TRUSTED", "true", "fork message"),
+]
+
+
+@pytest.mark.parametrize(
+    ("authorize", "trusted", "expected_rc", "present", "absent"),
+    [
+        ("success", "false", 1, "::error::fork message", "authorize:"),
+        ("success", "true", 0, "", "::error::"),
+        # The authorize job itself failed: TRUSTED is empty, so no fork claim.
+        ("failure", None, 1, "::error::authorize: failure", "fork message"),
+        ("cancelled", "", 1, "::error::authorize: cancelled", "fork message"),
+    ],
+    ids=["fork", "trusted", "authorize-failed", "authorize-cancelled"],
+)
+def test_guarded_check_speaks_only_when_its_guard_holds(
+    authorize: str,
+    trusted: str | None,
+    expected_rc: int,
+    present: str,
+    absent: str,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setenv("AUTHORIZE_RESULT", authorize)
+    if trusted is None:
+        monkeypatch.delenv("TRUSTED", raising=False)
+    else:
+        monkeypatch.setenv("TRUSTED", trusted)
+
+    assert main(_GUARDED) == expected_rc
+
+    out = capsys.readouterr().out
+    assert present in out
+    assert absent not in out

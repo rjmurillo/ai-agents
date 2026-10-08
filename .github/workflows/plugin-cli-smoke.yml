@@ -511,6 +511,9 @@ jobs:
       # checks. Only a run whose legs all passed has counts worth reading.
       - name: Download quota-skip counts
         if: needs.smoke.result == 'success'
+        # An artifact-service failure must not hide a green smoke; smoke_result.py
+        # reads a missing directory as zero.
+        continue-on-error: true
         # yamllint disable-line rule:line-length
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8
         with:
@@ -534,7 +537,7 @@ jobs:
             --skip-message "No smoke path changed; CLI smoke legs skipped." \
             --skippable-check AUTHORIZE_RESULT success \
               "Trusted-context gate result: {value}" \
-            --skippable-check TRUSTED true \
+            --guarded-check AUTHORIZE_RESULT success TRUSTED true \
               "Untrusted context: this change touches smoke paths from a fork pull request or a non-default ref. Forks get no secrets, so the CLI smoke cannot run. A maintainer must rerun it from a same-repo branch." \
             --skippable-check SMOKE_RESULT success \
               "Claude and Copilot smoke result: {value}" \

@@ -2,27 +2,30 @@
 """Report the CLI smoke result from the upstream job results.
 
 The summary job of ``.github/workflows/plugin-cli-smoke.yml`` runs this from
-the base commit with ``python -I``. Keeping the comparison here (ADR-006: no
-logic in YAML) makes the gate testable. It is stdlib-only.
+the base commit with ``python -I`` (ADR-006: no logic in YAML). It is stdlib-only.
+The ``--check`` core forks ``scripts/ci/require_job_results.py``, kept separate so
+that shared script is unchanged for other workflows; merge the two later.
 
 A check is ``NAME EXPECTED MESSAGE``: NAME is an environment variable the
-workflow filled from a ``needs.*`` expression. MESSAGE is printed as an
-``::error::`` annotation, with ``{value}`` replaced by the observed value.
-Every check runs, so one run reports all failures. An unset variable reads as
-the empty string and fails its check: a summary job that cannot see an upstream
-result must not report success.
+workflow filled from a ``needs.*`` expression. MESSAGE prints as an ``::error::``
+annotation, with ``{value}`` replaced by the observed value. Every check runs,
+so one run reports all failures. An unset variable reads as the empty string and
+fails its check. A failing ``failure``, ``cancelled``, or ``skipped`` value also
+names the variable, the likely cause, and the next action.
 
 ``--skippable-check`` takes the same arguments and is not evaluated when
-``--skip-when NAME VALUE`` matches. ``--skip-message`` is printed instead of
-``--success-message`` after every ``--check`` passed. ``--skip-when`` needs at
-least one ``--check``, so a skip never bypasses every check.
-
-A failing value of ``failure``, ``cancelled``, or ``skipped`` also names the
-variable and gives the likely cause and next action.
+``--skip-when NAME VALUE`` matches; that needs at least one ``--check``.
+``--guarded-check GUARD_NAME GUARD_VALUE NAME EXPECTED MESSAGE`` is skippable
+and also not evaluated unless GUARD_NAME equals GUARD_VALUE, so a message that
+blames a downstream cause stays quiet when the upstream job it needs failed.
+``--skip-message`` prints instead of ``--success-message`` after a skip.
 
 ``--count-dir DIR --count-message TEMPLATE`` replaces ``--success-message`` when
-the integers in the files under DIR (one per line, a leg's quota-skip count)
-sum above zero. ``{count}`` becomes the total. A missing DIR sums to zero.
+the non-negative integers in DIR's files (a leg's quota-skip count) sum above
+zero. ``{count}`` is the total; a missing DIR sums to zero. A negative, a
+non-integer, or an unreadable file is warned about and ignored, and the count
+then reads ``unknown``. The message prints as a ``::notice::`` and is appended
+to ``GITHUB_STEP_SUMMARY`` when set. ``--count-message`` needs ``--count-dir``.
 
 Exit codes (ADR-035): 0 every check matched, 1 a check failed, 2 usage.
 """
@@ -71,27 +74,46 @@ def failing_checks(checks: Sequence[tuple[str, str, str]], environ: Mapping[str,
     return lines
 
 
-def sum_counts(count_dir: Path) -> int:
-    """Sum the integers of every file under ``count_dir``; warn on a bad line."""
-    total = 0
-    paths = sorted(p for p in count_dir.rglob("*") if p.is_file()) if count_dir.is_dir() else []
-    for path in paths:
-        for token in path.read_text(encoding="utf-8").split():
-            try:
+def sum_counts(count_dir: Path) -> tuple[int, bool]:
+    """Return ``(total, clean)``: the sum over ``count_dir``, and whether all tokens parsed.
+
+    A negative (CWE-20) could cancel a real count and hide a skip, so it is
+    ignored like any other bad token, with a warning.
+    """
+    total, clean = 0, True
+    for path in sorted(count_dir.rglob("*")) if count_dir.is_dir() else []:
+        if not path.is_file():
+            continue
+        try:
+            tokens = path.read_text(encoding="utf-8").split()
+        except (OSError, UnicodeDecodeError) as exc:
+            print(f"::warning::ignoring unreadable count file {path}: {type(exc).__name__}")
+            clean = False
+            continue
+        for token in tokens:
+            if token.isascii() and token.isdecimal():
                 total += int(token)
-            except ValueError:
-                print(f"::warning::ignoring non-integer count {token!r} in {path}")
-    return total
+                continue
+            clean = False
+            kind = "negative" if token.lstrip("-").isdecimal() else "non-integer"
+            print(f"::warning::ignoring {kind} count {token!r} in {path}")
+    return total, clean
 
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     names = ("NAME", "EXPECTED", "MESSAGE")
+    for flag, text in (
+        ("--check", "Variable, value, message."),
+        ("--skippable-check", "Like --check."),
+    ):
+        parser.add_argument(flag, nargs=3, action="append", metavar=names, help=text)
     parser.add_argument(
-        "--check", nargs=3, action="append", metavar=names, help="Variable, value, message."
-    )
-    parser.add_argument(
-        "--skippable-check", nargs=3, action="append", metavar=names, help="Like --check."
+        "--guarded-check",
+        nargs=5,
+        action="append",
+        metavar=("GUARD_NAME", "GUARD_VALUE", *names),
+        help="Like --skippable-check, evaluated only when GUARD_NAME equals GUARD_VALUE.",
     )
     parser.add_argument("--skip-when", nargs=2, metavar=("NAME", "VALUE"))
     parser.add_argument("--skip-message", default="", help="Printed when the skip held.")
@@ -101,11 +123,20 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _success_text(args: argparse.Namespace) -> str:
-    total = sum_counts(args.count_dir) if args.count_dir and args.count_message else 0
-    count_message: str = args.count_message
-    success_message: str = args.success_message
-    return count_message.replace("{count}", str(total)) if total > 0 else success_message
+def _report_count(args: argparse.Namespace) -> bool:
+    """Print the quota-skip count as a notice and a step summary line; True if printed."""
+    if not (args.count_dir and args.count_message):
+        return False
+    total, clean = sum_counts(args.count_dir)
+    if clean and total == 0:
+        return False
+    text: str = args.count_message.replace("{count}", str(total) if clean else "unknown")
+    print(f"::notice::{text}")
+    summary = os.environ.get("GITHUB_STEP_SUMMARY")
+    if summary:
+        with open(summary, "a", encoding="utf-8") as handle:
+            handle.write(f"{text}\n")
+    return True
 
 
 def _usage_problem(
@@ -115,6 +146,8 @@ def _usage_problem(
         return "at least one --check is required"
     if args.skip_when and not always:
         return "--skip-when needs at least one --check"
+    if args.count_message and not args.count_dir:
+        return "--count-message needs --count-dir"
     return None
 
 
@@ -129,14 +162,17 @@ def main(argv: list[str] | None = None) -> int:
         return EXIT_USAGE
 
     skipping = bool(args.skip_when) and os.environ.get(args.skip_when[0]) == args.skip_when[1]
-    bad = failing_checks(always if skipping else always + skippable, os.environ)
+    guarded = [tuple(c[2:]) for c in args.guarded_check or [] if os.environ.get(c[0]) == c[1]]
+    bad = failing_checks(always if skipping else always + skippable + guarded, os.environ)
     for line in bad:
         print(f"::error::{line}")
     if bad:
         return EXIT_MISMATCH
-    final = args.skip_message if skipping else _success_text(args)
-    if final:
-        print(final)
+    if skipping:
+        if args.skip_message:
+            print(args.skip_message)
+    elif not _report_count(args) and args.success_message:
+        print(args.success_message)
     return EXIT_SUCCESS
 
 
