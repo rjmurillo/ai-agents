@@ -421,17 +421,18 @@ class TestMypyChangedFilesGate:
         """Forced color must not hide error lines from the ratchet (issue #6212).
 
         Colored lines miss MYPY_ERROR_RE, and the ratchet then fails closed,
-        so the pre-existing case returned 1 before the fix.
+        so the pre-existing case exited 1 before the fix. Drives the hook's
+        CLI entry point, so a dropped exit code fails here too.
         """
-        from git_hook_policy import run_mypy
+        from git_hook_policy import main
 
         _commit_base_and_branch(tmp_path, _BASE_WITH_ERROR, branch_text)
         monkeypatch.setenv(color_var, "1")
 
         with patch("git_hook_policy._mypy_ratchet_base_ref", return_value="HEAD~1"):
-            result = run_mypy(["example.py"], tmp_path)
+            exit_code = main(["--repo-root", str(tmp_path), "mypy", "example.py"])
 
-        assert result == expected
+        assert exit_code == expected
 
 
 class TestDiffFailureReachesTheGateAsUnknown:
