@@ -40,14 +40,14 @@ from typing import Any
 import pytest
 import yaml
 
-from scripts.ci import run_pytest_selected
+from scripts.ci import run_pytest_partition
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 LEFTHOOK = REPO_ROOT / "lefthook.yml"
 PYTEST_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "pytest.yml"
 GUARD_SCRIPT = "scripts/validation/check_zero_collection_tests.py"
 REQUIRE_JOB_RESULTS_SCRIPT = "scripts/ci/require_job_results.py"
-RUN_PYTEST_SCRIPT = "scripts/ci/run_pytest_selected.py"
+RUN_PYTEST_SCRIPT = "scripts/ci/run_pytest_partition.py"
 MUTATION_DIRECTORY = "tests/mutation"
 _SHELL_CONTROL_TOKENS = frozenset({"&&", "||", ";", "|", "&"})
 
@@ -102,9 +102,7 @@ def _workflow_steps(job_name: str = "test") -> list[dict[str, Any]]:
     return _workflow_job(job_name)["steps"]
 
 
-def _require_unconditional_failure_propagation(
-    step: dict[str, Any], *, label: str
-) -> None:
+def _require_unconditional_failure_propagation(step: dict[str, Any], *, label: str) -> None:
     """Refuse config surface that can skip the step or swallow its failure.
 
     This file proves a workflow step is the real gate. That proof is weaker
@@ -157,7 +155,7 @@ def _find_python_script_invocation(
     no arguments in its real invocation) demands ``script_path`` be the LAST
     token. Other callers here invoke scripts that legitimately take trailing
     flags (``require_job_results.py --check ...``,
-    ``run_pytest_selected.py --partition ...``), so the default stays
+    ``run_pytest_partition.py --partition ...``), so the default stays
     permissive about what follows the script path, only fixing its position.
     """
     tokenized = _tokenized_lines(run_value)
@@ -166,8 +164,7 @@ def _find_python_script_invocation(
 
     tokens = tokenized[0]
     if any(
-        token in _SHELL_CONTROL_TOKENS
-        or token.startswith(tuple(_SHELL_CONTROL_TOKENS))
+        token in _SHELL_CONTROL_TOKENS or token.startswith(tuple(_SHELL_CONTROL_TOKENS))
         for token in tokens
     ):
         return None
@@ -193,8 +190,7 @@ def _contains_token_sequence(tokens: list[str], sequence: list[str]) -> bool:
     """True when ``sequence`` appears contiguously inside ``tokens``."""
     width = len(sequence)
     return any(
-        tokens[index : index + width] == sequence
-        for index in range(len(tokens) - width + 1)
+        tokens[index : index + width] == sequence for index in range(len(tokens) - width + 1)
     )
 
 
@@ -209,18 +205,14 @@ def _invokes_guard_script(run_value: object) -> bool:
     the line is not a comment.
     """
     return (
-        _find_python_script_invocation(
-            run_value, GUARD_SCRIPT, require_no_trailing_args=True
-        )
+        _find_python_script_invocation(run_value, GUARD_SCRIPT, require_no_trailing_args=True)
         is not None
     )
 
 
 def test_a_named_pre_push_job_runs_the_zero_collection_guard() -> None:
     """Local pushes fail on a zero-collecting file before CI ever sees it."""
-    matching = [
-        job for job in _pre_push_jobs() if _invokes_guard_script(job.get("run", ""))
-    ]
+    matching = [job for job in _pre_push_jobs() if _invokes_guard_script(job.get("run", ""))]
 
     assert len(matching) == 1, f"expected one pre-push job running {GUARD_SCRIPT}"
     assert matching[0]["name"] == "zero-collection-tests"
@@ -289,9 +281,7 @@ def test_the_pre_push_job_running_the_guard_has_no_path_filter() -> None:
     could re-add ``glob: ["**/*.py", "pyproject.toml"]`` and this test suite
     would not notice.
     """
-    matching = [
-        job for job in _pre_push_jobs() if _invokes_guard_script(job.get("run", ""))
-    ]
+    matching = [job for job in _pre_push_jobs() if _invokes_guard_script(job.get("run", ""))]
 
     assert len(matching) == 1, f"expected one pre-push job running {GUARD_SCRIPT}"
     assert "glob" not in matching[0], (
@@ -328,9 +318,7 @@ def test_the_workflow_job_running_the_guard_is_unconditional() -> None:
     """
     job = _workflow_job("zero-collection-guard")
 
-    assert "if" not in job, (
-        "the zero-collection-guard job must not be gated behind a path filter"
-    )
+    assert "if" not in job, "the zero-collection-guard job must not be gated behind a path filter"
     assert "needs" not in job, (
         "the zero-collection-guard job must not depend on check-paths, which "
         "would let its 'if' condition gate this job transitively"
@@ -385,16 +373,12 @@ def test_the_workflow_declares_a_mutation_partition() -> None:
 
 def test_the_run_pytest_step_passes_the_partition_to_the_runner() -> None:
     """The matrix leg only reaches tests/mutation through this argument."""
-    matching = [
-        step for step in _workflow_steps() if step.get("id") == "run-pytest"
-    ]
+    matching = [step for step in _workflow_steps() if step.get("id") == "run-pytest"]
 
     assert len(matching) == 1
     invocation = _find_python_script_invocation(matching[0]["run"], RUN_PYTEST_SCRIPT)
     assert invocation is not None
-    assert _contains_token_sequence(
-        invocation, ["--partition", "${{", "matrix.partition", "}}"]
-    )
+    assert _contains_token_sequence(invocation, ["--partition", "${{", "matrix.partition", "}}"])
     _require_unconditional_failure_propagation(
         matching[0],
         label="the pytest matrix runner step",
@@ -460,13 +444,13 @@ def test_require_unconditional_failure_propagation_rejects_present_controls(
 
 def test_the_mutation_partition_covers_the_mutation_directory() -> None:
     """The runner, not the workflow, decides what the partition runs."""
-    assert MUTATION_DIRECTORY in run_pytest_selected._PARTITION_FULL_ARGS["mutation"]
+    assert MUTATION_DIRECTORY in run_pytest_partition._PARTITION_FULL_ARGS["mutation"]
 
 
 @pytest.mark.parametrize("relative", HARNESS_FILES)
 def test_each_harness_is_routed_to_the_mutation_partition(relative: str) -> None:
     """A harness no partition claims is run by nobody."""
-    assert run_pytest_selected.classify_partition(relative) == "mutation"
+    assert run_pytest_partition.classify_partition(relative) == "mutation"
 
 
 @pytest.mark.parametrize("relative", HARNESS_FILES)
@@ -486,9 +470,7 @@ def test_each_harness_defines_collectable_tests(relative: str) -> None:
     2 a collection error, 4 a bad path.
     """
     environment = {
-        key: value
-        for key, value in os.environ.items()
-        if key not in _STRIPPED_PYTEST_ENVIRONMENT
+        key: value for key, value in os.environ.items() if key not in _STRIPPED_PYTEST_ENVIRONMENT
     }
 
     completed = subprocess.run(

@@ -17,7 +17,7 @@ from typing import Any
 import pytest
 import yaml
 
-from scripts.ci import run_pytest_selected
+from scripts.ci import run_pytest_partition
 
 _WORKFLOW = Path(__file__).resolve().parents[2] / ".github" / "workflows" / "pytest.yml"
 
@@ -75,10 +75,10 @@ def _partition_args(name: str) -> list[str]:
     """Partition pytest args, now owned by the Python runner rather than the matrix.
 
     Issue #5050 moved the per-partition argument lists out of the workflow matrix
-    and into ``scripts/ci/run_pytest_selected.py`` so the full-vs-subset decision
+    and into ``scripts/ci/run_pytest_partition.py`` so the full-vs-subset decision
     stays in testable Python (ADR-006). These contract tests follow them there.
     """
-    return run_pytest_selected._PARTITION_FULL_ARGS[name]
+    return run_pytest_partition._PARTITION_FULL_ARGS[name]
 
 
 class TestMatrixStructure:
@@ -137,7 +137,7 @@ class TestMatrixStructure:
 
     def test_every_partition_has_runner_args(self) -> None:
         matrix_partitions = {entry["partition"] for entry in _matrix()}
-        assert matrix_partitions == set(run_pytest_selected._PARTITION_FULL_ARGS)
+        assert matrix_partitions == set(run_pytest_partition._PARTITION_FULL_ARGS)
 
     def test_root_bulk_ignores_nested_and_owned_files(self) -> None:
         args = _partition_args("bulk")
@@ -180,7 +180,7 @@ class TestMatrixStructure:
         for partition, dirs in owners.items():
             for directory in dirs:
                 probe = f"{directory}/test_probe.py"
-                assert run_pytest_selected.classify_partition(probe) == partition, probe
+                assert run_pytest_partition.classify_partition(probe) == partition, probe
         assert (tests_root / "ci").is_dir()
 
     def test_mutation_runs_only_tests_mutation(self) -> None:
@@ -226,7 +226,7 @@ class TestXdistParallelism:
         assert "--dist" not in args
 
     def test_no_hard_coded_worker_count(self) -> None:
-        for partition, args in run_pytest_selected._PARTITION_FULL_ARGS.items():
+        for partition, args in run_pytest_partition._PARTITION_FULL_ARGS.items():
             if "-n" in args:
                 val = args[args.index("-n") + 1]
                 assert not val.lstrip("+-").isdigit(), (
@@ -243,38 +243,20 @@ class TestXdistParallelism:
 class TestRunPytestStep:
     """The shared Run pytest step uses matrix data."""
 
-    def test_run_step_invokes_the_selection_runner(self) -> None:
+    def test_run_step_invokes_the_partition_runner(self) -> None:
         steps = _job_steps("test")
         run_step = [s for s in steps if s.get("name") == _MAIN_STEP][0]
         run = run_step["run"]
-        assert "scripts/ci/run_pytest_selected.py" in run
+        assert "scripts/ci/run_pytest_partition.py" in run
         assert "--partition ${{ matrix.partition }}" in run
 
-    def test_run_step_passes_selection_base(self) -> None:
-        steps = _job_steps("test")
-        run_step = [s for s in steps if s.get("name") == _MAIN_STEP][0]
-        base = run_step.get("env", {}).get("PYTEST_SELECT_BASE", "")
-        assert "github.event.pull_request.base.sha" in base
-        assert "github.event.before" in base
-
-    def test_run_step_passes_selection_head(self) -> None:
-        """Issue #5378: without the pull request's own head SHA the diff would
-        run against the synthetic merge commit and credit this pull request
-        with base-branch changes."""
-        steps = _job_steps("test")
-        run_step = [s for s in steps if s.get("name") == _MAIN_STEP][0]
-        head = run_step.get("env", {}).get("PYTEST_SELECT_HEAD", "")
-        assert "github.event.pull_request.head.sha" in head
-        assert "github.sha" in head
-
-    def test_selection_refs_are_shas_not_branch_names(self) -> None:
+    def test_run_step_sets_no_selection_env(self) -> None:
+        """Issue #6239 AC2: the leg runs its full share, so no base or head SHA
+        reaches the runner."""
         steps = _job_steps("test")
         run_step = [s for s in steps if s.get("name") == _MAIN_STEP][0]
         env = run_step.get("env", {})
-        for name in ("PYTEST_SELECT_BASE", "PYTEST_SELECT_HEAD"):
-            value = env.get(name, "")
-            assert "base_ref" not in value, f"{name} must not use a mutable branch name"
-            assert "ref_name" not in value, f"{name} must not use a mutable branch name"
+        assert not [name for name in env if name.startswith("PYTEST_SELECT_")]
 
     def test_checkout_depth_can_reach_both_selection_commits(self) -> None:
         """A shallow checkout cannot hold base.sha and head.sha, so the diff

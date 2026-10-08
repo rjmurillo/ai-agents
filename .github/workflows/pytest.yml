@@ -13,7 +13,7 @@
 # claims. The check-paths job still gates the two jobs that are not part of the
 # required context (Python Security Checks and the Windows path-contract tests).
 #
-# Which tests each partition runs is decided inside scripts/ci/run_pytest_selected.py.
+# Which tests each partition runs is decided inside scripts/ci/run_pytest_partition.py.
 #
 # Local developers and AI agents can run the same tests using:
 #   uv run pytest
@@ -262,8 +262,7 @@ jobs:
     # ADR-101 requirement 1: no `needs:` and no job-level `if:`. The partitions
     # sit inside the required "Run Python Tests" chain, so a path filter must
     # not decide whether they run. A diff that matches no policy path still
-    # runs every partition in full (run_pytest_selected.py falls back to the
-    # full partition when no affected test is owned by it).
+    # runs every partition in full (run_pytest_partition.py has no subset mode).
     runs-on: ubuntu-latest
     timeout-minutes: 10
     # `checks: write` was here from the ADR-042 migration (953b4534d, PR #967)
@@ -388,35 +387,17 @@ jobs:
       # Each matrix leg writes one statement-only coverage file. Bulk ignores
       # the two pin suites, mutation, and the two process-sensitive files
       # because those tests run in their own partition or pin step.
-      # `-n auto` uses every logical CPU exposed by the runner. On push and
-      # pull_request events the import graph narrows each partition to the
-      # affected tests (issue #5050); merge_group, any fail-safe verdict, and
-      # any partition with no affected test run the full partition, so coverage
-      # combine always receives non-empty data. The full-vs-subset decision and
-      # the partition argument lists live in the Python runner, not here, per
-      # ADR-006.
-      #
-      # Both selection refs are immutable SHAs from the event payload, never a
-      # branch name. The head one is why (issue #5378): on pull_request the
-      # checkout above is `refs/pull/N/merge`, a synthetic commit whose first
-      # parent is the current base-branch tip, so diffing `base.sha...HEAD`
-      # attributes every base-branch commit made since `base.sha` to this pull
-      # request. Observed on PR #5341, where an unrelated
-      # `.github/workflows/claude.yml` entered the changed set and forced the
-      # full suite. `head.sha` is the pull request's own tip and reproduces
-      # GitHub's base-to-head file list. The `fetch-depth: 0` checkout above is
-      # what makes both commits readable: it fetches every branch plus the
-      # merge ref, whose second parent is `head.sha`. If either commit is
-      # missing the git diff fails and the runner runs the full suite.
+      # `-n auto` uses every logical CPU exposed by the runner. Every leg runs
+      # its full partition on every event, so coverage combine always receives
+      # non-empty data. The partition argument lists live in the Python runner,
+      # not here, per ADR-006.
       - name: Run pytest
         id: run-pytest
         env:
           PYTEST_NON_TMP_ROOT: ${{ runner.temp }}/ai-agents-pytest
           COVERAGE_FILE: ${{ matrix.coverage_file }}
-          PYTEST_SELECT_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
-          PYTEST_SELECT_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: >-
-          uv run --frozen python scripts/ci/run_pytest_selected.py
+          uv run --frozen python scripts/ci/run_pytest_partition.py
           --partition ${{ matrix.partition }}
           --cov --cov-report=
           --junitxml=${{ matrix.junit_file }}

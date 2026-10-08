@@ -6,7 +6,7 @@ import fnmatch
 import subprocess
 from pathlib import Path
 
-from scripts.ci import run_pytest_selected
+from scripts.ci import run_pytest_partition
 
 _REPO = Path(__file__).resolve().parents[2]
 
@@ -37,7 +37,7 @@ class TestPartitionsCoverEveryTestFileOnce:
         )
         files = sorted(f for f in tracked if f.endswith(".py") and Path(f).name.startswith("test_"))
         assert files, "no tracked test files found"
-        full_args = run_pytest_selected._PARTITION_FULL_ARGS
+        full_args = run_pytest_partition._PARTITION_FULL_ARGS
         unowned: list[str] = []
         doubled: list[str] = []
         for rel in files:
@@ -47,4 +47,4 @@ class TestPartitionsCoverEveryTestFileOnce:
             elif len(owners) > 1:
                 doubled.append(f"{rel}: {owners}")
         assert not doubled, doubled
-        assert set(unowned) <= run_pytest_selected._UNPARTITIONED_TESTS
+        assert set(unowned) <= run_pytest_partition._UNPARTITIONED_TESTS
