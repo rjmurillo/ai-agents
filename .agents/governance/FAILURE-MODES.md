@@ -48,7 +48,7 @@ Session protocol requires reading N files at session start. The instruction live
 
 ### Detection
 
-- No `mcp__serena__activate_project` call in the transcript.
+- No `mcp__serena__initial_instructions` call in the transcript.
 - No memory query on the task topic before first edit.
 - Incomplete issue work has no per-issue handoff.
 
