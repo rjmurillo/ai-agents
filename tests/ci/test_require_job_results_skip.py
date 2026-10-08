@@ -10,102 +10,58 @@ import pytest
 
 from scripts.ci.require_job_results import main
 
-
-def _skip_args() -> list[str]:
-    return [
-        "--check",
-        "CHANGES_RESULT",
-        "success",
-        "filter result: {value}",
-        "--skippable-check",
-        "SMOKE_RESULT",
-        "success",
-        "smoke result: {value}",
-        "--skip-when",
-        "RUN",
-        "false",
-        "--skip-message",
-        "no smoke path changed",
-        "--success-message",
-        "all legs passed",
-    ]
+_SKIP_ARGS = [
+    *("--check", "CHANGES_RESULT", "success", "filter result: {value}"),
+    *("--skippable-check", "SMOKE_RESULT", "success", "smoke result: {value}"),
+    *("--skip-when", "RUN", "false"),
+    *("--skip-message", "no smoke path changed"),
+    *("--success-message", "all legs passed"),
+]
+_BARE_SKIPPABLE = ["--skippable-check", "S", "success", "m"]
 
 
-def test_skip_condition_passes_without_the_skippable_checks(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+@pytest.mark.parametrize(
+    ("changes", "run", "smoke", "expected_rc", "expected_line"),
+    [
+        ("success", "false", "skipped", 0, "no smoke path changed"),
+        ("success", "true", "success", 0, "all legs passed"),
+        ("failure", "false", None, 1, "::error::filter result: failure"),
+        ("success", "true", "cancelled", 1, "::error::smoke result: cancelled"),
+        # A path filter that never reported must not read as 'nothing to run'.
+        ("success", None, "skipped", 1, "::error::smoke result: skipped"),
+    ],
+    ids=["skip-holds", "all-green", "skip-keeps-always-checks", "no-skip-runs-legs", "unset-run"],
+)
+def test_skip_condition_decides_which_checks_run(
+    changes: str,
+    run: str | None,
+    smoke: str | None,
+    expected_rc: int,
+    expected_line: str,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
-    monkeypatch.setenv("CHANGES_RESULT", "success")
-    monkeypatch.setenv("RUN", "false")
-    monkeypatch.setenv("SMOKE_RESULT", "skipped")
+    for name, value in (("CHANGES_RESULT", changes), ("RUN", run), ("SMOKE_RESULT", smoke)):
+        if value is None:
+            monkeypatch.delenv(name, raising=False)
+        else:
+            monkeypatch.setenv(name, value)
 
-    assert main(_skip_args()) == 0
-    assert capsys.readouterr().out.strip() == "no smoke path changed"
-
-
-def test_skip_condition_still_enforces_the_always_checks(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    monkeypatch.setenv("CHANGES_RESULT", "failure")
-    monkeypatch.setenv("RUN", "false")
-
-    assert main(_skip_args()) == 1
-    assert "::error::filter result: failure" in capsys.readouterr().out
-
-
-def test_skippable_checks_run_when_the_skip_condition_is_false(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    monkeypatch.setenv("CHANGES_RESULT", "success")
-    monkeypatch.setenv("RUN", "true")
-    monkeypatch.setenv("SMOKE_RESULT", "cancelled")
-
-    assert main(_skip_args()) == 1
-    assert "::error::smoke result: cancelled" in capsys.readouterr().out
-
-
-def test_all_green_prints_the_success_message_not_the_skip_message(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    monkeypatch.setenv("CHANGES_RESULT", "success")
-    monkeypatch.setenv("RUN", "true")
-    monkeypatch.setenv("SMOKE_RESULT", "success")
-
-    assert main(_skip_args()) == 0
-    assert capsys.readouterr().out.strip() == "all legs passed"
-
-
-def test_unset_skip_variable_does_not_skip(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    """A path filter that never reported must not read as 'nothing to run'."""
-    monkeypatch.setenv("CHANGES_RESULT", "success")
-    monkeypatch.delenv("RUN", raising=False)
-    monkeypatch.setenv("SMOKE_RESULT", "skipped")
-
-    assert main(_skip_args()) == 1
-    assert "::error::smoke result: skipped" in capsys.readouterr().out
+    assert main(_SKIP_ARGS) == expected_rc
+    assert expected_line in capsys.readouterr().out
 
 
 def test_skip_when_without_an_always_check_is_a_usage_error(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    rc = main(["--skippable-check", "S", "success", "m", "--skip-when", "RUN", "false"])
-
-    assert rc == 2
+    assert main([*_BARE_SKIPPABLE, "--skip-when", "RUN", "false"]) == 2
     assert "--skip-when needs at least one --check" in capsys.readouterr().err
 
 
-def test_skippable_checks_alone_count_as_checks(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setenv("S", "success")
-
-    assert main(["--skippable-check", "S", "success", "m"]) == 0
-
-
+@pytest.mark.parametrize(("observed", "expected_rc"), [("success", 0), ("failure", 1)])
 def test_skippable_check_without_a_skip_condition_always_runs(
-    monkeypatch: pytest.MonkeyPatch,
+    observed: str, expected_rc: int, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setenv("S", "failure")
+    monkeypatch.setenv("S", observed)
 
-    assert main(["--skippable-check", "S", "success", "m"]) == 1
+    assert main(_BARE_SKIPPABLE) == expected_rc
