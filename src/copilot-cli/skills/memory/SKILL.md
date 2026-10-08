@@ -131,9 +131,11 @@ are bare; each harness adds its own prefix.
    changes to existing systems.
 5. Open a hit with `read_memory` by its name. Browse one folder with
    `list_memories` and a `topic`. Never read the whole store.
-6. When search does not show which topic holds something, ask the user in an
-   interactive session. Unattended, record the gap and continue. Do not sweep
-   every topic.
+6. `search_memory.py` matches memory names, not content. On a miss, grep the
+   keyword rows of `memory-index.md` and the domain `*-index.md` files, then
+   read the memory a row names. Still unsure which topic holds it: ask the
+   user in an interactive session. Unattended, record the gap and continue.
+   Do not sweep every topic.
 
 ### Write
 
