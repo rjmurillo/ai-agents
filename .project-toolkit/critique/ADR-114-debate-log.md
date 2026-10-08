@@ -276,4 +276,6 @@ Full panel. Decision 13 adds a blocking gate, so all six seats ran in parallel, 
 | high-level-advisor | Disagree-and-Commit | not re-run; its four P1 items are fixed or answered by D26 (53, 57, 58, 59) |
 
 All six seats Accept or Disagree-and-Commit. No seat blocks. Findings 72 and 73 landed after the critic's round 2 vote, and no seat re-voted on them.
+- 2026-10-08: After the votes, commit `5b339a526` split the reporter into `smoke_result.py` and the quota reporting into `smoke_quota_report.py`, restored `scripts/ci/require_job_results.py` to `main`, and slimmed `assert_smoke_ran.py`. The `/review` security axis re-checked findings 48 and 64 at that commit: both scripts run from the base commit under `python -I`, and the marker is still a prefix match with a required pass. Factual update, no seat re-voted. Later `/review` fixes (`--no-renames` in the path filter, a parity test between the gate and the quota report) are recorded in the pull request.
+- 2026-10-08: The `/review` reliability axis found that a manual cancel of the latest run leaves `CLI Smoke Result` skipped, which a required check reads as passing. Decision 13.3 records it as the Decision 10 residual, because the `!cancelled()` aggregator convention is kept and cancelling needs write access.
 

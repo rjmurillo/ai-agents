@@ -92,15 +92,16 @@ Exit: a `workflow_dispatch` run of `plugin-cli-smoke.yml` on this branch passes 
 
 | Date | Decision | Rationale | Alternatives Considered |
 |------|----------|-----------|------------------------|
-| 2026-10-08 | D1: move ai-review off Copilot | Owner decision on #6069 | Reconcile only |
-| 2026-10-08 | Keep the Copilot CLI smoke | Owner needs proof skills load | Full retirement |
-| 2026-10-08 | D2: path-filtered PR gate | Owner: nobody checks nightlies | Every PR |
-| 2026-10-08 | D3: full three-OS matrix, nightly removed | Windows bugs #2205 and #3324 | Ubuntu and Windows only |
-| 2026-10-08 | D4: Codex leg now | Owner: same gates for Claude and Codex | Follow-up issue |
+| 2026-10-08 | D20: move ai-review off Copilot | Owner decision on #6069 | Reconcile only |
+| 2026-10-08 | D21: keep the Copilot CLI smoke; every token-spending job behind approval | Owner needs proof skills load | Full retirement |
+| 2026-10-08 | D22: path-filtered PR gate | Owner: nobody checks nightlies | Every PR |
+| 2026-10-08 | D23: full three-OS matrix, nightly removed | Windows bugs #2205 and #3324 | Ubuntu and Windows only |
+| 2026-10-08 | D24: Codex leg now | Owner: same gates for Claude and Codex | Follow-up issue |
 | 2026-10-08 | Claude smoke legs use `CLAUDE_CODE_OAUTH_TOKEN` | Subscription cost. API key out of credit on 10-07 | `ANTHROPIC_API_KEY` |
 | 2026-10-08 | Planning subagents skipped; milestones and pre-mortem written inline | A session subagent cap was in force. The owner removed that cap later the same day. Review uses separate agents and the full ADR panel | Four planning subagents |
 | 2026-10-08 | Workflow named `plugin-cli-smoke.yml` | `cli-smoke.yml` is the existing bun CLI smoke | Rename the bun smoke |
-| 2026-10-08 | D6: Copilot gate is zero-token; prompt checks best-effort | Copilot quota is spent locally (HTTP 402) and unfunded in CI | Strict, or drop prompt checks |
+| 2026-10-08 | D25: Copilot gate is zero-token; prompt checks best-effort | Copilot quota is spent locally (HTTP 402) and unfunded in CI | Strict, or drop prompt checks |
+| 2026-10-08 | D26: budget exhaustion is an accepted gap for every provider; auth still fails | Owner: keys will not always be funded | Fund every key; strict legs |
 | 2026-10-08 | Path filter runs from the base commit | A pull request must not edit the filter that gates it | Run from the head checkout |
 
 ## Progress Log
@@ -108,6 +109,7 @@ Exit: a `workflow_dispatch` run of `plugin-cli-smoke.yml` on this branch passes 
 | Date | Update | Agent |
 |------|--------|-------|
 | 2026-10-08 | Created plan | claude |
+| 2026-10-08 | Review fixes: smoke_result.py and smoke_quota_report.py split out at 5b339a526 | implementer |
 | 2026-10-08 | M1 to M4 committed (e6538bdf2, 262070379, c236a60ab, 1fa987732) | implementer |
 
 ## Blockers

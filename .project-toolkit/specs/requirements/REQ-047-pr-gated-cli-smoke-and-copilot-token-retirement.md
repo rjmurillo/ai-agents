@@ -46,7 +46,7 @@ Move three `ai-review` callers to Claude. Turn the nightly smoke into a path-fil
 
 ### Q6
 
-At 10x more PRs, the path filter keeps cost tied to plugin changes, not PR count. Approval clicks grow with plugin PRs. That cost is the owner's choice (D21).
+At 10x more PRs, the path filter keeps cost tied to plugin and smoke-harness changes, not PR count. Dependency updates to `pyproject.toml` or `uv.lock` also trigger it. Approval clicks grow with plugin PRs. That cost is the owner's choice (D21).
 
 ## Prior art (Step 0.5)
 
@@ -70,7 +70,7 @@ Copilot tokens are not funded for model review, but three workflows still call C
 
 - **CLI smoke**: the pytest suites `tests/e2e/test_cli_hook_e2e.py` and `tests/e2e/test_plugin_load_smoke.py`, marked `smoke`, selected per CLI marker.
 - **Leg**: one CLI on one OS. Three CLIs times three OS make nine legs.
-- **Smoke path list**: the globs that decide whether a change can affect plugin loading. One Python source.
+- **Smoke path list**: the globs that decide whether a change can affect plugin loading or the smoke harness itself (the gate scripts, `pyproject.toml`, `uv.lock`). One Python source.
 - **Provider environment**: `agent-claude` and `agent-copilot`. Each has a required reviewer and holds one provider's key. The Codex leg reads no key, so it needs no environment.
 - **Smoke result**: the always-run job whose conclusion is the PR gate.
 
@@ -103,7 +103,7 @@ No persisted data. The smoke path list is a Python tuple. Each leg emits a JUnit
 
 ## Observability
 
-The smoke result job prints which legs ran, which were skipped by the path filter, and the reason for any failure. Success metric: no PR that touches a smoke path merges without a green smoke result.
+The `changes` job prints which changed paths matched the filter. The result job prints one line: no smoke path changed, passed (with the count of quota-skipped prompt checks), or the failing job with its cause and next action. Each leg posts a `::notice::` for its quota skips. Success metric: no PR that touches a smoke path merges without a green smoke result.
 
 ## Acceptance criteria
 
@@ -147,7 +147,7 @@ The smoke result job prints which legs ran, which were skipped by the path filte
 
 ## Buy-vs-build decision
 
-N/A (CI refactor). The build reuses the existing smoke suites, `assert_smoke_ran.py`, and `dorny/paths-filter` already pinned in `pytest.yml`.
+N/A (CI refactor). The build reuses the existing smoke suites and `assert_smoke_ran.py`. It adds three small stdlib scripts: `cli_smoke_paths.py` (path filter), `smoke_result.py` (result reporter), and `smoke_quota_report.py` (quota-skip notices and counts).
 
 ## Complexity classification
 
