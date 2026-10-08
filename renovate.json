@@ -24,7 +24,7 @@
     {
       "customType": "regex",
       "managerFilePatterns": [
-        "/^\\.github\\/workflows\\/nightly-cli-smoke\\.yml$/"
+        "/^\\.github\\/workflows\\/plugin-cli-smoke\\.yml$/"
       ],
       "matchStrings": [
         "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\n\\s+[A-Z_]+_VERSION: '(?<currentValue>[^']+)'"
@@ -51,7 +51,8 @@
     {
       "matchPackageNames": [
         "@anthropic-ai/claude-code",
-        "@github/copilot"
+        "@github/copilot",
+        "@openai/codex"
       ],
       "matchUpdateTypes": [
         "major",

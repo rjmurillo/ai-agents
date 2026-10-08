@@ -14,6 +14,13 @@ A check is `NAME EXPECTED MESSAGE`, where NAME is an environment variable the
 workflow populated from a `needs.*` expression. MESSAGE is emitted verbatim
 unless it contains `{value}`, which is replaced with the observed value.
 
+A check can also be skippable. `--skippable-check NAME EXPECTED MESSAGE` is
+evaluated like `--check` unless the run matches `--skip-when NAME VALUE`, in
+which case it is not evaluated and `--skip-message` is printed after every
+`--check` passed. A path-filtered workflow uses this so a run that needed no
+legs reports success, while a failed filter job still fails. `--skip-when`
+requires at least one `--check`, so a skip can never bypass every check.
+
 An unset variable reads as the empty string and therefore fails its check.
 That is deliberate: a summary job that cannot see an upstream result must not
 report success.
@@ -43,9 +50,7 @@ def _format(message: str, value: str) -> str:
     return message.replace("{value}", value)
 
 
-def failures(
-    checks: list[tuple[str, str, str]], environ: Mapping[str, str]
-) -> list[str]:
+def failures(checks: list[tuple[str, str, str]], environ: Mapping[str, str]) -> list[str]:
     """Return one formatted message per check whose value did not match."""
     return [
         _format(message, environ.get(name, ""))
@@ -65,6 +70,24 @@ def build_parser() -> argparse.ArgumentParser:
         help="Environment variable, its required value, and the failure message.",
     )
     parser.add_argument(
+        "--skippable-check",
+        nargs=3,
+        action="append",
+        metavar=("NAME", "EXPECTED", "MESSAGE"),
+        help="Like --check, but not evaluated when --skip-when matches.",
+    )
+    parser.add_argument(
+        "--skip-when",
+        nargs=2,
+        metavar=("NAME", "VALUE"),
+        help="Skip the --skippable-check entries when NAME equals VALUE.",
+    )
+    parser.add_argument(
+        "--skip-message",
+        default="",
+        help="Message to print when the skip condition held and every --check passed.",
+    )
+    parser.add_argument(
         "--success-message",
         default="",
         help="Message to print when every check matched.",
@@ -72,23 +95,40 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _skip_applies(skip_when: list[str] | None, environ: Mapping[str, str]) -> bool:
+    """True when `--skip-when NAME VALUE` matches. An unset NAME never matches."""
+    if not skip_when:
+        return False
+    name, value = skip_when
+    return name in environ and environ[name] == value
+
+
 def main(argv: list[str] | None = None) -> int:
     """Evaluate every check. Returns an ADR-035 exit code."""
     args = build_parser().parse_args(argv)
 
-    if not args.check:
+    always = [(name, expected, message) for name, expected, message in args.check or []]
+    skippable = [
+        (name, expected, message) for name, expected, message in args.skippable_check or []
+    ]
+    if not always and not skippable:
         print("ERROR: at least one --check is required", file=sys.stderr)
         return EXIT_USAGE
+    if args.skip_when and not always:
+        print("ERROR: --skip-when needs at least one --check", file=sys.stderr)
+        return EXIT_USAGE
 
-    checks = [(name, expected, message) for name, expected, message in args.check]
+    skipping = _skip_applies(args.skip_when, os.environ)
+    checks = always if skipping else [*always, *skippable]
     bad = failures(checks, os.environ)
     for message in bad:
         print(f"::error::{message}")
     if bad:
         return EXIT_MISMATCH
 
-    if args.success_message:
-        print(args.success_message)
+    final = args.skip_message if skipping else args.success_message
+    if final:
+        print(final)
     return EXIT_SUCCESS
 
 

@@ -41,7 +41,7 @@ def test_union_has_no_duplicates() -> None:
         ".claude/hooks/pre_tool_use.py",
         "tests/e2e/test_plugin_load_smoke.py",
         "tests/e2e/test_cli_hook_e2e.py",
-        ".github/workflows/cli-smoke.yml",
+        ".github/workflows/plugin-cli-smoke.yml",
         "scripts/validation/cli_smoke_paths.py",
     ],
 )
@@ -56,7 +56,7 @@ def test_smoke_paths_trigger_a_run(changed: str) -> None:
         "docs/COST-GOVERNANCE.md",
         "scripts/ci/invoke_claude_review.py",
         ".github/workflows/pytest.yml",
-        ".github/workflows/nightly-cli-smoke.yml",
+        ".github/workflows/claude.yml",
         "tests/test_something.py",
     ],
 )
@@ -103,14 +103,14 @@ def test_changed_files_rejects_a_non_sha_revision(bad: str) -> None:
         paths.changed_files(_SHA_A, bad, _REPO_ROOT)
 
 
-def test_main_always_run_writes_true_without_git(
+def test_main_dispatch_writes_true_without_git(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     out = tmp_path / "out.txt"
     monkeypatch.setenv("GITHUB_OUTPUT", str(out))
     monkeypatch.setattr(paths, "changed_files", lambda *_a: pytest.fail("git must not run"))
 
-    assert paths.main(["--always"]) == paths.EXIT_OK
+    assert paths.main(["--event-name", "workflow_dispatch"]) == paths.EXIT_OK
     assert out.read_text(encoding="utf-8") == "run=true\n"
     assert "run=true" in capsys.readouterr().out
 
@@ -129,7 +129,7 @@ def test_main_writes_the_decision(
     monkeypatch.setenv("GITHUB_OUTPUT", str(out))
     monkeypatch.setattr(paths, "changed_files", lambda *_a: changed)
 
-    code = paths.main(["--base", _SHA_A, "--head", _SHA_B])
+    code = paths.main(["--event-name", "pull_request", "--base", _SHA_A, "--head", _SHA_B])
 
     assert code == paths.EXIT_OK
     assert out.read_text(encoding="utf-8") == f"run={expected}\n"
@@ -146,16 +146,28 @@ def test_main_fails_closed_when_the_diff_fails(
 
     monkeypatch.setattr(paths, "changed_files", boom)
 
-    code = paths.main(["--base", _SHA_A, "--head", _SHA_B])
+    code = paths.main(["--event-name", "pull_request", "--base", _SHA_A, "--head", _SHA_B])
 
     assert code == paths.EXIT_LOGIC
     assert not out.exists()
     assert "bad object" in capsys.readouterr().err
 
 
-def test_main_requires_base_and_head_unless_always() -> None:
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["--event-name", "pull_request", "--base", _SHA_A],
+        ["--event-name", "pull_request", "--head", _SHA_B],
+        ["--event-name", "pull_request"],
+        ["--event-name", "pull_request", "--base", "", "--head", ""],
+        ["--event-name", "push", "--base", _SHA_A, "--head", _SHA_B],
+        ["--event-name", "schedule"],
+        [],
+    ],
+)
+def test_main_rejects_missing_arguments_and_unknown_events(argv: list[str]) -> None:
     with pytest.raises(SystemExit) as exc:
-        paths.main(["--base", _SHA_A])
+        paths.main(argv)
     assert exc.value.code == paths.EXIT_USAGE
 
 
@@ -165,7 +177,9 @@ def test_main_prints_without_github_output(
     monkeypatch.delenv("GITHUB_OUTPUT", raising=False)
     monkeypatch.setattr(paths, "changed_files", lambda *_a: [])
 
-    assert paths.main(["--base", _SHA_A, "--head", _SHA_B]) == paths.EXIT_OK
+    code = paths.main(["--event-name", "pull_request", "--base", _SHA_A, "--head", _SHA_B])
+
+    assert code == paths.EXIT_OK
     assert "run=false" in capsys.readouterr().out
 
 

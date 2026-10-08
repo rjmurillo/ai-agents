@@ -1,33 +1,45 @@
-# Nightly Real-CLI Smoke (issue #2231 items 3-4, ADR-071; issue #2736)
+# Plugin CLI Smoke (issue #6069, REQ-047; supersedes the nightly smoke of issue #2231
+# items 3-4, ADR-071, issue #2736)
 #
-# Runs one matrix leg per CLI (claude, copilot) per OS. Each leg installs only
-# its own CLI, runs inside the matching agent-<cli> environment, and receives
-# only that environment's credential. Tests carry `claude` / `copilot` markers
-# and each leg selects `-m "smoke and <cli>"`. The smokes, on
-# ubuntu/macos/windows:
+# Gates a pull request on proof that the shipped plugin loads in Claude,
+# Copilot, and Codex on Ubuntu, macOS, and Windows. A path filter
+# (scripts/validation/cli_smoke_paths.py, ADR-006: decision in Python, not YAML)
+# runs the legs only when a change can affect plugin loading. The "CLI Smoke
+# Result" job always runs, so it is the one check to require.
+#
+# Legs:
+#   - smoke: one matrix leg per CLI (claude, copilot) per OS. Each leg installs
+#     only its own CLI, runs inside the matching agent-<cli> environment (the
+#     required-reviewer approval gate, ADR-114), and receives only that
+#     provider's credential. Tests carry `claude` / `copilot` markers and each
+#     leg selects `-m "smoke and <cli>"`.
+#   - smoke-codex: one leg per OS. The Codex plugin-load smoke makes no model
+#     call and reads no credential, so it has no environment and no secret.
+#
+# What the smokes prove:
 #   - Hook smoke (test_cli_hook_e2e.py): a plugin hook resolves and runs from the
-#     install tree. The authenticated cross-platform smoke ADR-071 deferred; the
-#     no-auth gates (validate_hook_anchoring, test_generate_hooks_runtime_contract)
-#     verify path resolution in PR CI, this verifies the real launcher contract
-#     bare CI cannot, on the platforms (Windows PowerShell) where #2205 was filed.
+#     install tree, on the platforms (Windows PowerShell) where #2205 was filed.
 #   - Plugin-load smoke (test_plugin_load_smoke.py, issue #2736): the shipped
-#     plugin dir loads in each CLI and the lifecycle skills load with no
-#     argument-hint loader warning. PR #2735 was green on schema and unit checks
-#     yet still needed manual proof the plugin loaded; this automates that proof.
+#     plugin loads in each CLI and the lifecycle skills load with no
+#     argument-hint loader warning.
 #   - Analyst contract smoke (test_plugin_load_smoke.py, issue #3918): each CLI
 #     loads the project analyst without shell tools, while an execution-agent
 #     control still reports shell.
+#   - Codex plugin-load smoke (REQ-047 AC11): `codex plugin add` installs
+#     project-toolkit@ai-agents into an isolated CODEX_HOME and
+#     `codex debug prompt-input` lists every expected skill.
 #
 # Security (.claude/rules/security.md, issue #2231 item 3):
-#   - Triggers only on schedule and workflow_dispatch. GitHub never fires these
-#     from a fork, so a fork PR can never reach the secret-bearing job.
-#   - A trusted-context gate (scripts/validation/assert_trusted_smoke_context.py,
-#     ADR-006: decision in Python, not YAML) re-checks event, repository, and ref
-#     fails closed, so a fork running this workflow on its own schedule is denied.
+#   - pull_request runs for same-repo branches get secrets only through the
+#     agent-<cli> environment approval. A fork PR gets no secrets from GitHub.
+#     The trusted-context gate (scripts/validation/assert_trusted_smoke_context.py)
+#     re-checks event, repository, head repository, and ref and fails closed,
+#     and "CLI Smoke Result" fails a fork PR with a message naming the fork.
 #   - Least-privilege: top-level permissions are contents: read.
 #   - Every action is pinned to a commit SHA (no floating tags).
-#   - Auth tokens come from the secrets manager (secrets.*), scoped to the smoke
-#     job's env only, never written to the repo.
+#   - Auth tokens come from the secrets manager, scoped to the CLI step's env
+#     only, never written to the repo. Only the Copilot legs read the Copilot
+#     token (REQ-047 AC3). The Claude legs use the subscription OAuth token.
 #
 # Loud, not silent (.claude/rules/generated-artifacts.md, issue #2231 item 4):
 #   The smoke tests skip without RUN_CLI_E2E=1 and the CLIs, and a skip reads as
@@ -35,26 +47,57 @@
 #   JUnit report and fails the job if the smoke was skipped or not collected, so
 #   a missing auth secret surfaces as a red run, not a silent green one.
 #
-# Local equivalent (swap `claude` for `copilot` to run the other leg):
+# Local equivalent (swap `claude` for `copilot` or `codex` to run the others):
 #   RUN_CLI_E2E=1 uv run pytest tests/e2e/test_cli_hook_e2e.py -m "smoke and claude" -v
 #   RUN_CLI_E2E=1 uv run pytest tests/e2e/test_plugin_load_smoke.py -m "smoke and claude" -v
 
-name: Nightly CLI Smoke
+name: Plugin CLI Smoke
 
 on:
-  schedule:
-    # 06:00 UTC daily. Off the top of the hour to avoid the cron thundering herd.
-    - cron: '17 6 * * *'
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 permissions:
   contents: read
 
 jobs:
+  changes:
+    name: Smoke path filter
+    runs-on: ubuntu-26.04-arm
+    permissions:
+      contents: read
+    outputs:
+      run: ${{ steps.filter.outputs.run }}
+    steps:
+      - name: Harden Runner
+        # yamllint disable-line rule:line-length
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1  # v2.21.1
+        with:
+          egress-policy: audit
+
+      # Full history: the three-dot diff needs the merge base of the PR.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Decide whether the smoke must run
+        id: filter
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          python3 scripts/validation/cli_smoke_paths.py \
+            --event-name "$EVENT_NAME" \
+            --base "$BASE_SHA" \
+            --head "$HEAD_SHA"
+
   authorize:
     name: Trusted-context gate
     runs-on: ubuntu-26.04-arm
@@ -77,18 +120,20 @@ jobs:
         env:
           EVENT_NAME: ${{ github.event_name }}
           REPOSITORY: ${{ github.repository }}
+          HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
           REF: ${{ github.ref }}
         run: |
           trusted=$(python3 scripts/validation/assert_trusted_smoke_context.py \
             --event-name "$EVENT_NAME" \
             --repository "$REPOSITORY" \
+            --head-repository "$HEAD_REPOSITORY" \
             --ref "$REF")
           echo "trusted=$trusted" >> "$GITHUB_OUTPUT"
 
   smoke:
     name: Smoke (${{ matrix.cli }}, ${{ matrix.os }})
-    needs: authorize
-    if: needs.authorize.outputs.trusted == 'true'
+    needs: [changes, authorize]
+    if: needs.changes.outputs.run == 'true' && needs.authorize.outputs.trusted == 'true'
     runs-on: ${{ matrix.os }}
     environment: agent-${{ matrix.cli }}
     permissions:
@@ -149,7 +194,7 @@ jobs:
         if: matrix.cli == 'claude'
         shell: bash
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
         run: >-
           uv run pytest tests/e2e/test_cli_hook_e2e.py -m "smoke and claude"
           --junitxml=smoke-report.xml
@@ -177,7 +222,7 @@ jobs:
         if: always() && matrix.cli == 'claude'
         shell: bash
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
         run: >-
           uv run pytest tests/e2e/test_plugin_load_smoke.py -m "smoke and claude"
           --junitxml=plugin-load-report.xml
@@ -233,11 +278,80 @@ jobs:
           --smoke-substr TestCopilotBinaryInstall
           --expected-count 1
 
+  # Codex needs no credential: plugin add and debug prompt-input read the repo
+  # and an isolated CODEX_HOME only. No environment, no secret (REQ-047 AC11).
+  smoke-codex:
+    name: Smoke (codex, ${{ matrix.os }})
+    needs: [changes, authorize]
+    if: needs.changes.outputs.run == 'true' && needs.authorize.outputs.trusted == 'true'
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    env:
+      RUN_CLI_E2E: '1'
+      # renovate: datasource=npm depName=@openai/codex
+      CODEX_CLI_VERSION: '0.161.0'
+    steps:
+      - name: Harden Runner
+        # Windows and macOS runners do not support harden-runner; gate it.
+        if: runner.os == 'Linux'
+        # yamllint disable-line rule:line-length
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1  # v2.21.1
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: Setup Python
+        # yamllint disable-line rule:line-length
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: '3.14'
+
+      - name: Install uv
+        # yamllint disable-line rule:line-length
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7  # v10.2.0
+        with:
+          enable-cache: true
+
+      - name: Setup Node
+        # yamllint disable-line rule:line-length
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
+        with:
+          node-version: 'lts/*'
+
+      - name: Install pinned Codex CLI
+        shell: bash
+        run: npm install -g "@openai/codex@${CODEX_CLI_VERSION}"
+
+      - name: Run real-CLI plugin-load smoke (codex)
+        shell: bash
+        run: >-
+          uv run pytest tests/e2e/test_plugin_load_smoke.py -m "smoke and codex"
+          --junitxml=plugin-load-report.xml
+
+      - name: Assert the plugin-load smoke actually ran
+        # always(): a silent skip of the plugin-load smoke must also fail the job.
+        if: always()
+        shell: bash
+        run: >-
+          uv run python scripts/validation/assert_smoke_ran.py
+          plugin-load-report.xml
+          --smoke-substr test_plugin_load_smoke
+          --expected-count 1
+
   smoke-result:
-    name: Smoke Result
-    needs: [authorize, smoke]
-    # Pass-through summary so the run has one terminal status to alert on.
-    if: always()
+    name: CLI Smoke Result
+    needs: [changes, authorize, smoke, smoke-codex]
+    # The one terminal status to require: it runs on every pull request, passes
+    # when the path filter says nothing relevant changed, and otherwise demands
+    # every leg. !cancelled() rather than always(): a newer push cancels the run
+    # (concurrency), and always() would then report a red check on the old head.
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-26.04-arm
     permissions:
       contents: read
@@ -253,15 +367,24 @@ jobs:
       - name: Report
         shell: bash
         env:
+          CHANGES_RESULT: ${{ needs.changes.result }}
+          RUN: ${{ needs.changes.outputs.run }}
           AUTHORIZE_RESULT: ${{ needs.authorize.result }}
           TRUSTED: ${{ needs.authorize.outputs.trusted }}
           SMOKE_RESULT: ${{ needs.smoke.result }}
+          CODEX_RESULT: ${{ needs.smoke-codex.result }}
         run: |
           python3 scripts/ci/require_job_results.py \
-            --check AUTHORIZE_RESULT success \
+            --check CHANGES_RESULT success \
+              "Smoke path filter result: {value}" \
+            --skip-when RUN false \
+            --skip-message "No smoke path changed; CLI smoke legs skipped." \
+            --skippable-check AUTHORIZE_RESULT success \
               "Trusted-context gate result: {value}" \
-            --check TRUSTED true \
-              "Untrusted context; smoke skipped. Run on trusted repo via schedule/workflow_dispatch." \
-            --check SMOKE_RESULT success \
-              "Nightly smoke result: {value}" \
-            --success-message "Nightly CLI smoke passed on all platforms."
+            --skippable-check TRUSTED true \
+              "Untrusted context: this change touches smoke paths from a fork pull request or a non-default ref. Forks get no secrets, so the CLI smoke cannot run. A maintainer must rerun it from a same-repo branch." \
+            --skippable-check SMOKE_RESULT success \
+              "Claude and Copilot smoke result: {value}" \
+            --skippable-check CODEX_RESULT success \
+              "Codex smoke result: {value}" \
+            --success-message "CLI smoke passed for Claude, Copilot, and Codex on all platforms."

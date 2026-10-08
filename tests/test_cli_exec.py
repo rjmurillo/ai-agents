@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Unit guard for platform-safe CLI executable resolution (issue #2629).
 
-The Nightly CLI Smoke e2e launches the real ``copilot`` / ``claude`` CLIs with
+The CLI Smoke e2e launches the real ``copilot`` / ``claude`` / ``codex`` CLIs with
 ``subprocess.run([name, ...])``. On Windows those CLIs are npm shims named
 ``copilot.cmd`` / ``claude.cmd``; ``CreateProcess`` does not consult ``PATH`` or
 apply ``PATHEXT`` the way a shell does, so a bare name raises

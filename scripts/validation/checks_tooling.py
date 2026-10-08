@@ -801,10 +801,10 @@ def validate_copilot_version_pin(repo_root: Path) -> bool:
     """
     from check_copilot_version_pin import EXIT_OK, check_action
 
-    action = repo_root / ".github" / "workflows" / "nightly-cli-smoke.yml"
+    action = repo_root / ".github" / "workflows" / "plugin-cli-smoke.yml"
     if not action.exists():
         raise MissingScriptSkip(
-            "nightly-cli-smoke.yml not present (downstream install); nothing to pin-check"
+            "plugin-cli-smoke.yml not present (downstream install); nothing to pin-check"
         )
     return bool(check_action(action) == EXIT_OK)
 

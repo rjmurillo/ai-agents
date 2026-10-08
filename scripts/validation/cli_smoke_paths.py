@@ -5,9 +5,10 @@ REQ-047 (issue #6069). Two consumers read this module so they cannot drift:
 
 - ``git_hook_policy.py`` uses ``HOOK_E2E_GLOBS`` and ``PLUGIN_E2E_GLOBS`` to
   decide whether the lefthook pre-push gates run the local CLI smoke.
-- ``.github/workflows/cli-smoke.yml`` runs this file as a CLI. It diffs
+- ``.github/workflows/plugin-cli-smoke.yml`` runs this file as a CLI. It diffs
   ``base...head`` and writes ``run=true`` or ``run=false`` to ``GITHUB_OUTPUT``
-  using ``SMOKE_PATH_GLOBS``, the union of both tuples.
+  using ``SMOKE_PATH_GLOBS``, the union of both tuples. A ``workflow_dispatch``
+  event always writes ``run=true``; any other event is a usage error.
 
 ``lefthook.yml`` keeps a copy of each tuple as its ``glob:`` filter. A test in
 ``tests/validation/test_cli_smoke_paths.py`` fails when those copies differ from
@@ -60,7 +61,7 @@ PLUGIN_E2E_GLOBS: tuple[str, ...] = (
     "templates/platforms/copilot-cli.yaml",
     "tests/e2e/test_plugin_load_smoke.py",
     "tests/e2e/copilot_hook_probe.py",
-    ".github/workflows/cli-smoke.yml",
+    ".github/workflows/plugin-cli-smoke.yml",
     "scripts/validation/cli_smoke_paths.py",
 )
 
@@ -122,15 +123,20 @@ def _emit(run: bool) -> None:
             handle.write(line + "\n")
 
 
+PULL_REQUEST_EVENT = "pull_request"
+DISPATCH_EVENT = "workflow_dispatch"
+
+
 def _parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument(
+        "--event-name",
+        required=True,
+        choices=[PULL_REQUEST_EVENT, DISPATCH_EVENT],
+        help="The github.event_name. workflow_dispatch always runs the smoke.",
+    )
     parser.add_argument("--base", help="Base commit SHA (pull request base).")
     parser.add_argument("--head", help="Head commit SHA (pull request head).")
-    parser.add_argument(
-        "--always",
-        action="store_true",
-        help="Skip the diff and emit run=true (workflow_dispatch).",
-    )
     parser.add_argument(
         "--repo-root",
         type=Path,
@@ -138,14 +144,14 @@ def _parse_args(argv: Sequence[str]) -> argparse.Namespace:
         help="Repository root (default: this checkout).",
     )
     args = parser.parse_args(argv)
-    if not args.always and not (args.base and args.head):
-        parser.error("--base and --head are required unless --always is set")
+    if args.event_name == PULL_REQUEST_EVENT and not (args.base and args.head):
+        parser.error("--base and --head are required for pull_request")
     return args
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parse_args(sys.argv[1:] if argv is None else argv)
-    if args.always:
+    if args.event_name == DISPATCH_EVENT:
         _emit(True)
         return EXIT_OK
     try:

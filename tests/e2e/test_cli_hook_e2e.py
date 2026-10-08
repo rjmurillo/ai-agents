@@ -103,7 +103,7 @@ F = TypeVar("F", bound=Callable[..., object])
 def _requires_cli(cli: str) -> Callable[[F], F]:
     """Skip without RUN_CLI_E2E=1 and the CLI, and tag the test with its CLI.
 
-    The ``claude`` and ``copilot`` markers let the nightly smoke select one
+    The ``claude`` and ``copilot`` markers let the CLI smoke select one
     provider's tests per matrix leg (``-m "smoke and claude"``), so each leg
     needs only its own credential.
     """

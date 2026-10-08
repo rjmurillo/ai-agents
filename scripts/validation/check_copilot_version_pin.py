@@ -65,7 +65,7 @@ _PIN_RE = re.compile(
 _VERSION_RE = re.compile(r"^\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?$")
 
 _DEFAULT_ACTION = (
-    Path(__file__).resolve().parents[2] / ".github" / "workflows" / "nightly-cli-smoke.yml"
+    Path(__file__).resolve().parents[2] / ".github" / "workflows" / "plugin-cli-smoke.yml"
 )
 
 

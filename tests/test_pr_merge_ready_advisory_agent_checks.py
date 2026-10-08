@@ -399,7 +399,7 @@ def _triggers(doc: dict) -> set[str]:
 # requires a reviewer. agent-approval is deleted (ADR-114 Decision 11 item 6).
 PROVIDER_ENVIRONMENTS = frozenset({"agent-claude", "agent-codex", "agent-droid", "agent-copilot"})
 RETIRED_ENVIRONMENT = "agent-approval"
-# The nightly smoke picks its environment from the matrix leg, one per CLI.
+# The CLI smoke picks its environment from the matrix leg, one per CLI.
 MATRIX_ENVIRONMENT = "agent-${{ matrix.cli }}"
 # Stored secret each provider's model calls read, derived from the workflows.
 PROVIDER_SECRETS = {
@@ -418,12 +418,25 @@ EXPECTED_JOB_ENVIRONMENTS = {
     ("claude.yml", "claude-response"): "agent-claude",
     ("copilot-context-synthesis.yml", "synthesize-single"): "agent-copilot",
     ("copilot-context-synthesis.yml", "sweep-missed"): "agent-copilot",
-    ("nightly-cli-smoke.yml", "smoke"): MATRIX_ENVIRONMENT,
+    ("plugin-cli-smoke.yml", "smoke"): MATRIX_ENVIRONMENT,
     ("post-pr-retrospective.yml", "retrospective"): "agent-claude",
     ("pr-maintenance.yml", "process-prs"): "agent-claude",
     ("skill-overlap-eval.yml", "run-eval"): "agent-claude",
     ("slash-command-quality.yml", "validate-slash-commands"): "agent-claude",
     ("software-engineering-library-activation.yml", "activation-gate"): "agent-claude",
+}
+
+
+# Pull-request workflows with a provider-gated job that are deliberately NOT in
+# advisory_agent_workflows, so their failure blocks merge. Each needs a reason.
+# REQ-047 (issue #6069), owner decision D2: the CLI smoke proves the plugin
+# loads in Claude, Copilot, and Codex, and the owner wants a red smoke to block.
+BLOCKING_GATED_WORKFLOWS = {
+    ".github/workflows/plugin-cli-smoke.yml": (
+        "REQ-047 owner decision D2: a PR that changes a plugin-shipped path must "
+        "not merge until each CLI loads the plugin. ADR-114 Decision 8 otherwise "
+        "keeps agent checks advisory."
+    ),
 }
 
 
@@ -450,7 +463,7 @@ def _provider_of_secret(text: str) -> set[str]:
 def _provider_environment_violations(docs: dict[str, dict]) -> tuple[list[str], int]:
     """Return (violations, jobs checked) for jobs that read a provider secret.
 
-    The matrix job reads one secret per leg; test_nightly_cli_smoke_security.py
+    The matrix job reads one secret per leg; test_cli_smoke_security.py
     pins each leg's credential, so it is skipped here.
     """
     violations: list[str] = []
@@ -509,7 +522,22 @@ def test_every_pull_request_workflow_with_a_provider_gated_job_is_listed() -> No
         for path, doc in _workflow_docs().items()
         if "pull_request" in _triggers(doc) and _gated_jobs(doc)
     }
-    assert listed == expected
+    assert listed == expected - set(BLOCKING_GATED_WORKFLOWS)
+
+
+def test_blocking_gated_workflows_are_real_pull_request_workflows_with_a_reason() -> None:
+    docs = _workflow_docs()
+    for path, reason in BLOCKING_GATED_WORKFLOWS.items():
+        assert reason.strip(), path
+        assert path in docs, path
+        assert "pull_request" in _triggers(docs[path]), path
+        assert _gated_jobs(docs[path]), f"{path} has no provider-gated job"
+
+
+def test_the_cli_smoke_is_blocking_so_it_is_never_listed_as_advisory() -> None:
+    """REQ-047 AC7: listing the smoke would exempt its failure from the merge gate."""
+    assert ".github/workflows/plugin-cli-smoke.yml" in BLOCKING_GATED_WORKFLOWS
+    assert ".github/workflows/plugin-cli-smoke.yml" not in {e["path"] for e in _shipped_entries()}
 
 
 def test_claude_workflow_is_gated_by_agent_claude_and_listed_as_advisory() -> None:
@@ -592,7 +620,7 @@ def test_a_job_with_no_provider_secret_is_not_checked() -> None:
 
 
 def test_the_matrix_environment_resolves_to_provider_environments_only() -> None:
-    doc = _workflow_docs()[".github/workflows/nightly-cli-smoke.yml"]
+    doc = _workflow_docs()[".github/workflows/plugin-cli-smoke.yml"]
     smoke = doc["jobs"]["smoke"]
     clis = smoke["strategy"]["matrix"]["cli"]
     assert {f"agent-{cli}" for cli in clis} <= PROVIDER_ENVIRONMENTS
@@ -611,7 +639,7 @@ def test_the_eleven_gated_workflows_are_exactly_the_policy_set() -> None:
             "pr-maintenance",
             "artifact-insight-scanner",
             "skill-overlap-eval",
-            "nightly-cli-smoke",
+            "plugin-cli-smoke",
             "copilot-context-synthesis",
             "claude",
         )

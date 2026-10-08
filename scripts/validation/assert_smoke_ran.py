@@ -8,7 +8,7 @@ smoke must be loud" otherwise depends on a human reading skip reasons. This gate
 removes that human step: it parses the JUnit XML pytest emits and exits non-zero
 when a smoke test was skipped or when no smoke test was collected at all.
 
-The nightly workflow (``.github/workflows/nightly-cli-smoke.yml``) runs the smoke
+The CLI smoke workflow (``.github/workflows/plugin-cli-smoke.yml``) runs the smoke
 under ``RUN_CLI_E2E=1`` with ``--junitxml``, then calls this gate. A skip there
 means the runtime contract was never exercised, which is exactly the silent pass
 this gate is built to reject (see ``.claude/rules/generated-artifacts.md``: "a

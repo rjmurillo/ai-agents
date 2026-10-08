@@ -733,7 +733,7 @@ pre-push:
               - "templates/platforms/copilot-cli.yaml"
               - "tests/e2e/test_plugin_load_smoke.py"
               - "tests/e2e/copilot_hook_probe.py"
-              - ".github/workflows/cli-smoke.yml"
+              - ".github/workflows/plugin-cli-smoke.yml"
               - "scripts/validation/cli_smoke_paths.py"
 
           - name: bot-cascade-advisory
