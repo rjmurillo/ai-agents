@@ -23,6 +23,12 @@ the shipped plugin directory, and assert the plugin loads.
     ``plugin details project-toolkit`` with ``cwd`` set to a neutral directory.
     Assert returncode 0, the manifest name appears, and the expected lifecycle
     skills are present in the details output.
+  - Codex (REQ-047): ``codex plugin marketplace add <repo>`` and ``codex plugin add
+    project-toolkit@ai-agents`` install the shipped plugin into an isolated
+    ``CODEX_HOME``, ``codex plugin list --json`` shows it installed and enabled,
+    and ``codex debug prompt-input`` lists every ``EXPECTED_SKILLS`` name as
+    ``project-toolkit:<name>``. No model call and no credential: the commands
+    read the repository and the isolated home only.
   - Analyst contract (issue #3918): load the project analyst in each real CLI
     and assert its exact reviewed read-only tool set. Each probe also loads an
     execution agent that must expose shell and edit tools, so the test cannot
@@ -36,13 +42,13 @@ release and flaked on machines with globally installed plugins (surfaced under
 problems: a hook fires or it does not, on every version.
 
 This is the plugin-LOAD smoke. The plugin-HOOK anchoring smoke lives in
-``tests/e2e/test_cli_hook_e2e.py``. Both run in the same nightly workflow under
-``RUN_CLI_E2E=1``; each has its own JUnit report so a silent skip of either is a
-red run.
+``tests/e2e/test_cli_hook_e2e.py``. Both run in the same PR workflow
+(``.github/workflows/cli-smoke.yml``) under ``RUN_CLI_E2E=1``; each has its own
+JUnit report so a silent skip of either is a red run.
 
 Why opt-in: these spawn real CLIs that need authentication and spend model
 credits, which bare CI does not have. They run wherever the CLIs are installed
-and ``RUN_CLI_E2E=1`` is set (local dev, the nightly job with secrets); elsewhere
+and ``RUN_CLI_E2E=1`` is set (local dev, the CLI smoke job with secrets); elsewhere
 they SKIP with a loud reason so a skipped run never reads as a passed run. The
 fast, always-on guards are the unit checks at the bottom of this file: they pin
 the expected-skills set against the shipped plugin trees, and pin the fired-hook
@@ -257,9 +263,9 @@ F = TypeVar("F", bound=Callable[..., object])
 def _requires_cli(cli: str) -> Callable[[F], F]:
     """Skip without RUN_CLI_E2E=1 and the CLI, and tag the test with its CLI.
 
-    The ``claude`` and ``copilot`` markers let the nightly smoke select one
-    provider's tests per matrix leg (``-m "smoke and claude"``), so each leg
-    needs only its own credential.
+    The ``claude``, ``copilot``, and ``codex`` markers let the CLI smoke select
+    one provider's tests per matrix leg (``-m "smoke and claude"``), so each leg
+    needs only its own credential (the codex leg needs none).
     """
     skip = pytest.mark.skipif(
         not (_RUN and shutil.which(cli)),
@@ -275,6 +281,7 @@ def _requires_cli(cli: str) -> Callable[[F], F]:
 
 requires_copilot = _requires_cli("copilot")
 requires_claude = _requires_cli("claude")
+requires_codex = _requires_cli("codex")
 
 
 def _clean_env() -> dict[str, str]:
@@ -1723,6 +1730,191 @@ def test_copilot_agent_quota_exit_skips(monkeypatch: pytest.MonkeyPatch) -> None
         _run_copilot_agent("security", "Reply exactly READY.")
 
 
+_CODEX_PLUGIN_ID = "project-toolkit@ai-agents"
+_CODEX_PLUGIN_NAME = "project-toolkit"
+# Codex plugin commands read local files only, so they finish in well under a
+# second. Kept below _CLI_TIMEOUT_SECONDS so an all-hang run still fits the
+# pre-push cap (test_an_all_hang_run_fits_the_pre_push_cap).
+_CODEX_COMMAND_TIMEOUT_SECONDS = 45
+_CODEX_COMMAND_COUNT = 4
+_CODEX_SECRET_ENV_PREFIXES = ("OPENAI", "CODEX")
+
+
+def _codex_env(codex_home: Path, home: Path) -> dict[str, str]:
+    """Env for a Codex subprocess: isolated home, no OpenAI or Codex credential.
+
+    Strips inherited ``OPENAI*`` and ``CODEX*`` variables (API keys, a parent
+    ``CODEX_HOME``) and the shared plugin-root variables, then points
+    ``CODEX_HOME``, ``HOME``, and ``USERPROFILE`` at throwaway directories so
+    stored auth and user-level skills cannot leak into the run.
+    """
+    env = {
+        key: value
+        for key, value in _clean_env().items()
+        if not key.upper().startswith(_CODEX_SECRET_ENV_PREFIXES)
+    }
+    env["CODEX_HOME"] = str(codex_home)
+    env["HOME"] = str(home)
+    env["USERPROFILE"] = str(home)
+    return env
+
+
+def _codex_installed_entry(list_stdout: str, plugin_id: str) -> dict[str, object] | None:
+    """Return the ``installed`` entry for ``plugin_id`` from ``plugin list --json``.
+
+    Returns None for malformed JSON, a payload without an ``installed`` list, or
+    no matching entry, so the caller's assertion names the real gap.
+    """
+    try:
+        payload = json.loads(list_stdout)
+    except json.JSONDecodeError:
+        return None
+    installed = payload.get("installed") if isinstance(payload, dict) else None
+    if not isinstance(installed, list):
+        return None
+    for entry in installed:
+        if isinstance(entry, dict) and entry.get("pluginId") == plugin_id:
+            return entry
+    return None
+
+
+def _codex_prompt_skill_names(prompt_text: str, plugin_name: str) -> set[str]:
+    """Skill names the model-visible prompt lists as ``<plugin>:<skill>``."""
+    pattern = rf"(?<![A-Za-z0-9_-]){re.escape(plugin_name)}:([A-Za-z0-9_-]+)"
+    return set(re.findall(pattern, prompt_text))
+
+
+def _run_codex(
+    args: list[str], *, env: dict[str, str], cwd: Path
+) -> subprocess.CompletedProcess[str]:
+    result = subprocess.run(
+        [resolve_executable("codex"), *args],
+        cwd=cwd,
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=_CODEX_COMMAND_TIMEOUT_SECONDS,
+        check=False,
+        env=env,
+    )
+    assert result.returncode == 0, (
+        f"codex {' '.join(args)} failed (rc={result.returncode}). "
+        f"stdout={redact(result.stdout[-600:])!r} stderr={redact(result.stderr[-600:])!r}"
+    )
+    return result
+
+
+@pytest.mark.smoke
+@requires_codex
+@_cli_budget(*([_CODEX_COMMAND_TIMEOUT_SECONDS] * _CODEX_COMMAND_COUNT))
+def test_codex_plugin_loads_expected_skills(tmp_path: Path) -> None:
+    """codex installs the shipped plugin and its prompt lists every expected skill.
+
+    Install ``project-toolkit@ai-agents`` from ``.claude-plugin/marketplace.json``
+    into an isolated ``CODEX_HOME``, confirm ``plugin list --json`` reports it
+    installed and enabled from ``src/claude``, then run ``codex debug
+    prompt-input`` from a cwd outside the repository so the only source of
+    ``project-toolkit:<skill>`` lines is the installed plugin. No model call, no
+    credential (REQ-047 AC11).
+    """
+    home = tmp_path / "home"
+    work = tmp_path / "cwd"
+    codex_home = tmp_path / "codex-home"
+    for directory in (home, work, codex_home):
+        directory.mkdir()
+    env = _codex_env(codex_home, home)
+
+    try:
+        _run_codex(["plugin", "marketplace", "add", str(REPO_ROOT)], env=env, cwd=work)
+        _run_codex(["plugin", "add", _CODEX_PLUGIN_ID, "--json"], env=env, cwd=work)
+        listing = _run_codex(["plugin", "list", "--json"], env=env, cwd=work)
+        prompt = _run_codex(["debug", "prompt-input", "hi"], env=env, cwd=work)
+    except subprocess.TimeoutExpired as exc:
+        pytest.fail(f"codex plugin command exceeded {_CODEX_COMMAND_TIMEOUT_SECONDS}s: {exc.cmd}")
+
+    entry = _codex_installed_entry(listing.stdout, _CODEX_PLUGIN_ID)
+    assert entry is not None, (
+        f"{_CODEX_PLUGIN_ID} missing from plugin list: {listing.stdout[-600:]!r}"
+    )
+    assert entry.get("installed") is True and entry.get("enabled") is True, entry
+    source = entry.get("source")
+    source_path = source.get("path") if isinstance(source, dict) else None
+    assert isinstance(source_path, str) and Path(source_path).resolve() == (
+        _CLAUDE_PLUGIN_DIR.resolve()
+    ), f"codex installed {_CODEX_PLUGIN_ID} from {source_path!r}, not {_CLAUDE_PLUGIN_DIR}"
+
+    loaded = _codex_prompt_skill_names(prompt.stdout, _CODEX_PLUGIN_NAME)
+    missing = EXPECTED_SKILLS - loaded
+    assert not missing, (
+        f"codex prompt-input lists no {_CODEX_PLUGIN_NAME}:<skill> for {sorted(missing)}. "
+        f"Loaded {len(loaded)} plugin skills."
+    )
+
+
+def test_codex_installed_entry_finds_the_plugin() -> None:
+    payload = json.dumps(
+        {"installed": [{"pluginId": "other@x"}, {"pluginId": _CODEX_PLUGIN_ID, "enabled": True}]}
+    )
+
+    assert _codex_installed_entry(payload, _CODEX_PLUGIN_ID) == {
+        "pluginId": _CODEX_PLUGIN_ID,
+        "enabled": True,
+    }
+
+
+@pytest.mark.parametrize(
+    "stdout",
+    [
+        "",
+        "not json",
+        "[]",
+        "{}",
+        '{"installed": "nope"}',
+        '{"installed": [{"pluginId": "other@x"}]}',
+        '{"installed": ["project-toolkit@ai-agents"]}',
+    ],
+)
+def test_codex_installed_entry_returns_none_when_the_plugin_is_absent(stdout: str) -> None:
+    assert _codex_installed_entry(stdout, _CODEX_PLUGIN_ID) is None
+
+
+def test_codex_prompt_skill_names_reads_prefixed_names() -> None:
+    text = "- project-toolkit:build: x\n- project-toolkit:plan-it: y\nproject-toolkit:ship"
+
+    assert _codex_prompt_skill_names(text, "project-toolkit") == {"build", "plan-it", "ship"}
+
+
+def test_codex_prompt_skill_names_ignores_other_plugins_and_bare_names() -> None:
+    text = "other-project-toolkit:evil build plan other:build project-toolkit build"
+
+    assert _codex_prompt_skill_names(text, "project-toolkit") == set()
+
+
+def test_codex_prompt_skill_names_flags_a_missing_expected_skill() -> None:
+    text = "project-toolkit:build project-toolkit:plan"
+    loaded = _codex_prompt_skill_names(text, "project-toolkit")
+
+    assert EXPECTED_SKILLS - loaded == {"ship", "test", "review", "spec", "sync"}
+
+
+def test_codex_env_strips_credentials_and_isolates_homes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    monkeypatch.setenv("codex_api_key", "x")
+    monkeypatch.setenv("CODEX_HOME", "/real/home")
+    monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", "/elsewhere")
+    monkeypatch.setenv("PATH", "/usr/bin")
+
+    env = _codex_env(tmp_path / "ch", tmp_path / "h")
+
+    assert not [key for key in env if key.upper().startswith(("OPENAI", "CLAUDE_PLUGIN"))]
+    assert env["CODEX_HOME"] == str(tmp_path / "ch")
+    assert env["HOME"] == env["USERPROFILE"] == str(tmp_path / "h")
+    assert env["PATH"] == "/usr/bin"
+    assert "codex_api_key" not in env
+
+
 def _smoke_tests() -> list[Callable[..., object]]:
     return [
         obj
@@ -1767,8 +1959,13 @@ def test_an_all_hang_run_fits_the_pre_push_cap() -> None:
     """
     from scripts.validation.git_hook_policy import CLI_E2E_TIMEOUT_SECONDS
 
-    worst_case = (
-        len(_smoke_tests()) * _CLI_TIMEOUT_SECONDS + 2 * _VERSION_TIMEOUT_SECONDS
+    # The Codex test runs local-only commands and stops at its own, shorter
+    # first timeout.
+    first_call_timeout = {
+        test_codex_plugin_loads_expected_skills.__name__: _CODEX_COMMAND_TIMEOUT_SECONDS
+    }
+    worst_case = 2 * _VERSION_TIMEOUT_SECONDS + sum(
+        first_call_timeout.get(test.__name__, _CLI_TIMEOUT_SECONDS) for test in _smoke_tests()
     )
 
     assert worst_case < CLI_E2E_TIMEOUT_SECONDS, (
