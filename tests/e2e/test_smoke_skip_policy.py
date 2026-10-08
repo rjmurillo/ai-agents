@@ -171,6 +171,16 @@ def test_claude_credit_balance_skips_with_the_marker() -> None:
     assert str(skipped.value).startswith(QUOTA_SKIP_MARKER)
 
 
+def test_claude_quota_skip_text_says_the_cli_cannot_tell_a_rate_limit_apart() -> None:
+    run = subprocess.CompletedProcess(["claude"], 1, stdout='{"api_error_status": 429}', stderr="")
+    with pytest.raises(pytest.skip.Exception) as skipped:
+        skip_or_fail_on_claude_block(run, "claude run")
+    text = str(skipped.value)
+    assert text.startswith(QUOTA_SKIP_MARKER)
+    assert "rate limit (429)" in text
+    assert "does not distinguish quota, credit, and rate limit" in text
+
+
 def test_claude_auth_block_fails_in_ci_and_skips_unmarked_locally(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -119,8 +119,10 @@ def skip_or_fail_on_claude_block(run: subprocess.CompletedProcess[str], subject:
         return
     if reason == "quota":
         pytest.skip(
-            f"{QUOTA_SKIP_MARKER} Claude quota or credit exhausted for {subject}; "
-            "retry after the budget resets."
+            f"{QUOTA_SKIP_MARKER} Claude quota, credit, or rate limit (429) hit for "
+            f"{subject}. The Claude CLI does not distinguish quota, credit, and rate "
+            "limit, so this skip may be a transient rate limit and not an exhausted "
+            "budget. Re-run after the budget resets or the rate limit clears."
         )
     skip_or_fail_on_latency(
         f"Claude OAuth session expired or could not authenticate for {subject}; "

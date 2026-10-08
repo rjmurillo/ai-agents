@@ -486,8 +486,7 @@ def _read_agent_tools_from_file(agent: str) -> set[str]:
     """
     agent_file = _GITHUB_AGENTS_DIR / f"{agent}.agent.md"
     assert agent_file.is_file(), (
-        f"Agent file not found: {agent_file}. "
-        f"Cannot verify tools for project agent {agent!r}."
+        f"Agent file not found: {agent_file}. Cannot verify tools for project agent {agent!r}."
     )
     content = agent_file.read_text(encoding="utf-8")
     # Parse YAML front matter between --- delimiters.
@@ -983,8 +982,7 @@ def test_claude_analyst_runtime_uses_exact_allowlist_with_executor_control() -> 
 
     assert {"Glob", "Grep", "Read"} <= analyst_tools
     assert not analyst_tools - _CLAUDE_ANALYST_TOOLS, (
-        f"Claude exposed unreviewed analyst tools: "
-        f"{sorted(analyst_tools - _CLAUDE_ANALYST_TOOLS)}"
+        f"Claude exposed unreviewed analyst tools: {sorted(analyst_tools - _CLAUDE_ANALYST_TOOLS)}"
     )
     assert {"Bash", "Edit", "Write"} <= implementer_tools, (
         "negative control failed: Claude did not report execution and write tools "
@@ -1079,12 +1077,10 @@ def test_copilot_analyst_runtime_uses_exact_allowlist_with_executor_control() ->
         ),
     )
     analyst_tools = {
-        tool.casefold()
-        for tool in _copilot_project_agent_tools(analyst_shell_events, "analyst")
+        tool.casefold() for tool in _copilot_project_agent_tools(analyst_shell_events, "analyst")
     }
     implementer_tools = {
-        tool.casefold()
-        for tool in _copilot_project_agent_tools(implementer_events, "implementer")
+        tool.casefold() for tool in _copilot_project_agent_tools(implementer_events, "implementer")
     }
 
     assert analyst_tools == _COPILOT_ANALYST_TOOLS
@@ -1282,7 +1278,8 @@ def test_marker_probe_plugin_hook_writes_marker_when_run(tmp_path: Path) -> None
     result = subprocess.run(
         [sys.executable, "-u", str(script)],
         capture_output=True,
-        text=True, encoding="utf-8",
+        text=True,
+        encoding="utf-8",
         timeout=30,
         check=False,
         env=env,
@@ -1345,9 +1342,7 @@ def test_run_cli_uses_cwd_and_decodes_utf8(tmp_path: Path) -> None:
     assert lines == [str(tmp_path), chr(0x2713)]
 
 
-def _stub_copilot_probe_run(
-    monkeypatch: pytest.MonkeyPatch, stderr: str
-) -> None:
+def _stub_copilot_probe_run(monkeypatch: pytest.MonkeyPatch, stderr: str) -> None:
     blocked = subprocess.CompletedProcess(["copilot"], 1, stdout="", stderr=stderr)
     monkeypatch.setattr(
         "tests.e2e.test_plugin_load_smoke.run_copilot_plugin_dir",
@@ -1604,12 +1599,8 @@ def test_claude_probe_skips_unmarked_locally_on_expired_oauth(
     """Locally, expired or failed auth skips loudly without the marker
     (issue #4861); markers match on stdout or stderr. CI fails instead (D26)."""
     _set_ci(monkeypatch, ci=False)
-    expired = subprocess.CompletedProcess(
-        ["claude"], 1, stdout=auth_error_text, stderr=""
-    )
-    monkeypatch.setattr(
-        "tests.e2e.test_plugin_load_smoke._run_cli", lambda *a, **kw: expired
-    )
+    expired = subprocess.CompletedProcess(["claude"], 1, stdout=auth_error_text, stderr="")
+    monkeypatch.setattr("tests.e2e.test_plugin_load_smoke._run_cli", lambda *a, **kw: expired)
     with pytest.raises(pytest.skip.Exception, match="OAuth session expired") as skipped:
         _claude_init_tools("analyst")
     assert QUOTA_SKIP_MARKER not in str(skipped.value)
@@ -1619,12 +1610,8 @@ def test_claude_probe_fails_in_ci_on_expired_oauth(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _set_ci(monkeypatch, ci=True)
-    expired = subprocess.CompletedProcess(
-        ["claude"], 1, stdout="oauth session expired", stderr=""
-    )
-    monkeypatch.setattr(
-        "tests.e2e.test_plugin_load_smoke._run_cli", lambda *a, **kw: expired
-    )
+    expired = subprocess.CompletedProcess(["claude"], 1, stdout="oauth session expired", stderr="")
+    monkeypatch.setattr("tests.e2e.test_plugin_load_smoke._run_cli", lambda *a, **kw: expired)
     with pytest.raises(pytest.fail.Exception):
         _claude_init_tools("analyst")
 
@@ -1637,9 +1624,7 @@ def test_claude_probe_skips_with_the_marker_on_a_spent_credit_balance(
     spent = subprocess.CompletedProcess(
         ["claude"], 1, stdout='{"result":"Credit balance is too low"}', stderr=""
     )
-    monkeypatch.setattr(
-        "tests.e2e.test_plugin_load_smoke._run_cli", lambda *a, **kw: spent
-    )
+    monkeypatch.setattr("tests.e2e.test_plugin_load_smoke._run_cli", lambda *a, **kw: spent)
     with pytest.raises(pytest.skip.Exception) as skipped:
         _claude_init_tools("analyst")
     assert str(skipped.value).startswith(QUOTA_SKIP_MARKER)
@@ -1649,12 +1634,8 @@ def test_claude_probe_fails_on_non_auth_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Claude probe still raises AssertionError on non-auth failures."""
-    non_auth = subprocess.CompletedProcess(
-        ["claude"], 1, stdout="some unknown error", stderr=""
-    )
-    monkeypatch.setattr(
-        "tests.e2e.test_plugin_load_smoke._run_cli", lambda *a, **kw: non_auth
-    )
+    non_auth = subprocess.CompletedProcess(["claude"], 1, stdout="some unknown error", stderr="")
+    monkeypatch.setattr("tests.e2e.test_plugin_load_smoke._run_cli", lambda *a, **kw: non_auth)
     with pytest.raises(AssertionError, match="claude agent probe failed"):
         _claude_init_tools("analyst")
 
@@ -1669,9 +1650,7 @@ def test_claude_probe_skips_on_quota_limit(
         stdout='{"api_error_status": 429, "result": "monthly spend limit"}',
         stderr="",
     )
-    monkeypatch.setattr(
-        "tests.e2e.test_plugin_load_smoke._run_cli", lambda *a, **kw: quota_blocked
-    )
+    monkeypatch.setattr("tests.e2e.test_plugin_load_smoke._run_cli", lambda *a, **kw: quota_blocked)
     with pytest.raises(pytest.skip.Exception, match="quota") as skipped:
         _claude_init_tools("analyst")
     assert str(skipped.value).startswith(QUOTA_SKIP_MARKER)
@@ -1681,15 +1660,11 @@ def test_claude_probe_succeeds_when_rc_zero(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Claude probe does NOT skip when the CLI succeeds, even if auth words appear."""
-    init_event = json.dumps(
-        {"type": "system", "subtype": "init", "tools": ["Bash"]}
-    )
+    init_event = json.dumps({"type": "system", "subtype": "init", "tools": ["Bash"]})
     success = subprocess.CompletedProcess(
         ["claude"], 0, stdout=init_event, stderr="oauth session expired"
     )
-    monkeypatch.setattr(
-        "tests.e2e.test_plugin_load_smoke._run_cli", lambda *a, **kw: success
-    )
+    monkeypatch.setattr("tests.e2e.test_plugin_load_smoke._run_cli", lambda *a, **kw: success)
     tools = _claude_init_tools("analyst")
     assert tools == {"Bash"}
 
@@ -1703,9 +1678,7 @@ def _raise_timeout(
     stdout: bytes | str | None, stderr: bytes | str | None
 ) -> Callable[..., subprocess.CompletedProcess[str]]:
     def fake_run_cli(argv: list[str], **_: object) -> subprocess.CompletedProcess[str]:
-        raise subprocess.TimeoutExpired(
-            argv, _CLI_TIMEOUT_SECONDS, output=stdout, stderr=stderr
-        )
+        raise subprocess.TimeoutExpired(argv, _CLI_TIMEOUT_SECONDS, output=stdout, stderr=stderr)
 
     return fake_run_cli
 
@@ -1725,9 +1698,7 @@ def test_copilot_agent_timeout_with_quota_marker_skips(
     stderr: bytes | str | None,
 ) -> None:
     """A run killed while retrying a spent quota skips with the quota reason."""
-    monkeypatch.setattr(
-        "tests.e2e.test_plugin_load_smoke._run_cli", _raise_timeout(stdout, stderr)
-    )
+    monkeypatch.setattr("tests.e2e.test_plugin_load_smoke._run_cli", _raise_timeout(stdout, stderr))
 
     with pytest.raises(pytest.skip.Exception, match="monthly quota is exhausted"):
         _run_copilot_agent("security", "Reply exactly READY.")
@@ -1744,9 +1715,7 @@ def test_copilot_agent_timeout_without_block_marker_fails(
     stderr: bytes | str | None,
 ) -> None:
     """A real hang with no block marker stays red instead of skipping."""
-    monkeypatch.setattr(
-        "tests.e2e.test_plugin_load_smoke._run_cli", _raise_timeout(stdout, stderr)
-    )
+    monkeypatch.setattr("tests.e2e.test_plugin_load_smoke._run_cli", _raise_timeout(stdout, stderr))
 
     with pytest.raises(AssertionError, match="exceeded"):
         _run_copilot_agent("security", "Reply exactly READY.")
@@ -1838,15 +1807,11 @@ def _patch_copilot_plugin_timeouts(monkeypatch: pytest.MonkeyPatch, stderr: byte
     monkeypatch.setattr(
         "tests.e2e.test_plugin_load_smoke._run_cli", _raise_timeout_after_version(stderr)
     )
-    monkeypatch.setattr(
-        "tests.e2e.test_plugin_load_smoke.run_copilot_plugin_dir", fake_run_plugin
-    )
+    monkeypatch.setattr("tests.e2e.test_plugin_load_smoke.run_copilot_plugin_dir", fake_run_plugin)
 
 
 def _patch_claude_plugin_timeouts(monkeypatch: pytest.MonkeyPatch, stderr: bytes) -> None:
-    monkeypatch.setattr(
-        "tests.e2e.test_plugin_load_smoke.resolve_executable", lambda name: name
-    )
+    monkeypatch.setattr("tests.e2e.test_plugin_load_smoke.resolve_executable", lambda name: name)
     monkeypatch.setattr(
         "tests.e2e.test_plugin_load_smoke._run_cli", _raise_timeout_after_version(stderr)
     )
@@ -1946,9 +1911,7 @@ def test_copilot_agent_quota_exit_skips(monkeypatch: pytest.MonkeyPatch) -> None
     blocked = subprocess.CompletedProcess(
         ["copilot"], 1, stdout="", stderr="You have exceeded your monthly quota"
     )
-    monkeypatch.setattr(
-        "tests.e2e.test_plugin_load_smoke._run_cli", lambda *a, **kw: blocked
-    )
+    monkeypatch.setattr("tests.e2e.test_plugin_load_smoke._run_cli", lambda *a, **kw: blocked)
 
     with pytest.raises(pytest.skip.Exception, match="monthly quota is exhausted"):
         _run_copilot_agent("security", "Reply exactly READY.")
@@ -1961,22 +1924,43 @@ _CODEX_PLUGIN_NAME = "project-toolkit"
 # pre-push cap (test_an_all_hang_run_fits_the_pre_push_cap).
 _CODEX_COMMAND_TIMEOUT_SECONDS = 45
 _CODEX_COMMAND_COUNT = 4
-_CODEX_SECRET_ENV_PREFIXES = ("OPENAI", "CODEX")
+# Allow-list, matched case-insensitively (Windows env names are case-insensitive).
+# Codex plugin commands read local files only, so the run needs a PATH to find
+# the binary, locale and temp settings, and on Windows the shell variables that
+# resolve the npm ``.cmd`` shim. Every other inherited variable, including any
+# provider token, is dropped. HOME, USERPROFILE, and CODEX_HOME are set to
+# throwaway directories by ``_codex_env``.
+_CODEX_ENV_ALLOWLIST = frozenset(
+    {
+        "PATH",
+        "HOME",
+        "USERPROFILE",
+        "CODEX_HOME",
+        "LANG",
+        "LC_ALL",
+        "SYSTEMROOT",
+        "TEMP",
+        "TMP",
+        "TMPDIR",
+        "APPDATA",
+        "LOCALAPPDATA",
+        "COMSPEC",
+        "PATHEXT",
+        "WINDIR",
+    }
+)
 
 
 def _codex_env(codex_home: Path, home: Path) -> dict[str, str]:
-    """Env for a Codex subprocess: isolated home, no OpenAI or Codex credential.
+    """Env for a Codex subprocess: an allow-list, isolated homes, no credential.
 
-    Strips inherited ``OPENAI*`` and ``CODEX*`` variables (API keys, a parent
-    ``CODEX_HOME``) and the shared plugin-root variables, then points
-    ``CODEX_HOME``, ``HOME``, and ``USERPROFILE`` at throwaway directories so
-    stored auth and user-level skills cannot leak into the run.
+    Keeps only ``_CODEX_ENV_ALLOWLIST`` variables from the parent environment, so
+    an unlisted token (``GH_TOKEN``, ``ANTHROPIC_API_KEY``, ``OPENAI_API_KEY``)
+    cannot reach the run. Then points ``CODEX_HOME``, ``HOME``, and
+    ``USERPROFILE`` at throwaway directories so stored auth and user-level skills
+    cannot leak in.
     """
-    env = {
-        key: value
-        for key, value in _clean_env().items()
-        if not key.upper().startswith(_CODEX_SECRET_ENV_PREFIXES)
-    }
+    env = {key: value for key, value in os.environ.items() if key.upper() in _CODEX_ENV_ALLOWLIST}
     env["CODEX_HOME"] = str(codex_home)
     env["HOME"] = str(home)
     env["USERPROFILE"] = str(home)
@@ -2139,6 +2123,37 @@ def test_codex_env_strips_credentials_and_isolates_homes(
     assert "codex_api_key" not in env
 
 
+@pytest.mark.parametrize(
+    "secret",
+    ["GH_TOKEN", "GITHUB_TOKEN", "ANTHROPIC_API_KEY", "OPENAI_API_KEY", "COPILOT_GITHUB_TOKEN"],
+)
+def test_codex_env_drops_unlisted_provider_tokens(
+    secret: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv(secret, "leak-me")
+    monkeypatch.setenv("PATH", "/usr/bin")
+
+    env = _codex_env(tmp_path / "ch", tmp_path / "h")
+
+    assert secret not in env
+    assert "leak-me" not in env.values()
+
+
+def test_codex_env_keeps_only_allow_listed_variables(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("PATH", "/usr/bin")
+    monkeypatch.setenv("LANG", "C.UTF-8")
+    monkeypatch.setenv("TMPDIR", "/scratch")
+    monkeypatch.setenv("SOME_UNLISTED_VAR", "x")
+
+    env = _codex_env(tmp_path / "ch", tmp_path / "h")
+
+    assert {"PATH", "LANG", "TMPDIR"} <= set(env)
+    assert "SOME_UNLISTED_VAR" not in env
+    assert {key.upper() for key in env} <= _CODEX_ENV_ALLOWLIST
+
+
 def _smoke_tests() -> list[Callable[..., object]]:
     return [
         obj
@@ -2207,8 +2222,7 @@ def test_an_all_hang_run_fits_the_pre_push_cap() -> None:
     )
 
     assert worst_case < CLI_E2E_TIMEOUT_SECONDS, (
-        f"an all-hang run needs {worst_case}s; the pre-push cap is "
-        f"{CLI_E2E_TIMEOUT_SECONDS}s"
+        f"an all-hang run needs {worst_case}s; the pre-push cap is {CLI_E2E_TIMEOUT_SECONDS}s"
     )
 
 
@@ -2275,9 +2289,7 @@ def test_claude_analyst_frontmatter_declares_github_tools() -> None:
     parts = text.split("---", 2)
     frontmatter = parts[1] if len(parts) >= 3 else ""
     missing = {tool for tool in _CLAUDE_GITHUB_TOOLS if tool not in frontmatter}
-    assert not missing, (
-        f"Claude analyst frontmatter missing GitHub tools: {sorted(missing)}"
-    )
+    assert not missing, f"Claude analyst frontmatter missing GitHub tools: {sorted(missing)}"
 
 
 def test_copilot_analyst_manifest_declares_github_tools() -> None:
@@ -2291,9 +2303,7 @@ def test_copilot_analyst_manifest_declares_github_tools() -> None:
     parts = text.split("---", 2)
     frontmatter = parts[1] if len(parts) >= 3 else ""
     missing = {tool for tool in _COPILOT_GITHUB_TOOLS if tool not in frontmatter}
-    assert not missing, (
-        f"Copilot analyst frontmatter missing GitHub tools: {sorted(missing)}"
-    )
+    assert not missing, f"Copilot analyst frontmatter missing GitHub tools: {sorted(missing)}"
 
 
 def test_read_agent_tools_from_file_returns_analyst_tools() -> None:
