@@ -222,3 +222,143 @@ def test_main_honors_custom_smoke_substr(
     )
 
     assert code == EXIT_OK
+
+
+_MARKER = "QUOTA_SKIP:"
+
+
+def _marker_skipped_case(classname: str, name: str, marker: str = _MARKER) -> str:
+    return (
+        f'<testcase classname="{classname}" name="{name}" time="0.0">'
+        f'<skipped type="pytest.skip" message="{marker} Copilot quota exhausted"></skipped>'
+        "</testcase>"
+    )
+
+
+def test_marker_skip_is_allowed_and_reported_with_the_flag(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    cases = _passed_case(_SMOKE_CLASS, "test_zero_token") + _marker_skipped_case(
+        _SMOKE_CLASS, "test_prompt_probe"
+    )
+    report = _write_report(tmp_path, cases)
+
+    code = assert_smoke_ran.main(
+        [str(report), "--expected-count", "2", "--allow-skip-marker", _MARKER]
+    )
+
+    captured = capsys.readouterr()
+    assert code == EXIT_OK
+    assert "test_prompt_probe" in captured.out
+    assert "QUOTA_SKIP:" in captured.out
+
+
+def test_marker_skip_without_the_flag_fails(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    cases = _passed_case(_SMOKE_CLASS, "test_zero_token") + _marker_skipped_case(
+        _SMOKE_CLASS, "test_prompt_probe"
+    )
+    report = _write_report(tmp_path, cases)
+
+    code = assert_smoke_ran.main([str(report), "--expected-count", "2"])
+
+    assert code == EXIT_NOT_RUN
+    assert "SKIPPED" in capsys.readouterr().err
+
+
+def test_unmarked_skip_still_fails_with_the_flag(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    cases = _marker_skipped_case(_SMOKE_CLASS, "test_prompt_probe") + _skipped_case(
+        _SMOKE_CLASS, "test_zero_token"
+    )
+    report = _write_report(tmp_path, cases)
+
+    code = assert_smoke_ran.main(
+        [str(report), "--expected-count", "2", "--allow-skip-marker", _MARKER]
+    )
+
+    assert code == EXIT_NOT_RUN
+    err = capsys.readouterr().err
+    assert "test_zero_token" in err
+    assert "test_prompt_probe" not in err
+
+
+def test_marker_must_match_the_skip_message_not_the_test_name(tmp_path: Path) -> None:
+    cases = _skipped_case(_SMOKE_CLASS, "test_QUOTA_SKIP:_named")
+    report = _write_report(tmp_path, cases)
+
+    code, _ = assert_smoke_ran.evaluate(report, "test_cli_hook_e2e", 1, allow_skip_marker=_MARKER)
+
+    assert code == EXIT_NOT_RUN
+
+
+def test_marker_skip_does_not_mask_a_failure(tmp_path: Path) -> None:
+    cases = _marker_skipped_case(_SMOKE_CLASS, "test_a") + _failed_case(_SMOKE_CLASS, "test_b")
+    report = _write_report(tmp_path, cases)
+
+    code, message = assert_smoke_ran.evaluate(
+        report, "test_cli_hook_e2e", 2, allow_skip_marker=_MARKER
+    )
+
+    assert code == EXIT_NOT_RUN
+    assert "FAILED" in message
+
+
+def test_count_includes_marker_skips_and_rejects_a_short_set(tmp_path: Path) -> None:
+    cases = _passed_case(_SMOKE_CLASS, "test_a") + _marker_skipped_case(_SMOKE_CLASS, "test_b")
+    report = _write_report(tmp_path, cases)
+
+    ok, _ = assert_smoke_ran.evaluate(report, "test_cli_hook_e2e", 2, allow_skip_marker=_MARKER)
+    short, message = assert_smoke_ran.evaluate(
+        report, "test_cli_hook_e2e", 3, allow_skip_marker=_MARKER
+    )
+
+    assert ok == EXIT_OK
+    assert short == EXIT_NOT_RUN
+    assert "1 of 3" not in message
+    assert "2 of 3" in message
+
+
+def test_empty_marker_is_a_config_error(tmp_path: Path) -> None:
+    report = _write_report(tmp_path, _passed_case(_SMOKE_CLASS, "test_a"))
+
+    with pytest.raises(assert_smoke_ran.SmokeReportError):
+        assert_smoke_ran.evaluate(report, "test_cli_hook_e2e", 1, allow_skip_marker="  ")
+
+
+def test_main_writes_a_step_summary_line_when_marker_skips_were_allowed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    summary = tmp_path / "summary.md"
+    monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary))
+    cases = _passed_case(_SMOKE_CLASS, "test_zero_token") + _marker_skipped_case(
+        _SMOKE_CLASS, "test_prompt_probe"
+    )
+    report = _write_report(tmp_path, cases)
+
+    code = assert_smoke_ran.main(
+        [str(report), "--expected-count", "2", "--allow-skip-marker", _MARKER]
+    )
+
+    assert code == EXIT_OK
+    text = summary.read_text(encoding="utf-8")
+    assert "quota-skipped" in text
+    assert "test_prompt_probe" in text
+    assert "::notice::" in capsys.readouterr().out
+
+
+def test_main_writes_no_summary_when_nothing_was_skipped(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    summary = tmp_path / "summary.md"
+    monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary))
+    report = _write_report(tmp_path, _passed_case(_SMOKE_CLASS, "test_zero_token"))
+
+    code = assert_smoke_ran.main(
+        [str(report), "--expected-count", "1", "--allow-skip-marker", _MARKER]
+    )
+
+    assert code == EXIT_OK
+    assert not summary.exists()

@@ -53,6 +53,13 @@ finally:
 PROBE_EVENT = "UserPromptSubmit"
 PROBE_PROMPT = "Reply with exactly the word: ok"
 
+# Prefix of every skip reason for a classified Copilot block (quota, rate limit,
+# transport, auth). The Copilot CI legs pass it to
+# scripts/validation/assert_smoke_ran.py --allow-skip-marker, so a prompt-based
+# best-effort test that skips for a block does not fail the gate (REQ-047 D6).
+# Any other skip still fails the gate.
+QUOTA_SKIP_MARKER = "QUOTA_SKIP:"
+
 # A parent Claude session or the pre-push hook may export these; strip them so
 # the CLI under test resolves the plugin from ``--plugin-dir``, not from an
 # inherited root that points at a different tree.
@@ -391,6 +398,11 @@ def copilot_run_blocked_headline(result: subprocess.CompletedProcess[str]) -> st
         "Copilot CLI run failed for an unclassified reason. "
         f"{_transient_diagnostics(result)}"
     )
+
+
+def copilot_block_skip_reason(result: subprocess.CompletedProcess[str]) -> str:
+    """Skip reason for a classified block, led by :data:`QUOTA_SKIP_MARKER`."""
+    return f"{QUOTA_SKIP_MARKER} {copilot_run_blocked_headline(result)}"
 
 
 def run_copilot_plugin_dir(

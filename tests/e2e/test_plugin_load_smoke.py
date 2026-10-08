@@ -9,16 +9,16 @@ reach a customer because nothing loaded the plugin in the real CLI and asserted
 the skills loaded. These tests close that gap: they launch the REAL CLIs, load
 the shipped plugin directory, and assert the plugin loads.
 
-  - Copilot: the PRIMARY load signal is a FIRED HOOK (issue #3148). Running
-    ``copilot --plugin-dir <probe> -p`` from a neutral cwd fires the probe
-    plugin's ``UserPromptSubmit`` hook, which proves the CLI loads and dispatches
-    a ``--plugin-dir`` plugin regardless of how ``skill list --json`` labels
-    plugin skills. The shared probe lives in ``tests/e2e/copilot_hook_probe.py``
-    so this smoke and ``tests/e2e/test_cli_hook_e2e.py`` use the same source of
-    truth. As a co-primary #2736 guard, ``copilot --plugin-dir <repo> skill list
-    --json`` must return 0 with no ``argument-hint`` loader warning. The
-    ``EXPECTED_SKILLS`` subset check is kept only as a SECONDARY soft signal for
-    when the CLI does enumerate the shipped plugin under ``source: plugin``.
+  - Copilot (REQ-047 D6): the GATE spends no model quota. ``copilot --plugin-dir
+    <repo>/src/copilot-cli skill list --json`` runs from a neutral cwd under an
+    isolated ``COPILOT_HOME``, must return 0 with no ``argument-hint`` loader
+    warning (issue #2736), and must list every ``EXPECTED_SKILLS`` name from a
+    ``source: plugin`` record whose path is under ``src/copilot-cli``. It never
+    skips on quota. The prompt-based checks (the fired-hook probe of issue #3148,
+    its negative control, and the agent runtime probes) are best-effort: a
+    classified block skips with ``QUOTA_SKIP:``, which the Copilot CI legs allow
+    through ``assert_smoke_ran.py --allow-skip-marker``. The shared probe lives
+    in ``tests/e2e/copilot_hook_probe.py``.
   - Claude: ``claude --plugin-dir <repo>/.claude plugin list`` and
     ``plugin details project-toolkit`` with ``cwd`` set to a neutral directory.
     Assert returncode 0, the manifest name appears, and the expected lifecycle
@@ -89,9 +89,10 @@ finally:
 # Fired-hook probe: ONE source of truth shared with test_cli_hook_e2e.py (#3148).
 from copilot_hook_probe import (  # noqa: E402
     PROBE_EVENT,
+    QUOTA_SKIP_MARKER,
+    copilot_block_skip_reason,
     copilot_command,
     copilot_run_blocked,
-    copilot_run_blocked_headline,
     run_copilot_plugin_dir,
     write_marker_probe_plugin,
 )
@@ -106,7 +107,7 @@ def _skip_on_copilot_block(result: subprocess.CompletedProcess[str]) -> None:
     when the real CLI cannot run (issues #4504, #4483, #3275).
     """
     if copilot_run_blocked(result):
-        pytest.skip(copilot_run_blocked_headline(result))
+        pytest.skip(copilot_block_skip_reason(result))
 
 
 _RUN = os.environ.get("RUN_CLI_E2E") == "1"
@@ -243,6 +244,9 @@ _CLAUDE_AUTH_BLOCK_PATTERNS = _CLAUDE_EXTERNAL_BLOCK_PATTERNS[:3]
 # pre-push cap, CLI_E2E_TIMEOUT_SECONDS in git_hook_policy.py.
 _CLI_TIMEOUT_SECONDS = 120
 _VERSION_TIMEOUT_SECONDS = 60
+# `copilot skill list --json` reads local plugin files and makes no model call;
+# it returns in about half a second, so a hang is a defect, not latency.
+_SKILL_LIST_TIMEOUT_SECONDS = 30
 # pyproject sets a global --timeout of 120s, which shares one budget across
 # every subprocess in a test. It killed two-run tests before their CLI output
 # reached the block classifier (issue #6181). Each real-CLI test declares its
@@ -758,27 +762,80 @@ def test_non_agent_document_stems_are_absent_from_the_agent_tree() -> None:
 
 @pytest.mark.smoke
 @requires_copilot
-@_cli_budget(_VERSION_TIMEOUT_SECONDS, _CLI_TIMEOUT_SECONDS, _CLI_TIMEOUT_SECONDS)
+@_cli_budget(_SKILL_LIST_TIMEOUT_SECONDS)
 def test_copilot_plugin_loads_expected_skills(tmp_path: Path) -> None:
-    """copilot loads the plugin, proven by a fired hook, with no loader warning.
+    """The shipped plugin loads every expected skill, proven with no model call.
 
-    Primary load signal (version-agnostic, issue #3148): ``copilot --plugin-dir
-    <probe> -p`` fires the probe plugin's ``UserPromptSubmit`` hook, proving the
-    CLI loads and dispatches a ``--plugin-dir`` plugin without depending on how
-    ``skill list --json`` labels plugin skills. Co-primary (issue #2736): the
-    shipped ``src/copilot-cli`` plugin lists skills with returncode 0 and no
-    ``argument-hint`` loader warning. Secondary soft signal: when the CLI does
-    enumerate the shipped plugin under ``source: plugin``, ``EXPECTED_SKILLS``
-    must be a subset (so a CLI that enumerates and is genuinely broken still
-    fails).
+    REQ-047 owner decision D6: this is the Copilot leg's gate, so it spends no
+    quota and never skips on a quota or auth block. ``copilot --plugin-dir
+    <repo>/src/copilot-cli skill list --json`` runs from a neutral cwd under an
+    isolated ``COPILOT_HOME`` (so user-installed plugins and stored auth cannot
+    mask a missing skill). It must exit 0, emit no ``argument-hint`` loader
+    warning (issue #2736), and list every ``EXPECTED_SKILLS`` name from a
+    ``source: plugin`` record whose ``path`` is under ``src/copilot-cli``.
+
+    The prompt-based hook probe is the best-effort
+    ``test_copilot_plugin_dir_fires_probe_hook``.
     """
-    version = _run_cli(
-        copilot_command("--version"),
-        timeout=_VERSION_TIMEOUT_SECONDS,
-    )
-    print(f"copilot --version: {version.stdout.strip() or version.stderr.strip()}")
+    neutral_cwd = tmp_path / "neutral-cwd"
+    neutral_cwd.mkdir()
+    env = _clean_env()
+    env["COPILOT_HOME"] = str(tmp_path / "copilot-home")
+    try:
+        run = subprocess.run(
+            copilot_command("--plugin-dir", str(_COPILOT_PLUGIN_DIR), "skill", "list", "--json"),
+            cwd=neutral_cwd,
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=_SKILL_LIST_TIMEOUT_SECONDS,
+            check=False,
+            env=env,
+        )
+    except subprocess.TimeoutExpired as exc:
+        pytest.fail(
+            f"copilot skill list exceeded {exc.timeout}s; it makes no model call, so this "
+            "is a hang, not a quota block."
+        )
 
-    # PRIMARY: a fired hook proves the --plugin-dir plugin loaded and dispatched.
+    assert run.returncode == 0, (
+        f"copilot skill list failed (rc={run.returncode}). "
+        f"stdout={run.stdout[-600:]!r} stderr={run.stderr[-600:]!r}"
+    )
+    assert _ARGUMENT_HINT_WARNING not in run.stderr.lower(), (
+        "copilot reported an argument-hint loader warning (issue #2736 failure class). "
+        f"stderr={run.stderr[-600:]!r}"
+    )
+
+    try:
+        payload = json.loads(run.stdout)
+    except json.JSONDecodeError as exc:
+        pytest.fail(f"copilot skill list emitted non-JSON: {exc}. stdout={run.stdout[-600:]!r}")
+    assert isinstance(payload, list), (
+        "copilot skill list --json did not return a JSON array "
+        f"(got {type(payload).__name__}); the enumeration schema changed. "
+        f"stdout={run.stdout[-600:]!r}"
+    )
+
+    loaded = _plugin_skill_names(payload, _COPILOT_PLUGIN_DIR)
+    missing = EXPECTED_SKILLS - loaded
+    assert not missing, (
+        "copilot did not list expected skills from the shipped plugin under "
+        f"{_COPILOT_PLUGIN_DIR}: missing={sorted(missing)} loaded={sorted(loaded)}"
+    )
+
+
+@pytest.mark.smoke
+@requires_copilot
+@_cli_budget(_CLI_TIMEOUT_SECONDS)
+def test_copilot_plugin_dir_fires_probe_hook(tmp_path: Path) -> None:
+    """Best-effort: ``copilot --plugin-dir <probe> -p`` fires the probe hook.
+
+    A fired hook proves the CLI loads and dispatches a ``--plugin-dir`` plugin
+    (issue #3148). The prompt spends Copilot quota, so a classified quota, rate
+    limit, transport, or auth block skips with ``QUOTA_SKIP:`` (REQ-047 D6). The
+    required load proof is ``test_copilot_plugin_loads_expected_skills``.
+    """
     probe_plugin = tmp_path / "probe-plugin"
     marker = tmp_path / "probe_marker.txt"
     userland = tmp_path / "userland"
@@ -800,60 +857,6 @@ def test_copilot_plugin_loads_expected_skills(tmp_path: Path) -> None:
         f"stderr={fired.stderr[-600:]!r}"
     )
 
-    # CO-PRIMARY (issue #2736): the shipped plugin lists skills with no loader warning.
-    try:
-        run = _run_cli(
-            copilot_command(
-                "--plugin-dir",
-                str(_COPILOT_PLUGIN_DIR),
-                "skill",
-                "list",
-                "--json",
-            ),
-            cwd=tmp_path,
-            timeout=_CLI_TIMEOUT_SECONDS,
-        )
-    except subprocess.TimeoutExpired as exc:
-        _skip_or_fail_copilot_timeout("copilot skill list", exc)
-
-    _skip_on_copilot_block(run)
-    assert run.returncode == 0, (
-        f"copilot skill list failed (rc={run.returncode}). "
-        f"stdout={run.stdout[-600:]!r} stderr={run.stderr[-600:]!r}"
-    )
-    assert _ARGUMENT_HINT_WARNING not in run.stderr.lower(), (
-        "copilot reported an argument-hint loader warning (issue #2736 failure class). "
-        f"stderr={run.stderr[-600:]!r}"
-    )
-
-    try:
-        payload = json.loads(run.stdout)
-    except json.JSONDecodeError as exc:
-        pytest.fail(f"copilot skill list emitted non-JSON: {exc}. stdout={run.stdout[-600:]!r}")
-
-    if not isinstance(payload, list):
-        pytest.fail(
-            "copilot skill list --json did not return a JSON array "
-            f"(got {type(payload).__name__}); the enumeration schema changed. "
-            f"stdout={run.stdout[-600:]!r}"
-        )
-
-    # SECONDARY soft signal. When the CLI enumerates the shipped plugin under
-    # source: plugin, EXPECTED_SKILLS must be a subset, so a CLI that DOES
-    # enumerate and is genuinely broken still fails. When it does not enumerate
-    # the plugin (CLI 1.0.69+, issues #2990/#3014/#3090/#3135), the fired-hook and
-    # no-loader-warning signals above already proved the load, so the absence of
-    # source: plugin records is not a failure and not a skip. Scoping by plugin
-    # dir also drops globally installed plugins (pluginName: null), removing the
-    # environment-dependent flake that used to route 1.0.72 into a strict assert.
-    if _has_plugin_source_record(payload, _COPILOT_PLUGIN_DIR):
-        loaded = _plugin_skill_names(payload, _COPILOT_PLUGIN_DIR)
-        missing = EXPECTED_SKILLS - loaded
-        assert not missing, (
-            "copilot enumerated the shipped plugin under source: plugin but omitted expected "
-            f"skills: missing={sorted(missing)} loaded={sorted(loaded)}"
-        )
-
 
 @pytest.mark.smoke
 @requires_copilot
@@ -863,8 +866,8 @@ def test_copilot_empty_plugin_dir_does_not_fire_probe_hook(tmp_path: Path) -> No
 
     A marker-writing probe hook exists on disk, but copilot is pointed at a
     DIFFERENT, empty plugin dir. The probe hook must NOT fire, so its marker
-    stays absent. This proves the PRIMARY assertion in
-    ``test_copilot_plugin_loads_expected_skills`` fails loud when the plugin does
+    stays absent. This proves the fired-hook assertion in
+    ``test_copilot_plugin_dir_fires_probe_hook`` fails loud when the plugin does
     not load, rather than passing unconditionally (generated-artifacts.md: a push
     gate must keep a loud-fail negative control). Verified against Copilot CLI
     1.0.72-0: an empty ``--plugin-dir`` leaves the marker absent.
@@ -1346,45 +1349,183 @@ def test_run_cli_uses_cwd_and_decodes_utf8(tmp_path: Path) -> None:
     assert lines == [str(tmp_path), chr(0x2713)]
 
 
-@pytest.mark.parametrize("blocked_phase", ["probe", "skill-list"])
 @pytest.mark.parametrize(
     "stderr",
     [
         "API rate limit exceeded for user ID 12345.",
         "Failed to fetch PAT user login: connection reset by peer.",
+        "You have exceeded your monthly quota",
     ],
 )
-def test_copilot_plugin_smoke_skips_classified_block(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-    blocked_phase: str,
-    stderr: str,
+def test_copilot_probe_hook_skips_classified_block_with_the_marker(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, stderr: str
 ) -> None:
-    """Both real Copilot calls skip before plugin assertions on external blocks."""
-    success = subprocess.CompletedProcess(["copilot"], 0, stdout="[]", stderr="")
+    """Best-effort probe: a classified block skips, and the reason leads with the marker."""
     blocked = subprocess.CompletedProcess(["copilot"], 1, stdout="", stderr=stderr)
-
-    def fake_run_cli(argv: tuple[str, ...], **_: object) -> subprocess.CompletedProcess[str]:
-        if "--version" in argv:
-            return success
-        return blocked if blocked_phase == "skill-list" else success
-
-    def fake_run_plugin(
-        plugin_dir: Path, **_: object
-    ) -> subprocess.CompletedProcess[str]:
-        if blocked_phase == "probe":
-            return blocked
-        (plugin_dir.parent / "probe_marker.txt").write_text("MARKER", encoding="utf-8")
-        return success
-
-    monkeypatch.setattr("tests.e2e.test_plugin_load_smoke.copilot_command", lambda *a: a)
-    monkeypatch.setattr("tests.e2e.test_plugin_load_smoke._run_cli", fake_run_cli)
     monkeypatch.setattr(
         "tests.e2e.test_plugin_load_smoke.run_copilot_plugin_dir",
-        fake_run_plugin,
+        lambda *args, **kwargs: blocked,
     )
 
-    with pytest.raises(pytest.skip.Exception):
+    with pytest.raises(pytest.skip.Exception) as skipped:
+        test_copilot_plugin_dir_fires_probe_hook(tmp_path)
+
+    assert str(skipped.value).startswith(QUOTA_SKIP_MARKER)
+
+
+def test_copilot_probe_hook_fails_on_an_unclassified_failure(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Negative: rc=1 with no block marker is a real failure, not a skip."""
+    broken = subprocess.CompletedProcess(["copilot"], 1, stdout="", stderr="segfault")
+    monkeypatch.setattr(
+        "tests.e2e.test_plugin_load_smoke.run_copilot_plugin_dir",
+        lambda *args, **kwargs: broken,
+    )
+
+    with pytest.raises(AssertionError, match="probe run failed"):
+        test_copilot_plugin_dir_fires_probe_hook(tmp_path)
+
+
+def test_copilot_probe_hook_fails_when_the_marker_is_absent(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    ok = subprocess.CompletedProcess(["copilot"], 0, stdout="ok", stderr="")
+    monkeypatch.setattr(
+        "tests.e2e.test_plugin_load_smoke.run_copilot_plugin_dir",
+        lambda *args, **kwargs: ok,
+    )
+
+    with pytest.raises(AssertionError, match="did not fire"):
+        test_copilot_plugin_dir_fires_probe_hook(tmp_path)
+
+
+def _skill_list_stdout(*names: str, root: Path = _COPILOT_PLUGIN_DIR) -> str:
+    records = [
+        {
+            "name": name,
+            "description": "d",
+            "source": "plugin",
+            "path": str(root / "skills" / name / "SKILL.md"),
+            "enabled": True,
+        }
+        for name in names
+    ]
+    return json.dumps(records)
+
+
+def _patch_zero_token_run(
+    monkeypatch: pytest.MonkeyPatch, result: subprocess.CompletedProcess[str]
+) -> list[dict[str, object]]:
+    """Fake the version call and the skill-list subprocess; return the recorded kwargs."""
+    calls: list[dict[str, object]] = []
+
+    def fake_run(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        calls.append(kwargs)
+        return result
+
+    monkeypatch.setattr("tests.e2e.test_plugin_load_smoke.copilot_command", lambda *a: list(a))
+    monkeypatch.setattr("tests.e2e.test_plugin_load_smoke.subprocess.run", fake_run)
+    return calls
+
+
+def test_zero_token_load_passes_and_isolates_home_and_cwd(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    ok = subprocess.CompletedProcess(
+        ["copilot"], 0, stdout=_skill_list_stdout(*sorted(EXPECTED_SKILLS)), stderr=""
+    )
+    calls = _patch_zero_token_run(monkeypatch, ok)
+
+    test_copilot_plugin_loads_expected_skills(tmp_path)
+
+    kwargs = calls[0]
+    assert Path(str(kwargs["cwd"])).is_relative_to(tmp_path)
+    assert not Path(str(kwargs["cwd"])).is_relative_to(REPO_ROOT)
+    env = kwargs["env"]
+    assert isinstance(env, dict)
+    assert Path(env["COPILOT_HOME"]).is_relative_to(tmp_path)
+
+
+@pytest.mark.parametrize(
+    "stderr",
+    ["You have exceeded your monthly quota", "API rate limit exceeded for user ID 12345."],
+)
+def test_zero_token_load_never_skips_on_a_block_marker(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, stderr: str
+) -> None:
+    """Negative: the gate must not hide a failure behind the quota classifier."""
+    blocked = subprocess.CompletedProcess(["copilot"], 1, stdout="", stderr=stderr)
+    _patch_zero_token_run(monkeypatch, blocked)
+
+    with pytest.raises(AssertionError, match="skill list failed"):
+        test_copilot_plugin_loads_expected_skills(tmp_path)
+
+
+def test_zero_token_load_fails_on_a_missing_expected_skill(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    partial = sorted(EXPECTED_SKILLS)[1:]
+    ok = subprocess.CompletedProcess(["copilot"], 0, stdout=_skill_list_stdout(*partial), stderr="")
+    _patch_zero_token_run(monkeypatch, ok)
+
+    with pytest.raises(AssertionError, match="missing="):
+        test_copilot_plugin_loads_expected_skills(tmp_path)
+
+
+def test_zero_token_load_ignores_skills_from_outside_the_shipped_plugin(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Edge: a same-named skill from a user-installed plugin cannot mask a missing one."""
+    elsewhere = _skill_list_stdout(*sorted(EXPECTED_SKILLS), root=tmp_path / "other-plugin")
+    ok = subprocess.CompletedProcess(["copilot"], 0, stdout=elsewhere, stderr="")
+    _patch_zero_token_run(monkeypatch, ok)
+
+    with pytest.raises(AssertionError, match="missing="):
+        test_copilot_plugin_loads_expected_skills(tmp_path)
+
+
+def test_zero_token_load_fails_on_an_argument_hint_warning(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    warned = subprocess.CompletedProcess(
+        ["copilot"],
+        0,
+        stdout=_skill_list_stdout(*sorted(EXPECTED_SKILLS)),
+        stderr="warning: argument-hint must be a string",
+    )
+    _patch_zero_token_run(monkeypatch, warned)
+
+    with pytest.raises(AssertionError, match="argument-hint"):
+        test_copilot_plugin_loads_expected_skills(tmp_path)
+
+
+@pytest.mark.parametrize("stdout", ["not json", '{"skills": []}'])
+def test_zero_token_load_fails_on_a_malformed_payload(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, stdout: str
+) -> None:
+    ok = subprocess.CompletedProcess(["copilot"], 0, stdout=stdout, stderr="")
+    _patch_zero_token_run(monkeypatch, ok)
+
+    with pytest.raises((AssertionError, pytest.fail.Exception)):
+        test_copilot_plugin_loads_expected_skills(tmp_path)
+
+
+def test_zero_token_load_fails_instead_of_skipping_on_a_timeout(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    def hang(argv: list[str], **_: object) -> subprocess.CompletedProcess[str]:
+        raise subprocess.TimeoutExpired(
+            argv,
+            _SKILL_LIST_TIMEOUT_SECONDS,
+            output=None,
+            stderr=b"You have exceeded your monthly quota",
+        )
+
+    monkeypatch.setattr("tests.e2e.test_plugin_load_smoke.copilot_command", lambda *a: list(a))
+    monkeypatch.setattr("tests.e2e.test_plugin_load_smoke.subprocess.run", hang)
+
+    with pytest.raises(pytest.fail.Exception, match="hang"):
         test_copilot_plugin_loads_expected_skills(tmp_path)
 
 
@@ -1643,10 +1784,10 @@ def _patch_claude_plugin_timeouts(monkeypatch: pytest.MonkeyPatch, stderr: bytes
 
 _PLUGIN_SMOKES = [
     pytest.param(
-        "test_copilot_plugin_loads_expected_skills",
+        "test_copilot_plugin_dir_fires_probe_hook",
         _patch_copilot_plugin_timeouts,
         b"You have exceeded your monthly quota\n",
-        id="copilot-plugin-load",
+        id="copilot-probe-hook",
     ),
     pytest.param(
         "test_copilot_empty_plugin_dir_does_not_fire_probe_hook",
@@ -1925,11 +2066,29 @@ def _smoke_tests() -> list[Callable[..., object]]:
     ]
 
 
+def _smoke_test_named(name: str) -> Callable[..., object]:
+    return globals()[name]
+
+
 def _timeout_mark_seconds(test: Callable[..., object]) -> float | None:
     for mark in getattr(test, "pytestmark", []):
         if mark.name == "timeout":
             return float(mark.args[0])
     return None
+
+
+def _first_call_timeout(test: Callable[..., object]) -> int:
+    """Timeout of the first CLI call a smoke test makes.
+
+    The Codex and Copilot skill-list tests run local-only commands and stop at
+    their own, shorter first timeout. Every other smoke test uses the model-call
+    timeout.
+    """
+    local_only = {
+        test_codex_plugin_loads_expected_skills.__name__: _CODEX_COMMAND_TIMEOUT_SECONDS,
+        test_copilot_plugin_loads_expected_skills.__name__: _SKILL_LIST_TIMEOUT_SECONDS,
+    }
+    return local_only.get(test.__name__, _CLI_TIMEOUT_SECONDS)
 
 
 def test_every_real_cli_test_outlasts_its_subprocess_timeout() -> None:
@@ -1945,7 +2104,7 @@ def test_every_real_cli_test_outlasts_its_subprocess_timeout() -> None:
     short = {
         name: seconds
         for name, seconds in budgets.items()
-        if (seconds or 0) <= _CLI_TIMEOUT_SECONDS
+        if (seconds or 0) <= _first_call_timeout(_smoke_test_named(name))
     }
     assert not short, f"smoke tests without a budget above the CLI timeout: {short}"
 
@@ -1953,19 +2112,15 @@ def test_every_real_cli_test_outlasts_its_subprocess_timeout() -> None:
 def test_an_all_hang_run_fits_the_pre_push_cap() -> None:
     """When every CLI hangs, each smoke test stops at its first CLI timeout.
 
-    Two tests run ``--version`` before their first real call. The sum must stay
+    One test (the Claude plugin load) runs ``--version`` before its first real
+    call. The sum must stay
     under the pre-push cap, or the cap kills the run and the hung test goes
     unnamed (issue #6181).
     """
     from scripts.validation.git_hook_policy import CLI_E2E_TIMEOUT_SECONDS
 
-    # The Codex test runs local-only commands and stops at its own, shorter
-    # first timeout.
-    first_call_timeout = {
-        test_codex_plugin_loads_expected_skills.__name__: _CODEX_COMMAND_TIMEOUT_SECONDS
-    }
-    worst_case = 2 * _VERSION_TIMEOUT_SECONDS + sum(
-        first_call_timeout.get(test.__name__, _CLI_TIMEOUT_SECONDS) for test in _smoke_tests()
+    worst_case = _VERSION_TIMEOUT_SECONDS + sum(
+        _first_call_timeout(test) for test in _smoke_tests()
     )
 
     assert worst_case < CLI_E2E_TIMEOUT_SECONDS, (

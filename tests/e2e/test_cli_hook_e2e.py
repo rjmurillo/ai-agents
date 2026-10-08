@@ -74,7 +74,6 @@ _manifest = copilot_hook_probe.manifest
 _probe_name = copilot_hook_probe.probe_name
 _write_probe_script = copilot_hook_probe.write_probe_script
 _copilot_run_blocked = copilot_hook_probe.copilot_run_blocked
-_copilot_run_blocked_headline = copilot_hook_probe.copilot_run_blocked_headline
 
 
 def _skip_on_copilot_block(result: subprocess.CompletedProcess[str]) -> None:
@@ -90,7 +89,7 @@ def _skip_on_copilot_block(result: subprocess.CompletedProcess[str]) -> None:
     existing timeout paths in this file already follow the same pattern.
     """
     if _copilot_run_blocked(result):
-        pytest.skip(_copilot_run_blocked_headline(result))
+        pytest.skip(copilot_hook_probe.copilot_block_skip_reason(result))
 
 
 _RUN = os.environ.get("RUN_CLI_E2E") == "1"

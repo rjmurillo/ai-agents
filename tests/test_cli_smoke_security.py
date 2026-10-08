@@ -231,22 +231,82 @@ def test_credential_steps_exist_for_every_cli_and_smoke(smoke_job: dict[str, Any
     assert with_secrets == CREDENTIAL_STEPS
 
 
+HOOK_GATE = {
+    "claude": "Assert the hook smoke actually ran (claude)",
+    "copilot": "Assert the hook smoke actually ran (copilot)",
+}
+PLUGIN_GATE = {
+    "claude": "Assert the plugin-load smoke actually ran (claude)",
+    "copilot": "Assert the plugin-load smoke actually ran (copilot)",
+}
+QUOTA_SKIP_MARKER = "QUOTA_SKIP:"
+
+
 @pytest.mark.parametrize("cli", CLIS)
 def test_expected_counts_match_the_collected_smoke_tests(
     smoke_job: dict[str, Any], cli: str
 ) -> None:
     """Edge: both gates demand every test the leg's marker selects, no fewer."""
-    hook_gate = _step_by_name(smoke_job, "Assert the hook smoke actually ran")
-    plugin_gate = _step_by_name(smoke_job, "Assert the plugin-load smoke actually ran")
+    hook_gate = _step_by_name(smoke_job, HOOK_GATE[cli])
+    plugin_gate = _step_by_name(smoke_job, PLUGIN_GATE[cli])
 
     assert _expected_count(hook_gate) == _collected_count(SMOKE_FILES["hook"], cli)
     assert _expected_count(plugin_gate) == _collected_count(SMOKE_FILES["plugin"], cli)
 
 
-def test_plugin_load_gate_matches_its_file(smoke_job: dict[str, Any]) -> None:
+@pytest.mark.parametrize("cli", CLIS)
+def test_each_gate_runs_only_on_its_own_leg(smoke_job: dict[str, Any], cli: str) -> None:
+    """Positive and negative: a leg runs its own gates and not the other leg's."""
+    other = next(c for c in CLIS if c != cli)
+    for gates in (HOOK_GATE, PLUGIN_GATE):
+        step = _step_by_name(smoke_job, gates[cli])
+        assert step["if"] == f"always() && matrix.cli == '{cli}'"
+        assert f"matrix.cli == '{other}'" not in step["if"]
+
+
+def _gate_arguments(step: dict[str, Any]) -> list[str]:
+    return shlex.split(step["run"])
+
+
+@pytest.mark.parametrize("gates", [HOOK_GATE, PLUGIN_GATE], ids=["hook", "plugin"])
+def test_only_the_copilot_gates_allow_the_quota_skip_marker(
+    smoke_job: dict[str, Any], gates: dict[str, str]
+) -> None:
+    """REQ-047 D6: Copilot prompt checks are best-effort; Claude stays strict."""
+    copilot = _gate_arguments(_step_by_name(smoke_job, gates["copilot"]))
+    claude = _gate_arguments(_step_by_name(smoke_job, gates["claude"]))
+
+    assert copilot.count("--allow-skip-marker") == 1
+    assert copilot[copilot.index("--allow-skip-marker") + 1] == QUOTA_SKIP_MARKER
+    assert "--allow-skip-marker" not in claude
+
+
+def test_codex_and_install_isolation_gates_stay_strict(
+    smoke_job: dict[str, Any], codex_job: dict[str, Any]
+) -> None:
+    """Negative: neither the Codex gate nor the install-isolation gate allows a skip."""
+    codex_gate = _step_by_name(codex_job, "Assert the plugin-load smoke actually ran")
+    install_gate = _step_by_name(smoke_job, "Assert the install isolation smoke actually ran")
+
+    assert "--allow-skip-marker" not in codex_gate["run"]
+    assert "--allow-skip-marker" not in install_gate["run"]
+
+
+def test_the_marker_matches_the_one_the_tests_skip_with() -> None:
+    """The workflow flag and the skip reason share one string (probe module owns it)."""
+    sys.path.insert(0, str(REPO_ROOT / "tests" / "e2e"))
+    try:
+        import copilot_hook_probe
+    finally:
+        sys.path.remove(str(REPO_ROOT / "tests" / "e2e"))
+
+    assert copilot_hook_probe.QUOTA_SKIP_MARKER == QUOTA_SKIP_MARKER
+
+
+@pytest.mark.parametrize("cli", CLIS)
+def test_plugin_load_gate_matches_its_file(smoke_job: dict[str, Any], cli: str) -> None:
     """Edge: the plugin-load gate filters on the plugin-load smoke module."""
-    gate = _step_by_name(smoke_job, "Assert the plugin-load smoke actually ran")
-    arguments = shlex.split(gate["run"])
+    arguments = _gate_arguments(_step_by_name(smoke_job, PLUGIN_GATE[cli]))
 
     assert arguments.count("--smoke-substr") == 1
     assert arguments[arguments.index("--smoke-substr") + 1] == "test_plugin_load_smoke"

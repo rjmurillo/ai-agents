@@ -25,6 +25,12 @@ Contract (JUnit XML, the format pytest's ``--junitxml`` writes):
   nightly workflow runs one leg per CLI and passes ``--expected-count 1``, so
   each leg fails closed when its own case is lost.
 
+- ``--allow-skip-marker MARKER`` lets a skip whose ``message`` contains MARKER
+  count as accounted for (REQ-047 owner decision D6: Copilot prompt checks are
+  best-effort and skip with ``QUOTA_SKIP:`` when quota is spent). Each such skip
+  is printed. Any other skip, any failure, and a short set still fail. Without
+  the flag the gate stays strict.
+
 Exit codes (per AGENTS.md / ADR-035):
 - 0: at least one smoke test ran and none were skipped, failed, or errored.
 - 1: a smoke test was skipped, failed, errored, or none were collected (logic).
@@ -34,6 +40,7 @@ Exit codes (per AGENTS.md / ADR-035):
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
 from xml.etree import ElementTree
@@ -44,6 +51,7 @@ EXIT_CONFIG = 2
 
 _DEFAULT_SMOKE_SUBSTR = "test_cli_hook_e2e"
 _DEFAULT_EXPECTED_COUNT = 2
+_ALLOWED_SKIP_PHRASE = "best-effort test(s) quota-skipped by marker"
 
 
 class SmokeReportError(Exception):
@@ -109,15 +117,35 @@ def _is_failed(case: ElementTree.Element) -> bool:
     return case.find("failure") is not None or case.find("error") is not None
 
 
+def _skip_message(case: ElementTree.Element) -> str:
+    skipped = case.find("skipped")
+    if skipped is None:
+        return ""
+    return f"{skipped.get('message', '')} {skipped.text or ''}"
+
+
+def _is_marker_skipped(case: ElementTree.Element, marker: str | None) -> bool:
+    """True when the case skipped and its skip message carries ``marker``."""
+    return bool(marker) and _is_skipped(case) and marker in _skip_message(case)
+
+
 def evaluate(
     report_path: Path,
     smoke_substr: str,
     expected_count: int = _DEFAULT_EXPECTED_COUNT,
+    allow_skip_marker: str | None = None,
 ) -> tuple[int, str]:
     """Decide whether the smoke ran. Returns ``(exit_code, message)``.
 
-    Raises ``SmokeReportError`` on a missing or malformed report.
+    A skip whose message contains ``allow_skip_marker`` is reported but does not
+    fail the gate. The collected count includes those skips; a failed or
+    otherwise-skipped case fails the gate regardless, so the count of accounted
+    tests is the count of passed plus marker-skipped cases.
+
+    Raises ``SmokeReportError`` on a missing or malformed report or a blank marker.
     """
+    if allow_skip_marker is not None and not allow_skip_marker.strip():
+        raise SmokeReportError("--allow-skip-marker must not be blank")
     cases = _iter_testcases(report_path)
     smoke_cases = [c for c in cases if _is_smoke(c, smoke_substr)]
 
@@ -138,7 +166,8 @@ def evaluate(
             "were collected. The smoke set is incomplete.",
         )
 
-    skipped = [_case_id(c) for c in smoke_cases if _is_skipped(c)]
+    allowed = [c for c in smoke_cases if _is_marker_skipped(c, allow_skip_marker)]
+    skipped = [_case_id(c) for c in smoke_cases if _is_skipped(c) and c not in allowed]
     failed = [_case_id(c) for c in smoke_cases if _is_failed(c)]
 
     if skipped:
@@ -154,8 +183,12 @@ def evaluate(
         names = ", ".join(failed)
         return (EXIT_NOT_RUN, f"{len(failed)} smoke test(s) FAILED: {names}.")
 
-    ran = ", ".join(_case_id(c) for c in smoke_cases)
-    return (EXIT_OK, f"{len(smoke_cases)} smoke test(s) ran and passed: {ran}.")
+    passed = [_case_id(c) for c in smoke_cases if c not in allowed]
+    message = f"{len(passed)} smoke test(s) ran and passed: {', '.join(passed)}."
+    if allowed:
+        notes = "; ".join(f"{_case_id(c)} ({_skip_message(c).strip()[:200]})" for c in allowed)
+        message += f" {len(allowed)} {_ALLOWED_SKIP_PHRASE} {allow_skip_marker!r}: {notes}."
+    return (EXIT_OK, message)
 
 
 def _parse_args(argv: list[str]) -> argparse.Namespace:
@@ -181,19 +214,45 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         default=_DEFAULT_EXPECTED_COUNT,
         help=f"Minimum expected smoke testcase count (default: {_DEFAULT_EXPECTED_COUNT}).",
     )
+    parser.add_argument(
+        "--allow-skip-marker",
+        default=None,
+        help=(
+            "A skip whose message contains this text is reported but does not "
+            "fail the gate (for best-effort tests). Default: every skip fails."
+        ),
+    )
     return parser.parse_args(argv)
+
+
+def _report_allowed_skips(message: str) -> None:
+    """Surface marker skips as an annotation and in the job summary.
+
+    The gate passes when only best-effort tests skipped, so the skip must stay
+    visible in the run (REQ-047 D6). ``GITHUB_STEP_SUMMARY`` is absent locally.
+    """
+    if _ALLOWED_SKIP_PHRASE not in message:
+        return
+    print(f"::notice::smoke gate: {message}")
+    summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
+    if summary_path:
+        with open(summary_path, "a", encoding="utf-8") as handle:
+            handle.write(f"Copilot prompt checks were quota-skipped. {message}\n")
 
 
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(sys.argv[1:] if argv is None else argv)
     try:
-        exit_code, message = evaluate(args.report, args.smoke_substr, args.expected_count)
+        exit_code, message = evaluate(
+            args.report, args.smoke_substr, args.expected_count, args.allow_skip_marker
+        )
     except SmokeReportError as exc:
         print(f"::error::smoke gate: {exc}", file=sys.stderr)
         return EXIT_CONFIG
 
     if exit_code == EXIT_OK:
         print(f"smoke gate OK: {message}")
+        _report_allowed_skips(message)
     else:
         print(f"::error::smoke gate: {message}", file=sys.stderr)
     return exit_code
