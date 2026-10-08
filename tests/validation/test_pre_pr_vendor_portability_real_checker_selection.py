@@ -30,13 +30,30 @@ def _script_path(command: str) -> str:
     return next(token for token in tokens if token.endswith(".py"))
 
 
+@pytest.fixture(scope="module")
+def graph_cache(tmp_path_factory):
+    """Build the real tree's import graph into a cache this module owns.
+
+    The default cache is ``.cache/test_import_graph.json`` in the checkout.
+    CI writes it before pytest only when selection reaches the graph. A pull
+    request whose diff falls back early (a non-Python file, or a dynamic
+    import) leaves it unbuilt. This module then paid the 17s build: 4.7s on
+    main became 40s on those pull requests. Building once here makes the cost
+    the same on every branch, and no reused cache can stand in for the tree.
+    """
+    cache = tmp_path_factory.mktemp("import-graph") / "test_import_graph.json"
+    select_tests.select([_script_path(sorted(EXPECTED)[0])], REPO_ROOT, cache_path=cache)
+    assert cache.is_file(), "selection never reached the import graph, so no cache was built"
+    return cache
+
+
 @pytest.mark.parametrize("command", sorted(EXPECTED))
-def test_checker_change_selects_both_real_checker_files(command: str) -> None:
+def test_checker_change_selects_both_real_checker_files(command: str, graph_cache) -> None:
     """SPEC-6211 AC9: selection still runs the real checker for its script."""
     script = _script_path(command)
     assert (REPO_ROOT / script).is_file(), f"{script} does not exist"
 
-    selection = select_tests.select([script], REPO_ROOT)
+    selection = select_tests.select([script], REPO_ROOT, cache_path=graph_cache)
 
     # A full-suite fallback would run both files, but it would also pass with
     # the pre_pr_sequence import gone, so it cannot prove the edge exists. If a
