@@ -81,7 +81,7 @@ What proves it works: the traced 16-worker run of the same 832-file subset, befo
 
 ## Acceptance criteria
 
-1. The test suite shall collect the same number of tests, with the same test names ignoring module path, before and after the change.
+1. The test suite shall collect the same test names, ignoring module path, before and after the change. The only new test is the AC5 guard.
 2. When `tests/test_validation_pre_pr.py` is run alone, it shall take under 5s.
 3. When any file created by this change is run alone, it shall take under 30s.
 4. Where a test is the dominant test of its file, the new file shall contain only that test's cases, and the spec shall name it.
