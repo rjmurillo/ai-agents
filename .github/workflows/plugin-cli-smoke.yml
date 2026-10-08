@@ -27,10 +27,12 @@
 #     Claude and Copilot prompt-based checks are best-effort (D26): they skip
 #     with QUOTA_SKIP: only when the provider budget is spent (Copilot quota,
 #     Claude credit or a Claude 429, which the CLI cannot tell from quota).
-#     Copilot rate limit, auth, and transport blocks fail the test. The
-#     Claude and Copilot assert steps pass --allow-skip-marker QUOTA_SKIP: and
-#     --require-pass for the leg's zero-token test, so that test must PASS.
-#     The Codex leg stays strict.
+#     Copilot rate limit, auth, and transport blocks fail the test. Every
+#     Claude and Copilot assert step passes --allow-skip-marker QUOTA_SKIP:.
+#     Only the plugin-load asserts also pass --require-pass for the leg's
+#     zero-token test, so that test must PASS. The hook asserts have no
+#     zero-token test and can pass on quota skips alone (D26). The Codex
+#     leg stays strict.
 #   - Analyst contract smoke (test_plugin_load_smoke.py, issue #3918): each CLI
 #     loads the project analyst without shell tools, while an execution-agent
 #     control still reports shell.

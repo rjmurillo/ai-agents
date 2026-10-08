@@ -57,10 +57,7 @@ def test_nothing_skipped_writes_a_zero_and_no_notice_or_summary(
     assert count_file.read_text(encoding="utf-8") == "0\n"
 
 
-def test_count_file_is_appended_by_each_step_of_a_leg(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)
+def test_count_file_is_appended_by_each_step_of_a_leg(tmp_path: Path) -> None:
     count_file = tmp_path / "quota-skips.txt"
     argv = [str(_report_with_one_quota_skip(tmp_path)), *_MARKER_ARGS]
 
@@ -92,8 +89,12 @@ def test_unreadable_or_hostile_report_exits_two(kind: str, tmp_path: Path, capsy
     if kind != "missing":
         report.write_text(texts[kind], encoding="utf-8")
 
-    assert report_script.main([str(report), *_MARKER_ARGS]) == report_script.EXIT_CONFIG
+    count_file = tmp_path / "quota-skips.txt"
+    argv = [str(report), *_MARKER_ARGS, "--skip-count-file", str(count_file)]
+
+    assert report_script.main(argv) == report_script.EXIT_CONFIG
     assert "::error::smoke quota report" in capsys.readouterr().err
+    assert not count_file.exists()
 
 
 def test_reason_line_breaks_cannot_forge_a_workflow_command(tmp_path: Path, capsys: Capsys) -> None:
