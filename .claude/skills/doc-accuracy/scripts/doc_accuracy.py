@@ -17,12 +17,15 @@ Exit Codes:
 """
 
 import argparse
+import builtins
+import io
 import json
 import logging
 import os
 import re
 import subprocess
 import sys
+import tokenize
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
@@ -798,15 +801,122 @@ def _detect_language(info_string: str) -> str:
     return lang_map.get(token, token)
 
 
-def _extract_identifiers(code: str) -> list[str]:
-    """Extract potential identifiers from a code snippet."""
+# Left-to-right scan so a quote inside a comment, or a '#' inside a string,
+# is consumed by whichever construct opens first.
+_TRIPLE_QUOTE = "\"\"\"|'''"
+_PY_NON_CODE_RE = re.compile(
+    r"(?s)(" + _TRIPLE_QUOTE + r").*?(?:\1|\Z)"
+    r"|\"(?:\\.|[^\"\\\n])*(?:\"|(?=\n)|\Z)"
+    r"|'(?:\\.|[^'\\\n])*(?:'|(?=\n)|\Z)"
+    r"|\#[^\n]*"
+)
+
+_PY_NON_CODE_TOKENS = frozenset({
+    tokenize.STRING,
+    tokenize.COMMENT,
+    getattr(tokenize, "FSTRING_START", -1),
+    getattr(tokenize, "FSTRING_MIDDLE", -1),
+    getattr(tokenize, "FSTRING_END", -1),
+    getattr(tokenize, "TSTRING_START", -1),
+    getattr(tokenize, "TSTRING_MIDDLE", -1),
+    getattr(tokenize, "TSTRING_END", -1),
+})
+
+
+def _blank_python_non_code_by_tokens(code: str) -> str:
+    """Blank STRING and COMMENT token spans, keeping all other columns.
+
+    Raises tokenize.TokenError, IndentationError or SyntaxError when the
+    snippet is not tokenizable.
+    """
+    lines = code.split("\n")
+    chars = [list(line) for line in lines]
+    readline = io.StringIO(code).readline
+    for tok in tokenize.generate_tokens(readline):
+        if tok.type == tokenize.ERRORTOKEN:
+            # An unterminated single-line literal yields ERRORTOKEN instead
+            # of raising; its words would leak, so take the regex fallback.
+            raise tokenize.TokenError("unterminated literal", tok.start)
+        if tok.type not in _PY_NON_CODE_TOKENS:
+            continue
+        (srow, scol), (erow, ecol) = tok.start, tok.end
+        for row in range(srow, erow + 1):
+            if row > len(chars):
+                break
+            line = chars[row - 1]
+            start = scol if row == srow else 0
+            end = ecol if row == erow else len(line)
+            for col in range(start, min(end, len(line))):
+                line[col] = " "
+    return "\n".join("".join(line) for line in chars)
+
+
+def _strip_python_non_code(code: str) -> str:
+    """Remove strings, docstrings and comments from a Python snippet.
+
+    Uses the stdlib tokenizer so f-string expressions stay visible. Snippets
+    the tokenizer rejects (unterminated quotes, inconsistent dedent, as seen
+    in excerpted doc examples) fall back to a conservative regex strip. The
+    regex errs toward blanking: it can hide an identifier, never invent one.
+    """
+    try:
+        return _blank_python_non_code_by_tokens(code)
+    except (tokenize.TokenError, IndentationError, SyntaxError):
+        return _PY_NON_CODE_RE.sub(lambda m: " " * len(m.group(0)), code)
+
+
+_PY_FROM_IMPORT_RE = re.compile(
+    r"^[ \t]*from[ \t]+([\w.]+)[ \t]+import[ \t]+"
+    r"(?:\(([^)]*)\)|([^\n(]+))",
+    re.MULTILINE,
+)
+
+
+def _python_stdlib_imported_names(code: str) -> set[str]:
+    """Names brought in by ``from <stdlib module> import ...`` lines.
+
+    Includes both the imported name and its ``as`` alias (the bound name).
+
+    Handles single-line and parenthesized multi-line imports. These names
+    are defined by the standard library, not the repo, so Phase 3 must not
+    look them up in the repo symbol index. Imports from any other module
+    stay checkable. ``code`` must already be stripped of strings and
+    comments.
+    """
+    names: set[str] = set()
+    for module, grouped, plain in _PY_FROM_IMPORT_RE.findall(code):
+        if module.split(".")[0] not in sys.stdlib_module_names:
+            continue
+        for part in (grouped or plain).split(","):
+            # Both the imported name and its alias come from the stdlib.
+            names.update(n.strip() for n in part.split(" as ") if n.strip())
+    return names
+
+
+def _extract_identifiers(code: str, lang: str = "") -> list[str]:
+    """Extract potential identifiers from a code snippet.
+
+    For Python (``lang == "python"``) only code tokens count: strings,
+    docstrings and comments are blanked first, and names imported from
+    the standard library are dropped.
+
+    f-string expressions stay visible only on Python 3.12+, where the
+    tokenizer splits f-strings. On 3.10 and 3.11 the whole f-string is one
+    STRING token and is blanked, which can only miss a symbol, never add a
+    false finding. Other languages keep the
+    language-agnostic scan.
+    """
+    stdlib_names: set[str] = set()
+    if lang == "python":
+        code = _strip_python_non_code(code)
+        stdlib_names = _python_stdlib_imported_names(code)
     # Match CamelCase and snake_case identifiers (3+ chars)
     identifiers = re.findall(r"\b([A-Z][a-zA-Z0-9]+)\b", code)
     # Also match method calls
     identifiers.extend(re.findall(r"\.([A-Za-z]\w+)\s*\(", code))
     # Named parameters (C# style)
     identifiers.extend(re.findall(r"(\w+)\s*:", code))
-    return sorted(set(identifiers))
+    return sorted(set(identifiers) - stdlib_names)
 
 
 def _extract_quantitative_claims(line: str) -> list[str]:
@@ -871,7 +981,7 @@ def run_claim_extraction(
                     i += 1
                     continue
 
-                identifiers = _extract_identifiers(code_content)
+                identifiers = _extract_identifiers(code_content, lang)
                 # Map identifiers to source files
                 mapped = default_source
                 for ident in identifiers:
@@ -1058,6 +1168,11 @@ def run_compilability_check(
                     "True", "False", "None", "Error", "Promise",
                 }
                 if sym_name in framework_types:
+                    continue
+
+                # Python builtins (ImportError, ValueError, ...) are never
+                # repo symbols.
+                if lang == "python" and hasattr(builtins, sym_name):
                     continue
 
                 finding_counter += 1
