@@ -90,6 +90,22 @@ jobs:
         with:
           fetch-depth: 0
 
+      # REQ-047 AC12: the filter code must not come from the pull request, or a
+      # fork PR could edit it to return run=false and pass the gate. Check the
+      # script out from the base commit into its own directory. A
+      # workflow_dispatch run has no base SHA and uses its own ref.
+      - name: Checkout the path filter from the base commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha || github.sha }}
+          path: trusted-base
+          sparse-checkout: scripts/validation/cli_smoke_paths.py
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
+      # python3 -I ignores PYTHONPATH and the script directory, so nothing in
+      # the pull request tree can shadow a stdlib import. --repo-root points the
+      # three-dot diff at the pull request checkout, not the base copy.
       - name: Decide whether the smoke must run
         id: filter
         shell: bash
@@ -98,10 +114,11 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          python3 scripts/validation/cli_smoke_paths.py \
+          python3 -I trusted-base/scripts/validation/cli_smoke_paths.py \
             --event-name "$EVENT_NAME" \
             --base "$BASE_SHA" \
-            --head "$HEAD_SHA"
+            --head "$HEAD_SHA" \
+            --repo-root "$GITHUB_WORKSPACE"
 
   authorize:
     name: Trusted-context gate
