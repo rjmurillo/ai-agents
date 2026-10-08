@@ -62,6 +62,25 @@ NOT_CONFIGURED_NOTICE = (
 )
 
 
+_CREDIT_LOW_PHRASE = "credit balance is too low"
+_AUTH_STATUS_CODES = (401, 403)
+
+
+def credential_problem(exc: Exception) -> str | None:
+    """Name a credit or auth failure of ``ANTHROPIC_API_KEY``, or None for anything else.
+
+    A low credit balance and a rejected key need a human to fund or rotate the
+    key. Retrying cannot help, and a generic infra warning hides that. The caller
+    still publishes ``infrastructure_failure=true`` after this message.
+    """
+    status = getattr(exc, "status_code", None)
+    if _CREDIT_LOW_PHRASE in str(exc).lower():
+        return "the Anthropic credit balance is too low"
+    if status in _AUTH_STATUS_CODES:
+        return f"the Anthropic API rejected the key (HTTP {status})"
+    return None
+
+
 def _did_not_run(reason: str, *, exit_code: int = 1) -> shared.AttemptResult:
     return shared.AttemptResult(
         exit_code=exit_code,
@@ -161,6 +180,9 @@ def invoke_claude(
         )
     except anthropic.APIError as exc:
         detail = shared.redact_secrets(f"{type(exc).__name__}: {exc}")
+        problem = credential_problem(exc)
+        if problem:
+            print(f"::error::{REQUIRED_ENV_VAR}: {problem}. Fund or rotate the key.")
         print(f"::warning::Claude API infrastructure failure: {detail[:500]}")
         return _did_not_run(f"Claude API call failed ({detail[:300]}). No review verdict exists.")
     output = shared.redact_secrets(text)

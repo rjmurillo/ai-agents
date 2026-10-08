@@ -164,6 +164,70 @@ def test_api_error_is_infrastructure_failure(env, error, monkeypatch, tmp_path):
     assert "verdict=DID_NOT_RUN" in parse_verdict(env, monkeypatch, tmp_path)
 
 
+def _status_error(cls: type[anthropic.APIStatusError], status: int, message: str):
+    request = httpx2.Request("POST", "https://x.invalid")
+    response = httpx2.Response(status, request=request)
+    return cls(message, response=response, body={"error": {"message": message}})
+
+
+@pytest.mark.parametrize(
+    ("error", "needle"),
+    [
+        (
+            _status_error(
+                anthropic.BadRequestError,
+                400,
+                "Your credit balance is too low to access the Anthropic API.",
+            ),
+            "credit balance is too low",
+        ),
+        (_status_error(anthropic.AuthenticationError, 401, "invalid x-api-key"), "HTTP 401"),
+        (_status_error(anthropic.PermissionDeniedError, 403, "forbidden"), "HTTP 403"),
+    ],
+    ids=["credit", "401", "403"],
+)
+def test_credential_failures_name_the_key_and_stay_infrastructure_failures(
+    env, error, needle, capsys, monkeypatch, tmp_path
+):
+    FakeClient.error = error
+
+    assert run_main(env) == 0
+
+    out = capsys.readouterr().out
+    error_line = next(line for line in out.splitlines() if line.startswith("::error::"))
+    assert "ANTHROPIC_API_KEY" in error_line
+    assert needle in error_line
+    assert "Fund or rotate the key" in error_line
+    assert out.index("::error::") < out.index("::warning::Claude API infrastructure failure")
+    assert "infrastructure_failure=true" in outputs(env)
+    assert "VERDICT: DID_NOT_RUN" in verdict_file(env)
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        _status_error(anthropic.RateLimitError, 429, "rate limited"),
+        _status_error(anthropic.InternalServerError, 500, "boom"),
+        anthropic.APIConnectionError(request=httpx2.Request("POST", "https://x.invalid")),
+    ],
+    ids=["429", "500", "connection"],
+)
+def test_other_api_errors_emit_no_credential_error(env, error, capsys):
+    FakeClient.error = error
+
+    assert run_main(env) == 0
+
+    out = capsys.readouterr().out
+    assert "::error::" not in out
+    assert "::warning::Claude API infrastructure failure" in out
+    assert "infrastructure_failure=true" in outputs(env)
+
+
+def test_credential_problem_returns_none_for_non_status_errors():
+    exc = anthropic.APIConnectionError(request=httpx2.Request("POST", "https://x.invalid"))
+    assert claude.credential_problem(exc) is None
+
+
 def test_api_error_never_leaks_the_key(env, monkeypatch):
     monkeypatch.setenv("ANTHROPIC_API_KEY", env["ANTHROPIC_API_KEY"])
     exc = anthropic.APIConnectionError(request=httpx2.Request("POST", "https://x.invalid"))
@@ -260,7 +324,6 @@ def test_main_runs_end_to_end(env, monkeypatch):
         monkeypatch.setenv(key, value)
     assert claude.main([]) == 0
     assert "VERDICT: PASS" in verdict_file(env)
-
 
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
