@@ -135,11 +135,6 @@ _NOT_WORKFLOW_INVOKED: dict[str, str] = {
         "tests/ci/test_pytest_paths_filter_roots.py reads the module directly "
         "(issue #6239)."
     ),
-    "run_pytest_selected.py": (
-        "Superseded by run_pytest_partition.py, which pytest.yml now runs. "
-        "Kept only until the selector is deleted in the last milestone of "
-        "issue #6239."
-    ),
     "run_pytest_non_tmp.py": (
         "Library entry invoked by run_pytest_partition.py, which pytest.yml runs "
         "for every partition (issue #5050). It keeps the repo-isolated temp root; "

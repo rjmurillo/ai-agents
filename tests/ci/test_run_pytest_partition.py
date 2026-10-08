@@ -4,6 +4,7 @@ Issue #6239 acceptance criteria covered here:
 
 - AC1: no file imports ``scripts.test_selection``.
 - AC2: every pytest CI leg runs its full share on every event.
+- AC4: the parallel legs are duration-balanced split groups over one pool.
 """
 
 from __future__ import annotations
@@ -17,14 +18,23 @@ from scripts.ci import run_pytest_partition as mod
 
 _MODULE_PATH = Path(mod.__file__)
 
-_EXPECTED_PARTITIONS = {
-    "bulk",
-    "bulk-nested",
-    "bulk-nested-ci",
-    "mutation",
-    "safe-push",
-    "pr-autofix",
+_SPLIT_PARTITIONS = ("split-1", "split-2", "split-3", "split-4")
+
+_EXPECTED_PARTITIONS = {*_SPLIT_PARTITIONS, "safe-push", "pr-autofix"}
+
+_POOL_EXCLUDED = {
+    "tests/test_ai_review.py",
+    "tests/test_verdict.py",
+    "tests/test_quality_gate.py",
+    "tests/skills/github/test_wait_for_unresolved_zero.py",
+    "tests/test_safe_push_pr_branch.py",
+    "tests/test_mutation_workspace_signals.py",
+    "tests/test_pr_autofix_late_live_state_gate.py",
 }
+
+
+def _flag_value(args: list[str], flag: str) -> str:
+    return args[args.index(flag) + 1]
 
 
 def _capture_runner(monkeypatch: pytest.MonkeyPatch) -> list[list[str]]:
@@ -40,6 +50,11 @@ def _capture_runner(monkeypatch: pytest.MonkeyPatch) -> list[list[str]]:
 
 def test_partition_names_are_the_ci_matrix_set() -> None:
     assert set(mod._PARTITION_FULL_ARGS) == _EXPECTED_PARTITIONS
+
+
+def test_split_count_is_four_and_names_follow_it() -> None:
+    assert mod.SPLIT_COUNT == 4
+    assert mod.split_names() == list(_SPLIT_PARTITIONS)
 
 
 def test_distribution_mode_is_loadfile() -> None:
@@ -70,8 +85,8 @@ def test_passthrough_args_precede_the_partition_args(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls = _capture_runner(monkeypatch)
-    mod.main(["--partition", "mutation", "--cov", "--junitxml=out.xml"])
-    assert calls == [["--cov", "--junitxml=out.xml", *mod._PARTITION_FULL_ARGS["mutation"]]]
+    mod.main(["--partition", "split-2", "--cov", "--junitxml=out.xml"])
+    assert calls == [["--cov", "--junitxml=out.xml", *mod._PARTITION_FULL_ARGS["split-2"]]]
 
 
 def test_unknown_partition_exits_2(capsys: pytest.CaptureFixture[str]) -> None:
@@ -89,7 +104,7 @@ def test_missing_partition_exits_2() -> None:
 
 def test_runner_failure_code_is_returned(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(mod.run_pytest_non_tmp, "main", lambda _argv: 1)
-    assert mod.main(["--partition", "bulk"]) == 1
+    assert mod.main(["--partition", "split-1"]) == 1
 
 
 def test_summary_line_reports_full_mode(
@@ -97,8 +112,8 @@ def test_summary_line_reports_full_mode(
 ) -> None:
     _capture_runner(monkeypatch)
     monkeypatch.delenv("GITHUB_OUTPUT", raising=False)
-    mod.main(["--partition", "bulk"])
-    assert capsys.readouterr().err.strip() == "partition=bulk mode=full"
+    mod.main(["--partition", "split-1"])
+    assert capsys.readouterr().err.strip() == "partition=split-1 mode=full"
 
 
 @pytest.mark.parametrize("event", ["pull_request", "push", "merge_group", "workflow_dispatch"])
@@ -110,17 +125,18 @@ def test_event_and_selection_env_never_change_the_args(
     monkeypatch.setenv("GITHUB_EVENT_NAME", event)
     monkeypatch.setenv("PYTEST_SELECT_BASE", "a" * 40)
     monkeypatch.setenv("PYTEST_SELECT_HEAD", "b" * 40)
-    mod.main(["--partition", "bulk-nested"])
-    assert calls == [mod._PARTITION_FULL_ARGS["bulk-nested"]]
+    mod.main(["--partition", "split-3"])
+    assert calls == [mod._PARTITION_FULL_ARGS["split-3"]]
 
 
 @pytest.mark.parametrize(
     ("rel", "expected"),
     [
-        ("tests/test_leaf.py", "bulk"),
-        ("tests/ci/test_thing.py", "bulk-nested-ci"),
-        ("tests/validation/test_thing.py", "bulk-nested"),
-        ("tests/mutation/test_x.py", "mutation"),
+        ("tests/test_leaf.py", "split"),
+        ("tests/ci/test_thing.py", "split"),
+        ("tests/validation/test_thing.py", "split"),
+        ("tests/mutation/test_x.py", "split"),
+        ("tests/skills/github/test_wait_for_unresolved_zero.py", None),
         ("tests/test_safe_push_pr_branch.py", "safe-push"),
         ("tests/test_pr_autofix_late_live_state_gate.py", "pr-autofix"),
         ("tests/test_verdict.py", None),
@@ -128,6 +144,50 @@ def test_event_and_selection_env_never_change_the_args(
 )
 def test_classify_partition(rel: str, expected: str | None) -> None:
     assert mod.classify_partition(rel) == expected
+
+
+@pytest.mark.parametrize("index", range(1, 5))
+def test_split_group_flags(index: int) -> None:
+    """AC4: group i of N runs the shared pool by recorded duration."""
+    args = mod._PARTITION_FULL_ARGS[f"split-{index}"]
+    assert _flag_value(args, "--splits") == "4"
+    assert _flag_value(args, "--group") == str(index)
+    assert _flag_value(args, "--splitting-algorithm") == "duration_based_chunks"
+    assert _flag_value(args, "--durations-path") == "tests/.test_durations"
+    assert args[-1] == "tests/"
+
+
+def test_split_groups_differ_only_in_the_group_number() -> None:
+    """AC4: one pool, so no group can leave a file out or take it twice."""
+
+    def without_group(args: list[str]) -> list[str]:
+        position = args.index("--group")
+        return args[:position] + args[position + 2 :]
+
+    shapes = {tuple(without_group(mod._PARTITION_FULL_ARGS[n])) for n in _SPLIT_PARTITIONS}
+    assert len(shapes) == 1
+
+
+@pytest.mark.parametrize("partition", _SPLIT_PARTITIONS)
+def test_split_groups_ignore_exactly_the_dedicated_and_pinned_files(partition: str) -> None:
+    args = mod._PARTITION_FULL_ARGS[partition]
+    ignored = {a.removeprefix("--ignore=") for a in args if a.startswith("--ignore=")}
+    assert ignored == _POOL_EXCLUDED
+    assert not [a for a in args if a.startswith("--ignore-glob")]
+
+
+def test_durations_file_lives_beside_the_tests() -> None:
+    assert mod.DURATIONS_PATH == "tests/.test_durations"
+
+
+def test_dedicated_legs_run_only_their_files() -> None:
+    assert mod._PARTITION_FULL_ARGS["safe-push"] == [
+        "tests/test_safe_push_pr_branch.py",
+        "tests/test_mutation_workspace_signals.py",
+    ]
+    assert mod._PARTITION_FULL_ARGS["pr-autofix"] == [
+        "tests/test_pr_autofix_late_live_state_gate.py"
+    ]
 
 
 def test_module_never_imports_the_selector() -> None:

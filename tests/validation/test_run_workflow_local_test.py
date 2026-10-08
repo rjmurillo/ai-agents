@@ -573,7 +573,7 @@ def test_act_true_runs_pytest_matrix_locally(all_tools, monkeypatch, tmp_path):
     strategy:
       matrix:
         include:
-          - partition: bulk
+          - partition: split-1
           - partition: safe-push
 """,
         encoding="utf-8",
@@ -630,7 +630,7 @@ def test_act_true_runs_pytest_matrix_locally(all_tools, monkeypatch, tmp_path):
                 "python",
                 "scripts/ci/run_pytest_partition.py",
                 "--partition",
-                "bulk",
+                "split-1",
                 "--cov",
                 "--cov-report=",
                 "--junitxml=pytest-0.xml",
@@ -1703,7 +1703,9 @@ def test_act_limitation_hint_accepts_the_failure_that_follows_from_the_fetch() -
 
 
 def test_act_limitation_hint_blocks_a_failing_test_step_beside_the_fetch() -> None:
-    failing_tests = "      [Python Tests/pytest (bulk)]   \u274c  Failure - Main Run pytest [9s]\n"
+    failing_tests = (
+        "      [Python Tests/pytest (split-1)]   \u274c  Failure - Main Run pytest [9s]\n"
+    )
     assert w._act_limitation_hint(_act_fetch_failure() + failing_tests) is None
 
 
