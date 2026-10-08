@@ -362,3 +362,126 @@ def test_main_writes_no_summary_when_nothing_was_skipped(
 
     assert code == EXIT_OK
     assert not summary.exists()
+
+
+def _skipped_with_message(classname: str, name: str, message: str) -> str:
+    return (
+        f'<testcase classname="{classname}" name="{name}" time="0.0">'
+        f'<skipped type="pytest.skip" message="{message}"></skipped></testcase>'
+    )
+
+
+def test_marker_must_be_a_prefix_of_the_skip_message(tmp_path: Path) -> None:
+    """A marker quoted mid-message (for example inside a copied log) is not accepted."""
+    cases = _skipped_with_message(
+        _SMOKE_CLASS, "test_a", f"Copilot auth rejected; log said {_MARKER} earlier"
+    )
+    report = _write_report(tmp_path, cases)
+
+    code, _ = assert_smoke_ran.evaluate(report, "test_cli_hook_e2e", 1, allow_skip_marker=_MARKER)
+
+    assert code == EXIT_NOT_RUN
+
+
+def test_marker_prefix_ignores_leading_whitespace(tmp_path: Path) -> None:
+    cases = _skipped_with_message(_SMOKE_CLASS, "test_a", f"  {_MARKER} quota")
+    report = _write_report(tmp_path, cases)
+
+    code, _ = assert_smoke_ran.evaluate(report, "test_cli_hook_e2e", 1, allow_skip_marker=_MARKER)
+
+    assert code == EXIT_OK
+
+
+def test_marker_in_the_skip_body_only_is_not_accepted(tmp_path: Path) -> None:
+    cases = (
+        f'<testcase classname="{_SMOKE_CLASS}" name="test_a" time="0.0">'
+        '<skipped type="pytest.skip" message="needs RUN_CLI_E2E=1">'
+        f"{_MARKER} spoofed in the body</skipped></testcase>"
+    )
+    report = _write_report(tmp_path, cases)
+
+    code, _ = assert_smoke_ran.evaluate(report, "test_cli_hook_e2e", 1, allow_skip_marker=_MARKER)
+
+    assert code == EXIT_NOT_RUN
+
+
+def test_require_pass_accepts_a_passed_zero_token_test(tmp_path: Path) -> None:
+    cases = _passed_case(_SMOKE_CLASS, "test_zero_token") + _marker_skipped_case(
+        _SMOKE_CLASS, "test_prompt_probe"
+    )
+    report = _write_report(tmp_path, cases)
+
+    code, _ = assert_smoke_ran.evaluate(
+        report,
+        "test_cli_hook_e2e",
+        2,
+        allow_skip_marker=_MARKER,
+        require_pass=["test_zero_token"],
+    )
+
+    assert code == EXIT_OK
+
+
+def test_require_pass_rejects_a_marker_skipped_required_test(tmp_path: Path) -> None:
+    cases = _marker_skipped_case(_SMOKE_CLASS, "test_zero_token") + _passed_case(
+        _SMOKE_CLASS, "test_prompt_probe"
+    )
+    report = _write_report(tmp_path, cases)
+
+    code, message = assert_smoke_ran.evaluate(
+        report,
+        "test_cli_hook_e2e",
+        2,
+        allow_skip_marker=_MARKER,
+        require_pass=["test_zero_token"],
+    )
+
+    assert code == EXIT_NOT_RUN
+    assert "test_zero_token" in message
+    assert "must PASS" in message
+
+
+def test_require_pass_rejects_a_missing_required_test(tmp_path: Path) -> None:
+    report = _write_report(tmp_path, _passed_case(_SMOKE_CLASS, "test_prompt_probe"))
+
+    code, message = assert_smoke_ran.evaluate(
+        report, "test_cli_hook_e2e", 1, require_pass=["test_zero_token"]
+    )
+
+    assert code == EXIT_NOT_RUN
+    assert "no smoke test matched required" in message
+
+
+def test_require_pass_rejects_a_failed_required_test(tmp_path: Path) -> None:
+    report = _write_report(tmp_path, _failed_case(_SMOKE_CLASS, "test_zero_token"))
+
+    code, _ = assert_smoke_ran.evaluate(
+        report, "test_cli_hook_e2e", 1, require_pass=["test_zero_token"]
+    )
+
+    assert code == EXIT_NOT_RUN
+
+
+def test_require_pass_is_repeatable_on_the_command_line(tmp_path: Path) -> None:
+    cases = _passed_case(_SMOKE_CLASS, "test_a") + _marker_skipped_case(_SMOKE_CLASS, "test_b")
+    report = _write_report(tmp_path, cases)
+
+    ok = assert_smoke_ran.main(
+        [str(report), "--expected-count", "2", "--allow-skip-marker", _MARKER,
+         "--require-pass", "test_a"]
+    )
+    bad = assert_smoke_ran.main(
+        [str(report), "--expected-count", "2", "--allow-skip-marker", _MARKER,
+         "--require-pass", "test_a", "--require-pass", "test_b"]
+    )
+
+    assert ok == EXIT_OK
+    assert bad == EXIT_NOT_RUN
+
+
+def test_require_pass_blank_value_is_a_config_error(tmp_path: Path) -> None:
+    report = _write_report(tmp_path, _passed_case(_SMOKE_CLASS, "test_a"))
+
+    code = assert_smoke_ran.main([str(report), "--expected-count", "1", "--require-pass", " "])
+
+    assert code == EXIT_CONFIG
