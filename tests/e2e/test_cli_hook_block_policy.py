@@ -65,23 +65,15 @@ def test_copilot_vendor_consumer_skips_a_spent_quota_with_the_marker(
 
 @pytest.mark.parametrize("blocked_phase", ["install", "run"])
 @pytest.mark.parametrize("stderr", [_RATE_LIMIT_STDERR, _TRANSPORT_STDERR])
-def test_copilot_vendor_consumer_fails_in_ci_on_a_non_quota_block(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, blocked_phase: str, stderr: str
+@pytest.mark.parametrize("ci", [True, False], ids=["ci", "local"])
+def test_copilot_vendor_consumer_non_quota_block_fails_in_ci_and_skips_unmarked_locally(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, blocked_phase: str, stderr: str, ci: bool
 ) -> None:
-    _set_ci(monkeypatch, ci=True)
-    with pytest.raises(pytest.fail.Exception):
+    _set_ci(monkeypatch, ci=ci)
+    outcome = pytest.fail.Exception if ci else pytest.skip.Exception
+    with pytest.raises(outcome) as raised:
         _run_vendor_consumer_with_block(monkeypatch, tmp_path, blocked_phase, stderr)
-
-
-@pytest.mark.parametrize("blocked_phase", ["install", "run"])
-@pytest.mark.parametrize("stderr", [_RATE_LIMIT_STDERR, _TRANSPORT_STDERR])
-def test_copilot_vendor_consumer_skips_unmarked_locally_on_a_non_quota_block(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, blocked_phase: str, stderr: str
-) -> None:
-    _set_ci(monkeypatch, ci=False)
-    with pytest.raises(pytest.skip.Exception) as skipped:
-        _run_vendor_consumer_with_block(monkeypatch, tmp_path, blocked_phase, stderr)
-    assert smoke_skip_policy.QUOTA_SKIP_MARKER not in str(skipped.value)
+    assert smoke_skip_policy.QUOTA_SKIP_MARKER not in str(raised.value)
 
 
 def _run_claude_hook_with_output(
@@ -92,21 +84,25 @@ def _run_claude_hook_with_output(
     hook_e2e.test_claude_plugin_dir_hook_resolves(tmp_path)
 
 
-def test_claude_hook_e2e_skips_with_the_marker_on_a_spent_credit_balance(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+@pytest.mark.parametrize(
+    ("stdout", "outcome", "marked"),
+    [
+        ("Credit balance is too low", pytest.skip.Exception, True),
+        ("oauth session expired", pytest.fail.Exception, False),
+    ],
+    ids=["spent-credit-balance", "auth-block"],
+)
+def test_claude_hook_e2e_skips_a_spent_balance_and_fails_an_auth_block_in_ci(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    stdout: str,
+    outcome: type[BaseException],
+    marked: bool,
 ) -> None:
     _set_ci(monkeypatch, ci=True)
-    with pytest.raises(pytest.skip.Exception) as skipped:
-        _run_claude_hook_with_output(monkeypatch, tmp_path, "Credit balance is too low")
-    assert str(skipped.value).startswith(smoke_skip_policy.QUOTA_SKIP_MARKER)
-
-
-def test_claude_hook_e2e_fails_in_ci_on_an_auth_block(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    _set_ci(monkeypatch, ci=True)
-    with pytest.raises(pytest.fail.Exception):
-        _run_claude_hook_with_output(monkeypatch, tmp_path, "oauth session expired")
+    with pytest.raises(outcome) as raised:
+        _run_claude_hook_with_output(monkeypatch, tmp_path, stdout)
+    assert str(raised.value).startswith(smoke_skip_policy.QUOTA_SKIP_MARKER) is marked
 
 
 def test_claude_hook_e2e_still_asserts_the_marker_on_an_unclassified_failure(
