@@ -211,3 +211,4 @@ No seat blocks. The seats voted before D19 changed the key from one per thread t
 ### Owner action after the panel (2026-10-08)
 
 The owner deleted `agent-approval`. A run still waiting on it made GitHub recreate it unprotected, so it took a second delete. ADR-114 Decision 11 item 6 and Decision 12 now record this. The change is a factual state update with no new decision, so no seat re-voted.
+- 2026-10-08: COST-GOVERNANCE and a test comment now say `agent-approval` is deleted; the ADR states the recreation time from the deployment record. Factual updates, no re-vote.

@@ -181,7 +181,7 @@ These eleven workflows run a model or an agent. Each model job declares the envi
 | `agent-codex` | Codex | `OPENAI_API_KEY` |
 | `agent-droid` | Droid | `FACTORY_API_KEY` |
 
-All four require a reviewer. `agent-approval` holds no secrets and no workflow uses it.
+All four require a reviewer. `agent-approval` is deleted (ADR-114 Decision 11 item 6).
 
 - ai-spec-validation
 - slash-command-quality
