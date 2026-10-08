@@ -33,9 +33,11 @@ finally:
 # Copilot and Claude CI legs pass it to
 # scripts/validation/assert_smoke_ran.py --allow-skip-marker, so a prompt-based
 # best-effort test that hits an exhausted budget does not fail the gate.
-# Auth, rate limit, transport, and latency blocks never carry it: in CI they
-# fail the test, and locally they skip loudly without the marker, so the gate
-# still turns red on any of them. Any other skip still fails the gate.
+# Copilot auth, rate limit, transport, and latency blocks never carry it: in CI
+# they fail the test, and locally they skip loudly without the marker, so the
+# gate still turns red on any of them. A Claude 429 does carry it: the CLI
+# cannot tell a usage limit from a rate limit, so it counts as quota. Any other
+# skip still fails the gate.
 QUOTA_SKIP_MARKER = "QUOTA_SKIP:"
 
 
@@ -58,7 +60,7 @@ def copilot_block_skip_reason(result: subprocess.CompletedProcess[str]) -> str:
     return headline
 
 
-def skip_or_fail_on_latency(message: str) -> NoReturn:
+def skip_or_fail_unmarked(message: str) -> NoReturn:
     """Fail in CI, skip loudly without the marker elsewhere (no quota marker seen)."""
     if running_in_ci():
         pytest.fail(message, pytrace=False)
@@ -75,7 +77,7 @@ def skip_or_fail_on_copilot_block(result: subprocess.CompletedProcess[str]) -> N
         return
     if copilot_quota_exhausted(result):
         pytest.skip(copilot_block_skip_reason(result))
-    skip_or_fail_on_latency(copilot_block_skip_reason(result))
+    skip_or_fail_unmarked(copilot_block_skip_reason(result))
 
 
 # Claude CLI external-block markers (issue #4861), lowercased regexes. Auth is
@@ -124,7 +126,7 @@ def skip_or_fail_on_claude_block(run: subprocess.CompletedProcess[str], subject:
             "limit, so this skip may be a transient rate limit and not an exhausted "
             "budget. Re-run after the budget resets or the rate limit clears."
         )
-    skip_or_fail_on_latency(
+    skip_or_fail_unmarked(
         f"Claude OAuth session expired or could not authenticate for {subject}; "
         "rotate the credential."
     )

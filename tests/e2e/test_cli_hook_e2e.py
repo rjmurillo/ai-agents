@@ -230,7 +230,7 @@ def test_copilot_vendor_install_hook_resolves(tmp_path: Path) -> None:
             env=env,
         )
     except subprocess.TimeoutExpired:
-        smoke_skip_policy.skip_or_fail_on_latency(
+        smoke_skip_policy.skip_or_fail_unmarked(
             "copilot plugin install exceeded 240s (CLI/infra latency)"
         )
     _skip_on_copilot_block(install)
@@ -253,7 +253,7 @@ def test_copilot_vendor_install_hook_resolves(tmp_path: Path) -> None:
             env=env,
         )
     except subprocess.TimeoutExpired:
-        smoke_skip_policy.skip_or_fail_on_latency("copilot run exceeded 240s (CLI/infra latency)")
+        smoke_skip_policy.skip_or_fail_unmarked("copilot run exceeded 240s (CLI/infra latency)")
     _skip_on_copilot_block(run)
 
     assert marker.is_file(), _copilot_failure_diagnostics(
@@ -328,7 +328,7 @@ def test_claude_plugin_dir_hook_resolves(tmp_path: Path) -> None:
             env=_clean_env(),
         )
     except subprocess.TimeoutExpired:
-        smoke_skip_policy.skip_or_fail_on_latency("claude run exceeded 240s (CLI/infra latency)")
+        smoke_skip_policy.skip_or_fail_unmarked("claude run exceeded 240s (CLI/infra latency)")
     smoke_skip_policy.skip_or_fail_on_claude_block(run, "claude hook e2e")
     assert marker.is_file(), (
         f"hook never ran. stdout={run.stdout[-600:]!r} stderr={run.stderr[-600:]!r}"

@@ -12,8 +12,25 @@ from pathlib import Path
 from types import ModuleType
 
 SCRIPTS = Path(__file__).resolve().parents[2] / "scripts" / "validation"
+E2E = Path(__file__).resolve().parents[1] / "e2e"
 SMOKE_CLASS = "tests.e2e.test_cli_hook_e2e"
-MARKER = "QUOTA_SKIP:"
+
+
+def _load_marker() -> str:
+    """Read ``QUOTA_SKIP_MARKER`` from the policy module so the two cannot drift.
+
+    tests/e2e is not a package under ``--import-mode=importlib``, so load by path.
+    """
+    path = E2E / "smoke_skip_policy.py"
+    spec = importlib.util.spec_from_file_location("smoke_skip_policy_for_report", path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    marker: str = module.QUOTA_SKIP_MARKER
+    return marker
+
+
+MARKER = _load_marker()
 
 
 def load_script(name: str) -> ModuleType:

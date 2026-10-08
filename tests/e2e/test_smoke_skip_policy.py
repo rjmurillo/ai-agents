@@ -1,7 +1,7 @@
 """Always-on unit tests for the smoke skip-or-fail policy (owner decision D26).
 
-The marker covers budget exhaustion only. Auth, rate limit, transport, and
-latency never carry it. No CLI, auth, or credits are needed. The Copilot and
+The marker covers budget exhaustion only (a Claude 429 counts as quota). Copilot
+auth, rate limit, transport, and latency never carry it. No CLI, auth, or credits are needed. The Copilot and
 Claude entry points live in the ``_copilot`` and ``_claude`` siblings.
 """
 
@@ -29,7 +29,7 @@ try:
         QUOTA_SKIP_MARKER,
         copilot_block_skip_reason,
         running_in_ci,
-        skip_or_fail_on_latency,
+        skip_or_fail_unmarked,
     )
 finally:
     sys.path[:] = _original_sys_path
@@ -75,9 +75,9 @@ def test_latency_skip_fails_in_ci_and_skips_unmarked_locally(
 ) -> None:
     monkeypatch.setenv("GITHUB_ACTIONS", "true")
     with pytest.raises(pytest.fail.Exception):
-        skip_or_fail_on_latency("copilot run exceeded 240s")
+        skip_or_fail_unmarked("copilot run exceeded 240s")
     monkeypatch.delenv("GITHUB_ACTIONS")
     monkeypatch.delenv("CI", raising=False)
     with pytest.raises(pytest.skip.Exception) as skipped:
-        skip_or_fail_on_latency("copilot run exceeded 240s")
+        skip_or_fail_unmarked("copilot run exceeded 240s")
     assert QUOTA_SKIP_MARKER not in str(skipped.value)

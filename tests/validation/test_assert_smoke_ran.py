@@ -108,7 +108,7 @@ def test_returns_not_run_when_smoke_set_is_incomplete(tmp_path: Path) -> None:
         tmp_path, sr.passed_case(sr.SMOKE_CLASS, "test_copilot_vendor_install_hook_resolves")
     )
 
-    exit_code, message = assert_smoke_ran.evaluate(report, "test_cli_hook_e2e")
+    exit_code, message = assert_smoke_ran.evaluate(report, "test_cli_hook_e2e", expected_count=2)
 
     assert exit_code == EXIT_NOT_RUN
     assert "incomplete" in message

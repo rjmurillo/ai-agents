@@ -10,15 +10,16 @@ non-zero when a smoke test was skipped, failed, or was never collected
 JUnit XML (pytest ``--junitxml``) carries no markers, so smoke cases are
 selected by name substring (``--smoke-substr``, default ``test_cli_hook_e2e``).
 A ``<skipped>`` child marks a skip; ``<failure>`` or ``<error>`` marks a failure.
-``--expected-count`` (default 2, one hook smoke per CLI) is the minimum number
-of smoke cases; each workflow leg passes its own.
+``--expected-count`` (default 1) is the minimum number of smoke cases. The
+workflow passes the count each leg collects.
 
 ``--allow-skip-marker MARKER`` accepts a skip whose ``message`` STARTS WITH
 MARKER (prompt-based checks skip with ``QUOTA_SKIP:`` only when the provider
 budget is spent; owner decisions D25, D26). Any other skip, any failure, and a
-short set still fail. ``--require-pass SUBSTR`` (repeatable) names a test id
-that must PASS even when the marker is allowed, so a leg whose only passing
-signal is a quota skip cannot go green.
+short set still fail. ``--require-pass SUBSTR`` (repeatable) is how a leg
+demands a passing zero-token test: it names a test id that must PASS even when
+the marker is allowed. The plugin-load legs pass it. The hook legs do not; they
+rely on owner decision D26 and can pass with only quota skips.
 
 The quota-skip count and job summary live in ``smoke_quota_report.py``.
 
@@ -38,7 +39,7 @@ EXIT_NOT_RUN = 1
 EXIT_CONFIG = 2
 
 _DEFAULT_SMOKE_SUBSTR = "test_cli_hook_e2e"
-_DEFAULT_EXPECTED_COUNT = 2
+_DEFAULT_EXPECTED_COUNT = 1
 
 
 class SmokeReportError(Exception):

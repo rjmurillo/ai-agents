@@ -26,7 +26,8 @@
 #     (`copilot skill list --json`, D25) and never skips on quota.
 #     Claude and Copilot prompt-based checks are best-effort (D26): they skip
 #     with QUOTA_SKIP: only when the provider budget is spent (Copilot quota,
-#     Claude credit). Auth, rate limit, and transport blocks fail the test. The
+#     Claude credit or a Claude 429, which the CLI cannot tell from quota).
+#     Copilot rate limit, auth, and transport blocks fail the test. The
 #     Claude and Copilot assert steps pass --allow-skip-marker QUOTA_SKIP: and
 #     --require-pass for the leg's zero-token test, so that test must PASS.
 #     The Codex leg stays strict.
