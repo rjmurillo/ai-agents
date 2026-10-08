@@ -113,9 +113,8 @@ Users install plugins with `/plugin install <plugin-name>@ai-agents` after regis
 | Invocation | `Task(subagent_type="...")` | `--agent` flag or `/agent` | `@agent` in Copilot Chat |
 | Skills | Yes (49 skills in `.claude/skills/`) | No | No |
 | Hooks | Yes (`.claude/hooks/`) | No | No |
-| Commands | Yes (`.claude/commands/`) | No | No |
 
-Claude Code has the richest integration because it supports skills, hooks, and commands in addition to agents.
+Claude Code has the richest integration because it supports skills and hooks in addition to agents.
 
 ## Agent Communication
 

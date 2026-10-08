@@ -14,8 +14,8 @@ adopt or cite it. It also makes the gate auditable from outside this codebase.
 
 The blocklist on this page is a published mirror. The single source of truth is
 the Step 0 hedge-phrase table in
-[`.claude/commands/spec.md`](../../.claude/commands/spec.md), between the
-`### Step 0: First Principles Gate` heading and the `<!-- step0:hedge-table-end -->`
+[`.claude/skills/spec-generator/references/spec-step0-gates.md`](../../.claude/skills/spec-generator/references/spec-step0-gates.md), between the
+`**Canonical hedge phrase list**` line and the `<!-- step0:hedge-table-end -->`
 marker. The deterministic test parser that checks the list lives at
 [`tests/commands/step0_parser.py`](../../tests/commands/step0_parser.py)
 (`HEDGE_TECHNICAL_SUFFIXES`). Runtime enforcement comes from the `/spec`
@@ -101,7 +101,7 @@ retrospective named it.
 1. Propose the phrase and a one-clause "Why it hedges" reason.
 2. Cite the answer or retrospective that surfaced the gap. A phrase with no
    evidence is a guess; the gate already over-blocks if you add guesses.
-3. Add the row to the table in `.claude/commands/spec.md` (the canonical source),
+3. Add the row to the table in `.claude/skills/spec-generator/references/spec-step0-gates.md` (the canonical source),
    then mirror it here in the same change.
 4. If the phrase has a legitimate technical-term form, add the exemption to
    `HEDGE_TECHNICAL_SUFFIXES` in `tests/commands/step0_parser.py` so the gate does
@@ -139,8 +139,9 @@ that introduced the condition.
 
 ## References
 
-- [`.claude/commands/spec.md`](../../.claude/commands/spec.md). Canonical Step 0
-  gate and hedge-phrase table.
+- [`.claude/skills/spec-generator/references/spec-step0-gates.md`](../../.claude/skills/spec-generator/references/spec-step0-gates.md). Canonical Step 0
+  gate and hedge-phrase table. The gate itself is announced in
+  [`.claude/skills/spec/SKILL.md`](../../.claude/skills/spec/SKILL.md).
 - [`tests/commands/step0_parser.py`](../../tests/commands/step0_parser.py).
   Deterministic test parser and `HEDGE_TECHNICAL_SUFFIXES` exemption table.
 - [`.project-toolkit/specs/requirements/REQ-016-spec-step0-first-principles-gate.md`](../../.project-toolkit/specs/requirements/REQ-016-spec-step0-first-principles-gate.md).
