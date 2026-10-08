@@ -11,12 +11,12 @@
 
 ## Objectives
 
-- [ ] M0: Decide the xdist distribution mode and the pytest-split grouping on evidence.
-- [ ] M1: Move the partition table and the path policy out of the selector.
-- [ ] M2: Balance the parallel CI legs by recorded duration with pytest-split.
-- [ ] M3: Pre-push runs collection only.
-- [ ] M4: Delete the selector, its tests, and its doc references.
-- [ ] M5: Update ADR-101, ADR-104, and SPEC-6211 with a full-panel debate log.
+- [x] M0: Decide the xdist distribution mode and the pytest-split grouping on evidence.
+- [x] M1: Move the partition table and the path policy out of the selector.
+- [x] M2: Balance the parallel CI legs by recorded duration with pytest-split.
+- [x] M3: Pre-push runs collection only.
+- [x] M4: Delete the selector, its tests, and its doc references.
+- [x] M5: Update ADR-101, ADR-104, and SPEC-6211 with a full-panel debate log.
 - [ ] M6: Validate locally and in CI, measure, then merge.
 
 ## Spec
@@ -136,6 +136,7 @@ Allowlist for the reference gate: `.project-toolkit/plans/`, `.project-toolkit/s
 | 2026-10-08 | Full-panel ADR review (D3) | The selector is a named CI enforcement component | Reduced panel |
 | 2026-10-08 | Re-decide loadfile versus worksteal on evidence (D1) | Owner: do not keep it only because of a past decision | Keep loadfile unexamined |
 | 2026-10-08 | Keep the `check-paths` filter; move `path_policy` to `scripts/ci/` | Job-level skip is not test selection | Delete the filter |
+| 2026-10-08 | D1 re-decided on evidence: keep `--dist loadfile` | Audit of 43,209 tests: worksteal failed the same 51 pre-existing tests as loadfile in all runs, so isolation is safe; but at CI's `-n 4` median loadfile 392 s against worksteal 438 s (no gain); only `-n 16` showed about 20 percent from one pair. pytest-split already balances legs. | Worksteal everywhere; worksteal only for local large `-n` |
 | 2026-10-08 | pytest-split 0.11.0 with `duration_based_chunks` | Spike: works with xdist loadfile and importlib node IDs; union equals full collection with no duplicates; chunks keep collection order, so fewer files split (2 of 6 against 5 of 6) | `least_duration`; a custom file-level bin packer (rejected: building) |
 | 2026-10-08 | Slow-test budget runs over merged junit in the coverage job | pytest-split is not file-aware, so a per-leg budget could miss a split file | Per-leg budget |
 | 2026-10-08 | Commit `.test_durations` (about 5 MB pretty JSON), refresh by documented command | No repo size lint; pytest-split reads a file at run time; no junit import exists | Restore from an Actions artifact (more moving parts) |
@@ -148,6 +149,7 @@ Allowlist for the reference gate: `.project-toolkit/plans/`, `.project-toolkit/s
 | 2026-10-08 | Revised after critic (REVISE, 15 findings) and pre-mortem | orchestrator |
 | 2026-10-08 | Build Phase 1: Tier 3 (clear domain, shared CI and hook infrastructure) | orchestrator |
 | 2026-10-08 | Build Phase 2b: trigger activated on `git_hook_policy.py` and `run_workflow_local_test.py`; both LOCAL HIGH; authority record passed | orchestrator |
+| 2026-10-08 | M0 to M5 done: audit kept loadfile; pytest-split legs; pre-push collection only; selector deleted; ADR panel reached consensus in 2 rounds (5 Accept, 1 Disagree-and-Commit) | orchestrator |
 | 2026-10-08 | Memory gate: selector built for #5050 (878 s per push, path-filter false greens #4345, #4408); partitions keep each job under 10 minutes (#4854); pre-push suites share one timeout (PR #3568); loadfile protects file isolation (SPEC-6211). Each split group must stay under the 10-minute job contract. | orchestrator |
 
 ## Blockers
