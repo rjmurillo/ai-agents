@@ -97,6 +97,7 @@ REPOSITORY_AND_CREDENTIAL = (
     # allowed, so approving a pending deployment is a consequential action.
     "gh api -X POST repos/o/r/actions/runs/1/pending_deployments -f state=approved",
     "gh api repos/o/r/actions/runs/1/pending_deployments --input approve.json",
+    "gh api repos/o/r/actions/runs/1/pending_deployments",
 )
 
 CONSEQUENTIAL = HISTORY_REWRITE + HOOK_BYPASS + RECURSIVE_DELETE + REPOSITORY_AND_CREDENTIAL
@@ -163,6 +164,9 @@ KNOWN_GAPS = (
     "git push --force-with-lease=feat/x origin feat/x",
     "gh auth token",
     "gh api repos/o/r/git/refs/heads/x -X PATCH -f sha=abc -F force=true",
+    # G11: the pending_deployments rule matches the gh api spelling only.
+    'curl -X POST -H "Authorization: Bearer $T" https://api.github.com/repos/o/r/actions/runs/1/pending_deployments',
+    "gh api graphql -f query='mutation { approveDeployments(input: {}) { clientMutationId } }'",
 )
 
 
