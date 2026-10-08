@@ -31,11 +31,11 @@ from pathlib import Path
 import pytest
 import yaml
 
-from scripts.test_selection import path_policy
+from scripts.ci import path_policy
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW = REPO_ROOT / ".github/workflows/pytest.yml"
-POLICY_INPUT = "scripts/test_selection/path_policy.yml"
+POLICY_INPUT = "scripts/ci/path_policy.yml"
 
 
 def _write_policy(root: Path, body: str) -> Path:

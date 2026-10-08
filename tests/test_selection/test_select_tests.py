@@ -8,7 +8,8 @@ from pathlib import Path
 
 import pytest
 
-from scripts.test_selection import path_policy, select_tests
+from scripts.ci import path_policy
+from scripts.test_selection import select_tests
 
 
 def _write(root: Path, rel: str, text: str) -> None:

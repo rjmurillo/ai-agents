@@ -32,7 +32,7 @@ from pathlib import Path, PurePosixPath
 import pytest
 import yaml
 
-from scripts.test_selection import path_policy
+from scripts.ci import path_policy
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW = REPO_ROOT / ".github/workflows/pytest.yml"

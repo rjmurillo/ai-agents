@@ -39,7 +39,7 @@ from pathlib import Path
 
 import pytest
 
-from scripts.test_selection import path_policy
+from scripts.ci import path_policy
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 _TESTS = REPO_ROOT / "tests"

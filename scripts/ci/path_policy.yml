@@ -1,7 +1,7 @@
 # The repository's test-impact path policy. One list, two readers.
 #
 # `.github/workflows/pytest.yml` hands this file to `dorny/paths-filter`, which
-# decides whether the pytest matrix runs at all. `scripts/test_selection/
+# decides whether the pytest matrix runs at all. `scripts/ci/
 # path_policy.py` reads the same list to classify a changed path, and
 # `select_tests.py` uses that classification to decide whether a push can be
 # narrowed to an import-graph subset.

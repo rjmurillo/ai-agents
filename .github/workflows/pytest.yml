@@ -74,11 +74,11 @@ jobs:
         if: github.event_name != 'workflow_dispatch' && github.event_name != 'merge_group' && env.ACT != 'true'
         with:
           # Issue #5318. The list itself lives in the policy file, which
-          # `scripts/test_selection/path_policy.py` also reads, so the
+          # `scripts/ci/path_policy.py` also reads, so the
           # local test selector and this gate cannot drift apart. The
           # action accepts a workspace-relative path here in place of an
           # inline document; the checkout above puts the file in place.
-          filters: scripts/test_selection/path_policy.yml
+          filters: scripts/ci/path_policy.yml
 
       - name: Determine if tests should run
         id: determine

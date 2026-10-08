@@ -30,10 +30,12 @@ from dataclasses import dataclass
 from pathlib import Path
 
 try:
-    from scripts.test_selection import import_graph, path_policy, reader_map
+    from scripts.ci import path_policy
+    from scripts.test_selection import import_graph, reader_map
 except ModuleNotFoundError:  # pragma: no cover - exercised via direct file execution
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-    from scripts.test_selection import import_graph, path_policy, reader_map
+    from scripts.ci import path_policy
+    from scripts.test_selection import import_graph, reader_map
 
 FULL_SUITE = "FULL_SUITE"
 
