@@ -7,13 +7,17 @@ The partition's argument list lives here (Python, not YAML) per ADR-006. Every
 leg runs its whole share on every event, so coverage combine always receives
 data from every partition.
 
+`--refresh-durations` replaces `--partition` for the one-off run that rewrites
+the committed durations file (see tests/AGENTS.md).
+
 Exit codes follow the repository contract: 0 ok, 2 config (an unknown or
-missing partition), otherwise the pytest runner's own code.
+missing partition, or both modes given), otherwise the pytest runner's own code.
 """
 
 from __future__ import annotations
 
 import argparse
+import hashlib
 import sys
 from pathlib import Path
 
@@ -43,12 +47,11 @@ _PARALLEL = ["-n", "auto", "--dist", PYTEST_DIST_MODE]
 # the extra pin, lint, and ratchet steps in pytest.yml, so its pytest share
 # must leave room for them inside the same job timeout.
 #
-# Refresh the durations by running the whole pool once, with no `--splits`, from
-# the repo root:
-#   uv run python -m pytest -n auto --dist loadfile --store-durations \
-#     --clean-durations --durations-path tests/.test_durations \
-#     $(uv run python -c "from scripts.ci import run_pytest_partition as r; \
-#     print(' '.join(r._POOL_IGNORES))") tests/
+# Refresh the durations with `uv run python scripts/ci/run_pytest_partition.py
+# --refresh-durations`, which runs the whole pool once with no `--splits`.
+# DURATIONS_PATH stays relative on purpose: run_pytest_non_tmp starts pytest with
+# cwd=PROJECT_ROOT, so pytest-split resolves it against the repo root whatever
+# directory this script is launched from (a test pins that).
 SPLIT_COUNT = 4
 DURATIONS_PATH = "tests/.test_durations"
 SPLITTING_ALGORITHM = "duration_based_chunks"
@@ -109,6 +112,41 @@ _PARTITION_FULL_ARGS: dict[str, list[str]] = {
 
 _PARALLEL_PARTITIONS = frozenset(split_names())
 
+_DIGEST_PREFIX_CHARS = 12
+
+
+def _refresh_args() -> list[str]:
+    """The whole pool, once, rewriting the durations file from this run."""
+    return [
+        *_PARALLEL,
+        "--store-durations",
+        "--clean-durations",
+        "--durations-path",
+        DURATIONS_PATH,
+        *_POOL_IGNORES,
+        "tests/",
+    ]
+
+
+def _durations_digest() -> str:
+    """First 12 hex chars of the durations file's SHA-256, or ``missing``."""
+    path = _PROJECT_ROOT / DURATIONS_PATH
+    if not path.is_file():
+        return "missing"
+    return hashlib.sha256(path.read_bytes()).hexdigest()[:_DIGEST_PREFIX_CHARS]
+
+
+def _summary_line(partition: str) -> str:
+    """The stderr line that says which share and which timings this leg used."""
+    line = f"partition={partition} mode=full"
+    if partition not in _PARALLEL_PARTITIONS:
+        return line
+    group = partition.removeprefix(_SPLIT_PREFIX)
+    return (
+        f"{line} splits={SPLIT_COUNT} group={group} durations={DURATIONS_PATH} "
+        f"durations_sha256={_durations_digest()}"
+    )
+
 
 def classify_partition(rel: str) -> str | None:
     """Which CI leg kind runs ``rel``: ``split``, ``safe-push``, ``pr-autofix``, or None.
@@ -127,10 +165,19 @@ def classify_partition(rel: str) -> str | None:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--partition", required=True, choices=sorted(_PARTITION_FULL_ARGS))
+    mode = parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument("--partition", choices=sorted(_PARTITION_FULL_ARGS))
+    mode.add_argument(
+        "--refresh-durations",
+        action="store_true",
+        help=f"Run the whole pool once and rewrite {DURATIONS_PATH}.",
+    )
     known, passthrough = parser.parse_known_args(argv)
 
-    print(f"partition={known.partition} mode=full", file=sys.stderr)
+    if known.refresh_durations:
+        print(f"refresh-durations mode=refresh durations={DURATIONS_PATH}", file=sys.stderr)
+        return run_pytest_non_tmp.main([*passthrough, *_refresh_args()])
+    print(_summary_line(known.partition), file=sys.stderr)
     return run_pytest_non_tmp.main([*passthrough, *_PARTITION_FULL_ARGS[known.partition]])
 
 
