@@ -142,7 +142,6 @@ The script auto-resolves these by accepting the target branch version.
 | `.project-toolkit/*` | Session artifacts, constantly changing |
 | `.serena/*` | Serena memories, auto-generated |
 | `.claude/skills/*/*.md` | Skill definitions, main is authoritative |
-| `.claude/commands/*` | Command definitions, main is authoritative |
 | `.claude/agents/*` | Agent definitions, main is authoritative |
 | `templates/*` | Template files, main is authoritative |
 | `src/copilot-cli/*` | Platform agent definitions |
