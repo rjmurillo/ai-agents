@@ -1,6 +1,8 @@
-# AI Agent System
+# AI Agents: Multi-Agent Toolkit for Claude Code and GitHub Copilot CLI
 
-For platform teams, engineering managers, and orgs that want AI-assisted development with real governance. Session protocol, review gates, and ADR-steered agent behavior built in.
+AI Agents is an open-source multi-agent toolkit for software development with Claude Code, GitHub Copilot CLI, and VS Code Copilot Chat. An orchestrator routes work across 22 specialized agents, including analyst, architect, milestone-planner, implementer, critic, QA, security, and DevOps, to plan, build, review, and ship code with explicit handoffs and quality gates at each stage.
+
+Built for platform teams, engineering managers, and organizations that want AI-assisted development with real governance: plan-to-ship lifecycle commands (`/spec`, `/plan`, `/build`, `/test`, `/review`, `/ship`) in Claude Code, review gates and a session protocol in both CLIs, and ADR-steered agent behavior. Optional cross-session memory is available via Serena. Install from the plugin marketplace with `/install-plugin rjmurillo/ai-agents` in Claude Code, or `/plugin marketplace add rjmurillo/ai-agents` then `/plugin install project-toolkit@ai-agents` in Copilot CLI. MIT licensed.
 
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/rjmurillo/ai-agents)
 
@@ -79,7 +81,7 @@ Specialized agent roles include analyst, architect, implementer, QA, security, d
 
 ## Table of Contents
 
-- [AI Agent System](#ai-agent-system)
+- [AI Agents: Multi-Agent Toolkit for Claude Code and GitHub Copilot CLI](#ai-agents-multi-agent-toolkit-for-claude-code-and-github-copilot-cli)
   - [Fastest Start](#fastest-start)
     - [What You Get](#what-you-get)
     - [Troubleshooting](#troubleshooting)
