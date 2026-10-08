@@ -26,7 +26,7 @@ tags:
 
 ### Q1
 
-The owner, in issue #6069 and in this session's decisions D1 to D4. Agents that run `set_pr_auto_merge.py` are blocked by an always-red check. Issue #5738 names the same failure.
+The owner, in issue #6069 and in decisions D20 to D25 (ADR-114 debate log round 5). Agents that run `set_pr_auto_merge.py` are blocked by an always-red check. Issue #5738 names the same failure.
 
 ### Q2
 
@@ -46,14 +46,14 @@ Move three `ai-review` callers to Claude. Turn the nightly smoke into a path-fil
 
 ### Q6
 
-At 10x more PRs, the path filter keeps cost tied to plugin changes, not PR count. Approval clicks grow with plugin PRs. That cost is the owner's choice (D1 constraint).
+At 10x more PRs, the path filter keeps cost tied to plugin changes, not PR count. Approval clicks grow with plugin PRs. That cost is the owner's choice (D21).
 
 ## Prior art (Step 0.5)
 
 - PR #6150 moved Validate Spec Coverage to Claude. It added `provider: claude` to `.github/actions/ai-review/action.yml`.
 - PR #6131 and PR #6197 put every model job behind a per-provider environment with required reviewers (ADR-114).
 - `lefthook.yml` `hook-anchoring-e2e` and `plugin-load-e2e` already run both smokes on pre-push. The glob lists are duplicated in `scripts/validation/git_hook_policy.py` `_handle_cli_hook_e2e` and `_handle_cli_plugin_e2e`.
-- ADR-114 Decision 8 says agent checks never block. This spec makes the CLI smoke the one exception, by owner decision D2.
+- ADR-114 Decision 8 says agent checks never block. This spec makes the CLI smoke the one exception, by owner decision D22 (ADR-114 debate log round 5).
 
 ## Problem statement
 
@@ -83,7 +83,7 @@ No persisted data. The smoke path list is a Python tuple. Each leg emits a JUnit
 | System | Use | Failure mode |
 |---|---|---|
 | Anthropic | Claude CLI leg (`CLAUDE_CODE_OAUTH_TOKEN`), `ai-review` provider `claude` (`ANTHROPIC_API_KEY`) | Missing key: smoke leg red, `ai-review` reports `infrastructure_failure` |
-| GitHub Copilot | Copilot CLI leg only | `skill list` needs no quota. Prompt checks skip with a quota marker when quota is spent (D6) |
+| GitHub Copilot | Copilot CLI leg only | `skill list` needs no quota. Prompt checks skip with a quota marker when quota is spent (D25) |
 | Codex CLI | Codex leg: `plugin marketplace add`, `plugin add`, `debug prompt-input` | No credential needed; these commands make no model call |
 | GitHub environments | Approval before each leg | Rejected or timed out: leg not run, smoke result red |
 
@@ -121,7 +121,7 @@ The smoke result job prints which legs ran, which were skipped by the path filte
 12. WHEN a fork PR touches a smoke path, the smoke result SHALL fail and name the fork as the reason.
 
 13. The Copilot leg SHALL prove skill load with no model call: `copilot --plugin-dir src/copilot-cli skill list --json` from a neutral directory lists every `EXPECTED_SKILLS` name with a path under `src/copilot-cli`, and no loader warning. This check SHALL never skip.
-14. WHEN a Copilot prompt-based check is blocked by a classified quota limit, it SHALL skip with a stable marker, and the gate SHALL report it without failing (owner decision D6). Any other skip SHALL fail the leg. Claude and Codex legs stay strict.
+14. WHEN a Copilot prompt-based check is blocked by a classified quota limit, it SHALL skip with a stable marker, and the gate SHALL report it without failing (owner decision D25, ADR-114 debate log round 5). Any other skip SHALL fail the leg. Claude and Codex legs stay strict.
 15. The path filter SHALL execute from the pull request base commit, so a pull request cannot change the filter that decides whether its own smoke runs.
 
 ## Out of scope

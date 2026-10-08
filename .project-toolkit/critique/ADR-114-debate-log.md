@@ -212,3 +212,19 @@ No seat blocks. The seats voted before D19 changed the key from one per thread t
 
 The owner deleted `agent-approval`. A run still waiting on it made GitHub recreate it unprotected, so it took a second delete. ADR-114 Decision 11 item 6 and Decision 12 now record this. The change is a factual state update with no new decision, so no seat re-voted.
 - 2026-10-08: COST-GOVERNANCE and a test comment now say `agent-approval` is deleted; the ADR states the recreation time from the deployment record. Factual updates, no re-vote.
+
+## Round 5 (2026-10-08: Copilot leaves ai-review, plugin CLI smoke gates pull requests)
+
+Scope: issue #6069 and REQ-047. Decision 2 table rows, Decision 5 (the unlisted blocking workflow), new Decision 13, Decision 11 items 8 and 9, a Negative consequence, Impact, and References. ADR-071 nightly references now name `plugin-cli-smoke.yml`.
+
+### Owner decisions
+
+| ID | Decision |
+|----|----------|
+| D20 | Move the `ai-review` callers `ai-metrics-analysis.yml`, `artifact-insight-scanner.yml`, and `pr-maintenance.yml` from Copilot to Claude in `agent-claude`. Copilot tokens for model review are not funded. |
+| D21 | Keep a Copilot CLI smoke: the owner needs proof that skills and plugins load in Copilot. Every job that spends model tokens stays behind an approval environment. |
+| D22 | The real-CLI smoke gates pull requests, because nobody reads the nightly. It is path-filtered on plugin-shipped paths, and the result passes when none changed. |
+| D23 | Run the full Claude and Copilot matrix on Ubuntu, macOS, and Windows, and delete the nightly workflow. |
+| D24 | Add a Codex leg now, with the same gates as Claude and Copilot. Shift checks left wherever possible. |
+| D25 | The Copilot leg's gate is zero-token (`skill list`). Copilot prompt checks run when quota exists, and a classified quota skip is reported, not failed. |
+
