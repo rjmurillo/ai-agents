@@ -640,6 +640,8 @@ PYTEST_FULL_SUITE_LOCALLY_ENV = "AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY"
 CLI_E2E_TIMEOUT_SECONDS = 1_140
 # CLIs the local smoke can drive; any one on PATH satisfies the gate (REQ-047).
 CLI_E2E_BINARIES = ("copilot", "claude", "codex")
+# The hook smoke has Claude and Copilot cases only, so Codex alone cannot run it.
+CLI_HOOK_E2E_BINARIES = ("copilot", "claude")
 # npm packages that provide those binaries, named in the missing-CLI error.
 CLI_E2E_INSTALL_HINT = (
     "npm install -g @anthropic-ai/claude-code (claude), "
@@ -8164,6 +8166,7 @@ def run_cli_e2e(
     test_file: str,
     repo_root: Path,
     push_files: Sequence[str] | None = None,
+    binaries: Sequence[str] = CLI_E2E_BINARIES,
 ) -> int:
     if push_files is not None and not _push_files_are_genuine(push_files, repo_root):
         print(
@@ -8178,9 +8181,10 @@ def run_cli_e2e(
             file=sys.stderr,
         )
         return 2
-    if not any(shutil.which(binary) for binary in CLI_E2E_BINARIES):
+    if not any(shutil.which(binary) for binary in binaries):
+        names = ", ".join(binaries[:-1]) + (", or " if len(binaries) > 2 else " or ") + binaries[-1]
         print(
-            "ERROR: CLI E2E requires at least one of copilot, claude, or codex on PATH. "
+            f"ERROR: CLI E2E requires at least one of {names} on PATH. "
             f"Install one: {CLI_E2E_INSTALL_HINT}",
             file=sys.stderr,
         )
@@ -8698,7 +8702,7 @@ def _handle_cli_hook_e2e(args: argparse.Namespace) -> int:
     if changed is not None and not _any_glob_match(changed, cli_smoke_paths.HOOK_E2E_GLOBS):
         print("hook-anchoring-e2e skipped: no relevant files in push range")
         return 0
-    return run_cli_e2e("tests/e2e/test_cli_hook_e2e.py", repo_root)
+    return run_cli_e2e("tests/e2e/test_cli_hook_e2e.py", repo_root, binaries=CLI_HOOK_E2E_BINARIES)
 
 
 def _handle_cli_plugin_e2e(args: argparse.Namespace) -> int:
