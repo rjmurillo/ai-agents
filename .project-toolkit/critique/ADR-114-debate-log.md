@@ -207,3 +207,7 @@ Full panel. The change adds an enforcement rule, so all six seats ran.
 | high-level-advisor | Accept |
 
 No seat blocks. The seats voted before D19 changed the key from one per thread to the split key. The split key answers finding 42, and no seat re-voted on it.
+
+### Owner action after the panel (2026-10-08)
+
+The owner deleted `agent-approval`. A run still waiting on it made GitHub recreate it unprotected, so it took a second delete. ADR-114 Decision 11 item 6 and Decision 12 now record this. The change is a factual state update with no new decision, so no seat re-voted.
