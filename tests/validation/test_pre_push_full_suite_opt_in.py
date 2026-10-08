@@ -82,3 +82,16 @@ def test_the_collection_notice_names_the_opt_in_and_what_collection_misses(
     assert "does NOT catch a missing fixture" in err
     assert "import-graph" not in err
     assert "selection" not in err
+
+
+def test_the_opt_in_is_the_second_line_of_the_collection_notice(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A reader who stops after two lines must not take the notice for a pass."""
+    git_hook_policy._resolve_pytest_commands(tmp_path)
+    lines = capsys.readouterr().err.splitlines()
+    assert lines[0] == "pytest: collecting every test instead of executing them."
+    assert lines[1].strip() == (
+        f"Set {git_hook_policy.PYTEST_FULL_SUITE_LOCALLY_ENV}=1 to execute the suite here. "
+        "See ADR-104."
+    )

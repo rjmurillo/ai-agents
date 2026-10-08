@@ -7674,6 +7674,8 @@ def _collection_stand_in(repo_root: Path) -> list[list[str]]:
     """
     print(
         "pytest: collecting every test instead of executing them.\n"
+        f"  Set {PYTEST_FULL_SUITE_LOCALLY_ENV}=1 to execute the suite here. "
+        "See ADR-104.\n"
         "  Collection blocks on a broken import and on a syntax error. It does "
         "NOT run\n"
         "  assertions, does NOT catch a missing fixture, does NOT catch two "
@@ -7689,9 +7691,7 @@ def _collection_stand_in(repo_root: Path) -> list[list[str]]:
         "diff matches\n"
         "  its paths filter. A diff that matches neither runs no assertions "
         "until the\n"
-        "  merge queue, so review a green PR of that shape accordingly.\n"
-        f"  Set {PYTEST_FULL_SUITE_LOCALLY_ENV}=1 to execute the suite here "
-        "instead. See ADR-104.",
+        "  merge queue, so review a green PR of that shape accordingly.",
         file=sys.stderr,
     )
     return [_pytest_collection_command(repo_root)]
