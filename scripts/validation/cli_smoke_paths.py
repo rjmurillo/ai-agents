@@ -85,6 +85,8 @@ def changed_files(base: str, head: str, repo_root: Path) -> list[str]:
     """Return files changed between two full SHAs (three-dot diff).
 
     A full SHA never starts with ``-``, so no value reaches git as an option.
+    ``--no-renames`` lists both sides of a rename, so moving a smoke path out of
+    the filter still matches its old path.
     """
     for label, value in (("base", base), ("head", head)):
         if not _FULL_SHA_RE.fullmatch(value):
@@ -92,7 +94,7 @@ def changed_files(base: str, head: str, repo_root: Path) -> list[str]:
     revision_range = f"{base}...{head}"
     try:
         result = subprocess.run(
-            ["git", "-C", str(repo_root), "diff", "--name-only", revision_range],
+            ["git", "-C", str(repo_root), "diff", "--name-only", "--no-renames", revision_range],
             capture_output=True,
             text=True,
             encoding="utf-8",
