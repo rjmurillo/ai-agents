@@ -69,7 +69,7 @@ No data model. Test IDs change module path only.
 - A moved test silently stops running. Mitigation: the total collected test count and the set of test names (ignoring module path) match before and after.
 - A parametrized case is dropped when a parameter list is split across files. Mitigation: a guard test asserts the split lists cover every expected validator exactly once.
 - A helper copied instead of shared drifts. Mitigation: helpers move to one module that both files import.
-- Copied `noqa` comments trip the security suppression policy (#4352). Mitigation: no `noqa` comments are copied. The one new `noqa: F401` (AC9) is not a security code: `SECURITY_SUPPRESSION_RE` in `scripts/validation/git_hook_policy.py` matches only `S` codes and `nosec`, and the `security-suppressions-push` check exits 0 on it.
+- Copied `noqa` comments trip the security suppression policy (#4352). Mitigation: no `noqa` comments are copied. The one new `noqa: F401` (AC9) is not a security suppression: `SECURITY_SUPPRESSION_RE` in `scripts/validation/git_hook_policy.py` does not match `noqa: F401`, and the `security-suppressions-push` check exits 0 on it.
 - A split file loses the import edges that made test selection pick it. The real checkers run as subprocesses, so only the original file's `pre_pr_sequence` import linked them to the checker scripts. Mitigation: the helpers module keeps that import, and a test checks selection for every checker script (AC9).
 
 ## Security
