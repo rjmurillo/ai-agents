@@ -94,7 +94,7 @@ class TestMatrixStructure:
         assert partitions == [*_SPLIT_LEGS, "safe-push", "pr-autofix"]
 
     def test_exactly_one_leg_is_primary_and_it_is_split_1(self) -> None:
-        """AC4: the once-per-run steps hang off one leg, so they run once."""
+        """The once-per-run steps hang off one leg, so they run once."""
         primaries = [e["partition"] for e in _matrix() if e.get("primary")]
         assert primaries == ["split-1"]
         assert all(e.get("primary") is True for e in _matrix() if "primary" in e)

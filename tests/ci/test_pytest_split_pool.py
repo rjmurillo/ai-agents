@@ -4,7 +4,7 @@ Issue #6239 acceptance criteria covered here:
 
 - AC2: every pytest CI leg runs its full share. The union of the four split
   groups' collected node IDs equals the whole pool's, with no duplicate.
-- AC4: no group collects a file that belongs to a dedicated leg or a pin step.
+- AC2: no group collects a file that belongs to a dedicated leg or a pin step.
 
 Collection runs `pytest --collect-only` in a child process against the real
 tree, so a group that drops or doubles a test fails here and not on a CI leg.

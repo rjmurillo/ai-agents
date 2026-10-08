@@ -2,7 +2,7 @@
 
 Issue #6239 acceptance criteria covered here:
 
-- AC4: the parallel legs are duration-balanced split groups over one pool.
+- AC2: the parallel legs are duration-balanced split groups over one pool.
 """
 
 from __future__ import annotations
@@ -30,7 +30,7 @@ def _flag_value(args: list[str], flag: str) -> str:
 
 @pytest.mark.parametrize("index", range(1, 5))
 def test_split_group_flags(index: int) -> None:
-    """AC4: group i of N runs the shared pool by recorded duration."""
+    """AC2: group i of N runs the shared pool by recorded duration."""
     args = mod._PARTITION_FULL_ARGS[f"split-{index}"]
     assert _flag_value(args, "--splits") == "4"
     assert _flag_value(args, "--group") == str(index)
@@ -40,7 +40,7 @@ def test_split_group_flags(index: int) -> None:
 
 
 def test_split_groups_differ_only_in_the_group_number() -> None:
-    """AC4: one pool, so no group can leave a file out or take it twice."""
+    """AC2: one pool, so no group can leave a file out or take it twice."""
 
     def without_group(args: list[str]) -> list[str]:
         position = args.index("--group")

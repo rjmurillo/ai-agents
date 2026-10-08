@@ -1,4 +1,4 @@
-"""The committed durations file names most of the pool (issue #6239, AC4).
+"""The committed durations file names most of the pool (issue #6239, AC2).
 
 pytest-split balances by recorded duration, so a stale file skews the groups.
 """
@@ -74,11 +74,10 @@ class TestLoadDurations:
 def test_the_durations_file_names_most_of_the_pool() -> None:
     """Refresh it with the command in tests/AGENTS.md when this fails.
 
-    Skips while the file is absent: pytest-split then warns and splits by test
-    count, which still runs every test.
+    Fails when the file is absent: the file is committed, and a missing one
+    means the splits silently fall back to an even count split.
     """
-    if not _DURATIONS.is_file():
-        pytest.skip(f"{runner.DURATIONS_PATH} is not committed yet; pytest-split splits evenly")
+    assert _DURATIONS.is_file(), f"{runner.DURATIONS_PATH} is not committed; see tests/AGENTS.md"
     pool_ids = collect(pool_args())
     fraction = missing_fraction(pool_ids, load_durations(_DURATIONS))
     assert fraction <= MAX_MISSING_FRACTION, (
