@@ -1,8 +1,9 @@
 """Always-on unit tests for the smoke skip-or-fail policy (owner decision D26).
 
 The marker covers budget exhaustion only (a Claude 429 counts as quota). Copilot
-auth, rate limit, transport, and latency never carry it. No CLI, auth, or credits are needed. The Copilot and
-Claude entry points live in the ``_copilot`` and ``_claude`` siblings.
+auth, rate limit, transport, and latency never carry it. No CLI, auth, or credits
+are needed. The Copilot and Claude entry points live in the ``_copilot`` and
+``_claude`` siblings.
 """
 
 from __future__ import annotations

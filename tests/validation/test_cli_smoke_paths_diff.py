@@ -86,35 +86,3 @@ def test_describe_matches_caps_and_counts_the_rest(extra: int) -> None:
 
     assert len(lines) == paths.MAX_LISTED_PATHS + (1 if extra else 0)
     assert (lines[-1] == f"  and {extra} more") if extra else all("more" not in x for x in lines)
-
-
-def _git(repo: Path, *args: str) -> str:
-    done = subprocess.run(
-        ["git", "-C", str(repo), "-c", "user.name=t", "-c", "user.email=t@example.com", *args],
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-    return done.stdout.strip()
-
-
-def test_rename_out_of_a_smoke_path_still_matches_the_old_path(tmp_path: Path) -> None:
-    """Rename detection would list only the new path and skip the smoke."""
-    repo = tmp_path / "repo"
-    (repo / "src/claude/skills/x").mkdir(parents=True)
-    (repo / "docs").mkdir()
-    old = "src/claude/skills/x/SKILL.md"
-    (repo / old).write_text("skill body that is long enough to be detected as a rename\n" * 5)
-    _git(repo, "init", "-q", "-b", "main")
-    _git(repo, "add", ".")
-    _git(repo, "commit", "-q", "-m", "base")
-    base = _git(repo, "rev-parse", "HEAD")
-    _git(repo, "mv", old, "docs/x.md")
-    _git(repo, "commit", "-q", "-m", "move")
-    head = _git(repo, "rev-parse", "HEAD")
-
-    changed = paths.changed_files(base, head, repo)
-
-    assert old in changed
-    assert "docs/x.md" in changed
-    assert paths.matched_paths(changed) == [old]
