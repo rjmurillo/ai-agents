@@ -227,7 +227,8 @@ class TestTheRepositoryItself:
     """Run against this checkout, the way ci-scripts.md rule 13 asks of a new gate."""
 
     @pytest.fixture(scope="class")
-    def manifest(self) -> Manifest:
+    @classmethod
+    def manifest(cls) -> Manifest:
         # The class-scoped fixture cannot use the function-scoped autouse patch,
         # so pin the real contexts for the build and restore them afterwards.
         with pytest.MonkeyPatch.context() as patch:

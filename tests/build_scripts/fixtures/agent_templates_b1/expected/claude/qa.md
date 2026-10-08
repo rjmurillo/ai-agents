@@ -757,7 +757,7 @@ uv run python .claude/skills/memory/scripts/search_memory.py "test strategies [f
 
 ```text
 mcp__serena__write_memory
-memory_file_name: "pattern-testing-[topic]"
+memory_file_name: "testing/pattern-[topic]"
 content: "# Testing: [Topic]\n\n**Statement**: ...\n\n**Evidence**: ...\n\n## Details\n\n..."
 ```
 
@@ -765,11 +765,11 @@ content: "# Testing: [Topic]\n\n**Statement**: ...\n\n**Evidence**: ...\n\n## De
 
 Serena writes to the checkout active at server start (its `--project` root),
 not your current directory. Call `mcp__serena__write_memory`, `edit_memory`,
-`delete_memory`, or `rename_memory` only from that checkout. A linked
-worktree (`git rev-parse --git-dir` differs from `--git-common-dir`) never
-qualifies. If you are in one, cannot tell, or have no shell, do not call
-them. Make the same create, edit, delete, or rename on this checkout's
-`.serena/memories/` files, or return the change to the parent session.
+`delete_memory`, or `rename_memory` only from that checkout. A linked worktree
+(`git rev-parse --git-dir` differs from `--git-common-dir`) never qualifies.
+In one, unsure, or without a shell, do not call them: edit this checkout's
+`.serena/memories/` files or return the change to the parent session. Delete or
+rename only when asked. New memory: `<topic>/<name>` plus a `memory-index.md` line.
 
 See `universal.md` MUST NOT 11 and issue #5061.
 

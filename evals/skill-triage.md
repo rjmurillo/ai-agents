@@ -26,9 +26,9 @@ A skill can carry both kinds of eval. Adding an `evals/<skill>-spike/` does not 
 | Category | Count | Action |
 |---|---|---|
 | Already covered | 10 | No new artifact. Cross-referenced below. |
-| Eval-worthy (deferred) | 36 | Original plan was to scaffold per-skill spikes; reverted (see baseline-report.md). Real fixture authoring will happen one spike at a time. |
+| Eval-worthy (deferred) | 35 | Original plan was to scaffold per-skill spikes; reverted (see baseline-report.md). Real fixture authoring will happen one spike at a time. |
 | Utility-skip | 18 | No scaffold. Mechanical or deterministic skill; agent-vs-baseline shape is wrong. |
-| **Total** | **64** | |
+| **Total** | **63** | |
 
 ### Decision rule
 
@@ -55,7 +55,7 @@ These skills appear in `tests/evals/skills/triage-prompts.json` with six prompts
 
 Note: prior triage also covered `doc-coverage`, `doc-sync`, `workflow`. Those skill directories were pruned. The `tests/evals/skills/triage-prompts.json` entries remain as deprecation trackers and are not in scope here.
 
-## Eval-worthy (36, scaffold)
+## Eval-worthy (35, scaffold)
 
 Each gets `evals/<skill>-spike/` with `README.md`, `fixtures/README.md`, `fixtures/.gitkeep`. Fixture authoring is left to the operator who owns the skill.
 
@@ -90,7 +90,6 @@ Each gets `evals/<skill>-spike/` with `README.md`, `fixtures/README.md`, `fixtur
 | reflect | Extracts HIGH/MED/LOW confidence patterns. Pattern recognition is judgment. |
 | requirements-interview | Adversarial requirements elicitation. Question coverage is judgment. |
 | review | Nine-axis review across six canonical axes plus three chained skills. Pure judgment surface. |
-| slashcommandcreator | Meta-skill for slash commands. Command design is judgment. |
 | slo-designer | Designs SLOs, SLIs, alerting thresholds. Design quality is judgment. |
 | threat-modeling | OWASP STRIDE matrix generation. Risk-rating accuracy is judgment. |
 | using-serena-symbols | Guidance for symbol analysis. Output adherence is the eval target. |

@@ -59,10 +59,19 @@ _BOOTSTRAP_MODULE = "_bootstrap"
 _BOOTSTRAP_FUNC = "ensure_plugin_paths"
 
 
+_EXCLUDED_DIR_NAMES = frozenset({"__pycache__", "tests"})
+
+
 def _collect_python_files(directory: Path) -> list[Path]:
-    """Collect all .py files recursively, excluding __pycache__ and tests."""
+    """Collect all .py files recursively, excluding __pycache__ and tests directories.
+
+    Exclusion matches directory components relative to ``directory``, so a
+    checkout whose absolute path contains "tests" does not hide every file.
+    """
     return [
-        p for p in directory.rglob("*.py") if "__pycache__" not in str(p) and "tests" not in str(p)
+        p
+        for p in directory.rglob("*.py")
+        if _EXCLUDED_DIR_NAMES.isdisjoint(p.relative_to(directory).parts)
     ]
 
 

@@ -72,12 +72,13 @@ For any navigation or search of a code file, prefer in this order:
 
 ## Recovery
 
-If Serena is configured but inactive (for example after context compaction),
-re-activate it: `mcp__serena__activate_project` then
-`mcp__serena__initial_instructions`. Nothing needs bypassing: the preference is
-advisory, so use grep or glob when no LSP is reachable.
+When the MCP config starts Serena with `--project` (this repository's
+`.mcp.json` does), it is active at session start. Only when a Serena tool reports no active project, call
+`activate_project` (if your harness offers it), then `initial_instructions`.
+Nothing needs bypassing: the preference is advisory, so use grep or glob when
+no LSP is reachable.
 
 ## References
 
 - ADR-062 (conditional LSP-first navigation enforcement).
-- AGENTS.md (Serena Init is BLOCKING): the session-start activation.
+- AGENTS.md (Serena line): the session-start contract.

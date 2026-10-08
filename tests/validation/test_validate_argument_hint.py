@@ -15,14 +15,14 @@ def _write(path: Path, frontmatter: str) -> None:
 
 
 def test_good_quoted_scalar_passes(tmp_path: Path) -> None:
-    command = tmp_path / ".claude" / "commands" / "good.md"
+    command = tmp_path / ".github" / "prompts" / "good.md"
     _write(command, "argument-hint: '[BASE_BRANCH]'\n")
 
     assert v.find_argument_hint_violations([command]) == []
 
 
 def test_unquoted_flow_sequence_fails(tmp_path: Path) -> None:
-    command = tmp_path / ".claude" / "commands" / "bad.md"
+    command = tmp_path / ".github" / "prompts" / "bad.md"
     _write(command, "argument-hint: [BASE_BRANCH]\n")
 
     violations = v.find_argument_hint_violations([command])
@@ -34,7 +34,7 @@ def test_unquoted_flow_sequence_fails(tmp_path: Path) -> None:
 
 
 def test_unquoted_adjacent_bracket_groups_fail(tmp_path: Path) -> None:
-    command = tmp_path / ".claude" / "commands" / "bad.md"
+    command = tmp_path / ".github" / "prompts" / "bad.md"
     _write(command, "argument-hint: <PR_NUMBERS> [--parallel] [--cleanup]\n")
 
     violations = v.find_argument_hint_violations([command])
@@ -48,7 +48,7 @@ def test_unquoted_adjacent_bracket_groups_fail(tmp_path: Path) -> None:
 
 
 def test_quoted_adjacent_bracket_groups_fail(tmp_path: Path) -> None:
-    command = tmp_path / ".claude" / "commands" / "bad.md"
+    command = tmp_path / ".github" / "prompts" / "bad.md"
     _write(command, "argument-hint: '[a] [b]'\n")
 
     violations = v.find_argument_hint_violations([command])
@@ -59,14 +59,14 @@ def test_quoted_adjacent_bracket_groups_fail(tmp_path: Path) -> None:
 
 
 def test_quoted_single_bracket_group_passes(tmp_path: Path) -> None:
-    command = tmp_path / ".claude" / "commands" / "good.md"
+    command = tmp_path / ".github" / "prompts" / "good.md"
     _write(command, "argument-hint: '[BASE_BRANCH]'\n")
 
     assert v.find_argument_hint_violations([command]) == []
 
 
 def test_quoted_pr_review_triple_group_suggests_single_group(tmp_path: Path) -> None:
-    command = tmp_path / ".claude" / "commands" / "bad.md"
+    command = tmp_path / ".github" / "prompts" / "bad.md"
     _write(command, "argument-hint: '<PR_NUMBERS> [--parallel] [--cleanup] [--dry-run]'\n")
 
     violations = v.find_argument_hint_violations([command])
@@ -90,8 +90,21 @@ def test_default_scan_includes_github_prompts(tmp_path: Path) -> None:
     assert violations[0].path == prompt
 
 
+def test_default_scan_excludes_retired_commands_dir(tmp_path: Path) -> None:
+    retired = tmp_path / ".claude" / "commands" / "x.md"
+    _write(retired, "argument-hint: <A> [--b]\n")
+    scanned = tmp_path / ".github" / "prompts" / "y.prompt.md"
+    _write(scanned, "argument-hint: <A> [--b]\n")
+
+    paths = v.collect_scan_paths(tmp_path, [])
+
+    assert scanned in paths
+    assert retired not in paths
+    assert not v._matches_default_scan(Path(".claude/commands/x.md"))
+
+
 def test_unbalanced_brackets_fail_even_when_quoted(tmp_path: Path) -> None:
-    command = tmp_path / ".claude" / "commands" / "bad.md"
+    command = tmp_path / ".github" / "prompts" / "bad.md"
     _write(command, "argument-hint: '<PR_NUMBERS> [--parallel'\n")
 
     violations = v.find_argument_hint_violations([command])
@@ -101,14 +114,14 @@ def test_unbalanced_brackets_fail_even_when_quoted(tmp_path: Path) -> None:
 
 
 def test_indented_block_scalar_argument_hint_text_is_ignored(tmp_path: Path) -> None:
-    command = tmp_path / ".claude" / "commands" / "description.md"
+    command = tmp_path / ".github" / "prompts" / "description.md"
     _write(command, "description: |\n  argument-hint: [BASE_BRANCH]\n")
 
     assert v.find_argument_hint_violations([command]) == []
 
 
 def test_quoted_scalar_with_trailing_comment_passes(tmp_path: Path) -> None:
-    command = tmp_path / ".claude" / "commands" / "safe.md"
+    command = tmp_path / ".github" / "prompts" / "safe.md"
     _write(command, "argument-hint: '<PR_NUMBERS> [--parallel]' # safe comment\n")
 
     assert v.find_argument_hint_violations([command]) == []
@@ -117,7 +130,7 @@ def test_quoted_scalar_with_trailing_comment_passes(tmp_path: Path) -> None:
 def test_unquoted_flow_sequence_with_trailing_comment_suggests_value_only(
     tmp_path: Path,
 ) -> None:
-    command = tmp_path / ".claude" / "commands" / "bad.md"
+    command = tmp_path / ".github" / "prompts" / "bad.md"
     _write(command, "argument-hint: [BASE_BRANCH] # optional\n")
 
     violations = v.find_argument_hint_violations([command])
@@ -127,7 +140,7 @@ def test_unquoted_flow_sequence_with_trailing_comment_suggests_value_only(
 
 
 def test_missing_argument_hint_is_fine(tmp_path: Path) -> None:
-    command = tmp_path / ".claude" / "commands" / "no-hint.md"
+    command = tmp_path / ".github" / "prompts" / "no-hint.md"
     _write(command, "description: No hint here.\n")
 
     assert v.find_argument_hint_violations([command]) == []
@@ -168,7 +181,7 @@ def test_git_tracked_files_falls_back_when_git_missing(tmp_path: Path, monkeypat
 
     monkeypatch.setattr(v.subprocess, "run", _raise)
 
-    command = tmp_path / ".claude" / "commands" / "bad.md"
+    command = tmp_path / ".github" / "prompts" / "bad.md"
     _write(command, "argument-hint: '[a] [b]'\n")
 
     # git absent -> glob fallback still finds and flags the offender.
@@ -180,7 +193,7 @@ def test_git_tracked_files_falls_back_when_git_missing(tmp_path: Path, monkeypat
 
 
 def test_whitespace_before_colon_is_not_bypassed(tmp_path: Path) -> None:
-    command = tmp_path / ".claude" / "commands" / "spaced.md"
+    command = tmp_path / ".github" / "prompts" / "spaced.md"
     # YAML permits whitespace before the colon; the key is still ``argument-hint``.
     _write(command, "argument-hint : '[a] [b]'\n")
 
@@ -191,7 +204,7 @@ def test_whitespace_before_colon_is_not_bypassed(tmp_path: Path) -> None:
 
 
 def test_validate_argument_hint_wrapper_passes_on_clean_repo(tmp_path: Path, capsys) -> None:
-    command = tmp_path / ".claude" / "commands" / "good.md"
+    command = tmp_path / ".github" / "prompts" / "good.md"
     _write(command, "argument-hint: '[BASE_BRANCH]'\n")
 
     assert v.validate_argument_hint(tmp_path) is True
@@ -199,7 +212,7 @@ def test_validate_argument_hint_wrapper_passes_on_clean_repo(tmp_path: Path, cap
 
 
 def test_validate_argument_hint_wrapper_fails_on_violation(tmp_path: Path, capsys) -> None:
-    command = tmp_path / ".claude" / "commands" / "bad.md"
+    command = tmp_path / ".github" / "prompts" / "bad.md"
     _write(command, "argument-hint: '[a] [b]'\n")
 
     assert v.validate_argument_hint(tmp_path) is False

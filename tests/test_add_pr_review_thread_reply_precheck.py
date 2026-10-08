@@ -37,15 +37,27 @@ _UNRESOLVED_STATE: dict = {
 
 
 class TestThreadStatePrecheck:
+    def test_patches_reach_executed_module_after_sys_modules_swap(self, capsys, monkeypatch):
+        """A later test file can load its own copy under the same module name.
+
+        Patches must target the module that runs main, not the sys.modules entry.
+        """
+        spec = importlib.util.spec_from_loader("add_pr_review_thread_reply", loader=None)
+        assert spec is not None
+        empty = importlib.util.module_from_spec(spec)
+        monkeypatch.setitem(sys.modules, "add_pr_review_thread_reply", empty)
+        self.test_resolved_thread_returns_skip_exit_0(capsys)
+
     def test_resolved_thread_returns_skip_exit_0(self, capsys):
         resolved_state = {"id": "PRRT_abc", "isResolved": True}
         with (
-            patch("add_pr_review_thread_reply.assert_gh_authenticated"),
-            patch(
-                "add_pr_review_thread_reply.query_thread_state",
+            patch.object(_MODULE, "assert_gh_authenticated"),
+            patch.object(
+                _MODULE,
+                "query_thread_state",
                 return_value=resolved_state,
             ),
-            patch("add_pr_review_thread_reply.gh_graphql") as mock_gql,
+            patch.object(_MODULE, "gh_graphql") as mock_gql,
         ):
             rc = main(["--thread-id", "PRRT_abc", "--body", "test"])
         assert rc == 0
@@ -56,12 +68,13 @@ class TestThreadStatePrecheck:
 
     def test_not_found_thread_returns_skip_exit_0(self, capsys):
         with (
-            patch("add_pr_review_thread_reply.assert_gh_authenticated"),
-            patch(
-                "add_pr_review_thread_reply.query_thread_state",
+            patch.object(_MODULE, "assert_gh_authenticated"),
+            patch.object(
+                _MODULE,
+                "query_thread_state",
                 return_value=None,
             ),
-            patch("add_pr_review_thread_reply.gh_graphql") as mock_gql,
+            patch.object(_MODULE, "gh_graphql") as mock_gql,
         ):
             rc = main(["--thread-id", "PRRT_abc", "--body", "test"])
         assert rc == 0
@@ -83,13 +96,15 @@ class TestThreadStatePrecheck:
             },
         }
         with (
-            patch("add_pr_review_thread_reply.assert_gh_authenticated"),
-            patch(
-                "add_pr_review_thread_reply.query_thread_state",
+            patch.object(_MODULE, "assert_gh_authenticated"),
+            patch.object(
+                _MODULE,
+                "query_thread_state",
                 return_value=_UNRESOLVED_STATE,
             ),
-            patch(
-                "add_pr_review_thread_reply.gh_graphql",
+            patch.object(
+                _MODULE,
+                "gh_graphql",
                 return_value=reply_data,
             ),
         ):
@@ -101,9 +116,10 @@ class TestThreadStatePrecheck:
 
     def test_precheck_api_error_returns_exit_3(self, capsys):
         with (
-            patch("add_pr_review_thread_reply.assert_gh_authenticated"),
-            patch(
-                "add_pr_review_thread_reply.query_thread_state",
+            patch.object(_MODULE, "assert_gh_authenticated"),
+            patch.object(
+                _MODULE,
+                "query_thread_state",
                 side_effect=RuntimeError("API unavailable"),
             ),
         ):
@@ -115,12 +131,13 @@ class TestThreadStatePrecheck:
 
     def test_wrong_pr_returns_skip_without_reply(self, capsys):
         with (
-            patch("add_pr_review_thread_reply.assert_gh_authenticated"),
-            patch(
-                "add_pr_review_thread_reply.query_thread_state",
+            patch.object(_MODULE, "assert_gh_authenticated"),
+            patch.object(
+                _MODULE,
+                "query_thread_state",
                 return_value=_UNRESOLVED_STATE,
             ),
-            patch("add_pr_review_thread_reply.gh_graphql") as mock_gql,
+            patch.object(_MODULE, "gh_graphql") as mock_gql,
         ):
             rc = main(
                 [

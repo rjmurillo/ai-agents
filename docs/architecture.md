@@ -113,9 +113,8 @@ Users install plugins with `/plugin install <plugin-name>@ai-agents` after regis
 | Invocation | `Task(subagent_type="...")` | `--agent` flag or `/agent` | `@agent` in Copilot Chat |
 | Skills | Yes (49 skills in `.claude/skills/`) | No | No |
 | Hooks | Yes (`.claude/hooks/`) | No | No |
-| Commands | Yes (`.claude/commands/`) | No | No |
 
-Claude Code has the richest integration because it supports skills, hooks, and commands in addition to agents.
+Claude Code has the richest integration because it supports skills and hooks in addition to agents.
 
 ## Agent Communication
 
@@ -144,9 +143,8 @@ ai-agents/
 │   └── vs-code-agents/       # VS Code agents
 ├── .claude/
 │   ├── agents/               # Local agents for this repo
-│   ├── skills/               # 49 reusable skills
-│   ├── hooks/                # Lifecycle hooks
-│   └── commands/             # Slash commands
+│   ├── skills/               # Reusable skills
+│   └── hooks/                # Lifecycle hooks
 ├── .claude-plugin/
 │   └── marketplace.json      # Plugin distribution manifest
 ├── scripts/                  # Validation and utility scripts

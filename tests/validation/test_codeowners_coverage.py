@@ -154,7 +154,8 @@ class TestTheRepositoryCodeowners:
     """ADR-101 names paths a hand-written list kept missing; check they read as unowned."""
 
     @pytest.fixture(scope="class")
-    def rules(self) -> list[cc.Rule]:
+    @classmethod
+    def rules(cls) -> list[cc.Rule]:
         return cc.load(REPO_ROOT / ".github" / "CODEOWNERS")
 
     @pytest.mark.parametrize(

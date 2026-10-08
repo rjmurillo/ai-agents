@@ -1,6 +1,6 @@
 # Skill Observations: cost-optimization
 
-**Last Updated**: 2026-09-19
+**Last Updated**: 2026-10-08
 **Sessions Analyzed**: 2 historical sessions plus a 30-day aggregate
 
 ## Purpose
@@ -24,12 +24,10 @@ The main burn source is repeated long-context execution in `ai-agents`, not mode
 
 The first control changes to evaluate are:
 
-1. Make direct single-agent work the default. Delegate only when an independent merge artifact justifies it. Cap a task at 3 agents total and 2 concurrent agents.
-   Count every live agent against the 2-concurrent cap, including one that only polls CI. In the 2026-09-29 P1 sweep the orchestrator ran three at once twice (#5549, #5485, #5477; then #5485, #5477, #5738), excusing one as "only polling CI". Count live agents before each spawn.
-2. Start a fresh thread for each phase instead of carrying one thread through investigation, implementation, review, and merge.
-3. Bound `exec` output to summaries, names, counts, failures, and short excerpts.
-4. Keep the universal runtime contract small. Load doctrine, review playbooks, and procedures only after workflow selection.
-5. Run full validation once at final head. Do not repeat full gates after every intermediate edit unless the changed surface requires it.
+1. Start a fresh thread for each phase instead of carrying one thread through investigation, implementation, review, and merge.
+2. Bound `exec` output to summaries, names, counts, failures, and short excerpts.
+3. Keep the universal runtime contract small. Load doctrine, review playbooks, and procedures only after workflow selection.
+4. Run full validation once at final head. Do not repeat full gates after every intermediate edit unless the changed surface requires it.
 
 These controls are evidence-backed priorities from the aggregate, not proof that every proposed limit is optimal. Measure token and outcome deltas after each change.
 
@@ -55,7 +53,7 @@ These are observations that may become patterns:
 |------|---------|------|----------|
 | 2026-01-16 | 2026-01-16-session-07 | MED | Batch agent invocations for parallel operations |
 | 2026-01-16 | Session 3, PR #918 | MED | Use sonnet (not opus) for CI automation tasks |
-| 2026-09-19 | 30-day agentic session aggregate | HIGH | Long-context repetition and delegation fanout dominate cost; prioritize direct work, bounded output, progressive disclosure, fresh phase threads, and final-head validation |
+| 2026-09-19 | 30-day agentic session aggregate | HIGH | Long-context repetition and delegation fanout dominate cost; prioritize bounded output, progressive disclosure, fresh phase threads, and final-head validation |
 
 ## Related
 

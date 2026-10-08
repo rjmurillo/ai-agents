@@ -31,15 +31,28 @@ main = _MODULE.main
 
 
 class TestThreadStatePrecheck:
+    def test_patches_reach_executed_module_after_sys_modules_swap(self, capsys, monkeypatch):
+        """A later test file can load its own copy under the same module name.
+
+        Patches must target the module that runs main, not the sys.modules entry.
+        """
+        spec = importlib.util.spec_from_loader("resolve_pr_review_thread", loader=None)
+        assert spec is not None
+        empty = importlib.util.module_from_spec(spec)
+        monkeypatch.setitem(sys.modules, "resolve_pr_review_thread", empty)
+        self.test_not_found_returns_skip_exit_0(capsys)
+
     def test_not_found_returns_skip_exit_0(self, capsys):
         with (
-            patch("resolve_pr_review_thread.assert_gh_authenticated"),
-            patch(
-                "resolve_pr_review_thread.query_thread_state",
+            patch.object(_MODULE, "assert_gh_authenticated"),
+            patch.object(
+                _MODULE,
+                "query_thread_state",
                 return_value=None,
             ),
-            patch(
-                "resolve_pr_review_thread.resolve_review_thread",
+            patch.object(
+                _MODULE,
+                "resolve_review_thread",
             ) as mock_resolve,
         ):
             rc = main(["--thread-id", "PRRT_abc"])
@@ -52,13 +65,15 @@ class TestThreadStatePrecheck:
     def test_already_resolved_returns_skip_exit_0(self, capsys):
         resolved_state = {"id": "PRRT_abc", "isResolved": True}
         with (
-            patch("resolve_pr_review_thread.assert_gh_authenticated"),
-            patch(
-                "resolve_pr_review_thread.query_thread_state",
+            patch.object(_MODULE, "assert_gh_authenticated"),
+            patch.object(
+                _MODULE,
+                "query_thread_state",
                 return_value=resolved_state,
             ),
-            patch(
-                "resolve_pr_review_thread.resolve_review_thread",
+            patch.object(
+                _MODULE,
+                "resolve_review_thread",
             ) as mock_resolve,
         ):
             rc = main(["--thread-id", "PRRT_abc"])
@@ -71,13 +86,15 @@ class TestThreadStatePrecheck:
     def test_unresolved_thread_proceeds_to_act(self, capsys):
         unresolved_state = {"id": "PRRT_abc", "isResolved": False}
         with (
-            patch("resolve_pr_review_thread.assert_gh_authenticated"),
-            patch(
-                "resolve_pr_review_thread.query_thread_state",
+            patch.object(_MODULE, "assert_gh_authenticated"),
+            patch.object(
+                _MODULE,
+                "query_thread_state",
                 return_value=unresolved_state,
             ),
-            patch(
-                "resolve_pr_review_thread.resolve_review_thread",
+            patch.object(
+                _MODULE,
+                "resolve_review_thread",
                 return_value=True,
             ) as mock_resolve,
         ):
@@ -90,9 +107,10 @@ class TestThreadStatePrecheck:
 
     def test_precheck_api_error_returns_exit_3(self, capsys):
         with (
-            patch("resolve_pr_review_thread.assert_gh_authenticated"),
-            patch(
-                "resolve_pr_review_thread.query_thread_state",
+            patch.object(_MODULE, "assert_gh_authenticated"),
+            patch.object(
+                _MODULE,
+                "query_thread_state",
                 side_effect=RuntimeError("API unavailable"),
             ),
         ):
@@ -104,17 +122,19 @@ class TestThreadStatePrecheck:
 
     def test_wrong_pr_returns_skip_without_resolve(self, capsys):
         with (
-            patch("resolve_pr_review_thread.assert_gh_authenticated"),
-            patch(
-                "resolve_pr_review_thread.query_thread_state",
+            patch.object(_MODULE, "assert_gh_authenticated"),
+            patch.object(
+                _MODULE,
+                "query_thread_state",
                 return_value={
                     "id": "PRRT_abc",
                     "isResolved": False,
                     "pullRequest": {"number": 42},
                 },
             ),
-            patch(
-                "resolve_pr_review_thread.resolve_review_thread",
+            patch.object(
+                _MODULE,
+                "resolve_review_thread",
             ) as mock_resolve,
         ):
             rc = main(
@@ -143,17 +163,20 @@ class TestThreadStatePrecheck:
             "pullRequest": {"number": 10},
         }
         with (
-            patch("resolve_pr_review_thread.assert_gh_authenticated"),
-            patch(
-                "resolve_pr_review_thread.get_unresolved_threads",
+            patch.object(_MODULE, "assert_gh_authenticated"),
+            patch.object(
+                _MODULE,
+                "get_unresolved_threads",
                 return_value=[cached_thread],
             ),
-            patch(
-                "resolve_pr_review_thread.query_thread_state",
+            patch.object(
+                _MODULE,
+                "query_thread_state",
                 return_value=live_state,
             ),
-            patch(
-                "resolve_pr_review_thread.resolve_review_thread",
+            patch.object(
+                _MODULE,
+                "resolve_review_thread",
             ) as mock_resolve,
         ):
             rc = main(["--pull-request", "10"])

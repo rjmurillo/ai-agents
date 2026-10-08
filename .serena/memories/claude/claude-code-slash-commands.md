@@ -4,6 +4,12 @@
 > **Last Updated**: 2025-12-21
 > **Purpose**: Authoritative reference for writing custom slash commands with high fidelity
 
+> **Scope in this repository**: This page describes upstream Claude Code behavior.
+> This repository does not use `.claude/commands/`. ADR-064 retired it, and
+> `check_commands_retired.py` blocks command files under any plugin root.
+> Create a `user-invocable` skill with SkillForge instead. It is the slash-command
+> surface here.
+
 ---
 
 ## Overview
