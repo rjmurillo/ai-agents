@@ -227,4 +227,36 @@ Scope: issue #6069 and REQ-047. Decision 2 table rows, Decision 5 (the unlisted 
 | D23 | Run the full Claude and Copilot matrix on Ubuntu, macOS, and Windows, and delete the nightly workflow. |
 | D24 | Add a Codex leg now, with the same gates as Claude and Copilot. Shift checks left wherever possible. |
 | D25 | The Copilot leg's gate is zero-token (`skill list`). Copilot prompt checks run when quota exists, and a classified quota skip is reported, not failed. |
+| D26 | Budgets run out. Keys may go unfunded, and that gap is accepted for every provider. Zero-token load checks stay strict. Prompt checks that hit an exhausted quota or credit balance skip with a marker. Auth failures still fail. The moved `ai-review` jobs may fail on an unfunded key, which never blocks a merge. |
+
+### Panel
+
+Full panel. Decision 13 adds a blocking gate, so all six seats ran in parallel, each read-only on head `b663e0dd2`.
+
+| # | Seat | Priority | Finding | Resolution |
+|---|------|----------|---------|------------|
+| 46 | critic, security | P0 | The quota marker also covered auth, transport, and rate-limit blocks, so a dead Copilot token passed. | Fixed. Only exhausted quota or credit carries the marker. Auth and rate limits fail. Negative tests pin it (D26). |
+| 47 | architect | P0 | ADR-094 Decision 2 named `action.yml` and the nightly as pin owners, and both became false. | Fixed. ADR-094 has a 2026-10-08 amendment. |
+| 48 | critic, security | P1 | The trusted-context gate and the result reporter ran from the pull request tree, so a fork could rewrite them. | Fixed. Both, plus the skip gate, run from the base commit with `python3 -I`. |
+| 49 | critic | P1 | Decision 13.1 claimed a pull request cannot change its own gate, but the workflow YAML comes from the head. | Fixed. The claim is narrowed, and review of the workflow diff is the stated control. |
+| 50 | critic | P1 | The path list missed the gate's own scripts, `.github/plugin/marketplace.json`, `pyproject.toml`, and `uv.lock`. | Fixed. They are added, and a test checks that every script the workflow runs is listed. |
+| 51 | architect | P1 | ADR-083 still named the nightly as the home of the base-alone e2e. | Fixed. ADR-083 has a 2026-10-08 amendment. |
+| 52 | architect, critic, independent-thinker | P1 | ADR-071 said Renovate cannot auto-merge the CLI pins. `renovate.json` auto-merges all three, so a bump can merge before its smoke is approved. | Fixed in text. The in-place rewrite became a dated ADR-071 amendment that states the fact. The residual is tied to Decision 11 item 8. |
+| 53 | architect, analyst, high-level-advisor | P1 | Decision 5 said "other six". The count is five. | Fixed. |
+| 54 | analyst | P1 | Decision 13.5 said a waiting result blocks. By default, only a failed one does. | Fixed. Waiting blocks only with `--include-non-required`. |
+| 55 | architect | P1 | The title and a Positive consequence still said agent checks never block. | Fixed. The title names the exception, and the consequence is scoped. |
+| 56 | architect | P1 | The rollback had no step for Decision 13. | Fixed. A rollback row removes the ruleset check first. |
+| 57 | high-level-advisor | P1 | Item 8 had no ordering. Requiring the check before it runs on `main` stalls every pull request. | Fixed. Item 8 requires one report on `main` first. |
+| 58 | high-level-advisor | P1 | The move to `ANTHROPIC_API_KEY` landed on a key that had run out of credit on 2026-10-07. | Owner decision D26: an unfunded key is an accepted gap for advisory jobs. Item 9 records it with run 37583525191. |
+| 59 | high-level-advisor, independent-thinker, critic | P1 | Each push needs a fresh approval click, and the ADR did not state that cost or the approval timeout and re-run behavior. | Fixed. Decision 13 items 3 and 6 state them, with a revisit trigger. |
+| 60 | analyst | P2 | A `dispositions.json` entry can exempt a failed result. | Stated in Decision 13.5. |
+| 61 | independent-thinker, critic, high-level-advisor | P2 | Codex runs fewer checks than D24's "same gates". | Stated in Decision 13.2: plugin and skill load only, and why. |
+| 62 | independent-thinker | P2 | A model-judgment check could cite the exception as precedent. | Fixed. Decision 13 calls it deterministic load evidence. |
+| 63 | security | P2 | Checkouts kept credentials in `.git/config`. | Fixed. Every checkout sets `persist-credentials: false`. |
+| 64 | security, critic | P2 | The marker matched as a substring, and an all-skip run could pass with zero passing tests. | Fixed. Prefix match, plus a required pass for each leg's zero-token test. |
+| 65 | security | P2 | Egress is audit-only, and the token is present while pull request code runs after approval. | Deferred. It is the Decision 10 residual. Trigger: an egress allowlist is proven on one Linux leg. |
+| 66 | independent-thinker | P2 | Claude legs depend on subscription rate limits and token expiry. | Rate limits fail and a re-run clears them (Decision 13.4). Token ownership is the owner's. |
+| 67 | analyst | P2 | Workflow and test comments cited "D6". | Fixed. They cite D25. |
+| 68 | architect | P2 | `ai-review` outputs keep `copilot-exit-code` and `copilot-stderr` names fed by the Claude step. | Out of scope. A rename breaks callers. Flagged in the pull request body. |
+| 69 | architect | P2 | Frontmatter date and Related Decisions were stale. | Fixed. |
 

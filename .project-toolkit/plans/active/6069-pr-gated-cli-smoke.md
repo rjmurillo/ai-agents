@@ -57,7 +57,7 @@ Exit: `plugin-cli-smoke.yml` runs on this PR. The result job is green only when 
 | Task | Size | Done when |
 |------|------|-----------|
 | T4.1 Extend `assert_trusted_smoke_context.py` to accept `pull_request` when the head repository equals the repository. | S | Tests cover same-repo, fork, and unknown event |
-| T4.2 Write `.github/workflows/cli-smoke.yml`: `changes`, `authorize`, `smoke` (claude and copilot by three OS, `agent-${{ matrix.cli }}`), `smoke-codex` (three OS, no environment, no secret), `smoke-result` (always). Claude legs read `CLAUDE_CODE_OAUTH_TOKEN`. Copilot legs read `COPILOT_GITHUB_TOKEN`. Pin the Codex CLI with a renovate comment. | L | actionlint clean. Security test passes |
+| T4.2 Write `.github/workflows/plugin-cli-smoke.yml`: `changes`, `authorize`, `smoke` (claude and copilot by three OS, `agent-${{ matrix.cli }}`), `smoke-codex` (three OS, no environment, no secret), `smoke-result` (always). Claude legs read `CLAUDE_CODE_OAUTH_TOKEN`. Copilot legs read `COPILOT_GITHUB_TOKEN`. Pin the Codex CLI with a renovate comment. | L | actionlint clean. Security test passes |
 | T4.3 Delete `nightly-cli-smoke.yml`. Rename and update `tests/test_nightly_cli_smoke_security.py`. | M | No live reference to the nightly |
 | T4.4 Update `tests/test_pr_merge_ready_advisory_agent_checks.py`: name `plugin-cli-smoke.yml` as the one blocking gated workflow, with a reason. Update `EXPECTED_JOB_ENVIRONMENTS`. | S | Tests green |
 
@@ -65,7 +65,7 @@ Exit: `plugin-cli-smoke.yml` runs on this PR. The result job is green only when 
 
 | Task | Size | Done when |
 |------|------|-----------|
-| T5.1 Amend ADR-114 (Decision 2 table, Decision 8 exception, nightly rows) and ADR-071 (smoke now PR-gated). Add a debate-log round. | M | Reduced panel finds no open P0 or P1 |
+| T5.1 Amend ADR-114 (Decision 2 table, new Decision 13, nightly rows) and add dated amendments to ADR-071, ADR-083, ADR-094. Add a debate-log round. | M | Reduced panel finds no open P0 or P1 |
 | T5.2 Update `templates/rules/generated-artifacts.md`, skill templates, `CONTRIBUTING.md`, `docs/COST-GOVERNANCE.md`, `renovate.json`. Run `build_all.py`. | M | Mirrors match. Build check green |
 | T5.3 Mark REQ-047 `implemented`. | S | Frontmatter updated |
 

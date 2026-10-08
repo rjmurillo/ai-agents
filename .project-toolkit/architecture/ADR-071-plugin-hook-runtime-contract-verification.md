@@ -255,10 +255,8 @@ This amendment relies on the isolated probe transcript above. It does not
 claim that the committed authenticated
 `tests/e2e/test_cli_hook_e2e.py` harness was run for these observations.
 
-The 2026-07-22 supply-chain amendment pins the real-CLI smoke to reviewed Claude
-Code and Copilot CLI npm versions. Since 2026-10-08 that smoke runs on pull
-requests in `.github/workflows/plugin-cli-smoke.yml`, with a pinned Codex leg
-(ADR-114 Decision 13, issue #6069). Repository credentials are available only to
+The 2026-07-22 supply-chain amendment pins the nightly smoke to reviewed Claude
+Code and Copilot CLI npm versions. Repository credentials are available only to
 the two real-CLI execution steps, never checkout, setup, or npm lifecycle
 scripts. Renovate opens non-automerge updates for both pins. A new vendor
 release therefore becomes a reviewable top-level version-change event instead
@@ -616,6 +614,35 @@ Re-adding any tool-use hook requires re-establishing a runtime contract here
 from scratch. Do not read the retired amendments above as a contract a new hook
 inherits; they describe deleted code. See ADR-097 "Re-evaluation Triggers".
 
+
+### 2026-10-08 amendment: the real-CLI smoke gates pull requests (issue #6069)
+
+This amendment changes where the authenticated smoke runs. It does not change
+the runtime contract above. Owner decisions D20 to D26 are recorded in
+`.project-toolkit/critique/ADR-114-debate-log.md` round 5, and ADR-114
+Decision 13 holds the gate policy.
+
+- `.github/workflows/nightly-cli-smoke.yml` is deleted. It was replaced by
+  `.github/workflows/plugin-cli-smoke.yml`, which runs on pull requests that
+  change a path in `scripts/validation/cli_smoke_paths.py`. Its result check,
+  `CLI Smoke Result`, blocks merge. Wherever this ADR names the nightly
+  workflow below, read `plugin-cli-smoke.yml`. The tests it runs are the same
+  files, so the coverage named in Decision items 3 and 6 is unchanged.
+- There are now three pinned CLIs: Claude Code, Copilot CLI, and Codex CLI.
+  The Codex leg installs the Claude plugin and reads no credential.
+- Credentials reach only the execution steps, as Decision item 6 requires. The
+  Claude leg now reads `CLAUDE_CODE_OAUTH_TOKEN`, not `ANTHROPIC_API_KEY`.
+- Decision item 6 and the 2026-07-22 note say Renovate cannot auto-merge the
+  pins. That was already false before this amendment: `renovate.json` sets
+  `automerge: true` for all three CLI packages, and `tests/test_renovate_config.py`
+  pins it. Each bump edits `plugin-cli-smoke.yml`, which is a smoke path, so the
+  smoke runs on it. GitHub auto-merge waits for that result only after the owner
+  adds `CLI Smoke Result` to the branch ruleset (ADR-114 Decision 11 item 8).
+  Until then, a pin bump can merge before its smoke is approved.
+- Budget exhaustion is an accepted gap (D26). Each leg must pass a zero-token
+  load check. Prompt-based checks that hit an exhausted quota or credit balance
+  skip with a marker and do not fail the leg. Auth failures still fail.
+
 ## Decision
 
 1. **Anchor every plugin hook command to the plugin root.** Bash uses
@@ -659,10 +686,10 @@ inherits; they describe deleted code. See ADR-097 "Re-evaluation Triggers".
    is closed addressed-by-prevention.
 
 6. **Authenticated smoke MUST install reviewed top-level CLI versions before
-   receiving credentials.** `.github/workflows/plugin-cli-smoke.yml` installs
+   receiving credentials.** `.github/workflows/nightly-cli-smoke.yml` installs
    exact npm versions with no smoke credentials in job or install-step scope.
-   Only the real-CLI execution steps receive `CLAUDE_CODE_OAUTH_TOKEN` or
-   `COPILOT_GITHUB_TOKEN`. The Codex leg receives no credential. Renovate tracks both pins but cannot auto-merge their
+   Only the real-CLI execution steps receive `ANTHROPIC_API_KEY` and
+   `COPILOT_GITHUB_TOKEN`. Renovate tracks both pins but cannot auto-merge their
    updates. Every Copilot smoke command also passes `--no-auto-update`; the npm
    pin alone does not hold the runtime binary version. Each accepted bump is a
    material host-version change under Decision item 4.
@@ -694,9 +721,8 @@ inherits; they describe deleted code. See ADR-097 "Re-evaluation Triggers".
 
 - The real-CLI e2e needs the CLIs plus authentication and model credits, which
   bare CI lacks. Pre-push selects it, but absent prerequisites cause a loud
-  skip rather than evidence of execution. The pull request workflow
-  `plugin-cli-smoke.yml` runs authenticated cross-platform smoke on plugin
-  path changes and fails when the smoke skips, but a
+  skip rather than evidence of execution. The trusted nightly workflow runs
+  authenticated cross-platform smoke and fails when the smoke skips, but a
   branch run still needs explicit evidence before claiming vendor-runtime
   verification.
 - When invoked with prerequisites, the selected pre-push e2e adds latency and
@@ -708,7 +734,7 @@ inherits; they describe deleted code. See ADR-097 "Re-evaluation Triggers".
   transitive install could alter the CLI that later receives credentials. The
   current control removes credentials from package installation and makes
   top-level release changes reviewable; it is not an egress containment boundary.
-- The smoke is a pin-specific signal. It does not test a vendor
+- The nightly is a lagging, pin-specific signal. It does not test a vendor
   release before the pin update merges. Anchoring, static and simulated runtime
   gates, and loud launcher failure remain the user protection during that gap.
 
@@ -729,8 +755,8 @@ addressed-by-prevention).
 Issue #2231 is closed. The Windows PowerShell simulation runs in
 `.github/workflows/pytest.yml`; `validate_hook_anchoring.py` discovers platform
 hook artifacts from template configuration; and
-`.github/workflows/plugin-cli-smoke.yml` (the nightly until 2026-10-08) runs
-authenticated smoke from trusted contexts and fails if the smoke does not execute. It installs exact reviewed
+`.github/workflows/nightly-cli-smoke.yml` runs authenticated smoke from trusted
+contexts and fails if the smoke does not execute. It installs exact reviewed
 top-level CLI versions, scopes credentials to execution steps, and relies on
 non-automerge Renovate updates to surface new releases. This is version-specific
 evidence after a pin update merges, not an immediate latest-release tripwire.
@@ -757,7 +783,7 @@ item 5.)
 - **Exit trigger:** a host CLI version that changes the cwd semantics or renames
   or drops the plugin-root variables. Detection: Decision item 4's
   re-verification on a material version bump and the real-CLI e2e when it runs
-  (pull request cross-platform workflow `plugin-cli-smoke.yml`).
+  (nightly cross-platform workflow).
 - **Mitigation:** the runtime-contract test and the recorded decision memory make
   an artifact defect observable; a launcher failure fails loud. Vendor-runtime
   drift is caught by an executed real-CLI smoke or surfaced at runtime instead
@@ -778,9 +804,9 @@ item 5.)
   selected by pre-push.
 - Serena memory `decision-copilot-cli-hook-plugin-root-contract`. Verified contract.
 - `.github/workflows/validate-plugin-manifests.yml`. Server-side anchoring gate.
-- `.github/workflows/plugin-cli-smoke.yml`. Authenticated, version-pinned
-  cross-platform vendor-runtime smoke, gating pull requests.
-- `tests/test_cli_smoke_security.py`. CLI pin and credential-scope
+- `.github/workflows/nightly-cli-smoke.yml`. Authenticated, version-pinned
+  cross-platform vendor-runtime smoke.
+- `tests/test_nightly_cli_smoke_security.py`. CLI pin and credential-scope
   regression contract.
 - `tests/e2e/copilot_hook_probe.py`. Shared no-auto-update Copilot command
   contract.

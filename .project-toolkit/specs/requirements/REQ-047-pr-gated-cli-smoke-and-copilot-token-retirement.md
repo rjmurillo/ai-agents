@@ -121,8 +121,9 @@ The smoke result job prints which legs ran, which were skipped by the path filte
 12. WHEN a fork PR touches a smoke path, the smoke result SHALL fail and name the fork as the reason.
 
 13. The Copilot leg SHALL prove skill load with no model call: `copilot --plugin-dir src/copilot-cli skill list --json` from a neutral directory lists every `EXPECTED_SKILLS` name with a path under `src/copilot-cli`, and no loader warning. This check SHALL never skip.
-14. WHEN a Copilot prompt-based check is blocked by a classified quota limit, it SHALL skip with a stable marker, and the gate SHALL report it without failing (owner decision D25, ADR-114 debate log round 5). Any other skip SHALL fail the leg. Claude and Codex legs stay strict.
-15. The path filter SHALL execute from the pull request base commit, so a pull request cannot change the filter that decides whether its own smoke runs.
+14. WHEN a Claude or Copilot prompt-based check is blocked by an exhausted quota or credit balance, it SHALL skip with a stable marker, and the gate SHALL report it without failing (owner decisions D25 and D26, ADR-114 debate log round 5). Auth failures, rate limits, and any other skip SHALL fail the leg. Each leg's zero-token load check SHALL pass, never skip. Codex stays strict.
+15. The path filter, trusted-context gate, skip gate, and result reporter SHALL execute from the pull request base commit, so a pull request cannot change the scripts that judge it. The workflow YAML comes from the pull request head, and review of its diff is the control.
+16. WHEN a moved `ai-review` job runs with an unfunded `ANTHROPIC_API_KEY`, it SHALL report an infrastructure failure and SHALL NOT block any merge (D26).
 
 ## Out of scope
 
