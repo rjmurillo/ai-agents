@@ -83,6 +83,7 @@ EXEMPTIONS: dict[str, tuple[str, int, str]] = {
     "evals/reports/adr-063-kill-gate-20260708/memory-search.json": (RECORD, 4, _FROZEN_RUN),
     "evals/reports/skill-triage-20260509-135851/results.json": (RECORD, 1, _FROZEN_RUN),
     "evals/reports/skill-triage-20260509-135851/run.log": (RECORD, 9, _FROZEN_RUN),
+    "tests/.test_durations": (RECORD, 92, "pytest-split timing map keyed by recorded node IDs"),
     "tests/commands/test_research_command_contract.py": (NEEDLE, 19, "names no retired tool"),
     "tests/commands/test_spec_step0_5.py": (NEEDLE, 3, "Step 0.5 names no retired backend"),
     "tests/skills/context-gather/test_context_gather.py": (NEEDLE, 20, "names no retired tier"),
