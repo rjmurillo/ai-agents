@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import importlib.util
+from functools import partial
 from pathlib import Path
 from types import ModuleType
 
@@ -30,6 +31,11 @@ def write_report(tmp_path: Path, cases_xml: str, *, wrap: bool = False) -> Path:
     report = tmp_path / "report.xml"
     report.write_text(f'<?xml version="1.0" encoding="utf-8"?>{body}', encoding="utf-8")
     return report
+
+
+def write_cases(tmp_path: Path, *cases: str) -> Path:
+    """Write a report holding every case in ``cases``, in order."""
+    return write_report(tmp_path, "".join(cases))
 
 
 def passed_case(classname: str, name: str) -> str:
@@ -58,3 +64,11 @@ def marker_skipped_case(classname: str, name: str, marker: str = MARKER) -> str:
         f'<skipped type="pytest.skip" message="{marker} Copilot quota exhausted"></skipped>'
         "</testcase>"
     )
+
+
+# The same builders bound to the hook smoke class, for tests that do not care
+# which class a case came from.
+smoke_passed = partial(passed_case, SMOKE_CLASS)
+smoke_skipped = partial(skipped_case, SMOKE_CLASS)
+smoke_failed = partial(failed_case, SMOKE_CLASS)
+smoke_marker_skipped = partial(marker_skipped_case, SMOKE_CLASS)

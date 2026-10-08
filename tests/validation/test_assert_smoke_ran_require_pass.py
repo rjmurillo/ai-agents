@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from tests.lib import smoke_report as sr
 
 assert_smoke_ran = sr.load_gate()
@@ -15,67 +17,51 @@ EXIT_OK = assert_smoke_ran.EXIT_OK
 EXIT_NOT_RUN = assert_smoke_ran.EXIT_NOT_RUN
 EXIT_CONFIG = assert_smoke_ran.EXIT_CONFIG
 
+_REQUIRED = ["test_zero_token"]
+
+
+def _evaluate(report: Path, expected: int) -> tuple[int, str]:
+    return assert_smoke_ran.evaluate(
+        report,
+        "test_cli_hook_e2e",
+        expected,
+        allow_skip_marker=sr.MARKER,
+        require_pass=_REQUIRED,
+    )
+
 
 def test_require_pass_accepts_a_passed_zero_token_test(tmp_path: Path) -> None:
-    cases = sr.passed_case(sr.SMOKE_CLASS, "test_zero_token") + sr.marker_skipped_case(
-        sr.SMOKE_CLASS, "test_prompt_probe"
-    )
-    report = sr.write_report(tmp_path, cases)
-
-    code, _ = assert_smoke_ran.evaluate(
-        report,
-        "test_cli_hook_e2e",
-        2,
-        allow_skip_marker=sr.MARKER,
-        require_pass=["test_zero_token"],
+    report = sr.write_cases(
+        tmp_path, sr.smoke_passed("test_zero_token"), sr.smoke_marker_skipped("test_prompt_probe")
     )
 
-    assert code == EXIT_OK
+    assert _evaluate(report, 2)[0] == EXIT_OK
 
 
-def test_require_pass_rejects_a_marker_skipped_required_test(tmp_path: Path) -> None:
-    cases = sr.marker_skipped_case(sr.SMOKE_CLASS, "test_zero_token") + sr.passed_case(
-        sr.SMOKE_CLASS, "test_prompt_probe"
-    )
-    report = sr.write_report(tmp_path, cases)
-
-    code, message = assert_smoke_ran.evaluate(
-        report,
-        "test_cli_hook_e2e",
-        2,
-        allow_skip_marker=sr.MARKER,
-        require_pass=["test_zero_token"],
-    )
+@pytest.mark.parametrize(
+    ("cases", "expected", "needle"),
+    [
+        (
+            [sr.smoke_marker_skipped("test_zero_token"), sr.smoke_passed("test_prompt_probe")],
+            2,
+            "must PASS",
+        ),
+        ([sr.smoke_passed("test_prompt_probe")], 1, "no smoke test matched required"),
+        ([sr.smoke_failed("test_zero_token")], 1, "FAILED"),
+    ],
+    ids=["marker-skipped", "missing", "failed"],
+)
+def test_require_pass_rejects_a_required_test_that_did_not_pass(
+    cases: list[str], expected: int, needle: str, tmp_path: Path
+) -> None:
+    code, message = _evaluate(sr.write_cases(tmp_path, *cases), expected)
 
     assert code == EXIT_NOT_RUN
-    assert "test_zero_token" in message
-    assert "must PASS" in message
-
-
-def test_require_pass_rejects_a_missing_required_test(tmp_path: Path) -> None:
-    report = sr.write_report(tmp_path, sr.passed_case(sr.SMOKE_CLASS, "test_prompt_probe"))
-
-    code, message = assert_smoke_ran.evaluate(
-        report, "test_cli_hook_e2e", 1, require_pass=["test_zero_token"]
-    )
-
-    assert code == EXIT_NOT_RUN
-    assert "no smoke test matched required" in message
-
-
-def test_require_pass_rejects_a_failed_required_test(tmp_path: Path) -> None:
-    report = sr.write_report(tmp_path, sr.failed_case(sr.SMOKE_CLASS, "test_zero_token"))
-
-    code, _ = assert_smoke_ran.evaluate(
-        report, "test_cli_hook_e2e", 1, require_pass=["test_zero_token"]
-    )
-
-    assert code == EXIT_NOT_RUN
+    assert needle in message
 
 
 def test_require_pass_blank_value_is_a_config_error(tmp_path: Path) -> None:
-    report = sr.write_report(tmp_path, sr.passed_case(sr.SMOKE_CLASS, "test_a"))
+    report = sr.write_cases(tmp_path, sr.smoke_passed("test_a"))
+    argv = [str(report), "--expected-count", "1", "--require-pass", " "]
 
-    code = assert_smoke_ran.main([str(report), "--expected-count", "1", "--require-pass", " "])
-
-    assert code == EXIT_CONFIG
+    assert assert_smoke_ran.main(argv) == EXIT_CONFIG

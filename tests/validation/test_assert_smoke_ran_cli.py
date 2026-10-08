@@ -5,6 +5,7 @@ Report builders live in ``tests/lib/smoke_report.py``.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -16,73 +17,55 @@ EXIT_OK = assert_smoke_ran.EXIT_OK
 EXIT_NOT_RUN = assert_smoke_ran.EXIT_NOT_RUN
 EXIT_CONFIG = assert_smoke_ran.EXIT_CONFIG
 
-_OTHER_CLASS = "tests.unit.test_helpers"
+Capsys = pytest.CaptureFixture[str]
+_TWO_CASES = ["--expected-count", "2", "--allow-skip-marker", sr.MARKER]
 
 
-def test_main_exits_zero_when_smoke_ran(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
-    cases = sr.passed_case(
-        sr.SMOKE_CLASS, "test_copilot_vendor_install_hook_resolves"
-    ) + sr.passed_case(sr.SMOKE_CLASS, "test_claude_plugin_dir_hook_resolves")
-    report = sr.write_report(
-        tmp_path,
-        cases,
-    )
-
-    code = assert_smoke_ran.main([str(report)])
-
-    assert code == EXIT_OK
-    assert "smoke gate OK" in capsys.readouterr().out
-
-
-def test_main_exits_one_when_smoke_skipped(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+@pytest.mark.parametrize(
+    ("make_report", "expected_code", "stream", "expected_text"),
+    [
+        (
+            lambda d: sr.write_cases(d, sr.smoke_passed("test_a"), sr.smoke_passed("test_b")),
+            EXIT_OK,
+            "out",
+            "smoke gate OK",
+        ),
+        (lambda d: sr.write_cases(d, sr.smoke_skipped("test_a")), EXIT_NOT_RUN, "err", "::error::"),
+        (lambda d: d / "absent.xml", EXIT_CONFIG, "err", "::error::"),
+    ],
+    ids=["ran", "skipped", "report-missing"],
+)
+def test_main_reports_each_outcome_with_its_exit_code(
+    make_report: Callable[[Path], Path],
+    expected_code: int,
+    stream: str,
+    expected_text: str,
+    tmp_path: Path,
+    capsys: Capsys,
 ) -> None:
-    report = sr.write_report(
-        tmp_path, sr.skipped_case(sr.SMOKE_CLASS, "test_claude_plugin_dir_hook_resolves")
-    )
+    report = make_report(tmp_path)
 
-    code = assert_smoke_ran.main([str(report)])
-
-    assert code == EXIT_NOT_RUN
-    assert "::error::" in capsys.readouterr().err
+    assert assert_smoke_ran.main([str(report)]) == expected_code
+    assert expected_text in getattr(capsys.readouterr(), stream)
 
 
-def test_main_exits_two_when_report_missing(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    code = assert_smoke_ran.main([str(tmp_path / "absent.xml")])
+def test_main_honors_custom_smoke_substr(tmp_path: Path) -> None:
+    report = sr.write_cases(tmp_path, sr.passed_case("custom.module", "test_my_smoke"))
+    argv = [str(report), "--smoke-substr", "test_my_smoke", "--expected-count", "1"]
 
-    assert code == EXIT_CONFIG
-    assert "::error::" in capsys.readouterr().err
-
-
-def test_main_honors_custom_smoke_substr(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    report = sr.write_report(tmp_path, sr.passed_case("custom.module", "test_my_smoke"))
-
-    code = assert_smoke_ran.main(
-        [str(report), "--smoke-substr", "test_my_smoke", "--expected-count", "1"]
-    )
-
-    assert code == EXIT_OK
+    assert assert_smoke_ran.main(argv) == EXIT_OK
 
 
 def test_main_writes_a_step_summary_line_when_marker_skips_were_allowed(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: Capsys
 ) -> None:
     summary = tmp_path / "summary.md"
     monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary))
-    cases = sr.passed_case(sr.SMOKE_CLASS, "test_zero_token") + sr.marker_skipped_case(
-        sr.SMOKE_CLASS, "test_prompt_probe"
-    )
-    report = sr.write_report(tmp_path, cases)
-
-    code = assert_smoke_ran.main(
-        [str(report), "--expected-count", "2", "--allow-skip-marker", sr.MARKER]
+    report = sr.write_cases(
+        tmp_path, sr.smoke_passed("test_zero_token"), sr.smoke_marker_skipped("test_prompt_probe")
     )
 
-    assert code == EXIT_OK
+    assert assert_smoke_ran.main([str(report), *_TWO_CASES]) == EXIT_OK
     text = summary.read_text(encoding="utf-8")
     assert "quota-skipped" in text
     assert "test_prompt_probe" in text
@@ -94,46 +77,22 @@ def test_main_writes_no_summary_when_nothing_was_skipped(
 ) -> None:
     summary = tmp_path / "summary.md"
     monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary))
-    report = sr.write_report(tmp_path, sr.passed_case(sr.SMOKE_CLASS, "test_zero_token"))
+    report = sr.write_cases(tmp_path, sr.smoke_passed("test_zero_token"))
+    argv = [str(report), "--expected-count", "1", "--allow-skip-marker", sr.MARKER]
 
-    code = assert_smoke_ran.main(
-        [str(report), "--expected-count", "1", "--allow-skip-marker", sr.MARKER]
-    )
-
-    assert code == EXIT_OK
+    assert assert_smoke_ran.main(argv) == EXIT_OK
     assert not summary.exists()
 
 
-def test_require_pass_is_repeatable_on_the_command_line(tmp_path: Path) -> None:
-    cases = sr.passed_case(sr.SMOKE_CLASS, "test_a") + sr.marker_skipped_case(
-        sr.SMOKE_CLASS, "test_b"
-    )
-    report = sr.write_report(tmp_path, cases)
+@pytest.mark.parametrize(
+    ("required", "expected_code"),
+    [(["test_a"], EXIT_OK), (["test_a", "test_b"], EXIT_NOT_RUN)],
+    ids=["passed-only", "includes-marker-skipped"],
+)
+def test_require_pass_is_repeatable_on_the_command_line(
+    required: list[str], expected_code: int, tmp_path: Path
+) -> None:
+    report = sr.write_cases(tmp_path, sr.smoke_passed("test_a"), sr.smoke_marker_skipped("test_b"))
+    flags = [flag for name in required for flag in ("--require-pass", name)]
 
-    ok = assert_smoke_ran.main(
-        [
-            str(report),
-            "--expected-count",
-            "2",
-            "--allow-skip-marker",
-            sr.MARKER,
-            "--require-pass",
-            "test_a",
-        ]
-    )
-    bad = assert_smoke_ran.main(
-        [
-            str(report),
-            "--expected-count",
-            "2",
-            "--allow-skip-marker",
-            sr.MARKER,
-            "--require-pass",
-            "test_a",
-            "--require-pass",
-            "test_b",
-        ]
-    )
-
-    assert ok == EXIT_OK
-    assert bad == EXIT_NOT_RUN
+    assert assert_smoke_ran.main([str(report), *_TWO_CASES, *flags]) == expected_code
