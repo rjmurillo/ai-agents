@@ -19,7 +19,8 @@ gap covered. A gate proves it runs a validator only by executing it.
 
 Negative controls, each verified to fail before shipping:
 
-- Delete a row from ``_EXPECTED`` while the workflow still runs the command:
+- Delete a row from ``EXPECTED`` (in ``vendor_portability_gate_helpers.py``)
+  while the workflow still runs the command:
   ``test_every_workflow_validator_is_mapped`` fails.
 - Delete a ``_Gate`` from ``_SEQUENCE``: ``test_mapped_gate_exists`` fails.
 - Point a gate at a different validator: ``test_gate_runs_its_validator`` fails.
@@ -61,51 +62,12 @@ _WORKFLOW = REPO_ROOT / ".github" / "workflows" / "validate-vendor-portability.y
 _VALIDATION_DIR = REPO_ROOT / "scripts" / "validation"
 if str(_VALIDATION_DIR) not in sys.path:
     sys.path.insert(0, str(_VALIDATION_DIR))
-import checks_portability
 import checks_spec
 import pre_pr_sequence
 
-# The six wrappers live in two modules: two predate this change in
-# ``checks_spec``, four are new in ``checks_portability`` (see that module's
-# docstring for why they did not join the first two). Resolution walks both so
-# a later move between them does not need a test edit.
-_VALIDATOR_MODULES = (checks_portability, checks_spec)
-
-# Workflow command -> (pre_pr gate name, validator function name).
-#
-# Keyed on the command exactly as the workflow spells it, so a change to the
-# invocation form (script to module, or a new flag) shows up here as an
-# unmapped command rather than passing silently against a stale key.
-_EXPECTED: dict[str, tuple[str, str]] = {
-    "python3 scripts/validation/check_vendor_portability.py": (
-        "Vendor Portability",
-        "validate_vendor_portability",
-    ),
-    "python3 -m scripts.validation.check_skill_portability": (
-        "Skill Script Portability",
-        "validate_skill_script_portability",
-    ),
-    "uv run --frozen python scripts/validation/check_skill_md_exec_portability.py": (
-        "Skill Markdown Exec Portability",
-        "validate_skill_md_exec_portability",
-    ),
-    "uv run --frozen python scripts/validation/check_skill_md_portability.py": (
-        "Skill Markdown Portability",
-        "validate_skill_md_portability",
-    ),
-    "python3 scripts/validation/check_skill_resolver_anchoring.py": (
-        "Skill Resolver Anchoring",
-        "validate_skill_resolver_anchoring",
-    ),
-    "python3 scripts/validation/check_skill_contract_tests.py": (
-        "Skill Contract Tests",
-        "validate_skill_contract_tests",
-    ),
-    "python3 scripts/validation/check_plugin_root_interpreter.py": (
-        "Plugin-Root Interpreter",
-        "validate_plugin_root_interpreter",
-    ),
-}
+from tests.validation.vendor_portability_gate_helpers import EXPECTED as _EXPECTED
+from tests.validation.vendor_portability_gate_helpers import defining_module as _defining_module
+from tests.validation.vendor_portability_gate_helpers import validator as _validator
 
 
 def _run_steps() -> list[dict[str, Any]]:
@@ -129,24 +91,6 @@ def _workflow_validator_commands() -> list[str]:
     validator added as a multi-line step fails there rather than disappearing.
     """
     return [step["run"].strip() for step in _run_steps() if "\n" not in step["run"].strip()]
-
-
-def _defining_module(name: str) -> Any:
-    """Return the module that defines a wrapper.
-
-    Stubbing ``_run_subprocess`` has to target the module the wrapper resolves
-    it from. Patching the wrong one leaves the real subprocess running and turns
-    an assertion about argv into an assertion about nothing.
-    """
-    for module in _VALIDATOR_MODULES:
-        if getattr(module, name, None) is not None:
-            return module
-    raise AssertionError(f"no module defines {name!r}")
-
-
-def _validator(name: str) -> Any:
-    """Resolve a wrapper by name across the modules that define the six."""
-    return getattr(_defining_module(name), name)
 
 
 def _target_of(command: str) -> str:
@@ -219,7 +163,7 @@ def test_mapped_gate_exists(gate_name: str, validator_name: str) -> None:
 
 @pytest.mark.parametrize(("gate_name", "validator_name"), sorted(_EXPECTED.values()))
 def test_mapped_gate_is_never_skipped(gate_name: str, validator_name: str) -> None:
-    """None of the six may be skippable, or the coverage claim is conditional.
+    """None of the seven may be skippable, or the coverage claim is conditional.
 
     ``skip_when_quick`` drops a gate under ``--quick``, and ``already_run_by``
     drops it when the named pre-push fast-stage job set the environment marker.
@@ -312,18 +256,3 @@ def test_missing_checker_script_raises_missing_script_skip(
     """
     with pytest.raises(checks_spec.MissingScriptSkip):
         _validator(validator_name)(tmp_path)
-
-
-@pytest.mark.parametrize(("gate_name", "validator_name"), sorted(_EXPECTED.values()))
-def test_validator_argv_is_accepted_by_the_real_checker(
-    gate_name: str, validator_name: str
-) -> None:
-    """Run the real checker, because every other test here stubs the subprocess.
-
-    Without this, a wrapper could pass a flag the script rejects and the stubbed
-    assertions would still be green: argparse would exit 2 only in production.
-    Slow by design: measured at 41.5s across the six, dominated by
-    check_skill_md_portability at 26.3s. That is the price of the only
-    assertions here that touch the actual checkers.
-    """
-    assert _validator(validator_name)(REPO_ROOT) is True
