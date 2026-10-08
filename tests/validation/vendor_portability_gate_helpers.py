@@ -26,6 +26,13 @@ if str(_VALIDATION_DIR) not in sys.path:
 import checks_portability
 import checks_spec
 
+# Not used here. The real checkers run as subprocesses, so no import edge links
+# a test to the scripts it exercises. Before issue #6211 the real-checker test
+# shared a file with the pre_pr_sequence import, and that import's closure is
+# what made test selection pick it when a checker script changed. Importing it
+# here keeps that selection for the real-checker files split out of that file.
+import pre_pr_sequence  # noqa: F401
+
 # The six wrappers live in two modules: two predate this change in
 # ``checks_spec``, four are new in ``checks_portability`` (see that module's
 # docstring for why they did not join the first two). Resolution walks both so

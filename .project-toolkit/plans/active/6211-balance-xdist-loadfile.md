@@ -73,6 +73,7 @@ Exit: AC 1, 6, 7.
 |------|----------|-----------|------------------------|
 | 2026-10-07 | Keep `--dist loadfile`, split slow files | Owner decision D2. Keeps module isolation | `--dist worksteal` or `load` |
 | 2026-10-08 | Split `TestHookModeBanner` into banner-shown and banner-suppressed files | At 29.6s alone it sits at the 30s limit, and load inflates it | One file per class |
+| 2026-10-08 | Keep the `pre_pr_sequence` import in `vendor_portability_gate_helpers.py` and test selection for each checker script | A selection replay found the split real-checker files were no longer picked when a checker script changed. On main the original file was picked through that import | Leave selection to the import graph alone |
 | 2026-10-08 | Leave `test_run_pytest_windows.py` and `test_pre_pr_covers_workflow_validators.py` as they are | One 25.8s test, and a 13.4s module fixture. Splitting either cannot shorten the unit | Split them anyway |
 
 ## Progress Log
@@ -80,6 +81,7 @@ Exit: AC 1, 6, 7.
 | Date | Update | Agent |
 |------|--------|-------|
 | 2026-10-08 | Baseline measured and posted on #6211. Spec and plan written | claude |
+| 2026-10-08 | M1 and M2 built. Selection regression found and fixed, AC9 added | claude |
 
 ## Blockers
 

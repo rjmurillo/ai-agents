@@ -70,6 +70,7 @@ No data model. Test IDs change module path only.
 - A parametrized case is dropped when a parameter list is split across files. Mitigation: a guard test asserts the split lists cover every expected validator exactly once.
 - A helper copied instead of shared drifts. Mitigation: helpers move to one module that both files import.
 - Copied `noqa` comments trip the security suppression policy (#4352). Mitigation: no `noqa` comments are copied.
+- A split file loses the import edges that made test selection pick it. The real checkers run as subprocesses, so only the original file's `pre_pr_sequence` import linked them to the checker scripts. Mitigation: the helpers module keeps that import, and a test checks selection for every checker script (AC9).
 
 ## Security
 
@@ -89,6 +90,7 @@ What proves it works: the traced 16-worker run of the same 832-file subset, befo
 6. When the 832-file subset runs at 16 workers with tracing, the tail shall be smaller than the 35.5s baseline, and the before and after numbers shall be recorded on #6211.
 7. The change shall not edit any production file under `scripts/`.
 8. The moved tests shall pass alone and under `-n 16 --dist loadfile`.
+9. When a vendor-portability checker script changes, import-graph test selection shall select both real-checker files, as it selected the original file before the split.
 
 ## Out of scope
 
