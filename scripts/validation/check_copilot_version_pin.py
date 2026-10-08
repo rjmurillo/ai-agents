@@ -1,18 +1,21 @@
 #!/usr/bin/env python3
 """Guard the pinned ``@github/copilot`` CLI version (Issue #2630).
 
-The PR Maintenance workflow drives its AI steps through the composite action
-``.github/actions/ai-review/action.yml``, which pins the Copilot CLI with a
-shell line of the form::
+REQ-047 (issue #6069) removed the Copilot CLI from the ``ai-review`` action.
+The only remaining pin lives in the CLI smoke workflow, as a Renovate-managed
+env entry of the form::
 
-    COPILOT_VERSION="<version>"
+    COPILOT_CLI_VERSION: '<version>'
+
+The guard also accepts the older shell form ``COPILOT_VERSION="<version>"`` so
+the same denylist can scan any file that pins the CLI.
 
 Version ``0.0.397`` carries a defect that npm itself flags::
 
     npm warn deprecated @github/copilot@0.0.397: A bug in this version caused
     invalid session id errors. We've fixed the bug in later versions
 
-On that pin the "Process PR comments for PR" step fails and the job exits
+On that pin the "Process PR comments for PR" step failed and the job exited
 non-zero (observed 2026-06-17 while processing PR #2624).
 
 This module extracts the pinned version from the action and fails when it is
@@ -45,14 +48,15 @@ EXIT_CONFIG = 2
 # was once defective stays defective. Seed entry is the Issue #2630 defect.
 KNOWN_BAD_VERSIONS: frozenset[str] = frozenset({"0.0.397"})
 
-# The shell pin: COPILOT_VERSION="x.y.z" (single or double quoted).
+# The pin: COPILOT_VERSION="x.y.z" (shell) or COPILOT_CLI_VERSION: 'x.y.z' (YAML
+# env), single or double quoted.
 # Anchored to a non-comment line start via ``^`` with ``re.MULTILINE``.
 # Leading whitespace and an optional ``export`` keyword are accepted so the
 # pattern works inside shell here-docs at any indentation level. This
 # prevents the guard from treating an old version cited in a comment (e.g.
 # ``# COPILOT_VERSION="0.0.397"  <- known-bad, do not use``) as the live pin.
 _PIN_RE = re.compile(
-    r"""^[ \t]*(?:export[ \t]+)?COPILOT_VERSION=["']([^"']+)["']""",
+    r"""^[ \t]*(?:export[ \t]+)?COPILOT_(?:CLI_)?VERSION(?:=|:[ \t]*)["']([^"']+)["']""",
     re.MULTILINE,
 )
 
@@ -61,7 +65,7 @@ _PIN_RE = re.compile(
 _VERSION_RE = re.compile(r"^\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?$")
 
 _DEFAULT_ACTION = (
-    Path(__file__).resolve().parents[2] / ".github" / "actions" / "ai-review" / "action.yml"
+    Path(__file__).resolve().parents[2] / ".github" / "workflows" / "nightly-cli-smoke.yml"
 )
 
 
@@ -157,7 +161,7 @@ def main(argv: list[str] | None = None) -> int:
         "--action",
         type=Path,
         default=_DEFAULT_ACTION,
-        help="path to the ai-review composite action.yml",
+        help="path to the file that pins the Copilot CLI version",
     )
     args = parser.parse_args(argv)
     return check_action(args.action)

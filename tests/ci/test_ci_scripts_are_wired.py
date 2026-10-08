@@ -43,6 +43,11 @@ _WORKFLOW_DIRS = (
 # non-empty reason, so that adding one is a decision rather than a way to
 # silence this test.
 _NOT_WORKFLOW_INVOKED: dict[str, str] = {
+    "invoke_copilot_cli.py": (
+        "Library imported by invoke_claude_review.py and scripts/eval. The ai-review "
+        "action no longer calls it directly after REQ-047 (issue #6069). Covered by "
+        "tests/ci/test_invoke_copilot_cli.py."
+    ),
     "adr101_publisher_execute.py": (
         "Library imported by adr101_publisher.py, which adr101-publisher.yml "
         "invokes. Holds the execute stage. Covered by tests/ci/test_adr101_publisher_execute.py "

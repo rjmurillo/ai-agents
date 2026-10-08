@@ -1,7 +1,7 @@
 """Tests for the Copilot CLI version-pin guard (Issue #2630).
 
-The guard reads the pinned ``COPILOT_VERSION`` from
-``.github/actions/ai-review/action.yml`` and fails when the pin is missing,
+The guard reads the pinned Copilot CLI version (``COPILOT_CLI_VERSION`` in the
+CLI smoke workflow, or the shell form ``COPILOT_VERSION``) and fails when the pin is missing,
 unparseable, or on the known-bad list. ``0.0.397`` is the seed known-bad entry:
 npm flags it deprecated for "invalid session id errors", which broke the
 PR-comment-processing step of the PR Maintenance workflow.
@@ -49,6 +49,22 @@ def test_extract_version_reads_pin(tmp_path: Path) -> None:
     assert mod.extract_pinned_version(action) == "1.0.63"
 
 
+def test_extract_version_reads_yaml_env_pin(tmp_path: Path) -> None:
+    workflow = tmp_path / "wf.yml"
+    workflow.write_text(
+        "env:\n  # renovate: datasource=npm depName=@github/copilot\n"
+        "  COPILOT_CLI_VERSION: '1.0.90'\n",
+        encoding="utf-8",
+    )
+    assert mod.extract_pinned_version(workflow) == "1.0.90"
+
+
+def test_yaml_env_pin_known_bad_fails(tmp_path: Path) -> None:
+    workflow = tmp_path / "wf.yml"
+    workflow.write_text("env:\n  COPILOT_CLI_VERSION: '0.0.397'\n", encoding="utf-8")
+    assert mod.check_action(workflow) == mod.EXIT_LOGIC
+
+
 def test_extract_version_missing_pin_raises(tmp_path: Path) -> None:
     action = tmp_path / "action.yml"
     action.write_text("runs:\n  steps: []\n", encoding="utf-8")
@@ -91,7 +107,7 @@ def test_repo_action_pin_is_clean() -> None:
     version (e.g. reverts to 0.0.397) before the change reaches CI.
     """
     repo_action = (
-        Path(__file__).resolve().parents[1] / ".github" / "actions" / "ai-review" / "action.yml"
+        Path(__file__).resolve().parents[1] / ".github" / "workflows" / "nightly-cli-smoke.yml"
     )
     assert mod.check_action(repo_action) == mod.EXIT_OK
 

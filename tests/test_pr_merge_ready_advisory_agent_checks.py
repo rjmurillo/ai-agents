@@ -412,15 +412,15 @@ PROVIDER_SECRETS = {
 # no provider secret in YAML (the Copilot synthesis scripts, claude.yml's
 # action) are pinned here by name.
 EXPECTED_JOB_ENVIRONMENTS = {
-    ("ai-metrics-analysis.yml", "analyze-metrics"): "agent-copilot",
+    ("ai-metrics-analysis.yml", "analyze-metrics"): "agent-claude",
     ("ai-spec-validation.yml", "validate-spec"): "agent-claude",
-    ("artifact-insight-scanner.yml", "scan-artifacts"): "agent-copilot",
+    ("artifact-insight-scanner.yml", "scan-artifacts"): "agent-claude",
     ("claude.yml", "claude-response"): "agent-claude",
     ("copilot-context-synthesis.yml", "synthesize-single"): "agent-copilot",
     ("copilot-context-synthesis.yml", "sweep-missed"): "agent-copilot",
     ("nightly-cli-smoke.yml", "smoke"): MATRIX_ENVIRONMENT,
     ("post-pr-retrospective.yml", "retrospective"): "agent-claude",
-    ("pr-maintenance.yml", "process-prs"): "agent-copilot",
+    ("pr-maintenance.yml", "process-prs"): "agent-claude",
     ("skill-overlap-eval.yml", "run-eval"): "agent-claude",
     ("slash-command-quality.yml", "validate-slash-commands"): "agent-claude",
     ("software-engineering-library-activation.yml", "activation-gate"): "agent-claude",

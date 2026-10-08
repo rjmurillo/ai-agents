@@ -149,7 +149,6 @@ jobs:
           prompt-file: .github/prompts/spec-trace-requirements.md
           timeout-minutes: 3
           bot-pat: ${{ secrets.BOT_PAT }}
-          provider: claude
           anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
 
       - name: Report traceability check result
@@ -175,7 +174,6 @@ jobs:
           prompt-file: .github/prompts/spec-check-completeness.md
           timeout-minutes: 3
           bot-pat: ${{ secrets.BOT_PAT }}
-          provider: claude
           anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
 
       - name: Report completeness check result

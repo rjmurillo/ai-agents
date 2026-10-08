@@ -266,19 +266,28 @@ def test_main_runs_end_to_end(env, monkeypatch):
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
-def test_spec_workflow_uses_claude_and_drops_copilot_token():
-    workflow = (_REPO_ROOT / ".github/workflows/ai-spec-validation.yml").read_text(
-        encoding="utf-8"
-    )
+_CLAUDE_CALLERS = (
+    "ai-metrics-analysis.yml",
+    "artifact-insight-scanner.yml",
+    "pr-maintenance.yml",
+    "ai-spec-validation.yml",
+)
+
+
+@pytest.mark.parametrize("name", _CLAUDE_CALLERS)
+def test_ai_review_callers_use_claude_and_drop_copilot_token(name):
+    workflow = (_REPO_ROOT / ".github/workflows" / name).read_text(encoding="utf-8")
 
     assert "COPILOT_GITHUB_TOKEN" not in workflow
-    assert workflow.count("provider: claude") == 2
-    assert workflow.count("anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}") == 2
+    assert "copilot-token" not in workflow
+    assert "provider:" not in workflow
+    assert "anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}" in workflow
 
 
-def test_action_defaults_to_copilot_so_other_workflows_are_unchanged():
+def test_ai_review_action_is_claude_only():
     action = (_REPO_ROOT / ".github/actions/ai-review/action.yml").read_text(encoding="utf-8")
 
-    assert "provider:\n    description: |" in action
-    assert "default: 'copilot'" in action
-    assert "if: inputs.provider != 'claude' && steps.infra_gate.outputs.skip != 'true'" in action
+    assert "inputs.provider" not in action
+    assert "copilot-token" not in action
+    assert "id: invoke_claude" in action
+    assert "id: invoke\n" not in action
