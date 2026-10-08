@@ -235,7 +235,7 @@ Full panel. Decision 13 adds a blocking gate, so all six seats ran in parallel, 
 
 | # | Seat | Priority | Finding | Resolution |
 |---|------|----------|---------|------------|
-| 46 | critic, security | P0 | The quota marker also covered auth, transport, and rate-limit blocks, so a dead Copilot token passed. | Fixed. Only exhausted quota or credit carries the marker. Auth and rate limits fail. Negative tests pin it (D26). |
+| 46 | critic, security | P0 | The quota marker also covered auth, transport, and rate-limit blocks, so a dead Copilot token passed. | Fixed. Only exhausted quota or credit carries the marker. Auth, transport, and Copilot rate limits fail. A Claude 429 counts as quota, because the CLI reports both limits the same way. Negative tests pin it (D26). |
 | 47 | architect | P0 | ADR-094 Decision 2 named `action.yml` and the nightly as pin owners, and both became false. | Fixed. ADR-094 has a 2026-10-08 amendment. |
 | 48 | critic, security | P1 | The trusted-context gate and the result reporter ran from the pull request tree, so a fork could rewrite them. | Fixed. Both, plus the skip gate, run from the base commit with `python3 -I`. |
 | 49 | critic | P1 | Decision 13.1 claimed a pull request cannot change its own gate, but the workflow YAML comes from the head. | Fixed. The claim is narrowed, and review of the workflow diff is the stated control. |
@@ -255,7 +255,7 @@ Full panel. Decision 13 adds a blocking gate, so all six seats ran in parallel, 
 | 63 | security | P2 | Checkouts kept credentials in `.git/config`. | Fixed. Every checkout sets `persist-credentials: false`. |
 | 64 | security, critic | P2 | The marker matched as a substring, and an all-skip run could pass with zero passing tests. | Fixed. Prefix match, plus a required pass for each leg's zero-token test. |
 | 65 | security | P2 | Egress is audit-only, and the token is present while pull request code runs after approval. | Deferred. It is the Decision 10 residual. Trigger: an egress allowlist is proven on one Linux leg. |
-| 66 | independent-thinker | P2 | Claude legs depend on subscription rate limits and token expiry. | Rate limits fail and a re-run clears them (Decision 13.4). Token ownership is the owner's. |
+| 66 | independent-thinker | P2 | Claude legs depend on subscription rate limits and token expiry. | A Claude 429 is marker-skipped as quota, and an expired token fails (Decision 13.4). Token ownership is the owner's. |
 | 67 | analyst | P2 | Workflow and test comments cited "D6". | Fixed. They cite D25. |
 | 68 | architect | P2 | `ai-review` outputs keep `copilot-exit-code` and `copilot-stderr` names fed by the Claude step. | Out of scope. A rename breaks callers. Flagged in the pull request body. |
 | 69 | architect | P2 | Frontmatter date and Related Decisions were stale. | Fixed. |
