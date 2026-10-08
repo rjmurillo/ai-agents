@@ -53,7 +53,7 @@ def _agent(root: Path, name: str, fm: str) -> Path:
 
 
 def _command(root: Path, name: str, fm: str) -> Path:
-    p = root / ".claude" / "commands" / f"{name}.md"
+    p = root / ".github" / "prompts" / f"{name}.md"
     _write(p, fm)
     return p
 
@@ -215,8 +215,8 @@ def test_cost_rationale_on_not_cheaper_alias_fails(tmp_path: Path) -> None:
 
 
 def test_doc_example_files_are_ignored(tmp_path: Path) -> None:
-    # A CLAUDE.md under the commands glob must be skipped as a doc example.
-    p = tmp_path / ".claude" / "commands" / "CLAUDE.md"
+    # A CLAUDE.md under the prompts glob must be skipped as a doc example.
+    p = tmp_path / ".github" / "prompts" / "CLAUDE.md"
     _write(p, "model: claude-opus-4-6")
     report = _run(tmp_path, baseline={}, manifest=[])
     assert report.scanned == 0

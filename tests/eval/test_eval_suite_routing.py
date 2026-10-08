@@ -101,7 +101,6 @@ ROUTING_CASES = [
     ("CLAUDE.md", "entrypoints"),
     ("src/copilot-cli/lib/github_core/CLAUDE.md", "entrypoints"),
     # Prompts and scenarios, unchanged by this fix.
-    (".claude/commands/spec.md", "prompts"),
     (".github/prompts/pr-quality-gate-architect.md", "prompts"),
     ("tests/evals/rule-scenarios/code-quality.json", "scenarios"),
     # Genuinely unclassified.
@@ -251,11 +250,7 @@ def test_negative_control_reordering_skills_after_agents_breaks_references() -> 
 
 # Rows with a filesystem predicate cannot use a synthetic name, because the
 # predicate asks the tree a question about it. The representative has to be a
-# name that is still a real command mirror: `.claude/commands/<name>.md` exists
-# and `.claude/skills/<name>/` does not. ADR-064 (issue #5632) is draining that
-# set, so this moves each time one converts; it was `spec` until spec became a
-# skill. When the last mirror converts, this row has no representative left and
-# the row itself should go with it.
+# name the predicate really matches in the tree.
 # One entry per routing row that carries a predicate, since a predicate row's
 # representative path cannot be derived from its prefix and suffix alone. Empty
 # since ADR-064 removed the `command_mirrors` row; a new predicate row needs an
@@ -400,8 +395,8 @@ def test_the_command_tree_is_empty() -> None:
     """The premise behind removing the `command_mirrors` category.
 
     That category, its predicate row, and its not-evaluated reason existed only
-    for a Copilot skill generated from `.claude/commands/<name>.md` with no
-    `.claude/skills/<name>/` behind it. ADR-064 emptied that tree, so the row
+    for a Copilot skill generated from a command file with no
+    `.claude/skills/<name>/` behind it. ADR-064 removed that tree, so the row
     could never match again, and a routing row that cannot match is one the
     shadow test above cannot check. Removing it is only correct while this
     holds.
@@ -1387,7 +1382,7 @@ def test_rules_is_an_accepted_scope_value() -> None:
 # ---------------------------------------------------------------------------
 
 SCOPED_PATHS = [
-    ".claude/commands/spec.md",
+    ".github/prompts/example.md",
     ".claude/agents/implementer.md",
     ".claude/skills/analyze/SKILL.md",
     ".claude/rules/code-quality.md",

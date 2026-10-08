@@ -346,7 +346,6 @@ Changes to prompts, skills, and agent definitions can alter LLM behavior. ADR-05
 
 | Category | File Patterns |
 |----------|---------------|
-| Commands | `.claude/commands/*.md` |
 | Quality gate prompts | `.github/prompts/*.md` |
 | Security prompts | `.project-toolkit/security/prompts/*.md` |
 | Agent definitions (Claude Code) | `.claude/agents/*.md` |

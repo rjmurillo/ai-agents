@@ -29,7 +29,6 @@ _SCRIPT_DIR = Path(__file__).resolve().parent
 _REPO_ROOT = _SCRIPT_DIR.parents[1]
 
 _DEFAULT_PATTERNS = (
-    ".claude/commands/**/*.md",
     ".github/prompts/**/*.md",
     "**/SKILL.md",
     "src/copilot-cli/**/*.md",
@@ -189,8 +188,7 @@ def find_argument_hint_violations(paths: list[Path]) -> list[ArgumentHintViolati
 def _matches_default_scan(path: Path) -> bool:
     normalized = path.as_posix()
     return (
-        (normalized.startswith(".claude/commands/") and path.suffix in _MARKDOWN_SUFFIXES)
-        or (normalized.startswith(".github/prompts/") and path.suffix in _MARKDOWN_SUFFIXES)
+        (normalized.startswith(".github/prompts/") and path.suffix in _MARKDOWN_SUFFIXES)
         or path.name == "SKILL.md"
         or (normalized.startswith("src/copilot-cli/") and path.suffix in _MARKDOWN_SUFFIXES)
     )
@@ -269,7 +267,7 @@ def build_parser() -> argparse.ArgumentParser:
         nargs="*",
         help=(
             "Optional file, directory, or glob target(s). Defaults to the scan "
-            "surface in _matches_default_scan: .claude/commands/**, "
+            "surface in _matches_default_scan: "
             ".github/prompts/**, any SKILL.md, and src/copilot-cli/** markdown."
         ),
     )
