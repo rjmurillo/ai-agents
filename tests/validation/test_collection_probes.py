@@ -57,7 +57,6 @@ def test_a_broken_import_makes_the_collection_stand_in_block_the_push(
         encoding="utf-8",
     )
     monkeypatch.delenv(git_hook_policy.PYTEST_FULL_SUITE_LOCALLY_ENV, raising=False)
-    monkeypatch.setattr(git_hook_policy.select_tests, "changed_from_git", lambda *_: None)
 
     assert git_hook_policy.run_pytest(tmp_path) != 0
 
@@ -141,7 +140,6 @@ def test_the_other_probed_catch_also_blocks_the_push(
     repair = make_defect(tests_dir)
 
     monkeypatch.delenv(git_hook_policy.PYTEST_FULL_SUITE_LOCALLY_ENV, raising=False)
-    monkeypatch.setattr(git_hook_policy.select_tests, "changed_from_git", lambda *_: None)
 
     assert git_hook_policy.run_pytest(tmp_path) != 0, (
         f"collection did not block on {label}, which the docstring, the "
@@ -184,7 +182,6 @@ def test_a_same_basename_collision_goes_uncaught_under_production_config(
         (sibling / "test_dup.py").write_text("def test_ok():\n    assert True\n", encoding="utf-8")
 
     monkeypatch.delenv(git_hook_policy.PYTEST_FULL_SUITE_LOCALLY_ENV, raising=False)
-    monkeypatch.setattr(git_hook_policy.select_tests, "changed_from_git", lambda *_: None)
 
     assert git_hook_policy.run_pytest(tmp_path) == 0, (
         "a same-basename collision now blocks collection. If addopts no longer "
@@ -232,7 +229,6 @@ def test_a_claimed_miss_really_does_collect_clean(
     case.write_text(module_source, encoding="utf-8")
 
     monkeypatch.delenv(git_hook_policy.PYTEST_FULL_SUITE_LOCALLY_ENV, raising=False)
-    monkeypatch.setattr(git_hook_policy.select_tests, "changed_from_git", lambda *_: None)
 
     assert git_hook_policy.run_pytest(tmp_path) == 0, (
         f"collection now blocks on {label!r}. It is listed as a miss in "

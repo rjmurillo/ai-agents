@@ -43,8 +43,7 @@ def test_the_notice_states_every_probed_miss_not_just_the_first(
     reaches CI believing it was gated locally.
     """
     monkeypatch.delenv(git_hook_policy.PYTEST_FULL_SUITE_LOCALLY_ENV, raising=False)
-    monkeypatch.setattr(git_hook_policy.select_tests, "changed_from_git", lambda *_: None)
-    git_hook_policy._resolve_pytest_commands(tmp_path, None)
+    git_hook_policy._resolve_pytest_commands(tmp_path)
     # Whitespace-normalized: the notice hard-wraps, so a phrase can straddle a
     # newline and a plain substring check would pass or fail on wrap position.
     err = " ".join(capsys.readouterr().err.split())
@@ -184,7 +183,7 @@ def _collection_contract_surfaces(
     spelling table that has to carry each surface's capitalization stops being
     about the contract and starts being about typography.
     """
-    git_hook_policy._resolve_pytest_commands(tmp_path, None)
+    git_hook_policy._resolve_pytest_commands(tmp_path)
 
     def normalize(text: str) -> str:
         return " ".join(text.split()).lower()
@@ -217,7 +216,6 @@ def test_every_in_repo_surface_states_the_whole_collection_contract(
     could drop a class, or gain one nobody probed, without any test noticing.
     """
     monkeypatch.delenv(git_hook_policy.PYTEST_FULL_SUITE_LOCALLY_ENV, raising=False)
-    monkeypatch.setattr(git_hook_policy.select_tests, "changed_from_git", lambda *_: None)
 
     absent = _surface_not_stating(spellings, _collection_contract_surfaces(capsys, tmp_path))
     assert absent is None, (
@@ -247,7 +245,6 @@ def test_no_surface_disclaims_a_class_it_is_supposed_to_catch(
     Raised in review on PR #5319 alongside the polarity hole in the misses.
     """
     monkeypatch.delenv(git_hook_policy.PYTEST_FULL_SUITE_LOCALLY_ENV, raising=False)
-    monkeypatch.setattr(git_hook_policy.select_tests, "changed_from_git", lambda *_: None)
 
     # An optional article between the negation and the term, because the
     # surfaces write both forms. The spelling table holds bare terms ("broken
@@ -286,7 +283,6 @@ def test_the_contract_check_can_fail(
     check uses without a test that edits a tracked ADR and has to put it back.
     """
     monkeypatch.delenv(git_hook_policy.PYTEST_FULL_SUITE_LOCALLY_ENV, raising=False)
-    monkeypatch.setattr(git_hook_policy.select_tests, "changed_from_git", lambda *_: None)
 
     surfaces = _collection_contract_surfaces(capsys, tmp_path)
     assert len(surfaces) == 3, f"expected three surfaces, got {sorted(surfaces)}"
@@ -325,7 +321,6 @@ def test_deleting_a_catch_from_rule_5_is_not_masked_by_the_rest_of_the_record(
     a restatement: it fails if the surface ever widens back to the whole file.
     """
     monkeypatch.delenv(git_hook_policy.PYTEST_FULL_SUITE_LOCALLY_ENV, raising=False)
-    monkeypatch.setattr(git_hook_policy.select_tests, "changed_from_git", lambda *_: None)
 
     spellings = COLLECTION_CATCHES["a broken import"]
     record = _ADR_104.read_text(encoding="utf-8")
