@@ -1171,7 +1171,7 @@ def _is_bytecode_artifact(path: Path) -> bool:
     path must not, or restore deletes pre-existing caches; see
     :func:`_snapshot_owned_prefixes`.
     """
-    return binplace_manifest.is_bytecode_artifact(path)
+    return bool(binplace_manifest.is_bytecode_artifact(path))
 
 
 def _ignored_paths(repo_root: Path, prefixes: tuple[str, ...]) -> set[Path]:
