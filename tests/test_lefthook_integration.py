@@ -837,7 +837,7 @@ def test_actionlint_and_cli_trigger_scopes_are_native_globs() -> None:
     assert "tests/e2e/copilot_hook_probe.py" in hook_globs
     assert "tests/e2e/copilot_hook_probe.py" in plugin_globs
     assert "src/copilot-cli/hooks/**" in hook_globs
-    assert "src/copilot-cli/skills/**" in plugin_globs
+    assert "src/copilot-cli/**" in plugin_globs
 
 
 def test_autofix_and_tool_skip_conditions_are_explicit() -> None:
@@ -7418,6 +7418,39 @@ def test_cli_e2e_without_cli_fails_closed(
     monkeypatch.setattr(policy.shutil, "which", lambda _name: None)
 
     assert policy.run_cli_e2e("tests/e2e/test.py", tmp_path) == 2
+
+
+def test_cli_e2e_without_cli_names_all_three_clis(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.delenv("SKIP_CLI_E2E", raising=False)
+    monkeypatch.setattr(policy.shutil, "which", lambda _name: None)
+
+    assert policy.run_cli_e2e("tests/e2e/test.py", tmp_path) == 2
+    err = capsys.readouterr().err
+    assert "copilot" in err and "claude" in err and "codex" in err
+
+
+@pytest.mark.parametrize("cli", ["copilot", "claude", "codex"])
+def test_cli_e2e_accepts_any_one_of_the_three_clis(
+    cli: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("SKIP_CLI_E2E", raising=False)
+    monkeypatch.setattr(policy.shutil, "which", lambda name: name if name == cli else None)
+    ran: list[Sequence[str]] = []
+
+    def fake_run_command(command: Sequence[str], *_args: object, **_kwargs: object) -> object:
+        ran.append(command)
+        return _completed(0)
+
+    monkeypatch.setattr(policy, "_run_command", fake_run_command)
+
+    assert policy.run_cli_e2e("tests/e2e/test.py", tmp_path) == 0
+    assert ran, "pytest must run when the CLI is on PATH"
 
 
 def test_session_helpers_aggregate_without_blocking_advisory(

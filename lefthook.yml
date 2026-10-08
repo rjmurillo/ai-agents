@@ -725,15 +725,16 @@ pre-push:
             run: uv run --frozen python scripts/validation/git_hook_policy.py cli-plugin-e2e
             use_stdin: true
             glob:
-              - "src/claude/.claude-plugin/plugin.json"
+              - ".claude-plugin/marketplace.json"
+              - "src/claude/**"
+              - "src/copilot-cli/**"
               - ".claude/skills/**"
-              - "src/copilot-cli/.claude-plugin/plugin.json"
-              - "src/copilot-cli/skills/**"
               - "build/scripts/generate_skills.py"
               - "templates/platforms/copilot-cli.yaml"
               - "tests/e2e/test_plugin_load_smoke.py"
               - "tests/e2e/copilot_hook_probe.py"
-              - ".github/workflows/nightly-cli-smoke.yml"
+              - ".github/workflows/cli-smoke.yml"
+              - "scripts/validation/cli_smoke_paths.py"
 
           - name: bot-cascade-advisory
             timeout: 2m

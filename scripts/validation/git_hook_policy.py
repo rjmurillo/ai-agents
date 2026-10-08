@@ -46,6 +46,7 @@ from yaml.nodes import MappingNode, Node, ScalarNode, SequenceNode
 from scripts.ci import diff_line_scope
 from scripts.hook_utilities.utilities import recent_host_session_dates
 from scripts.test_selection import select_tests
+from scripts.validation import cli_smoke_paths
 from scripts.validation.evidence import (
     REASON_ADVISORY_FINDINGS,
     REASON_AUTH_UNAVAILABLE,
@@ -637,6 +638,8 @@ TEST_COLLECTION_TIMEOUT_SECONDS = 300
 # commit while costing the push minutes it does not have; see ADR-104.
 PYTEST_FULL_SUITE_LOCALLY_ENV = "AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY"
 CLI_E2E_TIMEOUT_SECONDS = 1_140
+# CLIs the local smoke can drive; any one on PATH satisfies the gate (REQ-047).
+CLI_E2E_BINARIES = ("copilot", "claude", "codex")
 # Issue #4823: direct and CI bulk pytest use xdist `auto`, one worker per
 # logical CPU. Local pre-push is different because it shares the machine with
 # sibling hook jobs, so issue #4710 adds a process-visible cap there only.
@@ -8170,9 +8173,9 @@ def run_cli_e2e(
             file=sys.stderr,
         )
         return 2
-    if shutil.which("copilot") is None and shutil.which("claude") is None:
+    if not any(shutil.which(binary) for binary in CLI_E2E_BINARIES):
         print(
-            "ERROR: CLI E2E requires either copilot or claude on PATH",
+            "ERROR: CLI E2E requires at least one of copilot, claude, or codex on PATH",
             file=sys.stderr,
         )
         return 2
@@ -8681,42 +8684,22 @@ def _any_glob_match(files: set[str], globs: Sequence[str]) -> bool:
 
 
 def _handle_cli_hook_e2e(args: argparse.Namespace) -> int:
-    # These mirror the glob: list for hook-anchoring-e2e in lefthook.yml.
-    # Keeping the list here (not in YAML) satisfies ADR-006: the guard logic
-    # lives in Python, and lefthook's glob is now a secondary filter only.
-    hook_e2e_globs = (
-        "build/scripts/generate_hooks.py",
-        "src/copilot-cli/hooks/**",
-        ".claude/hooks/**",
-        ".claude/settings.json",
-        "scripts/validation/validate_hook_anchoring.py",
-        "tests/e2e/test_cli_hook_e2e.py",
-        "tests/e2e/copilot_hook_probe.py",
-    )
+    # HOOK_E2E_GLOBS is the single source for this gate and the CI path filter
+    # (scripts/validation/cli_smoke_paths.py, REQ-047). lefthook.yml keeps a copy
+    # as its glob filter; a test fails when the two differ (ADR-006).
     repo_root = _repo_root(args)
     changed = _push_range_changed_files(sys.stdin, repo_root)
-    if changed is not None and not _any_glob_match(changed, hook_e2e_globs):
+    if changed is not None and not _any_glob_match(changed, cli_smoke_paths.HOOK_E2E_GLOBS):
         print("hook-anchoring-e2e skipped: no relevant files in push range")
         return 0
     return run_cli_e2e("tests/e2e/test_cli_hook_e2e.py", repo_root)
 
 
 def _handle_cli_plugin_e2e(args: argparse.Namespace) -> int:
-    # These mirror the glob: list for plugin-load-e2e in lefthook.yml.
-    plugin_e2e_globs = (
-        "src/claude/.claude-plugin/plugin.json",
-        ".claude/skills/**",
-        "src/copilot-cli/.claude-plugin/plugin.json",
-        "src/copilot-cli/skills/**",
-        "build/scripts/generate_skills.py",
-        "templates/platforms/copilot-cli.yaml",
-        "tests/e2e/test_plugin_load_smoke.py",
-        "tests/e2e/copilot_hook_probe.py",
-        ".github/workflows/nightly-cli-smoke.yml",
-    )
+    # PLUGIN_E2E_GLOBS mirrors the glob: list for plugin-load-e2e in lefthook.yml.
     repo_root = _repo_root(args)
     changed = _push_range_changed_files(sys.stdin, repo_root)
-    if changed is not None and not _any_glob_match(changed, plugin_e2e_globs):
+    if changed is not None and not _any_glob_match(changed, cli_smoke_paths.PLUGIN_E2E_GLOBS):
         print("plugin-load-e2e skipped: no relevant files in push range")
         return 0
     return run_cli_e2e("tests/e2e/test_plugin_load_smoke.py", repo_root)
