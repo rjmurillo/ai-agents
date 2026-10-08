@@ -4,8 +4,8 @@
   `marker_counts`, `files_by_root`, and `drift_failures` from one traversal.
 - `ref_counts` and `marker_counts` include plugin roots and `EXTRA_SCAN_ROOTS`.
 - `files_by_root` covers plugin `skills/` roots and, as of issue #5214/PR
-  #5284, every existing directory in `EXTRA_SCAN_ROOTS` (`.claude/commands`,
-  `templates/agents`, `src/copilot-cli/instructions`), not only the required
+  #5284, every existing directory in `EXTRA_SCAN_ROOTS` (`templates/agents`,
+  `src/copilot-cli/instructions`; ADR-064 removed `.claude/commands`), not only the required
   ones. `scan_all()`'s extra-dir loop populates `files_by_root[root_key]` for
   every directory `extra_scan_dirs()` returns, unconditionally:
 
@@ -24,7 +24,7 @@
   just `src/copilot-cli/instructions`) governs a separate, narrower question:
   whether `main()` exits 2 via `missing_required_extra_roots()` when that
   specific directory is absent. A non-required extra root
-  (`.claude/commands`, `templates/agents`) that happens to be missing is
+  (`templates/agents`) that happens to be missing is
   silently skipped by `extra_scan_dirs()` (a minimal clone may not have it)
   and simply does not appear as a key in `files_by_root`; a *required* root
   that is missing instead fails the run before scanning starts. Both kinds of

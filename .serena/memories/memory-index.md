@@ -61,7 +61,7 @@
 [Scripting and Testing]
 |repo-root default script REPO_ROOT __file__ scratch clone cwd: [testing/repo-root-default-measures-the-wrong-repository](testing/repo-root-default-measures-the-wrong-repository.md) (719)
 |portability git timeout diagnostics fail closed operation context: [portability/git-timeout-diagnostics](portability/git-timeout-diagnostics.md) (951)
-|portability single traversal scan_all extra scan roots files_by_root required vendor-portability marker path drift declaration fenced code: [validation/validation-portability-scan-contract](validation/validation-portability-scan-contract.md) (753)
+|portability single traversal scan_all extra scan roots files_by_root required vendor-portability marker path drift declaration fenced code: [validation/validation-portability-scan-contract](validation/validation-portability-scan-contract.md) (750)
 |portability descendant symlink file directory escape repo root: [validation/descendant-symlink-portability-containment](validation/descendant-symlink-portability-containment.md) (210)
 |detector widening corpus probe measure before design count newly flagged gate false positive: [validation/measure-a-detector-widening-before-designing-it](validation/measure-a-detector-widening-before-designing-it.md) (409)
 |shared resolver latent defect inherited second caller granularity shell comment variable binding order: [validation/reusing-a-resolver-inherits-its-latent-defects](validation/reusing-a-resolver-inherits-its-latent-defects.md) (460)
@@ -138,7 +138,6 @@
 |QA report filename issue-N pr-N rename first push glob: [ci/ci-qa-report-may-be-named-for-the-issue-not-the-pr](ci/ci-qa-report-may-be-named-for-the-issue-not-the-pr.md) (1227)
 |job name collision duplicate check name ambiguous red: [ci/ci-job-names-collide-so-a-red-check-name-is-ambiguous](ci/ci-job-names-collide-so-a-red-check-name-is-ambiguous.md) (1490)
 |AI quality gate Aggregate Results all agents NEEDS_REVIEW: [ci/ci-ai-gate-blocks-when-the-security-review-did-not-run](ci/ci-ai-gate-blocks-when-the-security-review-did-not-run.md) (2000)
-|copilot skill mirror two canonical sources generate_skills generate_commands: [copilot/copilot-skill-mirror-has-two-sources](copilot/copilot-skill-mirror-has-two-sources.md) (848)
 |mutation testing line swap stale bytecode __pycache__ false: [ci/ci-line-swap-mutations-reuse-stale-bytecode](ci/ci-line-swap-mutations-reuse-stale-bytecode.md) (834)
 |CI CD workflow actions runner ARM: [skills-ci-infrastructure-index](skills-ci-infrastructure-index.md) (1068)
 |workflow pattern composite matrix artifact verdict report: [skills-workflow-patterns-index](skills-workflow-patterns-index.md) (284)
