@@ -91,3 +91,20 @@ def test_unreadable_or_hostile_report_exits_two(kind: str, tmp_path: Path, capsy
 
     assert report_script.main([str(report), *_MARKER_ARGS]) == report_script.EXIT_CONFIG
     assert "::error::smoke quota report" in capsys.readouterr().err
+
+
+def test_reason_line_breaks_cannot_forge_a_workflow_command(tmp_path: Path, capsys: Capsys) -> None:
+    """CWE-117: a CR or LF char reference in a reason must not start a new line."""
+    case = (
+        f'<testcase classname="{sr.SMOKE_CLASS}" name="t">'
+        f'<skipped message="{sr.MARKER} quota&#10;::error::forged&#13;::warning::x"></skipped>'
+        "</testcase>"
+    )
+    report = sr.write_cases(tmp_path, case)
+
+    assert report_script.main([str(report), *_MARKER_ARGS]) == 0
+
+    out = capsys.readouterr().out
+    assert out.count("\n") == 1
+    assert "\r" not in out
+    assert "::notice::" in out

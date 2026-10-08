@@ -48,12 +48,28 @@ def quota_skips(report: Path, smoke_substr: str, marker: str) -> list[str]:
     for case in cases:
         classname, name = case.get("classname", ""), case.get("name", "")
         case_id = f"{classname}::{name}" if classname else name
-        skipped = case.find("skipped")
-        if smoke_substr in case_id and skipped is not None:
-            reason = skipped.get("message", "")
-            if reason.lstrip().startswith(marker):
-                found.append(f"{case_id} ({reason.strip()[:_MAX_REASON]})")
+        reason = _marker_skip_reason(case, marker) if smoke_substr in case_id else None
+        if reason is not None:
+            found.append(_one_line(f"{case_id} ({reason.strip()[:_MAX_REASON]})"))
     return found
+
+
+def _marker_skip_reason(case: ElementTree.Element, marker: str) -> str | None:
+    """Return the skip message when the gate would accept it, else None.
+
+    Mirrors ``assert_smoke_ran._outcome``: a failure or error child wins over a
+    skip, and the marker must be a prefix of the message.
+    """
+    if case.find("failure") is not None or case.find("error") is not None:
+        return None
+    skipped = case.find("skipped")
+    reason = skipped.get("message", "") if skipped is not None else ""
+    return reason if reason.lstrip().startswith(marker) else None
+
+
+def _one_line(text: str) -> str:
+    """Replace CR and LF so a reason cannot start a forged workflow command (CWE-117)."""
+    return text.replace("\r", " ").replace("\n", " ")
 
 
 def main(argv: list[str] | None = None) -> int:
