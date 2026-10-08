@@ -22,11 +22,13 @@
 #   - Plugin-load smoke (test_plugin_load_smoke.py, issue #2736): the shipped
 #     plugin loads in each CLI and the lifecycle skills load with no
 #     argument-hint loader warning. The Copilot gate is zero-token
-#     (`copilot skill list --json`, REQ-047 D6) and never skips on quota.
-#     Copilot prompt-based checks are best-effort: they skip with QUOTA_SKIP:
-#     when quota is spent, and only the Copilot assert steps pass
-#     --allow-skip-marker QUOTA_SKIP: so that skip is reported, not failed.
-#     Claude and Codex legs stay strict.
+#     (`copilot skill list --json`, D25) and never skips on quota.
+#     Claude and Copilot prompt-based checks are best-effort (D26): they skip
+#     with QUOTA_SKIP: only when the provider budget is spent (Copilot quota,
+#     Claude credit). Auth, rate limit, and transport blocks fail the test. The
+#     Claude and Copilot assert steps pass --allow-skip-marker QUOTA_SKIP: and
+#     --require-pass for the leg's zero-token test, so that test must PASS.
+#     The Codex leg stays strict.
 #   - Analyst contract smoke (test_plugin_load_smoke.py, issue #3918): each CLI
 #     loads the project analyst without shell tools, while an execution-agent
 #     control still reports shell.
@@ -51,6 +53,9 @@
 #   a pass in a green summary. scripts/validation/assert_smoke_ran.py parses the
 #   JUnit report and fails the job if the smoke was skipped or not collected, so
 #   a missing auth secret surfaces as a red run, not a silent green one.
+#   assert_smoke_ran.py, assert_trusted_smoke_context.py, and
+#   scripts/ci/require_job_results.py are stdlib-only and run with `python -I`
+#   from a base-commit checkout (trusted-base/), never from the pull request tree.
 #
 # Local equivalent (swap `claude` for `copilot` or `codex` to run the others):
 #   RUN_CLI_E2E=1 uv run pytest tests/e2e/test_cli_hook_e2e.py -m "smoke and claude" -v
@@ -89,6 +94,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       # REQ-047 AC12: the filter code must not come from the pull request, or a
       # fork PR could edit it to return run=false and pass the gate. Check the
@@ -134,7 +140,16 @@ jobs:
         with:
           egress-policy: audit
 
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      # The trust gate decides who gets secrets, so its code must not come from the
+      # pull request. Run it from the base commit (workflow_dispatch uses its own ref).
+      - name: Checkout trusted scripts from the base commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha || github.sha }}
+          path: trusted-base
+          sparse-checkout: scripts/validation/assert_trusted_smoke_context.py
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
 
       - name: Check trusted context
         id: gate
@@ -145,7 +160,7 @@ jobs:
           HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
           REF: ${{ github.ref }}
         run: |
-          trusted=$(python3 scripts/validation/assert_trusted_smoke_context.py \
+          trusted=$(python3 -I trusted-base/scripts/validation/assert_trusted_smoke_context.py \
             --event-name "$EVENT_NAME" \
             --repository "$REPOSITORY" \
             --head-repository "$HEAD_REPOSITORY" \
@@ -181,6 +196,19 @@ jobs:
           egress-policy: audit
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The gate decides pass or fail, so it runs from the base commit, not the pull
+      # request tree. It is stdlib-only, so `python -I` needs no environment.
+      - name: Checkout trusted scripts from the base commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha || github.sha }}
+          path: trusted-base
+          sparse-checkout: scripts/validation/assert_smoke_ran.py
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
 
       - name: Setup Python
         # yamllint disable-line rule:line-length
@@ -233,20 +261,21 @@ jobs:
       - name: Assert the hook smoke actually ran (claude)
         # always(): the gate must run even if the smoke step failed, so a skip
         # (which pytest exits 0 for) is still caught and reported as a red job.
-        # Strict: no skip is allowed on the Claude leg.
+        # The hook smoke is prompt-based, so it is best-effort (D26): a
+        # QUOTA_SKIP: skip is reported but does not fail the leg.
         if: always() && matrix.cli == 'claude'
         shell: bash
         run: >-
-          uv run python scripts/validation/assert_smoke_ran.py smoke-report.xml
-          --expected-count 1
+          python -I trusted-base/scripts/validation/assert_smoke_ran.py smoke-report.xml
+          --expected-count 1 --allow-skip-marker QUOTA_SKIP:
 
       - name: Assert the hook smoke actually ran (copilot)
         # The Copilot hook smoke is prompt-based, so it is best-effort (REQ-047
-        # D6): a QUOTA_SKIP: skip is reported but does not fail the leg.
+        # D26): a QUOTA_SKIP: skip is reported but does not fail the leg.
         if: always() && matrix.cli == 'copilot'
         shell: bash
         run: >-
-          uv run python scripts/validation/assert_smoke_ran.py smoke-report.xml
+          python -I trusted-base/scripts/validation/assert_smoke_ran.py smoke-report.xml
           --expected-count 1 --allow-skip-marker QUOTA_SKIP:
 
       - name: Run real-CLI plugin-load smoke (claude)
@@ -271,14 +300,17 @@ jobs:
 
       - name: Assert the plugin-load smoke actually ran (claude)
         # always(): a silent skip of the plugin-load smoke must also fail the job.
-        # Strict: no skip is allowed on the Claude leg.
+        # The zero-token `plugin list` / `plugin details` test must PASS; the
+        # prompt-based agent probes may skip with QUOTA_SKIP: (D26).
         if: always() && matrix.cli == 'claude'
         shell: bash
         run: >-
-          uv run python scripts/validation/assert_smoke_ran.py
+          python -I trusted-base/scripts/validation/assert_smoke_ran.py
           plugin-load-report.xml
           --smoke-substr test_plugin_load_smoke
           --expected-count 4
+          --allow-skip-marker QUOTA_SKIP:
+          --require-pass test_claude_plugin_loads_expected_skills
 
       - name: Assert the plugin-load smoke actually ran (copilot)
         # The zero-token skill-list test is the gate and never skips on quota.
@@ -286,11 +318,12 @@ jobs:
         if: always() && matrix.cli == 'copilot'
         shell: bash
         run: >-
-          uv run python scripts/validation/assert_smoke_ran.py
+          python -I trusted-base/scripts/validation/assert_smoke_ran.py
           plugin-load-report.xml
           --smoke-substr test_plugin_load_smoke
           --expected-count 5
           --allow-skip-marker QUOTA_SKIP:
+          --require-pass test_copilot_plugin_loads_expected_skills
 
       # Issue #3324: the isolation fix this covers is Windows-specific
       # (Path.home() reads USERPROFILE first), and the test skips without the
@@ -318,7 +351,7 @@ jobs:
         if: always() && matrix.cli == 'copilot'
         shell: bash
         run: >-
-          uv run python scripts/validation/assert_smoke_ran.py
+          python -I trusted-base/scripts/validation/assert_smoke_ran.py
           install-isolation-report.xml
           --smoke-substr TestCopilotBinaryInstall
           --expected-count 1
@@ -350,6 +383,19 @@ jobs:
           egress-policy: audit
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The gate decides pass or fail, so it runs from the base commit, not the pull
+      # request tree. It is stdlib-only, so `python -I` needs no environment.
+      - name: Checkout trusted scripts from the base commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha || github.sha }}
+          path: trusted-base
+          sparse-checkout: scripts/validation/assert_smoke_ran.py
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
 
       - name: Setup Python
         # yamllint disable-line rule:line-length
@@ -384,10 +430,11 @@ jobs:
         if: always()
         shell: bash
         run: >-
-          uv run python scripts/validation/assert_smoke_ran.py
+          python -I trusted-base/scripts/validation/assert_smoke_ran.py
           plugin-load-report.xml
           --smoke-substr test_plugin_load_smoke
           --expected-count 1
+          --require-pass test_codex_plugin_loads_expected_skills
 
   smoke-result:
     name: CLI Smoke Result
@@ -402,12 +449,16 @@ jobs:
       contents: read
     steps:
       # The reporter is a repo script, so this job needs it on disk. Without
-      # this the step died with Errno 2 and masked the real smoke result.
-      - name: Checkout reporter script
+      # this the step died with Errno 2 and masked the real smoke result. It
+      # decides the required check, so it comes from the base commit.
+      - name: Checkout reporter script from the base commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
+          ref: ${{ github.event.pull_request.base.sha || github.sha }}
+          path: trusted-base
           sparse-checkout: scripts/ci/require_job_results.py
           sparse-checkout-cone-mode: false
+          persist-credentials: false
 
       - name: Report
         shell: bash
@@ -419,7 +470,7 @@ jobs:
           SMOKE_RESULT: ${{ needs.smoke.result }}
           CODEX_RESULT: ${{ needs.smoke-codex.result }}
         run: |
-          python3 scripts/ci/require_job_results.py \
+          python3 -I trusted-base/scripts/ci/require_job_results.py \
             --check CHANGES_RESULT success \
               "Smoke path filter result: {value}" \
             --skip-when RUN false \

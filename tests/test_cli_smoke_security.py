@@ -12,6 +12,7 @@ message naming the fork (REQ-047 AC12).
 
 from __future__ import annotations
 
+import ast
 import os
 import re
 import shlex
@@ -268,17 +269,47 @@ def _gate_arguments(step: dict[str, Any]) -> list[str]:
     return shlex.split(step["run"])
 
 
-@pytest.mark.parametrize("gates", [HOOK_GATE, PLUGIN_GATE], ids=["hook", "plugin"])
-def test_only_the_copilot_gates_allow_the_quota_skip_marker(
-    smoke_job: dict[str, Any], gates: dict[str, str]
-) -> None:
-    """REQ-047 D6: Copilot prompt checks are best-effort; Claude stays strict."""
-    copilot = _gate_arguments(_step_by_name(smoke_job, gates["copilot"]))
-    claude = _gate_arguments(_step_by_name(smoke_job, gates["claude"]))
+ZERO_TOKEN_TEST = {
+    "claude": "test_claude_plugin_loads_expected_skills",
+    "copilot": "test_copilot_plugin_loads_expected_skills",
+}
 
-    assert copilot.count("--allow-skip-marker") == 1
-    assert copilot[copilot.index("--allow-skip-marker") + 1] == QUOTA_SKIP_MARKER
-    assert "--allow-skip-marker" not in claude
+
+def _option_values(arguments: list[str], option: str) -> list[str]:
+    return [arguments[i + 1] for i, value in enumerate(arguments) if value == option]
+
+
+@pytest.mark.parametrize("cli", CLIS)
+@pytest.mark.parametrize("gates", [HOOK_GATE, PLUGIN_GATE], ids=["hook", "plugin"])
+def test_claude_and_copilot_gates_allow_the_quota_skip_marker(
+    smoke_job: dict[str, Any], gates: dict[str, str], cli: str
+) -> None:
+    """D26: budget exhaustion is an accepted gap for every provider's prompt checks."""
+    arguments = _gate_arguments(_step_by_name(smoke_job, gates[cli]))
+
+    assert _option_values(arguments, "--allow-skip-marker") == [QUOTA_SKIP_MARKER]
+
+
+@pytest.mark.parametrize("cli", CLIS)
+def test_plugin_load_gate_requires_the_zero_token_test_to_pass(
+    smoke_job: dict[str, Any], cli: str
+) -> None:
+    """The zero-token load test must PASS, so a quota skip cannot make the leg green."""
+    arguments = _gate_arguments(_step_by_name(smoke_job, PLUGIN_GATE[cli]))
+
+    assert _option_values(arguments, "--require-pass") == [ZERO_TOKEN_TEST[cli]]
+
+
+@pytest.mark.parametrize("cli", CLIS)
+def test_required_zero_token_test_exists_and_never_skips_on_quota(cli: str) -> None:
+    """Guard: the required id names a real test that does not call a skip classifier."""
+    source = (REPO_ROOT / SMOKE_FILES["plugin"]).read_text(encoding="utf-8")
+    name = ZERO_TOKEN_TEST[cli]
+    match = re.search(rf"^def {name}\(.*?(?=^def |\Z)", source, re.DOTALL | re.MULTILINE)
+
+    assert match is not None
+    assert "_skip_on_" not in match.group(0)
+    assert "_skip_or_fail_" not in match.group(0)
 
 
 def test_codex_and_install_isolation_gates_stay_strict(
@@ -290,6 +321,9 @@ def test_codex_and_install_isolation_gates_stay_strict(
 
     assert "--allow-skip-marker" not in codex_gate["run"]
     assert "--allow-skip-marker" not in install_gate["run"]
+    assert "--require-pass test_codex_plugin_loads_expected_skills" in " ".join(
+        codex_gate["run"].split()
+    )
 
 
 def test_the_marker_matches_the_one_the_tests_skip_with() -> None:
@@ -590,3 +624,83 @@ def test_result_job_filter_failure_is_not_skippable(workflow_doc: dict[Any, Any]
 
 def test_nightly_workflow_is_removed() -> None:
     assert not (REPO_ROOT / ".github" / "workflows" / "nightly-cli-smoke.yml").exists()
+
+
+# ---------------------------------------------------------------------------
+# Trusted scripts and checkout hygiene
+# ---------------------------------------------------------------------------
+
+TRUSTED_SCRIPTS = (
+    "assert_trusted_smoke_context.py",
+    "require_job_results.py",
+    "assert_smoke_ran.py",
+)
+
+
+def _run_lines(workflow_doc: dict[Any, Any]) -> list[tuple[str, str]]:
+    return [
+        (job_name, line)
+        for job_name, job in workflow_doc["jobs"].items()
+        for step in job["steps"]
+        for line in str(step.get("run", "")).splitlines()
+    ]
+
+
+@pytest.mark.parametrize("script", TRUSTED_SCRIPTS)
+def test_trusted_scripts_run_only_from_the_base_checkout_in_isolated_mode(
+    workflow_doc: dict[Any, Any], script: str
+) -> None:
+    """P1: a pull request cannot edit the gate that judges it."""
+    invocations = [
+        (job, line) for job, line in _run_lines(workflow_doc) if script in line
+    ]
+
+    assert invocations, script
+    for job, line in invocations:
+        match = re.search(r"(?:^|[\s(])python3? -I (\S+)", line)
+        assert match is not None, (job, line)
+        assert match.group(1).startswith(f"{BASE_CHECKOUT_PATH}/"), (job, line)
+        assert "uv run" not in line, (job, line)
+
+
+@pytest.mark.parametrize("script", TRUSTED_SCRIPTS)
+def test_every_job_that_runs_a_trusted_script_checks_it_out_from_the_base(
+    workflow_doc: dict[Any, Any], script: str
+) -> None:
+    for job_name, job in workflow_doc["jobs"].items():
+        runs_it = any(script in str(step.get("run", "")) for step in job["steps"])
+        if not runs_it:
+            continue
+        bases = [
+            c["with"]
+            for c in _checkouts(job)
+            if c.get("with", {}).get("path") == BASE_CHECKOUT_PATH
+        ]
+        assert any(
+            "github.event.pull_request.base.sha" in b["ref"] and script in b["sparse-checkout"]
+            for b in bases
+        ), (job_name, script)
+
+
+@pytest.mark.parametrize("script", TRUSTED_SCRIPTS)
+def test_trusted_scripts_import_only_the_standard_library(script: str) -> None:
+    """`python -I` runs without the project environment, so third-party imports break."""
+    path = next(REPO_ROOT.glob(f"scripts/**/{script}"))
+    modules = {
+        node.module.split(".")[0] if isinstance(node, ast.ImportFrom) else alias.name.split(".")[0]
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8")))
+        if isinstance(node, (ast.Import, ast.ImportFrom))
+        for alias in (node.names if isinstance(node, ast.Import) else [None])
+        if not (isinstance(node, ast.ImportFrom) and node.level)
+    }
+
+    assert modules <= set(sys.stdlib_module_names), modules - set(sys.stdlib_module_names)
+
+
+def test_every_checkout_drops_persisted_credentials(workflow_doc: dict[Any, Any]) -> None:
+    """P2: no later step in a job can reuse the checkout token."""
+    checkouts = [c for job in workflow_doc["jobs"].values() for c in _checkouts(job)]
+
+    assert checkouts
+    for checkout in checkouts:
+        assert checkout.get("with", {}).get("persist-credentials") is False, checkout
