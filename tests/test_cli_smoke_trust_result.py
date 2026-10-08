@@ -45,7 +45,7 @@ def test_result_job_checks_every_leg_and_names_the_fork(workflow_doc: dict[Any, 
     assert "--skip-when RUN false" in report["run"]
     assert "TRUSTED true" in report["run"]
     assert "fork pull request" in report["run"]
-    assert "require_job_results.py" in report["run"]
+    assert "smoke_result.py" in report["run"]
 
 
 def test_result_job_filter_failure_is_not_skippable(workflow_doc: dict[Any, Any]) -> None:

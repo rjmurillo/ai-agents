@@ -56,34 +56,6 @@ def test_main_honors_custom_smoke_substr(tmp_path: Path) -> None:
     assert assert_smoke_ran.main(argv) == EXIT_OK
 
 
-def test_main_writes_a_step_summary_line_when_marker_skips_were_allowed(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: Capsys
-) -> None:
-    summary = tmp_path / "summary.md"
-    monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary))
-    report = sr.write_cases(
-        tmp_path, sr.smoke_passed("test_zero_token"), sr.smoke_marker_skipped("test_prompt_probe")
-    )
-
-    assert assert_smoke_ran.main([str(report), *_TWO_CASES]) == EXIT_OK
-    text = summary.read_text(encoding="utf-8")
-    assert "quota-skipped" in text
-    assert "test_prompt_probe" in text
-    assert "::notice::" in capsys.readouterr().out
-
-
-def test_main_writes_no_summary_when_nothing_was_skipped(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    summary = tmp_path / "summary.md"
-    monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary))
-    report = sr.write_cases(tmp_path, sr.smoke_passed("test_zero_token"))
-    argv = [str(report), "--expected-count", "1", "--allow-skip-marker", sr.MARKER]
-
-    assert assert_smoke_ran.main(argv) == EXIT_OK
-    assert not summary.exists()
-
-
 @pytest.mark.parametrize(
     ("required", "expected_code"),
     [(["test_a"], EXIT_OK), (["test_a", "test_b"], EXIT_NOT_RUN)],

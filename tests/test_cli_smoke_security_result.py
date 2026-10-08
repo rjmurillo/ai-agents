@@ -15,7 +15,7 @@ from tests.lib.cli_smoke_workflow import (
     CLIS,
     PLUGIN_GATE,
     _expected_count,
-    _gate_arguments,
+    _run_commands,
     _step_by_name,
 )
 
@@ -25,7 +25,7 @@ pytest_plugins = ["tests.lib.cli_smoke_fixtures"]
 @pytest.mark.parametrize("cli", CLIS)
 def test_plugin_load_gate_matches_its_file(smoke_job: dict[str, Any], cli: str) -> None:
     """Edge: the plugin-load gate filters on the plugin-load smoke module."""
-    arguments = _gate_arguments(_step_by_name(smoke_job, PLUGIN_GATE[cli]))
+    arguments = _run_commands(_step_by_name(smoke_job, PLUGIN_GATE[cli]))[0]
 
     assert arguments.count("--smoke-substr") == 1
     assert arguments[arguments.index("--smoke-substr") + 1] == "test_plugin_load_smoke"
@@ -90,13 +90,19 @@ def test_result_job_hardens_the_runner(workflow_doc: dict[Any, Any]) -> None:
 def test_prompt_based_gates_record_the_quota_skip_count(
     smoke_job: dict[str, Any], cli: str
 ) -> None:
-    """Gate 6: every gate that allows QUOTA_SKIP: also writes the per-leg count file."""
+    """Gate 6: a gate that allows QUOTA_SKIP: is followed by a report of the same report file."""
     for step in smoke_job["steps"]:
         name = str(step.get("name", ""))
         if name.startswith("Assert the ") and f"({cli})" in name:
-            arguments = _gate_arguments(step)
-            assert "--allow-skip-marker" in arguments, name
-            assert arguments[arguments.index("--skip-count-file") + 1] == "quota-skips.txt", name
+            gate, report = _run_commands(step)[:2]
+            assert "--allow-skip-marker" in gate, name
+            assert report[2] == "trusted-base/scripts/validation/smoke_quota_report.py", name
+            assert report[3] == gate[3], name
+            assert report[report.index("--skip-count-file") + 1] == "quota-skips.txt", name
+            assert "--skip-count-file" not in gate, name
+            for option in ("--allow-skip-marker", "--smoke-substr"):
+                if option in gate:
+                    assert report[report.index(option) + 1] == gate[gate.index(option) + 1], name
 
 
 def test_result_job_downloads_and_sums_the_quota_skip_counts(

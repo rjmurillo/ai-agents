@@ -1,4 +1,4 @@
-"""Skippable-check tests for scripts/ci/require_job_results.py.
+"""Skippable-check tests for scripts/validation/smoke_result.py.
 
 A path-filtered workflow skips its smoke legs when no smoke path changed, while
 a failed filter job must still fail the summary.
@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 
-from scripts.ci.require_job_results import main
+from scripts.validation.smoke_result import main
 
 _SKIP_ARGS = [
     *("--check", "CHANGES_RESULT", "success", "filter result: {value}"),

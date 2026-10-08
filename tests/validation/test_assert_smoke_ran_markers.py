@@ -33,8 +33,8 @@ def test_marker_skip_is_allowed_and_reported_with_the_flag(tmp_path: Path, capsy
 
     assert assert_smoke_ran.main(argv) == EXIT_OK
     out = capsys.readouterr().out
-    assert "test_prompt_probe" in out
-    assert "QUOTA_SKIP:" in out
+    assert "1 smoke test(s) ran and passed" in out
+    assert "test_prompt_probe" not in out
 
 
 def test_marker_skip_without_the_flag_fails(tmp_path: Path, capsys: Capsys) -> None:

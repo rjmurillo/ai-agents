@@ -107,8 +107,10 @@ def _expected_count(step: dict[str, Any]) -> int:
     return int(arguments[arguments.index("--expected-count") + 1])
 
 
-def _gate_arguments(step: dict[str, Any]) -> list[str]:
-    return shlex.split(step["run"])
+def _run_commands(step: dict[str, Any]) -> list[list[str]]:
+    """Split a step's ``run`` into one argv list per command (continuations joined)."""
+    joined = step["run"].replace("\\\n", " ")
+    return [shlex.split(line) for line in joined.splitlines() if line.strip()]
 
 
 def _checkouts(job: dict[str, Any]) -> list[dict[str, Any]]:

@@ -1,19 +1,26 @@
 """Tests for scripts/ci/require_job_results.py.
 
-Covers the summary-job gate first extracted from the nightly CLI smoke and now
-used by plugin-cli-smoke.yml. The inline shell read `needs.*` results from the
-environment and exited 1 on the first mismatch. These tests pin the
-replacement contract: every check is evaluated so one run
+Covers the summary-job gate extracted from nightly-cli-smoke.yml, which read
+`needs.*` results from the environment and exited 1 on the first mismatch.
+These tests pin the replacement contract: every check is evaluated so one run
 reports all failures, an unset variable fails its check rather than passing
 silently, and `{value}` interpolation reproduces the original annotations.
-Sibling files cover skippable checks, result annotations, and count notes.
 """
 
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
 import pytest
 
-from scripts.ci.require_job_results import failures, main
+_SCRIPTS_CI = Path(__file__).resolve().parent.parent.parent / "scripts" / "ci"
+_original_path = sys.path.copy()
+try:
+    sys.path.insert(0, str(_SCRIPTS_CI))
+    from require_job_results import failures, main
+finally:
+    sys.path[:] = _original_path
 
 
 def test_all_checks_match_returns_success(
@@ -23,16 +30,9 @@ def test_all_checks_match_returns_success(
     monkeypatch.setenv("B", "true")
     rc = main(
         [
-            "--check",
-            "A",
-            "success",
-            "a failed",
-            "--check",
-            "B",
-            "true",
-            "b failed",
-            "--success-message",
-            "all green",
+            "--check", "A", "success", "a failed",
+            "--check", "B", "true", "b failed",
+            "--success-message", "all green",
         ]
     )
     assert rc == 0
@@ -53,7 +53,9 @@ def test_reports_every_failure_not_just_the_first(
 ) -> None:
     monkeypatch.setenv("A", "failure")
     monkeypatch.setenv("B", "false")
-    rc = main(["--check", "A", "success", "a bad", "--check", "B", "true", "b bad"])
+    rc = main(
+        ["--check", "A", "success", "a bad", "--check", "B", "true", "b bad"]
+    )
     out = capsys.readouterr().out
     assert rc == 1
     assert "::error::a bad" in out

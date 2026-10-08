@@ -1,4 +1,4 @@
-"""Failure-annotation tests for scripts/ci/require_job_results.py.
+"""Failure-annotation tests for scripts/validation/smoke_result.py.
 
 A failing `failure`, `cancelled`, or `skipped` result names the variable, the
 likely cause, and the next action. Other values keep the bare message.
@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 
-from scripts.ci.require_job_results import failing_checks, main
+from scripts.validation.smoke_result import failing_checks, main
 
 
 @pytest.mark.parametrize(
@@ -41,7 +41,21 @@ def test_other_values_keep_the_bare_message(
     assert capsys.readouterr().out.splitlines() == ["::error::x bad"]
 
 
-def test_failing_checks_returns_name_value_and_message() -> None:
-    result = failing_checks([("A", "success", "a {value}")], {"A": "failure"})
-    assert result == [("A", "failure", "a failure")]
+def test_failing_checks_returns_the_annotation_and_nothing_for_a_match() -> None:
+    (line,) = failing_checks([("A", "success", "a {value}")], {"A": "failure"})
+
+    assert line.startswith("a failure [A=failure] Cause:")
     assert failing_checks([("A", "success", "a")], {"A": "success"}) == []
+
+
+def test_failing_checks_preserves_check_order() -> None:
+    checks = [
+        ("A", "success", "first"),
+        ("B", "success", "second"),
+        ("C", "success", "third"),
+    ]
+    assert failing_checks(checks, {"B": "success"}) == ["first", "third"]
+
+
+def test_empty_expected_matches_unset_variable() -> None:
+    assert failing_checks([("X", "", "unset ok")], {}) == []

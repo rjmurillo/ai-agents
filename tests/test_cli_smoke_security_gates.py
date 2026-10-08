@@ -20,7 +20,7 @@ from tests.lib.cli_smoke_workflow import (
     SMOKE_FILES,
     _collected_count,
     _expected_count,
-    _gate_arguments,
+    _run_commands,
     _step_by_name,
 )
 
@@ -68,7 +68,7 @@ def test_claude_and_copilot_gates_allow_the_quota_skip_marker(
     smoke_job: dict[str, Any], gates: dict[str, str], cli: str
 ) -> None:
     """D26: budget exhaustion is an accepted gap for every provider's prompt checks."""
-    arguments = _gate_arguments(_step_by_name(smoke_job, gates[cli]))
+    arguments = _run_commands(_step_by_name(smoke_job, gates[cli]))[0]
 
     assert _option_values(arguments, "--allow-skip-marker") == [QUOTA_SKIP_MARKER]
 
@@ -78,7 +78,7 @@ def test_plugin_load_gate_requires_the_zero_token_test_to_pass(
     smoke_job: dict[str, Any], cli: str
 ) -> None:
     """The zero-token load test must PASS, so a quota skip cannot make the leg green."""
-    arguments = _gate_arguments(_step_by_name(smoke_job, PLUGIN_GATE[cli]))
+    arguments = _run_commands(_step_by_name(smoke_job, PLUGIN_GATE[cli]))[0]
 
     assert _option_values(arguments, "--require-pass") == [ZERO_TOKEN_TEST[cli]]
 

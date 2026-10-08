@@ -1,4 +1,4 @@
-"""Quota-skip count tests for scripts/ci/require_job_results.py.
+"""Quota-skip count tests for scripts/validation/smoke_result.py.
 
 `--count-dir` sums the per-leg counts and swaps the success message for the
 count message when the total is above zero.
@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from scripts.ci.require_job_results import main, sum_counts
+from scripts.validation.smoke_result import main, sum_counts
 
 
 def test_sum_counts_adds_every_file_and_ignores_missing_dir(tmp_path: Path) -> None:

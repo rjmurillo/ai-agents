@@ -24,8 +24,9 @@ pytest_plugins = ["tests.lib.cli_smoke_fixtures"]
 
 TRUSTED_SCRIPTS = (
     "assert_trusted_smoke_context.py",
-    "require_job_results.py",
+    "smoke_result.py",
     "assert_smoke_ran.py",
+    "smoke_quota_report.py",
 )
 
 

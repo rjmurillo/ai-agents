@@ -54,11 +54,12 @@
 #   a pass in a green summary. scripts/validation/assert_smoke_ran.py parses the
 #   JUnit report and fails the job if the smoke was skipped or not collected, so
 #   a missing auth secret surfaces as a red run, not a silent green one.
-#   assert_smoke_ran.py, assert_trusted_smoke_context.py, and
-#   scripts/ci/require_job_results.py are stdlib-only and run with `python -I`
+#   assert_smoke_ran.py, smoke_quota_report.py, assert_trusted_smoke_context.py,
+#   and scripts/validation/smoke_result.py are stdlib-only and run with `python -I`
 #   from a base-commit checkout (trusted-base/), never from the pull request tree.
 #
-# Observability: the Claude and Copilot assert steps pass --skip-count-file, each
+# Observability: after each Claude and Copilot gate, smoke_quota_report.py appends
+# the quota-skip count to a file (--skip-count-file), each
 # leg uploads the count as a quota-skips-<cli>-<os> artifact, and "CLI Smoke
 # Result" downloads them and prints "passed with N prompt checks quota-skipped"
 # when N is above zero, instead of a plain pass. A matrix job cannot expose one
@@ -216,7 +217,9 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.base.sha || github.sha }}
           path: trusted-base
-          sparse-checkout: scripts/validation/assert_smoke_ran.py
+          sparse-checkout: |
+            scripts/validation/assert_smoke_ran.py
+            scripts/validation/smoke_quota_report.py
           sparse-checkout-cone-mode: false
           persist-credentials: false
 
@@ -275,20 +278,26 @@ jobs:
         # QUOTA_SKIP: skip is reported but does not fail the leg.
         if: always() && matrix.cli == 'claude'
         shell: bash
-        run: >-
-          python -I trusted-base/scripts/validation/assert_smoke_ran.py smoke-report.xml
-          --expected-count 1 --allow-skip-marker QUOTA_SKIP:
-          --skip-count-file quota-skips.txt
+        run: |
+          python -I trusted-base/scripts/validation/assert_smoke_ran.py smoke-report.xml \
+            --expected-count 1 \
+            --allow-skip-marker QUOTA_SKIP:
+          python -I trusted-base/scripts/validation/smoke_quota_report.py smoke-report.xml \
+            --allow-skip-marker QUOTA_SKIP: \
+            --skip-count-file quota-skips.txt
 
       - name: Assert the hook smoke actually ran (copilot)
         # The Copilot hook smoke is prompt-based, so it is best-effort (REQ-047
         # D26): a QUOTA_SKIP: skip is reported but does not fail the leg.
         if: always() && matrix.cli == 'copilot'
         shell: bash
-        run: >-
-          python -I trusted-base/scripts/validation/assert_smoke_ran.py smoke-report.xml
-          --expected-count 1 --allow-skip-marker QUOTA_SKIP:
-          --skip-count-file quota-skips.txt
+        run: |
+          python -I trusted-base/scripts/validation/assert_smoke_ran.py smoke-report.xml \
+            --expected-count 1 \
+            --allow-skip-marker QUOTA_SKIP:
+          python -I trusted-base/scripts/validation/smoke_quota_report.py smoke-report.xml \
+            --allow-skip-marker QUOTA_SKIP: \
+            --skip-count-file quota-skips.txt
 
       - name: Run real-CLI plugin-load smoke (claude)
         # always(): run even if the hook smoke step failed so both smokes report.
@@ -316,28 +325,32 @@ jobs:
         # prompt-based agent probes may skip with QUOTA_SKIP: (D26).
         if: always() && matrix.cli == 'claude'
         shell: bash
-        run: >-
-          python -I trusted-base/scripts/validation/assert_smoke_ran.py
-          plugin-load-report.xml
-          --smoke-substr test_plugin_load_smoke
-          --expected-count 4
-          --allow-skip-marker QUOTA_SKIP:
-          --skip-count-file quota-skips.txt
-          --require-pass test_claude_plugin_loads_expected_skills
+        run: |
+          python -I trusted-base/scripts/validation/assert_smoke_ran.py plugin-load-report.xml \
+            --smoke-substr test_plugin_load_smoke \
+            --expected-count 4 \
+            --allow-skip-marker QUOTA_SKIP: \
+            --require-pass test_claude_plugin_loads_expected_skills
+          python -I trusted-base/scripts/validation/smoke_quota_report.py plugin-load-report.xml \
+            --smoke-substr test_plugin_load_smoke \
+            --allow-skip-marker QUOTA_SKIP: \
+            --skip-count-file quota-skips.txt
 
       - name: Assert the plugin-load smoke actually ran (copilot)
         # The zero-token skill-list test is the gate and never skips on quota.
         # The prompt-based tests are best-effort and may skip with QUOTA_SKIP:.
         if: always() && matrix.cli == 'copilot'
         shell: bash
-        run: >-
-          python -I trusted-base/scripts/validation/assert_smoke_ran.py
-          plugin-load-report.xml
-          --smoke-substr test_plugin_load_smoke
-          --expected-count 5
-          --allow-skip-marker QUOTA_SKIP:
-          --skip-count-file quota-skips.txt
-          --require-pass test_copilot_plugin_loads_expected_skills
+        run: |
+          python -I trusted-base/scripts/validation/assert_smoke_ran.py plugin-load-report.xml \
+            --smoke-substr test_plugin_load_smoke \
+            --expected-count 5 \
+            --allow-skip-marker QUOTA_SKIP: \
+            --require-pass test_copilot_plugin_loads_expected_skills
+          python -I trusted-base/scripts/validation/smoke_quota_report.py plugin-load-report.xml \
+            --smoke-substr test_plugin_load_smoke \
+            --allow-skip-marker QUOTA_SKIP: \
+            --skip-count-file quota-skips.txt
 
       # Issue #3324: the isolation fix this covers is Windows-specific
       # (Path.home() reads USERPROFILE first), and the test skips without the
@@ -489,7 +502,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.base.sha || github.sha }}
           path: trusted-base
-          sparse-checkout: scripts/ci/require_job_results.py
+          sparse-checkout: scripts/validation/smoke_result.py
           sparse-checkout-cone-mode: false
           persist-credentials: false
 
@@ -513,7 +526,7 @@ jobs:
           SMOKE_RESULT: ${{ needs.smoke.result }}
           CODEX_RESULT: ${{ needs.smoke-codex.result }}
         run: |
-          python3 -I trusted-base/scripts/ci/require_job_results.py \
+          python3 -I trusted-base/scripts/validation/smoke_result.py \
             --check CHANGES_RESULT success \
               "Smoke path filter result: {value}" \
             --skip-when RUN false \

@@ -1,6 +1,6 @@
 """Shared JUnit-report builders for the smoke-ran gate tests.
 
-``scripts/validation/assert_smoke_ran.py`` is stdlib-only and is run by path
+The ``assert_smoke_ran.py`` and ``smoke_quota_report.py`` scripts are stdlib-only and run by path
 (``python -I``), so tests load it by path too instead of importing a package.
 """
 
@@ -11,18 +11,23 @@ from functools import partial
 from pathlib import Path
 from types import ModuleType
 
-GATE_PATH = Path(__file__).resolve().parents[2] / "scripts" / "validation" / "assert_smoke_ran.py"
+SCRIPTS = Path(__file__).resolve().parents[2] / "scripts" / "validation"
 SMOKE_CLASS = "tests.e2e.test_cli_hook_e2e"
 MARKER = "QUOTA_SKIP:"
 
 
-def load_gate() -> ModuleType:
-    """Load the gate script as a module without putting scripts/ on sys.path."""
-    spec = importlib.util.spec_from_file_location("assert_smoke_ran", GATE_PATH)
+def load_script(name: str) -> ModuleType:
+    """Load ``scripts/validation/<name>.py`` as a module without putting scripts/ on sys.path."""
+    path = SCRIPTS / f"{name}.py"
+    spec = importlib.util.spec_from_file_location(name, path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+def load_gate() -> ModuleType:
+    return load_script("assert_smoke_ran")
 
 
 def write_report(tmp_path: Path, cases_xml: str, *, wrap: bool = False) -> Path:
