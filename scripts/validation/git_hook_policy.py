@@ -44,6 +44,7 @@ import yaml
 from yaml.nodes import MappingNode, Node, ScalarNode, SequenceNode
 
 from scripts.ci import diff_line_scope
+from scripts.ci.run_pytest_partition import PYTEST_DIST_MODE
 from scripts.hook_utilities.utilities import recent_host_session_dates
 from scripts.test_selection import select_tests
 from scripts.validation.evidence import (
@@ -649,10 +650,6 @@ PYTEST_WORKERS_ENV = "AI_AGENTS_PYTEST_WORKERS"
 # subprocess tests until their 15-second caps fired. The cap never exceeds the
 # host's visible CPU count, and an explicit PYTEST_WORKERS_ENV value wins.
 PYTEST_WORKER_CAP_ENV = "AI_AGENTS_PYTEST_WORKER_CAP"
-# `loadfile` sends every test in one file to one worker. That is the weakest
-# distribution mode xdist offers and the point: module-scoped fixtures, module
-# state, and file-local temp directories keep behaving the way they do serially.
-PYTEST_DIST_MODE = "loadfile"
 SKIPPED_DASH_PREFIXES = (
     "node_modules/",
     ".venv/",
