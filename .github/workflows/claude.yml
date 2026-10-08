@@ -82,6 +82,12 @@ jobs:
     runs-on: ubuntu-latest
     environment: agent-claude
     if: needs.check-authorization.outputs.authorized == 'true'
+    # One authorized Claude run per issue or pull request (ADR-114). A newer
+    # waiting run replaces an older one, so approvals do not pile up. Running
+    # work is never cancelled, so a Claude commit or comment is never cut off.
+    concurrency:
+      group: claude-response-${{ github.event.issue.number || github.event.pull_request.number || github.run_id }}
+      cancel-in-progress: false
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
