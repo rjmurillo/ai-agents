@@ -15,9 +15,9 @@
 Why this exists separately from ``check_skill_md_portability.py``:
 
   That validator is a baselined ratchet over skill *prose*, scoped to
-  ``.claude/skills``. Three of the four surfaces the plugin-self-containment
-  rule names are outside its scan (``.claude/commands``, ``src/claude``,
-  ``src/copilot-cli``), and its pattern set does not include ``docs/``. A
+  ``.claude/skills``. Surfaces the plugin-self-containment rule names sit
+  outside its scan (``src/claude`` and ``src/copilot-cli``; ``.claude/commands``
+  was a third until ADR-064 retired it), and its pattern set lacks ``docs/``. A
   ``docs/`` reference in a shipped frontmatter description therefore passes
   every gate in this repository, wherever it sits. Two were sitting in the
   tree, both older than the rule that forbids them.
