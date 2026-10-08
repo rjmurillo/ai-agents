@@ -21,6 +21,10 @@ _SHA_A = "a" * 40
 _SHA_B = "b" * 40
 
 
+def _should_run(changed: list[str]) -> bool:
+    return bool(paths.matched_paths(changed))
+
+
 def test_union_contains_every_hook_and_plugin_glob() -> None:
     assert set(paths.HOOK_E2E_GLOBS) <= set(paths.SMOKE_PATH_GLOBS)
     assert set(paths.PLUGIN_E2E_GLOBS) <= set(paths.SMOKE_PATH_GLOBS)
@@ -56,7 +60,7 @@ def test_union_has_no_duplicates() -> None:
     ],
 )
 def test_smoke_paths_trigger_a_run(changed: str) -> None:
-    assert paths.should_run([changed]) is True
+    assert _should_run([changed]) is True
 
 
 @pytest.mark.parametrize(
@@ -71,15 +75,15 @@ def test_smoke_paths_trigger_a_run(changed: str) -> None:
     ],
 )
 def test_non_smoke_paths_do_not_trigger_a_run(changed: str) -> None:
-    assert paths.should_run([changed]) is False
+    assert _should_run([changed]) is False
 
 
 def test_empty_change_list_does_not_run() -> None:
-    assert paths.should_run([]) is False
+    assert _should_run([]) is False
 
 
 def test_one_matching_path_among_many_triggers_a_run() -> None:
-    assert paths.should_run(["README.md", "src/claude/skills/x.md", "docs/a.md"]) is True
+    assert _should_run(["README.md", "src/claude/skills/x.md", "docs/a.md"]) is True
 
 
 def test_changed_files_lists_the_three_dot_diff(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -318,6 +322,6 @@ def test_workflow_invokes_repo_scripts_and_tests() -> None:
 
 def test_every_repo_path_the_workflow_runs_matches_the_smoke_globs() -> None:
     """A change to a script or test the smoke runs must trigger the smoke."""
-    unmatched = sorted(p for p in _workflow_invoked_repo_paths() if not paths.should_run([p]))
+    unmatched = sorted(p for p in _workflow_invoked_repo_paths() if not _should_run([p]))
 
     assert unmatched == []

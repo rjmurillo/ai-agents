@@ -11,12 +11,10 @@ REQ-047 (issue #6069). Two consumers read this module so they cannot drift:
   event always writes ``run=true``; any other event is a usage error.
 
 ``lefthook.yml`` keeps a copy of each tuple as its ``glob:`` filter. A test in
-``tests/validation/test_cli_smoke_paths.py`` fails when those copies differ from
-the tuples below, so lefthook and CI see one list. Per ADR-006 the decision
-lives in Python, not in workflow YAML.
-
-Matching uses ``fnmatch`` exactly as ``git_hook_policy._any_glob_match`` does,
-so ``**`` crosses directory separators.
+``tests/validation/test_cli_smoke_paths.py`` fails when those copies differ, so
+lefthook and CI see one list. Per ADR-006 the decision lives in Python. Matching
+uses ``fnmatch`` as ``git_hook_policy._any_glob_match`` does, so ``**`` crosses
+directory separators.
 
 Exit codes (ADR-035):
     0 - decision written
@@ -74,8 +72,7 @@ PLUGIN_E2E_GLOBS: tuple[str, ...] = (
     "uv.lock",
 )
 
-# Union in first-seen order. The CI filter uses this, so a change that affects
-# either smoke runs the whole matrix.
+# Union in first-seen order: a change to either smoke runs the whole matrix.
 SMOKE_PATH_GLOBS: tuple[str, ...] = tuple(dict.fromkeys((*HOOK_E2E_GLOBS, *PLUGIN_E2E_GLOBS)))
 
 
@@ -83,29 +80,15 @@ class DiffError(RuntimeError):
     """Raised when the changed-file list cannot be computed."""
 
 
-def matches_any(changed: Iterable[str], globs: Sequence[str]) -> bool:
-    """Return True when any changed path matches any glob."""
-    return any(fnmatch(path, pattern) for path in changed for pattern in globs)
-
-
-def should_run(changed: Iterable[str]) -> bool:
-    """Return True when any changed path can affect plugin loading."""
-    return matches_any(changed, SMOKE_PATH_GLOBS)
-
-
-def _require_sha(label: str, value: str) -> str:
-    if not _FULL_SHA_RE.fullmatch(value):
-        raise DiffError(f"{label} must be a 40-character lowercase hex commit SHA")
-    return value
-
-
 def changed_files(base: str, head: str, repo_root: Path) -> list[str]:
-    """Return files changed between ``base`` and ``head`` (three-dot diff).
+    """Return files changed between two full SHAs (three-dot diff).
 
-    Both revisions must be full SHAs, which also keeps a value that starts with
-    ``-`` from reaching git as an option.
+    A full SHA never starts with ``-``, so no value reaches git as an option.
     """
-    revision_range = f"{_require_sha('base', base)}...{_require_sha('head', head)}"
+    for label, value in (("base", base), ("head", head)):
+        if not _FULL_SHA_RE.fullmatch(value):
+            raise DiffError(f"{label} must be a 40-character lowercase hex commit SHA")
+    revision_range = f"{base}...{head}"
     try:
         result = subprocess.run(
             ["git", "-C", str(repo_root), "diff", "--name-only", revision_range],
