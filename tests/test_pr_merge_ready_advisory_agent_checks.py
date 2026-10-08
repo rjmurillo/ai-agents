@@ -396,7 +396,7 @@ def _triggers(doc: dict) -> set[str]:
 
 
 # Per-provider approval environments. Each holds one provider's secrets and
-# requires a reviewer. agent-approval holds no secrets and no workflow uses it.
+# requires a reviewer. agent-approval is deleted (ADR-114 Decision 11 item 6).
 PROVIDER_ENVIRONMENTS = frozenset({"agent-claude", "agent-codex", "agent-droid", "agent-copilot"})
 RETIRED_ENVIRONMENT = "agent-approval"
 # The nightly smoke picks its environment from the matrix leg, one per CLI.

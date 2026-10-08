@@ -159,3 +159,56 @@ The high-level-advisor ruled every finding above as a fix or a record in this ch
 | high-level-advisor | Disagree-and-Commit |
 
 All six seats Accept or Disagree-and-Commit. No seat blocks. The four late seats voted on head `13d02d1b0`. Their fixes landed in the next commit, and no seat re-voted on it.
+
+## Round 4 (2026-10-08: deployment-approval deny rule and claude.yml concurrency)
+
+Scope: a Claude Code deny rule against approving a pending deployment through `gh api`, and a job-level concurrency group on `claude-response`. ADR-114 Decision 11 item 7 and a Negative consequence changed. ADR-112 section 3 and a new gap G11 changed.
+
+### Owner decisions
+
+| ID | Decision |
+|----|----------|
+| D17 | Deny `gh api` calls to `pending_deployments` for Claude Code now. Record that Codex and Copilot CLI cannot express the rule. Defer a cross-harness hook to its own ADR-085 review. |
+| D18 | Put the concurrency group on the `claude-response` job with `cancel-in-progress: false`. |
+| D19 | Key comments and reviews on their own id, and share one key per thread only for push, label, assign, and issue events. |
+
+### Panel
+
+Full panel. The change adds an enforcement rule, so all six seats ran.
+
+| # | Seat | Priority | Finding | Resolution |
+|---|------|----------|---------|------------|
+| 30 | architect | P1 | ADR-112 owns the deny set and gap table, and neither listed the rule. | Fixed. ADR-112 section 3 lists it, and gap G11 records its misses. |
+| 31 | architect, critic | P1 | A replaced pending job is cancelled with no reply. | Fixed. Stated as a cost with a trigger. |
+| 32 | critic | P1 | Whether a job waiting for a reviewer holds the running slot is unverified. | Fixed. ADR-114 states it is not documented and not observed. |
+| 33 | architect | P2 | A dispatch never coalesces. | Fixed. Stated. |
+| 34 | architect | P2 | ADR-026 defaults to `cancel-in-progress: true`. | Fixed. ADR-114 records the exception and says ADR-026 is not amended. |
+| 35 | critic | P2 | The skipped-job claim was untested. | Fixed. Marked INFERRED in ADR-114 and the test docstring. |
+| 36 | analyst | P1 | ADR-112 said the rule "stops" self-approval, which G11 contradicts. | Fixed. It says "slows". |
+| 37 | analyst | P1 | The Codex `prefix_rule` claim had no source. | Fixed. Cited developers.openai.com/codex/rules, read 2026-10-08. |
+| 38 | analyst | P2 | The `approveDeployments` mutation was unverified. | Fixed. Confirmed by schema introspection on 2026-10-08. |
+| 39 | security | P2 | Bots, collaborators, and pushes can displace a pending request. | Fixed by D19 for comments and reviews. The thread-key exposure is stated. |
+| 40 | security | P2 | The plain GET of the endpoint had no probe. | Fixed. A probe pins it. |
+| 41 | security | P2 | G11 listed only two misses. | Fixed. G11 is marked illustrative and names more spellings. |
+| 42 | independent-thinker | P1 | One key per thread drops human requests to save clicks on machine events. | Fixed by D19, which the owner chose after this finding. |
+| 43 | independent-thinker | P1 | Label and assign events also share the thread key. | Fixed. Stated. |
+| 44 | independent-thinker | P2 | The job-token approval claim was INFERRED. | Fixed. ADR-114 states it is unknown. |
+| 45 | high-level-advisor | P2 | A test name overstated what it proves. | Fixed. Renamed. |
+
+### Votes
+
+| Seat | Vote |
+|------|------|
+| architect | Disagree-and-Commit |
+| critic | Disagree-and-Commit |
+| security | Disagree-and-Commit |
+| analyst | Accept with changes; all changes applied |
+| independent-thinker | Disagree-and-Commit |
+| high-level-advisor | Accept |
+
+No seat blocks. The seats voted before D19 changed the key from one per thread to the split key. The split key answers finding 42, and no seat re-voted on it.
+
+### Owner action after the panel (2026-10-08)
+
+The owner deleted `agent-approval`. A run still waiting on it made GitHub recreate it unprotected, so it took a second delete. ADR-114 Decision 11 item 6 and Decision 12 now record this. The change is a factual state update with no new decision, so no seat re-voted.
+- 2026-10-08: COST-GOVERNANCE and a test comment now say `agent-approval` is deleted; the ADR states the recreation time from the deployment record. Factual updates, no re-vote.
