@@ -52,7 +52,7 @@ Exit: `RUN_CLI_E2E=1 uv run pytest tests/e2e/test_plugin_load_smoke.py -m "smoke
 
 ### M4: PR-gated workflow
 
-Exit: a `workflow_dispatch` run of `plugin-cli-smoke.yml` on this branch passes every leg (the branch head is the trusted base on dispatch). This PR's own `pull_request` run is red by design, because `main` lacks the base-commit gate scripts (ADR-114 Decision 13.1). After merge, a dispatch on `main` must pass before the owner makes the check required.
+Exit: the local smoke passes for each CLI with the workflow's gate commands. A branch dispatch cannot prove the legs: run 37846561785 showed the trust gate refuses any ref but `main`. This PR's own `pull_request` run is red by design (ADR-114 Decision 13.1). After merge, a dispatch on `main` must pass before the owner makes the check required.
 
 | Task | Size | Done when |
 |------|------|-----------|
