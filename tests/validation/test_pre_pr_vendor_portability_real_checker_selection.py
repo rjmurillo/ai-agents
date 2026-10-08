@@ -38,7 +38,9 @@ def test_checker_change_selects_both_real_checker_files(command: str) -> None:
 
     selection = select_tests.select([script], REPO_ROOT)
 
-    if selection.full:
-        return
+    # A full-suite fallback would run both files, but it would also pass with
+    # the pre_pr_sequence import gone, so it cannot prove the edge exists. If a
+    # policy change makes these scripts fall back on purpose, update this test.
+    assert not selection.full, f"{script} fell back to the full suite: {selection.reason}"
     missing = [path for path in _REAL_CHECKER_FILES if path not in selection.tests]
     assert not missing, f"{script} change does not select {missing}: {selection.reason}"

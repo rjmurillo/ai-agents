@@ -10,8 +10,15 @@ test_pre_pr_vendor_portability_real_checker_skill_md.py; the rest run here.
 
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 
+# Imported as a module, never by test name: a test function bound in this
+# namespace would be collected and run a second time from this file.
+from tests.validation import (
+    test_pre_pr_vendor_portability_real_checker_skill_md as skill_md_module,
+)
 from tests.validation.vendor_portability_gate_helpers import (
     EXPECTED,
     REAL_CHECKER_ISOLATED,
@@ -39,7 +46,8 @@ def test_real_checker_cases_cover_every_validator_exactly_once() -> None:
     SPEC-6211 AC5. The isolated list names validators by hand, so a rename or
     removal in ``EXPECTED`` would leave its file with an empty parameter set.
     pytest skips an empty set instead of failing it, so without this guard the
-    slowest checker would stop running with nothing red.
+    slowest checker would stop running with nothing red. The last two asserts
+    check that each file parametrizes the list meant for it.
     """
     expected = sorted(EXPECTED.values())
     shared = real_checker_cases(isolated=False)
@@ -48,3 +56,14 @@ def test_real_checker_cases_cover_every_validator_exactly_once() -> None:
     assert sorted(shared + isolated) == expected
     assert not set(shared) & set(isolated)
     assert {name for _, name in isolated} == REAL_CHECKER_ISOLATED
+    assert _parametrized_cases(test_validator_argv_is_accepted_by_the_real_checker) == shared
+    assert (
+        _parametrized_cases(skill_md_module.test_validator_argv_is_accepted_by_the_real_checker)
+        == isolated
+    )
+
+
+def _parametrized_cases(test_function: Any) -> list[tuple[str, str]]:
+    """Return the cases a test's ``parametrize`` mark actually runs."""
+    mark = next(mark for mark in test_function.pytestmark if mark.name == "parametrize")
+    return list(mark.args[1])

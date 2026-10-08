@@ -33,9 +33,9 @@ import checks_spec
 # here keeps that selection for the real-checker files split out of that file.
 import pre_pr_sequence  # noqa: F401
 
-# The six wrappers live in two modules: two predate this change in
-# ``checks_spec``, four are new in ``checks_portability`` (see that module's
-# docstring for why they did not join the first two). Resolution walks both so
+# The seven wrappers live in two modules: two in ``checks_spec`` and five in
+# ``checks_portability`` (see that module's docstring for why they did not
+# join the first two). Resolution walks both so
 # a later move between them does not need a test edit.
 VALIDATOR_MODULES = (checks_portability, checks_spec)
 
@@ -96,7 +96,7 @@ def defining_module(name: str) -> Any:
 
 
 def validator(name: str) -> Any:
-    """Resolve a wrapper by name across the modules that define the six."""
+    """Resolve a wrapper by name across the modules that define the seven."""
     return getattr(defining_module(name), name)
 
 

@@ -1,7 +1,8 @@
 """Run the real ``check_skill_md_portability`` checker on its own (issue #6211).
 
-This one case took 25.8s of the 41s that test_pre_pr_covers_vendor_portability.py
-spent, because the checker scans every SKILL.md in the tree. Under xdist
+Measured on 2026-10-08: this one case took 25.8s of the real-checker test's
+38s, and that test was 38s of the 41s test_pre_pr_covers_vendor_portability.py
+took before this split. The checker scans every SKILL.md in the tree. Under xdist
 ``--dist loadfile`` it gets its own file so it does not hold one worker while
 the others sit idle. The other real-checker cases run in
 test_pre_pr_vendor_portability_real_checker.py, which also holds the guard that

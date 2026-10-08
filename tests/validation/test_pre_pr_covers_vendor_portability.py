@@ -163,7 +163,7 @@ def test_mapped_gate_exists(gate_name: str, validator_name: str) -> None:
 
 @pytest.mark.parametrize(("gate_name", "validator_name"), sorted(_EXPECTED.values()))
 def test_mapped_gate_is_never_skipped(gate_name: str, validator_name: str) -> None:
-    """None of the six may be skippable, or the coverage claim is conditional.
+    """None of the seven may be skippable, or the coverage claim is conditional.
 
     ``skip_when_quick`` drops a gate under ``--quick``, and ``already_run_by``
     drops it when the named pre-push fast-stage job set the environment marker.

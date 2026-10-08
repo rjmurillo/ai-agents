@@ -69,7 +69,7 @@ No data model. Test IDs change module path only.
 - A moved test silently stops running. Mitigation: the total collected test count and the set of test names (ignoring module path) match before and after.
 - A parametrized case is dropped when a parameter list is split across files. Mitigation: a guard test asserts the split lists cover every expected validator exactly once.
 - A helper copied instead of shared drifts. Mitigation: helpers move to one module that both files import.
-- Copied `noqa` comments trip the security suppression policy (#4352). Mitigation: no `noqa` comments are copied.
+- Copied `noqa` comments trip the security suppression policy (#4352). Mitigation: no `noqa` comments are copied. The one new `noqa: F401` (AC9) is not a security code: `SECURITY_SUPPRESSION_RE` in `scripts/validation/git_hook_policy.py` matches only `S` codes and `nosec`, and the `security-suppressions-push` check exits 0 on it.
 - A split file loses the import edges that made test selection pick it. The real checkers run as subprocesses, so only the original file's `pre_pr_sequence` import linked them to the checker scripts. Mitigation: the helpers module keeps that import, and a test checks selection for every checker script (AC9).
 
 ## Security
@@ -82,10 +82,10 @@ What proves it works: the traced 16-worker run of the same 832-file subset, befo
 
 ## Acceptance criteria
 
-1. The test suite shall collect the same test names, ignoring module path, before and after the change. The only new test is the AC5 guard.
+1. The test suite shall collect the same test names, ignoring module path, before and after the change. The only new tests are the AC5 guard (1 test) and the AC9 selection test (7 cases), 8 in all.
 2. When `tests/test_validation_pre_pr.py` is run alone, it shall take under 5s.
-3. When any file created by this change is run alone, it shall take under 30s.
-4. Where a test is the dominant test of its file, the new file shall contain only that test's cases, and the spec shall name it.
+3. When any file created by this change is run alone, it shall take under 30s. #6211 suggested starting at 15s. 30s is the chosen threshold because two single tests take about 26s alone, and a file cannot be shorter than its slowest test.
+4. Where a test is the dominant test of its file, the new file shall contain only that test's cases, and the spec shall name it. Named: the `validate_skill_md_portability` case of `test_validator_argv_is_accepted_by_the_real_checker` (25.8s alone) moves to `test_pre_pr_vendor_portability_real_checker_skill_md.py`. `tests/ci/test_run_pytest_windows.py::test_narrowed_collection_matches_whole_tree` (25.8s alone) is not touched: the file's other 7 tests take about 0.1s, so splitting cannot shorten it.
 5. If the real-checker parameter list is split across files, then a guard test shall fail when any validator in `_EXPECTED` is missing from the split lists or appears in both.
 6. When the 832-file subset runs at 16 workers with tracing, the tail shall be smaller than the 35.5s baseline, and the before and after numbers shall be recorded on #6211.
 7. The change shall not edit any production file under `scripts/`.

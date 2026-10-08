@@ -4,16 +4,16 @@
 
 | Field | Value |
 |-------|-------|
-| **Status** | In Progress |
+| **Status** | Completed |
 | **Created** | 2026-10-08 |
 | **Owner** | claude |
 | **Complexity** | Low |
 
 ## Objectives
 
-- [ ] M1: `tests/test_validation_pre_pr.py` runs in under 5s alone. Its slow classes move to files that each run in under 30s.
-- [ ] M2: The vendor-portability real-checker test runs in two files. Neither takes 30s or more. A guard proves the two lists together cover every validator.
-- [ ] M3: The same test count and test names before and after. Traced 16-worker tail below the 35.5s baseline, posted on #6211.
+- [x] M1: `tests/test_validation_pre_pr.py` runs in under 5s alone. Its slow classes move to files that each run in under 30s.
+- [x] M2: The vendor-portability real-checker test runs in two files. Neither takes 30s or more. A guard proves the two lists together cover every validator.
+- [x] M3: The same test count and test names before and after. Traced 16-worker tail below the 35.5s baseline, posted on #6211.
 
 ## Milestones and tasks
 
@@ -82,6 +82,8 @@ Exit: AC 1, 6, 7.
 |------|--------|-------|
 | 2026-10-08 | Baseline measured and posted on #6211. Spec and plan written | claude |
 | 2026-10-08 | M1 and M2 built. Selection regression found and fixed, AC9 added | claude |
+| 2026-10-08 | M3 done. Paired runs: tail 36.5s to 37.9s on main, 28.8s to 29.4s on the branch. Posted on #6211 | claude |
+| 2026-10-08 | Review round 1 findings fixed: spec wording, stale counts, guard checks each file's parametrize list | claude |
 
 ## Blockers
 

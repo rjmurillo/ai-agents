@@ -72,8 +72,8 @@ def sequence_with_passing_corpus_gates() -> tuple[Any, ...]:
         # in tests/validation/test_skill_adr_bindings_wiring.py.
         "Skill ADR Bindings (ratchet)",
         # Pipes a malformed envelope through the validator CLI with
-        # `subprocess.run` and requires a non-zero exit. TestMain patches
-        # `subprocess.run` with `healthy_git_run`, which answers every call
+        # `subprocess.run` and requires a non-zero exit. The tests that use
+        # these stubs patch `subprocess.run` with `healthy_git_run`, which answers every call
         # with exit 0, so the CLI appears to accept the malformed envelope and
         # the gate correctly reports it. Mock artifact, not a real acceptance.
         # The gate's behavior is covered in
@@ -83,7 +83,7 @@ def sequence_with_passing_corpus_gates() -> tuple[Any, ...]:
         # repository root. That child is not mocked: the gate reaches it
         # through `subprocess.Popen`
         # (scripts/validation/check_generated_staleness.py:239) and
-        # TestMain patches `subprocess.run` only. So this gate is not merely
+        # the tests that use these stubs patch `subprocess.run` only. So this gate is not merely
         # real-corpus-dependent like the ones above, it MUTATES the real
         # corpus: build_all regenerates every generator-owned file and then
         # restores its snapshot, and a sibling xdist worker reading one of

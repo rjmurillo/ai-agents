@@ -21,15 +21,10 @@ from tests.validation.pre_pr_main_helpers import (
 
 
 class TestHookModeBanner:
-    """The success banner must not claim PR-readiness when running as a hook job.
+    """Hook mode and failed runs suppress the banner. Issue #4506.
 
-    Issue #4506: pre_pr.py runs in a parallel lefthook group alongside
-    python-tests, ratchets, and other jobs. It only validates its own subset.
-    Printing "Ready to create pull request!" is a false claim when sibling jobs
-    may still be running or may have failed.
-
-    SKIP_AUTOFIX=1 is the marker lefthook sets on the pre-pr-validation job.
-    It is absent in direct interactive use.
+    The rationale, and what SKIP_AUTOFIX=1 marks, is in the class of the same
+    name in test_pre_pr_banner_shown.py.
     """
 
     @patch(
