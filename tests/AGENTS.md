@@ -11,9 +11,9 @@ Pytest suite: root guard, `tests/conftest.py`, flat `test_*.py`, topic subdirs; 
 ## Entry points
 
 - `git_hook_policy.py pytest`: lefthook pre-push pytest command.
-- `AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY=1`: the 4 local partitions (`_pytest_commands`); CI runs 6 legs (`run_pytest_partition.py`): `split-1`..`4`, `safe-push`, `pr-autofix`.
+- `AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY=1`: the 4 local partitions; CI runs 6 legs: `split-1`..`4`, `safe-push`, `pr-autofix`.
 - `check_zero_collection_tests.py`: finds a `test_*.py` under `testpaths` collecting zero tests.
-- Refresh `tests/.test_durations`: see `SPLIT_COUNT` in `run_pytest_partition.py`. Over 20% missing fails `test_pytest_split_pool.py`.
+- One leg: `uv run python scripts/ci/run_pytest_partition.py --partition split-1`; refresh `tests/.test_durations` with `--refresh-durations` in place of `--partition`. Refresh at over 20% missing (`tests/ci/test_pytest_split_durations.py`) or a leg near the 10-minute limit.
 
 ## Where to look
 
@@ -28,7 +28,7 @@ Pytest suite: root guard, `tests/conftest.py`, flat `test_*.py`, topic subdirs; 
 
 ## Constraints
 
-- New skill tests go under `tests/skills/<name>/`. `check_colocated_skill_tests.py` blocks a newly added file colocated under `.claude/skills/`, `src/copilot-cli/skills/` or `src/claude/skills/` (all three populated); the grandfathered set was migrated (issue #5582), so none remain.
+- New skill tests go under `tests/skills/<name>/`. `check_colocated_skill_tests.py` blocks a newly added file colocated under `.claude/skills/`, `src/copilot-cli/skills/` or `src/claude/skills/`.
 - `tests/fixtures/guard_corpus_baseline.json` is a pinned finding set; `tests/test_guard_diff.py` fails on a lost finding, repair edits the baseline with a justification.
 - No write rooted at `PROJECT_ROOT`/`REPO_ROOT`/`ROOT` outside `tmp_path`/`.pytest_tmp/`: `check_test_tree_writes.py`.
 - No `test_*` nested inside another function: `check_nested_tests.py`; blind spot below.
@@ -44,7 +44,7 @@ Pytest suite: root guard, `tests/conftest.py`, flat `test_*.py`, topic subdirs; 
 
 ## Dependencies
 
-- Feeds `pytest.yml`'s `zero-collection-guard` (blocking, no `needs:`/`if:`) and the 5-leg matrix, gated by `check-paths` (`scripts/ci/path_policy.yml`).
+- Feeds `pytest.yml`'s `zero-collection-guard` (blocking, no `needs:`/`if:`) and the 6-leg matrix, gated by `check-paths` (`scripts/ci/path_policy.yml`).
 - Other workflows run named test files (grep below), so a rename reds a check the path filter never shows; `claude.yml` runs `tests/workflows/test_claude_authorization.py` as `scripts/ci/check_claude_authorization.py --checker`.
 - `lefthook.yml` pre-push expensive stage: `python-tests` (15m, `AI_AGENTS_PYTEST_WORKER_CAP=4`), `zero-collection-tests` (4m), both ignore the path filter.
 - Pre-PR gate registry and flags: `scripts/AGENTS.md`. Template-drift and parity semantics: `build/AGENTS.md`.
