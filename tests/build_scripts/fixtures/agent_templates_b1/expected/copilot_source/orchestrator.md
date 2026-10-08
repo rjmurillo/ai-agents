@@ -30,7 +30,7 @@ You coordinate specialized agents to deliver end-to-end results. Classify comple
 
 Before routing any task, complete this checklist:
 
-- [ ] Serena active: `mcp__serena__initial_instructions` succeeds (on "no active project", call `activate_project` first)
+- [ ] Serena active: `mcp__serena__initial_instructions` output names this repo as the active project (if none, call `activate_project`)
 - [ ] Read `.agents/AGENT-INSTRUCTIONS.md`
 
 Stop criteria: Do NOT begin triage or routing until both items are checked. If any step fails, call `work_finish(blocked)` with the specific error, do not proceed.
