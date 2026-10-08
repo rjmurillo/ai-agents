@@ -1,6 +1,6 @@
 # AI Agents: Multi-Agent Toolkit for Claude Code and GitHub Copilot CLI
 
-AI Agents is an open-source multi-agent toolkit for software development with Claude Code, GitHub Copilot CLI, and VS Code Copilot Chat. An orchestrator routes work across 22 specialized agents, including analyst, architect, milestone-planner, implementer, critic, QA, security, and DevOps, to plan, build, review, and ship code with explicit handoffs and quality gates at each stage.
+AI Agents is an open-source multi-agent toolkit for software development with Claude Code, GitHub Copilot CLI, and VS Code Copilot Chat. An orchestrator routes work across 30 specialized agents, including analyst, architect, code-reviewer, dependency-auditor, implementer, critic, QA, security, and DevOps, to plan, build, review, and ship code with explicit handoffs and quality gates at each stage.
 
 Built for platform teams, engineering managers, and organizations that want AI-assisted development with real governance: plan-to-ship lifecycle commands (`/spec`, `/plan`, `/build`, `/test`, `/review`, `/ship`) in Claude Code, review gates and a session protocol in both CLIs, and ADR-steered agent behavior. Optional cross-session memory is available via Serena. Install from the plugin marketplace with `/install-plugin rjmurillo/ai-agents` in Claude Code, or `/plugin marketplace add rjmurillo/ai-agents` then `/plugin install project-toolkit@ai-agents` in Copilot CLI. MIT licensed.
 
@@ -396,24 +396,32 @@ Both bundles include every agent. `spec-generator` is now a skill (issue #2001),
 | **orchestrator** | Task coordination and routing | Delegated results from specialists | both |
 | **analyst** | Research, feasibility analysis, trade-off evaluation | Quantitative findings with evidence | both |
 | **architect** | System design evaluation, ADRs, pattern enforcement | Rated assessments (Strong/Adequate/Needs-Work) | both |
+| **code-reviewer** | Code review for correctness, conventions, and duplicated logic | Findings with file and line evidence | both |
+| **code-simplifier** | Simplify recently changed code while preserving behavior | Rewrite diff or focused refactors | both |
+| **comment-analyzer** | Check code comments for accuracy, completeness, and maintainability | Specific corrections with evidence | both |
+| **dependency-auditor** | Audit dependencies for vulnerabilities, outdated versions, and deprecations | Prioritized supply-chain risk report | both |
 | **milestone-planner** | Milestones and work packages | Implementation plans with acceptance criteria | both |
 | **implementer** | Production code and tests | Code, tests, commits | both |
 | **critic** | Plan stress-testing, gap identification | Verdicts: APPROVE / APPROVE WITH CONDITIONS / REJECT | both |
 | **qa** | Test strategy and verification | Test reports, coverage analysis | both |
 | **security** | Threat modeling, vulnerability assessment | Threat matrices with CWE/CVSS ratings | both |
+| **silent-failure-hunter** | Audit error handling and fallback behavior for silent failures | Evidence-backed findings and remediation | both |
 | **devops** | CI/CD pipelines, operational planning | Infrastructure configs, maintenance estimates | both |
 | **roadmap** | Strategic prioritization, RICE/KANO analysis | Priority stacks, cost-benefit analysis | both |
 | **retrospective** | Learning extraction | Actionable insights, skill updates | both |
 | **skillbook** | Skill management | Atomic strategy updates | both |
+| **quality-auditor** | Grade product domains across architectural layers | Quality reports with gap tracking and trends | both |
 | **explainer** | PRDs and documentation | Specs, user guides | both |
 | **task-decomposer** | Atomic task breakdown | Estimable work items with done criteria | both |
 | **high-level-advisor** | Strategic decisions, unblocking | Verdicts: GO / CONDITIONAL GO / NO-GO | both |
 | **independent-thinker** | Challenge assumptions, devil's advocate | Counter-arguments with alternatives | both |
 | **pr-comment-responder** | PR review handling | Triaged responses, resolution tracking | both |
+| **pr-test-analyzer** | Assess behavioral test coverage in pull requests | Ranked coverage gaps and recommendation | both |
 | **debug** | Debugging assistance, root cause analysis | Diagnostic findings with resolution steps | both |
 | **janitor** | Code and documentation cleanup | Refactoring and cleanup suggestions | both |
 | **issue-feature-review** | Feature-request triage on GitHub issues | Constructive verdict with next steps | both |
 | **merge-resolver** | Resolve git/PR merge conflicts | Pattern-based resolution plan | both |
+| **type-design-analyzer** | Evaluate type designs for invariants, encapsulation, and usefulness | Qualitative analysis and design ratings | both |
 | **negotiation** | Offer analysis and counter-proposals | Value-gap analysis with RADAR protocol | both |
 
 See [AGENTS.md](AGENTS.md) for detailed agent documentation.
