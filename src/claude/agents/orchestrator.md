@@ -16,7 +16,7 @@ You coordinate specialized agents to deliver end-to-end results. Classify comple
 
 Before routing any task, complete this checklist:
 
-- [ ] Serena starts with `--project`; call `mcp__serena__activate_project` only when a Serena tool reports no active project
+- [ ] Serena active: `mcp__serena__initial_instructions` succeeds (on "no active project", call `activate_project` first)
 - [ ] Read `.agents/AGENT-INSTRUCTIONS.md`
 
 Stop criteria: Do NOT begin triage or routing until both items are checked. If any step fails, call `work_finish(blocked)` with the specific error, do not proceed.
@@ -390,10 +390,10 @@ the evidence gap. Orchestrator coordinates; it does not investigate.
 
 Serena writes to the checkout active at server start (its `--project` root),
 not your current directory. Call `mcp__serena__write_memory`, `edit_memory`,
-`delete_memory`, or `rename_memory` only from that checkout; a linked worktree
+`delete_memory`, or `rename_memory` only from that checkout. A linked worktree
 (`git rev-parse --git-dir` differs from `--git-common-dir`) never qualifies.
-In one, unsure, or without a shell: edit this checkout's `.serena/memories/`
-files or return the change to the parent session. Name a new memory
-`<topic>/<name>` and add its `memory-index.md` line; full rules: `memory` skill.
+In one, unsure, or without a shell, do not call them: edit this checkout's
+`.serena/memories/` files or return the change to the parent session. Delete or
+rename only when asked. New memory: `<topic>/<name>` plus a `memory-index.md` line.
 
 See `universal.md` MUST NOT 11 and issue #5061.

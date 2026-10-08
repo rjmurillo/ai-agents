@@ -54,8 +54,8 @@ For any navigation or search of a code file, prefer in this order:
 
 ## Recovery
 
-`.mcp.json` starts Serena on this checkout with `--project`, so it is active at
-session start. Only when a Serena tool reports no active project, call
+When the MCP config starts Serena with `--project` (this repository's
+`.mcp.json` does), it is active at session start. Only when a Serena tool reports no active project, call
 `activate_project` (if your harness offers it), then `initial_instructions`.
 Nothing needs bypassing: the preference is advisory, so use grep or glob when
 no LSP is reachable.
