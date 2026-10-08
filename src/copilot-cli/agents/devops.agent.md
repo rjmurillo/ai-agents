@@ -194,11 +194,11 @@ content: "# DevOps: [Topic]\n\n**Statement**: ...\n\n**Evidence**: ...\n\n## Det
 ### Serena memory writes: check the checkout first
 
 Serena writes to the checkout active at server start (`--project` root),
-not your current directory. Call `mcp__serena__write_memory`, `edit_memory`,
+not your cwd. Call `mcp__serena__write_memory`, `edit_memory`,
 `delete_memory`, or `rename_memory` only from that checkout. A linked worktree
 (`git rev-parse --git-dir` differs from `--git-common-dir`) never qualifies.
 In one, unsure, or without a shell, do not call them: edit `.serena/memories/`
-files in your own checkout, or return the change to the parent. Delete or
+files in your own checkout, or return the change to the parent session. Delete or
 rename only when asked. New memory: `<topic>/<name>` plus a `memory-index.md` line.
 
 See `universal.md` MUST NOT 11 and issue #5061.

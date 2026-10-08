@@ -14,7 +14,7 @@ Memories are organized into topic subdirectories by domain.
 
 **Top-level**: Index files and special files.
 
-**Subdirectories**: All atomic memories. Access via `read_memory("topic/memory-name.md")`.
+**Subdirectories**: All atomic memories. Access via `read_memory("topic/memory-name")`, with no `.md` suffix.
 
 `list_memories` returns every name in the tree, top level and nested. It does
 not hide subdirectory memories. Measured on 2026-09-22 against this tree: one
