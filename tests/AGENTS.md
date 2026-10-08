@@ -11,10 +11,9 @@ Pytest suite: root guard, `tests/conftest.py`, flat `test_*.py`, topic subdirs; 
 ## Entry points
 
 - `git_hook_policy.py pytest`: lefthook pre-push pytest command.
-- `AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY=1`: the 4 local partitions (`_pytest_commands`); CI runs 6 legs (`scripts/ci/run_pytest_partition.py --partition`): `split-1` to `split-4` (pytest-split, balanced by `tests/.test_durations`), `safe-push`, `pr-autofix`. `split-1` is the `primary` leg that carries the once-per-run steps.
+- `AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY=1`: the 4 local partitions (`_pytest_commands`); CI runs 6 legs (`run_pytest_partition.py`): `split-1`..`4`, `safe-push`, `pr-autofix`.
 - `check_zero_collection_tests.py`: finds a `test_*.py` under `testpaths` collecting zero tests.
-- Refresh `tests/.test_durations` (a stale file only skews the split, it never drops a test; `tests/ci/test_pytest_split_pool.py` fails when over 20% of the pool is missing from it). Run the whole pool once, with no `--splits`, from the repo root:
-  `uv run python -m pytest -n auto --dist loadfile --store-durations --clean-durations --durations-path tests/.test_durations $(uv run python -c "from scripts.ci import run_pytest_partition as r; print(' '.join(r._POOL_IGNORES))") tests/`
+- Refresh `tests/.test_durations`: see `SPLIT_COUNT` in `run_pytest_partition.py`. Over 20% missing fails `test_pytest_split_pool.py`.
 
 ## Where to look
 
@@ -40,12 +39,12 @@ Pytest suite: root guard, `tests/conftest.py`, flat `test_*.py`, topic subdirs; 
 
 - `check_nested_tests.py` does not scan every test file, and not by depth: helpers not named `test_*.py` (`tests/hook_test_helpers.py`, `tests/ci/ratchet_test_helpers.py`) are never opened.
 - `checks_coverage.py` is not a coverage gate; it wraps the advisory `/review`-marker check. Real 100% pins: `coverage report --fail-under=100` steps in `pytest.yml`.
-- "My push ran the suite" is false by default: without `AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY=1` a push only collects every test, asserting nothing.
+- "My push ran the suite" is false by default: without `AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY=1` a push only collects, asserting nothing.
 - `tests/evals/*-scenarios.json` are pytest input, not just `scripts/eval/` corpora. `tests/eval/test_eval_prompt_change.py::TestShippedScenariosValid` requires 2+ `verdict_options` each; sibling contract tests pin critic, qa, orchestrator and spec scenario IDs.
 
 ## Dependencies
 
-- Feeds `pytest.yml`'s `zero-collection-guard` (blocking, no `needs:`/`if:`) and its 5-leg matrix, gated by `check-paths` from `scripts/ci/path_policy.yml`; `select_tests.py` reads it locally.
+- Feeds `pytest.yml`'s `zero-collection-guard` (blocking, no `needs:`/`if:`) and the 5-leg matrix, gated by `check-paths` (`scripts/ci/path_policy.yml`).
 - Other workflows run named test files (grep below), so a rename reds a check the path filter never shows; `claude.yml` runs `tests/workflows/test_claude_authorization.py` as `scripts/ci/check_claude_authorization.py --checker`.
 - `lefthook.yml` pre-push expensive stage: `python-tests` (15m, `AI_AGENTS_PYTEST_WORKER_CAP=4`), `zero-collection-tests` (4m), both ignore the path filter.
 - Pre-PR gate registry and flags: `scripts/AGENTS.md`. Template-drift and parity semantics: `build/AGENTS.md`.
