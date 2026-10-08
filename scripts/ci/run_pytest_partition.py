@@ -38,10 +38,17 @@ _PARALLEL = ["-n", "auto", "--dist", PYTEST_DIST_MODE]
 # pins, split into SPLIT_COUNT groups by recorded duration (pytest-split). The
 # durations file is committed; when it is absent or stale, pytest-split warns
 # and falls back to an even split by test count, so CI still runs every test.
-# Refresh command: tests/AGENTS.md. Each group must stay under the ten minute
+# Each group must stay under the ten minute
 # job contract of issue #4854. split-1 is the `primary` matrix leg and carries
 # the extra pin, lint, and ratchet steps in pytest.yml, so its pytest share
 # must leave room for them inside the same job timeout.
+#
+# Refresh the durations by running the whole pool once, with no `--splits`, from
+# the repo root:
+#   uv run python -m pytest -n auto --dist loadfile --store-durations \
+#     --clean-durations --durations-path tests/.test_durations \
+#     $(uv run python -c "from scripts.ci import run_pytest_partition as r; \
+#     print(' '.join(r._POOL_IGNORES))") tests/
 SPLIT_COUNT = 4
 DURATIONS_PATH = "tests/.test_durations"
 SPLITTING_ALGORITHM = "duration_based_chunks"

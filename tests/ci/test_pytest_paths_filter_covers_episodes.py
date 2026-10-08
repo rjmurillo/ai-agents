@@ -73,9 +73,9 @@ def _paths_filter_step() -> dict:
 def _python_filter() -> list[str]:
     """The filter list, from the shared policy file `pytest.yml` points at.
 
-    Issue #5318 moved the list out of the workflow so `select_tests.py` reads
-    the same document. `_paths_filter_step` above still guards the pin and the
-    wiring; only the list moved.
+    Issue #5318 moved the list out of the workflow into one shared document.
+    `_paths_filter_step` above still guards the pin and the wiring; only the
+    list moved.
     """
     return list(path_policy.load_patterns())
 

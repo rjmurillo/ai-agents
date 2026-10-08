@@ -53,7 +53,7 @@ def _filter_entries() -> list[str]:
     """The filter's patterns, read from the shared policy file (issue #5318).
 
     `pytest.yml` no longer carries the list inline; it hands the same file to
-    `dorny/paths-filter` that `select_tests.py` reads, so this module reads it
+    `dorny/paths-filter`, so this module reads it
     through the one loader rather than re-parsing the workflow.
     """
     return list(path_policy.load_patterns())

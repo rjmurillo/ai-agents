@@ -173,10 +173,10 @@ def test_every_required_check_leg_asserts_the_gate_result(job_id: str) -> None:
 def _python_filter() -> set[str]:
     """The `python` path filter this workflow's `check-paths` job publishes.
 
-    Issue #5318 moved the list into `scripts/ci/path_policy.yml`,
-    which `check-paths` names as its `filters:` input and `select_tests.py`
-    reads too. `_filter_input_names_the_policy_file` below pins that wiring, so
-    reading the policy through its loader here still describes this job.
+    Issue #5318 moved the list into `scripts/ci/path_policy.yml`, which
+    `check-paths` names as its `filters:` input. `_filter_input_names_the_policy_file`
+    below pins that wiring, so reading the policy through its loader here still
+    describes this job.
     """
     return set(path_policy.load_patterns())
 
