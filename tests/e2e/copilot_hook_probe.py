@@ -448,8 +448,9 @@ def skip_or_fail_on_copilot_block(result: subprocess.CompletedProcess[str]) -> N
 # Claude CLI external-block markers (issue #4861), lowercased regexes. Auth is
 # checked first, as before. The 429 status is ambiguous: the CLI reports a
 # usage limit and a rate limit the same way, so the classifier cannot tell
-# them apart and treats 429 as quota (D26 allows this when the two cannot be
-# separated). "credit balance is too low" is the exhausted-credit message.
+# them apart, so 429 is treated as quota and marker-skippable. This differs from
+# Copilot, where a rate limit fails because its classifier can separate it from
+# a spent quota (D26: only exhausted quota or credit is marker-skipped). "credit balance is too low" is the exhausted-credit message.
 CLAUDE_AUTH_BLOCK_PATTERNS: tuple[str, ...] = (
     "oauth session expired",
     "failed to authenticate",

@@ -361,6 +361,20 @@ def _skip_or_fail_timeout(
     ) from exc
 
 
+def _fail_on_zero_token_timeout(subject: str, exc: subprocess.TimeoutExpired) -> NoReturn:
+    """Fail a zero-token check that timed out, whatever the partial output says.
+
+    The zero-token checks (`plugin list` / `plugin details`) make no model call,
+    so a quota or credit marker cannot explain a hang. They never skip (D26).
+    """
+    partial_out = _decode_partial(exc.stdout)
+    partial_err = _decode_partial(exc.stderr)
+    raise AssertionError(
+        f"{subject} exceeded {exc.timeout}s; a zero-token check never skips on a block. "
+        f"stdout={_redacted_tail(partial_out)} stderr={_redacted_tail(partial_err)}"
+    ) from exc
+
+
 def _skip_or_fail_copilot_timeout(subject: str, exc: subprocess.TimeoutExpired) -> NoReturn:
     _skip_or_fail_timeout(subject, exc, _skip_on_copilot_block)
 
@@ -681,7 +695,7 @@ def test_claude_agent_inventory_excludes_the_non_agent_documents(tmp_path: Path)
             timeout=_CLI_TIMEOUT_SECONDS,
         )
     except subprocess.TimeoutExpired as exc:
-        _skip_or_fail_claude_timeout("claude plugin details", exc)
+        _fail_on_zero_token_timeout("claude plugin details", exc)
 
     assert details.returncode == 0, (
         f"claude plugin details failed (rc={details.returncode}). "
@@ -914,7 +928,7 @@ def test_claude_plugin_loads_expected_skills(tmp_path: Path) -> None:
             timeout=_CLI_TIMEOUT_SECONDS,
         )
     except subprocess.TimeoutExpired as exc:
-        _skip_or_fail_claude_timeout("claude plugin list", exc)
+        _fail_on_zero_token_timeout("claude plugin list", exc)
 
     assert listing.returncode == 0, (
         f"claude plugin list failed (rc={listing.returncode}). "
@@ -935,7 +949,7 @@ def test_claude_plugin_loads_expected_skills(tmp_path: Path) -> None:
             timeout=_CLI_TIMEOUT_SECONDS,
         )
     except subprocess.TimeoutExpired as exc:
-        _skip_or_fail_claude_timeout("claude plugin details", exc)
+        _fail_on_zero_token_timeout("claude plugin details", exc)
 
     assert details.returncode == 0, (
         f"claude plugin details failed (rc={details.returncode}). "
@@ -1731,7 +1745,7 @@ def test_copilot_agent_timeout_without_block_marker_fails(
         "tests.e2e.test_plugin_load_smoke._run_cli", _raise_timeout(stdout, stderr)
     )
 
-    with pytest.raises(AssertionError, match="no block marker"):
+    with pytest.raises(AssertionError, match="exceeded"):
         _run_copilot_agent("security", "Reply exactly READY.")
 
 
@@ -1743,7 +1757,7 @@ def test_timeout_failure_message_redacts_secrets(monkeypatch: pytest.MonkeyPatch
         _raise_timeout(f"token={secret}\n".encode(), None),
     )
 
-    with pytest.raises(AssertionError, match="no block marker") as failure:
+    with pytest.raises(AssertionError, match="exceeded") as failure:
         _run_copilot_agent("security", "Reply exactly READY.")
 
     assert secret not in str(failure.value)
@@ -1760,7 +1774,7 @@ def test_timeout_redaction_covers_a_token_cut_at_the_tail_boundary(
         "tests.e2e.test_plugin_load_smoke._run_cli", _raise_timeout(stdout.encode(), None)
     )
 
-    with pytest.raises(AssertionError, match="no block marker") as failure:
+    with pytest.raises(AssertionError, match="exceeded") as failure:
         _run_copilot_agent("security", "Reply exactly READY.")
 
     assert "B" * 20 not in str(failure.value)
@@ -1848,16 +1862,14 @@ _PLUGIN_SMOKES = [
         b"You have exceeded your monthly quota\n",
         id="copilot-empty-plugin",
     ),
-    pytest.param(
-        "test_claude_plugin_loads_expected_skills",
-        _patch_claude_plugin_timeouts,
-        b"monthly spend limit\n",
-        id="claude-plugin-load",
-    ),
+]
+
+# Claude zero-token checks: `plugin list` / `plugin details`, no prompt. A block
+# marker never turns their timeout into a skip (D26).
+_CLAUDE_ZERO_TOKEN_SMOKES = [
+    pytest.param("test_claude_plugin_loads_expected_skills", id="claude-plugin-load"),
     pytest.param(
         "test_claude_agent_inventory_excludes_the_non_agent_documents",
-        _patch_claude_plugin_timeouts,
-        b"monthly spend limit\n",
         id="claude-agent-inventory",
     ),
 ]
@@ -1874,7 +1886,7 @@ def test_plugin_smoke_timeout_without_block_marker_fails(
     """A hung plugin smoke fails instead of skipping as CLI latency."""
     patch_timeouts(monkeypatch, b"still working\n")
 
-    with pytest.raises(AssertionError, match="no block marker"):
+    with pytest.raises(AssertionError, match="exceeded"):
         globals()[smoke](tmp_path)
 
 
@@ -1890,6 +1902,20 @@ def test_plugin_smoke_timeout_with_block_marker_skips(
     patch_timeouts(monkeypatch, block_marker)
 
     with pytest.raises(pytest.skip.Exception, match="quota"):
+        globals()[smoke](tmp_path)
+
+
+@pytest.mark.parametrize("smoke", _CLAUDE_ZERO_TOKEN_SMOKES)
+@pytest.mark.parametrize(
+    "marker", [b"monthly spend limit\n", b"Credit balance is too low\n", b"OAuth session expired\n"]
+)
+def test_claude_zero_token_timeout_never_skips_on_a_block_marker(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, smoke: str, marker: bytes
+) -> None:
+    _set_ci(monkeypatch, ci=False)
+    _patch_claude_plugin_timeouts(monkeypatch, marker)
+
+    with pytest.raises(AssertionError, match="zero-token check never skips"):
         globals()[smoke](tmp_path)
 
 
