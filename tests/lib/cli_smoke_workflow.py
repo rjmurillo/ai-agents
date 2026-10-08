@@ -1,8 +1,9 @@
-"""Shared constants, fixtures, and helpers for the CLI smoke workflow tests.
+"""Shared constants and helpers for the CLI smoke workflow tests.
 
-Imported by ``tests/test_cli_smoke_security.py`` (credential scope, matrix, and
-gate wiring) and ``tests/test_cli_smoke_trust.py`` (triggers, trust gate, fork
-denial, and trusted scripts), which test ``plugin-cli-smoke.yml``.
+Imported by the ``tests/test_cli_smoke_security*.py`` modules (credential scope,
+matrix, and gate wiring) and the ``tests/test_cli_smoke_trust*.py`` modules
+(triggers, trust gate, fork denial, and trusted scripts), which test
+``plugin-cli-smoke.yml``. Fixtures live in ``tests/lib/cli_smoke_fixtures.py``.
 """
 
 from __future__ import annotations
@@ -42,11 +43,20 @@ PLUGIN_STEP = {
     "claude": "Run real-CLI plugin-load smoke (claude)",
     "copilot": "Run real-CLI plugin-load smoke (copilot)",
 }
+HOOK_GATE = {
+    "claude": "Assert the hook smoke actually ran (claude)",
+    "copilot": "Assert the hook smoke actually ran (copilot)",
+}
+PLUGIN_GATE = {
+    "claude": "Assert the plugin-load smoke actually ran (claude)",
+    "copilot": "Assert the plugin-load smoke actually ran (copilot)",
+}
 CREDENTIAL_STEPS = set(HOOK_STEP.values()) | set(PLUGIN_STEP.values())
 SMOKE_FILES = {
     "hook": "tests/e2e/test_cli_hook_e2e.py",
     "plugin": "tests/e2e/test_plugin_load_smoke.py",
 }
+BASE_CHECKOUT_PATH = "trusted-base"
 SEMVER = re.compile(r"^\d+\.\d+\.\d+$")
 
 
@@ -95,3 +105,11 @@ def _expected_count(step: dict[str, Any]) -> int:
     arguments = shlex.split(step["run"])
     assert arguments.count("--expected-count") == 1
     return int(arguments[arguments.index("--expected-count") + 1])
+
+
+def _gate_arguments(step: dict[str, Any]) -> list[str]:
+    return shlex.split(step["run"])
+
+
+def _checkouts(job: dict[str, Any]) -> list[dict[str, Any]]:
+    return [step for step in job["steps"] if "actions/checkout" in step.get("uses", "")]
