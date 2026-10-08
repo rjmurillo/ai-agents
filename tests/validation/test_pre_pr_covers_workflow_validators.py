@@ -332,6 +332,14 @@ def _new_gate_results(monkeypatch: pytest.MonkeyPatch, failing: str) -> dict[str
 
     monkeypatch.setattr(checks_ci_parity, "_run_subprocess", fake)
     monkeypatch.setattr(checks_ci_parity, "_resolve_default_base_ref", lambda _root: "origin/main")
+    # Change-triggered gates pass the branch's changed files as arguments. Pin
+    # that list so a branch that edits a validator does not put its name into
+    # another gate's argv and turn that gate red too.
+    monkeypatch.setattr(
+        checks_ci_parity,
+        "_changed_paths_since_base",
+        lambda _root, _label: ["templates/agents/analyst.shared.md"],
+    )
     gates = {gate.name: gate for gate in pre_pr_sequence._SEQUENCE}
     with redirect_stdout(io.StringIO()):
         return {name: bool(gates[name].run(REPO_ROOT, argparse.Namespace())) for name in _NEW_GATES}
