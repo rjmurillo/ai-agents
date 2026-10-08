@@ -9,53 +9,42 @@ edge cases plus the CLI argv path.
 
 from __future__ import annotations
 
-import importlib.util
 from pathlib import Path
 
 import pytest
 
-_MODULE_PATH = (
-    Path(__file__).resolve().parents[2] / "scripts" / "validation" / "assert_smoke_ran.py"
+from tests.lib.smoke_report import (
+    MARKER as _MARKER,
 )
-_spec = importlib.util.spec_from_file_location("assert_smoke_ran", _MODULE_PATH)
-assert _spec is not None and _spec.loader is not None
-assert_smoke_ran = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(assert_smoke_ran)
+from tests.lib.smoke_report import (
+    SMOKE_CLASS as _SMOKE_CLASS,
+)
+from tests.lib.smoke_report import (
+    failed_case as _failed_case,
+)
+from tests.lib.smoke_report import (
+    load_gate,
+)
+from tests.lib.smoke_report import (
+    marker_skipped_case as _marker_skipped_case,
+)
+from tests.lib.smoke_report import (
+    passed_case as _passed_case,
+)
+from tests.lib.smoke_report import (
+    skipped_case as _skipped_case,
+)
+from tests.lib.smoke_report import (
+    write_report as _write_report,
+)
+
+assert_smoke_ran = load_gate()
 
 EXIT_OK = assert_smoke_ran.EXIT_OK
 EXIT_NOT_RUN = assert_smoke_ran.EXIT_NOT_RUN
 EXIT_CONFIG = assert_smoke_ran.EXIT_CONFIG
 
-_SMOKE_CLASS = "tests.e2e.test_cli_hook_e2e"
 _OTHER_CLASS = "tests.unit.test_helpers"
-
-
-def _write_report(tmp_path: Path, cases_xml: str, *, wrap: bool = False) -> Path:
-    suite = f'<testsuite name="pytest" tests="1">{cases_xml}</testsuite>'
-    body = f"<testsuites>{suite}</testsuites>" if wrap else suite
-    report = tmp_path / "report.xml"
-    report.write_text(f'<?xml version="1.0" encoding="utf-8"?>{body}', encoding="utf-8")
-    return report
-
-
-def _passed_case(classname: str, name: str) -> str:
-    return f'<testcase classname="{classname}" name="{name}" time="0.1"></testcase>'
-
-
-def _skipped_case(classname: str, name: str) -> str:
-    return (
-        f'<testcase classname="{classname}" name="{name}" time="0.0">'
-        '<skipped type="pytest.skip" message="needs RUN_CLI_E2E=1"></skipped>'
-        "</testcase>"
-    )
-
-
-def _failed_case(classname: str, name: str) -> str:
-    return (
-        f'<testcase classname="{classname}" name="{name}" time="0.2">'
-        '<failure message="assert">hook never ran</failure>'
-        "</testcase>"
-    )
 
 
 def test_returns_ok_when_smoke_case_passed(tmp_path: Path) -> None:
@@ -222,17 +211,6 @@ def test_main_honors_custom_smoke_substr(
     )
 
     assert code == EXIT_OK
-
-
-_MARKER = "QUOTA_SKIP:"
-
-
-def _marker_skipped_case(classname: str, name: str, marker: str = _MARKER) -> str:
-    return (
-        f'<testcase classname="{classname}" name="{name}" time="0.0">'
-        f'<skipped type="pytest.skip" message="{marker} Copilot quota exhausted"></skipped>'
-        "</testcase>"
-    )
 
 
 def test_marker_skip_is_allowed_and_reported_with_the_flag(
@@ -501,105 +479,3 @@ def test_require_pass_blank_value_is_a_config_error(tmp_path: Path) -> None:
     code = assert_smoke_ran.main([str(report), "--expected-count", "1", "--require-pass", " "])
 
     assert code == EXIT_CONFIG
-
-
-def test_all_cases_marker_skipped_without_require_pass_passes_and_reports_zero_ran(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    cases = _marker_skipped_case(_SMOKE_CLASS, "test_a") + _marker_skipped_case(
-        _SMOKE_CLASS, "test_b"
-    )
-    report = _write_report(tmp_path, cases)
-
-    verdict = assert_smoke_ran.judge(report, "test_cli_hook_e2e", 2, allow_skip_marker=_MARKER)
-    code = assert_smoke_ran.main(
-        [str(report), "--expected-count", "2", "--allow-skip-marker", _MARKER]
-    )
-
-    assert verdict.exit_code == EXIT_OK
-    assert verdict.quota_skipped == 2
-    assert verdict.message.startswith("0 smoke test(s) ran and passed.")
-    assert code == EXIT_OK
-    assert "0 smoke test(s) ran" in capsys.readouterr().out
-
-
-def test_all_cases_marker_skipped_with_require_pass_fails(tmp_path: Path) -> None:
-    report = _write_report(tmp_path, _marker_skipped_case(_SMOKE_CLASS, "test_zero_token"))
-
-    code, message = assert_smoke_ran.evaluate(
-        report, "test_cli_hook_e2e", 1, _MARKER, ["test_zero_token"]
-    )
-
-    assert code == EXIT_NOT_RUN
-    assert "must PASS" in message
-
-
-@pytest.mark.parametrize("count", [0, -1])
-def test_expected_count_below_one_is_a_config_error(tmp_path: Path, count: int) -> None:
-    report = _write_report(tmp_path, _passed_case(_SMOKE_CLASS, "test_a"))
-
-    with pytest.raises(assert_smoke_ran.SmokeReportError, match="must be positive"):
-        assert_smoke_ran.evaluate(report, "test_cli_hook_e2e", count)
-
-
-def test_main_exits_two_for_expected_count_below_one(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    report = _write_report(tmp_path, _passed_case(_SMOKE_CLASS, "test_a"))
-
-    code = assert_smoke_ran.main([str(report), "--expected-count", "0"])
-
-    assert code == EXIT_CONFIG
-    assert "must be positive" in capsys.readouterr().err
-
-
-def test_raises_when_report_is_unreadable_but_present(tmp_path: Path) -> None:
-    # A directory exists but cannot be read as a file: OSError, not FileNotFoundError.
-    with pytest.raises(assert_smoke_ran.SmokeReportError, match="could not be read"):
-        assert_smoke_ran.evaluate(tmp_path, "test_cli_hook_e2e")
-
-
-def test_skip_count_file_records_the_marker_skip_count(tmp_path: Path) -> None:
-    cases = _passed_case(_SMOKE_CLASS, "test_a") + _marker_skipped_case(_SMOKE_CLASS, "test_b")
-    report = _write_report(tmp_path, cases)
-    count_file = tmp_path / "quota-skips.txt"
-
-    for _ in range(2):  # two gate steps of one leg append to the same file
-        code = assert_smoke_ran.main(
-            [
-                str(report),
-                "--expected-count",
-                "2",
-                "--allow-skip-marker",
-                _MARKER,
-                "--skip-count-file",
-                str(count_file),
-            ]
-        )
-        assert code == EXIT_OK
-
-    assert count_file.read_text(encoding="utf-8").split() == ["1", "1"]
-
-
-def test_skip_count_file_records_zero_when_nothing_skipped(tmp_path: Path) -> None:
-    report = _write_report(tmp_path, _passed_case(_SMOKE_CLASS, "test_a"))
-    count_file = tmp_path / "quota-skips.txt"
-
-    code = assert_smoke_ran.main(
-        [str(report), "--expected-count", "1", "--skip-count-file", str(count_file)]
-    )
-
-    assert code == EXIT_OK
-    assert count_file.read_text(encoding="utf-8") == "0\n"
-
-
-def test_skip_count_file_is_not_written_when_the_gate_fails(tmp_path: Path) -> None:
-    report = _write_report(tmp_path, _skipped_case(_SMOKE_CLASS, "test_a"))
-    count_file = tmp_path / "quota-skips.txt"
-
-    code = assert_smoke_ran.main(
-        [str(report), "--expected-count", "1", "--skip-count-file", str(count_file)]
-    )
-
-    assert code == EXIT_NOT_RUN
-    assert not count_file.exists()

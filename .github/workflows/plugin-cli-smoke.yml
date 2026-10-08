@@ -1,3 +1,4 @@
+# taste-lint: ignore file-size, trust gate, matrices, and result job stay together for review.
 # Plugin CLI Smoke (issue #6069, REQ-047; supersedes the nightly smoke of issue #2231
 # items 3-4, ADR-071, issue #2736)
 #
@@ -527,4 +528,4 @@ jobs:
               "Codex smoke result: {value}" \
             --success-message "CLI smoke passed for Claude, Copilot, and Codex on all platforms." \
             --count-dir quota-skips \
-            --count-message "CLI smoke passed with {count} prompt checks quota-skipped (best-effort Claude and Copilot prompt checks; the zero-token load tests passed on every leg)."
+            --count-message "CLI smoke passed with {count} prompt checks quota-skipped. Load tests passed on every leg."

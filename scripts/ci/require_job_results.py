@@ -209,12 +209,14 @@ def main(argv: list[str] | None = None) -> int:
 
 def _success_text(args: argparse.Namespace) -> str:
     """Return the count message when counts are above zero, else the success message."""
-    if args.count_dir is None or not args.count_message:
-        return args.success_message
+    success: str = args.success_message
+    count_message: str = args.count_message
+    if args.count_dir is None or not count_message:
+        return success
     total = sum_counts(args.count_dir)
     if total <= 0:
-        return args.success_message
-    return args.count_message.replace("{count}", str(total))
+        return success
+    return count_message.replace("{count}", str(total))
 
 
 if __name__ == "__main__":
