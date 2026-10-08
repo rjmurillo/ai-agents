@@ -296,6 +296,12 @@ class TestGetSecurityRiskLevel:
     def test_critical_for_secret_file(self) -> None:
         assert get_security_risk_level("config/secret.json") == "critical"
 
+    def test_critical_for_env_file(self) -> None:
+        assert get_security_risk_level(".env.production") == "critical"
+
+    def test_high_for_terraform(self) -> None:
+        assert get_security_risk_level("infra/main.tf") == "high"
+
     def test_critical_for_pem_file(self) -> None:
         assert get_security_risk_level("certs/server.pem") == "critical"
 
@@ -342,10 +348,16 @@ class TestDetectInfrastructure:
         result = detect_infrastructure(changed_files=[])
         assert result["findings"] == []
         assert result["highest_risk"] == "none"
+        assert result["file_count"] == 0
 
     def test_none_files_returns_no_findings(self) -> None:
         result = detect_infrastructure(changed_files=None)
         assert result["findings"] == []
+
+    def test_no_arguments_returns_no_findings(self) -> None:
+        result = detect_infrastructure()
+        assert result["findings"] == []
+        assert result["file_count"] == 0
 
     def test_detects_critical_files(self) -> None:
         result = detect_infrastructure(changed_files=[".github/workflows/ci.yml"])
@@ -393,6 +405,7 @@ class TestMain:
         assert result == 0
         captured = capsys.readouterr()
         assert '"critical"' in captured.out
+        assert json.loads(captured.out)["highest_risk"] == "critical"
 
     def test_human_output_for_findings(self, capsys: pytest.CaptureFixture[str]) -> None:
         with patch("sys.argv", ["detect_infrastructure.py", "--files", ".github/workflows/ci.yml"]):
@@ -400,3 +413,14 @@ class TestMain:
         assert result == 0
         captured = capsys.readouterr()
         assert "CRITICAL" in captured.out
+
+    def test_returns_zero_for_files_without_findings(self) -> None:
+        with patch("sys.argv", ["detect_infrastructure.py", "--files", "src/main.py"]):
+            result = main()
+        assert result == 0
+
+    def test_help_exits_zero(self) -> None:
+        with patch("sys.argv", ["detect_infrastructure.py", "--help"]):
+            with pytest.raises(SystemExit) as exc:
+                main()
+        assert exc.value.code == 0
