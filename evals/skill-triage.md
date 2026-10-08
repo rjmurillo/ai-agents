@@ -26,9 +26,9 @@ A skill can carry both kinds of eval. Adding an `evals/<skill>-spike/` does not 
 | Category | Count | Action |
 |---|---|---|
 | Already covered | 10 | No new artifact. Cross-referenced below. |
-| Eval-worthy (deferred) | 36 | Original plan was to scaffold per-skill spikes; reverted (see baseline-report.md). Real fixture authoring will happen one spike at a time. |
+| Eval-worthy (deferred) | 34 | Original plan was to scaffold per-skill spikes; reverted (see baseline-report.md). Real fixture authoring will happen one spike at a time. |
 | Utility-skip | 18 | No scaffold. Mechanical or deterministic skill; agent-vs-baseline shape is wrong. |
-| **Total** | **64** | |
+| **Total** | **62** | |
 
 ### Decision rule
 
@@ -55,7 +55,7 @@ These skills appear in `tests/evals/skills/triage-prompts.json` with six prompts
 
 Note: prior triage also covered `doc-coverage`, `doc-sync`, `workflow`. Those skill directories were pruned. The `tests/evals/skills/triage-prompts.json` entries remain as deprecation trackers and are not in scope here.
 
-## Eval-worthy (36, scaffold)
+## Eval-worthy (34, scaffold)
 
 Each gets `evals/<skill>-spike/` with `README.md`, `fixtures/README.md`, `fixtures/.gitkeep`. Fixture authoring is left to the operator who owns the skill.
 
