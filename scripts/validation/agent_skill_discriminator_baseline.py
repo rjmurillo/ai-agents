@@ -59,6 +59,16 @@ PIPELINE_SOURCES: tuple[tuple[str, str], ...] = (
 # drift. ``build_pipeline_index`` reads these trees from disk.
 PIPELINE_ROOTS: tuple[str, ...] = tuple(f"{rel}/" for rel, _ in PIPELINE_SOURCES)
 
+# Git pathspecs for the exact files ``build_pipeline_index`` reads: each
+# ``PIPELINE_SOURCES`` (dir, glob) pair, matched at any depth like ``rglob``.
+# Used to find gitignored files, which ``--exclude-standard`` hides but the
+# scorer still reads. Whole roots cannot be used there: they would also match
+# ignored noise such as ``__pycache__/*.pyc``. Agent files need no such check,
+# because the agent corpus is read from ``git ls-tree HEAD``, never from disk.
+PIPELINE_FILE_PATHSPECS: tuple[str, ...] = tuple(
+    f":(glob){rel}/**/{pattern}" for rel, pattern in PIPELINE_SOURCES
+)
+
 # All roots whose on-disk content feeds into scoring. Used by the dirty-state
 # guard to refuse a baseline write when the working tree differs from HEAD.
 SCORING_ROOTS: tuple[str, ...] = AGENT_CORPUS_ROOTS + PIPELINE_ROOTS
@@ -229,25 +239,40 @@ def refuse_dirty_scoring_inputs(repo_root: Path) -> bool:
         )
         return True
 
-    # Check for untracked files under scoring roots.
-    proc = run_git(
-        repo_root, "ls-files", "--others", "--exclude-standard", "--", *SCORING_ROOTS
+    if _untracked_listing_refuses(repo_root, "untracked", SCORING_ROOTS, False):
+        return True
+    return _untracked_listing_refuses(
+        repo_root, "ignored", PIPELINE_FILE_PATHSPECS, True
     )
-    if problem := git_timeout_problem(proc, "checking untracked scoring inputs"):
+
+
+def _untracked_listing_refuses(
+    repo_root: Path, kind: str, pathspecs: tuple[str, ...], ignored: bool
+) -> bool:
+    """True when git lists ``kind`` files under ``pathspecs`` or cannot answer.
+
+    ``ignored=False`` lists untracked, non-ignored files. ``ignored=True``
+    lists untracked files that .gitignore hides, which the scorer's directory
+    walk still reads.
+    """
+    args = ["ls-files", "--others", "--exclude-standard"]
+    if ignored:
+        args.append("--ignored")
+    proc = run_git(repo_root, *args, "--", *pathspecs)
+    if problem := git_timeout_problem(proc, f"checking {kind} scoring inputs"):
         print(problem, file=sys.stderr)
         return True
     if proc is None or proc.returncode != 0:
         return True
-    untracked = proc.stdout.decode("utf-8", errors="replace").strip()
-    if untracked:
+    listing = proc.stdout.decode("utf-8", errors="replace").strip()
+    if listing:
         print(
-            f"Refusing baseline write: untracked files under scoring roots:\n"
-            f"{untracked}\n"
-            "Remove or commit untracked files before running --update-baseline.",
+            f"Refusing baseline write: {kind} files under scoring roots:\n"
+            f"{listing}\n"
+            f"Remove or commit {kind} files before running --update-baseline.",
             file=sys.stderr,
         )
         return True
-
     return False
 
 
