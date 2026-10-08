@@ -103,10 +103,10 @@ outputs:
   context-mode:
     description: 'Context mode used (full or summary)'
     value: ${{ steps.context.outputs.context_mode }}
-  copilot-exit-code:
+  reviewer-exit-code:
     description: 'Raw exit code from the reviewer invocation'
     value: ${{ steps.invoke_claude.outputs.copilot_exit_code }}
-  copilot-stderr:
+  reviewer-stderr:
     description: 'Stderr output from the reviewer invocation (if any)'
     value: ${{ steps.invoke_claude.outputs.stderr_output }}
 
