@@ -143,9 +143,8 @@ ai-agents/
 │   └── vs-code-agents/       # VS Code agents
 ├── .claude/
 │   ├── agents/               # Local agents for this repo
-│   ├── skills/               # 49 reusable skills
-│   ├── hooks/                # Lifecycle hooks
-│   └── commands/             # Slash commands
+│   ├── skills/               # Reusable skills
+│   └── hooks/                # Lifecycle hooks
 ├── .claude-plugin/
 │   └── marketplace.json      # Plugin distribution manifest
 ├── scripts/                  # Validation and utility scripts

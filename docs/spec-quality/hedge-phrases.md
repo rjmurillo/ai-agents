@@ -19,11 +19,12 @@ the Step 0 hedge-phrase table in
 marker. The deterministic test parser that checks the list lives at
 [`tests/commands/step0_parser.py`](../../tests/commands/step0_parser.py)
 (`HEDGE_TECHNICAL_SUFFIXES`). Runtime enforcement comes from the `/spec`
-agent following the Step 0 instructions in `spec.md`.
+agent following the Step 0 instructions in the spec skill.
 
-If this page and `spec.md` disagree, `spec.md` wins. Propose changes to the list
-against `spec.md`, then update this mirror in the same change. Do not edit this
-page to alter gate behavior; the gate reads `spec.md`, not this document.
+If this page and the Step 0 reference disagree, the reference wins. Propose
+changes to the list against `spec-step0-gates.md`, then update this mirror in
+the same change. Do not edit this page to alter gate behavior; the gate reads
+the reference file, not this document.
 
 ## How the match works
 
