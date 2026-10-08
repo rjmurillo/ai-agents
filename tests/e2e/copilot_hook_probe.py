@@ -25,11 +25,14 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import sys
 import uuid
 from pathlib import Path
-from typing import Literal
+from typing import Literal, NoReturn
+
+import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -53,11 +56,14 @@ finally:
 PROBE_EVENT = "UserPromptSubmit"
 PROBE_PROMPT = "Reply with exactly the word: ok"
 
-# Prefix of every skip reason for a classified Copilot block (quota, rate limit,
-# transport, auth). The Copilot CI legs pass it to
+# Prefix of a skip reason for budget exhaustion only (owner decision D26): a
+# spent Copilot monthly quota (HTTP 402) or a spent Claude credit balance. The
+# Copilot and Claude CI legs pass it to
 # scripts/validation/assert_smoke_ran.py --allow-skip-marker, so a prompt-based
-# best-effort test that skips for a block does not fail the gate (REQ-047 D6).
-# Any other skip still fails the gate.
+# best-effort test that hits an exhausted budget does not fail the gate.
+# Auth, rate limit, transport, and latency blocks never carry it: in CI they
+# fail the test, and locally they skip loudly without the marker, so the gate
+# still turns red on any of them. Any other skip still fails the gate.
 QUOTA_SKIP_MARKER = "QUOTA_SKIP:"
 
 # A parent Claude session or the pre-push hook may export these; strip them so
@@ -400,9 +406,91 @@ def copilot_run_blocked_headline(result: subprocess.CompletedProcess[str]) -> st
     )
 
 
+def running_in_ci() -> bool:
+    """True under GitHub Actions or any runner that exports ``CI``."""
+    return os.environ.get("GITHUB_ACTIONS") == "true" or bool(os.environ.get("CI"))
+
+
 def copilot_block_skip_reason(result: subprocess.CompletedProcess[str]) -> str:
-    """Skip reason for a classified block, led by :data:`QUOTA_SKIP_MARKER`."""
-    return f"{QUOTA_SKIP_MARKER} {copilot_run_blocked_headline(result)}"
+    """Skip reason for a classified block.
+
+    Only budget exhaustion (``quota_exhausted``) leads with
+    :data:`QUOTA_SKIP_MARKER`. A rate limit is transient and is re-run, so it
+    is deliberately not marker-skippable: the Copilot classifier tells a rate
+    limit from a spent quota.
+    """
+    headline = copilot_run_blocked_headline(result)
+    if copilot_quota_exhausted(result):
+        return f"{QUOTA_SKIP_MARKER} {headline}"
+    return headline
+
+
+def skip_or_fail_on_latency(message: str) -> NoReturn:
+    """Fail in CI, skip loudly without the marker elsewhere (no quota marker seen)."""
+    if running_in_ci():
+        pytest.fail(message, pytrace=False)
+    pytest.skip(message)
+
+
+def skip_or_fail_on_copilot_block(result: subprocess.CompletedProcess[str]) -> None:
+    """Apply the D26 policy to a Copilot run: no-op unless a classified block.
+
+    Quota exhaustion skips with the marker everywhere. Every other classified
+    block (auth, rate limit, transport) fails in CI and skips unmarked locally.
+    """
+    if not copilot_run_blocked(result):
+        return
+    if copilot_quota_exhausted(result):
+        pytest.skip(copilot_block_skip_reason(result))
+    skip_or_fail_on_latency(copilot_block_skip_reason(result))
+
+
+# Claude CLI external-block markers (issue #4861), lowercased regexes. Auth is
+# checked first, as before. The 429 status is ambiguous: the CLI reports a
+# usage limit and a rate limit the same way, so the classifier cannot tell
+# them apart and treats 429 as quota (D26 allows this when the two cannot be
+# separated). "credit balance is too low" is the exhausted-credit message.
+CLAUDE_AUTH_BLOCK_PATTERNS: tuple[str, ...] = (
+    "oauth session expired",
+    "failed to authenticate",
+    "could not be refreshed",
+)
+CLAUDE_QUOTA_BLOCK_PATTERNS: tuple[str, ...] = (
+    "monthly spend limit",
+    "weekly limit resets",
+    r'"api_error_status"\s*:\s*429',
+    "credit balance is too low",
+)
+
+ClaudeBlockReason = Literal["auth", "quota"]
+
+
+def claude_block_reason(run: subprocess.CompletedProcess[str]) -> ClaudeBlockReason | None:
+    """Classify a failed Claude run; a successful run is never blocked."""
+    if run.returncode == 0:
+        return None
+    haystack = f"{run.stderr or ''}\n{run.stdout or ''}".lower()
+    if any(re.search(pattern, haystack) for pattern in CLAUDE_AUTH_BLOCK_PATTERNS):
+        return "auth"
+    if any(re.search(pattern, haystack) for pattern in CLAUDE_QUOTA_BLOCK_PATTERNS):
+        return "quota"
+    return None
+
+
+def skip_or_fail_on_claude_block(run: subprocess.CompletedProcess[str], subject: str) -> None:
+    """Apply the D26 policy to a Claude run: no-op unless a classified block."""
+    reason = claude_block_reason(run)
+    if reason is None:
+        return
+    if reason == "quota":
+        pytest.skip(
+            f"{QUOTA_SKIP_MARKER} Claude quota or credit exhausted for {subject}; "
+            "retry after the budget resets."
+        )
+    skip_or_fail_on_latency(
+        f"Claude OAuth session expired or could not authenticate for {subject}; "
+        "rotate the credential."
+    )
 
 
 def run_copilot_plugin_dir(

@@ -90,24 +90,23 @@ finally:
 from copilot_hook_probe import (  # noqa: E402
     PROBE_EVENT,
     QUOTA_SKIP_MARKER,
-    copilot_block_skip_reason,
     copilot_command,
-    copilot_run_blocked,
     run_copilot_plugin_dir,
+    skip_or_fail_on_claude_block,
+    skip_or_fail_on_copilot_block,
     write_marker_probe_plugin,
 )
 
 
 def _skip_on_copilot_block(result: subprocess.CompletedProcess[str]) -> None:
-    """Skip when an external or credential condition blocks Copilot.
+    """Apply the D26 block policy to a Copilot run.
 
-    A rate limit, transport failure, or auth gate is not a branch defect.
-    Skipping lets the pre-push proceed. The nightly workflow uses
-    assert_smoke_ran.py to detect skipped smokes, so the nightly still fails red
-    when the real CLI cannot run (issues #4504, #4483, #3275).
+    Spent quota skips with QUOTA_SKIP:, which plugin-cli-smoke.yml allows through
+    ``assert_smoke_ran.py --allow-skip-marker``. Auth, rate limit, and transport
+    blocks fail in CI and skip unmarked locally, so the gate stays red on them
+    (issues #4504, #4483, #3275).
     """
-    if copilot_run_blocked(result):
-        pytest.skip(copilot_block_skip_reason(result))
+    skip_or_fail_on_copilot_block(result)
 
 
 _RUN = os.environ.get("RUN_CLI_E2E") == "1"
@@ -225,19 +224,6 @@ _COPILOT_ANALYST_TOOLS = frozenset(
 # argument-hint; the schema check passes but the real loader rejects it.
 _ARGUMENT_HINT_WARNING = "argument-hint"
 
-# Claude CLI external-block markers (issue #4861). The CLI emits these in its
-# stream-json output or stderr when auth or quota blocks the probe.
-# Keep lowercased for case-insensitive matching.
-_CLAUDE_EXTERNAL_BLOCK_PATTERNS: tuple[str, ...] = (
-    "oauth session expired",
-    "failed to authenticate",
-    "could not be refreshed",
-    "monthly spend limit",
-    "weekly limit resets",
-    r'"api_error_status"\s*:\s*429',
-)
-_CLAUDE_AUTH_BLOCK_PATTERNS = _CLAUDE_EXTERNAL_BLOCK_PATTERNS[:3]
-
 # A healthy run takes under 10s; a spent Copilot quota retried for 72s before
 # exiting (issue #6181). The ceiling also bounds an all-hang push: every smoke
 # test stops at its first CLI timeout, and that sum must stay under the
@@ -335,15 +321,8 @@ def _json_events(run: subprocess.CompletedProcess[str]) -> list[dict[str, object
 
 
 def _skip_on_claude_block(run: subprocess.CompletedProcess[str], subject: str) -> None:
-    """Skip when a Claude auth or quota marker explains the failed run."""
-    haystack = f"{run.stderr or ''}\n{run.stdout or ''}".lower()
-    if not any(re.search(pattern, haystack) for pattern in _CLAUDE_EXTERNAL_BLOCK_PATTERNS):
-        return
-    if any(re.search(pattern, haystack) for pattern in _CLAUDE_AUTH_BLOCK_PATTERNS):
-        reason = "OAuth session expired or could not authenticate"
-    else:
-        reason = "quota or external service limit reached"
-    pytest.skip(f"Claude {reason} for {subject}; retry after the external condition clears.")
+    """Apply the D26 block policy to a Claude run (marker for spent credit only)."""
+    skip_or_fail_on_claude_block(run, subject)
 
 
 def _decode_partial(output: bytes | str | None) -> str:
@@ -1349,28 +1328,68 @@ def test_run_cli_uses_cwd_and_decodes_utf8(tmp_path: Path) -> None:
     assert lines == [str(tmp_path), chr(0x2713)]
 
 
-@pytest.mark.parametrize(
-    "stderr",
-    [
-        "API rate limit exceeded for user ID 12345.",
-        "Failed to fetch PAT user login: connection reset by peer.",
-        "You have exceeded your monthly quota",
-    ],
-)
-def test_copilot_probe_hook_skips_classified_block_with_the_marker(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, stderr: str
+def _stub_copilot_probe_run(
+    monkeypatch: pytest.MonkeyPatch, stderr: str
 ) -> None:
-    """Best-effort probe: a classified block skips, and the reason leads with the marker."""
     blocked = subprocess.CompletedProcess(["copilot"], 1, stdout="", stderr=stderr)
     monkeypatch.setattr(
         "tests.e2e.test_plugin_load_smoke.run_copilot_plugin_dir",
         lambda *args, **kwargs: blocked,
     )
 
+
+def _set_ci(monkeypatch: pytest.MonkeyPatch, *, ci: bool) -> None:
+    monkeypatch.delenv("CI", raising=False)
+    if ci:
+        monkeypatch.setenv("GITHUB_ACTIONS", "true")
+    else:
+        monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+
+
+@pytest.mark.parametrize("ci", [True, False], ids=["ci", "local"])
+def test_copilot_probe_hook_skips_a_spent_quota_with_the_marker(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, ci: bool
+) -> None:
+    """Budget exhaustion is the only block that skips with the marker (D26)."""
+    _set_ci(monkeypatch, ci=ci)
+    _stub_copilot_probe_run(monkeypatch, "You have exceeded your monthly quota")
+
     with pytest.raises(pytest.skip.Exception) as skipped:
         test_copilot_plugin_dir_fires_probe_hook(tmp_path)
 
     assert str(skipped.value).startswith(QUOTA_SKIP_MARKER)
+
+
+@pytest.mark.parametrize(
+    "stderr",
+    [
+        "API rate limit exceeded for user ID 12345.",
+        "Failed to fetch PAT user login: connection reset by peer.",
+        "No authentication information found.\nSet COPILOT_GITHUB_TOKEN",
+        "GitHub returned: Bad credentials",
+    ],
+    ids=["rate_limit", "transport", "auth_absent", "auth_rejected"],
+)
+def test_copilot_probe_hook_fails_in_ci_on_a_non_quota_block(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, stderr: str
+) -> None:
+    _set_ci(monkeypatch, ci=True)
+    _stub_copilot_probe_run(monkeypatch, stderr)
+
+    with pytest.raises(pytest.fail.Exception):
+        test_copilot_plugin_dir_fires_probe_hook(tmp_path)
+
+
+def test_copilot_probe_hook_skips_unmarked_locally_on_a_non_quota_block(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _set_ci(monkeypatch, ci=False)
+    _stub_copilot_probe_run(monkeypatch, "API rate limit exceeded for user ID 12345.")
+
+    with pytest.raises(pytest.skip.Exception) as skipped:
+        test_copilot_plugin_dir_fires_probe_hook(tmp_path)
+
+    assert QUOTA_SKIP_MARKER not in str(skipped.value)
 
 
 def test_copilot_probe_hook_fails_on_an_unclassified_failure(
@@ -1532,6 +1551,7 @@ def test_zero_token_load_fails_instead_of_skipping_on_a_timeout(
 def test_empty_plugin_negative_control_skips_classified_block(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
+    _set_ci(monkeypatch, ci=False)
     blocked = subprocess.CompletedProcess(
         ["copilot"],
         1,
@@ -1561,19 +1581,51 @@ def test_empty_plugin_negative_control_skips_classified_block(
     ],
     ids=["expired-oauth-json", "failed-auth-generic", "bare-marker"],
 )
-def test_claude_probe_skips_on_expired_oauth(
+def test_claude_probe_skips_unmarked_locally_on_expired_oauth(
     monkeypatch: pytest.MonkeyPatch, auth_error_text: str
 ) -> None:
-    """Claude probe skips (not fails) when auth is expired or cannot
-    authenticate (issue #4861); markers match on stdout or stderr."""
+    """Locally, expired or failed auth skips loudly without the marker
+    (issue #4861); markers match on stdout or stderr. CI fails instead (D26)."""
+    _set_ci(monkeypatch, ci=False)
     expired = subprocess.CompletedProcess(
         ["claude"], 1, stdout=auth_error_text, stderr=""
     )
     monkeypatch.setattr(
         "tests.e2e.test_plugin_load_smoke._run_cli", lambda *a, **kw: expired
     )
-    with pytest.raises(pytest.skip.Exception, match="OAuth session expired"):
+    with pytest.raises(pytest.skip.Exception, match="OAuth session expired") as skipped:
         _claude_init_tools("analyst")
+    assert QUOTA_SKIP_MARKER not in str(skipped.value)
+
+
+def test_claude_probe_fails_in_ci_on_expired_oauth(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _set_ci(monkeypatch, ci=True)
+    expired = subprocess.CompletedProcess(
+        ["claude"], 1, stdout="oauth session expired", stderr=""
+    )
+    monkeypatch.setattr(
+        "tests.e2e.test_plugin_load_smoke._run_cli", lambda *a, **kw: expired
+    )
+    with pytest.raises(pytest.fail.Exception):
+        _claude_init_tools("analyst")
+
+
+def test_claude_probe_skips_with_the_marker_on_a_spent_credit_balance(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A spent Claude credit balance is the budget-exhaustion skip (D26)."""
+    _set_ci(monkeypatch, ci=True)
+    spent = subprocess.CompletedProcess(
+        ["claude"], 1, stdout='{"result":"Credit balance is too low"}', stderr=""
+    )
+    monkeypatch.setattr(
+        "tests.e2e.test_plugin_load_smoke._run_cli", lambda *a, **kw: spent
+    )
+    with pytest.raises(pytest.skip.Exception) as skipped:
+        _claude_init_tools("analyst")
+    assert str(skipped.value).startswith(QUOTA_SKIP_MARKER)
 
 
 def test_claude_probe_fails_on_non_auth_error(
@@ -1603,8 +1655,9 @@ def test_claude_probe_skips_on_quota_limit(
     monkeypatch.setattr(
         "tests.e2e.test_plugin_load_smoke._run_cli", lambda *a, **kw: quota_blocked
     )
-    with pytest.raises(pytest.skip.Exception, match="quota"):
+    with pytest.raises(pytest.skip.Exception, match="quota") as skipped:
         _claude_init_tools("analyst")
+    assert str(skipped.value).startswith(QUOTA_SKIP_MARKER)
 
 
 def test_claude_probe_succeeds_when_rc_zero(
@@ -1843,6 +1896,7 @@ def test_plugin_smoke_timeout_with_block_marker_skips(
 def test_claude_agent_probe_timeout_with_auth_marker_skips(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    _set_ci(monkeypatch, ci=False)
     _patch_claude_plugin_timeouts(monkeypatch, b"OAuth session expired\n")
 
     with pytest.raises(pytest.skip.Exception, match="OAuth session expired"):
