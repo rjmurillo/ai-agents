@@ -29,7 +29,7 @@ Code dispatches it under ``claude -p``.
 
 Why opt-in: these spawn real CLIs that need authentication and spend model
 credits, which bare CI does not have. They run wherever the CLIs are installed
-and ``RUN_CLI_E2E=1`` is set (local dev, a nightly job with secrets); elsewhere
+and ``RUN_CLI_E2E=1`` is set (local dev, plugin-cli-smoke.yml with secrets); elsewhere
 they SKIP with a loud reason so a skipped run never reads as a passed run. The
 fast, always-on guards are the unit/runtime-contract tests and the
 ``validate_hook_anchoring`` gate; this is the belt-and-suspenders e2e layer.

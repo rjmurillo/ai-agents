@@ -9,15 +9,16 @@ reach a customer because nothing loaded the plugin in the real CLI and asserted
 the skills loaded. These tests close that gap: they launch the REAL CLIs, load
 the shipped plugin directory, and assert the plugin loads.
 
-  - Copilot (REQ-047 D6): the GATE spends no model quota. ``copilot --plugin-dir
+  - Copilot (REQ-047 D25): the GATE spends no model quota. ``copilot --plugin-dir
     <repo>/src/copilot-cli skill list --json`` runs from a neutral cwd under an
     isolated ``COPILOT_HOME``, must return 0 with no ``argument-hint`` loader
     warning (issue #2736), and must list every ``EXPECTED_SKILLS`` name from a
     ``source: plugin`` record whose path is under ``src/copilot-cli``. It never
     skips on quota. The prompt-based checks (the fired-hook probe of issue #3148,
-    its negative control, and the agent runtime probes) are best-effort: a
-    classified block skips with ``QUOTA_SKIP:``, which the Copilot CI legs allow
-    through ``assert_smoke_ran.py --allow-skip-marker``. The shared probe lives
+    its negative control, and the agent runtime probes) are best-effort: a spent
+    quota skips with ``QUOTA_SKIP:`` (D26), which the Copilot and Claude CI legs
+    allow through ``assert_smoke_ran.py --allow-skip-marker``. Auth, rate limit,
+    and transport blocks fail in CI. The shared probe lives
     in ``tests/e2e/copilot_hook_probe.py``.
   - Claude: ``claude --plugin-dir <repo>/.claude plugin list`` and
     ``plugin details project-toolkit`` with ``cwd`` set to a neutral directory.
@@ -759,7 +760,7 @@ def test_non_agent_document_stems_are_absent_from_the_agent_tree() -> None:
 def test_copilot_plugin_loads_expected_skills(tmp_path: Path) -> None:
     """The shipped plugin loads every expected skill, proven with no model call.
 
-    REQ-047 owner decision D6: this is the Copilot leg's gate, so it spends no
+    REQ-047 owner decision D25: this is the Copilot leg's gate, so it spends no
     quota and never skips on a quota or auth block. ``copilot --plugin-dir
     <repo>/src/copilot-cli skill list --json`` runs from a neutral cwd under an
     isolated ``COPILOT_HOME`` (so user-installed plugins and stored auth cannot
@@ -825,8 +826,8 @@ def test_copilot_plugin_dir_fires_probe_hook(tmp_path: Path) -> None:
     """Best-effort: ``copilot --plugin-dir <probe> -p`` fires the probe hook.
 
     A fired hook proves the CLI loads and dispatches a ``--plugin-dir`` plugin
-    (issue #3148). The prompt spends Copilot quota, so a classified quota, rate
-    limit, transport, or auth block skips with ``QUOTA_SKIP:`` (REQ-047 D6). The
+    (issue #3148). The prompt spends Copilot quota, so a spent quota skips with
+    ``QUOTA_SKIP:`` (D26); auth, rate limit, and transport blocks fail in CI. The
     required load proof is ``test_copilot_plugin_loads_expected_skills``.
     """
     probe_plugin = tmp_path / "probe-plugin"
@@ -1137,7 +1138,7 @@ def test_expected_skills_ship_in_copilot_plugin_tree() -> None:
 
     If a lifecycle skill is renamed or removed from src/copilot-cli/skills, the
     gated Copilot smoke would assert a name that can never load. Pin the set to
-    the on-disk tree so that drift fails in bare CI, not only in the nightly job.
+    the on-disk tree so that drift fails in bare CI, not only in plugin-cli-smoke.yml.
     """
     skills_dir = _COPILOT_PLUGIN_DIR / "skills"
     missing = {name for name in EXPECTED_SKILLS if not (skills_dir / name).is_dir()}
@@ -1152,7 +1153,7 @@ def test_expected_skills_ship_in_claude_tree() -> None:
     the marketplace-listed plugin root (src/claude/, ADR-109 B6). Most
     lifecycle names ship as commands; `review` ships as a skill dir. Accept
     either so the contract tracks how the plugin actually exposes the capability,
-    and so a rename in both places fails in bare CI before the nightly Claude
+    and so a rename in both places fails in bare CI before the plugin-cli-smoke.yml Claude
     smoke ever runs.
     """
     commands_dir = _CLAUDE_PLUGIN_DIR / "commands"
