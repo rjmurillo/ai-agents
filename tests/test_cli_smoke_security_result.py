@@ -94,6 +94,8 @@ def test_prompt_based_gates_record_the_quota_skip_count(
     for step in smoke_job["steps"]:
         name = str(step.get("name", ""))
         if name.startswith("Assert the ") and f"({cli})" in name:
+            # shell: bash runs with -e, so a failed gate stops the step before the report.
+            assert step.get("shell") == "bash", name
             gate, report = _run_commands(step)[:2]
             assert "--allow-skip-marker" in gate, name
             assert report[2] == "trusted-base/scripts/validation/smoke_quota_report.py", name

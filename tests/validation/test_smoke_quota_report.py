@@ -57,7 +57,10 @@ def test_nothing_skipped_writes_a_zero_and_no_notice_or_summary(
     assert count_file.read_text(encoding="utf-8") == "0\n"
 
 
-def test_count_file_is_appended_by_each_step_of_a_leg(tmp_path: Path) -> None:
+def test_count_file_is_appended_by_each_step_of_a_leg(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)
     count_file = tmp_path / "quota-skips.txt"
     argv = [str(_report_with_one_quota_skip(tmp_path)), *_MARKER_ARGS]
 
@@ -108,3 +111,20 @@ def test_reason_line_breaks_cannot_forge_a_workflow_command(tmp_path: Path, caps
     assert out.count("\n") == 1
     assert "\r" not in out
     assert "::notice::" in out
+
+
+@pytest.mark.parametrize("blank", ("", "   "))
+def test_a_blank_marker_is_a_config_error(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], blank: str
+) -> None:
+    """A blank marker would count every skip; the gate rejects it too."""
+    report = _report_with_one_quota_skip(tmp_path)
+    count_file = tmp_path / "quota-skips.txt"
+
+    rc = report_script.main(
+        [str(report), "--allow-skip-marker", blank, "--skip-count-file", str(count_file)]
+    )
+
+    assert rc == report_script.EXIT_CONFIG
+    assert "blank" in capsys.readouterr().err
+    assert not count_file.exists()

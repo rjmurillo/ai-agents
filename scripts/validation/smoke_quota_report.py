@@ -80,6 +80,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--skip-count-file", type=Path, help="Append the skip count here.")
     args = parser.parse_args(argv)
     marker: str = args.allow_skip_marker
+    if not marker.strip():
+        print("::error::smoke quota report: --allow-skip-marker is blank", file=sys.stderr)
+        return EXIT_CONFIG
     try:
         skips = quota_skips(args.report, args.smoke_substr, marker)
     except ValueError as exc:
