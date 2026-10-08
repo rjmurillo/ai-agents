@@ -90,7 +90,6 @@ Each gets `evals/<skill>-spike/` with `README.md`, `fixtures/README.md`, `fixtur
 | reflect | Extracts HIGH/MED/LOW confidence patterns. Pattern recognition is judgment. |
 | requirements-interview | Adversarial requirements elicitation. Question coverage is judgment. |
 | review | Nine-axis review across six canonical axes plus three chained skills. Pure judgment surface. |
-| slashcommandcreator | Meta-skill for slash commands. Command design is judgment. |
 | slo-designer | Designs SLOs, SLIs, alerting thresholds. Design quality is judgment. |
 | threat-modeling | OWASP STRIDE matrix generation. Risk-rating accuracy is judgment. |
 | using-serena-symbols | Guidance for symbol analysis. Output adherence is the eval target. |

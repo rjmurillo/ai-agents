@@ -11,12 +11,11 @@ This module guards the surfaces cleaned in the follow-up. It does not cover the
 three Forgetful-native skills, whose call sites were not fixable in place: the
 owner retired them under #5624, so their surfaces are gone rather than guarded.
 
-A second wave added eight more entries: the last skill files in the acceptance
+A second wave added more entries: the last skill files in the acceptance
 criterion's scope that still named the server. They were live instructions
 (`programming-advisor`, `world-model-diagnostic`), a stale claim citing an ADR
-that ADR-106 superseded (`ai-agents-docs-of-record`), an invocation example
-(`slashcommandcreator`), and prose treating the server as a second live backend
-(`software-engineering-library` references, `memory/references`).
+that ADR-106 superseded (`ai-agents-docs-of-record`), and prose treating the server
+as a second live backend (`software-engineering-library` references, `memory/references`).
 
 Each guard is parametrized over the canonical `.claude/` tree and the generated
 `src/copilot-cli/` mirror so a regeneration cannot reintroduce a surface on one
@@ -49,7 +48,6 @@ CLEANED_SKILL_FILES = (
     "programming-advisor/SKILL.md",
     "reflect/SKILL.md",
     "reflect/references/integration-and-design.md",
-    "slashcommandcreator/SKILL.md",
     "software-engineering-library/references/domain-driven-design.md",
     "software-engineering-library/references/enterprise-patterns.md",
     "software-engineering-library/references/release-it.md",

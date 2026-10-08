@@ -796,8 +796,8 @@ def test_run_returns_2_when_check_finds_drift(
 def test_no_staleness_deferrals_constant() -> None:
     """The #2755 deferral exemption is removed (#2777).
 
-    The two formerly-deferred mirrors (cva-analysis, slashcommandcreator)
-    are committed and clean since #2762, so the exemption is dead code that
+    The two formerly-deferred mirrors (cva-analysis and one since-retired skill)
+    were committed and clean since #2762, so the exemption is dead code that
     would only hide future regen drift. It must not come back.
     """
     assert not hasattr(build_all, "STALENESS_DEFERRALS")
