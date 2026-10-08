@@ -88,6 +88,7 @@ if _VALIDATION_PACKAGE_SENTINEL.is_file() and str(_PROJECT_ROOT) not in sys.path
 from scripts.validation.agent_skill_discriminator_baseline import (  # noqa: E402
     AGENT_CORPUS_ROOTS,
     DEFAULT_BASELINE_NAME,
+    PIPELINE_SOURCES,
     baseline_from_scores,
     baseline_note,
     full_corpus_agent_paths,
@@ -329,20 +330,6 @@ def _skill_invocations(text: str) -> set[str]:
             text,
         )
     )
-
-
-# Every tree a user-invocable pipeline can be authored in, newest first.
-# ADR-064 retired `.claude/commands/` and made skills the single user-invocable
-# surface, so a pipeline that invokes an agent is now a SKILL.md, not a command
-# file. The retired command trees stay in the list because a consumer repo that
-# has not finished the migration still authors pipelines there; in this
-# repository both are absent and contribute nothing.
-PIPELINE_SOURCES: tuple[tuple[str, str], ...] = (
-    (".claude/skills", "SKILL.md"),
-    ("templates/skills", "*.SKILL.md.tmpl"),
-    (".claude/commands", "*.md"),
-    ("templates/commands", "*.md"),
-)
 
 
 def _pipeline_dirs(repo_root: Path) -> list[Path]:
