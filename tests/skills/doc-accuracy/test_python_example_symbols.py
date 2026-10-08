@@ -48,6 +48,9 @@ def _flagged(code: str, lang: str = "python") -> set[str]:
     "try:\n    pass\nexcept ImportError:\n    raise ValueError('x')\n",
     "from datetime import UTC, datetime\nnow = datetime.now(tz=UTC)\n",
     "w = ExistingWidget()\n",
+    "from datetime import UTC as Utc\nx = Utc\n",
+    "from datetime import (UTC as Utc,\n    datetime as DT)\nx = DT\n",
+    'x = "Prose Widget\ny = 1\n',
 ])
 def test_python_prose_builtins_and_stdlib_imports_not_flagged(code: str) -> None:
     assert _flagged(code) == set()
@@ -79,6 +82,7 @@ def test_real_undefined_symbols_still_flagged(
     ('x = """open Hook\nFooBarService()\n', "", "FooBarService"),
     ("if x:\n        a = 1\n    FooBarService()  # Hook\n", "FooBarService", "Hook"),
     ("from collections import (OrderedDict as OD,\n    Counter)\n", "", "OrderedDict"),
+    ('x = "Prose Widget\nFooBar()\n', "FooBar", "Widget"),
     ("from collections import (OrderedDict,\n    Counter)\n", "", "Counter"),
 ])
 def test_python_identifiers_come_from_code_tokens(

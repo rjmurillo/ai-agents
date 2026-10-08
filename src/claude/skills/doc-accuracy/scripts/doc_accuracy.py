@@ -806,8 +806,8 @@ def _detect_language(info_string: str) -> str:
 _TRIPLE_QUOTE = "\"\"\"|'''"
 _PY_NON_CODE_RE = re.compile(
     r"(?s)(" + _TRIPLE_QUOTE + r").*?(?:\1|\Z)"
-    r"|\"(?:\\.|[^\"\\\n])*\""
-    r"|'(?:\\.|[^'\\\n])*'"
+    r"|\"(?:\\.|[^\"\\\n])*(?:\"|(?=\n)|\Z)"
+    r"|'(?:\\.|[^'\\\n])*(?:'|(?=\n)|\Z)"
     r"|\#[^\n]*"
 )
 
@@ -833,6 +833,10 @@ def _blank_python_non_code_by_tokens(code: str) -> str:
     chars = [list(line) for line in lines]
     readline = io.StringIO(code).readline
     for tok in tokenize.generate_tokens(readline):
+        if tok.type == tokenize.ERRORTOKEN:
+            # An unterminated single-line literal yields ERRORTOKEN instead
+            # of raising; its words would leak, so take the regex fallback.
+            raise tokenize.TokenError("unterminated literal", tok.start)
         if tok.type not in _PY_NON_CODE_TOKENS:
             continue
         (srow, scol), (erow, ecol) = tok.start, tok.end
@@ -871,6 +875,8 @@ _PY_FROM_IMPORT_RE = re.compile(
 def _python_stdlib_imported_names(code: str) -> set[str]:
     """Names brought in by ``from <stdlib module> import ...`` lines.
 
+    Includes both the imported name and its ``as`` alias (the bound name).
+
     Handles single-line and parenthesized multi-line imports. These names
     are defined by the standard library, not the repo, so Phase 3 must not
     look them up in the repo symbol index. Imports from any other module
@@ -882,9 +888,8 @@ def _python_stdlib_imported_names(code: str) -> set[str]:
         if module.split(".")[0] not in sys.stdlib_module_names:
             continue
         for part in (grouped or plain).split(","):
-            name = part.split(" as ")[0].strip()
-            if name:
-                names.add(name)
+            # Both the imported name and its alias come from the stdlib.
+            names.update(n.strip() for n in part.split(" as ") if n.strip())
     return names
 
 
