@@ -259,4 +259,21 @@ Full panel. Decision 13 adds a blocking gate, so all six seats ran in parallel, 
 | 67 | analyst | P2 | Workflow and test comments cited "D6". | Fixed. They cite D25. |
 | 68 | architect | P2 | `ai-review` outputs keep `copilot-exit-code` and `copilot-stderr` names fed by the Claude step. | Out of scope. A rename breaks callers. Flagged in the pull request body. |
 | 69 | architect | P2 | Frontmatter date and Related Decisions were stale. | Fixed. |
+| 70 | architect (round 2) | P2 | Item 8 said "reported once on `main`", but the workflow never runs on `main` by itself. | Fixed. Item 8 names a manual dispatch on `main` and notes that older pull requests get no result until their next push. |
+| 71 | architect (round 2) | P2 | Decision 13.6 said agents cannot approve deployments, which item 7 contradicts. | Fixed. It says the deny rule only slows self-approval. |
+| 72 | critic (round 2) | P1 | The trusted steps run `main`'s copy of the gate scripts, which this pull request adds or extends, so its own smoke fails. Later flag changes hit the same break. | Fixed in text. Decision 13.1 names the landing cost, the `workflow_dispatch` proof path, the owner-approved first landing, and the two-step rule for later flag changes. |
+| 73 | critic (round 2) | P2 | A docstring said the marker "contains" while the code matches a prefix. | Fixed. |
+
+### Votes
+
+| Seat | Round 1 | Round 2 |
+|------|---------|---------|
+| architect | Block | Accept |
+| critic | Block | Disagree-and-Commit; the landing cost is now stated |
+| security | Block | Accept |
+| analyst | Disagree-and-Commit | not re-run; its two P1 text errors are fixed (53, 54) |
+| independent-thinker | Disagree-and-Commit | not re-run; its P1 is answered in text (52) and depends on Decision 11 item 8 |
+| high-level-advisor | Disagree-and-Commit | not re-run; its four P1 items are fixed or answered by D26 (53, 57, 58, 59) |
+
+All six seats Accept or Disagree-and-Commit. No seat blocks. Findings 72 and 73 landed after the critic's round 2 vote, and no seat re-voted on them.
 

@@ -164,7 +164,7 @@ def evaluate(
 ) -> tuple[int, str]:
     """Decide whether the smoke ran. Returns ``(exit_code, message)``.
 
-    A skip whose message contains ``allow_skip_marker`` is reported but does not
+    A skip whose message starts with ``allow_skip_marker`` is reported but does not
     fail the gate. The collected count includes those skips; a failed or
     otherwise-skipped case fails the gate regardless, so the count of accounted
     tests is the count of passed plus marker-skipped cases.
