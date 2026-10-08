@@ -193,6 +193,71 @@ def test_main_prints_without_github_output(
     assert "run=false" in capsys.readouterr().out
 
 
+@pytest.mark.parametrize(
+    "error",
+    [OSError("git missing"), subprocess.TimeoutExpired(cmd="git", timeout=1)],
+    ids=["oserror", "timeout"],
+)
+def test_changed_files_raises_when_git_does_not_run(
+    error: Exception, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def fake_run(*_a: object, **_kw: object) -> subprocess.CompletedProcess[str]:
+        raise error
+
+    monkeypatch.setattr(paths.subprocess, "run", fake_run)
+
+    with pytest.raises(paths.DiffError, match=f"git diff did not run: {type(error).__name__}"):
+        paths.changed_files(_SHA_A, _SHA_B, _REPO_ROOT)
+
+
+def test_matched_paths_keeps_only_matches_in_order() -> None:
+    changed = ["README.md", "src/claude/b.md", "docs/x.md", "src/claude/a.md"]
+    assert paths.matched_paths(changed) == ["src/claude/b.md", "src/claude/a.md"]
+    assert paths.matched_paths(["README.md"]) == []
+
+
+def test_describe_matches_lists_all_at_the_cap() -> None:
+    matched = [f"src/claude/{i}.md" for i in range(paths.MAX_LISTED_PATHS)]
+    text = paths.describe_matches(matched)
+    assert len(text.splitlines()) == paths.MAX_LISTED_PATHS
+    assert "more" not in text
+
+
+def test_describe_matches_caps_and_counts_the_rest() -> None:
+    matched = [f"src/claude/{i}.md" for i in range(paths.MAX_LISTED_PATHS + 5)]
+    lines = paths.describe_matches(matched).splitlines()
+    assert len(lines) == paths.MAX_LISTED_PATHS + 1
+    assert lines[-1] == "  and 5 more"
+
+
+def test_main_prints_matched_paths_before_run_true(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.delenv("GITHUB_OUTPUT", raising=False)
+    monkeypatch.setattr(paths, "changed_files", lambda *_a: ["README.md", "src/claude/x.md"])
+
+    code = paths.main(["--event-name", "pull_request", "--base", _SHA_A, "--head", _SHA_B])
+
+    out = capsys.readouterr().out
+    assert code == paths.EXIT_OK
+    assert out.index("src/claude/x.md") < out.index("run=true")
+    assert "README.md" not in out
+    assert "1 changed path(s) match" in out
+
+
+def test_main_prints_no_path_list_when_nothing_matches(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.delenv("GITHUB_OUTPUT", raising=False)
+    monkeypatch.setattr(paths, "changed_files", lambda *_a: ["README.md"])
+
+    paths.main(["--event-name", "pull_request", "--base", _SHA_A, "--head", _SHA_B])
+
+    out = capsys.readouterr().out
+    assert "match the smoke path filter" not in out
+    assert "run=false" in out
+
+
 def _find_named_jobs(node: object, job_name: str) -> list[dict]:
     """Collect every mapping named ``job_name`` anywhere in the lefthook tree."""
     found: list[dict] = []

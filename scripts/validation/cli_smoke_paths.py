@@ -123,6 +123,23 @@ def changed_files(base: str, head: str, repo_root: Path) -> list[str]:
     return [line for line in result.stdout.splitlines() if line.strip()]
 
 
+MAX_LISTED_PATHS = 20
+
+
+def matched_paths(changed: Iterable[str], globs: Sequence[str] = SMOKE_PATH_GLOBS) -> list[str]:
+    """Return the changed paths that match any glob, in diff order."""
+    return [p for p in changed if any(fnmatch(p, pattern) for pattern in globs)]
+
+
+def describe_matches(matched: Sequence[str]) -> str:
+    """List up to ``MAX_LISTED_PATHS`` matched paths, then "and N more"."""
+    lines = [f"  {path}" for path in matched[:MAX_LISTED_PATHS]]
+    extra = len(matched) - MAX_LISTED_PATHS
+    if extra > 0:
+        lines.append(f"  and {extra} more")
+    return "\n".join(lines)
+
+
 def _emit(run: bool) -> None:
     line = f"run={'true' if run else 'false'}"
     print(line)
@@ -168,7 +185,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     except DiffError as exc:
         print(f"::error::cli smoke path filter failed closed: {exc}", file=sys.stderr)
         return EXIT_LOGIC
-    _emit(should_run(changed))
+    matched = matched_paths(changed)
+    if matched:
+        print(f"{len(matched)} changed path(s) match the smoke path filter:")
+        print(describe_matches(matched))
+    _emit(bool(matched))
     return EXIT_OK
 
 

@@ -311,3 +311,70 @@ def test_gates_still_run_after_a_failed_smoke(smoke_job: dict[str, Any]) -> None
     for step in smoke_job["steps"]:
         if str(step.get("name", "")).startswith("Assert the "):
             assert "always()" in step["if"], step["name"]
+
+
+def test_every_job_has_a_timeout(workflow_doc: dict[Any, Any]) -> None:
+    """Gate 2: no job can hang to the 360 minute default."""
+    expected = {
+        "changes": 5,
+        "authorize": 5,
+        "smoke": 20,
+        "smoke-codex": 20,
+        "smoke-result": 5,
+    }
+    assert {name: job.get("timeout-minutes") for name, job in workflow_doc["jobs"].items()} == (
+        expected
+    )
+
+
+def test_every_uv_run_is_frozen(workflow_doc: dict[Any, Any]) -> None:
+    """Gate 2: CI must not re-resolve the lockfile."""
+    seen = 0
+    for name, job in workflow_doc["jobs"].items():
+        for step in job["steps"]:
+            run = str(step.get("run", ""))
+            seen += run.count("uv run")
+            assert run.count("uv run") == run.count("uv run --frozen"), (name, step.get("name"))
+    assert seen >= 5, "the workflow lost its uv run steps; this guard would pass vacuously"
+
+
+def test_result_job_hardens_the_runner(workflow_doc: dict[Any, Any]) -> None:
+    """Gate 4: the Linux result job gets the same pinned harden-runner in audit mode."""
+    first = workflow_doc["jobs"]["smoke-result"]["steps"][0]
+
+    assert first["uses"].startswith("step-security/harden-runner@")
+    assert re.fullmatch(r"step-security/harden-runner@[0-9a-f]{40}", first["uses"])
+    assert first["with"]["egress-policy"] == "audit"
+
+
+@pytest.mark.parametrize("cli", ("claude", "copilot"))
+def test_prompt_based_gates_record_the_quota_skip_count(
+    smoke_job: dict[str, Any], cli: str
+) -> None:
+    """Gate 6: every gate that allows QUOTA_SKIP: also writes the per-leg count file."""
+    for step in smoke_job["steps"]:
+        name = str(step.get("name", ""))
+        if name.startswith("Assert the ") and f"({cli})" in name:
+            arguments = _gate_arguments(step)
+            assert "--allow-skip-marker" in arguments, name
+            assert arguments[arguments.index("--skip-count-file") + 1] == "quota-skips.txt", name
+
+
+def test_result_job_downloads_and_sums_the_quota_skip_counts(
+    workflow_doc: dict[Any, Any], smoke_job: dict[str, Any]
+) -> None:
+    """Gate 6: leg artifacts upload, the result job downloads them and prints the count."""
+    upload = _step_by_name(smoke_job, "Upload quota-skip count")
+    assert upload["with"]["name"] == "quota-skips-${{ matrix.cli }}-${{ matrix.os }}"
+    assert upload["with"]["path"] == "quota-skips.txt"
+    assert "always()" in upload["if"]
+    assert re.search(r"@[0-9a-f]{40}$", upload["uses"].split()[0])
+
+    steps = workflow_doc["jobs"]["smoke-result"]["steps"]
+    download = _step_by_name({"steps": steps}, "Download quota-skip counts")
+    assert download["with"]["pattern"] == "quota-skips-*"
+    assert download["with"]["path"] == "quota-skips"
+    assert re.search(r"@[0-9a-f]{40}$", download["uses"].split()[0])
+    report = _step_by_name({"steps": steps}, "Report")["run"]
+    assert "--count-dir quota-skips" in report
+    assert "{count} prompt checks quota-skipped" in report

@@ -21,6 +21,16 @@ which case it is not evaluated and `--skip-message` is printed after every
 legs reports success, while a failed filter job still fails. `--skip-when`
 requires at least one `--check`, so a skip can never bypass every check.
 
+When a failing value is `failure`, `cancelled`, or `skipped`, the error line also
+names the variable and appends the likely cause and the next action, so a red
+summary job says where to look. Other values keep the bare message.
+
+`--count-dir DIR --count-message TEMPLATE` adds an observability note to a run
+that passed. Every file under DIR holds one integer per line (a leg's count of
+quota-skipped checks). When the total is above zero, TEMPLATE replaces
+`--success-message`, with `{count}` replaced by the total. A missing or empty DIR
+reads as zero. Both flags are optional, so existing callers are unchanged.
+
 An unset variable reads as the empty string and therefore fails its check.
 That is deliberate: a summary job that cannot see an upstream result must not
 report success.
@@ -37,6 +47,7 @@ import argparse
 import os
 import sys
 from collections.abc import Mapping
+from pathlib import Path
 
 EXIT_SUCCESS = 0
 EXIT_MISMATCH = 1
@@ -50,13 +61,65 @@ def _format(message: str, value: str) -> str:
     return message.replace("{value}", value)
 
 
-def failures(checks: list[tuple[str, str, str]], environ: Mapping[str, str]) -> list[str]:
-    """Return one formatted message per check whose value did not match."""
+# Cause and next action per GitHub `needs.<job>.result` value. A matrix job
+# reports one aggregate value, so the hint points at the failing leg.
+_RESULT_HINTS: Mapping[str, str] = {
+    "failure": (
+        "Cause: a job or matrix leg failed. An environment approval that was "
+        "rejected or timed out also reports as a failure. "
+        "Next: open the failing job in this run and read its first red step."
+    ),
+    "cancelled": (
+        "Cause: a newer push superseded this run, or it was cancelled by hand. "
+        "Next: re-run the jobs, or check the latest run for this branch."
+    ),
+    "skipped": (
+        "Cause: a job this one needs did not run, usually because an earlier job "
+        "failed or its condition was false. Next: check the jobs listed in `needs`."
+    ),
+}
+
+
+def _with_hint(name: str, value: str, message: str) -> str:
+    """Append the variable name and a cause and next action for a known result value."""
+    hint = _RESULT_HINTS.get(value)
+    if hint is None:
+        return message
+    return f"{message} [{name}={value}] {hint}"
+
+
+def failing_checks(
+    checks: list[tuple[str, str, str]], environ: Mapping[str, str]
+) -> list[tuple[str, str, str]]:
+    """Return ``(name, observed value, formatted message)`` per mismatched check."""
     return [
-        _format(message, environ.get(name, ""))
+        (name, environ.get(name, ""), _format(message, environ.get(name, "")))
         for name, expected, message in checks
         if environ.get(name, "") != expected
     ]
+
+
+def failures(checks: list[tuple[str, str, str]], environ: Mapping[str, str]) -> list[str]:
+    """Return one formatted message per check whose value did not match."""
+    return [message for _name, _value, message in failing_checks(checks, environ)]
+
+
+def sum_counts(count_dir: Path) -> int:
+    """Sum the integers, one per line, of every file under ``count_dir``.
+
+    A missing directory reads as zero. A line that is not an integer is reported
+    as a warning and not counted, so one corrupt file cannot fail a passing run.
+    """
+    if not count_dir.is_dir():
+        return 0
+    total = 0
+    for path in sorted(p for p in count_dir.rglob("*") if p.is_file()):
+        for line in path.read_text(encoding="utf-8").split():
+            try:
+                total += int(line)
+            except ValueError:
+                print(f"::warning::ignoring non-integer count {line!r} in {path}")
+    return total
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -92,6 +155,18 @@ def build_parser() -> argparse.ArgumentParser:
         default="",
         help="Message to print when every check matched.",
     )
+    parser.add_argument(
+        "--count-dir",
+        type=Path,
+        default=None,
+        help="Directory of count files to sum when every check matched.",
+    )
+    parser.add_argument(
+        "--count-message",
+        default="",
+        help="Printed instead of --success-message when the count total is above zero. "
+        "Use {count} for the total. Requires --count-dir.",
+    )
     return parser
 
 
@@ -120,16 +195,26 @@ def main(argv: list[str] | None = None) -> int:
 
     skipping = _skip_applies(args.skip_when, os.environ)
     checks = always if skipping else [*always, *skippable]
-    bad = failures(checks, os.environ)
-    for message in bad:
-        print(f"::error::{message}")
+    bad = failing_checks(checks, os.environ)
+    for name, value, message in bad:
+        print(f"::error::{_with_hint(name, value, message)}")
     if bad:
         return EXIT_MISMATCH
 
-    final = args.skip_message if skipping else args.success_message
+    final = args.skip_message if skipping else _success_text(args)
     if final:
         print(final)
     return EXIT_SUCCESS
+
+
+def _success_text(args: argparse.Namespace) -> str:
+    """Return the count message when counts are above zero, else the success message."""
+    if args.count_dir is None or not args.count_message:
+        return args.success_message
+    total = sum_counts(args.count_dir)
+    if total <= 0:
+        return args.success_message
+    return args.count_message.replace("{count}", str(total))
 
 
 if __name__ == "__main__":

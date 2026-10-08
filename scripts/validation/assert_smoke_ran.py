@@ -35,6 +35,10 @@ Contract (JUnit XML, the format pytest's ``--junitxml`` writes):
   even when the marker is allowed. Each leg passes its zero-token load test, so a
   leg whose only passing signal is a quota skip cannot go green.
 
+- ``--skip-count-file PATH`` appends the marker-skip count of a passing gate to
+  PATH. The workflow uploads that file per leg and ``CLI Smoke Result`` sums them,
+  so a green run says how many prompt checks were quota-skipped.
+
 Exit codes (per AGENTS.md / ADR-035):
 - 0: at least one smoke test ran and none were skipped, failed, or errored.
 - 1: a smoke test was skipped, failed, errored, or none were collected (logic).
@@ -48,6 +52,7 @@ import os
 import sys
 from collections.abc import Sequence
 from pathlib import Path
+from typing import NamedTuple
 from xml.etree import ElementTree
 
 EXIT_OK = 0
@@ -142,9 +147,7 @@ def _is_marker_skipped(case: ElementTree.Element, marker: str | None) -> bool:
     return skipped.get("message", "").lstrip().startswith(marker)
 
 
-def _required_pass_problem(
-    smoke_cases: list[ElementTree.Element], required: str
-) -> str | None:
+def _required_pass_problem(smoke_cases: list[ElementTree.Element], required: str) -> str | None:
     """Describe why ``required`` did not PASS, or None when every match passed."""
     matches = [c for c in smoke_cases if required in _case_id(c)]
     if not matches:
@@ -155,14 +158,77 @@ def _required_pass_problem(
     return None
 
 
-def evaluate(
+class SmokeVerdict(NamedTuple):
+    """Outcome of one gate evaluation.
+
+    ``quota_skipped`` counts cases accounted for by the allowed skip marker. It
+    is 0 whenever ``exit_code`` is not ``EXIT_OK``.
+    """
+
+    exit_code: int
+    message: str
+    quota_skipped: int = 0
+
+
+def _not_run(message: str) -> SmokeVerdict:
+    return SmokeVerdict(EXIT_NOT_RUN, message)
+
+
+def _classify_failure(
+    smoke_cases: list[ElementTree.Element],
+    allowed: list[ElementTree.Element],
+    require_pass: Sequence[str],
+) -> str | None:
+    """Describe the first skip, failure, or unmet require-pass, or None when clean."""
+    skipped = [_case_id(c) for c in smoke_cases if _is_skipped(c) and c not in allowed]
+    if skipped:
+        return (
+            f"{len(skipped)} smoke test(s) SKIPPED: {', '.join(skipped)}. "
+            "A skipped smoke is not a passed smoke. Set RUN_CLI_E2E=1 and "
+            "ensure the CLIs are installed and authenticated."
+        )
+    failed = [_case_id(c) for c in smoke_cases if _is_failed(c)]
+    if failed:
+        return f"{len(failed)} smoke test(s) FAILED: {', '.join(failed)}."
+    problems = [p for r in require_pass if (p := _required_pass_problem(smoke_cases, r))]
+    if problems:
+        return "required smoke test(s) did not pass: " + "; ".join(problems) + "."
+    return None
+
+
+def _success_message(
+    smoke_cases: list[ElementTree.Element],
+    allowed: list[ElementTree.Element],
+    marker: str | None,
+) -> str:
+    passed = [_case_id(c) for c in smoke_cases if c not in allowed]
+    message = f"{len(passed)} smoke test(s) ran and passed"
+    message += f": {', '.join(passed)}." if passed else "."
+    if allowed:
+        notes = "; ".join(f"{_case_id(c)} ({_skip_message(c).strip()[:200]})" for c in allowed)
+        message += f" {len(allowed)} {_ALLOWED_SKIP_PHRASE} {marker!r}: {notes}."
+    return message
+
+
+def _validate_inputs(
+    allow_skip_marker: str | None, expected_count: int, require_pass: Sequence[str]
+) -> None:
+    if allow_skip_marker is not None and not allow_skip_marker.strip():
+        raise SmokeReportError("--allow-skip-marker must not be blank")
+    if any(not required.strip() for required in require_pass):
+        raise SmokeReportError("--require-pass must not be blank")
+    if expected_count < 1:
+        raise SmokeReportError(f"expected smoke count must be positive: {expected_count}")
+
+
+def judge(
     report_path: Path,
     smoke_substr: str,
     expected_count: int = _DEFAULT_EXPECTED_COUNT,
     allow_skip_marker: str | None = None,
     require_pass: Sequence[str] = (),
-) -> tuple[int, str]:
-    """Decide whether the smoke ran. Returns ``(exit_code, message)``.
+) -> SmokeVerdict:
+    """Decide whether the smoke ran, with the quota-skip count for observability.
 
     A skip whose message starts with ``allow_skip_marker`` is reported but does not
     fail the gate. The collected count includes those skips; a failed or
@@ -170,62 +236,44 @@ def evaluate(
     tests is the count of passed plus marker-skipped cases.
 
     Every ``require_pass`` substring must match a smoke case that PASSED, so a
-    marker skip never satisfies it.
+    marker skip never satisfies it. A report whose every case is marker-skipped
+    passes when no ``require_pass`` is given and reports 0 ran.
 
     Raises ``SmokeReportError`` on a missing or malformed report, a blank marker,
-    or a blank required-pass substring.
+    a blank required-pass substring, or a non-positive expected count.
     """
-    if allow_skip_marker is not None and not allow_skip_marker.strip():
-        raise SmokeReportError("--allow-skip-marker must not be blank")
-    if any(not required.strip() for required in require_pass):
-        raise SmokeReportError("--require-pass must not be blank")
-    cases = _iter_testcases(report_path)
-    smoke_cases = [c for c in cases if _is_smoke(c, smoke_substr)]
-
-    if expected_count < 1:
-        raise SmokeReportError(f"expected smoke count must be positive: {expected_count}")
+    _validate_inputs(allow_skip_marker, expected_count, require_pass)
+    smoke_cases = [c for c in _iter_testcases(report_path) if _is_smoke(c, smoke_substr)]
 
     if not smoke_cases:
-        return (
-            EXIT_NOT_RUN,
+        return _not_run(
             f"no smoke test matched '{smoke_substr}' in {report_path}. "
-            "The smoke was not collected, so the runtime contract never ran.",
+            "The smoke was not collected, so the runtime contract never ran."
         )
-
     if len(smoke_cases) < expected_count:
-        return (
-            EXIT_NOT_RUN,
+        return _not_run(
             f"only {len(smoke_cases)} of {expected_count} expected smoke test(s) "
-            "were collected. The smoke set is incomplete.",
+            "were collected. The smoke set is incomplete."
         )
 
     allowed = [c for c in smoke_cases if _is_marker_skipped(c, allow_skip_marker)]
-    skipped = [_case_id(c) for c in smoke_cases if _is_skipped(c) and c not in allowed]
-    failed = [_case_id(c) for c in smoke_cases if _is_failed(c)]
+    failure = _classify_failure(smoke_cases, allowed, require_pass)
+    if failure:
+        return _not_run(failure)
+    message = _success_message(smoke_cases, allowed, allow_skip_marker)
+    return SmokeVerdict(EXIT_OK, message, len(allowed))
 
-    if skipped:
-        names = ", ".join(skipped)
-        return (
-            EXIT_NOT_RUN,
-            f"{len(skipped)} smoke test(s) SKIPPED: {names}. "
-            "A skipped smoke is not a passed smoke. Set RUN_CLI_E2E=1 and "
-            "ensure the CLIs are installed and authenticated.",
-        )
 
-    if failed:
-        names = ", ".join(failed)
-        return (EXIT_NOT_RUN, f"{len(failed)} smoke test(s) FAILED: {names}.")
-
-    problems = [p for r in require_pass if (p := _required_pass_problem(smoke_cases, r))]
-    if problems:
-        return (EXIT_NOT_RUN, "required smoke test(s) did not pass: " + "; ".join(problems) + ".")
-
-    passed = [_case_id(c) for c in smoke_cases if c not in allowed]
-    message = f"{len(passed)} smoke test(s) ran and passed: {', '.join(passed)}."
-    if allowed:
-        notes = "; ".join(f"{_case_id(c)} ({_skip_message(c).strip()[:200]})" for c in allowed)
-        message += f" {len(allowed)} {_ALLOWED_SKIP_PHRASE} {allow_skip_marker!r}: {notes}."
-    return (EXIT_OK, message)
+def evaluate(
+    report_path: Path,
+    smoke_substr: str,
+    expected_count: int = _DEFAULT_EXPECTED_COUNT,
+    allow_skip_marker: str | None = None,
+    require_pass: Sequence[str] = (),
+) -> tuple[int, str]:
+    """Decide whether the smoke ran. Returns ``(exit_code, message)``. See ``judge``."""
+    verdict = judge(report_path, smoke_substr, expected_count, allow_skip_marker, require_pass)
+    return (verdict.exit_code, verdict.message)
 
 
 def _parse_args(argv: list[str]) -> argparse.Namespace:
@@ -265,32 +313,50 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         default=[],
         metavar="SUBSTR",
         help=(
-            "Test-id substring that must match a smoke case that PASSED, never a "
-            "skip. Repeatable."
+            "Test-id substring that must match a smoke case that PASSED, never a skip. Repeatable."
+        ),
+    )
+    parser.add_argument(
+        "--skip-count-file",
+        type=Path,
+        default=None,
+        help=(
+            "Append the number of marker-skipped cases (0 when none) to this file "
+            "on a passing gate, so the workflow can upload it as a per-leg artifact."
         ),
     )
     return parser.parse_args(argv)
 
 
-def _report_allowed_skips(message: str) -> None:
+def _report_allowed_skips(verdict: SmokeVerdict) -> None:
     """Surface marker skips as an annotation and in the job summary.
 
     The gate passes when only best-effort tests skipped, so the skip must stay
     visible in the run (D25, D26). ``GITHUB_STEP_SUMMARY`` is absent locally.
     """
-    if _ALLOWED_SKIP_PHRASE not in message:
+    if not verdict.quota_skipped:
         return
-    print(f"::notice::smoke gate: {message}")
+    print(f"::notice::smoke gate: {verdict.message}")
     summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
     if summary_path:
         with open(summary_path, "a", encoding="utf-8") as handle:
-            handle.write(f"Prompt checks were quota-skipped. {message}\n")
+            handle.write(f"Prompt checks were quota-skipped. {verdict.message}\n")
+
+
+def _record_skip_count(path: Path, count: int) -> None:
+    """Append ``count`` as one line so a later step can upload it as a per-leg artifact.
+
+    Every gate step of a leg appends to the same file, so the file total is the
+    leg total. ``CLI Smoke Result`` sums the files of all legs.
+    """
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(f"{count}\n")
 
 
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(sys.argv[1:] if argv is None else argv)
     try:
-        exit_code, message = evaluate(
+        verdict = judge(
             args.report,
             args.smoke_substr,
             args.expected_count,
@@ -301,12 +367,15 @@ def main(argv: list[str] | None = None) -> int:
         print(f"::error::smoke gate: {exc}", file=sys.stderr)
         return EXIT_CONFIG
 
-    if exit_code == EXIT_OK:
-        print(f"smoke gate OK: {message}")
-        _report_allowed_skips(message)
-    else:
-        print(f"::error::smoke gate: {message}", file=sys.stderr)
-    return exit_code
+    if verdict.exit_code != EXIT_OK:
+        print(f"::error::smoke gate: {verdict.message}", file=sys.stderr)
+        return verdict.exit_code
+
+    print(f"smoke gate OK: {verdict.message}")
+    _report_allowed_skips(verdict)
+    if args.skip_count_file:
+        _record_skip_count(args.skip_count_file, verdict.quota_skipped)
+    return verdict.exit_code
 
 
 if __name__ == "__main__":

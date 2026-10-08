@@ -48,7 +48,9 @@ def codex_job(workflow_doc: dict[Any, Any]) -> dict[str, Any]:
 
 def _triggers(workflow_doc: dict[Any, Any]) -> dict[str, Any]:
     # PyYAML parses the bare key `on` as boolean True.
-    return workflow_doc.get(True) or workflow_doc.get("on")
+    triggers = workflow_doc.get(True) or workflow_doc.get("on")
+    assert isinstance(triggers, dict), "workflow has no `on` mapping"
+    return triggers
 
 
 def test_workflow_triggers_on_pull_request_and_dispatch_only(
@@ -354,17 +356,22 @@ def test_every_job_that_runs_a_trusted_script_checks_it_out_from_the_base(
         ), (job_name, script)
 
 
+def _imported_top_level_modules(tree: ast.AST) -> set[str]:
+    """Top-level names of absolute imports in ``tree``; relative imports are skipped."""
+    modules: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            modules.update(alias.name.split(".")[0] for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and not node.level and node.module:
+            modules.add(node.module.split(".")[0])
+    return modules
+
+
 @pytest.mark.parametrize("script", TRUSTED_SCRIPTS)
 def test_trusted_scripts_import_only_the_standard_library(script: str) -> None:
     """`python -I` runs without the project environment, so third-party imports break."""
     path = next(REPO_ROOT.glob(f"scripts/**/{script}"))
-    modules = {
-        node.module.split(".")[0] if isinstance(node, ast.ImportFrom) else alias.name.split(".")[0]
-        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8")))
-        if isinstance(node, (ast.Import, ast.ImportFrom))
-        for alias in (node.names if isinstance(node, ast.Import) else [None])
-        if not (isinstance(node, ast.ImportFrom) and node.level)
-    }
+    modules = _imported_top_level_modules(ast.parse(path.read_text(encoding="utf-8")))
 
     assert modules <= set(sys.stdlib_module_names), modules - set(sys.stdlib_module_names)
 
