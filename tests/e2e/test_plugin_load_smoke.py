@@ -90,12 +90,14 @@ finally:
 # Fired-hook probe: ONE source of truth shared with test_cli_hook_e2e.py (#3148).
 from copilot_hook_probe import (  # noqa: E402
     PROBE_EVENT,
-    QUOTA_SKIP_MARKER,
     copilot_command,
     run_copilot_plugin_dir,
+    write_marker_probe_plugin,
+)
+from smoke_skip_policy import (  # noqa: E402
+    QUOTA_SKIP_MARKER,
     skip_or_fail_on_claude_block,
     skip_or_fail_on_copilot_block,
-    write_marker_probe_plugin,
 )
 
 

@@ -50,6 +50,7 @@ def test_union_has_no_duplicates() -> None:
         "scripts/ci/require_job_results.py",
         "tests/integration/test_e2e_install.py",
         "tests/e2e/copilot_hook_probe.py",
+        "tests/e2e/smoke_skip_policy.py",
         "pyproject.toml",
         "uv.lock",
     ],

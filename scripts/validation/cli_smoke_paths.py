@@ -50,6 +50,7 @@ HOOK_E2E_GLOBS: tuple[str, ...] = (
     "scripts/validation/validate_hook_anchoring.py",
     "tests/e2e/test_cli_hook_e2e.py",
     "tests/e2e/copilot_hook_probe.py",
+    "tests/e2e/smoke_skip_policy.py",
 )
 
 PLUGIN_E2E_GLOBS: tuple[str, ...] = (
@@ -62,6 +63,7 @@ PLUGIN_E2E_GLOBS: tuple[str, ...] = (
     "templates/platforms/copilot-cli.yaml",
     "tests/e2e/test_plugin_load_smoke.py",
     "tests/e2e/copilot_hook_probe.py",
+    "tests/e2e/smoke_skip_policy.py",
     ".github/workflows/plugin-cli-smoke.yml",
     "scripts/validation/cli_smoke_paths.py",
     "scripts/validation/assert_smoke_ran.py",

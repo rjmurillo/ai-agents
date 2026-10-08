@@ -836,6 +836,8 @@ def test_actionlint_and_cli_trigger_scopes_are_native_globs() -> None:
     assert isinstance(plugin_globs, list)
     assert "tests/e2e/copilot_hook_probe.py" in hook_globs
     assert "tests/e2e/copilot_hook_probe.py" in plugin_globs
+    assert "tests/e2e/smoke_skip_policy.py" in hook_globs
+    assert "tests/e2e/smoke_skip_policy.py" in plugin_globs
     assert "src/copilot-cli/hooks/**" in hook_globs
     assert "src/copilot-cli/**" in plugin_globs
 
