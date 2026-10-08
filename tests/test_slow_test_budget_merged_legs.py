@@ -28,10 +28,10 @@ class TestTheWorkflowWiring:
 
         pytest-split cuts one file across legs, so a per-leg gate could see only
         a fraction of a budgeted suite. The gate must run once, in the job that
-        downloads every leg's report, and its input pattern must match the
-        junit file of every matrix leg.
+        downloads every leg's report, and it must name the junit file of every
+        matrix leg explicitly, so a leg whose report is missing fails closed
+        (exit 3) instead of being undercounted by a glob.
         """
-        import fnmatch
         import shlex
 
         import yaml
@@ -47,11 +47,14 @@ class TestTheWorkflowWiring:
         assert "if" not in gate[0], "the gate must not be skippable"
         tokens = shlex.split(gate[0]["run"])
         assert tokens[tokens.index("--budget") + 1] == "pyproject.toml"
-        pattern = next(t for t in tokens if t.endswith(".xml"))
+        inputs = [t for t in tokens if t.endswith(".xml")]
+        assert not any(c in t for t in inputs for c in "*?["), "inputs must not be a glob"
         names = [s.get("name") for s in steps]
         assert names.index("Download partition artifacts") < steps.index(gate[0])
-        for leg in jobs["test"]["strategy"]["matrix"]["include"]:
-            assert fnmatch.fnmatch(leg["junit_file"], pattern), leg["partition"]
+        legs = jobs["test"]["strategy"]["matrix"]["include"]
+        expected = [leg["junit_file"] for leg in legs]
+        assert len(expected) == 6
+        assert sorted(inputs) == sorted(expected)
 
 
 class TestASplitModuleCannotBeDiluted:

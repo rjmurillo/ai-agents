@@ -532,14 +532,22 @@ jobs:
       # Issue #5382. pytest-split cuts a file across split groups, so no single
       # leg's JUnit report holds a whole budgeted suite. Every leg's report is
       # downloaded here, and slow_test_budget.py sums the seconds per module
-      # across them, so a split file cannot slip under its budget. It runs
+      # across them, so a split file cannot slip under its budget. The six
+      # reports are named, not globbed: a missing leg report makes the script
+      # exit 3 instead of undercounting. They mirror the matrix junit_file
+      # values (a test pins that). It runs
       # after the upload so a budget failure still leaves the coverage data.
       # The step name carries no "#": a plain scalar treats it as a comment
       # (ci-scripts.md item 20).
       - name: Enforce the slow-test budget (issue 5382)
         run: >-
           uv run --frozen python scripts/testing/slow_test_budget.py
-          artifacts/pytest-results-*.xml
+          artifacts/pytest-results-split-1.xml
+          artifacts/pytest-results-split-2.xml
+          artifacts/pytest-results-split-3.xml
+          artifacts/pytest-results-split-4.xml
+          artifacts/pytest-results-safe-push.xml
+          artifacts/pytest-results-pr-autofix.xml
           --budget pyproject.toml
 
   # Test duration trend. Reads the JUnit reports the partitions already wrote,
