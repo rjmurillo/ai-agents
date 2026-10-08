@@ -3570,8 +3570,11 @@ def _invoke_mypy(
         inherited = os.environ.get("MYPYPATH")
         value = f"{validation_path}{os.pathsep}{inherited}" if inherited else validation_path
         extra_env = {"MYPYPATH": value}
+    # FORCE_COLOR and MYPY_FORCE_COLOR make mypy color a pipe. A colored error
+    # line misses MYPY_ERROR_RE, and the ratchet then fails closed on every
+    # push (issue #6212). --no-color-output wins over both variables.
     return _run_command(
-        [sys.executable, "-m", "mypy", "--", *paths],
+        [sys.executable, "-m", "mypy", "--no-color-output", "--", *paths],
         repo_root,
         extra_env=extra_env,
         timeout_seconds=MYPY_TIMEOUT_SECONDS,

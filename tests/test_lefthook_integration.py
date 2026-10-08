@@ -5584,6 +5584,30 @@ def test_mypy_invocation_sets_validation_path(
     assert captured[1] == {"MYPYPATH": f"{tmp_path / 'scripts/validation'}{os.pathsep}inherited"}
 
 
+def test_mypy_invocation_disables_color_before_the_paths(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A colored error line misses MYPY_ERROR_RE (issue #6212)."""
+    captured: list[Sequence[str]] = []
+
+    def fake_run(
+        args: Sequence[str],
+        _root: Path,
+        **_kwargs: object,
+    ) -> subprocess.CompletedProcess[str]:
+        captured.append(args)
+        return _completed(0)
+
+    monkeypatch.setattr(policy, "_run_command", fake_run)
+
+    policy._invoke_mypy(["source.py"], tmp_path, False)
+
+    args = list(captured[0])
+    assert "--no-color-output" in args
+    assert args.index("--no-color-output") < args.index("--")
+
+
 def test_push_ref_parser_preserves_multiple_refs_and_deletions() -> None:
     zero = "0" * 40
     one = "1" * 40

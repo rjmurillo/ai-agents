@@ -246,6 +246,32 @@ class TestPlanningArtifactsGate:
         assert result is False
 
 
+_BASE_WITH_ERROR = (
+    "def greet(name: str) -> str:\n"
+    "    return name\n"
+    "\n"
+    "x: int = 'not an int'  # pre-existing error\n"
+)
+_CLEAN_ADDITION = "\ndef farewell(name: str) -> str:\n    return f'bye {name}'\n"
+_ERROR_ADDITION = "\ny: int = 'also not an int'  # new error on a changed line\n"
+
+
+def _commit_base_and_branch(repo: Path, base_text: str, branch_text: str) -> None:
+    """Commit example.py twice so HEAD~1 is the base and HEAD the branch."""
+
+    def git(*args: str) -> None:
+        subprocess.run(["git", "-C", str(repo), *args], capture_output=True, check=True)
+
+    subprocess.run(["git", "init", str(repo)], capture_output=True, check=True)
+    git("config", "user.email", "test@test.com")
+    git("config", "user.name", "Test")
+    py_file = repo / "example.py"
+    for message, text in (("base", base_text), ("branch", branch_text)):
+        py_file.write_text(text)
+        git("add", ".")
+        git("commit", "-m", message)
+
+
 class TestMypyChangedFilesGate:
     """Issue #4674: validate_mypy_changed_files runs mypy on branch changes."""
 
@@ -375,6 +401,37 @@ class TestMypyChangedFilesGate:
 
         # The error is pre-existing and NOT on a changed line, so ratchet allows it.
         assert result == 0, "Expected PASS: pre-existing error not on a changed line"
+
+    @pytest.mark.parametrize("color_var", ["FORCE_COLOR", "MYPY_FORCE_COLOR"])
+    @pytest.mark.parametrize(
+        ("branch_text", "expected"),
+        [
+            pytest.param(_BASE_WITH_ERROR + _CLEAN_ADDITION, 0, id="preexisting-error-passes"),
+            pytest.param(_BASE_WITH_ERROR + _ERROR_ADDITION, 1, id="new-error-blocks"),
+        ],
+    )
+    def test_ratchet_reads_errors_when_color_is_forced(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        color_var: str,
+        branch_text: str,
+        expected: int,
+    ) -> None:
+        """Forced color must not hide error lines from the ratchet (issue #6212).
+
+        Colored lines miss MYPY_ERROR_RE, and the ratchet then fails closed,
+        so the pre-existing case returned 1 before the fix.
+        """
+        from git_hook_policy import run_mypy
+
+        _commit_base_and_branch(tmp_path, _BASE_WITH_ERROR, branch_text)
+        monkeypatch.setenv(color_var, "1")
+
+        with patch("git_hook_policy._mypy_ratchet_base_ref", return_value="HEAD~1"):
+            result = run_mypy(["example.py"], tmp_path)
+
+        assert result == expected
 
 
 class TestDiffFailureReachesTheGateAsUnknown:
