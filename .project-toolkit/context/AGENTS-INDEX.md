@@ -1,5 +1,5 @@
 [AGENTS]
-|Serena[BLOCKING]|mcp__serena__activate_project|mcp__serena__initial_instructi... (see: .project-toolkit/context/AGENTS-details/agents.md)
+|Serena|active at start (`.mcp.json --project`)|`initial_instructions` once|co... (see: .project-toolkit/context/AGENTS-details/agents.md)
 [Routing]
 |Cost|route by shape/verifier/failure|accepted-result cost = inference+retry+r... (see: .project-toolkit/context/AGENTS-details/routing.md)
 [Standards]

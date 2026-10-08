@@ -1955,7 +1955,7 @@ python3 "$SCRIPTS_DIR/../memory/scripts/search_memory.py" "PR review patterns bo
 
 ```text
 mcp__serena__write_memory(
-    memory_file_name="pr-pattern-[category]",
+    memory_file_name="pr-review/pattern-[category]",
     content="# PR Pattern: [Category]\n\n**Statement**: [Pattern details]\n\n**Evidence**: ...\n\n## Details\n\n..."
 )
 ```
@@ -1964,15 +1964,15 @@ mcp__serena__write_memory(
 
 Serena writes to the checkout active at server start (its `--project` root),
 not your current directory. Call `mcp__serena__write_memory`, `edit_memory`,
-`delete_memory`, or `rename_memory` only from that checkout. A linked
-worktree (`git rev-parse --git-dir` differs from `--git-common-dir`) never
-qualifies. If you are in one, cannot tell, or have no shell, do not call
-them. Make the same create, edit, delete, or rename on this checkout's
-`.serena/memories/` files, or return the change to the parent session.
+`delete_memory`, or `rename_memory` only from that checkout; a linked worktree
+(`git rev-parse --git-dir` differs from `--git-common-dir`) never qualifies.
+In one, unsure, or without a shell: edit this checkout's `.serena/memories/`
+files or return the change to the parent session. Name a new memory
+`<topic>/<name>` and add its `memory-index.md` line; full rules: `memory` skill.
 
 See `universal.md` MUST NOT 11 and issue #5061.
 
-> **Fallback**: If Memory Router unavailable, read `.serena/memories/` directly with Read tool.
+> **Fallback**: If Serena is unavailable, read `.serena/memories/` directly with the Read tool.
 
 | Category | What to Store | Why |
 |----------|---------------|-----|

@@ -235,13 +235,13 @@ python3 .claude/skills/memory/scripts/search_memory.py "merge conflict resolutio
 
 ```text
 mcp__serena__write_memory
-memory_file_name: "merge-resolution-[pr-number]"
+memory_file_name: "git/merge-resolution-[pr-number]"
 content: "# Merge Resolution: PR #[number]\n\n**Statement**: ...\n\n**Evidence**: ...\n\n## Details\n\n..."
 ```
 
 {{> serena-worktree-write-guard}}
 
-> **Fallback**: If Memory Router unavailable, read `.serena/memories/` directly with Read tool.
+> **Fallback**: If Serena is unavailable, read `.serena/memories/` directly with the Read tool.
 
 ## Handoff Protocol
 
