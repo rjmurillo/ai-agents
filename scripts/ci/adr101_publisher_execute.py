@@ -62,6 +62,7 @@ from scripts.ci.adr101_publisher_inputs import (
     is_repository,
     is_sha,
 )
+from scripts.ci.run_pytest_partition import PYTEST_DIST_MODE
 from scripts.validation.evidence import (
     REASON_PR_UNRESOLVED,
     REASON_TIMEOUT,
@@ -111,7 +112,7 @@ def harness_argv(scratch: Path) -> list[str]:
         "uv", "run", "--frozen", "--no-config", "--extra", "dev", "--project", str(_tool_root()),
         "python", "-m", "pytest", "-q", "-p", "no:cacheprovider",
         "-c", str(scratch / "pyproject.toml"), "--rootdir", str(scratch),
-        "-n", "auto", "--dist", "loadfile", "tests",
+        "-n", "auto", "--dist", PYTEST_DIST_MODE, "tests",
     ]  # fmt: skip
 
 
