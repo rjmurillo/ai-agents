@@ -111,6 +111,20 @@ python3 scripts/doc_accuracy.py --target /path/to/repo --format markdown
 python3 scripts/doc_accuracy.py --target /path/to/repo --format summary
 ```
 
+### Line scoping with `--diff-base`
+
+With `--diff-base`, a finding blocks only when its claim overlaps a line the
+diff changed. The script reads changed new-side ranges from
+`git diff --unified=0` with rename detection, so a renamed file keeps only its
+edited hunks. A fenced example spans its opening through closing fence. A new
+file is changed on every line.
+
+A claim in an untouched part of a changed doc still produces a finding. That
+finding has `severity: "info"`, `original_severity` set to the old value, and
+`in_diff: false`. It appears in the report and never affects the gate or exit
+code. In-scope findings carry `in_diff: true`. Without `--diff-base`, every
+claim gates and no finding carries `in_diff`.
+
 ---
 
 ## Output Artifacts
