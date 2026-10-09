@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -125,7 +126,12 @@ def test_full_control_context_bytes_counts_raw_file_bytes(
     assert control.context_bytes == len(raw)
 
 
-def test_default_workspace_root_is_created_private_and_outside_the_repo() -> None:
+def test_default_workspace_root_is_created_private_and_outside_the_repo(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The default root comes from `tempfile.mkdtemp`, which follows TMPDIR.
+    # Pin it so the result does not depend on where the operator's TMPDIR sits.
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp_path))
     root = cli._resolve_workspace_root(None)
     try:
         assert root.is_dir()
