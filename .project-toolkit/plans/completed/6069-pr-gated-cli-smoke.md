@@ -4,18 +4,18 @@
 
 | Field | Value |
 |-------|-------|
-| **Status** | In Progress |
+| **Status** | Completed |
 | **Created** | 2026-10-08 |
 | **Owner** | claude (plan skill) |
 | **Complexity** | High |
 
 ## Objectives
 
-- [ ] M1: The three `ai-review` callers run on Claude in `agent-claude`, and the action has no Copilot path (REQ-047 AC1, AC2, AC3).
-- [ ] M2: One smoke path list feeds lefthook and CI (AC10).
-- [ ] M3: A Codex plugin-load smoke exists and needs no credential (AC11).
-- [ ] M4: `plugin-cli-smoke.yml` gates PRs, and the nightly is gone (AC4 to AC9, AC12).
-- [ ] M5: ADR-114, ADR-071, docs, and generated mirrors match the new state.
+- [x] M1: The three `ai-review` callers run on Claude in `agent-claude`, and the action has no Copilot path (REQ-047 AC1, AC2, AC3).
+- [x] M2: One smoke path list feeds lefthook and CI (AC10).
+- [x] M3: A Codex plugin-load smoke exists and needs no credential (AC11).
+- [x] M4: `plugin-cli-smoke.yml` gates PRs, and the nightly is gone (AC4 to AC9, AC12).
+- [x] M5: ADR-114, ADR-071, docs, and generated mirrors match the new state.
 
 ## Milestones and tasks
 
@@ -109,6 +109,7 @@ Exit: the local smoke passes for each CLI with the workflow's gate commands. A b
 | Date | Update | Agent |
 |------|--------|-------|
 | 2026-10-08 | Created plan | claude |
+| 2026-10-08 | Merged in PR #6240 as 9b40ac957; issue #6069 closed. The first nine-leg CI proof is dispatch run 37875066342 on main | claude |
 | 2026-10-08 | Review fixes: smoke_result.py and smoke_quota_report.py split out at 5b339a526 | implementer |
 | 2026-10-08 | M1 to M4 committed (e6538bdf2, 262070379, c236a60ab, 1fa987732) | implementer |
 

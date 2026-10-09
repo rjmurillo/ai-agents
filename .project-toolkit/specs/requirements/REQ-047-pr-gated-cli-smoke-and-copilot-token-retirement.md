@@ -2,7 +2,7 @@
 type: requirement
 id: REQ-047
 title: Gate pull requests on a real-CLI smoke for Claude, Copilot, and Codex, and move ai-review off Copilot
-status: draft
+status: implemented
 priority: P1
 category: functional
 source: issue-6069
