@@ -102,7 +102,7 @@ For each High-Signal thread, write one explicit connection to an existing artifa
 
 - Skills: `.claude/skills/<name>/SKILL.md`
 - ADRs: `.project-toolkit/architecture/ADR-*.md`
-- Serena memories: walk `.serena/memories/**` (topic subdirectories under `.serena/memories/<topic>/<memory-name>.md`) and load via `mcp__serena__read_memory("<topic>/<memory-name>.md")`. `mcp__serena__list_memories` returns top-level indexes only and does not enumerate atomic memories; see `.serena/memories/README.md`.
+- Serena memories: walk `.serena/memories/**` (topic subdirectories under `.serena/memories/<topic>/<memory-name>.md`) and load via `mcp__serena__read_memory("<topic>/<memory-name>")`, with no `.md` suffix. `mcp__serena__list_memories` lists every memory, nested ones included; pass a `topic` to list one folder. See `.serena/memories/README.md`.
 - Open issues: GitHub issues in the current repo
 - Prior session logs: `.project-toolkit/sessions/YYYY-MM-DD-session-*.json`
 
