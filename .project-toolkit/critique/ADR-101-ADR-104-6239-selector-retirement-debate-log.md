@@ -72,6 +72,15 @@ The independent-thinker committed with three P2 notes. Two tense fixes were appl
 - ADR-104: the retired probe now says the selector "fell back".
 - ADR-101 impact row: states the exit 5 and exit 3 outcomes and cites the guard test.
 
+### Clarifications after consensus (from the /review decision-rigor axis)
+
+These add no new decision. They state the evidence limits the panel already accepted.
+
+- ADR-104 now says "per-push cost" where it said "cost", since pre-push only collects.
+- ADR-104 scopes the testmon rejection to testmon 2.2.0 on this repository, with one confirmed miss.
+- ADR-104 says push and merge_group timing was not sampled, and names the revert path.
+- ADR-101 marks the historical `run_pytest_selected.py:177` citation with a `citation-freshness: ignore` note, because PR #6239 deletes that file.
+
 ### Deferred, flagged in the PR body
 
 These predate #6239. The high-level-advisor ruled them out of scope.

@@ -484,13 +484,23 @@ PR #6239 deleted it.
 
 Why the selector existed, and why it can go. Issue #5050 added it because the
 full suite cost 878 s per push, and earlier path filters had produced false
-greens (#4345, #4408). That cost no longer bites. Every pytest matrix leg runs
+greens (#4345, #4408). That per-push cost no longer bites: pre-push only
+collects. Every pytest matrix leg runs
 its full partition on every event, and the selector narrowed only 5 of 30
 PR runs (30 of the 32 pull_request runs among the 80 most recent
 completed `pytest.yml` runs, 2026-10-08). It saved an inferred 40 to 60 s of a roughly 480 s median,
 inferred from job medians and not measured end to end. Test selection is
 Context, not Core (owner decision 2026-10-07), so the repository buys
 (pytest-split) rather than builds.
+
+Limits of that evidence, stated so a later reader can weigh them. pytest-testmon
+2.2.0 was rejected as a CI gate on one confirmed miss: it did not select the
+tests that catch a broken subprocess-run script, on this repository with its
+default coverage core. That rejection is scoped to that version and setup. The
+5 of 30 rate covers pull_request runs only; push and merge_group timing was not
+sampled. The CI speed target in #6239 is measured on the pull request's own runs
+before merge. Reverting the pull request restores the selector and the old
+partitions in one step.
 
 Risk of the change: a defect that only an executed test catches surfaces in CI
 rather than locally. Blast radius is one CI round trip per such defect, against
