@@ -1,15 +1,16 @@
 # The repository's pytest path policy.
 #
 # `.github/workflows/pytest.yml` hands this file to `dorny/paths-filter`, which
-# decides whether the pytest matrix runs at all. `scripts/ci/path_policy.py`
-# loads the same list for the CI wiring tests.
+# decides whether the `security` and `test-windows-pwsh` jobs run. The pytest
+# matrix does not read it: every leg runs on every event (issue #6239).
+# `scripts/ci/path_policy.py` loads the same list for the CI wiring tests.
 #
 # `python` is the filter name `pytest.yml` reads, so it has to stay. Adding a
 # second top-level key here adds a second filter output, which nothing consumes.
 #
 # An entry is a picomatch glob evaluated against the repository-relative path.
-# A wider list is the safe direction: an extra match runs the matrix, a missing
-# one skips it.
+# A wider list is the safe direction: an extra match runs those jobs, a missing
+# one skips them.
 
 python:
   - '**/*.py'

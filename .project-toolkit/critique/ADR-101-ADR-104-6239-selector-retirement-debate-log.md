@@ -80,6 +80,7 @@ These add no new decision. They state the evidence limits the panel already acce
 - ADR-104 scopes the testmon rejection to testmon 2.2.0 on this repository, with one confirmed miss.
 - ADR-104 says push and merge_group timing was not sampled, and names the revert path.
 - ADR-101 marks the historical `run_pytest_selected.py:177` citation with a `citation-freshness: ignore` note, because PR #6239 deletes that file.
+- PR #6241 review (CodeRabbit): ADR-101's sixth-edge-kind passage said `path_policy.yml` decides whether six pinned contexts run. It now marks that as historical and says the filter gates only `security` and `test-windows-pwsh`.
 
 ### Deferred, flagged in the PR body
 
