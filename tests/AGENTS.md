@@ -10,8 +10,8 @@ Pytest suite: root guard, `tests/conftest.py`, flat `test_*.py`, topic subdirs; 
 
 ## Entry points
 
-- `git_hook_policy.py pytest`: lefthook pre-push pytest command.
-- `AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY=1`: the 4 local partitions; CI runs 6 legs: `split-1`..`4`, `safe-push`, `pr-autofix`.
+- `git_hook_policy.py pytest`: pre-push, `pytest --testmon`.
+- `AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY=1`: the 4 local partitions, no testmon; CI runs 6 legs: `split-1`..`4`, `safe-push`, `pr-autofix`.
 - `check_zero_collection_tests.py`: finds a `test_*.py` under `testpaths` collecting zero tests.
 - One leg: `uv run python scripts/ci/run_pytest_partition.py --partition split-1`. Timings come from the Actions cache (`pytest-split-durations-`), saved on pushes to main; without it legs split by test count. `duration_gate_check.py` (coverage job) fails a leg over 480 s and warns at a 1.5x split spread.
 
@@ -39,7 +39,7 @@ Pytest suite: root guard, `tests/conftest.py`, flat `test_*.py`, topic subdirs; 
 
 - `check_nested_tests.py` does not scan every test file, and not by depth: helpers not named `test_*.py` (`tests/hook_test_helpers.py`, `tests/ci/ratchet_test_helpers.py`) are never opened.
 - `checks_coverage.py` is not a coverage gate; it wraps the advisory `/review`-marker check. Real 100% pins: `coverage report --fail-under=100` steps in `pytest.yml`.
-- "My push ran the suite" is false by default: without `AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY=1` a push only collects, asserting nothing.
+- "My push ran the suite" is false by default: pre-push runs only testmon-selected tests, so subprocess-only code is missed; CI runs all.
 - `tests/evals/*-scenarios.json` are pytest input, not just `scripts/eval/` corpora. `tests/eval/test_eval_prompt_change.py::TestShippedScenariosValid` requires 2+ `verdict_options` each; sibling contract tests pin critic, qa, orchestrator and spec scenario IDs.
 
 ## Dependencies

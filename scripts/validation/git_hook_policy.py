@@ -582,8 +582,6 @@ WORKFLOW_LOCAL_BASE_REF_ENV = "WORKFLOW_LOCAL_BASE_REF"
 WORKFLOW_LOCAL_DEFAULT_BASE = "origin/main"
 # Kept below the `python-tests` lefthook cap (15m) so this fires first and the
 # reader gets a diagnostic instead of a bare kill (ADR-086 Decision item 9).
-# Only the opt-in local-execution path can reach it; the default collection
-# path is bounded by TEST_COLLECTION_TIMEOUT_SECONDS.
 # Hard ceiling on any subprocess this module spawns while running inside a
 # managed remote container. A container is reclaimed after a period without
 # progress, so a hung child there does not merely slow the push down, it
@@ -622,20 +620,14 @@ CONTAINER_SUBPROCESS_CEILING_SECONDS = 150.0
 CONTAINER_PROCESS_CEILING_SECONDS = CONTAINER_SUBPROCESS_CEILING_SECONDS + 15.0
 
 TEST_SUITE_TIMEOUT_SECONDS = 780
-# Ceiling for the collection smoke that stands in for a local full-suite run.
-# Collection imports every test module without running a single test body, so
-# it is bounded by import cost rather than test cost. Measured on a 4-CPU
-# container, same suite: 8.9s pytest-internal / 14s wall on an idle box, 34.6s
-# wall while a full pytest run held the other cores. `ci-scripts.md` MUST-16
-# forbids sizing a pre-push cap from an idle run, so this ceiling is set from
-# the loaded figure with roughly 8x headroom rather than from the idle one, and
-# measured in-hook at ~14s collecting across fourteen real pushes; the
-# workstation tail is still unmeasured while firing (issue #5318).
-TEST_COLLECTION_TIMEOUT_SECONDS = 300
-# Opt back into executing the whole suite inside pre-push. Unset is the default
-# because that run duplicates CI's `pytest.yml` partition matrix on the same
-# commit while costing the push minutes it does not have; see ADR-104.
+# Opt into executing the whole suite inside pre-push, with no testmon selection.
+# Unset is the default: pre-push runs only the tests pytest-testmon selects,
+# because the whole suite duplicates CI's `pytest.yml` partition matrix on the
+# same commit while costing the push minutes it does not have; see ADR-104.
 PYTEST_FULL_SUITE_LOCALLY_ENV = "AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY"
+_TESTMON_FLAGS = ("--testmon", "--testmon-forceselect")
+TESTMON_COVERAGE_CORE_ENV = "COVERAGE_CORE"
+TESTMON_COVERAGE_CORE = "ctrace"
 CLI_E2E_TIMEOUT_SECONDS = 1_140
 # CLIs the local smoke can drive; any one on PATH satisfies the gate (REQ-047).
 # The local smoke uses the harness the developer runs, on their own login.
@@ -7597,55 +7589,34 @@ def _pytest_commands(repo_root: Path) -> list[list[str]]:
     ]
 
 
-def _pytest_collection_command(repo_root: Path) -> list[str]:
-    """Collect every non-integration test without executing any of them.
+def _testmon_commands(repo_root: Path) -> list[list[str]]:
+    """Return the full-suite partitions with ``--testmon`` selecting the tests.
 
-    Collection imports each test module and instantiates each item, so it fails
-    on a broken import and on a syntax error. Those are the defects that would
-    otherwise burn a whole CI matrix before reporting the same thing.
+    ``--testmon-forceselect`` is required, not optional. The partitions pass
+    ``-m "not integration"``, and testmon 2.2.0 silently turns selection off
+    whenever ``-m`` or ``-k`` is present ("selection automatically deactivated
+    because -m was used", `testmon/configure.py::_get_noselect_reasons`), which
+    would run the whole suite on every push. The flag keeps selection on and
+    applies the marker filter as well.
 
-    It does NOT catch a missing fixture: a test that requests a fixture no
-    conftest defines collects clean and fails at run time. It does NOT catch
-    two same-named test functions in one module, where the second silently
-    shadows the first. It does NOT catch two test modules sharing a basename
-    across directories.
+    Same four partitions, worker policy, and serial safe-push and pr-autofix
+    handling as `_pytest_commands`, so testmon changes which tests run and
+    nothing about how. Every partition shares one ``.testmondata`` in the
+    repository root. With no database yet testmon runs everything and builds
+    it, which is the intended first-run behavior.
 
-    That last one was claimed as a catch and is not. It is a collection error
-    under pytest's default `prepend` import mode, and `pyproject.toml` sets
-    `--import-mode=importlib`, under which it collects clean. The probe behind
-    the wrong claim ran in a throwaway tree with no config and silently got the
-    other mode, so it measured a pytest this repository never runs. Caught in
-    review on PR #5319;
-    `test_a_same_basename_collision_goes_uncaught_under_production_config` now
-    pins it, and the behavior fixtures mirror the real addopts. Do not widen
-    this docstring's claim without a probe that carries production
-    configuration; the same claim is printed to developers in
-    `_full_suite_stand_in` and a wrong one tells them they are covered.
-
-    Three `-q` are deliberate. `pyproject.toml` sets `addopts = "-v ..."`, so
-    verbosity starts at +1 and a single `-q` nets to 0: measured 31765 lines of
-    node listing into the hook output on every fallback push, against 878 with
-    three. Hook output is a token cost, which is one of the costs this stand-in
-    exists to cut.
+    Never add ``-p no:cacheprovider`` here: testmon reads pytest's cache and
+    crashes with ``KeyError: 'lf'`` without it.
     """
     return [
-        sys.executable,
-        "-m",
-        "pytest",
-        "--collect-only",
-        "-q",
-        "-q",
-        "-q",
-        "-m",
-        "not integration",
-        str(repo_root / "tests"),
+        [*command[:3], *_TESTMON_FLAGS, *command[3:]] for command in _pytest_commands(repo_root)
     ]
 
 
 def _validated_full_suite_opt_in() -> str:
     """Return the stripped opt-in value, or raise if it is not usable.
 
-    Split out of `_collection_stand_in` so `_resolve_pytest_commands` validates
+    Split out of `_testmon_stand_in` so `_resolve_pytest_commands` validates
     the value before it chooses a path. The contract says any non-blank value
     other than `1` is a configuration error, and a contract enforced on one
     branch of two is not enforced. The same hoisting already applies to
@@ -7667,55 +7638,54 @@ def _validated_full_suite_opt_in() -> str:
         # a flag whose whole purpose is "run more" must not shrug at `true`.
         raise ValueError(
             f"{PYTEST_FULL_SUITE_LOCALLY_ENV} must be '1' or unset, got {raw!r}. "
-            "Unset collects the whole suite without executing it. '1' executes "
-            "every partition locally, which is what the name promises."
+            "Unset runs only the tests pytest-testmon selects. '1' executes "
+            "every partition locally with no selection, which is what the name "
+            "promises."
         )
     return stripped
 
 
-def _collection_stand_in(repo_root: Path) -> list[list[str]]:
-    """Return what pre-push runs by default: collect every test, execute none.
+def _testmon_stand_in(repo_root: Path) -> list[list[str]]:
+    """Return what pre-push runs by default: the tests testmon selects.
 
-    Executing every test here duplicates CI's `pytest.yml` partition matrix on
+    Running every test here duplicates CI's `pytest.yml` partition matrix on
     the same commit. Measured on a 4-CPU container, that duplicate cost 475s of
-    a 679s push, and a push that long does not survive a container restart, so
-    the local copy of a remote gate was the thing preventing the push from
-    reaching the remote gate at all. Collect instead and let CI execute.
+    a 679s push. testmon keeps the local run short by re-running only tests
+    whose recorded dependencies changed since its last run, so a failure that
+    the diff can cause usually surfaces before CI does (issue #6239).
 
-    This is the collection path only. ``AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY=1``
-    is handled by `_resolve_pytest_commands` before this runs, so it never
-    reaches here. Nothing here reads the diff or narrows the collection
-    (issue #6239).
+    ``AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY=1`` is handled by
+    `_resolve_pytest_commands` before this runs. Nothing here reads the diff.
     """
     print(
-        "pytest: collecting every test instead of executing them.\n"
-        f"  Set {PYTEST_FULL_SUITE_LOCALLY_ENV}=1 to execute the suite here. "
+        "pytest: running only the tests pytest-testmon selects for your changes.\n"
+        f"  Set {PYTEST_FULL_SUITE_LOCALLY_ENV}=1 to run the whole suite here. "
         "See ADR-104.\n"
-        "  Collection blocks on a broken import and on a syntax error. It does "
-        "NOT run\n"
-        "  assertions, does NOT catch a missing fixture, does NOT catch two "
-        "same-named\n"
-        "  test functions in one module, and does NOT catch a same-basename "
-        "module\n"
-        "  collision (this repo sets --import-mode=importlib, under which that "
-        "collides\n"
-        "  silently).\n"
-        "  Assertions run in CI: .github/workflows/pytest.yml runs every pytest "
-        "leg in\n"
-        "  full on every push, pull request, and merge-queue event (issue "
-        "#6239).",
+        "  Selection is best effort. testmon records which code each test runs "
+        "in-process,\n"
+        "  so a test that reaches code only through a subprocess is not "
+        "re-selected when\n"
+        "  that code changes. The first run, or a run after a dependency "
+        "change, has no\n"
+        "  database and runs everything to build .testmondata.\n"
+        "  The pytest header and summary below show what testmon selected and ran.\n"
+        "  A failure here blocks the push. CI runs every test: "
+        ".github/workflows/pytest.yml\n"
+        "  runs every pytest leg in full on every push, pull request, and "
+        "merge-queue event\n"
+        "  (issue #6239).",
         file=sys.stderr,
     )
-    return [_pytest_collection_command(repo_root)]
+    return _testmon_commands(repo_root)
 
 
 def _resolve_pytest_commands(repo_root: Path) -> list[list[str]]:
-    """Return the pytest commands to run: the full suite or the collection.
+    """Return the pytest commands to run: the full suite or the testmon selection.
 
-    `AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY=1` returns the executing partitions.
-    Any other valid value returns `_collection_stand_in`, which collects
-    `tests/` in one process and executes nothing. There is no diff and no
-    selection (issue #6239).
+    `AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY=1` returns the executing partitions
+    without testmon. Any other valid value returns `_testmon_stand_in`, which
+    runs the same partitions under ``--testmon``. There is no diff read here
+    (issue #6239).
 
     Raises:
         ValueError: the worker override is invalid (from
@@ -7725,10 +7695,8 @@ def _resolve_pytest_commands(repo_root: Path) -> list[list[str]]:
             chosen, so either can raise on either path.
     """
     # Validate the worker override before choosing commands, not as a side
-    # effect of building one. The collection stand-in takes no parallel flags,
-    # so a check that rode along inside the executing partitions would let an
-    # invalid AI_AGENTS_PYTEST_WORKERS pass unreported on the default path: the
-    # developer asked for a worker count, did not get it, and was not told.
+    # effect of building one, so an invalid AI_AGENTS_PYTEST_WORKERS is
+    # reported on both paths.
     _pytest_parallel_flags()
     if _validated_full_suite_opt_in() == "1":
         print(
@@ -7736,19 +7704,11 @@ def _resolve_pytest_commands(repo_root: Path) -> list[list[str]]:
             file=sys.stderr,
         )
         return _pytest_commands(repo_root)
-    return _collection_stand_in(repo_root)
+    return _testmon_stand_in(repo_root)
 
 
-def _pytest_budget_seconds(commands: Sequence[Sequence[str]]) -> int:
-    """Seconds the whole pytest step may spend, sized to what it actually runs.
-
-    A collection stand-in imports modules and exits, so holding it to the
-    execution suite's ceiling would let an import hang block a push for 29
-    minutes. Anything that executes tests keeps the suite budget.
-    """
-    if len(commands) == 1 and "--collect-only" in commands[0]:
-        return TEST_COLLECTION_TIMEOUT_SECONDS
-    return TEST_SUITE_TIMEOUT_SECONDS
+def _uses_testmon(commands: Sequence[Sequence[str]]) -> bool:
+    return any("--testmon" in command for command in commands)
 
 
 def run_pytest(repo_root: Path) -> int:
@@ -7765,7 +7725,7 @@ def run_pytest(repo_root: Path) -> int:
         PYTEST_WORKERS_ENV,
         # Consumed here, so it must not reach the child. A test that invokes
         # this policy inherits the parent's `=1` otherwise and takes the
-        # full-suite path where it meant to exercise the collection default.
+        # full-suite path where it meant to exercise the testmon default.
         # Its two siblings above were stripped for the same reason; this one
         # was added later and did not get the same treatment. Raised in review
         # on PR #5319.
@@ -7778,6 +7738,11 @@ def run_pytest(repo_root: Path) -> int:
     except ValueError as error:
         print(f"ERROR: {error}", file=sys.stderr)
         return 2
+    if _uses_testmon(commands):
+        # Python 3.14 makes coverage default to the sysmon core, which records
+        # only the first test of a run and so under-selects (9 against 56
+        # selected tests in the issue #6239 trial). ctrace records every test.
+        env[TESTMON_COVERAGE_CORE_ENV] = TESTMON_COVERAGE_CORE
     # The parent consumes this control before pytest starts. Leaving it in the
     # child environment changes tests that verify the default worker policy.
     # The budget covers the whole pytest step, not one command. Splitting
@@ -7790,12 +7755,12 @@ def run_pytest(repo_root: Path) -> int:
     # partition commands and takes the execution budget, so it could spend
     # 4 * 150s = 600s here inside a container. The reclaim this whole change
     # exists to prevent was measured at ~679s, so that is not a tail case.
-    # The default collection path spawns one child.
+    # The default testmon path emits the same four partition commands.
     #
     # Clamping here also repairs the diagnostic: the timeout message prints
     # `budget`, so an unclamped aggregate told a reader their child had 780s
     # when the clamp had given it 150s.
-    budget = _container_clamped(_pytest_budget_seconds(commands))
+    budget = _container_clamped(TEST_SUITE_TIMEOUT_SECONDS)
     deadline = time.monotonic() + budget
     for index, command in enumerate(commands):
         remaining = deadline - time.monotonic()
