@@ -537,6 +537,9 @@ jobs:
       # exit 3 instead of undercounting. They mirror the matrix junit_file
       # values (a test pins that). It runs
       # after the upload so a budget failure still leaves the coverage data.
+      # This job runs only when every leg passed, so a budget overrun that
+      # lands with a test failure shows on the next green run; the failing leg
+      # already turns `Run Python Tests` red.
       # The step name carries no "#": a plain scalar treats it as a comment
       # (ci-scripts.md item 20).
       - name: Enforce the slow-test budget (issue 5382)
