@@ -39,15 +39,17 @@ def test_claim_path_spelling_is_normalized_before_lookup() -> None:
     assert out[0]["in_diff"] is False
 
 
-def test_pure_rename_marker_downgrades_untouched_claims(tmp_path: Path) -> None:
-    repo = make_repo(tmp_path, {"old.md": "# T\n\n" + example("Ghost")})
-    git(repo, "mv", "old.md", "moved.md")
+def test_rename_from_excluded_path_cannot_hide_claims(tmp_path: Path) -> None:
+    """build/ is never assessed, so a doc moved out of it was never checked."""
+    repo = make_repo(tmp_path, {})
+    (repo / "build").mkdir()
+    (repo / "build" / "x.md").write_text("# T\n\n" + example("Ghost"))
+    commit(repo)
+    (repo / "docs").mkdir()
+    git(repo, "mv", "build/x.md", "docs/x.md")
     commit(repo)
 
     code, data = gate_diff(repo, tmp_path)
 
-    assert code == 0
-    assert data["findings"][0]["severity"] == "info"
-    assert mod.run_assessment(repo, diff_base="HEAD~1")["changed_lines"] == {
-        "moved.md": [[0, 0]]
-    }
+    assert code == 10
+    assert data["findings"][0]["in_diff"] is True

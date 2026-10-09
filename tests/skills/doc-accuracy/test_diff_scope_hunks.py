@@ -7,6 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import pytest
 from diff_scope_helpers import (
     FENCE,
     by_symbol,
@@ -23,28 +24,21 @@ BASE = "HEAD~1"
 TWO = "# T\n\n" + example("Alpha") + "\ntext\n\n" + example("Beta")
 
 
-def test_pure_rename_keeps_old_findings_out_of_scope(tmp_path: Path) -> None:
-    repo = make_repo(tmp_path, {"old.md": "# T\n\n" + example("Ghost")})
+@pytest.mark.parametrize("edit", [False, True], ids=["pure-rename", "rename-with-edit"])
+def test_renamed_doc_is_gated_in_full(tmp_path: Path, edit: bool) -> None:
+    """Rename detection is off: a renamed doc is an added file, all lines in scope."""
+    repo = make_repo(tmp_path, {"old.md": TWO})
     git(repo, "mv", "old.md", "moved.md")
-    commit(repo)
+    if edit:
+        edit_and_commit(repo, "moved.md", TWO.replace("Beta", "Gamma"))
+    else:
+        commit(repo)
 
     code, data = gate_diff(repo, tmp_path)
 
-    assert code == 0
-    assert data["findings"][0]["file"] == "moved.md"
-    assert data["findings"][0]["in_diff"] is False
-
-
-def test_rename_with_edit_scopes_to_edited_hunk(tmp_path: Path) -> None:
-    repo = make_repo(tmp_path, {"old.md": TWO})
-    git(repo, "mv", "old.md", "moved.md")
-    edit_and_commit(repo, "moved.md", TWO.replace("Beta", "Gamma"))
-
-    _, data = gate_diff(repo, tmp_path)
-
-    found = by_symbol(data)
-    assert found["Gamma"]["in_diff"] is True
-    assert found["Alpha"]["in_diff"] is False
+    assert code == 10
+    assert all(f["in_diff"] and f["severity"] == "high" for f in data["findings"])
+    assert {f["file"] for f in data["findings"]} == {"moved.md"}
 
 
 def test_multiple_hunks_each_scope_their_own_block(tmp_path: Path) -> None:

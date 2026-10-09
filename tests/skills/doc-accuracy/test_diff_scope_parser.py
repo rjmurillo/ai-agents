@@ -22,9 +22,12 @@ NO_NEWLINE = "\\ No newline at end of file\n"
         ("+++ b/a.md\n@@ -4,2 +3,0 @@\n-x\n-y\n", {"a.md": [[3, 4]]}),
         ("--- a/a.md\n+++ /dev/null\n@@ -1,2 +0,0 @@\n-a\n-b\n", {}),
         (
-            "diff --git a/o.md b/n.md\nsimilarity index 100%\n"
-            "rename from o.md\nrename to n.md\n",
-            {"n.md": [[0, 0]]},
+            "+++ b/a.md\n@@ -2 +2 @@\n-x\n+```bash\n@@ -9,0 +10 @@\n+y\n",
+            {"a.md": [[2, 2], [10, 10], [2, WHOLE_FILE_END]]},
+        ),
+        (
+            "+++ b/a.md\n@@ -5,2 +4,0 @@\n-  ~~~~\n-text\n",
+            {"a.md": [[4, 5], [5, WHOLE_FILE_END]]},
         ),
         (
             '+++ "b/caf\\303\\251 \\"q\\".md"\n@@ -1 +1 @@\n-a\n+b\n',

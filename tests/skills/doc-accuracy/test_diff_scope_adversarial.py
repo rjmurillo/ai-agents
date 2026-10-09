@@ -97,4 +97,4 @@ def test_textconv_filter_cannot_shift_line_numbers(tmp_path: Path) -> None:
 
     _, ranges = mod._get_changed_diff(BASE, repo)
 
-    assert ranges["doc.md"][-1][1] == base.count("\n") + 3
+    assert ranges["doc.md"][0][1] == base.count("\n") + 3

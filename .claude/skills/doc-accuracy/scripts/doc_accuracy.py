@@ -505,7 +505,7 @@ def _get_changed_diff(
 
     The first element is the ``_get_changed_files`` set. The second maps a
     changed file to ``[start, end]`` inclusive line ranges on the HEAD side,
-    parsed from ``git diff --unified=0`` with rename detection on. A changed
+    parsed from ``git diff --unified=0 --no-renames``. A changed
     file with no parsed hunk (binary, mode-only) is absent from the map; the
     caller treats an absent file as changed in full.
     """
@@ -685,7 +685,8 @@ def _diff_name_set(
         result = subprocess.run(
             _git_command(
                 repo_root,
-                "diff", "--no-ext-diff", "--no-textconv", "--name-only", "-z",
+                "diff", "--no-ext-diff", "--no-textconv", "--no-renames",
+                "--name-only", "-z",
                 oid, head_oid, "--",
             ),
             capture_output=True, check=True,
@@ -745,10 +746,10 @@ def _new_side_path(header_line: str) -> str | None:
 
 
 _WHOLE_FILE_END = 2**31 - 1
-# Marker for a pure rename. Line 0 does not exist, so no claim overlaps it.
-# This is the ONLY way to say "no content changed": an empty range list is
-# never valid and is treated as changed in full (fail closed).
-_NO_CONTENT_CHANGE = [0, 0]
+# An empty range list is never valid and means changed in full (fail closed).
+# Rename detection is off, so a renamed doc is an added file: every line is
+# in scope, and a carried-over claim cannot hide behind its old path.
+_FENCE_LINE = re.compile(r"^ {0,3}(?:`{3,}|~{3,})")
 
 
 def _hunk_range(start: int, count: int) -> list[int]:
@@ -773,7 +774,8 @@ class _PatchParser:
 
     def __init__(self) -> None:
         self.ranges: dict[str, list[list[int]]] = {}
-        self._rename_only: set[str] = set()
+        self._fence_from: dict[str, int] = {}
+        self._new_cursor = 0
         self._poisoned: set[str] = set()
         self._path: str | None = None
         self._current: list[list[int]] | None = None
@@ -791,16 +793,34 @@ class _PatchParser:
         kind = line[:1]
         if kind == "\\":
             return True  # "\ No newline at end of file" marker, uncounted
+        fence = _FENCE_LINE.match(line[1:]) is not None
         if kind == "-" and self._old_left:
             self._old_left -= 1
+            if fence:
+                self._note_fence(self._new_cursor)
         elif kind == "+" and self._new_left:
             self._new_left -= 1
+            if fence:
+                self._note_fence(self._new_cursor)
+            self._new_cursor += 1
         elif kind == " " and self._old_left and self._new_left:
             self._old_left -= 1
             self._new_left -= 1
+            self._new_cursor += 1
         else:
             return False
         return True
+
+    def _note_fence(self, line_no: int) -> None:
+        """Remember the earliest changed fence line.
+
+        Adding, editing, or deleting a fence re-pairs every later fence, so
+        claims from that line to the end of the file are no longer the
+        author's unchanged text.
+        """
+        if self._path is not None:
+            known = self._fence_from.get(self._path, line_no)
+            self._fence_from[self._path] = min(known, line_no)
 
     def _poison(self) -> None:
         self._old_left = self._new_left = 0
@@ -814,18 +834,10 @@ class _PatchParser:
     def _header(self, line: str) -> None:
         if line.startswith("diff --git "):
             self._path, self._current = None, None
-        elif line.startswith("rename to "):
-            name = line[len("rename to "):]
-            name = _unquote_c_path(name) if name.startswith('"') else name
-            name = _norm_path(name)
-            self._start_file(name)
-            self._rename_only.add(name)
         elif line.startswith("+++ "):
             path = _new_side_path(line)
             path = None if path is None else _norm_path(path)
             self._start_file(path)
-            if path is not None:
-                self._rename_only.discard(path)
         elif line.startswith("@@"):
             self._hunk(line)
 
@@ -841,6 +853,8 @@ class _PatchParser:
         new = 1 if match.group(3) is None else int(match.group(3))
         self._current.append(_hunk_range(start, new))
         self._old_left, self._new_left = old, new
+        # A deletion-only hunk (new == 0) removes text after line ``start``.
+        self._new_cursor = start + 1 if new == 0 else start
 
     def _poison_header(self) -> None:
         if self._path is not None:
@@ -850,12 +864,10 @@ class _PatchParser:
         if self._old_left or self._new_left:
             self._poison()
         for path, found in self.ranges.items():
-            if path in self._poisoned or (
-                not found and path not in self._rename_only
-            ):
+            if path in self._poisoned or not found:
                 self.ranges[path] = [[1, _WHOLE_FILE_END]]
-            elif not found:
-                self.ranges[path] = [list(_NO_CONTENT_CHANGE)]
+            elif path in self._fence_from:
+                found.append([self._fence_from[path], _WHOLE_FILE_END])
         return self.ranges
 
 
@@ -876,13 +888,13 @@ def _parse_unified_zero(patch: str) -> dict[str, list[list[int]]]:
 def _diff_line_ranges(
     repo_root: Path, fork_oid: str, head_oid: str, env: dict[str, str]
 ) -> dict[str, list[list[int]]]:
-    """Return changed new-side line ranges per file, with renames followed."""
+    """Return changed new-side line ranges per file; renames count as adds."""
     try:
         result = subprocess.run(
             _git_command(
                 repo_root,
                 "diff", "--no-ext-diff", "--no-textconv", "--no-color",
-                "--unified=0", "-M",
+                "--unified=0", "--no-renames",
                 "--src-prefix=a/", "--dst-prefix=b/",
                 fork_oid, head_oid, "--",
             ),
@@ -900,6 +912,16 @@ def _diff_line_ranges(
         )
     except ValueError:
         return {}
+
+
+def _has_symlink_part(path: Path, repo_root: Path) -> bool:
+    """True when ``path`` or any parent below ``repo_root`` is a symlink."""
+    current = repo_root
+    for part in path.relative_to(repo_root).parts:
+        current = current / part
+        if current.is_symlink():
+            return True
+    return False
 
 
 def _claim_in_ranges(
@@ -986,11 +1008,12 @@ def run_assessment(
         mapped = _map_doc_to_source(rel_path, content, source_files)
         line_count = content.count("\n") + 1
         if changed_files is not None:
-            # A changed file with no parsed hunk is treated as changed in full.
+            # No parsed hunk, or a symlinked doc (git diffs only the link
+            # text, not the content read here): changed in full.
             changed_lines[_norm_path(rel_path)] = (
-                changed_ranges.get(_norm_path(rel_path))
-                or [[1, line_count]]
-            )
+                None if _has_symlink_part(doc_path, repo_root)
+                else changed_ranges.get(_norm_path(rel_path))
+            ) or [[1, line_count]]
 
         doc_inventory.append(DocFile(
             path=rel_path,
@@ -1360,7 +1383,7 @@ def _scope_findings(
         claim = claims_by_id[finding["claim_id"]]
         ranges = changed_lines.get(_norm_path(claim["file"]))
         # Fail closed: a file with no entry, or an empty list, is changed in
-        # full. Only the pure-rename marker means "no content changed".
+        # full.
         in_diff = not ranges or _claim_in_ranges(claim, ranges)
         finding["in_diff"] = in_diff
         if not in_diff:
