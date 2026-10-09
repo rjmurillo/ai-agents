@@ -1,11 +1,11 @@
 """Static-contract tests for the pytest coverage-pin split in pytest.yml.
 
 Issue #4854: the test job is now a five-entry matrix. Pin collection and
-enforcement steps run only in the bulk partition. The combine step moves to a
+enforcement steps run only in the primary leg (split-1). The combine step moves to a
 separate coverage job that merges all partition data.
 
-Two pin *collection* steps re-run four owned files in the bulk leg; the shared
-"Run pytest" step in bulk --ignores all four and stays statement-only (no
+Two pin *collection* steps re-run four owned files in the primary leg; the shared
+"Run pytest" step in every split group --ignores all four and stays statement-only (no
 --cov-branch). Each collection step owns a disjoint subset with its own
 COVERAGE_FILE. Each collection step collects BROAD branch coverage (bare
 --cov, not a narrow module target).
@@ -43,15 +43,11 @@ _UPLOAD_STEP = "Upload test results"
 _COLLECTION_STEPS = (_VERDICT_COLLECT, _REQ009_COLLECT)
 _GATE_STEPS = (_VERDICT_GATE, _REQ009_GATE)
 
-_RUN_AFTER_MAIN_EXECUTED = (
-    "matrix.partition == 'bulk' && steps.run-pytest.outcome != 'skipped' && !cancelled()"
-)
+_RUN_AFTER_MAIN_EXECUTED = "matrix.primary && steps.run-pytest.outcome != 'skipped' && !cancelled()"
 
 
 def _run_after_collection_executed(collect_step_id: str) -> str:
-    return (
-        f"steps.{collect_step_id}.outcome != 'skipped' && !cancelled()"
-    )
+    return f"steps.{collect_step_id}.outcome != 'skipped' && !cancelled()"
 
 
 # The four files the two pin collection steps own.
@@ -109,11 +105,11 @@ def test_main_run_has_id_and_stays_statement_only() -> None:
     assert "--cov-report=" in main_run
 
 
-def test_pin_collection_steps_only_in_bulk_partition() -> None:
-    """Pin steps carry a matrix.partition == 'bulk' condition."""
+def test_pin_collection_steps_only_in_the_primary_leg() -> None:
+    """Pin steps carry a matrix.primary condition."""
     for name in _COLLECTION_STEPS:
         condition = _step(name).get("if", "")
-        assert "matrix.partition == 'bulk'" in condition
+        assert "matrix.primary" in condition
 
 
 def test_pin_collection_steps_collect_broad_branch_coverage() -> None:

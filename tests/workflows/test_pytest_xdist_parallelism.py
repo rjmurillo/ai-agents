@@ -1,8 +1,8 @@
 """Static-contract tests for bounded pytest-xdist parallelism in pytest.yml.
 
-Issue #4854. The test job is a five-entry matrix. The root and nested bulk
-partitions plus mutation use xdist (`-n auto --dist loadfile`). Safe-push and
-pr-autofix stay serial. No hard-coded worker count.
+Issue #4854, reshaped by issue #6239. The test job is a six-entry matrix. The
+four duration-balanced split groups use xdist (`-n auto --dist loadfile`).
+Safe-push and pr-autofix stay serial. No hard-coded worker count.
 
 The coverage combine job downloads artifacts from all matrix legs and merges
 them. The aggregate job gates on both test and coverage.
@@ -17,7 +17,7 @@ from typing import Any
 import pytest
 import yaml
 
-from scripts.ci import run_pytest_selected
+from scripts.ci import run_pytest_partition
 
 _WORKFLOW = Path(__file__).resolve().parents[2] / ".github" / "workflows" / "pytest.yml"
 
@@ -27,17 +27,16 @@ _WINDOWS_STEP = "Run Windows path-contract tests"
 
 _EXPECTED_WORKERS = "auto"
 _EXPECTED_DIST = "loadfile"
-_ROOT_BULK_IGNORES = {
+_POOL_IGNORES = {
     "tests/test_ai_review.py",
     "tests/test_verdict.py",
     "tests/test_quality_gate.py",
+    "tests/skills/github/test_wait_for_unresolved_zero.py",
     "tests/test_safe_push_pr_branch.py",
     "tests/test_mutation_workspace_signals.py",
     "tests/test_pr_autofix_late_live_state_gate.py",
 }
-_NESTED_BULK_IGNORES = {
-    "tests/skills/github/test_wait_for_unresolved_zero.py",
-}
+_SPLIT_LEGS = ["split-1", "split-2", "split-3", "split-4"]
 
 # Any argv spelling that starts workers or picks a distribution mode.
 _PARALLEL_TOKEN = re.compile(r"(?<!\S)(-n|--numprocesses|--dist)(?:[=\s]|$)")
@@ -56,10 +55,6 @@ def _job_steps(job: str) -> list[dict[str, Any]]:
     return _load_workflow()["jobs"][job]["steps"]
 
 
-def _selected_dirs(args: list[str]) -> set[str]:
-    return {t for t in args if t.startswith("tests/") and not t.startswith("--ignore=")}
-
-
 def _matrix() -> list[dict[str, Any]]:
     return _job("test")["strategy"]["matrix"]["include"]
 
@@ -75,10 +70,10 @@ def _partition_args(name: str) -> list[str]:
     """Partition pytest args, now owned by the Python runner rather than the matrix.
 
     Issue #5050 moved the per-partition argument lists out of the workflow matrix
-    and into ``scripts/ci/run_pytest_selected.py`` so the full-vs-subset decision
+    and into ``scripts/ci/run_pytest_partition.py`` so the full-vs-subset decision
     stays in testable Python (ADR-006). These contract tests follow them there.
     """
-    return run_pytest_selected._PARTITION_FULL_ARGS[name]
+    return run_pytest_partition._PARTITION_FULL_ARGS[name]
 
 
 class TestMatrixStructure:
@@ -96,14 +91,13 @@ class TestMatrixStructure:
 
     def test_six_partitions_exist(self) -> None:
         partitions = [e["partition"] for e in _matrix()]
-        assert partitions == [
-            "bulk",
-            "bulk-nested",
-            "bulk-nested-ci",
-            "mutation",
-            "safe-push",
-            "pr-autofix",
-        ]
+        assert partitions == [*_SPLIT_LEGS, "safe-push", "pr-autofix"]
+
+    def test_exactly_one_leg_is_primary_and_it_is_split_1(self) -> None:
+        """The once-per-run steps hang off one leg, so they run once."""
+        primaries = [e["partition"] for e in _matrix() if e.get("primary")]
+        assert primaries == ["split-1"]
+        assert all(e.get("primary") is True for e in _matrix() if "primary" in e)
 
     def test_job_name_includes_partition(self) -> None:
         name = _job("test")["name"]
@@ -137,55 +131,32 @@ class TestMatrixStructure:
 
     def test_every_partition_has_runner_args(self) -> None:
         matrix_partitions = {entry["partition"] for entry in _matrix()}
-        assert matrix_partitions == set(run_pytest_selected._PARTITION_FULL_ARGS)
+        assert matrix_partitions == set(run_pytest_partition._PARTITION_FULL_ARGS)
 
-    def test_root_bulk_ignores_nested_and_owned_files(self) -> None:
-        args = _partition_args("bulk")
+    @pytest.mark.parametrize("partition", _SPLIT_LEGS)
+    def test_split_groups_ignore_exactly_the_owned_and_pinned_files(self, partition: str) -> None:
+        args = _partition_args(partition)
         ignored = {
             token.removeprefix("--ignore=") for token in args if token.startswith("--ignore=")
         }
-        assert ignored == _ROOT_BULK_IGNORES
-        assert "--ignore-glob=tests/*/*" in args
+        assert ignored == _POOL_IGNORES
         assert args[-1] == "tests/"
         assert "-m" not in args, "CI must not drop integration-marked tests"
 
-    def test_nested_partitions_cover_every_non_mutation_directory_once(self) -> None:
-        """The two nested legs together own each test directory exactly once."""
-        first = _selected_dirs(_partition_args("bulk-nested"))
-        second = _selected_dirs(_partition_args("bulk-nested-ci"))
-        expected = {
-            f"tests/{path.name}"
-            for path in (_WORKFLOW.parents[2] / "tests").iterdir()
-            if path.is_dir() and path.name not in {"__pycache__", "mutation"}
-        }
-        assert not first & second, f"directories run twice: {sorted(first & second)}"
-        assert first | second == expected
-        assert len(first) + len(second) == len(expected)
+    def test_split_groups_run_the_same_pool_in_distinct_groups(self) -> None:
+        groups = [
+            _partition_args(name)[_partition_args(name).index("--group") + 1]
+            for name in _SPLIT_LEGS
+        ]
+        assert groups == ["1", "2", "3", "4"]
+        splits = {_partition_args(n)[_partition_args(n).index("--splits") + 1] for n in _SPLIT_LEGS}
+        assert splits == {str(len(_SPLIT_LEGS))}
 
-    def test_only_the_leg_that_owns_skills_ignores_the_pin_file(self) -> None:
-        for partition, owns_skills in (("bulk-nested", False), ("bulk-nested-ci", True)):
-            ignored = {
-                token.removeprefix("--ignore=")
-                for token in _partition_args(partition)
-                if token.startswith("--ignore=")
-            }
-            assert ignored == (_NESTED_BULK_IGNORES if owns_skills else set())
-
-    def test_classify_partition_agrees_with_the_nested_arg_lists(self) -> None:
-        tests_root = _WORKFLOW.parents[2] / "tests"
-        owners = {
-            "bulk-nested": _selected_dirs(_partition_args("bulk-nested")),
-            "bulk-nested-ci": _selected_dirs(_partition_args("bulk-nested-ci")),
-        }
-        for partition, dirs in owners.items():
-            for directory in dirs:
-                probe = f"{directory}/test_probe.py"
-                assert run_pytest_selected.classify_partition(probe) == partition, probe
-        assert (tests_root / "ci").is_dir()
-
-    def test_mutation_runs_only_tests_mutation(self) -> None:
-        args = _partition_args("mutation")
-        assert args == ["-n", "auto", "--dist", "loadfile", "tests/mutation"]
+    def test_classify_partition_puts_pool_files_in_the_split_kind(self) -> None:
+        assert run_pytest_partition.classify_partition("tests/ci/test_probe.py") == "split"
+        assert run_pytest_partition.classify_partition("tests/test_safe_push_pr_branch.py") == (
+            "safe-push"
+        )
 
     def test_safe_push_runs_process_sensitive_files(self) -> None:
         args = _partition_args("safe-push")
@@ -202,17 +173,9 @@ class TestMatrixStructure:
 class TestXdistParallelism:
     """Bulk partitions and mutation use xdist; sensitive files stay serial."""
 
-    def test_bulk_uses_xdist(self) -> None:
-        args = _partition_args("bulk")
-        assert args[:4] == ["-n", "auto", "--dist", "loadfile"]
-
-    @pytest.mark.parametrize("partition", ["bulk-nested", "bulk-nested-ci"])
-    def test_nested_bulk_uses_xdist(self, partition: str) -> None:
+    @pytest.mark.parametrize("partition", _SPLIT_LEGS)
+    def test_split_groups_use_xdist(self, partition: str) -> None:
         args = _partition_args(partition)
-        assert args[:4] == ["-n", "auto", "--dist", "loadfile"]
-
-    def test_mutation_uses_xdist(self) -> None:
-        args = _partition_args("mutation")
         assert args[:4] == ["-n", "auto", "--dist", "loadfile"]
 
     def test_safe_push_stays_serial(self) -> None:
@@ -226,7 +189,7 @@ class TestXdistParallelism:
         assert "--dist" not in args
 
     def test_no_hard_coded_worker_count(self) -> None:
-        for partition, args in run_pytest_selected._PARTITION_FULL_ARGS.items():
+        for partition, args in run_pytest_partition._PARTITION_FULL_ARGS.items():
             if "-n" in args:
                 val = args[args.index("-n") + 1]
                 assert not val.lstrip("+-").isdigit(), (
@@ -243,38 +206,20 @@ class TestXdistParallelism:
 class TestRunPytestStep:
     """The shared Run pytest step uses matrix data."""
 
-    def test_run_step_invokes_the_selection_runner(self) -> None:
+    def test_run_step_invokes_the_partition_runner(self) -> None:
         steps = _job_steps("test")
         run_step = [s for s in steps if s.get("name") == _MAIN_STEP][0]
         run = run_step["run"]
-        assert "scripts/ci/run_pytest_selected.py" in run
+        assert "scripts/ci/run_pytest_partition.py" in run
         assert "--partition ${{ matrix.partition }}" in run
 
-    def test_run_step_passes_selection_base(self) -> None:
-        steps = _job_steps("test")
-        run_step = [s for s in steps if s.get("name") == _MAIN_STEP][0]
-        base = run_step.get("env", {}).get("PYTEST_SELECT_BASE", "")
-        assert "github.event.pull_request.base.sha" in base
-        assert "github.event.before" in base
-
-    def test_run_step_passes_selection_head(self) -> None:
-        """Issue #5378: without the pull request's own head SHA the diff would
-        run against the synthetic merge commit and credit this pull request
-        with base-branch changes."""
-        steps = _job_steps("test")
-        run_step = [s for s in steps if s.get("name") == _MAIN_STEP][0]
-        head = run_step.get("env", {}).get("PYTEST_SELECT_HEAD", "")
-        assert "github.event.pull_request.head.sha" in head
-        assert "github.sha" in head
-
-    def test_selection_refs_are_shas_not_branch_names(self) -> None:
+    def test_run_step_sets_no_selection_env(self) -> None:
+        """Issue #6239 AC2: the leg runs its full share, so no base or head SHA
+        reaches the runner."""
         steps = _job_steps("test")
         run_step = [s for s in steps if s.get("name") == _MAIN_STEP][0]
         env = run_step.get("env", {})
-        for name in ("PYTEST_SELECT_BASE", "PYTEST_SELECT_HEAD"):
-            value = env.get(name, "")
-            assert "base_ref" not in value, f"{name} must not use a mutable branch name"
-            assert "ref_name" not in value, f"{name} must not use a mutable branch name"
+        assert not [name for name in env if name.startswith("PYTEST_SELECT_")]
 
     def test_checkout_depth_can_reach_both_selection_commits(self) -> None:
         """A shallow checkout cannot hold base.sha and head.sha, so the diff
@@ -357,15 +302,14 @@ class TestCoverageJob:
         assert dl["with"]["pattern"] == "pytest-results-*"
         assert dl["with"]["merge-multiple"] is True
 
-    def test_combine_uses_six_main_data_inputs(self) -> None:
+    def test_combine_lists_every_legs_coverage_file(self) -> None:
         steps = _job("coverage")["steps"]
         combine = [s for s in steps if s.get("name") == "Combine coverage data"][0]
         run = combine["run"]
-        assert re.findall(r"--main-data\s+(\S+)", run) == [
-            "artifacts/.coverage.bulk",
-            "artifacts/.coverage.bulk-nested",
-            "artifacts/.coverage.bulk-nested-ci",
-            "artifacts/.coverage.mutation",
+        listed = re.findall(r"--main-data\s+(\S+)", run)
+        assert listed == [entry["coverage_file"] for entry in _matrix()]
+        assert listed == [
+            *(f"artifacts/.coverage.{name}" for name in _SPLIT_LEGS),
             "artifacts/.coverage.safe-push",
             "artifacts/.coverage.pr-autofix",
         ]

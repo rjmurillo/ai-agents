@@ -28,6 +28,7 @@ dev = [
     "packaging>=24.0",
     "pytest-timeout>=2.4.0",
     "pytest-xdist>=3.8.0",
+    "pytest-split>=0.11.0",
     "chevron==0.14.0",
 ]
 eval = [
@@ -301,6 +302,7 @@ dev = [
     "packaging>=24.0",
     "pytest-timeout>=2.4.0",
     "pytest-xdist>=3.8.0",
+    "pytest-split>=0.11.0",
     "chevron==0.14.0",
 ]
 

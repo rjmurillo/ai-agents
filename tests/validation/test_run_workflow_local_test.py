@@ -573,7 +573,7 @@ def test_act_true_runs_pytest_matrix_locally(all_tools, monkeypatch, tmp_path):
     strategy:
       matrix:
         include:
-          - partition: bulk
+          - partition: split-1
           - partition: safe-push
 """,
         encoding="utf-8",
@@ -628,9 +628,9 @@ def test_act_true_runs_pytest_matrix_locally(all_tools, monkeypatch, tmp_path):
                 "run",
                 "--frozen",
                 "python",
-                "scripts/ci/run_pytest_selected.py",
+                "scripts/ci/run_pytest_partition.py",
                 "--partition",
-                "bulk",
+                "split-1",
                 "--cov",
                 "--cov-report=",
                 "--junitxml=pytest-0.xml",
@@ -648,7 +648,7 @@ def test_act_true_runs_pytest_matrix_locally(all_tools, monkeypatch, tmp_path):
                 "run",
                 "--frozen",
                 "python",
-                "scripts/ci/run_pytest_selected.py",
+                "scripts/ci/run_pytest_partition.py",
                 "--partition",
                 "safe-push",
                 "--cov",
@@ -699,9 +699,7 @@ def test_act_true_rejects_mixed_workflow_batch(all_tools, monkeypatch, tmp_path)
     assert "nested act execution supports only the pytest workflow" in report.note
 
 
-def test_pytest_workflow_uses_local_fallback_without_act(
-    all_tools, monkeypatch, tmp_path
-):
+def test_pytest_workflow_uses_local_fallback_without_act(all_tools, monkeypatch, tmp_path):
     workflow_name = ".github/workflows/pytest.yml"
     workflow = tmp_path / workflow_name
     workflow.parent.mkdir(parents=True)
@@ -995,9 +993,7 @@ def test_format_json_exposes_secret_skipped(all_tools, monkeypatch, tmp_path):
     assert blocked not in json.dumps(payload)
 
 
-def test_format_json_omits_missing_secret_names_for_exit_4(
-    all_tools, monkeypatch, tmp_path
-):
+def test_format_json_omits_missing_secret_names_for_exit_4(all_tools, monkeypatch, tmp_path):
     monkeypatch.delenv("BOT_PAT_2841", raising=False)
     _write_wf_secrets(tmp_path, WF, "BOT_PAT_2841")
     monkeypatch.setattr(w, "_actionlint_stage", lambda f, r: _ok("actionlint"))
@@ -1707,7 +1703,9 @@ def test_act_limitation_hint_accepts_the_failure_that_follows_from_the_fetch() -
 
 
 def test_act_limitation_hint_blocks_a_failing_test_step_beside_the_fetch() -> None:
-    failing_tests = "      [Python Tests/pytest (bulk)]   \u274c  Failure - Main Run pytest [9s]\n"
+    failing_tests = (
+        "      [Python Tests/pytest (split-1)]   \u274c  Failure - Main Run pytest [9s]\n"
+    )
     assert w._act_limitation_hint(_act_fetch_failure() + failing_tests) is None
 
 
@@ -2340,10 +2338,7 @@ def test_toolcache_hint_removes_only_exited_act_containers() -> None:
     hint = w._toolcache_permission_hint(_TOOLCACHE_PERMISSION_FAILURE)
 
     assert hint is not None
-    assert (
-        "docker rm $(docker ps -aq --filter volume=act-toolcache --filter status=exited)"
-        in hint
-    )
+    assert "docker rm $(docker ps -aq --filter volume=act-toolcache --filter status=exited)" in hint
 
 
 def test_permission_denied_outside_the_toolcache_gets_no_hint() -> None:

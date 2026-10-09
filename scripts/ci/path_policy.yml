@@ -1,23 +1,16 @@
-# The repository's test-impact path policy. One list, two readers.
+# The repository's pytest path policy.
 #
 # `.github/workflows/pytest.yml` hands this file to `dorny/paths-filter`, which
-# decides whether the pytest matrix runs at all. `scripts/test_selection/
-# path_policy.py` reads the same list to classify a changed path, and
-# `select_tests.py` uses that classification to decide whether a push can be
-# narrowed to an import-graph subset.
-#
-# Before issue #5318 the local side kept its own near-copy in
-# `runtime_read_patterns.txt`: 12 entries against this list's 53, drifting apart
-# every time one side was widened by hand. A path named here and nowhere else
-# was a local full-suite trigger that CI did not know about, and the reverse
-# gap skipped the matrix on a path some test reads.
+# decides whether the `security` and `test-windows-pwsh` jobs run. The pytest
+# matrix does not read it: every leg runs on every event (issue #6239).
+# `scripts/ci/path_policy.py` loads the same list for the CI wiring tests.
 #
 # `python` is the filter name `pytest.yml` reads, so it has to stay. Adding a
 # second top-level key here adds a second filter output, which nothing consumes.
 #
 # An entry is a picomatch glob evaluated against the repository-relative path.
-# `path_policy.py` approximates picomatch with `fnmatch`; it over-matches rather
-# than under-matches, because a wider full-suite trigger is the safe direction.
+# A wider list is the safe direction: an extra match runs those jobs, a missing
+# one skips them.
 
 python:
   - '**/*.py'

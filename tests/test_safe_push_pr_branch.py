@@ -16,7 +16,6 @@ from typing import Any
 
 import pytest
 
-from scripts.test_selection.select_tests import Selection
 from scripts.validation import git_hook_policy
 
 _MODULE_PATH = (
@@ -1056,12 +1055,10 @@ def test_a_container_bounds_the_whole_pytest_step_not_just_each_child(
 ) -> None:
     """The failure the per-child clamp did not cover.
 
-    `_run_command` bounds one subprocess. An import-graph subset emits up to
-    four partition commands and takes the execution budget, so before this the
+    `_run_command` bounds one subprocess. The opt-in full suite emits four
+    partition commands and takes the execution budget, so before this the
     step could spend 4 * 150s = 600s inside a container against the ~679s at
-    which a reclaim was measured. That is the original failure on the common
-    path for a Python change, not a tail case, and the PR text had argued it
-    was a tail case on the strength of the Markdown path spawning one child.
+    which a reclaim was measured.
 
     Asserts the aggregate, which is the property that was missing: every child
     sees a deadline drawn from a total no larger than the container ceiling, so
@@ -1094,97 +1091,6 @@ def test_a_container_bounds_the_whole_pytest_step_not_just_each_child(
         f"the first child got {seen[0]}s against a {ceiling}s container "
         "ceiling, so the aggregate was not clamped and the step can outlive "
         "the container across several children."
-    )
-
-
-_NARROWED_TO_EVERY_PARTITION = Selection(
-    full=False,
-    tests=(
-        "tests/test_leaf.py",
-        "tests/mutation/test_thing.py",
-        "tests/test_safe_push_pr_branch.py",
-        "tests/test_pr_autofix_late_live_state_gate.py",
-    ),
-    reason="narrowed",
-)
-
-
-def _run_pytest_on_a_narrowed_subset(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, *, clamp: Any
-) -> list[float]:
-    """Drive the ordinary import-graph path and return each child's deadline."""
-    monkeypatch.delenv(git_hook_policy.PYTEST_FULL_SUITE_LOCALLY_ENV, raising=False)
-    monkeypatch.setattr(
-        git_hook_policy.select_tests, "changed_from_git", lambda *_a, **_k: ["scripts/x.py"]
-    )
-    monkeypatch.setattr(
-        git_hook_policy.select_tests, "select", lambda *_a, **_k: _NARROWED_TO_EVERY_PARTITION
-    )
-    monkeypatch.setattr(git_hook_policy, "_container_clamped", clamp)
-    seen: list[float] = []
-
-    def fake_run_command(args: Any, repo_root: Any, **kwargs: Any):
-        seen.append(kwargs["timeout_seconds"])
-        return subprocess.CompletedProcess(list(args), 0, "", "")
-
-    monkeypatch.setattr(git_hook_policy, "_run_command", fake_run_command)
-    monkeypatch.setattr(git_hook_policy, "_print_process_output", lambda result: None)
-    assert git_hook_policy.run_pytest(tmp_path) == 0
-    return seen
-
-
-def test_the_ordinary_subset_path_takes_the_execution_budget_too(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    """Why the aggregate clamp is not only about the opt-in.
-
-    Every budget test in this section forces
-    `AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY=1`, because that is the reliable way
-    to make `run_pytest` build more than one command. Review on PR #5319
-    pointed out what that leaves untested: a narrowed import-graph selection
-    also emits up to four partition commands, and `_pytest_budget_seconds`
-    gives any multi-command set the execution budget. So the 780s figure the
-    PR text described as an opt-in property is what an everyday Python push
-    takes, and nothing said so.
-
-    This is the workstation half. The container half is the test below, and
-    the pair is the point: the same path, clamped and unclamped, is what makes
-    the clamp's effect visible rather than asserted.
-    """
-    seen = _run_pytest_on_a_narrowed_subset(monkeypatch, tmp_path, clamp=lambda seconds: seconds)
-
-    assert len(seen) > 1, (
-        "the narrowed selection did not emit multiple partition commands, so "
-        "this test and the one below say nothing about a shared budget."
-    )
-    assert seen[0] == pytest.approx(git_hook_policy.TEST_SUITE_TIMEOUT_SECONDS), (
-        f"the ordinary subset path got {seen[0]}s. It takes the execution "
-        "budget, not the collection budget, which is exactly why the container "
-        "clamp below has to cover it."
-    )
-
-
-def test_a_container_bounds_the_ordinary_subset_path_as_well(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    """The same path as above, inside a container.
-
-    Without the aggregate clamp this is four children at the 150s child
-    ceiling, roughly 600s against the ~679s at which a reclaim was measured,
-    on the path a Python change takes. The test above establishes that the
-    budget really is the execution one here, so a pass on this test is about
-    the clamp rather than about the path being cheap.
-    """
-    ceiling = git_hook_policy.CONTAINER_SUBPROCESS_CEILING_SECONDS
-    seen = _run_pytest_on_a_narrowed_subset(
-        monkeypatch, tmp_path, clamp=lambda seconds: min(seconds, ceiling)
-    )
-
-    assert len(seen) > 1
-    assert seen[0] <= ceiling, (
-        f"the first child of a narrowed subset got {seen[0]}s against a "
-        f"{ceiling}s container ceiling. The aggregate is unclamped on this "
-        "path, so the step can outlive the container across its partitions."
     )
 
 
@@ -1281,11 +1187,9 @@ def test_run_pytest_full_timeout_does_not_emit_exhaustion_message(
     assert "budget exhaustion" not in err.lower()
     assert "exhausted" not in err.lower()
     # The helper opts into local execution, which announces itself. That line
-    # is a selection notice, not a diagnostic about the budget, so it must not
-    # be what satisfies the two assertions above. The wording moved when the
-    # opt-in was hoisted ahead of selection on PR #5319: the notice is now
-    # emitted by `_resolve_pytest_commands` rather than by the stand-in, so it
-    # names the variable and says the graph was skipped.
+    # is an opt-in notice, not a diagnostic about the budget, so it must not
+    # be what satisfies the two assertions above. `_resolve_pytest_commands`
+    # emits it and names the variable.
     assert "executing the whole suite locally" in err
     assert git_hook_policy.PYTEST_FULL_SUITE_LOCALLY_ENV in err
 
@@ -1318,7 +1222,7 @@ def test_run_pytest_budget_exhaustion_cosmetic_change_survives(
     assert "timed out" not in err
 
 
-def test_the_clean_opt_in_run_prints_only_the_selection_notice(
+def test_the_clean_opt_in_run_prints_only_the_opt_in_notice(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
@@ -1331,12 +1235,8 @@ def test_the_clean_opt_in_run_prints_only_the_selection_notice(
     """
     _record_pytest_timeouts(monkeypatch, elapsed_per_command=1.0)
     assert git_hook_policy.run_pytest(tmp_path) == 0
-    # One line, and it no longer mentions the diff: the opt-in short-circuits
-    # ahead of selection on PR #5319, so nothing consults the import graph and
-    # the notice cannot report a reason for falling back to the whole suite.
     assert capsys.readouterr().err.splitlines() == [
-        f"{git_hook_policy.PYTEST_FULL_SUITE_LOCALLY_ENV}=1: executing the "
-        "whole suite locally, skipping import-graph selection."
+        f"{git_hook_policy.PYTEST_FULL_SUITE_LOCALLY_ENV}=1: executing the whole suite locally."
     ]
 
 
