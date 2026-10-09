@@ -29,7 +29,7 @@ Code dispatches it under ``claude -p``.
 
 Why opt-in: these spawn real CLIs that need authentication and spend model
 credits, which bare CI does not have. They run wherever the CLIs are installed
-and ``RUN_CLI_E2E=1`` is set (local dev, a nightly job with secrets); elsewhere
+and ``RUN_CLI_E2E=1`` is set (local dev, plugin-cli-smoke.yml with secrets); elsewhere
 they SKIP with a loud reason so a skipped run never reads as a passed run. The
 fast, always-on guards are the unit/runtime-contract tests and the
 ``validate_hook_anchoring`` gate; this is the belt-and-suspenders e2e layer.
@@ -59,6 +59,7 @@ sys.path.insert(0, str(REPO_ROOT / "build" / "scripts"))
 
 import copilot_hook_probe  # noqa: E402
 import generate_hooks  # noqa: E402
+import smoke_skip_policy  # noqa: E402
 
 from scripts.cli_exec import resolve_executable  # noqa: E402
 
@@ -74,23 +75,17 @@ _manifest = copilot_hook_probe.manifest
 _probe_name = copilot_hook_probe.probe_name
 _write_probe_script = copilot_hook_probe.write_probe_script
 _copilot_run_blocked = copilot_hook_probe.copilot_run_blocked
-_copilot_run_blocked_headline = copilot_hook_probe.copilot_run_blocked_headline
 
 
 def _skip_on_copilot_block(result: subprocess.CompletedProcess[str]) -> None:
-    """Skip when an external or credential condition blocks Copilot.
+    """Apply the D26 block policy to a Copilot run.
 
-    A rate limit, transport failure, or auth gate is not a branch defect.
-    Skipping lets the pre-push proceed. The nightly workflow uses
-    assert_smoke_ran.py to detect skipped smokes, so the nightly still fails red
-    when the real CLI cannot run (issues #4504, #4483, #3275).
-
-    Using pytest.skip rather than pytest.fail here is the contractual choice:
-    fail would block every pre-push on external or auth state. The
-    existing timeout paths in this file already follow the same pattern.
+    A spent monthly quota skips with QUOTA_SKIP:, which plugin-cli-smoke.yml
+    allows through ``assert_smoke_ran.py --allow-skip-marker``. Auth, rate
+    limit, and transport blocks fail in CI and skip unmarked locally, so the
+    smoke still turns red on them (issues #4504, #4483, #3275).
     """
-    if _copilot_run_blocked(result):
-        pytest.skip(_copilot_run_blocked_headline(result))
+    smoke_skip_policy.skip_or_fail_on_copilot_block(result)
 
 
 _RUN = os.environ.get("RUN_CLI_E2E") == "1"
@@ -103,7 +98,7 @@ F = TypeVar("F", bound=Callable[..., object])
 def _requires_cli(cli: str) -> Callable[[F], F]:
     """Skip without RUN_CLI_E2E=1 and the CLI, and tag the test with its CLI.
 
-    The ``claude`` and ``copilot`` markers let the nightly smoke select one
+    The ``claude`` and ``copilot`` markers let the CLI smoke select one
     provider's tests per matrix leg (``-m "smoke and claude"``), so each leg
     needs only its own credential.
     """
@@ -235,7 +230,9 @@ def test_copilot_vendor_install_hook_resolves(tmp_path: Path) -> None:
             env=env,
         )
     except subprocess.TimeoutExpired:
-        pytest.skip("copilot plugin install exceeded 240s (CLI/infra latency)")
+        smoke_skip_policy.skip_or_fail_unmarked(
+            "copilot plugin install exceeded 240s (CLI/infra latency)"
+        )
     _skip_on_copilot_block(install)
     assert install.returncode == 0, install.stderr or install.stdout
 
@@ -256,7 +253,7 @@ def test_copilot_vendor_install_hook_resolves(tmp_path: Path) -> None:
             env=env,
         )
     except subprocess.TimeoutExpired:
-        pytest.skip("copilot run exceeded 240s (CLI/infra latency)")
+        smoke_skip_policy.skip_or_fail_unmarked("copilot run exceeded 240s (CLI/infra latency)")
     _skip_on_copilot_block(run)
 
     assert marker.is_file(), _copilot_failure_diagnostics(
@@ -331,7 +328,8 @@ def test_claude_plugin_dir_hook_resolves(tmp_path: Path) -> None:
             env=_clean_env(),
         )
     except subprocess.TimeoutExpired:
-        pytest.skip("claude run exceeded 240s (CLI/infra latency)")
+        smoke_skip_policy.skip_or_fail_unmarked("claude run exceeded 240s (CLI/infra latency)")
+    smoke_skip_policy.skip_or_fail_on_claude_block(run, "claude hook e2e")
     assert marker.is_file(), (
         f"hook never ran. stdout={run.stdout[-600:]!r} stderr={run.stderr[-600:]!r}"
     )
@@ -459,34 +457,3 @@ def test_probe_script_writes_marker_when_run(tmp_path: Path) -> None:
     assert "MARKER" in text
     assert f"script={script}" in text
     assert f"COPILOT_PLUGIN_ROOT={tmp_path}" in text
-
-
-@pytest.mark.parametrize("blocked_phase", ["install", "run"])
-@pytest.mark.parametrize(
-    "stderr",
-    [
-        "API rate limit exceeded for user ID 12345.",
-        "Failed to fetch PAT user login: connection reset by peer.",
-    ],
-)
-def test_copilot_vendor_consumer_skips_classified_block(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-    blocked_phase: str,
-    stderr: str,
-) -> None:
-    """The install and prompt calls both stop before hook assertions."""
-    success = subprocess.CompletedProcess(["copilot"], 0, stdout="", stderr="")
-    blocked = subprocess.CompletedProcess(["copilot"], 1, stdout="", stderr=stderr)
-
-    def fake_run(argv: tuple[str, ...], **_: object) -> subprocess.CompletedProcess[str]:
-        is_install = "plugin" in argv and "install" in argv
-        if blocked_phase == "install":
-            return blocked if is_install else success
-        return success if is_install else blocked
-
-    monkeypatch.setattr("tests.e2e.test_cli_hook_e2e._copilot_command", lambda *a: a)
-    monkeypatch.setattr("tests.e2e.test_cli_hook_e2e.subprocess.run", fake_run)
-
-    with pytest.raises(pytest.skip.Exception):
-        test_copilot_vendor_install_hook_resolves(tmp_path)

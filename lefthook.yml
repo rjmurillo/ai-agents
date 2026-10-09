@@ -720,21 +720,32 @@ pre-push:
               - "scripts/validation/validate_hook_anchoring.py"
               - "tests/e2e/test_cli_hook_e2e.py"
               - "tests/e2e/copilot_hook_probe.py"
+              - "tests/e2e/smoke_skip_policy.py"
 
           - name: plugin-load-e2e
             timeout: 20m
             run: uv run --frozen python scripts/validation/git_hook_policy.py cli-plugin-e2e
             use_stdin: true
             glob:
-              - "src/claude/.claude-plugin/plugin.json"
+              - ".claude-plugin/marketplace.json"
+              - ".github/plugin/marketplace.json"
+              - "src/claude/**"
+              - "src/copilot-cli/**"
               - ".claude/skills/**"
-              - "src/copilot-cli/.claude-plugin/plugin.json"
-              - "src/copilot-cli/skills/**"
               - "build/scripts/generate_skills.py"
               - "templates/platforms/copilot-cli.yaml"
               - "tests/e2e/test_plugin_load_smoke.py"
               - "tests/e2e/copilot_hook_probe.py"
-              - ".github/workflows/nightly-cli-smoke.yml"
+              - "tests/e2e/smoke_skip_policy.py"
+              - ".github/workflows/plugin-cli-smoke.yml"
+              - "scripts/validation/cli_smoke_paths.py"
+              - "scripts/validation/assert_smoke_ran.py"
+              - "scripts/validation/smoke_quota_report.py"
+              - "scripts/validation/assert_trusted_smoke_context.py"
+              - "scripts/validation/smoke_result.py"
+              - "tests/integration/test_e2e_install.py"
+              - "pyproject.toml"
+              - "uv.lock"
 
           - name: bot-cascade-advisory
             timeout: 2m

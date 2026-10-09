@@ -170,9 +170,9 @@ If monthly costs exceed $100:
 - pester-tests (blocks merge)
 - validate-generated-agents (blocks merge)
 
-### Agent Workflows (Approval-Gated, Non-Blocking)
+### Agent Workflows (Approval-Gated, Advisory Except plugin-cli-smoke)
 
-These eleven workflows run a model or an agent. Each model job declares the environment of its provider and runs after a reviewer approves it (ADR-114). Checks from listed workflows never block merge unless the branch ruleset requires them (ADR-114 Decisions 5 and 7).
+These eleven workflows run a model or an agent. Each model job declares the environment of its provider and runs after a reviewer approves it (ADR-114). Checks from workflows listed as advisory never block merge unless the branch ruleset requires them (ADR-114 Decisions 5 and 7).
 
 | Environment | Provider | Secrets |
 |-------------|----------|---------|
@@ -191,11 +191,13 @@ All four require a reviewer. `agent-approval` is deleted (ADR-114 Decision 11 it
 - pr-maintenance
 - artifact-insight-scanner
 - skill-overlap-eval
-- nightly-cli-smoke
+- plugin-cli-smoke
 - copilot-context-synthesis
 - claude
 
-nightly-cli-smoke runs one matrix leg per CLI. The leg runs in `agent-claude` or `agent-copilot` and receives only that provider's credential.
+ai-metrics-analysis, pr-maintenance, and artifact-insight-scanner review with Claude in `agent-claude`. No workflow outside plugin-cli-smoke reads `COPILOT_GITHUB_TOKEN`.
+
+plugin-cli-smoke runs on pull requests, only when a change touches a smoke path (`scripts/validation/cli_smoke_paths.py`). It runs one matrix leg per CLI. A Claude or Copilot leg runs in `agent-claude` or `agent-copilot` and receives only that provider's credential. The Codex legs read no credential and run in no environment. plugin-cli-smoke is the one blocking gated workflow (REQ-047, owner decision D2); the other gated pull-request workflows stay advisory.
 
 ## Best Practices
 

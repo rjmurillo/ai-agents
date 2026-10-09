@@ -212,3 +212,73 @@ No seat blocks. The seats voted before D19 changed the key from one per thread t
 
 The owner deleted `agent-approval`. A run still waiting on it made GitHub recreate it unprotected, so it took a second delete. ADR-114 Decision 11 item 6 and Decision 12 now record this. The change is a factual state update with no new decision, so no seat re-voted.
 - 2026-10-08: COST-GOVERNANCE and a test comment now say `agent-approval` is deleted; the ADR states the recreation time from the deployment record. Factual updates, no re-vote.
+
+## Round 5 (2026-10-08: Copilot leaves ai-review, plugin CLI smoke gates pull requests)
+
+Scope: issue #6069 and REQ-047. Decision 2 table rows, Decision 5 (the unlisted blocking workflow), new Decision 13, Decision 11 items 8 and 9, a Negative consequence, Impact, and References. ADR-071 nightly references now name `plugin-cli-smoke.yml`.
+
+### Owner decisions
+
+| ID | Decision |
+|----|----------|
+| D20 | Move the `ai-review` callers `ai-metrics-analysis.yml`, `artifact-insight-scanner.yml`, and `pr-maintenance.yml` from Copilot to Claude in `agent-claude`. Copilot tokens for model review are not funded. |
+| D21 | Keep a Copilot CLI smoke: the owner needs proof that skills and plugins load in Copilot. Every job that spends model tokens stays behind an approval environment. |
+| D22 | The real-CLI smoke gates pull requests, because nobody reads the nightly. It is path-filtered on plugin-shipped paths, and the result passes when none changed. |
+| D23 | Run the full Claude and Copilot matrix on Ubuntu, macOS, and Windows, and delete the nightly workflow. |
+| D24 | Add a Codex leg now, with the same gates as Claude and Copilot. Shift checks left wherever possible. |
+| D25 | The Copilot leg's gate is zero-token (`skill list`). Copilot prompt checks run when quota exists, and a classified quota skip is reported, not failed. |
+| D26 | Budgets run out. Keys may go unfunded, and that gap is accepted for every provider. Zero-token load checks stay strict. Prompt checks that hit an exhausted quota or credit balance skip with a marker. Auth failures still fail. The moved `ai-review` jobs may fail on an unfunded key, which never blocks a merge. |
+
+### Panel
+
+Full panel. Decision 13 adds a blocking gate, so all six seats ran in parallel, each read-only on head `b663e0dd2`.
+
+| # | Seat | Priority | Finding | Resolution |
+|---|------|----------|---------|------------|
+| 46 | critic, security | P0 | The quota marker also covered auth, transport, and rate-limit blocks, so a dead Copilot token passed. | Fixed. Only exhausted quota or credit carries the marker. Auth, transport, and Copilot rate limits fail. A Claude 429 counts as quota, because the CLI reports both limits the same way. Negative tests pin it (D26). |
+| 47 | architect | P0 | ADR-094 Decision 2 named `action.yml` and the nightly as pin owners, and both became false. | Fixed. ADR-094 has a 2026-10-08 amendment. |
+| 48 | critic, security | P1 | The trusted-context gate and the result reporter ran from the pull request tree, so a fork could rewrite them. | Fixed. Both, plus the skip gate, run from the base commit with `python3 -I`. |
+| 49 | critic | P1 | Decision 13.1 claimed a pull request cannot change its own gate, but the workflow YAML comes from the head. | Fixed. The claim is narrowed, and review of the workflow diff is the stated control. |
+| 50 | critic | P1 | The path list missed the gate's own scripts, `.github/plugin/marketplace.json`, `pyproject.toml`, and `uv.lock`. | Fixed. They are added, and a test checks that every script the workflow runs is listed. |
+| 51 | architect | P1 | ADR-083 still named the nightly as the home of the base-alone e2e. | Fixed. ADR-083 has a 2026-10-08 amendment. |
+| 52 | architect, critic, independent-thinker | P1 | ADR-071 said Renovate cannot auto-merge the CLI pins. `renovate.json` auto-merges all three, so a bump can merge before its smoke is approved. | Fixed in text. The in-place rewrite became a dated ADR-071 amendment that states the fact. The residual is tied to Decision 11 item 8. |
+| 53 | architect, analyst, high-level-advisor | P1 | Decision 5 said "other six". The count is five. | Fixed. |
+| 54 | analyst | P1 | Decision 13.5 said a waiting result blocks. By default, only a failed one does. | Fixed. Waiting blocks only with `--include-non-required`. |
+| 55 | architect | P1 | The title and a Positive consequence still said agent checks never block. | Fixed. The title names the exception, and the consequence is scoped. |
+| 56 | architect | P1 | The rollback had no step for Decision 13. | Fixed. A rollback row removes the ruleset check first. |
+| 57 | high-level-advisor | P1 | Item 8 had no ordering. Requiring the check before it runs on `main` stalls every pull request. | Fixed. Item 8 requires one report on `main` first. |
+| 58 | high-level-advisor | P1 | The move to `ANTHROPIC_API_KEY` landed on a key that had run out of credit on 2026-10-07. | Owner decision D26: an unfunded key is an accepted gap for advisory jobs. Item 9 records it with run 37583525191. |
+| 59 | high-level-advisor, independent-thinker, critic | P1 | Each push needs a fresh approval click, and the ADR did not state that cost or the approval timeout and re-run behavior. | Fixed. Decision 13 items 3 and 6 state them, with a revisit trigger. |
+| 60 | analyst | P2 | A `dispositions.json` entry can exempt a failed result. | Stated in Decision 13.5. |
+| 61 | independent-thinker, critic, high-level-advisor | P2 | Codex runs fewer checks than D24's "same gates". | Stated in Decision 13.2: plugin and skill load only, and why. |
+| 62 | independent-thinker | P2 | A model-judgment check could cite the exception as precedent. | Fixed. Decision 13 calls it deterministic load evidence. |
+| 63 | security | P2 | Checkouts kept credentials in `.git/config`. | Fixed. Every checkout sets `persist-credentials: false`. |
+| 64 | security, critic | P2 | The marker matched as a substring, and an all-skip run could pass with zero passing tests. | Fixed. Prefix match, plus a required pass for each leg's zero-token test. |
+| 65 | security | P2 | Egress is audit-only, and the token is present while pull request code runs after approval. | Deferred. It is the Decision 10 residual. Trigger: an egress allowlist is proven on one Linux leg. |
+| 66 | independent-thinker | P2 | Claude legs depend on subscription rate limits and token expiry. | A Claude 429 is marker-skipped as quota, and an expired token fails (Decision 13.4). Token ownership is the owner's. |
+| 67 | analyst | P2 | Workflow and test comments cited "D6". | Fixed. They cite D25. |
+| 68 | architect | P2 | `ai-review` outputs keep `copilot-exit-code` and `copilot-stderr` names fed by the Claude step. | Out of scope. A rename breaks callers. Flagged in the pull request body. |
+| 69 | architect | P2 | Frontmatter date and Related Decisions were stale. | Fixed. |
+| 70 | architect (round 2) | P2 | Item 8 said "reported once on `main`", but the workflow never runs on `main` by itself. | Fixed. Item 8 names a manual dispatch on `main` and notes that older pull requests get no result until their next push. |
+| 71 | architect (round 2) | P2 | Decision 13.6 said agents cannot approve deployments, which item 7 contradicts. | Fixed. It says the deny rule only slows self-approval. |
+| 72 | critic (round 2) | P1 | The trusted steps run `main`'s copy of the gate scripts, which this pull request adds or extends, so its own smoke fails. Later flag changes hit the same break. | Fixed in text. Decision 13.1 names the landing cost, the `workflow_dispatch` proof path, the owner-approved first landing, and the two-step rule for later flag changes. |
+| 73 | critic (round 2) | P2 | A docstring said the marker "contains" while the code matches a prefix. | Fixed. |
+
+### Votes
+
+| Seat | Round 1 | Round 2 |
+|------|---------|---------|
+| architect | Block | Accept |
+| critic | Block | Disagree-and-Commit; the landing cost is now stated |
+| security | Block | Accept |
+| analyst | Disagree-and-Commit | not re-run; its two P1 text errors are fixed (53, 54) |
+| independent-thinker | Disagree-and-Commit | not re-run; its P1 is answered in text (52) and depends on Decision 11 item 8 |
+| high-level-advisor | Disagree-and-Commit | not re-run; its four P1 items are fixed or answered by D26 (53, 57, 58, 59) |
+
+All six seats Accept or Disagree-and-Commit. No seat blocks. Findings 72 and 73 landed after the critic's round 2 vote, and no seat re-voted on them.
+- 2026-10-08: After the votes, commit `5b339a526` split the reporter into `smoke_result.py` and the quota reporting into `smoke_quota_report.py`, restored `scripts/ci/require_job_results.py` to `main`, and slimmed `assert_smoke_ran.py`. The `/review` security axis re-checked findings 48 and 64 at that commit: both scripts run from the base commit under `python -I`, and the marker is still a prefix match with a required pass. Factual update, no seat re-voted. Later `/review` fixes (`--no-renames` in the path filter, a parity test between the gate and the quota report) are recorded in the pull request.
+- 2026-10-08: The `/review` reliability axis found that a manual cancel of the latest run leaves `CLI Smoke Result` skipped, which a required check reads as passing. Decision 13.3 records it as the Decision 10 residual, because the `!cancelled()` aggregator convention is kept and cancelling needs write access.
+- 2026-10-08: Correction to finding 72's resolution. A branch `workflow_dispatch` cannot prove the legs, because the trust gate trusts a dispatch only on `refs/heads/main` (run 37846561785: `smoke trusted-context gate: untrusted`, legs skipped). Decision 13.1 now names the local smoke as the proof before merge and a dispatch on `main` as the first CI proof.
+- 2026-10-08, owner decision D27: close the `pr-maintenance.yml` key-exposure path in PR #6240. After the conflict-resolution scripts switch the workspace to the pull request head, every later secret-bearing step runs code only from the `.trusted-helper` checkout of `github.sha`. The `ai-review` action resolves its scripts and Python project from its own path, not from `GITHUB_WORKSPACE`. The Devin review found this. The path predates the PR, but this PR moved the metered Anthropic key onto it.
+- 2026-10-08, owner decision D28: merge PR #6240 once its required checks pass. Its own `Smoke path filter`, `Trusted-context gate`, and `CLI Smoke Result` checks are red by design (Decision 13.1) and are not required. Right after merge, a dispatch on `main` gives the first nine-leg proof.
+

@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Tests for the trusted-context gate on the authenticated smoke (issue #2231 item 3).
+"""Tests for the trusted-context gate on the authenticated smoke (issue #2231 item 3, REQ-047).
 
 The gate keeps the secret-bearing smoke from running attacker-controlled code.
-These tests cover the authorized path, every denial reason, and the CLI argv
-contract (stdout decision, exit code).
+These tests cover the authorized path and every denial reason. The CLI argv
+contract (stdout decision, exit code) lives in
+``test_assert_trusted_smoke_context_cli.py``.
 """
 
 from __future__ import annotations
@@ -28,113 +29,64 @@ _REPO = "rjmurillo/ai-agents"
 _REF = "refs/heads/main"
 
 
-def test_trusted_when_scheduled_on_trusted_repo() -> None:
-    trusted, reason = gate.is_trusted("schedule", _REPO, _REPO, _REF, _REF)
+_PR_REF = "refs/pull/7/merge"
+_FORK = "attacker/ai-agents"
+
+
+def _decide(event: str, repository: str = _REPO, ref: str = _REF, **kwargs: str | None):
+    return gate.is_trusted(event, repository, _REPO, ref, _REF, **kwargs)
+
+
+@pytest.mark.parametrize(
+    ("event", "repository", "ref", "head_repository"),
+    [
+        ("workflow_dispatch", _REPO, _REF, None),
+        ("pull_request", _REPO, _PR_REF, _REPO),
+        ("workflow_dispatch", _REPO.upper(), _REF, None),
+        ("pull_request", _REPO, _PR_REF, _REPO.upper()),
+    ],
+    ids=["dispatch", "same-repo-pr", "repo-case-insensitive", "head-case-insensitive"],
+)
+def test_trusted_context_is_accepted(
+    event: str, repository: str, ref: str, head_repository: str | None
+) -> None:
+    trusted, reason = _decide(event, repository, ref, head_repository=head_repository)
 
     assert trusted is True
     assert "trusted context" in reason
 
 
-def test_trusted_when_dispatched_on_trusted_repo() -> None:
-    trusted, _ = gate.is_trusted("workflow_dispatch", _REPO, _REPO, _REF, _REF)
-
-    assert trusted is True
-
-
-def test_trusted_repo_comparison_is_case_insensitive() -> None:
-    trusted, _ = gate.is_trusted("schedule", _REPO.upper(), _REPO.lower(), _REF, _REF)
-
-    assert trusted is True
-
-
-def test_denied_for_pull_request_event() -> None:
-    trusted, reason = gate.is_trusted("pull_request", _REPO, _REPO, _REF, _REF)
-
-    assert trusted is False
-    assert "not a trusted trigger" in reason
-
-
-def test_denied_for_fork_repository() -> None:
-    trusted, reason = gate.is_trusted("schedule", "attacker/ai-agents", _REPO, _REF, _REF)
-
-    assert trusted is False
-    assert "not the trusted repo" in reason
-
-
-def test_denied_for_unknown_event() -> None:
-    trusted, _ = gate.is_trusted("push", _REPO, _REPO, _REF, _REF)
-
-    assert trusted is False
-
-
-def test_denied_for_untrusted_ref() -> None:
-    trusted, reason = gate.is_trusted(
-        "workflow_dispatch",
-        _REPO,
-        _REPO,
-        "refs/heads/feature",
-        _REF,
-    )
-
-    assert trusted is False
-    assert "not the trusted ref" in reason
-
-
-def test_main_prints_true_and_exits_zero_when_trusted(
-    capsys: pytest.CaptureFixture[str],
+@pytest.mark.parametrize(
+    ("event", "repository", "ref", "head_repository", "expected_reason"),
+    [
+        ("pull_request", _REPO, _PR_REF, _FORK, "fork"),
+        ("pull_request", _REPO, _PR_REF, None, "head repository"),
+        ("pull_request", _REPO, _PR_REF, "", "head repository"),
+        ("pull_request", _REPO, _PR_REF, "   ", "head repository"),
+        ("workflow_dispatch", _REPO, "refs/heads/feature", _REPO, "not the trusted ref"),
+        ("workflow_dispatch", _REPO, "refs/heads/feature", None, "not the trusted ref"),
+        ("schedule", _REPO, _REF, None, "not a trusted trigger"),
+        ("workflow_dispatch", _FORK, _REF, None, "not the trusted repo"),
+        ("pull_request", _FORK, _PR_REF, _FORK, "not the trusted repo"),
+        ("push", _REPO, _REF, _REPO, ""),
+    ],
+    ids=[
+        "fork-pr",
+        "pr-head-missing",
+        "pr-head-empty",
+        "pr-head-blank",
+        "dispatch-wrong-ref-with-head",
+        "dispatch-wrong-ref",
+        "schedule",
+        "fork-dispatch",
+        "pr-in-fork",
+        "unknown-event",
+    ],
+)
+def test_untrusted_context_is_denied(
+    event: str, repository: str, ref: str, head_repository: str | None, expected_reason: str
 ) -> None:
-    code = gate.main(
-        [
-            "--event-name",
-            "schedule",
-            "--repository",
-            _REPO,
-            "--ref",
-            _REF,
-            "--expected-repo",
-            _REPO,
-            "--expected-ref",
-            _REF,
-        ]
-    )
+    trusted, reason = _decide(event, repository, ref, head_repository=head_repository)
 
-    captured = capsys.readouterr()
-    assert code == gate.EXIT_OK
-    assert captured.out.strip() == "true"
-    assert "trusted-context gate" in captured.err
-
-
-def test_main_prints_false_when_untrusted(capsys: pytest.CaptureFixture[str]) -> None:
-    code = gate.main(
-        [
-            "--event-name",
-            "schedule",
-            "--repository",
-            "fork/ai-agents",
-            "--ref",
-            _REF,
-            "--expected-repo",
-            _REPO,
-        ]
-    )
-
-    captured = capsys.readouterr()
-    assert code == gate.EXIT_OK
-    assert captured.out.strip() == "false"
-    assert "fork/ai-agents" not in captured.err
-    assert _REPO not in captured.err
-
-
-def test_main_uses_default_expected_repo(capsys: pytest.CaptureFixture[str]) -> None:
-    code = gate.main(["--event-name", "workflow_dispatch", "--repository", _REPO, "--ref", _REF])
-
-    captured = capsys.readouterr()
-    assert code == gate.EXIT_OK
-    assert captured.out.strip() == "true"
-
-
-def test_main_exits_two_when_required_arg_missing() -> None:
-    with pytest.raises(SystemExit) as exc:
-        gate.main(["--event-name", "schedule"])
-
-    assert exc.value.code == gate.EXIT_USAGE
+    assert trusted is False
+    assert expected_reason in reason

@@ -387,10 +387,7 @@ def copilot_run_blocked_headline(result: subprocess.CompletedProcess[str]) -> st
         return copilot_transient_failure_headline(result)
     if copilot_auth_failed(result):
         return copilot_auth_failure_headline(result)
-    return (
-        "Copilot CLI run failed for an unclassified reason. "
-        f"{_transient_diagnostics(result)}"
-    )
+    return f"Copilot CLI run failed for an unclassified reason. {_transient_diagnostics(result)}"
 
 
 def run_copilot_plugin_dir(

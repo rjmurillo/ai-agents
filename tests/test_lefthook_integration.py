@@ -215,9 +215,7 @@ def _replace_job_with_marker(repo: Path, hook_name: str, job_name: str) -> Path:
     config = yaml.safe_load((repo / "lefthook.yml").read_text(encoding="utf-8"))
     # Lefthook runs commands through sh on Windows. A script avoids splitting
     # Python source passed through the shell's quoted -c argument.
-    _job_map(config, hook_name)[job_name]["run"] = (
-        f'"{PYTHON_POSIX}" {marker_script.name}'
-    )
+    _job_map(config, hook_name)[job_name]["run"] = f'"{PYTHON_POSIX}" {marker_script.name}'
     _write_lf(repo / "lefthook.yml", yaml.safe_dump(config, sort_keys=False))
     return repo / marker
 
@@ -836,8 +834,10 @@ def test_actionlint_and_cli_trigger_scopes_are_native_globs() -> None:
     assert isinstance(plugin_globs, list)
     assert "tests/e2e/copilot_hook_probe.py" in hook_globs
     assert "tests/e2e/copilot_hook_probe.py" in plugin_globs
+    assert "tests/e2e/smoke_skip_policy.py" in hook_globs
+    assert "tests/e2e/smoke_skip_policy.py" in plugin_globs
     assert "src/copilot-cli/hooks/**" in hook_globs
-    assert "src/copilot-cli/skills/**" in plugin_globs
+    assert "src/copilot-cli/**" in plugin_globs
 
 
 def test_autofix_and_tool_skip_conditions_are_explicit() -> None:
@@ -932,8 +932,7 @@ def test_failure_only_output_hides_successful_job_output(tmp_path: Path) -> None
                         {
                             "name": "failure",
                             "run": (
-                                "printf FAILURE-OUT-MARKER; "
-                                "printf FAILURE-ERR-MARKER >&2; exit 1"
+                                "printf FAILURE-OUT-MARKER; printf FAILURE-ERR-MARKER >&2; exit 1"
                             ),
                         },
                     ]
@@ -989,9 +988,7 @@ def _pinned_lefthook_version(pyproject: Path | None = None) -> str:
     dev = data["project"]["optional-dependencies"]["dev"]
     pins = [spec.split("==", 1)[1] for spec in dev if spec.startswith("lefthook==")]
     if len(pins) != 1:
-        raise ValueError(
-            f"expected exactly one 'lefthook==' pin in the dev extra, found {pins}"
-        )
+        raise ValueError(f"expected exactly one 'lefthook==' pin in the dev extra, found {pins}")
     return pins[0]
 
 
@@ -1029,9 +1026,9 @@ def test_pinned_lefthook_version_reads_the_declared_pin() -> None:
     """Positive: the helper returns the exact version pyproject declares."""
     declared = [
         spec
-        for spec in tomllib.loads(
-            (PROJECT_ROOT / "pyproject.toml").read_text(encoding="utf-8")
-        )["project"]["optional-dependencies"]["dev"]
+        for spec in tomllib.loads((PROJECT_ROOT / "pyproject.toml").read_text(encoding="utf-8"))[
+            "project"
+        ]["optional-dependencies"]["dev"]
         if spec.startswith("lefthook==")
     ]
 
@@ -1067,9 +1064,7 @@ def test_pinned_lefthook_version_fails_closed_on_duplicate_pins(
     tmp_path: Path,
 ) -> None:
     """Negative control: two pins are ambiguous, so the helper refuses to pick."""
-    pyproject = _dev_extra_pyproject(
-        tmp_path, ["lefthook==2.1.12", "lefthook==2.1.11"]
-    )
+    pyproject = _dev_extra_pyproject(tmp_path, ["lefthook==2.1.12", "lefthook==2.1.11"])
 
     with pytest.raises(ValueError, match="exactly one 'lefthook==' pin"):
         _pinned_lefthook_version(pyproject)
@@ -1213,12 +1208,7 @@ def test_install_resets_legacy_hooks_path(tmp_path: Path) -> None:
     # Lefthook renames the dispatch or appends a trailing command, this fails
     # here rather than blocking every local push.
     assert check_git_hook_health._dispatch_command("pre-push") in hook_shim
-    assert (
-        check_git_hook_health._dispatch_failure(
-            repo / ".git/hooks/pre-push", "pre-push"
-        )
-        is None
-    )
+    assert check_git_hook_health._dispatch_failure(repo / ".git/hooks/pre-push", "pre-push") is None
 
     if sys.platform == "win32":
         # Dear future maintainer: this branch is not a shortcut. lefthook 2.1.10
@@ -1389,10 +1379,7 @@ def test_pre_push_staleness_checks_the_remote_named_on_the_command_line(
     _copy_runtime_config(repo)
     config = yaml.safe_load((repo / "lefthook.yml").read_text(encoding="utf-8"))
     pre_push_jobs = config["pre-push"]["jobs"]
-    assert sum(
-        job.get("name") == "push-ref-staleness"
-        for job in _flatten_jobs(pre_push_jobs)
-    ) == 1
+    assert sum(job.get("name") == "push-ref-staleness" for job in _flatten_jobs(pre_push_jobs)) == 1
     head_sha = _commit_file(repo, "tracked.txt", "content\n")
     branch = "refs/heads/feature/test"
 
@@ -1843,18 +1830,14 @@ def test_a_sibling_worktree_run_does_not_rewrite_the_shared_hooks(
     installed_shim = (hooks_dir / "pre-commit").read_bytes()
     installed_checksum = checksum.read_bytes()
 
-    sibling_config = yaml.safe_load(
-        (worktree / "lefthook.yml").read_text(encoding="utf-8")
-    )
+    sibling_config = yaml.safe_load((worktree / "lefthook.yml").read_text(encoding="utf-8"))
     sibling_config["post-checkout"] = {"jobs": [{"name": "noop", "run": "true"}]}
     sibling_path = worktree / "lefthook.yml"
     _write_lf(sibling_path, yaml.safe_dump(sibling_config, sort_keys=False))
     stale_after = time.time() + 3600
     os.utime(sibling_path, (stale_after, stale_after))
 
-    _run_lefthook(
-        worktree, "run", "pre-commit", "--job", "branch-policy", "--force"
-    )
+    _run_lefthook(worktree, "run", "pre-commit", "--job", "branch-policy", "--force")
 
     assert (hooks_dir / "pre-commit").read_bytes() == installed_shim
     assert checksum.read_bytes() == installed_checksum
@@ -1882,15 +1865,12 @@ def test_the_primary_hook_still_dispatches_after_a_sibling_install(
     _init_repo(repo)
     _write_lf(
         repo / "marker.py",
-        "from pathlib import Path\n"
-        "Path('marker.txt').write_text('ran\\n', encoding='utf-8')\n",
+        "from pathlib import Path\nPath('marker.txt').write_text('ran\\n', encoding='utf-8')\n",
     )
     config = {
         "min_version": "2.1.10",
         "no_auto_install": True,
-        "pre-commit": {
-            "jobs": [{"name": "marker", "run": f'"{PYTHON_POSIX}" marker.py'}]
-        },
+        "pre-commit": {"jobs": [{"name": "marker", "run": f'"{PYTHON_POSIX}" marker.py'}]},
     }
     _write_lf(repo / "lefthook.yml", yaml.safe_dump(config, sort_keys=False))
     _git(repo, "add", "lefthook.yml", "marker.py")
@@ -3309,8 +3289,7 @@ def test_skillforge_skips_eval_fixtures_and_gates_every_real_skill(
     assert policy._skip_skillforge_path("evals/example/SKILL.md", tmp_path) is True
 
     assert (
-        policy._skip_skillforge_path("src/copilot-cli/skills/research/SKILL.md", tmp_path)
-        is False
+        policy._skip_skillforge_path("src/copilot-cli/skills/research/SKILL.md", tmp_path) is False
     )
     assert policy._skip_skillforge_path(".claude/skills/research/SKILL.md", tmp_path) is False
     assert (
@@ -7420,6 +7399,39 @@ def test_cli_e2e_without_cli_fails_closed(
     assert policy.run_cli_e2e("tests/e2e/test.py", tmp_path) == 2
 
 
+def test_cli_e2e_without_cli_names_all_three_clis(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.delenv("SKIP_CLI_E2E", raising=False)
+    monkeypatch.setattr(policy.shutil, "which", lambda _name: None)
+
+    assert policy.run_cli_e2e("tests/e2e/test.py", tmp_path) == 2
+    err = capsys.readouterr().err
+    assert "copilot" in err and "claude" in err and "codex" in err
+
+
+@pytest.mark.parametrize("cli", ["copilot", "claude", "codex"])
+def test_cli_e2e_accepts_any_one_of_the_three_clis(
+    cli: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("SKIP_CLI_E2E", raising=False)
+    monkeypatch.setattr(policy.shutil, "which", lambda name: name if name == cli else None)
+    ran: list[Sequence[str]] = []
+
+    def fake_run_command(command: Sequence[str], *_args: object, **_kwargs: object) -> object:
+        ran.append(command)
+        return _completed(0)
+
+    monkeypatch.setattr(policy, "_run_command", fake_run_command)
+
+    assert policy.run_cli_e2e("tests/e2e/test.py", tmp_path) == 0
+    assert ran, "pytest must run when the CLI is on PATH"
+
+
 def test_session_helpers_aggregate_without_blocking_advisory(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -8355,7 +8367,7 @@ def test_cli_dispatches_independent_subcommands(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(policy, target, lambda *_args: 0)
+    monkeypatch.setattr(policy, target, lambda *_args, **_kwargs: 0)
 
     assert policy.main(["--repo-root", str(tmp_path), command, *arguments]) == 0
 

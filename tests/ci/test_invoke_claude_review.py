@@ -12,6 +12,8 @@ import pytest
 from scripts.ci import invoke_claude_review as claude
 from scripts.ci import parse_ai_review_output as parser
 
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+
 VALID_REPLY = "Analysis.\nVERDICT: PASS\nMESSAGE: all requirements covered"
 
 
@@ -99,21 +101,32 @@ def test_valid_response_passes_and_verdict_parser_is_unchanged(env, monkeypatch,
     assert claude.UNTRUSTED_CONTENT_NOTICE in FakeClient.last_kwargs["system"]
 
 
-def test_model_override_and_agent_system_prompt(env, tmp_path):
-    agents = tmp_path / ".claude" / "agents"
-    agents.mkdir(parents=True)
-    (agents / "analyst.md").write_text("You are the analyst.", encoding="utf-8")
+def test_model_override_and_agent_system_prompt(env):
+    definition = (_REPO_ROOT / ".claude" / "agents" / "analyst.md").read_text(encoding="utf-8")
     env["CLAUDE_MODEL"] = "claude-opus-5-5"
 
     assert run_main(env) == 0
 
     assert FakeClient.last_kwargs["model"] == "claude-opus-5-5"
-    assert FakeClient.last_kwargs["system"].startswith("You are the analyst.")
+    assert FakeClient.last_kwargs["system"].startswith(definition)
     assert FakeClient.last_kwargs["system"].endswith(claude.UNTRUSTED_CONTENT_NOTICE)
     assert "spec text" in FakeClient.last_kwargs["messages"][0]["content"]
 
 
+def test_agent_definition_ignores_a_workspace_copy(env, tmp_path, monkeypatch):
+    """A PR head in the cwd must not supply the system prompt."""
+    agents = tmp_path / ".claude" / "agents"
+    agents.mkdir(parents=True)
+    (agents / "analyst.md").write_text("INJECTED BY PR HEAD", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    assert run_main(env) == 0
+
+    assert "INJECTED BY PR HEAD" not in FakeClient.last_kwargs["system"]
+
+
 def test_system_prompt_is_only_the_notice_when_agent_file_absent(env):
+    env["REVIEW_AGENT"] = "no-such-agent"
     assert run_main(env) == 0
     assert FakeClient.last_kwargs["system"] == claude.UNTRUSTED_CONTENT_NOTICE
 
@@ -162,6 +175,70 @@ def test_api_error_is_infrastructure_failure(env, error, monkeypatch, tmp_path):
     assert "VERDICT: DID_NOT_RUN" in verdict_file(env)
     assert "infrastructure_failure=true" in outputs(env)
     assert "verdict=DID_NOT_RUN" in parse_verdict(env, monkeypatch, tmp_path)
+
+
+def _status_error(cls: type[anthropic.APIStatusError], status: int, message: str):
+    request = httpx2.Request("POST", "https://x.invalid")
+    response = httpx2.Response(status, request=request)
+    return cls(message, response=response, body={"error": {"message": message}})
+
+
+@pytest.mark.parametrize(
+    ("error", "needle"),
+    [
+        (
+            _status_error(
+                anthropic.BadRequestError,
+                400,
+                "Your credit balance is too low to access the Anthropic API.",
+            ),
+            "credit balance is too low",
+        ),
+        (_status_error(anthropic.AuthenticationError, 401, "invalid x-api-key"), "HTTP 401"),
+        (_status_error(anthropic.PermissionDeniedError, 403, "forbidden"), "HTTP 403"),
+    ],
+    ids=["credit", "401", "403"],
+)
+def test_credential_failures_name_the_key_and_stay_infrastructure_failures(
+    env, error, needle, capsys, monkeypatch, tmp_path
+):
+    FakeClient.error = error
+
+    assert run_main(env) == 0
+
+    out = capsys.readouterr().out
+    error_line = next(line for line in out.splitlines() if line.startswith("::error::"))
+    assert "ANTHROPIC_API_KEY" in error_line
+    assert needle in error_line
+    assert "Fund or rotate the key" in error_line
+    assert out.index("::error::") < out.index("::warning::Claude API infrastructure failure")
+    assert "infrastructure_failure=true" in outputs(env)
+    assert "VERDICT: DID_NOT_RUN" in verdict_file(env)
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        _status_error(anthropic.RateLimitError, 429, "rate limited"),
+        _status_error(anthropic.InternalServerError, 500, "boom"),
+        anthropic.APIConnectionError(request=httpx2.Request("POST", "https://x.invalid")),
+    ],
+    ids=["429", "500", "connection"],
+)
+def test_other_api_errors_emit_no_credential_error(env, error, capsys):
+    FakeClient.error = error
+
+    assert run_main(env) == 0
+
+    out = capsys.readouterr().out
+    assert "::error::" not in out
+    assert "::warning::Claude API infrastructure failure" in out
+    assert "infrastructure_failure=true" in outputs(env)
+
+
+def test_credential_problem_returns_none_for_non_status_errors():
+    exc = anthropic.APIConnectionError(request=httpx2.Request("POST", "https://x.invalid"))
+    assert claude.credential_problem(exc) is None
 
 
 def test_api_error_never_leaks_the_key(env, monkeypatch):
@@ -262,23 +339,28 @@ def test_main_runs_end_to_end(env, monkeypatch):
     assert "VERDICT: PASS" in verdict_file(env)
 
 
+_CLAUDE_CALLERS = (
+    "ai-metrics-analysis.yml",
+    "artifact-insight-scanner.yml",
+    "pr-maintenance.yml",
+    "ai-spec-validation.yml",
+)
 
-_REPO_ROOT = Path(__file__).resolve().parents[2]
 
-
-def test_spec_workflow_uses_claude_and_drops_copilot_token():
-    workflow = (_REPO_ROOT / ".github/workflows/ai-spec-validation.yml").read_text(
-        encoding="utf-8"
-    )
+@pytest.mark.parametrize("name", _CLAUDE_CALLERS)
+def test_ai_review_callers_use_claude_and_drop_copilot_token(name):
+    workflow = (_REPO_ROOT / ".github/workflows" / name).read_text(encoding="utf-8")
 
     assert "COPILOT_GITHUB_TOKEN" not in workflow
-    assert workflow.count("provider: claude") == 2
-    assert workflow.count("anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}") == 2
+    assert "copilot-token" not in workflow
+    assert "provider:" not in workflow
+    assert "anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}" in workflow
 
 
-def test_action_defaults_to_copilot_so_other_workflows_are_unchanged():
+def test_ai_review_action_is_claude_only():
     action = (_REPO_ROOT / ".github/actions/ai-review/action.yml").read_text(encoding="utf-8")
 
-    assert "provider:\n    description: |" in action
-    assert "default: 'copilot'" in action
-    assert "if: inputs.provider != 'claude' && steps.infra_gate.outputs.skip != 'true'" in action
+    assert "inputs.provider" not in action
+    assert "copilot-token" not in action
+    assert "id: invoke_claude" in action
+    assert "id: invoke\n" not in action

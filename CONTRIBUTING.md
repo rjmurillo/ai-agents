@@ -788,13 +788,19 @@ uv run pytest tests/build_scripts/test_generate_agents.py
 
 ## Copilot CLI Version Management
 
-The CI pipeline uses GitHub Copilot CLI to run agent reviews. The CLI version is pinned to prevent regressions from auto-updates.
+The CLI smoke (`.github/workflows/plugin-cli-smoke.yml`) uses GitHub Copilot CLI to prove the plugin loads. The `ai-review` action reviews with Claude and no longer installs Copilot (REQ-047, issue #6069). The CLI version is pinned to prevent regressions from auto-updates.
 
 ### Current Pin
 
-The required review path reads `COPILOT_VERSION` from `.github/actions/ai-review/action.yml`. The fallback in `scripts/ci/install_copilot_cli.py` must match it. The nightly smoke workflow carries an independent, Renovate-managed version.
+The only pin is `COPILOT_CLI_VERSION` in `.github/workflows/plugin-cli-smoke.yml`, which Renovate manages.
 
-`scripts/validation/check_copilot_version_pin.py` rejects known-bad required-review pins. It is a denylist guard, not the version source or proof of runtime compatibility. See [ADR-094](.project-toolkit/architecture/ADR-094-govern-copilot-cli-compatibility.md).
+`scripts/validation/check_copilot_version_pin.py` rejects known-bad pins in that workflow. It is a denylist guard, not the version source or proof of runtime compatibility. See [ADR-094](.project-toolkit/architecture/ADR-094-govern-copilot-cli-compatibility.md).
+
+### CLI Smoke Gate
+
+`.github/workflows/plugin-cli-smoke.yml` runs on pull requests. It proves the plugin loads in Claude, Copilot, and Codex on Ubuntu, macOS, and Windows. A path filter (`scripts/validation/cli_smoke_paths.py`) runs the legs only when a change touches a plugin-shipped path. Lefthook's `hook-anchoring-e2e` and `plugin-load-e2e` pre-push gates mirror that list, and `tests/validation/test_cli_smoke_paths.py` fails when they drift. A local push runs the smoke for each CLI on your PATH.
+
+After this workflow is on `main`, dispatch it once there, then require the `CLI Smoke Result` check in the branch ruleset. It passes when no smoke path changed, and otherwise needs every leg green. Claude and Copilot legs wait for approval in `agent-claude` and `agent-copilot`. The Codex legs need no credential and no approval. A fork PR that touches a smoke path fails the result, because forks get no secrets. A maintainer reruns it from a same-repo branch.
 
 ### Why Version Pinning
 
@@ -841,15 +847,15 @@ gh act pull_request \
   -P ubuntu-latest=catthehacker/ubuntu:act-latest
 ```
 
-**Known limitation:** PowerShell composite action steps fail with "Exec format error" in `act`. This is a known `act` limitation, not a workflow bug. The Copilot CLI install and agent invocation steps run correctly.
+**Known limitation:** PowerShell composite action steps fail with "Exec format error" in `act`. This is a known `act` limitation, not a workflow bug.
 
-### Upgrading the Required Review Pin
+### Upgrading the Copilot CLI Pin
 
-When changing the required review path's Copilot CLI version:
+When changing the Copilot CLI version the smoke installs:
 
 1. Install the new version locally: `npm install -g @github/copilot@X.Y.Z`
 2. Run the agent validation loop above
-3. Update `.github/actions/ai-review/action.yml` and `scripts/ci/install_copilot_cli.py` together
+3. Update `COPILOT_CLI_VERSION` in `.github/workflows/plugin-cli-smoke.yml`
 4. Run `gh act` dry-run to validate workflow structure
 5. Run `uv run pytest tests/test_check_copilot_version_pin.py`
 6. Run `uv run python scripts/validation/check_copilot_version_pin.py`

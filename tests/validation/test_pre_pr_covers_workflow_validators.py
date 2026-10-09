@@ -56,6 +56,30 @@ import workflow_validator_inventory as inventory
 # Validators a pull-request workflow runs that no pre_pr gate runs, with the
 # reason. One place, so a reader can see every gap and why it is allowed.
 EXEMPT: dict[str, str] = {
+    "assert_smoke_ran": (
+        "Reads the JUnit report a CI smoke leg writes after running a real CLI "
+        "with credentials. A local pre_pr run has no report to read. The "
+        "lefthook plugin-load-e2e and hook-anchoring-e2e pre-push jobs run the "
+        "smoke itself (REQ-047)."
+    ),
+    "smoke_quota_report": (
+        "Reads the JUnit report a CI smoke leg writes and the GITHUB_STEP_SUMMARY "
+        "file of a workflow run. A local pre_pr run has neither."
+    ),
+    "smoke_result": (
+        "Reads the needs.<job>.result values of the CLI smoke workflow, which "
+        "exist only inside a workflow run. No local equivalent."
+    ),
+    "assert_trusted_smoke_context": (
+        "Decides from the GitHub event name, repository, head repository, and "
+        "ref, which exist only inside a workflow run. No local equivalent."
+    ),
+    "cli_smoke_paths": (
+        "CI path filter over github.event.pull_request base and head SHAs. "
+        "The same glob tuples feed the lefthook pre-push gates, and "
+        "tests/validation/test_cli_smoke_paths.py fails when lefthook.yml "
+        "differs from them (REQ-047 AC10)."
+    ),
     "check_zero_collection_tests": (
         "The unconditional lefthook pre-push job zero-collection-tests runs it on "
         "every push. It costs about 38 seconds, measured, and pre-pr-validation "

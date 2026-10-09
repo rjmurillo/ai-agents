@@ -175,6 +175,15 @@
     },
     {
       "kind": "continue-on-error",
+      "path": ".github/workflows/plugin-cli-smoke.yml",
+      "job": "smoke-result",
+      "step": "Download quota-skip counts",
+      "reason": "An artifact-service failure must not hide a green smoke. smoke_result.py reads a missing count directory as zero, and every smoke job result is still a required check.",
+      "owner": "rjmurillo",
+      "expires": "2026-12-31"
+    },
+    {
+      "kind": "continue-on-error",
       "path": ".github/workflows/post-pr-retrospective.yml",
       "job": "retrospective",
       "step": "Run retrospective via Claude Code",

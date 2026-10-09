@@ -265,12 +265,15 @@ def test_action_routes_gate_invoke_and_parse_through_one_output_path():
     action = _ACTION_PATH.read_text(encoding="utf-8")
 
     shared_env = "AI_REVIEW_OUTPUT_FILE: ${{ steps.infra_gate.outputs.output_file }}"
-    # Copilot invoke, Claude invoke (issue #5738), parse
-    assert action.count(shared_env) == 3
+    # Claude invoke (issue #5738, REQ-047 made it the only provider), parse
+    assert action.count(shared_env) == 2
     assert "steps.infra_gate.outputs.infrastructure_failure" in action
-    assert 'python3 "$GITHUB_WORKSPACE/scripts/ci/invoke_copilot_cli.py"' in action
-    assert 'uv run --frozen python "$GITHUB_WORKSPACE/scripts/ci/invoke_claude_review.py"' in action
-    assert 'python3 "$GITHUB_WORKSPACE/scripts/ci/parse_ai_review_output.py"' in action
+    assert "invoke_copilot_cli.py" not in action
+    assert (
+        'uv run --frozen --project "$AI_REVIEW_ROOT" python '
+        '"$AI_REVIEW_ROOT/scripts/ci/invoke_claude_review.py"'
+    ) in action
+    assert 'python3 "$AI_REVIEW_ROOT/scripts/ci/parse_ai_review_output.py"' in action
     assert "/tmp/ai-review-output.txt" not in action
 
 

@@ -1,5 +1,5 @@
 name: 'AI Review'
-description: 'Invoke GitHub Copilot CLI for AI-powered code review with structured verdict output'
+description: 'Invoke Claude (Anthropic Messages API) for AI-powered code review with structured verdict output'
 
 inputs:
   agent:
@@ -29,7 +29,7 @@ inputs:
     required: false
     default: ''
   timeout-minutes:
-    description: 'Timeout in minutes for Copilot CLI invocation'
+    description: 'Timeout in minutes for the Claude invocation'
     required: false
     default: '5'
   max-diff-lines:
@@ -43,58 +43,14 @@ inputs:
     description: 'Runner-scoped GitHub token for GitHub API reads'
     required: false
     default: ''
-  copilot-token:
-    description: |
-      Fine-grained PAT with "Copilot Requests" permission for Copilot CLI.
-      Required for AI review functionality. See docs/copilot-cli-setup.md.
-      If not provided, falls back to bot-pat (which may fail without Copilot permission).
-    required: false
-    default: ''
-  copilot-model:
-    description: |
-      AI model to use. Default "gpt-5.6-luna" is the cheapest model Copilot
-      CLI offers ($0.20 in / $1.20 out per 1M tokens), five times under
-      claude-haiku-4.5 and about twelve times under gpt-5.4. This action runs
-      on every PR synchronize plus an hourly PR sweep, so model rate dominates
-      the credit burn. "auto" takes 10 percent off the model rate but routes
-      freely, including to gpt-5.4 at $2.50 / $15.00.
-      A model that cannot hold the VERDICT output contract fails loudly:
-      parse_ai_review_output.py reads missing-verdict output as UNKNOWN, which
-      is a blocking verdict. Override only when a job is measured to need more
-      capability, and use a model id Copilot CLI currently serves
-      (gpt-5.6-luna, mai-code-1.1-flash, gemini-3.6-flash, claude-haiku-4.5,
-      claude-sonnet-5, gpt-5.4, claude-opus-4.8, claude-opus-5). Copilot CLI
-      answers a retired or unknown id with `not available; using "<x>" instead`
-      and silently falls back to the session default, which is how a stale pin
-      turns into an expensive run; invoke_copilot_cli.py raises a workflow
-      warning when it sees that text.
-      This default is mirrored by DEFAULT_COPILOT_MODEL in
-      scripts/ci/_copilot_model.py, which is the floor the driver applies when
-      COPILOT_MODEL arrives unset or explicitly empty. A test fails if the two
-      disagree.
-    required: false
-    default: 'gpt-5.6-luna'
-  provider:
-    description: |
-      Reviewer backend: "copilot" (default, Copilot CLI) or "claude" (Anthropic
-      Messages API, scripts/ci/invoke_claude_review.py). Issue #5738.
-    required: false
-    default: 'copilot'
   anthropic-api-key:
-    description: 'ANTHROPIC_API_KEY secret. Used only when provider is "claude"; a missing key fails closed.'
+    description: 'ANTHROPIC_API_KEY secret. A missing key fails closed.'
     required: false
     default: ''
   claude-model:
-    description: 'Claude model id used when provider is "claude".'
+    description: 'Claude model id.'
     required: false
     default: 'claude-sonnet-5-5'
-  enable-diagnostics:
-    description: |
-      Enable Copilot CLI diagnostic test before main invocation.
-      WARNING: This runs a test prompt which costs money! Only enable for debugging.
-      Default is false to minimize costs.
-    required: false
-    default: 'false'
   execute-script:
     description: |
       Optional script to run after analysis (Python or PowerShell).
@@ -119,7 +75,7 @@ outputs:
     value: ${{ steps.parse.outputs.milestone }}
   findings:
     description: 'Detailed findings (raw output from model)'
-    value: ${{ (steps.invoke.outputs.raw_output || steps.invoke_claude.outputs.raw_output) }}
+    value: ${{ steps.invoke_claude.outputs.raw_output }}
   exit-code:
     description: 'Exit code (0=pass, 1=fail)'
     value: ${{ steps.parse.outputs.exit_code }}
@@ -127,14 +83,14 @@ outputs:
   # Falls back to 'true' when context build fails (e.g., missing BOT_PAT for first-time contributor PRs)
   infrastructure-failure:
     description: 'Whether failure was infrastructure-related (true/false)'
-    value: ${{ (steps.invoke.outputs.infrastructure_failure || steps.invoke_claude.outputs.infrastructure_failure) || steps.infra_gate.outputs.infrastructure_failure || 'false' }}
+    value: ${{ steps.invoke_claude.outputs.infrastructure_failure || steps.infra_gate.outputs.infrastructure_failure || 'false' }}
   retry-count:
     description: 'Number of retry attempts made (0 = no retries)'
-    value: ${{ (steps.invoke.outputs.retry_count || steps.invoke_claude.outputs.retry_count) || steps.infra_gate.outputs.retry_count }}
+    value: ${{ steps.invoke_claude.outputs.retry_count || steps.infra_gate.outputs.retry_count }}
   # Debug outputs for AI agents and humans
   full-prompt:
     description: 'Complete prompt sent to the model (for debugging)'
-    value: ${{ (steps.invoke.outputs.full_prompt || steps.invoke_claude.outputs.full_prompt) }}
+    value: ${{ steps.invoke_claude.outputs.full_prompt }}
   agent-definition:
     description: 'Agent definition used (for debugging)'
     value: ${{ steps.agent.outputs.agent_definition }}
@@ -147,25 +103,12 @@ outputs:
   context-mode:
     description: 'Context mode used (full or summary)'
     value: ${{ steps.context.outputs.context_mode }}
-  copilot-exit-code:
-    description: 'Raw exit code from Copilot CLI'
-    value: ${{ (steps.invoke.outputs.copilot_exit_code || steps.invoke_claude.outputs.copilot_exit_code) }}
-  copilot-version:
-    description: 'Copilot CLI version used'
-    value: ${{ steps.install.outputs.copilot_version }}
-  # Enhanced diagnostic outputs
-  copilot-diagnostic:
-    description: 'Copilot CLI diagnostic information (health check results)'
-    value: ${{ steps.diagnose.outputs.diagnostic }}
-  copilot-health:
-    description: 'Copilot CLI health status (healthy, degraded, failed)'
-    value: ${{ steps.diagnose.outputs.health_status }}
-  copilot-stderr:
-    description: 'Stderr output from Copilot CLI (if any)'
-    value: ${{ (steps.invoke.outputs.stderr_output || steps.invoke_claude.outputs.stderr_output) }}
-  auth-status:
-    description: 'GitHub authentication status details'
-    value: ${{ steps.diagnose.outputs.auth_status }}
+  reviewer-exit-code:
+    description: 'Raw exit code from the reviewer invocation'
+    value: ${{ steps.invoke_claude.outputs.copilot_exit_code }}
+  reviewer-stderr:
+    description: 'Stderr output from the reviewer invocation (if any)'
+    value: ${{ steps.invoke_claude.outputs.stderr_output }}
 
 runs:
   using: 'composite'
@@ -174,36 +117,15 @@ runs:
       id: deadline
       shell: bash
       env:
+        AI_REVIEW_ROOT: ${{ github.action_path }}/../../..
         INHERITED_DEADLINE_EPOCH: ${{ env.AI_REVIEW_ACTION_DEADLINE_EPOCH }}
         TIMEOUT_MINUTES: ${{ inputs.timeout-minutes }}
-      run: python3 "$GITHUB_WORKSPACE/scripts/ci/establish_ai_review_deadline.py"
-
-    - name: Setup Node.js
-      uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
-      with:
-        node-version: 'lts/*'
-
-    - name: Cache npm packages
-      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
-      with:
-        path: ~/.npm
-        key: ${{ runner.os }}-copilot-cli-v1
-        restore-keys: |
-          ${{ runner.os }}-copilot-cli-
-
-    - name: Install GitHub Copilot CLI
-      id: install
-      if: inputs.provider != 'claude'
-      shell: bash
-      run: |
-        export COPILOT_VERSION="1.0.63"
-        python3 "$GITHUB_WORKSPACE/scripts/ci/install_copilot_cli.py"
+      run: python3 "$AI_REVIEW_ROOT/scripts/ci/establish_ai_review_deadline.py"
 
     # Issue #4607: BOT_PAT was configured per ADR-026 Decision 5 but resolved
     # to the human account, so CI shared one API budget with every agent
     # session and no run log could show it. This step runs unconditionally
-    # (unlike the enable-diagnostics steps below) so every run log reports
-    # which identity bot-pat resolves to. Non-blocking: a MISMATCH warns
+    # so every run log reports which identity bot-pat resolves to. Non-blocking: a MISMATCH warns
     # loudly instead of turning every review red before the owner rotates
     # the secret. Set IDENTITY_STRICT=true here once the secret is rotated
     # to make the identity a hard gate.
@@ -211,34 +133,17 @@ runs:
       id: bot_identity
       shell: bash
       env:
+        AI_REVIEW_ROOT: ${{ github.action_path }}/../../..
         IDENTITY_TOKEN: ${{ inputs.bot-pat }}
         EXPECTED_BOT_ID: '250269933'
         EXPECTED_BOT_LOGIN: 'rjmurillo-bot'
-      run: python3 "$GITHUB_WORKSPACE/scripts/ci/check_bot_identity.py"
-
-    - name: Verify GitHub authentication
-      if: inputs.enable-diagnostics == 'true'
-      shell: bash
-      env:
-        GH_TOKEN: ${{ inputs.github-token || github.token || inputs.bot-pat }}
-      run: python3 "$GITHUB_WORKSPACE/scripts/ci/verify_github_auth.py"
-
-    - name: Diagnose Copilot CLI
-      id: diagnose
-      if: inputs.enable-diagnostics == 'true' && inputs.provider != 'claude'
-      shell: bash
-      env:
-        # Use dedicated Copilot token if provided, otherwise fall back to bot-pat
-        COPILOT_GITHUB_TOKEN: ${{ inputs.copilot-token || inputs.bot-pat }}
-        GH_TOKEN: ${{ inputs.github-token || github.token || inputs.bot-pat }}
-        COPILOT_AGENT: ${{ inputs.agent }}
-        COPILOT_MODEL: ${{ inputs.copilot-model }}
-      run: python3 "$GITHUB_WORKSPACE/scripts/ci/diagnose_copilot_cli.py"
+      run: python3 "$AI_REVIEW_ROOT/scripts/ci/check_bot_identity.py"
 
     - name: Build context
       id: context
       shell: bash
       env:
+        AI_REVIEW_ROOT: ${{ github.action_path }}/../../..
         GH_TOKEN: ${{ inputs.github-token || github.token || inputs.bot-pat }}
         CONTEXT_TYPE: ${{ inputs.context-type }}
         PR_NUMBER: ${{ inputs.pr-number }}
@@ -247,31 +152,33 @@ runs:
         MAX_DIFF_LINES: ${{ inputs.max-diff-lines }}
         GITHUB_REPOSITORY: ${{ github.repository }}
         AI_REVIEW_ACTION_DEADLINE_EPOCH: ${{ steps.deadline.outputs.deadline_epoch }}
-      run: python3 "$GITHUB_WORKSPACE/scripts/ci/build_ai_review_context.py"
+      run: python3 "$AI_REVIEW_ROOT/scripts/ci/build_ai_review_context.py"
 
     - name: Load prompt template
       id: prompt
       shell: bash
       env:
+        AI_REVIEW_ROOT: ${{ github.action_path }}/../../..
         PROMPT_FILE: ${{ inputs.prompt-file }}
-      run: python3 "$GITHUB_WORKSPACE/scripts/ci/load_ai_review_prompt.py"
+      run: python3 "$AI_REVIEW_ROOT/scripts/ci/load_ai_review_prompt.py"
 
     - name: Check context infrastructure gate
       id: infra_gate
       shell: bash
       env:
+        AI_REVIEW_ROOT: ${{ github.action_path }}/../../..
         CONTEXT_INFRA_FAILURE: ${{ steps.context.outputs.context_infra_failure }}
-      run: python3 "$GITHUB_WORKSPACE/scripts/ci/check_ai_review_infra_gate.py"
+      run: python3 "$AI_REVIEW_ROOT/scripts/ci/check_ai_review_infra_gate.py"
 
-    - name: Install uv (Claude provider)
-      if: inputs.provider == 'claude'
+    - name: Install uv
       uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7  # v10.2.0
 
     - name: Invoke Claude (Anthropic Messages API)
       id: invoke_claude
-      if: inputs.provider == 'claude' && steps.infra_gate.outputs.skip != 'true'
+      if: steps.infra_gate.outputs.skip != 'true'
       shell: bash
       env:
+        AI_REVIEW_ROOT: ${{ github.action_path }}/../../..
         ANTHROPIC_API_KEY: ${{ inputs.anthropic-api-key }}
         CLAUDE_MODEL: ${{ inputs.claude-model }}
         REVIEW_AGENT: ${{ inputs.agent }}
@@ -282,49 +189,25 @@ runs:
         AI_REVIEW_ACTION_DEADLINE_EPOCH: ${{ steps.deadline.outputs.deadline_epoch }}
         CONTEXT_MODE: ${{ steps.context.outputs.context_mode }}
         CONTEXT_FILE: ${{ steps.context.outputs.context_file }}
-      run: uv run --frozen python "$GITHUB_WORKSPACE/scripts/ci/invoke_claude_review.py"
-
-    - name: Invoke Copilot CLI (with retry for infrastructure failures)
-      id: invoke
-      # Skip the Copilot invocation when the Build context step reported an
-      # infrastructure failure. The gate step owns the skip decision and wrote
-      # the DID_NOT_RUN verdict file the parse step reads (ADR-006, issue #2967).
-      if: inputs.provider != 'claude' && steps.infra_gate.outputs.skip != 'true'
-      shell: bash
-      env:
-        # Use dedicated Copilot token if provided, otherwise fall back to bot-pat
-        COPILOT_GITHUB_TOKEN: ${{ inputs.copilot-token || inputs.bot-pat }}
-        GH_TOKEN: ${{ inputs.github-token || github.token || inputs.bot-pat }}
-        AI_REVIEW_OUTPUT_FILE: ${{ steps.infra_gate.outputs.output_file }}
-        ADDITIONAL_CONTEXT: ${{ inputs.additional-context }}
-        TIMEOUT_MINUTES: ${{ inputs.timeout-minutes }}
-        COPILOT_AGENT: ${{ inputs.agent }}
-        COPILOT_MODEL: ${{ inputs.copilot-model }}
-        AI_REVIEW_ACTION_DEADLINE_EPOCH: ${{ steps.deadline.outputs.deadline_epoch }}
-        # Computed context mode (full|summary|partial) from the Build context step.
-        # The internal "error" mode skips invocation before prompt assembly.
-        # Injected into the prompt so the reviewer model sees how much of the
-        # diff it actually received and can refuse PASS when it is not full
-        # (AI-REVIEW-MODEL-POLICY.md "CONTEXT_MODE Header (REQUIRED)", issue #1981).
-        CONTEXT_MODE: ${{ steps.context.outputs.context_mode }}
-        CONTEXT_FILE: ${{ steps.context.outputs.context_file }}
-      run: python3 "$GITHUB_WORKSPACE/scripts/ci/invoke_copilot_cli.py"
+      run: uv run --frozen --project "$AI_REVIEW_ROOT" python "$AI_REVIEW_ROOT/scripts/ci/invoke_claude_review.py"
 
     - name: Parse output
       id: parse
       shell: bash
       env:
+        AI_REVIEW_ROOT: ${{ github.action_path }}/../../..
         AI_REVIEW_OUTPUT_FILE: ${{ steps.infra_gate.outputs.output_file }}
-      run: python3 "$GITHUB_WORKSPACE/scripts/ci/parse_ai_review_output.py"
+      run: python3 "$AI_REVIEW_ROOT/scripts/ci/parse_ai_review_output.py"
 
     - name: Execute post-analysis script
       if: inputs.execute-script != ''
       shell: bash
       env:
+        AI_REVIEW_ROOT: ${{ github.action_path }}/../../..
         GH_TOKEN: ${{ inputs.bot-pat }}
         AI_VERDICT: ${{ steps.parse.outputs.verdict }}
-        AI_FINDINGS: ${{ (steps.invoke.outputs.raw_output || steps.invoke_claude.outputs.raw_output) }}
+        AI_FINDINGS: ${{ steps.invoke_claude.outputs.raw_output }}
         AI_LABELS: ${{ steps.parse.outputs.labels }}
         PR_NUMBER: ${{ inputs.pr-number }}
         EXECUTE_SCRIPT: ${{ inputs.execute-script }}
-      run: python3 "$GITHUB_WORKSPACE/scripts/ci/execute_ai_review_post_script.py"
+      run: python3 "$AI_REVIEW_ROOT/scripts/ci/execute_ai_review_post_script.py"

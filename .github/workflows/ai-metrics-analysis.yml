@@ -27,7 +27,7 @@ jobs:
     name: Analyze PR Metrics
     # ADR-025: ARM runner for cost optimization
     runs-on: ubuntu-26.04-arm
-    environment: agent-copilot
+    environment: agent-claude
     timeout-minutes: 22
 
     steps:
@@ -79,7 +79,7 @@ jobs:
             Analysis Period: ${{ steps.metrics.outputs.start_date }} to ${{ steps.metrics.outputs.end_date }}
             Repository: ${{ github.repository }}
           bot-pat: ${{ secrets.BOT_PAT }}
-          copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
 
       - name: Build issue body
         id: issue-body
