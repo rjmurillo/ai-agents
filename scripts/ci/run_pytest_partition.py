@@ -178,6 +178,15 @@ def main(argv: list[str] | None = None) -> int:
     known, passthrough = parser.parse_known_args(argv)
 
     if known.refresh_durations:
+        if not Path.cwd().resolve().is_relative_to(_PROJECT_ROOT):
+            # run_pytest_non_tmp runs pytest in this script's checkout, so a
+            # caller elsewhere would rewrite a timing map it did not mean to.
+            print(
+                f"error: --refresh-durations rewrites {_PROJECT_ROOT / DURATIONS_PATH}; "
+                f"run it from {_PROJECT_ROOT}",
+                file=sys.stderr,
+            )
+            return 2
         print(f"refresh-durations mode=refresh durations={DURATIONS_PATH}", file=sys.stderr)
         return run_pytest_non_tmp.main([*passthrough, *_refresh_args()])
     print(_summary_line(known.partition), file=sys.stderr)

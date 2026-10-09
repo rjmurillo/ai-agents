@@ -6,6 +6,8 @@ mutually exclusive with `--partition`.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from scripts.ci import run_pytest_partition as mod
@@ -65,3 +67,23 @@ def test_refresh_durations_and_partition_are_mutually_exclusive(
 def test_refresh_durations_failure_code_is_returned(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(mod.run_pytest_non_tmp, "main", lambda _argv: 5)
     assert mod.main(["--refresh-durations"]) == 5
+
+
+def test_refresh_durations_refuses_a_cwd_outside_the_checkout(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    """Run from elsewhere, the refresh would rewrite this script's checkout, not the caller's."""
+    calls = capture_runner(monkeypatch)
+    monkeypatch.chdir(tmp_path)
+    assert mod.main(["--refresh-durations"]) == 2
+    assert calls == []
+    assert "run it from" in capsys.readouterr().err
+
+
+def test_refresh_durations_runs_from_a_subdirectory_of_the_checkout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = capture_runner(monkeypatch)
+    monkeypatch.chdir(mod._PROJECT_ROOT / "tests")
+    assert mod.main(["--refresh-durations"]) == 0
+    assert len(calls) == 1
