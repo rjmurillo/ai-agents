@@ -62,16 +62,31 @@ jobs:
       - name: Setup uv
         uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7  # v10.2.0
 
-      # Fetch candidate commit and extract data via git (no checkout action)
-      - name: Fetch candidate data via git
+      # Fetch the candidate commit via git (no checkout action). Git smart
+      # HTTP accepts the token as a Basic password under the x-access-token
+      # user, the same header actions/checkout writes. The REST API form
+      # "Authorization: token" is rejected and git falls back to a prompt
+      # (issue 5593). The header travels in GIT_CONFIG_* env vars scoped to
+      # the one git command, so it stays out of argv and .git/config. This
+      # step holds the token; the materialize step below does not.
+      - name: Fetch candidate commit via git
         env:
           PR_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
           # Fine-grained PAT for cross-fork PR head fetches (rate limits, private forks).
           # Falls back to implicit GITHUB_TOKEN when unset.
           GH_FETCH_TOKEN: ${{ secrets.VENDOR_PROVENANCE_PAT || github.token }}
         run: |
+          test -n "$GH_FETCH_TOKEN" || { echo "::error::GH_FETCH_TOKEN is empty: neither VENDOR_PROVENANCE_PAT nor github.token gave a value."; exit 1; }
+          FETCH_BASIC="$(printf 'x-access-token:%s' "$GH_FETCH_TOKEN" | base64 -w0)"
+          echo "::add-mask::$FETCH_BASIC"
+          GIT_TERMINAL_PROMPT=0 GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0="http.https://github.com/.extraheader" GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $FETCH_BASIC" git fetch --depth=1 origin "$PR_SHA"
+
+      # Extract candidate data from the fetched commit (no candidate code runs)
+      - name: Materialize candidate tree
+        env:
+          PR_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
           CANDIDATE_ROOT="$RUNNER_TEMP/candidate"
-          git -c "http.extraHeader=Authorization: token ${GH_FETCH_TOKEN}"             fetch --depth=1 origin "$PR_SHA"
           uv run --frozen python - "$PR_SHA" "$CANDIDATE_ROOT" <<'PY'
           from pathlib import Path
           import sys
