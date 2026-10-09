@@ -49,7 +49,8 @@ def test_a_hostile_durations_file_cannot_drop_a_test(shape: str, tmp_path: Path)
 
     Only a push to main writes the cached map that the legs restore, but this
     property holds for a corrupt cache too. The worst such a map can do is
-    overload one leg past its job timeout, empty a group, or crash the plugin. An empty group exits 5 ("no tests collected") and a crash exits 3
+    overload one leg past its job timeout, empty a group, or crash the plugin.
+    An empty group exits 5 ("no tests collected") and a crash exits 3
     (INTERNALERROR); run_pytest_non_tmp passes either code through, so the leg
     fails red. The property: no test goes missing while every group exits 0.
     """

@@ -45,6 +45,7 @@ from scripts.testing.duration_compare import Thresholds, compare  # noqa: E402
 from scripts.testing.duration_gates import (  # noqa: E402
     PARTITION_WALL_LIMIT_SECONDS,
     SPLIT_IMBALANCE_RATIO,
+    gate_commands,
     legs_over_limit,
     split_imbalance,
 )
@@ -125,7 +126,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(line)
     over_limit = legs_over_limit(snapshot.partitions, args.leg_limit)
     imbalance = split_imbalance(snapshot.partitions, args.imbalance_ratio)
-    for line in duration_render.gate_commands(over_limit, imbalance, args.leg_limit):
+    for line in gate_commands(over_limit, imbalance, args.leg_limit):
         print(line)
     regressed = len(comparison.modules) + (1 if comparison.suite else 0)
     print(f"duration: {regressed} regressions in {comparison.comparable} comparable "

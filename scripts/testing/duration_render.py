@@ -5,7 +5,6 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 from scripts.testing.duration_compare import Comparison, Regression
-from scripts.testing.duration_gates import Imbalance
 from scripts.testing.duration_snapshot import Snapshot
 
 TREND_ROWS = 10
@@ -73,7 +72,7 @@ def render_markdown(current: Snapshot, history: Sequence[Snapshot], comparison: 
     return "\n".join(lines) + "\n"
 
 
-def _escape_command_data(text: str) -> str:
+def escape_command_data(text: str) -> str:
     """Escape workflow-command data, since module names come from JUnit input."""
     return text.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
 
@@ -82,25 +81,8 @@ def warning_commands(comparison: Comparison) -> list[str]:
     """GitHub Actions warning commands, one per regression."""
     regressions = ([comparison.suite] if comparison.suite else []) + comparison.modules
     return [
-        "::warning title=Test duration regression::" + _escape_command_data(
+        "::warning title=Test duration regression::" + escape_command_data(
             f"{r.name} took {r.seconds:.1f}s against a {r.baseline:.1f}s median baseline "
             f"({ratio_text(r)}, {r.samples} samples)")
         for r in regressions
     ]
-
-
-def gate_commands(
-    over_limit: Sequence[tuple[str, float]], imbalance: Imbalance | None, limit: float
-) -> list[str]:
-    """Workflow commands for the wall-time gates: an error per slow leg, one imbalance warning."""
-    lines = [
-        "::error title=Test leg wall time::" + _escape_command_data(
-            f"{name} took {seconds:.1f}s, above the {limit:.0f}s limit")
-        for name, seconds in over_limit
-    ]
-    if imbalance:
-        lines.append("::warning title=Split imbalance::" + _escape_command_data(
-            f"{imbalance.slowest} took {imbalance.slowest_seconds:.1f}s and "
-            f"{imbalance.fastest} took {imbalance.fastest_seconds:.1f}s "
-            f"({imbalance.ratio:.2f}x); split legs should stay level"))
-    return lines

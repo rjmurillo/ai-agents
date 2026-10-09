@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import argparse
 import hashlib
-import shutil
 import sys
 from pathlib import Path
 
@@ -150,7 +149,7 @@ def _seed_leg_durations(partition: str) -> None:
     leg_file.parent.mkdir(parents=True, exist_ok=True)
     restored = _PROJECT_ROOT / DURATIONS_RESTORE_PATH
     if restored.is_file():
-        shutil.copyfile(restored, leg_file)
+        leg_file.write_bytes(restored.read_bytes())
     else:
         leg_file.unlink(missing_ok=True)
 

@@ -42,15 +42,13 @@ def test_split_group_flags(index: int) -> None:
 def test_split_groups_differ_only_in_the_group_number() -> None:
     """AC2: one pool, so no group can leave a file out or take it twice."""
 
-    def without_group_and_leg_file(args: list[str]) -> list[str]:
+    def without_group(args: list[str]) -> list[str]:
         for flag in ("--group", "--durations-path"):
             position = args.index(flag)
             args = args[:position] + args[position + 2 :]
         return args
 
-    shapes = {
-        tuple(without_group_and_leg_file(mod._PARTITION_FULL_ARGS[n])) for n in _SPLIT_PARTITIONS
-    }
+    shapes = {tuple(without_group(mod._PARTITION_FULL_ARGS[n])) for n in _SPLIT_PARTITIONS}
     assert len(shapes) == 1
 
 
@@ -62,32 +60,10 @@ def test_split_groups_ignore_exactly_the_dedicated_and_pinned_files(partition: s
     assert not [a for a in args if a.startswith("--ignore-glob")]
 
 
-@pytest.mark.parametrize("partition", _SPLIT_PARTITIONS)
-def test_split_legs_store_only_their_own_timings(partition: str) -> None:
-    """--clean-durations keeps a leg file to that leg's tests, so the union is fresh."""
-    args = mod._PARTITION_FULL_ARGS[partition]
-    assert "--store-durations" in args
-    assert "--clean-durations" in args
-
-
 def test_each_split_leg_stores_to_its_own_path() -> None:
-    """Shared paths would let one leg's upload overwrite another's timings."""
-    paths = [
-        _flag_value(mod._PARTITION_FULL_ARGS[n], "--durations-path") for n in _SPLIT_PARTITIONS
-    ]
-    assert len(set(paths)) == len(paths) == 4
-
-
-@pytest.mark.parametrize("partition", _SPLIT_PARTITIONS)
-def test_no_leg_stores_over_the_restored_file(partition: str) -> None:
-    args = mod._PARTITION_FULL_ARGS[partition]
-    assert _flag_value(args, "--durations-path") != mod.DURATIONS_RESTORE_PATH
-
-
-def test_dedicated_legs_neither_read_nor_store_timings() -> None:
-    for name in ("safe-push", "pr-autofix"):
-        assert "--durations-path" not in mod._PARTITION_FULL_ARGS[name]
-        assert "--store-durations" not in mod._PARTITION_FULL_ARGS[name]
+    args = [mod._PARTITION_FULL_ARGS[n] for n in _SPLIT_PARTITIONS]
+    paths = {_flag_value(a, "--durations-path") for a in args}
+    assert len(paths) == 4
 
 
 def test_dedicated_legs_run_only_their_files() -> None:

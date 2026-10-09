@@ -12,9 +12,10 @@ the JUnit reports:
 from __future__ import annotations
 
 import re
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
+from scripts.testing.duration_render import escape_command_data
 from scripts.testing.duration_schema import PartitionEntry
 
 # The `test` job in .github/workflows/pytest.yml sets timeout-minutes: 10.
@@ -72,3 +73,24 @@ def split_imbalance(partitions: Mapping[str, PartitionEntry], ratio: float) -> I
         return None
     found = Imbalance(slowest, walls[slowest], fastest, walls[fastest])
     return found if found.ratio > ratio else None
+
+
+def gate_commands(
+    over_limit: Sequence[tuple[str, float]], imbalance: Imbalance | None, limit: float
+) -> list[str]:
+    """Workflow commands for the gates: an error per slow leg, one imbalance warning."""
+    lines = [
+        "::error title=Test leg wall time::"
+        + escape_command_data(f"{name} took {seconds:.1f}s, above the {limit:.0f}s limit")
+        for name, seconds in over_limit
+    ]
+    if imbalance:
+        lines.append(
+            "::warning title=Split imbalance::"
+            + escape_command_data(
+                f"{imbalance.slowest} took {imbalance.slowest_seconds:.1f}s and "
+                f"{imbalance.fastest} took {imbalance.fastest_seconds:.1f}s "
+                f"({imbalance.ratio:.2f}x); split legs should stay level"
+            )
+        )
+    return lines
