@@ -49,6 +49,7 @@ tracking issue and the named deliverable present in the working tree.
 | `review-axes-convergence.md` | Complete, then superseded | #1934 closed as completed by PR #1965. `.claude/review-axes/` later deleted in `c3ddc571` (PR #2043); the 6 axes became 12 under `.claude/skills/review/references/`. Stale references to the old path tracked in #3425. |
 | `model-assignment-unification.md` | Abandoned, superseded | Abandoned 2026-09-03 after the research it depended on landed elsewhere. Successors: issue #5282 and ADR-052. Moved here from `.agents/plans/abandoned/` because the plans README requires both staging directories to be empty at rest (#3426). |
 | `spec-005-command-skill-bundling-implementation.md` | Landed partial, registry now stale | `scripts/validation/bundle_registry.py` and `tests/test_command_bundles.py` exist, but all 15 registry rows fail and the check never left advisory mode. Tracked in #3424. |
+| `6069-pr-gated-cli-smoke.md` | Complete | REQ-047 shipped in PR #6240 (`9b40ac957`), which closed #6069. Archived directly because the plans README requires `completed/` to be empty at rest (#3426). The first nine-leg CI proof is dispatch run 37875066342 on `main`. |
 
 ## Reading these files
 
