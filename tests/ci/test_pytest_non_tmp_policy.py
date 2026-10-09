@@ -80,16 +80,14 @@ def test_workflow_runs_pytest_through_non_tmp_runner():
     workflow = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
 
     run_pytest = next(
-        step
-        for step in workflow["jobs"]["test"]["steps"]
-        if step.get("name") == "Run pytest"
+        step for step in workflow["jobs"]["test"]["steps"] if step.get("name") == "Run pytest"
     )
 
     assert "PYTEST_NON_TMP_ROOT" in run_pytest["env"]
     # Issue #5050 routes the run through the selection runner, which delegates to
     # run_pytest_non_tmp.main, so the temp-root isolation guarantee still holds.
-    assert "scripts/ci/run_pytest_selected.py" in run_pytest["run"]
-    selected_source = (PROJECT_ROOT / "scripts/ci/run_pytest_selected.py").read_text(
+    assert "scripts/ci/run_pytest_partition.py" in run_pytest["run"]
+    selected_source = (PROJECT_ROOT / "scripts/ci/run_pytest_partition.py").read_text(
         encoding="utf-8"
     )
     assert "run_pytest_non_tmp" in selected_source

@@ -17,7 +17,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from scripts.test_selection import path_policy
+from scripts.ci import path_policy
 
 pytestmark = pytest.mark.windows_path
 
@@ -284,7 +284,7 @@ def test_windows_contract_jobs_run_for_action_changes():
     #
     # Read from the shared policy rather than the workflow text. Issue #5318
     # moved the path list out of this workflow's inline filter and into
-    # `scripts/test_selection/path_policy.yml`, so that the CI filter and the
+    # `scripts/ci/path_policy.yml`, so that the CI filter and the
     # local test selector cannot drift apart. Asserting against the workflow
     # text here would pass only while the list was duplicated, which is the
     # state that move exists to end. The property under test is unchanged: a

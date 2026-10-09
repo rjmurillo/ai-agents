@@ -104,7 +104,7 @@ class TestBudgetExhaustionMessage:
         """Run run_pytest over len(returncodes) commands on the REAL clock."""
         # The multi-command suite budget these tests are about only exists on
         # the executing path. Since ADR-104 the default path builds a single
-        # collection command through `_full_suite_stand_in`, which bypasses the
+        # collection command through `_collection_stand_in`, which bypasses the
         # `_pytest_commands` patch below entirely, so opt in explicitly rather
         # than patching a function the code under test no longer reaches.
         monkeypatch.setenv(policy.PYTEST_FULL_SUITE_LOCALLY_ENV, "1")

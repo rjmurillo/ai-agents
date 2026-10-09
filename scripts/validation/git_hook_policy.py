@@ -44,8 +44,8 @@ import yaml
 from yaml.nodes import MappingNode, Node, ScalarNode, SequenceNode
 
 from scripts.ci import diff_line_scope
+from scripts.ci.run_pytest_partition import PYTEST_DIST_MODE
 from scripts.hook_utilities.utilities import recent_host_session_dates
-from scripts.test_selection import select_tests
 from scripts.validation import cli_smoke_paths
 from scripts.validation.evidence import (
     REASON_ADVISORY_FINDINGS,
@@ -604,16 +604,16 @@ CONTAINER_SUBPROCESS_CEILING_SECONDS = 150.0
 # The whole-process bound, which is what "nothing outlives the container"
 # actually requires. The clamp above covers children spawned through
 # `_run_command`; it does not cover the work between them. Review on PR #5319
-# named three such gaps at once: `_resolve_pytest_commands` calls
-# `select_tests.changed_from_git`, which shells out unbounded, and builds the
-# import graph in-process; `scan_pushed_heads` discovers paths, materializes a
-# tree and probes semgrep's version before its aggregate clock starts. Each is
-# outside every deadline this module sets, so a hang there survived every bound
-# and the process still died to the reclaim it was supposed to prevent.
+# named such gaps: pre-push pytest used to shell out to git for a diff and
+# build an import graph in-process, and `scan_pushed_heads` discovers paths,
+# materializes a tree and probes semgrep's version before its aggregate clock
+# starts. Each sat outside every deadline this module sets, so a hang there
+# survived every bound and the process still died to the reclaim it was
+# supposed to prevent.
 #
 # Chasing each path would leave the next one to the next reviewer, so the bound
 # goes around the process instead: one watchdog armed in `main`, covering
-# selection, setup and execution alike, whatever a subcommand does.
+# setup and execution alike, whatever a subcommand does.
 #
 # 15s above the subprocess ceiling so an inner deadline always fires first and
 # the reader gets the specific diagnostic rather than this one. Same ordering
@@ -629,9 +629,8 @@ TEST_SUITE_TIMEOUT_SECONDS = 780
 # wall while a full pytest run held the other cores. `ci-scripts.md` MUST-16
 # forbids sizing a pre-push cap from an idle run, so this ceiling is set from
 # the loaded figure with roughly 8x headroom rather than from the idle one, and
-# measured in-hook at ~14s collecting and ~38s on an import-graph subset
-# across fourteen real pushes; the workstation tail is still unmeasured
-# while firing (issue #5318).
+# measured in-hook at ~14s collecting across fourteen real pushes; the
+# workstation tail is still unmeasured while firing (issue #5318).
 TEST_COLLECTION_TIMEOUT_SECONDS = 300
 # Opt back into executing the whole suite inside pre-push. Unset is the default
 # because that run duplicates CI's `pytest.yml` partition matrix on the same
@@ -659,10 +658,6 @@ PYTEST_WORKERS_ENV = "AI_AGENTS_PYTEST_WORKERS"
 # subprocess tests until their 15-second caps fired. The cap never exceeds the
 # host's visible CPU count, and an explicit PYTEST_WORKERS_ENV value wins.
 PYTEST_WORKER_CAP_ENV = "AI_AGENTS_PYTEST_WORKER_CAP"
-# `loadfile` sends every test in one file to one worker. That is the weakest
-# distribution mode xdist offers and the point: module-scoped fixtures, module
-# state, and file-local temp directories keep behaving the way they do serially.
-PYTEST_DIST_MODE = "loadfile"
 SKIPPED_DASH_PREFIXES = (
     "node_modules/",
     ".venv/",
@@ -7536,9 +7531,12 @@ def _pytest_parallel_flags() -> list[str]:
 
 
 def _pytest_commands(repo_root: Path) -> list[list[str]]:
-    """Return pre-push pytest invocations in CI partition order.
+    """Return the opt-in full-suite pytest invocations.
 
-    Bulk and mutation tests use the selected worker policy over whole files.
+    CI splits the pool into duration-balanced legs; locally the pool runs as
+    bulk plus mutation. The serial safe-push and pr-autofix files match the CI
+    runner's dedicated legs (a test pins that). Bulk and mutation tests use the
+    selected worker policy over whole files.
     Direct calls default to every visible CPU. Local pre-push may apply a cap.
     Process-sensitive push, signal, and pr-autofix modules run serially.
 
@@ -7597,77 +7595,6 @@ def _pytest_commands(repo_root: Path) -> list[list[str]]:
     ]
 
 
-# Test modules that must run serially, mirroring the CI partitions in
-# `_pytest_commands`. When import-graph selection picks any of these, they run
-# in their own command so a shared `-n` worker pool cannot corrupt them.
-_PYTEST_MUTATION_PREFIX = "tests/mutation/"
-_PYTEST_SAFE_PUSH_SERIAL = (
-    "tests/test_safe_push_pr_branch.py",
-    "tests/test_mutation_workspace_signals.py",
-)
-_PYTEST_PR_AUTOFIX_SERIAL = ("tests/test_pr_autofix_late_live_state_gate.py",)
-
-
-def _abs_test_paths(repo_root: Path, rels: Sequence[str]) -> list[str]:
-    return [str(repo_root / rel) for rel in rels]
-
-
-def _pytest_commands_for_subset(repo_root: Path, test_files: Sequence[str]) -> list[list[str]]:
-    """Build partitioned pytest commands for an import-graph-selected subset.
-
-    The subset is split into the same buckets `_pytest_commands` uses, so the
-    parallel bulk and mutation runs stay parallel and the process-sensitive
-    safe-push and pr-autofix modules stay serial.
-    """
-    mutation: list[str] = []
-    safe_push: list[str] = []
-    pr_autofix: list[str] = []
-    bulk: list[str] = []
-    for rel in test_files:
-        if rel.startswith(_PYTEST_MUTATION_PREFIX):
-            mutation.append(rel)
-        elif rel in _PYTEST_SAFE_PUSH_SERIAL:
-            safe_push.append(rel)
-        elif rel in _PYTEST_PR_AUTOFIX_SERIAL:
-            pr_autofix.append(rel)
-        else:
-            bulk.append(rel)
-    base = [sys.executable, "-m", "pytest"]
-    commands: list[list[str]] = []
-    if bulk:
-        commands.append(
-            [
-                *base,
-                "-m",
-                "not integration",
-                *_pytest_parallel_flags(),
-                *_abs_test_paths(repo_root, bulk),
-            ]
-        )
-    if mutation:
-        commands.append(
-            [
-                *base,
-                "-m",
-                "not integration",
-                *_pytest_parallel_flags(),
-                *_abs_test_paths(repo_root, mutation),
-            ]
-        )
-    if safe_push:
-        commands.append(
-            [
-                *base,
-                "-m",
-                "not integration and not safe_push_transport",
-                *_abs_test_paths(repo_root, safe_push),
-            ]
-        )
-    if pr_autofix:
-        commands.append([*base, "-m", "not integration", *_abs_test_paths(repo_root, pr_autofix)])
-    return commands
-
-
 def _pytest_collection_command(repo_root: Path) -> list[str]:
     """Collect every non-integration test without executing any of them.
 
@@ -7716,18 +7643,11 @@ def _pytest_collection_command(repo_root: Path) -> list[str]:
 def _validated_full_suite_opt_in() -> str:
     """Return the stripped opt-in value, or raise if it is not usable.
 
-    Split out of `_full_suite_stand_in` so `_resolve_pytest_commands` can call
-    it before it knows which path it is taking. Inside the stand-in it only ran
-    on the fallback path, so a narrowed import-graph selection silently ignored
-    `AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY=true`: the developer asked for the full
-    suite, did not get it, and was not told. The contract says any non-blank
-    value other than `1` is a configuration error, and a contract enforced on
-    one branch of two is not enforced.
-
-    Exactly the defect already fixed for `AI_AGENTS_PYTEST_WORKERS`, whose
-    validation was hoisted for the same reason a few commits earlier. The
-    reasoning was right there and was not carried across to the sibling flag.
-    Caught in review on PR #5319.
+    Split out of `_collection_stand_in` so `_resolve_pytest_commands` validates
+    the value before it chooses a path. The contract says any non-blank value
+    other than `1` is a configuration error, and a contract enforced on one
+    branch of two is not enforced. The same hoisting already applies to
+    `AI_AGENTS_PYTEST_WORKERS`.
 
     Returns the stripped value so callers do not re-derive it: `""` when unset
     or blank, `"1"` when the caller opted in.
@@ -7745,15 +7665,14 @@ def _validated_full_suite_opt_in() -> str:
         # a flag whose whole purpose is "run more" must not shrug at `true`.
         raise ValueError(
             f"{PYTEST_FULL_SUITE_LOCALLY_ENV} must be '1' or unset, got {raw!r}. "
-            "Unset lets the import graph narrow the diff, and collects the "
-            "whole suite when it cannot. '1' executes every partition locally "
-            "whatever the graph says, which is what the name promises."
+            "Unset collects the whole suite without executing it. '1' executes "
+            "every partition locally, which is what the name promises."
         )
     return stripped
 
 
-def _full_suite_stand_in(repo_root: Path, reason: str) -> list[list[str]]:
-    """Return what pre-push runs when the import graph cannot narrow the diff.
+def _collection_stand_in(repo_root: Path) -> list[list[str]]:
+    """Return what pre-push runs by default: collect every test, execute none.
 
     Executing every test here duplicates CI's `pytest.yml` partition matrix on
     the same commit. Measured on a 4-CPU container, that duplicate cost 475s of
@@ -7762,54 +7681,39 @@ def _full_suite_stand_in(repo_root: Path, reason: str) -> list[list[str]]:
     reaching the remote gate at all. Collect instead and let CI execute.
 
     This is the collection path only. ``AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY=1``
-    is handled by `_resolve_pytest_commands` before selection runs, so it never
-    reaches here; an opt-in branch used to live in this function and became
-    unreachable when the flag was hoisted, which is why there is not one now.
+    is handled by `_resolve_pytest_commands` before this runs, so it never
+    reaches here. Nothing here reads the diff or narrows the collection
+    (issue #6239).
     """
     print(
-        f"pytest selection: no import-graph subset ({reason}).\n"
-        "  Collecting every test instead of executing them. Collection blocks "
-        "on a broken\n"
-        "  import and on a syntax error. It does NOT run assertions, does NOT "
-        "catch a\n"
-        "  missing fixture, does NOT catch two same-named test functions in "
-        "one module,\n"
-        "  and does NOT catch a same-basename module collision (this repo "
-        "sets\n"
-        "  --import-mode=importlib, under which that collides silently).\n"
-        "  Assertions run in CI: .github/workflows/pytest.yml executes the full "
-        "partition\n"
-        "  matrix on every merge-queue commit, and on this PR only when the "
-        "diff matches\n"
-        "  its paths filter. A diff that matches neither runs no assertions "
-        "until the\n"
-        "  merge queue, so review a green PR of that shape accordingly.\n"
-        f"  Set {PYTEST_FULL_SUITE_LOCALLY_ENV}=1 to execute the suite here "
-        "instead. See ADR-104.",
+        "pytest: collecting every test instead of executing them.\n"
+        f"  Set {PYTEST_FULL_SUITE_LOCALLY_ENV}=1 to execute the suite here. "
+        "See ADR-104.\n"
+        "  Collection blocks on a broken import and on a syntax error. It does "
+        "NOT run\n"
+        "  assertions, does NOT catch a missing fixture, does NOT catch two "
+        "same-named\n"
+        "  test functions in one module, and does NOT catch a same-basename "
+        "module\n"
+        "  collision (this repo sets --import-mode=importlib, under which that "
+        "collides\n"
+        "  silently).\n"
+        "  Assertions run in CI: .github/workflows/pytest.yml runs every pytest "
+        "leg in\n"
+        "  full on every push, pull request, and merge-queue event (issue "
+        "#6239).",
         file=sys.stderr,
     )
     return [_pytest_collection_command(repo_root)]
 
 
-def _resolve_pytest_commands(
-    repo_root: Path,
-    changed_files: Sequence[str] | None,
-) -> list[list[str]]:
-    """Return the pytest commands to run: an import-graph subset or a stand-in.
+def _resolve_pytest_commands(repo_root: Path) -> list[list[str]]:
+    """Return the pytest commands to run: the full suite or the collection.
 
-    `AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY=1` short-circuits everything below and
-    returns the executing partitions. The flag says full suite, so it has to
-    mean the full suite: an earlier revision validated the value and then threw
-    it away, so a developer who set it on a Python change got whatever subset
-    the import graph chose and was not told the difference. That is the same
-    silently-doing-less defect the flag's own reject-anything-but-1 rule exists
-    to prevent, one branch further along, and ADR-104's Implementation Notes
-    label this command "whole-suite execution". Caught in review on PR #5319.
-
-    Otherwise the subset is used only when the graph maps every changed file
-    with certainty. Any failure to determine the diff, and any fail-safe verdict
-    from the selector, falls back to `_full_suite_stand_in`, which collects
-    rather than executes.
+    `AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY=1` returns the executing partitions.
+    Any other valid value returns `_collection_stand_in`, which collects
+    `tests/` in one process and executes nothing. There is no diff and no
+    selection (issue #6239).
 
     Raises:
         ValueError: the worker override is invalid (from
@@ -7826,33 +7730,11 @@ def _resolve_pytest_commands(
     _pytest_parallel_flags()
     if _validated_full_suite_opt_in() == "1":
         print(
-            f"{PYTEST_FULL_SUITE_LOCALLY_ENV}=1: executing the whole suite "
-            "locally, skipping import-graph selection.",
+            f"{PYTEST_FULL_SUITE_LOCALLY_ENV}=1: executing the whole suite locally.",
             file=sys.stderr,
         )
         return _pytest_commands(repo_root)
-    if changed_files is None:
-        changed = select_tests.changed_from_git(repo_root, WORKFLOW_LOCAL_DEFAULT_BASE)
-    else:
-        changed = list(changed_files)
-    # The full suite is the historical default and stays silent so callers that
-    # assert a clean success path keep passing. Only a narrowed subset, the new
-    # behavior, announces itself.
-    if changed is None:
-        return _full_suite_stand_in(
-            repo_root, f"the diff against {WORKFLOW_LOCAL_DEFAULT_BASE} is unavailable"
-        )
-    selection = select_tests.select(changed, repo_root)
-    if selection.full:
-        return _full_suite_stand_in(repo_root, selection.reason)
-    print(
-        f"pytest selection: {len(selection.tests)} test file(s) via import graph "
-        f"(from {len(changed)} changed file(s)); reason: {selection.reason}",
-        file=sys.stderr,
-    )
-    for rel in selection.tests:
-        print(f"  {rel}", file=sys.stderr)
-    return _pytest_commands_for_subset(repo_root, selection.tests)
+    return _collection_stand_in(repo_root)
 
 
 def _pytest_budget_seconds(commands: Sequence[Sequence[str]]) -> int:
@@ -7867,7 +7749,7 @@ def _pytest_budget_seconds(commands: Sequence[Sequence[str]]) -> int:
     return TEST_SUITE_TIMEOUT_SECONDS
 
 
-def run_pytest(repo_root: Path, changed_files: Sequence[str] | None = None) -> int:
+def run_pytest(repo_root: Path) -> int:
     env = _clean_git_env()
     for key in (
         "CLAUDE_PROJECT_DIR",
@@ -7881,8 +7763,7 @@ def run_pytest(repo_root: Path, changed_files: Sequence[str] | None = None) -> i
         PYTEST_WORKERS_ENV,
         # Consumed here, so it must not reach the child. A test that invokes
         # this policy inherits the parent's `=1` otherwise and takes the
-        # full-suite path where it meant to exercise the selector, which is the
-        # opposite of the behavior under test and reads as a passing selector.
+        # full-suite path where it meant to exercise the collection default.
         # Its two siblings above were stripped for the same reason; this one
         # was added later and did not get the same treatment. Raised in review
         # on PR #5319.
@@ -7891,7 +7772,7 @@ def run_pytest(repo_root: Path, changed_files: Sequence[str] | None = None) -> i
         env.pop(key, None)
     env["CLAUDE_PLUGIN_ROOT"] = str(repo_root / "src/copilot-cli")
     try:
-        commands = _resolve_pytest_commands(repo_root, changed_files)
+        commands = _resolve_pytest_commands(repo_root)
     except ValueError as error:
         print(f"ERROR: {error}", file=sys.stderr)
         return 2
@@ -7901,28 +7782,13 @@ def run_pytest(repo_root: Path, changed_files: Sequence[str] | None = None) -> i
     # the suite across processes must not multiply how long
     # pre-push can block, or the hook outlives lefthook's own deadline and the
     # timeout looks nondeterministic.
-    if not commands:
-        # `select_tests.Selection` promises a narrowed selection is never empty,
-        # and `_full_suite_stand_in` always returns one command. Both are other
-        # modules' invariants. This function decides whether a push is allowed,
-        # so it does not take a zero-test run on faith from either of them.
-        print(
-            "ERROR: test selection produced no pytest command. A push must "
-            "never pass by running zero tests; see select_tests.Selection.",
-            file=sys.stderr,
-        )
-        return 2
     # Clamp the AGGREGATE, not only each child. `_run_command` bounds one
     # subprocess at CONTAINER_SUBPROCESS_CEILING_SECONDS, which says nothing
-    # about a step that runs several: an import-graph subset emits up to four
-    # partition commands and takes the execution budget, so a Python push could
-    # spend 4 * 150s = 600s here inside a container. The reclaim this whole
-    # change exists to prevent was measured at ~679s, so that is not a tail
-    # case, it is the same failure on the common path for Python changes.
-    #
-    # The PR text claimed the exposure was limited because "the default path
-    # spawns one child". True for a Markdown push, which collects; false for a
-    # Python push, which subsets. Caught in review on PR #5319.
+    # about a step that runs several: the opt-in full suite emits four
+    # partition commands and takes the execution budget, so it could spend
+    # 4 * 150s = 600s here inside a container. The reclaim this whole change
+    # exists to prevent was measured at ~679s, so that is not a tail case.
+    # The default collection path spawns one child.
     #
     # Clamping here also repairs the diagnostic: the timeout message prints
     # `budget`, so an unclamped aggregate told a reader their child had 780s
@@ -8589,8 +8455,7 @@ def _handle_memory_cross_reference(args: argparse.Namespace) -> int:
 
 
 def _handle_pytest(args: argparse.Namespace) -> int:
-    changed = list(args.paths) if args.paths else None
-    return run_pytest(_repo_root(args), changed)
+    return run_pytest(_repo_root(args))
 
 
 def _handle_workflow_local(args: argparse.Namespace) -> int:
@@ -8800,7 +8665,6 @@ def build_parser() -> argparse.ArgumentParser:
         ("sessions", _handle_sessions),
         ("extract-episodes", _handle_extract_episodes),
         ("adr-review", _handle_adr_review),
-        ("pytest", _handle_pytest),
     )
     simple_commands = (
         ("branch", _handle_branch),
@@ -8820,6 +8684,7 @@ def build_parser() -> argparse.ArgumentParser:
         ("pre-push", _handle_pre_push),
         ("tracked-conflict-markers", _handle_tracked_conflict_markers),
         ("branch-dashes", _handle_branch_dashes),
+        ("pytest", _handle_pytest),
     )
     for name, handler in path_commands:
         _add_path_command(subparsers, name, handler)
@@ -8879,11 +8744,9 @@ def _arm_container_watchdog(subcommand: str) -> threading.Timer | None:
     """Bound this whole process in a managed container. None outside one.
 
     `_container_clamped` bounds a child. This bounds everything, including the
-    work between children that no deadline reached: import-graph selection,
-    path discovery, tree materialization, and the unbounded `subprocess.run` in
-    `select_tests.changed_from_git`. A hang in any of those outlived every
-    bound this module sets and ended in the reclaim the bounds exist to
-    prevent.
+    work between children that no deadline reached: path discovery and tree
+    materialization. A hang in either outlived every bound this module sets and
+    ended in the reclaim the bounds exist to prevent.
 
     `os._exit` rather than an exception: the thing being bounded is a hang, and
     a hang can be somewhere an exception will not unwind from promptly. Losing

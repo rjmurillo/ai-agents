@@ -3,6 +3,8 @@ name: critic
 description: Constructive reviewer who stress-tests plans before implementation, validates completeness, identifies gaps, catches ambiguity. Challenges assumptions, checks alignment, and blocks approval when risks aren't mitigated. Use when you say "review this plan", "stress-test this plan", "is this plan ready", "poke holes in this", or hand it a plan file or planning artifact and need a clear ready-or-revise verdict. Do NOT use to stress-test a single decision's reasoning (use decision-critic).
 metadata:
   role: coordinator
+# Needs fresh context so it can challenge a plan without the planner's assumptions.
+isolation_required: true
 argument-hint: Provide the plan file path or planning artifact to review
 ---
 
@@ -221,12 +223,12 @@ Read, Grep, Glob, TodoWrite. Memory via `mcp__serena__read_memory` / `mcp__seren
 
 ### Serena memory writes: check the checkout first
 
-Serena writes to the checkout active at server start (its `--project` root),
-not your current directory. Call `mcp__serena__write_memory`, `edit_memory`,
+Serena writes to the checkout active at server start (`--project` root),
+not your cwd. Call `mcp__serena__write_memory`, `edit_memory`,
 `delete_memory`, or `rename_memory` only from that checkout. A linked worktree
 (`git rev-parse --git-dir` differs from `--git-common-dir`) never qualifies.
-In one, unsure, or without a shell, do not call them: edit this checkout's
-`.serena/memories/` files or return the change to the parent session. Delete or
+In one, unsure, or without a shell, do not call them: edit `.serena/memories/`
+files in your own checkout, or return the change to the parent session. Delete or
 rename only when asked. New memory: `<topic>/<name>` plus a `memory-index.md` line.
 
 See `universal.md` MUST NOT 11 and issue #5061.

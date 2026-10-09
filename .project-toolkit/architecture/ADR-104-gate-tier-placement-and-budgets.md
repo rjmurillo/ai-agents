@@ -26,6 +26,17 @@ below: 142.39s, against 679s recorded for a comparable push. The gate is
 cleared. The remaining reason this stays `proposed` is that the branch has not
 merged.
 
+Amended 2026-10-08 (PR #6239): the import-graph test selector is deleted.
+Pre-push by default runs pytest collection only over `tests/`. The
+`AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY=1` opt-in still runs the full suite. In CI,
+every pytest matrix leg runs its full partition on every event: the `test` job
+has no job-level `if:` or `needs:` (`pytest.yml:260-263`). Four pinned files
+(`_UNPARTITIONED_TESTS` in `run_pytest_partition.py`) run in `split-1` pin
+steps. `security` and `test-windows-pwsh` remain gated by `check-paths` and
+`scripts/ci/path_policy.yml`. The 300 s collection budget was not re-measured
+after #6239. Text below that describes selection is history unless it says
+otherwise.
+
 ## Date
 
 2026-08-25
@@ -82,9 +93,13 @@ out what landed, and pushes again. Each cycle costs wall clock and tokens and
 yields no signal the remote gate would not have produced. The local gate was
 preventing the push from reaching the gate it was imitating.
 
-### The asymmetry that made it avoidable
+### The asymmetry that made it avoidable (as it was before #6239)
 
-`scripts/test_selection/select_tests.py` falls back to the whole suite on
+Amended 2026-10-08 (PR #6239): `scripts/test_selection/` is deleted and every
+pytest matrix leg runs its full partition on every event. The probe below
+records the asymmetry as it was.
+
+`scripts/test_selection/select_tests.py` fell back to the whole suite on
 `non-Python change: <rel>`. Probed on this checkout:
 
 ```text
@@ -132,9 +147,8 @@ The base-ref comparison has a baseline the branch cannot edit, which is the
 property "may only fall" was claiming. Its normal enforcement point is CI, not
 pre-push, which is the reverse of what an earlier revision of this paragraph
 said. `pytest.yml` checks out with `fetch-depth: 0`, so PR CI has the base ref
-and executes the comparison; pre-push, on a change to `lefthook.yml` alone,
-cannot narrow the import graph from a YAML file and takes the collection
-stand-in, which imports this test without running it. So a cap-only edit is
+and executes the comparison; pre-push collects the test tree
+and never runs it, so it imports this test without executing it. So a cap-only edit is
 caught in CI and not locally. Where no base ref is reachable the comparison
 skips and the ceiling is the only guard; git being absent is a different thing
 and fails rather than skipping, because a gate that cannot tell "no base ref"
@@ -228,8 +242,8 @@ applied, the target is redundant with it.
    it does not belong here.
 
 2. **Pre-push takes checks that are cheap and would otherwise be discovered
-   remotely.** Ratchets, branch-scope and push-ref policy, targeted tests
-   selected from the diff. The test is not "is this check valuable" but "does
+   remotely.** Ratchets, branch-scope and push-ref policy, test collection
+   over `tests/`. The test is not "is this check valuable" but "does
    running it here cost seconds and save a CI round trip".
 
 3. **CI takes everything expensive, isolated, matrixed, or credentialed.**
@@ -354,6 +368,9 @@ is real and worth roughly 40s; issue #5317 carries three costed options.
   zero tests.
 - `.github/workflows/pytest.yml` gained the Markdown roots its own tests read,
   so the delegation in rule 4 has somewhere to land at PR time.
+- Amended 2026-10-08 (PR #6239): the collection stand-in is the only default path, because
+  test selection is retired. `AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY=1` still
+  executes the full suite.
 
 ### Measured in-hook, first real push of this branch
 
@@ -459,9 +476,31 @@ always the locally optimal answer.
 The suite grew to roughly 27,900 tests, so "run the tests locally" costs
 minutes rather than seconds, and the common execution environment moved to
 4-CPU containers with a reclamation deadline, which turns a slow hook into a
-push that never lands. Import-graph selection (issue #5050) and collection now
-cover what the local suite run covered, at a fraction of the cost. Neither
-existed when the local suite run was placed.
+push that never lands. Collection now covers the defect class the local suite run
+most reliably caught, at a fraction of the cost, and every pytest matrix leg in
+CI runs its full partition on every event.
+Import-graph selection (issue #5050) also existed when this record was written.
+PR #6239 deleted it.
+
+Why the selector existed, and why it can go. Issue #5050 added it because the
+full suite cost 878 s per push, and earlier path filters had produced false
+greens (#4345, #4408). That per-push cost no longer bites: pre-push only
+collects. Every pytest matrix leg runs
+its full partition on every event, and the selector narrowed only 5 of 30
+PR runs (30 of the 32 pull_request runs among the 80 most recent
+completed `pytest.yml` runs, 2026-10-08). It saved an inferred 40 to 60 s of a roughly 480 s median,
+inferred from job medians and not measured end to end. Test selection is
+Context, not Core (owner decision 2026-10-07), so the repository buys
+(pytest-split) rather than builds.
+
+Limits of that evidence, stated so a later reader can weigh them. pytest-testmon
+2.2.0 was rejected as a CI gate on one confirmed miss: it did not select the
+tests that catch a broken subprocess-run script, on this repository with its
+default coverage core. That rejection is scoped to that version and setup. The
+5 of 30 rate covers pull_request runs only; push and merge_group timing was not
+sampled. The CI speed target in #6239 is measured on the pull request's own runs
+before merge. Reverting the pull request restores the selector and the old
+partitions in one step.
 
 Risk of the change: a defect that only an executed test catches surfaces in CI
 rather than locally. Blast radius is one CI round trip per such defect, against
@@ -474,16 +513,18 @@ a status quo where the push does not complete.
 | Alternative | Pros | Cons | Why Not Chosen |
 |-------------|------|------|----------------|
 | Raise the container's patience | No repository change | Not a repository setting | Rejected: accepts an eleven-minute local gate and asks the environment to tolerate it |
-| Narrow the local selector to a per-path allowlist | Keeps local execution for real Python changes | An allowlist does not bound cost for a large Python change, where the graph maps everything and the subset is still large | Rejected as the primary fix. The fail-open objection an earlier revision gave was wrong: CI already maintains exactly such an allowlist and `runtime_read_patterns.txt` is nearly a copy of it. Making the two agree is worth doing and is issue #5318 |
+| Narrow the local selector to a per-path allowlist | Keeps local execution for real Python changes | An allowlist does not bound cost for a large Python change, where the graph maps everything and the subset is still large | Rejected as the primary fix. The fail-open objection an earlier revision gave was wrong: CI already maintains exactly such an allowlist and `runtime_read_patterns.txt` is nearly a copy of it. Making the two agree is worth doing and is issue #5318. Moot since #6239 retired the selector |
 | Drop `python-tests` from pre-push entirely | Cheapest possible hook | A broken import would reach CI and burn a whole matrix | Rejected: gives up the defect class that most deserves a local gate |
 | Keep execution, drop the mutation, safe-push and pr-autofix partitions locally | Saves the measured 212s those three cost | Leaves the 258s bulk partition | Rejected as insufficient, though CI does run those three as separate matrix legs, so they were already duplicated |
 | A hard hook deadline that defers remaining gates to CI on expiry | Bounds the push directly | Untried here; needs a resume story | Not adopted. Weighed under issue #5318, item 4: the container-reclaim asymmetry is real, but #5813 measured whole pre-push hooks at 124s to 128s against the 300s target on the measured classes. `workflow-local-run` is unmeasured. Revisit when it is measured or a measured push passes 150s |
-| Collect instead of execute on the fallback | 14s against 382s, still blocks import and syntax defects, CI executes the same commit | Gives up local assertion results for the fallback class | **Chosen** |
+| Collect instead of execute on the fallback | 14s against 382s, still blocks import and syntax defects, CI executes the same commit | Gives up local assertion results; since #6239 that covers every push, not only the fallback class | **Chosen** |
 
 ### Trade-offs
 
-For a change the import graph cannot map, a failing assertion is discovered by
-CI rather than by the push.
+A failing assertion is discovered by CI rather than by the push. Before #6239
+this held for changes the import graph could not map. It now holds for every
+push, because pre-push by default collects and never selects. The
+`AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY=1` opt-in still runs the full suite.
 
 That trade rests on CI executing the commit, and the shape of that is worth
 stating precisely because an earlier revision got it wrong. `pytest.yml` runs
@@ -495,6 +536,12 @@ approving a green PR whose relevant tests had not run. `Run Python Tests` is a
 required context (`scripts/ci/ruleset_required_contexts.py`), and the same name
 is carried by the skip-through job, so a required green check does not by
 itself mean tests ran.
+
+Since PR #6239 no leg narrows what it runs. Every pytest matrix leg runs its
+full partition on every event through `scripts/ci/run_pytest_partition.py`
+(the `test` job has no job-level `if:` or `needs:`, `pytest.yml:260-263`). Four
+pinned files run in `split-1` pin steps. `scripts/ci/path_policy.yml` still
+drives the `check-paths` gate for `security` and `test-windows-pwsh`.
 
 ## Consequences
 
@@ -514,8 +561,9 @@ itself mean tests ran.
 
 ### Negative
 
-- Local feedback for the fallback class is weaker. A test that fails an
-  assertion, rather than failing to import, now surfaces in CI.
+- Local feedback is weaker on every push. A test that fails an
+  assertion, rather than failing to import, now surfaces in CI. Before #6239
+  this held only for the fallback class.
 - `AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY` is one more configuration axis, and an
   escape hatch nobody exercises rots. Its wiring is covered by a test.
 - The duplication between `pre-pr-validation` and the fast stage stays, and
@@ -565,9 +613,11 @@ maintainer; mechanism: a comment on issue #5315.
 
 | Component | Dependency Type | Required Update | Risk |
 |-----------|----------------|-----------------|------|
-| `scripts/validation/git_hook_policy.py` | Direct | Whole-suite fallback routed through the collection stand-in with its own budget | Medium |
-| `.github/workflows/pytest.yml` | Direct | Paths filter widened to the Markdown roots its own tests read | Medium |
-| `tests/validation/test_pytest_import_selection.py` | Direct | Old tests asserted the fallback equals the executing partitions | Low |
+| `scripts/validation/git_hook_policy.py` | Direct | Whole-suite fallback routed through the collection stand-in with its own budget; the only default path since #6239 | Medium |
+| `.github/workflows/pytest.yml` | Direct | Paths filter widened to the Markdown roots its own tests read; every pytest matrix leg runs its full partition since PR #6239 | Medium |
+| `tests/validation/test_pytest_import_selection.py` (deleted by #6239), `tests/validation/test_pre_push_collection_only.py` | Direct | Old tests asserted the fallback equals the executing partitions; the new file asserts pre-push collects only | Low |
+| `scripts/ci/path_policy.{py,yml}` | Direct | Decides whether `security` and `test-windows-pwsh` run, through the `check-paths` gate. Head-editable. `/scripts/ci/` already owns it (`.github/CODEOWNERS:61`) | High |
+| `tests/.test_durations` and `scripts/ci/run_pytest_partition.py` membership | Direct | pytest-split assigns every collected test to exactly one group, so a durations edit cannot drop a test. It can skew group sizes and push a leg past the 10-minute job timeout, which fails red, not green. `run_pytest_partition.py` can still change the pool ignores, so it is Medium and owned by `/scripts/ci/`. PR #6239 adds `/tests/.test_durations @rjmurillo` | Medium |
 | `tests/test_safe_push_pr_branch.py`, `tests/validation/test_pytest_parallelism_policy.py` | Direct | Multi-command budget and worker-flag contracts opt into local execution | Low |
 | ADR-090 | Indirect | Its 30-minute lease TTL is calibrated against "the known 20 to 30 minute pre-push gate"; that input changed | Low |
 | `.claude/rules/session-logs.md` MUST-2 | Indirect | Describes the episode ratchet as running inside `python-tests`, which is now true only on the executing path | Low |
@@ -579,12 +629,9 @@ maintainer; mechanism: a comment on issue #5315.
 AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY=1 AI_AGENTS_PYTEST_WORKER_CAP=4 \
   uv run --frozen python scripts/validation/git_hook_policy.py pytest
 
-# What pre-push runs now for a Markdown-only push
+# What pre-push runs now for every push: collection only (#6239)
 AI_AGENTS_PYTEST_WORKER_CAP=4 \
-  uv run --frozen python scripts/validation/git_hook_policy.py pytest README.md
-
-# The selector's verdict for a given path
-uv run --frozen python scripts/test_selection/select_tests.py --format json README.md
+  uv run --frozen python scripts/validation/git_hook_policy.py pytest
 ```
 
 On a 48-thread workstation the opt-in path also needs
@@ -613,10 +660,12 @@ two that failed are recorded as failing rather than dropped quietly.
 
 - Issue #5315: the incident and the measurements.
 - Issue #5317: the duplication this record declined to remove unsoundly.
-- Issue #5318: the tail, the pre-commit measurement, and the selector/CI-filter
+- Issue #5318 (moot after #6239): the tail, the pre-commit measurement, and the selector/CI-filter
   reconciliation.
 - Issue #4710: local hook and validation latency.
 - Issue #5066: the fast-fail staging this record builds on.
 - Issue #5050: import-graph test selection and its non-Python fail-safe.
+  Retired by PR #6239.
+- PR #6239: deleted the test selector; pre-push collects only.
 - `.serena/memories/ci/ci-pre-push-wall-clock-is-python-tests.md`
 - `.claude/rules/ci-scripts.md` MUST-14, MUST-16, MUST-19, MUST-21.

@@ -134,8 +134,14 @@ _NOT_WORKFLOW_INVOKED: dict[str, str] = {
         "batch 6). drift_collect_details.py is the workflow-invoked entry point; "
         "parse_drift_results.py is its implementation detail."
     ),
+    "path_policy.py": (
+        "Library holding the test-impact path policy. pytest.yml hands its "
+        "sibling path_policy.yml to dorny/paths-filter by name, and "
+        "tests/ci/test_pytest_paths_filter_roots.py reads the module directly "
+        "(issue #6239)."
+    ),
     "run_pytest_non_tmp.py": (
-        "Library entry invoked by run_pytest_selected.py, which pytest.yml runs "
+        "Library entry invoked by run_pytest_partition.py, which pytest.yml runs "
         "for every partition (issue #5050). It keeps the repo-isolated temp root; "
         "tests/ci/test_pytest_non_tmp_policy.py covers it directly and asserts the "
         "workflow routes through the selection runner that calls it."
