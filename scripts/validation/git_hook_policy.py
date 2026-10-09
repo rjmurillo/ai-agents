@@ -7521,9 +7521,12 @@ def _pytest_parallel_flags() -> list[str]:
 
 
 def _pytest_commands(repo_root: Path) -> list[list[str]]:
-    """Return pre-push pytest invocations in CI partition order.
+    """Return the opt-in full-suite pytest invocations.
 
-    Bulk and mutation tests use the selected worker policy over whole files.
+    CI splits the pool into duration-balanced legs; locally the pool runs as
+    bulk plus mutation. The serial safe-push and pr-autofix files match the CI
+    runner's dedicated legs (a test pins that). Bulk and mutation tests use the
+    selected worker policy over whole files.
     Direct calls default to every visible CPU. Local pre-push may apply a cap.
     Process-sensitive push, signal, and pr-autofix modules run serially.
 
@@ -7685,13 +7688,10 @@ def _collection_stand_in(repo_root: Path) -> list[list[str]]:
         "  collision (this repo sets --import-mode=importlib, under which that "
         "collides\n"
         "  silently).\n"
-        "  Assertions run in CI: .github/workflows/pytest.yml executes the full "
-        "partition\n"
-        "  matrix on every merge-queue commit, and on this PR only when the "
-        "diff matches\n"
-        "  its paths filter. A diff that matches neither runs no assertions "
-        "until the\n"
-        "  merge queue, so review a green PR of that shape accordingly.",
+        "  Assertions run in CI: .github/workflows/pytest.yml runs every pytest "
+        "leg in\n"
+        "  full on every push, pull request, and merge-queue event (issue "
+        "#6239).",
         file=sys.stderr,
     )
     return [_pytest_collection_command(repo_root)]
