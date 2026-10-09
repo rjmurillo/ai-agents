@@ -26,6 +26,9 @@ EXIT_FAILURE = 1
 EXIT_CONFIG = 2
 
 _SAFE_PUSH = ".trusted-helper/.github/scripts/safe_push_pr_branch.py"
+# AI-chosen paths must never reach git internals or the trusted checkout that later
+# secret-bearing steps run from (owner decision D27).
+_PROTECTED_ROOTS = frozenset({".git", ".trusted-helper"})
 
 
 def _git(args: list[str]) -> subprocess.CompletedProcess[str]:
@@ -45,10 +48,25 @@ def _safe_repo_path(filepath: str) -> str:
         raise ValueError(f"Absolute path rejected: {filepath!r}")
     resolved = (pathlib.Path.cwd() / p).resolve()
     try:
-        resolved.relative_to(pathlib.Path.cwd().resolve())
+        relative = resolved.relative_to(pathlib.Path.cwd().resolve())
     except ValueError as exc:
         raise ValueError(f"Path traversal rejected: {filepath!r}") from exc
+    if relative.parts and relative.parts[0] in _PROTECTED_ROOTS:
+        raise ValueError(f"Write to a protected path rejected: {filepath!r}")
     return filepath
+
+
+def _conflicted_files() -> frozenset[str]:
+    """Paths git reports as unmerged; the only files a resolution may touch."""
+    listing = _git(["diff", "--name-only", "--diff-filter=U"]).stdout
+    return frozenset(line for line in listing.splitlines() if line)
+
+
+def _require_conflicted(resolutions: list[dict[str, Any]], conflicted: frozenset[str]) -> None:
+    for res in resolutions:
+        filepath = res.get("file", "")
+        if filepath not in conflicted:
+            raise ValueError(f"Resolution names a file that is not conflicted: {filepath!r}")
 
 
 def extract_json(text: str) -> str:
@@ -122,6 +140,7 @@ def main() -> int:
     _git(["merge", f"origin/{base_ref}"])
 
     try:
+        _require_conflicted(resolutions, _conflicted_files())
         for res in resolutions:
             apply_resolution(res)
     except ValueError as exc:
