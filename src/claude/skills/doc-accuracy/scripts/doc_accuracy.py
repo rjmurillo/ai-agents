@@ -22,6 +22,7 @@ import io
 import json
 import logging
 import os
+import posixpath
 import re
 import subprocess
 import sys
@@ -232,6 +233,16 @@ def _git_command(repo_root: Path, *args: str) -> list[str]:
         "-C", str(repo_root),
         *args,
     ]
+
+
+def _read_doc_text(path: Path) -> str:
+    """Read a doc with no newline translation, so line numbers match Git's.
+
+    ``read_text`` applies universal newlines, which turns a lone ``\\r`` into
+    an extra line that Git does not count. Callers split on ``"\\n"`` and
+    strip one trailing ``\\r`` per line only where content parsing needs it.
+    """
+    return path.read_bytes().decode("utf-8", errors="replace")
 
 
 def _repo_relative(path: Path, repo_root: Path) -> str:
@@ -674,7 +685,7 @@ def _diff_name_set(
         result = subprocess.run(
             _git_command(
                 repo_root,
-                "diff", "--no-ext-diff", "--name-only", "-z",
+                "diff", "--no-ext-diff", "--no-textconv", "--name-only", "-z",
                 oid, head_oid, "--",
             ),
             capture_output=True, check=True,
@@ -690,11 +701,16 @@ def _diff_name_set(
     }
 
 
-_HUNK_HEADER = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
+_HUNK_HEADER = re.compile(r"^@@ -\d+(?:,(\d+))? \+(\d+)(?:,(\d+))? @@")
 _C_ESCAPES = {
     "a": 7, "b": 8, "t": 9, "n": 10, "v": 11, "f": 12, "r": 13,
     '"': 34, "\\": 92,
 }
+
+
+def _norm_path(path: str) -> str:
+    """Canonical repo-relative POSIX path used for every changed_lines key."""
+    return posixpath.normpath(path.replace("\\", "/"))
 
 
 def _unquote_c_path(quoted: str) -> str:
@@ -728,39 +744,133 @@ def _new_side_path(header_line: str) -> str | None:
     return value[2:] if value[:2] == "b/" else value
 
 
-def _hunk_range(match: re.Match[str]) -> list[int]:
+_WHOLE_FILE_END = 2**31 - 1
+# Marker for a pure rename. Line 0 does not exist, so no claim overlaps it.
+# This is the ONLY way to say "no content changed": an empty range list is
+# never valid and is treated as changed in full (fail closed).
+_NO_CONTENT_CHANGE = [0, 0]
+
+
+def _hunk_range(start: int, count: int) -> list[int]:
     """Return the inclusive new-side range for one ``--unified=0`` hunk.
 
     A zero-length hunk is a pure deletion at line ``start``: the removed text
     sat between ``start`` and ``start + 1``, so both neighbors count as touched.
     """
-    start = int(match.group(1))
-    count = 1 if match.group(2) is None else int(match.group(2))
     if count == 0:
         return [max(start, 1), start + 1]
     return [start, start + count - 1]
 
 
-def _parse_unified_zero(patch: str) -> dict[str, list[list[int]]]:
-    """Map each patched file to its new-side changed line ranges."""
-    ranges: dict[str, list[list[int]]] = {}
-    current: list[list[int]] | None = None
-    for line in patch.splitlines():
-        if line.startswith("rename to "):
-            # A 100% rename has no ---/+++ headers; it changes no lines.
+class _PatchParser:
+    """Count-driven reader for ``git diff --unified=0`` output.
+
+    Hunk bodies are consumed by the line counts in their ``@@`` header, so an
+    added or removed line whose text looks like a file or hunk header is never
+    interpreted as one. Anything inconsistent marks the file as changed in
+    full (fail closed: every claim in it is in scope).
+    """
+
+    def __init__(self) -> None:
+        self.ranges: dict[str, list[list[int]]] = {}
+        self._rename_only: set[str] = set()
+        self._poisoned: set[str] = set()
+        self._path: str | None = None
+        self._current: list[list[int]] | None = None
+        self._old_left = 0
+        self._new_left = 0
+
+    def feed(self, line: str) -> None:
+        if self._old_left or self._new_left:
+            if self._consume_body(line):
+                return
+            self._poison()
+        self._header(line)
+
+    def _consume_body(self, line: str) -> bool:
+        kind = line[:1]
+        if kind == "\\":
+            return True  # "\ No newline at end of file" marker, uncounted
+        if kind == "-" and self._old_left:
+            self._old_left -= 1
+        elif kind == "+" and self._new_left:
+            self._new_left -= 1
+        elif kind == " " and self._old_left and self._new_left:
+            self._old_left -= 1
+            self._new_left -= 1
+        else:
+            return False
+        return True
+
+    def _poison(self) -> None:
+        self._old_left = self._new_left = 0
+        if self._path is not None:
+            self._poisoned.add(self._path)
+
+    def _start_file(self, path: str | None) -> None:
+        self._path = path
+        self._current = [] if path is None else self.ranges.setdefault(path, [])
+
+    def _header(self, line: str) -> None:
+        if line.startswith("diff --git "):
+            self._path, self._current = None, None
+        elif line.startswith("rename to "):
             name = line[len("rename to "):]
-            if name.startswith('"'):
-                name = _unquote_c_path(name)
-            current = ranges.setdefault(name, [])
-            continue
-        if line.startswith("+++ "):
+            name = _unquote_c_path(name) if name.startswith('"') else name
+            name = _norm_path(name)
+            self._start_file(name)
+            self._rename_only.add(name)
+        elif line.startswith("+++ "):
             path = _new_side_path(line)
-            current = ranges.setdefault(path, []) if path else None
-            continue
+            path = None if path is None else _norm_path(path)
+            self._start_file(path)
+            if path is not None:
+                self._rename_only.discard(path)
+        elif line.startswith("@@"):
+            self._hunk(line)
+
+    def _hunk(self, line: str) -> None:
         match = _HUNK_HEADER.match(line)
-        if match and current is not None:
-            current.append(_hunk_range(match))
-    return ranges
+        if self._current is None:
+            raise ValueError("hunk header outside a file section")
+        if match is None:
+            self._poison_header()
+            return
+        old = 1 if match.group(1) is None else int(match.group(1))
+        start = int(match.group(2))
+        new = 1 if match.group(3) is None else int(match.group(3))
+        self._current.append(_hunk_range(start, new))
+        self._old_left, self._new_left = old, new
+
+    def _poison_header(self) -> None:
+        if self._path is not None:
+            self._poisoned.add(self._path)
+
+    def finish(self) -> dict[str, list[list[int]]]:
+        if self._old_left or self._new_left:
+            self._poison()
+        for path, found in self.ranges.items():
+            if path in self._poisoned or (
+                not found and path not in self._rename_only
+            ):
+                self.ranges[path] = [[1, _WHOLE_FILE_END]]
+            elif not found:
+                self.ranges[path] = [list(_NO_CONTENT_CHANGE)]
+        return self.ranges
+
+
+def _parse_unified_zero(patch: str) -> dict[str, list[list[int]]]:
+    """Map each patched file to its new-side changed line ranges.
+
+    Splits on ``"\\n"`` only: ``str.splitlines`` also breaks on form feed,
+    NEL and other separators that a doc line may legally contain.
+    Raises ``ValueError`` when a hunk has no file section, which the caller
+    treats as "no usable ranges" so every changed doc counts as changed in full.
+    """
+    parser = _PatchParser()
+    for line in patch.split("\n"):
+        parser.feed(line)
+    return parser.finish()
 
 
 def _diff_line_ranges(
@@ -771,7 +881,8 @@ def _diff_line_ranges(
         result = subprocess.run(
             _git_command(
                 repo_root,
-                "diff", "--no-ext-diff", "--no-color", "--unified=0", "-M",
+                "diff", "--no-ext-diff", "--no-textconv", "--no-color",
+                "--unified=0", "-M",
                 "--src-prefix=a/", "--dst-prefix=b/",
                 fork_oid, head_oid, "--",
             ),
@@ -783,7 +894,12 @@ def _diff_line_ranges(
             3, f"diff: git failed reading hunks: "
             f"{_decode_stderr(exc.stderr)}",
         ) from exc
-    return _parse_unified_zero(result.stdout.decode("utf-8", errors="replace"))
+    try:
+        return _parse_unified_zero(
+            result.stdout.decode("utf-8", errors="replace")
+        )
+    except ValueError:
+        return {}
 
 
 def _claim_in_ranges(
@@ -861,7 +977,7 @@ def run_assessment(
         if changed_files is not None and rel_path not in changed_files:
             continue
         try:
-            content = doc_path.read_text(encoding="utf-8", errors="replace")
+            content = _read_doc_text(doc_path)
         except OSError as exc:
             logger.warning("Failed to read doc file %s: %s", rel_path, exc)
             continue
@@ -871,8 +987,9 @@ def run_assessment(
         line_count = content.count("\n") + 1
         if changed_files is not None:
             # A changed file with no parsed hunk is treated as changed in full.
-            changed_lines[rel_path] = changed_ranges.get(
-                rel_path, [[1, line_count]]
+            changed_lines[_norm_path(rel_path)] = (
+                changed_ranges.get(_norm_path(rel_path))
+                or [[1, line_count]]
             )
 
         doc_inventory.append(DocFile(
@@ -1104,14 +1221,16 @@ def run_claim_extraction(
     for doc_info in assessment.get("documentation_files", []):
         doc_path = repo_root / doc_info["path"]
         try:
-            content = doc_path.read_text(encoding="utf-8", errors="replace")
+            content = _read_doc_text(doc_path)
         except OSError as exc:
             logger.warning(
                 "Failed to read doc file %s: %s", doc_info["path"], exc
             )
             continue
 
-        lines = content.split("\n")
+        lines = [
+            ln[:-1] if ln.endswith("\r") else ln for ln in content.split("\n")
+        ]
         mapped_sources = doc_info.get("mapped_source_files", [])
         default_source = mapped_sources[0] if mapped_sources else ""
 
@@ -1239,8 +1358,10 @@ def _scope_findings(
         return findings
     for finding in findings:
         claim = claims_by_id[finding["claim_id"]]
-        ranges = changed_lines.get(claim["file"], [])
-        in_diff = _claim_in_ranges(claim, ranges)
+        ranges = changed_lines.get(_norm_path(claim["file"]))
+        # Fail closed: a file with no entry, or an empty list, is changed in
+        # full. Only the pure-rename marker means "no content changed".
+        in_diff = not ranges or _claim_in_ranges(claim, ranges)
         finding["in_diff"] = in_diff
         if not in_diff:
             finding["original_severity"] = finding["severity"]
