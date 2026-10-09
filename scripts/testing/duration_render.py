@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 from scripts.testing.duration_compare import Comparison, Regression
+from scripts.testing.duration_gates import Imbalance
 from scripts.testing.duration_snapshot import Snapshot
 
 TREND_ROWS = 10
@@ -86,3 +87,20 @@ def warning_commands(comparison: Comparison) -> list[str]:
             f"({ratio_text(r)}, {r.samples} samples)")
         for r in regressions
     ]
+
+
+def gate_commands(
+    over_limit: Sequence[tuple[str, float]], imbalance: Imbalance | None, limit: float
+) -> list[str]:
+    """Workflow commands for the wall-time gates: an error per slow leg, one imbalance warning."""
+    lines = [
+        "::error title=Test leg wall time::" + _escape_command_data(
+            f"{name} took {seconds:.1f}s, above the {limit:.0f}s limit")
+        for name, seconds in over_limit
+    ]
+    if imbalance:
+        lines.append("::warning title=Split imbalance::" + _escape_command_data(
+            f"{imbalance.slowest} took {imbalance.slowest_seconds:.1f}s and "
+            f"{imbalance.fastest} took {imbalance.fastest_seconds:.1f}s "
+            f"({imbalance.ratio:.2f}x); split legs should stay level"))
+    return lines

@@ -55,7 +55,7 @@ def test_a_regression_exits_one_annotates_it_and_still_writes_history(
 def test_no_history_exits_zero_and_says_there_is_no_baseline(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    report = write_junit(tmp_path, "p", {"tests.test_alpha": [500.0]}, 500.0)
+    report = write_junit(tmp_path, "p", {"tests.test_alpha": [300.0]}, 300.0)
 
     assert trend.main([str(report), "--history", str(tmp_path / "absent.json")]) == 0
     assert "No comparable baseline: 0 snapshots" in capsys.readouterr().out
