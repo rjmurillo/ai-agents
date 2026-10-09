@@ -13,13 +13,22 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from diff_scope_helpers import FENCE, FILLER, edit_and_commit, example, gate_diff, make_repo, mod
+from diff_scope_helpers import (
+    FENCE,
+    FILLER,
+    Json,
+    edit_and_commit,
+    example,
+    gate_diff,
+    make_repo,
+    mod,
+)
 
 BASE = "HEAD~1"
 WRONG = example("Ghost")
 
 
-def _assert_ghost_blocks(code: int, data: dict) -> None:
+def _assert_ghost_blocks(code: int, data: Json) -> None:
     ghost = [f for f in data["findings"] if f["evidence"]["symbol"] == "Ghost"]
     assert code == 10
     assert len(ghost) == 1

@@ -6,6 +6,7 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 TESTS_SKILLS_DIR = str(Path(__file__).resolve().parents[1])
 if TESTS_SKILLS_DIR not in sys.path:
@@ -22,6 +23,10 @@ FENCE = "```"
 WHOLE_FILE_END = 2**31 - 1
 FILLER = "".join(f"filler {n}\n" for n in range(8))
 
+
+
+# A parsed doc-accuracy JSON artifact.
+Json = dict[str, Any]
 
 def git(repo: Path, *args: str) -> None:
     subprocess.run(["git", "-C", str(repo), *args], check=True, capture_output=True)
@@ -53,25 +58,27 @@ def example(symbol: str) -> str:
     return f"{FENCE}python\nx = {symbol}()\n{FENCE}\n"
 
 
-def run_gate(repo: Path, tmp_path: Path, *extra: str) -> tuple[int, dict]:
+def run_gate(repo: Path, tmp_path: Path, *extra: str) -> tuple[int, Json]:
     """Run the CLI; return the exit code and the compilability data."""
     out = tmp_path / "out"
     code = mod.main(
         ["--target", str(repo), "--output-dir", str(out), "--format", "gate",
          *extra]
     )
-    return code, json.loads((out / "compilability-findings.json").read_text())
+    data: Json = json.loads((out / "compilability-findings.json").read_text())
+    return code, data
 
 
-def gate_result(tmp_path: Path) -> dict:
-    return json.loads((tmp_path / "out" / "gate-result.json").read_text())
+def gate_result(tmp_path: Path) -> Json:
+    result: Json = json.loads((tmp_path / "out" / "gate-result.json").read_text())
+    return result
 
 
-def by_symbol(data: dict) -> dict[str, dict]:
+def by_symbol(data: Json) -> dict[str, Json]:
     return {f["evidence"]["symbol"]: f for f in data["findings"]}
 
 
-def gate_diff(repo: Path, tmp_path: Path) -> tuple[int, dict]:
+def gate_diff(repo: Path, tmp_path: Path) -> tuple[int, Json]:
     """Run the gate against ``HEAD~1``."""
     return run_gate(repo, tmp_path, "--diff-base", "HEAD~1")
 

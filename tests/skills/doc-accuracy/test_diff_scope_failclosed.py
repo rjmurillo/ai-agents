@@ -14,7 +14,7 @@ from diff_scope_helpers import commit, example, gate_diff, git, make_repo, mod
 CLAIM = {"id": "c1", "file": "docs/a.md", "line": 3, "end_line": 5, "type": "code_example"}
 
 
-def _finding() -> dict:
+def _finding() -> dict[str, str]:
     return {"claim_id": "c1", "severity": "high"}
 
 
@@ -23,7 +23,7 @@ def _finding() -> dict:
     [{}, {"docs/other.md": [[3, 3]]}, {"docs/a.md": []}],
     ids=["missing-file-key", "other-file-only", "empty-range-list"],
 )
-def test_unknown_or_empty_ranges_stay_blocking(changed_lines: dict) -> None:
+def test_unknown_or_empty_ranges_stay_blocking(changed_lines: dict[str, list[list[int]]]) -> None:
     out = mod._scope_findings([_finding()], {"c1": CLAIM}, changed_lines)
 
     assert out[0]["in_diff"] is True

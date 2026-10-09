@@ -36,7 +36,7 @@ NO_NEWLINE = "\\ No newline at end of file\n"
         (f"+++ b/a.md\n@@ -1 +1 @@\n-a\n{NO_NEWLINE}+b\n", {"a.md": [[1, 1]]}),
     ],
 )
-def test_parse_well_formed_patches(patch: str, expected: dict) -> None:
+def test_parse_well_formed_patches(patch: str, expected: dict[str, list[list[int]]]) -> None:
     assert mod._parse_unified_zero(patch) == expected
 
 
