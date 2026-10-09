@@ -24,14 +24,11 @@ from typing import Any
 import pytest
 import yaml
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-WORKFLOW = REPO_ROOT / ".github/workflows/vendor-provenance.yml"
-FETCH_STEP = "Fetch candidate commit via git"
-MATERIALIZE_STEP = "Materialize candidate tree"
+WORKFLOW = Path(__file__).resolve().parents[2] / ".github/workflows/vendor-provenance.yml"
 TOKEN = "ghs_FakeTokenValue0123456789abcdef"
 PR_SHA = "0123456789abcdef0123456789abcdef01234567"
 SOURCE = "VENDOR_PROVENANCE_PAT"
-EXPECTED_BASIC = base64.b64encode(f"x-access-token:{TOKEN}".encode()).decode()
+BASIC = base64.b64encode(f"x-access-token:{TOKEN}".encode()).decode()
 
 pytestmark = pytest.mark.skipif(
     sys.platform == "win32" or shutil.which("bash") is None,
@@ -49,33 +46,24 @@ sys.exit(int(os.environ["FAKE_GIT_EXIT"]))
 """
 
 
-def _steps() -> list[dict[str, Any]]:
-    doc = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
-    steps: list[dict[str, Any]] = doc["jobs"]["provenance"]["steps"]
-    return steps
-
-
 def _step(name: str) -> dict[str, Any]:
-    matches = [step for step in _steps() if step.get("name") == name]
+    steps = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))["jobs"]["provenance"]["steps"]
+    matches: list[dict[str, Any]] = [step for step in steps if step.get("name") == name]
     assert len(matches) == 1, f"expected exactly one {name!r} step"
     return matches[0]
 
 
-def _install_fake_git(bin_dir: Path) -> None:
-    bin_dir.mkdir()
-    fake = bin_dir / "git"
+def _run_fetch(tmp_path: Path, token: str, git_exit: int) -> tuple[int, list[str], list[Any]]:
+    """Run the fetch step with a fake git; return exit code, stdout lines, git calls."""
+    script = tmp_path / "step.sh"
+    script.write_text(_step("Fetch candidate commit via git")["run"], encoding="utf-8")
+    fake = tmp_path / "bin" / "git"
+    fake.parent.mkdir()
     fake.write_text(f"#!{sys.executable}\n{_FAKE_GIT}", encoding="utf-8")
     fake.chmod(0o755)
-
-
-def _run_fetch(tmp_path: Path, token: str, git_exit: int) -> tuple[int, str, list[dict[str, Any]]]:
-    """Run the fetch step; return exit code, stdout, and fake git calls."""
-    script = tmp_path / "step.sh"
-    script.write_text(_step(FETCH_STEP)["run"], encoding="utf-8")
-    _install_fake_git(tmp_path / "bin")
     log = tmp_path / "git-calls.jsonl"
     env = {
-        "PATH": f"{tmp_path / 'bin'}{os.pathsep}{os.environ['PATH']}",
+        "PATH": f"{fake.parent}{os.pathsep}{os.environ['PATH']}",
         "HOME": str(tmp_path),
         "FAKE_GIT_LOG": str(log),
         "FAKE_GIT_EXIT": str(git_exit),
@@ -93,74 +81,48 @@ def _run_fetch(tmp_path: Path, token: str, git_exit: int) -> tuple[int, str, lis
         check=False,
     )
     calls = [json.loads(line) for line in log.read_text().splitlines()] if log.exists() else []
-    return result.returncode, result.stdout, calls
+    return result.returncode, result.stdout.splitlines(), calls
 
 
-class TestFetchSucceeds:
-    """A token git accepts: the header shape, masking, and argv hygiene."""
-
-    def test_step_exits_zero_and_calls_git_once(self, tmp_path: Path) -> None:
-        code, _, calls = _run_fetch(tmp_path, TOKEN, git_exit=0)
-        assert code == 0
-        assert len(calls) == 1
-        assert calls[0]["argv"] == ["fetch", "--depth=1", "origin", PR_SHA]
-
-    def test_header_is_basic_x_access_token_scoped_to_github(self, tmp_path: Path) -> None:
-        _, _, calls = _run_fetch(tmp_path, TOKEN, git_exit=0)
-        env = calls[0]["env"]
-        assert env["GIT_CONFIG_COUNT"] == "1"
-        assert env["GIT_CONFIG_KEY_0"] == "http.https://github.com/.extraheader"
-        assert env["GIT_CONFIG_VALUE_0"] == f"AUTHORIZATION: basic {EXPECTED_BASIC}"
-        assert env["GIT_TERMINAL_PROMPT"] == "0"
-
-    def test_token_and_credential_stay_out_of_argv(self, tmp_path: Path) -> None:
-        _, _, calls = _run_fetch(tmp_path, TOKEN, git_exit=0)
-        for arg in calls[0]["argv"]:
-            assert TOKEN not in arg
-            assert EXPECTED_BASIC not in arg
-
-    def test_credential_is_masked_before_any_other_line_shows_it(self, tmp_path: Path) -> None:
-        _, stdout, _ = _run_fetch(tmp_path, TOKEN, git_exit=0)
-        lines = stdout.splitlines()
-        showing = [i for i, line in enumerate(lines) if EXPECTED_BASIC in line]
-        assert showing, "the encoded credential was never masked"
-        assert lines[showing[0]] == f"::add-mask::{EXPECTED_BASIC}"
-
-    def test_log_names_the_source_and_never_the_token(self, tmp_path: Path) -> None:
-        _, stdout, _ = _run_fetch(tmp_path, TOKEN, git_exit=0)
-        assert f"fetch token source: {SOURCE}" in stdout.splitlines()
-        assert TOKEN not in stdout
+def test_accepted_token_sends_masked_basic_header_outside_argv(tmp_path: Path) -> None:
+    """One run, every success property: exit, header, prompt, argv, mask, log."""
+    code, lines, calls = _run_fetch(tmp_path, TOKEN, git_exit=0)
+    assert code == 0
+    assert len(calls) == 1, "git must run exactly once"
+    assert calls[0]["argv"] == ["fetch", "--depth=1", "origin", PR_SHA]
+    assert calls[0]["env"] == {
+        "GIT_CONFIG_COUNT": "1",
+        "GIT_CONFIG_KEY_0": "http.https://github.com/.extraheader",
+        "GIT_CONFIG_VALUE_0": f"AUTHORIZATION: basic {BASIC}",
+        "GIT_TERMINAL_PROMPT": "0",
+    }
+    assert not any(TOKEN in arg or BASIC in arg for arg in calls[0]["argv"])
+    showing = [line for line in lines if BASIC in line]
+    assert showing[:1] == [f"::add-mask::{BASIC}"], "credential must be masked first"
+    assert f"fetch token source: {SOURCE}" in lines
+    assert not any(TOKEN in line for line in lines)
 
 
-class TestFetchFails:
-    """An empty or rejected token fails with an annotation, not a git prompt."""
-
-    def test_empty_token_fails_before_git_runs(self, tmp_path: Path) -> None:
-        code, stdout, calls = _run_fetch(tmp_path, "", git_exit=0)
-        assert code == 1
-        assert calls == []
-        assert any(
-            line.startswith("::error::GH_FETCH_TOKEN is empty") for line in stdout.splitlines()
-        )
-
-    def test_rejected_token_names_the_source(self, tmp_path: Path) -> None:
-        code, stdout, calls = _run_fetch(tmp_path, TOKEN, git_exit=128)
-        assert code == 1
-        assert len(calls) == 1
-        errors = [line for line in stdout.splitlines() if line.startswith("::error::")]
-        assert len(errors) == 1
-        assert f"git fetch failed using {SOURCE}" in errors[0]
-        assert "contents:read" in errors[0]
-        assert TOKEN not in stdout
+def test_empty_token_fails_before_git_runs(tmp_path: Path) -> None:
+    code, lines, calls = _run_fetch(tmp_path, "", git_exit=0)
+    assert code == 1
+    assert calls == []
+    assert any(line.startswith("::error::GH_FETCH_TOKEN is empty") for line in lines)
 
 
-class TestMaterializeStepHoldsNoToken:
-    """Only the fetch step may carry the token into its environment."""
+def test_rejected_token_fails_with_error_naming_the_source(tmp_path: Path) -> None:
+    code, lines, calls = _run_fetch(tmp_path, TOKEN, git_exit=128)
+    errors = [line for line in lines if line.startswith("::error::")]
+    assert code == 1
+    assert len(calls) == 1
+    assert len(errors) == 1
+    assert f"git fetch failed using {SOURCE}" in errors[0]
+    assert "contents:read" in errors[0]
+    assert not any(TOKEN in line for line in lines)
 
-    def test_materialize_env_has_no_token_or_secret(self) -> None:
-        step = _step(MATERIALIZE_STEP)
-        env = step.get("env") or {}
-        assert "GH_FETCH_TOKEN" not in env
-        assert all("secrets." not in str(value) for value in env.values())
-        assert "secrets." not in step["run"]
-        assert "GH_FETCH_TOKEN" not in step["run"]
+
+def test_materialize_step_holds_no_token() -> None:
+    step = _step("Materialize candidate tree")
+    exposed = json.dumps(step.get("env") or {}) + step["run"]
+    assert "GH_FETCH_TOKEN" not in exposed
+    assert "secrets." not in exposed
