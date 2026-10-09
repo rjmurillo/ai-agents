@@ -117,9 +117,10 @@ runs:
       id: deadline
       shell: bash
       env:
+        AI_REVIEW_ROOT: ${{ github.action_path }}/../../..
         INHERITED_DEADLINE_EPOCH: ${{ env.AI_REVIEW_ACTION_DEADLINE_EPOCH }}
         TIMEOUT_MINUTES: ${{ inputs.timeout-minutes }}
-      run: python3 "$GITHUB_WORKSPACE/scripts/ci/establish_ai_review_deadline.py"
+      run: python3 "$AI_REVIEW_ROOT/scripts/ci/establish_ai_review_deadline.py"
 
     # Issue #4607: BOT_PAT was configured per ADR-026 Decision 5 but resolved
     # to the human account, so CI shared one API budget with every agent
@@ -132,15 +133,17 @@ runs:
       id: bot_identity
       shell: bash
       env:
+        AI_REVIEW_ROOT: ${{ github.action_path }}/../../..
         IDENTITY_TOKEN: ${{ inputs.bot-pat }}
         EXPECTED_BOT_ID: '250269933'
         EXPECTED_BOT_LOGIN: 'rjmurillo-bot'
-      run: python3 "$GITHUB_WORKSPACE/scripts/ci/check_bot_identity.py"
+      run: python3 "$AI_REVIEW_ROOT/scripts/ci/check_bot_identity.py"
 
     - name: Build context
       id: context
       shell: bash
       env:
+        AI_REVIEW_ROOT: ${{ github.action_path }}/../../..
         GH_TOKEN: ${{ inputs.github-token || github.token || inputs.bot-pat }}
         CONTEXT_TYPE: ${{ inputs.context-type }}
         PR_NUMBER: ${{ inputs.pr-number }}
@@ -149,21 +152,23 @@ runs:
         MAX_DIFF_LINES: ${{ inputs.max-diff-lines }}
         GITHUB_REPOSITORY: ${{ github.repository }}
         AI_REVIEW_ACTION_DEADLINE_EPOCH: ${{ steps.deadline.outputs.deadline_epoch }}
-      run: python3 "$GITHUB_WORKSPACE/scripts/ci/build_ai_review_context.py"
+      run: python3 "$AI_REVIEW_ROOT/scripts/ci/build_ai_review_context.py"
 
     - name: Load prompt template
       id: prompt
       shell: bash
       env:
+        AI_REVIEW_ROOT: ${{ github.action_path }}/../../..
         PROMPT_FILE: ${{ inputs.prompt-file }}
-      run: python3 "$GITHUB_WORKSPACE/scripts/ci/load_ai_review_prompt.py"
+      run: python3 "$AI_REVIEW_ROOT/scripts/ci/load_ai_review_prompt.py"
 
     - name: Check context infrastructure gate
       id: infra_gate
       shell: bash
       env:
+        AI_REVIEW_ROOT: ${{ github.action_path }}/../../..
         CONTEXT_INFRA_FAILURE: ${{ steps.context.outputs.context_infra_failure }}
-      run: python3 "$GITHUB_WORKSPACE/scripts/ci/check_ai_review_infra_gate.py"
+      run: python3 "$AI_REVIEW_ROOT/scripts/ci/check_ai_review_infra_gate.py"
 
     - name: Install uv
       uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7  # v10.2.0
@@ -173,6 +178,7 @@ runs:
       if: steps.infra_gate.outputs.skip != 'true'
       shell: bash
       env:
+        AI_REVIEW_ROOT: ${{ github.action_path }}/../../..
         ANTHROPIC_API_KEY: ${{ inputs.anthropic-api-key }}
         CLAUDE_MODEL: ${{ inputs.claude-model }}
         REVIEW_AGENT: ${{ inputs.agent }}
@@ -183,23 +189,25 @@ runs:
         AI_REVIEW_ACTION_DEADLINE_EPOCH: ${{ steps.deadline.outputs.deadline_epoch }}
         CONTEXT_MODE: ${{ steps.context.outputs.context_mode }}
         CONTEXT_FILE: ${{ steps.context.outputs.context_file }}
-      run: uv run --frozen python "$GITHUB_WORKSPACE/scripts/ci/invoke_claude_review.py"
+      run: uv run --frozen --project "$AI_REVIEW_ROOT" python "$AI_REVIEW_ROOT/scripts/ci/invoke_claude_review.py"
 
     - name: Parse output
       id: parse
       shell: bash
       env:
+        AI_REVIEW_ROOT: ${{ github.action_path }}/../../..
         AI_REVIEW_OUTPUT_FILE: ${{ steps.infra_gate.outputs.output_file }}
-      run: python3 "$GITHUB_WORKSPACE/scripts/ci/parse_ai_review_output.py"
+      run: python3 "$AI_REVIEW_ROOT/scripts/ci/parse_ai_review_output.py"
 
     - name: Execute post-analysis script
       if: inputs.execute-script != ''
       shell: bash
       env:
+        AI_REVIEW_ROOT: ${{ github.action_path }}/../../..
         GH_TOKEN: ${{ inputs.bot-pat }}
         AI_VERDICT: ${{ steps.parse.outputs.verdict }}
         AI_FINDINGS: ${{ steps.invoke_claude.outputs.raw_output }}
         AI_LABELS: ${{ steps.parse.outputs.labels }}
         PR_NUMBER: ${{ inputs.pr-number }}
         EXECUTE_SCRIPT: ${{ inputs.execute-script }}
-      run: python3 "$GITHUB_WORKSPACE/scripts/ci/execute_ai_review_post_script.py"
+      run: python3 "$AI_REVIEW_ROOT/scripts/ci/execute_ai_review_post_script.py"

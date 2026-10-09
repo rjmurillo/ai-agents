@@ -12,6 +12,8 @@ import pytest
 from scripts.ci import invoke_claude_review as claude
 from scripts.ci import parse_ai_review_output as parser
 
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+
 VALID_REPLY = "Analysis.\nVERDICT: PASS\nMESSAGE: all requirements covered"
 
 
@@ -99,21 +101,32 @@ def test_valid_response_passes_and_verdict_parser_is_unchanged(env, monkeypatch,
     assert claude.UNTRUSTED_CONTENT_NOTICE in FakeClient.last_kwargs["system"]
 
 
-def test_model_override_and_agent_system_prompt(env, tmp_path):
-    agents = tmp_path / ".claude" / "agents"
-    agents.mkdir(parents=True)
-    (agents / "analyst.md").write_text("You are the analyst.", encoding="utf-8")
+def test_model_override_and_agent_system_prompt(env):
+    definition = (_REPO_ROOT / ".claude" / "agents" / "analyst.md").read_text(encoding="utf-8")
     env["CLAUDE_MODEL"] = "claude-opus-5-5"
 
     assert run_main(env) == 0
 
     assert FakeClient.last_kwargs["model"] == "claude-opus-5-5"
-    assert FakeClient.last_kwargs["system"].startswith("You are the analyst.")
+    assert FakeClient.last_kwargs["system"].startswith(definition)
     assert FakeClient.last_kwargs["system"].endswith(claude.UNTRUSTED_CONTENT_NOTICE)
     assert "spec text" in FakeClient.last_kwargs["messages"][0]["content"]
 
 
+def test_agent_definition_ignores_a_workspace_copy(env, tmp_path, monkeypatch):
+    """A PR head in the cwd must not supply the system prompt."""
+    agents = tmp_path / ".claude" / "agents"
+    agents.mkdir(parents=True)
+    (agents / "analyst.md").write_text("INJECTED BY PR HEAD", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    assert run_main(env) == 0
+
+    assert "INJECTED BY PR HEAD" not in FakeClient.last_kwargs["system"]
+
+
 def test_system_prompt_is_only_the_notice_when_agent_file_absent(env):
+    env["REVIEW_AGENT"] = "no-such-agent"
     assert run_main(env) == 0
     assert FakeClient.last_kwargs["system"] == claude.UNTRUSTED_CONTENT_NOTICE
 
@@ -324,9 +337,6 @@ def test_main_runs_end_to_end(env, monkeypatch):
         monkeypatch.setenv(key, value)
     assert claude.main([]) == 0
     assert "VERDICT: PASS" in verdict_file(env)
-
-
-_REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 _CLAUDE_CALLERS = (
