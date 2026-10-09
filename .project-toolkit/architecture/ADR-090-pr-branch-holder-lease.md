@@ -252,7 +252,7 @@ The decision rejects generated holder ids for enforcement. That makes manual use
 - Implement the ADR in a later PR after this ADR is accepted.
 - Keep logic in Python. Workflow YAML may pass environment variables only.
 - Add tests for second agent blocked, stale claim reclaimed, crashed claim expiry, audited override, missing identifier fail-closed, and duplicate acquire by the same holder as no-op success.
-- Prove tests are selected by the pre-push pytest selector with `--collect-only`.
+- Prove tests are selected by the pre-push pytest selector with `--collect-only`. (Retired: PR #6241 deleted the import-graph test selector, so every pytest leg runs its full partition. Prove the new tests are collected with `pytest --collect-only` on their file instead.)
 - For RED/GREEN proof, run each new test on the implementation branch, then revert the implementation and prove it fails.
 - Use a renewal interval of 5 minutes. Renew before push and while tests, pre-push hooks, or transport are running.
 - Abort long work if renewal fails in enforcement mode.
