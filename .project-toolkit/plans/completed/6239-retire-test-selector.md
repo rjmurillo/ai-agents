@@ -4,7 +4,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Status** | In Progress |
+| **Status** | Completed |
 | **Created** | 2026-10-08 |
 | **Owner** | orchestrator |
 | **Complexity** | High |
@@ -17,7 +17,7 @@
 - [x] M3: Pre-push runs collection only.
 - [x] M4: Delete the selector, its tests, and its doc references.
 - [x] M5: Update ADR-101, ADR-104, and SPEC-6211 with a full-panel debate log.
-- [ ] M6: Validate locally and in CI, measure, then merge.
+- [x] M6: Validate locally and in CI, measure, then merge.
 
 ## Spec
 
@@ -151,6 +151,9 @@ Allowlist for the reference gate: `.project-toolkit/plans/`, `.project-toolkit/s
 | 2026-10-08 | Build Phase 2b: trigger activated on `git_hook_policy.py` and `run_workflow_local_test.py`; both LOCAL HIGH; authority record passed | orchestrator |
 | 2026-10-08 | M0 to M5 done: audit kept loadfile; pytest-split legs; pre-push collection only; selector deleted; ADR panel reached consensus in 2 rounds (5 Accept, 1 Disagree-and-Commit) | orchestrator |
 | 2026-10-08 | Memory gate: selector built for #5050 (878 s per push, path-filter false greens #4345, #4408); partitions keep each job under 10 minutes (#4854); pre-push suites share one timeout (PR #3568); loadfile protects file isolation (SPEC-6211). Each split group must stay under the 10-minute job contract. | orchestrator |
+| 2026-10-09 | Merged as 0c801576a in PR #6241, closing #6239 | orchestrator |
+| 2026-10-09 | First CI run 37867514214 leg times: split-1 262 s, split-2 300 s, split-3 302 s, split-4 224 s. Slowest leg is under the 340 s target. | orchestrator |
+| 2026-10-09 | Windows path-contract job at 317 s is now the critical path (deferred item) | orchestrator |
 
 ## Blockers
 
