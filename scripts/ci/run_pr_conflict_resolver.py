@@ -17,7 +17,6 @@ import json
 import os
 import subprocess
 import sys
-from pathlib import Path
 
 EXIT_SUCCESS = 0
 EXIT_FAILURE = 1
@@ -25,13 +24,9 @@ EXIT_CONFIG = 2
 
 # Anchored on this file so the resolver runs from the same (trusted) tree as this
 # script even when the cwd workspace holds a PR head.
-_RESOLVER = str(
-    Path(__file__).resolve().parents[2]
-    / ".claude"
-    / "skills"
-    / "merge-resolver"
-    / "scripts"
-    / "resolve_pr_conflicts.py"
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
+_RESOLVER = os.path.join(
+    _REPO_ROOT, ".claude", "skills", "merge-resolver", "scripts", "resolve_pr_conflicts.py"
 )
 
 
