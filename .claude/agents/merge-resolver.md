@@ -98,7 +98,7 @@ For each conflicted file, classify as auto-resolvable, rename-both, or manual:
 
 - `.agents/*` (modify/modify only; add/add on evidence artifacts uses the rename class below), `.serena/*`, `templates/*`
 - Lock files (`package-lock.json`, `yarn.lock`)
-- `.claude/skills/*`, `.claude/agents/*`, `.claude/commands/*`
+- `.claude/skills/*`, `.claude/agents/*`
 - `src/copilot-cli/*`, `src/vs-code-agents/*`, `src/claude/*`
 
 **Rename, never content-merge** (add/add on append-only evidence artifacts):

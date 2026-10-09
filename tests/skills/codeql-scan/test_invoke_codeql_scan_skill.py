@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Tests for invoke_codeql_scan_skill module."""
+"""Tests for invoke_codeql_scan_skill constants, helpers, and CLI entry point.
+
+run_scan has its own module, test_invoke_codeql_scan_skill_run_scan.py.
+"""
 
 from __future__ import annotations
 
@@ -18,7 +21,6 @@ from claude_skills_import import import_skill_script
 mod = import_skill_script(".claude/skills/codeql-scan/scripts/invoke_codeql_scan_skill.py")
 get_repo_root = mod.get_repo_root
 write_colored = mod.write_colored
-run_scan = mod.run_scan
 main = mod.main
 VALID_OPERATIONS = mod.VALID_OPERATIONS
 VALID_LANGUAGES = mod.VALID_LANGUAGES
@@ -86,52 +88,26 @@ class TestGetRepoRoot:
 class TestWriteColored:
     """Tests for write_colored function."""
 
-    def test_success_prefix(self, capsys: pytest.CaptureFixture) -> None:
+    def test_success_prefix(self, capsys: pytest.CaptureFixture[str]) -> None:
         write_colored("test message", "success")
         captured = capsys.readouterr()
         assert "[PASS]" in captured.err
+        assert "test message" in captured.err
 
-    def test_error_prefix(self, capsys: pytest.CaptureFixture) -> None:
+    def test_error_prefix(self, capsys: pytest.CaptureFixture[str]) -> None:
         write_colored("error message", "error")
         captured = capsys.readouterr()
         assert "[FAIL]" in captured.err
 
-    def test_warning_prefix(self, capsys: pytest.CaptureFixture) -> None:
+    def test_warning_prefix(self, capsys: pytest.CaptureFixture[str]) -> None:
         write_colored("warning message", "warning")
         captured = capsys.readouterr()
         assert "[WARNING]" in captured.err
 
-    def test_info_prefix(self, capsys: pytest.CaptureFixture) -> None:
+    def test_info_prefix(self, capsys: pytest.CaptureFixture[str]) -> None:
         write_colored("info message", "info")
         captured = capsys.readouterr()
         assert "[INFO]" in captured.err
-
-
-class TestRunScan:
-    """Tests for run_scan function."""
-
-    def test_returns_3_when_not_in_repo(self) -> None:
-        with patch.object(mod, "get_repo_root", return_value=None):
-            result = run_scan()
-        assert result == 3
-
-    def test_validate_returns_3_when_config_missing(self, tmp_path: Path) -> None:
-        with patch.object(mod, "get_repo_root", return_value=str(tmp_path)):
-            result = run_scan(operation="validate")
-        assert result == 3
-
-    def test_returns_3_when_codeql_cli_missing(self, tmp_path: Path) -> None:
-        with patch.object(mod, "get_repo_root", return_value=str(tmp_path)):
-            result = run_scan(operation="full")
-        assert result == 3
-
-    def test_returns_3_when_scan_script_missing(self, tmp_path: Path) -> None:
-        codeql_dir = tmp_path / ".codeql" / "cli"
-        codeql_dir.mkdir(parents=True)
-        (codeql_dir / "codeql").touch()
-        with patch.object(mod, "get_repo_root", return_value=str(tmp_path)):
-            result = run_scan(operation="full")
-        assert result == 3
 
 
 class TestMain:
@@ -155,6 +131,12 @@ class TestMain:
             with patch.object(mod, "run_scan", return_value=0) as mock_scan:
                 main()
         mock_scan.assert_called_once_with(operation="full", languages=["python"], ci_mode=False)
+
+    def test_help_exits_zero(self) -> None:
+        with patch("sys.argv", ["invoke_codeql_scan_skill.py", "--help"]):
+            with pytest.raises(SystemExit) as exc:
+                main()
+        assert exc.value.code == 0
 
 
 @pytest.fixture

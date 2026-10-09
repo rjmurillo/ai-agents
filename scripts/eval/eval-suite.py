@@ -18,17 +18,15 @@ Evaluator routing:
     - Skill reference changes    -> eval-knowledge-integration.py (parent skill)
     - Canonical rule changes     -> eval-rule-activation.py (scenario-gated)
     - Instruction mirror changes -> eval-rule-activation.py (via canonical rule)
-    - Command mirror changes     -> not evaluated (evaluate the command instead)
     - Entrypoint changes         -> not evaluated (no evaluator exists)
 
 Every classified category either names a runner or carries an explicit
 `not_evaluated` reason in the routing plan. No context-bearing category falls
 silently into `other` (issue #4882, required work item 2).
 
-Two rows are identified by something other than a directory prefix, so they run
+One row is identified by something other than a directory prefix, so it runs
 before every prefix row: entrypoints, which are named by filename and live
-inside the prompt and skill trees, and command mirrors, which sit in the
-Copilot skills tree but are generated from `.claude/commands/`.
+inside the prompt and skill trees.
 
 Usage:
     # Auto-detect from git diff against main:
@@ -189,7 +187,6 @@ def worst_exit_code(results: dict[str, Any], any_failure: bool) -> int:
 # ---------------------------------------------------------------------------
 
 PROMPT_PATTERNS = [
-    ".claude/commands/",
     ".github/prompts/",
     ".project-toolkit/security/prompts/",
 ]
@@ -321,10 +318,9 @@ def _rules_for(
 ROUTING_RULES: tuple[RoutingRule, ...] = (
     # Basename rows first. An entrypoint is identified by its filename, not by
     # where it sits, and real ones live inside the prompt and skill trees
-    # (`.claude/commands/CLAUDE.md`, `.claude/skills/CLAUDE.md`,
-    # `.claude/skills/adr-review/CLAUDE.md`, `src/copilot-cli/skills/github/
-    # CLAUDE.md`, and 14 more). Behind the prefix rows they were all captured
-    # as prompts or skills.
+    # (`.claude/skills/CLAUDE.md`, `.claude/skills/adr-review/CLAUDE.md`,
+    # `src/copilot-cli/skills/github/CLAUDE.md`, and others). Behind the prefix
+    # rows they were all captured as prompts or skills.
     RoutingRule("entrypoints", basenames=ENTRYPOINT_BASENAMES),
     *_rules_for("prompts", PROMPT_PATTERNS),
     # References must precede the trees that contain them.
@@ -423,9 +419,9 @@ def find_scenarios_for_prompt(prompt_path: str) -> str | None:
     A skill body is named `SKILL.md` in a directory named for the skill, so the
     file stem is the useless constant `SKILL` for every one of them. The name a
     reader means is the directory. ADR-064 (issue #5632) turned every command
-    into a skill, so without this the convention resolved for
-    `.claude/commands/spec.md` and returned None for
-    `.claude/skills/spec/SKILL.md`, silently unrouting every converted prompt.
+    into a skill, so without this the convention resolved for a flat
+    `<name>.md` and returned None for `.claude/skills/spec/SKILL.md`, silently
+    unrouting every converted prompt.
     """
     path = Path(prompt_path)
     stem = path.parent.name if path.name == "SKILL.md" else path.stem

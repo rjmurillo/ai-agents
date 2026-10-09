@@ -281,7 +281,6 @@ AUTO_RESOLVABLE_PATTERNS: list[str] = [
     ".claude/skills/*",
     ".claude/skills/*/*",
     ".claude/skills/*/*/*",
-    ".claude/commands/*",
     ".claude/agents/*",
     # Template files - main is authoritative (include subdirectories)
     "templates/*",

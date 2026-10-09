@@ -40,14 +40,38 @@ DEFAULT_BASELINE_NAME = "agent_skill_discriminator_baseline.json"
 # agent definition whatever its name, so the corpus never leaves them.
 AGENT_CORPUS_ROOTS: tuple[str, ...] = (".claude/agents/", "templates/agents/")
 
-# Command roots searched for c1/c3 scoring. Dirty files under these roots
-# also contaminate a baseline because ``build_pipeline_index`` reads them
-# from disk.
-COMMAND_ROOTS: tuple[str, ...] = (".claude/commands/", "templates/commands/")
+# Every tree a user-invocable pipeline can be authored in, newest first.
+# ADR-064 retired `.claude/commands/` and made skills the single user-invocable
+# surface, so a pipeline that invokes an agent is now a SKILL.md, not a command
+# file. The retired command trees stay in the list because a consumer repo that
+# has not finished the migration still authors pipelines there; in this
+# repository both are absent and contribute nothing.
+PIPELINE_SOURCES: tuple[tuple[str, str], ...] = (
+    (".claude/skills", "SKILL.md"),
+    ("templates/skills", "*.SKILL.md.tmpl"),
+    (".claude/commands", "*.md"),
+    ("templates/commands", "*.md"),
+)
+
+# Directories of ``PIPELINE_SOURCES`` as git pathspecs. Single source of truth
+# for the scorer (``check_agent_skill_discriminator.py`` imports
+# ``PIPELINE_SOURCES`` from here) and the dirty-state guard, so the two cannot
+# drift. ``build_pipeline_index`` reads these trees from disk.
+PIPELINE_ROOTS: tuple[str, ...] = tuple(f"{rel}/" for rel, _ in PIPELINE_SOURCES)
+
+# Git pathspecs for the exact files ``build_pipeline_index`` reads: each
+# ``PIPELINE_SOURCES`` (dir, glob) pair, matched at any depth like ``rglob``.
+# Used to find gitignored files, which ``--exclude-standard`` hides but the
+# scorer still reads. Whole roots cannot be used there: they would also match
+# ignored noise such as ``__pycache__/*.pyc``. Agent files need no such check,
+# because the agent corpus is read from ``git ls-tree HEAD``, never from disk.
+PIPELINE_FILE_PATHSPECS: tuple[str, ...] = tuple(
+    f":(glob){rel}/**/{pattern}" for rel, pattern in PIPELINE_SOURCES
+)
 
 # All roots whose on-disk content feeds into scoring. Used by the dirty-state
 # guard to refuse a baseline write when the working tree differs from HEAD.
-SCORING_ROOTS: tuple[str, ...] = AGENT_CORPUS_ROOTS + COMMAND_ROOTS
+SCORING_ROOTS: tuple[str, ...] = AGENT_CORPUS_ROOTS + PIPELINE_ROOTS
 
 # Closed range a recorded baseline score may occupy.
 #
@@ -185,10 +209,11 @@ def refuse_dirty_scoring_inputs(repo_root: Path) -> bool:
 
     The path inventory comes from ``git ls-tree HEAD``, but ``score_agent``
     reads agent content with ``Path.read_text()`` and
-    ``build_pipeline_index`` walks command files on disk. If the working tree
-    has dirty tracked files or untracked files under any scoring root, the
-    recorded baseline describes a state that differs from HEAD and two
-    checkouts of the same commit can produce different baselines.
+    ``build_pipeline_index`` walks pipeline files (skills and commands) on
+    disk. If the working tree has dirty tracked files or untracked files under
+    any scoring root, the recorded baseline describes a state that differs
+    from HEAD and two checkouts of the same commit can produce different
+    baselines.
 
     Returns True (refuse) when dirty or untracked files exist under any
     scoring root, or when git cannot answer.
@@ -214,25 +239,40 @@ def refuse_dirty_scoring_inputs(repo_root: Path) -> bool:
         )
         return True
 
-    # Check for untracked files under scoring roots.
-    proc = run_git(
-        repo_root, "ls-files", "--others", "--exclude-standard", "--", *SCORING_ROOTS
+    if _untracked_listing_refuses(repo_root, "untracked", SCORING_ROOTS, False):
+        return True
+    return _untracked_listing_refuses(
+        repo_root, "ignored", PIPELINE_FILE_PATHSPECS, True
     )
-    if problem := git_timeout_problem(proc, "checking untracked scoring inputs"):
+
+
+def _untracked_listing_refuses(
+    repo_root: Path, kind: str, pathspecs: tuple[str, ...], ignored: bool
+) -> bool:
+    """True when git lists ``kind`` files under ``pathspecs`` or cannot answer.
+
+    ``ignored=False`` lists untracked, non-ignored files. ``ignored=True``
+    lists untracked files that .gitignore hides, which the scorer's directory
+    walk still reads.
+    """
+    args = ["ls-files", "--others", "--exclude-standard"]
+    if ignored:
+        args.append("--ignored")
+    proc = run_git(repo_root, *args, "--", *pathspecs)
+    if problem := git_timeout_problem(proc, f"checking {kind} scoring inputs"):
         print(problem, file=sys.stderr)
         return True
     if proc is None or proc.returncode != 0:
         return True
-    untracked = proc.stdout.decode("utf-8", errors="replace").strip()
-    if untracked:
+    listing = proc.stdout.decode("utf-8", errors="replace").strip()
+    if listing:
         print(
-            f"Refusing baseline write: untracked files under scoring roots:\n"
-            f"{untracked}\n"
-            "Remove or commit untracked files before running --update-baseline.",
+            f"Refusing baseline write: {kind} files under scoring roots:\n"
+            f"{listing}\n"
+            f"Remove or commit {kind} files before running --update-baseline.",
             file=sys.stderr,
         )
         return True
-
     return False
 
 

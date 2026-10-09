@@ -23,7 +23,6 @@ _GATED_SKILL_TREE_MIRRORS = (
     "observability",
     "orphan-ref-validator",
     "security-detection",
-    "slashcommandcreator",
     "taste-lints",
 )
 _TRANSLATED_SKILL_TREE_MIRRORS = frozenset(
@@ -34,7 +33,6 @@ _TRANSLATED_SKILL_TREE_MIRRORS = frozenset(
         "orphan-ref-validator",
         "review",
         "security-detection",
-        "slashcommandcreator",
         "taste-lints",
     }
 )

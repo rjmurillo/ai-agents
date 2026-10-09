@@ -84,11 +84,10 @@ git ls-files .claude src/copilot-cli src/claude | xargs grep -l "vendor-portabil
 descends into the nested checkouts under `.claude/worktrees/`, which is the same
 trap described below.
 
-Two structural facts hold regardless of the count. The declaration lives in skill
-files, so `.claude/skills/` and its `src/copilot-cli/skills/` mirror hold nearly
-all of them, and the two track each other because the mirror is generated.
-`src/claude/` holds none, because it ships agents and has no `skills/` directory
-at all.
+One structural fact holds regardless of the count. The declaration lives in
+skill files, so the `skills/` trees of the three plugin roots hold nearly all of
+them, and the trees track each other because the mirrors are generated.
+`src/claude/` gained its `skills/` tree at ADR-109 B3.
 
 Use the declaration when the reference is real and intended. Do not use it to
 silence a reference you should have fixed.
@@ -113,7 +112,7 @@ Measured while writing this rule: 32 Markdown files inside the plugin roots carr
 
 Frontmatter is gated. `check_plugin_frontmatter_self_containment.py` holds `description` and `name` at zero undeclared outward file references across all three plugin roots. A `description` loads into every consumer session whether or not the skill is invoked, so a dangling path there is the most-read and least-useful kind.
 
-Body prose is not gated, and the ratchet that covers part of it covers less than its name suggests. `check_skill_md_portability.py` scans the `skills/` tree of every plugin root in `PLUGIN_ROOTS` (`.claude`, `src/claude`, `src/copilot-cli`), so `src/copilot-cli/skills` is inside it, not outside. What sits outside is everything that is not a `skills/` tree: `.claude/commands/` and the agent files under `src/claude/`, which ships no `skills/` directory. Its pattern set also has no `docs/` entry. That combination is how two `docs/` paths sat in shipped descriptions for months. `docs/agent-metrics.md` entered the `metrics` description on 2026-05-30 in #2136 (`817e466f82`); `docs/autonomous-pr-monitor.md` entered the `pr-autofix` description on 2026-05-25 in #2049 (`79867ca6ed`), under that command's pre-rename name `autofix-pr.md`. Both dates were wrong in an earlier draft of this rule, in both directions, and the reason generalizes: `git log -S` finds a string anywhere in a file, so a reference that lived in body prose for months reads as frontmatter provenance unless you open the historical file and look at the block. Check the field the claim is about, follow renames, and read the source file rather than its generated mirror. This rule shipped on 2026-07-26 and removed neither, because nothing in the repository read that surface until the frontmatter gate.
+Body prose is not gated, and the ratchet that covers part of it covers less than its name suggests. `check_skill_md_portability.py` scans the `skills/` tree of every plugin root in `PLUGIN_ROOTS` (`.claude`, `src/claude`, `src/copilot-cli`), so `src/copilot-cli/skills` is inside it, not outside. What sits outside is everything that is not a `skills/` tree, such as the agent files under `src/claude/agents/` and `src/copilot-cli/agents/`. (`.claude/commands/` used to sit outside too, until ADR-064 retired it.) Its pattern set also has no `docs/` entry. That combination is how two `docs/` paths sat in shipped descriptions for months. `docs/agent-metrics.md` entered the `metrics` description on 2026-05-30 in #2136 (`817e466f82`); `docs/autonomous-pr-monitor.md` entered the `pr-autofix` description on 2026-05-25 in #2049 (`79867ca6ed`), under that command's pre-rename name `autofix-pr.md`. Both dates were wrong in an earlier draft of this rule, in both directions, and the reason generalizes: `git log -S` finds a string anywhere in a file, so a reference that lived in body prose for months reads as frontmatter provenance unless you open the historical file and look at the block. Check the field the claim is about, follow renames, and read the source file rather than its generated mirror. This rule shipped on 2026-07-26 and removed neither, because nothing in the repository read that surface until the frontmatter gate.
 
 Outward is relative to the root that ships the file, not to the directory name. `src/copilot-cli` ships its own `docs/` directory, so `docs/copilot-instructions.md` resolves for that plugin's consumer while the identical string under `.claude` resolves to nothing. The gate resolves every candidate against its owning root before reporting it, and a `../` prefix never counts as shipped even when the file exists one level up.
 

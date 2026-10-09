@@ -9,6 +9,7 @@ tools:
   - cloudmcp-manager/*
   - serena/*
 role: coordinator
+isolation_required: true
 ---
 
 # Critic Agent

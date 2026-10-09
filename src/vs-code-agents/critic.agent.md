@@ -10,6 +10,7 @@ tools:
   - serena/*
   - memory
 role: coordinator
+isolation_required: true
 ---
 
 # Critic Agent
