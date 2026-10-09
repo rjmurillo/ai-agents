@@ -424,7 +424,7 @@ jobs:
 
       # Issue #5610. The count-ratchet registry deadline is calibrated against
       # a wall-clock measurement, and a wall clock taken inside the `-n auto
-      # --dist loadfile` shard above measures the runner's load, not the
+      # --dist worksteal` shard above measures the runner's load, not the
       # registry: `main` went red at 19f257b5b with 87.7s against an 85s
       # deadline on a tree whose corpus had shrunk. The test skips unless
       # COUNT_RATCHET_TIMING_MEASUREMENT is 1, so this is the only place it

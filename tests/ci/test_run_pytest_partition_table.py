@@ -20,8 +20,8 @@ def test_split_count_is_four_and_names_follow_it() -> None:
     assert mod.split_names() == list(_SPLIT_PARTITIONS)
 
 
-def test_distribution_mode_is_loadfile() -> None:
-    assert mod.PYTEST_DIST_MODE == "loadfile"
+def test_distribution_mode_is_worksteal() -> None:
+    assert mod.PYTEST_DIST_MODE == "worksteal"
     assert mod._PARALLEL == ["-n", "auto", "--dist", mod.PYTEST_DIST_MODE]
 
 

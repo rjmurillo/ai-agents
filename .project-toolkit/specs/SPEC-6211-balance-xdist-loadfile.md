@@ -2,6 +2,8 @@
 
 Issue: #6211. Owner decision (2026-10-07, D2): keep `--dist loadfile`, split slow files, do not change the distribution mode.
 
+Superseded 2026-10-09: the owner switched `PYTEST_DIST_MODE` to `worksteal` (issue #6239). Evidence: identical failure sets across 7 full-suite runs (no isolation break), the same speed at CI's 4 workers, and about 20 percent faster at 16 workers (246s to 197s). The file splits below stay; the decision to keep `loadfile` does not.
+
 ## Step 0 First Principles
 
 ### Q1 Demand Reality
