@@ -64,7 +64,7 @@ Exit: AC 1, 6, 7.
 | `patch("pre_pr_sequence._SEQUENCE")` targets resolve differently from a new module | Low | Medium | The patch targets are module strings, not relative to the test file. Run each file alone and under xdist |
 | A new validator added to `_EXPECTED` later skips the real-checker test | Medium | High | The partition guard derives the fast list from `_EXPECTED` minus the slow one, so new validators land in the fast file automatically |
 | Copied `noqa` comments trip the pre-push security suppression policy (#4352) | Medium | Low | Copy no `noqa` comments |
-| Import-graph selection misses the new files | Low | Medium | New files import the same production modules. Check with `select_tests.select` on `scripts/validation/pre_pr.py` |
+| Import-graph selection misses the new files | Low | Medium | New files import the same production modules. Check with `select_tests.select` on `scripts/validation/pre_pr.py` (Note 2026-10-09: PR #6241 retired the import-graph selector, so `select_tests` no longer exists and this risk no longer applies.) |
 | Tail barely moves because 26s single tests remain | Medium | Low | Expected. Record what still limits it on #6211, as its acceptance criteria allow |
 
 ## Decision Log

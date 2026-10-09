@@ -108,10 +108,12 @@ jobs:
     # Copilot review round 3, PR #5344: this whole-tree guard examines every
     # file under testpaths regardless of diff, so it must not sit behind a
     # path filter (`.claude/rules/ci-scripts.md`: "The whole tree ... MUST
-    # run"). It used to live inside the `test` job's `primary` leg (split-1), which
-    # is skipped whenever check-paths reports no Python-relevant diff,
-    # letting a mainline push publish a stale green tick without measuring
-    # the current tree. No `needs:`/`if:` here on purpose.
+    # run"). It used to live inside the `test` job's `primary` leg (split-1).
+    # That leg was skipped whenever check-paths reported no Python-relevant
+    # diff, which let a mainline push publish a stale green tick without
+    # measuring the current tree. The `test` job now has no job-level `if:` or
+    # `needs:`, but this guard stays a separate job. No `needs:`/`if:` here on
+    # purpose.
     runs-on: ubuntu-26.04-arm
     timeout-minutes: 5
     permissions:
