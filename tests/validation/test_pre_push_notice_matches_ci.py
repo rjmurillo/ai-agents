@@ -24,7 +24,8 @@ def test_the_notice_says_ci_runs_every_leg_on_every_event(
 ) -> None:
     git_hook_policy._collection_stand_in(tmp_path)
     notice = capsys.readouterr().err
-    assert "every pytest leg in\n  full on every push, pull request, and merge-queue event" in notice
+    expected = "every pytest leg in\n  full on every push, pull request, and merge-queue event"
+    assert expected in notice
     assert "paths filter" not in notice
 
 
