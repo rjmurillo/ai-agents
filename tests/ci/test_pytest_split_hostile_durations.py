@@ -45,11 +45,11 @@ def _run_groups(durations: Path) -> tuple[list[str], list[int]]:
 @pytest.mark.timeout(300)
 @pytest.mark.parametrize("shape", ["one_test_dominates", "only_unknown_ids", "negative_durations"])
 def test_a_hostile_durations_file_cannot_drop_a_test(shape: str, tmp_path: Path) -> None:
-    """AC2: a committed durations edit can skew group sizes but never drop a test.
+    """AC2: a durations map of any content can skew group sizes but never drop a test.
 
-    ADR-101 rates `tests/.test_durations` Medium on that basis. The worst a head
-    edit can do is overload one leg past its job timeout, empty a group, or crash
-    the plugin. An empty group exits 5 ("no tests collected") and a crash exits 3
+    Only a push to main writes the cached map that the legs restore, but this
+    property holds for a corrupt cache too. The worst such a map can do is
+    overload one leg past its job timeout, empty a group, or crash the plugin. An empty group exits 5 ("no tests collected") and a crash exits 3
     (INTERNALERROR); run_pytest_non_tmp passes either code through, so the leg
     fails red. The property: no test goes missing while every group exits 0.
     """
