@@ -67,3 +67,21 @@ def test_relative_durations_path_resolves_because_the_runner_sets_cwd_to_the_roo
     """
     assert run_pytest_non_tmp.PROJECT_ROOT == mod._PROJECT_ROOT
     assert (run_pytest_non_tmp.PROJECT_ROOT / mod.DURATIONS_PATH).is_file()
+
+
+def test_a_missing_durations_file_raises_a_ci_warning_annotation(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    """A degraded split shows in the Actions UI, not only in the leg log."""
+    capture_runner(monkeypatch)
+    monkeypatch.setattr(mod, "_PROJECT_ROOT", tmp_path)
+    mod.main(["--partition", "split-2"])
+    assert capsys.readouterr().out.startswith("::warning title=pytest-split::")
+
+
+def test_a_present_durations_file_raises_no_annotation(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    capture_runner(monkeypatch)
+    mod.main(["--partition", "split-2"])
+    assert "::warning" not in capsys.readouterr().out

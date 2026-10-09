@@ -39,13 +39,16 @@ PYTEST_DIST_MODE = "loadfile"
 _PARALLEL = ["-n", "auto", "--dist", PYTEST_DIST_MODE]
 
 # The pool is every test file outside the dedicated legs and the unpartitioned
-# pins, split into SPLIT_COUNT groups by recorded duration (pytest-split). The
-# durations file is committed; when it is absent or stale, pytest-split warns
-# and falls back to an even split by test count, so CI still runs every test.
-# Each group must stay under the ten minute
-# job contract of issue #4854. split-1 is the `primary` matrix leg and carries
-# the extra pin, lint, and ratchet steps in pytest.yml, so its pytest share
-# must leave room for them inside the same job timeout.
+# pins, split into SPLIT_COUNT groups by recorded duration (pytest-split).
+#
+# The durations file is committed. When it is absent, pytest-split splits evenly
+# by test count and this runner emits a CI warning annotation. A test missing
+# from the file gets the average recorded duration. Either way every test still
+# runs; only the balance degrades.
+#
+# Each group must stay under the ten minute job contract of issue #4854.
+# split-1 is the `primary` matrix leg and carries the extra pin, lint, and
+# ratchet steps in pytest.yml, so its share must leave room for them.
 #
 # Refresh the durations with `uv run python scripts/ci/run_pytest_partition.py
 # --refresh-durations`, which runs the whole pool once with no `--splits`.
@@ -178,6 +181,11 @@ def main(argv: list[str] | None = None) -> int:
         print(f"refresh-durations mode=refresh durations={DURATIONS_PATH}", file=sys.stderr)
         return run_pytest_non_tmp.main([*passthrough, *_refresh_args()])
     print(_summary_line(known.partition), file=sys.stderr)
+    if known.partition in _PARALLEL_PARTITIONS and _durations_digest() == "missing":
+        print(
+            f"::warning title=pytest-split::{DURATIONS_PATH} is missing; this leg "
+            "split by test count, so leg times may be unbalanced."
+        )
     return run_pytest_non_tmp.main([*passthrough, *_PARTITION_FULL_ARGS[known.partition]])
 
 
