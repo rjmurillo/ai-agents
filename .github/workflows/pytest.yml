@@ -784,7 +784,7 @@ jobs:
           path: .testmondata
           include-hidden-files: true
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 7
 
   # The only job that publishes the required "Run Python Tests" context. It
   # replaces a same-named pair (this job plus a skip-tests pass-through that
