@@ -657,7 +657,7 @@ jobs:
           artifacts/durations-split-2.json
           artifacts/durations-split-3.json
           artifacts/durations-split-4.json
-          --output pytest-split-cache/durations.json
+          --output .pytest-split/durations.json
 
       - name: Save pytest-split durations
         if: >-
@@ -665,7 +665,7 @@ jobs:
           && steps.merge-durations.outcome == 'success'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
-          path: pytest-split-cache/durations.json
+          path: .pytest-split/durations.json
           key: pytest-split-durations-${{ github.run_id }}-${{ github.run_attempt }}
 
       # `!cancelled()` so a failed merge above still gets a duration report.

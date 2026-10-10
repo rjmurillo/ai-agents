@@ -6,7 +6,7 @@ the union is the full, fresh map::
 
     uv run python scripts/testing/duration_split_merge.py \\
         artifacts/durations-split-1.json artifacts/durations-split-2.json \\
-        --output pytest-split-cache/durations.json
+        --output .pytest-split/durations.json
 
 Exit codes: 0 ok, 1 logic (the merge is empty), 2 config (a malformed file),
 3 external (an unreadable input or an output that cannot be written).

@@ -7,6 +7,7 @@ restore. That holds only while the one save step stays gated on a push to main.
 
 from __future__ import annotations
 
+from scripts.ci import run_pytest_partition as runner
 from tests.ci.pytest_split_workflow_helpers import (
     WORKFLOW,
     durations_saves,
@@ -39,3 +40,17 @@ class TestSaveOnlyFromMain:
         )
         assert "a pull request cannot plant timings" in comments
         assert "Never save from pull_request or merge_group" in comments
+
+
+class TestSaveAndRestoreShareOnePath:
+    """actions/cache derives the cache version from `path`, so a restore only
+    matches a save made with the identical path string."""
+
+    def test_save_path_is_byte_identical_to_the_restore_path(self) -> None:
+        ((_, save),) = durations_saves()
+        (restore,) = steps_using("test", "actions/cache/restore")
+        assert save["with"]["path"] == restore["with"]["path"]
+
+    def test_save_path_is_the_path_the_runner_reads(self) -> None:
+        ((_, save),) = durations_saves()
+        assert save["with"]["path"] == runner.DURATIONS_RESTORE_PATH
