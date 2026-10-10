@@ -377,7 +377,9 @@ class TestRunAssessment:
             check=True, capture_output=True,
         )
 
-        with patch.object(mod, "_get_changed_files", return_value={"changed.md"}):
+        with patch.object(
+            mod, "_get_changed_diff", return_value=({"changed.md"}, {})
+        ):
             result = run_assessment(
                 tmp_path,
                 doc_globs=["*.md"],
@@ -409,7 +411,7 @@ class TestRunAssessment:
             check=True, capture_output=True,
         )
 
-        with patch.object(mod, "_get_changed_files", return_value=set()):
+        with patch.object(mod, "_get_changed_diff", return_value=(set(), {})):
             result = run_assessment(
                 tmp_path,
                 doc_globs=["*.md"],

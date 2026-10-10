@@ -3595,7 +3595,9 @@ class TestNoLedgerFailureLeaksTheDigest:
         code, out = self._gate(capsys, inc, split, record)
         assert code == EXIT_CONFIG and key not in json.dumps(out)
 
-    def test_a_lock_cleanup_failure_does_not_leak(self, tmp_path, capsys, monkeypatch):
+    def test_a_lock_cleanup_failure_does_not_leak(
+        self, tmp_path, tmp_path_factory, capsys, monkeypatch
+    ):
         """The unlink in the finally block names the lock, and the lock is the digest.
 
         Before round 7 this escaped as an uncaught PermissionError, since main
@@ -3626,8 +3628,11 @@ class TestNoLedgerFailureLeaksTheDigest:
         text = captured.out + captured.err
         assert code != EXIT_CONFIG
         assert key not in text
+        # Task ids are short ("t4"), so a path like ".../bt4/..." contains one.
+        # The message names the ledger path; drop the base temp before matching.
+        scrubbed = text.replace(str(tmp_path_factory.getbasetemp()), "<base>")
         for task in record["sel"]:
-            assert task not in text
+            assert task not in scrubbed
 
     def test_a_lock_that_fails_for_any_other_reason_does_not_leak(
         self, tmp_path, capsys, monkeypatch

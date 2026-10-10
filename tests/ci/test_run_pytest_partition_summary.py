@@ -28,15 +28,14 @@ def test_summary_line_for_a_split_leg_names_the_split_and_durations_hash(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path: Path
 ) -> None:
     capture_runner(monkeypatch)
-    durations = tmp_path / "durations"
-    durations.write_bytes(b'{"a::t": 1.0}')
+    (tmp_path / mod.DURATIONS_RESTORE_PATH).parent.mkdir()
+    (tmp_path / mod.DURATIONS_RESTORE_PATH).write_bytes(b'{"a::t": 1.0}')
     monkeypatch.setattr(mod, "_PROJECT_ROOT", tmp_path)
-    monkeypatch.setattr(mod, "DURATIONS_PATH", "durations")
     digest = hashlib.sha256(b'{"a::t": 1.0}').hexdigest()[:12]
     mod.main(["--partition", "split-3"])
     assert capsys.readouterr().err.strip() == (
         "partition=split-3 mode=full splits=4 group=3 "
-        f"durations=durations durations_sha256={digest}"
+        f"durations={mod.DURATIONS_RESTORE_PATH} durations_sha256={digest}"
     )
 
 
@@ -49,24 +48,22 @@ def test_summary_line_reports_a_missing_durations_file(
     assert capsys.readouterr().err.strip().endswith("durations_sha256=missing")
 
 
-def test_a_directory_at_the_durations_path_reports_missing(
+def test_a_directory_at_the_restored_path_reports_missing(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    (tmp_path / "tests").mkdir()
-    (tmp_path / mod.DURATIONS_PATH).mkdir()
+    (tmp_path / mod.DURATIONS_RESTORE_PATH).mkdir(parents=True)
     monkeypatch.setattr(mod, "_PROJECT_ROOT", tmp_path)
     assert mod._durations_digest() == "missing"
 
 
-def test_relative_durations_path_resolves_because_the_runner_sets_cwd_to_the_root() -> None:
-    """pytest receives the relative path; run_pytest_non_tmp runs it from the root.
+def test_relative_durations_paths_resolve_because_the_runner_sets_cwd_to_the_root() -> None:
+    """pytest receives relative paths; run_pytest_non_tmp runs it from the root.
 
     tests/ci/test_pytest_non_tmp_policy.py pins cwd == PROJECT_ROOT for the
-    subprocess call. This pins the other half: both modules agree on the root
-    and the committed file exists beneath it.
+    subprocess call. This pins the other half: both modules agree on the root.
     """
     assert run_pytest_non_tmp.PROJECT_ROOT == mod._PROJECT_ROOT
-    assert (run_pytest_non_tmp.PROJECT_ROOT / mod.DURATIONS_PATH).is_file()
+    assert not Path(mod.DURATIONS_RESTORE_PATH).is_absolute()
 
 
 def test_a_missing_durations_file_raises_a_ci_warning_annotation(
@@ -79,9 +76,12 @@ def test_a_missing_durations_file_raises_a_ci_warning_annotation(
     assert capsys.readouterr().out.startswith("::warning title=pytest-split::")
 
 
-def test_a_present_durations_file_raises_no_annotation(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+def test_a_restored_durations_file_raises_no_annotation(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path: Path
 ) -> None:
     capture_runner(monkeypatch)
+    (tmp_path / mod.DURATIONS_RESTORE_PATH).parent.mkdir()
+    (tmp_path / mod.DURATIONS_RESTORE_PATH).write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(mod, "_PROJECT_ROOT", tmp_path)
     mod.main(["--partition", "split-2"])
     assert "::warning" not in capsys.readouterr().out

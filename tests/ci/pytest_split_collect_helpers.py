@@ -6,7 +6,6 @@ pytest never walks it.
 
 from __future__ import annotations
 
-import json
 import os
 import subprocess
 import sys
@@ -53,27 +52,19 @@ def collect_with_code(args: list[str]) -> tuple[list[str], int, str]:
     return node_ids, result.returncode, result.stdout[-2000:] + result.stderr[-2000:]
 
 
+_STORE_FLAGS = frozenset({"--store-durations", "--clean-durations"})
+
+
 def without_parallel_flags(args: list[str]) -> list[str]:
-    """Drop xdist flags: collection needs no workers."""
+    """Drop xdist flags: collection needs no workers.
+
+    Also drops the store flags, which would make a collect-only run rewrite the
+    leg's durations file at session finish.
+    """
     assert args[:4] == runner._PARALLEL
-    return args[4:]
+    return [arg for arg in args[4:] if arg not in _STORE_FLAGS]
 
 
 def pool_args() -> list[str]:
     """The pool with no split flags: what the four groups must add up to."""
     return [*runner._POOL_IGNORES, "tests/"]
-
-
-def missing_fraction(pool_ids: list[str], durations: dict[str, float]) -> float:
-    """The share of ``pool_ids`` that ``durations`` has no entry for."""
-    if not pool_ids:
-        raise ValueError("the pool collected no tests")
-    missing = [node_id for node_id in pool_ids if node_id not in durations]
-    return len(missing) / len(pool_ids)
-
-
-def load_durations(path: Path) -> dict[str, float]:
-    data = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(data, dict):
-        raise ValueError(f"{path} is not a JSON object of node ID to seconds")
-    return {str(key): float(value) for key, value in data.items()}

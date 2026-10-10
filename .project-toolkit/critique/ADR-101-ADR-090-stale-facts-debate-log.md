@@ -66,3 +66,14 @@ Each new line number was read from `.github/workflows/pytest.yml` on the branch 
 - `pytest.yml:652-665` and `:665` were read from the branch head: `test-result` is at 652-653 and its `if: ${{ !cancelled() }}` is at 665.
 
 These changes relabel history and fix instructions. No requirement changes.
+
+## Round 3: rebase onto main after PR #6251
+
+PR #6251 changed `pytest.yml` and ADR-101 while this pull request was open.
+
+### Changes Made
+
+- Kept main's ADR-101 text in each conflict and reapplied this pull request's two corrections: the retirement is credited to PR #6241, and the CODEOWNERS "five globs" sentence is labeled historical.
+- Recomputed every `pytest.yml` cite against the rebased head: `test-result` is now at 718-731 with its `if:` at 731, the `setup-code-env` lines are 130,170,237,322,511,625,796, and the requirement-1 comment on the `test` job is at 262-266.
+
+These are fact and line corrections. No requirement changes.

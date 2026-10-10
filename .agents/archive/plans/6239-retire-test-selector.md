@@ -4,7 +4,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Status** | In Progress |
+| **Status** | Completed |
 | **Created** | 2026-10-08 |
 | **Owner** | orchestrator |
 | **Complexity** | High |
@@ -17,7 +17,7 @@
 - [x] M3: Pre-push runs collection only.
 - [x] M4: Delete the selector, its tests, and its doc references.
 - [x] M5: Update ADR-101, ADR-104, and SPEC-6211 with a full-panel debate log.
-- [ ] M6: Validate locally and in CI, measure, then merge.
+- [x] M6: Validate locally and in CI, measure, then merge.
 
 ## Spec
 
@@ -140,6 +140,9 @@ Allowlist for the reference gate: `.project-toolkit/plans/`, `.project-toolkit/s
 | 2026-10-08 | pytest-split 0.11.0 with `duration_based_chunks` | Spike: works with xdist loadfile and importlib node IDs; union equals full collection with no duplicates; chunks keep collection order, so fewer files split (2 of 6 against 5 of 6) | `least_duration`; a custom file-level bin packer (rejected: building) |
 | 2026-10-08 | Slow-test budget runs over merged junit in the coverage job | pytest-split is not file-aware, so a per-leg budget could miss a split file | Per-leg budget |
 | 2026-10-08 | Commit `.test_durations` (about 5 MB pretty JSON), refresh by documented command | No repo size lint; pytest-split reads a file at run time; no junit import exists | Restore from an Actions artifact (more moving parts) |
+| 2026-10-09 | Superseded: no committed durations file; pytest-split timings come from an Actions cache that only a push to main writes | Owner: nobody maintains a file. CI timings also split better than local ones (CI legs ranged 224 to 302 s against a predicted 1.02 ratio) | Scheduled bot PR refreshing the file; manual refresh PR |
+| 2026-10-09 | Superseded: pre-push runs testmon-selected tests (best effort), not collection only | Owner: collection alone does not catch failures before CI | Collection only (the 2026-10-08 choice) |
+| 2026-10-09 | Superseded: `--dist worksteal` replaces `loadfile` | Owner: same speed at CI's 4 workers, about 20 percent faster at 16, no isolation break in 7 full runs | Keep loadfile |
 
 ## Progress Log
 
@@ -151,6 +154,9 @@ Allowlist for the reference gate: `.project-toolkit/plans/`, `.project-toolkit/s
 | 2026-10-08 | Build Phase 2b: trigger activated on `git_hook_policy.py` and `run_workflow_local_test.py`; both LOCAL HIGH; authority record passed | orchestrator |
 | 2026-10-08 | M0 to M5 done: audit kept loadfile; pytest-split legs; pre-push collection only; selector deleted; ADR panel reached consensus in 2 rounds (5 Accept, 1 Disagree-and-Commit) | orchestrator |
 | 2026-10-08 | Memory gate: selector built for #5050 (878 s per push, path-filter false greens #4345, #4408); partitions keep each job under 10 minutes (#4854); pre-push suites share one timeout (PR #3568); loadfile protects file isolation (SPEC-6211). Each split group must stay under the 10-minute job contract. | orchestrator |
+| 2026-10-09 | Merged as 0c801576a in PR #6241, closing #6239 | orchestrator |
+| 2026-10-09 | First CI run 37867514214 leg times: split-1 262 s, split-2 300 s, split-3 302 s, split-4 224 s. Slowest leg is under the 340 s target. | orchestrator |
+| 2026-10-09 | Windows path-contract job at 317 s is now the critical path (deferred item) | orchestrator |
 
 ## Blockers
 
