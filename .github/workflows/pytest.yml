@@ -732,8 +732,9 @@ jobs:
   # jobs (testmon keys it by path), so this stays one job. The first main push
   # after merge gives the real figure.
   #
-  # Partitions that fail still record their tests, so the artifact uploads
-  # whenever the file exists. The name carries a key over uv.lock and
+  # Only a complete, passing run uploads. A failed partition, a budget kill or a
+  # signal leaves a partial database, and a partial database would make the
+  # hook skip tests it never recorded. The name carries a key over uv.lock and
   # pyproject.toml, computed by the same function the hook uses.
   testmon-seed:
     name: Seed testmon database
@@ -763,21 +764,29 @@ jobs:
         id: seed
         run: echo "name=$(uv run --frozen python scripts/validation/testmon_seed.py .)" >> "$GITHUB_OUTPUT"
 
-      # A failing partition still records its tests, so a nonzero exit is a
-      # warning here and the database uploads either way. `Run Python Tests`
-      # owns the pass/fail verdict.
+      # The hook exits 0 only when every partition ran to completion and
+      # passed. Anything else (a failed partition, a budget kill, a signal) is a
+      # partial database and is never uploaded: the step records `complete`
+      # only on exit 0. The seed run takes about 30 minutes, so it gets its own
+      # budget instead of the hook's 780 s suite budget; 3300 s leaves 5 minutes
+      # of the 60 minute cap for setup and upload.
       - name: Build the testmon database
+        id: build
         env:
           AI_AGENTS_PYTEST_WORKER_CAP: "4"
           AI_AGENTS_TESTMON_NO_SEED: "1"
-        run: >-
-          uv run --frozen python scripts/validation/git_hook_policy.py pytest
-          || echo "::warning::a partition failed; the database is still uploaded"
+          AI_AGENTS_TESTMON_SEED_BUDGET_SECONDS: "3300"
+        run: |
+          if uv run --frozen python scripts/validation/git_hook_policy.py pytest; then
+            echo "complete=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::the seed run did not finish clean; no database is uploaded"
+          fi
 
       # include-hidden-files: v4 and later skip dotfiles by default, and the
       # database is `.testmondata`.
       - name: Upload the testmon database
-        if: ${{ !cancelled() && hashFiles('.testmondata') != '' }}
+        if: ${{ !cancelled() && steps.build.outputs.complete == 'true' && hashFiles('.testmondata') != '' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ${{ steps.seed.outputs.name }}

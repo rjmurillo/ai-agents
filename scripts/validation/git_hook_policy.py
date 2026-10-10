@@ -628,6 +628,10 @@ PYTEST_FULL_SUITE_LOCALLY_ENV = "AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY"
 _TESTMON_FLAGS = ("--testmon", "--testmon-forceselect")
 # Set by the CI seed job so its build starts from an empty database.
 TESTMON_NO_SEED_ENV = "AI_AGENTS_TESTMON_NO_SEED"
+# Whole-run budget for the CI seed job, read only when TESTMON_NO_SEED_ENV is
+# set. The seed run takes about 30 minutes, far past TEST_SUITE_TIMEOUT_SECONDS,
+# and a run killed at that budget must never upload a partial database.
+TESTMON_SEED_BUDGET_ENV = "AI_AGENTS_TESTMON_SEED_BUDGET_SECONDS"
 TESTMON_COVERAGE_CORE_ENV = "COVERAGE_CORE"
 TESTMON_COVERAGE_CORE = "ctrace"
 CLI_E2E_TIMEOUT_SECONDS = 1_140
@@ -7710,6 +7714,30 @@ def _resolve_pytest_commands(repo_root: Path) -> list[list[str]]:
     return _testmon_stand_in(repo_root)
 
 
+def _suite_budget_seconds() -> float:
+    """Return the whole-step budget: the suite's, or the seed job's own.
+
+    Raises:
+        ValueError: the seed job's budget is not a positive integer.
+    """
+    raw = os.environ.get(TESTMON_SEED_BUDGET_ENV)
+    if not os.environ.get(TESTMON_NO_SEED_ENV) or raw is None:
+        return TEST_SUITE_TIMEOUT_SECONDS
+    text = raw.strip()
+    if not text.isdecimal() or int(text) < 1:
+        raise ValueError(f"{TESTMON_SEED_BUDGET_ENV} must be a positive integer, got {raw!r}")
+    return int(text)
+
+
+def _failure_code(returncode: int) -> int:
+    """Map a child exit code to a nonnegative one.
+
+    A signal-killed child reports a negative code (-9 for SIGKILL). `max(0, -9)`
+    is 0, which would pass the push, so any negative code becomes 1.
+    """
+    return returncode if returncode > 0 else (1 if returncode < 0 else 0)
+
+
 def _uses_testmon(commands: Sequence[Sequence[str]]) -> bool:
     return any("--testmon" in command for command in commands)
 
@@ -7754,11 +7782,13 @@ def run_pytest(repo_root: Path) -> int:
         # was added later and did not get the same treatment. Raised in review
         # on PR #5319.
         PYTEST_FULL_SUITE_LOCALLY_ENV,
+        TESTMON_SEED_BUDGET_ENV,
     ):
         env.pop(key, None)
     env["CLAUDE_PLUGIN_ROOT"] = str(repo_root / "src/copilot-cli")
     try:
         commands = _resolve_pytest_commands(repo_root)
+        suite_budget = _suite_budget_seconds()
     except ValueError as error:
         print(f"ERROR: {error}", file=sys.stderr)
         return 2
@@ -7784,7 +7814,7 @@ def run_pytest(repo_root: Path) -> int:
     # Clamping here also repairs the diagnostic: the timeout message prints
     # `budget`, so an unclamped aggregate told a reader their child had 780s
     # when the clamp had given it 150s.
-    budget = _container_clamped(TEST_SUITE_TIMEOUT_SECONDS)
+    budget = _container_clamped(suite_budget)
     deadline = time.monotonic() + budget
     if _uses_testmon(commands):
         # Inside the same budget: the fetch spends at most its own short
@@ -7837,7 +7867,7 @@ def run_pytest(repo_root: Path) -> int:
                     f"command{plural} in the suite)",
                     file=sys.stderr,
                 )
-        worst = max(worst, result.returncode)
+        worst = max(worst, _failure_code(result.returncode))
     return worst
 
 

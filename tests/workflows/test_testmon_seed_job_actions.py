@@ -35,7 +35,7 @@ def test_checkout_does_not_persist_credentials() -> None:
     assert checkout["with"]["persist-credentials"] is False
 
 
-def test_the_upload_includes_the_hidden_database_and_survives_failed_partitions() -> None:
+def test_the_upload_includes_the_hidden_database_and_needs_a_complete_run() -> None:
     """upload-artifact skips dotfiles unless told otherwise; the file is `.testmondata`."""
     step = seed_step("Upload the testmon database")
     assert step["with"]["path"] == ".testmondata"
@@ -43,3 +43,4 @@ def test_the_upload_includes_the_hidden_database_and_survives_failed_partitions(
     assert step["with"]["if-no-files-found"] == "error"
     assert "!cancelled()" in step["if"]
     assert "hashFiles('.testmondata')" in step["if"]
+    assert "steps.build.outputs.complete == 'true'" in step["if"]

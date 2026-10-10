@@ -9,6 +9,7 @@ import io
 import json
 import subprocess
 import zipfile
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -32,13 +33,18 @@ def make_zip(members: dict[str, bytes]) -> bytes:
     return buffer.getvalue()
 
 
-def make_run(run_id: int, event: str = "push", branch: str = "main", repo: str = REPO) -> dict:
-    return {
+def make_run(run_id: int, **overrides: object) -> dict:
+    """A trusted run object (successful push to main); overrides replace fields."""
+    run: dict[str, object] = {
         "id": run_id,
-        "event": event,
-        "head_branch": branch,
-        "head_repository": {"full_name": repo},
+        "event": "push",
+        "head_branch": "main",
+        "head_repository": {"full_name": REPO},
+        "conclusion": "success",
+        "path": ".github/workflows/pytest.yml",
+        "head_sha": f"{run_id:040x}",
     }
+    return run | overrides
 
 
 def artifact_entry(root: Path, **overrides: object) -> dict:
@@ -46,14 +52,13 @@ def artifact_entry(root: Path, **overrides: object) -> dict:
     return entry | overrides
 
 
-def make_routes(runs: list[dict], artifacts: dict[int, list[dict]], zip_bytes: bytes) -> dict:
-    """Endpoint-substring routes: the run list, each run's artifacts, and the zip."""
+def make_routes(runs: list[dict], artifacts: dict[int, list[dict]]) -> dict:
+    """Endpoint-substring routes: the run list and each run's artifacts."""
     routes: dict[str, bytes | int] = {
         "/workflows/pytest.yml/runs": json.dumps({"workflow_runs": runs}).encode()
     }
     for run_id, listing in artifacts.items():
         routes[f"/runs/{run_id}/artifacts"] = json.dumps({"artifacts": listing}).encode()
-    routes["/artifacts/900/zip"] = zip_bytes
     return routes
 
 
@@ -63,6 +68,8 @@ class FakeGh:
 
     routes: dict[str, bytes | int]
     calls: list[str] = field(default_factory=list)
+    downloads: list[Path] = field(default_factory=list)
+    zip_bytes: bytes = b""
 
     def __call__(self, args: list[str], timeout: float) -> subprocess.CompletedProcess[bytes]:
         self.calls.append(args[0])
@@ -73,5 +80,24 @@ class FakeGh:
                 return subprocess.CompletedProcess(args, 0, payload, b"")
         return subprocess.CompletedProcess(args, 1, b"", b"gh: HTTP 404")
 
-    def fetch(self, root: Path, **kwargs: float) -> seed.SeedResult:
-        return seed.fetch_seed(root, runner=self, gh_available=lambda: True, **kwargs)
+    def download(self, endpoint: str, destination: Path, timeout: float, max_bytes: int) -> None:
+        self.calls.append(endpoint)
+        destination.write_bytes(self.zip_bytes)
+        self.downloads.append(destination)
+
+    def fetch(
+        self,
+        root: Path,
+        ancestor: Callable[[Path, str], bool] = lambda _root, _sha: True,
+        has_origin_main: Callable[[Path], bool] = lambda _root: True,
+        timeout_seconds: float = 30.0,
+    ) -> seed.SeedResult:
+        return seed.fetch_seed(
+            root,
+            runner=self,
+            downloader=self.download,
+            gh_available=lambda: True,
+            has_origin_main=has_origin_main,
+            ancestor=ancestor,
+            timeout_seconds=timeout_seconds,
+        )

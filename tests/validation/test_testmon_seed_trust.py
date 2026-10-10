@@ -5,13 +5,13 @@ from __future__ import annotations
 import pytest
 
 from scripts.validation.testmon_seed_trust import run_is_trusted, select_artifact_id
-from tests.validation.testmon_seed_helpers import REPO, make_run
+from tests.validation.testmon_seed_helpers import make_run
 
-_SHAPELESS = {"id": 1, "event": "push", "head_branch": "main"}
-_STRING_ID = {**make_run(1), "id": "1"}
+_NO_REPO = {k: v for k, v in make_run(1).items() if k != "head_repository"}
+_NO_ID = {k: v for k, v in make_run(1).items() if k != "id"}
 
 
-def test_a_push_to_main_of_the_canonical_repo_is_trusted() -> None:
+def test_a_successful_push_to_main_of_the_canonical_repo_is_trusted() -> None:
     assert run_is_trusted(make_run(1))
 
 
@@ -21,12 +21,20 @@ def test_a_push_to_main_of_the_canonical_repo_is_trusted() -> None:
         make_run(1, event="pull_request"),
         make_run(1, event="merge_group"),
         make_run(1, event="workflow_dispatch"),
-        make_run(1, branch="feature/x"),
-        make_run(1, branch="main-evil"),
-        make_run(1, repo="attacker/ai-agents"),
-        _SHAPELESS,
-        _STRING_ID,
-        {"event": "push", "head_branch": "main", "head_repository": {"full_name": REPO}},
+        make_run(1, head_branch="feature/x"),
+        make_run(1, head_branch="main-evil"),
+        make_run(1, head_repository={"full_name": "attacker/ai-agents"}),
+        make_run(1, conclusion="failure"),
+        make_run(1, conclusion="cancelled"),
+        make_run(1, conclusion=None),
+        make_run(1, path=".github/workflows/evil.yml"),
+        make_run(1, path=".github/workflows/pytest.yml@refs/heads/x"),
+        make_run(1, head_sha="abc"),
+        make_run(1, head_sha="A" * 40),
+        make_run(1, head_sha=None),
+        make_run(1, id="1"),
+        _NO_REPO,
+        _NO_ID,
     ],
 )
 def test_everything_else_is_refused(run: dict) -> None:

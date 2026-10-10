@@ -3,17 +3,29 @@
 from __future__ import annotations
 
 from scripts.validation import git_hook_policy, testmon_seed
-from tests.workflows.pytest_workflow_helpers import WORKFLOW_PATH, seed_step
+from tests.workflows.pytest_workflow_helpers import WORKFLOW_PATH, seed_job, seed_step
 
 
-def test_the_build_runs_the_hook_command_with_its_worker_cap() -> None:
+def test_the_build_runs_the_hook_command_with_its_worker_cap_and_own_budget() -> None:
     step = seed_step("Build the testmon database")
-    command = "uv run --frozen python scripts/validation/git_hook_policy.py pytest"
-    assert step["run"].startswith(command)
-    assert "::warning::" in step["run"]
+    assert "uv run --frozen python scripts/validation/git_hook_policy.py pytest" in step["run"]
     assert "continue-on-error" not in step
     assert step["env"]["AI_AGENTS_PYTEST_WORKER_CAP"] == "4"
     assert step["env"][git_hook_policy.TESTMON_NO_SEED_ENV] == "1"
+    budget = int(step["env"][git_hook_policy.TESTMON_SEED_BUDGET_ENV])
+    cap_seconds = seed_job()["timeout-minutes"] * 60
+    # Past the 780 s suite budget, and leaving the job room for setup and upload.
+    assert git_hook_policy.TEST_SUITE_TIMEOUT_SECONDS < budget <= cap_seconds - 120
+
+
+def test_a_complete_run_is_recorded_only_when_the_hook_exits_zero() -> None:
+    """A partial database (killed run, failed partition) must never be uploaded."""
+    run = seed_step("Build the testmon database")["run"]
+    assert run.lstrip().startswith("if uv run")
+    assert "; then" in run
+    assert 'echo "complete=true" >> "$GITHUB_OUTPUT"' in run
+    assert "||" not in run
+    assert seed_step("Build the testmon database")["id"] == "build"
 
 
 def test_the_build_never_opts_into_the_full_suite() -> None:

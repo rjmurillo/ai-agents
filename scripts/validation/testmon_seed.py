@@ -37,6 +37,7 @@ import json
 import re
 import shutil
 import sys
+import tempfile
 import zipfile
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -47,12 +48,20 @@ from scripts.validation.testmon_seed_archive import (
     database_from_zip,
     write_database,
 )
-from scripts.validation.testmon_seed_gh import Budget, GhRunner, run_gh
+from scripts.validation.testmon_seed_gh import (
+    Budget,
+    Downloader,
+    GhRunner,
+    download_to_file,
+    run_gh,
+)
 from scripts.validation.testmon_seed_trust import (
     CANONICAL_REPO,
     MAIN_BRANCH,
     WORKFLOW_FILE,
+    is_main_ancestor,
     object_list,
+    origin_main_present,
     run_is_trusted,
     select_artifact_id,
 )
@@ -60,6 +69,7 @@ from scripts.validation.testmon_seed_trust import (
 SEED_ARTIFACT_PREFIX = "testmon-db-"
 SEED_FETCH_TIMEOUT_SECONDS = 30.0
 RUNS_TO_SCAN = 10
+MAX_ARCHIVE_BYTES = 256 * 1024 * 1024
 _KEY_INPUTS = ("uv.lock", "pyproject.toml")
 _ID = re.compile(r"[0-9]{1,20}")
 
@@ -98,14 +108,18 @@ def _json_object(raw: bytes) -> dict[str, object]:
     return parsed
 
 
-def _find_artifact_id(budget: Budget, name: str) -> int | None:
+def _find_artifact_id(
+    budget: Budget, name: str, repo_root: Path, ancestor: Callable[[Path, str], bool]
+) -> int | None:
     runs_endpoint = (
         f"repos/{CANONICAL_REPO}/actions/workflows/{WORKFLOW_FILE}/runs"
         f"?event=push&branch={MAIN_BRANCH}&per_page={RUNS_TO_SCAN}"
     )
     runs = object_list(_json_object(budget.get(runs_endpoint)).get("workflow_runs"))
     for run in runs:
-        if not run_is_trusted(run):
+        # Trusted by the run object, then reachable from local origin/main: a
+        # push to main whose commit is not in main's history is not accepted.
+        if not run_is_trusted(run) or not ancestor(repo_root, str(run["head_sha"])):
             continue
         run_id = str(run["id"])
         if not _ID.fullmatch(run_id):
@@ -119,12 +133,29 @@ def _find_artifact_id(budget: Budget, name: str) -> int | None:
     return None
 
 
+def _download_and_place(
+    repo_root: Path, artifact_id: int, budget: Budget, downloader: Downloader
+) -> None:
+    """Stream the zip into a fresh private directory, check it, then place the database."""
+    workdir = Path(tempfile.mkdtemp(prefix="testmon-seed-"))
+    try:
+        endpoint = f"repos/{CANONICAL_REPO}/actions/artifacts/{artifact_id}/zip"
+        archive = workdir / "seed.zip"
+        downloader(endpoint, archive, budget.remaining(), MAX_ARCHIVE_BYTES)
+        write_database(repo_root, database_from_zip(archive))
+    finally:
+        shutil.rmtree(workdir, ignore_errors=True)
+
+
 def fetch_seed(
     repo_root: Path,
     *,
     runner: GhRunner = run_gh,
+    downloader: Downloader = download_to_file,
     timeout_seconds: float = SEED_FETCH_TIMEOUT_SECONDS,
     gh_available: Callable[[], bool] | None = None,
+    has_origin_main: Callable[[Path], bool] = origin_main_present,
+    ancestor: Callable[[Path, str], bool] = is_main_ancestor,
 ) -> SeedResult:
     """Fetch main's newest matching database into ``repo_root``, or say why not.
 
@@ -136,14 +167,15 @@ def fetch_seed(
         return SeedResult(False, "a local database already exists")
     if not available():
         return SeedResult(False, "gh is not installed")
+    if not has_origin_main(repo_root):
+        return SeedResult(False, "origin/main is not available locally; run git fetch")
     try:
         name = seed_artifact_name(repo_root)
         budget = Budget(timeout_seconds, runner)
-        artifact_id = _find_artifact_id(budget, name)
+        artifact_id = _find_artifact_id(budget, name, repo_root, ancestor)
         if artifact_id is None:
             return SeedResult(False, f"no main push run has an unexpired {name} artifact")
-        payload = budget.get(f"repos/{CANONICAL_REPO}/actions/artifacts/{artifact_id}/zip")
-        write_database(repo_root, database_from_zip(payload))
+        _download_and_place(repo_root, artifact_id, budget, downloader)
     except (OSError, ValueError, RuntimeError, TimeoutError, KeyError, zipfile.BadZipFile) as error:
         return SeedResult(False, f"{type(error).__name__}: {error}")
     return SeedResult(True, f"seeded {DATABASE_NAME} from {name}")

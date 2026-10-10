@@ -7,8 +7,8 @@ documents the trust model.
 
 from __future__ import annotations
 
-import io
 import os
+import secrets
 import zipfile
 from pathlib import Path
 
@@ -17,9 +17,9 @@ MAX_DATABASE_BYTES = 512 * 1024 * 1024
 SQLITE_MAGIC = b"SQLite format 3\x00"
 
 
-def database_from_zip(payload: bytes) -> bytes:
+def database_from_zip(archive_path: Path) -> bytes:
     """Read the one expected member by exact name; reject anything else."""
-    with zipfile.ZipFile(io.BytesIO(payload)) as archive:
+    with zipfile.ZipFile(archive_path) as archive:
         info = archive.getinfo(DATABASE_NAME)
         if info.file_size > MAX_DATABASE_BYTES:
             raise ValueError("database larger than the size cap")
@@ -30,10 +30,19 @@ def database_from_zip(payload: bytes) -> bytes:
 
 
 def write_database(repo_root: Path, data: bytes) -> None:
+    """Write ``data`` to ``repo_root/.testmondata`` through a fresh private file.
+
+    The staging file is created with O_CREAT|O_EXCL|O_NOFOLLOW under a random
+    name, so a planted file or symlink makes the open fail instead of redirecting
+    the write, then renamed over the target.
+    """
     target = repo_root / DATABASE_NAME
-    partial = repo_root / f"{DATABASE_NAME}.seed.{os.getpid()}.tmp"
+    partial = repo_root / f"{DATABASE_NAME}.seed.{secrets.token_hex(8)}.tmp"
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
+    descriptor = os.open(partial, flags, 0o600)
     try:
-        partial.write_bytes(data)
+        with os.fdopen(descriptor, "wb") as handle:
+            handle.write(data)
         os.replace(partial, target)
     finally:
         partial.unlink(missing_ok=True)

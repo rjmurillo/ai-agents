@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import subprocess
 from pathlib import Path
 
@@ -21,9 +22,10 @@ from tests.validation.testmon_seed_helpers import (
 )
 
 
-def _good_routes(root: Path, zip_bytes: bytes | None = None) -> dict:
+def _gh(root: Path, zip_bytes: bytes | None = None) -> FakeGh:
     payload = zip_bytes if zip_bytes is not None else make_zip({".testmondata": DATABASE})
-    return make_routes([make_run(7)], {7: [artifact_entry(root)]}, payload)
+    routes = make_routes([make_run(7)], {7: [artifact_entry(root)]})
+    return FakeGh(routes, zip_bytes=payload)
 
 
 def test_a_missing_gh_falls_back_without_a_call(tmp_path: Path) -> None:
@@ -53,7 +55,9 @@ def test_a_failing_gh_falls_back(tmp_path: Path, failure: object, expected: str)
         assert isinstance(failure, subprocess.CompletedProcess)
         return failure
 
-    result = seed.fetch_seed(tmp_path, runner=runner, gh_available=lambda: True)
+    result = seed.fetch_seed(
+        tmp_path, runner=runner, gh_available=lambda: True, has_origin_main=lambda _r: True
+    )
     assert not result.seeded
     assert expected.lower() in result.detail.lower()
 
@@ -69,14 +73,16 @@ def test_the_whole_fetch_shares_one_deadline(
     def runner(args: list[str], timeout: float) -> subprocess.CompletedProcess[bytes]:
         seen.append(timeout)
         clock["now"] += 20.0
-        body = b'{"workflow_runs": [{"id": 7, "event": "push", "head_branch": "main", '
-        body += b'"head_repository": {"full_name": "rjmurillo/ai-agents"}}, '
-        body += b'{"id": 8, "event": "push", "head_branch": "main", '
-        body += b'"head_repository": {"full_name": "rjmurillo/ai-agents"}}]}'
+        body = json.dumps({"workflow_runs": [make_run(7), make_run(8)]}).encode()
         return subprocess.CompletedProcess(args, 0, body, b"")
 
     result = seed.fetch_seed(
-        tmp_path, runner=runner, gh_available=lambda: True, timeout_seconds=30.0
+        tmp_path,
+        runner=runner,
+        gh_available=lambda: True,
+        has_origin_main=lambda _r: True,
+        ancestor=lambda _r, _s: True,
+        timeout_seconds=30.0,
     )
     assert not result.seeded
     assert seen == [pytest.approx(30.0), pytest.approx(10.0)]
@@ -95,7 +101,7 @@ def test_the_whole_fetch_shares_one_deadline(
 )
 def test_a_bad_download_falls_back_and_writes_nothing(tmp_path: Path, payload: bytes) -> None:
     write_inputs(tmp_path)
-    assert not FakeGh(_good_routes(tmp_path, payload)).fetch(tmp_path).seeded
+    assert not _gh(tmp_path, payload).fetch(tmp_path).seeded
     assert not (tmp_path / ".testmondata").exists()
     assert not (tmp_path.parent / ".testmondata").exists()
     assert not list(tmp_path.glob("*.tmp"))
@@ -104,6 +110,40 @@ def test_a_bad_download_falls_back_and_writes_nothing(tmp_path: Path, payload: b
 def test_an_oversized_database_is_refused(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     write_inputs(tmp_path)
     monkeypatch.setattr(archive, "MAX_DATABASE_BYTES", 4)
-    result = FakeGh(_good_routes(tmp_path)).fetch(tmp_path)
+    result = _gh(tmp_path).fetch(tmp_path)
     assert not result.seeded
     assert "size cap" in result.detail
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [
+        ValueError("download larger than the size cap"),
+        TimeoutError("timed out"),
+        RuntimeError("exit 1"),
+    ],
+    ids=["too-large", "timeout", "nonzero-exit"],
+)
+def test_a_failed_download_falls_back_and_removes_its_staging_directory(
+    tmp_path: Path, failure: Exception
+) -> None:
+    write_inputs(tmp_path)
+    gh = _gh(tmp_path)
+    staged: list[Path] = []
+
+    def downloader(endpoint: str, destination: Path, timeout: float, max_bytes: int) -> None:
+        staged.append(destination)
+        destination.write_bytes(b"partial")
+        raise failure
+
+    result = seed.fetch_seed(
+        tmp_path,
+        runner=gh,
+        downloader=downloader,
+        gh_available=lambda: True,
+        has_origin_main=lambda _r: True,
+        ancestor=lambda _r, _s: True,
+    )
+    assert not result.seeded
+    assert not (tmp_path / ".testmondata").exists()
+    assert not staged[0].parent.exists()

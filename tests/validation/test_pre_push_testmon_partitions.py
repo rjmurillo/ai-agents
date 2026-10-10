@@ -47,7 +47,18 @@ def test_a_failing_first_partition_still_runs_the_others(
 
 @pytest.mark.parametrize(
     ("codes", "expected"),
-    [([0, 0, 0, 0], 0), ([1, 0, 0, 0], 1), ([0, 0, 1, 0], 1), ([1, 2, 0, 1], 2), ([1, 4, 2, 0], 4)],
+    [
+        ([0, 0, 0, 0], 0),
+        ([1, 0, 0, 0], 1),
+        ([0, 0, 1, 0], 1),
+        ([1, 2, 0, 1], 2),
+        ([1, 4, 2, 0], 4),
+        # A signal-killed pytest reports a negative code (-9 is SIGKILL). It is
+        # a failure, not a pass: max(0, -9) is 0 and would let the push through.
+        ([-9, 0, 0, 0], 1),
+        ([0, 0, 0, -11], 1),
+        ([-9, 2, 0, 0], 2),
+    ],
 )
 def test_the_exit_code_is_the_worst_partition(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, codes: list[int], expected: int

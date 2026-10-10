@@ -70,3 +70,26 @@ def test_a_stale_lock_makes_the_waiter_compute_locally(
     assert shared_once.compute_once("x", compute) == frozenset({"z"})
     assert len(calls) == 1
     assert os.path.exists(tmp_path / f"x-{run_uid}.lock")
+
+
+def test_the_wait_plus_a_traced_compute_stays_under_the_per_test_timeout() -> None:
+    """A waiter that gives up and computes locally spends WAIT plus the ~18 s compute."""
+    assert shared_once.WAIT_SECONDS + 30 < 120
+
+
+def test_a_finished_run_leaves_no_stale_result_files_behind(run_uid: str, tmp_path: Path) -> None:
+    """Result files from earlier runs (older than a day) are removed by the next writer."""
+    old = tmp_path / "x-old-run.json"
+    old.write_text("[]", encoding="utf-8")
+    ancient = old.stat().st_mtime - 3 * 86400
+    os.utime(old, (ancient, ancient))
+    recent = tmp_path / "x-other-live-run.json"
+    recent.write_text("[]", encoding="utf-8")
+    unrelated = tmp_path / "y-old.json"
+    unrelated.write_text("[]", encoding="utf-8")
+    os.utime(unrelated, (ancient, ancient))
+    _calls, compute = _counting(frozenset({"a"}))
+    shared_once.compute_once("x", compute)
+    assert not old.exists()
+    assert recent.exists()
+    assert unrelated.exists()

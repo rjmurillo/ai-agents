@@ -21,7 +21,9 @@ import time
 from collections.abc import Callable
 from pathlib import Path
 
-WAIT_SECONDS = 100.0
+# Wait plus the ~18 s traced compute must stay well under the 120 s per-test timeout.
+WAIT_SECONDS = 60.0
+STALE_AFTER_SECONDS = 86400.0
 _POLL_SECONDS = 0.25
 
 
@@ -30,10 +32,10 @@ def compute_once(label: str, compute: Callable[[], frozenset[str]]) -> frozenset
     if not run_uid:
         return compute()
     cache = Path(tempfile.gettempdir()) / f"{label}-{run_uid}.json"
-    return _shared(cache, compute)
+    return _shared(cache, label, compute)
 
 
-def _shared(cache: Path, compute: Callable[[], frozenset[str]]) -> frozenset[str]:
+def _shared(cache: Path, label: str, compute: Callable[[], frozenset[str]]) -> frozenset[str]:
     lock = cache.with_suffix(".lock")
     deadline = time.monotonic() + WAIT_SECONDS
     while time.monotonic() < deadline:
@@ -46,15 +48,28 @@ def _shared(cache: Path, compute: Callable[[], frozenset[str]]) -> frozenset[str
             continue
         os.close(handle)
         try:
-            return _write_result(cache, compute)
+            return _write_result(cache, label, compute)
         finally:
             lock.unlink(missing_ok=True)
     return compute()
 
 
-def _write_result(cache: Path, compute: Callable[[], frozenset[str]]) -> frozenset[str]:
+def _write_result(cache: Path, label: str, compute: Callable[[], frozenset[str]]) -> frozenset[str]:
     result = compute()
+    _remove_stale(cache, label)
     partial = cache.with_suffix(f".{os.getpid()}.tmp")
     partial.write_text(json.dumps(sorted(result)), encoding="utf-8")
     os.replace(partial, cache)
     return result
+
+
+def _remove_stale(cache: Path, label: str) -> None:
+    """Delete this label's result files from runs older than a day.
+
+    Workers cannot know when the session ends, so cleanup happens when the next
+    run writes its own file, which keeps the temp directory from growing.
+    """
+    cutoff = time.time() - STALE_AFTER_SECONDS
+    for old in cache.parent.glob(f"{label}-*.json"):
+        if old != cache and old.stat().st_mtime < cutoff:
+            old.unlink(missing_ok=True)
