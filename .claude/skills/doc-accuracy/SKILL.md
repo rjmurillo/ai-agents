@@ -111,6 +111,11 @@ python3 scripts/doc_accuracy.py --target /path/to/repo --format markdown
 python3 scripts/doc_accuracy.py --target /path/to/repo --format summary
 ```
 
+### Line scoping with `--diff-base`
+
+With `--diff-base`, only claims on changed lines block. See
+`references/diff-scoping.md`.
+
 ---
 
 ## Output Artifacts

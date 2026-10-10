@@ -22,6 +22,7 @@ import io
 import json
 import logging
 import os
+import posixpath
 import re
 import subprocess
 import sys
@@ -92,12 +93,14 @@ class Claim:
     content: str
     symbols_referenced: list[str]
     mapped_source: str
+    end_line: int = 0  # last source line of the claim; 0 means ``line``
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "id": self.id,
             "file": self.file,
             "line": self.line,
+            "end_line": self.end_line or self.line,
             "type": self.claim_type,
             "language": self.language,
             "content": self.content,
@@ -112,7 +115,7 @@ class Finding:
 
     id: str
     claim_id: str
-    severity: str  # critical, high, medium, low
+    severity: str  # critical, high, medium, low; info = outside the diff
     category: str
     file: str
     line: int
@@ -230,6 +233,16 @@ def _git_command(repo_root: Path, *args: str) -> list[str]:
         "-C", str(repo_root),
         *args,
     ]
+
+
+def _read_doc_text(path: Path) -> str:
+    """Read a doc with no newline translation, so line numbers match Git's.
+
+    ``read_text`` applies universal newlines, which turns a lone ``\\r`` into
+    an extra line that Git does not count. Callers split on ``"\\n"`` and
+    strip one trailing ``\\r`` per line only where content parsing needs it.
+    """
+    return path.read_bytes().decode("utf-8", errors="replace")
 
 
 def _repo_relative(path: Path, repo_root: Path) -> str:
@@ -485,6 +498,24 @@ def _merge_base(
     return oid_bytes.decode("ascii")
 
 
+def _get_changed_diff(
+    diff_base: str, repo_root: Path
+) -> tuple[set[str], dict[str, list[list[int]]]]:
+    """Return changed files and their changed new-side line ranges.
+
+    The first element is the ``_get_changed_files`` set. The second maps a
+    changed file to ``[start, end]`` inclusive line ranges on the HEAD side,
+    parsed from ``git diff --unified=0 --no-renames``. A changed
+    file with no parsed hunk (binary, mode-only) is absent from the map; the
+    caller treats an absent file as changed in full.
+    """
+    env = _git_env()
+    fork_oid, head_oid = _resolve_fork_and_head(diff_base, repo_root, env)
+    files = _diff_name_set(repo_root, fork_oid, head_oid, env)
+    ranges = _diff_line_ranges(repo_root, fork_oid, head_oid, env)
+    return files, ranges
+
+
 def _get_changed_files(diff_base: str, repo_root: Path) -> set[str]:
     """Get files changed on HEAD since it forked from diff_base.
 
@@ -512,7 +543,17 @@ def _get_changed_files(diff_base: str, repo_root: Path) -> set[str]:
         When any git call exceeds ``_GIT_TIMEOUT``.
     """
     env = _git_env()
+    fork_oid, head_oid = _resolve_fork_and_head(diff_base, repo_root, env)
+    return _diff_name_set(repo_root, fork_oid, head_oid, env)
 
+
+def _resolve_fork_and_head(
+    diff_base: str, repo_root: Path, env: dict[str, str]
+) -> tuple[str, str]:
+    """Validate the repo and revisions; return ``(fork_oid, head_oid)``.
+
+    Phases 1-4 of the sequence documented on ``_get_changed_files``.
+    """
     # Phase 1: verify git environment
     try:
         wt_result = subprocess.run(
@@ -632,13 +673,24 @@ def _get_changed_files(diff_base: str, repo_root: Path) -> set[str]:
     # Phase 4: diff from the fork point, not the base tip, so commits that
     # landed on the base after the fork are not counted as this branch's.
     oid = _merge_base(repo_root, base_oid, head_oid, env)
+    return oid, head_oid
 
-    # Phase 5: diff by resolved OIDs, NUL-separated output.
+
+def _diff_name_set(
+    repo_root: Path, fork_oid: str, head_oid: str, env: dict[str, str]
+) -> set[str]:
+    """Phase 5: diff by resolved OIDs, NUL-separated output."""
+    oid = fork_oid
     try:
+        # Not reachable as command injection: the refs are commit OIDs that
+        # _resolve_fork_and_head validated as 40 or 64 lowercase hex
+        # characters, argv is a list run without a shell, and _git_env strips
+        # user and system git config from the inherited environment.
         result = subprocess.run(
             _git_command(
                 repo_root,
-                "diff", "--no-ext-diff", "--name-only", "-z",
+                "diff", "--no-ext-diff", "--no-textconv", "--no-renames",
+                "--name-only", "-z",
                 oid, head_oid, "--",
             ),
             capture_output=True, check=True,
@@ -654,6 +706,251 @@ def _get_changed_files(diff_base: str, repo_root: Path) -> set[str]:
     }
 
 
+_HUNK_HEADER = re.compile(r"^@@ -\d+(?:,(\d+))? \+(\d+)(?:,(\d+))? @@")
+_C_ESCAPES = {
+    "a": 7, "b": 8, "t": 9, "n": 10, "v": 11, "f": 12, "r": 13,
+    '"': 34, "\\": 92,
+}
+
+
+def _norm_path(path: str) -> str:
+    """Canonical repo-relative POSIX path used for every changed_lines key.
+
+    A backslash is a path separator only on Windows. On POSIX it is a legal
+    file name character, so ``a/b.md`` and ``a\\b.md`` must stay distinct.
+    """
+    if os.sep == "\\":
+        path = path.replace("\\", "/")
+    return posixpath.normpath(path)
+
+
+def _unquote_c_path(quoted: str) -> str:
+    """Decode a C-style quoted path as Git prints it in patch headers."""
+    raw = bytearray()
+    i = 1  # skip the opening quote
+    end = len(quoted) - 1  # skip the closing quote
+    while i < end:
+        ch = quoted[i]
+        if ch != "\\":
+            raw.extend(ch.encode("utf-8"))
+            i += 1
+        elif quoted[i + 1].isdigit():
+            raw.append(int(quoted[i + 1:i + 4], 8))
+            i += 4
+        else:
+            raw.append(_C_ESCAPES.get(quoted[i + 1], ord(quoted[i + 1])))
+            i += 2
+    return os.fsdecode(bytes(raw))
+
+
+def _new_side_path(header_line: str) -> str | None:
+    """Return the path from a ``+++ b/<path>`` header, or None for /dev/null."""
+    value = header_line[4:].rstrip("\r\n")
+    if "\t" in value and not value.startswith('"'):
+        value = value.split("\t", 1)[0]
+    if value == "/dev/null":
+        return None
+    if value.startswith('"'):
+        value = _unquote_c_path(value)
+    return value[2:] if value[:2] == "b/" else value
+
+
+_WHOLE_FILE_END = 2**31 - 1
+# An empty range list is never valid and means changed in full (fail closed).
+# Rename detection is off, so a renamed doc is an added file: every line is
+# in scope, and a carried-over claim cannot hide behind its old path.
+_FENCE_LINE = re.compile(r"^ {0,3}(?:`{3,}|~{3,})")
+
+
+def _hunk_range(start: int, count: int) -> list[int]:
+    """Return the inclusive new-side range for one ``--unified=0`` hunk.
+
+    A zero-length hunk is a pure deletion at line ``start``: the removed text
+    sat between ``start`` and ``start + 1``, so both neighbors count as touched.
+    """
+    if count == 0:
+        return [max(start, 1), start + 1]
+    return [start, start + count - 1]
+
+
+class _PatchParser:
+    """Count-driven reader for ``git diff --unified=0`` output.
+
+    Hunk bodies are consumed by the line counts in their ``@@`` header, so an
+    added or removed line whose text looks like a file or hunk header is never
+    interpreted as one. Anything inconsistent marks the file as changed in
+    full (fail closed: every claim in it is in scope).
+    """
+
+    def __init__(self) -> None:
+        self.ranges: dict[str, list[list[int]]] = {}
+        self._fence_from: dict[str, int] = {}
+        self._new_cursor = 0
+        self._poisoned: set[str] = set()
+        self._path: str | None = None
+        self._current: list[list[int]] | None = None
+        self._old_left = 0
+        self._new_left = 0
+
+    def feed(self, line: str) -> None:
+        if self._old_left or self._new_left:
+            if self._consume_body(line):
+                return
+            self._poison()
+        self._header(line)
+
+    def _consume_body(self, line: str) -> bool:
+        kind = line[:1]
+        if kind == "\\":
+            return True  # "\ No newline at end of file" marker, uncounted
+        fence = _FENCE_LINE.match(line[1:]) is not None
+        if kind == "-" and self._old_left:
+            self._old_left -= 1
+            if fence:
+                self._note_fence(self._new_cursor)
+        elif kind == "+" and self._new_left:
+            self._new_left -= 1
+            if fence:
+                self._note_fence(self._new_cursor)
+            self._new_cursor += 1
+        elif kind == " " and self._old_left and self._new_left:
+            self._old_left -= 1
+            self._new_left -= 1
+            self._new_cursor += 1
+        else:
+            return False
+        return True
+
+    def _note_fence(self, line_no: int) -> None:
+        """Remember the earliest changed fence line.
+
+        Adding, editing, or deleting a fence re-pairs every later fence, so
+        claims from that line to the end of the file are no longer the
+        author's unchanged text.
+        """
+        if self._path is not None:
+            known = self._fence_from.get(self._path, line_no)
+            self._fence_from[self._path] = min(known, line_no)
+
+    def _poison(self) -> None:
+        self._old_left = self._new_left = 0
+        if self._path is not None:
+            self._poisoned.add(self._path)
+
+    def _start_file(self, path: str | None) -> None:
+        self._path = path
+        self._current = [] if path is None else self.ranges.setdefault(path, [])
+
+    def _header(self, line: str) -> None:
+        if line.startswith("diff --git "):
+            self._path, self._current = None, None
+        elif line.startswith("+++ "):
+            path = _new_side_path(line)
+            path = None if path is None else _norm_path(path)
+            self._start_file(path)
+        elif line.startswith("@@"):
+            self._hunk(line)
+
+    def _hunk(self, line: str) -> None:
+        match = _HUNK_HEADER.match(line)
+        if self._current is None:
+            raise ValueError("hunk header outside a file section")
+        if match is None:
+            self._poison_header()
+            return
+        old = 1 if match.group(1) is None else int(match.group(1))
+        start = int(match.group(2))
+        new = 1 if match.group(3) is None else int(match.group(3))
+        self._current.append(_hunk_range(start, new))
+        self._old_left, self._new_left = old, new
+        # A deletion-only hunk (new == 0) removes text after line ``start``.
+        self._new_cursor = start + 1 if new == 0 else start
+
+    def _poison_header(self) -> None:
+        if self._path is not None:
+            self._poisoned.add(self._path)
+
+    def finish(self) -> dict[str, list[list[int]]]:
+        if self._old_left or self._new_left:
+            self._poison()
+        for path, found in self.ranges.items():
+            if path in self._poisoned or not found:
+                self.ranges[path] = [[1, _WHOLE_FILE_END]]
+            elif path in self._fence_from:
+                found.append([self._fence_from[path], _WHOLE_FILE_END])
+        return self.ranges
+
+
+def _parse_unified_zero(patch: str) -> dict[str, list[list[int]]]:
+    """Map each patched file to its new-side changed line ranges.
+
+    Splits on ``"\\n"`` only: ``str.splitlines`` also breaks on form feed,
+    NEL and other separators that a doc line may legally contain.
+    Raises ``ValueError`` when a hunk has no file section, which the caller
+    treats as "no usable ranges" so every changed doc counts as changed in full.
+    """
+    parser = _PatchParser()
+    for line in patch.split("\n"):
+        parser.feed(line)
+    return parser.finish()
+
+
+def _diff_line_ranges(
+    repo_root: Path, fork_oid: str, head_oid: str, env: dict[str, str]
+) -> dict[str, list[list[int]]]:
+    """Return changed new-side line ranges per file; renames count as adds."""
+    try:
+        # Not reachable as command injection: the refs are commit OIDs that
+        # _resolve_fork_and_head validated as 40 or 64 lowercase hex
+        # characters, argv is a list run without a shell, and _git_env strips
+        # user and system git config from the inherited environment.
+        result = subprocess.run(
+            _git_command(
+                repo_root,
+                "diff", "--no-ext-diff", "--no-textconv", "--no-color",
+                "--unified=0", "--no-renames",
+                "--src-prefix=a/", "--dst-prefix=b/",
+                fork_oid, head_oid, "--",
+            ),
+            capture_output=True, check=True,
+            timeout=_GIT_TIMEOUT, env=env,
+        )
+    except subprocess.CalledProcessError as exc:
+        raise _GitError(
+            3, f"diff: git failed reading hunks: "
+            f"{_decode_stderr(exc.stderr)}",
+        ) from exc
+    try:
+        return _parse_unified_zero(
+            result.stdout.decode("utf-8", errors="replace")
+        )
+    except ValueError:
+        return {}
+
+
+def _has_symlink_part(path: Path, repo_root: Path) -> bool:
+    """True when ``path`` or any parent below ``repo_root`` is a symlink."""
+    current = repo_root
+    for part in path.relative_to(repo_root).parts:
+        current = current / part
+        if current.is_symlink():
+            return True
+    return False
+
+
+def _claim_in_ranges(
+    claim: dict[str, Any], ranges: list[list[int]]
+) -> bool:
+    """True when the claim's span overlaps any changed range.
+
+    The span runs from ``line`` to ``end_line`` inclusive. For a fenced
+    ``code_example`` that is the opening fence through the closing fence.
+    """
+    start = claim["line"]
+    end = claim.get("end_line", start)
+    return any(lo <= end and start <= hi for lo, hi in ranges)
+
+
 def run_assessment(
     repo_root: Path,
     doc_globs: list[str] | None = None,
@@ -664,8 +961,9 @@ def run_assessment(
         doc_globs = DOC_GLOBS
 
     changed_files: set[str] | None = None
+    changed_ranges: dict[str, list[list[int]]] = {}
     if diff_base:
-        changed_files = _get_changed_files(diff_base, repo_root)
+        changed_files, changed_ranges = _get_changed_diff(diff_base, repo_root)
 
     # Enumerate documentation files
     doc_files_set: set[Path] = set()
@@ -706,6 +1004,7 @@ def run_assessment(
 
     # Build doc file inventory
     doc_inventory: list[DocFile] = []
+    changed_lines: dict[str, list[list[int]]] = {}
     for doc_path in sorted(doc_files_set):
         rel_path = _repo_relative(doc_path, repo_root)
         # When diff_base is set, only process documentation files that were
@@ -714,18 +1013,28 @@ def run_assessment(
         if changed_files is not None and rel_path not in changed_files:
             continue
         try:
-            content = doc_path.read_text(encoding="utf-8", errors="replace")
+            content = _read_doc_text(doc_path)
         except OSError as exc:
             logger.warning("Failed to read doc file %s: %s", rel_path, exc)
             continue
 
         refs = _find_referenced_symbols(content, symbol_names)
         mapped = _map_doc_to_source(rel_path, content, source_files)
+        line_count = content.count("\n") + 1
+        if changed_files is not None:
+            # No parsed hunk, or a symlinked doc (git diffs only the link
+            # text, not the content read here): changed in full.
+            ranges = (
+                None if _has_symlink_part(doc_path, repo_root)
+                else changed_ranges.get(_norm_path(rel_path))
+            ) or [[1, line_count]]
+            # A key collision unions ranges, so it can only widen scope.
+            changed_lines.setdefault(_norm_path(rel_path), []).extend(ranges)
 
         doc_inventory.append(DocFile(
             path=rel_path,
             size_bytes=doc_path.stat().st_size,
-            line_count=content.count("\n") + 1,
+            line_count=line_count,
             code_blocks=_count_code_blocks(content),
             referenced_symbols=refs,
             mapped_source_files=mapped,
@@ -763,6 +1072,7 @@ def run_assessment(
             "coverage_pct": round(coverage_pct, 1),
         },
         "changed_files": sorted(changed_files) if changed_files is not None else None,
+        "changed_lines": changed_lines if changed_files is not None else None,
     }
 
 
@@ -950,14 +1260,16 @@ def run_claim_extraction(
     for doc_info in assessment.get("documentation_files", []):
         doc_path = repo_root / doc_info["path"]
         try:
-            content = doc_path.read_text(encoding="utf-8", errors="replace")
+            content = _read_doc_text(doc_path)
         except OSError as exc:
             logger.warning(
                 "Failed to read doc file %s: %s", doc_info["path"], exc
             )
             continue
 
-        lines = content.split("\n")
+        lines = [
+            ln[:-1] if ln.endswith("\r") else ln for ln in content.split("\n")
+        ]
         mapped_sources = doc_info.get("mapped_source_files", [])
         default_source = mapped_sources[0] if mapped_sources else ""
 
@@ -999,6 +1311,7 @@ def run_claim_extraction(
                     content=code_content,
                     symbols_referenced=identifiers,
                     mapped_source=mapped,
+                    end_line=block_start + len(block_lines) + 1,  # closing fence
                 ))
                 i += 1
                 continue
@@ -1066,6 +1379,34 @@ def run_claim_extraction(
 # ---------------------------------------------------------------------------
 # Phase 3: Compilability Check
 # ---------------------------------------------------------------------------
+
+def _scope_findings(
+    findings: list[dict[str, Any]],
+    claims_by_id: dict[str, dict[str, Any]],
+    changed_lines: dict[str, list[list[int]]] | None,
+) -> list[dict[str, Any]]:
+    """Mark findings in or out of the PR's changed lines (``--diff-base`` only).
+
+    ``changed_lines`` is None without ``--diff-base``; findings are returned
+    untouched so full-file gating is unchanged. Otherwise every finding gets
+    ``in_diff``. One whose claim span misses every changed range is downgraded
+    to ``info`` (``original_severity`` keeps the old value), so it stays
+    visible but never reaches the gate.
+    """
+    if changed_lines is None:
+        return findings
+    for finding in findings:
+        claim = claims_by_id[finding["claim_id"]]
+        ranges = changed_lines.get(_norm_path(claim["file"]))
+        # Fail closed: a file with no entry, or an empty list, is changed in
+        # full.
+        in_diff = not ranges or _claim_in_ranges(claim, ranges)
+        finding["in_diff"] = in_diff
+        if not in_diff:
+            finding["original_severity"] = finding["severity"]
+            finding["severity"] = "info"
+    return findings
+
 
 def run_compilability_check(
     assessment: dict[str, Any],
@@ -1198,9 +1539,14 @@ def run_compilability_check(
                     ),
                 ))
 
+    claims_by_id = {c["id"]: c for c in claims_data.get("claims", [])}
     return {
         "status": "COMPLETED",
-        "findings": [f.to_dict() for f in findings],
+        "findings": _scope_findings(
+            [f.to_dict() for f in findings],
+            claims_by_id,
+            assessment.get("changed_lines"),
+        ),
     }
 
 
@@ -1208,7 +1554,8 @@ def run_compilability_check(
 # Main
 # ---------------------------------------------------------------------------
 
-SEVERITY_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3}
+# "info" ranks below every --severity-threshold choice, so it never blocks.
+SEVERITY_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
 
 
 def check_gate(
@@ -1339,7 +1686,7 @@ def _print_summary(
             print(f"  {ct}: {count}")
     if compilability_data:
         print(f"Findings: {gate_result['total_findings']} total")
-        for sev in ("critical", "high", "medium", "low"):
+        for sev in ("critical", "high", "medium", "low", "info"):
             count = gate_result["by_severity"].get(sev, 0)
             if count:
                 print(f"  {sev}: {count}")
