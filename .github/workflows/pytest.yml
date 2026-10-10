@@ -568,6 +568,24 @@ jobs:
           artifacts/pytest-results-pr-autofix.xml
           --budget pyproject.toml
 
+      # Blocking leg wall-time gate. `test-result` (the required "Run Python
+      # Tests") needs this job, so a leg over the limit blocks the merge. The
+      # test-durations job is not required and cannot carry this gate. The
+      # limit is duration_gates.PARTITION_WALL_LIMIT_SECONDS (480 s). Each
+      # leg's wall_seconds is the JUnit testsuite time, which is pytest time
+      # only and leaves out job setup. Setup plus split-1's primary steps took
+      # about 95 s on PR #6241's run, so 480 s leaves room under the 600 s job
+      # limit. A split imbalance above 1.5x is only a ::warning annotation.
+      - name: Gate pytest leg wall time
+        run: >-
+          uv run --frozen python scripts/testing/duration_gate_check.py
+          artifacts/pytest-results-split-1.xml
+          artifacts/pytest-results-split-2.xml
+          artifacts/pytest-results-split-3.xml
+          artifacts/pytest-results-split-4.xml
+          artifacts/pytest-results-safe-push.xml
+          artifacts/pytest-results-pr-autofix.xml
+
   # Test duration trend and pytest-split timings. Merges the per-leg durations
   # files into the cache the split legs restore (saved only on a push to main),
   # then reads the JUnit reports the partitions already wrote,
@@ -575,8 +593,8 @@ jobs:
   # and compares per-module seconds with the median of earlier main runs. A
   # module or the suite that crosses both the ratio and the seconds threshold
   # fails this job and raises a warning annotation. A leg slower than 480 s (80
-  # percent of the test job timeout) also fails it, and split legs more than 1.5x
-  # apart raise a warning (scripts/testing/duration_gates.py). The history rides in the
+  # percent of the test job timeout) fails the coverage job instead, which the
+  # required check depends on. The history rides in the
   # Actions cache, saved only from pushes to main, so a pull request reads the
   # main baseline and never writes it. ADR-015 caps artifact retention at
   # 7 days, which is why the history is not an artifact. Two overlapping main

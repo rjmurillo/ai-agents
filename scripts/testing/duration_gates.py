@@ -19,7 +19,10 @@ from scripts.testing.duration_render import escape_command_data
 from scripts.testing.duration_schema import PartitionEntry
 
 # The `test` job in .github/workflows/pytest.yml sets timeout-minutes: 10.
-# 80 percent of that is the point a leg is one slow run from being killed.
+# `wall_seconds` is the JUnit testsuite time: pytest's own session time, not the
+# job's. Checkout, environment setup, and split-1's primary steps (pins, lint,
+# ratchets) add about 95 s measured on PR #6241's run. 480 s leaves 120 s of the
+# 600 s limit for that, so a leg over 480 s is one slow run from being killed.
 _JOB_TIMEOUT_SECONDS = 10 * 60
 PARTITION_WALL_LIMIT_SECONDS = 0.8 * _JOB_TIMEOUT_SECONDS
 

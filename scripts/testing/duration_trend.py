@@ -15,13 +15,8 @@ and ``--suite-min-delta`` pair. ``duration_compare.py`` defines "comparable".
 ``--write-history`` appends this run's snapshot to the history, keeping the
 newest ``--max-history`` entries. It may name the same file as ``--history``.
 
-Two gates read the per-partition wall seconds. A partition slower than
-``--leg-limit`` (default ``duration_gates.PARTITION_WALL_LIMIT_SECONDS``) is an
-error and fails the run. Split legs whose slowest exceeds the fastest by more
-than ``--imbalance-ratio`` raise a warning annotation and do not fail it.
-
 Exit codes: 0 ok (no regression, or no baseline yet), 1 logic (a regression,
-a leg over the limit, or no test records), 2 config (bad arguments, or a report declaring a DTD or
+or no test records), 2 config (bad arguments, or a report declaring a DTD or
 entity), 3 external (unreadable input, or an output that cannot be written).
 """
 
@@ -42,13 +37,6 @@ if str(_REPO_ROOT) not in sys.path:
 
 from scripts.testing import duration_history, duration_render  # noqa: E402
 from scripts.testing.duration_compare import Thresholds, compare  # noqa: E402
-from scripts.testing.duration_gates import (  # noqa: E402
-    PARTITION_WALL_LIMIT_SECONDS,
-    SPLIT_IMBALANCE_RATIO,
-    gate_commands,
-    legs_over_limit,
-    split_imbalance,
-)
 from scripts.testing.duration_snapshot import Snapshot, build_snapshot  # noqa: E402
 
 
@@ -75,10 +63,6 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--module-min-delta", type=_positive, default=10.0)
     parser.add_argument("--suite-ratio", type=_positive, default=1.25)
     parser.add_argument("--suite-min-delta", type=_positive, default=60.0)
-    parser.add_argument("--leg-limit", type=_positive, default=PARTITION_WALL_LIMIT_SECONDS,
-                        help="Seconds one partition may take before the report fails.")
-    parser.add_argument("--imbalance-ratio", type=_positive, default=SPLIT_IMBALANCE_RATIO,
-                        help="Slowest over fastest split leg that raises a warning.")
     return parser
 
 
@@ -124,15 +108,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     print(report)
     for line in duration_render.warning_commands(comparison):
         print(line)
-    over_limit = legs_over_limit(snapshot.partitions, args.leg_limit)
-    imbalance = split_imbalance(snapshot.partitions, args.imbalance_ratio)
-    for line in gate_commands(over_limit, imbalance, args.leg_limit):
-        print(line)
     regressed = len(comparison.modules) + (1 if comparison.suite else 0)
     print(f"duration: {regressed} regressions in {comparison.comparable} comparable "
-          f"modules, {len(snapshot.modules)} modules measured, {len(over_limit)} legs over "
-          f"{args.leg_limit:.0f}s", file=sys.stderr)
-    return 1 if regressed or over_limit else 0
+          f"modules, {len(snapshot.modules)} modules measured", file=sys.stderr)
+    return 1 if regressed else 0
 
 
 if __name__ == "__main__":
