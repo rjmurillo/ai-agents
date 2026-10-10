@@ -627,8 +627,11 @@ pre-push:
 
           # Runs `pytest --testmon` over tests/ (issue #6239): pytest-testmon
           # re-runs only the tests whose recorded dependencies changed since
-          # its last run. The first run has no `.testmondata` (git-ignored
-          # local state), so it runs everything and builds it. Selection is
+          # its last run. `.testmondata` is git-ignored local state. With none,
+          # the hook first fetches main's CI seed (push runs on main only,
+          # 30s cap; see `testmon-seed` in pytest.yml) and otherwise runs
+          # everything to build it. Every partition runs even after one
+          # fails, and the exit code is the worst. Selection is
           # best effort: it misses code a test reaches only through a
           # subprocess. A failing run blocks the push. CI still runs every
           # pytest leg in full on every push, pull request, and merge-queue

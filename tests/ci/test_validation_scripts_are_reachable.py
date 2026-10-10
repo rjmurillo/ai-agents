@@ -41,16 +41,12 @@ from __future__ import annotations
 
 import ast
 import functools
-import json
-import os
 import re
-import sys
-import tempfile
-import time
 from pathlib import Path
 
 import pytest
 
+from tests.ci.shared_once import compute_once
 from tests.ci.test_ci_scripts_are_wired import _live_run_blocks, _strip_commented_lines
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -133,7 +129,7 @@ def test_python_sources_keeps_checkout_nested_under_worktrees(
         source.parent.mkdir(parents=True, exist_ok=True)
         source.write_text("print('reachable')\n", encoding="utf-8")
 
-    monkeypatch.setattr(sys.modules[__name__], "_REPO_ROOT", repo)
+    monkeypatch.setitem(globals(), "_REPO_ROOT", repo)
     _python_sources.cache_clear()
     try:
         assert _python_sources() == (included,)
@@ -463,50 +459,10 @@ def _compute_reachable() -> frozenset[str]:
     return frozenset(seen)
 
 
-_SHARE_WAIT_SECONDS = 100.0
-
-
-def _shared_reachable(cache: Path) -> frozenset[str]:
-    """Compute the closure once per xdist run and let every worker read it.
-
-    The reference graph parses about 1300 sources, which costs 6 s plain and 18 s
-    or more under a coverage tracer. Per worker that was 48 copies of the same
-    scan at once, and two tests passed the 120 s pytest-timeout under pre-push
-    (issue #6239). The first worker takes an exclusive lock file and writes the
-    result; the others poll for it. A worker that waits past the deadline (for
-    example behind a crashed writer's stale lock) computes locally, so the share
-    can slow nothing down beyond the deadline and cannot change the answer.
-    """
-    lock = cache.with_suffix(".lock")
-    deadline = time.monotonic() + _SHARE_WAIT_SECONDS
-    while time.monotonic() < deadline:
-        if cache.exists():
-            return frozenset(json.loads(cache.read_text(encoding="utf-8")))
-        try:
-            handle = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-        except FileExistsError:
-            time.sleep(0.25)
-            continue
-        os.close(handle)
-        try:
-            result = _compute_reachable()
-            partial = cache.with_suffix(f".{os.getpid()}.tmp")
-            partial.write_text(json.dumps(sorted(result)), encoding="utf-8")
-            os.replace(partial, cache)
-            return result
-        finally:
-            lock.unlink(missing_ok=True)
-    return _compute_reachable()
-
-
 @functools.lru_cache(maxsize=1)
 def _reachable() -> frozenset[str]:
     """Transitive closure of the entry points, shared across xdist workers."""
-    run_uid = os.environ.get("PYTEST_XDIST_TESTRUNUID")
-    if not run_uid:
-        return _compute_reachable()
-    cache = Path(tempfile.gettempdir()) / f"reachable-scripts-{run_uid}.json"
-    return _shared_reachable(cache)
+    return compute_once("reachable-scripts", _compute_reachable)
 
 
 @pytest.mark.parametrize("script", _guarded_scripts(), ids=lambda p: p.name)

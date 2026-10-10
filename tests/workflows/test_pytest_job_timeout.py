@@ -16,6 +16,12 @@ _WORKFLOW = Path(__file__).resolve().parents[2] / ".github" / "workflows" / "pyt
 
 _MAX_TIMEOUT = 10
 
+# Jobs outside the required chain that may exceed the cap, with their own cap.
+# `testmon-seed` (issue #6239) builds one database over the whole suite on a
+# 4-vCPU runner and cannot be split, since testmon keys the database by path.
+# It is not in `test-result` needs, so its length never delays a verdict.
+_LONG_JOB_MAX_TIMEOUT = {"testmon-seed": 60}
+
 
 def _load_workflow() -> dict[str, Any]:
     with _WORKFLOW.open(encoding="utf-8") as handle:
@@ -59,4 +65,12 @@ class TestTestJobTimeout:
         for name, job in workflow["jobs"].items():
             timeout = job.get("timeout-minutes")
             assert isinstance(timeout, int), f"{name} has no integer timeout"
-            assert timeout <= _MAX_TIMEOUT, f"{name} timeout is {timeout} minutes"
+            cap = _LONG_JOB_MAX_TIMEOUT.get(name, _MAX_TIMEOUT)
+            assert timeout <= cap, f"{name} timeout is {timeout} minutes"
+
+    def test_a_long_job_is_never_a_dependency_of_the_required_chain(self) -> None:
+        """The 10 minute cap protects the verdict; an exemption must stay outside it."""
+        jobs = _load_workflow()["jobs"]
+        for exempt in _LONG_JOB_MAX_TIMEOUT:
+            assert exempt in jobs
+            assert exempt not in jobs["test-result"]["needs"]

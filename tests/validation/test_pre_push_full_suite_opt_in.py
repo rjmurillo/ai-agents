@@ -29,8 +29,8 @@ def test_the_opt_in_runs_the_full_suite_without_selection(
     monkeypatch.setenv(git_hook_policy.PYTEST_FULL_SUITE_LOCALLY_ENV, "1")
     seen = record_runs(monkeypatch)
     assert git_hook_policy.run_pytest(tmp_path) == 0
-    assert seen.commands == git_hook_policy._pytest_commands(tmp_path)
-    assert not any("--testmon" in command for command in seen.commands)
+    assert seen == git_hook_policy._pytest_commands(tmp_path)
+    assert not any("--testmon" in command for command in seen)
 
 
 @pytest.mark.parametrize("value", ["0", "true", "TRUE", "yes", " 1 x"])
@@ -62,7 +62,7 @@ def test_a_rejected_opt_in_value_exits_config_error_not_success(
     monkeypatch.setenv(git_hook_policy.PYTEST_FULL_SUITE_LOCALLY_ENV, "true")
     seen = record_runs(monkeypatch)
     assert git_hook_policy.run_pytest(tmp_path) == CONFIG_ERROR_EXIT
-    assert seen.commands == []
+    assert seen == []
 
 
 def test_an_invalid_worker_override_is_reported_on_the_testmon_path(

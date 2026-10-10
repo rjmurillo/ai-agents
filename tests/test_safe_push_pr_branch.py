@@ -1029,7 +1029,7 @@ def test_run_pytest_refuses_to_start_a_command_past_the_budget(
     assert "exceeded" in capsys.readouterr().err
 
 
-def test_run_pytest_stops_on_the_first_failing_command(
+def test_run_pytest_runs_every_command_after_a_failure_and_returns_the_worst(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -1039,8 +1039,10 @@ def test_run_pytest_stops_on_the_first_failing_command(
         returncode=3,
     )
 
+    # Every partition records its tests in `.testmondata`, so a failing one no
+    # longer stops the rest (issue #6239).
     assert git_hook_policy.run_pytest(tmp_path) == 3
-    assert len(seen) == 1
+    assert len(seen) == len(git_hook_policy._testmon_commands(tmp_path))
 
 
 # ---------------------------------------------------------------------------

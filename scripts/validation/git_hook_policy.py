@@ -46,7 +46,7 @@ from yaml.nodes import MappingNode, Node, ScalarNode, SequenceNode
 from scripts.ci import diff_line_scope
 from scripts.ci.run_pytest_partition import PYTEST_DIST_MODE
 from scripts.hook_utilities.utilities import recent_host_session_dates
-from scripts.validation import cli_smoke_paths
+from scripts.validation import cli_smoke_paths, testmon_seed
 from scripts.validation.evidence import (
     REASON_ADVISORY_FINDINGS,
     REASON_AUTH_UNAVAILABLE,
@@ -626,6 +626,8 @@ TEST_SUITE_TIMEOUT_SECONDS = 780
 # same commit while costing the push minutes it does not have; see ADR-104.
 PYTEST_FULL_SUITE_LOCALLY_ENV = "AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY"
 _TESTMON_FLAGS = ("--testmon", "--testmon-forceselect")
+# Set by the CI seed job so its build starts from an empty database.
+TESTMON_NO_SEED_ENV = "AI_AGENTS_TESTMON_NO_SEED"
 TESTMON_COVERAGE_CORE_ENV = "COVERAGE_CORE"
 TESTMON_COVERAGE_CORE = "ctrace"
 CLI_E2E_TIMEOUT_SECONDS = 1_140
@@ -7665,9 +7667,10 @@ def _testmon_stand_in(repo_root: Path) -> list[list[str]]:
         "in-process,\n"
         "  so a test that reaches code only through a subprocess is not "
         "re-selected when\n"
-        "  that code changes. The first run, or a run after a dependency "
-        "change, has no\n"
-        "  database and runs everything to build .testmondata.\n"
+        "  that code changes. With no .testmondata the hook first tries main's "
+        "CI seed\n"
+        "  (push runs on main only); if that fails it runs everything to build "
+        "one.\n"
         "  The pytest header and summary below show what testmon selected and ran.\n"
         "  A failure here blocks the push. CI runs every test: "
         ".github/workflows/pytest.yml\n"
@@ -7709,6 +7712,27 @@ def _resolve_pytest_commands(repo_root: Path) -> list[list[str]]:
 
 def _uses_testmon(commands: Sequence[Sequence[str]]) -> bool:
     return any("--testmon" in command for command in commands)
+
+
+def _seed_testmon_database(repo_root: Path) -> None:
+    """Fetch main's testmon database when none exists locally; never fail the push.
+
+    Trust: `scripts/validation/testmon_seed.py` accepts only an artifact built by
+    a `push` run on `main` of the canonical repository, never a pull request run.
+    The database is an SQLite file testmon trusts, so that source restriction is
+    the security boundary. Any failure leaves the full run to build the database.
+    """
+    if os.environ.get(TESTMON_NO_SEED_ENV):
+        return
+    result = testmon_seed.fetch_seed(repo_root)
+    if result.seeded:
+        print(f"pytest: {result.detail}.", file=sys.stderr)
+        return
+    if "already exists" not in result.detail:
+        print(
+            f"pytest: no testmon seed ({result.detail}); the first run builds the database.",
+            file=sys.stderr,
+        )
 
 
 def run_pytest(repo_root: Path) -> int:
@@ -7762,6 +7786,16 @@ def run_pytest(repo_root: Path) -> int:
     # when the clamp had given it 150s.
     budget = _container_clamped(TEST_SUITE_TIMEOUT_SECONDS)
     deadline = time.monotonic() + budget
+    if _uses_testmon(commands):
+        # Inside the same budget: the fetch spends at most its own short
+        # deadline, then the partitions run on whatever is left.
+        _seed_testmon_database(repo_root)
+    # Every partition runs even after one fails, so each records its tests in
+    # `.testmondata` and the next push selects from complete data. Stopping at
+    # the first failure left later partitions unrecorded, and the next run
+    # re-ran all of them (about 170 tests, 3 minutes). The exit code is the
+    # worst partition's.
+    worst = 0
     for index, command in enumerate(commands):
         remaining = deadline - time.monotonic()
         if remaining <= 0:
@@ -7769,7 +7803,7 @@ def run_pytest(repo_root: Path) -> int:
                 f"ERROR: pytest suite exceeded the {budget}s budget before running {command}",
                 file=sys.stderr,
             )
-            return 1
+            return max(worst, 1)
         result = _run_command(
             command,
             repo_root,
@@ -7803,9 +7837,8 @@ def run_pytest(repo_root: Path) -> int:
                     f"command{plural} in the suite)",
                     file=sys.stderr,
                 )
-        if result.returncode != 0:
-            return result.returncode
-    return 0
+        worst = max(worst, result.returncode)
+    return worst
 
 
 def _workflow_local_base_ref() -> str:
