@@ -107,7 +107,3 @@ def test_an_oversized_database_is_refused(tmp_path: Path, monkeypatch: pytest.Mo
     result = FakeGh(_good_routes(tmp_path)).fetch(tmp_path)
     assert not result.seeded
     assert "size cap" in result.detail
-
-
-def test_missing_dependency_inputs_fall_back_without_raising(tmp_path: Path) -> None:
-    assert not FakeGh({}).fetch(tmp_path).seeded

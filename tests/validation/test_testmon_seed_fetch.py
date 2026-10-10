@@ -80,3 +80,7 @@ def test_an_existing_database_is_never_replaced_and_nothing_is_fetched(tmp_path:
     assert not gh.fetch(tmp_path).seeded
     assert (tmp_path / ".testmondata").read_bytes() == b"mine"
     assert gh.calls == []
+
+
+def test_missing_dependency_inputs_fall_back_without_raising(tmp_path: Path) -> None:
+    assert not FakeGh({}).fetch(tmp_path).seeded
