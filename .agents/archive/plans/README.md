@@ -50,6 +50,7 @@ tracking issue and the named deliverable present in the working tree.
 | `model-assignment-unification.md` | Abandoned, superseded | Abandoned 2026-09-03 after the research it depended on landed elsewhere. Successors: issue #5282 and ADR-052. Moved here from `.agents/plans/abandoned/` because the plans README requires both staging directories to be empty at rest (#3426). |
 | `spec-005-command-skill-bundling-implementation.md` | Landed partial, registry now stale | `scripts/validation/bundle_registry.py` and `tests/test_command_bundles.py` exist, but all 15 registry rows fail and the check never left advisory mode. Tracked in #3424. |
 | `6069-pr-gated-cli-smoke.md` | Complete | REQ-047 shipped in PR #6240 (`9b40ac957`), which closed #6069. Archived directly because the plans README requires `completed/` to be empty at rest (#3426). The first nine-leg CI proof is dispatch run 37875066342 on `main`. |
+| `6239-retire-test-selector.md` | Complete | Import-graph test selector retired and pytest legs balanced by duration in PR #6241 (`0c801576a`), which closed #6239. Archived directly because the plans README requires `completed/` to be empty at rest (#3426). |
 
 ## Reading these files
 
