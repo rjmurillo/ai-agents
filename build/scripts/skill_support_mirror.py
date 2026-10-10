@@ -31,6 +31,7 @@ if str(_SCRIPT_DIR) not in sys.path:
 from binplace_manifest import is_bytecode_artifact  # noqa: E402
 from copilot_body_translation import translate_skill_file  # noqa: E402
 from regen_guard import detect_reason as regen_detect_reason  # noqa: E402
+from skill_distribution import SkillDistributionError, repo_local_names  # noqa: E402
 
 _DEFAULT_EXCLUDES = ("AGENTS.md", "CLAUDE.md")
 
@@ -65,12 +66,16 @@ class SkillSupportSyncError(GenerateSkillsError):
     """
 
 
-def _iter_skill_sources(source_dir: Path, excludes: set[str]) -> list[Path]:
+def _iter_skill_sources(
+    source_dir: Path, excludes: set[str], skip_names: frozenset[str] = frozenset()
+) -> list[Path]:
     """Return immediate subdirectories that contain a SKILL.md file.
 
     Excludes top-level files (AGENTS.md / CLAUDE.md). The check is by
     presence of a SKILL.md inside the immediate child directory; nested
-    skill-like layouts are not recursed.
+    skill-like layouts are not recursed. ``skip_names`` drops skills flagged
+    ``distribution: repo-local`` (``skill_distribution.repo_local_names``):
+    they stay under ``.claude/skills/`` and reach no vendor plugin tree.
     """
     if not source_dir.is_dir():
         raise GenerateSkillsError(f"sourceDir not found: {source_dir}")
@@ -78,7 +83,7 @@ def _iter_skill_sources(source_dir: Path, excludes: set[str]) -> list[Path]:
     for child in sorted(source_dir.iterdir()):
         if not child.is_dir():
             continue
-        if child.name in excludes:
+        if child.name in excludes or child.name in skip_names:
             continue
         if not (child / "SKILL.md").is_file():
             continue
@@ -344,7 +349,9 @@ def sync_claude_plugin_skill_support(
     ``.claude/skills/<name>/`` stays the canonical, hand-maintained source
     for scripts, references, tests, and any other support file (ADR-109's
     lib exception applies the same pattern here: imported/hand-written code
-    stays at its existing location, and the build owns the copy).
+    stays at its existing location, and the build owns the copy). A skill
+    flagged ``distribution: repo-local`` is not mirrored: its support files
+    stay only under ``.claude/skills/<name>/``.
     ``src/claude/skills/<name>/SKILL.md`` is rendered separately by
     ``skill_templates.compile_all`` and is never touched here (``SKILL.md``
     is always excluded, via ``_copy_skill_tree``'s ``skip_filenames``).
@@ -382,7 +389,11 @@ def sync_claude_plugin_skill_support(
     source_dir = repo_root / _CLAUDE_SUPPORT_SOURCE_REL
     target_dir = repo_root / _CLAUDE_SUPPORT_TARGET_REL
     try:
-        skills = _iter_skill_sources(source_dir, set(_DEFAULT_EXCLUDES))
+        repo_local = repo_local_names(repo_root)
+    except SkillDistributionError as exc:
+        return (0, 0, 0, [str(exc)])
+    try:
+        skills = _iter_skill_sources(source_dir, set(_DEFAULT_EXCLUDES), repo_local)
     except GenerateSkillsError:
         return (0, 0, 0, [])
 

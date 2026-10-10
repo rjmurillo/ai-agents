@@ -51,6 +51,7 @@ _SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(_SCRIPT_DIR))
 
 import skill_templates  # noqa: E402
+from skill_distribution import SkillDistributionError, repo_local_names  # noqa: E402
 
 # _copy_skill_tree, GenerateSkillsError, SkillSupportSyncError,
 # _iter_skill_sources, _DEFAULT_EXCLUDES, and sync_claude_plugin_skill_support
@@ -246,10 +247,13 @@ def generate_skills(
     start_time = time.monotonic()
 
     try:
-        skills = _iter_skill_sources(source_dir, excludes)
+        skills = _iter_skill_sources(source_dir, excludes, repo_local_names(repo_root))
     except GenerateSkillsError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
+    except SkillDistributionError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 2
 
     if not skills:
         print(f"Error: no skills with SKILL.md found under {source_dir}", file=sys.stderr)

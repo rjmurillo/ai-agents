@@ -113,6 +113,7 @@ from atomic_write import (  # noqa: E402
     reject_symlinked_ancestors,
 )
 from regen_guard import detect_reason  # noqa: E402
+from skill_distribution import repo_local_names  # noqa: E402
 from yaml_loader import ConfigError, load_platform_config, validate_relative_path  # noqa: E402
 
 _MANIFEST_REL = Path("templates") / "platforms" / "binplace.yaml"
@@ -413,12 +414,37 @@ def binplace(repo_root: Path, *, check: bool) -> BinplaceResult:
             # A row with no install_tree (ADR-109 B5's Copilot-side lib
             # rows) has no second hop: its plugin_tree IS the final output.
             continue
-        _binplace_one_row(row.plugin_tree, row.install_tree, check=check, result=result)
+        _binplace_one_row(
+            row.plugin_tree,
+            row.install_tree,
+            check=check,
+            result=result,
+            skip_top_dirs=_repo_local_skill_dirs(repo_root, row),
+        )
     return result
 
 
+def _repo_local_skill_dirs(repo_root: Path, row: Row) -> frozenset[str]:
+    """Return the ``skills`` row's ``distribution: repo-local`` skill directory names.
+
+    Binplace neither copies, drift-reports, nor lists as ``unowned`` anything
+    under a repo-local skill's directory: ``skill_templates.compile_all``
+    renders its ``SKILL.md`` straight to the install tree and its support
+    files are canonical there, so a leftover ``src/claude/skills/<name>/``
+    copy must never overwrite them. Every other row returns the empty set.
+    """
+    if row.compile != _SKILLS_COMPILE_DELEGATE:
+        return frozenset()
+    return repo_local_names(repo_root)
+
+
 def _binplace_one_row(
-    plugin_tree: Path, install_tree: Path, *, check: bool, result: BinplaceResult
+    plugin_tree: Path,
+    install_tree: Path,
+    *,
+    check: bool,
+    result: BinplaceResult,
+    skip_top_dirs: frozenset[str] = frozenset(),
 ) -> None:
     """Binplace one row's plugin tree, folding written/drifted/unowned into ``result``.
 
@@ -440,6 +466,8 @@ def _binplace_one_row(
         if src_path.is_dir() or is_bytecode_artifact(src_path):
             continue
         rel = src_path.relative_to(plugin_tree)
+        if rel.parts[0] in skip_top_dirs:
+            continue
         owned_relatives.add(rel)
         _binplace_one_file(src_path, install_tree / rel, check=check, result=result)
 
@@ -449,6 +477,8 @@ def _binplace_one_row(
         if existing.is_dir() or is_bytecode_artifact(existing):
             continue
         rel = existing.relative_to(install_tree)
+        if rel.parts[0] in skip_top_dirs:
+            continue
         if rel not in owned_relatives:
             result.unowned.append(str(existing))
 

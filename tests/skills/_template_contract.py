@@ -25,6 +25,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(REPO_ROOT / "build" / "scripts"))
 
+import skill_distribution
 import skill_templates
 
 _CLAUDE_MD_LINE_RE = re.compile(r"^@CLAUDE\.md$", re.MULTILINE)
@@ -46,6 +47,9 @@ _LITERAL_BRACE_SKILLS = frozenset({"merge-resolver", "security-detection"})
 
 def assert_template_owned_contract(name: str) -> None:
     """Assert the ADR-108 contract for one template-owned pilot skill.
+
+    A skill flagged ``metadata.distribution: repo-local`` takes
+    :func:`_assert_repo_local_contract` instead of the plugin-tree checks below.
 
     Three checks, matching DESIGN-024's "Tests" table entry verbatim, plus
     one gate on the mirror-exclusion itself:
@@ -74,6 +78,9 @@ def assert_template_owned_contract(name: str) -> None:
     has_mirror = name not in _NO_COPILOT_MIRROR
 
     assert template_path.is_file(), f"no template for {name!r}: {template_path}"
+    if skill_distribution.is_repo_local(REPO_ROOT, name):
+        _assert_repo_local_contract(name, template_path, partials_dir)
+        return
     assert plugin_path.is_file(), f"no rendered plugin-tree SKILL.md for {name!r}: {plugin_path}"
     assert rendered_path.is_file(), f"no binplaced SKILL.md for {name!r}: {rendered_path}"
     if has_mirror:
@@ -105,3 +112,26 @@ def assert_template_owned_contract(name: str) -> None:
         assert not _CLAUDE_MD_LINE_RE.search(text), f"{path}: still carries an @CLAUDE.md line"
         if name not in _LITERAL_BRACE_SKILLS:
             assert "{{" not in text, f"{path}: unresolved '{{{{' left in rendered output"
+
+
+def _assert_repo_local_contract(name: str, template_path: Path, partials_dir: Path) -> None:
+    """Assert the contract for a ``distribution: repo-local`` skill.
+
+    The skill renders straight to ``.claude/skills/<name>/SKILL.md`` and
+    must appear in neither vendor plugin tree. The render is still compared
+    byte for byte, and the rendered file still carries no ``@CLAUDE.md`` line.
+    """
+    rendered_path = REPO_ROOT / ".claude" / "skills" / name / "SKILL.md"
+    assert rendered_path.is_file(), f"no rendered SKILL.md for {name!r}: {rendered_path}"
+    for tree in ("claude", "copilot-cli"):
+        leaked = REPO_ROOT / "src" / tree / "skills" / name
+        assert not leaked.exists(), f"repo-local skill {name!r} leaked into {leaked}"
+
+    committed = rendered_path.read_text(encoding="utf-8", newline="")
+    fresh_render = skill_templates.render(template_path, partials_dir)
+    assert committed == fresh_render, (
+        f"{rendered_path} has drifted from {template_path.name}; rerun build/scripts/build_all.py"
+    )
+    assert not _CLAUDE_MD_LINE_RE.search(committed), f"{rendered_path}: has an @CLAUDE.md line"
+    if name not in _LITERAL_BRACE_SKILLS:
+        assert "{{" not in committed, f"{rendered_path}: unresolved '{{{{' left in output"

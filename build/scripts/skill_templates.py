@@ -148,6 +148,7 @@ if str(_SCRIPT_DIR) not in sys.path:
 
 from atomic_write import publish_bytes_atomically  # noqa: E402
 from regen_guard import detect_reason  # noqa: E402
+from skill_distribution import SkillDistributionError, is_repo_local  # noqa: E402
 from skill_template_grammar import (  # noqa: E402,F401 (F401: re-exported for callers)
     _SLUG,
     MissingPartialError,
@@ -252,7 +253,28 @@ def _name_validation_error(repo_root: Path, name: str, tmpl_path: Path) -> str |
             f"outside {resolved_root}"
         )
 
+    try:
+        repo_local = is_repo_local(repo_root, name)
+    except SkillDistributionError as exc:
+        return str(exc)
+    if repo_local:
+        return _install_target_error(repo_root, name, tmpl_path)
     return _plugin_tree_error(repo_root, name, tmpl_path, resolved_repo)
+
+
+def _install_target_error(repo_root: Path, name: str, tmpl_path: Path) -> str | None:
+    """Return why a repo-local skill's direct render target is refused, or ``None``.
+
+    A ``distribution: repo-local`` skill renders straight to
+    ``.claude/skills/<name>/SKILL.md`` with no plugin-tree hop, so the
+    symlink defense ``_plugin_tree_error`` gives ``src/claude/skills/<name>/``
+    moves to that file. The skill directory and its root were already
+    validated by the caller.
+    """
+    target = repo_root / ".claude" / "skills" / name / "SKILL.md"
+    if target.is_symlink():
+        return f"{tmpl_path}: .claude/skills/{name}/SKILL.md is a symlink, not a real file"
+    return None
 
 
 def _plugin_tree_error(
@@ -353,7 +375,11 @@ def owned_targets(repo_root: Path) -> set[Path]:
     """
     names = discover(repo_root)
     install = {repo_root / ".claude" / "skills" / name / "SKILL.md" for name in names}
-    plugin = {repo_root / "src" / "claude" / "skills" / name / "SKILL.md" for name in names}
+    plugin = {
+        repo_root / "src" / "claude" / "skills" / name / "SKILL.md"
+        for name in names
+        if not is_repo_local(repo_root, name)
+    }
     return install | plugin
 
 
@@ -401,6 +427,17 @@ def _report_discover_errors(repo_root: Path, result: CompileResult) -> None:
         result.exit_code = max(result.exit_code, 2)
 
 
+def _render_target(repo_root: Path, name: str) -> Path:
+    """Return where :func:`compile_all` writes skill ``name``'s ``SKILL.md``.
+
+    A shipped skill renders into the plugin tree and binplace copies it onto
+    ``.claude/skills/``. A ``distribution: repo-local`` skill renders straight
+    to ``.claude/skills/<name>/SKILL.md`` and appears in no plugin tree.
+    """
+    root = repo_root / ".claude" if is_repo_local(repo_root, name) else repo_root / "src" / "claude"
+    return root / "skills" / name / "SKILL.md"
+
+
 def compile_all(repo_root: Path, *, validate: bool, what_if: bool = False) -> CompileResult:
     """Compile every discovered template into its ``src/claude/skills/`` target.
 
@@ -441,7 +478,7 @@ def compile_all(repo_root: Path, *, validate: bool, what_if: bool = False) -> Co
     _report_discover_errors(repo_root, result)
 
     for name, tmpl_path in sorted(discover(repo_root).items()):
-        target = repo_root / "src" / "claude" / "skills" / name / "SKILL.md"
+        target = _render_target(repo_root, name)
 
         reason = detect_reason(target)
         if reason is not None:
