@@ -140,6 +140,9 @@ Allowlist for the reference gate: `.project-toolkit/plans/`, `.project-toolkit/s
 | 2026-10-08 | pytest-split 0.11.0 with `duration_based_chunks` | Spike: works with xdist loadfile and importlib node IDs; union equals full collection with no duplicates; chunks keep collection order, so fewer files split (2 of 6 against 5 of 6) | `least_duration`; a custom file-level bin packer (rejected: building) |
 | 2026-10-08 | Slow-test budget runs over merged junit in the coverage job | pytest-split is not file-aware, so a per-leg budget could miss a split file | Per-leg budget |
 | 2026-10-08 | Commit `.test_durations` (about 5 MB pretty JSON), refresh by documented command | No repo size lint; pytest-split reads a file at run time; no junit import exists | Restore from an Actions artifact (more moving parts) |
+| 2026-10-09 | Superseded: no committed durations file; pytest-split timings come from an Actions cache that only a push to main writes | Owner: nobody maintains a file. CI timings also split better than local ones (CI legs ranged 224 to 302 s against a predicted 1.02 ratio) | Scheduled bot PR refreshing the file; manual refresh PR |
+| 2026-10-09 | Superseded: pre-push runs testmon-selected tests (best effort), not collection only | Owner: collection alone does not catch failures before CI | Collection only (the 2026-10-08 choice) |
+| 2026-10-09 | Superseded: `--dist worksteal` replaces `loadfile` | Owner: same speed at CI's 4 workers, about 20 percent faster at 16, no isolation break in 7 full runs | Keep loadfile |
 
 ## Progress Log
 
