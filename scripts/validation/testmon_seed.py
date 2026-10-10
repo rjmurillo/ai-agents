@@ -50,19 +50,23 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from scripts.validation.testmon_seed_archive import (
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(_PROJECT_ROOT) not in sys.path:  # direct file execution puts only this directory first
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+from scripts.validation.testmon_seed_archive import (  # noqa: E402
     DATABASE_NAME,
     database_from_zip,
     write_database,
 )
-from scripts.validation.testmon_seed_gh import (
+from scripts.validation.testmon_seed_gh import (  # noqa: E402
     Budget,
     Downloader,
     GhRunner,
     download_to_file,
     run_gh,
 )
-from scripts.validation.testmon_seed_trust import (
+from scripts.validation.testmon_seed_trust import (  # noqa: E402
     CANONICAL_REPO,
     MAIN_BRANCH,
     WORKFLOW_FILE,
