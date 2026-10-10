@@ -8,7 +8,7 @@ import pytest
 
 from scripts.testing.duration_compare import Thresholds, compare
 from scripts.testing.duration_history import load_history
-from scripts.testing.duration_schema import ids_digest
+from scripts.testing.duration_schema import ModuleEntry, ids_digest
 from scripts.testing.duration_snapshot import Snapshot, build_snapshot
 from tests.duration_test_helpers import DEFAULT_LIMITS, NOW, write_history, write_junit
 
@@ -97,7 +97,7 @@ def test_a_replaced_test_with_the_same_count_is_not_compared(tmp_path: Path) -> 
     assert result.modules == [] and result.suite is None
 
 
-def _module(seconds: float, name: str) -> dict[str, object]:
+def _module(seconds: float, name: str) -> ModuleEntry:
     return {"seconds": seconds, "tests": 1, "ids": ids_digest([f"{name}::t"])}
 
 
@@ -106,7 +106,7 @@ def _leg(seconds: dict[str, float], partition: str = "leg") -> Snapshot:
     return Snapshot(
         sha="now", recorded_at="2026-10-10T00:00:00+00:00",
         partitions={partition: {"tests": len(seconds), "wall_seconds": 1.0}},
-        modules={n: _module(s, n) for n, s in seconds.items()},  # type: ignore[misc]
+        modules={n: _module(s, n) for n, s in seconds.items()},
         module_partitions={n: partition for n in seconds},
     )
 
