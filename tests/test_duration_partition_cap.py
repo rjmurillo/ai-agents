@@ -78,3 +78,19 @@ def test_a_module_missing_from_the_current_run_does_not_count() -> None:
 
     assert result.comparable == 5
     assert result.modules == []
+
+
+def test_a_slow_runner_within_the_cap_does_not_fail_the_suite() -> None:
+    history = history_of({m: 20.0 for m in MODULES})
+
+    result = compare(leg({m: 32.0 for m in MODULES}), history, DEFAULT_LIMITS)
+
+    assert result.modules == [] and result.suite is None
+
+
+def test_a_3x_uniform_slowdown_still_fails_at_partition_level() -> None:
+    history = history_of({m: 20.0 for m in MODULES})
+
+    result = compare(leg({m: 60.0 for m in MODULES}), history, DEFAULT_LIMITS)
+
+    assert "partition leg" in {r.name for r in result.modules}

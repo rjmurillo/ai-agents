@@ -6,7 +6,8 @@ alike. A module is therefore measured against its baseline scaled by how much
 slower its partition's other modules ran, so only a module slower than its own
 partition is a regression. A partition never scales the baseline below 1.0, and never above
 ``SPEED_CAP``: a partition slower than the cap is itself a regression. The
-suite-level check compares unscaled totals against unscaled baselines.
+suite-level check scales each module's baseline by the same capped partition
+speed, so the sum of scaled baselines is the suite baseline.
 
 A module's baseline is the median of its seconds across history snapshots that
 ran exactly the same tests in it, matched by a digest of the test IDs.
@@ -112,13 +113,15 @@ def compare(current: Snapshot, history: list[Snapshot], limits: Thresholds) -> C
         result.baseline += baselines[module]
         result.min_samples = min(result.min_samples or len(samples), len(samples))
     result.speeds = partition_speeds(current, baselines)
+    scaled_total = 0.0
     for module, baseline in baselines.items():
         speed = min(result.speeds.get(current.module_partitions.get(module, ""), 1.0), SPEED_CAP)
+        scaled_total += baseline * speed
         seconds = current.modules[module]["seconds"]
         if regressed(seconds, baseline * speed, limits.module_ratio, limits.module_min_delta):
             result.modules.append(Regression(module, seconds, baseline, sample_counts[module]))
     result.modules += _slow_partitions(current, baselines, sample_counts, result.speeds)
     result.modules.sort(key=lambda r: (-(r.seconds - r.baseline), r.name))
-    if regressed(result.seconds, result.baseline, limits.suite_ratio, limits.suite_min_delta):
+    if regressed(result.seconds, scaled_total, limits.suite_ratio, limits.suite_min_delta):
         result.suite = Regression("suite", result.seconds, result.baseline, result.min_samples)
     return result
