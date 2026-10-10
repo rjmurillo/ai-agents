@@ -8,6 +8,7 @@ from scripts.testing.duration_compare import Comparison, Regression
 from scripts.testing.duration_snapshot import Snapshot
 
 TREND_ROWS = 10
+SLOW_PARTITION_NOTE = 1.1
 
 
 def ratio_text(regression: Regression) -> str:
@@ -40,6 +41,9 @@ def _comparison_lines(comparison: Comparison, history_size: int) -> list[str]:
     lines = [f"{comparison.comparable} modules comparable against {history_size} history "
              f"snapshots: {comparison.seconds:.1f}s now, {comparison.baseline:.1f}s median "
              f"baseline ({delta:+.1f}s)."]
+    lines += [f"Partition `{name}` ran {speed:.2f}x slower than its baselines; modules "
+              "in it are judged against that speed." for name, speed in
+              sorted(comparison.speeds.items()) if speed >= SLOW_PARTITION_NOTE]
     regressions = ([comparison.suite] if comparison.suite else []) + comparison.modules
     if not regressions:
         return [*lines, "", "No duration regression."]

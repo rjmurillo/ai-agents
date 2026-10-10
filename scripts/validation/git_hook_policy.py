@@ -638,14 +638,16 @@ TEST_COLLECTION_TIMEOUT_SECONDS = 300
 PYTEST_FULL_SUITE_LOCALLY_ENV = "AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY"
 CLI_E2E_TIMEOUT_SECONDS = 1_140
 # CLIs the local smoke can drive; any one on PATH satisfies the gate (REQ-047).
-CLI_E2E_BINARIES = ("copilot", "claude", "codex")
+# The local smoke uses the harness the developer runs, on their own login.
+# Copilot cases run only in CI, behind the token-gated agent-copilot
+# environment, so the local run deselects them even when copilot is on PATH.
+CLI_E2E_BINARIES = ("claude", "codex")
 # The hook smoke has Claude and Copilot cases only, so Codex alone cannot run it.
-CLI_HOOK_E2E_BINARIES = ("copilot", "claude")
+CLI_HOOK_E2E_BINARIES = ("claude",)
+# Marker expression that keeps the Copilot cases out of the local run.
+CLI_E2E_LOCAL_MARKERS = "not copilot"
 # npm packages that provide those binaries, named in the missing-CLI error.
-CLI_E2E_INSTALL_HINT = (
-    "npm install -g @anthropic-ai/claude-code (claude), "
-    "@github/copilot (copilot), or @openai/codex (codex)"
-)
+CLI_E2E_PACKAGES = {"claude": "@anthropic-ai/claude-code", "codex": "@openai/codex"}
 # Issue #4823: direct and CI bulk pytest use xdist `auto`, one worker per
 # logical CPU. Local pre-push is different because it shares the machine with
 # sibling hook jobs, so issue #4710 adds a process-visible cap there only.
@@ -8048,10 +8050,10 @@ def run_cli_e2e(
         )
         return 2
     if not any(shutil.which(binary) for binary in binaries):
-        names = ", ".join(binaries[:-1]) + (", or " if len(binaries) > 2 else " or ") + binaries[-1]
+        names = " or ".join(binaries)
+        packages = " ".join(CLI_E2E_PACKAGES[binary] for binary in binaries)
         print(
-            f"ERROR: CLI E2E requires at least one of {names} on PATH. "
-            f"Install one: {CLI_E2E_INSTALL_HINT}",
+            f"ERROR: CLI E2E requires {names} on PATH. Install: npm install -g {packages}",
             file=sys.stderr,
         )
         return 2
@@ -8060,7 +8062,7 @@ def run_cli_e2e(
         env.pop(key, None)
     env["RUN_CLI_E2E"] = "1"
     result = _run_command(
-        [sys.executable, "-m", "pytest", test_file, "-v"],
+        [sys.executable, "-m", "pytest", test_file, "-v", "-m", CLI_E2E_LOCAL_MARKERS],
         repo_root,
         process_env=env,
         timeout_seconds=CLI_E2E_TIMEOUT_SECONDS,
