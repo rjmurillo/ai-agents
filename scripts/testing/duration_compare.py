@@ -22,7 +22,6 @@ modules they selected.
 from __future__ import annotations
 
 import statistics
-from collections.abc import Sequence
 from dataclasses import dataclass, field
 
 from scripts.testing.duration_partition_speed import partition_speeds
@@ -65,7 +64,7 @@ class Comparison:
     speeds: dict[str, float] = field(default_factory=dict)
 
 
-def module_baseline(module: str, ids: str, history: Sequence[Snapshot]) -> list[float]:
+def module_baseline(module: str, ids: str, history: list[Snapshot]) -> list[float]:
     """Seconds this module took in each past snapshot that ran the same tests."""
     return [
         s.modules[module]["seconds"]
@@ -79,7 +78,7 @@ def regressed(seconds: float, baseline: float, ratio: float, min_delta: float) -
     return seconds - baseline >= min_delta and seconds >= baseline * ratio
 
 
-def compare(current: Snapshot, history: Sequence[Snapshot], limits: Thresholds) -> Comparison:
+def compare(current: Snapshot, history: list[Snapshot], limits: Thresholds) -> Comparison:
     """Measure every comparable module, and their sum, against the history median."""
     result = Comparison()
     baselines: dict[str, float] = {}
