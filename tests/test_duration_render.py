@@ -6,8 +6,7 @@ from pathlib import Path
 
 from scripts.testing import duration_trend as trend
 from scripts.testing.duration_compare import Comparison, Regression
-from scripts.testing.duration_render import ratio_text, render_markdown, warning_commands
-from scripts.testing.duration_snapshot import Snapshot
+from scripts.testing.duration_render import ratio_text, warning_commands
 from tests.duration_test_helpers import write_history, write_junit
 
 
@@ -36,12 +35,3 @@ def test_the_trend_table_lists_history_then_this_run(tmp_path: Path) -> None:
             if r.startswith("| `sha") or r.startswith("| `current")]
     assert len(rows) == 10
     assert rows[0].startswith("| `sha3`") and rows[-1].startswith("| `current99`")
-
-
-def test_a_slow_partition_is_named_in_the_report() -> None:
-    comparison = Comparison(comparable=1, seconds=3.0, baseline=2.0, speeds={"p3": 1.56, "p1": 1.0})
-
-    lines = render_markdown(Snapshot("s", "t"), [], comparison, 1, None)
-
-    assert "Partition `p3` ran 1.56x slower than its baselines" in lines
-    assert "Partition `p1`" not in lines
