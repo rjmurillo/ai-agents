@@ -6,18 +6,25 @@ build one (575 s at 4 workers). The ``testmon-seed`` job in
 and uploads it as ``testmon-db-<key>``. This module fetches the newest such
 artifact so the first local run selects only what changed since main.
 
-Trust. The artifact is an SQLite file that testmon reads and trusts, so it must
-come only from code that passed review on ``main``. This module therefore:
+Trust. The artifact is an SQLite file that testmon reads and trusts. Anything
+that pushes to ``main`` (an administrator who bypasses review included) and any
+code that runs inside the seed job can produce one. A poisoned database can only
+suppress local selection or exercise SQLite's parser: testmon 2.2.0 has no
+pickle, marshal or exec path, and CI still runs every test. This module
+therefore:
 
-- lists only runs of ``pytest.yml`` with ``event=push`` on branch ``main`` of
-  the canonical repository, and re-checks ``event``, ``head_branch`` and
-  ``head_repository`` on every run it accepts (the query filter is not the
-  check);
+- lists only runs of ``pytest.yml`` with ``event=push`` on branch ``main``, and
+  re-checks on every run object (the query filter is not the check) the event,
+  head branch, head repository, ``conclusion == "success"``, the workflow path,
+  and a full 40 character head SHA;
+- requires that SHA to be an ancestor of local ``origin/main``, and falls back to
+  the full run when ``origin/main`` is missing;
 - never reads a ``pull_request`` or fork run;
 - accepts only an artifact named exactly ``testmon-db-<key>`` for this
   checkout's ``uv.lock`` and ``pyproject.toml`` that is not expired;
-- writes only a file that starts with the SQLite magic bytes, from one exact
-  zip member name, never a path taken from the archive.
+- streams the zip into a fresh private directory under a size cap, reads one
+  member by the exact name ``.testmondata``, requires the SQLite magic bytes,
+  and stages the database through a file opened with O_CREAT|O_EXCL|O_NOFOLLOW.
 
 Every failure falls back to the full run: ``gh`` missing or unauthenticated,
 offline, no matching artifact, a timeout, or a bad download. The whole fetch
