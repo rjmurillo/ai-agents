@@ -37,9 +37,10 @@ quote look-behind would also skip legitimately quoted ``run:`` commands
 unpinned invocation drift. For a pin guard a rare, visible spurious red is safer
 than a silent miss, so quoted mentions are left in scope.
 
-No Python caller resolves the binary at runtime. The PreToolUse markdownlint
-hook that did so was deleted under ADR-085 Decision 9 (issue #5154), so only the
-CI config invocations remain.
+Python callers are not scanned. ``scripts/validation/checks_tooling.py`` and
+``scripts/ci/verify_code_env.py`` run ``npx markdownlint-cli2@0.23.1`` with the
+pin in code. The PreToolUse markdownlint hook that resolved the binary with no
+pin was deleted under ADR-085 Decision 9 (issue #5154).
 """
 
 from __future__ import annotations
