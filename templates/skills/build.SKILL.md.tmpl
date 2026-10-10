@@ -43,9 +43,10 @@ payloads, decisions, matchers, exit codes, timeouts, generated shims, or event
 translation:
 
 1. Invoke `Skill(skill="agent-harness-reference")` before design or code.
-2. Execute the change through
+2. In the ai-agents repository, execute the change through
    `Skill(skill="ai-agents-portability-campaign")`.
-3. Use `Skill(skill="ai-agents-generation-and-release")` for generated mirrors.
+3. In the ai-agents repository, use `Skill(skill="ai-agents-generation-and-release")`
+   for generated mirrors.
 4. Do not repeat vendor research unless the pinned source ledger is stale or
    the task explicitly requires a contract refresh.
 

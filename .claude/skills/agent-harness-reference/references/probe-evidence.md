@@ -347,7 +347,7 @@ subprocess and parses its one JSON document.
 
 ## 9. Re-running a probe
 
-Use `ai-agents-empirical-probe-toolkit` recipe 1.
+In the ai-agents repository, use `ai-agents-empirical-probe-toolkit` recipe 1.
 
 Minimum evidence:
 

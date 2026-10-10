@@ -9,7 +9,7 @@
 [Skip]
 |`.claude/agents/`, `.claude/rules/`, `.claude/skills/<name>/SKILL.md`, `.clau... (see: .project-toolkit/context/src-claude/details/skip.md)
 [Constraints]
-|Cross-harness change: read `agent-harness-reference` first, route through `ai... (see: .project-toolkit/context/src-claude/details/constraints.md)
+|Cross-harness change: read `agent-harness-reference` first. In the ai-agents ... (see: .project-toolkit/context/src-claude/details/constraints.md)
 [Dangerous assumptions]
 |`git add` silences the `src/` staleness gate and proves nothing; commit. (see: .project-toolkit/context/src-claude/details/dangerous-assumptions.md)
 [Dependencies]

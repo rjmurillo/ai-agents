@@ -9,7 +9,7 @@ metadata:
   routing:
     role: conditional-adjunct
     invoker: ai-agents-debugging-playbook
-    trigger: ai-agents-debugging-playbook points here to query agent JSONL event logs
+    trigger: in the ai-agents repository, ai-agents-debugging-playbook points here to query agent JSONL event logs
     user-facing: false
 ---
 

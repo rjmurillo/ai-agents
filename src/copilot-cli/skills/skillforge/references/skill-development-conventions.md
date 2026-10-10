@@ -1,6 +1,6 @@
 # .claude/skills/
 
-111 skills; every `SKILL.md` is generated, nearly every other file hand-maintained.
+109 skills; every `SKILL.md` is generated, nearly every other file hand-maintained.
 
 ## Matters
 
@@ -28,11 +28,12 @@
 
 ## Constraints
 
-- Cross-harness hook/event/Copilot-artifact change: read `agent-harness-reference` first, route through `ai-agents-portability-campaign`.
+- Cross-harness hook/event/Copilot-artifact change: read `agent-harness-reference` first. In the ai-agents repository, route through `ai-agents-portability-campaign`.
 - A retired ADR in a skill's `metadata.adr` fails the `Skill ADR Bindings` ratchet.
 - Plugin-root script invocations use `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/..."`, never `uv run python`; the script stays stdlib-only at import time. `check_plugin_root_interpreter.py` blocks both (issue #5949, `plugin-self-containment.md` MUST-4).
 - Skill-script subprocess text capture: `encoding="utf-8", errors="replace"`; count ratchet at baseline.
-- 110 of 111 ship to the Copilot CLI plugin; `merge-resolver` is excluded as repo-specific, and no shipped routing table may point at it.
+- 94 of 109 ship to the Copilot CLI plugin; `merge-resolver` is excluded as repo-specific, and no shipped routing table may point at it.
+- Contributor-only skills carry `metadata: distribution: repo-local` in their template (absent means shipped; any other value fails the build). They render to `.claude/skills/<name>/` only, never to `src/claude/skills/` or `src/copilot-cli/skills/`, so a shipped skill must not route to one without saying "in the ai-agents repository". `ai-agents-external-claims` ships because `research` runs its script from the plugin root.
 
 ## Dangerous assumptions
 

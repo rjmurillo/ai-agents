@@ -1,6 +1,6 @@
 ---
 name: agent-harness-reference
-description: Field reference for Claude Code and GitHub Copilot CLI hook contracts. Covers hook locations, events, matchers, payloads, decisions, exit codes, timeouts, plugin roots, and cloud limits with official URLs and versioned probes. Use for `harness contract`, `copilot cli hook behavior`, `hook payload format`, `stale plugin root`, `Errno 2 _dispatch.py`, or before changing cross-harness hooks. Do NOT use to run the porting campaign (use `ai-agents-portability-campaign`).
+description: Field reference for Claude Code and GitHub Copilot CLI hook contracts. Covers hook locations, events, matchers, payloads, decisions, exit codes, timeouts, plugin roots, and cloud limits with official URLs and versioned probes. Use for `harness contract`, `copilot cli hook behavior`, `hook payload format`, `stale plugin root`, `Errno 2 _dispatch.py`, or before changing cross-harness hooks. Do NOT use to run the porting campaign (in the ai-agents repository, use `ai-agents-portability-campaign`).
 version: 1.1.0
 license: MIT
 metadata:
@@ -340,7 +340,7 @@ plugin-root and launcher contract. ADR-068 owns dispatcher economics.
 
 Refresh this reference when either host changes its hook documentation, event
 set, payload schema, exit semantics, matcher behavior, timeout behavior, or
-cloud loading rules. Re-run the applicable recipes in
+cloud loading rules. In the ai-agents repository, re-run the applicable recipes in
 `ai-agents-empirical-probe-toolkit`, update both reference files, amend affected
 ADRs, refresh Serena memories, regenerate Copilot mirrors, and run
 `tests/build_scripts/test_hook_contract_knowledge.py`.
@@ -366,8 +366,8 @@ skill behavior.
 - `.claude/lib/claude_hook_protocol.py`; `.claude/lib/hook_dispatch_protocol.py`
 - Manifests and `.mcp.json` read directly 2026-07-03
 
-- `ai-agents-portability-campaign`: execute a contract change.
-- `ai-agents-empirical-probe-toolkit`: probe a missing or disputed row.
-- `ai-agents-generation-and-release`: regenerate and release mirrors.
+- In the ai-agents repository, `ai-agents-portability-campaign`: execute a contract change.
+- In the ai-agents repository, `ai-agents-empirical-probe-toolkit`: probe a missing or disputed row.
+- In the ai-agents repository, `ai-agents-generation-and-release`: regenerate and release mirrors.
 - ADR-068: dispatcher boundaries and direct decision events.
 - ADR-071: runtime-contract verification.

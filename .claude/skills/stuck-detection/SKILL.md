@@ -15,7 +15,7 @@ metadata:
   routing:
     role: conditional-adjunct
     invoker: ai-agents-debugging-playbook
-    trigger: ai-agents-debugging-playbook triggers stuck-detection after three read-only commands find no cause
+    trigger: in the ai-agents repository, ai-agents-debugging-playbook triggers stuck-detection after three read-only commands find no cause
     user-facing: false
 ---
 

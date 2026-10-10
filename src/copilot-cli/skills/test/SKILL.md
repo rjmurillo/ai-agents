@@ -39,7 +39,7 @@ If the diff touches Claude Code or GitHub Copilot CLI hooks, dispatchers,
 generated shims, event translation, or hook output:
 
 1. Invoke `skill: "agent-harness-reference"` to load the pinned contract.
-2. Run the verification path in
+2. In the ai-agents repository, run the verification path in
    `skill: "ai-agents-portability-campaign"`.
 3. Require unit coverage for translation plus a real-harness smoke test for
    each affected harness.

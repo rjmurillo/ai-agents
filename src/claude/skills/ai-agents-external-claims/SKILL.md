@@ -18,7 +18,7 @@ This repo runs verification-based governance: a claim is true when a primary sou
 
 Audience: a zero-context contributor (human or model) holding an external claim and deciding whether it may enter a durable artifact.
 
-This skill is the discipline for verifying claims that originate OUTSIDE the repo. For proving an idea that originates inside the repo (hypothesis, probe, eval baseline), use `ai-agents-research-methodology`. For what counts as test evidence for code, use `ai-agents-validation-and-qa`. This skill hardens the general-purpose gstack `claim-verification-before-ingest` pattern into the repo's own artifact-ingest path.
+This skill is the discipline for verifying claims that originate OUTSIDE the repo. For proving an idea that originates inside the repo (hypothesis, probe, eval baseline), use `ai-agents-research-methodology`. For what counts as test evidence for code, use `ai-agents-validation-and-qa`. This skill hardens the general-purpose gstack `claim-verification-before-ingest` pattern into the repo's own artifact-ingest path. The other `ai-agents-*` skills named in this file (research-methodology, validation-and-qa, empirical-probe-toolkit) exist only in the ai-agents repository checkout and are not in the plugin; outside that checkout, read those pointers as background.
 
 ## Triggers
 

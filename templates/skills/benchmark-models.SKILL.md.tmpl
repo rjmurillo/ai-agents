@@ -11,7 +11,7 @@ metadata:
   routing:
     role: conditional-adjunct
     invoker: ai-agents-empirical-probe-toolkit
-    trigger: ai-agents-empirical-probe-toolkit points here for cross-model behavioral comparison
+    trigger: in the ai-agents repository, ai-agents-empirical-probe-toolkit points here for cross-model behavioral comparison
     user-facing: false
 allowed-tools:
   - Bash

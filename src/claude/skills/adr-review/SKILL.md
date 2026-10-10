@@ -22,7 +22,7 @@ metadata:
   routing:
     role: conditional-adjunct
     invoker: ai-agents-change-control
-    trigger: ai-agents-change-control fires the adr-review debate gate on any ADR create or edit
+    trigger: in the ai-agents repository, ai-agents-change-control fires the adr-review debate gate on any ADR create or edit
     user-facing: false
 ---
 
