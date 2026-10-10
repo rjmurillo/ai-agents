@@ -103,3 +103,26 @@ def repo_local_names(repo_root: Path) -> frozenset[str]:
     if skills_dir.is_dir():
         names.update(p.name for p in skills_dir.iterdir() if p.is_dir())
     return frozenset(name for name in names if is_repo_local(repo_root, name))
+
+
+def render_target(repo_root: Path, name: str) -> Path:
+    """Return where ``skill_templates.compile_all`` writes skill ``name``'s ``SKILL.md``.
+
+    A shipped skill renders into the plugin tree and binplace copies it onto
+    ``.claude/skills/``. A repo-local skill renders straight to
+    ``.claude/skills/<name>/SKILL.md`` and appears in no plugin tree.
+    """
+    root = repo_root / ".claude" if is_repo_local(repo_root, name) else repo_root / "src" / "claude"
+    return root / "skills" / name / "SKILL.md"
+
+
+def install_target_symlink_error(repo_root: Path, name: str, tmpl_path: Path) -> str | None:
+    """Return why a repo-local skill's direct render target is refused, or ``None``.
+
+    With no plugin-tree hop, the symlink defense ``_plugin_tree_error`` gives
+    ``src/claude/skills/<name>/SKILL.md`` applies to the install-tree file.
+    """
+    target = repo_root / ".claude" / "skills" / name / "SKILL.md"
+    if target.is_symlink():
+        return f"{tmpl_path}: .claude/skills/{name}/SKILL.md is a symlink, not a real file"
+    return None

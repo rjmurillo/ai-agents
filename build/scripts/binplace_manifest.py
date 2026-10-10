@@ -435,7 +435,7 @@ def _repo_local_skill_dirs(repo_root: Path, row: Row) -> frozenset[str]:
     """
     if row.compile != _SKILLS_COMPILE_DELEGATE:
         return frozenset()
-    return repo_local_names(repo_root)
+    return frozenset(repo_local_names(repo_root))
 
 
 def _binplace_one_row(
