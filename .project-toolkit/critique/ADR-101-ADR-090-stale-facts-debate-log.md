@@ -50,3 +50,19 @@ Each new line number was read from `.github/workflows/pytest.yml` on the branch 
 - `pytest.yml:67` and `:83-91` match the `check-paths` output and the `determine` step.
 - `scripts/ci/ruleset_required_contexts.py:16` holds "Run Python Tests".
 - Requirement 1 keeps its meaning: the `test` job has no job-level `if:` or `needs:`.
+
+## Round 2: PR review feedback
+
+### Findings
+
+- `ADR-101-enforcement-planes.md` impact table: the row after the historical `pytest.yml:652-665` row still called the deleted `skip-tests` pair a live violation and told readers to replace its path gate. That could misdirect Phase 1 work.
+- `ADR-090-pr-branch-holder-lease.md` Implementation Notes: the line told implementers to use the retired pre-push selector before contradicting itself in parentheses.
+
+### Changes Made
+
+- The ADR-101 row is now labeled historical. It states that `skip-tests` is deleted and `test-result` runs on `!cancelled()`. The instruction to replace the path gate is removed. The requirement 2 boundary for a base-owned execution job stays, now stated as the live constraint.
+- The ADR-090 line now leads with `uv run pytest --collect-only` on the new test files. The retirement fact follows in one short sentence.
+- Every other `skip-tests` mention in ADR-101 (lines 158, 160, 170) was already labeled historical or past tense.
+- `pytest.yml:652-665` and `:665` were read from the branch head: `test-result` is at 652-653 and its `if: ${{ !cancelled() }}` is at 665.
+
+These changes relabel history and fix instructions. No requirement changes.
