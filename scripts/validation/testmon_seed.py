@@ -40,8 +40,6 @@ differs by one byte would silently disable the seed.
 from __future__ import annotations
 
 import hashlib
-import json
-import re
 import shutil
 import sys
 import tempfile
@@ -66,23 +64,17 @@ from scripts.validation.testmon_seed_gh import (  # noqa: E402
     download_to_file,
     run_gh,
 )
+from scripts.validation.testmon_seed_runs import find_artifact_id  # noqa: E402
 from scripts.validation.testmon_seed_trust import (  # noqa: E402
     CANONICAL_REPO,
-    MAIN_BRANCH,
-    WORKFLOW_FILE,
     is_main_ancestor,
-    object_list,
     origin_main_present,
-    run_is_trusted,
-    select_artifact_id,
 )
 
 SEED_ARTIFACT_PREFIX = "testmon-db-"
 SEED_FETCH_TIMEOUT_SECONDS = 30.0
-RUNS_TO_SCAN = 10
 MAX_ARCHIVE_BYTES = 256 * 1024 * 1024
 _KEY_INPUTS = ("uv.lock", "pyproject.toml")
-_ID = re.compile(r"[0-9]{1,20}")
 
 
 @dataclass(frozen=True)
@@ -110,38 +102,6 @@ def seed_key(repo_root: Path) -> str:
 
 def seed_artifact_name(repo_root: Path) -> str:
     return f"{SEED_ARTIFACT_PREFIX}{seed_key(repo_root)}"
-
-
-def _json_object(raw: bytes) -> dict[str, object]:
-    parsed = json.loads(raw)
-    if not isinstance(parsed, dict):
-        raise ValueError("expected a JSON object")
-    return parsed
-
-
-def _find_artifact_id(
-    budget: Budget, name: str, repo_root: Path, ancestor: Callable[[Path, str], bool]
-) -> int | None:
-    runs_endpoint = (
-        f"repos/{CANONICAL_REPO}/actions/workflows/{WORKFLOW_FILE}/runs"
-        f"?event=push&branch={MAIN_BRANCH}&per_page={RUNS_TO_SCAN}"
-    )
-    runs = object_list(_json_object(budget.get(runs_endpoint)).get("workflow_runs"))
-    for run in runs:
-        # Trusted by the run object, then reachable from local origin/main: a
-        # push to main whose commit is not in main's history is not accepted.
-        if not run_is_trusted(run) or not ancestor(repo_root, str(run["head_sha"])):
-            continue
-        run_id = str(run["id"])
-        if not _ID.fullmatch(run_id):
-            continue
-        listing = _json_object(
-            budget.get(f"repos/{CANONICAL_REPO}/actions/runs/{run_id}/artifacts")
-        )
-        found = select_artifact_id(listing.get("artifacts"), name)
-        if found is not None:
-            return found
-    return None
 
 
 def _download_and_place(
@@ -183,7 +143,7 @@ def fetch_seed(
     try:
         name = seed_artifact_name(repo_root)
         budget = Budget(timeout_seconds, runner)
-        artifact_id = _find_artifact_id(budget, name, repo_root, ancestor)
+        artifact_id = find_artifact_id(budget, name, repo_root, ancestor)
         if artifact_id is None:
             return SeedResult(False, f"no main push run has an unexpired {name} artifact")
         _download_and_place(repo_root, artifact_id, budget, downloader)
