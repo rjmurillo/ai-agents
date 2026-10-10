@@ -41,8 +41,12 @@ from __future__ import annotations
 
 import ast
 import functools
+import json
+import os
 import re
 import sys
+import tempfile
+import time
 from pathlib import Path
 
 import pytest
@@ -209,35 +213,45 @@ def _string_literals(node: ast.AST) -> set[str]:
 
 
 def _execution_string_literals(tree: ast.AST) -> set[str]:
-    """Return strings passed positionally to execution-like calls."""
-    bindings: dict[str, set[str]] = {}
+    """Return strings passed positionally to execution-like calls.
+
+    One ``ast.walk`` classifies every node, and the assignment bindings are
+    built only for a file that has an execution-like call. The earlier shape
+    walked the whole tree three times for all 1301 sources, and this test's
+    ``_reference_graph`` runs once per xdist worker, so under 48 workers and a
+    coverage tracer it passed the 120 s pytest-timeout (issue #6239 hook run).
+    """
+    assigns: list[tuple[list[ast.expr], ast.expr]] = []
+    calls: list[ast.Call] = []
+    dicts: list[ast.Dict] = []
     for node in ast.walk(tree):
         if isinstance(node, ast.Assign):
-            targets, value = node.targets, node.value
+            assigns.append((node.targets, node.value))
         elif isinstance(node, ast.AnnAssign) and node.value is not None:
-            targets, value = [node.target], node.value
-        else:
-            continue
-        strings = _string_literals(value)
-        for target in targets:
-            if isinstance(target, ast.Name):
-                bindings.setdefault(target.id, set()).update(strings)
+            assigns.append(([node.target], node.value))
+        elif isinstance(node, ast.Call) and _is_execution_call(_call_name(node.func)):
+            calls.append(node)
+        elif isinstance(node, ast.Dict):
+            dicts.append(node)
 
     literals: set[str] = set()
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.Call) or not _is_execution_call(_call_name(node.func)):
-            continue
-        for argument in node.args:
-            literals.update(_string_literals(argument))
-            literals.update(
-                literal
-                for child in ast.walk(argument)
-                if isinstance(child, ast.Name)
-                for literal in bindings.get(child.id, ())
-            )
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.Dict):
-            continue
+    if calls:
+        bindings: dict[str, set[str]] = {}
+        for targets, value in assigns:
+            strings = _string_literals(value)
+            for target in targets:
+                if isinstance(target, ast.Name):
+                    bindings.setdefault(target.id, set()).update(strings)
+        for call in calls:
+            for argument in call.args:
+                literals.update(_string_literals(argument))
+                literals.update(
+                    literal
+                    for child in ast.walk(argument)
+                    if isinstance(child, ast.Name)
+                    for literal in bindings.get(child.id, ())
+                )
+    for node in dicts:
         for key, value in zip(node.keys, node.values, strict=True):
             if (
                 isinstance(key, ast.Constant)
@@ -350,7 +364,10 @@ def _reference_graph() -> dict[str, frozenset[str]]:
             tree = ast.parse(source)
         except SyntaxError as exc:
             raise RuntimeError(f"Cannot parse Python source {rel}: {exc}") from exc
-        reached = _invoked_scripts(tree, rel)
+        # `_SCRIPT_TOKEN_RE` needs a literal `.py`, and a string literal's text
+        # appears verbatim in its source, so a file without `.py` names no
+        # script and skips the three-pass AST scan.
+        reached = _invoked_scripts(tree, rel) if ".py" in source else set()
         for module in _imported_modules(tree, rel):
             reached.update(_resolve_import(index, module, rel))
         graph[rel] = frozenset(reached - {rel})
@@ -433,8 +450,7 @@ def _entry_points() -> frozenset[str]:
     return frozenset(named)
 
 
-@functools.lru_cache(maxsize=1)
-def _reachable() -> frozenset[str]:
+def _compute_reachable() -> frozenset[str]:
     """Transitive closure of the entry points over the reference graph."""
     graph = _reference_graph()
     seen = set(_entry_points())
@@ -445,6 +461,52 @@ def _reachable() -> frozenset[str]:
                 seen.add(target)
                 stack.append(target)
     return frozenset(seen)
+
+
+_SHARE_WAIT_SECONDS = 100.0
+
+
+def _shared_reachable(cache: Path) -> frozenset[str]:
+    """Compute the closure once per xdist run and let every worker read it.
+
+    The reference graph parses about 1300 sources, which costs 6 s plain and 18 s
+    or more under a coverage tracer. Per worker that was 48 copies of the same
+    scan at once, and two tests passed the 120 s pytest-timeout under pre-push
+    (issue #6239). The first worker takes an exclusive lock file and writes the
+    result; the others poll for it. A worker that waits past the deadline (for
+    example behind a crashed writer's stale lock) computes locally, so the share
+    can slow nothing down beyond the deadline and cannot change the answer.
+    """
+    lock = cache.with_suffix(".lock")
+    deadline = time.monotonic() + _SHARE_WAIT_SECONDS
+    while time.monotonic() < deadline:
+        if cache.exists():
+            return frozenset(json.loads(cache.read_text(encoding="utf-8")))
+        try:
+            handle = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        except FileExistsError:
+            time.sleep(0.25)
+            continue
+        os.close(handle)
+        try:
+            result = _compute_reachable()
+            partial = cache.with_suffix(f".{os.getpid()}.tmp")
+            partial.write_text(json.dumps(sorted(result)), encoding="utf-8")
+            os.replace(partial, cache)
+            return result
+        finally:
+            lock.unlink(missing_ok=True)
+    return _compute_reachable()
+
+
+@functools.lru_cache(maxsize=1)
+def _reachable() -> frozenset[str]:
+    """Transitive closure of the entry points, shared across xdist workers."""
+    run_uid = os.environ.get("PYTEST_XDIST_TESTRUNUID")
+    if not run_uid:
+        return _compute_reachable()
+    cache = Path(tempfile.gettempdir()) / f"reachable-scripts-{run_uid}.json"
+    return _shared_reachable(cache)
 
 
 @pytest.mark.parametrize("script", _guarded_scripts(), ids=lambda p: p.name)
