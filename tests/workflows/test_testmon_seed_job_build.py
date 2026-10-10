@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from scripts.validation import git_hook_policy, testmon_seed
+from scripts.validation import testmon_seed_trust as trust
 from tests.workflows.pytest_workflow_helpers import WORKFLOW_PATH, seed_job, seed_step
 
 
@@ -45,5 +46,5 @@ def test_the_artifact_is_named_by_the_function_the_hook_uses() -> None:
 
 def test_the_hook_looks_in_this_workflow_on_main_for_that_prefix() -> None:
     assert testmon_seed.SEED_ARTIFACT_PREFIX == "testmon-db-"
-    assert testmon_seed.WORKFLOW_FILE == WORKFLOW_PATH.name
-    assert testmon_seed.MAIN_BRANCH == "main"
+    assert trust.WORKFLOW_FILE == WORKFLOW_PATH.name
+    assert trust.MAIN_BRANCH == "main"

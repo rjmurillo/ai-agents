@@ -37,7 +37,7 @@ At ten times the tests, uneven files matter more, because the worker count grows
 ## Prior Art / Constraints
 
 - #4352 split `tests/test_validation_pre_pr.py` into `tests/validation_pre_pr/`. Its session record notes that copied `noqa` comments trip the pre-push security suppression policy.
-- (Superseded 2026-10-09: `PYTEST_DIST_MODE` is `worksteal` and lives in `scripts/ci/run_pytest_partition.py`.) `PYTEST_DIST_MODE = "loadfile"` in `scripts/validation/git_hook_policy.py:655` was deliberate. Module fixtures, module state, and file-local temp directories must keep behaving as they do serially.
+- <!-- citation-freshness: ignore -- superseded by the 2026-10-09 owner decision; the cited line is history --> (Superseded 2026-10-09: `PYTEST_DIST_MODE` is `worksteal` and lives in `scripts/ci/run_pytest_partition.py`.) `PYTEST_DIST_MODE = "loadfile"` in `scripts/validation/git_hook_policy.py:655` was deliberate. Module fixtures, module state, and file-local temp directories must keep behaving as they do serially.
 - `test_validator_argv_is_accepted_by_the_real_checker` is slow by design. Its docstring says it is the only test that runs the real checkers. It stays, unchanged.
 - `tests/validation/` is a package and already holds shared helper modules imported as `tests.validation.<name>`.
 
