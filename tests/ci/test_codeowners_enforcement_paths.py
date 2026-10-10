@@ -29,6 +29,7 @@ ENFORCEMENT_PATTERNS: frozenset[str] = frozenset(
         "/scripts/validation/",
         "/scripts/ci/",
         "/scripts/workflows/",
+        "/scripts/testing/",
         "/build/scripts/",
         "/lefthook.yml",
         "/.github/CODEOWNERS",

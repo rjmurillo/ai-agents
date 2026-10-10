@@ -7,11 +7,8 @@ The partition's argument list lives here (Python, not YAML) per ADR-006. Every
 leg runs its whole share on every event, so coverage combine always receives
 data from every partition.
 
-`--refresh-durations` replaces `--partition` for the one-off run that rewrites
-the committed durations file (see tests/AGENTS.md).
-
 Exit codes follow the repository contract: 0 ok, 2 config (an unknown or
-missing partition, or both modes given), otherwise the pytest runner's own code.
+missing partition), otherwise the pytest runner's own code.
 """
 
 from __future__ import annotations
@@ -41,22 +38,31 @@ _PARALLEL = ["-n", "auto", "--dist", PYTEST_DIST_MODE]
 # The pool is every test file outside the dedicated legs and the unpartitioned
 # pins, split into SPLIT_COUNT groups by recorded duration (pytest-split).
 #
-# The durations file is committed. When it is absent, pytest-split splits evenly
-# by test count and this runner emits a CI warning annotation. A test missing
-# from the file gets the average recorded duration. Either way every test still
-# runs; only the balance degrades.
+# Nobody maintains a durations file. Timings ride in the Actions cache:
+# pytest.yml restores the newest map to DURATIONS_RESTORE_PATH on every split
+# leg, and the test-durations job saves a fresh one only on a push to main.
+# pytest-split has a single `--durations-path` that it both reads and writes, so
+# this runner copies the restored map to a per-leg file (_leg_durations_path)
+# and points pytest-split at the copy. The leg then reads the restored timings,
+# and `--store-durations --clean-durations` rewrites the copy with only the tests
+# that leg ran. The four legs run disjoint groups, so their files union into the
+# full map (scripts/testing/duration_split_merge.py) and a deleted test drops out
+# of the cache on the next main run. The restored file is never written.
+#
+# When nothing restored, pytest-split splits evenly by test count and this runner
+# emits a CI warning annotation. A test missing from the map gets the average
+# recorded duration. Either way every test still runs; only the balance degrades.
 #
 # Each group must stay under the ten minute job contract of issue #4854.
 # split-1 is the `primary` matrix leg and carries the extra pin, lint, and
 # ratchet steps in pytest.yml, so its share must leave room for them.
 #
-# Refresh the durations with `uv run python scripts/ci/run_pytest_partition.py
-# --refresh-durations`, which runs the whole pool once with no `--splits`.
-# DURATIONS_PATH stays relative on purpose: run_pytest_non_tmp starts pytest with
-# cwd=PROJECT_ROOT, so pytest-split resolves it against the repo root whatever
+# Both paths stay relative on purpose: run_pytest_non_tmp starts pytest with
+# cwd=PROJECT_ROOT, so pytest-split resolves them against the repo root whatever
 # directory this script is launched from (a test pins that).
 SPLIT_COUNT = 4
-DURATIONS_PATH = "tests/.test_durations"
+DURATIONS_RESTORE_PATH = ".pytest-split/durations.json"
+LEG_DURATIONS_DIR = "artifacts"
 SPLITTING_ALGORITHM = "duration_based_chunks"
 _SPLIT_PREFIX = "split-"
 
@@ -89,6 +95,11 @@ def split_names() -> list[str]:
     return [f"{_SPLIT_PREFIX}{index}" for index in range(1, SPLIT_COUNT + 1)]
 
 
+def _leg_durations_path(partition: str) -> str:
+    """Where one split leg stores its timings, uploaded with that leg's artifacts."""
+    return f"{LEG_DURATIONS_DIR}/durations-{partition}.json"
+
+
 def _split_group_args(index: int) -> list[str]:
     return [
         *_PARALLEL,
@@ -98,8 +109,10 @@ def _split_group_args(index: int) -> list[str]:
         str(index),
         "--splitting-algorithm",
         SPLITTING_ALGORITHM,
+        "--store-durations",
+        "--clean-durations",
         "--durations-path",
-        DURATIONS_PATH,
+        _leg_durations_path(f"{_SPLIT_PREFIX}{index}"),
         *_POOL_IGNORES,
         "tests/",
     ]
@@ -118,25 +131,27 @@ _PARALLEL_PARTITIONS = frozenset(split_names())
 _DIGEST_PREFIX_CHARS = 12
 
 
-def _refresh_args() -> list[str]:
-    """The whole pool, once, rewriting the durations file from this run."""
-    return [
-        *_PARALLEL,
-        "--store-durations",
-        "--clean-durations",
-        "--durations-path",
-        DURATIONS_PATH,
-        *_POOL_IGNORES,
-        "tests/",
-    ]
-
-
 def _durations_digest() -> str:
-    """First 12 hex chars of the durations file's SHA-256, or ``missing``."""
-    path = _PROJECT_ROOT / DURATIONS_PATH
+    """First 12 hex chars of the restored map's SHA-256, or ``missing``."""
+    path = _PROJECT_ROOT / DURATIONS_RESTORE_PATH
     if not path.is_file():
         return "missing"
     return hashlib.sha256(path.read_bytes()).hexdigest()[:_DIGEST_PREFIX_CHARS]
+
+
+def _seed_leg_durations(partition: str) -> None:
+    """Give pytest-split this leg's file: a copy of the restored map, or nothing.
+
+    A stale leg file from an earlier local run is removed when nothing restored,
+    so a leg never reads timings the missing-file warning says it lacks.
+    """
+    leg_file = _PROJECT_ROOT / _leg_durations_path(partition)
+    leg_file.parent.mkdir(parents=True, exist_ok=True)
+    restored = _PROJECT_ROOT / DURATIONS_RESTORE_PATH
+    if restored.is_file():
+        leg_file.write_bytes(restored.read_bytes())
+    else:
+        leg_file.unlink(missing_ok=True)
 
 
 def _summary_line(partition: str) -> str:
@@ -146,7 +161,7 @@ def _summary_line(partition: str) -> str:
         return line
     group = partition.removeprefix(_SPLIT_PREFIX)
     return (
-        f"{line} splits={SPLIT_COUNT} group={group} durations={DURATIONS_PATH} "
+        f"{line} splits={SPLIT_COUNT} group={group} durations={DURATIONS_RESTORE_PATH} "
         f"durations_sha256={_durations_digest()}"
     )
 
@@ -168,33 +183,18 @@ def classify_partition(rel: str) -> str | None:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    mode = parser.add_mutually_exclusive_group(required=True)
-    mode.add_argument("--partition", choices=sorted(_PARTITION_FULL_ARGS))
-    mode.add_argument(
-        "--refresh-durations",
-        action="store_true",
-        help=f"Run the whole pool once and rewrite {DURATIONS_PATH}.",
-    )
+    parser.add_argument("--partition", choices=sorted(_PARTITION_FULL_ARGS), required=True)
     known, passthrough = parser.parse_known_args(argv)
 
-    if known.refresh_durations:
-        if not Path.cwd().resolve().is_relative_to(_PROJECT_ROOT):
-            # run_pytest_non_tmp runs pytest in this script's checkout, so a
-            # caller elsewhere would rewrite a timing map it did not mean to.
-            print(
-                f"error: --refresh-durations rewrites {_PROJECT_ROOT / DURATIONS_PATH}; "
-                f"run it from {_PROJECT_ROOT}",
-                file=sys.stderr,
-            )
-            return 2
-        print(f"refresh-durations mode=refresh durations={DURATIONS_PATH}", file=sys.stderr)
-        return run_pytest_non_tmp.main([*passthrough, *_refresh_args()])
     print(_summary_line(known.partition), file=sys.stderr)
-    if known.partition in _PARALLEL_PARTITIONS and _durations_digest() == "missing":
-        print(
-            f"::warning title=pytest-split::{DURATIONS_PATH} is missing; this leg "
-            "split by test count, so leg times may be unbalanced."
-        )
+    if known.partition in _PARALLEL_PARTITIONS:
+        if _durations_digest() == "missing":
+            print(
+                f"::warning title=pytest-split::{DURATIONS_RESTORE_PATH} did not restore "
+                "from the Actions cache; this leg split by test count, so leg times "
+                "may be unbalanced."
+            )
+        _seed_leg_durations(known.partition)
     return run_pytest_non_tmp.main([*passthrough, *_PARTITION_FULL_ARGS[known.partition]])
 
 

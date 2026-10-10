@@ -396,6 +396,21 @@ jobs:
       # its full partition on every event, so coverage combine always receives
       # non-empty data. The partition argument lists live in the Python runner,
       # not here, per ADR-006.
+      # pytest-split timings. Nobody maintains a durations file: the test-durations
+      # job saves a fresh map to the Actions cache after every push to main, and
+      # every split leg restores the newest one here. restore-keys is a prefix, so
+      # the newest key wins. When nothing restores, pytest-split splits evenly by
+      # test count, every test still runs, and run_pytest_partition.py emits a
+      # ::warning. The runner copies this file to a per-leg path before pytest
+      # starts, so nothing writes to the restored file.
+      - name: Restore pytest-split durations
+        if: startsWith(matrix.partition, 'split-')
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: .pytest-split/durations.json
+          key: pytest-split-durations-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: pytest-split-durations-
+
       - name: Run pytest
         id: run-pytest
         env:
@@ -553,11 +568,33 @@ jobs:
           artifacts/pytest-results-pr-autofix.xml
           --budget pyproject.toml
 
-  # Test duration trend. Reads the JUnit reports the partitions already wrote,
+      # Blocking leg wall-time gate. `test-result` (the required "Run Python
+      # Tests") needs this job, so a leg over the limit blocks the merge. The
+      # test-durations job is not required and cannot carry this gate. The
+      # limit is duration_gates.PARTITION_WALL_LIMIT_SECONDS (480 s). Each
+      # leg's wall_seconds is the JUnit testsuite time, which is pytest time
+      # only and leaves out job setup. Setup plus split-1's primary steps took
+      # about 95 s on PR #6241's run, so 480 s leaves room under the 600 s job
+      # limit. A split imbalance above 1.5x is only a ::warning annotation.
+      - name: Gate pytest leg wall time
+        run: >-
+          uv run --frozen python scripts/testing/duration_gate_check.py
+          artifacts/pytest-results-split-1.xml
+          artifacts/pytest-results-split-2.xml
+          artifacts/pytest-results-split-3.xml
+          artifacts/pytest-results-split-4.xml
+          artifacts/pytest-results-safe-push.xml
+          artifacts/pytest-results-pr-autofix.xml
+
+  # Test duration trend and pytest-split timings. Merges the per-leg durations
+  # files into the cache the split legs restore (saved only on a push to main),
+  # then reads the JUnit reports the partitions already wrote,
   # writes per-partition wall time and the slowest modules to the job summary,
   # and compares per-module seconds with the median of earlier main runs. A
   # module or the suite that crosses both the ratio and the seconds threshold
-  # fails this job and raises a warning annotation. The history rides in the
+  # fails this job and raises a warning annotation. A leg slower than 480 s (80
+  # percent of the test job timeout) fails the coverage job instead, which the
+  # required check depends on. The history rides in the
   # Actions cache, saved only from pushes to main, so a pull request reads the
   # main baseline and never writes it. ADR-015 caps artifact retention at
   # 7 days, which is why the history is not an artifact. Two overlapping main
@@ -604,8 +641,37 @@ jobs:
           key: test-duration-history-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: test-duration-history-
 
+      # pytest-split durations for the next run. Each split leg wrote only its own
+      # tests to artifacts/durations-split-N.json, so the four files union into
+      # the full map. The merge runs on every event so a wiring break shows on a
+      # pull request. The save runs only on a push to main. Actions scopes a
+      # cache to the ref that wrote it and a pull request can read the base
+      # branch's caches but never write one, so a pull request cannot plant
+      # timings that later legs restore. Never save from pull_request or
+      # merge_group. Do not widen the `if:` below.
+      - name: Merge pytest-split durations
+        id: merge-durations
+        run: >-
+          uv run --frozen python scripts/testing/duration_split_merge.py
+          artifacts/durations-split-1.json
+          artifacts/durations-split-2.json
+          artifacts/durations-split-3.json
+          artifacts/durations-split-4.json
+          --output pytest-split-cache/durations.json
+
+      - name: Save pytest-split durations
+        if: >-
+          github.event_name == 'push' && github.ref == 'refs/heads/main'
+          && steps.merge-durations.outcome == 'success'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: pytest-split-cache/durations.json
+          key: pytest-split-durations-${{ github.run_id }}-${{ github.run_attempt }}
+
+      # `!cancelled()` so a failed merge above still gets a duration report.
       - name: Report test duration trend
         id: duration-trend
+        if: "!cancelled()"
         env:
           RUN_SHA: ${{ github.sha }}
           HISTORY_KEY: ${{ steps.restore-history.outputs.cache-matched-key }}

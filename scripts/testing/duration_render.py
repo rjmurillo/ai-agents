@@ -72,7 +72,7 @@ def render_markdown(current: Snapshot, history: Sequence[Snapshot], comparison: 
     return "\n".join(lines) + "\n"
 
 
-def _escape_command_data(text: str) -> str:
+def escape_command_data(text: str) -> str:
     """Escape workflow-command data, since module names come from JUnit input."""
     return text.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
 
@@ -81,7 +81,7 @@ def warning_commands(comparison: Comparison) -> list[str]:
     """GitHub Actions warning commands, one per regression."""
     regressions = ([comparison.suite] if comparison.suite else []) + comparison.modules
     return [
-        "::warning title=Test duration regression::" + _escape_command_data(
+        "::warning title=Test duration regression::" + escape_command_data(
             f"{r.name} took {r.seconds:.1f}s against a {r.baseline:.1f}s median baseline "
             f"({ratio_text(r)}, {r.samples} samples)")
         for r in regressions

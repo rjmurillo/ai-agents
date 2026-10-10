@@ -1,4 +1,4 @@
-"""The split groups share one pool and one durations file.
+"""The split groups share one pool and one restored durations map.
 
 Issue #6239 acceptance criteria covered here:
 
@@ -35,7 +35,7 @@ def test_split_group_flags(index: int) -> None:
     assert _flag_value(args, "--splits") == "4"
     assert _flag_value(args, "--group") == str(index)
     assert _flag_value(args, "--splitting-algorithm") == "duration_based_chunks"
-    assert _flag_value(args, "--durations-path") == "tests/.test_durations"
+    assert _flag_value(args, "--durations-path") == f"artifacts/durations-split-{index}.json"
     assert args[-1] == "tests/"
 
 
@@ -43,8 +43,10 @@ def test_split_groups_differ_only_in_the_group_number() -> None:
     """AC2: one pool, so no group can leave a file out or take it twice."""
 
     def without_group(args: list[str]) -> list[str]:
-        position = args.index("--group")
-        return args[:position] + args[position + 2 :]
+        for flag in ("--group", "--durations-path"):
+            position = args.index(flag)
+            args = args[:position] + args[position + 2 :]
+        return args
 
     shapes = {tuple(without_group(mod._PARTITION_FULL_ARGS[n])) for n in _SPLIT_PARTITIONS}
     assert len(shapes) == 1
@@ -58,8 +60,10 @@ def test_split_groups_ignore_exactly_the_dedicated_and_pinned_files(partition: s
     assert not [a for a in args if a.startswith("--ignore-glob")]
 
 
-def test_durations_file_lives_beside_the_tests() -> None:
-    assert mod.DURATIONS_PATH == "tests/.test_durations"
+def test_each_split_leg_stores_to_its_own_path() -> None:
+    args = [mod._PARTITION_FULL_ARGS[n] for n in _SPLIT_PARTITIONS]
+    paths = {_flag_value(a, "--durations-path") for a in args}
+    assert len(paths) == 4
 
 
 def test_dedicated_legs_run_only_their_files() -> None:
