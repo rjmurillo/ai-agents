@@ -23,8 +23,8 @@ def partition_speeds(
     """Median seconds-to-baseline ratio of each partition's substantial modules.
 
     Returns only partitions with ``SPEED_MIN_MODULES`` modules whose baseline is
-    at least ``SPEED_MIN_BASELINE`` seconds, floored at 1.0. The speed is the measured one; callers cap it with
-    ``SPEED_CAP`` before scaling.
+    at least ``SPEED_MIN_BASELINE`` seconds, floored at 1.0. The speed
+    is not capped; callers cap it with ``SPEED_CAP`` before scaling.
     """
     ratios: dict[str, list[float]] = {}
     for module, baseline in baselines.items():
