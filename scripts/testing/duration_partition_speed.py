@@ -37,3 +37,17 @@ def partition_speeds(
         for partition, values in sorted(ratios.items())
         if len(values) >= SPEED_MIN_MODULES
     }
+
+
+def scaled_baselines(
+    current: Snapshot, baselines: dict[str, float], speeds: dict[str, float]
+) -> dict[str, float]:
+    """Each baseline times its partition's speed, capped at ``SPEED_CAP``.
+
+    A module with no partition or no speed estimate keeps its baseline.
+    """
+    return {
+        module: baseline
+        * min(speeds.get(current.module_partitions.get(module, ""), 1.0), SPEED_CAP)
+        for module, baseline in baselines.items()
+    }

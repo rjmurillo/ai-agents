@@ -27,7 +27,7 @@ from __future__ import annotations
 import statistics
 from dataclasses import dataclass, field
 
-from scripts.testing.duration_partition_speed import SPEED_CAP, partition_speeds
+from scripts.testing.duration_partition_speed import SPEED_CAP, partition_speeds, scaled_baselines
 from scripts.testing.duration_snapshot import Snapshot
 
 
@@ -113,15 +113,13 @@ def compare(current: Snapshot, history: list[Snapshot], limits: Thresholds) -> C
         result.baseline += baselines[module]
         result.min_samples = min(result.min_samples or len(samples), len(samples))
     result.speeds = partition_speeds(current, baselines)
-    scaled_total = 0.0
+    scaled = scaled_baselines(current, baselines, result.speeds)
     for module, baseline in baselines.items():
-        speed = min(result.speeds.get(current.module_partitions.get(module, ""), 1.0), SPEED_CAP)
-        scaled_total += baseline * speed
         seconds = current.modules[module]["seconds"]
-        if regressed(seconds, baseline * speed, limits.module_ratio, limits.module_min_delta):
+        if regressed(seconds, scaled[module], limits.module_ratio, limits.module_min_delta):
             result.modules.append(Regression(module, seconds, baseline, sample_counts[module]))
     result.modules += _slow_partitions(current, baselines, sample_counts, result.speeds)
     result.modules.sort(key=lambda r: (-(r.seconds - r.baseline), r.name))
-    if regressed(result.seconds, scaled_total, limits.suite_ratio, limits.suite_min_delta):
+    if regressed(result.seconds, sum(scaled.values()), limits.suite_ratio, limits.suite_min_delta):
         result.suite = Regression("suite", result.seconds, result.baseline, result.min_samples)
     return result
