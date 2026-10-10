@@ -378,8 +378,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--context",
         choices=["production", "test", "generated"],
-        default="production",
-        help="Code context (affects thresholds)",
+        default=None,
+        help=(
+            "Force one threshold context for every file. When omitted, each "
+            "file uses the context of its own category (authored=production, "
+            "test, generated)."
+        ),
     )
     parser.add_argument(
         "--changed-only",
@@ -785,7 +789,7 @@ def get_file_at_revision(file_path: Path, revision: str) -> bytes | None:
 def _get_base_assessments(
     files: list[Path],
     base: str,
-    context: str,
+    context: str | None,
 ) -> dict[str, FileAssessment]:
     """Return safe base assessments for callers of the earlier regression API."""
     import subprocess
@@ -1038,7 +1042,7 @@ def check_regression(
     comparisons: list[FileComparison],
     new_file_assessments: list[FileAssessment],
     config: dict[str, Any],
-    context: str,
+    context: str | None,
 ) -> int:
     """Gate on change, not on inherited debt.
 
@@ -1302,14 +1306,14 @@ def assess_content(file_path: Path, content: str) -> FileAssessment:
 def assess_file_content(
     file_path: Path,
     content: str,
-    context: str,
+    context: str | None,
 ) -> FileAssessment:
     """Preserve the earlier content-assessment helper."""
     del context
     return assess_content(file_path, content)
 
 
-def assess_file(file_path: Path, context: str, use_serena: bool) -> FileAssessment:
+def assess_file(file_path: Path, context: str | None, use_serena: bool) -> FileAssessment:
     """
     Assess a single file for all 5 qualities.
 
@@ -1359,8 +1363,17 @@ def _score_below_threshold(score: QualityScore, threshold: float | None) -> bool
     return threshold is not None and score.confidence > 0.0 and score.value < threshold
 
 
-def generate_markdown_report(assessments: list[FileAssessment], config: dict[str, Any]) -> str:
-    """Generate markdown report"""
+def generate_markdown_report(
+    assessments: list[FileAssessment],
+    config: dict[str, Any],
+    context: str | None = None,
+) -> str:
+    """Generate markdown report.
+
+    Issues are listed against each file's own thresholds, the same ones
+    ``check_thresholds`` gates on, so a file that passes the gate is not
+    reported with issues.
+    """
     report = ["# Code Quality Assessment Report\n"]
 
     # Summary statistics
@@ -1372,7 +1385,6 @@ def generate_markdown_report(assessments: list[FileAssessment], config: dict[str
     avg_encap = _average_scored([a.encapsulation for a in assessments])
     avg_test = _average_scored([a.testability for a in assessments])
     avg_nonred = _average_scored([a.non_redundancy for a in assessments])
-    thresholds = config["thresholds"]
 
     report.append("## Summary\n")
     report.append(f"**Files Assessed**: {len(assessments)}\n")
@@ -1400,8 +1412,9 @@ def generate_markdown_report(assessments: list[FileAssessment], config: dict[str
         report.append("")
 
         # Show reasons for low scores
+        file_thresholds = _thresholds_for(config, context, assessment)
         for label, threshold_key, score in quality_rows:
-            if _score_below_threshold(score, _threshold_min(thresholds, threshold_key)):
+            if _score_below_threshold(score, _threshold_min(file_thresholds, threshold_key)):
                 report.append(f"**{label} Issues**:")
                 for reason in score.reasons:
                     report.append(f"  - {reason}")
@@ -1471,28 +1484,40 @@ def generate_json_report(
     )
 
 
+_CATEGORY_CONTEXT = {"authored": "production", "test": "test", "generated": "generated"}
+
+
+def _thresholds_for(
+    config: dict[str, Any],
+    context: str | None,
+    assessment: FileAssessment,
+) -> dict[str, Any]:
+    """Merge the config thresholds with the context that applies to one file."""
+    if context is None:
+        context = _CATEGORY_CONTEXT.get(assessment.category, "production")
+    thresholds = config["thresholds"]
+    return {**thresholds, **config.get("context", {}).get(context, {})}
+
+
 def check_thresholds(
     assessments: list[FileAssessment],
     config: dict[str, Any],
-    context: str,
+    context: str | None,
     *,
     fail_unscored_supported: bool = False,
 ) -> int:
     """
     Check if quality scores meet configured thresholds.
 
+    ``context`` is an explicit override applied to every file. When it is
+    None, each file uses the context named by its own category.
+
     Returns:
         0: All thresholds met
         11: Below thresholds
     """
-    thresholds = config["thresholds"]
-
-    # Apply context-specific thresholds
-    if context in config.get("context", {}):
-        context_thresholds = config["context"][context]
-        thresholds = {**thresholds, **context_thresholds}
-
     for assessment in assessments:
+        thresholds = _thresholds_for(config, context, assessment)
         if (
             fail_unscored_supported
             and assessment.category != "generated"
@@ -1574,7 +1599,7 @@ def _resolve_target_path(target: str) -> str:
 
 def _assess_files(
     files: list[Path],
-    context: str,
+    context: str | None,
     use_serena: bool,
 ) -> list[FileAssessment]:
     """Assess every readable file and report per-file failures.
@@ -1617,10 +1642,11 @@ def _render_report(
     comparisons: list[FileComparison],
     config: dict[str, Any],
     gate_mode: str,
+    context: str | None = None,
 ) -> str:
     """Render the selected report format."""
     if output_format == "markdown":
-        report = generate_markdown_report(assessments, config)
+        report = generate_markdown_report(assessments, config, context)
         section = generate_regression_section(comparisons)
         return f"{report}\n\n{section}" if section else report
     if output_format == "json":
@@ -1644,7 +1670,7 @@ def _gate_result(
     new_file_assessments: list[FileAssessment],
     assessments: list[FileAssessment],
     config: dict[str, Any],
-    context: str,
+    context: str | None,
 ) -> int:
     """Apply the gate policy selected for this run."""
     if gate_mode == "regression":
@@ -1723,7 +1749,9 @@ def main(argv: list[str] | None = None) -> int:
         print(f"ERROR: {e}", file=sys.stderr)
         return 1
 
-    report = _render_report(args.format, assessments, comparisons, config, gate_mode)
+    report = _render_report(
+        args.format, assessments, comparisons, config, gate_mode, args.context
+    )
     _write_report(report, args.output)
     return _gate_result(
         gate_mode,
