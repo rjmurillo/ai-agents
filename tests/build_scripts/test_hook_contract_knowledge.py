@@ -150,15 +150,13 @@ RUNTIME_ROUTING_FILES = (
     COPILOT_SKILL_ROOT / "test" / "SKILL.md",
 )
 
+# The ai-agents-* operational skills are distribution: repo-local, so they exist
+# only under .claude/skills and have no Copilot mirror.
 OPERATIONAL_SKILLS = (
     REPO_ROOT / ".claude" / "skills" / "ai-agents-architecture-contract" / "SKILL.md",
     REPO_ROOT / ".claude" / "skills" / "ai-agents-config-catalog" / "SKILL.md",
     REPO_ROOT / ".claude" / "skills" / "ai-agents-generation-and-release" / "SKILL.md",
     REPO_ROOT / ".claude" / "skills" / "ai-agents-portability-campaign" / "SKILL.md",
-    COPILOT_SKILL_ROOT / "ai-agents-architecture-contract" / "SKILL.md",
-    COPILOT_SKILL_ROOT / "ai-agents-config-catalog" / "SKILL.md",
-    COPILOT_SKILL_ROOT / "ai-agents-generation-and-release" / "SKILL.md",
-    COPILOT_SKILL_ROOT / "ai-agents-portability-campaign" / "SKILL.md",
 )
 
 PLUGIN_VERSION_SECTIONS = (
@@ -551,8 +549,6 @@ def test_operational_skills_do_not_pin_pre_push_line_numbers() -> None:
     paths = (
         REPO_ROOT / ".claude" / "skills" / "ai-agents-config-catalog" / "SKILL.md",
         REPO_ROOT / ".claude" / "skills" / "ai-agents-generation-and-release" / "SKILL.md",
-        COPILOT_SKILL_ROOT / "ai-agents-config-catalog" / "SKILL.md",
-        COPILOT_SKILL_ROOT / "ai-agents-generation-and-release" / "SKILL.md",
     )
 
     for path in paths:
@@ -612,19 +608,10 @@ def test_operational_skills_match_current_hook_registration_counts() -> None:
     # contradicted the re-verify table in the same document. Pin both trees.
     settings_prose = f"{len(settings)} events and {sum(map(len, settings.values()))} groups"
     plugin_prose = f"{len(plugin)} events and {sum(map(len, plugin.values()))} groups"
-    for surface in (
-        architecture,
-        (
-            REPO_ROOT
-            / "src"
-            / "copilot-cli"
-            / "skills"
-            / "ai-agents-architecture-contract"
-            / "SKILL.md"
-        ).read_text(encoding="utf-8"),
-    ):
-        assert settings_prose in surface
-        assert plugin_prose in surface
+    # ai-agents-architecture-contract is distribution: repo-local, so it has no
+    # Copilot mirror to pin.
+    assert settings_prose in architecture
+    assert plugin_prose in architecture
 
     # The provenance table is the third copy of these counts and states them in
     # a slash form the two assertions above cannot see. It sat at "3 events / 4
@@ -640,7 +627,6 @@ def test_operational_skills_match_current_hook_registration_counts() -> None:
         / "ai-agents-architecture-contract"
         / "references"
         / "provenance.md",
-        COPILOT_SKILL_ROOT / "ai-agents-architecture-contract" / "references" / "provenance.md",
     )
     for path in provenance_paths:
         surface = path.read_text(encoding="utf-8")

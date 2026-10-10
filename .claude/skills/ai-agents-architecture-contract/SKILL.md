@@ -4,6 +4,7 @@ description: Load-bearing design decisions for this repo as a contract you check
 version: 1.0.0
 license: MIT
 metadata:
+  distribution: repo-local
   routing:
     role: conditional-adjunct
     invoker: ai-agents-generation-and-release

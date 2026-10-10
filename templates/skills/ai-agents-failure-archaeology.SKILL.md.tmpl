@@ -4,6 +4,7 @@ description: The chronicle of this repo's settled battles. Maps each major incid
 version: 1.0.0
 license: MIT
 metadata:
+  distribution: repo-local
   routing:
     role: conditional-adjunct
     invoker: ai-agents-change-control

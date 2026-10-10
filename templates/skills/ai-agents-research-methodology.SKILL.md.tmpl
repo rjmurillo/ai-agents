@@ -10,6 +10,7 @@ description: How a hunch becomes an accepted result in this repo. Covers the
   the open research programs (use ai-agents-research-frontier) or probe recipe
   depth (use ai-agents-empirical-probe-toolkit).
 metadata:
+  distribution: repo-local
   routing:
     role: conditional-adjunct
     invoker: ai-agents-external-claims

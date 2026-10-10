@@ -4,6 +4,7 @@ description: What counts as evidence in ai-agents and how to produce it. Covers 
 version: 1.0.0
 license: MIT
 metadata:
+  distribution: repo-local
   routing:
     role: conditional-adjunct
     invoker: ai-agents-build-and-env

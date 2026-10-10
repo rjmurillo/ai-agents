@@ -27,11 +27,15 @@ from __future__ import annotations
 
 import json
 import re
+import sys
 from pathlib import Path
 
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(REPO_ROOT / "build" / "scripts"))
+
+import skill_distribution
 
 CANONICAL_ROOT = REPO_ROOT / ".claude" / "skills"
 MIRROR_ROOT = REPO_ROOT / "src" / "copilot-cli" / "skills"
@@ -130,6 +134,10 @@ def test_cleaned_skill_names_no_forgetful_surface(
 ) -> None:
     """Positive guard: no cleaned skill file names the retired server."""
     path = skills_root / relative_path
+    skill = relative_path.split("/")[0]
+    if skills_root == MIRROR_ROOT and skill_distribution.is_repo_local(REPO_ROOT, skill):
+        assert not path.exists(), f"repo-local skill {skill} leaked into the mirror: {path}"
+        return
     content = _read(path)
     assert not _names_forgetful(content), (
         f"{path} reintroduced a Forgetful surface; the server was "

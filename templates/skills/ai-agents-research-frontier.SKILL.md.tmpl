@@ -4,6 +4,7 @@ description: "Three ranked open research programs for this repo, each with hones
 version: 1.0.0
 license: MIT
 metadata:
+  distribution: repo-local
   routing:
     role: conditional-adjunct
     invoker: ai-agents-research-methodology

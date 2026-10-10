@@ -4,6 +4,7 @@ description: Execute cross-harness hook changes for Claude Code and GitHub Copil
 version: 1.1.0
 license: MIT
 metadata:
+  distribution: repo-local
   routing:
     role: front-door
     invoker: autoplan

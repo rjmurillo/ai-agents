@@ -20,17 +20,22 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(REPO_ROOT / "build" / "scripts"))
 
+import skill_distribution  # noqa: E402
 import skill_templates  # noqa: E402
 
 
 def test_every_discovered_skill_is_binplaced_byte_identical() -> None:
     """Every ``src/claude/skills/<name>/SKILL.md`` matches ``.claude/skills/<name>/SKILL.md``.
 
+    Skills flagged ``distribution: repo-local`` have no plugin-tree file and are
+    covered by ``test_skill_distribution.py``.
+
     A mismatch means ``build/scripts/build_all.py`` (or
     ``build_all.py --check``) has not run since the plugin tree last
     changed; fix by rerunning it and committing the result.
     """
-    names = sorted(skill_templates.discover(REPO_ROOT))
+    repo_local = skill_distribution.repo_local_names(REPO_ROOT)
+    names = sorted(set(skill_templates.discover(REPO_ROOT)) - repo_local)
     assert names, "no template-owned skills discovered; is templates/skills/ present?"
 
     mismatched: list[str] = []

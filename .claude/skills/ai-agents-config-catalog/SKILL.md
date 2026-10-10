@@ -4,6 +4,7 @@ description: Catalog of every configuration axis in this repo, env vars, commit 
 version: 1.0.0
 license: MIT
 metadata:
+  distribution: repo-local
   routing:
     role: conditional-adjunct
     invoker: ai-agents-debugging-playbook

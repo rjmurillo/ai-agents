@@ -4,6 +4,7 @@ description: Change control for this repo. Classify a change (docs-only, investi
 version: 1.0.0
 license: MIT
 metadata:
+  distribution: repo-local
   routing:
     role: conditional-adjunct
     invoker: ai-agents-validation-and-qa

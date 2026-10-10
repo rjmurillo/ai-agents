@@ -11,6 +11,7 @@ description: >-
   evidence rules (use `ai-agents-validation-and-qa`).
 license: MIT
 metadata:
+  distribution: repo-local
   routing:
     role: conditional-adjunct
     invoker: ai-agents-generation-and-release
