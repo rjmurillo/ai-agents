@@ -1,5 +1,11 @@
 """Compare one duration snapshot with the median of earlier snapshots.
 
+A partition runs on one runner, and runner speed is bimodal: the same tests
+take 1.5x to 1.6x longer on a slow runner, on main pushes and pull requests
+alike. A module is therefore measured against its baseline scaled by how much
+slower its partition's other modules ran, so only a module slower than its own
+partition is a regression. A partition never scales the baseline below 1.0.
+
 A module's baseline is the median of its seconds across history snapshots that
 ran exactly the same tests in it, matched by a digest of the test IDs.
 Change-scoped CI runs execute a subset of the suite, and a pull request can
@@ -55,6 +61,7 @@ class Comparison:
     min_samples: int = 0
     modules: list[Regression] = field(default_factory=list)
     suite: Regression | None = None
+    speeds: dict[str, float] = field(default_factory=dict)
 
 
 def module_baseline(module: str, ids: str, history: Sequence[Snapshot]) -> list[float]:
@@ -71,20 +78,53 @@ def regressed(seconds: float, baseline: float, ratio: float, min_delta: float) -
     return seconds - baseline >= min_delta and seconds >= baseline * ratio
 
 
+# A partition needs this many substantial modules before its speed is trusted.
+SPEED_MIN_MODULES = 5
+SPEED_MIN_BASELINE = 1.0
+
+
+def partition_speeds(
+    current: Snapshot, baselines: dict[str, float]
+) -> dict[str, float]:
+    """Median seconds-to-baseline ratio of each partition's substantial modules.
+
+    Returns only partitions with ``SPEED_MIN_MODULES`` modules whose baseline is
+    at least ``SPEED_MIN_BASELINE`` seconds, floored at 1.0.
+    """
+    ratios: dict[str, list[float]] = {}
+    for module, baseline in baselines.items():
+        partition = current.module_partitions.get(module)
+        if partition is not None and baseline >= SPEED_MIN_BASELINE:
+            ratios.setdefault(partition, []).append(
+                current.modules[module]["seconds"] / baseline)
+    return {
+        partition: max(1.0, statistics.median(values))
+        for partition, values in sorted(ratios.items())
+        if len(values) >= SPEED_MIN_MODULES
+    }
+
+
 def compare(current: Snapshot, history: Sequence[Snapshot], limits: Thresholds) -> Comparison:
     """Measure every comparable module, and their sum, against the history median."""
     result = Comparison()
+    baselines: dict[str, float] = {}
+    sample_counts: dict[str, int] = {}
     for module, entry in current.modules.items():
         samples = module_baseline(module, entry["ids"], history)
         if not samples:
             continue
-        baseline = statistics.median(samples)
+        baselines[module] = statistics.median(samples)
+        sample_counts[module] = len(samples)
         result.comparable += 1
         result.seconds += entry["seconds"]
-        result.baseline += baseline
+        result.baseline += baselines[module]
         result.min_samples = min(result.min_samples or len(samples), len(samples))
-        if regressed(entry["seconds"], baseline, limits.module_ratio, limits.module_min_delta):
-            result.modules.append(Regression(module, entry["seconds"], baseline, len(samples)))
+    result.speeds = partition_speeds(current, baselines)
+    for module, baseline in baselines.items():
+        speed = result.speeds.get(current.module_partitions.get(module, ""), 1.0)
+        seconds = current.modules[module]["seconds"]
+        if regressed(seconds, baseline * speed, limits.module_ratio, limits.module_min_delta):
+            result.modules.append(Regression(module, seconds, baseline, sample_counts[module]))
     result.modules.sort(key=lambda r: (-(r.seconds - r.baseline), r.name))
     if regressed(result.seconds, result.baseline, limits.suite_ratio, limits.suite_min_delta):
         result.suite = Regression("suite", result.seconds, result.baseline, result.min_samples)

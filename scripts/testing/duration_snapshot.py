@@ -33,6 +33,9 @@ class Snapshot:
     recorded_at: str
     partitions: dict[str, PartitionEntry] = field(default_factory=dict)
     modules: dict[str, ModuleEntry] = field(default_factory=dict)
+    # Which partition (runner) measured each module. Only the current run needs
+    # it, to tell runner speed from a module regression, so it is not persisted.
+    module_partitions: dict[str, str] = field(default_factory=dict, compare=False)
 
     @property
     def total_seconds(self) -> float:
@@ -78,6 +81,7 @@ def build_snapshot(paths: Sequence[Path], sha: str, now: datetime) -> Snapshot:
         for record in records:
             seconds[record.module] += record.duration
             nodeids[record.module].append(record.nodeid)
+            snapshot.module_partitions[record.module] = path.stem
         snapshot.partitions[path.stem] = {
             "tests": len(records), "wall_seconds": round(partition_wall_seconds(path), 3)}
     for module in sorted(seconds):
