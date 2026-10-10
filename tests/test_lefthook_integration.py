@@ -7130,7 +7130,7 @@ def test_cli_e2e_runs_with_clean_plugin_environment(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.delenv("SKIP_CLI_E2E", raising=False)
-    monkeypatch.setattr(policy.shutil, "which", lambda name: name if name == "copilot" else None)
+    monkeypatch.setattr(policy.shutil, "which", lambda name: name if name == "claude" else None)
     captured: dict[str, object] = {}
 
     class FakePopen:
@@ -7318,7 +7318,7 @@ def test_a_container_clamps_the_cli_e2e_child_deadline(
     correct, which is why the two cases are asserted separately.
     """
     monkeypatch.delenv("SKIP_CLI_E2E", raising=False)
-    monkeypatch.setattr(policy.shutil, "which", lambda name: name if name == "copilot" else None)
+    monkeypatch.setattr(policy.shutil, "which", lambda name: name if name == "claude" else None)
     captured: dict[str, object] = {}
 
     class FakePopen:
@@ -7361,7 +7361,7 @@ def test_ci_keeps_the_full_budget_even_inside_a_container_image(
     whenever the CI marker is truthy, and this is the assertion that says so.
     """
     monkeypatch.delenv("SKIP_CLI_E2E", raising=False)
-    monkeypatch.setattr(policy.shutil, "which", lambda name: name if name == "copilot" else None)
+    monkeypatch.setattr(policy.shutil, "which", lambda name: name if name == "claude" else None)
     captured: dict[str, object] = {}
 
     class FakePopen:
@@ -7399,7 +7399,7 @@ def test_cli_e2e_without_cli_fails_closed(
     assert policy.run_cli_e2e("tests/e2e/test.py", tmp_path) == 2
 
 
-def test_cli_e2e_without_cli_names_all_three_clis(
+def test_cli_e2e_without_cli_names_the_local_harness_clis(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -7409,11 +7409,59 @@ def test_cli_e2e_without_cli_names_all_three_clis(
 
     assert policy.run_cli_e2e("tests/e2e/test.py", tmp_path) == 2
     err = capsys.readouterr().err
-    assert "copilot" in err and "claude" in err and "codex" in err
+    assert "claude or codex" in err
+    assert "copilot" not in err
 
 
-@pytest.mark.parametrize("cli", ["copilot", "claude", "codex"])
-def test_cli_e2e_accepts_any_one_of_the_three_clis(
+def test_cli_e2e_with_only_copilot_on_path_fails_closed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Negative: Copilot is not a local harness, so it cannot satisfy the gate."""
+    monkeypatch.delenv("SKIP_CLI_E2E", raising=False)
+    monkeypatch.setattr(policy.shutil, "which", lambda name: name if name == "copilot" else None)
+    monkeypatch.setattr(policy, "_run_command", lambda *_a, **_k: _completed(0))
+
+    assert policy.run_cli_e2e("tests/e2e/test.py", tmp_path) == 2
+
+
+def test_cli_hook_e2e_does_not_accept_codex_alone(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Edge: the hook smoke has no Codex cases, so Codex alone fails closed."""
+    monkeypatch.delenv("SKIP_CLI_E2E", raising=False)
+    monkeypatch.setattr(policy.shutil, "which", lambda name: name if name == "codex" else None)
+    monkeypatch.setattr(policy, "_run_command", lambda *_a, **_k: _completed(0))
+
+    rc = policy.run_cli_e2e(
+        "tests/e2e/test_cli_hook_e2e.py", tmp_path, binaries=policy.CLI_HOOK_E2E_BINARIES
+    )
+    assert rc == 2
+
+
+def test_cli_e2e_deselects_copilot_cases_even_with_copilot_on_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The local run passes `-m "not copilot"` so no Copilot call is made."""
+    monkeypatch.delenv("SKIP_CLI_E2E", raising=False)
+    monkeypatch.setattr(policy.shutil, "which", lambda name: name)
+    ran: list[Sequence[str]] = []
+
+    def fake_run_command(command: Sequence[str], *_args: object, **_kwargs: object) -> object:
+        ran.append(command)
+        return _completed(0)
+
+    monkeypatch.setattr(policy, "_run_command", fake_run_command)
+
+    assert policy.run_cli_e2e("tests/e2e/test.py", tmp_path) == 0
+    command = list(ran[0])
+    assert command[command.index("-m", 3) + 1] == "not copilot"
+
+
+@pytest.mark.parametrize("cli", ["claude", "codex"])
+def test_cli_e2e_accepts_any_one_of_the_local_harness_clis(
     cli: str,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

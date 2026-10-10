@@ -373,9 +373,9 @@ class TestPushFilesGuard:
 
         assert rc == 2
         err = capsys.readouterr().err
-        assert "requires at least one of copilot, claude, or codex" in err
-        for package in ("@anthropic-ai/claude-code", "@github/copilot", "@openai/codex"):
-            assert package in err
+        assert "requires claude or codex on PATH" in err
+        assert "npm install -g @anthropic-ai/claude-code @openai/codex" in err
+        assert "@github/copilot" not in err
 
     def test_hook_entrypoint_fails_closed_with_only_codex_installed(
         self,
@@ -404,7 +404,7 @@ class TestPushFilesGuard:
         )
 
         assert rc == 2
-        assert "requires at least one of copilot or claude" in capsys.readouterr().err
+        assert "requires claude on PATH" in capsys.readouterr().err
 
     def test_cli_plugin_e2e_subcommand_accepts_files_arg(self) -> None:
         """The cli-plugin-e2e subcommand accepts --files."""
