@@ -48,6 +48,7 @@ def make_repo(tmp_path: Path, files: dict[str, str | bytes]) -> Path:
     (repo / "src.py").write_text("class Real:\n    pass\n")
     for name, data in files.items():
         raw = data.encode() if isinstance(data, str) else data
+        (repo / name).parent.mkdir(parents=True, exist_ok=True)
         (repo / name).write_bytes(raw)
     commit(repo, "base")
     return repo

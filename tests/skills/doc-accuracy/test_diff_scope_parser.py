@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
@@ -81,7 +82,8 @@ def test_assessment_has_no_changed_lines_without_diff_base(tmp_path: Path) -> No
 
 def test_path_normalization_matches_git_and_claim_spellings() -> None:
     assert mod._norm_path("./docs//a.md") == "docs/a.md"
-    assert mod._norm_path("docs\\a.md") == "docs/a.md"
+    expected = "docs/a.md" if os.sep == "\\" else "docs\\a.md"
+    assert mod._norm_path("docs\\a.md") == expected
     assert mod._parse_unified_zero("+++ b/./a.md\n@@ -1 +1 @@\n-a\n+b\n") == {
         "a.md": [[1, 1]]
     }

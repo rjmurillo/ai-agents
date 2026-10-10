@@ -682,6 +682,10 @@ def _diff_name_set(
     """Phase 5: diff by resolved OIDs, NUL-separated output."""
     oid = fork_oid
     try:
+        # Not reachable as command injection: the refs are commit OIDs that
+        # _resolve_fork_and_head validated as 40 or 64 lowercase hex
+        # characters, argv is a list run without a shell, and _git_env strips
+        # user and system git config from the inherited environment.
         result = subprocess.run(
             _git_command(
                 repo_root,
@@ -710,8 +714,14 @@ _C_ESCAPES = {
 
 
 def _norm_path(path: str) -> str:
-    """Canonical repo-relative POSIX path used for every changed_lines key."""
-    return posixpath.normpath(path.replace("\\", "/"))
+    """Canonical repo-relative POSIX path used for every changed_lines key.
+
+    A backslash is a path separator only on Windows. On POSIX it is a legal
+    file name character, so ``a/b.md`` and ``a\\b.md`` must stay distinct.
+    """
+    if os.sep == "\\":
+        path = path.replace("\\", "/")
+    return posixpath.normpath(path)
 
 
 def _unquote_c_path(quoted: str) -> str:
@@ -890,6 +900,10 @@ def _diff_line_ranges(
 ) -> dict[str, list[list[int]]]:
     """Return changed new-side line ranges per file; renames count as adds."""
     try:
+        # Not reachable as command injection: the refs are commit OIDs that
+        # _resolve_fork_and_head validated as 40 or 64 lowercase hex
+        # characters, argv is a list run without a shell, and _git_env strips
+        # user and system git config from the inherited environment.
         result = subprocess.run(
             _git_command(
                 repo_root,
@@ -1010,10 +1024,12 @@ def run_assessment(
         if changed_files is not None:
             # No parsed hunk, or a symlinked doc (git diffs only the link
             # text, not the content read here): changed in full.
-            changed_lines[_norm_path(rel_path)] = (
+            ranges = (
                 None if _has_symlink_part(doc_path, repo_root)
                 else changed_ranges.get(_norm_path(rel_path))
             ) or [[1, line_count]]
+            # A key collision unions ranges, so it can only widen scope.
+            changed_lines.setdefault(_norm_path(rel_path), []).extend(ranges)
 
         doc_inventory.append(DocFile(
             path=rel_path,
