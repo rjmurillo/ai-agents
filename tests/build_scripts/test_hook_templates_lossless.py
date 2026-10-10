@@ -13,10 +13,9 @@ tree, per TASK-034 Acceptance Criteria: "the first render byte-identical
 to today's committed files."
 
 Independent pin on the corpus size (mirrors test_rule_templates_lossless.py's
-CodeRabbit-motivated frozenset): the 13 executables, dispatch_groups.json,
-and PreToolUse/markdownlint-safe-config.yaml, from `git ls-files .claude/hooks`
-at HEAD (2026-09-15; TASK-034 Objective, "23 total... 13 executables...
-hooks.json, dispatch_groups.json, and PreToolUse/markdownlint-safe-config.yaml").
+CodeRabbit-motivated frozenset): the 13 executables and dispatch_groups.json, from
+`git ls-files .claude/hooks` at HEAD (TASK-034 counted 16 hooks-class files
+including the markdownlint safe config, since removed).
 """
 
 from __future__ import annotations
@@ -33,7 +32,6 @@ EXPECTED_HOOK_TREE_FILES = frozenset(
         "session-start.sh",
         "PreCompact/invoke_compact_checkpoint.py",
         "PreToolUse/_bootstrap.py",
-        "PreToolUse/markdownlint-safe-config.yaml",
         "SessionEnd/invoke_memory_reflection.py",
         "SessionStart/invoke_checkout_freshness_check.py",
         "SessionStart/invoke_context_loader.py",
