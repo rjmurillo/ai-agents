@@ -4910,7 +4910,9 @@ def test_name_resolution_stays_linear_on_a_deep_reverse_chain() -> None:
     The bound is deliberately loose. Measured on this machine the queue takes
     0.36 seconds and a repeated sweep takes about 40, so anything under the
     ceiling is the linear implementation and anything over it is a regression
-    to the sweep, not a slow CI runner.
+    to the sweep, not a slow CI runner. The clock is CPU time
+    (`time.process_time`), not wall time, so a host running at load average
+    above its core count does not turn a linear run into a failure.
     """
     depth = 20000
     source = "\n".join(
@@ -4918,9 +4920,9 @@ def test_name_resolution_stays_linear_on_a_deep_reverse_chain() -> None:
         + [f"v{index} = v{index + 1}" for index in range(depth)]
         + [f"v{depth} = subprocess.run", 'v0(["x"], capture_output=True, text=True)']
     )
-    started = time.perf_counter()
+    started = time.process_time()
     flagged = unpinned_lines(source)
-    elapsed = time.perf_counter() - started
+    elapsed = time.process_time() - started
 
     assert flagged, "a chain of any depth still reaches a subprocess entry point"
     assert elapsed < 10.0, f"name resolution took {elapsed:.1f}s for {depth} bindings"
@@ -4951,9 +4953,9 @@ def test_a_deep_module_alias_chain_stays_linear() -> None:
         + [f"m{depth} = subprocess", 'm0.run(["x"], capture_output=True, text=True)']
     )
 
-    started = time.perf_counter()
+    started = time.process_time()
     flagged = unpinned_lines(source)
-    elapsed = time.perf_counter() - started
+    elapsed = time.process_time() - started
 
     assert flagged == [depth + 3], "the module survives every alias on the way"
     assert elapsed < 5.0, f"alias resolution took {elapsed:.1f}s for {depth} links"
@@ -4979,9 +4981,9 @@ def test_unwinding_a_wide_container_stays_linear() -> None:
     container = ast.parse(source).body[0]
     assert isinstance(container, ast.Assign)
 
-    started = time.perf_counter()
+    started = time.process_time()
     found = _module_sources(container.value)
-    elapsed = time.perf_counter() - started
+    elapsed = time.process_time() - started
 
     assert len(found) == width, "every element of the container answers"
     assert elapsed < 0.3, f"unwinding took {elapsed:.2f}s for {width} elements"
@@ -5004,9 +5006,9 @@ def test_unpacking_a_wide_container_stays_linear() -> None:
     values = ", ".join(f"b{index}" for index in range(width))
     source = f"import subprocess\n{names} = {{{values}}}\n"
 
-    started = time.perf_counter()
+    started = time.process_time()
     flagged = unpinned_lines(source)
-    elapsed = time.perf_counter() - started
+    elapsed = time.process_time() - started
 
     assert flagged == [], "no call is made, so nothing can decode"
     assert elapsed < 3.0, f"unpacking took {elapsed:.1f}s for {width} names"
@@ -5032,9 +5034,9 @@ def test_one_value_reading_many_names_stays_linear() -> None:
     lines.append('m0.run(["x"], capture_output=True, text=True)')
     source = "\n".join(lines)
 
-    started = time.perf_counter()
+    started = time.process_time()
     flagged = unpinned_lines(source)
-    elapsed = time.perf_counter() - started
+    elapsed = time.process_time() - started
 
     assert flagged == [depth + 3], "the module survives every container on the way"
     assert elapsed < 3.0, f"chain resolution took {elapsed:.1f}s for {depth} links"
@@ -5097,9 +5099,9 @@ def test_return_bindings_stay_linear_in_a_deeply_nested_file() -> None:
     lines.append(("  " * depth) + "return 1")
     source = "\n".join(lines)
 
-    started = time.perf_counter()
+    started = time.process_time()
     flagged = unpinned_lines(source)
-    elapsed = time.perf_counter() - started
+    elapsed = time.process_time() - started
 
     assert flagged == [], "nothing here reaches subprocess"
     # The loaded pre-push suite measured 3.7 seconds for this fixed-size input.

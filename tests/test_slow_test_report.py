@@ -352,12 +352,19 @@ class TestProbes:
         assert counters.subprocesses == report._MAX_LABELS + 5
         assert len(counters.commands) == report._MAX_LABELS
 
-    def test_temp_dir_traversals_collapse_to_one_label(self, tmp_path: Path) -> None:
-        """Every pytest tmp_path is unique, so literal roots would bury the signal."""
+    def test_temp_dir_traversals_collapse_to_one_label(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Every tmp_path is unique, so literal roots bury the signal.
+
+        `--basetemp` can sit outside every root `temp_roots` reads: declare one."""
+        monkeypatch.setenv("PYTEST_DEBUG_TEMPROOT", str(tmp_path))
+        temp_roots_mod.temp_roots.cache_clear()
         counters = report._Telemetry()
         for index in range(5):
             counters.note_traversal(tmp_path / f"case{index}", "**/*.py")
         counters.note_traversal(Path("/repo/.claude/skills"), "**/*.py")
+        temp_roots_mod.temp_roots.cache_clear()
         assert counters.traversals == 6
         assert counters.roots == {"<tmp>", "/repo/.claude/skills:**/*.py"}
 
