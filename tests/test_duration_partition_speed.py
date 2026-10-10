@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from scripts.testing.duration_compare import compare
-from scripts.testing.duration_partition_speed import partition_speeds
+from scripts.testing.duration_partition_speed import SPEED_CAP, partition_speeds
 from scripts.testing.duration_schema import ModuleEntry, ids_digest
 from scripts.testing.duration_snapshot import Snapshot
 from tests.duration_test_helpers import DEFAULT_LIMITS
@@ -51,7 +51,7 @@ def test_a_module_slower_than_its_slow_partition_still_regresses() -> None:
     assert [r.name for r in result.modules] == [_MODULES[0]]
 
 
-def test_a_fast_partition_never_loosens_the_thresholds() -> None:
+def test_a_fast_partition_never_tightens_the_thresholds() -> None:
     history = _history({m: 20.0 for m in _MODULES})
     current = {m: 10.0 for m in _MODULES}
     current[_MODULES[0]] = 32.0
@@ -87,3 +87,68 @@ def test_partition_speed_is_the_median_ratio_of_substantial_modules() -> None:
     baselines = dict.fromkeys(_MODULES[:5], 10.0)
 
     assert partition_speeds(current, baselines) == {"leg": pytest.approx(1.6)}
+
+
+def test_a_1_5x_slow_runner_passes() -> None:
+    history = _history({m: 20.0 for m in _MODULES})
+
+    result = compare(_leg({m: 30.0 for m in _MODULES}), history, DEFAULT_LIMITS)
+
+    assert result.modules == []
+
+
+def test_a_3x_partition_slowdown_is_a_regression_not_masked() -> None:
+    history = _history({m: 20.0 for m in _MODULES})
+
+    result = compare(_leg({m: 60.0 for m in _MODULES}), history, DEFAULT_LIMITS)
+
+    names = {r.name for r in result.modules}
+    assert "partition leg" in names
+    assert set(_MODULES) <= names
+    assert result.speeds == {"leg": pytest.approx(3.0)}
+
+
+def test_the_cap_bounds_the_scaling_not_the_reported_speed() -> None:
+    history = _history({m: 20.0 for m in _MODULES})
+    seconds = SPEED_CAP * 20.0 * 1.0
+    just_over = {m: seconds * 1.05 for m in _MODULES}
+
+    result = compare(_leg(just_over), history, DEFAULT_LIMITS)
+
+    assert "partition leg" in {r.name for r in result.modules}
+
+
+def test_a_module_missing_from_the_current_run_does_not_count() -> None:
+    history = _history({m: 20.0 for m in _MODULES})
+    history.append(_leg({"tests/test_gone.py": 500.0}))
+    current = _leg({m: 32.0 for m in _MODULES[:5]})
+
+    result = compare(current, history, DEFAULT_LIMITS)
+
+    assert result.comparable == 5
+    assert result.modules == []
+
+
+def test_a_module_without_a_partition_is_scaled_by_one() -> None:
+    history = _history({m: 20.0 for m in _MODULES})
+    current = _leg({m: 32.0 for m in _MODULES})
+    current.module_partitions.pop(_MODULES[0])
+
+    result = compare(current, history, DEFAULT_LIMITS)
+
+    assert [r.name for r in result.modules] == [_MODULES[0]]
+
+
+def test_each_partition_gets_its_own_speed() -> None:
+    slow = [f"tests/test_s{i}.py" for i in range(5)]
+    fast = [f"tests/test_f{i}.py" for i in range(5)]
+    base = {m: 20.0 for m in [*slow, *fast]}
+    now = {**{m: 30.0 for m in slow}, **{m: 20.0 for m in fast}}
+    current = _leg(now)
+    current.module_partitions.update({m: "slow" for m in slow})
+    current.module_partitions.update({m: "fast" for m in fast})
+
+    result = compare(current, _history(base), DEFAULT_LIMITS)
+
+    assert result.speeds == {"fast": 1.0, "slow": pytest.approx(1.5)}
+    assert result.modules == []

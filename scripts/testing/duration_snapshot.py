@@ -76,15 +76,19 @@ def build_snapshot(paths: Sequence[Path], sha: str, now: datetime) -> Snapshot:
     snapshot = Snapshot(sha=sha, recorded_at=now.isoformat(timespec="seconds"))
     seconds: dict[str, float] = defaultdict(float)
     nodeids: dict[str, list[str]] = defaultdict(list)
+    by_partition: dict[str, dict[str, float]] = defaultdict(lambda: defaultdict(float))
     for path in paths:
         records = load_junit(path)
         for record in records:
             seconds[record.module] += record.duration
             nodeids[record.module].append(record.nodeid)
-            snapshot.module_partitions[record.module] = path.stem
+            by_partition[record.module][path.stem] += record.duration
         snapshot.partitions[path.stem] = {
             "tests": len(records), "wall_seconds": round(partition_wall_seconds(path), 3)}
     for module in sorted(seconds):
+        owners = by_partition[module]
+        # A module split across partitions belongs to the one that ran it longest.
+        snapshot.module_partitions[module] = min(owners, key=lambda p: (-owners[p], p))
         snapshot.modules[module] = {"seconds": round(seconds[module], 3),
                                     "tests": len(nodeids[module]),
                                     "ids": ids_digest(nodeids[module])}
