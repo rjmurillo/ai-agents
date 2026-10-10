@@ -20,8 +20,8 @@ rows:
     plugin_tree: src/claude/rules
     install_tree: .claude/rules
   - class: hooks
-    # ADR-109 B4: the 13 executables and dispatch_groups.json (14 of the
-    # 15 hooks-class files; hooks.json is the hooks-json row below).
+    # ADR-109 B4: the 14 executables and dispatch_groups.json (15 of the
+    # 16 hooks-class files; hooks.json is the hooks-json row below).
     source: templates/hooks
     plugin_tree: src/claude/hooks
     install_tree: .claude/hooks

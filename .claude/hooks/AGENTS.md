@@ -10,7 +10,7 @@ Claude Code lifecycle hooks: generated output, run by the harness, mirrored in p
 - Hand-maintained exceptions: `AGENTS.md`, five `CLAUDE.md`, `PostToolUse/README.md`.
 - Group dispatcher only on `SessionStart`; `UserPromptSubmit`, `Stop`, `SessionEnd`, `PreCompact` register directly.
 - `hooks.json` declares `"hooks": {}`: the shipped `project-toolkit` copy (`src/claude/hooks.json`) registers nothing. Every live registration is `.claude/settings.json`.
-- `PreToolUse`/`PostToolUse` ship no Python hook, only a bootstrap helper and a markdownlint config.
+- `PreToolUse`/`PostToolUse` ship no Python hook, only a bootstrap helper.
 - `invoke_memory_recall.py`/`invoke_memory_reflection.py` call a package outside the plugin root; consumer installs no-op silently.
 
 ## Entry points

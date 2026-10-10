@@ -24,7 +24,7 @@ this task's PR body).
 Three render targets, not one, because ADR-109 section 2 and 3 name three
 different destinations for this one template tree:
 
-1. ``templates/hooks/<name>`` (14 of the 15 hooks-class files: 13
+1. ``templates/hooks/<name>`` (15 of the 16 hooks-class files: 14
    executables plus ``dispatch_groups.json``) renders to
    ``src/claude/hooks/<name>``, the plugin tree's ``hooks/`` subdirectory.
 2. ``templates/hooks/hooks.json`` renders to ``src/claude/hooks.json``, at

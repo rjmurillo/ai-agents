@@ -13,7 +13,7 @@ tree, per TASK-034 Acceptance Criteria: "the first render byte-identical
 to today's committed files."
 
 Independent pin on the corpus size (mirrors test_rule_templates_lossless.py's
-CodeRabbit-motivated frozenset): the 13 executables and dispatch_groups.json, from
+CodeRabbit-motivated frozenset): the 14 executables and dispatch_groups.json, from
 `git ls-files .claude/hooks` at HEAD (TASK-034 counted 16 hooks-class files
 including the markdownlint safe config, since removed).
 """
