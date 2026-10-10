@@ -1363,8 +1363,17 @@ def _score_below_threshold(score: QualityScore, threshold: float | None) -> bool
     return threshold is not None and score.confidence > 0.0 and score.value < threshold
 
 
-def generate_markdown_report(assessments: list[FileAssessment], config: dict[str, Any]) -> str:
-    """Generate markdown report"""
+def generate_markdown_report(
+    assessments: list[FileAssessment],
+    config: dict[str, Any],
+    context: str | None = None,
+) -> str:
+    """Generate markdown report.
+
+    Issues are listed against each file's own thresholds, the same ones
+    ``check_thresholds`` gates on, so a file that passes the gate is not
+    reported with issues.
+    """
     report = ["# Code Quality Assessment Report\n"]
 
     # Summary statistics
@@ -1376,7 +1385,6 @@ def generate_markdown_report(assessments: list[FileAssessment], config: dict[str
     avg_encap = _average_scored([a.encapsulation for a in assessments])
     avg_test = _average_scored([a.testability for a in assessments])
     avg_nonred = _average_scored([a.non_redundancy for a in assessments])
-    thresholds = config["thresholds"]
 
     report.append("## Summary\n")
     report.append(f"**Files Assessed**: {len(assessments)}\n")
@@ -1404,8 +1412,9 @@ def generate_markdown_report(assessments: list[FileAssessment], config: dict[str
         report.append("")
 
         # Show reasons for low scores
+        file_thresholds = _thresholds_for(config, context, assessment)
         for label, threshold_key, score in quality_rows:
-            if _score_below_threshold(score, _threshold_min(thresholds, threshold_key)):
+            if _score_below_threshold(score, _threshold_min(file_thresholds, threshold_key)):
                 report.append(f"**{label} Issues**:")
                 for reason in score.reasons:
                     report.append(f"  - {reason}")
@@ -1633,10 +1642,11 @@ def _render_report(
     comparisons: list[FileComparison],
     config: dict[str, Any],
     gate_mode: str,
+    context: str | None = None,
 ) -> str:
     """Render the selected report format."""
     if output_format == "markdown":
-        report = generate_markdown_report(assessments, config)
+        report = generate_markdown_report(assessments, config, context)
         section = generate_regression_section(comparisons)
         return f"{report}\n\n{section}" if section else report
     if output_format == "json":
@@ -1739,7 +1749,9 @@ def main(argv: list[str] | None = None) -> int:
         print(f"ERROR: {e}", file=sys.stderr)
         return 1
 
-    report = _render_report(args.format, assessments, comparisons, config, gate_mode)
+    report = _render_report(
+        args.format, assessments, comparisons, config, gate_mode, args.context
+    )
     _write_report(report, args.output)
     return _gate_result(
         gate_mode,

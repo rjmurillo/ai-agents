@@ -22,6 +22,7 @@ from assess import (
     QualityScore,
     check_regression,
     check_thresholds,
+    generate_markdown_report,
 )
 from assess import main as assess_main
 
@@ -34,6 +35,7 @@ __all__ = [
     "assessment",
     "check_regression",
     "check_thresholds",
+    "generate_markdown_report",
 ]
 
 CONFIG = {
