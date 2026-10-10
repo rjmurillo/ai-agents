@@ -355,22 +355,18 @@ class TestProbes:
     def test_temp_dir_traversals_collapse_to_one_label(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Every pytest tmp_path is unique, so literal roots would bury the signal.
+        """Every tmp_path is unique, so literal roots bury the signal.
 
-        `--basetemp` can put tmp_path outside the system temp dir and outside
-        every env var `temp_roots` reads, so the test declares its own root.
-        """
+        `--basetemp` can sit outside every root `temp_roots` reads: declare one."""
         monkeypatch.setenv("PYTEST_DEBUG_TEMPROOT", str(tmp_path))
         temp_roots_mod.temp_roots.cache_clear()
-        try:
-            counters = report._Telemetry()
-            for index in range(5):
-                counters.note_traversal(tmp_path / f"case{index}", "**/*.py")
-            counters.note_traversal(Path("/repo/.claude/skills"), "**/*.py")
-            assert counters.traversals == 6
-            assert counters.roots == {"<tmp>", "/repo/.claude/skills:**/*.py"}
-        finally:
-            temp_roots_mod.temp_roots.cache_clear()
+        counters = report._Telemetry()
+        for index in range(5):
+            counters.note_traversal(tmp_path / f"case{index}", "**/*.py")
+        counters.note_traversal(Path("/repo/.claude/skills"), "**/*.py")
+        temp_roots_mod.temp_roots.cache_clear()
+        assert counters.traversals == 6
+        assert counters.roots == {"<tmp>", "/repo/.claude/skills:**/*.py"}
 
     def test_group_scanner_labels_are_bounded(self) -> None:
         """Edge: a module with hundreds of distinct roots must stay readable."""
