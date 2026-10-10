@@ -63,3 +63,23 @@ Reported from the terminal during development, no logs kept:
 ## CI runner estimate (not measured)
 
 Run 38015601869 of `pytest.yml` on main: the six matrix legs took 383, 369, 302, 210, 73 and 53 s, 1390 s in total on 4-vCPU runners without testmon. testmon with ctrace adds about 1.4x in the 2026-10-09 trial, so the seed job is estimated at 30 minutes. It is an inference until the first main push runs it.
+
+## Replay trial, 2026-10-08 (bulk slice, 13,735 tests, 48-core host)
+
+Recorded in the session evidence for issue #6239 (test-selection sourcing analysis, file D). One run each on a loaded shared host.
+
+- Coverage core: on one injected fault in `scripts/github_core/api.py`, the default `sysmon` core selected 9 tests and `COVERAGE_CORE=ctrace` selected 56. Both caught the one failing test.
+- ctrace cost: database build 64.0 s against 45.5 s with the default core (1.41x), database 10.8 MB against 7.5 MB. This is the source of the 1.4x factor used in the CI estimate above.
+- Per-commit selection and wall time, testmon with the default core, replaying recent main commits in order:
+
+| Commit | Tests selected | Wall |
+|---|---|---|
+| d76ddf952 | 2 | 5.1 s |
+| 128a5507f | 877 | 35.6 s |
+| 5ff89f523 | 586 | 20.5 s |
+| 18f6acff4 | 1 | 4.9 s |
+| 2ef97a246 | 221 | 23.9 s |
+| f9327e0fa | 3 | 12.5 s |
+
+These rows are the "4 to 36 s" range ADR-104 cites. Two other replayed commits changed `uv.lock` and reran every test.
+

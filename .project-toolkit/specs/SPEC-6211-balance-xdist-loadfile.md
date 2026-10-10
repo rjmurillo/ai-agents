@@ -112,7 +112,7 @@ None.
 
 ## CVA summary
 
-- Common: every split file keeps the loadfile isolation contract and imports shared helpers from one module.
+- Common: every split file keeps the loadfile isolation contract and imports shared helpers from one module. (Superseded 2026-10-09: the dist mode is now worksteal; the split files keep their shared-helper layout.)
 - Varies: why a file is slow. Time spread across tests can be split. A dominant test or a shared module fixture cannot.
 - Relationship: file time is at least its dominant test time, so the floor after splitting is about 26s.
 
