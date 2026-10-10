@@ -33,32 +33,35 @@ differs by one byte would silently disable the seed.
 from __future__ import annotations
 
 import hashlib
-import io
 import json
-import os
 import re
 import shutil
-import subprocess
 import sys
-import time
 import zipfile
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-CANONICAL_REPO = "rjmurillo/ai-agents"
-WORKFLOW_FILE = "pytest.yml"
-MAIN_BRANCH = "main"
+from scripts.validation.testmon_seed_archive import (
+    DATABASE_NAME,
+    database_from_zip,
+    write_database,
+)
+from scripts.validation.testmon_seed_gh import Budget, GhRunner, run_gh
+from scripts.validation.testmon_seed_trust import (
+    CANONICAL_REPO,
+    MAIN_BRANCH,
+    WORKFLOW_FILE,
+    object_list,
+    run_is_trusted,
+    select_artifact_id,
+)
+
 SEED_ARTIFACT_PREFIX = "testmon-db-"
-DATABASE_NAME = ".testmondata"
 SEED_FETCH_TIMEOUT_SECONDS = 30.0
 RUNS_TO_SCAN = 10
-MAX_DATABASE_BYTES = 512 * 1024 * 1024
-SQLITE_MAGIC = b"SQLite format 3\x00"
 _KEY_INPUTS = ("uv.lock", "pyproject.toml")
 _ID = re.compile(r"[0-9]{1,20}")
-
-GhRunner = Callable[[list[str], float], "subprocess.CompletedProcess[bytes]"]
 
 
 @dataclass(frozen=True)
@@ -88,36 +91,6 @@ def seed_artifact_name(repo_root: Path) -> str:
     return f"{SEED_ARTIFACT_PREFIX}{seed_key(repo_root)}"
 
 
-def _run_gh(args: list[str], timeout_seconds: float) -> subprocess.CompletedProcess[bytes]:
-    return subprocess.run(
-        ["gh", "api", *args],
-        capture_output=True,
-        check=False,
-        timeout=timeout_seconds,
-    )
-
-
-class _Budget:
-    """One shared deadline for every request in a fetch."""
-
-    def __init__(self, seconds: float, runner: GhRunner) -> None:
-        self._deadline = time.monotonic() + seconds
-        self._runner = runner
-
-    def get(self, endpoint: str) -> bytes:
-        remaining = self._deadline - time.monotonic()
-        if remaining <= 0:
-            raise TimeoutError("seed fetch deadline passed")
-        try:
-            result = self._runner([endpoint], remaining)
-        except subprocess.TimeoutExpired as error:
-            raise TimeoutError("gh api timed out") from error
-        if result.returncode != 0:
-            tail = result.stderr.decode("utf-8", errors="replace").strip().splitlines()[-1:]
-            raise RuntimeError(f"gh api failed: {tail[0] if tail else 'no output'}")
-        return result.stdout
-
-
 def _json_object(raw: bytes) -> dict[str, object]:
     parsed = json.loads(raw)
     if not isinstance(parsed, dict):
@@ -125,47 +98,12 @@ def _json_object(raw: bytes) -> dict[str, object]:
     return parsed
 
 
-def _object_list(value: object) -> list[dict[str, object]]:
-    if not isinstance(value, list):
-        return []
-    return [item for item in value if isinstance(item, dict)]
-
-
-def run_is_trusted(run: dict[str, object]) -> bool:
-    """True only for a push to ``main`` of the canonical repository.
-
-    Checks the run object itself, not the query that found it, so a changed or
-    ignored query parameter cannot admit a pull request run.
-    """
-    head_repo = run.get("head_repository")
-    repo_name = head_repo.get("full_name") if isinstance(head_repo, dict) else None
-    return (
-        run.get("event") == "push"
-        and run.get("head_branch") == MAIN_BRANCH
-        and repo_name == CANONICAL_REPO
-        and isinstance(run.get("id"), int)
-    )
-
-
-def select_artifact_id(artifacts: object, name: str) -> int | None:
-    """Return the id of the unexpired artifact called exactly ``name``, or None."""
-    for artifact in _object_list(artifacts):
-        artifact_id = artifact.get("id")
-        if (
-            artifact.get("name") == name
-            and artifact.get("expired") is False
-            and isinstance(artifact_id, int)
-        ):
-            return artifact_id
-    return None
-
-
-def _find_artifact_id(budget: _Budget, name: str) -> int | None:
+def _find_artifact_id(budget: Budget, name: str) -> int | None:
     runs_endpoint = (
         f"repos/{CANONICAL_REPO}/actions/workflows/{WORKFLOW_FILE}/runs"
         f"?event=push&branch={MAIN_BRANCH}&per_page={RUNS_TO_SCAN}"
     )
-    runs = _object_list(_json_object(budget.get(runs_endpoint)).get("workflow_runs"))
+    runs = object_list(_json_object(budget.get(runs_endpoint)).get("workflow_runs"))
     for run in runs:
         if not run_is_trusted(run):
             continue
@@ -181,32 +119,10 @@ def _find_artifact_id(budget: _Budget, name: str) -> int | None:
     return None
 
 
-def _database_from_zip(payload: bytes) -> bytes:
-    """Read the one expected member by exact name; reject anything else."""
-    with zipfile.ZipFile(io.BytesIO(payload)) as archive:
-        info = archive.getinfo(DATABASE_NAME)
-        if info.file_size > MAX_DATABASE_BYTES:
-            raise ValueError("database larger than the size cap")
-        data = archive.read(info)
-    if not data.startswith(SQLITE_MAGIC):
-        raise ValueError("artifact is not an SQLite database")
-    return data
-
-
-def _write_database(repo_root: Path, data: bytes) -> None:
-    target = repo_root / DATABASE_NAME
-    partial = repo_root / f"{DATABASE_NAME}.seed.{os.getpid()}.tmp"
-    try:
-        partial.write_bytes(data)
-        os.replace(partial, target)
-    finally:
-        partial.unlink(missing_ok=True)
-
-
 def fetch_seed(
     repo_root: Path,
     *,
-    runner: GhRunner = _run_gh,
+    runner: GhRunner = run_gh,
     timeout_seconds: float = SEED_FETCH_TIMEOUT_SECONDS,
     gh_available: Callable[[], bool] | None = None,
 ) -> SeedResult:
@@ -222,12 +138,12 @@ def fetch_seed(
         return SeedResult(False, "gh is not installed")
     try:
         name = seed_artifact_name(repo_root)
-        budget = _Budget(timeout_seconds, runner)
+        budget = Budget(timeout_seconds, runner)
         artifact_id = _find_artifact_id(budget, name)
         if artifact_id is None:
             return SeedResult(False, f"no main push run has an unexpired {name} artifact")
         payload = budget.get(f"repos/{CANONICAL_REPO}/actions/artifacts/{artifact_id}/zip")
-        _write_database(repo_root, _database_from_zip(payload))
+        write_database(repo_root, database_from_zip(payload))
     except (OSError, ValueError, RuntimeError, TimeoutError, KeyError, zipfile.BadZipFile) as error:
         return SeedResult(False, f"{type(error).__name__}: {error}")
     return SeedResult(True, f"seeded {DATABASE_NAME} from {name}")

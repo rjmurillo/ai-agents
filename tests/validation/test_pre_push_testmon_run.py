@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-import inspect
 import subprocess
-import sys
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -13,31 +12,39 @@ from scripts.validation import git_hook_policy
 from tests.validation.pre_push_testmon_helpers import (
     default_environment,  # noqa: F401  (fixture, applied by usefixtures below)
     record_runs,
-    testmon,
 )
 
 pytestmark = pytest.mark.usefixtures("default_environment")
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
 
+def _captured_children(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> list[dict[str, Any]]:
+    """Run the hook against a stub boundary; return each child's argv, env, and timeout."""
+    children: list[dict[str, Any]] = []
 
-def test_default_pre_push_forces_the_ctrace_coverage_core(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    """On Python 3.14 coverage defaults to sysmon, which under-records for testmon."""
-    monkeypatch.setenv("COVERAGE_CORE", "sysmon")
-    cores: list[str | None] = []
-
-    def fake(
-        command: list[str], _root: object, **kwargs: dict[str, str]
-    ) -> subprocess.CompletedProcess[str]:
-        cores.append(kwargs["process_env"].get("COVERAGE_CORE"))
+    def fake(command: list[str], _root: object, **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        children.append({"command": command, **kwargs})
         return subprocess.CompletedProcess(command, 0, "", "")
 
+    monkeypatch.setattr(git_hook_policy, "_container_clamped", lambda seconds: seconds)
     monkeypatch.setattr(git_hook_policy, "_run_command", fake)
     monkeypatch.setattr(git_hook_policy, "_print_process_output", lambda _r: None)
     assert git_hook_policy.run_pytest(tmp_path) == 0
-    assert cores == ["ctrace"] * len(testmon(tmp_path))
+    return children
+
+
+@pytest.mark.parametrize(
+    ("opt_in", "uses_testmon", "core"), [(False, True, "ctrace"), (True, False, "sysmon")]
+)
+def test_only_the_testmon_path_forces_the_ctrace_coverage_core(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, opt_in: bool, uses_testmon: bool, core: str
+) -> None:
+    """On Python 3.14 coverage defaults to sysmon, which under-records for testmon."""
+    monkeypatch.setenv("COVERAGE_CORE", "sysmon")
+    if opt_in:
+        monkeypatch.setenv(git_hook_policy.PYTEST_FULL_SUITE_LOCALLY_ENV, "1")
+    for child in _captured_children(monkeypatch, tmp_path):
+        assert ("--testmon" in child["command"]) is uses_testmon
+        assert child["process_env"]["COVERAGE_CORE"] == core
 
 
 def test_default_pre_push_asks_git_nothing(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -58,52 +65,10 @@ def test_a_failing_testmon_run_blocks_the_push(
     assert git_hook_policy.run_pytest(tmp_path) == exit_code
 
 
-def test_the_full_suite_opt_in_does_not_use_testmon_or_force_a_coverage_core(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    monkeypatch.setenv(git_hook_policy.PYTEST_FULL_SUITE_LOCALLY_ENV, "1")
-    monkeypatch.setenv("COVERAGE_CORE", "sysmon")
-    envs: list[dict[str, str]] = []
-
-    def fake(
-        command: list[str], _root: object, **kwargs: dict[str, str]
-    ) -> subprocess.CompletedProcess[str]:
-        assert "--testmon" not in command
-        envs.append(kwargs["process_env"])
-        return subprocess.CompletedProcess(command, 0, "", "")
-
-    monkeypatch.setattr(git_hook_policy, "_run_command", fake)
-    monkeypatch.setattr(git_hook_policy, "_print_process_output", lambda _r: None)
-    assert git_hook_policy.run_pytest(tmp_path) == 0
-    assert all(env.get("COVERAGE_CORE") == "sysmon" for env in envs)
-
-
 def test_the_testmon_budget_is_the_suite_budget(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """The first run builds the database over the whole suite, so it needs the full budget."""
-    monkeypatch.setattr(git_hook_policy, "_container_clamped", lambda seconds: seconds)
-    timeouts: list[float] = []
-
-    def fake(args: object, _root: object, **kwargs: float) -> subprocess.CompletedProcess[str]:
-        timeouts.append(kwargs["timeout_seconds"])
-        return subprocess.CompletedProcess([], 0, "", "")
-
-    monkeypatch.setattr(git_hook_policy, "_run_command", fake)
-    monkeypatch.setattr(git_hook_policy, "_print_process_output", lambda _r: None)
-    assert git_hook_policy.run_pytest(tmp_path) == 0
-    assert git_hook_policy.TEST_SUITE_TIMEOUT_SECONDS - 5 < timeouts[0]
-    assert timeouts[0] <= git_hook_policy.TEST_SUITE_TIMEOUT_SECONDS
-
-
-def test_the_pytest_subcommand_rejects_a_path_argument() -> None:
-    """argparse exits 2, so no caller can hand the hook a subset to run."""
-    result = subprocess.run(
-        [sys.executable, inspect.getfile(git_hook_policy), "pytest", "somefile.py"],
-        capture_output=True,
-        text=True,
-        check=False,
-        timeout=60,
-    )
-    assert result.returncode == 2
-    assert "unrecognized arguments: somefile.py" in result.stderr
+    first = _captured_children(monkeypatch, tmp_path)[0]["timeout_seconds"]
+    assert git_hook_policy.TEST_SUITE_TIMEOUT_SECONDS - 5 < first
+    assert first <= git_hook_policy.TEST_SUITE_TIMEOUT_SECONDS

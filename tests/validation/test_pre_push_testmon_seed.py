@@ -13,6 +13,7 @@ from pathlib import Path
 import pytest
 
 from scripts.validation import git_hook_policy, testmon_seed
+from scripts.validation.testmon_seed_archive import SQLITE_MAGIC
 from tests.validation.pre_push_testmon_helpers import (
     default_environment,  # noqa: F401  (fixture, applied by usefixtures below)
     record_runs,
@@ -32,7 +33,7 @@ def test_no_database_fetches_the_seed_before_the_first_partition(
 
     def fetch(root: Path, **_kw: object) -> testmon_seed.SeedResult:
         events.append("fetch")
-        (root / ".testmondata").write_bytes(testmon_seed.SQLITE_MAGIC)
+        (root / ".testmondata").write_bytes(SQLITE_MAGIC)
         return testmon_seed.SeedResult(True, "seeded .testmondata from testmon-db-abc")
 
     monkeypatch.setattr(testmon_seed, "fetch_seed", fetch)
@@ -48,52 +49,42 @@ def test_no_database_fetches_the_seed_before_the_first_partition(
     assert "seeded .testmondata" in capsys.readouterr().err
 
 
+@pytest.mark.parametrize(
+    ("detail", "announced"),
+    [("gh is not installed", True), ("a local database already exists", False)],
+)
 def test_a_failed_fetch_falls_back_to_the_full_testmon_run(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    detail: str,
+    announced: bool,
 ) -> None:
+    """A real failure is announced; an already-present database is not a failure."""
     monkeypatch.setattr(
-        testmon_seed,
-        "fetch_seed",
-        lambda _root, **_kw: testmon_seed.SeedResult(False, "gh is not installed"),
+        testmon_seed, "fetch_seed", lambda _root, **_kw: testmon_seed.SeedResult(False, detail)
     )
     seen = record_runs(monkeypatch)
     assert git_hook_policy.run_pytest(tmp_path) == 0
     assert seen == testmon(tmp_path)
     err = capsys.readouterr().err
-    assert "no testmon seed (gh is not installed)" in err
-    assert "first run builds the database" in err
+    assert (f"no testmon seed ({detail}); the first run builds the database" in err) is announced
 
 
-def test_an_existing_database_is_not_announced_as_a_failed_seed(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+@pytest.mark.parametrize(
+    ("variable", "value"),
+    [
+        (git_hook_policy.PYTEST_FULL_SUITE_LOCALLY_ENV, "1"),
+        (git_hook_policy.TESTMON_NO_SEED_ENV, "1"),
+    ],
+)
+def test_the_full_suite_opt_in_and_the_ci_seed_job_never_fetch(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, variable: str, value: str
 ) -> None:
+    """The opt-in has no testmon to seed, and the CI seed job must start empty."""
+    monkeypatch.setenv(variable, value)
     monkeypatch.setattr(
-        testmon_seed,
-        "fetch_seed",
-        lambda _root, **_kw: testmon_seed.SeedResult(False, "a local database already exists"),
-    )
-    record_runs(monkeypatch)
-    assert git_hook_policy.run_pytest(tmp_path) == 0
-    assert "no testmon seed" not in capsys.readouterr().err
-
-
-def test_the_full_suite_opt_in_never_fetches_a_seed(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    monkeypatch.setenv(git_hook_policy.PYTEST_FULL_SUITE_LOCALLY_ENV, "1")
-    monkeypatch.setattr(
-        testmon_seed, "fetch_seed", lambda *_a, **_k: pytest.fail("no testmon, no seed")
-    )
-    record_runs(monkeypatch)
-    assert git_hook_policy.run_pytest(tmp_path) == 0
-
-
-def test_the_ci_seed_job_builds_from_an_empty_database(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    monkeypatch.setenv(git_hook_policy.TESTMON_NO_SEED_ENV, "1")
-    monkeypatch.setattr(
-        testmon_seed, "fetch_seed", lambda *_a, **_k: pytest.fail("CI must not seed itself")
+        testmon_seed, "fetch_seed", lambda *_a, **_k: pytest.fail("this path must not fetch")
     )
     record_runs(monkeypatch)
     assert git_hook_policy.run_pytest(tmp_path) == 0

@@ -5,6 +5,7 @@ from __future__ import annotations
 import ast
 import inspect
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -65,3 +66,16 @@ def test_run_pytest_takes_no_changed_files_parameter() -> None:
     assert list(inspect.signature(git_hook_policy._resolve_pytest_commands).parameters) == [
         "repo_root"
     ]
+
+
+def test_the_pytest_subcommand_rejects_a_path_argument() -> None:
+    """argparse exits 2, so no caller can hand the hook a subset to run."""
+    result = subprocess.run(
+        [sys.executable, inspect.getfile(git_hook_policy), "pytest", "somefile.py"],
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=60,
+    )
+    assert result.returncode == 2
+    assert "unrecognized arguments: somefile.py" in result.stderr
