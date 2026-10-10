@@ -3,6 +3,8 @@
 # This config follows Prettier compatibility guidelines to enable seamless copying
 # of markdown files between projects that use Prettier for formatting.
 # See: https://github.com/DavidAnson/markdownlint/blob/main/doc/Prettier.md
+#
+# Probe for issue 5593. This branch is never merged.
 
 config:
 
