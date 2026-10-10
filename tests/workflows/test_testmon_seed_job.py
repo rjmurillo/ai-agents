@@ -89,10 +89,12 @@ def test_checkout_does_not_persist_credentials(job: dict[str, Any]) -> None:
 
 def test_the_build_runs_the_hook_command_with_its_worker_cap(job: dict[str, Any]) -> None:
     step = _step(job, "Build the testmon database")
-    assert step["run"] == "uv run --frozen python scripts/validation/git_hook_policy.py pytest"
+    command = "uv run --frozen python scripts/validation/git_hook_policy.py pytest"
+    assert step["run"].startswith(command)
+    assert "::warning::" in step["run"]
     assert step["env"]["AI_AGENTS_PYTEST_WORKER_CAP"] == "4"
     assert step["env"][git_hook_policy.TESTMON_NO_SEED_ENV] == "1"
-    assert step["continue-on-error"] is True
+    assert "continue-on-error" not in step
 
 
 def test_the_build_forces_no_full_suite_opt_in(job: dict[str, Any]) -> None:

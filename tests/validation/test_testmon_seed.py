@@ -84,8 +84,10 @@ def _artifact(root: Path, artifact_id: int = 900, **overrides: object) -> dict:
     return entry
 
 
-def _fetch(root: Path, gh: FakeGh, **kwargs: object) -> seed.SeedResult:
-    return seed.fetch_seed(root, runner=gh, gh_available=lambda: True, **kwargs)  # type: ignore[arg-type]
+def _fetch(root: Path, gh: FakeGh, timeout_seconds: float = 30.0) -> seed.SeedResult:
+    return seed.fetch_seed(
+        root, runner=gh, gh_available=lambda: True, timeout_seconds=timeout_seconds
+    )
 
 
 DATABASE = seed.SQLITE_MAGIC + b"rest-of-file"

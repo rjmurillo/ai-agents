@@ -763,12 +763,16 @@ jobs:
         id: seed
         run: echo "name=$(uv run --frozen python scripts/validation/testmon_seed.py .)" >> "$GITHUB_OUTPUT"
 
+      # A failing partition still records its tests, so a nonzero exit is a
+      # warning here and the database uploads either way. `Run Python Tests`
+      # owns the pass/fail verdict.
       - name: Build the testmon database
-        continue-on-error: true
         env:
           AI_AGENTS_PYTEST_WORKER_CAP: "4"
           AI_AGENTS_TESTMON_NO_SEED: "1"
-        run: uv run --frozen python scripts/validation/git_hook_policy.py pytest
+        run: >-
+          uv run --frozen python scripts/validation/git_hook_policy.py pytest
+          || echo "::warning::a partition failed; the database is still uploaded"
 
       # include-hidden-files: v4 and later skip dotfiles by default, and the
       # database is `.testmondata`.
