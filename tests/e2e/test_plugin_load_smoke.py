@@ -56,7 +56,9 @@ the expected-skills set against the shipped plugin trees, and pin the fired-hook
 detector's positive and negative controls, with no CLI.
 
 Run locally:
-    RUN_CLI_E2E=1 uv run pytest tests/e2e/test_plugin_load_smoke.py -v
+    RUN_CLI_E2E=1 uv run pytest tests/e2e/test_plugin_load_smoke.py -v -m "not copilot"
+
+Copilot cases run only in CI, behind the agent-copilot environment.
 """
 
 from __future__ import annotations

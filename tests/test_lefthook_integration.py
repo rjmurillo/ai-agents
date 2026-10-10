@@ -7428,6 +7428,7 @@ def test_cli_e2e_with_only_copilot_on_path_fails_closed(
 def test_cli_hook_e2e_does_not_accept_codex_alone(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     """Edge: the hook smoke has no Codex cases, so Codex alone fails closed."""
     monkeypatch.delenv("SKIP_CLI_E2E", raising=False)
@@ -7438,6 +7439,9 @@ def test_cli_hook_e2e_does_not_accept_codex_alone(
         "tests/e2e/test_cli_hook_e2e.py", tmp_path, binaries=policy.CLI_HOOK_E2E_BINARIES
     )
     assert rc == 2
+    err = capsys.readouterr().err
+    assert "requires claude on PATH" in err
+    assert "npm install -g @anthropic-ai/claude-code\n" in err
 
 
 def test_cli_e2e_deselects_copilot_cases_even_with_copilot_on_path(
