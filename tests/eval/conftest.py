@@ -8,8 +8,9 @@ the preflight itself delenv ``EVAL_SKIP_MODEL_PREFLIGHT`` explicitly.
 
 from __future__ import annotations
 
-import sys
+import importlib
 from pathlib import Path
+from types import ModuleType
 
 import pytest
 
@@ -41,6 +42,16 @@ def _hermetic_credential_sources(monkeypatch: pytest.MonkeyPatch):
     reset_cache()
 
 
+def import_runtime_harness(monkeypatch: pytest.MonkeyPatch) -> ModuleType:
+    """Import `_runtime_harness` with `scripts/eval` on `sys.path` for one test.
+
+    `monkeypatch.syspath_prepend` restores `sys.path` at teardown, so the entry
+    never outlives the test that needs it.
+    """
+    monkeypatch.syspath_prepend(str(EVAL_DIR))
+    return importlib.import_module("_runtime_harness")
+
+
 @pytest.fixture(autouse=True)
 def _ancestry_scan_stops_at_pytest_base_temp(
     monkeypatch: pytest.MonkeyPatch, tmp_path_factory: pytest.TempPathFactory
@@ -54,9 +65,7 @@ def _ancestry_scan_stops_at_pytest_base_temp(
     inside it, so a contaminated directory a test builds under `tmp_path` is
     still found. Roots outside the base temp use the real scan.
     """
-    if str(EVAL_DIR) not in sys.path:
-        sys.path.insert(0, str(EVAL_DIR))
-    import _runtime_harness as harness
+    harness = import_runtime_harness(monkeypatch)
 
     real_scan = harness.ancestor_instructions
     base = tmp_path_factory.getbasetemp().resolve()
