@@ -122,13 +122,11 @@ def build_parser() -> argparse.ArgumentParser:
 def _is_infra_failure(flag: str) -> bool:
     """Return True only when the structured infrastructure flag is set.
 
-    Duplicates ``check_spec_failures.py``'s helper of the same name rather
-    than moving it into ``scripts.ai_review_common``: that module's
-    ``verdict.py`` is pinned by a 100% branch-coverage gate and loaded
-    standalone by file path from a vendored plugin probe
+    Kept local rather than moved into ``scripts.ai_review_common``: that
+    module's ``verdict.py`` is pinned by a 100% branch-coverage gate and
+    loaded standalone by file path from a vendored plugin probe
     (``tests/e2e/test_vendored_review_e2e.py``), so a new export there costs
-    more review surface than one three-line predicate duplicated across two
-    call sites justifies.
+    more review surface than one three-line predicate justifies.
     """
     return flag.lower() in ("true", "1", "yes")
 
@@ -241,25 +239,26 @@ def _build_full_report(
     if trace_infra or completeness_infra:
         if final_verdict == "FAIL":
             # One side is infra-flagged, but the other side genuinely failed
-            # (spec_validation_failed still returned True): that FAIL blocks
-            # merge, so the note must not say otherwise (issue #5738 follow-up).
+            # (spec_validation_failed still returned True), so the note must
+            # not say that nothing was evaluated (issue #5738 follow-up).
             infra_note = """
 > [!WARNING]
 > **Infrastructure failure on one side; the other side's FAIL is real.** A
 > check marked `INFRA_FAILURE (did not run)` below contributed no verdict:
 > The Claude review failed after retries and never evaluated that side of this PR.
-> The **Final Verdict: FAIL** above comes from the side that did run, and it
-> fails `Check for Failures`. The infrastructure failure would also fail that
-> step on its own (fail closed). Check the `ANTHROPIC_API_KEY` secret, then re-run.
+> The **Final Verdict: FAIL** above comes from the side that did run. This
+> review is advisory: it does not change the status of `Validate Spec Coverage`,
+> which is decided by the acceptance checkboxes in the PR body. Check the
+> `ANTHROPIC_API_KEY` secret, then re-run.
 """
         else:
             infra_note = """
 > [!WARNING]
 > **Infrastructure failure detected.** A check marked `INFRA_FAILURE (did not run)`
 > below is not a code-quality result: the Claude review failed after retries and never
-> evaluated this PR. This check fails closed: `Check for Failures` stays red
-> until validation runs, which blocks merge when branch protection requires
-> `Validate Spec Coverage`. Operator action: check the `ANTHROPIC_API_KEY` secret
+> evaluated this PR. This review is advisory: it does not change the status of
+> `Validate Spec Coverage`, which is decided by the acceptance checkboxes in the
+> PR body. Operator action: check the `ANTHROPIC_API_KEY` secret
 > (missing, expired, or out of credit), then re-run the workflow. Also check the
 > Anthropic rate limits and network connectivity.
 """
@@ -346,8 +345,7 @@ def main(argv: list[str] | None = None) -> int:
 
         if trace_infra and completeness_infra:
             # Neither side produced a real verdict; nothing here is PASS,
-            # FAIL, or WARN. check_spec_failures.py blanks infra-flagged
-            # verdicts before spec_validation_failed, then fails closed.
+            # FAIL, or WARN.
             final_verdict = "INFRA_FAILURE"
         else:
             trace_for_verdict = "" if trace_infra else trace_verdict
@@ -358,8 +356,7 @@ def main(argv: list[str] | None = None) -> int:
                 final_verdict = "FAIL"
             elif trace_infra or completeness_infra:
                 # One side could not run; the other side did not fail, but
-                # only half of validation completed. check_spec_failures.py
-                # fails closed on either side, so the report says so.
+                # only half of validation completed, so the report says so.
                 final_verdict = "INFRA_FAILURE"
             elif trace_verdict == "WARN" or completeness_verdict == "WARN":
                 final_verdict = "WARN"

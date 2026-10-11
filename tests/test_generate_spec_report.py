@@ -289,9 +289,8 @@ class TestMainWithSpecs:
 # ---------------------------------------------------------------------------
 # Tests: main - infrastructure failure (issue #5738)
 #
-# check_spec_failures.py governs whether the required check blocks merge
-# (it fails closed on infrastructure failure); these tests govern the
-# separate PR comment channel that operators actually read. Before this fix,
+# The review is advisory (ai-spec-review.yml); these tests govern the PR
+# comment channel that operators actually read. Before this fix,
 # an infra failure rendered the raw AI-review verdict (CRITICAL_FAIL)
 # unlabeled, indistinguishable from a real code-quality rejection.
 # ---------------------------------------------------------------------------
@@ -322,7 +321,7 @@ class TestMainInfraFailure:
         assert "Final Verdict: INFRA_FAILURE" in report
         assert "Final Verdict: FAIL" not in report
         assert "Final Verdict: PASS" not in report
-        assert "fails closed" in report
+        assert "review is advisory" in report
         assert "check the `ANTHROPIC_API_KEY` secret" in report
         assert "does not block merge" not in report
         # The summary table cell is the displayed verdict an operator scans;
@@ -351,9 +350,8 @@ class TestMainInfraFailure:
 
     def test_real_failure_not_masked_by_infra_on_other_side(self, tmp_path, monkeypatch):
         """Negative: a genuine failure on the healthy side still surfaces as
-        FAIL, and the infra note must not claim this does not block merge
-        (Additional Finding 3: a FAIL from the healthy side is real and
-        blocks under check_spec_failures.py's own policy)."""
+        FAIL, and the infra note must not claim nothing was evaluated
+        (Additional Finding 3: a FAIL from the healthy side is real)."""
         _setup_output(tmp_path, monkeypatch)
         report_dir = tmp_path / "ai-review-results"
         with patch(
@@ -372,13 +370,14 @@ class TestMainInfraFailure:
         assert "Final Verdict: FAIL" in report
         assert "Final Verdict: INFRA_FAILURE" not in report
         assert "does not block merge" not in report
-        assert "fails `Check for Failures`" in report
+        assert "review is advisory" in report
+        assert "Check for Failures" not in report
 
     def test_one_sided_infra_failure_yields_infra_failure_not_pass(
         self, tmp_path, monkeypatch
     ):
         """Edge: one side down and the other healthy is INFRA_FAILURE (the
-        gate fails closed), not a clean PASS or WARN, and the summary
+        report says so), not a clean PASS or WARN, and the summary
         table's own cell (not the boilerplate note text) is what proves the
         infra side is labeled."""
         _setup_output(tmp_path, monkeypatch)
@@ -399,7 +398,7 @@ class TestMainInfraFailure:
         assert "Final Verdict: INFRA_FAILURE" in report
         assert "Final Verdict: PASS" not in report
         assert "Final Verdict: WARN" not in report
-        assert "fails closed" in report
+        assert "review is advisory" in report
         assert "does not block merge" not in report
         assert "| Requirements Traceability | `INFRA_FAILURE (did not run)` |" in report
         assert "| Requirements Traceability | `CRITICAL_FAIL` |" not in report

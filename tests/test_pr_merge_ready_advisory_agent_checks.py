@@ -25,9 +25,12 @@ check_merge_readiness = _mod.check_merge_readiness
 REPO_ROOT = Path(__file__).resolve().parents[1]
 WORKFLOWS = REPO_ROOT / ".github" / "workflows"
 CONFIG_PATH = ".claude/skills/pr-review/pr-review-config.yaml"
-LISTED = ".github/workflows/ai-spec-validation.yml"
+LISTED = ".github/workflows/ai-spec-review.yml"
+# Listed on purpose (owner decision, issue 6182) but holds no model job: the
+# deterministic Validate Spec Coverage check. The test pins that it stays so.
+DETERMINISTIC_LISTED = ".github/workflows/ai-spec-validation.yml"
 UNLISTED = ".github/workflows/pytest.yml"
-AGENT_CHECK = "Validate Spec Coverage"
+AGENT_CHECK = "Review Spec Coverage (Advisory)"
 
 
 def _resource(workflow_file: str, owner: str = "o", repo: str = "r") -> str:
@@ -166,10 +169,10 @@ def test_check_run_without_a_workflow_run_still_blocks() -> None:
 @pytest.mark.parametrize(
     "resource",
     [
-        "/other/repo/actions/workflows/ai-spec-validation.yml",
-        "/o/r/actions/workflows/sub/ai-spec-validation.yml",
+        "/other/repo/actions/workflows/ai-spec-review.yml",
+        "/o/r/actions/workflows/sub/ai-spec-review.yml",
         "/o/r/actions/workflows/",
-        "/o/r/ai-spec-validation.yml",
+        "/o/r/ai-spec-review.yml",
     ],
 )
 def test_a_resource_path_from_another_repo_or_shape_is_not_exempt(resource: str) -> None:
@@ -413,7 +416,7 @@ PROVIDER_SECRETS = {
 # action) are pinned here by name.
 EXPECTED_JOB_ENVIRONMENTS = {
     ("ai-metrics-analysis.yml", "analyze-metrics"): "agent-claude",
-    ("ai-spec-validation.yml", "validate-spec"): "agent-claude",
+    ("ai-spec-review.yml", "review-spec"): "agent-claude",
     ("artifact-insight-scanner.yml", "scan-artifacts"): "agent-claude",
     ("claude.yml", "claude-response"): "agent-claude",
     ("copilot-context-synthesis.yml", "synthesize-single"): "agent-copilot",
@@ -505,6 +508,9 @@ def test_every_listed_path_exists_and_gates_its_model_jobs() -> None:
     docs = _workflow_docs()
     for entry in _shipped_entries():
         assert entry["path"] in docs, entry["path"]
+        if entry["path"] == DETERMINISTIC_LISTED:
+            assert not _gated_jobs(docs[entry["path"]]), f"{entry['path']} gained a model job"
+            continue
         assert _gated_jobs(docs[entry["path"]]), f"{entry['path']} has no provider-gated job"
 
 
@@ -522,7 +528,8 @@ def test_every_pull_request_workflow_with_a_provider_gated_job_is_listed() -> No
         for path, doc in _workflow_docs().items()
         if "pull_request" in _triggers(doc) and _gated_jobs(doc)
     }
-    assert listed == expected - set(BLOCKING_GATED_WORKFLOWS)
+    assert listed - {DETERMINISTIC_LISTED} == expected - set(BLOCKING_GATED_WORKFLOWS)
+    assert DETERMINISTIC_LISTED in listed
 
 
 def test_blocking_gated_workflows_are_real_pull_request_workflows_with_a_reason() -> None:
@@ -631,7 +638,7 @@ def test_the_eleven_gated_workflows_are_exactly_the_policy_set() -> None:
     assert gated == {
         f".github/workflows/{name}.yml"
         for name in (
-            "ai-spec-validation",
+            "ai-spec-review",
             "slash-command-quality",
             "post-pr-retrospective",
             "software-engineering-library-activation",
@@ -744,7 +751,7 @@ def test_uppercase_owner_and_repo_prefix_still_matches() -> None:
         AGENT_CHECK,
         "FAILURE",
         workflow=None,
-        resource="/O/R/actions/workflows/ai-spec-validation.yml",
+        resource="/O/R/actions/workflows/ai-spec-review.yml",
     )
     assert _readiness(_pr_with(row), {LISTED})["CanMerge"] is True
 
@@ -752,10 +759,10 @@ def test_uppercase_owner_and_repo_prefix_still_matches() -> None:
 @pytest.mark.parametrize(
     "resource",
     [
-        "/o/r/actions/workflows/ai-spec-validation.yml/",
-        "/o/r/actions/workflows/ai-spec-validation.yml?query=1",
+        "/o/r/actions/workflows/ai-spec-review.yml/",
+        "/o/r/actions/workflows/ai-spec-review.yml?query=1",
         "/o/r/actions/workflows/AI-SPEC-VALIDATION.YML",
-        "/o/r/actions/workflows/../ai-spec-validation.yml",
+        "/o/r/actions/workflows/../ai-spec-review.yml",
     ],
 )
 def test_malformed_resource_paths_are_not_exempt(resource: str) -> None:

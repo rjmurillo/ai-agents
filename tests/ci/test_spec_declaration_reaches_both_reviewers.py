@@ -1,6 +1,6 @@
 """The declaration reaches the traceability reviewer as well (issue #5366).
 
-`.github/workflows/ai-spec-validation.yml` builds `spec_context` once and hands
+`.github/workflows/ai-spec-review.yml` builds `spec_context` once and hands
 the same string to two steps: traceability (analyst,
 `spec-trace-requirements.md`) and completeness (critic,
 `spec-check-completeness.md`). Only the completeness prompt carries the
@@ -38,8 +38,8 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(_REPO_ROOT))
 from scripts.ci.spec_prepare_context import run  # noqa: E402
 
-_WORKFLOW = _REPO_ROOT / ".github" / "workflows" / "ai-spec-validation.yml"
-_JOB = "validate-spec"
+_WORKFLOW = _REPO_ROOT / ".github" / "workflows" / "ai-spec-review.yml"
+_JOB = "review-spec"
 _CONTEXT_EXPRESSION = "${{ steps.prepare-context.outputs.spec_context }}"
 
 _TRACEABILITY_PROMPT = ".github/prompts/spec-trace-requirements.md"

@@ -26,29 +26,22 @@ _COMPARISON = re.compile(r"^\s*(?:\$\{\{\s*)?([\w.-]+)\s*(==|!=)\s*'([^']*)'\s*(
 # (workflow, job, swallowed step name, step id, validator name)
 STEP_MODE_ROWS = [
     (
-        "ai-spec-validation.yml",
-        "validate-spec",
+        "ai-spec-review.yml",
+        "review-spec",
         "\U0001f517 Requirements Traceability Check (Analyst Agent)",
         "trace",
         "spec-traceability-check",
     ),
     (
-        "ai-spec-validation.yml",
-        "validate-spec",
+        "ai-spec-review.yml",
+        "review-spec",
         "✅ Completeness Check (Critic Agent)",
         "completeness",
         "spec-completeness-check",
     ),
     (
-        "ai-spec-validation.yml",
-        "validate-spec",
-        "External-signal gate (observe)",
-        "external-gate",
-        "spec-external-signal-gate",
-    ),
-    (
-        "ai-spec-validation.yml",
-        "validate-spec",
+        "ai-spec-review.yml",
+        "review-spec",
         "Post PR Comment",
         "post-comment",
         "spec-report-comment",

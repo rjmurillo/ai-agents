@@ -343,7 +343,7 @@ _CLAUDE_CALLERS = (
     "ai-metrics-analysis.yml",
     "artifact-insight-scanner.yml",
     "pr-maintenance.yml",
-    "ai-spec-validation.yml",
+    "ai-spec-review.yml",
 )
 
 

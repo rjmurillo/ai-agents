@@ -95,6 +95,9 @@ scripts:
 # and listed, because it triggers on pull_request. See ADR-114.
 advisory_agent_workflows:
   - path: ".github/workflows/ai-spec-validation.yml"
+    reason: "Deterministic Validate Spec Coverage check, no model call; kept advisory by owner decision (issue 6182)"
+    owner: "rjmurillo"
+  - path: ".github/workflows/ai-spec-review.yml"
     reason: "Spec coverage review calls an agent on every pull request"
     owner: "rjmurillo"
   - path: ".github/workflows/slash-command-quality.yml"

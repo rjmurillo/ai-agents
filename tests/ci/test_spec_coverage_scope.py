@@ -314,32 +314,52 @@ class TestEntrypoint:
         assert "skip=" not in result.stdout
 
 
+SCOPE_WORKFLOWS = [
+    ("ai-spec-validation.yml", "validate-spec"),
+    ("ai-spec-review.yml", "review-spec"),
+]
+
+
+@pytest.fixture(params=SCOPE_WORKFLOWS, ids=lambda pair: pair[0])
+def workflow_and_job(request: pytest.FixtureRequest) -> tuple[dict[str, object], str]:
+    """Each workflow that decides its own scope, parsed, with its job id."""
+    filename, job_id = request.param
+    data = yaml.safe_load((REPO_ROOT / ".github/workflows" / filename).read_text(encoding="utf-8"))
+    return data, job_id
+
+
 class TestWorkflowWiring:
-    """The job must run this script itself and take no scope from a sibling job."""
+    """Each job must run this script itself and take no scope from a sibling job."""
 
     @staticmethod
-    def _job() -> dict[str, object]:
-        data = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
-        job = data["jobs"]["validate-spec"]
+    def _job(workflow_and_job: tuple[dict[str, object], str]) -> dict[str, object]:
+        data, job_id = workflow_and_job
+        job = data["jobs"][job_id]
         assert isinstance(job, dict)
         return job
 
-    def test_no_sibling_path_job_exists(self) -> None:
-        data = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
+    def test_no_sibling_path_job_exists(
+        self, workflow_and_job: tuple[dict[str, object], str]
+    ) -> None:
+        assert "check-paths" not in workflow_and_job[0]["jobs"]
 
-        assert "check-paths" not in data["jobs"]
-
-    def test_job_condition_reads_no_path_job_output(self) -> None:
-        condition = str(self._job()["if"])
+    def test_job_condition_reads_no_path_job_output(
+        self, workflow_and_job: tuple[dict[str, object], str]
+    ) -> None:
+        condition = str(self._job(workflow_and_job).get("if", ""))
 
         assert "check-paths" not in condition
         assert "has-code-changes" not in condition
 
-    def test_job_needs_only_the_debounce_ordering_job(self) -> None:
-        assert self._job()["needs"] == "debounce"
+    def test_validate_job_needs_only_the_debounce_ordering_job(self) -> None:
+        data = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
 
-    def test_scope_step_runs_the_script_with_event_shas(self) -> None:
-        steps = self._job()["steps"]
+        assert data["jobs"]["validate-spec"]["needs"] == "debounce"
+
+    def test_scope_step_runs_the_script_with_event_shas(
+        self, workflow_and_job: tuple[dict[str, object], str]
+    ) -> None:
+        steps = self._job(workflow_and_job)["steps"]
         assert isinstance(steps, list)
         step = next(s for s in steps if s.get("id") == "should-run")
 
@@ -349,8 +369,10 @@ class TestWorkflowWiring:
         assert env["BASE_SHA"] == "${{ github.event.pull_request.base.sha }}"
         assert env["HEAD_SHA"] == "${{ github.event.pull_request.head.sha }}"
 
-    def test_checkout_precedes_the_scope_step_and_is_not_gated(self) -> None:
-        steps = self._job()["steps"]
+    def test_checkout_precedes_the_scope_step_and_is_not_gated(
+        self, workflow_and_job: tuple[dict[str, object], str]
+    ) -> None:
+        steps = self._job(workflow_and_job)["steps"]
         assert isinstance(steps, list)
         ids = [s.get("id") for s in steps]
         checkout = steps[0]
@@ -360,8 +382,10 @@ class TestWorkflowWiring:
         assert checkout["with"]["fetch-depth"] == 0
         assert ids.index("should-run") == 1
 
-    def test_no_step_reads_another_jobs_output(self) -> None:
-        steps = self._job()["steps"]
+    def test_no_step_reads_another_jobs_output(
+        self, workflow_and_job: tuple[dict[str, object], str]
+    ) -> None:
+        steps = self._job(workflow_and_job)["steps"]
         assert isinstance(steps, list)
         for step in steps:
             condition = str(step.get("if", ""))

@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Mechanically extract acceptance-criteria checkboxes from a PR/issue body.
 
-This is the externally-grounded signal that ``ai-spec-validation.yml`` should
-gate on (issue #1855). The LLM critic may still annotate *why* a criterion is
-unmet, but the pass/fail decision is determined here:
+This is the externally-grounded signal that ``ai-spec-validation.yml`` gates
+on, through ``scripts/ci/spec_coverage_verdict.py`` (issues #1855 and #6182).
+The LLM critic may still annotate *why* a criterion is unmet, but the pass/fail
+decision is determined here:
 
 * Parse Markdown task-list items under an "Acceptance" / "Acceptance Criteria"
   heading.

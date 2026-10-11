@@ -9,8 +9,8 @@ checks see an unchanged verdict contract: a ``VERDICT: <NAME>`` line, with
 
 Fail-closed contract. Every path that cannot produce a model verdict publishes
 ``infrastructure_failure=true`` and a ``VERDICT: DID_NOT_RUN`` file, exit 0, so
-the parse step still runs and ``check_spec_failures.py`` turns the flag into a
-non-zero exit (INFRA_FAILURE returns 1). Paths: missing ``ANTHROPIC_API_KEY``
+the parse step still runs and the caller reads the flag. The spec review in
+``ai-spec-review.yml`` reports it as advisory. Paths: missing ``ANTHROPIC_API_KEY``
 (the error names the secret), any ``anthropic.APIError`` (auth, quota, rate
 limit, 5xx, timeout, connection), a response with no text, and a missing or
 empty context file. The SDK retries 408/409/429/5xx once with backoff before

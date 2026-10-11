@@ -1,0 +1,196 @@
+name: Spec Review (Advisory)
+
+# Model-driven spec review. Comment only: no step here fails the job on a
+# verdict or a model failure. The deterministic Validate Spec Coverage check
+# lives in ai-spec-validation.yml and holds no secret (issue #6182).
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, edited]
+    # No path filter. The review-spec job decides its own scope in its
+    # "Decide scope" step (scripts/ci/spec_coverage_scope.py).
+
+  # merge_group is not a trigger: the job needs a pull request, and
+  # environment approval cannot happen in a queue run.
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number to review'
+        required: true
+        type: number
+
+permissions:
+  contents: read
+  pull-requests: write
+
+# Each push or edit cancels the previous run so edits do not stack
+# approval-gated runs. Best effort, see ADR-026.
+concurrency:
+  group: spec-review-${{ github.event.pull_request.number || inputs.pr_number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Workflow-level env must not carry a secret (semgrep gha-workflow-env-secret).
+  # The runner token reads issues on this public repository. The ai-review
+  # calls still receive BOT_PAT as input.
+  GH_TOKEN: ${{ github.token }}
+  PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
+
+jobs:
+  review-spec:
+    name: Review Spec Coverage (Advisory)
+    # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
+    runs-on: ubuntu-26.04-arm
+    # ADR-114: the model key lives in this environment; a reviewer approves each run.
+    environment: agent-claude
+    # Budget: ceil(sum(3 * step timeout + 1.5) + 5) for 3, 3.
+    timeout-minutes: 26
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
+        with:
+          fetch-depth: 0
+
+      # Both SHAs come from the event payload, never a branch name: on
+      # pull_request the checkout is the synthetic refs/pull/N/merge commit, so
+      # an implicit HEAD would credit this pull request with base-branch files.
+      - name: Decide scope
+        id: should-run
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: python3 scripts/ci/spec_coverage_scope.py
+
+      - name: Extract Spec References
+        if: steps.should-run.outputs.skip != 'true'
+        id: spec-ref
+        env:
+          PR_TITLE_INPUT: ${{ github.event.pull_request.title }}
+          PR_BODY_INPUT: ${{ github.event.pull_request.body }}
+        run: python3 scripts/ci/spec_extract_refs.py
+
+      - name: Load Spec Content
+        if: steps.should-run.outputs.skip != 'true' && steps.spec-ref.outputs.has_specs == 'true'
+        id: load-spec
+        env:
+          SPEC_REFS: ${{ steps.spec-ref.outputs.spec_refs }}
+          ISSUE_REFS: ${{ steps.spec-ref.outputs.issue_refs }}
+        run: python3 scripts/ci/spec_load_content.py
+
+      - name: Prepare Spec Context
+        if: steps.should-run.outputs.skip != 'true' && steps.spec-ref.outputs.has_specs == 'true'
+        id: prepare-context
+        env:
+          SPEC_FILE: ${{ steps.load-spec.outputs.spec_file }}
+          INCREMENTAL_SCOPE: ${{ steps.spec-ref.outputs.incremental_scope }}
+          # Issue #5366: the body carries the acceptance-criteria list the
+          # reviewer is graded against. Passed through env, never interpolated
+          # into a run block, because it is author-controlled (CWE-78).
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: python3 scripts/ci/spec_prepare_context.py
+
+      - name: 🔗 Requirements Traceability Check (Analyst Agent)
+        if: steps.should-run.outputs.skip != 'true' && steps.spec-ref.outputs.has_specs == 'true'
+        id: trace
+        continue-on-error: true
+        uses: ./.github/actions/ai-review
+        with:
+          agent: analyst
+          context-type: pr-diff
+          pr-number: ${{ env.PR_NUMBER }}
+          additional-context: ${{ steps.prepare-context.outputs.spec_context }}
+          prompt-file: .github/prompts/spec-trace-requirements.md
+          timeout-minutes: 3
+          bot-pat: ${{ secrets.BOT_PAT }}
+          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+
+      - name: Report traceability check result
+        run: >-
+          python3 scripts/ci/report_advisory_result.py step
+          --validator spec-traceability-check
+          --scope "requirements traceability review by the analyst agent"
+          --outcome "${{ steps.trace.outcome }}"
+          --failure-state BLOCKED
+          --failure-reason script.failed
+          --detail "analyst agent crash or timeout"
+
+      - name: ✅ Completeness Check (Critic Agent)
+        if: steps.should-run.outputs.skip != 'true' && steps.spec-ref.outputs.has_specs == 'true'
+        id: completeness
+        continue-on-error: true
+        uses: ./.github/actions/ai-review
+        with:
+          agent: critic
+          context-type: pr-diff
+          pr-number: ${{ env.PR_NUMBER }}
+          additional-context: ${{ steps.prepare-context.outputs.spec_context }}
+          prompt-file: .github/prompts/spec-check-completeness.md
+          timeout-minutes: 3
+          bot-pat: ${{ secrets.BOT_PAT }}
+          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+
+      - name: Report completeness check result
+        run: >-
+          python3 scripts/ci/report_advisory_result.py step
+          --validator spec-completeness-check
+          --scope "completeness review by the critic agent"
+          --outcome "${{ steps.completeness.outcome }}"
+          --failure-state BLOCKED
+          --failure-reason script.failed
+          --detail "critic agent crash or timeout"
+
+      - name: Generate Validation Report
+        if: steps.should-run.outputs.skip != 'true'
+        id: report
+        env:
+          HAS_SPECS: ${{ steps.spec-ref.outputs.has_specs }}
+          SPEC_REFS: ${{ steps.spec-ref.outputs.spec_refs }}
+          ISSUE_REFS: ${{ steps.spec-ref.outputs.issue_refs }}
+          TRACE_VERDICT: ${{ steps.trace.outputs.verdict }}
+          TRACE_FINDINGS: ${{ steps.trace.outputs.findings }}
+          COMPLETENESS_VERDICT: ${{ steps.completeness.outputs.verdict }}
+          COMPLETENESS_FINDINGS: ${{ steps.completeness.outputs.findings }}
+          TRACE_INFRA_FAILURE: ${{ steps.trace.outputs['infrastructure-failure'] }}
+          COMPLETENESS_INFRA_FAILURE: ${{ steps.completeness.outputs['infrastructure-failure'] }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          SERVER_URL: ${{ github.server_url }}
+          RUN_ID: ${{ github.run_id }}
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+        run: python3 .github/scripts/generate_spec_report.py
+
+      - name: Post PR Comment
+        id: post-comment
+        if: steps.should-run.outputs.skip != 'true'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ env.PR_NUMBER }}
+          REPORT_FILE: ${{ steps.report.outputs.report_file }}
+        run: |
+          python3 .github/scripts/run_with_retry.py -- \
+            python3 .github/scripts/post_issue_comment.py \
+            --issue "$PR_NUMBER" \
+            --body-file "$REPORT_FILE" \
+            --marker "AI-SPEC-VALIDATION" \
+            --update-if-exists
+
+      - name: Report PR comment result
+        run: >-
+          python3 scripts/ci/report_advisory_result.py step
+          --validator spec-report-comment
+          --scope "spec validation report comment"
+          --outcome "${{ steps.post-comment.outcome }}"
+          --failure-state BLOCKED
+          --failure-reason script.failed
+
+      - name: Set Job Summary
+        if: steps.should-run.outputs.skip != 'true'
+        shell: pwsh -NoProfile -Command "& '{0}'"
+        env:
+          REPORT_FILE: ${{ steps.report.outputs.report_file }}
+        run: |
+          Get-Content $env:REPORT_FILE | Add-Content $env:GITHUB_STEP_SUMMARY

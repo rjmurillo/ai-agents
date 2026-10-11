@@ -3,7 +3,9 @@
 Helpers in this package produce deterministic, non-LLM verdicts that quality
 gates can use as the sole basis for blocking a merge. LLM judgments may
 *enrich* the reports these tools emit, but per issue #1855 must never be the
-only signal that decides whether ``ai-spec-validation.yml`` passes. The
+only signal that decides whether ``ai-spec-validation.yml`` passes. That
+workflow now runs ``scripts/ci/spec_coverage_verdict.py``, which makes the
+acceptance-criteria parser its only verdict source. The
 ten-agent ``ai-pr-quality-gate.yml`` was the other consumer; it was deleted
 rather than rewired.
 

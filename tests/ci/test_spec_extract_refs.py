@@ -8,6 +8,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
+import yaml
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from scripts.ci.spec_extract_refs import (
@@ -301,9 +302,10 @@ class TestRun:
     ) -> None:
         """Pin the workflow guard, not the helper return value.
 
-        `.github/workflows/ai-spec-validation.yml` gates every judging step on
-        `steps.spec-ref.outputs.has_specs == 'true'`, so the output file is the
-        contract that decides whether the required check evaluates anything.
+        Both `.github/workflows/ai-spec-validation.yml` and
+        `.github/workflows/ai-spec-review.yml` read
+        `steps.spec-ref.outputs.has_specs`, so the output file is the contract
+        that decides whether the check evaluates anything.
         Issues #5489 and #5620.
         """
         out_file = tmp_path / "out.txt"
@@ -411,3 +413,20 @@ class TestMain:
     def test_main_delegates(self) -> None:
         with patch("scripts.ci.spec_extract_refs.run", return_value=0):
             assert main() == 0
+
+
+class TestBothWorkflowsRunTheExtraction:
+    """The deterministic check and the model review share one extraction step."""
+
+    @pytest.mark.parametrize(
+        ("filename", "job_id"),
+        [("ai-spec-validation.yml", "validate-spec"), ("ai-spec-review.yml", "review-spec")],
+    )
+    def test_job_runs_the_extractor_as_spec_ref(self, filename: str, job_id: str) -> None:
+        workflow = Path(__file__).resolve().parents[2] / ".github/workflows" / filename
+        steps = yaml.safe_load(workflow.read_text(encoding="utf-8"))["jobs"][job_id]["steps"]
+        extract = [s for s in steps if s.get("id") == "spec-ref"]
+
+        assert len(extract) == 1
+        assert extract[0]["run"].strip() == "python3 scripts/ci/spec_extract_refs.py"
+        assert "PR_BODY_INPUT" in extract[0]["env"]

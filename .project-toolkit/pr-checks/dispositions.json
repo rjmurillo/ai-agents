@@ -8,17 +8,5 @@
       5460,
       5466
     ]
-  },
-  "Validate Spec Coverage": {
-    "disposition": "infrastructure",
-    "reason": "The agentic spec check cannot run on these PRs for reasons outside their code. On PR 6150 the Anthropic API key is out of credit (run 37220110465: credit balance is too low). On main's workflow BOT_PAT resolves empty, so Load Spec Content aborts on gh issue view (run 37484227898, issue #6122). The owner chose a scoped waiver over waiting on billing, and asked for a deterministic replacement in issue #6182. Remove this entry when #6182 lands or when it expires.",
-    "expires": "2026-10-13",
-    "pull_requests": [
-      5979,
-      6104,
-      6107,
-      6131,
-      6150
-    ]
   }
 }

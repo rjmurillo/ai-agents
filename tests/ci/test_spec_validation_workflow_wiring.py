@@ -30,15 +30,15 @@ import pytest
 import yaml
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
-_WORKFLOW = _REPO_ROOT / ".github" / "workflows" / "ai-spec-validation.yml"
+_WORKFLOW = _REPO_ROOT / ".github" / "workflows" / "ai-spec-review.yml"
 
-_JOB = "validate-spec"
+_JOB = "review-spec"
 _STEP_NAME = "Prepare Spec Context"
 _BUILDER = "scripts/ci/spec_prepare_context.py"
 
 # The expression the step must pass through. Author-controlled, so it belongs in
-# `env:` and never inside a `run:` body (CWE-78). The External-signal gate step
-# in the same workflow already reads the same expression the same way.
+# `env:` and never inside a `run:` body (CWE-78). The verdict step in
+# ai-spec-validation.yml reads the same expression the same way.
 _PR_BODY_EXPRESSION = "${{ github.event.pull_request.body }}"
 
 

@@ -148,7 +148,7 @@ _NOT_WORKFLOW_INVOKED: dict[str, str] = {
     ),
     "spec_nonexecutable_criteria.py": (
         "Library holding the acceptance-criteria classifier for "
-        "spec_prepare_context.py, which ai-spec-validation.yml invokes. It has "
+        "spec_prepare_context.py, which ai-spec-review.yml invokes. It has "
         "no main() and no shebang; tests/ci/test_spec_nonexecutable_criteria.py "
         "drives it directly and tests/ci/test_spec_prepare_context.py covers "
         "the workflow-invoked integration (issue #5366)."
