@@ -123,6 +123,32 @@ def test_html_comment_does_not_join_adjacent_hex() -> None:
     assert extract_shas("abc<!-- x -->1234567") == ["1234567"]
 
 
+def test_comment_opener_in_inline_code_does_not_hide_prose() -> None:
+    body = (
+        "Avoid `<!--` in prose. Reverted in fedcba9.\n"
+        "<!-- cr-comment:v1:75f6c599dff6a5b0a7422ab3 -->"
+    )
+    assert extract_shas(body) == ["fedcba9"]
+
+
+def test_sha_in_inline_code_is_checked() -> None:
+    assert extract_shas("Fixed in `abc1234` and ``def5678``.") == ["abc1234", "def5678"]
+
+
+def test_unmatched_backtick_is_literal() -> None:
+    body = "Stray ` tick <!-- cr-comment:v1:75f6c599dff6a5b0a7422ab3 --> fixed abc1234"
+    assert extract_shas(body) == ["abc1234"]
+
+
+def test_many_backticks_stay_fast() -> None:
+    assert extract_shas("` " * 20000 + "abc1234") == ["abc1234"]
+
+
+def test_unmatched_wide_backtick_run_is_cached() -> None:
+    body = "a `` b " * 5000 + "abc1234"
+    assert extract_shas(body) == ["abc1234"]
+
+
 def test_many_unclosed_openers_stay_linear() -> None:
     assert extract_shas("<!--" * 20000 + " abc1234") == ["abc1234"]
 
