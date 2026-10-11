@@ -69,3 +69,7 @@ The seed job costs about 30 runner-minutes per main push. That figure is inferre
 | Path Dependence | PASS: the revert path is listed, about 20 files in one pull request |
 | Core vs Context | PASS: testmon is bought; the seed fetcher selects nothing |
 | Second-System Effect | PASS with a flag: most added lines are tests; the deleted collection-contract tests follow from the decision |
+
+## Post-review amendment (PR #6261, owner rule: no failure is hidden)
+
+The seed build script used to exit 0 on a failed hook run, so a failing seed job showed green with a warning. It now exits with the hook's failure code (a signal becomes 1) and still writes `complete=true` only on a clean run, so no partial database uploads. The job stays outside `test-result` needs, so its red result does not feed `Run Python Tests`. ADR-104's seed paragraph states this.

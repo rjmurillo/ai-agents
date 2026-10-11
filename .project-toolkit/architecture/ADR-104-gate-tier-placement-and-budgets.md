@@ -586,7 +586,10 @@ markers, worker cap and `COVERAGE_CORE=ctrace`, and uploads `.testmondata` as
 `AI_AGENTS_TESTMON_SEED_BUDGET_SECONDS`, read only when the seed marker is set,
 because the hook's 780 s suite budget would kill a 30 minute run. It uploads only
 when the hook exits 0, so a failed partition, a budget kill or a signal never
-leaves a partial database behind. The key is a SHA-256 over `uv.lock` and
+leaves a partial database behind. The build script exits with the hook's failure
+code, so a failing run turns the seed job red instead of hiding behind a warning;
+the job is outside `test-result` needs, so that red never reaches `Run Python
+Tests`. The key is a SHA-256 over `uv.lock` and
 `pyproject.toml`, computed by `scripts/validation/testmon_seed.py`. The job was
 specified to use `hashFiles`; the Actions runtime owns that function and its
 byte recipe cannot be checked from a checkout, and one differing byte would

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from scripts.validation import git_hook_policy, testmon_seed
 from scripts.validation import testmon_seed_trust as trust
-from tests.workflows.pytest_workflow_helpers import WORKFLOW_PATH, seed_job, seed_step
+from tests.workflows.pytest_workflow_helpers import WORKFLOW_PATH, seed_job, seed_step, workflow
 
 
 def test_the_build_step_calls_the_tested_script_with_the_cap_and_own_budget() -> None:
@@ -46,3 +46,11 @@ def test_the_hook_looks_in_this_workflow_on_main_for_that_prefix() -> None:
     assert testmon_seed.SEED_ARTIFACT_PREFIX == "testmon-db-"
     assert trust.WORKFLOW_FILE == WORKFLOW_PATH.name
     assert trust.MAIN_BRANCH == "main"
+
+
+def test_a_red_seed_job_cannot_reach_the_required_verdict() -> None:
+    """The script now exits nonzero on failure, so the job must stay outside the chain."""
+    assert "testmon-seed" not in workflow()["jobs"]["test-result"]["needs"]
+    upload_if = seed_step("Upload the testmon database")["if"]
+    assert "steps.build.outputs.complete == 'true'" in upload_if
+    assert "success()" not in upload_if
