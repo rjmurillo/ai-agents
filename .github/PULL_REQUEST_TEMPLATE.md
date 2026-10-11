@@ -72,11 +72,11 @@ For other PRs: Add references when traceability adds value.
 <!--
 The Validate Spec Coverage job reads `- [ ]` checkboxes from this section of
 the PR body. Numbered lists are not recognized. Check a box only once the
-criterion is actually met; when the PR links a spec, an unchecked box or a
-missing section makes the check report FAIL (advisory, not a required check).
-Replace the placeholder with the criteria this
-PR must satisfy. A PR that links an issue must keep this checkbox section, and
-editing the body re-runs the check.
+criterion is actually met; when the PR links a spec or an issue, an unchecked
+box or a missing section makes the check report FAIL (advisory, not a required
+check). Replace the placeholder with the criteria this PR must satisfy. A PR
+that links a spec or an issue must keep this checkbox section, and editing the
+body re-runs the check.
 
 Write criteria a reader can check against the diff. Evidence that a command
 ran ("`uv run python scripts/validation/pre_pr.py` passes") belongs under
