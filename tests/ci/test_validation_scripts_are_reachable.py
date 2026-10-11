@@ -42,11 +42,11 @@ from __future__ import annotations
 import ast
 import functools
 import re
-import sys
 from pathlib import Path
 
 import pytest
 
+from tests.ci.shared_once import compute_once
 from tests.ci.test_ci_scripts_are_wired import _live_run_blocks, _strip_commented_lines
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -129,7 +129,7 @@ def test_python_sources_keeps_checkout_nested_under_worktrees(
         source.parent.mkdir(parents=True, exist_ok=True)
         source.write_text("print('reachable')\n", encoding="utf-8")
 
-    monkeypatch.setattr(sys.modules[__name__], "_REPO_ROOT", repo)
+    monkeypatch.setitem(globals(), "_REPO_ROOT", repo)
     _python_sources.cache_clear()
     try:
         assert _python_sources() == (included,)
@@ -209,35 +209,45 @@ def _string_literals(node: ast.AST) -> set[str]:
 
 
 def _execution_string_literals(tree: ast.AST) -> set[str]:
-    """Return strings passed positionally to execution-like calls."""
-    bindings: dict[str, set[str]] = {}
+    """Return strings passed positionally to execution-like calls.
+
+    One ``ast.walk`` classifies every node, and the assignment bindings are
+    built only for a file that has an execution-like call. The earlier shape
+    walked the whole tree three times for all 1301 sources, and this test's
+    ``_reference_graph`` runs once per xdist worker, so under 48 workers and a
+    coverage tracer it passed the 120 s pytest-timeout (issue #6239 hook run).
+    """
+    assigns: list[tuple[list[ast.expr], ast.expr]] = []
+    calls: list[ast.Call] = []
+    dicts: list[ast.Dict] = []
     for node in ast.walk(tree):
         if isinstance(node, ast.Assign):
-            targets, value = node.targets, node.value
+            assigns.append((node.targets, node.value))
         elif isinstance(node, ast.AnnAssign) and node.value is not None:
-            targets, value = [node.target], node.value
-        else:
-            continue
-        strings = _string_literals(value)
-        for target in targets:
-            if isinstance(target, ast.Name):
-                bindings.setdefault(target.id, set()).update(strings)
+            assigns.append(([node.target], node.value))
+        elif isinstance(node, ast.Call) and _is_execution_call(_call_name(node.func)):
+            calls.append(node)
+        elif isinstance(node, ast.Dict):
+            dicts.append(node)
 
     literals: set[str] = set()
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.Call) or not _is_execution_call(_call_name(node.func)):
-            continue
-        for argument in node.args:
-            literals.update(_string_literals(argument))
-            literals.update(
-                literal
-                for child in ast.walk(argument)
-                if isinstance(child, ast.Name)
-                for literal in bindings.get(child.id, ())
-            )
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.Dict):
-            continue
+    if calls:
+        bindings: dict[str, set[str]] = {}
+        for targets, value in assigns:
+            strings = _string_literals(value)
+            for target in targets:
+                if isinstance(target, ast.Name):
+                    bindings.setdefault(target.id, set()).update(strings)
+        for call in calls:
+            for argument in call.args:
+                literals.update(_string_literals(argument))
+                literals.update(
+                    literal
+                    for child in ast.walk(argument)
+                    if isinstance(child, ast.Name)
+                    for literal in bindings.get(child.id, ())
+                )
+    for node in dicts:
         for key, value in zip(node.keys, node.values, strict=True):
             if (
                 isinstance(key, ast.Constant)
@@ -350,7 +360,10 @@ def _reference_graph() -> dict[str, frozenset[str]]:
             tree = ast.parse(source)
         except SyntaxError as exc:
             raise RuntimeError(f"Cannot parse Python source {rel}: {exc}") from exc
-        reached = _invoked_scripts(tree, rel)
+        # `_SCRIPT_TOKEN_RE` needs a literal `.py`, and a string literal's text
+        # appears verbatim in its source, so a file without `.py` names no
+        # script and skips the three-pass AST scan.
+        reached = _invoked_scripts(tree, rel) if ".py" in source else set()
         for module in _imported_modules(tree, rel):
             reached.update(_resolve_import(index, module, rel))
         graph[rel] = frozenset(reached - {rel})
@@ -433,8 +446,7 @@ def _entry_points() -> frozenset[str]:
     return frozenset(named)
 
 
-@functools.lru_cache(maxsize=1)
-def _reachable() -> frozenset[str]:
+def _compute_reachable() -> frozenset[str]:
     """Transitive closure of the entry points over the reference graph."""
     graph = _reference_graph()
     seen = set(_entry_points())
@@ -445,6 +457,12 @@ def _reachable() -> frozenset[str]:
                 seen.add(target)
                 stack.append(target)
     return frozenset(seen)
+
+
+@functools.lru_cache(maxsize=1)
+def _reachable() -> frozenset[str]:
+    """Transitive closure of the entry points, shared across xdist workers."""
+    return compute_once("reachable-scripts", _compute_reachable)
 
 
 @pytest.mark.parametrize("script", _guarded_scripts(), ids=lambda p: p.name)

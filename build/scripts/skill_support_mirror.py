@@ -28,6 +28,7 @@ _SCRIPT_DIR = Path(__file__).resolve().parent
 if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
+from binplace_manifest import is_bytecode_artifact  # noqa: E402
 from copilot_body_translation import translate_skill_file  # noqa: E402
 from regen_guard import detect_reason as regen_detect_reason  # noqa: E402
 
@@ -192,7 +193,7 @@ def _copy_skill_tree(
             continue
         # Skip Python cache artifacts; they're build-time noise that
         # belongs in .gitignore, not in a customer-facing plugin install.
-        if "__pycache__" in src_path.parts or src_path.suffix in (".pyc", ".pyo"):
+        if is_bytecode_artifact(src_path):
             continue
         rel = src_path.relative_to(source)
         if rel in skip_filenames:
@@ -260,7 +261,7 @@ def _iter_support_relpaths(skill_dir: Path) -> set[Path]:
             raise SkillSupportSyncError(f"{src_path}: symlink inside a skill directory refused")
         if src_path.is_dir():
             continue
-        if "__pycache__" in src_path.parts or src_path.suffix in (".pyc", ".pyo"):
+        if is_bytecode_artifact(src_path):
             continue
         rel = src_path.relative_to(skill_dir)
         if rel == _SKILL_MD:
@@ -306,7 +307,7 @@ def _prune_stale_support_files(
     for existing in sorted(target_dir.rglob("*")):
         if existing.is_dir():
             continue
-        if "__pycache__" in existing.parts or existing.suffix in (".pyc", ".pyo"):
+        if is_bytecode_artifact(existing):
             continue
         if existing.name.endswith(".noregen"):
             # A NO-REGEN sidecar (regen_guard.py) is a hand-placed

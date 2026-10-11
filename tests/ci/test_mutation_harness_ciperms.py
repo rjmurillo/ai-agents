@@ -10,9 +10,11 @@ guards: every mutation literal must be present exactly once, and every
 
 from __future__ import annotations
 
+import contextlib
 import importlib.util
 import subprocess
 import sys
+import types
 from pathlib import Path
 
 import pytest
@@ -352,8 +354,23 @@ class TestVerifyRepoRoot:
         assert "not a git worktree" in str(excinfo.value)
 
 
+def _fake_worktree(root: Path, calls: list | None = None):
+    @contextlib.contextmanager
+    def fake(repo_root, targets):
+        if calls is not None:
+            calls.append((repo_root, targets))
+        yield types.SimpleNamespace(root=root)
+
+    return fake
+
+
 class TestMainExitCodes:
     """main() must fail when an outcome differs from the expected result."""
+
+    @pytest.fixture(autouse=True)
+    def _workspace(self, tmp_path):
+        (tmp_path / ".git").mkdir()
+        self.root = tmp_path
 
     def _run_main(self, monkeypatch, outcomes: list[tuple[str, str]]) -> int:
         mutations = [
@@ -376,7 +393,19 @@ class TestMainExitCodes:
             "apply_mutation",
             lambda _m, _root=None: harness.Result(*next(pairs)),
         )
+        # The outcomes are stubbed, so a real git worktree adds nothing but a
+        # 1 to 4 s `git worktree add`; tests/test_mutation_workspace.py covers that.
+        monkeypatch.setattr(harness, "isolated_mutation_worktree", _fake_worktree(self.root))
         return harness.main()
+
+    def test_main_runs_in_an_isolated_worktree_of_the_targets(self, monkeypatch):
+        calls = []
+        monkeypatch.setattr(
+            harness, "isolated_mutation_worktree", _fake_worktree(self.root, calls)
+        )
+        monkeypatch.setattr(harness, "_run_mutations", lambda root: 0 if root == self.root else 9)
+        assert harness.main() == 0
+        assert calls == [(harness.ACTIVE_REPO_ROOT, harness.TARGETS)]
 
     def test_all_dead_exits_zero(self, monkeypatch):
         assert (

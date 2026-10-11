@@ -1,6 +1,8 @@
-# AI Agent System
+# AI Agents: Multi-Agent Toolkit for Claude Code and GitHub Copilot CLI
 
-For platform teams, engineering managers, and orgs that want AI-assisted development with real governance. Session protocol, review gates, and ADR-steered agent behavior built in.
+AI Agents is an open-source multi-agent toolkit for software development with Claude Code, GitHub Copilot CLI, and VS Code Copilot Chat. An orchestrator routes work across 30 specialized agents, including analyst, architect, code-reviewer, dependency-auditor, implementer, critic, QA, security, and DevOps, to plan, build, review, and ship code with explicit handoffs and quality gates at each stage.
+
+Built for platform teams, engineering managers, and organizations that want AI-assisted development with real governance: plan-to-ship lifecycle commands (`/spec`, `/plan`, `/build`, `/test`, `/review`, `/ship`) in Claude Code, review gates and a session protocol in both CLIs, and ADR-steered agent behavior. Optional cross-session memory is available via Serena. Install from the plugin marketplace with `/install-plugin rjmurillo/ai-agents` in Claude Code, or `/plugin marketplace add rjmurillo/ai-agents` then `/plugin install project-toolkit@ai-agents` in Copilot CLI. MIT licensed.
 
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/rjmurillo/ai-agents)
 
@@ -12,7 +14,30 @@ For platform teams, engineering managers, and orgs that want AI-assisted develop
 ![Pester Tests](https://github.com/rjmurillo/ai-agents/actions/workflows/pester-tests.yml/badge.svg)
 ![CodeQL Analysis](https://github.com/rjmurillo/ai-agents/actions/workflows/codeql-analysis.yml/badge.svg)
 
-![Fastest Start demo](https://github.com/rjmurillo/ai-agents/assets/TODO-record-gif-before-v0.2)
+## Why AI Agents
+
+- **Orchestrated specialists.** An orchestrator routes work to specialist agents (`analyst`, `architect`, `milestone-planner`, `implementer`, `critic`, `qa`, `security`, `devops`) with explicit handoffs.
+- **Plan-to-ship lifecycle.** Six commands cover the path in Claude Code: `/spec`, `/plan`, `/build`, `/test`, `/review`, `/ship`.
+- **Review gates that loop back.** The critic returns APPROVED, APPROVED_WITH_CONCERNS, NEEDS_REVISION, or BLOCKED. NEEDS_REVISION sends the plan back to the agent that produced it. A QA failure sends the work back to the implementer.
+- **One marketplace URL, two CLIs.** The same repository URL installs as a plugin marketplace in Claude Code and in GitHub Copilot CLI.
+- **VS Code Copilot Chat support.** Agents also load in VS Code Copilot Chat from `.github/agents/`.
+- **MIT licensed.**
+
+## Is AI Agents right for you?
+
+**Good fit:**
+
+- You want governed plan, build, review, and ship stages in Claude Code or GitHub Copilot CLI.
+- You want a critic, QA, and security agent to check work before it merges.
+- Your team uses both Claude Code and Copilot CLI and wants one toolkit for both.
+
+**Not a fit:**
+
+- You only want a single-agent assistant. Claude Code or Copilot CLI alone covers that.
+- You need Gemini CLI or Codex CLI. This README documents Claude Code, GitHub Copilot CLI, and VS Code Copilot Chat only.
+- You want a tmux-driven pipeline across many CLIs. [AgentMux](https://github.com/markuswondrak/AgentMux) is an option there.
+
+More answers: [FAQ](docs/faq.md). Copilot CLI install: [docs/installation.md](docs/installation.md#github-copilot-cli). Which lifecycle phases fit which task: [docs/when-to-use.md](docs/when-to-use.md). Every agent: [docs/agent-catalog.md](docs/agent-catalog.md).
 
 ---
 
@@ -33,7 +58,7 @@ Each AI tool has its own native marketplace flow. This repo ships a Claude Code 
 /plugin install project-toolkit@ai-agents
 ```
 
-A Claude install lands the full set of agents, commands, hooks, and skills. A Copilot install lands the same capabilities generated from the same canonical sources. See [Verify Installation](#verify-installation) for the per-tool sanity check that reports the exact counts for your install, or [More Installation Options](#alternative-full-installation) for component-level installs (agents only, etc.).
+A Claude install lands the full set of agents, commands, hooks, and skills. A Copilot install lands the same capabilities generated from the same canonical sources. See [Verify Installation](#verify-installation) for the per-tool check that confirms your install, or [More Installation Options](#alternative-full-installation) for component-level installs (agents only, etc.).
 
 > **Python requirement for `project-toolkit@ai-agents` hooks.** The project-toolkit plugin ships PreToolUse and PostToolUse hooks that run Python. Minimum version: **Python 3.10**. On Windows, the [Python launcher](https://docs.python.org/3/using/windows.html#launcher) (`py`) must be on PATH.
 >
@@ -79,7 +104,9 @@ Specialized agent roles include analyst, architect, implementer, QA, security, d
 
 ## Table of Contents
 
-- [AI Agent System](#ai-agent-system)
+- [AI Agents: Multi-Agent Toolkit for Claude Code and GitHub Copilot CLI](#ai-agents-multi-agent-toolkit-for-claude-code-and-github-copilot-cli)
+  - [Why AI Agents](#why-ai-agents)
+  - [Is AI Agents right for you?](#is-ai-agents-right-for-you)
   - [Fastest Start](#fastest-start)
     - [What You Get](#what-you-get)
     - [Troubleshooting](#troubleshooting)
@@ -372,8 +399,8 @@ flowchart LR
     Code --> QA
     QA --> |pass| Done([Done])
     QA --> |fail| Implementer
-    Critic --> |approve| Done
-    Critic --> |reject| Implementer
+    Critic --> |APPROVED| Implementer
+    Critic --> |NEEDS_REVISION| Planner
 ```
 
 **Typical flow:**
@@ -394,24 +421,32 @@ Both bundles include every agent. `spec-generator` is now a skill (issue #2001),
 | **orchestrator** | Task coordination and routing | Delegated results from specialists | both |
 | **analyst** | Research, feasibility analysis, trade-off evaluation | Quantitative findings with evidence | both |
 | **architect** | System design evaluation, ADRs, pattern enforcement | Rated assessments (Strong/Adequate/Needs-Work) | both |
+| **code-reviewer** | Code review for correctness, conventions, and duplicated logic | Findings with file and line evidence | both |
+| **code-simplifier** | Simplify recently changed code while preserving behavior | Rewrite diff or focused refactors | both |
+| **comment-analyzer** | Check code comments for accuracy, completeness, and maintainability | Specific corrections with evidence | both |
+| **dependency-auditor** | Audit dependencies for vulnerabilities, outdated versions, and deprecations | Prioritized supply-chain risk report | both |
 | **milestone-planner** | Milestones and work packages | Implementation plans with acceptance criteria | both |
 | **implementer** | Production code and tests | Code, tests, commits | both |
-| **critic** | Plan stress-testing, gap identification | Verdicts: APPROVE / APPROVE WITH CONDITIONS / REJECT | both |
+| **critic** | Plan stress-testing, gap identification | Verdicts: APPROVED / APPROVED_WITH_CONCERNS / NEEDS_REVISION / BLOCKED | both |
 | **qa** | Test strategy and verification | Test reports, coverage analysis | both |
 | **security** | Threat modeling, vulnerability assessment | Threat matrices with CWE/CVSS ratings | both |
+| **silent-failure-hunter** | Audit error handling and fallback behavior for silent failures | Evidence-backed findings and remediation | both |
 | **devops** | CI/CD pipelines, operational planning | Infrastructure configs, maintenance estimates | both |
 | **roadmap** | Strategic prioritization, RICE/KANO analysis | Priority stacks, cost-benefit analysis | both |
 | **retrospective** | Learning extraction | Actionable insights, skill updates | both |
 | **skillbook** | Skill management | Atomic strategy updates | both |
+| **quality-auditor** | Grade product domains across architectural layers | Quality reports with gap tracking and trends | both |
 | **explainer** | PRDs and documentation | Specs, user guides | both |
 | **task-decomposer** | Atomic task breakdown | Estimable work items with done criteria | both |
 | **high-level-advisor** | Strategic decisions, unblocking | Verdicts: GO / CONDITIONAL GO / NO-GO | both |
 | **independent-thinker** | Challenge assumptions, devil's advocate | Counter-arguments with alternatives | both |
 | **pr-comment-responder** | PR review handling | Triaged responses, resolution tracking | both |
+| **pr-test-analyzer** | Assess behavioral test coverage in pull requests | Ranked coverage gaps and recommendation | both |
 | **debug** | Debugging assistance, root cause analysis | Diagnostic findings with resolution steps | both |
 | **janitor** | Code and documentation cleanup | Refactoring and cleanup suggestions | both |
 | **issue-feature-review** | Feature-request triage on GitHub issues | Constructive verdict with next steps | both |
 | **merge-resolver** | Resolve git/PR merge conflicts | Pattern-based resolution plan | both |
+| **type-design-analyzer** | Evaluate type designs for invariants, encapsulation, and usefulness | Qualitative analysis and design ratings | both |
 | **negotiation** | Offer analysis and counter-proposals | Value-gap analysis with RADAR protocol | both |
 
 See [AGENTS.md](AGENTS.md) for detailed agent documentation.
@@ -526,6 +561,7 @@ This project uses a **template-based generation system**. To modify agents:
 | Document | Description |
 |----------|-------------|
 | [docs/getting-started.md](docs/getting-started.md) | Step-by-step setup guide |
+| [docs/faq.md](docs/faq.md) | Short answers on install, platforms, agent count, review gates, and requirements |
 | [docs/agent-catalog.md](docs/agent-catalog.md) | All agents with capabilities and examples |
 | [docs/skill-reference.md](docs/skill-reference.md) | All skills with usage descriptions |
 | [docs/architecture.md](docs/architecture.md) | Plugin structure, template system, design decisions |

@@ -27,6 +27,7 @@ import pytest
 
 from scripts.security.invoke_precommit_security import (
     PSSCRIPTANALYZER_INSTALL_TIMEOUT_SECONDS,
+    PSSCRIPTANALYZER_VERSION,
     SUBPROCESS_TIMEOUT_SECONDS,
     PreCommitResult,
     PreCommitSecurityCheck,
@@ -82,7 +83,7 @@ class TestEnsurePsscriptanalyzerTimeout:
     ) -> None:
         with patch(
             "scripts.security.invoke_precommit_security.subprocess.run",
-            return_value=_completed(0, stdout="PSScriptAnalyzer 1.0"),
+            return_value=_completed(0),
         ) as run_mock:
             assert check._ensure_psscriptanalyzer() is True
         assert run_mock.call_args.kwargs["timeout"] == SUBPROCESS_TIMEOUT_SECONDS
@@ -102,10 +103,10 @@ class TestEnsurePsscriptanalyzerTimeout:
     def test_install_timeout_returns_false(
         self, check: PreCommitSecurityCheck
     ) -> None:
-        # First call (Get-Module) succeeds but reports module absent; second
-        # call (Install-Module) times out.
+        # First call (Get-Module) exits 1 because the pinned version is
+        # absent; second call (Install-Module) times out.
         side_effects = [
-            _completed(0, stdout="no module here"),
+            _completed(1),
             subprocess.TimeoutExpired(
                 cmd=["pwsh"],
                 timeout=PSSCRIPTANALYZER_INSTALL_TIMEOUT_SECONDS,
@@ -132,6 +133,75 @@ class TestEnsurePsscriptanalyzerTimeout:
             assert check._ensure_psscriptanalyzer() is False
 
 
+class TestEnsurePsscriptanalyzerPinnedVersion:
+    """Detection, install, and import all target one exact release."""
+
+    def test_version_is_exact_semver(self) -> None:
+        assert re.fullmatch(r"\d+\.\d+\.\d+", PSSCRIPTANALYZER_VERSION)
+
+    def test_detection_requires_pinned_version(
+        self, check: PreCommitSecurityCheck
+    ) -> None:
+        with patch(
+            "scripts.security.invoke_precommit_security.subprocess.run",
+            return_value=_completed(0),
+        ) as run_mock:
+            assert check._ensure_psscriptanalyzer() is True
+
+        command = run_mock.call_args.args[0][3]
+        assert f"Where-Object Version -eq '{PSSCRIPTANALYZER_VERSION}'" in command
+        assert run_mock.call_count == 1
+
+    def test_other_installed_version_triggers_pinned_install(
+        self, check: PreCommitSecurityCheck
+    ) -> None:
+        # A different release on disk makes detection exit 1, so the hook
+        # installs the pinned release side by side.
+        with patch(
+            "scripts.security.invoke_precommit_security.subprocess.run",
+            side_effect=[_completed(1, stdout="PSScriptAnalyzer 1.0"), _completed(0)],
+        ) as run_mock:
+            assert check._ensure_psscriptanalyzer() is True
+
+        install_command = run_mock.call_args_list[1].args[0][3]
+        assert "Install-Module -Name PSScriptAnalyzer" in install_command
+        assert f"-RequiredVersion {PSSCRIPTANALYZER_VERSION}" in install_command
+
+    def test_failed_install_returns_false(
+        self, check: PreCommitSecurityCheck
+    ) -> None:
+        # The install command carries -ErrorAction Stop, so a failed install
+        # exits 1 in real pwsh. Without it, pwsh exits 0 on failure.
+        with patch(
+            "scripts.security.invoke_precommit_security.subprocess.run",
+            side_effect=[_completed(1), _completed(1, stderr="gallery offline")],
+        ) as run_mock:
+            assert check._ensure_psscriptanalyzer() is False
+
+        install_command = run_mock.call_args_list[1].args[0][3]
+        assert install_command.endswith("-ErrorAction Stop")
+
+    def test_analyzer_imports_pinned_version(
+        self, check: PreCommitSecurityCheck
+    ) -> None:
+        with (
+            patch.object(check, "_read_staged_blob", return_value=b"Write-Host test"),
+            patch(
+                "scripts.security.invoke_precommit_security.subprocess.run",
+                return_value=_completed(0, stdout="null"),
+            ) as run_mock,
+        ):
+            result = check._run_psscriptanalyzer([Path("/repo/script.ps1")])
+
+        command = run_mock.call_args.args[0][3]
+        assert result.passed is True
+        pinned_import = (
+            f"Import-Module PSScriptAnalyzer -RequiredVersion {PSSCRIPTANALYZER_VERSION}"
+        )
+        assert pinned_import in command
+        assert command.index(pinned_import) < command.index("Invoke-ScriptAnalyzer")
+
+
 class TestFetchCodeqlAlertsTimeout:
     """The gh api network call must be time-bounded and degrade gracefully."""
 
@@ -156,8 +226,59 @@ class TestFetchCodeqlAlertsTimeout:
         assert run_mock.call_args_list[1].kwargs["timeout"] == 30
 
 
+def _pinned_psscriptanalyzer_available() -> bool:
+    try:
+        probe = subprocess.run(
+            [
+                "pwsh",
+                "-NoProfile",
+                "-Command",
+                f"Import-Module PSScriptAnalyzer -RequiredVersion {PSSCRIPTANALYZER_VERSION} "
+                "-ErrorAction Stop",
+            ],
+            capture_output=True,
+            check=False,
+            timeout=120,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return False
+    return probe.returncode == 0
+
+
+@pytest.mark.skipif(
+    not _pinned_psscriptanalyzer_available(),
+    reason=f"pwsh with PSScriptAnalyzer {PSSCRIPTANALYZER_VERSION} not installed",
+)
+class TestRunPsscriptAnalyzerIntegration:
+    """Run the real pinned analyzer; no subprocess mocks."""
+
+    def test_clean_script_passes_in_wildcard_named_temp_directory(
+        self,
+        check: PreCommitSecurityCheck,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        wildcard_root = tmp_path / "tmp[1]*?"
+        wildcard_root.mkdir()
+        monkeypatch.setattr("tempfile.tempdir", str(wildcard_root))
+
+        with patch.object(check, "_read_staged_blob", return_value=b"Write-Output 'ok'\n"):
+            result = check._run_psscriptanalyzer([Path("/repo/clean.ps1")])
+
+        assert result.passed is True
+        assert result.findings == []
+
+    def test_script_with_warning_is_reported(self, check: PreCommitSecurityCheck) -> None:
+        content = b"Invoke-Expression 'Get-Date'\n"
+
+        with patch.object(check, "_read_staged_blob", return_value=content):
+            result = check._run_psscriptanalyzer([Path("/repo/bad.ps1")])
+
+        assert [f.rule_name for f in result.findings] == ["PSAvoidUsingInvokeExpression"]
+
+
 class TestRunPsscriptAnalyzer:
-    """PowerShell file paths must be passed as literal paths."""
+    """Staged content is analyzed under a generated bare name, never a repo path."""
 
     def test_git_environment_disables_replacement_refs(
         self, monkeypatch: pytest.MonkeyPatch
@@ -188,18 +309,19 @@ class TestRunPsscriptAnalyzer:
             "'O''Brien[1].ps1'"
         )
 
-    def test_uses_literal_path_with_escaped_file_path(
+    def test_uses_bare_generated_name_from_temp_directory(
         self, check: PreCommitSecurityCheck
     ) -> None:
         file_path = Path("/repo/O'Brien[1].ps1")
         staged_content = b"Write-Host 'staged'"
         analyzed_content: list[bytes] = []
 
-        def run_analyzer(command: list[str], **_: object) -> MagicMock:
+        def run_analyzer(command: list[str], **kwargs: object) -> MagicMock:
             analyzer_command = command[3]
-            match = re.search(r"-LiteralPath '([^']+)'", analyzer_command)
+            match = re.search(r"-Path '([^']+)'", analyzer_command)
             assert match is not None
-            analyzed_content.append(Path(match.group(1)).read_bytes())
+            assert match.group(1) == "0.ps1"
+            analyzed_content.append((Path(str(kwargs["cwd"])) / match.group(1)).read_bytes())
             return _completed(0, stdout="null")
 
         with (
@@ -213,9 +335,9 @@ class TestRunPsscriptAnalyzer:
 
         command = run_mock.call_args.args[0][3]
         assert result.passed is True
-        assert "Invoke-ScriptAnalyzer -LiteralPath" in command
+        assert "Invoke-ScriptAnalyzer -Path '0.ps1'" in command
+        assert "-LiteralPath" not in command
         assert str(file_path) not in command
-        assert "Invoke-ScriptAnalyzer -Path" not in command
         assert "$ErrorActionPreference = 'Stop'" in command
         assert "-ErrorAction Stop" in command
         assert analyzed_content == [staged_content]

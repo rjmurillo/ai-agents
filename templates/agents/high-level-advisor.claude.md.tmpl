@@ -57,12 +57,12 @@ uv run python .claude/skills/memory/scripts/search_memory.py "strategic decision
 
 ```text
 mcp__serena__write_memory
-memory_file_name: "strategic-decision-[topic]"
+memory_file_name: "governance/strategic-decision-[topic]"
 content: "# Strategic Decision: [Topic]\n\n**Statement**: ...\n\n**Evidence**: ...\n\n## Details\n\n..."
 ```
 
 {{> serena-worktree-write-guard}}
 
-> **Fallback**: If Memory Router unavailable, read `.serena/memories/` directly with Read tool.
+> **Fallback**: If Serena is unavailable, read `.serena/memories/` directly with the Read tool.
 
 {{> high-level-advisor-memory-protocol}}

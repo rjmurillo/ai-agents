@@ -754,8 +754,16 @@ class TestFetchedPagesCompleteFlag:
                 },
             ],
         )
-        with patch("test_pr_merge_ready.gh_graphql", return_value=payload):
+        # totalCount > len(nodes) triggers the paginated fallback. It is a
+        # separate binding from gh_graphql, so mock it or it calls real gh.
+        with (
+            patch.object(_mod, "gh_graphql", return_value=payload),
+            patch.object(
+                _mod, "get_unresolved_review_threads", return_value=[],
+            ) as mock_paginate,
+        ):
             result = check_merge_readiness("o", "r", 1)
+        mock_paginate.assert_called_once_with("o", "r", 1)
         assert result["fetched_pages_complete"] is False
 
     def test_incomplete_when_more_contexts_than_returned(self):

@@ -47,6 +47,16 @@ that supersedes this ADR's requirement that those customer-facing security
 controls remain in the base. The absence therefore remains an implementation and
 governance gap, not a relaxed decision.
 
+## Amendment 2026-10-08: base-alone e2e runs on pull requests (issue #6069)
+
+Status of this amendment: records a workflow move. The decision is unchanged.
+`.github/workflows/nightly-cli-smoke.yml` is deleted. The base-alone e2e test it
+ran now runs in `.github/workflows/plugin-cli-smoke.yml` on pull requests that
+change a smoke path, on Linux, macOS, and Windows (ADR-114 Decision 13). Where
+Decision item 4, the Impact table, and the Confirmation Criteria name the
+nightly workflow, read `plugin-cli-smoke.yml`. The criterion "two consecutive
+scheduled runs" becomes two consecutive green runs on pull requests.
+
 ## Date
 
 2026-07-18

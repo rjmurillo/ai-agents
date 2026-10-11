@@ -97,7 +97,8 @@ class TestTheTestSuiteRootsEveryBareRepositoryInTemp:
     """The corpus assertion. Issue #4698 acceptance criterion 3."""
 
     @pytest.fixture(scope="class")
-    def result(self) -> ScanResult:
+    @classmethod
+    def result(cls) -> ScanResult:
         return scan_test_suite()
 
     def test_no_bare_repository_literal_escapes_a_temp_root(

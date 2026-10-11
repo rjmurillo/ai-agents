@@ -897,7 +897,7 @@ call. Reproduce before rotating anything:
 ```bash
 RUN_CLI_E2E=1 COPILOT_GITHUB_TOKEN="$(gh auth token)" \
   uv run --frozen python -m pytest \
-  tests/e2e/test_plugin_load_smoke.py::test_copilot_plugin_loads_expected_skills -q
+  tests/e2e/test_plugin_load_smoke.py::test_copilot_plugin_dir_fires_probe_hook -q
 ```
 
 That is 25 seconds against 18 minutes for a push, and it tells you whether you

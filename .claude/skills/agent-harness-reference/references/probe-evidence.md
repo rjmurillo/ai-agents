@@ -210,7 +210,7 @@ Durable tests:
 
 - `tests/e2e/copilot_hook_probe.py`
 - `tests/e2e/test_plugin_load_smoke.py::test_copilot_commands_disable_auto_update`
-- `tests/test_nightly_cli_smoke_security.py`
+- `tests/test_cli_smoke_security.py`
 
 ## 7. Python command permission and script identity
 

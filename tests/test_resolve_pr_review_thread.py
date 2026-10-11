@@ -77,22 +77,22 @@ class TestBuildParser:
 
 class TestResolveReviewThread:
     def test_success(self):
-        with patch(
-            "resolve_pr_review_thread.gh_graphql",
+        with patch.object(
+            _mod, "gh_graphql",
             return_value={"resolveReviewThread": {"thread": {"id": "t1", "isResolved": True}}},
         ):
             assert resolve_review_thread("PRRT_abc") is True
 
     def test_api_failure(self):
-        with patch(
-            "resolve_pr_review_thread.gh_graphql",
+        with patch.object(
+            _mod, "gh_graphql",
             side_effect=RuntimeError("API error"),
         ):
             assert resolve_review_thread("PRRT_abc") is False
 
     def test_not_resolved(self):
-        with patch(
-            "resolve_pr_review_thread.gh_graphql",
+        with patch.object(
+            _mod, "gh_graphql",
             return_value={"resolveReviewThread": {"thread": {"id": "t1", "isResolved": False}}},
         ):
             assert resolve_review_thread("PRRT_abc") is False
@@ -105,8 +105,8 @@ class TestResolveReviewThread:
 
 class TestMain:
     def test_not_authenticated_exits_4(self):
-        with patch(
-            "resolve_pr_review_thread.assert_gh_authenticated",
+        with patch.object(
+            _mod, "assert_gh_authenticated",
             side_effect=SystemExit(4),
         ):
             with pytest.raises(SystemExit) as exc:
@@ -116,15 +116,15 @@ class TestMain:
     def test_single_thread_success(self):
         unresolved_state = {"id": "PRRT_abc", "isResolved": False}
         with (
-            patch(
-                "resolve_pr_review_thread.assert_gh_authenticated",
+            patch.object(
+                _mod, "assert_gh_authenticated",
             ),
-            patch(
-                "resolve_pr_review_thread.query_thread_state",
+            patch.object(
+                _mod, "query_thread_state",
                 return_value=unresolved_state,
             ),
-            patch(
-                "resolve_pr_review_thread.resolve_review_thread",
+            patch.object(
+                _mod, "resolve_review_thread",
                 return_value=True,
             ),
         ):
@@ -134,15 +134,15 @@ class TestMain:
     def test_single_thread_failure(self, capsys):
         unresolved_state = {"id": "PRRT_abc", "isResolved": False}
         with (
-            patch(
-                "resolve_pr_review_thread.assert_gh_authenticated",
+            patch.object(
+                _mod, "assert_gh_authenticated",
             ),
-            patch(
-                "resolve_pr_review_thread.query_thread_state",
+            patch.object(
+                _mod, "query_thread_state",
                 return_value=unresolved_state,
             ),
-            patch(
-                "resolve_pr_review_thread.resolve_review_thread",
+            patch.object(
+                _mod, "resolve_review_thread",
                 return_value=False,
             ),
         ):
@@ -155,11 +155,11 @@ class TestMain:
 
     def test_all_threads_already_resolved(self, capsys):
         with (
-            patch(
-                "resolve_pr_review_thread.assert_gh_authenticated",
+            patch.object(
+                _mod, "assert_gh_authenticated",
             ),
-            patch(
-                "resolve_pr_review_thread.get_unresolved_threads",
+            patch.object(
+                _mod, "get_unresolved_threads",
                 return_value=[],
             ),
         ):
@@ -171,11 +171,11 @@ class TestMain:
 
     def test_all_threads_api_error(self):
         with (
-            patch(
-                "resolve_pr_review_thread.assert_gh_authenticated",
+            patch.object(
+                _mod, "assert_gh_authenticated",
             ),
-            patch(
-                "resolve_pr_review_thread.get_unresolved_threads",
+            patch.object(
+                _mod, "get_unresolved_threads",
                 side_effect=RuntimeError("API fail"),
             ),
         ):
@@ -204,23 +204,23 @@ class TestMain:
             },
         ]
         with (
-            patch(
-                "resolve_pr_review_thread.assert_gh_authenticated",
+            patch.object(
+                _mod, "assert_gh_authenticated",
             ),
-            patch(
-                "resolve_pr_review_thread.get_unresolved_threads",
+            patch.object(
+                _mod, "get_unresolved_threads",
                 return_value=threads,
             ),
-            patch(
-                "resolve_pr_review_thread.query_thread_state",
+            patch.object(
+                _mod, "query_thread_state",
                 side_effect=lambda thread_id: {
                     "id": thread_id,
                     "isResolved": False,
                     "pullRequest": {"number": 10},
                 },
             ),
-            patch(
-                "resolve_pr_review_thread.resolve_review_thread",
+            patch.object(
+                _mod, "resolve_review_thread",
                 return_value=True,
             ),
         ):
@@ -249,23 +249,23 @@ class TestMain:
             },
         ]
         with (
-            patch(
-                "resolve_pr_review_thread.assert_gh_authenticated",
+            patch.object(
+                _mod, "assert_gh_authenticated",
             ),
-            patch(
-                "resolve_pr_review_thread.get_unresolved_threads",
+            patch.object(
+                _mod, "get_unresolved_threads",
                 return_value=threads,
             ),
-            patch(
-                "resolve_pr_review_thread.query_thread_state",
+            patch.object(
+                _mod, "query_thread_state",
                 side_effect=lambda thread_id: {
                     "id": thread_id,
                     "isResolved": False,
                     "pullRequest": {"number": 10},
                 },
             ),
-            patch(
-                "resolve_pr_review_thread.resolve_review_thread",
+            patch.object(
+                _mod, "resolve_review_thread",
                 side_effect=[True, False],
             ),
         ):
@@ -285,23 +285,23 @@ class TestMain:
             },
         ]
         with (
-            patch(
-                "resolve_pr_review_thread.assert_gh_authenticated",
+            patch.object(
+                _mod, "assert_gh_authenticated",
             ),
-            patch(
-                "resolve_pr_review_thread.get_unresolved_threads",
+            patch.object(
+                _mod, "get_unresolved_threads",
                 return_value=threads,
             ),
-            patch(
-                "resolve_pr_review_thread.query_thread_state",
+            patch.object(
+                _mod, "query_thread_state",
                 return_value={
                     "id": "PRRT_1",
                     "isResolved": False,
                     "pullRequest": {"number": 10},
                 },
             ),
-            patch(
-                "resolve_pr_review_thread.resolve_review_thread",
+            patch.object(
+                _mod, "resolve_review_thread",
                 return_value=True,
             ),
         ):
@@ -335,8 +335,8 @@ class TestGetUnresolvedThreads:
                 "subprocess.run",
                 return_value=_completed(stdout=repo_json, rc=0),
             ),
-            patch(
-                "resolve_pr_review_thread.gh_graphql",
+            patch.object(
+                _mod, "gh_graphql",
                 return_value=graphql_data,
             ),
         ):
@@ -368,8 +368,8 @@ class TestGetUnresolvedThreads:
                 "subprocess.run",
                 return_value=_completed(stdout=repo_json, rc=0),
             ),
-            patch(
-                "resolve_pr_review_thread.gh_graphql",
+            patch.object(
+                _mod, "gh_graphql",
                 return_value=graphql_data,
             ),
         ):
@@ -394,8 +394,8 @@ class TestGetUnresolvedThreads:
                 "subprocess.run",
                 return_value=_completed(stdout=repo_json, rc=0),
             ),
-            patch(
-                "resolve_pr_review_thread.gh_graphql",
+            patch.object(
+                _mod, "gh_graphql",
                 return_value=graphql_data,
             ),
         ):
@@ -411,24 +411,24 @@ class TestGetUnresolvedThreads:
 class TestQueryThreadState:
     def test_returns_thread_dict_when_found(self):
         node = {"id": "PRRT_abc", "isResolved": False, "pullRequest": {"number": 1}}
-        with patch(
-            "resolve_pr_review_thread.gh_graphql",
+        with patch.object(
+            _mod, "gh_graphql",
             return_value={"node": node},
         ):
             result = query_thread_state("PRRT_abc")
         assert result == node
 
     def test_returns_none_when_not_found(self):
-        with patch(
-            "resolve_pr_review_thread.gh_graphql",
+        with patch.object(
+            _mod, "gh_graphql",
             return_value={"node": None},
         ):
             result = query_thread_state("PRRT_missing")
         assert result is None
 
     def test_propagates_api_error(self):
-        with patch(
-            "resolve_pr_review_thread.gh_graphql",
+        with patch.object(
+            _mod, "gh_graphql",
             side_effect=RuntimeError("network error"),
         ):
             with pytest.raises(RuntimeError, match="network error"):

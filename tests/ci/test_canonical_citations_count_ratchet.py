@@ -126,6 +126,22 @@ class TestCurrentCount:
         monkeypatch.setattr(subprocess, "run", _fake_git(rels))
         assert ratchet.current_count(tmp_path) == len(checker.collect_violations(tmp_path)) == 2
 
+    def test_import_ownership_is_judged_against_the_scanned_root(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A package owned by the scanned tree is evidence, as the checker rules."""
+        (tmp_path / "canonpkg").mkdir()
+        (tmp_path / "canonpkg" / "__init__.py").write_text("CANON = 1\n", encoding="utf-8")
+        rels = (
+            _put(
+                tmp_path,
+                "scripts/validation/m.py",
+                '"""Mirrors the CANON contract by importing it."""\nfrom canonpkg import CANON\n',
+            ),
+        )
+        monkeypatch.setattr(subprocess, "run", _fake_git(rels))
+        assert ratchet.current_count(tmp_path) == len(checker.collect_violations(tmp_path)) == 0
+
 
 class TestShippedBaseline:
     def test_the_shipped_baseline_matches_the_tracked_tree(self) -> None:

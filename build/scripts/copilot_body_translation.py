@@ -42,8 +42,8 @@ byte-parity tests in `tests/commands/test_spec_step0.py`; that indirection is
 gone. Those parity tests now apply this same translation to the source block
 before comparing, so the mirror is a pure in-place translation of the source
 with no appended section. Transform 3 runs over the whole body, fenced code
-included, because three skills (security-detection, slashcommandcreator,
-cva-analysis) carry their only calls inside fenced example blocks.
+included, because two skills (security-detection, cva-analysis) carry
+their only calls inside fenced example blocks.
 """
 
 from __future__ import annotations

@@ -1,7 +1,11 @@
 # Copilot CLI Setup for GitHub Actions
 
-This guide explains how to configure GitHub Copilot CLI authentication for use
-in GitHub Actions workflows.
+This guide explains how to configure GitHub Copilot CLI authentication for the
+Copilot legs of the CLI smoke (`.github/workflows/plugin-cli-smoke.yml`).
+
+The `ai-review` action no longer calls Copilot. It reviews with Claude and reads
+`ANTHROPIC_API_KEY` in the `agent-claude` environment (REQ-047, issue #6069).
+The Copilot token is read only by the Copilot smoke legs, in `agent-copilot`.
 
 ## Prerequisites
 
@@ -35,31 +39,22 @@ Without the correct token, Copilot CLI exits with code 1 and produces no output.
 
 ### Step 2: Add Repository Secret
 
-1. Go to your repository → **Settings** → **Secrets and variables** → **Actions**
-2. Click **New repository secret**
+1. Go to your repository → **Settings** → **Environments** → `agent-copilot`
+2. Under **Environment secrets**, click **Add environment secret**
 3. Name: `COPILOT_GITHUB_TOKEN`
 4. Value: Paste the token from Step 1
 5. Click **Add secret**
 
 ### Step 3: Verify Workflow Configuration
 
-Any workflow that invokes the AI review action should have:
+Only the Copilot smoke steps read the token, and the job declares the
+`agent-copilot` environment:
 
 ```yaml
+environment: agent-${{ matrix.cli }}
+...
 env:
-  # GitHub CLI authentication (for gh commands)
-  GH_TOKEN: ${{ secrets.BOT_PAT }}
-  # Copilot CLI authentication (requires fine-grained PAT with "Copilot Requests")
   COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
-```
-
-And action invocations should include:
-
-```yaml
-- uses: ./.github/actions/ai-review
-  with:
-    bot-pat: ${{ secrets.BOT_PAT }}
-    copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
 ```
 
 ## Token Precedence
@@ -76,45 +71,18 @@ Using `COPILOT_GITHUB_TOKEN` avoids conflicts with other GitHub tooling.
 
 ## Troubleshooting
 
-### Symptom: CLI exits with code 1, no output
-
-**Diagnostics will show:**
-
-```text
-=== DIAGNOSTIC SUMMARY ===
-Health Status: failed
-Auth Status: authenticated as <user>
-
-=== FAILURE ANALYSIS ===
-The Copilot CLI produced no output (stdout or stderr).
-This typically indicates:
-- The GitHub account does not have Copilot access enabled
-- The PAT token lacks Copilot permissions
-```
-
-**Solutions:**
-
-1. **Check Copilot subscription**: The account owning the PAT must have an
-   active Copilot subscription
-2. **Verify token type**: Must be a **fine-grained PAT**, not classic PAT
-3. **Check permission**: Token must have **"Copilot Requests: Read"** permission
-4. **Regenerate if needed**: Create a new token following the steps above
-
-### Symptom: Authentication works but review fails
+### Symptom: a Copilot smoke leg fails or reports no tests ran
 
 Check that:
 
-- The Copilot subscription is active (not expired)
+- The account owning the PAT has an active Copilot subscription
+- The token is a **fine-grained PAT** with **"Copilot Requests: Read"**
+- The `agent-copilot` environment approval was granted
 - Organization policies allow Copilot CLI access
-- Rate limits haven't been exceeded
+- Rate limits and the monthly quota have not been exceeded
 
-### Viewing Diagnostics
-
-The AI review action outputs detailed diagnostics:
-
-- **copilot-health**: `healthy`, `degraded`, or `failed`
-- **copilot-diagnostic**: Full health check results
-- **auth-status**: Authentication details with token scopes
+`scripts/validation/assert_smoke_ran.py` fails the leg when the smoke was
+skipped, so a missing token surfaces as a red run.
 
 ## Security Considerations
 

@@ -103,10 +103,10 @@ class TestBudgetExhaustionMessage:
     ) -> tuple[int, str]:
         """Run run_pytest over len(returncodes) commands on the REAL clock."""
         # The multi-command suite budget these tests are about only exists on
-        # the executing path. Since ADR-104 the default path builds a single
-        # collection command through `_full_suite_stand_in`, which bypasses the
-        # `_pytest_commands` patch below entirely, so opt in explicitly rather
-        # than patching a function the code under test no longer reaches.
+        # the full-suite path. The default path builds testmon commands through
+        # `_testmon_commands`, which bypasses the `_pytest_commands` patch below,
+        # so opt in explicitly rather than patching a function the code under
+        # test does not reach.
         monkeypatch.setenv(policy.PYTEST_FULL_SUITE_LOCALLY_ENV, "1")
         commands = [
             ["uv", "run", "python", "-m", "pytest", f"slice{i}"] for i in range(len(returncodes))
@@ -372,7 +372,39 @@ class TestPushFilesGuard:
         )
 
         assert rc == 2
-        assert "requires either copilot or claude" in capsys.readouterr().err
+        err = capsys.readouterr().err
+        assert "requires claude or codex on PATH" in err
+        assert "npm install -g @anthropic-ai/claude-code @openai/codex" in err
+        assert "@github/copilot" not in err
+
+    def test_hook_entrypoint_fails_closed_with_only_codex_installed(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """The hook smoke has no Codex case, so Codex alone must not pass it vacuously."""
+        changed = ".claude/hooks/example.py"
+        monkeypatch.setattr(
+            "scripts.validation.git_hook_policy._branch_delta_files",
+            lambda root, base="origin/main": {changed},
+        )
+        monkeypatch.setattr(
+            "shutil.which", lambda name: "/usr/bin/codex" if name == "codex" else None
+        )
+
+        rc = policy.main(
+            [
+                "--repo-root",
+                str(tmp_path),
+                "cli-hook-e2e",
+                "--files",
+                changed,
+            ]
+        )
+
+        assert rc == 2
+        assert "requires claude on PATH" in capsys.readouterr().err
 
     def test_cli_plugin_e2e_subcommand_accepts_files_arg(self) -> None:
         """The cli-plugin-e2e subcommand accepts --files."""

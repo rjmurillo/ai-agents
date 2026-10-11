@@ -208,6 +208,22 @@ class TestRun:
         assert HEAD not in argv
         assert kwargs["timeout"] == ex.HARNESS_TIMEOUT_SECONDS
 
+    def test_the_harness_dist_mode_is_the_shared_constant(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(ex, "PYTEST_DIST_MODE", "worksteal")
+
+        argv = ex.harness_argv(tmp_path)
+
+        assert argv[argv.index("--dist") + 1] == "worksteal"
+
+    def test_the_harness_dist_mode_matches_the_ci_partition_runner(self, tmp_path: Path) -> None:
+        from scripts.ci.run_pytest_partition import PYTEST_DIST_MODE
+
+        argv = ex.harness_argv(tmp_path)
+
+        assert argv[argv.index("--dist") + 1] == PYTEST_DIST_MODE
+
     def test_the_pytest_config_is_the_base_copy_not_the_candidates(self, tmp_path: Path) -> None:
         runner = FakeRunner()
 

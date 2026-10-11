@@ -1,0 +1,17 @@
+# AI Agents
+
+> AI Agents is an open-source, MIT licensed multi-agent toolkit for software development with Claude Code, GitHub Copilot CLI, and VS Code Copilot Chat. An orchestrator routes work across 30 specialist agents (analyst, architect, implementer, critic, QA, security, DevOps, and others) to plan, build, review, and ship code with explicit handoffs and quality gates.
+
+Install in Claude Code with `/install-plugin rjmurillo/ai-agents`. Install in GitHub Copilot CLI with `/plugin marketplace add rjmurillo/ai-agents`, then `/plugin install project-toolkit@ai-agents`. The lifecycle skills (`spec`, `plan`, `build`, `test`, `review`, `ship`) ship in both bundles. Claude Code runs them as slash commands. Gemini CLI and Codex CLI are not documented platforms.
+
+## Docs
+
+- [README](https://raw.githubusercontent.com/rjmurillo/ai-agents/main/README.md): Overview, install commands, agent catalog, and architecture
+- [Getting started](https://raw.githubusercontent.com/rjmurillo/ai-agents/main/docs/getting-started.md): Step-by-step setup guide
+- [Installation](https://raw.githubusercontent.com/rjmurillo/ai-agents/main/docs/installation.md): Every install method, per platform, with troubleshooting
+- [Agent catalog](https://raw.githubusercontent.com/rjmurillo/ai-agents/main/docs/agent-catalog.md): Every agent with its role and description
+- [FAQ](https://raw.githubusercontent.com/rjmurillo/ai-agents/main/docs/faq.md): Short answers on install, platforms, agent count, review gates, and requirements
+
+## Optional
+
+- [When to use the lifecycle commands](https://raw.githubusercontent.com/rjmurillo/ai-agents/main/docs/when-to-use.md): Which lifecycle phases fit which task shapes

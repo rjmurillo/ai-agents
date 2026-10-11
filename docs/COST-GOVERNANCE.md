@@ -117,8 +117,8 @@ Set up GitHub billing alerts at:
 
 | Workflow | Est. Monthly Cost | Optimization Status |
 |----------|------------------|---------------------|
-| ai-spec-validation | $8-12 | ✅ ARM, concurrency, path filter |
-| copilot-context-synthesis | $8-12 | ✅ ARM, concurrency |
+| ai-spec-validation | $8-12 | ✅ ARM, concurrency (no path filter; the job decides its own scope) |
+| copilot-context-synthesis | $8-12 | ✅ ARM, concurrency, approval-gated |
 | validate-generated-agents | $5-10 | ⚠️ Windows (no ARM), concurrency, path filter |
 | drift-detection | $3-5 | ✅ ARM, concurrency, path filter |
 
@@ -169,7 +169,35 @@ If monthly costs exceed $100:
 
 - pester-tests (blocks merge)
 - validate-generated-agents (blocks merge)
-- ai-spec-validation (blocks merge)
+
+### Agent Workflows (Approval-Gated, Advisory Except plugin-cli-smoke)
+
+These eleven workflows run a model or an agent. Each model job declares the environment of its provider and runs after a reviewer approves it (ADR-114). Checks from workflows listed as advisory never block merge unless the branch ruleset requires them (ADR-114 Decisions 5 and 7).
+
+| Environment | Provider | Secrets |
+|-------------|----------|---------|
+| `agent-claude` | Claude | `ANTHROPIC_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN` |
+| `agent-copilot` | Copilot | `COPILOT_GITHUB_TOKEN` |
+| `agent-codex` | Codex | `OPENAI_API_KEY` |
+| `agent-droid` | Droid | `FACTORY_API_KEY` |
+
+All four require a reviewer. `agent-approval` is deleted (ADR-114 Decision 11 item 6).
+
+- ai-spec-validation
+- slash-command-quality
+- post-pr-retrospective
+- software-engineering-library-activation
+- ai-metrics-analysis
+- pr-maintenance
+- artifact-insight-scanner
+- skill-overlap-eval
+- plugin-cli-smoke
+- copilot-context-synthesis
+- claude
+
+ai-metrics-analysis, pr-maintenance, and artifact-insight-scanner review with Claude in `agent-claude`. No workflow outside plugin-cli-smoke reads `COPILOT_GITHUB_TOKEN`.
+
+plugin-cli-smoke runs on pull requests, only when a change touches a smoke path (`scripts/validation/cli_smoke_paths.py`). It runs one matrix leg per CLI. A Claude or Copilot leg runs in `agent-claude` or `agent-copilot` and receives only that provider's credential. The Codex legs read no credential and run in no environment. plugin-cli-smoke is the one blocking gated workflow (REQ-047, owner decision D2); the other gated pull-request workflows stay advisory.
 
 ## Best Practices
 

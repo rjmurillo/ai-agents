@@ -226,3 +226,8 @@ class TestBuildParser:
     def test_missing_required_args_raises(self) -> None:
         with pytest.raises(SystemExit):
             build_parser().parse_args([])
+
+    def test_help_exits_zero(self) -> None:
+        with pytest.raises(SystemExit) as exc:
+            build_parser().parse_args(["--help"])
+        assert exc.value.code == 0

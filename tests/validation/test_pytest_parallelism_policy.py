@@ -104,11 +104,11 @@ def test_workflow_local_avoids_duplicate_pytest_runtime(
 # --- The bulk partition is the only parallel one -------------------------------
 
 
-def test_bulk_partition_runs_every_cpu_over_whole_files(tmp_path: Path) -> None:
+def test_bulk_partition_runs_every_cpu_with_work_stealing(tmp_path: Path) -> None:
     bulk, _mutation, _safe_push, _pr_autofix = _pytest_commands_by_partition(tmp_path)
 
     assert _flag_value(bulk, _WORKER_FLAGS) == "auto"
-    assert _flag_value(bulk, _DIST_FLAGS) == policy.PYTEST_DIST_MODE == "loadfile"
+    assert _flag_value(bulk, _DIST_FLAGS) == policy.PYTEST_DIST_MODE == "worksteal"
     assert bulk[:3] == [sys.executable, "-m", "pytest"]
     assert str(tmp_path / "tests") in bulk
 
@@ -134,7 +134,7 @@ def test_process_sensitive_partitions_stay_serial(tmp_path: Path) -> None:
     _bulk, mutation, safe_push, pr_autofix = _pytest_commands_by_partition(tmp_path)
 
     assert _flag_value(mutation, _WORKER_FLAGS) == "auto"
-    assert _flag_value(mutation, _DIST_FLAGS) == "loadfile"
+    assert _flag_value(mutation, _DIST_FLAGS) == "worksteal"
     assert str(tmp_path / "tests" / "mutation") in mutation
     assert _flag_value(safe_push, _WORKER_FLAGS) is None
     assert _flag_value(safe_push, _DIST_FLAGS) is None

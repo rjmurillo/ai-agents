@@ -60,6 +60,7 @@
 /scripts/validation/                      @rjmurillo
 /scripts/ci/                              @rjmurillo
 /scripts/workflows/                       @rjmurillo
+/scripts/testing/                         @rjmurillo
 /build/scripts/                           @rjmurillo
 /lefthook.yml                             @rjmurillo
 /.github/CODEOWNERS                       @rjmurillo

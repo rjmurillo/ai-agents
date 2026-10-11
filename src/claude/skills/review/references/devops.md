@@ -185,7 +185,7 @@ Review changes to `.github/PULL_REQUEST_TEMPLATE.md` and `.github/ISSUE_TEMPLATE
 Look for opportunities to improve developer experience:
 
 - Are there repeated manual steps that could be automated?
-- Could workflow patterns be extracted to `.claude/commands/` for reuse?
+- Could workflow patterns be extracted into a skill under `.claude/skills/` for reuse?
 - Are there complex procedures that should be documented as skills?
 - Is there duplication between workflows that could be consolidated?
 - Could AI agent prompts be improved based on workflow patterns?

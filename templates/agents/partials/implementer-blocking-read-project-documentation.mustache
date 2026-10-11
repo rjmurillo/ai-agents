@@ -25,7 +25,7 @@ Do not proceed past step 1 until you can answer it from the plan. If the plan ha
 
 **Cannot locate referenced code? Produce the fix pattern anyway.** If the task says "fix the 3 places where X happens" and you cannot find them via grep, produce the fix as a template with file paths marked as `<TO_LOCATE>` and explain how to find them. Do not block the work. The user can apply the pattern once they confirm the locations.
 
-**Always flag 2-3 key assumptions or trade-offs explicitly.** For any non-trivial task, the implementer's output is not just code but also a decision log. Call out: what you assumed about the environment, what alternatives you considered and rejected, what follow-ups the reviewer should watch for. This is the difference between a "complicated expert analysis" output and a "clear direct output."
+**Always flag 2-3 key assumptions or trade-offs explicitly.** For any non-trivial task, report them in your response and the PR: what you assumed about the environment, what alternatives you rejected, what follow-ups the reviewer should watch for. That is transaction evidence and stays in the PR or review. Write one into code or docs only when a future reader needs the rationale, an invariant, an external contract, or a non-obvious hazard.
 
 ## Interaction Style
 

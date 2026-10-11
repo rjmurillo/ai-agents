@@ -46,8 +46,8 @@ This document describes the unified memory management workflow across two memory
 
 ```markdown
 ### Phase 1: Serena Initialization (BLOCKING)
-1. `mcp__serena__activate_project`
-2. `mcp__serena__initial_instructions`
+1. `mcp__serena__initial_instructions` (Serena starts active via `.mcp.json --project`)
+2. `mcp__serena__activate_project` only when a Serena tool reports no active project
 
 ### Phase 2: Context Retrieval (BLOCKING)
 1. Read the current per-issue handoff under `.project-toolkit/sessions/handoffs/`, when one exists

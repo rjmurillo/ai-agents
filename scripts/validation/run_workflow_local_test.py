@@ -916,7 +916,7 @@ def _local_pytest_commands(
                 "run",
                 "--frozen",
                 "python",
-                "scripts/ci/run_pytest_selected.py",
+                "scripts/ci/run_pytest_partition.py",
                 "--partition",
                 partition,
                 "--cov",

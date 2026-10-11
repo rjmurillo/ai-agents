@@ -118,14 +118,21 @@ def _get_current_milestone(owner: str, repo: str, issue: int) -> str | None:
 
 
 def _get_milestone_titles(owner: str, repo: str) -> list[str]:
-    """Get all milestone titles from the repository.
+    """Get every open milestone title from the repository.
+
+    ``--paginate`` reads every page; the REST default is 30 per page, so a
+    later-page milestone used to read as missing (issue #6179). Closed
+    milestones stay excluded, as the REST default ``state=open`` sets.
 
     Raises _MilestoneQueryError when the gh query itself fails so a transient
     API failure is never mistaken for "milestone does not exist" (fail-closed).
     """
     try:
         result = subprocess.run(
-            ["gh", "api", f"repos/{owner}/{repo}/milestones", "--jq", ".[].title"],
+            [
+                "gh", "api", f"repos/{owner}/{repo}/milestones",
+                "--paginate", "--jq", ".[].title",
+            ],
             capture_output=True,
             encoding="utf-8",
             errors="replace",

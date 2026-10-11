@@ -19,12 +19,12 @@ from typing import Any
 
 import yaml
 
-from scripts.test_selection import path_policy
+from scripts.ci import path_policy
 
 _WORKFLOW = Path(__file__).resolve().parents[2] / ".github" / "workflows" / "pytest.yml"
 _JOB_NAME = "test-windows-pwsh"
 _PATHS_FILTER_ACTION = "dorny/paths-filter@"
-_POLICY_FILE_INPUT = "scripts/test_selection/path_policy.yml"
+_POLICY_FILE_INPUT = "scripts/ci/path_policy.yml"
 _WINDOWS_COMMAND = "uv run --frozen python scripts/ci/run_pytest_windows.py -v"
 _LEFTHOOK_TRIGGER_PATHS = {
     "lefthook.yml",

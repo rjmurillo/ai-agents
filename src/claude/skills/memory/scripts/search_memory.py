@@ -87,7 +87,11 @@ def estimate_tokens(file_path: Path) -> int:
 def search_serena(
     query: str, memory_path: Path, max_results: int,
 ) -> list[dict[str, Any]]:
-    """Search Serena memories by keyword matching on filenames and content."""
+    """Search Serena memories by keyword matching on memory names.
+
+    A name is the path relative to ``memory_path``, without ``.md``. Content
+    is read only for the result preview and is never matched.
+    """
     if not memory_path.is_dir():
         return []
 

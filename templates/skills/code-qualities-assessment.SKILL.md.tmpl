@@ -129,7 +129,7 @@ python3 scripts/assess.py --target <path> [options]
 | Parameter | Required | Default | Description |
 |-----------|----------|---------|-------------|
 | `--target` | Yes | - | File, directory, or glob pattern |
-| `--context` | No | production | production, test, or generated |
+| `--context` | No | per-file category | Force production, test, or generated thresholds for every file. Omitted: authored files use production, test files use test, generated files use generated |
 | `--changed-only` | No | false | Only assess changed files (git diff) |
 | `--base` | No | - | Base revision for `--changed-only`, such as origin/main |
 | `--gate-mode` | No | auto | auto, regression, or absolute (see Gate Modes) |
@@ -237,7 +237,7 @@ Create `.qualityrc.json` to customize thresholds:
 | Running on entire codebase every commit | Slow, noisy | Use --changed-only in CI |
 | Using scores for performance reviews | Gaming the system | Focus on trend improvement |
 | Blocking merges on absolute scores | Discourages refactoring old code | Run `--gate-mode regression` with `--changed-only --base` |
-| Ignoring context (test vs production) | False positives | Use --context flag |
+| Forcing `--context production` on test files | False positives | Omit `--context`; each file uses its own category |
 | Not configuring thresholds | One-size-fits-all does not fit | Customize .qualityrc.json |
 
 ---

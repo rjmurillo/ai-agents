@@ -279,7 +279,7 @@ most: the filter glob equals the validator's file-type or directory domain
 `skillbook-validation.yml`, `slash-command-quality.yml`,
 `skill-passive-compliance.yml`, `hook-contract-check.yml`,
 `validate-rule-activation-coverage.yml`, `validate-plugin-version-bump.yml`,
-`passive-context-budget.yml`, `cli-smoke.yml`, `vendor-provenance.yml`), or the
+`passive-context-budget.yml`, `cli-smoke.yml`), or the
 check is inherently PR-scoped and asks a question about this diff
 (`ai-spec-validation.yml`, `investigation-claim-backstop.yml`,
 `synthesis-panel-gate.yml`, `test-codeql-integration.yml`).

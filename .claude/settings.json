@@ -65,7 +65,8 @@
             "Bash(gh api *--method DELETE*)",
             "Bash(gh api *--method=DELETE*)",
             "Bash(gh api *branches/*/protection*)",
-            "Bash(gh api *collaborators*)"
+            "Bash(gh api *collaborators*)",
+            "Bash(gh api *pending_deployments*)"
         ]
     },
     "hooks": {

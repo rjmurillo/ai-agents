@@ -258,10 +258,17 @@ def test_main_success(monkeypatch):
     )
     monkeypatch.setenv("AI_FINDINGS", findings)
 
-    clean_git = MagicMock(return_value=subprocess.CompletedProcess([], 0, "", ""))
+    # git lists f.py as conflicted before the resolution and nothing after it.
+    listings = iter(["f.py\n"])
+
+    def git_side_effect(args):
+        if args[:3] == ["diff", "--name-only", "--diff-filter=U"]:
+            return subprocess.CompletedProcess(args, 0, next(listings, ""), "")
+        return subprocess.CompletedProcess(args, 0, "", "")
+
     push_mock = MagicMock(return_value=subprocess.CompletedProcess([], 0, "", ""))
 
-    with patch.object(aacr, "_git", clean_git):
+    with patch.object(aacr, "_git", git_side_effect):
         with patch("scripts.ci.apply_ai_conflict_resolution.subprocess.run", push_mock):
             rc = aacr.main()
 

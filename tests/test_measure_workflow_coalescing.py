@@ -579,9 +579,10 @@ class TestDefaultWorkflows:
         assert "ai-pr-quality-gate" not in DEFAULT_WORKFLOWS
         assert "ai-spec-validation" in DEFAULT_WORKFLOWS
         assert "codeql-analysis" in DEFAULT_WORKFLOWS
+        assert "Claude Code Assistant" in DEFAULT_WORKFLOWS
 
     def test_default_workflows_count(self):
-        assert len(DEFAULT_WORKFLOWS) == 6
+        assert len(DEFAULT_WORKFLOWS) == 7
 
 
 # ---------------------------------------------------------------------------

@@ -42,6 +42,9 @@ logger = logging.getLogger(__name__)
 
 SUBPROCESS_TIMEOUT_SECONDS = 60
 PSSCRIPTANALYZER_INSTALL_TIMEOUT_SECONDS = 300
+# Exact PSScriptAnalyzer release the hook detects, installs, and imports.
+# A floating install lets rule sets change between contributors' machines.
+PSSCRIPTANALYZER_VERSION = "1.25.0"
 CODEQL_API_TIMEOUT_SECONDS = 30
 _POWERSHELL_EXTENSIONS = (".ps1", ".psm1", ".psd1")
 
@@ -401,8 +404,11 @@ class PreCommitSecurityCheck:
             # Step 3: Ensure PSScriptAnalyzer is available
             if not self._ensure_psscriptanalyzer():
                 logger.error(
-                    "[FAIL] PSScriptAnalyzer not available. Install with:\n"
-                    "  Install-Module -Name PSScriptAnalyzer -Force -Scope CurrentUser"
+                    "[FAIL] PSScriptAnalyzer %s not available. Install with:\n"
+                    "  Install-Module -Name PSScriptAnalyzer -RequiredVersion %s "
+                    "-Force -Scope CurrentUser",
+                    PSSCRIPTANALYZER_VERSION,
+                    PSSCRIPTANALYZER_VERSION,
                 )
                 return 1
 
@@ -517,14 +523,16 @@ class PreCommitSecurityCheck:
         return critical_files
 
     def _ensure_psscriptanalyzer(self) -> bool:
-        """Ensure PSScriptAnalyzer is installed."""
+        """Ensure the pinned PSScriptAnalyzer version is installed."""
         try:
             result = subprocess.run(
                 [
                     "pwsh",
                     "-NoProfile",
                     "-Command",
-                    "Get-Module -ListAvailable PSScriptAnalyzer | Select-Object -First 1",
+                    "if (Get-Module -ListAvailable -Name PSScriptAnalyzer | "
+                    f"Where-Object Version -eq '{PSSCRIPTANALYZER_VERSION}') "
+                    "{ exit 0 }; exit 1",
                 ],
                 capture_output=True,
                 encoding="utf-8",
@@ -533,17 +541,19 @@ class PreCommitSecurityCheck:
                 timeout=SUBPROCESS_TIMEOUT_SECONDS,
             )
 
-            if "PSScriptAnalyzer" in result.stdout:
+            if result.returncode == 0:
                 return True
 
-            # Try to install
-            logger.info("Installing PSScriptAnalyzer...")
+            logger.info("Installing PSScriptAnalyzer %s...", PSSCRIPTANALYZER_VERSION)
             install_result = subprocess.run(
                 [
                     "pwsh",
                     "-NoProfile",
                     "-Command",
-                    "Install-Module -Name PSScriptAnalyzer -Force -Scope CurrentUser -AllowClobber",
+                    # Without -ErrorAction Stop, a failed install still exits 0.
+                    "Install-Module -Name PSScriptAnalyzer "
+                    f"-RequiredVersion {PSSCRIPTANALYZER_VERSION} "
+                    "-Force -Scope CurrentUser -AllowClobber -ErrorAction Stop",
                 ],
                 capture_output=True,
                 encoding="utf-8",
@@ -581,12 +591,17 @@ class PreCommitSecurityCheck:
                         failed_files.append(str(file_path))
                         continue
 
-                    analyzer_path = Path(temp_dir) / f"{index}{extension}"
-                    analyzer_path.write_bytes(staged_content)
-                    literal_path = _powershell_single_quoted_literal(str(analyzer_path))
+                    # PSScriptAnalyzer 1.25.0 has no -LiteralPath, and -Path expands
+                    # wildcards. Run from the temp directory with a generated bare
+                    # file name so no wildcard character from the directory reaches -Path.
+                    analyzer_name = f"{index}{extension}"
+                    (Path(temp_dir) / analyzer_name).write_bytes(staged_content)
+                    literal_path = _powershell_single_quoted_literal(analyzer_name)
                     analyzer_command = (
                         "$ErrorActionPreference = 'Stop'\n"
-                        f"$findings = Invoke-ScriptAnalyzer -LiteralPath {literal_path} "
+                        "Import-Module PSScriptAnalyzer "
+                        f"-RequiredVersion {PSSCRIPTANALYZER_VERSION} -ErrorAction Stop\n"
+                        f"$findings = Invoke-ScriptAnalyzer -Path {literal_path} "
                         "-Severity Error,Warning -ErrorAction Stop\n"
                         "$findings | ConvertTo-Json -Depth 3"
                     )
@@ -602,6 +617,7 @@ class PreCommitSecurityCheck:
                         errors="replace",
                         check=False,
                         timeout=SUBPROCESS_TIMEOUT_SECONDS,
+                        cwd=temp_dir,
                     )
 
                     if result.returncode != 0 or result.stderr.strip():

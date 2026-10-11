@@ -2,20 +2,10 @@
 """Validate spec frontmatter against the canonical spec schema enums.
 
 Canonical source: ``.agents/governance/spec-schemas.md`` (S-003 requirement,
-S-004 design, S-005 task). This validator mirrors that document's enum
-contracts verbatim. The enum sets below are copied character-for-character
-from the schema's "Field Definitions" tables; keep them in sync if the schema
-changes (canonical-source-mirror rule).
-
-Verbatim contract from spec-schemas.md:
-
-    requirement.status : draft | review | approved | implemented | rejected
-    design.status      : draft | review | approved | implemented | rejected
-    task.status        : todo | in-progress | blocked | done | cancelled
-    priority (all)     : P0 | P1 | P2
-    requirement.category : functional | non-functional | constraint
-    task.complexity      : XS | S | M | L | XL
-    id patterns        : REQ-\\d{3} | DESIGN-\\d{3} | TASK-\\d{3}
+S-004 design, S-005 task). The enum sets and id patterns below conform to that
+schema. ``tests/skills/spec-generator/test_validate_spec_frontmatter_conformance.py``
+reads the schema and fails when any constant differs, so this file carries no
+copy of the schema's tables.
 
 Stricter/looser/different than canonical: this validator checks frontmatter
 enum membership, required-field presence, and id pattern only. It does NOT
@@ -37,7 +27,7 @@ import re
 import sys
 from dataclasses import dataclass, field
 
-# --- Verbatim enum contracts from .agents/governance/spec-schemas.md ---------
+# --- Enum contracts, checked against .agents/governance/spec-schemas.md -------
 
 _STATUS_BY_TYPE: dict[str, frozenset[str]] = {
     "requirement": frozenset({"draft", "review", "approved", "implemented", "rejected"}),

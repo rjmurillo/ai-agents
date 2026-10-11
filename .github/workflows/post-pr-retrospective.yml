@@ -101,7 +101,7 @@ jobs:
     needs: prepare
     if: needs.prepare.outputs.should_run == 'true'
     runs-on: ubuntu-26.04-arm
-    environment: bot-secrets
+    environment: agent-claude
     timeout-minutes: 30
 
     steps:
@@ -150,7 +150,7 @@ jobs:
       - name: Run retrospective via Claude Code
         id: retro-agent
         continue-on-error: true
-        uses: anthropics/claude-code-action@fd1c128679612beff4ca259c78021c506e8aa7a7 # v1.0.237
+        uses: anthropics/claude-code-action@cab360f6565aa35a51d6ce9e43f1f4287c0a32ea # v1.0.241
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           prompt: ${{ steps.prompt.outputs.PROMPT }}

@@ -207,3 +207,6 @@ evals/*/runs/sweep-*
 # named file there stays tracked. A tool invoked from a subdirectory still
 # produces an unignored `docs/~/...`; that hole is real and is not closed here.
 /~/
+
+# pytest-testmon local state (pre-push impact analysis, issue #6239), plus its SQLite sidecars.
+.testmondata*

@@ -5,7 +5,7 @@ fail only on new violations in changed Python files. These tests pin the
 ratchet contract so a later edit cannot silently restore a repo-wide
 report-only run or drop the gating/skip condition.
 
-Issue #4854: the ruff step now runs only in the bulk matrix partition.
+Issue #4854: the ruff step now runs only in the primary matrix leg.
 """
 
 from __future__ import annotations
@@ -114,12 +114,12 @@ class TestRuffStepIsBlockingRatchet:
 
 
 class TestRuffStepGating:
-    """Edge: the step runs once, in the bulk partition."""
+    """Edge: the step runs once, in the primary leg."""
 
-    def test_ruff_step_runs_only_in_bulk_partition(self) -> None:
+    def test_ruff_step_runs_only_in_the_primary_leg(self) -> None:
         step = _find_ruff_step()
         assert step is not None
-        assert step.get("if") == "matrix.partition == 'bulk'"
+        assert step.get("if") == "matrix.primary"
 
     def test_ruff_step_has_no_untrusted_interpolation(self) -> None:
         """The run command must not interpolate untrusted GitHub event data."""
@@ -128,8 +128,17 @@ class TestRuffStepGating:
         assert "${{" not in step["run"]
 
     def test_ruff_step_gets_base_ref_from_environment(self) -> None:
+        """The base comes from env, chosen per event.
+
+        pull_request uses HEAD^1, the first parent of GitHub's merge commit;
+        pull_request.base.sha can be older and charge newer main lines to the
+        PR. merge_group uses its base_sha so every batched PR is in scope.
+        """
         step = _find_ruff_step()
         assert step is not None
         env = step.get("env")
         assert isinstance(env, dict)
-        assert "github.event.pull_request.base.sha" in env["RUFF_RATCHET_BASE_REF"]
+        base_ref = env["RUFF_RATCHET_BASE_REF"]
+        assert "github.event_name == 'pull_request' && 'HEAD^1'" in base_ref
+        assert "github.event.merge_group.base_sha" in base_ref
+        assert "github.event.pull_request.base.sha" not in base_ref

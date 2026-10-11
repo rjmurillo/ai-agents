@@ -84,6 +84,15 @@ class TestSetIssueMilestone:
             for call in run.call_args_list
         )
 
+    def test_milestone_list_reads_every_page_of_open_milestones(self, _import_module):
+        titles = "".join(f"v0.{i}.0\n" for i in range(31))
+        with patch("subprocess.run", return_value=make_completed_process(stdout=titles)) as run:
+            found = _import_module._get_milestone_titles("o", "r")
+        argv = run.call_args.args[0]
+        assert "--paginate" in argv
+        assert argv[2] == "repos/o/r/milestones"
+        assert (len(found), found[-1]) == (31, "v0.30.0")
+
     def test_already_has_same_milestone(self, _import_module, capsys):
         mod = _import_module
         with (

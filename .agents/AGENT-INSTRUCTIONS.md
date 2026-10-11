@@ -70,7 +70,6 @@ Use the **table format** (not bullet lists) for validation to pass:
 
 | Req | Step | Status | Evidence |
 |-----|------|--------|----------|
-| MUST | Initialize Serena: `mcp__serena__activate_project` | [x] | Tool output present |
 | MUST | Initialize Serena: `mcp__serena__initial_instructions` | [x] | Tool output present |
 | MUST | Read the current per-issue handoff, when one exists | [x] | Content in context |
 | MUST NOT | Create a session log | [x] | Session log creation is discontinued |
