@@ -60,7 +60,7 @@ The fastest method uses the built-in plugin marketplace. Run the commands below 
 
 The Copilot CLI flow also works from a regular shell: `copilot plugin marketplace add rjmurillo/ai-agents` then `copilot plugin install project-toolkit@ai-agents`.
 
-This installs the full toolkit for your platform. Both bundles ship all 30 agents, plus hooks and skills generated from the same sources. See [Verify Installation](../README.md#verify-installation) for the exact counts in your install. For selective installation (agents only, etc.), see [docs/installation.md](installation.md).
+This installs the full toolkit for your platform. Both bundles ship all 30 agents, plus hooks and skills generated from the same sources. See [Verify Installation](../README.md#verify-installation) to confirm the install. For selective installation (agents only, etc.), see [docs/installation.md](installation.md).
 
 ## Step 2: Understand the Workflow
 

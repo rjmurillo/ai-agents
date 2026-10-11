@@ -58,7 +58,7 @@ Each AI tool has its own native marketplace flow. This repo ships a Claude Code 
 /plugin install project-toolkit@ai-agents
 ```
 
-A Claude install lands the full set of agents, commands, hooks, and skills. A Copilot install lands the same capabilities generated from the same canonical sources. See [Verify Installation](#verify-installation) for the per-tool sanity check that reports the exact counts for your install, or [More Installation Options](#alternative-full-installation) for component-level installs (agents only, etc.).
+A Claude install lands the full set of agents, commands, hooks, and skills. A Copilot install lands the same capabilities generated from the same canonical sources. See [Verify Installation](#verify-installation) for the per-tool check that confirms your install, or [More Installation Options](#alternative-full-installation) for component-level installs (agents only, etc.).
 
 > **Python requirement for `project-toolkit@ai-agents` hooks.** The project-toolkit plugin ships PreToolUse and PostToolUse hooks that run Python. Minimum version: **Python 3.10**. On Windows, the [Python launcher](https://docs.python.org/3/using/windows.html#launcher) (`py`) must be on PATH.
 >
