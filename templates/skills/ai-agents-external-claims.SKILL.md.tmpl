@@ -2,7 +2,7 @@
 name: ai-agents-external-claims
 version: 1.0.0
 license: MIT
-description: Verify external, vendor, and third-party claims (numbers, attributions, structure) against authoritative primary sources before they land in a repo artifact or external deliverable. Covers stake-holding sources, round-number tells, citation-chain drift, and the walk-the-gate-or-file-conservative discipline. Use when you say `verify an external claim`, `check a vendor number`, `is this stat real`, `validate a third-party citation`. Do NOT use for running an experiment (use `ai-agents-research-methodology`) or command-injection scanning (use `security-scan`).
+description: Verify external, vendor, and third-party claims (numbers, attributions, structure) against authoritative primary sources before they land in a repo artifact or external deliverable. Covers stake-holding sources, round-number tells, citation-chain drift, and the walk-the-gate-or-file-conservative discipline. Use when you say `verify an external claim`, `check a vendor number`, `is this stat real`, `validate a third-party citation`. Do NOT use for running an experiment (in the ai-agents repository, use `ai-agents-research-methodology`) or command-injection scanning (use `security-scan`).
 metadata:
   routing:
     role: conditional-adjunct
@@ -18,7 +18,7 @@ This repo runs verification-based governance: a claim is true when a primary sou
 
 Audience: a zero-context contributor (human or model) holding an external claim and deciding whether it may enter a durable artifact.
 
-This skill is the discipline for verifying claims that originate OUTSIDE the repo. For proving an idea that originates inside the repo (hypothesis, probe, eval baseline), use `ai-agents-research-methodology`. For what counts as test evidence for code, use `ai-agents-validation-and-qa`. This skill hardens the general-purpose gstack `claim-verification-before-ingest` pattern into the repo's own artifact-ingest path. The other `ai-agents-*` skills named in this file (research-methodology, validation-and-qa, empirical-probe-toolkit) exist only in the ai-agents repository checkout and are not in the plugin; outside that checkout, read those pointers as background.
+This skill is the discipline for verifying claims that originate OUTSIDE the repo. For proving an idea that originates inside the repo (hypothesis, probe, eval baseline), use `ai-agents-research-methodology` (in the ai-agents repository). For what counts as test evidence for code, use `ai-agents-validation-and-qa` (in the ai-agents repository). This skill hardens the general-purpose gstack `claim-verification-before-ingest` pattern into the repo's own artifact-ingest path.
 
 ## Triggers
 
@@ -31,8 +31,8 @@ This skill is the discipline for verifying claims that originate OUTSIDE the rep
 
 | You want | Use instead |
 |----------|-------------|
-| Prove a repo-internal idea (probe, eval, ADR debate) | `ai-agents-research-methodology` |
-| Decide what counts as test evidence for a code change | `ai-agents-validation-and-qa` |
+| Prove a repo-internal idea (probe, eval, ADR debate) | In the ai-agents repository, `ai-agents-research-methodology` |
+| Decide what counts as test evidence for a code change | In the ai-agents repository, `ai-agents-validation-and-qa` |
 | Scan a file for CWE-78 command injection | `security-scan` |
 | Stop a deliverable that no consumer demanded | `avoiding-manufactured-work` |
 | Gate work before it starts, not after it appears done | `front-gate-before-pipeline` |
@@ -65,7 +65,7 @@ Name the exact assertion in one sentence and the ONE authoritative source that c
 | Attribution ("X said Y") | The named party's own published statement | A third party reporting it |
 | Repo-internal cross-claim | The file, ADR, or test in this tree, quoted verbatim | A retro's paraphrase of it |
 
-Repo caution, verified in `ai-agents-research-methodology`: vendor docs alone are not a primary source for runtime behavior. This repo was burned twice by wrong-by-omission docs (the #2205 and #2290 retros in `.project-toolkit/retrospective/`). When the claim is about how an external tool behaves, the primary source is an empirical probe at a pinned version, not the doc. Route that through `ai-agents-empirical-probe-toolkit`.
+Repo caution, verified in `ai-agents-research-methodology` (in the ai-agents repository): vendor docs alone are not a primary source for runtime behavior. This repo was burned twice by wrong-by-omission docs (the #2205 and #2290 retros in `.project-toolkit/retrospective/`). When the claim is about how an external tool behaves, the primary source is an empirical probe at a pinned version, not the doc. In the ai-agents repository, route that through `ai-agents-empirical-probe-toolkit`.
 
 ### Phase 2: Fetch and compare against the primary source
 

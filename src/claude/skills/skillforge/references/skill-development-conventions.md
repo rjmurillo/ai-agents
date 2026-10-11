@@ -32,8 +32,8 @@
 - A retired ADR in a skill's `metadata.adr` fails the `Skill ADR Bindings` ratchet.
 - Plugin-root script invocations use `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/..."`, never `uv run python`; the script stays stdlib-only at import time. `check_plugin_root_interpreter.py` blocks both (issue #5949, `plugin-self-containment.md` MUST-4).
 - Skill-script subprocess text capture: `encoding="utf-8", errors="replace"`; count ratchet at baseline.
-- 94 of 109 ship to the Copilot CLI plugin; `merge-resolver` is excluded as repo-specific, and no shipped routing table may point at it.
-- Contributor-only skills carry `metadata: distribution: repo-local` in their template (absent means shipped; any other value fails the build). They render to `.claude/skills/<name>/` only, never to `src/claude/skills/` or `src/copilot-cli/skills/`, so a shipped skill must not route to one without saying "in the ai-agents repository". `ai-agents-external-claims` ships because `research` runs its script from the plugin root.
+- 94 of 109 ship to the Copilot CLI plugin. The 14 repo-local `ai-agents-*` skills ship nowhere; `merge-resolver` is excluded from the Copilot mirror only, as repo-specific, and no shipped routing table may point at it.
+- Contributor-only skills carry `metadata.distribution: repo-local` in their template (absent means shipped; any other value fails the build). They render to `.claude/skills/<name>/` only, never to `src/claude/skills/` or `src/copilot-cli/skills/`, so a shipped skill must not route to one without saying "in the ai-agents repository". `routing.invoker` may name a repo-local skill if `routing.trigger` and any prose pointer carry that qualifier. `ai-agents-external-claims` ships because `research` runs its script from the plugin root.
 
 ## Dangerous assumptions
 

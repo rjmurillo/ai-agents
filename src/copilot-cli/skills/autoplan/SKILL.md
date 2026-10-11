@@ -23,7 +23,6 @@ metadata:
 
 One lazy entry point for the whole catalog. Classify the request, route it,
 apply defaults, and only stop for decisions that are genuinely the user's.
-Models and people do not hand-route across dozens of skills; this skill does.
 
 ## Identity
 
@@ -163,7 +162,7 @@ evidence (failing tests, widening diff), not on speculation.
 | "what do we know about X" | Skill: memory-search |
 | Research an unfamiliar topic | Skill: context-gather, then Skill: research (its claim gate composes ai-agents-external-claims before any durable write) |
 | Ask about Claude Code or Copilot CLI hook contracts | Skill: agent-harness-reference |
-| Port or change cross-harness hooks | Skill: agent-harness-reference (in ai-agents repo: ai-agents-portability-campaign) |
+| Port, implement, or change cross-harness hooks | Skill: agent-harness-reference, then /build (in the ai-agents repository: ai-agents-portability-campaign) |
 | Software design depth, architecture boundaries, domain modeling, refactoring, legacy code, low coverage, old files, external APIs, queues, retries, transactions, event ordering, schema evolution, resilience | Skill: software-engineering-library, then the routed reference |
 | Code quality, health check | Skill: quality-grades (repo-wide) or review (pre-merge) |
 | "Did I touch security-critical files?" | Skill: security-detection |

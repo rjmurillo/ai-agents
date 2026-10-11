@@ -11,10 +11,12 @@ rows:
     plugin_tree: src/claude/agents
     install_tree: .claude/agents
   - class: skills
-    # A template with `metadata: distribution: repo-local` skips this plugin
+    # A template with `metadata.distribution: repo-local` skips this plugin
     # hop: skill_templates.compile_all renders it straight to install_tree,
-    # and binplace neither copies, prunes, nor drift-checks it. Absent means
-    # shipped. See build/scripts/skill_distribution.py.
+    # and binplace neither copies, drift-checks, nor reports it as unowned.
+    # The skills mirror step (not binplace) deletes a stale vendor copy under
+    # src/claude/skills and src/copilot-cli/skills. Absent means shipped.
+    # See build/scripts/skill_distribution.py.
     source: templates/skills
     plugin_tree: src/claude/skills
     install_tree: .claude/skills
