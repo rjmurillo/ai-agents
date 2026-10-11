@@ -6,6 +6,7 @@ The model review lives in ai-spec-review.yml and only comments.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 
@@ -16,6 +17,9 @@ _WORKFLOWS = Path(__file__).resolve().parents[2] / ".github" / "workflows"
 _VALIDATION = _WORKFLOWS / "ai-spec-validation.yml"
 _REVIEW = _WORKFLOWS / "ai-spec-review.yml"
 _AI_REVIEW_ACTION = "./.github/actions/ai-review"
+_DISPOSITIONS = (
+    Path(__file__).resolve().parents[2] / ".project-toolkit" / "pr-checks" / "dispositions.json"
+)
 
 
 def _load(path: Path) -> dict[Any, Any]:
@@ -101,10 +105,35 @@ class TestReviewSpecIsAdvisory:
         assert concurrency["cancel-in-progress"] is True
         assert "pull_request.number" in concurrency["group"]
 
-    def test_workflow_triggers_match_the_validation_workflow(self) -> None:
-        review = _load(_REVIEW)[True]
-        validation = _load(_VALIDATION)[True]
+    def test_review_types_are_the_validation_types_minus_edited(self) -> None:
+        """`edited` is dropped from the review: each body edit would queue another
+        agent-claude approval prompt. Reviewers can use workflow_dispatch instead."""
+        review = _load(_REVIEW)[True]["pull_request"]
+        validation = _load(_VALIDATION)[True]["pull_request"]
 
-        assert review["pull_request"] == validation["pull_request"]
+        assert "edited" in validation["types"]
+        assert "edited" not in review["types"]
+        assert review["types"] == [t for t in validation["types"] if t != "edited"]
+        assert review["branches"] == validation["branches"]
+
+    def test_workflow_triggers_include_dispatch_and_no_merge_group(self) -> None:
+        review = _load(_REVIEW)[True]
+
         assert "pr_number" in review["workflow_dispatch"]["inputs"]
         assert "merge_group" not in review
+
+
+def test_dispositions_waiver_for_the_check_is_gone() -> None:
+    dispositions = json.loads(_DISPOSITIONS.read_text(encoding="utf-8"))
+
+    assert "Validate Spec Coverage" not in dispositions
+
+
+def test_validation_workflow_requests_read_only_pull_request_scope() -> None:
+    permissions = _load(_VALIDATION)["permissions"]
+
+    assert permissions == {"contents": "read", "pull-requests": "read"}
+
+
+def test_debounce_job_declares_no_environment() -> None:
+    assert "environment" not in _load(_VALIDATION)["jobs"]["debounce"]

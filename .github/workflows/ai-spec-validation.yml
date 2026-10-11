@@ -13,8 +13,7 @@ on:
     # "Decide scope" step (scripts/ci/spec_coverage_scope.py).
 
   # merge_group is not a trigger: validate-spec reads a pull request body, and a
-  # queue run has none.
-  # The `if:` below keeps its merge_group term as a guard.
+  # queue run has none. The `if:` below keeps its merge_group term as a guard.
   workflow_dispatch:
     inputs:
       pr_number:
@@ -29,20 +28,13 @@ on:
 
 permissions:
   contents: read
-  pull-requests: write
+  pull-requests: read
 
-# Concurrency control: Attempts to cancel in-progress runs when new runs start
-
-# NOTE: GitHub Actions does NOT guarantee run coalescing - race conditions can occur
-
-# where multiple runs start before cancellation takes effect. This is best-effort
-
-# See ADR-026 (../.project-toolkit/architecture/ADR-026-pr-automation-concurrency-and-safety.md)
-
-# for architectural decision on workflow-level concurrency control
-
-# Mitigation: scope decision inside the job, timeouts, and PR-specific temp files reduce impact
-
+# Concurrency control (ADR-026, ../.project-toolkit/architecture/ADR-026-pr-automation-concurrency-and-safety.md):
+# a new run for the same PR cancels the one in progress. This is best effort.
+# GitHub Actions does not guarantee run coalescing, so two runs can start before
+# the cancellation lands. The scope decision inside the job, the timeout, and
+# PR-specific temp files limit the impact.
 concurrency:
   group: spec-validation-${{ github.event.pull_request.number || inputs.pr_number || github.ref }}
   cancel-in-progress: true
@@ -59,7 +51,6 @@ jobs:
     name: Debounce Workflow
     if: (github.event_name == 'workflow_dispatch' && inputs.enable_debouncing == true) || (github.event_name == 'pull_request' && vars.ENABLE_DEBOUNCE == 'true')
     runs-on: ubuntu-26.04-arm
-    environment: bot-secrets
     steps:
       - name: Checkout repository
         uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98

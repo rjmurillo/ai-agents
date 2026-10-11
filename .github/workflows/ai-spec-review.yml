@@ -1,13 +1,17 @@
 name: Spec Review (Advisory)
 
-# Model-driven spec review. Comment only: no step here fails the job on a
-# verdict or a model failure. The deterministic Validate Spec Coverage check
-# lives in ai-spec-validation.yml and holds no secret (issue #6182).
+# Model-driven spec review. Advisory: no step fails the job on a model verdict
+# or a model failure (the model steps swallow their errors and a report step
+# records the outcome). A crash in a non-model script step, such as the scope or
+# report scripts, still fails this job. The deterministic Validate Spec Coverage
+# check lives in ai-spec-validation.yml and holds no secret (issue #6182).
 
 on:
   pull_request:
     branches: [main]
-    types: [opened, synchronize, reopened, edited]
+    # `edited` is left out on purpose: every body edit would queue another
+    # approval prompt for agent-claude. A reviewer can run workflow_dispatch.
+    types: [opened, synchronize, reopened]
     # No path filter. The review-spec job decides its own scope in its
     # "Decide scope" step (scripts/ci/spec_coverage_scope.py).
 
@@ -24,8 +28,8 @@ permissions:
   contents: read
   pull-requests: write
 
-# Each push or edit cancels the previous run so edits do not stack
-# approval-gated runs. Best effort, see ADR-026.
+# Each new push cancels the previous run so pushes do not stack approval-gated
+# runs. Best effort, see ADR-026.
 concurrency:
   group: spec-review-${{ github.event.pull_request.number || inputs.pr_number || github.ref }}
   cancel-in-progress: true
@@ -44,7 +48,8 @@ jobs:
     runs-on: ubuntu-26.04-arm
     # ADR-114: the model key lives in this environment; a reviewer approves each run.
     environment: agent-claude
-    # Budget: ceil(sum(3 * step timeout + 1.5) + 5) for 3, 3.
+    # Budget: two ai-review steps (trace, completeness) at timeout-minutes 3:
+    # 2 * (3 * 3 + 1.5) + 5 = 26.
     timeout-minutes: 26
 
     steps:

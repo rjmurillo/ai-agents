@@ -48,9 +48,7 @@ _GRANDFATHERED: frozenset[tuple[str, str]] = frozenset(
     {
         ("ai-metrics-analysis.yml", "analyze-metrics"),
 
-        ("ai-spec-validation.yml", "debounce"),
         ("ai-spec-review.yml", "review-spec"),
-        ("ai-spec-validation.yml", "validate-spec"),
         ("artifact-insight-scanner.yml", "scan-artifacts"),
         ("claude.yml", "check-authorization"),
         ("claude.yml", "claude-response"),
