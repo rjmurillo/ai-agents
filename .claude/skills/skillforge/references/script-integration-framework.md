@@ -161,11 +161,7 @@ def execute_and_verify(input_data):
     # Self-verification - the script checks itself
     is_valid, reason = verify_output(result)
     if not is_valid:
-        return Result(
-            success=False,
-            message=f"Verification failed: {reason}",
-            errors=[reason]
-        )
+        return Result(success=False, message=f"Verification failed: {reason}", errors=[reason])
 
     return Result(success=True, message="Operation verified", data=result)
 ```
@@ -206,6 +202,7 @@ import json
 STATE_DIR = Path.home() / ".cache" / "skill-name"
 STATE_FILE = STATE_DIR / "state.json"
 
+
 def load_state() -> dict:
     """Load persisted state with graceful fallback."""
     if STATE_FILE.exists():
@@ -214,6 +211,7 @@ def load_state() -> dict:
         except json.JSONDecodeError:
             return {"error": "corrupted", "data": {}}
     return {"version": "1.0", "created_at": datetime.now().isoformat()}
+
 
 def save_state(state: dict) -> None:
     """Save state to disk."""
@@ -234,12 +232,16 @@ def main():
 
     # Structured output for automation
     if args.json:
-        print(json.dumps({
-            "success": result.success,
-            "message": result.message,
-            "data": result.data,
-            "errors": result.errors
-        }))
+        print(
+            json.dumps(
+                {
+                    "success": result.success,
+                    "message": result.message,
+                    "data": result.data,
+                    "errors": result.errors,
+                }
+            )
+        )
     else:
         # Human-readable output
         print(f"{'Success' if result.success else 'Failed'}: {result.message}")
@@ -258,13 +260,14 @@ def parse_yaml(text: str) -> dict:
     """Parse YAML with graceful fallback."""
     try:
         import yaml
+
         return yaml.safe_load(text)
     except ImportError:
         # Fallback: basic key-value parsing
         result = {}
-        for line in text.split('\n'):
-            if ':' in line and not line.strip().startswith('#'):
-                key, value = line.split(':', 1)
+        for line in text.split("\n"):
+            if ":" in line and not line.strip().startswith("#"):
+                key, value = line.split(":", 1)
                 result[key.strip()] = value.strip()
         return result
 ```
@@ -492,6 +495,7 @@ import os
 import sys
 import json
 
+
 def validate_input(tool_input: str) -> tuple[bool, str]:
     """Validate the tool input. Returns (is_valid, reason)."""
     try:
@@ -500,6 +504,7 @@ def validate_input(tool_input: str) -> tuple[bool, str]:
         return True, "Input valid"
     except json.JSONDecodeError:
         return False, "Invalid JSON input"
+
 
 def main():
     tool_input = os.environ.get("TOOL_INPUT", "")
@@ -515,6 +520,7 @@ def main():
         sys.exit(1)
 
     sys.exit(0)
+
 
 if __name__ == "__main__":
     main()

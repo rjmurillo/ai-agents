@@ -216,17 +216,17 @@ moq.analyzers is a C# Roslyn analyzer project for detecting incorrect usage patt
 
 ```python
 patterns = {
-    'buy_vs_build': [
-        r'\b(library|package|dependency|framework|external|third[- ]party|nuget|existing\s+solution)\b',
-        r'\b(should\s+we\s+use|why\s+not\s+use|consider\s+using|instead\s+of)\b',
+    "buy_vs_build": [
+        r"\b(library|package|dependency|framework|external|third[- ]party|nuget|existing\s+solution)\b",
+        r"\b(should\s+we\s+use|why\s+not\s+use|consider\s+using|instead\s+of)\b",
     ],
-    'code_quality': [
-        r'\b(coupling|cohesion|encapsulation|testability|duplicat(e|ion)|redundant|dry|solid)\b',
-        r'\b(complexity|maintainability|refactor|simplify|extract)\b',
+    "code_quality": [
+        r"\b(coupling|cohesion|encapsulation|testability|duplicat(e|ion)|redundant|dry|solid)\b",
+        r"\b(complexity|maintainability|refactor|simplify|extract)\b",
     ],
-    'cva_abstraction': [
-        r'\b(abstract(ion)?|generali[zs](e|ation)|specific|concrete|premature|yagni)\b',
-        r'\b(wrong\s+abstraction|interface|base\s+class|commonality|variability)\b',
+    "cva_abstraction": [
+        r"\b(abstract(ion)?|generali[zs](e|ation)|specific|concrete|premature|yagni)\b",
+        r"\b(wrong\s+abstraction|interface|base\s+class|commonality|variability)\b",
     ],
 }
 ```

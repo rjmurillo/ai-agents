@@ -102,7 +102,8 @@ def fetch_current_body(owner: str, repo: str, pr: int) -> str | None:
     """Return the current PR body, or None if not found."""
     result = subprocess.run(
         [
-            "gh", "api",
+            "gh",
+            "api",
             f"repos/{owner}/{repo}/pulls/{pr}",
         ],
         capture_output=True,
@@ -148,11 +149,15 @@ def update_body(owner: str, repo: str, pr: int, new_body: str) -> None:
     """Write the new body via the gh CLI."""
     result = subprocess.run(
         [
-            "gh", "api",
+            "gh",
+            "api",
             f"repos/{owner}/{repo}/pulls/{pr}",
-            "--method", "PATCH",
-            "--input", "-",
-            "--jq", ".number",
+            "--method",
+            "PATCH",
+            "--input",
+            "-",
+            "--jq",
+            ".number",
         ],
         input=json.dumps({"body": new_body}),
         capture_output=True,
@@ -185,10 +190,13 @@ def build_parser() -> argparse.ArgumentParser:
     body_group = p.add_mutually_exclusive_group(required=True)
     body_group.add_argument("--body", default=None, help="New body text")
     body_group.add_argument(
-        "--body-file", default=None, help="Path to file containing new body",
+        "--body-file",
+        default=None,
+        help="Path to file containing new body",
     )
     p.add_argument(
-        "--expected-hash", default="",
+        "--expected-hash",
+        default="",
         help=(
             "SHA-256 hex of the current body (LF-normalised). "
             "When provided and the current body does not match, the edit "
@@ -196,7 +204,8 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     p.add_argument(
-        "--dry-run", action="store_true",
+        "--dry-run",
+        action="store_true",
         help="Print what would be written without actually writing",
     )
     add_output_format_arg(p)
@@ -218,8 +227,11 @@ def main(argv: list[str] | None = None) -> int:
                 new_body = f.read()
         except OSError as exc:
             write_skill_error(
-                f"Cannot read --body-file: {exc}", 2, error_type="NotFound",
-                output_format=fmt, script_name=_SCRIPT_NAME,
+                f"Cannot read --body-file: {exc}",
+                2,
+                error_type="NotFound",
+                output_format=fmt,
+                script_name=_SCRIPT_NAME,
             )
             return 2
     else:
@@ -229,15 +241,21 @@ def main(argv: list[str] | None = None) -> int:
         current_body = fetch_current_body(owner, repo, pr)
     except (RuntimeError, subprocess.SubprocessError, OSError) as exc:
         write_skill_error(
-            str(exc), 3, error_type="ApiError",
-            output_format=fmt, script_name=_SCRIPT_NAME,
+            str(exc),
+            3,
+            error_type="ApiError",
+            output_format=fmt,
+            script_name=_SCRIPT_NAME,
         )
         return 3
 
     if current_body is None:
         write_skill_error(
-            f"PR #{pr} not found", 2, error_type="NotFound",
-            output_format=fmt, script_name=_SCRIPT_NAME,
+            f"PR #{pr} not found",
+            2,
+            error_type="NotFound",
+            output_format=fmt,
+            script_name=_SCRIPT_NAME,
         )
         return 2
 
@@ -301,8 +319,11 @@ def main(argv: list[str] | None = None) -> int:
         update_body(owner, repo, pr, new_body)
     except (RuntimeError, subprocess.SubprocessError, OSError) as exc:
         write_skill_error(
-            str(exc), 3, error_type="ApiError",
-            output_format=fmt, script_name=_SCRIPT_NAME,
+            str(exc),
+            3,
+            error_type="ApiError",
+            output_format=fmt,
+            script_name=_SCRIPT_NAME,
         )
         return 3
 

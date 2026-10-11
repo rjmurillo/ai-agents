@@ -63,9 +63,7 @@ if str(PROJECT_ROOT) not in sys.path:
 try:
     from claude_skills_import import import_skill_script
 
-    _detector = import_skill_script(
-        ".claude/skills/adr-review/scripts/detect_adr_changes.py"
-    )
+    _detector = import_skill_script(".claude/skills/adr-review/scripts/detect_adr_changes.py")
     _index = import_skill_script("build/scripts/generate_adr_index.py")
 finally:
     for p in _paths_added:
@@ -290,9 +288,7 @@ class TestAcceptedStatus:
         """The canonical detector reports accepted, asked rather than mimicked."""
         assert _resolve_status() == "accepted"
 
-    def test_status_is_declared_in_frontmatter_not_the_body(
-        self, adr_text: str
-    ) -> None:
+    def test_status_is_declared_in_frontmatter_not_the_body(self, adr_text: str) -> None:
         """The declaration must sit in frontmatter, where ADR-073 puts it.
 
         This record previously declared status only as a bare line inside its

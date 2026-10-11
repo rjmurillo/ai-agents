@@ -77,9 +77,7 @@ def _run(cmd: list[str]) -> subprocess.CompletedProcess[str]:
             check=False,
         )
     except subprocess.TimeoutExpired as err:
-        raise RuntimeError(
-            f"{cmd[0]} timed out after {_GH_TIMEOUT_SECONDS} seconds"
-        ) from err
+        raise RuntimeError(f"{cmd[0]} timed out after {_GH_TIMEOUT_SECONDS} seconds") from err
     except OSError as err:
         raise RuntimeError(f"failed to run {cmd[0]}: {err}") from err
 
@@ -100,8 +98,7 @@ def issue_assignees(owner: str, repo: str, issue: int) -> list[str]:
     """Return the current assignee logins for the issue."""
 
     result = _run(
-        ["gh", "issue", "view", str(issue), "--repo", f"{owner}/{repo}",
-         "--json", "assignees"],
+        ["gh", "issue", "view", str(issue), "--repo", f"{owner}/{repo}", "--json", "assignees"],
     )
     if result.returncode != 0:
         raise RuntimeError(result.stderr.strip() or "gh issue view failed")
@@ -135,7 +132,7 @@ def matching_remote_heads(ls_remote_output: str, issue: int) -> list[tuple[str, 
         sha, _, ref = line.partition("\t")
         if not ref.startswith(_HEADS_PREFIX):
             continue
-        branch = ref[len(_HEADS_PREFIX):]
+        branch = ref[len(_HEADS_PREFIX) :]
         if sha and number.search(branch):
             matches.append((branch, sha))
     return matches
@@ -178,7 +175,11 @@ def commits_ahead(sha: str, base_ref: str | None) -> int | None:
 
 
 def merged_through_pr(
-    owner: str, repo: str, branch: str, sha: str, base_ref: str | None,
+    owner: str,
+    repo: str,
+    branch: str,
+    sha: str,
+    base_ref: str | None,
 ) -> bool:
     """Return true when a PR merged into the default branch had ``sha`` as its head.
 
@@ -195,9 +196,23 @@ def merged_through_pr(
         return False
     base = base_ref.removeprefix("origin/")
     result = _run(
-        ["gh", "pr", "list", "--repo", f"{owner}/{repo}", "--head", branch,
-         "--base", base, "--state", "merged",
-         "--json", "headRefOid", "--jq", ".[].headRefOid"],
+        [
+            "gh",
+            "pr",
+            "list",
+            "--repo",
+            f"{owner}/{repo}",
+            "--head",
+            branch,
+            "--base",
+            base,
+            "--state",
+            "merged",
+            "--json",
+            "headRefOid",
+            "--jq",
+            ".[].headRefOid",
+        ],
     )
     if result.returncode != 0:
         return False
@@ -212,7 +227,9 @@ def current_branch() -> str:
 
 
 def find_in_flight_branches(
-    owner: str, repo: str, issue: int,
+    owner: str,
+    repo: str,
+    issue: int,
 ) -> tuple[list[dict[str, object]], list[str]]:
     """Probe origin for pushed branches that name the issue and carry unmerged work.
 
@@ -297,7 +314,8 @@ def write_claim_success(
         {**data, "in_flight_branches": in_flight, "warnings": warnings},
         output_format=fmt,
         human_summary="\n".join(lines),
-        status="PASS", script_name="claim_issue.py",
+        status="PASS",
+        script_name="claim_issue.py",
     )
 
 
@@ -310,16 +328,26 @@ def write_already_claimed(
     write_skill_error(
         f"Issue #{issue} already claimed by {', '.join(others)}. "
         "Do not start in parallel; coordinate with the assignee.",
-        1, error_type="General",
-        output_format=fmt, script_name="claim_issue.py",
+        1,
+        error_type="General",
+        output_format=fmt,
+        script_name="claim_issue.py",
         extra={"issue": issue, "assignees": assignees},
     )
 
 
 def remove_self_assignment(owner: str, repo: str, issue: int) -> None:
     result = _run(
-        ["gh", "issue", "edit", str(issue), "--repo", f"{owner}/{repo}",
-         "--remove-assignee", "@me"],
+        [
+            "gh",
+            "issue",
+            "edit",
+            str(issue),
+            "--repo",
+            f"{owner}/{repo}",
+            "--remove-assignee",
+            "@me",
+        ],
     )
     if result.returncode != 0:
         raise RuntimeError(result.stderr.strip() or "gh issue edit remove-assignee failed")
@@ -348,8 +376,11 @@ def main(argv: list[str] | None = None) -> int:
         assignees = issue_assignees(owner, repo, args.issue)
     except RuntimeError as err:
         write_skill_error(
-            str(err), 3, error_type="ApiError",
-            output_format=fmt, script_name="claim_issue.py",
+            str(err),
+            3,
+            error_type="ApiError",
+            output_format=fmt,
+            script_name="claim_issue.py",
         )
         raise SystemExit(3) from err
 
@@ -362,27 +393,40 @@ def main(argv: list[str] | None = None) -> int:
         write_claim_success(
             {"issue": args.issue, "assignees": assignees, "claimed": me},
             f"Issue #{args.issue} already held by {me}.",
-            find_in_flight_branches(owner, repo, args.issue), fmt,
+            find_in_flight_branches(owner, repo, args.issue),
+            fmt,
         )
         return 0
 
     try:
         assign = _run(
-            ["gh", "issue", "edit", str(args.issue), "--repo", f"{owner}/{repo}",
-             "--add-assignee", "@me"],
+            [
+                "gh",
+                "issue",
+                "edit",
+                str(args.issue),
+                "--repo",
+                f"{owner}/{repo}",
+                "--add-assignee",
+                "@me",
+            ],
         )
     except RuntimeError as err:
         write_skill_error(
             str(err),
-            3, error_type="ApiError",
-            output_format=fmt, script_name="claim_issue.py",
+            3,
+            error_type="ApiError",
+            output_format=fmt,
+            script_name="claim_issue.py",
         )
         raise SystemExit(3) from err
     if assign.returncode != 0:
         write_skill_error(
             assign.stderr.strip() or "gh issue edit failed",
-            3, error_type="ApiError",
-            output_format=fmt, script_name="claim_issue.py",
+            3,
+            error_type="ApiError",
+            output_format=fmt,
+            script_name="claim_issue.py",
         )
         raise SystemExit(3)
 
@@ -390,15 +434,20 @@ def main(argv: list[str] | None = None) -> int:
         assignees_after_claim = issue_assignees(owner, repo, args.issue)
     except RuntimeError as err:
         write_skill_error(
-            str(err), 3, error_type="ApiError",
-            output_format=fmt, script_name="claim_issue.py",
+            str(err),
+            3,
+            error_type="ApiError",
+            output_format=fmt,
+            script_name="claim_issue.py",
         )
         raise SystemExit(3) from err
     if me not in assignees_after_claim:
         write_skill_error(
             f"Issue #{args.issue} assignment could not be confirmed for {me}.",
-            3, error_type="ApiError",
-            output_format=fmt, script_name="claim_issue.py",
+            3,
+            error_type="ApiError",
+            output_format=fmt,
+            script_name="claim_issue.py",
             extra={"issue": args.issue, "assignees": assignees_after_claim},
         )
         raise SystemExit(3)
@@ -408,8 +457,11 @@ def main(argv: list[str] | None = None) -> int:
             remove_self_assignment(owner, repo, args.issue)
         except RuntimeError as err:
             write_skill_error(
-                str(err), 3, error_type="ApiError",
-                output_format=fmt, script_name="claim_issue.py",
+                str(err),
+                3,
+                error_type="ApiError",
+                output_format=fmt,
+                script_name="claim_issue.py",
             )
             raise SystemExit(3) from err
         write_already_claimed(args.issue, assignees_after_claim, others_after_claim, fmt)
@@ -418,7 +470,8 @@ def main(argv: list[str] | None = None) -> int:
     write_claim_success(
         {"issue": args.issue, "claimed": me or "@me"},
         f"Claimed issue #{args.issue} for {me or '@me'}.",
-        find_in_flight_branches(owner, repo, args.issue), fmt,
+        find_in_flight_branches(owner, repo, args.issue),
+        fmt,
     )
     return 0
 

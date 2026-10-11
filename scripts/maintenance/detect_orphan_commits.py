@@ -147,9 +147,7 @@ def make_is_landed(base_ref: str = "origin/main") -> Callable[[str], bool]:
         present = _run(["git", "cat-file", "-e", f"{sha}^{{commit}}"], _GIT_TIMEOUT)
         if present.returncode != 0:
             return False
-        ancestry = _run(
-            ["git", "merge-base", "--is-ancestor", sha, base_ref], _GIT_TIMEOUT
-        )
+        ancestry = _run(["git", "merge-base", "--is-ancestor", sha, base_ref], _GIT_TIMEOUT)
         return ancestry.returncode == 0
 
     return is_landed
@@ -165,9 +163,7 @@ def format_report(findings: Sequence[OrphanFinding], examined: int) -> str:
             f"but branch now at {finding.current_tip} ({status}); "
             f"merged {finding.merged_at}"
         )
-        lines.append(
-            f"    recover with: git diff {finding.merged_head} {finding.current_tip}"
-        )
+        lines.append(f"    recover with: git diff {finding.merged_head} {finding.current_tip}")
     return "\n".join(lines)
 
 

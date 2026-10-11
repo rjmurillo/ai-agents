@@ -124,13 +124,9 @@ def assert_mock_types_match(
             continue
         if type(mock_val) is not type(fixture_val):
             errors.append(
-                f"  {key}: expected {type(fixture_val).__name__}, "
-                f"got {type(mock_val).__name__}"
+                f"  {key}: expected {type(fixture_val).__name__}, got {type(mock_val).__name__}"
             )
 
     if errors:
-        msg = (
-            f"Mock type mismatch for '{fixture_name}' fixture:\n"
-            + "\n".join(errors)
-        )
+        msg = f"Mock type mismatch for '{fixture_name}' fixture:\n" + "\n".join(errors)
         raise AssertionError(msg)

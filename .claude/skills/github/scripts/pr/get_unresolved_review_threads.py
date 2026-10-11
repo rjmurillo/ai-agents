@@ -122,7 +122,10 @@ query($owner: String!, $name: String!, $prNumber: Int!, $commentsLimit: Int!, $c
 
 
 def fetch_unresolved_threads_paginated(
-    owner: str, repo: str, pull_request: int, comments_limit: int = 1,
+    owner: str,
+    repo: str,
+    pull_request: int,
+    comments_limit: int = 1,
 ) -> tuple[list[dict], bool]:
     """Fetch unresolved review threads, paginating to exhaustion.
 
@@ -196,14 +199,20 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")
     parser.add_argument(
-        "--pull-request", type=int, required=True, help="Pull request number",
+        "--pull-request",
+        type=int,
+        required=True,
+        help="Pull request number",
     )
     parser.add_argument(
-        "--include-comments", action="store_true",
+        "--include-comments",
+        action="store_true",
         help="Include the full comment list in each thread (not just the first)",
     )
     parser.add_argument(
-        "--output-format", choices=["json", "human", "auto"], default="json",
+        "--output-format",
+        choices=["json", "human", "auto"],
+        default="json",
         help="Accepted for parity; this script always emits JSON (#2684).",
     )
     return parser
@@ -224,11 +233,12 @@ def main(argv: list[str] | None = None) -> int:
     comments_limit = 50 if args.include_comments else 1
 
     nodes, fetched_pages_complete = fetch_unresolved_threads_paginated(
-        owner, repo, args.pull_request, comments_limit,
+        owner,
+        repo,
+        args.pull_request,
+        comments_limit,
     )
-    threads = [
-        transform_review_thread(node, args.include_comments) for node in nodes
-    ]
+    threads = [transform_review_thread(node, args.include_comments) for node in nodes]
 
     # ``success`` reflects whether the *snapshot* is trustworthy. When
     # pagination cannot prove completeness (an underlying GraphQL error

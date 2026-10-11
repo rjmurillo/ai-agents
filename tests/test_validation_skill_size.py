@@ -300,9 +300,7 @@ class TestCheckSkillSizeBytes:
         exit_code = main(["--path", str(tmp_path), "--ci"])
         assert exit_code == 1
 
-    def test_oversized_passes_locally(
-        self, tmp_path: Path
-    ) -> None:
+    def test_oversized_passes_locally(self, tmp_path: Path) -> None:
         skill_dir = tmp_path / "big-skill"
         skill_dir.mkdir()
         (skill_dir / "SKILL.md").write_text("---\nname: test\n---\n" + "line\n" * 600)
@@ -793,7 +791,8 @@ class TestStagedBlobValidation:
         _rev_parse_result = subprocess.run(
             ["git", "rev-parse", "--local-env-vars"],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
         )
         if _rev_parse_result.returncode != 0:
             pytest.skip("git build does not support --local-env-vars")
@@ -1320,4 +1319,3 @@ class TestGetSkillFilesWindowsPathNormalization:
         result = get_skill_files(str(tmp_path), changed_files=paths)
         assert all(p.name == "SKILL.md" for p in result)
         assert len(result) == 1  # both slash variants normalize to the same file
-

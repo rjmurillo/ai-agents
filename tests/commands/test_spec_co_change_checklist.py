@@ -95,9 +95,7 @@ def test_co_change_checklist_placement_documented(step_6_region: str) -> None:
     assert "Acceptance Criteria" in step_6_region, (
         "Step 6 must reference Acceptance Criteria placement for the section"
     )
-    assert "Rationale" in step_6_region, (
-        "Step 6 must reference Rationale placement for the section"
-    )
+    assert "Rationale" in step_6_region, "Step 6 must reference Rationale placement for the section"
 
 
 def test_co_change_checklist_concrete_example_present(step_6_region: str) -> None:

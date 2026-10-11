@@ -64,6 +64,7 @@ class TestReadUserInput:
     @pytest.mark.unit
     def test_json_with_query_field(self, monkeypatch):
         import io
+
         monkeypatch.setattr("sys.stdin", io.StringIO('{"query": "test search"}'))
         result = _read_user_input()
         assert result == "test search"
@@ -71,6 +72,7 @@ class TestReadUserInput:
     @pytest.mark.unit
     def test_json_with_prompt_field(self, monkeypatch):
         import io
+
         monkeypatch.setattr("sys.stdin", io.StringIO('{"prompt": "hello world"}'))
         result = _read_user_input()
         assert result == "hello world"
@@ -78,6 +80,7 @@ class TestReadUserInput:
     @pytest.mark.unit
     def test_plain_text_input(self, monkeypatch):
         import io
+
         monkeypatch.setattr("sys.stdin", io.StringIO("plain text query"))
         result = _read_user_input()
         assert result == "plain text query"
@@ -85,6 +88,7 @@ class TestReadUserInput:
     @pytest.mark.unit
     def test_empty_stdin(self, monkeypatch):
         import io
+
         monkeypatch.setattr("sys.stdin", io.StringIO(""))
         result = _read_user_input()
         assert result == ""

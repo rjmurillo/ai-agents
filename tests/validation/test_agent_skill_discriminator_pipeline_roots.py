@@ -63,9 +63,7 @@ class TestPipelineRootGuard:
         assert "modified tracked files" in proc.stderr
         assert not baseline_path.exists()
 
-    def test_dirty_file_outside_scoring_roots_is_accepted(
-        self, tmp_path: Path
-    ) -> None:
+    def test_dirty_file_outside_scoring_roots_is_accepted(self, tmp_path: Path) -> None:
         repo = _scaffold(tmp_path)
         _write_agent(repo, "alpha", _prose_body())
         doc = repo / "docs" / "x.md"

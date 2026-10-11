@@ -1,3 +1,4 @@
+# taste-lint: ignore file-size (ruff format pushed this file past 500 lines)
 """Tests for the check_pr_round_cap.py wall-clock reset (issue #5477).
 
 The budget restarts on head SHA advance, human reopen, or operator reset, and a
@@ -44,7 +45,13 @@ def _state(round_no=3, first_seen=_OLD, head_sha="sha-1"):
 
 def _escalation_comment(first_seen):
     body = render_escalation_comment(
-        1, 3, 5, 34.0, 4.0, "r", first_seen=first_seen.isoformat(),
+        1,
+        3,
+        5,
+        34.0,
+        4.0,
+        "r",
+        first_seen=first_seen.isoformat(),
     )
     return {"body": body}
 
@@ -56,6 +63,7 @@ def _trust_all(_login):
 def posted_sink(posted):
     def _sink(_owner, _repo, _pr, body):
         posted.append({"body": body})
+
     return _sink
 
 
@@ -97,7 +105,12 @@ class TestEvaluateReset:
 
     def test_reopen_reset_restarts_clock_only(self):
         result = evaluate_round_cap(
-            _state(), _NOW, 5, 4.0, head_sha="sha-1", reset=_mod.Reset("human reopen"),
+            _state(),
+            _NOW,
+            5,
+            4.0,
+            head_sha="sha-1",
+            reset=_mod.Reset("human reopen"),
         )
         assert result["action"] == "ACT"
         assert result["round"] == 4
@@ -128,60 +141,88 @@ class TestDetectReset:
         assert reset is not None and reset.restart_rounds is True
 
     def test_reopen_after_marker_resets_clock_only(self):
-        events = [{"event": "reopened", "created_at": "2026-09-02T01:00:00Z",
-                   "actor": {"login": "h", "type": "User"}}]
+        events = [
+            {
+                "event": "reopened",
+                "created_at": "2026-09-02T01:00:00Z",
+                "actor": {"login": "h", "type": "User"},
+            }
+        ]
         reset = _mod.detect_reset(
-            [_marker_comment(_state())], events, False, can_reopen_reset=_trust_all,
+            [_marker_comment(_state())],
+            events,
+            False,
+            can_reopen_reset=_trust_all,
         )
         assert reset == _mod.Reset("human reopen")
 
     def test_reopen_by_actor_without_write_access_is_ignored(self):
-        events = [{"event": "reopened", "created_at": "2026-09-02T01:00:00Z",
-                   "actor": {"login": "author", "type": "User"}}]
+        events = [
+            {
+                "event": "reopened",
+                "created_at": "2026-09-02T01:00:00Z",
+                "actor": {"login": "author", "type": "User"},
+            }
+        ]
         reset = _mod.detect_reset(
-            [_marker_comment(_state())], events, False, can_reopen_reset=lambda _l: False,
+            [_marker_comment(_state())],
+            events,
+            False,
+            can_reopen_reset=lambda _l: False,
         )
         assert reset is None
 
     def test_reopen_ignored_when_no_trust_callable_given(self):
-        events = [{"event": "reopened", "created_at": "2026-09-02T01:00:00Z",
-                   "actor": {"login": "h", "type": "User"}}]
+        events = [
+            {
+                "event": "reopened",
+                "created_at": "2026-09-02T01:00:00Z",
+                "actor": {"login": "h", "type": "User"},
+            }
+        ]
         assert _mod.detect_reset([_marker_comment(_state())], events, False) is None
 
     def test_reopen_without_actor_login_is_ignored(self):
-        events = [{"event": "reopened", "created_at": "2026-09-02T01:00:00Z",
-                   "actor": {"type": "User"}}]
+        events = [
+            {"event": "reopened", "created_at": "2026-09-02T01:00:00Z", "actor": {"type": "User"}}
+        ]
         reset = _mod.detect_reset(
-            [_marker_comment(_state())], events, False, can_reopen_reset=_trust_all,
+            [_marker_comment(_state())],
+            events,
+            False,
+            can_reopen_reset=_trust_all,
         )
         assert reset is None
 
     def test_reopen_before_marker_is_consumed(self):
-        events = [{"event": "reopened", "created_at": "2026-09-01T01:00:00Z",
-                   "actor": {"type": "User"}}]
+        events = [
+            {"event": "reopened", "created_at": "2026-09-01T01:00:00Z", "actor": {"type": "User"}}
+        ]
         assert _mod.detect_reset([_marker_comment(_state())], events, False) is None
 
     def test_bot_reopen_and_other_events_ignored(self):
         events = [
-            {"event": "reopened", "created_at": "2026-09-02T01:00:00Z",
-             "actor": {"type": "Bot"}},
-            {"event": "closed", "created_at": "2026-09-02T02:00:00Z",
-             "actor": {"type": "User"}},
+            {"event": "reopened", "created_at": "2026-09-02T01:00:00Z", "actor": {"type": "Bot"}},
+            {"event": "closed", "created_at": "2026-09-02T02:00:00Z", "actor": {"type": "User"}},
             {"event": "reopened", "actor": {"type": "User"}},  # no timestamp
         ]
         assert _mod.detect_reset([_marker_comment(_state())], events, False) is None
 
     def test_marker_without_timestamp_ignores_events(self):
-        events = [{"event": "reopened", "created_at": "2026-09-02T01:00:00Z",
-                   "actor": {"type": "User"}}]
+        events = [
+            {"event": "reopened", "created_at": "2026-09-02T01:00:00Z", "actor": {"type": "User"}}
+        ]
         comments = [{"body": render_state_marker(_state())}]
         assert _mod.detect_reset(comments, events, False) is None
 
-    @pytest.mark.parametrize("body", [
-        "/pr-autofix continue",
-        "  /PR-AUTOFIX   continue  ",
-        "Please resume.\n/pr-autofix continue\nThanks",
-    ])
+    @pytest.mark.parametrize(
+        "body",
+        [
+            "/pr-autofix continue",
+            "  /PR-AUTOFIX   continue  ",
+            "Please resume.\n/pr-autofix continue\nThanks",
+        ],
+    )
     def test_maintainer_continue_comment_resets_both(self, body):
         comments = [
             _marker_comment(_state()),
@@ -190,27 +231,48 @@ class TestDetectReset:
         reset = _mod.detect_reset(comments, [], False)
         assert reset is not None and reset.restart_rounds is True
 
-    @pytest.mark.parametrize("comment", [
-        {"body": "/pr-autofix continue", "author_association": "MEMBER",
-         "user": {"type": "User"}},
-        {"body": "/pr-autofix continue", "author_association": "NONE",
-         "user": {"type": "User"}},
-        {"body": "/pr-autofix continue", "author_association": "OWNER",
-         "user": {"type": "Bot"}},
-        {"body": "looks fine, please continue", "author_association": "OWNER",
-         "user": {"type": "User"}},
-        {"body": "not /pr-autofix continue here", "author_association": "OWNER",
-         "user": {"type": "User"}},
-        {"body": None, "author_association": "OWNER"},
-    ])
+    @pytest.mark.parametrize(
+        "comment",
+        [
+            {
+                "body": "/pr-autofix continue",
+                "author_association": "MEMBER",
+                "user": {"type": "User"},
+            },
+            {
+                "body": "/pr-autofix continue",
+                "author_association": "NONE",
+                "user": {"type": "User"},
+            },
+            {
+                "body": "/pr-autofix continue",
+                "author_association": "OWNER",
+                "user": {"type": "Bot"},
+            },
+            {
+                "body": "looks fine, please continue",
+                "author_association": "OWNER",
+                "user": {"type": "User"},
+            },
+            {
+                "body": "not /pr-autofix continue here",
+                "author_association": "OWNER",
+                "user": {"type": "User"},
+            },
+            {"body": None, "author_association": "OWNER"},
+        ],
+    )
     def test_non_qualifying_comments_do_not_reset(self, comment):
         comments = [_marker_comment(_state()), comment]
         assert _mod.detect_reset(comments, [], False) is None
 
     def test_continue_comment_before_latest_marker_is_consumed(self):
         comments = [
-            {"body": "/pr-autofix continue", "author_association": "OWNER",
-             "user": {"type": "User"}},
+            {
+                "body": "/pr-autofix continue",
+                "author_association": "OWNER",
+                "user": {"type": "User"},
+            },
             _marker_comment(_state()),
         ]
         assert _mod.detect_reset(comments, [], False) is None
@@ -240,12 +302,25 @@ class TestEscalationAlreadyPosted:
 class TestMainReset(MainHarness):
     def _run(self, capsys, comments, extra_args=(), **kwargs):
         patches = self._patch_common(list_comments_result=comments, **kwargs)
-        with patches[0], patches[1], patches[2], \
-                patch("check_pr_round_cap._post_comment") as post_mock:
-            rc = main([
-                "--pull-request", "7", "--max-rounds", "5", "--max-hours", "4",
-                "--output-format", "json", *extra_args,
-            ])
+        with (
+            patches[0],
+            patches[1],
+            patches[2],
+            patch("check_pr_round_cap._post_comment") as post_mock,
+        ):
+            rc = main(
+                [
+                    "--pull-request",
+                    "7",
+                    "--max-rounds",
+                    "5",
+                    "--max-hours",
+                    "4",
+                    "--output-format",
+                    "json",
+                    *extra_args,
+                ]
+            )
         return rc, json.loads(capsys.readouterr().out)["Data"], post_mock
 
     def test_repeated_blocked_calls_post_exactly_one_state_marker(self, capsys):
@@ -255,14 +330,27 @@ class TestMainReset(MainHarness):
         for _ in range(3):
             patches = self._patch_common(list_comments_result=list(timeline))
             posted = []
-            with patches[0], patches[1], patches[2], patch(
-                "check_pr_round_cap._post_comment",
-                side_effect=posted_sink(posted),
+            with (
+                patches[0],
+                patches[1],
+                patches[2],
+                patch(
+                    "check_pr_round_cap._post_comment",
+                    side_effect=posted_sink(posted),
+                ),
             ):
-                rc = main([
-                    "--pull-request", "7", "--max-rounds", "5", "--max-hours", "4",
-                    "--output-format", "json",
-                ])
+                rc = main(
+                    [
+                        "--pull-request",
+                        "7",
+                        "--max-rounds",
+                        "5",
+                        "--max-hours",
+                        "4",
+                        "--output-format",
+                        "json",
+                    ]
+                )
             capsys.readouterr()
             self.teardown_method()
             assert rc == 1
@@ -299,8 +387,13 @@ class TestMainReset(MainHarness):
             _marker_comment(_state(round_no=3)),
             _escalation_comment(_OLD),
         ]
-        events = [{"event": "reopened", "created_at": "2026-09-02T01:00:00Z",
-                   "actor": {"login": "maint", "type": "User"}}]
+        events = [
+            {
+                "event": "reopened",
+                "created_at": "2026-09-02T01:00:00Z",
+                "actor": {"login": "maint", "type": "User"},
+            }
+        ]
         with patch("check_pr_round_cap._actor_has_write_access", return_value=True):
             rc, data, _ = self._run(capsys, comments, events=events)
         assert rc == 0
@@ -311,8 +404,13 @@ class TestMainReset(MainHarness):
             _marker_comment(_state(round_no=3)),
             _escalation_comment(_OLD),
         ]
-        events = [{"event": "reopened", "created_at": "2026-09-02T01:00:00Z",
-                   "actor": {"login": "author", "type": "User"}}]
+        events = [
+            {
+                "event": "reopened",
+                "created_at": "2026-09-02T01:00:00Z",
+                "actor": {"login": "author", "type": "User"},
+            }
+        ]
         with patch("check_pr_round_cap._actor_has_write_access", return_value=False):
             rc, data, post_mock = self._run(capsys, comments, events=events)
         assert rc == 1
@@ -341,13 +439,27 @@ class TestMainReset(MainHarness):
                 posted.append({"body": body})
 
             patches = self._patch_common(list_comments_result=list(timeline))
-            with patches[0], patches[1], patches[2], patch(
-                "check_pr_round_cap._post_comment", side_effect=_post,
+            with (
+                patches[0],
+                patches[1],
+                patches[2],
+                patch(
+                    "check_pr_round_cap._post_comment",
+                    side_effect=_post,
+                ),
             ):
-                rc = main([
-                    "--pull-request", "7", "--max-rounds", "5", "--max-hours", "4",
-                    "--output-format", "json",
-                ])
+                rc = main(
+                    [
+                        "--pull-request",
+                        "7",
+                        "--max-rounds",
+                        "5",
+                        "--max-hours",
+                        "4",
+                        "--output-format",
+                        "json",
+                    ]
+                )
             capsys.readouterr()
             self.teardown_method()
             assert rc == 1
@@ -371,26 +483,43 @@ class TestMainReset(MainHarness):
     def test_sha_and_event_fetch_failures_fail_safe(self, capsys):
         comments = [_marker_comment(_state())]
         patches = self._patch_common(list_comments_result=comments)
-        with patches[0], patches[1], patches[2], \
-                patch("check_pr_round_cap._fetch_head_sha",
-                      side_effect=RoundCapStoreError("boom")), \
-                patch("check_pr_round_cap._list_issue_events",
-                      side_effect=RoundCapStoreError("boom")), \
-                patch("check_pr_round_cap._post_comment"):
-            rc = main([
-                "--pull-request", "7", "--max-rounds", "5", "--max-hours", "4",
-                "--output-format", "json",
-            ])
+        with (
+            patches[0],
+            patches[1],
+            patches[2],
+            patch("check_pr_round_cap._fetch_head_sha", side_effect=RoundCapStoreError("boom")),
+            patch("check_pr_round_cap._list_issue_events", side_effect=RoundCapStoreError("boom")),
+            patch("check_pr_round_cap._post_comment"),
+        ):
+            rc = main(
+                [
+                    "--pull-request",
+                    "7",
+                    "--max-rounds",
+                    "5",
+                    "--max-hours",
+                    "4",
+                    "--output-format",
+                    "json",
+                ]
+            )
         data = json.loads(capsys.readouterr().out)["Data"]
         assert rc == 1  # stale budget, no reset evidence: still escalates
         assert data["reset_reason"] is None
 
 
 class TestActorWriteAccess:
-    @pytest.mark.parametrize("permission,expected", [
-        ("admin\n", True), ("maintain", True), ("write", True),
-        ("read", False), ("triage", False), ("", False),
-    ])
+    @pytest.mark.parametrize(
+        "permission,expected",
+        [
+            ("admin\n", True),
+            ("maintain", True),
+            ("write", True),
+            ("read", False),
+            ("triage", False),
+            ("", False),
+        ],
+    )
     def test_permission_levels(self, permission, expected):
         with patch("subprocess.run", return_value=_completed(stdout=permission)):
             assert _mod._actor_has_write_access("o", "r", "someone") is expected

@@ -62,7 +62,6 @@ Add validators for new schema formats.
     )
 
 
-
 def _run_launcher(cwd: Path, home: Path, **roots: str) -> subprocess.CompletedProcess[str]:
     env = os.environ.copy()
     env["HOME"] = str(home)

@@ -110,6 +110,7 @@ try:
     from hook_utilities import get_project_directory, get_recent_session_log
     from hook_utilities.guards import skip_if_consumer_repo
 except ImportError:
+
     def get_project_directory() -> str:
         env_dir = os.environ.get("CLAUDE_PROJECT_DIR", "").strip()
         if env_dir:

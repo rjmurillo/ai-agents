@@ -26,13 +26,23 @@ def _build_parser(core: ModuleType) -> argparse.ArgumentParser:
         epilog=core.__doc__,
     )
     parser.add_argument("-i", "--input", type=Path, help="Input markdown file path")
-    parser.add_argument("-d", "--detail-dir", type=Path, help="Directory for extracted detail files")
+    parser.add_argument(
+        "-d", "--detail-dir", type=Path, help="Directory for extracted detail files"
+    )
     parser.add_argument("-r", "--detail-ref", help="Relative path for index references")
-    parser.add_argument("-o", "--output", type=Path, help="Output index file path, default: stdout as JSON")
-    parser.add_argument("--manifest", type=Path, help="Explicit JSON manifest for complete check-only validation")
+    parser.add_argument(
+        "-o", "--output", type=Path, help="Output index file path, default: stdout as JSON"
+    )
+    parser.add_argument(
+        "--manifest", type=Path, help="Explicit JSON manifest for complete check-only validation"
+    )
     parser.add_argument("-v", "--verbose", action="store_true", help="Verbose output")
-    parser.add_argument("--check", action="store_true", help="Check generated files without writing them")
-    parser.add_argument("--staged", action="store_true", help="Read manifest inputs and outputs from the Git index")
+    parser.add_argument(
+        "--check", action="store_true", help="Check generated files without writing them"
+    )
+    parser.add_argument(
+        "--staged", action="store_true", help="Read manifest inputs and outputs from the Git index"
+    )
     return parser
 
 

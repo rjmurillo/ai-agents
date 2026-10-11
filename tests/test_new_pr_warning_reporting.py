@@ -136,9 +136,7 @@ def test_legacy_markdown_session_log_warning_is_tracked(tmp_path, capsys) -> Non
     def run(cmd, **_kwargs) -> subprocess.CompletedProcess[str]:
         argv = [str(part) for part in cmd]
         if argv[:3] == ["git", "diff", "--name-only"]:
-            return _completed(
-                stdout=".project-toolkit/sessions/2026-08-21-session-1.md\n", rc=0
-            )
+            return _completed(stdout=".project-toolkit/sessions/2026-08-21-session-1.md\n", rc=0)
         if any(part.endswith("validate_pr_description.py") for part in argv):
             return _completed(rc=0)
         return _completed(rc=0)

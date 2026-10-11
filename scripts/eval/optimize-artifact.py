@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore complexity (the line-based branch counter crossed the limit after ruff format)
 # taste-lint: ignore file-size
 """Held-out-gated optimization rails for agents, rules, and hooks.
 
@@ -209,9 +210,7 @@ def _no_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
 
 def _read_json(path: Path) -> object:
     try:
-        return json.loads(
-            path.read_text(encoding="utf-8"), object_pairs_hook=_no_duplicate_keys
-        )
+        return json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=_no_duplicate_keys)
     except _DuplicateKeyError as exc:
         raise ConfigError(
             f"{path} repeats the key(s) {', '.join(repr(k) for k in exc.keys)} "
@@ -280,9 +279,7 @@ def _absent(path: Path) -> bool:
         # OSError, and exit 1. Exit 1 is the reject verdict.
         with suppress(OSError):
             target = os.readlink(path)
-        raise ConfigError(
-            f"{path} is a symlink to {target}: state paths must be real files"
-        )
+        raise ConfigError(f"{path} is a symlink to {target}: state paths must be real files")
     return False
 
 
@@ -585,9 +582,7 @@ def _corpus_header(path: Path) -> str | _Unreadable | None:
 def _checked_verdicts(path: Path, data: dict[str, Any]) -> dict[str, bool]:
     bad = [k for k, v in data.items() if not isinstance(v, bool)]
     if bad:
-        raise ConfigError(
-            f"{path} has non-boolean results for: {', '.join(sorted(bad)[:5])}"
-        )
+        raise ConfigError(f"{path} has non-boolean results for: {', '.join(sorted(bad)[:5])}")
     return data
 
 
@@ -599,9 +594,7 @@ def _read_patches(path: Path) -> list[Patch]:
     for index, raw in enumerate(data):
         if not isinstance(raw, dict) or "op" not in raw:
             raise ConfigError(f"{path} patch {index} needs an 'op' key")
-        patches.append(
-            Patch(op=raw["op"], anchor=raw.get("anchor"), text=raw.get("text"))
-        )
+        patches.append(Patch(op=raw["op"], anchor=raw.get("anchor"), text=raw.get("text")))
     if not patches:
         raise ConfigError(f"{path} holds no patches")
     return patches
@@ -621,9 +614,7 @@ def _read_split(path: Path) -> dict[str, Any]:
     for group in _GROUPS:
         value = data[group]
         if not isinstance(value, list) or not all(isinstance(t, str) for t in value):
-            raise ConfigError(
-                f"{path} group '{group}' must be a list of strings"
-            )
+            raise ConfigError(f"{path} group '{group}' must be a list of strings")
     if not isinstance(data["fingerprint"], str):
         # Same defect as the `corpus` pin below, in the same field position.
         # An unhashable fingerprint reaches a set membership test in
@@ -907,9 +898,7 @@ def _refuse_degraded_rule_report(task_ids: list[str]) -> None:
     )
 
 
-def _extract_rules_envelope(
-    rules_runs: Sequence[Any], args: argparse.Namespace
-) -> dict[str, bool]:
+def _extract_rules_envelope(rules_runs: Sequence[Any], args: argparse.Namespace) -> dict[str, bool]:
     """Extract the multi-rule shape eval-rule-activation.py --output writes.
 
     Scenario ids restart at S1 inside every rule, so they are namespaced as
@@ -1007,9 +996,7 @@ def _extract_rule(payloads: Sequence[object], args: argparse.Namespace) -> dict[
     `alpha::S1` and find neither.
     """
     envelopes = [
-        payload["rules"]
-        for payload in payloads
-        if isinstance(payload, dict) and "rules" in payload
+        payload["rules"] for payload in payloads if isinstance(payload, dict) and "rules" in payload
     ]
     if envelopes and len(envelopes) != len(payloads):
         raise ConfigError(
@@ -1029,9 +1016,7 @@ def _extract_rule(payloads: Sequence[object], args: argparse.Namespace) -> dict[
     # tests already enforce.
     runs: list[list[Any]] = [_rule_scenarios(payload) for payload in payloads]
     for scenarios in runs:
-        _refuse_degraded_rule_report(
-            _rule_degraded_scenario_ids(scenarios, args.mechanism)
-        )
+        _refuse_degraded_rule_report(_rule_degraded_scenario_ids(scenarios, args.mechanism))
     extracted: dict[str, bool] = rule_results_multi(
         runs,
         args.mechanism,
@@ -1577,9 +1562,7 @@ def _scrub(text: str, holdout_key: str) -> str:
     return re.sub(re.escape(holdout_key), _HELD_OUT_PLACEHOLDER, text, flags=re.IGNORECASE)
 
 
-_ACTIVE_HOLDOUT_KEY: ContextVar[str | None] = ContextVar(
-    "_ACTIVE_HOLDOUT_KEY", default=None
-)
+_ACTIVE_HOLDOUT_KEY: ContextVar[str | None] = ContextVar("_ACTIVE_HOLDOUT_KEY", default=None)
 
 
 def _warn(message: str) -> None:
@@ -2010,14 +1993,12 @@ def _read_ledger(path: Path, holdout_key: str, cap: int, max_p: float | None) ->
     spent = data.get("consultations")
     if not isinstance(spent, int) or isinstance(spent, bool) or spent < 0:
         raise ConfigError(
-            f"the ledger under {path.parent} needs consultations to be a "
-            f"non-negative integer"
+            f"the ledger under {path.parent} needs consultations to be a non-negative integer"
         )
     recorded_cap = data.get("max_consultations")
     if not isinstance(recorded_cap, int) or isinstance(recorded_cap, bool) or recorded_cap < 1:
         raise ConfigError(
-            f"the ledger under {path.parent} needs max_consultations to be a "
-            f"positive integer"
+            f"the ledger under {path.parent} needs max_consultations to be a positive integer"
         )
     recorded = data.get("holdout")
     if recorded != holdout_key:
@@ -2037,9 +2018,7 @@ def _read_ledger(path: Path, holdout_key: str, cap: int, max_p: float | None) ->
     if recorded_bar is not None and (
         isinstance(recorded_bar, bool) or not isinstance(recorded_bar, (int, float))
     ):
-        raise ConfigError(
-            f"the ledger under {path.parent} needs max_p to be a number or absent"
-        )
+        raise ConfigError(f"the ledger under {path.parent} needs max_p to be a number or absent")
     if recorded_bar is not None and not 0.0 <= recorded_bar <= 1.0:
         raise ConfigError(
             f"the ledger under {path.parent} has max_p={recorded_bar}, "
@@ -2061,9 +2040,7 @@ def _bar_name(bar: float | None) -> str:
     return "none" if bar is None else f"{bar:g}"
 
 
-def _write_ledger(
-    path: Path, holdout_key: str, spent: int, cap: int, max_p: float | None
-) -> None:
+def _write_ledger(path: Path, holdout_key: str, spent: int, cap: int, max_p: float | None) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
         "consultations": spent,
@@ -2113,9 +2090,7 @@ def _json_strict_equal(left: object, right: object) -> bool:
     return left == right
 
 
-def _provenance_mismatch(
-    incumbent: Mapping[str, Any], candidate: Mapping[str, Any]
-) -> str | None:
+def _provenance_mismatch(incumbent: Mapping[str, Any], candidate: Mapping[str, Any]) -> str | None:
     artifact_keys = {"input_path", "input_digest", "results_digest"}
     keys = (set(incumbent) | set(candidate)) - artifact_keys
     for key in sorted(keys):
@@ -2287,21 +2262,23 @@ def _gate_decision(args: argparse.Namespace, split: dict[str, Any]) -> int:
         with _digest_scrubbed(holdout_key):
             spent = _read_ledger(ledger, holdout_key, args.max_consultations, args.max_p)
     except LedgerMismatchError as exc:
-        _emit({
-            "decision": "REJECT",
-            "reason": str(exc),
-            "compared": False,
-            # No running total. The count parses before the mismatch is
-            # raised, so a number exists, but on a key mismatch it belongs to
-            # a different group and naming it would leak that group's history
-            # through a refusal that deliberately withholds the group itself.
-            # The old literal 0 was worse than silence: it claimed nothing had
-            # ever been spent, which is false whenever the ledger holds a
-            # count, and false in the direction that invites another look.
-            "consultations": 0,
-            "group": _GATE_GROUP,
-            "fingerprint": split["fingerprint"],
-        })
+        _emit(
+            {
+                "decision": "REJECT",
+                "reason": str(exc),
+                "compared": False,
+                # No running total. The count parses before the mismatch is
+                # raised, so a number exists, but on a key mismatch it belongs to
+                # a different group and naming it would leak that group's history
+                # through a refusal that deliberately withholds the group itself.
+                # The old literal 0 was worse than silence: it claimed nothing had
+                # ever been spent, which is false whenever the ledger holds a
+                # count, and false in the direction that invites another look.
+                "consultations": 0,
+                "group": _GATE_GROUP,
+                "fingerprint": split["fingerprint"],
+            }
+        )
         return EXIT_LOGIC
 
     # Guards first, scoring second. Both refusals are decidable from
@@ -2554,18 +2531,20 @@ def cmd_report(args: argparse.Namespace) -> int:
     # the same predicate; passing the single header on both sides lets the set
     # collapse it rather than restating the rule with one fewer term.
     if _corpus_refused(pin, corpus, corpus):
-        _emit({
-            "decision": "REFUSE",
-            "reason": (
-                "the split and the results do not agree on one corpus, so the "
-                "number would describe a different task set than the split "
-                "names. Re-score the artifact so that one corpus is named "
-                "across both, and report again. This attempt spent nothing."
-            ),
-            "reported": False,
-            "group": _REPORT_GROUP,
-            "fingerprint": split["fingerprint"],
-        })
+        _emit(
+            {
+                "decision": "REFUSE",
+                "reason": (
+                    "the split and the results do not agree on one corpus, so the "
+                    "number would describe a different task set than the split "
+                    "names. Re-score the artifact so that one corpus is named "
+                    "across both, and report again. This attempt spent nothing."
+                ),
+                "reported": False,
+                "group": _REPORT_GROUP,
+                "fingerprint": split["fingerprint"],
+            }
+        )
         return EXIT_LOGIC
 
     # The lock spans the read, the compare, and the write, so two reports
@@ -2587,30 +2566,34 @@ def _report_reveal(
         with _digest_scrubbed(holdout_key):
             spent = _read_ledger(ledger, holdout_key, _REPORT_BUDGET, None)
     except LedgerMismatchError as exc:
-        _emit({
-            "decision": "REFUSE",
-            "reason": str(exc),
-            "reported": False,
-            "group": _REPORT_GROUP,
-            "fingerprint": split["fingerprint"],
-        })
+        _emit(
+            {
+                "decision": "REFUSE",
+                "reason": str(exc),
+                "reported": False,
+                "group": _REPORT_GROUP,
+                "fingerprint": split["fingerprint"],
+            }
+        )
         return EXIT_LOGIC
 
     if spent >= _REPORT_BUDGET:
-        _emit({
-            "decision": "REFUSE",
-            "reason": (
-                "this test group has already been reported. A second read is "
-                "a second look at the one group no selection decision has "
-                "touched, which is the whole of what it was reserved for. "
-                "Re-split to draw a new one, and expect to re-run the loop: "
-                "a group reported against one artifact is not held out from "
-                "the next."
-            ),
-            "reported": False,
-            "group": _REPORT_GROUP,
-            "fingerprint": split["fingerprint"],
-        })
+        _emit(
+            {
+                "decision": "REFUSE",
+                "reason": (
+                    "this test group has already been reported. A second read is "
+                    "a second look at the one group no selection decision has "
+                    "touched, which is the whole of what it was reserved for. "
+                    "Re-split to draw a new one, and expect to re-run the loop: "
+                    "a group reported against one artifact is not held out from "
+                    "the next."
+                ),
+                "reported": False,
+                "group": _REPORT_GROUP,
+                "fingerprint": split["fingerprint"],
+            }
+        )
         return EXIT_LOGIC
 
     # Read before the charge, so a file that never parsed is a config error
@@ -2625,32 +2608,36 @@ def _report_reveal(
         _write_ledger(ledger, holdout_key, spent + 1, _REPORT_BUDGET, None)
 
     if not _covers_holdout(results, test_ids):
-        _emit({
-            "decision": "REFUSE",
-            "reason": (
-                "the results do not cover the test group; score the artifact "
-                "over the whole task set and report again. Which tasks are "
-                "missing is withheld: naming them would name the group. This "
-                "attempt spent the one report this group ever answers, so "
-                "reporting again needs a new split."
-            ),
-            "reported": False,
-            "group": _REPORT_GROUP,
-            "fingerprint": split["fingerprint"],
-        })
+        _emit(
+            {
+                "decision": "REFUSE",
+                "reason": (
+                    "the results do not cover the test group; score the artifact "
+                    "over the whole task set and report again. Which tasks are "
+                    "missing is withheld: naming them would name the group. This "
+                    "attempt spent the one report this group ever answers, so "
+                    "reporting again needs a new split."
+                ),
+                "reported": False,
+                "group": _REPORT_GROUP,
+                "fingerprint": split["fingerprint"],
+            }
+        )
         return EXIT_LOGIC
 
-    _emit({
-        "score": _score_group(results, split, _REPORT_GROUP),
-        "group": _REPORT_GROUP,
-        "n": len(test_ids),
-        # False means the check never ran, not that it failed: a disagreement
-        # refused above without charging. One field rather than the gate's two,
-        # because `corpus_pinned` and `corpus_verified` differ there only in the
-        # unpinned pair that agrees with itself, and one file has no such pair.
-        "corpus_verified": results_file.corpus is not None and results_file.corpus == pin,
-        "fingerprint": split["fingerprint"],
-    })
+    _emit(
+        {
+            "score": _score_group(results, split, _REPORT_GROUP),
+            "group": _REPORT_GROUP,
+            "n": len(test_ids),
+            # False means the check never ran, not that it failed: a disagreement
+            # refused above without charging. One field rather than the gate's two,
+            # because `corpus_pinned` and `corpus_verified` differ there only in the
+            # unpinned pair that agrees with itself, and one file has no such pair.
+            "corpus_verified": results_file.corpus is not None and results_file.corpus == pin,
+            "fingerprint": split["fingerprint"],
+        }
+    )
     return EXIT_OK
 
 
@@ -2999,9 +2986,7 @@ def cmd_buffer_add(args: argparse.Namespace) -> int:
                     "fingerprint": fingerprint,
                     "artifact_fingerprint": artifact_fingerprint,
                     "reason": args.reason,
-                    "patches": [
-                        {"op": p.op, "anchor": p.anchor, "text": p.text} for p in patches
-                    ],
+                    "patches": [{"op": p.op, "anchor": p.anchor, "text": p.text} for p in patches],
                 }
             )
             _write_atomic(args.buffer, json.dumps(entries, indent=2))

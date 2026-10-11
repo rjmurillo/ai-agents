@@ -116,11 +116,7 @@ def _fetch_pr_author(owner: str, repo: str, pr_number: int) -> tuple[str, int | 
         },
     )
     repository = response.get("repository")
-    pull_request = (
-        repository.get("pullRequest")
-        if isinstance(repository, dict)
-        else None
-    )
+    pull_request = repository.get("pullRequest") if isinstance(repository, dict) else None
     if not isinstance(pull_request, dict):
         error_and_exit(f"PR #{pr_number} not found", 2)
     assert isinstance(pull_request, dict)
@@ -223,18 +219,20 @@ def get_pr_comments_by_reviewer(
                     continue
                 if not isinstance(user, dict):
                     raise RuntimeError("Review comment user payload is not an object")
-                comments.append({
-                    "login": _actor_login(user, "review comment author"),
-                    "actor_id": _account_id(user),
-                    "user_type": user.get("type", "User"),
-                    "body": c.get("body", ""),
-                    "created_at": c.get("created_at", ""),
-                    "updated_at": c.get("updated_at", ""),
-                    "path": c.get("path"),
-                    "html_url": c.get("html_url"),
-                    "comment_type": "review",
-                    "pr_number": pr_number,
-                })
+                comments.append(
+                    {
+                        "login": _actor_login(user, "review comment author"),
+                        "actor_id": _account_id(user),
+                        "user_type": user.get("type", "User"),
+                        "body": c.get("body", ""),
+                        "created_at": c.get("created_at", ""),
+                        "updated_at": c.get("updated_at", ""),
+                        "path": c.get("path"),
+                        "html_url": c.get("html_url"),
+                        "comment_type": "review",
+                        "pr_number": pr_number,
+                    }
+                )
 
         if comment_type in ("issue", "all"):
             issue_comments = _fetch_complete_comments(
@@ -246,18 +244,20 @@ def get_pr_comments_by_reviewer(
                     continue
                 if not isinstance(user, dict):
                     raise RuntimeError("Issue comment user payload is not an object")
-                comments.append({
-                    "login": _actor_login(user, "issue comment author"),
-                    "actor_id": _account_id(user),
-                    "user_type": user.get("type", "User"),
-                    "body": c.get("body", ""),
-                    "created_at": c.get("created_at", ""),
-                    "updated_at": c.get("updated_at", ""),
-                    "path": None,
-                    "html_url": c.get("html_url"),
-                    "comment_type": "issue",
-                    "pr_number": pr_number,
-                })
+                comments.append(
+                    {
+                        "login": _actor_login(user, "issue comment author"),
+                        "actor_id": _account_id(user),
+                        "user_type": user.get("type", "User"),
+                        "body": c.get("body", ""),
+                        "created_at": c.get("created_at", ""),
+                        "updated_at": c.get("updated_at", ""),
+                        "path": None,
+                        "html_url": c.get("html_url"),
+                        "comment_type": "issue",
+                        "pr_number": pr_number,
+                    }
+                )
 
         author_key = canonicalize_login(pr_author, pr_author_id)
         for comment in comments:
@@ -303,14 +303,16 @@ def get_pr_comments_by_reviewer(
                 entry["issue_comments"] += 1
             if pr_number not in entry["prs"]:
                 entry["prs"].append(pr_number)
-            entry["comments"].append({
-                "pr_number": comment["pr_number"],
-                "body": comment["body"],
-                "created_at": comment["created_at"],
-                "path": comment["path"],
-                "html_url": comment["html_url"],
-                "comment_type": comment["comment_type"],
-            })
+            entry["comments"].append(
+                {
+                    "pr_number": comment["pr_number"],
+                    "body": comment["body"],
+                    "created_at": comment["created_at"],
+                    "path": comment["path"],
+                    "html_url": comment["html_url"],
+                    "comment_type": comment["comment_type"],
+                }
+            )
             total_comments += 1
 
         prs_processed += 1
@@ -331,9 +333,7 @@ def get_pr_comments_by_reviewer(
         "reviewers": reviewers,
     }
 
-    reviewer_summary = ", ".join(
-        f"{r['login']}({r['total_comments']})" for r in reviewers[:5]
-    )
+    reviewer_summary = ", ".join(f"{r['login']}({r['total_comments']})" for r in reviewers[:5])
     print(
         f"Grouped {total_comments} comments from {prs_processed} PR(s) "
         f"across {len(reviewers)} reviewer(s): {reviewer_summary}",
@@ -355,31 +355,43 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")
     parser.add_argument(
-        "--pull-request", type=int, nargs="+", required=True,
+        "--pull-request",
+        type=int,
+        nargs="+",
+        required=True,
         help="One or more PR numbers",
     )
     parser.add_argument(
-        "--include-reviewer", nargs="*", default=None,
+        "--include-reviewer",
+        nargs="*",
+        default=None,
         help="Only include these reviewer logins",
     )
     parser.add_argument(
-        "--exclude-reviewer", nargs="*", default=None,
+        "--exclude-reviewer",
+        nargs="*",
+        default=None,
         help="Exclude these reviewer logins",
     )
     parser.add_argument(
-        "--since", default="",
+        "--since",
+        default="",
         help="Only comments after this ISO 8601 date",
     )
     parser.add_argument(
-        "--until", default="",
+        "--until",
+        default="",
         help="Only comments before this ISO 8601 date",
     )
     parser.add_argument(
-        "--comment-type", choices=["review", "issue", "all"], default="all",
+        "--comment-type",
+        choices=["review", "issue", "all"],
+        default="all",
         help="Type of comments to include (default: all)",
     )
     parser.add_argument(
-        "--include-self-comments", action="store_true",
+        "--include-self-comments",
+        action="store_true",
         help="Include comments by the PR author on their own PR",
     )
     return parser

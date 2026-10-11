@@ -83,6 +83,7 @@ SECURITY_PATTERNS = [
 # Change detection
 # ---------------------------------------------------------------------------
 
+
 class ChangeDetectionError(RuntimeError):
     """Git change detection failed, so the suite cannot know what to run."""
 
@@ -101,9 +102,7 @@ def detect_changed_files(base_ref: str) -> list[str]:
         )
         committed = result.stdout.strip().splitlines()
     except subprocess.CalledProcessError as e:
-        raise ChangeDetectionError(
-            f"git diff against {base_ref} failed: {e}"
-        ) from e
+        raise ChangeDetectionError(f"git diff against {base_ref} failed: {e}") from e
 
     try:
         result = subprocess.run(
@@ -366,12 +365,8 @@ RUNNER_BY_CATEGORY: dict[str, str] = {
 }
 
 NOT_EVALUATED_REASONS: dict[str, str] = {
-    "references": (
-        "reference material for a non-skill artifact; no evaluator consumes it"
-    ),
-    "entrypoints": (
-        "no behavioral evaluator exists for AGENTS.md/CLAUDE.md entrypoints"
-    ),
+    "references": ("reference material for a non-skill artifact; no evaluator consumes it"),
+    "entrypoints": ("no behavioral evaluator exists for AGENTS.md/CLAUDE.md entrypoints"),
     "scenarios": "scenario corpora are eval inputs, not evaluated artifacts",
     "other": "no routing rule claims this path",
 }
@@ -517,19 +512,13 @@ def find_rule_scenarios() -> dict[str, str]:
             # binary or mis-encoded scenario file escapes an OSError-only
             # guard and crashes with a traceback instead of the config exit
             # this function documents.
-            raise ScenarioConfigError(
-                f"cannot read scenario file {candidate}: {exc}"
-            ) from exc
+            raise ScenarioConfigError(f"cannot read scenario file {candidate}: {exc}") from exc
         try:
             data = json.loads(raw)
         except json.JSONDecodeError as exc:
-            raise ScenarioConfigError(
-                f"invalid JSON in scenario file {candidate}: {exc}"
-            ) from exc
+            raise ScenarioConfigError(f"invalid JSON in scenario file {candidate}: {exc}") from exc
         if not isinstance(data, dict):
-            raise ScenarioConfigError(
-                f"scenario file must contain an object: {candidate}"
-            )
+            raise ScenarioConfigError(f"scenario file must contain an object: {candidate}")
         rule_path = data.get("rule_path")
         has_rule = isinstance(rule_path, str) and bool(rule_path.strip())
         if not has_rule:
@@ -635,52 +624,62 @@ def build_routing_plan(
 
         runner = RUNNER_BY_CATEGORY.get(category)
         if runner is None:
-            plan.append({
-                "category": category,
-                "files": files,
-                "runner": None,
-                "evidence": EVIDENCE_NONE,
-                "reason": NOT_EVALUATED_REASONS[category],
-            })
+            plan.append(
+                {
+                    "category": category,
+                    "files": files,
+                    "runner": None,
+                    "evidence": EVIDENCE_NONE,
+                    "reason": NOT_EVALUATED_REASONS[category],
+                }
+            )
             continue
 
         if not category_in_scope(category, scope):
-            plan.append({
-                "category": category,
-                "files": files,
-                "runner": None,
-                "evidence": EVIDENCE_NONE,
-                "reason": f"excluded by --scope {scope}",
-            })
+            plan.append(
+                {
+                    "category": category,
+                    "files": files,
+                    "runner": None,
+                    "evidence": EVIDENCE_NONE,
+                    "reason": f"excluded by --scope {scope}",
+                }
+            )
             continue
 
         if category in ("rules", "instructions"):
             with_scenario, without_scenario = _rule_plan_entries(files)
             if with_scenario:
-                plan.append({
-                    "category": category,
-                    "files": with_scenario,
-                    "runner": runner,
-                    "evidence": EVIDENCE_SCENARIO,
-                    "reason": "activation scenario defined; run without --dry-run to score",
-                })
+                plan.append(
+                    {
+                        "category": category,
+                        "files": with_scenario,
+                        "runner": runner,
+                        "evidence": EVIDENCE_SCENARIO,
+                        "reason": "activation scenario defined; run without --dry-run to score",
+                    }
+                )
             if without_scenario:
-                plan.append({
-                    "category": category,
-                    "files": without_scenario,
-                    "runner": None,
-                    "evidence": EVIDENCE_NONE,
-                    "reason": f"no activation scenario under {RULE_SCENARIO_DIR}/",
-                })
+                plan.append(
+                    {
+                        "category": category,
+                        "files": without_scenario,
+                        "runner": None,
+                        "evidence": EVIDENCE_NONE,
+                        "reason": f"no activation scenario under {RULE_SCENARIO_DIR}/",
+                    }
+                )
             continue
 
-        plan.append({
-            "category": category,
-            "files": files,
-            "runner": runner,
-            "evidence": EVIDENCE_STRUCTURAL,
-            "reason": "routed to a runner; scoring requires a non-dry run",
-        })
+        plan.append(
+            {
+                "category": category,
+                "files": files,
+                "runner": runner,
+                "evidence": EVIDENCE_STRUCTURAL,
+                "reason": "routed to a runner; scoring requires a non-dry run",
+            }
+        )
 
     return plan
 
@@ -718,21 +717,20 @@ def reconcile_routing_plan(
         for path in entry["files"]:
             rule_id = rule_id_for_path(path)
             outcome = rule_results.get(rule_id) if rule_id else None
-            if (
-                isinstance(outcome, dict)
-                and outcome.get("evidence") == EVIDENCE_SCORED
-            ):
+            if isinstance(outcome, dict) and outcome.get("evidence") == EVIDENCE_SCORED:
                 scored.append(path)
             else:
                 unscored.append(path)
 
         if scored:
-            reconciled.append({
-                **entry,
-                "files": scored,
-                "evidence": EVIDENCE_SCORED,
-                "reason": "activation evaluated; verdict recorded in results",
-            })
+            reconciled.append(
+                {
+                    **entry,
+                    "files": scored,
+                    "evidence": EVIDENCE_SCORED,
+                    "reason": "activation evaluated; verdict recorded in results",
+                }
+            )
         if unscored:
             reconciled.append({**entry, "files": unscored})
 
@@ -759,6 +757,7 @@ def _print_routing_plan(plan: list[dict[str, Any]]) -> None:
 # ---------------------------------------------------------------------------
 # Individual eval runners
 # ---------------------------------------------------------------------------
+
 
 def _read_child_json_file(path: Path, context: str) -> tuple[dict[str, Any] | None, str | None]:
     """Read a child evaluator's `--output` JSON file."""
@@ -849,9 +848,14 @@ def run_rule_activation(files: list[str], model: str) -> dict[str, Any]:
         with tempfile.TemporaryDirectory(prefix="eval-suite-rules-") as tmp_dir:
             output_path = Path(tmp_dir) / f"{rule_id}-activation.json"
             cmd = [
-                sys.executable, str(SCRIPT_DIR / "eval-rule-activation.py"),
-                "--scenarios", scenario_path, "--model", model,
-                "--output", str(output_path),
+                sys.executable,
+                str(SCRIPT_DIR / "eval-rule-activation.py"),
+                "--scenarios",
+                scenario_path,
+                "--model",
+                model,
+                "--output",
+                str(output_path),
             ]
             try:
                 result = subprocess.run(
@@ -916,9 +920,12 @@ def run_structural_tests(targets: list[str], dry_run: bool) -> dict[str, Any]:
 
     try:
         result = subprocess.run(
-            ["pwsh", "-NoProfile", "-Command",
-             f"Invoke-Pester '{test_file}' -Output Detailed -PassThru | "
-             "ConvertTo-Json -Depth 3"],
+            [
+                "pwsh",
+                "-NoProfile",
+                "-Command",
+                f"Invoke-Pester '{test_file}' -Output Detailed -PassThru | ConvertTo-Json -Depth 3",
+            ],
             capture_output=True,
             text=True,
             encoding="utf-8",
@@ -954,11 +961,16 @@ def run_behavioral_for_prompt(
 ) -> dict[str, Any]:
     """Run ADR-057 behavioral comparison via eval-prompt-change.py."""
     cmd = [
-        sys.executable, str(SCRIPT_DIR / "eval-prompt-change.py"),
-        "--prompt", prompt_path,
-        "--scenarios", scenario_path,
-        "--base-ref", base_ref,
-        "--model", model,
+        sys.executable,
+        str(SCRIPT_DIR / "eval-prompt-change.py"),
+        "--prompt",
+        prompt_path,
+        "--scenarios",
+        scenario_path,
+        "--base-ref",
+        base_ref,
+        "--model",
+        model,
     ]
     if security_critical:
         cmd.append("--security-critical")
@@ -1001,17 +1013,19 @@ def run_behavioral_for_prompt(
         }
 
 
-def run_agent_quality(
-    agents: list[str], model: str, dry_run: bool
-) -> dict[str, Any]:
+def run_agent_quality(agents: list[str], model: str, dry_run: bool) -> dict[str, Any]:
     """Run agent quality assessment via eval-agents.py."""
     agent_names = [Path(a).stem for a in agents]
     results: dict[str, Any] = {"agents": {}}
 
     for name in agent_names:
         cmd = [
-            sys.executable, str(SCRIPT_DIR / "eval-agents.py"),
-            "--agent", name, "--model", model,
+            sys.executable,
+            str(SCRIPT_DIR / "eval-agents.py"),
+            "--agent",
+            name,
+            "--model",
+            model,
         ]
         if dry_run:
             cmd.append("--dry-run")
@@ -1051,9 +1065,7 @@ def run_agent_quality(
     return results
 
 
-def run_skill_knowledge(
-    skills: list[str], model: str, dry_run: bool
-) -> dict[str, Any]:
+def run_skill_knowledge(skills: list[str], model: str, dry_run: bool) -> dict[str, Any]:
     """Run skill knowledge integration via eval-knowledge-integration.py."""
     skill_names = set()
     for s in skills:
@@ -1068,8 +1080,12 @@ def run_skill_knowledge(
     results: dict[str, Any] = {"skills": {}}
     for name in sorted(skill_names):
         cmd = [
-            sys.executable, str(SCRIPT_DIR / "eval-knowledge-integration.py"),
-            "--skill", name, "--model", model,
+            sys.executable,
+            str(SCRIPT_DIR / "eval-knowledge-integration.py"),
+            "--skill",
+            name,
+            "--model",
+            model,
         ]
         if dry_run:
             cmd.append("--dry-run")
@@ -1113,11 +1129,12 @@ def run_skill_knowledge(
 # Main orchestrator
 # ---------------------------------------------------------------------------
 
+
 def _detect_and_classify(base_ref: str) -> dict[str, list[str]]:
     """Detect changed files and classify them by eval category."""
-    print(f"{'='*60}", file=sys.stderr)
+    print(f"{'=' * 60}", file=sys.stderr)
     print(f"  EVAL SUITE: Detecting changes vs {base_ref}", file=sys.stderr)
-    print(f"{'='*60}", file=sys.stderr)
+    print(f"{'=' * 60}", file=sys.stderr)
 
     changed_files = detect_changed_files(base_ref)
     if not changed_files:
@@ -1156,21 +1173,30 @@ def _run_evals(
             scenario_path = find_scenarios_for_prompt(prompt_path)
             if scenario_path:
                 security = is_security_critical(prompt_path)
-                print(f"  {prompt_path} -> {scenario_path}"
-                      f"{' [SECURITY]' if security else ''}", file=sys.stderr)
+                print(
+                    f"  {prompt_path} -> {scenario_path}{' [SECURITY]' if security else ''}",
+                    file=sys.stderr,
+                )
                 result = run_behavioral_for_prompt(
-                    prompt_path, scenario_path, args.base_ref,
-                    security, args.model, args.dry_run,
+                    prompt_path,
+                    scenario_path,
+                    args.base_ref,
+                    security,
+                    args.model,
+                    args.dry_run,
                 )
                 behavioral_results.append(result)
                 if not result.get("passed"):
                     any_failure = True
             else:
                 print(f"  {prompt_path}: no scenarios found (skipped)", file=sys.stderr)
-                behavioral_results.append({
-                    "skipped": True, "prompt": prompt_path,
-                    "reason": "no scenario file found",
-                })
+                behavioral_results.append(
+                    {
+                        "skipped": True,
+                        "prompt": prompt_path,
+                        "reason": "no scenario file found",
+                    }
+                )
         results["behavioral"] = behavioral_results
 
     if classified["agents"] and args.scope in ("agents", "all"):
@@ -1211,11 +1237,11 @@ def _print_summary(output: dict[str, Any]) -> None:
     elapsed = output.get("elapsed_seconds", 0)
     any_failure = not output.get("passed", True)
 
-    print(f"\n{'='*60}", file=sys.stderr)
+    print(f"\n{'=' * 60}", file=sys.stderr)
     print(f"  EVAL SUITE RESULTS ({elapsed}s)", file=sys.stderr)
-    print(f"{'='*60}", file=sys.stderr)
+    print(f"{'=' * 60}", file=sys.stderr)
     print(f"  {'Category':<25} {'Status':>10}", file=sys.stderr)
-    print(f"  {'-'*35}", file=sys.stderr)
+    print(f"  {'-' * 35}", file=sys.stderr)
 
     for name, data in output.get("results", {}).items():
         if isinstance(data, list):
@@ -1235,22 +1261,29 @@ def _print_summary(output: dict[str, Any]) -> None:
 
     verdict = "PASS" if not any_failure else "FAIL"
     print(f"\n  Overall: {verdict}", file=sys.stderr)
-    print(f"{'='*60}", file=sys.stderr)
+    print(f"{'=' * 60}", file=sys.stderr)
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Unified eval orchestrator for prompt, skill, and agent changes"
     )
-    parser.add_argument("--base-ref", type=str, default="main",
-                        help="Git ref to compare against (default: main)")
-    parser.add_argument("--scope", type=str,
-                        choices=["prompts", "agents", "skills", "rules", "all"],
-                        default="all", help="Limit to specific scope")
-    parser.add_argument("--model", type=str, default=DEFAULT_MODEL,
-                        help="Model for LLM-based assessments")
-    parser.add_argument("--dry-run", action="store_true",
-                        help="Detect and classify only, no API calls")
+    parser.add_argument(
+        "--base-ref", type=str, default="main", help="Git ref to compare against (default: main)"
+    )
+    parser.add_argument(
+        "--scope",
+        type=str,
+        choices=["prompts", "agents", "skills", "rules", "all"],
+        default="all",
+        help="Limit to specific scope",
+    )
+    parser.add_argument(
+        "--model", type=str, default=DEFAULT_MODEL, help="Model for LLM-based assessments"
+    )
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Detect and classify only, no API calls"
+    )
     parser.add_argument("--output", type=str, help="Write results to file")
     args = parser.parse_args()
 

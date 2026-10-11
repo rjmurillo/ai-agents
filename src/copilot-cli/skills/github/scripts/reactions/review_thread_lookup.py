@@ -33,22 +33,14 @@ def review_threads_page(
     pull_request: int,
 ) -> dict[str, Any]:
     repository = data.get("repository")
-    pull_request_data = (
-        repository.get("pullRequest")
-        if isinstance(repository, dict)
-        else None
-    )
+    pull_request_data = repository.get("pullRequest") if isinstance(repository, dict) else None
     review_threads = (
-        pull_request_data.get("reviewThreads")
-        if isinstance(pull_request_data, dict)
-        else None
+        pull_request_data.get("reviewThreads") if isinstance(pull_request_data, dict) else None
     )
     if not isinstance(review_threads, dict):
         raise RuntimeError(f"Review threads unavailable for PR #{pull_request}")
     if not isinstance(review_threads.get("nodes"), list):
-        raise RuntimeError(
-            f"Review thread nodes unavailable for PR #{pull_request}"
-        )
+        raise RuntimeError(f"Review thread nodes unavailable for PR #{pull_request}")
     return review_threads
 
 
@@ -60,19 +52,10 @@ def thread_with_root_comment(
         if not isinstance(thread, dict):
             continue
         comments = thread.get("comments")
-        comment_nodes = (
-            comments.get("nodes")
-            if isinstance(comments, dict)
-            else None
-        )
+        comment_nodes = comments.get("nodes") if isinstance(comments, dict) else None
         first_comment = (
-            comment_nodes[0]
-            if isinstance(comment_nodes, list) and comment_nodes
-            else None
+            comment_nodes[0] if isinstance(comment_nodes, list) and comment_nodes else None
         )
-        if (
-            isinstance(first_comment, dict)
-            and first_comment.get("databaseId") == root_comment_id
-        ):
+        if isinstance(first_comment, dict) and first_comment.get("databaseId") == root_comment_id:
             return thread
     return None

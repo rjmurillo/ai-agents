@@ -170,5 +170,3 @@ class TestBoundaryTypesAreValidatedNotCoerced:
         """
         with pytest.raises(ValueError, match="jobs_verified must be a JSON boolean"):
             run_from_mapping(self.record(contexts=[], jobs_verified="false"))
-
-

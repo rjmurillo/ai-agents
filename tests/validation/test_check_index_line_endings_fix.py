@@ -37,9 +37,7 @@ def test_remediation_command_quotes_paths_with_spaces(tmp_path: Path, capsys) ->
 # --- --fix mode (review thread on the advertised command, CWE-78) ----------
 
 
-def test_fix_mode_renormalizes_without_building_a_shell_string(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_fix_mode_renormalizes_without_building_a_shell_string(tmp_path: Path, monkeypatch) -> None:
     """A filename carrying shell syntax must be inert, not executed.
 
     `--fix` passes paths to git as argv entries, so the quoting of the printed
@@ -55,9 +53,7 @@ def test_fix_mode_renormalizes_without_building_a_shell_string(
     assert _staged_against_head(repo) == ["a;$(touch pwned).md"]  # the blob was renormalized
 
 
-def test_fix_mode_renormalizes_a_leading_dash_filename(
-    tmp_path: Path, monkeypatch, capsys
-) -> None:
+def test_fix_mode_renormalizes_a_leading_dash_filename(tmp_path: Path, monkeypatch, capsys) -> None:
     """The `--` terminator is the only thing this case depends on.
 
     `--intent-to-add` is a real `git add` option, so without the terminator
@@ -71,10 +67,7 @@ def test_fix_mode_renormalizes_a_leading_dash_filename(
 
     assert checker.main(["--repo-root", str(repo), "--fix"]) == 1
 
-    assert (
-        "--literal-pathspecs add --renormalize -- --intent-to-add.md"
-        in capsys.readouterr().out
-    )
+    assert "--literal-pathspecs add --renormalize -- --intent-to-add.md" in capsys.readouterr().out
     assert _staged_against_head(repo) == ["--intent-to-add.md"]  # the blob was renormalized
 
 
@@ -183,9 +176,7 @@ def test_fix_refuses_when_the_violating_file_was_deleted_locally(
     assert "uncommitted working-tree changes beyond line endings" in capsys.readouterr().err
 
 
-def test_fix_still_runs_when_only_line_endings_differ(
-    tmp_path: Path, monkeypatch, capsys
-) -> None:
+def test_fix_still_runs_when_only_line_endings_differ(tmp_path: Path, monkeypatch, capsys) -> None:
     """Control, and the reason `--name-only` is the wrong predicate.
 
     Every legitimate target of this gate has a working copy that differs from

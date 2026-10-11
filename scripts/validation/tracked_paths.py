@@ -69,8 +69,7 @@ def _run_git(repo_root: Path, args: list[str]) -> str | None:
         if _NOT_A_REPOSITORY in stderr.lower():
             return None
         raise GitQueryError(
-            f"git {args[0]} failed for {repo_root} "
-            f"(exit {completed.returncode}): {stderr.strip()}"
+            f"git {args[0]} failed for {repo_root} (exit {completed.returncode}): {stderr.strip()}"
         )
     return completed.stdout.decode("utf-8", "replace")
 

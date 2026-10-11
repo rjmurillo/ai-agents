@@ -81,8 +81,6 @@ def test_dispatcher_catches_system_exit(dispatcher: Path) -> None:
     )
 
 
-
-
 class TestClaudeEntrypointDegrades:
     """A missing lib directory must degrade, not deny, on the Claude harness.
 
@@ -98,9 +96,7 @@ class TestClaudeEntrypointDegrades:
         hooks = tmp_path / "hooks"
         hooks.mkdir(parents=True)
         entrypoint = hooks / "invoke_dispatch_claude.py"
-        entrypoint.write_text(
-            self.ENTRYPOINT.read_text(encoding="utf-8"), encoding="utf-8"
-        )
+        entrypoint.write_text(self.ENTRYPOINT.read_text(encoding="utf-8"), encoding="utf-8")
         # No lib directory alongside hooks: the import must fail.
 
         proc = subprocess.run(
@@ -113,8 +109,7 @@ class TestClaudeEntrypointDegrades:
 
         stderr = proc.stderr.decode("utf-8", "replace")
         assert proc.returncode == 0, (
-            "a missing lib directory denied the tool call on the Claude "
-            f"harness. stderr:\n{stderr}"
+            f"a missing lib directory denied the tool call on the Claude harness. stderr:\n{stderr}"
         )
         assert "hooks DISABLED" in stderr, stderr
 

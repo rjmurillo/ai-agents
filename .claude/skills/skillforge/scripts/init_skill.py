@@ -237,13 +237,14 @@ Example: create | read | update | delete with shared context
 # Core logic
 # ---------------------------------------------------------------------------
 
+
 def validate_name(name: str) -> tuple[bool, str]:
     """Validate skill name is kebab-case and within limits."""
     if not name:
         return False, "Skill name cannot be empty"
-    if not re.match(r'^[a-z][a-z0-9-]*$', name):
+    if not re.match(r"^[a-z][a-z0-9-]*$", name):
         return False, f"Name '{name}' must be kebab-case (lowercase letters, digits, hyphens)"
-    if name.endswith('-') or '--' in name:
+    if name.endswith("-") or "--" in name:
         return False, f"Name '{name}' cannot end with hyphen or have consecutive hyphens"
     if len(name) > 64:
         return False, f"Name '{name}' exceeds 64 character limit ({len(name)} chars)"
@@ -252,7 +253,7 @@ def validate_name(name: str) -> tuple[bool, str]:
 
 def to_title(name: str) -> str:
     """Convert kebab-case to Title Case."""
-    return ' '.join(word.capitalize() for word in name.split('-'))
+    return " ".join(word.capitalize() for word in name.split("-"))
 
 
 def create_skill(name: str, parent_dir: Path) -> Path:
@@ -275,28 +276,16 @@ def create_skill(name: str, parent_dir: Path) -> Path:
         d.mkdir(parents=True, exist_ok=True)
 
     # Write SKILL.md
-    (skill_dir / "SKILL.md").write_text(
-        SKILL_MD_TEMPLATE.format(name=name, title=title)
-    )
+    (skill_dir / "SKILL.md").write_text(SKILL_MD_TEMPLATE.format(name=name, title=title))
 
     # Write README files for subdirectories
-    (skill_dir / "references" / "README.md").write_text(
-        README_REFERENCES.format(name=name)
-    )
-    (skill_dir / "scripts" / "README.md").write_text(
-        README_SCRIPTS.format(name=name)
-    )
-    (skill_dir / "assets" / "README.md").write_text(
-        README_ASSETS.format(name=name)
-    )
+    (skill_dir / "references" / "README.md").write_text(README_REFERENCES.format(name=name))
+    (skill_dir / "scripts" / "README.md").write_text(README_SCRIPTS.format(name=name))
+    (skill_dir / "assets" / "README.md").write_text(README_ASSETS.format(name=name))
 
     # Write example files
-    (skill_dir / "references" / "domain-knowledge.md").write_text(
-        EXAMPLE_REFERENCE
-    )
-    (skill_dir / "scripts" / "example.py").write_text(
-        EXAMPLE_SCRIPT.format(name=name)
-    )
+    (skill_dir / "references" / "domain-knowledge.md").write_text(EXAMPLE_REFERENCE)
+    (skill_dir / "scripts" / "example.py").write_text(EXAMPLE_SCRIPT.format(name=name))
 
     return skill_dir
 
@@ -343,6 +332,7 @@ Tips:
 # CLI
 # ---------------------------------------------------------------------------
 
+
 def main():
     parser = argparse.ArgumentParser(
         description="Scaffold a new skill for Codex or Claude Code",
@@ -352,19 +342,18 @@ Examples:
   %(prog)s code-reviewer
   %(prog)s deploy-helper --path ~/my-skills
   %(prog)s test-generator --path ~/.codex/skills
-        """
+        """,
     )
 
     parser.add_argument(
-        "name",
-        help="Skill name in kebab-case (e.g. code-reviewer, test-generator)"
+        "name", help="Skill name in kebab-case (e.g. code-reviewer, test-generator)"
     )
 
     parser.add_argument(
         "--path",
         type=Path,
         default=Path.cwd(),
-        help="Parent directory for the new skill (default: current directory)"
+        help="Parent directory for the new skill (default: current directory)",
     )
 
     args = parser.parse_args()

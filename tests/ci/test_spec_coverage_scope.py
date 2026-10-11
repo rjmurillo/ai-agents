@@ -82,9 +82,7 @@ class TestDecide:
 
         assert scope.decide("pull_request", base, head, repo).skip is False
 
-    def test_docs_only_change_skips_and_says_how_many_files_were_examined(
-        self, repo: Path
-    ) -> None:
+    def test_docs_only_change_skips_and_says_how_many_files_were_examined(self, repo: Path) -> None:
         base = _git(repo, "rev-parse", "HEAD")
         head = _commit(repo, {"docs/a.md": "a\n", "notes/b.txt": "b\n"})
 
@@ -301,9 +299,7 @@ class TestEntrypoint:
         base = _git(repo, "rev-parse", "HEAD")
         head = _commit(repo, {"build/x.py": "x\n"})
 
-        result = self._run(
-            repo, {"EVENT_NAME": "pull_request", "BASE_SHA": base, "HEAD_SHA": head}
-        )
+        result = self._run(repo, {"EVENT_NAME": "pull_request", "BASE_SHA": base, "HEAD_SHA": head})
 
         assert result.returncode == EXIT_OK
         assert "skip=false" in result.stdout
@@ -339,9 +335,7 @@ class TestWorkflowWiring:
         assert isinstance(job, dict)
         return job
 
-    def test_no_sibling_path_job_exists(
-        self, workflow_and_job: tuple[dict[str, Any], str]
-    ) -> None:
+    def test_no_sibling_path_job_exists(self, workflow_and_job: tuple[dict[str, Any], str]) -> None:
         assert "check-paths" not in workflow_and_job[0]["jobs"]
 
     def test_job_condition_reads_no_path_job_output(

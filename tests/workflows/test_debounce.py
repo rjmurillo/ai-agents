@@ -135,9 +135,7 @@ def test_run_rejects_negative_delay(capsys: pytest.CaptureFixture[str]) -> None:
 
 
 @pytest.mark.parametrize("value", ["nan", "inf", "-inf", "Infinity"])
-def test_run_rejects_non_finite_delay(
-    value: str, capsys: pytest.CaptureFixture[str]
-) -> None:
+def test_run_rejects_non_finite_delay(value: str, capsys: pytest.CaptureFixture[str]) -> None:
     # float() accepts nan/inf/-inf; sleep(nan) raises and sleep(inf) would hang
     # the job forever, so they must be rejected before sleeping.
     slept: list[float] = []

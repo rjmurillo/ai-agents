@@ -675,9 +675,7 @@ class TestPrintResult:
         assert "Total Risks: 5" in captured.out
         assert "Average Score: 8.0" in captured.out
 
-    def test_prints_invalid_result_with_errors(
-        self, capsys: CaptureFixture[str]
-    ) -> None:
+    def test_prints_invalid_result_with_errors(self, capsys: CaptureFixture[str]) -> None:
         """Prints invalid result with error list."""
         result = ValidationResult(valid=False)
         result.errors = ["Error 1", "Error 2"]
@@ -863,14 +861,7 @@ class TestScriptIntegration:
     @pytest.fixture
     def script_path(self, project_root: Path) -> Path:
         """Return path to the script."""
-        return (
-            project_root
-            / ".claude"
-            / "skills"
-            / "pre-mortem"
-            / "scripts"
-            / "pre-mortem.py"
-        )
+        return project_root / ".claude" / "skills" / "pre-mortem" / "scripts" / "pre-mortem.py"
 
     @pytest.fixture
     def valid_inventory_file(self, tmp_path: Path) -> Path:
@@ -910,7 +901,8 @@ None.
         result = subprocess.run(
             [sys.executable, str(script_path), "--help"],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
             timeout=30,
         )
 
@@ -925,16 +917,15 @@ None.
         result = subprocess.run(
             [sys.executable, str(script_path)],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
             timeout=30,
         )
 
         assert result.returncode != 0
         assert "required" in result.stderr.lower() or "inventory-path" in result.stderr
 
-    def test_validates_file(
-        self, script_path: Path, valid_inventory_file: Path
-    ) -> None:
+    def test_validates_file(self, script_path: Path, valid_inventory_file: Path) -> None:
         """Script validates inventory file successfully."""
         result = subprocess.run(
             [
@@ -944,16 +935,15 @@ None.
                 str(valid_inventory_file),
             ],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
             timeout=30,
         )
 
         assert result.returncode == 0
         assert "VALID" in result.stdout
 
-    def test_json_output_integration(
-        self, script_path: Path, valid_inventory_file: Path
-    ) -> None:
+    def test_json_output_integration(self, script_path: Path, valid_inventory_file: Path) -> None:
         """Script produces valid JSON output with --json flag."""
         result = subprocess.run(
             [
@@ -964,7 +954,8 @@ None.
                 "--json",
             ],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
             timeout=30,
         )
 
@@ -985,15 +976,14 @@ None.
                 str(invalid_file),
             ],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
             timeout=30,
         )
 
         assert result.returncode == 10
 
-    def test_exit_code_1_for_missing_file(
-        self, script_path: Path, tmp_path: Path
-    ) -> None:
+    def test_exit_code_1_for_missing_file(self, script_path: Path, tmp_path: Path) -> None:
         """Script returns exit code 1 for missing file."""
         nonexistent = tmp_path / "nonexistent.md"
 
@@ -1005,7 +995,8 @@ None.
                 str(nonexistent),
             ],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
             timeout=30,
         )
 
@@ -1067,7 +1058,7 @@ None.
         """Handles Unicode content in inventory."""
         content = """# Risk Inventory
 
-**Project:** Test Project with Unicode: \u2603 \u2764 \U0001F600
+**Project:** Test Project with Unicode: \u2603 \u2764 \U0001f600
 **Date:** 2026-01-18
 **Objective:** Test unicode handling
 

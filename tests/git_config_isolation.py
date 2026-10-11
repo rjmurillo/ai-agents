@@ -140,9 +140,7 @@ def snapshot_git_config_env(environ: MutableMapping[str, str]) -> dict[str, str]
     return {k: v for k, v in environ.items() if k.startswith("GIT_CONFIG")}
 
 
-def restore_git_config_env(
-    environ: MutableMapping[str, str], snapshot: dict[str, str]
-) -> None:
+def restore_git_config_env(environ: MutableMapping[str, str], snapshot: dict[str, str]) -> None:
     """Restore the ``GIT_CONFIG*`` namespace from a prior snapshot in place."""
     for key in [k for k in environ if k.startswith("GIT_CONFIG")]:
         del environ[key]

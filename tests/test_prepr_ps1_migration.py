@@ -57,7 +57,9 @@ class TestNoPsReferences:
             basename = Path(ref).name if "/" not in ref else ref.split("/")[-1]
             result = subprocess.run(
                 ["git", "-C", str(REPO_ROOT), "ls-files", f"*{basename}"],
-                capture_output=True, text=True, timeout=10,
+                capture_output=True,
+                text=True,
+                timeout=10,
             )
             if basename not in (result.stdout or ""):
                 missing.append(ref)
@@ -110,9 +112,7 @@ class TestSessionEndGate:
         # No changed session logs on branch -> PASS
         head = "a" * 40
         with patch("checks_tooling._resolve_branch_base_ref", return_value="main"):
-            with patch(
-                "checks_tooling._run_subprocess", side_effect=_session_git_fake(head)
-            ):
+            with patch("checks_tooling._run_subprocess", side_effect=_session_git_fake(head)):
                 outcome = validate_session_end(REPO_ROOT)
 
         assert outcome.state is EvidenceState.PASS
@@ -153,9 +153,7 @@ class TestSessionEndGate:
         # when validate_session_json.py exists (which it does in this repo).
         head = "b" * 40
         with patch("checks_tooling._resolve_branch_base_ref", return_value="main"):
-            with patch(
-                "checks_tooling._run_subprocess", side_effect=_session_git_fake(head)
-            ):
+            with patch("checks_tooling._run_subprocess", side_effect=_session_git_fake(head)):
                 # No changed logs -> passes without needing the script
                 result = validate_session_end(REPO_ROOT)
 
@@ -187,9 +185,7 @@ class TestPathNormalizationGate:
         build_dir = tmp_path / "build" / "scripts"
         build_dir.mkdir(parents=True)
         real_script = REPO_ROOT / "build" / "scripts" / "validate_path_normalization.py"
-        (build_dir / "validate_path_normalization.py").write_bytes(
-            real_script.read_bytes()
-        )
+        (build_dir / "validate_path_normalization.py").write_bytes(real_script.read_bytes())
 
         # Create a .md file with a forbidden absolute path
         doc = tmp_path / "bad-doc.md"
@@ -222,9 +218,7 @@ class TestPlanningArtifactsGate:
         build_dir = tmp_path / "build" / "scripts"
         build_dir.mkdir(parents=True)
         real_script = REPO_ROOT / "build" / "scripts" / "validate_planning_artifacts.py"
-        (build_dir / "validate_planning_artifacts.py").write_bytes(
-            real_script.read_bytes()
-        )
+        (build_dir / "validate_planning_artifacts.py").write_bytes(real_script.read_bytes())
 
         # Create a planning doc with an orphan condition (a specialist condition
         # listed outside any table and not referenced in any table row).
@@ -247,10 +241,7 @@ class TestPlanningArtifactsGate:
 
 
 _BASE_WITH_ERROR = (
-    "def greet(name: str) -> str:\n"
-    "    return name\n"
-    "\n"
-    "x: int = 'not an int'  # pre-existing error\n"
+    "def greet(name: str) -> str:\n    return name\n\nx: int = 'not an int'  # pre-existing error\n"
 )
 _CLEAN_ADDITION = "\ndef farewell(name: str) -> str:\n    return f'bye {name}'\n"
 _ERROR_ADDITION = "\ny: int = 'also not an int'  # new error on a changed line\n"
@@ -309,11 +300,13 @@ class TestMypyChangedFilesGate:
         subprocess.run(["git", "init", str(tmp_path)], capture_output=True, check=True)
         subprocess.run(
             ["git", "-C", str(tmp_path), "config", "user.email", "test@test.com"],
-            capture_output=True, check=True,
+            capture_output=True,
+            check=True,
         )
         subprocess.run(
             ["git", "-C", str(tmp_path), "config", "user.name", "Test"],
-            capture_output=True, check=True,
+            capture_output=True,
+            check=True,
         )
 
         # Base commit: a clean file with no type errors
@@ -322,7 +315,8 @@ class TestMypyChangedFilesGate:
         subprocess.run(["git", "-C", str(tmp_path), "add", "."], capture_output=True, check=True)
         subprocess.run(
             ["git", "-C", str(tmp_path), "commit", "-m", "base"],
-            capture_output=True, check=True,
+            capture_output=True,
+            check=True,
         )
 
         # Branch: add a line with a type error
@@ -335,7 +329,8 @@ class TestMypyChangedFilesGate:
         subprocess.run(["git", "-C", str(tmp_path), "add", "."], capture_output=True, check=True)
         subprocess.run(
             ["git", "-C", str(tmp_path), "commit", "-m", "add error"],
-            capture_output=True, check=True,
+            capture_output=True,
+            check=True,
         )
 
         # run_mypy uses _mypy_ratchet_base_ref() to get the base. We patch it
@@ -358,11 +353,13 @@ class TestMypyChangedFilesGate:
         subprocess.run(["git", "init", str(tmp_path)], capture_output=True, check=True)
         subprocess.run(
             ["git", "-C", str(tmp_path), "config", "user.email", "test@test.com"],
-            capture_output=True, check=True,
+            capture_output=True,
+            check=True,
         )
         subprocess.run(
             ["git", "-C", str(tmp_path), "config", "user.name", "Test"],
-            capture_output=True, check=True,
+            capture_output=True,
+            check=True,
         )
 
         # Base commit: file already has a type error on line 4
@@ -376,7 +373,8 @@ class TestMypyChangedFilesGate:
         subprocess.run(["git", "-C", str(tmp_path), "add", "."], capture_output=True, check=True)
         subprocess.run(
             ["git", "-C", str(tmp_path), "commit", "-m", "base with error"],
-            capture_output=True, check=True,
+            capture_output=True,
+            check=True,
         )
 
         # Branch: change a DIFFERENT line (add a clean function), leave error alone
@@ -392,7 +390,8 @@ class TestMypyChangedFilesGate:
         subprocess.run(["git", "-C", str(tmp_path), "add", "."], capture_output=True, check=True)
         subprocess.run(
             ["git", "-C", str(tmp_path), "commit", "-m", "add clean function"],
-            capture_output=True, check=True,
+            capture_output=True,
+            check=True,
         )
 
         # run_mypy with ratchet base pointing at the base commit

@@ -86,9 +86,7 @@ class TestRunContexts:
 
     def test_two_jobs_sharing_a_name_collapse_to_one_context(self):
         endpoint = "repos/o/r/actions/runs/5/jobs"
-        client = FakeClient(
-            {page_url(endpoint, 1): {"jobs": [{"name": "Same"}, {"name": "Same"}]}}
-        )
+        client = FakeClient({page_url(endpoint, 1): {"jobs": [{"name": "Same"}, {"name": "Same"}]}})
 
         assert run_contexts(client, "o/r", 5) == ("Same",)
 
@@ -146,9 +144,7 @@ class TestEndpointEncoding:
         client = FakeClient(
             {
                 page_url(endpoint, 1): {"workflow_runs": [run_payload(31)]},
-                page_url("repos/o/r/actions/runs/31/jobs", 1): {
-                    "jobs": [{"name": "Validate PR"}]
-                },
+                page_url("repos/o/r/actions/runs/31/jobs", 1): {"jobs": [{"name": "Validate PR"}]},
             }
         )
 
@@ -183,9 +179,7 @@ class TestCollectRunsForTargets:
         jobs_12 = "repos/o/r/actions/runs/12/jobs"
         return FakeClient(
             {
-                page_url(queued, 1): {
-                    "workflow_runs": [run_payload(11, name="Validate PR")]
-                },
+                page_url(queued, 1): {"workflow_runs": [run_payload(11, name="Validate PR")]},
                 page_url(in_progress, 1): {
                     "workflow_runs": [
                         run_payload(12, name="Run Python Tests", status="in_progress")
@@ -209,9 +203,7 @@ class TestCollectRunsForTargets:
 
     def test_a_run_without_a_numeric_id_is_skipped(self):
         endpoint = runs_url("o/r", "feat/a", "queued")
-        client = FakeClient(
-            {page_url(endpoint, 1): {"workflow_runs": [{"name": "No id"}]}}
-        )
+        client = FakeClient({page_url(endpoint, 1): {"workflow_runs": [{"name": "No id"}]}})
 
         assert collect_runs_for_targets(client, "o/r", [target("feat/a", 1)]) == []
 
@@ -241,16 +233,12 @@ class TestCollectRunsForTargets:
         endpoint = runs_url("o/r", "feat/a", "queued")
         client = FakeClient(
             {
-                page_url(endpoint, 1): {
-                    "workflow_runs": [run_payload(21, name="Validate PR")]
-                },
+                page_url(endpoint, 1): {"workflow_runs": [run_payload(21, name="Validate PR")]},
                 page_url("repos/o/r/actions/runs/21/jobs", 1): {"jobs": []},
             }
         )
 
-        runs = collect_runs_for_targets(
-            client, "o/r", [target("feat/a", 1)], statuses=["queued"]
-        )
+        runs = collect_runs_for_targets(client, "o/r", [target("feat/a", 1)], statuses=["queued"])
 
         assert len(runs) == 1
         assert runs[0].contexts == ()
@@ -260,9 +248,7 @@ class TestCollectRunsForTargets:
         endpoint = runs_url("o/r", "feat/a", "queued")
         client = FakeClient({page_url(endpoint, 1): {"workflow_runs": []}})
 
-        collect_runs_for_targets(
-            client, "o/r", [target("feat/a", 1)], statuses=["queued"]
-        )
+        collect_runs_for_targets(client, "o/r", [target("feat/a", 1)], statuses=["queued"])
 
         assert all("in_progress" not in url for url in client.gets)
 
@@ -425,9 +411,7 @@ class TestCancelAgainstTheRealTransport:
     """
 
     def _completed(self, stdout: str) -> subprocess.CompletedProcess[str]:
-        return subprocess.CompletedProcess(
-            args=[], returncode=0, stdout=stdout, stderr=""
-        )
+        return subprocess.CompletedProcess(args=[], returncode=0, stdout=stdout, stderr="")
 
     def test_an_empty_202_body_records_the_run_as_cancelled(self):
         with patch("subprocess.run", return_value=self._completed("")):

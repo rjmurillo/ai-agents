@@ -34,7 +34,7 @@ GUARDED_DOCS = (
 _GUARD_START = "# late-live-state-guard:start"
 _GUARD_END = "# late-live-state-guard:end"
 
-_LIVE_STATE_STUB = '''\
+_LIVE_STATE_STUB = """\
 import argparse
 import json
 import os
@@ -93,14 +93,14 @@ print(json.dumps({
     },
 }))
 raise SystemExit(exit_code)
-'''
+"""
 
-_MUTATION_STUB = '''\
+_MUTATION_STUB = """\
 import os
 from pathlib import Path
 
 Path(os.environ["MUTATION_LOG"]).write_text("ran\\n", encoding="utf-8")
-'''
+"""
 
 
 def _extract_guard(text: str) -> str:
@@ -132,7 +132,7 @@ def _run_race(
     mutation_log = tmp_path / "mutation"
     guard = _extract_guard((REPO_ROOT / guarded_doc).read_text(encoding="utf-8"))
     override = (
-        f'EXPECTED_HEAD_SHA={shlex.quote(head_sha_override)}\n'
+        f"EXPECTED_HEAD_SHA={shlex.quote(head_sha_override)}\n"
         if head_sha_override is not None
         else ""
     )

@@ -484,7 +484,7 @@ def _looks_like_yaml_mapping(block: list[str]) -> bool:
         match = _YAML_KEY_LINE.match(stripped)
         if not match:
             return False
-        if not _looks_like_yaml_value(stripped[match.end():]):
+        if not _looks_like_yaml_value(stripped[match.end() :]):
             return False
         saw_key = True
     return saw_key

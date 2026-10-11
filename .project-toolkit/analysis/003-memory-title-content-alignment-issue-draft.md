@@ -85,7 +85,8 @@ from sklearn.metrics.pairwise import cosine_similarity
 from pathlib import Path
 import json
 
-model = SentenceTransformer('all-MiniLM-L6-v2')  # Fast, local model (no API cost)
+model = SentenceTransformer("all-MiniLM-L6-v2")  # Fast, local model (no API cost)
+
 
 def compute_similarity(filename, content):
     """
@@ -96,31 +97,29 @@ def compute_similarity(filename, content):
     content_emb = model.encode([content[:500]])  # First 500 chars
     return cosine_similarity(filename_emb, content_emb)[0][0]
 
+
 def audit_memory_files(memory_dir):
     results = []
-    for filepath in Path(memory_dir).glob('*.md'):
+    for filepath in Path(memory_dir).glob("*.md"):
         filename = filepath.stem
-        content = filepath.read_text(encoding='utf-8')
+        content = filepath.read_text(encoding="utf-8")
         score = compute_similarity(filename, content)
 
-        status = 'PASS' if score >= 0.7 else 'WARN'
-        results.append({
-            'file': filename,
-            'score': round(score, 3),
-            'status': status
-        })
+        status = "PASS" if score >= 0.7 else "WARN"
+        results.append({"file": filename, "score": round(score, 3), "status": status})
 
     return results
 
-if __name__ == '__main__':
-    results = audit_memory_files('.serena/memories')
+
+if __name__ == "__main__":
+    results = audit_memory_files(".serena/memories")
 
     # Write results to JSON for GitHub Actions consumption
-    with open('alignment-results.json', 'w') as f:
+    with open("alignment-results.json", "w") as f:
         json.dump(results, f, indent=2)
 
     # Print summary
-    warnings = [r for r in results if r['status'] == 'WARN']
+    warnings = [r for r in results if r["status"] == "WARN"]
     print(f"Total files: {len(results)}")
     print(f"Warnings: {len(warnings)}")
 

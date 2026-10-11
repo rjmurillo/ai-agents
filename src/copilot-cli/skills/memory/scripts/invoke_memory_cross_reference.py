@@ -75,9 +75,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.skip_path_validation:
             memories_path = Path(args.memories_path).resolve()
         else:
-            memories_path = _validate_path_within_project(
-                args.memories_path, project_root
-            )
+            memories_path = _validate_path_within_project(args.memories_path, project_root)
     else:
         memories_path = project_root / ".serena" / "memories"
 
@@ -96,9 +94,7 @@ def main(argv: list[str] | None = None) -> int:
     if not args.output_json:
         print("=== Step 1/3: Converting index table links ===")
     try:
-        result = process_index_links(
-            memories_path, files_to_process, output_json=True
-        )
+        result = process_index_links(memories_path, files_to_process, output_json=True)
         aggregate["IndexLinksAdded"] = result.get("LinksAdded", 0)
         aggregate["FilesModified"] += result.get("FilesModified", 0)
         if result.get("Errors"):
@@ -112,9 +108,7 @@ def main(argv: list[str] | None = None) -> int:
     if not args.output_json:
         print("\n=== Step 2/3: Converting backtick references ===")
     try:
-        result = process_backtick_refs(
-            memories_path, files_to_process, output_json=True
-        )
+        result = process_backtick_refs(memories_path, files_to_process, output_json=True)
         aggregate["BacktickLinksAdded"] = result.get("LinksAdded", 0)
         aggregate["FilesModified"] += result.get("FilesModified", 0)
         if result.get("Errors"):
@@ -128,9 +122,7 @@ def main(argv: list[str] | None = None) -> int:
     if not args.output_json:
         print("\n=== Step 3/3: Adding Related sections ===")
     try:
-        result = process_graph_density(
-            memories_path, files_to_process, output_json=True
-        )
+        result = process_graph_density(memories_path, files_to_process, output_json=True)
         aggregate["RelatedSectionsAdded"] = result.get("RelationshipsAdded", 0)
         aggregate["FilesModified"] += result.get("FilesModified", 0)
         if result.get("Errors"):

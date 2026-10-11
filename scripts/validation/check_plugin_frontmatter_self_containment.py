@@ -229,6 +229,7 @@ def plugin_roots(repo_root: Path) -> tuple[str, ...]:
 
 PLUGIN_ROOTS = plugin_roots(Path(__file__).resolve().parents[2])
 
+
 # A path that spells out a plugin root. The directory exists here, so this is
 # not an upstream-only reference, but it does not resolve for a consumer
 # either: the root is what gets installed, and it lands wherever the harness
@@ -256,6 +257,7 @@ def compile_outward_file(plugin_roots_: tuple[str, ...]) -> re.Pattern[str]:
         + r")[/\\][\w./\\+ -]*?[\w+ -]\.[A-Za-z][A-Za-z0-9]{0,9})"
         r"(?!\.[A-Za-z][A-Za-z0-9]{0,9}(?![\w/\\]))(?![\w/\\])"
     )
+
 
 # Directories that exist only in this repository. A consumer who installs a
 # plugin receives the plugin root and nothing above it.

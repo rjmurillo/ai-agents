@@ -52,9 +52,7 @@ Those two PRs retired the *mandatory* existence requirement. Neither touched `se
 Redesign `validate_qa_report()` to require an explicit `head` argument and to perform the staleness check itself, rather than leaving staleness detection as a second call a caller can forget:
 
 ```python
-def validate_qa_report(
-    path: Path, expected: QaBinding, *, head: str, repo_root: Path
-) -> QaReport:
+def validate_qa_report(path: Path, expected: QaBinding, *, head: str, repo_root: Path) -> QaReport:
     """Require a passing QA report bound to the expected session, and not stale.
 
     ``head`` is the commit to check staleness against. A real (non-evidence-
@@ -70,10 +68,7 @@ def validate_qa_report(
         )
     changed = post_qa_code_changes(report.commit, head, repo_root=repo_root)
     if changed:
-        raise ValueError(
-            "QA report is stale; code changed after its commit: "
-            + ", ".join(changed)
-        )
+        raise ValueError("QA report is stale; code changed after its commit: " + ", ".join(changed))
     return report
 ```
 

@@ -47,9 +47,7 @@ class TestWorkflowApplicabilityOutranksToolAbsence:
         assert outcome.state is EvidenceState.SKIP
         assert outcome.reason == REASON_TREE_ABSENT
 
-    def test_a_present_tree_without_the_tool_still_reports_blocked(
-        self, tmp_path: Path
-    ) -> None:
+    def test_a_present_tree_without_the_tool_still_reports_blocked(self, tmp_path: Path) -> None:
         """Negative control: the reorder must not swallow real tool absence.
 
         Without this, moving the applicability check first could have turned

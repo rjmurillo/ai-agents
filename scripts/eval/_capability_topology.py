@@ -66,9 +66,7 @@ def subagent_launch_count(events: Sequence[Mapping[str, object]]) -> int:
     launches = 0
     for event in subagent_lifecycle_events(events):
         event_type = event.get("type")
-        if isinstance(event_type, str) and any(
-            hint in event_type.lower() for hint in _START_HINTS
-        ):
+        if isinstance(event_type, str) and any(hint in event_type.lower() for hint in _START_HINTS):
             launches += 1
     return launches
 

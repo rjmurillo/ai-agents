@@ -124,9 +124,13 @@ def add_comment_reaction(
     # Try PR review comment endpoint first
     result = subprocess.run(
         [
-            "gh", "api",
+            "gh",
+            "api",
             f"{base_url}/pulls/comments/{comment_id}/reactions",
-            "-X", "POST", "-f", f"content={reaction}",
+            "-X",
+            "POST",
+            "-f",
+            f"content={reaction}",
         ],
         capture_output=True,
         text=True,
@@ -139,9 +143,13 @@ def add_comment_reaction(
     # Fall back to issue comment endpoint
     result = subprocess.run(
         [
-            "gh", "api",
+            "gh",
+            "api",
             f"{base_url}/issues/comments/{comment_id}/reactions",
-            "-X", "POST", "-f", f"content={reaction}",
+            "-X",
+            "POST",
+            "-f",
+            f"content={reaction}",
         ],
         capture_output=True,
         text=True,
@@ -170,9 +178,13 @@ def reply_to_comment(
     payload = json.dumps({"body": body})
     result = subprocess.run(
         [
-            "gh", "api",
+            "gh",
+            "api",
             f"repos/{owner}/{repo}/pulls/{pr_number}/comments/{comment_id}/replies",
-            "-X", "POST", "--input", "-",
+            "-X",
+            "POST",
+            "--input",
+            "-",
         ],
         input=payload,
         capture_output=True,
@@ -282,15 +294,19 @@ def build_parser() -> argparse.ArgumentParser:
         description="Process PR comments based on AI triage output.",
     )
     parser.add_argument(
-        "--pr-number", type=int, required=True,
+        "--pr-number",
+        type=int,
+        required=True,
         help="PR number to process",
     )
     parser.add_argument(
-        "--verdict", required=True,
+        "--verdict",
+        required=True,
         help="AI verdict from ai-review action (e.g. PASS, WARN, FAIL)",
     )
     parser.add_argument(
-        "--findings-json", required=True,
+        "--findings-json",
+        required=True,
         help="Raw JSON output from AI containing triage decisions. Use '-' for stdin.",
     )
     parser.add_argument("--owner", default="", help="Repository owner")

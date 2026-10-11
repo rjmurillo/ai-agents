@@ -256,9 +256,7 @@ def _build_full_report(
         "INFRA_FAILURE (did not run)" if completeness_infra else completeness_verdict
     )
     trace_emoji = "⚠️" if trace_infra else get_verdict_emoji(trace_verdict)
-    completeness_emoji = (
-        "⚠️" if completeness_infra else get_verdict_emoji(completeness_verdict)
-    )
+    completeness_emoji = "⚠️" if completeness_infra else get_verdict_emoji(completeness_verdict)
 
     infra_note = ""
     if trace_infra or completeness_infra:
@@ -380,9 +378,7 @@ def main(argv: list[str] | None = None) -> int:
             final_verdict = "INFRA_FAILURE"
         else:
             trace_for_verdict = "" if trace_infra else trace_verdict
-            completeness_for_verdict = (
-                "" if completeness_infra else completeness_verdict
-            )
+            completeness_for_verdict = "" if completeness_infra else completeness_verdict
             if spec_validation_failed(trace_for_verdict, completeness_for_verdict):
                 final_verdict = "FAIL"
             elif trace_infra or completeness_infra:
@@ -397,9 +393,7 @@ def main(argv: list[str] | None = None) -> int:
         spec_refs: str = args.spec_refs or "*None*"
         issue_refs: str = args.issue_refs or "*None*"
         trace_findings: str = args.trace_findings or "No traceability output"
-        completeness_findings: str = (
-            args.completeness_findings or "No completeness output"
-        )
+        completeness_findings: str = args.completeness_findings or "No completeness output"
 
         server_url: str = args.server_url
         run_id: str = args.run_id

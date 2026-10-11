@@ -73,13 +73,23 @@ def _spec_surface(skill_md: Path) -> str:
         for ref in sorted((skill_md.parent / "references").glob("*.md"))
     )
     return "\n".join(parts)
+
+
 SPEC_PRIOR_ART_SCHEMA = (
     PROJECT_ROOT
-    / ".claude" / "skills" / "spec-generator" / "references" / "spec-prior-art-schema.md"
+    / ".claude"
+    / "skills"
+    / "spec-generator"
+    / "references"
+    / "spec-prior-art-schema.md"
 )
 SKILL_PRIOR_ART_SCHEMA = (
     PROJECT_ROOT
-    / "src" / "copilot-cli" / "skills" / "spec-generator" / "references"
+    / "src"
+    / "copilot-cli"
+    / "skills"
+    / "spec-generator"
+    / "references"
     / "spec-prior-art-schema.md"
 )
 # The #2743 translation import and its SKILLS_DIR anchor are gone with the
@@ -160,10 +170,7 @@ def test_s1_heading_order_step_0_then_step_0_5_then_step_1(
 
 
 def test_s2_provisional_tier_subsection_present(step0_5_block: str):
-    assert (
-        "### Step 0.5 ProvisionalTier (auto-classified, no user prompt)"
-        in step0_5_block
-    )
+    assert "### Step 0.5 ProvisionalTier (auto-classified, no user prompt)" in step0_5_block
 
 
 def test_s2_provisional_tier_hours_mapping_strict_less_than(spec_text: str):
@@ -230,8 +237,7 @@ def test_s6_zero_result_coverage_note_rule(step0_5_block: str):
         "Memory search returns 0 results for a topic after at minimum 3 distinct queries"
         in step0_5_block
     ) or (
-        "after at minimum 3 distinct queries" in step0_5_block
-        and "Coverage notes" in step0_5_block
+        "after at minimum 3 distinct queries" in step0_5_block and "Coverage notes" in step0_5_block
     )
 
 
@@ -299,18 +305,12 @@ def test_s8_auto_mode_uses_whole_token_equality_not_substring(spec_text: str):
         spec_text,
         "### Step 0.5 entity adjudication",
     )
-    assert "whole-token equality" in body, (
-        "auto-mode rule must specify whole-token equality"
-    )
-    assert "not substring match" in body, (
-        "rule must explicitly reject substring matching"
-    )
+    assert "whole-token equality" in body, "auto-mode rule must specify whole-token equality"
+    assert "not substring match" in body, "rule must explicitly reject substring matching"
     assert "Auto (whole-token equality only)" in body, (
         "blast-radius threshold table must name whole-token matching for Auto"
     )
-    assert "CWE-863" in body, (
-        "rule should cite the access-control weakness it closes"
-    )
+    assert "CWE-863" in body, "rule should cite the access-control weakness it closes"
 
 
 def test_s8_auto_mode_adjudication_applies_rule_5_aliases(spec_text: str):
@@ -479,9 +479,7 @@ def test_s12_has_guard_string_returns_false_after_2b(spec_text: str):
         ("2 weeks", 2, 4),
     ],
 )
-def test_compute_provisional_tier_reference_cases(
-    q4_text: str, entity_count: int, expected: int
-):
+def test_compute_provisional_tier_reference_cases(q4_text: str, entity_count: int, expected: int):
     assert compute_provisional_tier(q4_text, entity_count) == expected
 
 
@@ -529,9 +527,7 @@ def test_compute_provisional_tier_entity_count_boundaries(
     entity in practice; this is the conservative floor for empty input).
     """
     # Force empty Q4 so result depends only on entity_tier.
-    assert compute_provisional_tier("", entity_count) == max(
-        2, expected_entity_tier
-    )
+    assert compute_provisional_tier("", entity_count) == max(2, expected_entity_tier)
 
 
 # AC-10 supplemental Phase 5 behavioral cases
@@ -556,14 +552,10 @@ def test_phases_needed_per_tier(tier: int, expected_phases: int):
         (4, 4, False),
     ],
 )
-def test_supplemental_traversal_warranted(
-    provisional: int, actual: int, expected: bool
-):
+def test_supplemental_traversal_warranted(provisional: int, actual: int, expected: bool):
     """AC-10: supplemental fires when actual tier > provisional AND
     actual tier needs more phases than provisional already ran."""
-    assert (
-        supplemental_traversal_warranted(provisional, actual) is expected
-    )
+    assert supplemental_traversal_warranted(provisional, actual) is expected
 
 
 # ---------------------------------------------------------------------------
@@ -610,27 +602,14 @@ def test_d8_halt_block_parses_with_five_fields():
 
 def test_d8_halt_block_rejects_unknown_trigger():
     sample = (
-        "```step0_5-halt\n"
-        "trigger: H99\n"
-        "check: AC-09\n"
-        "evidence: x\n"
-        "test_failed: y\n"
-        "deferral: z\n"
-        "```"
+        "```step0_5-halt\ntrigger: H99\ncheck: AC-09\nevidence: x\ntest_failed: y\ndeferral: z\n```"
     )
     with pytest.raises(ValueError, match="not in valid set"):
         parse_halt_block(sample)
 
 
 def test_d8_halt_block_rejects_missing_field_by_line_count():
-    sample = (
-        "```step0_5-halt\n"
-        "trigger: H11\n"
-        "check: AC-09\n"
-        "evidence: x\n"
-        "test_failed: y\n"
-        "```"
-    )
+    sample = "```step0_5-halt\ntrigger: H11\ncheck: AC-09\nevidence: x\ntest_failed: y\n```"
     with pytest.raises(ValueError, match="exactly 5"):
         parse_halt_block(sample)
 
@@ -815,10 +794,7 @@ def test_normalize_topic_strips_leading_dots_and_separators_and_lowercases():
     # Regression: leading whitespace must not defeat leading-dot stripping.
     # Rule 1 (trim) runs before rule 2 (strip), so surrounding whitespace is
     # removed before the leading-dot regex applies.
-    assert (
-        normalize_topic("  .claude/skills/spec/SKILL.md  ")
-        == "claude/skills/spec/skill.md"
-    )
+    assert normalize_topic("  .claude/skills/spec/SKILL.md  ") == "claude/skills/spec/skill.md"
 
 
 def test_normalize_topic_empty_and_separator_only_yield_empty_string():
@@ -909,9 +885,7 @@ def test_entity_adjudication_applies_aliases_to_entity_and_answer_spans():
 # ---------------------------------------------------------------------------
 
 
-def test_step0_5_block_byte_identical_across_spec_and_skill(
-    spec_text: str, skill_text: str
-):
+def test_step0_5_block_byte_identical_across_spec_and_skill(spec_text: str, skill_text: str):
     """The Step 0.5 block must match between the two trees.
 
     Raw equality, not the #2743 translation. ADR-064 (issue #5632) moved this
@@ -1064,10 +1038,7 @@ def test_extract_step9_block_matches_rephrased_opener():
 
 def test_extract_step9_block_still_matches_canonical_critic_opener():
     """The relaxed anchor still matches the canonical Task(critic) opener."""
-    spec = (
-        '9. Task(subagent_type="critic"): skeptical review. 9a-9d follow.\n'
-        "## Evaluation Axes\n"
-    )
+    spec = '9. Task(subagent_type="critic"): skeptical review. 9a-9d follow.\n## Evaluation Axes\n'
     block = extract_step9_block(spec)
     assert block.startswith('9. Task(subagent_type="critic")')
     assert "Evaluation Axes" not in block
@@ -1093,9 +1064,7 @@ def test_s12_prior_art_heading_contract_documented(spec_prior_art_text: str):
 
     After issue #3632, this content lives in spec-prior-art-schema.md.
     """
-    assert "The h2 heading MUST be exactly `## Prior Art / Constraints`" in (
-        spec_prior_art_text
-    )
+    assert "The h2 heading MUST be exactly `## Prior Art / Constraints`" in (spec_prior_art_text)
     assert "any trailing parenthetical" in spec_prior_art_text
     assert "matches by substring" in spec_prior_art_text
 
@@ -1106,9 +1075,7 @@ def test_s12_prior_art_heading_contract_present_in_skill_mirror(skill_prior_art_
     After issue #3632, the verbatim mirror lives in
     src/copilot-cli/skills/spec-generator/references/spec-prior-art-schema.md.
     """
-    assert "The h2 heading MUST be exactly `## Prior Art / Constraints`" in (
-        skill_prior_art_text
-    )
+    assert "The h2 heading MUST be exactly `## Prior Art / Constraints`" in (skill_prior_art_text)
 
 
 # ---------------------------------------------------------------------------
@@ -1119,9 +1086,7 @@ def test_s12_prior_art_heading_contract_present_in_skill_mirror(skill_prior_art_
 # the canonical value on a hit.
 # ---------------------------------------------------------------------------
 
-ALIAS_TABLE_PATH = (
-    PROJECT_ROOT / ".agents" / "dictionaries" / "spec-entity-aliases.json"
-)
+ALIAS_TABLE_PATH = PROJECT_ROOT / ".agents" / "dictionaries" / "spec-entity-aliases.json"
 
 
 def test_alias_table_file_exists_and_is_valid_json():
@@ -1140,9 +1105,7 @@ def test_alias_table_keys_are_already_normalized():
     """
     aliases = load_entity_aliases()
     for key in aliases:
-        assert normalize_topic(key) == key, (
-            f"alias key {key!r} is not in normalized form"
-        )
+        assert normalize_topic(key) == key, f"alias key {key!r} is not in normalized form"
 
 
 def test_alias_table_canonical_values_are_normalized():
@@ -1164,9 +1127,7 @@ def test_alias_table_canonical_values_are_normalized():
         ("memory_search", "memory"),
     ],
 )
-def test_normalize_topic_with_aliases_collapses_synonyms(
-    raw: str, expected: str
-):
+def test_normalize_topic_with_aliases_collapses_synonyms(raw: str, expected: str):
     """Known synonyms collapse to one canonical topic after rule 5."""
     assert normalize_topic_with_aliases(raw) == expected
 
@@ -1175,9 +1136,10 @@ def test_normalize_topic_with_aliases_passes_through_unknown_topics():
     """A topic with no alias entry is returned as its rule-4 normalized form."""
     # `auth service` normalizes to `auth-service`, which is not an alias key.
     assert normalize_topic_with_aliases("auth service") == "auth-service"
-    assert normalize_topic_with_aliases(
-        ".claude/skills/spec/SKILL.md"
-    ) == "claude/skills/spec/skill.md"
+    assert (
+        normalize_topic_with_aliases(".claude/skills/spec/SKILL.md")
+        == "claude/skills/spec/skill.md"
+    )
 
 
 def test_normalize_topic_with_aliases_accepts_injected_table():

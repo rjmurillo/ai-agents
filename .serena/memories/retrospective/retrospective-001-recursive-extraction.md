@@ -152,23 +152,23 @@ Round 3: Systemic gap learnings
 
 ```python
 # After main work
-Task(subagent_type="retrospective", 
-     prompt="Extract learnings from session")
+Task(subagent_type="retrospective", prompt="Extract learnings from session")
 
 # Review extraction
 skill_count_r1 = count_new_skills()
 
 # Round 2
-Task(subagent_type="retrospective",
-     prompt="Meta-analysis: What patterns emerged? What's missing?")
+Task(subagent_type="retrospective", prompt="Meta-analysis: What patterns emerged? What's missing?")
 
 skill_count_r2 = count_new_skills()
 novelty_ratio = (skill_count_r2 - skill_count_r1) / skill_count_r1
 
 if novelty_ratio > 0.2:
     # Round 3 justified
-    Task(subagent_type="retrospective",
-         prompt="Deep reflection: Systemic issues, blind spots, amnesiac bootstrap")
+    Task(
+        subagent_type="retrospective",
+        prompt="Deep reflection: Systemic issues, blind spots, amnesiac bootstrap",
+    )
 ```
 
 ## Related

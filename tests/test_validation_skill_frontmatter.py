@@ -61,19 +61,14 @@ class TestParseFrontmatter:
         assert any("spaces for indentation" in e for e in result.errors)
 
     def test_multiline_description_with_folded_style(self) -> None:
-        content = (
-            "---\nname: test-skill\n"
-            "description: >\n  This is a multiline\n  description\n---"
-        )
+        content = "---\nname: test-skill\ndescription: >\n  This is a multiline\n  description\n---"
         result = parse_frontmatter(content)
         assert result.is_valid is True
         assert "multiline" in result.frontmatter["description"]
 
     def test_array_values_parsed(self) -> None:
         content = (
-            "---\nname: test-skill\n"
-            "description: Test\n"
-            "allowed-tools:\n  - bash\n  - edit\n---"
+            "---\nname: test-skill\ndescription: Test\nallowed-tools:\n  - bash\n  - edit\n---"
         )
         result = parse_frontmatter(content)
         assert result.is_valid is True
@@ -87,10 +82,7 @@ class TestParseFrontmatter:
         assert result.frontmatter == {}
 
     def test_literal_block_scalar(self) -> None:
-        content = (
-            "---\nname: test-skill\n"
-            "description: |\n  Line one\n  Line two\n---"
-        )
+        content = "---\nname: test-skill\ndescription: |\n  Line one\n  Line two\n---"
         result = parse_frontmatter(content)
         assert result.is_valid is True
         assert "Line one" in result.frontmatter["description"]
@@ -293,6 +285,7 @@ class TestValidateAllowedTools:
 
     def test_all_valid_tools_accepted(self) -> None:
         from scripts.validation.skill_frontmatter import VALID_TOOLS
+
         all_tools = ",".join(VALID_TOOLS)
         assert validate_allowed_tools(all_tools) == []
 
@@ -447,9 +440,7 @@ class TestValidateSkillFile:
 
     def test_valid_file(self, tmp_path: Path) -> None:
         skill_file = tmp_path / "SKILL.md"
-        skill_file.write_text(
-            "---\nname: test-skill\ndescription: A test skill\n---\n# Body"
-        )
+        skill_file.write_text("---\nname: test-skill\ndescription: A test skill\n---\n# Body")
         result = validate_skill_file(skill_file)
         assert result.passed is True
         assert not result.errors
@@ -463,9 +454,7 @@ class TestValidateSkillFile:
 
     def test_invalid_name_reports_error(self, tmp_path: Path) -> None:
         skill_file = tmp_path / "SKILL.md"
-        skill_file.write_text(
-            "---\nname: Invalid-Name\ndescription: Test\n---"
-        )
+        skill_file.write_text("---\nname: Invalid-Name\ndescription: Test\n---")
         result = validate_skill_file(skill_file)
         assert result.passed is False
         assert any("Invalid name format" in e for e in result.errors)
@@ -474,9 +463,7 @@ class TestValidateSkillFile:
         desc = "A" * 1025
         skill_file = tmp_path / "SKILL.md"
         skill_file.write_text(
-            f"---\nname: Invalid-Name\n"
-            f"description: <b>{desc}</b>\n"
-            f"model: invalid-model\n---"
+            f"---\nname: Invalid-Name\ndescription: <b>{desc}</b>\nmodel: invalid-model\n---"
         )
         result = validate_skill_file(skill_file)
         assert result.passed is False
@@ -510,8 +497,7 @@ class TestValidateSkillFile:
     def test_frontmatter_only_no_body(self, tmp_path: Path) -> None:
         skill_file = tmp_path / "SKILL.md"
         skill_file.write_text(
-            "---\nname: no-content\n"
-            "description: Skill with no content after frontmatter\n---"
+            "---\nname: no-content\ndescription: Skill with no content after frontmatter\n---"
         )
         result = validate_skill_file(skill_file)
         assert result.passed is True
@@ -535,35 +521,37 @@ class TestMain:
     def test_valid_file_ci_mode_returns_0(self, tmp_path: Path) -> None:
         skill_dir = tmp_path / ".claude" / "skills" / "ok"
         skill_dir.mkdir(parents=True)
-        (skill_dir / "SKILL.md").write_text(
-            "---\nname: ok-skill\ndescription: Valid\n---"
+        (skill_dir / "SKILL.md").write_text("---\nname: ok-skill\ndescription: Valid\n---")
+        exit_code = main(
+            [
+                "--path",
+                str(tmp_path / ".claude" / "skills"),
+                "--ci",
+            ]
         )
-        exit_code = main([
-            "--path", str(tmp_path / ".claude" / "skills"),
-            "--ci",
-        ])
         assert exit_code == 0
 
     def test_invalid_file_ci_mode_returns_1(self, tmp_path: Path) -> None:
         skill_dir = tmp_path / ".claude" / "skills" / "bad"
         skill_dir.mkdir(parents=True)
-        (skill_dir / "SKILL.md").write_text(
-            "---\nname: BAD-NAME\ndescription: Test\n---"
+        (skill_dir / "SKILL.md").write_text("---\nname: BAD-NAME\ndescription: Test\n---")
+        exit_code = main(
+            [
+                "--path",
+                str(tmp_path / ".claude" / "skills"),
+                "--ci",
+            ]
         )
-        exit_code = main([
-            "--path", str(tmp_path / ".claude" / "skills"),
-            "--ci",
-        ])
         assert exit_code == 1
 
     def test_invalid_file_local_mode_returns_0(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture[str],
+        self,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
     ) -> None:
         skill_dir = tmp_path / ".claude" / "skills" / "bad"
         skill_dir.mkdir(parents=True)
-        (skill_dir / "SKILL.md").write_text(
-            "---\nname: BAD-NAME\ndescription: Test\n---"
-        )
+        (skill_dir / "SKILL.md").write_text("---\nname: BAD-NAME\ndescription: Test\n---")
         exit_code = main(["--path", str(tmp_path / ".claude" / "skills")])
         assert exit_code == 0
         assert "not running in CI mode" in capsys.readouterr().out
@@ -577,10 +565,13 @@ class TestMain:
             (skill_dir / "SKILL.md").write_text(
                 f"---\nname: {name}\ndescription: Skill {name}\n---"
             )
-        exit_code = main([
-            "--path", str(tmp_path / ".claude" / "skills"),
-            "--ci",
-        ])
+        exit_code = main(
+            [
+                "--path",
+                str(tmp_path / ".claude" / "skills"),
+                "--ci",
+            ]
+        )
         assert exit_code == 0
         output = capsys.readouterr().out
         assert "Found 2 SKILL.md file(s)" in output
@@ -599,10 +590,13 @@ class TestMain:
         (invalid_dir / "SKILL.md").write_text(
             "---\nname: Invalid-Skill\ndescription: Invalid test skill\n---"
         )
-        exit_code = main([
-            "--path", str(tmp_path / ".claude" / "skills"),
-            "--ci",
-        ])
+        exit_code = main(
+            [
+                "--path",
+                str(tmp_path / ".claude" / "skills"),
+                "--ci",
+            ]
+        )
         assert exit_code == 1
         output = capsys.readouterr().out
         assert "Passed: 1" in output
@@ -612,14 +606,16 @@ class TestMain:
         skill_dir = tmp_path / ".claude" / "skills" / "ok"
         skill_dir.mkdir(parents=True)
         skill_file = skill_dir / "SKILL.md"
-        skill_file.write_text(
-            "---\nname: ok-skill\ndescription: Valid\n---"
+        skill_file.write_text("---\nname: ok-skill\ndescription: Valid\n---")
+        exit_code = main(
+            [
+                "--path",
+                str(tmp_path),
+                "--ci",
+                "--changed-files",
+                str(skill_file),
+            ]
         )
-        exit_code = main([
-            "--path", str(tmp_path),
-            "--ci",
-            "--changed-files", str(skill_file),
-        ])
         assert exit_code == 0
 
 

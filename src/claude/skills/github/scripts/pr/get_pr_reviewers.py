@@ -107,13 +107,20 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")
     parser.add_argument(
-        "--pull-request", type=int, required=True, help="Pull request number",
+        "--pull-request",
+        type=int,
+        required=True,
+        help="Pull request number",
     )
     parser.add_argument(
-        "--exclude-bots", action="store_true", help="Exclude bot accounts",
+        "--exclude-bots",
+        action="store_true",
+        help="Exclude bot accounts",
     )
     parser.add_argument(
-        "--exclude-author", action="store_true", help="Exclude the PR author",
+        "--exclude-author",
+        action="store_true",
+        help="Exclude the PR author",
     )
     return parser
 
@@ -404,9 +411,7 @@ def _finalize_reviewers(
 ) -> list[dict[str, Any]]:
     reviewers = list(reviewer_map.values())
     for reviewer in reviewers:
-        reviewer["total_comments"] = (
-            reviewer["review_comments"] + reviewer["issue_comments"]
-        )
+        reviewer["total_comments"] = reviewer["review_comments"] + reviewer["issue_comments"]
     if exclude_bots:
         reviewers = [reviewer for reviewer in reviewers if not reviewer["is_bot"]]
     if exclude_author:
@@ -433,17 +438,11 @@ def main(argv: list[str] | None = None) -> int:
     pr = args.pull_request
 
     try:
-        pr_author_data, requested_reviewers = _fetch_author_and_review_requests(
-            owner, repo, pr
-        )
+        pr_author_data, requested_reviewers = _fetch_author_and_review_requests(owner, repo, pr)
         review_authors = _fetch_review_authors(owner, repo, pr)
         legacy_pr_author = _fetch_legacy_author(owner, repo, pr)
-        review_comments = _fetch_complete_comments(
-            f"repos/{owner}/{repo}/pulls/{pr}/comments"
-        )
-        issue_comments = _fetch_complete_comments(
-            f"repos/{owner}/{repo}/issues/{pr}/comments"
-        )
+        review_comments = _fetch_complete_comments(f"repos/{owner}/{repo}/pulls/{pr}/comments")
+        issue_comments = _fetch_complete_comments(f"repos/{owner}/{repo}/issues/{pr}/comments")
     except (RuntimeError, subprocess.TimeoutExpired) as exc:
         error_and_exit(f"Failed to get PR #{pr}: {exc}", 3)
 
@@ -477,9 +476,7 @@ def main(argv: list[str] | None = None) -> int:
         "pr_author_id": pr_author_id,
         "pr_author_observed": pr_author_observed or None,
         "pr_author_canonical": (
-            canonicalize_login(pr_author_observed, pr_author_id)
-            if pr_author_observed
-            else None
+            canonicalize_login(pr_author_observed, pr_author_id) if pr_author_observed else None
         ),
         "total_reviewers": len(reviewers),
         "bot_count": bot_count,

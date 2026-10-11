@@ -279,15 +279,18 @@ Forgetful MCP provides the semantic memory backbone. Key integration points:
 **Memory creation pattern** (Zettelkasten-compliant):
 
 ```python
-mcp__forgetful__execute_forgetful_tool("create_memory", {
-    "title": "Short descriptive title (max 200 chars)",
-    "content": "Atomic concept, max 2000 chars, ideally 300-400 words",
-    "context": "Why this matters, when to apply (max 500 chars)",
-    "keywords": ["semantic", "search", "terms"],
-    "tags": ["category1", "category2"],
-    "importance": 7,  # 1-10 scale for retrieval priority
-    "project_ids": [1]
-})
+mcp__forgetful__execute_forgetful_tool(
+    "create_memory",
+    {
+        "title": "Short descriptive title (max 200 chars)",
+        "content": "Atomic concept, max 2000 chars, ideally 300-400 words",
+        "context": "Why this matters, when to apply (max 500 chars)",
+        "keywords": ["semantic", "search", "terms"],
+        "tags": ["category1", "category2"],
+        "importance": 7,  # 1-10 scale for retrieval priority
+        "project_ids": [1],
+    },
+)
 ```
 
 **Auto-linking**: Forgetful automatically creates bidirectional links when cosine similarity ≥0.7.

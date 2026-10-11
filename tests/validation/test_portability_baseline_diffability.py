@@ -116,9 +116,7 @@ class TestABaselineGitWillNotDiffIsRefused:
         _attribute(repo, "scripts/validation/baseline.json -diff")
         assert refuse_undiffable_baseline(repo, _baseline(repo)) is True
 
-    def test_the_binary_macro_is_refused_because_it_expands_to_minus_diff(
-        self, repo: Path
-    ) -> None:
+    def test_the_binary_macro_is_refused_because_it_expands_to_minus_diff(self, repo: Path) -> None:
         """`binary` is not a separate spelling to remember, it is the same hole.
 
         It expands to `-diff -merge -text`, so a guard that only matched the
@@ -336,9 +334,7 @@ class TestEveryCheckerRefusesAHiddenBaseline:
         # too); harmless to the other two checkers here.
         instructions_dir = root / "src" / "copilot-cli" / "instructions"
         instructions_dir.mkdir(parents=True, exist_ok=True)
-        (instructions_dir / "_placeholder.md").write_text(
-            "Clean prose.\n", encoding="utf-8"
-        )
+        (instructions_dir / "_placeholder.md").write_text("Clean prose.\n", encoding="utf-8")
         target = root / "scripts" / "validation" / name
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(json.dumps({"files": {}, "marker_files": {}}) + "\n")

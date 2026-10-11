@@ -37,5 +37,3 @@ def repo(tmp_path: Path) -> Path:
     git(root, "add", "-A")
     git(root, "commit", "-q", "-m", "fixture repo")
     return root
-
-

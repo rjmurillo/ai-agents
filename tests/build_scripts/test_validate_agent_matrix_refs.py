@@ -183,7 +183,8 @@ def _has_agent_frontmatter(path: Path) -> bool:
         return False
     if block:
         description_lines = [
-            line for line, text_line in enumerate(block.splitlines(), start=1)
+            line
+            for line, text_line in enumerate(block.splitlines(), start=1)
             if re.match(r"^description\s*:", text_line)
         ]
         if len(description_lines) > 1:
@@ -1014,11 +1015,7 @@ class TestMainCli:
             {
                 _canonical_file("orchestrator"): matrix,
                 _canonical_file("ghost"): (
-                    "---\n"
-                    "description: first\n"
-                    "description: second\n"
-                    "---\n\n"
-                    "# Ghost\n"
+                    "---\ndescription: first\ndescription: second\n---\n\n# Ghost\n"
                 ),
             },
             {CANONICAL: []},

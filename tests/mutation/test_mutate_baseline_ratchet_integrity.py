@@ -244,9 +244,7 @@ def mutant_m4_inverted_control_benign(repo_root: Path) -> str:
         (-9, "HARNESS-ERROR: pytest exit -9 (run did not complete)"),
     ],
 )
-def test_classify_rejects_pytest_failures_as_false_kills(
-    returncode: int, expected: str
-) -> None:
+def test_classify_rejects_pytest_failures_as_false_kills(returncode: int, expected: str) -> None:
     """Only pytest's test-failure exit proves that a mutant died."""
     completed = subprocess.CompletedProcess(
         args=["pytest"],

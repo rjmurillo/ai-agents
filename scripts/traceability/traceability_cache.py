@@ -26,10 +26,7 @@ from typing import Any
 _memory_cache: dict[str, dict[str, Any]] = {}
 
 _CACHE_DIR = (
-    Path(__file__).resolve().parent.parent.parent
-    / ".project-toolkit"
-    / ".cache"
-    / "traceability"
+    Path(__file__).resolve().parent.parent.parent / ".project-toolkit" / ".cache" / "traceability"
 )
 
 
@@ -56,9 +53,7 @@ def get_file_hash(file_path: str | Path) -> str | None:
     return f"{int(stat.st_mtime * 10_000_000)}_{stat.st_size}"
 
 
-def get_cached_spec(
-    file_path: str | Path, current_hash: str
-) -> dict[str, Any] | None:
+def get_cached_spec(file_path: str | Path, current_hash: str) -> dict[str, Any] | None:
     """Retrieve a cached spec if valid, otherwise return None."""
     cache_key = get_cache_key(file_path)
 
@@ -88,9 +83,7 @@ def get_cached_spec(
     return None
 
 
-def set_cached_spec(
-    file_path: str | Path, file_hash: str, spec: dict[str, Any]
-) -> None:
+def set_cached_spec(file_path: str | Path, file_hash: str, spec: dict[str, Any]) -> None:
     """Cache a parsed spec to both memory and disk."""
     initialize_cache()
     cache_key = get_cache_key(file_path)
@@ -107,9 +100,7 @@ def set_cached_spec(
     }
 
     try:
-        cache_file.write_text(
-            json.dumps(cache_data, indent=2), encoding="utf-8"
-        )
+        cache_file.write_text(json.dumps(cache_data, indent=2), encoding="utf-8")
     except OSError:
         pass
 

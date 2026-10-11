@@ -46,9 +46,7 @@ class TestGetRepoRoot:
 
     def test_raises_when_not_in_repo(self) -> None:
         """Raises RuntimeError when not inside a git repository."""
-        with patch(
-            "subprocess.run", side_effect=subprocess.CalledProcessError(128, "git")
-        ):
+        with patch("subprocess.run", side_effect=subprocess.CalledProcessError(128, "git")):
             with pytest.raises(RuntimeError, match="Unable to determine repository root"):
                 get_repo_root()
 
@@ -81,20 +79,14 @@ class TestValidatePathWithinRepo:
     def test_traversal_outside_repo_rejected(self, repo_root: Path) -> None:
         """Path with .. components escaping repo root is rejected."""
         with pytest.raises(PermissionError, match="Path traversal blocked"):
-            validate_path_within_repo(
-                Path("../../../../../../etc/passwd"), repo_root=repo_root
-            )
+            validate_path_within_repo(Path("../../../../../../etc/passwd"), repo_root=repo_root)
 
     def test_dot_dot_resolving_within_repo_accepted(self, repo_root: Path) -> None:
         """Path with .. that still resolves within repo is accepted."""
-        result = validate_path_within_repo(
-            Path("src/../README.md"), repo_root=repo_root
-        )
+        result = validate_path_within_repo(Path("src/../README.md"), repo_root=repo_root)
         assert result.is_relative_to(repo_root)
 
-    def test_symlink_outside_repo_rejected(
-        self, repo_root: Path, external_tmp_path: Path
-    ) -> None:
+    def test_symlink_outside_repo_rejected(self, repo_root: Path, external_tmp_path: Path) -> None:
         """Symlink pointing outside repo root is rejected."""
         external_dir = external_tmp_path / "external"
         external_dir.mkdir()

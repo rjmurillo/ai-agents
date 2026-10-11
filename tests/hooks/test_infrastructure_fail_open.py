@@ -32,9 +32,7 @@ def _write_full_plugin(tmp_path: Path, event: str = "PreToolUse") -> Path:
     """Create a complete plugin layout with dispatcher."""
     root = tmp_path / "plugin"
     (root / ".claude-plugin").mkdir(parents=True)
-    (root / ".claude-plugin" / "plugin.json").write_text(
-        '{"name":"test"}', encoding="utf-8"
-    )
+    (root / ".claude-plugin" / "plugin.json").write_text('{"name":"test"}', encoding="utf-8")
     lib = root / "lib"
     lib.mkdir()
     _copy_dispatch_lib(lib)
@@ -44,13 +42,9 @@ def _write_full_plugin(tmp_path: Path, event: str = "PreToolUse") -> Path:
     canonical = REPO_ROOT / ".claude" / "hooks" / "PreToolUse" / "_bootstrap.py"
     (event_dir / "_bootstrap.py").write_bytes(canonical.read_bytes())
     gd.write_entrypoint(event_dir, event)
-    gd.write_manifest(
-        event_dir, event, ["test_shim.py"], mode="gate"
-    )
+    gd.write_manifest(event_dir, event, ["test_shim.py"], mode="gate")
     # Write a shim that allows
-    (event_dir / "test_shim.py").write_text(
-        "import sys\nsys.exit(0)\n", encoding="utf-8"
-    )
+    (event_dir / "test_shim.py").write_text("import sys\nsys.exit(0)\n", encoding="utf-8")
     return root
 
 
@@ -82,9 +76,7 @@ class TestInfrastructureFailOpen:
         """Failure B: lib/ absent."""
         root = tmp_path / "plugin"
         (root / ".claude-plugin").mkdir(parents=True)
-        (root / ".claude-plugin" / "plugin.json").write_text(
-            '{"name":"t"}', encoding="utf-8"
-        )
+        (root / ".claude-plugin" / "plugin.json").write_text('{"name":"t"}', encoding="utf-8")
         # hooks dir present but no lib
         event_dir = root / "hooks" / "PreToolUse"
         event_dir.mkdir(parents=True)
@@ -126,9 +118,7 @@ class TestInfrastructureFailOpen:
         """hook_dispatch module not importable (lib empty)."""
         root = tmp_path / "plugin"
         (root / ".claude-plugin").mkdir(parents=True)
-        (root / ".claude-plugin" / "plugin.json").write_text(
-            '{"name":"t"}', encoding="utf-8"
-        )
+        (root / ".claude-plugin" / "plugin.json").write_text('{"name":"t"}', encoding="utf-8")
         lib = root / "lib"
         lib.mkdir()
         # lib exists but is empty, so hook_dispatch import fails
@@ -175,9 +165,7 @@ class TestPolicyDenialStillDenies:
         root = _write_full_plugin(tmp_path)
         event_dir = root / "hooks" / "PreToolUse"
         # Overwrite shim to deny
-        (event_dir / "test_shim.py").write_text(
-            "import sys\nsys.exit(1)\n", encoding="utf-8"
-        )
+        (event_dir / "test_shim.py").write_text("import sys\nsys.exit(1)\n", encoding="utf-8")
 
         proc = _run_dispatch(
             event_dir / "_dispatch.py",
@@ -191,9 +179,7 @@ class TestPolicyDenialStillDenies:
         root = _write_full_plugin(tmp_path)
         event_dir = root / "hooks" / "PreToolUse"
         # Write malformed manifest (missing shims key)
-        (event_dir / "_manifest.json").write_text(
-            '{"event":"PreToolUse"}', encoding="utf-8"
-        )
+        (event_dir / "_manifest.json").write_text('{"event":"PreToolUse"}', encoding="utf-8")
 
         proc = _run_dispatch(
             event_dir / "_dispatch.py",
@@ -227,6 +213,7 @@ class TestOversizePayloadHappyPath:
 class TestDispatcherFileMissing:
     """Partial install: hooks dir exists but _dispatch.py missing (GAP 1)."""
 
+
 class TestTooOldPythonDegrades:
     """Python below floor (3.10) must degrade with warning, not crash."""
 
@@ -247,7 +234,7 @@ class TestTooOldPythonDegrades:
             "if _fake_version < (3, 10):\n"
             '    _v = ".".join(str(x) for x in _fake_version)\n'
             "    print(\n"
-            '        "project-toolkit@ai-agents WARNING: hooks DISABLED '\
+            '        "project-toolkit@ai-agents WARNING: hooks DISABLED '
             '(your session is "\n'
             '        "unaffected). Python >= 3.10 "\n'
             '        "required but Python " + _v + " found. "\n'
@@ -262,10 +249,7 @@ class TestTooOldPythonDegrades:
             capture_output=True,
             timeout=10,
         )
-        assert proc.returncode == 0, (
-            f"Expected 0, got {proc.returncode}: "
-            f"{proc.stderr.decode()}"
-        )
+        assert proc.returncode == 0, f"Expected 0, got {proc.returncode}: {proc.stderr.decode()}"
         stderr = proc.stderr.decode()
         assert "hooks DISABLED" in stderr
         assert "3.10" in stderr
@@ -298,9 +282,7 @@ class TestBootstrapVersionSkew:
         )
         gd.write_entrypoint(event_dir, "PreToolUse")
         gd.write_manifest(event_dir, "PreToolUse", ["shim.py"], mode="gate")
-        (event_dir / "shim.py").write_text(
-            "import sys\nsys.exit(0)\n", encoding="utf-8"
-        )
+        (event_dir / "shim.py").write_text("import sys\nsys.exit(0)\n", encoding="utf-8")
 
         proc = _run_dispatch(
             event_dir / "_dispatch.py",
@@ -308,8 +290,7 @@ class TestBootstrapVersionSkew:
             env_override={"COPILOT_PLUGIN_ROOT": str(root)},
         )
         assert proc.returncode == 0, (
-            f"Expected degrade, got exit {proc.returncode}\n"
-            f"{proc.stderr.decode()}"
+            f"Expected degrade, got exit {proc.returncode}\n{proc.stderr.decode()}"
         )
         stderr = proc.stderr.decode()
         assert "WARNING" in stderr
@@ -376,6 +357,4 @@ class TestVersionAgreement:
         readme = repo / "README.md"
         text = readme.read_text()
         version_str = f"{maj}.{minor}"
-        assert f"Python {version_str}" in text, (
-            f"README.md does not mention 'Python {version_str}'"
-        )
+        assert f"Python {version_str}" in text, f"README.md does not mention 'Python {version_str}'"

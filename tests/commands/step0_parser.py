@@ -94,7 +94,7 @@ def hedge_match(answer: str, phrases: list[str]) -> str | None:
         pattern = r"\b" + re.escape(phrase.lower()) + r"\b"
         for match in re.finditer(pattern, lower):
             suffixes = HEDGE_TECHNICAL_SUFFIXES.get(phrase.lower(), set())
-            after = lower[match.end():].lstrip(" \t-")
+            after = lower[match.end() :].lstrip(" \t-")
             first_word = after.split(maxsplit=1)[0] if after else ""
             if first_word in suffixes:
                 continue
@@ -300,18 +300,14 @@ def baseline_answers() -> dict[str, str]:
 
 
 def extract_step0_block(text: str) -> str:
-    match = re.search(
-        r"### Step 0:.*?(?=\n### Step 0\.5:)", text, re.DOTALL
-    )
+    match = re.search(r"### Step 0:.*?(?=\n### Step 0\.5:)", text, re.DOTALL)
     if match is None:
         raise ValueError("Step 0 block not found")
     return match.group(0)
 
 
 def extract_step1_paragraph(text: str) -> str:
-    match = re.search(
-        r"\n1\. Clarify the problem.*?(?=\n2\. )", text, re.DOTALL
-    )
+    match = re.search(r"\n1\. Clarify the problem.*?(?=\n2\. )", text, re.DOTALL)
     if match is None:
         raise ValueError("Step 1 paragraph not found")
     return match.group(0)

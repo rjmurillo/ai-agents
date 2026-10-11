@@ -1,12 +1,6 @@
 from pathlib import Path
 
-SKILL_PATH = (
-    Path(__file__).resolve().parents[3]
-    / ".claude"
-    / "skills"
-    / "dx-review"
-    / "SKILL.md"
-)
+SKILL_PATH = Path(__file__).resolve().parents[3] / ".claude" / "skills" / "dx-review" / "SKILL.md"
 UNIVERSAL_COMMAND_APPROVAL_FRAGMENTS = (
     "Every shell command requires explicit user approval",
     "including help, setup, and error-path commands",

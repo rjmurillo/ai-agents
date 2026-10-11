@@ -250,11 +250,7 @@ def grade(
     is folded into `verdict="UNAVAILABLE"` rather than propagated, so a
     grader outage fails one fixture closed instead of crashing the run.
     """
-    message = (
-        f"Rubric: {rubric}\n\n"
-        f"Original request:\n{prompt}\n\n"
-        f"Response to grade:\n{response}"
-    )
+    message = f"Rubric: {rubric}\n\nOriginal request:\n{prompt}\n\nResponse to grade:\n{response}"
     try:
         text = provider.complete(
             messages=[{"role": "user", "content": message}],
@@ -288,9 +284,7 @@ def calibrate(
     """Grade a fixture's positive control, negative control, and mutant."""
     positive = grade(provider, model, rubric, fixture.prompt, fixture.positive.response)
     negative = grade(provider, model, rubric, fixture.prompt, fixture.negative.response)
-    mutant = grade(
-        provider, model, rubric, fixture.prompt, fixture.positive.response + MUTANT_TAIL
-    )
+    mutant = grade(provider, model, rubric, fixture.prompt, fixture.positive.response + MUTANT_TAIL)
     return CalibrationResult(positive, negative, mutant)
 
 

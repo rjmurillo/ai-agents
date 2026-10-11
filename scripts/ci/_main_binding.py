@@ -26,9 +26,7 @@ from enum import Enum
 from typing import TypeGuard
 
 _TRY_STAR = getattr(ast, "TryStar", None)
-_TRY_TYPES: tuple[type[ast.AST], ...] = (
-    (ast.Try,) if _TRY_STAR is None else (ast.Try, _TRY_STAR)
-)
+_TRY_TYPES: tuple[type[ast.AST], ...] = (ast.Try,) if _TRY_STAR is None else (ast.Try, _TRY_STAR)
 
 
 # ---------------------------------------------------------------------------
@@ -184,8 +182,7 @@ def _stmt_binds_main_locally(node: ast.stmt) -> bool:
         return _target_binds_name(node.target, "main")
     if isinstance(node, (ast.With, ast.AsyncWith)):
         return any(
-            i.optional_vars and _target_binds_name(i.optional_vars, "main")
-            for i in node.items
+            i.optional_vars and _target_binds_name(i.optional_vars, "main") for i in node.items
         )
     if isinstance(node, ast.Delete):
         return any(isinstance(t, ast.Name) and t.id == "main" for t in node.targets)
@@ -234,9 +231,7 @@ def _pattern_binds_main(pattern: ast.AST) -> bool:
 # ---------------------------------------------------------------------------
 
 
-def _walk_module(
-    stmts: Sequence[ast.stmt], state: MainState, ctx: _Ctx
-) -> MainState:
+def _walk_module(stmts: Sequence[ast.stmt], state: MainState, ctx: _Ctx) -> MainState:
     """Walk module statements in source order, compute end state."""
     for node in stmts:
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
@@ -321,9 +316,7 @@ def _stmt_effect(node: ast.stmt, state: MainState, ctx: _Ctx) -> MainState | Non
     return None
 
 
-def _assign_effect(
-    node: ast.Assign | ast.AnnAssign | ast.AugAssign, ctx: _Ctx
-) -> MainState | None:
+def _assign_effect(node: ast.Assign | ast.AnnAssign | ast.AugAssign, ctx: _Ctx) -> MainState | None:
     if isinstance(node, ast.Assign):
         if not any(_target_binds_name(t, "main") for t in node.targets):
             return MainState.local() if _has_walrus_main(node) else None

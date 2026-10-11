@@ -36,11 +36,11 @@ SCHEMA_VERSION: int = 1
 # things the issue says the delivery must be scored on plus the ask-vs-guess
 # boundary it calls out explicitly.
 RUBRIC_AXES: dict[str, int] = {
-    "scope": 3,          # right-sized: not over- or under-engineered
-    "completeness": 3,   # covers behavior + required tests + docs
+    "scope": 3,  # right-sized: not over- or under-engineered
+    "completeness": 3,  # covers behavior + required tests + docs
     "process_gates": 2,  # acknowledges lint / session log / mirror gates
     "decomposition": 2,  # sensible, non-inflated task breakdown
-    "correct_stop": 1,   # ask-vs-produce boundary handled correctly
+    "correct_stop": 1,  # ask-vs-produce boundary handled correctly
 }
 MAX_SCORE: int = sum(RUBRIC_AXES.values())
 
@@ -71,13 +71,10 @@ def validate_fixture(fixture: dict[str, Any]) -> None:
     missing = _REQUIRED_FIXTURE_KEYS - fixture.keys()
     if missing:
         raise FixtureError(
-            f"fixture {fixture.get('id', '<no id>')!r} missing keys: "
-            f"{sorted(missing)}"
+            f"fixture {fixture.get('id', '<no id>')!r} missing keys: {sorted(missing)}"
         )
     if not isinstance(fixture["id"], str):
-        raise FixtureError(
-            f"fixture id must be a string, got {type(fixture['id']).__name__}"
-        )
+        raise FixtureError(f"fixture id must be a string, got {type(fixture['id']).__name__}")
     if not isinstance(fixture["prompt"], str):
         raise FixtureError(f"fixture {fixture['id']!r} prompt must be a string")
     kind = fixture["kind"]
@@ -88,27 +85,20 @@ def validate_fixture(fixture: dict[str, Any]) -> None:
         )
     criteria = fixture["hidden_criteria"]
     if not isinstance(criteria, dict):
-        raise FixtureError(
-            f"fixture {fixture['id']!r} hidden_criteria must be an object"
-        )
+        raise FixtureError(f"fixture {fixture['id']!r} hidden_criteria must be an object")
     missing_c = _REQUIRED_CRITERIA_KEYS - criteria.keys()
     if missing_c:
         raise FixtureError(
-            f"fixture {fixture['id']!r} hidden_criteria missing: "
-            f"{sorted(missing_c)}"
+            f"fixture {fixture['id']!r} hidden_criteria missing: {sorted(missing_c)}"
         )
     if not isinstance(criteria["behavior"], str):
         raise FixtureError(f"fixture {fixture['id']!r} behavior must be a string")
     for key in ("required_tests", "required_docs", "required_gates"):
         val = criteria[key]
         if not isinstance(val, list) or not all(isinstance(x, str) for x in val):
-            raise FixtureError(
-                f"fixture {fixture['id']!r} {key} must be a list of strings"
-            )
+            raise FixtureError(f"fixture {fixture['id']!r} {key} must be a list of strings")
     if not isinstance(criteria["ambiguous_stop_expected"], bool):
-        raise FixtureError(
-            f"fixture {fixture['id']!r} ambiguous_stop_expected must be bool"
-        )
+        raise FixtureError(f"fixture {fixture['id']!r} ambiguous_stop_expected must be bool")
     # An `ambiguous` fixture that does not expect a stop, or a non-ambiguous
     # fixture that does, is a self-contradiction that would silently score
     # the correct_stop axis backwards.
@@ -131,8 +121,7 @@ def load_fixtures(raw: str) -> list[dict[str, Any]]:
         version = doc.get("schemaVersion", SCHEMA_VERSION)
         if version != SCHEMA_VERSION:
             raise FixtureError(
-                f"unsupported schemaVersion {version!r}; "
-                f"this harness handles {SCHEMA_VERSION}"
+                f"unsupported schemaVersion {version!r}; this harness handles {SCHEMA_VERSION}"
             )
         fixtures = doc.get("fixtures")
     else:
@@ -171,24 +160,39 @@ def build_judge_system() -> str:
     axes = "\n".join(
         f"- {name} (0-{pts}): {desc}"
         for name, pts, desc in (
-            ("scope", RUBRIC_AXES["scope"],
-             "Is the plan right-sized for the real change? Penalize both "
-             "over-engineering (ADRs, analyzers, broad audits for a tiny fix) "
-             "and under-scoping."),
-            ("completeness", RUBRIC_AXES["completeness"],
-             "Does the plan cover the required behavior, the required tests, "
-             "and the required docs from the criteria?"),
-            ("process_gates", RUBRIC_AXES["process_gates"],
-             "Does the plan acknowledge the required process gates (lint, "
-             "session log, mirror/sync, CI)?"),
-            ("decomposition", RUBRIC_AXES["decomposition"],
-             "Is the task breakdown sensible and proportional, neither a "
-             "single blob nor inflated busywork?"),
-            ("correct_stop", RUBRIC_AXES["correct_stop"],
-             "The ask-vs-produce boundary. If ambiguous_stop_expected is "
-             "true, award 1 only if the plan STOPS and asks a clarifying "
-             "question instead of guessing. If false, award 1 only if the "
-             "plan proceeds without stalling on a false ambiguity."),
+            (
+                "scope",
+                RUBRIC_AXES["scope"],
+                "Is the plan right-sized for the real change? Penalize both "
+                "over-engineering (ADRs, analyzers, broad audits for a tiny fix) "
+                "and under-scoping.",
+            ),
+            (
+                "completeness",
+                RUBRIC_AXES["completeness"],
+                "Does the plan cover the required behavior, the required tests, "
+                "and the required docs from the criteria?",
+            ),
+            (
+                "process_gates",
+                RUBRIC_AXES["process_gates"],
+                "Does the plan acknowledge the required process gates (lint, "
+                "session log, mirror/sync, CI)?",
+            ),
+            (
+                "decomposition",
+                RUBRIC_AXES["decomposition"],
+                "Is the task breakdown sensible and proportional, neither a "
+                "single blob nor inflated busywork?",
+            ),
+            (
+                "correct_stop",
+                RUBRIC_AXES["correct_stop"],
+                "The ask-vs-produce boundary. If ambiguous_stop_expected is "
+                "true, award 1 only if the plan STOPS and asks a clarifying "
+                "question instead of guessing. If false, award 1 only if the "
+                "plan proceeds without stalling on a false ambiguity.",
+            ),
         )
     )
     return (
@@ -311,20 +315,13 @@ def aggregate(records: list[dict[str, Any]]) -> dict[str, Any]:
             # delta is signed as (later-alphabetical minus earlier-
             # alphabetical); delta_of names the orientation so a report
             # reader never has to guess the sign.
-            row["delta"] = (
-                round(m1 - m0, 2) if m0 is not None and m1 is not None else None
-            )
+            row["delta"] = round(m1 - m0, 2) if m0 is not None and m1 is not None else None
             row["delta_of"] = f"{a1} - {a0}"
         per_fixture[fx] = row
 
     per_agent: dict[str, float | None] = {}
     for agent in agents:
-        totals = [
-            t
-            for (fx, ag), lst in by_cell.items()
-            if ag == agent
-            for t in lst
-        ]
+        totals = [t for (fx, ag), lst in by_cell.items() if ag == agent for t in lst]
         per_agent[agent] = _mean(totals)
 
     parse_errors = sum(1 for r in records if r.get("total") is None)

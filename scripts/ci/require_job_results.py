@@ -43,9 +43,7 @@ def _format(message: str, value: str) -> str:
     return message.replace("{value}", value)
 
 
-def failures(
-    checks: list[tuple[str, str, str]], environ: Mapping[str, str]
-) -> list[str]:
+def failures(checks: list[tuple[str, str, str]], environ: Mapping[str, str]) -> list[str]:
     """Return one formatted message per check whose value did not match."""
     return [
         _format(message, environ.get(name, ""))

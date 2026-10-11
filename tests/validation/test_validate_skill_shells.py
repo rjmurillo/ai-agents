@@ -166,9 +166,7 @@ class TestMain:
         assert vss.main(["--repo-root", str(repo)]) == 0
         assert "No skill shells" in capsys.readouterr().out
 
-    def test_exit_1_when_shell_found(
-        self, repo: Path, capsys: pytest.CaptureFixture[str]
-    ) -> None:
+    def test_exit_1_when_shell_found(self, repo: Path, capsys: pytest.CaptureFixture[str]) -> None:
         _write(repo / ".claude" / "skills" / "ghost" / "run.py")
         _commit(repo)
 

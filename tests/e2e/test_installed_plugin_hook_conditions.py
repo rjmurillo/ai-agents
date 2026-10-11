@@ -89,18 +89,11 @@ def test_installed_project_toolkit_hook_conditions(tmp_path: Path) -> None:
 
 
 def _installed_marketplace_plugin_root() -> Path:
-    plugin_root = (
-        COPILOT_HOME
-        / "installed-plugins"
-        / PLUGIN_MARKETPLACE
-        / PLUGIN_NAME
-    )
+    plugin_root = COPILOT_HOME / "installed-plugins" / PLUGIN_MARKETPLACE / PLUGIN_NAME
     manifest = plugin_root / ".claude-plugin" / "plugin.json"
     hooks_json = plugin_root / "hooks" / "hooks.json"
     if not manifest.is_file() or not hooks_json.is_file():
-        pytest.skip(
-            f"{PLUGIN_NAME}@{PLUGIN_MARKETPLACE} is not installed at {plugin_root}"
-        )
+        pytest.skip(f"{PLUGIN_NAME}@{PLUGIN_MARKETPLACE} is not installed at {plugin_root}")
     manifest_data = json.loads(manifest.read_text(encoding="utf-8"))
     assert manifest_data.get("name") == PLUGIN_NAME
     return plugin_root
@@ -113,9 +106,7 @@ def _assert_no_enabled_direct_shadow(plugin_name: str) -> None:
 
     config = _load_jsonc(config_path)
     installed_plugins_raw = config.get("installedPlugins")
-    installed_plugins = (
-        installed_plugins_raw if isinstance(installed_plugins_raw, list) else []
-    )
+    installed_plugins = installed_plugins_raw if isinstance(installed_plugins_raw, list) else []
     direct_entries = [
         entry
         for entry in installed_plugins
@@ -124,8 +115,7 @@ def _assert_no_enabled_direct_shadow(plugin_name: str) -> None:
         and entry.get("enabled", True)
     ]
     assert not direct_entries, (
-        f"stale direct install can shadow {plugin_name}@{PLUGIN_MARKETPLACE}: "
-        f"{direct_entries!r}"
+        f"stale direct install can shadow {plugin_name}@{PLUGIN_MARKETPLACE}: {direct_entries!r}"
     )
 
 
@@ -153,8 +143,7 @@ def _load_hook_scripts(plugin_root: Path) -> list[HookScript]:
             assert paths, f"{event}[{index}] has no hook command path"
             for shell_name, script_path in paths.items():
                 assert script_path.is_file(), (
-                    f"{event}[{index}] {shell_name} points to missing script: "
-                    f"{script_path}"
+                    f"{event}[{index}] {shell_name} points to missing script: {script_path}"
                 )
                 resolved_plugin_root = plugin_root.resolve(strict=True)
                 resolved_script_path = script_path.resolve(strict=True)
@@ -165,9 +154,7 @@ def _load_hook_scripts(plugin_root: Path) -> list[HookScript]:
                     f"{event}[{index}] {shell_name} points outside plugin root: "
                     f"{script_path} -> {resolved_script_path}"
                 )
-            script_path = paths.get("powershell") or paths.get("bash") or next(
-                iter(paths.values())
-            )
+            script_path = paths.get("powershell") or paths.get("bash") or next(iter(paths.values()))
             scripts.append(
                 HookScript(
                     event=event,
@@ -219,9 +206,7 @@ def _create_git_fixture(tmp_path: Path) -> Path:
         "# Handoff\n\nHook harness fixture.\n",
         encoding="utf-8",
     )
-    retro_path = (
-        fixture / ".project-toolkit" / "retrospective" / "2026-06-02-hook-harness.md"
-    )
+    retro_path = fixture / ".project-toolkit" / "retrospective" / "2026-06-02-hook-harness.md"
     retro_path.write_text("# Retro\n", encoding="utf-8")
     (fixture / "README.md").write_text("# Hook Harness\n", encoding="utf-8")
 
@@ -238,7 +223,8 @@ def _run_git(cwd: Path, *args: str) -> None:
         ["git", *args],
         cwd=cwd,
         capture_output=True,
-        text=True, encoding="utf-8",
+        text=True,
+        encoding="utf-8",
         timeout=15,
         check=False,
     )
@@ -380,7 +366,8 @@ def _run_hook_case(
         process = subprocess.run(
             [sys.executable, "-u", str(hook_script.path)],
             input=json.dumps(case.payload),
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
             capture_output=True,
             cwd=fixture,
             env=env,
@@ -423,8 +410,7 @@ def _evaluate_results(results: list[HookResult]) -> list[str]:
     for result in results:
         output = result.combined_output.lower()
         location = (
-            f"{result.event}[{result.index}] {result.script} "
-            f"{result.case} rc={result.returncode}"
+            f"{result.event}[{result.index}] {result.script} {result.case} rc={result.returncode}"
         )
         allows_exit_2 = result.matcher and result.case.startswith("match")
         expected_codes = (0, 2) if allows_exit_2 else (0,)
@@ -432,17 +418,9 @@ def _evaluate_results(results: list[HookResult]) -> list[str]:
             failures.append(f"{location}: unexpected exit code")
         if result.case.startswith("miss") and result.returncode != 0:
             failures.append(f"{location}: non-match should no-op with exit 0")
-        if (
-            result.matcher
-            and result.case.startswith("miss")
-            and "fired=false" not in output
-        ):
+        if result.matcher and result.case.startswith("miss") and "fired=false" not in output:
             failures.append(f"{location}: non-match did not report fired=false")
-        if (
-            result.matcher
-            and result.case.startswith("match")
-            and "fired=true" not in output
-        ):
+        if result.matcher and result.case.startswith("match") and "fired=true" not in output:
             failures.append(f"{location}: match did not report fired=true")
         if result.case == "match_camel" and _looks_like_schema_miss(output):
             failures.append(f"{location}: camelCase payload was not canonicalized")
@@ -468,9 +446,7 @@ def _format_failures(
     by_event: dict[str, int] = {}
     for result in results:
         by_event[result.event] = by_event.get(result.event, 0) + 1
-    summary = ", ".join(
-        f"{event}:{count}" for event, count in sorted(by_event.items())
-    )
+    summary = ", ".join(f"{event}:{count}" for event, count in sorted(by_event.items()))
     details = "\n".join(
         f"- {failure}\n{_matching_result_tail(results, failure)}" for failure in failures
     )

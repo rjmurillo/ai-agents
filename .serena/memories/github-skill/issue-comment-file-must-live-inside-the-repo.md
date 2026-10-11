@@ -138,7 +138,8 @@ Call the validator directly instead. It is a pure function and needs no network:
 
 ```python
 from scripts.github_core.validation import assert_valid_body_file
-assert_valid_body_file("/path/to/body.md")   # SystemExit(2) if rejected
+
+assert_valid_body_file("/path/to/body.md")  # SystemExit(2) if rejected
 ```
 
 Static `grep` for the call site answers "is it wired up"; the direct call

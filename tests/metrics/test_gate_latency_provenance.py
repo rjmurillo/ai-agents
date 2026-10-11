@@ -155,9 +155,7 @@ def test_positive_report_records_the_hook_args_it_used(
     assert report.hook_args == ["origin", "url"]
 
 
-def test_negative_force_is_absent_by_default(
-    monkeypatch: pytest.MonkeyPatch, repo: Path
-) -> None:
+def test_negative_force_is_absent_by_default(monkeypatch: pytest.MonkeyPatch, repo: Path) -> None:
     """--force defeats glob filtering, so a change class would stop selecting jobs.
 
     Measured this session: with --force, python-type-check (glob '**/*.py') ran
@@ -205,13 +203,14 @@ def test_positive_report_records_whether_the_run_was_forced(
 
 # --- Credential redaction and the hook timeout -------------------------------
 
+
 def test_positive_normalized_command_args_replaces_repo_value() -> None:
     args = ["--repo", "/home/alice/checkout", "--hook", "pre-commit", "--json", "out.json"]
     normalized = gl._normalized_command_args(args)
     assert normalized == ["--repo", "<repo>", "--hook", "pre-commit", "--json", "out.json"]
 
+
 def test_edge_normalized_command_args_handles_repo_equals_form() -> None:
     args = ["--repo=/home/alice/checkout", "--hook", "pre-commit"]
     normalized = gl._normalized_command_args(args)
     assert normalized == ["--repo=<repo>", "--hook", "pre-commit"]
-

@@ -188,9 +188,7 @@ def test_report_missing_output_is_config_error(monkeypatch: pytest.MonkeyPatch):
     assert report_mod.main() == 2
 
 
-def test_a_config_error_writes_no_report(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+def test_a_config_error_writes_no_report(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """Required config is validated before the report file is created.
 
     ``main`` used to write ``REPORT_PATH`` and only then check
@@ -250,8 +248,7 @@ def test_workflow_delegates_first_pr_validation_blocks():
     assert "Check QA Report Exists" not in steps_by_name
     assert all("scripts/ci/check_pr_qa_report.py" not in run for run in run_values)
     assert all(
-        "python3 scripts/validation/pr_description.py --pr-number" not in run
-        for run in run_values
+        "python3 scripts/validation/pr_description.py --pr-number" not in run for run in run_values
     )
     assert all('Write-Host "Checking for QA report..."' not in run for run in run_values)
 
@@ -270,12 +267,6 @@ def test_enforce_fails_on_validation_error(
 
     assert enforce_mod.main() == 1
     assert "::error::PR validation failed: ERROR" in capsys.readouterr().err
-
-
-
-
-
-
 
 
 def test_enforce_passes_when_no_blocking_inputs(
@@ -308,7 +299,7 @@ def test_workflow_delegates_all_pr_validation_blocks():
     assert "python3 scripts/ci/enforce_pr_validation.py" in workflow
     assert "python3 scripts/ci/adr006_run_block_scanner.py --max 0" in workflow
     assert "gh api `\n            -X DELETE" not in workflow
-    assert "Write-Error \"PR has $env:COMMIT_COUNT commits" not in workflow
+    assert 'Write-Error "PR has $env:COMMIT_COUNT commits' not in workflow
 
 
 def test_post_pr_comment_step_updates_the_existing_comment_in_place() -> None:
@@ -322,18 +313,12 @@ def test_post_pr_comment_step_updates_the_existing_comment_in_place() -> None:
     pins it onto the step so a regression here is caught by a wiring test,
     not discovered by a stale FAIL on a fixed PR (as PR #5209 was).
     """
-    matching = [
-        step
-        for step in _pr_validation_steps()
-        if step.get("name") == "Post PR Comment"
-    ]
+    matching = [step for step in _pr_validation_steps() if step.get("name") == "Post PR Comment"]
     assert len(matching) == 1, "expected exactly one 'Post PR Comment' step"
     run = matching[0].get("run", "")
     assert "post_issue_comment.py" in run
-    assert "--marker \"PR-VALIDATION\"" in run
+    assert '--marker "PR-VALIDATION"' in run
     assert "--update-if-exists" in run
-
-
 
 
 class TestModelPinEnforcementIsWiredIntoCI:
@@ -362,9 +347,7 @@ class TestModelPinEnforcementIsWiredIntoCI:
     @classmethod
     def _pin_steps(cls) -> list:
         return [
-            step
-            for step in cls._host_steps()
-            if "check_model_pins.py" in str(step.get("run", ""))
+            step for step in cls._host_steps() if "check_model_pins.py" in str(step.get("run", ""))
         ]
 
     def test_ci_invokes_the_gate_in_enforce_mode(self) -> None:
@@ -409,7 +392,8 @@ class TestModelPinEnforcementIsWiredIntoCI:
                 "enforce",
             ],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
             cwd=REPO_ROOT,
         )
         assert result.returncode == 0, result.stdout + result.stderr
@@ -457,9 +441,7 @@ class TestBotSkipGuardClassification:
     @classmethod
     def _skip_guarded_steps(cls) -> list[dict]:
         return [
-            step
-            for step in cls._host_steps()
-            if cls._has_bot_skip_guard_component(step.get("if"))
+            step for step in cls._host_steps() if cls._has_bot_skip_guard_component(step.get("if"))
         ]
 
     @classmethod
@@ -711,9 +693,7 @@ _MERGE_BASE_CONSUMERS = ("merge_tree_ratchet_check.py", "count_ratchet.py")
 
 
 def _strip_shell_comments(script: str) -> str:
-    return "\n".join(
-        line for line in script.splitlines() if not line.lstrip().startswith("#")
-    )
+    return "\n".join(line for line in script.splitlines() if not line.lstrip().startswith("#"))
 
 
 def _step_dicts(job: dict) -> list[dict]:
@@ -722,18 +702,12 @@ def _step_dicts(job: dict) -> list[dict]:
 
 def _run_blocks(steps: list[dict]) -> list[str]:
     return [
-        _strip_shell_comments(step["run"])
-        for step in steps
-        if isinstance(step.get("run"), str)
+        _strip_shell_comments(step["run"]) for step in steps if isinstance(step.get("run"), str)
     ]
 
 
 def _uses_merge_base(run_blocks: list[str]) -> bool:
-    return any(
-        consumer in block
-        for consumer in _MERGE_BASE_CONSUMERS
-        for block in run_blocks
-    )
+    return any(consumer in block for consumer in _MERGE_BASE_CONSUMERS for block in run_blocks)
 
 
 def _depth_limited_fetch_offenders(job_id: str, run_blocks: list[str]) -> list[str]:
@@ -819,7 +793,6 @@ def test_merge_base_history_guard_ignores_unrelated_shallow_jobs() -> None:
     assert offenders == []
 
 
-
 def test_merge_tree_ratchet_fetches_base_at_full_depth() -> None:
     """Issue #4518: the merge-tree step's base fetch must not be shallow.
 
@@ -833,9 +806,7 @@ def test_merge_tree_ratchet_fetches_base_at_full_depth() -> None:
     that catches a revert of the workflow line.
     """
     matching = [
-        s
-        for s in _pr_validation_steps()
-        if "merge_tree_ratchet_check.py" in (s.get("run") or "")
+        s for s in _pr_validation_steps() if "merge_tree_ratchet_check.py" in (s.get("run") or "")
     ]
     assert matching, "the merge-tree ratchet step is missing from pr-validation.yml"
     for step in matching:
@@ -880,9 +851,7 @@ def test_steps_before_merge_tree_do_not_shallow_fetch() -> None:
     """
     steps = _validate_pr_steps()
     merge_indexes = [
-        index
-        for index, step in enumerate(steps)
-        if step.get("name") == "Run merge-tree ratchet"
+        index for index, step in enumerate(steps) if step.get("name") == "Run merge-tree ratchet"
     ]
     assert len(merge_indexes) == 1, "expected exactly one merge-tree step"
 
@@ -893,6 +862,5 @@ def test_steps_before_merge_tree_do_not_shallow_fetch() -> None:
                 offenders.append(f"{step.get('name')}: {line}")
 
     assert offenders == [], (
-        "validate-pr fetches before merge-tree must not be shallow: "
-        + "; ".join(offenders)
+        "validate-pr fetches before merge-tree must not be shallow: " + "; ".join(offenders)
     )

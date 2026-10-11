@@ -72,9 +72,7 @@ class Report:
             "criteria_count": len(self.criteria),
             "unchecked": list(self.unchecked),
             "diff_misses": list(self.diff_misses),
-            "criteria": [
-                {"text": c.text, "checked": c.checked} for c in self.criteria
-            ],
+            "criteria": [{"text": c.text, "checked": c.checked} for c in self.criteria],
         }
 
 
@@ -162,12 +160,61 @@ def parse_criteria(body: str) -> list[Criterion]:
 
 _STOP_WORDS: frozenset[str] = frozenset(
     {
-        "the", "and", "for", "are", "but", "not", "you", "all", "can", "her",
-        "was", "one", "our", "out", "day", "get", "has", "him", "his", "how",
-        "its", "let", "may", "new", "now", "old", "see", "two", "use", "way",
-        "who", "why", "yet", "did", "per", "set", "via", "any", "had",
-        "top", "try", "put", "too", "off", "own", "big", "far", "few", "got",
-        "end", "due", "run", "nit", "nor", "isn",
+        "the",
+        "and",
+        "for",
+        "are",
+        "but",
+        "not",
+        "you",
+        "all",
+        "can",
+        "her",
+        "was",
+        "one",
+        "our",
+        "out",
+        "day",
+        "get",
+        "has",
+        "him",
+        "his",
+        "how",
+        "its",
+        "let",
+        "may",
+        "new",
+        "now",
+        "old",
+        "see",
+        "two",
+        "use",
+        "way",
+        "who",
+        "why",
+        "yet",
+        "did",
+        "per",
+        "set",
+        "via",
+        "any",
+        "had",
+        "top",
+        "try",
+        "put",
+        "too",
+        "off",
+        "own",
+        "big",
+        "far",
+        "few",
+        "got",
+        "end",
+        "due",
+        "run",
+        "nit",
+        "nor",
+        "isn",
     }
 )
 
@@ -201,7 +248,8 @@ def diff_misses(criteria: Iterable[Criterion], diff: str) -> list[str]:
     if not diff:
         return []
     added_lines = [
-        line[1:] for line in diff.splitlines()
+        line[1:]
+        for line in diff.splitlines()
         if line.startswith("+") and not line.startswith("+++")
     ]
     hay = "\n".join(added_lines).lower()
@@ -237,16 +285,12 @@ def _read(path: Path | None) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(
-        description=(__doc__ or "").splitlines()[0] if __doc__ else ""
-    )
+    parser = argparse.ArgumentParser(description=(__doc__ or "").splitlines()[0] if __doc__ else "")
     parser.add_argument(
         "--body", type=Path, required=True, help="Path to Markdown body (PR/issue)."
     )
     parser.add_argument("--diff", type=Path, help="Optional path to unified diff.")
-    parser.add_argument(
-        "--json", action="store_true", help="Emit machine-readable JSON report."
-    )
+    parser.add_argument("--json", action="store_true", help="Emit machine-readable JSON report.")
     parser.add_argument(
         "--allow-empty",
         action="store_true",

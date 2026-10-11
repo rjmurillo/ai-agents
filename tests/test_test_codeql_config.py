@@ -79,7 +79,9 @@ class TestValidateYamlSyntax:
         assert result["valid"] is False
 
     def test_missing_pyyaml_logs_warning_and_falls_back(
-        self, tmp_path: Path, caplog: pytest.LogCaptureFixture,
+        self,
+        tmp_path: Path,
+        caplog: pytest.LogCaptureFixture,
     ) -> None:
         config = tmp_path / "config.yml"
         config.write_text("name: test\npacks:\n  - codeql/python-queries\n")
@@ -93,6 +95,7 @@ class TestValidateYamlSyntax:
         config = tmp_path / "config.yml"
         config.write_text("key: [unterminated\n")
         import yaml as _yaml
+
         with patch.dict("sys.modules", {"yaml": _yaml}):
             result = validate_yaml_syntax(str(config))
         assert result["valid"] is False

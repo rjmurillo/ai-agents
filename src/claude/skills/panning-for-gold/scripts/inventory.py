@@ -94,11 +94,7 @@ def parse_inventory(content: str) -> list[Thread]:
                 f"Thread {current_header[0]} ({current_header[1]!r}) has invalid Signal: {signal!r}"
             )
         quote_value = current_fields["Quote"].strip()
-        if (
-            len(quote_value) >= 2
-            and quote_value.startswith('"')
-            and quote_value.endswith('"')
-        ):
+        if len(quote_value) >= 2 and quote_value.startswith('"') and quote_value.endswith('"'):
             quote_value = quote_value[1:-1]
         threads.append(
             Thread(

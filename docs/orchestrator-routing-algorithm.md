@@ -67,16 +67,16 @@ def assess_complexity(task, task_type):
 def determine_risk(task_type, file_patterns):
     # Critical risk patterns
     critical_patterns = [
-        "**/Auth/**", "**/Security/**", "*.env*",
-        "lefthook.yml", "scripts/validation/git_hook_policy.py",
-        "build/scripts/*"
+        "**/Auth/**",
+        "**/Security/**",
+        "*.env*",
+        "lefthook.yml",
+        "scripts/validation/git_hook_policy.py",
+        "build/scripts/*",
     ]
 
     # High risk patterns
-    high_patterns = [
-        ".github/workflows/*", "Dockerfile",
-        "**/Controllers/*", "appsettings*.json"
-    ]
+    high_patterns = [".github/workflows/*", "Dockerfile", "**/Controllers/*", "appsettings*.json"]
 
     if any(matches(p, file_patterns) for p in critical_patterns):
         return "critical"
@@ -106,8 +106,9 @@ PRIMARY_AGENT_MAP = {
     "documentation": "explainer",
     "refactoring": "analyst",
     "strategic": "roadmap",
-    "unknown": "analyst"
+    "unknown": "analyst",
 }
+
 
 def select_primary_agent(task_type):
     return PRIMARY_AGENT_MAP.get(task_type, "analyst")
@@ -119,41 +120,38 @@ def select_primary_agent(task_type):
 AGENT_SEQUENCES = {
     # (task_type, complexity, risk) -> agent_sequence
     ("security", "multi_domain", "critical"): [
-        "analyst", "security", "architect", "critic",
-        "implementer", "qa"
+        "analyst",
+        "security",
+        "architect",
+        "critic",
+        "implementer",
+        "qa",
     ],
-    ("security", "multi_step", "high"): [
-        "security", "implementer", "qa"
-    ],
+    ("security", "multi_step", "high"): ["security", "implementer", "qa"],
     ("infrastructure", "multi_domain", "critical"): [
-        "analyst", "devops", "security", "critic", "qa"
+        "analyst",
+        "devops",
+        "security",
+        "critic",
+        "qa",
     ],
-    ("infrastructure", "multi_step", "high"): [
-        "devops", "security", "qa"
-    ],
+    ("infrastructure", "multi_step", "high"): ["devops", "security", "qa"],
     ("feature", "multi_domain", "*"): [
-        "analyst", "architect", "milestone-planner", "critic",
-        "implementer", "qa"
+        "analyst",
+        "architect",
+        "milestone-planner",
+        "critic",
+        "implementer",
+        "qa",
     ],
-    ("feature", "multi_step", "*"): [
-        "analyst", "milestone-planner", "implementer", "qa"
-    ],
-    ("bug_fix", "multi_step", "*"): [
-        "analyst", "implementer", "qa"
-    ],
-    ("bug_fix", "simple", "*"): [
-        "implementer", "qa"
-    ],
-    ("research", "*", "*"): [
-        "analyst"
-    ],
-    ("documentation", "*", "*"): [
-        "explainer", "critic"
-    ],
-    ("strategic", "*", "*"): [
-        "roadmap", "architect", "milestone-planner", "critic"
-    ]
+    ("feature", "multi_step", "*"): ["analyst", "milestone-planner", "implementer", "qa"],
+    ("bug_fix", "multi_step", "*"): ["analyst", "implementer", "qa"],
+    ("bug_fix", "simple", "*"): ["implementer", "qa"],
+    ("research", "*", "*"): ["analyst"],
+    ("documentation", "*", "*"): ["explainer", "critic"],
+    ("strategic", "*", "*"): ["roadmap", "architect", "milestone-planner", "critic"],
 }
+
 
 def build_agent_sequence(task_type, complexity, risk):
     # Try exact match first
@@ -341,9 +339,9 @@ def determine_execution_mode(sequence, dependencies):
     i = 0
     while i < len(sequence):
         if i + 1 < len(sequence):
-            pair = (sequence[i], sequence[i+1])
+            pair = (sequence[i], sequence[i + 1])
             if pair in parallel_compatible or tuple(reversed(pair)) in parallel_compatible:
-                parallel_groups.append([sequence[i], sequence[i+1]])
+                parallel_groups.append([sequence[i], sequence[i + 1]])
                 i += 2
                 continue
         parallel_groups.append([sequence[i]])
@@ -400,7 +398,7 @@ def collect_outputs(results):
         "code_changes": [],
         "test_cases": [],
         "documentation": [],
-        "conflicts": []
+        "conflicts": [],
     }
 
     for agent, result in results.items():
@@ -455,33 +453,39 @@ def resolve_conflicts(conflicts):
     for conflict in conflicts:
         positions = conflict["positions"]
         non_negotiable = conflict.get("non_negotiable", frozenset())
-        outcome = resolve_disagreement({
-            agent: {
-                "recommendation": position,
-                "non_negotiable": agent in non_negotiable,
+        outcome = resolve_disagreement(
+            {
+                agent: {
+                    "recommendation": position,
+                    "non_negotiable": agent in non_negotiable,
+                }
+                for agent, position in positions.items()
             }
-            for agent, position in positions.items()
-        })
+        )
 
         if outcome["strategy"] == "escalate":
             # Escalation is not a pairwise winner. high-level-advisor is not a
             # party to the dispute, so it has no entry in `positions`, and the
             # arbiter decides rather than carrying a participant's position
             # forward.
-            resolutions.append({
-                "conflict": conflict,
-                "resolution": "escalate",
-                "arbiter": outcome["escalate_to"],
-                "reason": outcome["reason"],
-                "recommendation": None,
-            })
+            resolutions.append(
+                {
+                    "conflict": conflict,
+                    "resolution": "escalate",
+                    "arbiter": outcome["escalate_to"],
+                    "reason": outcome["reason"],
+                    "recommendation": None,
+                }
+            )
             continue
 
-        resolutions.append({
-            "conflict": conflict,
-            "resolution": outcome["strategy"],
-            "recommendation": outcome["recommendation"],
-        })
+        resolutions.append(
+            {
+                "conflict": conflict,
+                "resolution": outcome["strategy"],
+                "recommendation": outcome["recommendation"],
+            }
+        )
 
     return resolutions
 ```
@@ -588,12 +592,12 @@ risk = "critical"  # Shell injection vulnerability
 
 ```python
 sequence = [
-    "analyst",      # Investigate vulnerability scope
-    "security",     # Assess security implications
-    "devops",       # Infrastructure expertise for hooks
-    "critic",       # Validate fix approach
+    "analyst",  # Investigate vulnerability scope
+    "security",  # Assess security implications
+    "devops",  # Infrastructure expertise for hooks
+    "critic",  # Validate fix approach
     "implementer",  # Apply the fix
-    "qa"            # Verify fix effectiveness
+    "qa",  # Verify fix effectiveness
 ]
 ```
 

@@ -160,9 +160,7 @@ def test_pr_template_acceptance_section_parses() -> None:
     renames or drops the section fails here instead of silently reviving
     the drift.
     """
-    template = (
-        Path(__file__).resolve().parents[2] / ".github" / "PULL_REQUEST_TEMPLATE.md"
-    )
+    template = Path(__file__).resolve().parents[2] / ".github" / "PULL_REQUEST_TEMPLATE.md"
     body = template.read_text(encoding="utf-8")
 
     section = ac.extract_acceptance_section(body)
@@ -223,9 +221,7 @@ def test_unclosed_fence_hides_the_rest() -> None:
 
 
 def test_checkboxes_in_html_comments_are_ignored() -> None:
-    body = (
-        "## Acceptance\n<!-- one-line - [ ] x -->\n<!--\n- [ ] multi\nline\n-->\n- [x] real\n"
-    )
+    body = "## Acceptance\n<!-- one-line - [ ] x -->\n<!--\n- [ ] multi\nline\n-->\n- [x] real\n"
     assert [c.text for c in ac.parse_criteria(body)] == ["real"]
 
 

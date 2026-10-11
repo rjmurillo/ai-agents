@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size (ruff format pushed this file past 500 lines)
 """Audit closing claims across open pull requests.
 
 Paginates open PRs and extracts closing keywords (Fixes, Closes, Resolves,
@@ -311,12 +312,19 @@ def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="Audit closing claims in open PRs.")
     p.add_argument("--owner", default="")
     p.add_argument("--repo", default="")
-    p.add_argument("--state", default="open", choices=["open"],
-                   help="PR state to audit (only 'open' supported)")
-    p.add_argument("--artifact", default="",
-                   help="Optional path to write JSON evidence artifact")
-    p.add_argument("--resume-from", type=int, default=0,
-                   help="Skip PRs with number >= this value (for resuming)")
+    p.add_argument(
+        "--state",
+        default="open",
+        choices=["open"],
+        help="PR state to audit (only 'open' supported)",
+    )
+    p.add_argument("--artifact", default="", help="Optional path to write JSON evidence artifact")
+    p.add_argument(
+        "--resume-from",
+        type=int,
+        default=0,
+        help="Skip PRs with number >= this value (for resuming)",
+    )
     add_output_format_arg(p)
     return p
 
@@ -336,7 +344,13 @@ def _collect_pr_claims(
     closing_refs = _resolve_closing_refs(closing_nodes)
 
     claims = extract_claims(
-        pr_num, body, base_branch, closing_refs, owner, repo, default_branch,
+        pr_num,
+        body,
+        base_branch,
+        closing_refs,
+        owner,
+        repo,
+        default_branch,
     )
 
     auto_merge = node.get("autoMergeRequest") or {}
@@ -346,9 +360,7 @@ def _collect_pr_claims(
     has_override = bool(override_text.strip())
 
     commit_nodes = (node.get("commits") or {}).get("nodes") or []
-    commit_text = "\n".join(
-        (n.get("commit") or {}).get("message", "") for n in commit_nodes
-    )
+    commit_text = "\n".join((n.get("commit") or {}).get("message", "") for n in commit_nodes)
 
     # An auto-merge commit-message override replaces the repository's
     # default squash text for this PR entirely, so plain commit messages no
@@ -356,12 +368,24 @@ def _collect_pr_claims(
     commit_reaches = (not has_override) and squash_setting in _COMMIT_REACHING_SQUASH_SETTINGS
     claims.extend(
         extract_reachable_claims(
-            pr_num, commit_text, "commit", commit_reaches, closing_refs, owner, repo,
+            pr_num,
+            commit_text,
+            "commit",
+            commit_reaches,
+            closing_refs,
+            owner,
+            repo,
         )
     )
     claims.extend(
         extract_reachable_claims(
-            pr_num, override_text, "auto_merge_override", has_override, closing_refs, owner, repo,
+            pr_num,
+            override_text,
+            "auto_merge_override",
+            has_override,
+            closing_refs,
+            owner,
+            repo,
         )
     )
 
@@ -381,8 +405,11 @@ def main(argv: list[str] | None = None) -> int:
         squash_setting = fetch_repo_squash_setting(owner, repo)
     except (RuntimeError, subprocess.SubprocessError, OSError) as exc:
         write_skill_error(
-            str(exc), 3, error_type="ApiError",
-            output_format=fmt, script_name=_SCRIPT_NAME,
+            str(exc),
+            3,
+            error_type="ApiError",
+            output_format=fmt,
+            script_name=_SCRIPT_NAME,
         )
         return 3
 
@@ -390,15 +417,21 @@ def main(argv: list[str] | None = None) -> int:
         pr_nodes = fetch_open_prs(owner, repo)
     except RuntimeError as exc:
         write_skill_error(
-            str(exc), 3, error_type="ApiError",
-            output_format=fmt, script_name=_SCRIPT_NAME,
+            str(exc),
+            3,
+            error_type="ApiError",
+            output_format=fmt,
+            script_name=_SCRIPT_NAME,
         )
         return 3
 
     if not pr_nodes:
         write_skill_error(
-            "No open PRs found", 2, error_type="NotFound",
-            output_format=fmt, script_name=_SCRIPT_NAME,
+            "No open PRs found",
+            2,
+            error_type="NotFound",
+            output_format=fmt,
+            script_name=_SCRIPT_NAME,
         )
         return 2
 
@@ -448,8 +481,11 @@ def main(argv: list[str] | None = None) -> int:
             # (Copilot review on PR #5283, following the ADR-035
             # exit-code contract this module's header already cites).
             write_skill_error(
-                f"Failed to write artifact: {exc}", 2, error_type="General",
-                output_format=fmt, script_name=_SCRIPT_NAME,
+                f"Failed to write artifact: {exc}",
+                2,
+                error_type="General",
+                output_format=fmt,
+                script_name=_SCRIPT_NAME,
             )
             return 2
 

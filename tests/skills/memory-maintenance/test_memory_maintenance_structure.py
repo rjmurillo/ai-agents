@@ -154,9 +154,7 @@ def test_skill_links_to_owned_references() -> None:
     body = _read_skill()
 
     # Act / Assert: the SKILL.md must point demand-loaders at its references.
-    assert "references/benchmarking.md" in body, (
-        "SKILL.md must link to references/benchmarking.md"
-    )
+    assert "references/benchmarking.md" in body, "SKILL.md must link to references/benchmarking.md"
     assert "references/troubleshooting.md" in body, (
         "SKILL.md must link to references/troubleshooting.md"
     )

@@ -8,8 +8,7 @@ import sys
 from pathlib import Path
 
 _SCRIPTS_DIR = (
-    Path(__file__).resolve().parents[1]
-    / ".claude" / "skills" / "github" / "scripts" / "utils"
+    Path(__file__).resolve().parents[1] / ".claude" / "skills" / "github" / "scripts" / "utils"
 )
 
 

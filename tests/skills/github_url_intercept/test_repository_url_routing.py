@@ -165,9 +165,7 @@ def test_existing_github_parser_rejects_unsafe_urls(url: str) -> None:
 
 
 def test_tree_route_allows_empty_path() -> None:
-    parsed = repository_url_routing.parse_github_url(
-        "https://github.com/owner/repo/tree/main/"
-    )
+    parsed = repository_url_routing.parse_github_url("https://github.com/owner/repo/tree/main/")
 
     assert parsed is not None
     assert parsed["path"] == ""
@@ -243,9 +241,7 @@ def test_main_returns_structured_invalid_url(capsys: pytest.CaptureFixture[str])
 def test_main_returns_structured_unknown_route(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    result = repository_url_routing.main(
-        ["--url", "https://github.com/owner/repo/unknown-route/1"]
-    )
+    result = repository_url_routing.main(["--url", "https://github.com/owner/repo/unknown-route/1"])
 
     assert result == 1
     output = json.loads(capsys.readouterr().out)

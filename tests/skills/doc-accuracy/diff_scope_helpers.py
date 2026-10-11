@@ -24,9 +24,9 @@ WHOLE_FILE_END = 2**31 - 1
 FILLER = "".join(f"filler {n}\n" for n in range(8))
 
 
-
 # A parsed doc-accuracy JSON artifact.
 Json = dict[str, Any]
+
 
 def git(repo: Path, *args: str) -> None:
     subprocess.run(["git", "-C", str(repo), *args], check=True, capture_output=True)
@@ -62,10 +62,7 @@ def example(symbol: str) -> str:
 def run_gate(repo: Path, tmp_path: Path, *extra: str) -> tuple[int, Json]:
     """Run the CLI; return the exit code and the compilability data."""
     out = tmp_path / "out"
-    code = mod.main(
-        ["--target", str(repo), "--output-dir", str(out), "--format", "gate",
-         *extra]
-    )
+    code = mod.main(["--target", str(repo), "--output-dir", str(out), "--format", "gate", *extra])
     data: Json = json.loads((out / "compilability-findings.json").read_text())
     return code, data
 

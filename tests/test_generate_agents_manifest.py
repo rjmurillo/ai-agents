@@ -70,21 +70,23 @@ def _write_keep_pin_manifest(
     artifact_path = repo_root / "evals" / "test-agent-spike" / "sweep.json"
     artifact_path.parent.mkdir(parents=True, exist_ok=True)
     artifact_path.write_text(
-        json.dumps({
-            "schemaVersion": "1",
-            "agent": agent,
-            "decision": "KEEP_PIN",
-            "winner": "claude-opus-4-6",
-            "fixtures_sha": "abc123",
-            "default_model": "claude-sonnet-4-6",
-            "models": [
-                {"model_id": "claude-opus-4-6"},
-                {"model_id": "claude-sonnet-4-6"},
-            ],
-            "n_shared_fixtures": 8,
-            "recall_delta": 0.05,
-            "ci95": [0.01, 0.09],
-        }),
+        json.dumps(
+            {
+                "schemaVersion": "1",
+                "agent": agent,
+                "decision": "KEEP_PIN",
+                "winner": "claude-opus-4-6",
+                "fixtures_sha": "abc123",
+                "default_model": "claude-sonnet-4-6",
+                "models": [
+                    {"model_id": "claude-opus-4-6"},
+                    {"model_id": "claude-sonnet-4-6"},
+                ],
+                "n_shared_fixtures": 8,
+                "recall_delta": 0.05,
+                "ci95": [0.01, 0.09],
+            }
+        ),
         encoding="utf-8",
     )
 
@@ -145,9 +147,7 @@ class TestManifestWiring:
         entry actually reaches the output file, the same wiring
         test_manifest_keep_pin_reaches_generated_output proves for the
         already-absolute-paths case above."""
-        repo_root, _templates, output_root = _create_test_structure(
-            tmp_path, with_model_tiers=True
-        )
+        repo_root, _templates, output_root = _create_test_structure(tmp_path, with_model_tiers=True)
         _write_keep_pin_manifest(repo_root)
         monkeypatch.chdir(repo_root)
         exit_code = generate_agents(Path("templates"), Path("src"), Path.cwd())

@@ -276,9 +276,7 @@ class TestCommonMarkOracle:
         for token in _REFERENCE.parse(text):
             if token.type == "fence" and token.map:
                 start, stop = token.map
-                naive.update(
-                    i for i in range(start, min(stop, len(source))) if source[i] != ""
-                )
+                naive.update(i for i in range(start, min(stop, len(source))) if source[i] != "")
         assert naive != oracle_fence_lines(text)
 
     def test_a_malformed_closer_reopens_at_its_own_length(self) -> None:
@@ -327,4 +325,3 @@ class TestCommonMarkOracle:
             text = FENCE_CASES[name]
             assert oracle_fence_lines(text) == set(), name
             assert repair_markdown_fences(text) == text, name
-

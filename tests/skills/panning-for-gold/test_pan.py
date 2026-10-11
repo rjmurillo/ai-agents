@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size (ruff format pushed this file past 500 lines)
 """Tests for panning-for-gold skill scripts."""
 
 from __future__ import annotations
@@ -86,7 +87,7 @@ class TestParseInventory:
         assert threads[1].signal == "medium"
 
     def test_missing_field_raises(self):
-        bad = "## Thread 1: Bad\n\n- **Signal**: high\n- **Quote**: \"missing fields\"\n"
+        bad = '## Thread 1: Bad\n\n- **Signal**: high\n- **Quote**: "missing fields"\n'
         with pytest.raises(InventoryError):
             parse_inventory(bad)
 
@@ -101,11 +102,13 @@ class TestParseInventory:
         assert len(threads) == 1
 
     def test_unicode_in_title_and_quote(self):
-        text = "## Thread 1: Caching - stale data\n\n" \
-               "- **Signal**: low\n" \
-               "- **Quote**: \"naive cache; no invalidate step\"\n" \
-               "- **Context**: Foreign-language term used by the speaker\n" \
-               "- **Initial take**: Worth a glossary entry\n"
+        text = (
+            "## Thread 1: Caching - stale data\n\n"
+            "- **Signal**: low\n"
+            '- **Quote**: "naive cache; no invalidate step"\n'
+            "- **Context**: Foreign-language term used by the speaker\n"
+            "- **Initial take**: Worth a glossary entry\n"
+        )
         threads = parse_inventory(text)
         assert "stale data" in threads[0].title
         assert "invalidate" in threads[0].quote
@@ -115,7 +118,7 @@ class TestParseInventory:
             "## Thread 1: Stray\n\n"
             "free text not a field\n"
             "- **Signal**: high\n"
-            "- **Quote**: \"q\"\n"
+            '- **Quote**: "q"\n'
             "- **Context**: c\n"
             "- **Initial take**: i\n"
         )
@@ -126,9 +129,9 @@ class TestParseInventory:
         text = (
             "## Thread 1: Long quote\n\n"
             "- **Signal**: high\n"
-            "- **Quote**: \"first line of the quote\n"
+            '- **Quote**: "first line of the quote\n'
             "  second line continues\n"
-            "  third line ends here\"\n"
+            '  third line ends here"\n'
             "- **Context**: starts here\n"
             "  and explains in two lines\n"
             "- **Initial take**: short\n"
@@ -260,9 +263,7 @@ class TestSynthesis:
         )
         evals_dir = tmp_path / "evals"
         evals_dir.mkdir()
-        (evals_dir / evaluation_filename(thread)).write_text(
-            "Body.", encoding="utf-8"
-        )
+        (evals_dir / evaluation_filename(thread)).write_text("Body.", encoding="utf-8")
         text = build_gold_found([thread], evals_dir, source="t.md")
         assert "> first line" in text
         assert "> second line" in text
@@ -340,18 +341,18 @@ class TestSlugBounds:
         assert len(slug) <= SLUG_MAX_LEN
 
     def test_evaluation_filename_independent_of_number(self):
-        a = Thread(number=1, title="Topic A", signal="high",
-                   quote="q", context="c", initial_take="i")
-        b = Thread(number=42, title="Topic A", signal="high",
-                   quote="q", context="c", initial_take="i")
+        a = Thread(
+            number=1, title="Topic A", signal="high", quote="q", context="c", initial_take="i"
+        )
+        b = Thread(
+            number=42, title="Topic A", signal="high", quote="q", context="c", initial_take="i"
+        )
         assert evaluation_filename(a) == evaluation_filename(b)
         assert "001" not in evaluation_filename(a)
 
     def test_evaluation_filename_collision_resistant(self):
-        a = Thread(number=1, title="C", signal="low",
-                   quote="q", context="c", initial_take="i")
-        b = Thread(number=2, title="C++", signal="low",
-                   quote="q", context="c", initial_take="i")
+        a = Thread(number=1, title="C", signal="low", quote="q", context="c", initial_take="i")
+        b = Thread(number=2, title="C++", signal="low", quote="q", context="c", initial_take="i")
         assert slugify(a.title) == slugify(b.title)
         assert evaluation_filename(a) != evaluation_filename(b)
 
@@ -373,24 +374,34 @@ class TestExitCodes:
         fn = tmp_path / "final.md"
         fn.write_text(SAMPLE_THREAD, encoding="utf-8")
         out = tmp_path / "merged.md"
-        rc = main([
-            "merge",
-            "--pass1", str(tmp_path / "absent-pass1.md"),
-            "--final", str(fn),
-            "--output", str(out),
-        ])
+        rc = main(
+            [
+                "merge",
+                "--pass1",
+                str(tmp_path / "absent-pass1.md"),
+                "--final",
+                str(fn),
+                "--output",
+                str(out),
+            ]
+        )
         assert rc == 2
 
     def test_synth_missing_inventory_returns_two(self, tmp_path):
         evals = tmp_path / "evals"
         evals.mkdir()
         out = tmp_path / "gold.md"
-        rc = main([
-            "synth",
-            "--inventory", str(tmp_path / "absent.md"),
-            "--evaluations", str(evals),
-            "--output", str(out),
-        ])
+        rc = main(
+            [
+                "synth",
+                "--inventory",
+                str(tmp_path / "absent.md"),
+                "--evaluations",
+                str(evals),
+                "--output",
+                str(out),
+            ]
+        )
         assert rc == 2
 
     def test_init_rejects_traversal_returns_two(self, tmp_path, monkeypatch):
@@ -433,12 +444,17 @@ class TestCLI:
         out = tmp_path / "merged.md"
         p1.write_text(SAMPLE_THREAD, encoding="utf-8")
         fn.write_text(SAMPLE_THREAD, encoding="utf-8")
-        rc = main([
-            "merge",
-            "--pass1", str(p1),
-            "--final", str(fn),
-            "--output", str(out),
-        ])
+        rc = main(
+            [
+                "merge",
+                "--pass1",
+                str(p1),
+                "--final",
+                str(fn),
+                "--output",
+                str(out),
+            ]
+        )
         assert rc == 0
         assert out.exists()
 
@@ -449,12 +465,17 @@ class TestCLI:
         p1.write_text(SAMPLE_THREAD, encoding="utf-8")
         fn.write_text(SAMPLE_THREAD, encoding="utf-8")
         out.write_text("existing", encoding="utf-8")
-        rc = main([
-            "merge",
-            "--pass1", str(p1),
-            "--final", str(fn),
-            "--output", str(out),
-        ])
+        rc = main(
+            [
+                "merge",
+                "--pass1",
+                str(p1),
+                "--final",
+                str(fn),
+                "--output",
+                str(out),
+            ]
+        )
         assert rc == 2
         assert out.read_text(encoding="utf-8") == "existing"
 
@@ -465,17 +486,21 @@ class TestCLI:
         evals_dir.mkdir()
         threads = parse_inventory(SAMPLE_THREAD)
         for t in threads:
-            (evals_dir / evaluation_filename(t)).write_text(
-                "Evaluation text.", encoding="utf-8"
-            )
+            (evals_dir / evaluation_filename(t)).write_text("Evaluation text.", encoding="utf-8")
         out = tmp_path / "gold.md"
-        rc = main([
-            "synth",
-            "--inventory", str(inv),
-            "--evaluations", str(evals_dir),
-            "--output", str(out),
-            "--source", "fixture",
-        ])
+        rc = main(
+            [
+                "synth",
+                "--inventory",
+                str(inv),
+                "--evaluations",
+                str(evals_dir),
+                "--output",
+                str(out),
+                "--source",
+                "fixture",
+            ]
+        )
         assert rc == 0
         text = out.read_text(encoding="utf-8")
         assert "**Source**: fixture" in text

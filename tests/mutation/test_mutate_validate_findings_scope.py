@@ -11,6 +11,7 @@ Rules from TESTING-RIGOR.md:
 - delete bytecode caches before each test run
 - assert byte-identical restore at end
 """
+
 from __future__ import annotations
 
 import os
@@ -25,9 +26,7 @@ import pytest
 from scripts.testing.mutation_workspace import isolated_mutation_worktree
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-TARGET_REL = (
-    Path(".claude") / "skills" / "review" / "scripts" / "validate_findings_scope.py"
-)
+TARGET_REL = Path(".claude") / "skills" / "review" / "scripts" / "validate_findings_scope.py"
 TESTS = [
     "tests/skills/review/test_validate_findings_scope.py",
 ]
@@ -91,14 +90,14 @@ def _apply_mutant_and_assert_detected(
 # ---------------------------------------------------------------------------
 
 MUTANT1_ORIGINAL = (
-    b'    r"(?i)\\blocation\\b"              # ``location`` word, case-insensitive\n'
-    b'    r"\\s*\\*{0,2}\\s*"                 # optional closing bold markers: ``**``\n'
-    b'    r":\\s*"                          # colon separator\n'
+    b'    r"(?i)\\blocation\\b"  # ``location`` word, case-insensitive\n'
+    b'    r"\\s*\\*{0,2}\\s*"  # optional closing bold markers: ``**``\n'
+    b'    r":\\s*"  # colon separator\n'
 )
 MUTANT1_REPLACEMENT = (
-    b'    r"(?i)\\blocation\\b"              # ``location`` word, case-insensitive\n'
-    b'    r"\\s*"                            # mutant: no bold markers allowed\n'
-    b'    r":\\s*"                          # colon separator\n'
+    b'    r"(?i)\\blocation\\b"  # ``location`` word, case-insensitive\n'
+    b'    r"\\s*"  # mutant: no bold markers allowed\n'
+    b'    r":\\s*"  # colon separator\n'
 )
 
 # ---------------------------------------------------------------------------
@@ -107,12 +106,10 @@ MUTANT1_REPLACEMENT = (
 # ---------------------------------------------------------------------------
 
 MUTANT2_ORIGINAL = (
-    b'        if all(len(seg) <= 1 for seg in segments if seg):\n'
-    b'            return False\n'
+    b"        if all(len(seg) <= 1 for seg in segments if seg):\n            return False\n"
 )
 MUTANT2_REPLACEMENT = (
-    b'        # mutant: guard removed -- all(len(seg) <= 1 ...) check gone\n'
-    b'        pass\n'
+    b"        # mutant: guard removed -- all(len(seg) <= 1 ...) check gone\n        pass\n"
 )
 
 

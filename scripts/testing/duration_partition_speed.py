@@ -17,9 +17,7 @@ SPEED_MIN_BASELINE = 1.0
 SPEED_CAP = 1.6
 
 
-def partition_speeds(
-    current: Snapshot, baselines: dict[str, float]
-) -> dict[str, float]:
+def partition_speeds(current: Snapshot, baselines: dict[str, float]) -> dict[str, float]:
     """Median seconds-to-baseline ratio of each partition's substantial modules.
 
     Returns only partitions with ``SPEED_MIN_MODULES`` modules whose baseline is
@@ -30,8 +28,7 @@ def partition_speeds(
     for module, baseline in baselines.items():
         partition = current.module_partitions.get(module)
         if partition is not None and baseline >= SPEED_MIN_BASELINE:
-            ratios.setdefault(partition, []).append(
-                current.modules[module]["seconds"] / baseline)
+            ratios.setdefault(partition, []).append(current.modules[module]["seconds"] / baseline)
     return {
         partition: max(1.0, statistics.median(values))
         for partition, values in sorted(ratios.items())

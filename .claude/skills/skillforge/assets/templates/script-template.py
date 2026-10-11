@@ -36,6 +36,7 @@ from pathlib import Path
 # RESULT TYPES
 # ===========================================================================
 
+
 @dataclass
 class Result:
     """
@@ -48,6 +49,7 @@ class Result:
         errors: List of error messages
         warnings: List of warning messages
     """
+
     success: bool
     message: str
     data: dict = field(default_factory=dict)
@@ -66,13 +68,14 @@ class Result:
             "data": self.data,
             "errors": self.errors,
             "warnings": self.warnings,
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
         }
 
 
 # ===========================================================================
 # STATE MANAGEMENT (remove if not needed)
 # ===========================================================================
+
 
 def get_state_dir() -> Path:
     """Get the state directory for this skill."""
@@ -99,11 +102,7 @@ def load_state(path: Path | None = None) -> dict:
         path = get_state_path()
 
     if not path.exists():
-        return {
-            "version": "1.0",
-            "created_at": datetime.now().isoformat(),
-            "data": {}
-        }
+        return {"version": "1.0", "created_at": datetime.now().isoformat(), "data": {}}
 
     try:
         return json.loads(path.read_text())
@@ -115,7 +114,7 @@ def load_state(path: Path | None = None) -> dict:
             "version": "1.0",
             "created_at": datetime.now().isoformat(),
             "data": {},
-            "recovered_from": str(backup)
+            "recovered_from": str(backup),
         }
 
 
@@ -143,6 +142,7 @@ def save_state(state: dict, path: Path | None = None) -> None:
 # CORE LOGIC
 # ===========================================================================
 
+
 def process(input_path: Path, options: dict) -> Result:
     """
     Main processing logic.
@@ -161,7 +161,7 @@ def process(input_path: Path, options: dict) -> Result:
         return Result(
             success=False,
             message=f"Input file not found: {input_path}",
-            errors=[f"File not found: {input_path}"]
+            errors=[f"File not found: {input_path}"],
         )
 
     # ----- Processing -----
@@ -184,10 +184,7 @@ def process(input_path: Path, options: dict) -> Result:
     #     )
 
     return Result(
-        success=True,
-        message="Processing complete",
-        data={"processed": True},
-        warnings=warnings
+        success=True, message="Processing complete", data={"processed": True}, warnings=warnings
     )
 
 
@@ -221,6 +218,7 @@ def verify_result(result: Result) -> tuple[bool, str]:
 # CLI INTERFACE
 # ===========================================================================
 
+
 def main():
     parser = argparse.ArgumentParser(
         description="{{BRIEF_DESCRIPTION}}",
@@ -230,40 +228,20 @@ Examples:
   %(prog)s input.json
   %(prog)s input.json --verbose
   %(prog)s input.json --output result.json --json
-        """
+        """,
     )
 
     # ----- Required Arguments -----
-    parser.add_argument(
-        "input",
-        type=Path,
-        help="Path to input file"
-    )
+    parser.add_argument("input", type=Path, help="Path to input file")
 
     # ----- Optional Arguments -----
-    parser.add_argument(
-        "--output", "-o",
-        type=Path,
-        help="Output file path (default: stdout)"
-    )
+    parser.add_argument("--output", "-o", type=Path, help="Output file path (default: stdout)")
 
-    parser.add_argument(
-        "--verbose", "-v",
-        action="store_true",
-        help="Enable verbose output"
-    )
+    parser.add_argument("--verbose", "-v", action="store_true", help="Enable verbose output")
 
-    parser.add_argument(
-        "--json",
-        action="store_true",
-        help="Output results as JSON"
-    )
+    parser.add_argument("--json", action="store_true", help="Output results as JSON")
 
-    parser.add_argument(
-        "--no-verify",
-        action="store_true",
-        help="Skip self-verification step"
-    )
+    parser.add_argument("--no-verify", action="store_true", help="Skip self-verification step")
 
     args = parser.parse_args()
 
@@ -282,10 +260,7 @@ Examples:
         is_valid, verify_msg = verify_result(result)
         if not is_valid:
             if args.json:
-                print(json.dumps({
-                    "success": False,
-                    "error": f"Verification failed: {verify_msg}"
-                }))
+                print(json.dumps({"success": False, "error": f"Verification failed: {verify_msg}"}))
             else:
                 print(f"Verification failed: {verify_msg}", file=sys.stderr)
             sys.exit(11)  # Verification failure

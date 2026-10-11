@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 from pathlib import Path
 
@@ -173,9 +174,7 @@ def test_a_failed_mutation_is_reported(tmp_path: Path, doc: str) -> None:
 
 
 @pytest.mark.parametrize("doc", DISPATCH_DOCS)
-@pytest.mark.parametrize(
-    "failure", ["CRASH", "MALFORMED", "PREFIX_MALFORMED", "ERROR_OBJECT"]
-)
+@pytest.mark.parametrize("failure", ["CRASH", "MALFORMED", "PREFIX_MALFORMED", "ERROR_OBJECT"])
 def test_a_producer_that_names_no_tier_disarms_then_skips(
     tmp_path: Path, doc: str, failure: str
 ) -> None:
@@ -363,7 +362,7 @@ def test_the_fake_tier_producer_matches_the_real_output_shape(tmp_path: Path, do
     # The flag the block forwards. If the producer drops it, the block starts
     # passing an argument argparse rejects, and the whole loop breaks on every
     # bot PR. That must fail here rather than in production (issue #5208).
-    assert '"--is-bot", action="store_true",' in real, (
+    assert re.search(r'"--is-bot",\s*action="store_true",', real), (
         "the real producer no longer declares --is-bot, which the tier-dispatch "
         "block forwards for bot-authored PRs"
     )
@@ -417,9 +416,7 @@ def test_unsupported_disarms_first_then_terminates(tmp_path: Path, doc: str) -> 
     threads to fix and no CI to repair, so it terminated only by burning the
     cap and posting an escalation comment (issue #4899 reopen).
     """
-    run = run_dispatch(
-        tmp_path, doc, tier="UNSUPPORTED", auto_merge="SQUASH", round_action="ACT"
-    )
+    run = run_dispatch(tmp_path, doc, tier="UNSUPPORTED", auto_merge="SQUASH", round_action="ACT")
 
     assert "Cannot determine tier" not in run.stdout, (
         "UNSUPPORTED is declared in _TIER_ORDER, not a producer failure"

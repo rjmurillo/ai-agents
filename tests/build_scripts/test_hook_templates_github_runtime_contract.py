@@ -167,8 +167,7 @@ def test_plugin_root_anchored_command_fails_under_cloud_agent_contract(
     """
     repo = _materialize_repo_hook(tmp_path)
     plugin_style_command = (
-        'cd "${COPILOT_PLUGIN_ROOT:-$CLAUDE_PLUGIN_ROOT}" && '
-        "python3 -u hooks/support/probe.py"
+        'cd "${COPILOT_PLUGIN_ROOT:-$CLAUDE_PLUGIN_ROOT}" && python3 -u hooks/support/probe.py'
     )
 
     proc = subprocess.run(

@@ -124,9 +124,7 @@ class TestCheckGitignore:
     def test_complete_gitignore(self, tmp_path: Path) -> None:
         tracker = ValidationTracker()
         gitignore = tmp_path / ".gitignore"
-        gitignore.write_text(
-            ".codeql/cli/\n.codeql/db/\n.codeql/results/\n.codeql/logs/\n"
-        )
+        gitignore.write_text(".codeql/cli/\n.codeql/db/\n.codeql/results/\n.codeql/logs/\n")
 
         old_cwd = os.getcwd()
         try:

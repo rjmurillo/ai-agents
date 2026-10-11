@@ -48,9 +48,7 @@ class TestReadPayload:
         assert nudge.read_payload(io.StringIO(padded)) is None
         assert nudge.read_payload(io.StringIO('{"session_id": "a"}')) is not None
 
-    def test_cap_counts_utf8_bytes_not_characters(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_cap_counts_utf8_bytes_not_characters(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(nudge, "MAX_STDIN_BYTES", 20)
         multibyte = '{"s": "' + "\U0001f600" * 4 + '"}'  # 13 chars, 25 bytes
         assert len(multibyte) <= 20 < len(multibyte.encode("utf-8"))
@@ -219,9 +217,7 @@ class TestScanTranscript:
         monkeypatch.setattr(nudge, "MAX_LINE_CHARS", 400)
         path = tmp_path / "t.jsonl"
         long_line = json.dumps(human("no, " + "x" * 2000))
-        path.write_text(
-            long_line + "\n" + json.dumps(human("no, short")) + "\n", encoding="utf-8"
-        )
+        path.write_text(long_line + "\n" + json.dumps(human("no, short")) + "\n", encoding="utf-8")
         result = scan(path)
         assert (result.high, result.skipped_lines) == (1, 1)
 
@@ -387,5 +383,3 @@ class TestMain:
     def test_main_delegates_to_run(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(nudge, "run", lambda *_a, **_k: 0)
         assert nudge.main() == 0
-
-

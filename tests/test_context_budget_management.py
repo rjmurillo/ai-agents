@@ -92,10 +92,8 @@ def _context_budget_section(path: Path) -> str:
     assert path.exists(), f"Expected agent prompt at {path}"
     text = path.read_text(encoding="utf-8")
     start = text.find(SECTION_HEADING)
-    assert start != -1, (
-        f"{path.relative_to(REPO_ROOT)} is missing the {SECTION_HEADING!r} heading."
-    )
-    rest = text[start + len(SECTION_HEADING):]
+    assert start != -1, f"{path.relative_to(REPO_ROOT)} is missing the {SECTION_HEADING!r} heading."
+    rest = text[start + len(SECTION_HEADING) :]
     next_heading = rest.find("\n## ")
     return rest if next_heading == -1 else rest[:next_heading]
 

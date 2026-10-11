@@ -77,15 +77,15 @@ def run_mutants(repo_root: Path) -> None:
             "remove version mismatch check in _verify_pinned_version",
             b"    if version != pinned:\n"
             b"        raise _SemgrepExecutableError(\n"
-            b"            f\"semgrep version mismatch: pyproject.toml pins {pinned!r}, \"\n"
-            b"            f\"but {executable} reports {version!r}. \"\n"
-            b"            f\"Reinstall the pin with: {_INSTALL_HINT}\"\n"
+            b'            f"semgrep version mismatch: pyproject.toml pins {pinned!r}, "\n'
+            b'            f"but {executable} reports {version!r}. "\n'
+            b'            f"Reinstall the pin with: {_INSTALL_HINT}"\n'
             b"        )",
             b"    if False:  # MUTANT-DELETED-4190\n"
             b"        raise _SemgrepExecutableError(\n"
-            b"            f\"semgrep version mismatch: pyproject.toml pins {pinned!r}, \"\n"
-            b"            f\"but {executable} reports {version!r}. \"\n"
-            b"            f\"Reinstall the pin with: {_INSTALL_HINT}\"\n"
+            b'            f"semgrep version mismatch: pyproject.toml pins {pinned!r}, "\n'
+            b'            f"but {executable} reports {version!r}. "\n'
+            b'            f"Reinstall the pin with: {_INSTALL_HINT}"\n'
             b"        )",
         ),
         (
@@ -106,12 +106,12 @@ def run_mutants(repo_root: Path) -> None:
         ),
         (
             "suppress _SemgrepExecutableError on no PATH semgrep",
-            b"    resolved = shutil.which(\"semgrep\")\n"
+            b'    resolved = shutil.which("semgrep")\n'
             b"    if resolved is None:\n"
-            b"        raise FileNotFoundError(\"semgrep not found on PATH\")",
-            b"    resolved = shutil.which(\"semgrep\")\n"
+            b'        raise FileNotFoundError("semgrep not found on PATH")',
+            b'    resolved = shutil.which("semgrep")\n'
             b"    if resolved is None:\n"
-            b"        resolved = \"semgrep\"  # MUTANT-DELETED-4190",
+            b'        resolved = "semgrep"  # MUTANT-DELETED-4190',
         ),
     ]
 
@@ -149,7 +149,7 @@ def run_mutants(repo_root: Path) -> None:
         restored = target.read_bytes()
         assert restored == original_bytes, f"Restore was not byte-identical for: {name}"
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"DEAD:          {len(dead)}")
     print(f"SURVIVED:      {len(survived)}")
     print(f"DID-NOT-APPLY: {len(did_not_apply)}")

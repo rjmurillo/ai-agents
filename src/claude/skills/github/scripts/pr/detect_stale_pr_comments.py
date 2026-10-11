@@ -76,7 +76,9 @@ query($owner: String!, $name: String!, $prNumber: Int!) {
 
 
 def fetch_review_threads(
-    owner: str, repo: str, pr_number: int,
+    owner: str,
+    repo: str,
+    pr_number: int,
 ) -> list[dict[str, Any]]:
     """Fetch all review threads for a PR via GraphQL.
 
@@ -98,7 +100,7 @@ def fetch_review_threads(
             file=sys.stderr,
         )
         raise SystemExit(3)
-    threads = (pr_data.get("reviewThreads") or {})
+    threads = pr_data.get("reviewThreads") or {}
     nodes: list[dict[str, Any]] = threads.get("nodes") or []
     return nodes
 
@@ -111,9 +113,7 @@ def fetch_pr_files(owner: str, repo: str, pr_number: int) -> set[str]:
     For renamed files, includes both the new filename and previous_filename
     to avoid false positives on review threads referencing the old path.
     """
-    raw_files = gh_api_paginated(
-        f"repos/{owner}/{repo}/pulls/{pr_number}/files"
-    )
+    raw_files = gh_api_paginated(f"repos/{owner}/{repo}/pulls/{pr_number}/files")
     result: set[str] = set()
     for f in raw_files:
         if f.get("status") == "removed":
@@ -141,7 +141,8 @@ def _is_bot_author(login: str) -> bool:
 
 
 def _classify_thread(
-    thread: dict[str, Any], pr_files: set[str],
+    thread: dict[str, Any],
+    pr_files: set[str],
 ) -> dict[str, Any]:
     """Classify a single review thread as stale, outdated, or active."""
     path = thread.get("path") or ""
@@ -175,7 +176,11 @@ def _classify_thread(
 
 
 def _fetch_or_exit(
-    fetch_fn: Callable[..., Any], owner: str, repo: str, pr_number: int, label: str,
+    fetch_fn: Callable[..., Any],
+    owner: str,
+    repo: str,
+    pr_number: int,
+    label: str,
 ) -> Any:
     """Call a fetch function, converting exceptions to ADR-035 exit 3."""
     try:
@@ -188,7 +193,11 @@ def _fetch_or_exit(
 
 
 def detect_stale_comments(
-    owner: str, repo: str, pr_number: int, *, bot_only: bool = False,
+    owner: str,
+    repo: str,
+    pr_number: int,
+    *,
+    bot_only: bool = False,
 ) -> dict[str, Any]:
     """Detect review comments referencing files absent from PR HEAD.
 
@@ -249,11 +258,15 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")
     parser.add_argument(
-        "--pull-request", type=int, required=True,
+        "--pull-request",
+        type=int,
+        required=True,
         help="PR number",
     )
     parser.add_argument(
-        "--bot-only", action="store_true", default=False,
+        "--bot-only",
+        action="store_true",
+        default=False,
         help="Only classify bot-authored threads as stale. "
         "Human threads are reported but never marked stale.",
     )
@@ -269,7 +282,10 @@ def main(argv: list[str] | None = None) -> int:
     repo = resolved.repo
 
     result = detect_stale_comments(
-        owner, repo, args.pull_request, bot_only=args.bot_only,
+        owner,
+        repo,
+        args.pull_request,
+        bot_only=args.bot_only,
     )
     print(json.dumps(result, indent=2))
     return 0

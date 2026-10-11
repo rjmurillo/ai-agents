@@ -189,8 +189,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     print(
-        f"Skill contract binding OK. {in_scope} in-scope skill(s), "
-        f"{len(baseline)} grandfathered."
+        f"Skill contract binding OK. {in_scope} in-scope skill(s), {len(baseline)} grandfathered."
     )
     return 0
 

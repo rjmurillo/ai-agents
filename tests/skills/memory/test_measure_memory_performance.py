@@ -20,9 +20,7 @@ class TestMeasureSerenaSearch:
 
     def test_measures_existing_path(self, tmp_path):
         (tmp_path / "test-memory.md").write_text("# Test content here")
-        result = measure_memory_performance.measure_serena_search(
-            "test", tmp_path, 2, 1
-        )
+        result = measure_memory_performance.measure_serena_search("test", tmp_path, 2, 1)
         assert "Error" not in result
         assert result["TotalTimeMs"] >= 0
         assert result["TotalFiles"] >= 1
@@ -30,9 +28,7 @@ class TestMeasureSerenaSearch:
     def test_counts_matched_files(self, tmp_path):
         (tmp_path / "security-scan.md").write_text("# Security")
         (tmp_path / "other-topic.md").write_text("# Other")
-        result = measure_memory_performance.measure_serena_search(
-            "security", tmp_path, 2, 0
-        )
+        result = measure_memory_performance.measure_serena_search("security", tmp_path, 2, 0)
         assert result["MatchedFiles"] >= 1
 
 
@@ -48,21 +44,11 @@ class TestRetiredBackendBenchmark:
         of the machinery instead: the import is not a substitute for the
         request never being made.
         """
-        measured = [
-            name
-            for name in dir(measure_memory_performance)
-            if name.startswith("measure_")
-        ]
+        measured = [name for name in dir(measure_memory_performance) if name.startswith("measure_")]
         assert measured == ["measure_serena_search"]
-        endpoints = [
-            name
-            for name in dir(measure_memory_performance)
-            if name.endswith("_ENDPOINT")
-        ]
+        endpoints = [name for name in dir(measure_memory_performance) if name.endswith("_ENDPOINT")]
         assert endpoints == []
-        source = Path(measure_memory_performance.__file__).read_text(
-            encoding="utf-8"
-        )
+        source = Path(measure_memory_performance.__file__).read_text(encoding="utf-8")
         for forbidden in ("urllib", "socket", "http://"):
             assert forbidden not in source
 
@@ -71,9 +57,7 @@ class TestFormatConsole:
     """Tests for format_console function."""
 
     def test_returns_serena_avg(self):
-        benchmark = {
-            "Summary": {"SerenaAvgMs": 5.0}
-        }
+        benchmark = {"Summary": {"SerenaAvgMs": 5.0}}
         # format_console returns a string, does not print
         result = measure_memory_performance.format_console(benchmark)
         assert "5.0ms" in result

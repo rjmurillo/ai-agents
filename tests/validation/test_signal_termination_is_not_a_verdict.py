@@ -53,9 +53,7 @@ class TestClassifierReadsTheSign:
     @pytest.mark.parametrize("exit_code", _SIGNAL_EXITS)
     def test_a_signal_exit_is_named_rather_than_defaulted(self, exit_code: int) -> None:
         """The discriminating case: every one of these returned "" before."""
-        assert (
-            classify_subprocess_failure(exit_code, "", default="") == REASON_PROCESS_SIGNALED
-        )
+        assert classify_subprocess_failure(exit_code, "", default="") == REASON_PROCESS_SIGNALED
 
     def test_a_markerless_minus_one_is_a_signal_not_the_sentinel(self) -> None:
         """Edge, and the one that looks wrong until you read the wrapper.
@@ -103,10 +101,7 @@ class TestClassifierReadsTheSign:
         is not a diff that failed to resolve, and both already map to UNKNOWN,
         so this changes the reason without changing the state.
         """
-        assert (
-            classify_subprocess_failure(-9, "", default="diff.failed")
-            == REASON_PROCESS_SIGNALED
-        )
+        assert classify_subprocess_failure(-9, "", default="diff.failed") == REASON_PROCESS_SIGNALED
 
 
 def _run_workflow(tmp_path: Path, result: tuple[int, str, str]) -> Any:
@@ -130,9 +125,7 @@ class TestWorkflowYamlWiring:
     """A correct classifier proves nothing until the call site reads it."""
 
     @pytest.mark.parametrize("exit_code", _SIGNAL_EXITS)
-    def test_a_killed_actionlint_reports_unknown(
-        self, tmp_path: Path, exit_code: int
-    ) -> None:
+    def test_a_killed_actionlint_reports_unknown(self, tmp_path: Path, exit_code: int) -> None:
         """The discriminating case: this was FAIL actionlint.violation."""
         outcome = _run_workflow(tmp_path / str(exit_code), (exit_code, "", ""))
 
@@ -150,9 +143,7 @@ class TestWorkflowYamlWiring:
         assert outcome.examined is None
         assert outcome.findings is None
 
-    def test_a_killed_actionlint_is_not_licensed_by_the_pre_pr_policy(
-        self, tmp_path: Path
-    ) -> None:
+    def test_a_killed_actionlint_is_not_licensed_by_the_pre_pr_policy(self, tmp_path: Path) -> None:
         """UNKNOWN blocks. Only an absent actionlint is licensed.
 
         Licensing this would convert a spurious red into a silent green, which
@@ -175,9 +166,7 @@ class TestYamlStyleWiring:
     """The half where the fabricated verdict was green rather than red."""
 
     @pytest.mark.parametrize("exit_code", _SIGNAL_EXITS)
-    def test_a_killed_yamllint_reports_unknown(
-        self, tmp_path: Path, exit_code: int
-    ) -> None:
+    def test_a_killed_yamllint_reports_unknown(self, tmp_path: Path, exit_code: int) -> None:
         """The discriminating case: this was a PASS.
 
         The scope string said ``advisory findings tolerated``, so the summary
@@ -188,18 +177,14 @@ class TestYamlStyleWiring:
         assert outcome.state is EvidenceState.UNKNOWN
         assert outcome.reason == REASON_PROCESS_SIGNALED
 
-    def test_a_killed_yamllint_does_not_claim_tolerated_findings(
-        self, tmp_path: Path
-    ) -> None:
+    def test_a_killed_yamllint_does_not_claim_tolerated_findings(self, tmp_path: Path) -> None:
         """The specific false claim the old PASS made about its own scope."""
         outcome = _run_yaml_style(tmp_path, (-15, "", ""))
 
         assert "advisory findings tolerated" not in outcome.scope
         assert outcome.examined is None
 
-    def test_a_killed_yamllint_is_not_licensed_by_the_pre_pr_policy(
-        self, tmp_path: Path
-    ) -> None:
+    def test_a_killed_yamllint_is_not_licensed_by_the_pre_pr_policy(self, tmp_path: Path) -> None:
         """The advisory licence covers an absent yamllint, not an unfinished one."""
         outcome = _run_yaml_style(tmp_path, (-9, "", ""))
 
@@ -220,9 +205,7 @@ class TestYamlStyleWiring:
         assert outcome.reason == REASON_ADVISORY_FINDINGS
         assert pre_pr_policy().accepts(outcome)
 
-    def test_an_absent_yamllint_is_still_blocked_and_licensed(
-        self, tmp_path: Path
-    ) -> None:
+    def test_an_absent_yamllint_is_still_blocked_and_licensed(self, tmp_path: Path) -> None:
         """Positive control on the branch above the new one.
 
         The tool-absent case shares the -1 code with the sign rule, so a

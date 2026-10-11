@@ -146,12 +146,7 @@ def test_repository_removes_false_vendor_attribution_from_both_skill_trees():
         / "context-optimizer"
         / "scripts"
         / "test_skill_passive_compliance.py",
-        repo_root
-        / "src"
-        / "copilot-cli"
-        / "skills"
-        / "context-optimizer"
-        / "SKILL.md",
+        repo_root / "src" / "copilot-cli" / "skills" / "context-optimizer" / "SKILL.md",
     ]
 
     contents = [path.read_text() for path in files]

@@ -320,9 +320,7 @@ class TestGetRecentSessionLog:
         good.write_text("{}")
         real_stat = Path.stat
 
-        def flaky_stat(
-            self: Path, *, follow_symlinks: bool = True
-        ) -> os.stat_result:
+        def flaky_stat(self: Path, *, follow_symlinks: bool = True) -> os.stat_result:
             if self.name == bad.name:
                 raise OSError("transient stat failure")
             return real_stat(self, follow_symlinks=follow_symlinks)

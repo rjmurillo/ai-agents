@@ -293,19 +293,23 @@ class TestGetBaseAssessments:
         file_path = tmp_path / "new.py"
         file_path.write_text("x = 1\n")
 
-        with patch(
-            "assess.resolve_comparison_base",
-            return_value="base",
-        ), patch(
-            "assess.get_file_at_revision",
-            return_value=None,
-        ), patch(
-            "subprocess.run",
-            return_value=type(
-                "Result",
-                (),
-                {"returncode": 0, "stdout": str(tmp_path) + "\n"},
-            )(),
+        with (
+            patch(
+                "assess.resolve_comparison_base",
+                return_value="base",
+            ),
+            patch(
+                "assess.get_file_at_revision",
+                return_value=None,
+            ),
+            patch(
+                "subprocess.run",
+                return_value=type(
+                    "Result",
+                    (),
+                    {"returncode": 0, "stdout": str(tmp_path) + "\n"},
+                )(),
+            ),
         ):
             result = _get_base_assessments([file_path], "origin/main", "production")
 
@@ -319,19 +323,23 @@ class TestGetBaseAssessments:
         file_path.write_text("def foo(): pass\n")
         base_content = "def foo(): pass\ndef bar(): pass\n"
 
-        with patch(
-            "assess.resolve_comparison_base",
-            return_value="base",
-        ), patch(
-            "assess.get_file_at_revision",
-            return_value=base_content.encode("utf-8"),
-        ), patch(
-            "subprocess.run",
-            return_value=type(
-                "Result",
-                (),
-                {"returncode": 0, "stdout": str(tmp_path) + "\n"},
-            )(),
+        with (
+            patch(
+                "assess.resolve_comparison_base",
+                return_value="base",
+            ),
+            patch(
+                "assess.get_file_at_revision",
+                return_value=base_content.encode("utf-8"),
+            ),
+            patch(
+                "subprocess.run",
+                return_value=type(
+                    "Result",
+                    (),
+                    {"returncode": 0, "stdout": str(tmp_path) + "\n"},
+                )(),
+            ),
         ):
             result = _get_base_assessments([file_path], "origin/main", "production")
 

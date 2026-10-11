@@ -73,13 +73,9 @@ def run_git(args: list[str]) -> str:
     injection at the OS level; the allowlist blocks git-level abuse.
     """
     if not args or args[0] not in _GIT_FLAG_ALLOWLIST:
-        raise ValueError(
-            f"run_git: subcommand {args[0] if args else '(empty)'!r} not in allowlist"
-        )
+        raise ValueError(f"run_git: subcommand {args[0] if args else '(empty)'!r} not in allowlist")
     for tok in args[1:]:
-        if isinstance(tok, str) and (
-            tok.startswith("--upload-pack=") or tok.startswith("--exec=")
-        ):
+        if isinstance(tok, str) and (tok.startswith("--upload-pack=") or tok.startswith("--exec=")):
             raise ValueError(f"run_git: forbidden git option {tok!r}")
     # List form (CWE-78 shell injection blocked) + read-only verb allowlist
     # + transport-flag denylist + 30s timeout. Defense-in-depth complete.
@@ -100,10 +96,16 @@ def find_origin_commit(target: str) -> tuple[str, str, str, str]:
     """
     path = Path(target)
     if path.exists():
-        log_output = run_git([
-            "log", "--diff-filter=A", "--follow",
-            "--format=%H%x00%aI%x00%an%x00%s", "--", target,
-        ])
+        log_output = run_git(
+            [
+                "log",
+                "--diff-filter=A",
+                "--follow",
+                "--format=%H%x00%aI%x00%an%x00%s",
+                "--",
+                target,
+            ]
+        )
         if log_output:
             lines = log_output.strip().split("\n")
             last_line = lines[-1]
@@ -116,10 +118,16 @@ def find_origin_commit(target: str) -> tuple[str, str, str, str]:
 
 def find_recent_changes(target: str, limit: int = 5) -> list[str]:
     """Find recent commits that modified the target."""
-    log_output = run_git([
-        "log", "-n", str(limit),
-        "--format=%h %aI %s", "--", target,
-    ])
+    log_output = run_git(
+        [
+            "log",
+            "-n",
+            str(limit),
+            "--format=%h %aI %s",
+            "--",
+            target,
+        ]
+    )
     if log_output:
         return log_output.strip().split("\n")
     return []
@@ -130,9 +138,7 @@ def _read_utf8_adr(adr_file: Path) -> str:
     try:
         return adr_file.read_text(encoding="utf-8")
     except UnicodeDecodeError as error:
-        raise UnicodeError(
-            f"Cannot decode ADR file '{adr_file}' as UTF-8: {error}"
-        ) from error
+        raise UnicodeError(f"Cannot decode ADR file '{adr_file}' as UTF-8: {error}") from error
 
 
 def find_related_adrs(target: str) -> list[str]:
@@ -208,9 +214,7 @@ def generate_report(result: InvestigationResult) -> str:
     # source repo and a vendored plugin install (issue #2050). The template
     # ships inside the skill at ``chestertons-fence/templates/``.
     template_path = (
-        Path(__file__).resolve().parents[1]
-        / "templates"
-        / "chestertons-fence-investigation.md"
+        Path(__file__).resolve().parents[1] / "templates" / "chestertons-fence-investigation.md"
     )
     if not template_path.exists():
         return _generate_inline_report(result)
@@ -240,12 +244,14 @@ def _generate_inline_report(result: InvestigationResult) -> str:
     ]
 
     if result.origin_commit:
-        lines.extend([
-            f"- **Origin commit**: {result.origin_commit}",
-            f"- **Date**: {result.origin_date}",
-            f"- **Author**: {result.origin_author}",
-            f"- **Message**: {result.origin_message}",
-        ])
+        lines.extend(
+            [
+                f"- **Origin commit**: {result.origin_commit}",
+                f"- **Date**: {result.origin_date}",
+                f"- **Author**: {result.origin_author}",
+                f"- **Message**: {result.origin_message}",
+            ]
+        )
     else:
         lines.append("- No origin commit found.")
 
@@ -287,12 +293,14 @@ def _generate_findings_appendix(result: InvestigationResult) -> str:
     ]
 
     if result.origin_commit:
-        lines.extend([
-            f"- **Origin commit**: `{result.origin_commit[:12]}`",
-            f"- **Date**: {result.origin_date}",
-            f"- **Author**: {result.origin_author}",
-            f"- **Message**: {result.origin_message}",
-        ])
+        lines.extend(
+            [
+                f"- **Origin commit**: `{result.origin_commit[:12]}`",
+                f"- **Date**: {result.origin_date}",
+                f"- **Author**: {result.origin_author}",
+                f"- **Message**: {result.origin_message}",
+            ]
+        )
     else:
         lines.append("- No origin commit found.")
 

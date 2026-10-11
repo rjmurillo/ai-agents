@@ -123,8 +123,7 @@ def test_gate_nonblocking_error_does_not_skip_later_block(tmp_path, capsys):
         _write_shim(
             tmp_path,
             "block.py",
-            f"from pathlib import Path\nPath({str(marker)!r}).touch()\n"
-            "raise SystemExit(2)\n",
+            f"from pathlib import Path\nPath({str(marker)!r}).touch()\nraise SystemExit(2)\n",
         ),
     ]
 
@@ -142,8 +141,7 @@ def test_gate_preserves_nonblocking_error_after_later_allow(tmp_path, capsys):
         _write_shim(
             tmp_path,
             "allow.py",
-            f"from pathlib import Path\nPath({str(marker)!r}).touch()\n"
-            "print('later context')\n",
+            f"from pathlib import Path\nPath({str(marker)!r}).touch()\nprint('later context')\n",
         ),
     ]
 
@@ -457,9 +455,7 @@ def test_gate_all_valid_stop_decision_runs_later_shims(tmp_path, capsys, event):
         ),
     ],
 )
-def test_wrong_event_blocker_fails_closed(
-    tmp_path, capsys, event, mode, document, later_runs
-):
+def test_wrong_event_blocker_fails_closed(tmp_path, capsys, event, mode, document, later_runs):
     marker = tmp_path / "later-ran"
     shims = [
         _write_shim(
@@ -541,8 +537,7 @@ def test_gate_all_invalid_output_overrides_earlier_nonblocking_error(
         _write_shim(
             tmp_path,
             "invalid.py",
-            "import json\n"
-            "print(json.dumps({'decision': 'allow', 'reason': 'invalid'}))\n",
+            "import json\nprint(json.dumps({'decision': 'allow', 'reason': 'invalid'}))\n",
         ),
         _write_shim(
             tmp_path,
@@ -983,8 +978,7 @@ def test_argv_and_path_mutations_do_not_leak_between_shims(tmp_path, capsys):
             '"additionalContext": "wrong event"}}',
         ),
         (
-            '{"hookSpecificOutput": {"hookEventName": "PreToolUse", '
-            '"additionalContext": "  "}}',
+            '{"hookSpecificOutput": {"hookEventName": "PreToolUse", "additionalContext": "  "}}',
             None,
             None,
         ),

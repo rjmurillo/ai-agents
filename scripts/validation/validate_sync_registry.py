@@ -109,17 +109,13 @@ def _check_source_roots(
             # lib_mirror already fails closed when a source dir is absent.
             continue
         if root_rel not in registered:
-            errors.append(
-                f"source package {root_rel} is not registered in SYNC_PAIRS"
-            )
+            errors.append(f"source package {root_rel} is not registered in SYNC_PAIRS")
         for child in sorted(root.iterdir()):
             if not _is_package_dir(child):
                 continue
             child_rel = f"{root_rel}/{child.name}"
             if child_rel not in registered:
-                errors.append(
-                    f"source package {child_rel} is not registered in SYNC_PAIRS"
-                )
+                errors.append(f"source package {child_rel} is not registered in SYNC_PAIRS")
 
     return errors
 
@@ -143,8 +139,7 @@ def _check_lib_destinations(
         if dst_rel in registered or child.name in allowlist:
             continue
         errors.append(
-            f"lib package {dst_rel} has no SYNC_PAIRS destination and is not "
-            f"in LIB_ALLOWLIST"
+            f"lib package {dst_rel} has no SYNC_PAIRS destination and is not in LIB_ALLOWLIST"
         )
     return errors
 
@@ -184,8 +179,7 @@ def main(argv: list[str] | None = None) -> int:
         "--repo-root",
         type=Path,
         default=Path(__file__).resolve().parents[2],
-        help="Repository root (defaults to the repo root that contains "
-        "scripts/validation/).",
+        help="Repository root (defaults to the repo root that contains scripts/validation/).",
     )
     args = parser.parse_args(argv)
 

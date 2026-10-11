@@ -79,7 +79,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")
     parser.add_argument(
-        "--thread-id", required=True,
+        "--thread-id",
+        required=True,
         help="GraphQL node ID of the review thread (PRRT_...)",
     )
     return parser
@@ -108,7 +109,8 @@ def main(argv: list[str] | None = None) -> int:
     thread = data.get("node")
     if not thread or not thread.get("id"):
         error_and_exit(
-            f"Thread {args.thread_id} not found or is not a review thread.", 2,
+            f"Thread {args.thread_id} not found or is not a review thread.",
+            2,
         )
 
     comments_data = thread.get("comments", {})

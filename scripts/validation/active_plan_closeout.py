@@ -50,10 +50,7 @@ class ActivePlanWarning:
 
     def format(self) -> str:
         issues = ", ".join(f"#{number}" for number in self.issue_numbers)
-        return (
-            f"{self.plan_path}: {issues} closed. Move the plan to completed/ "
-            "or abandoned/."
-        )
+        return f"{self.plan_path}: {issues} closed. Move the plan to completed/ or abandoned/."
 
 
 IssueStateLookup = Callable[[int], str | None]
@@ -76,7 +73,6 @@ def active_plan_warnings(
 
     warnings: list[ActivePlanWarning] = []
     for plan in sorted(active_dir.glob("*.md")):
-
         issue_numbers = issue_refs(plan.read_text(encoding="utf-8"))
         if not issue_numbers:
             continue
@@ -137,9 +133,7 @@ def gh_issue_state(
     """Return a GitHub issue state, or None when lookup cannot prove closure."""
     match = _REPO_RE.fullmatch(repo)
     if match is None:
-        _print_lookup_advisory(
-            issue_number, REASON_LOOKUP_FAILED, f"invalid repo format: {repo!r}"
-        )
+        _print_lookup_advisory(issue_number, REASON_LOOKUP_FAILED, f"invalid repo format: {repo!r}")
         return None
     validated_repo = match.group(0)
     command = [
@@ -241,10 +235,7 @@ def validate_active_plan_closeout(repo_root: Path, *, repo: str = DEFAULT_REPO) 
             scope=_SCOPE,
             detail=f"{unresolved} of {lookups} issue lookup(s) returned no usable state",
         )
-    print(
-        "[PASS] Active plan closeout advisory: "
-        "no active plans with all tracking issues closed"
-    )
+    print("[PASS] Active plan closeout advisory: no active plans with all tracking issues closed")
     return CheckOutcome.passed(_VALIDATOR, revision=WORKING_TREE, scope=_SCOPE, examined=lookups)
 
 

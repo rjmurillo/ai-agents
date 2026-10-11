@@ -127,7 +127,6 @@ class TestPlanningAdvisory:
         assert policy.run_planning_advisory(tmp_path) == 0
         assert _typed(capsys) == []
 
-
     def test_a_planning_timeout_is_a_typed_blocked_not_a_finding(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
     ) -> None:
@@ -252,7 +251,10 @@ class TestBotCascadeAdvisory:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
     ) -> None:
         rc = self._run(
-            tmp_path, monkeypatch, pr=_proc(0, "7\n"), threads=_proc(0, "not json"),
+            tmp_path,
+            monkeypatch,
+            pr=_proc(0, "7\n"),
+            threads=_proc(0, "not json"),
             reviews=_proc(0, ""),
         )
 
@@ -264,7 +266,10 @@ class TestBotCascadeAdvisory:
     ) -> None:
         payload = json.dumps({"fetched_pages_complete": True, "unresolved_count": 3})
         rc = self._run(
-            tmp_path, monkeypatch, pr=_proc(0, "7\n"), threads=_proc(0, payload),
+            tmp_path,
+            monkeypatch,
+            pr=_proc(0, "7\n"),
+            threads=_proc(0, payload),
             reviews=_proc(0, ""),
         )
 
@@ -277,7 +282,10 @@ class TestBotCascadeAdvisory:
         """A partial snapshot that found zero unresolved is not a clean scan (PR #6067 review)."""
         payload = json.dumps({"fetched_pages_complete": False, "unresolved_count": 0})
         rc = self._run(
-            tmp_path, monkeypatch, pr=_proc(0, "7\n"), threads=_proc(0, payload),
+            tmp_path,
+            monkeypatch,
+            pr=_proc(0, "7\n"),
+            threads=_proc(0, payload),
             reviews=_proc(0, ""),
         )
 
@@ -289,7 +297,10 @@ class TestBotCascadeAdvisory:
     ) -> None:
         payload = json.dumps({"fetched_pages_complete": True, "unresolved_count": 0})
         rc = self._run(
-            tmp_path, monkeypatch, pr=_proc(0, "7\n"), threads=_proc(0, payload),
+            tmp_path,
+            monkeypatch,
+            pr=_proc(0, "7\n"),
+            threads=_proc(0, payload),
             reviews=_proc(0, ""),
         )
 
@@ -301,7 +312,10 @@ class TestBotCascadeAdvisory:
     ) -> None:
         payload = json.dumps({"fetched_pages_complete": True, "unresolved_count": 0})
         rc = self._run(
-            tmp_path, monkeypatch, pr=_proc(0, "7\n"), threads=_proc(0, payload),
+            tmp_path,
+            monkeypatch,
+            pr=_proc(0, "7\n"),
+            threads=_proc(0, payload),
             reviews=_proc(1, "", "rate limited"),
         )
 
@@ -313,7 +327,10 @@ class TestBotCascadeAdvisory:
     ) -> None:
         payload = json.dumps({"fetched_pages_complete": True, "unresolved_count": 0})
         rc = self._run(
-            tmp_path, monkeypatch, pr=_proc(0, "7\n"), threads=_proc(0, payload),
+            tmp_path,
+            monkeypatch,
+            pr=_proc(0, "7\n"),
+            threads=_proc(0, payload),
             reviews=_proc(0, "not-a-time\n"),
         )
 

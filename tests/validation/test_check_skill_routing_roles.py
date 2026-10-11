@@ -149,9 +149,7 @@ def test_unknown_routing_key_fails(tree: Path, capsys: pytest.CaptureFixture[str
     _skill(
         tree,
         "typo",
-        _routing(
-            role="front-door", invoker="harness", trigger="t", user_facing=True, bogus="1"
-        ),
+        _routing(role="front-door", invoker="harness", trigger="t", user_facing=True, bogus="1"),
     )
 
     assert gate.validate_skill_routing_roles(tree) is False
@@ -194,9 +192,7 @@ def test_a_canonical_agent_is_a_legal_invoker(tree: Path) -> None:
         ),
         body="Uses helper-for-analyst internally.",
     )
-    _reference(
-        tree, "analyst", "notes.md", "This uses helper-for-analyst for research."
-    )
+    _reference(tree, "analyst", "notes.md", "This uses helper-for-analyst for research.")
 
     assert gate.validate_skill_routing_roles(tree) is True
 

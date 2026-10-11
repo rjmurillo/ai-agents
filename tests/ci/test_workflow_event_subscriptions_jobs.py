@@ -26,9 +26,7 @@ _WORKFLOWS_DIR = Path(__file__).resolve().parents[2] / ".github" / "workflows"
 
 def parse_yaml(source: str, name: str = "wf.yml"):
     """Parse a workflow snippet the same way yaml.safe_load does in production."""
-    return parse_workflow_subscriptions(
-        yaml.safe_load(textwrap.dedent(source)), fallback_name=name
-    )
+    return parse_workflow_subscriptions(yaml.safe_load(textwrap.dedent(source)), fallback_name=name)
 
 
 class TestJobIdentities:
@@ -81,9 +79,7 @@ class TestJobIdentities:
         )
 
         assert subscriptions.job_name_prefixes == frozenset({""})
-        assert declared_required_contexts(subscriptions, REQUIRED_CONTEXTS) == (
-            REQUIRED_CONTEXTS
-        )
+        assert declared_required_contexts(subscriptions, REQUIRED_CONTEXTS) == (REQUIRED_CONTEXTS)
 
     def test_a_workflow_with_no_jobs_block_declares_nothing(self):
         subscriptions = parse_yaml("on:\n  pull_request:\n")

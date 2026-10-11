@@ -88,9 +88,7 @@ class TestPremiseVerificationIsDocumented:
             f"a refuted False"
         )
 
-    def test_reviewer_findings_rejects_a_whitespace_only_needle(
-        self, plugin_root: Path
-    ) -> None:
+    def test_reviewer_findings_rejects_a_whitespace_only_needle(self, plugin_root: Path) -> None:
         """Positive: [ -s ] tests byte size, not content (Cursor Bugbot on
         PR #5178, commit 88b3ea11f).
 
@@ -205,7 +203,7 @@ class TestPremiseVerificationIsDocumented:
         text = _read(plugin_root, SKILL_NAME)
         assert '-- "$PATH_SPEC"' in text, (
             f"{SKILL_NAME}/SKILL.md in {plugin_root} no longer shows the "
-            f"path passed as the quoted, file-loaded `\"$PATH_SPEC\"` "
+            f'path passed as the quoted, file-loaded `"$PATH_SPEC"` '
             f"variable after a literal '--'"
         )
         assert "PATH_SPEC=$(cat" in text, (
@@ -353,7 +351,7 @@ class TestPremiseVerificationIsDocumented:
         ]
         assert log_s_lines, (
             f"{SKILL_NAME}/SKILL.md in {plugin_root} no longer names a "
-            f"git log -S \"$NEEDLE\" <reviewed-commit> invocation; this "
+            f'git log -S "$NEEDLE" <reviewed-commit> invocation; this '
             f"test has nothing to check"
         )
         unguarded_log = [line for line in log_s_lines if "--literal-pathspecs" not in line]
@@ -446,4 +444,3 @@ class TestPremiseVerificationIsDocumented:
             f"too (even with a single -e argument), so it cannot be the "
             f"prescribed recovery"
         )
-

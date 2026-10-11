@@ -31,30 +31,40 @@ class TestMainAlwaysExitsZero:
     def test_returns_zero_on_success(self, tmp_path):
         # Create a memories directory with files for processing
         (tmp_path / "test-memory.md").write_text("# Test")
-        result = invoke_memory_cross_reference.main([
-            "--memories-path", str(tmp_path),
-            "--output-json",
-            "--skip-path-validation",
-        ])
+        result = invoke_memory_cross_reference.main(
+            [
+                "--memories-path",
+                str(tmp_path),
+                "--output-json",
+                "--skip-path-validation",
+            ]
+        )
         assert result == 0
 
     def test_returns_zero_on_empty_dir(self, tmp_path):
-        result = invoke_memory_cross_reference.main([
-            "--memories-path", str(tmp_path),
-            "--output-json",
-            "--skip-path-validation",
-        ])
+        result = invoke_memory_cross_reference.main(
+            [
+                "--memories-path",
+                str(tmp_path),
+                "--output-json",
+                "--skip-path-validation",
+            ]
+        )
         assert result == 0
 
     def test_returns_zero_with_files_flag(self, tmp_path):
         test_file = tmp_path / "test-index.md"
         test_file.write_text("| key | val |")
-        result = invoke_memory_cross_reference.main([
-            "--memories-path", str(tmp_path),
-            "--files", str(test_file),
-            "--output-json",
-            "--skip-path-validation",
-        ])
+        result = invoke_memory_cross_reference.main(
+            [
+                "--memories-path",
+                str(tmp_path),
+                "--files",
+                str(test_file),
+                "--output-json",
+                "--skip-path-validation",
+            ]
+        )
         assert result == 0
 
 
@@ -63,21 +73,27 @@ class TestMainOutputJson:
 
     def test_json_output_has_success_field(self, tmp_path, capsys):
         (tmp_path / "test.md").write_text("# Test")
-        invoke_memory_cross_reference.main([
-            "--memories-path", str(tmp_path),
-            "--output-json",
-            "--skip-path-validation",
-        ])
+        invoke_memory_cross_reference.main(
+            [
+                "--memories-path",
+                str(tmp_path),
+                "--output-json",
+                "--skip-path-validation",
+            ]
+        )
         captured = capsys.readouterr()
         data = json.loads(captured.out)
         assert "Success" in data
 
     def test_json_output_has_error_list(self, tmp_path, capsys):
-        invoke_memory_cross_reference.main([
-            "--memories-path", str(tmp_path),
-            "--output-json",
-            "--skip-path-validation",
-        ])
+        invoke_memory_cross_reference.main(
+            [
+                "--memories-path",
+                str(tmp_path),
+                "--output-json",
+                "--skip-path-validation",
+            ]
+        )
         captured = capsys.readouterr()
         data = json.loads(captured.out)
         assert "Errors" in data

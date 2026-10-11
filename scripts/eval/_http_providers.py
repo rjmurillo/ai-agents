@@ -254,14 +254,12 @@ class _OpenAICompatibleProvider:
         choices = getattr(resp, "choices", None) or []
         if not choices:
             raise RuntimeError(
-                f"{self._provider_label} API returned no choices; "
-                "model identifier redacted"
+                f"{self._provider_label} API returned no choices; model identifier redacted"
             )
         content = choices[0].message.content
         if not isinstance(content, str):
             raise RuntimeError(
-                f"{self._provider_label} API returned non-text content; "
-                "model identifier redacted"
+                f"{self._provider_label} API returned non-text content; model identifier redacted"
             )
         fingerprint = getattr(resp, "system_fingerprint", None)
         self.system_fingerprint = _constants.normalize_fingerprint(fingerprint)

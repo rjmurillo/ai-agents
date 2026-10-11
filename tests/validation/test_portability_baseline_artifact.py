@@ -49,9 +49,7 @@ def _write(path: Path, payload: object) -> Path:
 def _baseline(root: Path, payload: object, *, track: bool = True) -> Path:
     path = _write(root / "scripts" / "validation" / "b.json", payload)
     if track:
-        subprocess.run(
-            ["git", "-C", str(root), "add", "-A"], check=True, capture_output=True
-        )
+        subprocess.run(["git", "-C", str(root), "add", "-A"], check=True, capture_output=True)
         subprocess.run(
             ["git", "-C", str(root), "commit", "-qm", "seed"],
             check=True,
@@ -83,9 +81,7 @@ class TestPredecessorLifecycle:
         assert sections is None
         assert problem is not None and "absent from disk" in problem
 
-    def test_a_staged_baseline_deletion_remains_recorded_in_head(
-        self, tmp_path: Path
-    ) -> None:
+    def test_a_staged_baseline_deletion_remains_recorded_in_head(self, tmp_path: Path) -> None:
         root = _repo(tmp_path)
         path = _baseline(root, NESTED)
         subprocess.run(
@@ -149,9 +145,7 @@ class TestPredecessorLifecycle:
         assert sections is None
         assert problem is not None and "not an integer" in problem
 
-    def test_the_legacy_flat_schema_is_compared_rather_than_refused(
-        self, tmp_path: Path
-    ) -> None:
+    def test_the_legacy_flat_schema_is_compared_rather_than_refused(self, tmp_path: Path) -> None:
         """Refusing it would block a contributor whose checkout predates nesting."""
         root = _repo(tmp_path)
         path = _baseline(root, {"a.md": 2, "b.md": 3})
@@ -302,9 +296,7 @@ class TestTheWriteItself:
         assert "replace failed" in error
         assert "cleanup failed" not in error
 
-    def test_a_precreated_temporary_symlink_cannot_redirect_the_write(
-        self, tmp_path: Path
-    ) -> None:
+    def test_a_precreated_temporary_symlink_cannot_redirect_the_write(self, tmp_path: Path) -> None:
         root = _repo(tmp_path)
         path = root / "scripts" / "validation" / "b.json"
         victim = tmp_path / "victim.txt"
@@ -372,9 +364,7 @@ class TestTheWriteItself:
         first.start()
         assert first_entered_replace.wait(timeout=2)
         second.start()
-        second_reached_replace_while_first_held_lock = second_entered_replace.wait(
-            timeout=0.2
-        )
+        second_reached_replace_while_first_held_lock = second_entered_replace.wait(timeout=0.2)
         release_first.set()
         first.join(timeout=2)
         second.join(timeout=2)

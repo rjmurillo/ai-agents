@@ -83,9 +83,7 @@ class TestSessionLogForCurrentBranch:
 
         result = policy._session_log_for_current_branch(sessions, repo)
 
-        assert result == log_mine, (
-            f"Expected the branch-matching log {log_mine.name}, got {result}"
-        )
+        assert result == log_mine, f"Expected the branch-matching log {log_mine.name}, got {result}"
 
     def test_returns_none_when_no_branch_log_exists(self, tmp_path: Path) -> None:
         """Returns None when no log for the current branch exists.

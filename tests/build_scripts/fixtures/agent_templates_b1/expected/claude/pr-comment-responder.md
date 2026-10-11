@@ -1053,7 +1053,9 @@ Analyze this PR comment and determine:
 #### Step 3.2: Delegate to Orchestrator
 
 ```python
-Task(subagent_type="orchestrator", prompt="""
+Task(
+    subagent_type="orchestrator",
+    prompt="""
 [Context from Step 3.1]
 
 After analysis, save plan to: `.project-toolkit/pr-comments/PR-[number]/[comment_id]-plan.md`
@@ -1063,7 +1065,8 @@ Return:
 - Priority: [Critical / Major / Minor / Won't Fix / Question]
 - Action: [Implement / Reply Only / Defer / Clarify]
 - Rationale: [Why this classification]
-""")
+""",
+)
 ```
 
 #### Step 3.3: Update Comment Map
@@ -1336,7 +1339,9 @@ Implement tasks in priority order. For each task:
 #### Step 6.1: Delegate to Orchestrator
 
 ```python
-Task(subagent_type="orchestrator", prompt="""
+Task(
+    subagent_type="orchestrator",
+    prompt="""
 Implement this PR comment fix:
 
 ## Task
@@ -1353,7 +1358,8 @@ Implement this PR comment fix:
 2. Write tests if applicable
 3. Verify the fix works
 4. DO NOT commit yet - return the changes for batch commit
-""")
+""",
+)
 ```
 
 #### Step 6.2: Batch Commit
@@ -1869,12 +1875,14 @@ session_stats = {
         "cursor[bot]": {"comments": N, "actionable": N, "rate": "100%"},
         "copilot-pull-request-reviewer": {"comments": N, "actionable": N, "rate": "XX%"},
         # ... other reviewers
-    }
+    },
 }
 ```
 
 #### Step 9.2: Update pr-review/pr-comment-responder-skills Memory
 
+<!-- Formatter off: this block ends in a bare `Read .serena/...` path line in the Claude variant, which ruff would rewrite as a division expression. Both variants keep the original text. -->
+<!-- fmt:off -->
 ```python
 # Read current memory to get existing statistics
 current = Read .serena/memories/pr-review/pr-comment-responder-skills.md
@@ -1911,6 +1919,7 @@ mcp__serena__edit_memory(
     mode="literal"
 )
 ```
+<!-- fmt:on -->
 
 #### Step 9.3: Update Required Fields
 

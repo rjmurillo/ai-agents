@@ -59,9 +59,7 @@ def validate_safe_path(path: str | Path, base_dir: str | Path) -> Path:
     try:
         resolved_path.relative_to(resolved_base)
     except ValueError:
-        raise ValueError(
-            f"Path {path} is outside base directory {base_dir}"
-        ) from None
+        raise ValueError(f"Path {path} is outside base directory {base_dir}") from None
 
     return resolved_path
 

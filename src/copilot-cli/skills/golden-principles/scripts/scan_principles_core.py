@@ -173,7 +173,8 @@ def get_repo_files(directory: str) -> list[str]:
     files = []
     for root, dirs, filenames in os.walk(directory):
         dirs[:] = [
-            d for d in dirs
+            d
+            for d in dirs
             if not d.startswith(".") or d in (".claude", ".agents", ".project-toolkit", ".github")
         ]
         for filename in filenames:

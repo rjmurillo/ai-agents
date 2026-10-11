@@ -23,10 +23,7 @@ from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
 
-_SCRIPT = (
-    Path(__file__).resolve().parents[1]
-    / "scripts" / "validation" / "push_ref_staleness.py"
-)
+_SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "validation" / "push_ref_staleness.py"
 
 
 def _import_script(name: str):
@@ -76,8 +73,10 @@ class TestEmptyAndDeletion:
 class TestRemoteUnchanged:
     def test_remote_matches_cached_sha_exits_zero(self):
         # live_sha == cached remote sha: no race
-        with patch("sys.stdin", _make_stdin(remote_sha=_REMOTE_SHA_OLD)), \
-                _mock_remote_sha(_REMOTE_SHA_OLD):
+        with (
+            patch("sys.stdin", _make_stdin(remote_sha=_REMOTE_SHA_OLD)),
+            _mock_remote_sha(_REMOTE_SHA_OLD),
+        ):
             assert main([]) == 0
 
     def test_no_remote_ref_exits_zero(self):
@@ -94,8 +93,10 @@ class TestRemoteLookupFailure:
 
     def test_network_failure_exits_three(self, capsys):
         error = _mod.RemoteLookupError("network is unreachable", 3)
-        with patch("sys.stdin", _make_stdin()), \
-                patch.object(_mod, "_remote_sha", side_effect=error):
+        with (
+            patch("sys.stdin", _make_stdin()),
+            patch.object(_mod, "_remote_sha", side_effect=error),
+        ):
             assert main(["origin"]) == 3
         assert "Remote lookup failed: network is unreachable" in capsys.readouterr().err
 
@@ -103,28 +104,27 @@ class TestRemoteLookupFailure:
         result = subprocess.CompletedProcess(
             ["git"], 128, "", "fatal: Authentication failed for remote"
         )
-        with patch.object(_mod, "_run", return_value=result), \
-                patch("sys.stdin", _make_stdin()):
+        with patch.object(_mod, "_run", return_value=result), patch("sys.stdin", _make_stdin()):
             assert main(["origin"]) == 4
-        assert "Remote lookup failed: fatal: Authentication failed" in (
-            capsys.readouterr().err
-        )
+        assert "Remote lookup failed: fatal: Authentication failed" in (capsys.readouterr().err)
 
     def test_unknown_remote_failure_exits_three(self, capsys):
         result = subprocess.CompletedProcess(
             ["git"], 2, "", "fatal: 'missing' does not appear to be a git repository"
         )
-        with patch.object(_mod, "_run", return_value=result), \
-                patch("sys.stdin", _make_stdin()):
+        with patch.object(_mod, "_run", return_value=result), patch("sys.stdin", _make_stdin()):
             assert main(["missing"]) == 3
         assert "does not appear to be a git repository" in capsys.readouterr().err
 
     def test_remote_timeout_exits_three(self, capsys):
-        with patch.object(
-            _mod,
-            "_run",
-            side_effect=subprocess.TimeoutExpired(["git", "ls-remote"], 10),
-        ), patch("sys.stdin", _make_stdin()):
+        with (
+            patch.object(
+                _mod,
+                "_run",
+                side_effect=subprocess.TimeoutExpired(["git", "ls-remote"], 10),
+            ),
+            patch("sys.stdin", _make_stdin()),
+        ):
             assert main(["origin"]) == 3
         assert "git ls-remote timed out after 10 seconds" in capsys.readouterr().err
 
@@ -132,16 +132,20 @@ class TestRemoteLookupFailure:
 class TestRemoteAdvanced:
     def test_remote_advanced_and_not_merged_exits_three(self):
         # live != cached, and local does NOT contain the new remote commit
-        with patch("sys.stdin", _make_stdin(remote_sha=_REMOTE_SHA_OLD)), \
-                _mock_remote_sha(_REMOTE_SHA_NEW), \
-                _mock_is_ancestor(False):
+        with (
+            patch("sys.stdin", _make_stdin(remote_sha=_REMOTE_SHA_OLD)),
+            _mock_remote_sha(_REMOTE_SHA_NEW),
+            _mock_is_ancestor(False),
+        ):
             assert main([]) == 3
 
     def test_remote_advanced_but_already_merged_exits_zero(self):
         # live != cached, but local IS an ancestor of the new remote
-        with patch("sys.stdin", _make_stdin(remote_sha=_REMOTE_SHA_OLD)), \
-                _mock_remote_sha(_REMOTE_SHA_NEW), \
-                _mock_is_ancestor(True):
+        with (
+            patch("sys.stdin", _make_stdin(remote_sha=_REMOTE_SHA_OLD)),
+            _mock_remote_sha(_REMOTE_SHA_NEW),
+            _mock_is_ancestor(True),
+        ):
             assert main([]) == 0
 
 
@@ -151,8 +155,7 @@ class TestMultipleRefs:
             f"refs/heads/a {_LOCAL_SHA} refs/heads/a {_REMOTE_SHA_OLD}\n"
             f"refs/heads/b {_LOCAL_SHA} refs/heads/b {_REMOTE_SHA_OLD}\n"
         )
-        with patch("sys.stdin", StringIO(stdin_text)), \
-                _mock_remote_sha(_REMOTE_SHA_OLD):
+        with patch("sys.stdin", StringIO(stdin_text)), _mock_remote_sha(_REMOTE_SHA_OLD):
             assert main([]) == 0
 
     def test_one_stale_exits_three(self):
@@ -169,9 +172,11 @@ class TestMultipleRefs:
                 return sha_stale_live
             return sha_clean
 
-        with patch("sys.stdin", StringIO(stdin_text)), \
-                patch.object(_mod, "_remote_sha", side_effect=_fake_remote_sha), \
-                _mock_is_ancestor(False):
+        with (
+            patch("sys.stdin", StringIO(stdin_text)),
+            patch.object(_mod, "_remote_sha", side_effect=_fake_remote_sha),
+            _mock_is_ancestor(False),
+        ):
             assert main([]) == 3
 
 
@@ -200,10 +205,10 @@ class TestRemoteResolution:
     @staticmethod
     def _queried_remote(argv):
         """Run main() over one clean ref and return the remote it queried."""
-        with patch("sys.stdin", _make_stdin(remote_sha=_REMOTE_SHA_OLD)), \
-                patch.object(
-                    _mod, "_remote_sha", return_value=_REMOTE_SHA_OLD
-                ) as query:
+        with (
+            patch("sys.stdin", _make_stdin(remote_sha=_REMOTE_SHA_OLD)),
+            patch.object(_mod, "_remote_sha", return_value=_REMOTE_SHA_OLD) as query,
+        ):
             assert main(argv) == 0
         assert query.call_count == 1
         return query.call_args.args[0]
@@ -211,8 +216,10 @@ class TestRemoteResolution:
     @staticmethod
     def _exit_code_for(argv):
         """Run main() over one clean ref and return its exit code."""
-        with patch("sys.stdin", _make_stdin(remote_sha=_REMOTE_SHA_OLD)), \
-                patch.object(_mod, "_remote_sha", return_value=_REMOTE_SHA_OLD):
+        with (
+            patch("sys.stdin", _make_stdin(remote_sha=_REMOTE_SHA_OLD)),
+            patch.object(_mod, "_remote_sha", return_value=_REMOTE_SHA_OLD),
+        ):
             return main(argv)
 
     def test_named_remote_argument_is_queried(self):
@@ -245,7 +252,9 @@ class TestRemoteResolution:
         the caller never named, and a clean comparison there exits 0. That is
         the same false green as issue #4634 wearing a different mask.
         """
-        with patch("sys.stdin", _make_stdin(remote_sha=_REMOTE_SHA_OLD)), \
-                patch.object(_mod, "_remote_sha") as query:
+        with (
+            patch("sys.stdin", _make_stdin(remote_sha=_REMOTE_SHA_OLD)),
+            patch.object(_mod, "_remote_sha") as query,
+        ):
             assert main(["{remote}"]) == 2
         query.assert_not_called()

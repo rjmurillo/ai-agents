@@ -112,8 +112,7 @@ def test_always_apply_and_priority_dropped(tmp_path: Path) -> None:
         tmp_path / "rules_src",
         "scoped",
         frontmatter=(
-            'paths: "src/**"\nalwaysApply: true\npriority: high\n'
-            'description: "scoped rule"\n'
+            'paths: "src/**"\nalwaysApply: true\npriority: high\ndescription: "scoped rule"\n'
         ),
         body="body\n",
     )
@@ -161,7 +160,7 @@ def test_unscoped_rule_emits_with_universal_apply_to(tmp_path: Path) -> None:
     out = tmp_path / "instr_out" / "philosophy.instructions.md"
     assert out.is_file()
     content = out.read_text(encoding="utf-8")
-    assert "applyTo: \"**\"" in content or "applyTo: '**'" in content or "applyTo: **" in content
+    assert 'applyTo: "**"' in content or "applyTo: '**'" in content or "applyTo: **" in content
 
 
 def test_unscoped_rule_with_governance_keyword_still_ships(tmp_path: Path) -> None:
@@ -251,6 +250,7 @@ def test_block_list_paths_flattened_to_apply_to_string(tmp_path: Path) -> None:
     assert "[" not in fm and "]" not in fm
     assert "paths:" not in fm
 
+
 def test_serialized_paths_list_rejects_comma_inside_item() -> None:
     """A comma inside a list item is ambiguous after flattening to applyTo."""
     with pytest.raises(generate_rules.GenerateRulesError, match="cannot contain commas"):
@@ -259,9 +259,7 @@ def test_serialized_paths_list_rejects_comma_inside_item() -> None:
 
 def test_serialized_paths_list_uses_python_parser_for_quoted_values() -> None:
     """Serialized lists should preserve quoted values without comma separators."""
-    value = generate_rules._flatten_serialized_scope_list(
-        "['docs/quoted\\'path/**', 'src/**']"
-    )
+    value = generate_rules._flatten_serialized_scope_list("['docs/quoted\\'path/**', 'src/**']")
 
     assert value == "docs/quoted'path/**,src/**"
 
@@ -284,7 +282,7 @@ def test_block_list_paths_internal_globs_filtered(tmp_path: Path) -> None:
         tmp_path / "rules_src",
         "security",
         frontmatter=(
-            'paths:\n'
+            "paths:\n"
             '  - ".project-toolkit/security/**"\n'
             '  - "**/Auth/**"\n'
             '  - ".claude/rules/security.md"\n'
@@ -312,8 +310,7 @@ def test_all_internal_paths_skips_rule_for_plugin_destination(tmp_path: Path) ->
         tmp_path / "rules_src",
         "internal_only",
         frontmatter=(
-            'paths: ".project-toolkit/security/**,.claude/rules/foo.md,'
-            '.serena/memories/**"\n'
+            'paths: ".project-toolkit/security/**,.claude/rules/foo.md,.serena/memories/**"\n'
         ),
         body="body\n",
     )
@@ -414,9 +411,7 @@ def test_orphan_instruction_file_is_pruned(tmp_path: Path) -> None:
     files that re-introduce the internal-path leakage M7-T4 was meant
     to fix.
     """
-    _write_rule(
-        tmp_path / "rules_src", "live", frontmatter='paths: "src/**"\n', body="x\n"
-    )
+    _write_rule(tmp_path / "rules_src", "live", frontmatter='paths: "src/**"\n', body="x\n")
     out_dir = tmp_path / "instr_out"
     out_dir.mkdir(parents=True)
     orphan = out_dir / "deleted-source.instructions.md"
@@ -431,9 +426,7 @@ def test_orphan_instruction_file_is_pruned(tmp_path: Path) -> None:
 
 def test_orphan_with_no_regen_sentinel_is_kept(tmp_path: Path) -> None:
     """NO-REGEN sentinel takes precedence: orphan stays untouched."""
-    _write_rule(
-        tmp_path / "rules_src", "live", frontmatter='paths: "src/**"\n', body="x\n"
-    )
+    _write_rule(tmp_path / "rules_src", "live", frontmatter='paths: "src/**"\n', body="x\n")
     out_dir = tmp_path / "instr_out"
     out_dir.mkdir(parents=True)
     protected = out_dir / "hand-edited.instructions.md"
@@ -506,12 +499,20 @@ artifacts:
 
 def test_main_invokes_generation(tmp_path: Path) -> None:
     _write_rule(
-        tmp_path / "rules_src", "ok", frontmatter='paths: "**"\n', body="ok\n",
+        tmp_path / "rules_src",
+        "ok",
+        frontmatter='paths: "**"\n',
+        body="ok\n",
     )
     cfg = _write_config(tmp_path)
-    rc = generate_rules.main([
-        "--config", str(cfg), "--repo-root", str(tmp_path),
-    ])
+    rc = generate_rules.main(
+        [
+            "--config",
+            str(cfg),
+            "--repo-root",
+            str(tmp_path),
+        ]
+    )
     assert rc == 0
 
 
@@ -523,14 +524,19 @@ def test_main_compiles_rule_templates_before_generation(tmp_path: Path) -> None:
     """
     tmpl_dir = tmp_path / "templates" / "rules"
     tmpl_dir.mkdir(parents=True)
-    (tmpl_dir / "fresh.md").write_text("---\npaths: \"**\"\n---\nfresh\n")
+    (tmpl_dir / "fresh.md").write_text('---\npaths: "**"\n---\nfresh\n')
     cfg = _write_config(tmp_path, source_dir="src/claude/rules")
-    rc = generate_rules.main([
-        "--config", str(cfg), "--repo-root", str(tmp_path),
-    ])
+    rc = generate_rules.main(
+        [
+            "--config",
+            str(cfg),
+            "--repo-root",
+            str(tmp_path),
+        ]
+    )
     assert rc == 0
     assert (tmp_path / "src" / "claude" / "rules" / "fresh.md").read_text() == (
-        "---\npaths: \"**\"\n---\nfresh\n"
+        '---\npaths: "**"\n---\nfresh\n'
     )
     assert (tmp_path / "instr_out" / "fresh.instructions.md").is_file()
 
@@ -538,19 +544,29 @@ def test_main_compiles_rule_templates_before_generation(tmp_path: Path) -> None:
 def test_main_returns_compile_failure_without_generating(tmp_path: Path) -> None:
     tmpl_dir = tmp_path / "templates" / "rules"
     tmpl_dir.mkdir(parents=True)
-    (tmpl_dir / "bad.md").write_text("---\npaths: \"**\"\n---\n{{ forbidden }}\n")
+    (tmpl_dir / "bad.md").write_text('---\npaths: "**"\n---\n{{ forbidden }}\n')
     cfg = _write_config(tmp_path, source_dir="src/claude/rules")
-    rc = generate_rules.main([
-        "--config", str(cfg), "--repo-root", str(tmp_path),
-    ])
+    rc = generate_rules.main(
+        [
+            "--config",
+            str(cfg),
+            "--repo-root",
+            str(tmp_path),
+        ]
+    )
     assert rc != 0
     assert not (tmp_path / "instr_out").exists()
 
 
 def test_main_missing_config_returns_2(tmp_path: Path) -> None:
-    rc = generate_rules.main([
-        "--config", str(tmp_path / "nope.yaml"), "--repo-root", str(tmp_path),
-    ])
+    rc = generate_rules.main(
+        [
+            "--config",
+            str(tmp_path / "nope.yaml"),
+            "--repo-root",
+            str(tmp_path),
+        ]
+    )
     assert rc == 2
 
 
@@ -730,7 +746,7 @@ def test_output_dirs_prunes_orphans_in_every_target(tmp_path: Path) -> None:
     for sub in ("out_a", "out_b"):
         d = tmp_path / sub
         d.mkdir()
-        (d / "stale.instructions.md").write_text("---\napplyTo: \"**\"\n---\nstale\n")
+        (d / "stale.instructions.md").write_text('---\napplyTo: "**"\n---\nstale\n')
     cfg = _write_multi_output_config(tmp_path, ["out_a", "out_b"])
     rc, _ = generate_rules.generate_rules(cfg, tmp_path)
     assert rc == 0
@@ -769,9 +785,7 @@ def test_keep_internal_globs_for_preserves_scope_in_listed_dir(tmp_path: Path) -
     assert ".claude/**" in kept_fm  # internal scope retained
     assert "docs/**" in kept_fm  # non-internal preserved
 
-    stripped = (tmp_path / "strip_dir" / "pvb.instructions.md").read_text(
-        encoding="utf-8"
-    )
+    stripped = (tmp_path / "strip_dir" / "pvb.instructions.md").read_text(encoding="utf-8")
     stripped_fm = stripped.split("---")[1]
     assert ".claude/**" not in stripped_fm  # internal scope filtered
     assert "docs/**" in stripped_fm  # non-internal preserved
@@ -793,9 +807,7 @@ def test_keep_internal_absent_still_strips_all_dirs(tmp_path: Path) -> None:
     rc, _ = generate_rules.generate_rules(cfg, tmp_path)
     assert rc == 0
     for sub in ("out_a", "out_b"):
-        fm = (tmp_path / sub / "pvb.instructions.md").read_text(
-            encoding="utf-8"
-        ).split("---")[1]
+        fm = (tmp_path / sub / "pvb.instructions.md").read_text(encoding="utf-8").split("---")[1]
         assert ".claude/**" not in fm
         assert "docs/**" in fm
 
@@ -803,9 +815,7 @@ def test_keep_internal_absent_still_strips_all_dirs(tmp_path: Path) -> None:
 def test_remap_frontmatter_keep_internal_true_skips_filter() -> None:
     """Unit: keep_internal=True keeps internal globs; False drops them."""
     fm = {"paths": ".claude/**,docs/**"}
-    kept = generate_rules._remap_frontmatter(
-        fm, {"paths": "applyTo"}, set(), keep_internal=True
-    )
+    kept = generate_rules._remap_frontmatter(fm, {"paths": "applyTo"}, set(), keep_internal=True)
     assert kept["applyTo"] == ".claude/**,docs/**"
     stripped = generate_rules._remap_frontmatter(
         fm, {"paths": "applyTo"}, set(), keep_internal=False
@@ -822,14 +832,14 @@ def test_keep_internal_all_internal_still_retained(tmp_path: Path) -> None:
         frontmatter='paths: ".claude/rules/**,.agents/x/**"\n',
         body="body\n",
     )
-    cfg = _write_multi_output_config(
-        tmp_path, ["keep_dir"], keep_internal_for=["keep_dir"]
-    )
+    cfg = _write_multi_output_config(tmp_path, ["keep_dir"], keep_internal_for=["keep_dir"])
     rc, _ = generate_rules.generate_rules(cfg, tmp_path)
     assert rc == 0
-    fm = (tmp_path / "keep_dir" / "allint.instructions.md").read_text(
-        encoding="utf-8"
-    ).split("---")[1]
+    fm = (
+        (tmp_path / "keep_dir" / "allint.instructions.md")
+        .read_text(encoding="utf-8")
+        .split("---")[1]
+    )
     assert ".claude/rules/**" in fm
     assert ".agents/x/**" in fm
     assert "applyTo: '**'" not in fm
@@ -850,14 +860,10 @@ def test_keep_internal_trailing_slash_still_matches(tmp_path: Path) -> None:
         frontmatter='paths: ".claude/**,docs/**"\n',
         body="body\n",
     )
-    cfg = _write_multi_output_config(
-        tmp_path, ["keep_dir/"], keep_internal_for=["keep_dir/"]
-    )
+    cfg = _write_multi_output_config(tmp_path, ["keep_dir/"], keep_internal_for=["keep_dir/"])
     rc, _ = generate_rules.generate_rules(cfg, tmp_path)
     assert rc == 0
-    fm = (tmp_path / "keep_dir" / "pvb.instructions.md").read_text(
-        encoding="utf-8"
-    ).split("---")[1]
+    fm = (tmp_path / "keep_dir" / "pvb.instructions.md").read_text(encoding="utf-8").split("---")[1]
     assert ".claude/**" in fm  # internal scope retained despite trailing slash
     assert "docs/**" in fm
 

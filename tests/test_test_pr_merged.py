@@ -17,8 +17,7 @@ from scripts.github_core.api import RepoInfo
 # Import the script via importlib (not a package)
 # ---------------------------------------------------------------------------
 _SCRIPTS_DIR = (
-    Path(__file__).resolve().parents[1]
-    / ".claude" / "skills" / "github" / "scripts" / "pr"
+    Path(__file__).resolve().parents[1] / ".claude" / "skills" / "github" / "scripts" / "pr"
 )
 
 
@@ -103,12 +102,16 @@ class TestMain:
                 },
             },
         }
-        with patch(
-            "test_pr_merged.assert_gh_authenticated",
-        ), patch(
-            "test_pr_merged.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), _patch_graphql(return_value=graphql_data):
+        with (
+            patch(
+                "test_pr_merged.assert_gh_authenticated",
+            ),
+            patch(
+                "test_pr_merged.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            _patch_graphql(return_value=graphql_data),
+        ):
             rc = main(["--pull-request", "315"])
         assert rc == 0
         output = json.loads(capsys.readouterr().out)
@@ -135,12 +138,16 @@ class TestMain:
                 },
             },
         }
-        with patch(
-            "test_pr_merged.assert_gh_authenticated",
-        ), patch(
-            "test_pr_merged.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), _patch_graphql(return_value=graphql_data):
+        with (
+            patch(
+                "test_pr_merged.assert_gh_authenticated",
+            ),
+            patch(
+                "test_pr_merged.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            _patch_graphql(return_value=graphql_data),
+        ):
             rc = main(["--pull-request", "315"])
         assert rc == 0
         output = json.loads(capsys.readouterr().out)
@@ -159,12 +166,16 @@ class TestMain:
                 },
             },
         }
-        with patch(
-            "test_pr_merged.assert_gh_authenticated",
-        ), patch(
-            "test_pr_merged.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), _patch_graphql(return_value=graphql_data):
+        with (
+            patch(
+                "test_pr_merged.assert_gh_authenticated",
+            ),
+            patch(
+                "test_pr_merged.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            _patch_graphql(return_value=graphql_data),
+        ):
             rc = main(["--pull-request", "315", "--exit-100-on-merged"])
         assert rc == 100
         output = json.loads(capsys.readouterr().out)
@@ -172,23 +183,31 @@ class TestMain:
 
     def test_pr_not_found_exits_2(self):
         graphql_data = {"repository": {"pullRequest": None}}
-        with patch(
-            "test_pr_merged.assert_gh_authenticated",
-        ), patch(
-            "test_pr_merged.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), _patch_graphql(return_value=graphql_data):
+        with (
+            patch(
+                "test_pr_merged.assert_gh_authenticated",
+            ),
+            patch(
+                "test_pr_merged.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            _patch_graphql(return_value=graphql_data),
+        ):
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "999"])
             assert exc.value.code == 2
 
     def test_graphql_error_exits_3(self):
-        with patch(
-            "test_pr_merged.assert_gh_authenticated",
-        ), patch(
-            "test_pr_merged.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), _patch_graphql(side_effect=RuntimeError("GraphQL failed")):
+        with (
+            patch(
+                "test_pr_merged.assert_gh_authenticated",
+            ),
+            patch(
+                "test_pr_merged.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            _patch_graphql(side_effect=RuntimeError("GraphQL failed")),
+        ):
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "1"])
             assert exc.value.code == 3
@@ -210,12 +229,16 @@ class TestMain:
                 },
             },
         }
-        with patch(
-            "test_pr_merged.assert_gh_authenticated",
-        ), patch(
-            "test_pr_merged.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), _patch_graphql(return_value=graphql_data):
+        with (
+            patch(
+                "test_pr_merged.assert_gh_authenticated",
+            ),
+            patch(
+                "test_pr_merged.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            _patch_graphql(return_value=graphql_data),
+        ):
             rc = main(["--pull-request", "315", "--exit-zero-on-merged"])
         assert rc == 0
         output = json.loads(capsys.readouterr().out)
@@ -234,12 +257,16 @@ class TestMain:
                 },
             },
         }
-        with patch(
-            "test_pr_merged.assert_gh_authenticated",
-        ), patch(
-            "test_pr_merged.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), _patch_graphql(return_value=graphql_data):
+        with (
+            patch(
+                "test_pr_merged.assert_gh_authenticated",
+            ),
+            patch(
+                "test_pr_merged.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            _patch_graphql(return_value=graphql_data),
+        ):
             rc = main(["--pull-request", "315", "--exit-zero-on-merged"])
         assert rc == 0
         output = json.loads(capsys.readouterr().out)
@@ -268,12 +295,16 @@ class TestProbeFailures:
             if side_effect is not None
             else {"return_value": return_value}
         )
-        with patch(
-            "test_pr_merged.assert_gh_authenticated",
-        ), patch(
-            "test_pr_merged.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), _patch_graphql(**kwargs):
+        with (
+            patch(
+                "test_pr_merged.assert_gh_authenticated",
+            ),
+            patch(
+                "test_pr_merged.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            _patch_graphql(**kwargs),
+        ):
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "4729"])
         return exc.value.code
@@ -283,8 +314,7 @@ class TestProbeFailures:
         [
             "gh: Bad credentials (HTTP 401)",
             "gh: Requires authentication (HTTP 401)",
-            "error: You are not logged into any GitHub hosts. "
-            "To log in, run: gh auth login",
+            "error: You are not logged into any GitHub hosts. To log in, run: gh auth login",
         ],
     )
     def test_auth_failure_exits_4(self, message):

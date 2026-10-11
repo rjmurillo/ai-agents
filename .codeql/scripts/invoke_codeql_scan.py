@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size (ruff format pushed this file past 500 lines)
 """Orchestrate CodeQL database creation and analysis for the repository.
 
 Performs a complete CodeQL security scan by:
@@ -33,13 +34,15 @@ def build_parser() -> argparse.ArgumentParser:
         description="Run CodeQL security scan on the repository.",
     )
     parser.add_argument(
-        "--repo-path", default=os.environ.get("CODEQL_REPO_PATH", "."),
+        "--repo-path",
+        default=os.environ.get("CODEQL_REPO_PATH", "."),
         help="Path to the repository root directory.",
     )
     parser.add_argument(
         "--config-path",
         default=os.environ.get(
-            "CODEQL_CONFIG_PATH", ".github/codeql/codeql-config.yml",
+            "CODEQL_CONFIG_PATH",
+            ".github/codeql/codeql-config.yml",
         ),
         help="Path to the CodeQL configuration YAML file.",
     )
@@ -54,24 +57,31 @@ def build_parser() -> argparse.ArgumentParser:
         help="Path where SARIF result files will be saved.",
     )
     parser.add_argument(
-        "--languages", nargs="*", default=None,
+        "--languages",
+        nargs="*",
+        default=None,
         help="Languages to scan. Auto-detected if not specified.",
     )
     parser.add_argument(
-        "--use-cache", action="store_true",
+        "--use-cache",
+        action="store_true",
         help="Reuse cached databases if still valid.",
     )
     parser.add_argument(
-        "--ci", action="store_true",
+        "--ci",
+        action="store_true",
         help="CI mode. Exits with code 1 if findings detected.",
     )
     parser.add_argument(
-        "--format", choices=["console", "sarif", "json"], default="console",
+        "--format",
+        choices=["console", "sarif", "json"],
+        default="console",
         dest="output_format",
         help="Output format for scan results.",
     )
     parser.add_argument(
-        "--quick-scan", action="store_true",
+        "--quick-scan",
+        action="store_true",
         help="Quick scan mode with targeted query selection.",
     )
     return parser
@@ -138,7 +148,9 @@ def compute_directory_hash(directory: str) -> str:
 
 
 def check_database_cache(
-    database_path: str, config_path: str, repo_path: str,
+    database_path: str,
+    config_path: str,
+    repo_path: str,
 ) -> bool:
     if not os.path.isdir(database_path):
         return False
@@ -155,7 +167,10 @@ def check_database_cache(
 
     result = subprocess.run(
         ["git", "-C", repo_path, "rev-parse", "HEAD"],
-        capture_output=True, text=True, timeout=10, check=False,
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
     )
     if result.returncode == 0:
         current_head = result.stdout.strip()
@@ -183,11 +198,16 @@ def check_database_cache(
 
 
 def write_cache_metadata(
-    database_path: str, config_path: str, repo_path: str,
+    database_path: str,
+    config_path: str,
+    repo_path: str,
 ) -> None:
     result = subprocess.run(
         ["git", "-C", repo_path, "rev-parse", "HEAD"],
-        capture_output=True, text=True, timeout=10, check=False,
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
     )
     git_head = result.stdout.strip() if result.returncode == 0 else "unknown"
 
@@ -232,7 +252,10 @@ def create_database(
         shutil.rmtree(lang_db_path)
 
     cmd = [
-        codeql_path, "database", "create", lang_db_path,
+        codeql_path,
+        "database",
+        "create",
+        lang_db_path,
         f"--language={language}",
         f"--source-root={source_root}",
     ]
@@ -241,7 +264,11 @@ def create_database(
         cmd.append(f"--codescanning-config={config_path}")
 
     result = subprocess.run(
-        cmd, capture_output=True, text=True, timeout=300, check=False,
+        cmd,
+        capture_output=True,
+        text=True,
+        timeout=300,
+        check=False,
     )
     if result.returncode != 0:
         error_detail = result.stderr.strip() or result.stdout.strip()
@@ -250,9 +277,7 @@ def create_database(
             f"(exit code {result.returncode}):\n{error_detail}",
             file=sys.stderr,
         )
-        raise RuntimeError(
-            f"CodeQL database creation failed with exit code {result.returncode}"
-        )
+        raise RuntimeError(f"CodeQL database creation failed with exit code {result.returncode}")
 
     if not ci:
         print(f"[PASS] Database created for {language}", file=sys.stderr)
@@ -277,14 +302,21 @@ def analyze_database(
     os.makedirs(results_path, exist_ok=True)
 
     cmd = [
-        codeql_path, "database", "analyze", lang_db_path,
+        codeql_path,
+        "database",
+        "analyze",
+        lang_db_path,
         "--format=sarif-latest",
         f"--output={sarif_output}",
         f"--sarif-category={language}",
     ]
 
     result = subprocess.run(
-        cmd, capture_output=True, text=True, timeout=600, check=False,
+        cmd,
+        capture_output=True,
+        text=True,
+        timeout=600,
+        check=False,
     )
     if result.returncode != 0:
         error_detail = result.stderr.strip() or result.stdout.strip()
@@ -293,9 +325,7 @@ def analyze_database(
             f"(exit code {result.returncode}):\n{error_detail}",
             file=sys.stderr,
         )
-        raise RuntimeError(
-            f"CodeQL analysis failed with exit code {result.returncode}"
-        )
+        raise RuntimeError(f"CodeQL analysis failed with exit code {result.returncode}")
 
     findings: list = []
     try:
@@ -307,13 +337,10 @@ def analyze_database(
                 findings = runs[0]["results"]
         else:
             raise RuntimeError(
-                f"SARIF output not found at {sarif_output} after "
-                f"successful {language} analysis"
+                f"SARIF output not found at {sarif_output} after successful {language} analysis"
             )
     except (json.JSONDecodeError, OSError, KeyError) as exc:
-        raise RuntimeError(
-            f"Failed to parse SARIF output for {language}: {exc}"
-        ) from exc
+        raise RuntimeError(f"Failed to parse SARIF output for {language}: {exc}") from exc
 
     if not ci:
         print(
@@ -377,7 +404,10 @@ def validate_path_containment(repo_path: str) -> None:
     try:
         result = subprocess.run(
             ["git", "-C", str(script_dir), "rev-parse", "--show-toplevel"],
-            capture_output=True, text=True, timeout=10, check=False,
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
         )
     except FileNotFoundError:
         print("git command not found. Please install git to run CodeQL scanning.", file=sys.stderr)
@@ -465,15 +495,24 @@ def main(argv: list[str] | None = None) -> int:
         if not use_cached:
             for lang in languages:
                 create_database(
-                    codeql_path, lang, repo_path,
-                    database_path, config_path, repo_path, args.ci,
+                    codeql_path,
+                    lang,
+                    repo_path,
+                    database_path,
+                    config_path,
+                    repo_path,
+                    args.ci,
                 )
 
         analysis_results: list[dict] = []
         for lang in languages:
             result = analyze_database(
-                codeql_path, lang, database_path,
-                results_path, config_path, args.ci,
+                codeql_path,
+                lang,
+                database_path,
+                results_path,
+                config_path,
+                args.ci,
             )
             analysis_results.append(result)
 

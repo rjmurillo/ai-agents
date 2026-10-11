@@ -114,9 +114,7 @@ def test_a_provider_name_selects_its_cell(
 def test_a_conflicting_selection_exits_config(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    exit_code = cli.main(
-        ["--provider", "copilot-cli", "--harness", "claude", "--billing", "api"]
-    )
+    exit_code = cli.main(["--provider", "copilot-cli", "--harness", "claude", "--billing", "api"])
 
     assert exit_code == cli.EXIT_CONFIG
     assert "error:" in capsys.readouterr().err
@@ -293,10 +291,7 @@ def test_require_ready_passes_when_the_credential_is_present(
 ) -> None:
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
 
-    assert (
-        cli.main(["--harness", "claude", "--billing", "api", "--require-ready"])
-        == cli.EXIT_OK
-    )
+    assert cli.main(["--harness", "claude", "--billing", "api", "--require-ready"]) == cli.EXIT_OK
 
 
 def test_require_ready_does_not_fail_on_unknown(
@@ -305,9 +300,7 @@ def test_require_ready_does_not_fail_on_unknown(
     """An unreadable on-disk login is not evidence of a missing one."""
     monkeypatch.setattr(cli.shutil, "which", lambda name: "/usr/bin/codex")
 
-    exit_code = cli.main(
-        ["--harness", "codex", "--billing", "subscription", "--require-ready"]
-    )
+    exit_code = cli.main(["--harness", "codex", "--billing", "subscription", "--require-ready"])
 
     assert exit_code == cli.EXIT_OK
 
@@ -344,9 +337,7 @@ def test_copilot_api_forwards_operator_supplied_headers(
 
 
 @pytest.mark.parametrize("raw", ["not json", "[1, 2]", '{"a": 1}', '"header"'])
-def test_copilot_api_refuses_malformed_headers(
-    monkeypatch: pytest.MonkeyPatch, raw: str
-) -> None:
+def test_copilot_api_refuses_malformed_headers(monkeypatch: pytest.MonkeyPatch, raw: str) -> None:
     monkeypatch.setenv("COPILOT_API_BASE_URL", "https://gateway.example/v1")
     monkeypatch.setenv("COPILOT_API_HEADERS", raw)
 

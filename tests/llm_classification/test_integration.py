@@ -67,9 +67,7 @@ class TestActionabilityScoreWithLLMFallback:
         classifier.classify.assert_not_called()
         assert result.used_llm_fallback is False
 
-    def test_llm_called_for_low_confidence(
-        self, mock_classifier: LLMClassifier
-    ) -> None:
+    def test_llm_called_for_low_confidence(self, mock_classifier: LLMClassifier) -> None:
         mock_classifier.classify.return_value = LLMClassificationResult(  # type: ignore[attr-defined]
             is_actionable=True,
             confidence=0.85,
@@ -83,9 +81,7 @@ class TestActionabilityScoreWithLLMFallback:
         assert result.used_llm_fallback is True
         assert "LLMFallback" in result.reasons
 
-    def test_llm_result_overrides_heuristic(
-        self, mock_classifier: LLMClassifier
-    ) -> None:
+    def test_llm_result_overrides_heuristic(self, mock_classifier: LLMClassifier) -> None:
         mock_classifier.classify.return_value = LLMClassificationResult(  # type: ignore[attr-defined]
             is_actionable=False,
             confidence=0.9,
@@ -111,9 +107,7 @@ class TestActionabilityScoreWithLLMFallback:
         assert result.is_actionable is True
         assert result.score == 0.9
 
-    def test_llm_low_confidence_uses_heuristic(
-        self, mock_classifier: LLMClassifier
-    ) -> None:
+    def test_llm_low_confidence_uses_heuristic(self, mock_classifier: LLMClassifier) -> None:
         mock_classifier.classify.return_value = LLMClassificationResult(  # type: ignore[attr-defined]
             is_actionable=True,
             confidence=0.5,  # Below 0.7 threshold
@@ -140,9 +134,7 @@ class TestActionabilityScoreWithLLMFallback:
 
         assert "LLMCached" in result.reasons
 
-    def test_llm_failure_falls_back_to_heuristic(
-        self, mock_classifier: LLMClassifier
-    ) -> None:
+    def test_llm_failure_falls_back_to_heuristic(self, mock_classifier: LLMClassifier) -> None:
         mock_classifier.classify.return_value = None  # type: ignore[attr-defined]
 
         comment = _make_comment("This might be an issue")

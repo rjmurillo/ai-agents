@@ -87,9 +87,7 @@ class TestReviewSpecIsAdvisory:
         assert review_job["environment"] == "agent-claude"
 
     def test_both_model_steps_swallow_failures(self, review_job: dict[str, Any]) -> None:
-        model_steps = [
-            s for s in review_job["steps"] if s.get("uses") == _AI_REVIEW_ACTION
-        ]
+        model_steps = [s for s in review_job["steps"] if s.get("uses") == _AI_REVIEW_ACTION]
 
         assert {s["id"] for s in model_steps} == {"trace", "completeness"}
         assert all(s["continue-on-error"] is True for s in model_steps)

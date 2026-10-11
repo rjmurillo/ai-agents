@@ -28,13 +28,15 @@ sys.path.insert(0, str(_PROJECT_ROOT))
 from scripts.utils.path_validation import validate_safe_path  # noqa: E402
 from scripts.validation.models import ValidationResult  # noqa: E402
 
-VALID_PHASES = frozenset({
-    "specification",
-    "pseudocode",
-    "architecture",
-    "refinement",
-    "completion",
-})
+VALID_PHASES = frozenset(
+    {
+        "specification",
+        "pseudocode",
+        "architecture",
+        "refinement",
+        "completion",
+    }
+)
 
 PHASE_ORDER = [
     "specification",
@@ -47,12 +49,14 @@ PHASE_ORDER = [
 VALID_GATE_STATUSES = frozenset({"passed", "failed", "in_progress", "skipped"})
 
 # Phases that allow skipping earlier phases (entry points)
-VALID_ENTRY_PHASES = frozenset({
-    "specification",   # Full methodology
-    "architecture",    # Architecture-focused work
-    "refinement",      # Quick fixes
-    "completion",      # Documentation only
-})
+VALID_ENTRY_PHASES = frozenset(
+    {
+        "specification",  # Full methodology
+        "architecture",  # Architecture-focused work
+        "refinement",  # Quick fixes
+        "completion",  # Documentation only
+    }
+)
 
 
 def validate_phase_data(phase_data: dict[str, Any]) -> ValidationResult:
@@ -72,9 +76,7 @@ def validate_phase_data(phase_data: dict[str, Any]) -> ValidationResult:
         return result
 
     if current not in VALID_PHASES:
-        result.errors.append(
-            f"Invalid phase '{current}'. Valid phases: {sorted(VALID_PHASES)}"
-        )
+        result.errors.append(f"Invalid phase '{current}'. Valid phases: {sorted(VALID_PHASES)}")
         return result
 
     history = phase_data.get("history", [])
@@ -109,24 +111,19 @@ def _validate_history(
             continue
 
         if phase not in VALID_PHASES:
-            result.errors.append(
-                f"history[{i}]: invalid phase '{phase}'"
-            )
+            result.errors.append(f"history[{i}]: invalid phase '{phase}'")
             continue
 
         if gate is not None and gate not in VALID_GATE_STATUSES:
             result.errors.append(
-                f"history[{i}]: invalid gate status '{gate}'. "
-                f"Valid: {sorted(VALID_GATE_STATUSES)}"
+                f"history[{i}]: invalid gate status '{gate}'. Valid: {sorted(VALID_GATE_STATUSES)}"
             )
 
         current_index = PHASE_ORDER.index(phase)
 
         # First entry must be a valid entry phase
         if i == 0 and phase not in VALID_ENTRY_PHASES:
-            result.warnings.append(
-                f"history[{i}]: phase '{phase}' is not a standard entry phase"
-            )
+            result.warnings.append(f"history[{i}]: phase '{phase}' is not a standard entry phase")
 
         # Phases must not go backwards
         if current_index < previous_index:
@@ -141,8 +138,7 @@ def _validate_history(
             prev_gate = history[i - 1].get("gate")
             if prev_gate == "failed":
                 result.warnings.append(
-                    f"history[{i}]: entered '{phase}' after "
-                    f"previous gate was 'failed'"
+                    f"history[{i}]: entered '{phase}' after previous gate was 'failed'"
                 )
 
         previous_index = current_index
@@ -152,8 +148,7 @@ def _validate_history(
         last_phase = history[-1].get("phase")
         if last_phase != current:
             result.warnings.append(
-                f"Last history phase '{last_phase}' does not match "
-                f"current phase '{current}'"
+                f"Last history phase '{last_phase}' does not match current phase '{current}'"
             )
 
 

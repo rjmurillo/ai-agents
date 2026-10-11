@@ -124,4 +124,3 @@ def test_edge_write_markdown_omits_percentile_note_when_absent(tmp_path: Path) -
 
 
 # --- AC-05 headline framing, and the stdin provenance line -------------------
-

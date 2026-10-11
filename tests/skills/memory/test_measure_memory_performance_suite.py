@@ -25,13 +25,19 @@ class TestMeasureSerenaSearch:
 
     def test_missing_path(self, tmp_path: Path) -> None:
         result = measure_serena_search(
-            "test", tmp_path / "missing", iterations=1, warmup_iterations=0,
+            "test",
+            tmp_path / "missing",
+            iterations=1,
+            warmup_iterations=0,
         )
         assert "Error" in result
 
     def test_empty_directory(self, tmp_path: Path) -> None:
         result = measure_serena_search(
-            "test query", tmp_path, iterations=1, warmup_iterations=0,
+            "test query",
+            tmp_path,
+            iterations=1,
+            warmup_iterations=0,
         )
         assert result["TotalFiles"] == 0
         assert result["MatchedFiles"] == 0
@@ -42,7 +48,10 @@ class TestMeasureSerenaSearch:
         (tmp_path / "unrelated.md").write_text("# Other")
 
         result = measure_serena_search(
-            "git hooks", tmp_path, iterations=2, warmup_iterations=1,
+            "git hooks",
+            tmp_path,
+            iterations=2,
+            warmup_iterations=1,
         )
         assert result["TotalFiles"] == 2
         assert result["MatchedFiles"] >= 1
@@ -53,7 +62,10 @@ class TestMeasureSerenaSearch:
         (tmp_path / "unrelated.md").write_text("# No match here")
 
         result = measure_serena_search(
-            "xyznonexistent", tmp_path, iterations=1, warmup_iterations=0,
+            "xyznonexistent",
+            tmp_path,
+            iterations=1,
+            warmup_iterations=0,
         )
         assert result["MatchedFiles"] == 0
 
@@ -99,18 +111,26 @@ class TestMainFunction:
     """Tests for the main CLI entry point."""
 
     def test_serena_only_json(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture,
+        self,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture,
     ) -> None:
         serena = tmp_path / "memories"
         serena.mkdir()
         (serena / "git-hooks.md").write_text("# Git Hooks\nContent")
 
-        result = main([
-            "--format", "json",
-            "--iterations", "1",
-            "--warmup", "0",
-            "--serena-path", str(serena),
-        ])
+        result = main(
+            [
+                "--format",
+                "json",
+                "--iterations",
+                "1",
+                "--warmup",
+                "0",
+                "--serena-path",
+                str(serena),
+            ]
+        )
         assert result == 0
 
         captured = capsys.readouterr()
@@ -119,52 +139,78 @@ class TestMainFunction:
         assert "Summary" in output
 
     def test_console_output(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture,
+        self,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture,
     ) -> None:
         serena = tmp_path / "memories"
         serena.mkdir()
 
-        result = main([
-            "--format", "console",
-            "--iterations", "1",
-            "--warmup", "0",
-            "--serena-path", str(serena),
-        ])
+        result = main(
+            [
+                "--format",
+                "console",
+                "--iterations",
+                "1",
+                "--warmup",
+                "0",
+                "--serena-path",
+                str(serena),
+            ]
+        )
         assert result == 0
 
         captured = capsys.readouterr()
         assert "Memory Performance Benchmark" in captured.out
 
     def test_markdown_output(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture,
+        self,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture,
     ) -> None:
         serena = tmp_path / "memories"
         serena.mkdir()
 
-        result = main([
-            "--format", "markdown",
-            "--iterations", "1",
-            "--warmup", "0",
-            "--serena-path", str(serena),
-        ])
+        result = main(
+            [
+                "--format",
+                "markdown",
+                "--iterations",
+                "1",
+                "--warmup",
+                "0",
+                "--serena-path",
+                str(serena),
+            ]
+        )
         assert result == 0
 
         captured = capsys.readouterr()
         assert "# Memory Performance Benchmark Report" in captured.out
 
     def test_custom_queries(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture,
+        self,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture,
     ) -> None:
         serena = tmp_path / "memories"
         serena.mkdir()
 
-        result = main([
-            "--format", "json",
-            "--iterations", "1",
-            "--warmup", "0",
-            "--serena-path", str(serena),
-            "--queries", "test query one", "test query two",
-        ])
+        result = main(
+            [
+                "--format",
+                "json",
+                "--iterations",
+                "1",
+                "--warmup",
+                "0",
+                "--serena-path",
+                str(serena),
+                "--queries",
+                "test query one",
+                "test query two",
+            ]
+        )
         assert result == 0
 
         captured = capsys.readouterr()

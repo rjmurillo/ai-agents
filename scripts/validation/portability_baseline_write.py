@@ -58,9 +58,7 @@ def baseline_write_lock(
                 break
             except OSError:
                 if time.monotonic() >= deadline:
-                    raise TimeoutError(
-                        f"timed out waiting for baseline lock {lock_path}"
-                    ) from None
+                    raise TimeoutError(f"timed out waiting for baseline lock {lock_path}") from None
                 time.sleep(0.05)
         try:
             yield
@@ -145,7 +143,5 @@ def replace_baseline_atomically(
 ) -> None:
     """Replace a baseline without allowing a checked parent to be swapped."""
     if not _HAS_SECURE_DIR_FD:
-        raise OSError(
-            "secure baseline replacement requires POSIX directory descriptor support"
-        )
+        raise OSError("secure baseline replacement requires POSIX directory descriptor support")
     _replace_baseline_relative_to_parent(repo_root, baseline_path, text)

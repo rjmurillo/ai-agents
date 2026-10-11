@@ -177,8 +177,7 @@ def _stale_refs(lines: list[str], remote: str) -> list[str]:
 
         # Remote advanced past us. The push will be rejected.
         stale.append(
-            f"  {remote_ref}: remote is at {live_sha[:12]}, "
-            f"expected {cached_remote_sha[:12]}"
+            f"  {remote_ref}: remote is at {live_sha[:12]}, expected {cached_remote_sha[:12]}"
         )
 
     return stale

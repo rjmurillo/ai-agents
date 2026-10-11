@@ -74,8 +74,7 @@ def _paginated_items(endpoint: str, error_label: str, timeout: int = 60) -> list
         pages = _parse_concatenated_json_arrays(stdout, error_label)
     if not isinstance(pages, list):
         print(
-            f"ERROR: {error_label}: expected a JSON array of pages, "
-            f"got {type(pages).__name__}",
+            f"ERROR: {error_label}: expected a JSON array of pages, got {type(pages).__name__}",
             file=sys.stderr,
         )
         sys.exit(3)
@@ -144,11 +143,17 @@ def fetch_pr_metadata(owner: str, repo: str, pr_number: int) -> dict:
         "number,title,state,author,createdAt,updatedAt,mergedAt,"
         "additions,deletions,changedFiles,commits,labels,baseRefName,headRefName"
     )
-    result = _run_gh([
-        "pr", "view", str(pr_number),
-        "--repo", f"{owner}/{repo}",
-        "--json", fields,
-    ])
+    result = _run_gh(
+        [
+            "pr",
+            "view",
+            str(pr_number),
+            "--repo",
+            f"{owner}/{repo}",
+            "--json",
+            fields,
+        ]
+    )
 
     if result.returncode != 0:
         err = result.stderr or result.stdout
@@ -165,8 +170,7 @@ def fetch_pr_metadata(owner: str, repo: str, pr_number: int) -> dict:
         sys.exit(3)
     if not isinstance(parsed, dict):
         print(
-            f"ERROR: expected a JSON object from gh pr view, "
-            f"got {type(parsed).__name__}",
+            f"ERROR: expected a JSON object from gh pr view, got {type(parsed).__name__}",
             file=sys.stderr,
         )
         sys.exit(3)
@@ -238,11 +242,13 @@ def build_review_timeline(reviews: list[dict]) -> list[dict]:
     timeline = []
     for review in reviews:
         login = review.get("user", {}).get("login", "unknown")
-        timeline.append({
-            "author": login,
-            "state": review.get("state", "UNKNOWN"),
-            "submitted_at": review.get("submitted_at", ""),
-        })
+        timeline.append(
+            {
+                "author": login,
+                "state": review.get("state", "UNKNOWN"),
+                "submitted_at": review.get("submitted_at", ""),
+            }
+        )
 
     return sorted(timeline, key=lambda r: r.get("submitted_at", ""))
 
@@ -362,9 +368,7 @@ def format_markdown(analysis: dict) -> str:
         lines.append("| Time | Reviewer | State |")
         lines.append("|------|----------|-------|")
         for event in timeline:
-            lines.append(
-                f"| {event['submitted_at']} | {event['author']} | {event['state']} |"
-            )
+            lines.append(f"| {event['submitted_at']} | {event['author']} | {event['state']} |")
         lines.append("")
 
     panels = analysis["synthesis_panels"]
@@ -385,13 +389,17 @@ def build_parser() -> argparse.ArgumentParser:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
-        "--pr", type=int, required=True,
+        "--pr",
+        type=int,
+        required=True,
         help="Pull request number to analyze",
     )
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")
     parser.add_argument(
-        "--format", choices=["json", "markdown"], default="json",
+        "--format",
+        choices=["json", "markdown"],
+        default="json",
         dest="output_format",
         help="Output format (default: json)",
     )

@@ -92,8 +92,7 @@ def run_git(repo_root: Path, *args: str) -> subprocess.CompletedProcess[str]:
     environment = {
         key: value
         for key, value in os.environ.items()
-        if key not in _GIT_ENVIRONMENT_KEYS
-        and not key.startswith(_GIT_ENVIRONMENT_PREFIXES)
+        if key not in _GIT_ENVIRONMENT_KEYS and not key.startswith(_GIT_ENVIRONMENT_PREFIXES)
     }
     environment["GIT_CONFIG_GLOBAL"] = os.devnull
     environment["GIT_CONFIG_NOSYSTEM"] = "1"
@@ -207,8 +206,7 @@ def tracked_repository_path(path: Path) -> tuple[Path, Path] | None:
     result = run_git(candidate, "rev-parse", "--show-toplevel")
     if result.returncode != 0 or not result.stdout.strip():
         raise MutationWorkspaceError(
-            f"cannot resolve repository for tracked path {resolved}: "
-            f"{result.stderr.strip()}"
+            f"cannot resolve repository for tracked path {resolved}: {result.stderr.strip()}"
         )
     stdout = result.stdout.strip()
     if "\n" in stdout or "\r" in stdout:
@@ -237,8 +235,7 @@ def tracked_repository_path(path: Path) -> tuple[Path, Path] | None:
         return None
     if tracked.returncode != 0:
         raise MutationWorkspaceError(
-            f"cannot determine whether path is tracked {relative}: "
-            f"{tracked.stderr.strip()}"
+            f"cannot determine whether path is tracked {relative}: {tracked.stderr.strip()}"
         )
     return repo_root, relative
 
@@ -262,10 +259,7 @@ def _reject_tracked_inode_alias(repo_root: Path, path: Path) -> None:
             tracked_stat = tracked_path.lstat()
         except FileNotFoundError:
             continue
-        if (
-            tracked_stat.st_dev == target_stat.st_dev
-            and tracked_stat.st_ino == target_stat.st_ino
-        ):
+        if tracked_stat.st_dev == target_stat.st_dev and tracked_stat.st_ino == target_stat.st_ino:
             raise MutationWorkspaceError(
                 f"untracked mutation target aliases tracked path: {path} -> {raw_path}"
             )
@@ -341,9 +335,7 @@ def add_worktree(repo_root: Path, scratch_root: Path) -> None:
     with _serialized_worktree_state(repo_root):
         pruned = run_git(repo_root, "worktree", "prune")
         if pruned.returncode != 0:
-            raise MutationWorkspaceError(
-                f"git worktree prune failed: {pruned.stderr.strip()}"
-            )
+            raise MutationWorkspaceError(f"git worktree prune failed: {pruned.stderr.strip()}")
         result = run_git(
             repo_root,
             "worktree",
@@ -390,9 +382,7 @@ def remove_worktree(repo_root: Path, scratch_root: Path) -> None:
             shutil.rmtree(scratch)
 
         if scratch.exists() or scratch in _registered_worktrees_unlocked(repo_root):
-            raise MutationWorkspaceError(
-                f"mutation worktree cleanup is incomplete: {scratch}"
-            )
+            raise MutationWorkspaceError(f"mutation worktree cleanup is incomplete: {scratch}")
         with suppress(OSError):
             scratch.parent.rmdir()
 
@@ -400,9 +390,7 @@ def remove_worktree(repo_root: Path, scratch_root: Path) -> None:
 def _lock_reason_unlocked(repo_root: Path, scratch: Path) -> str | None:
     result = run_git(repo_root, "worktree", "list", "--porcelain", "-z")
     if result.returncode != 0:
-        raise MutationWorkspaceError(
-            f"cannot list registered worktrees: {result.stderr.strip()}"
-        )
+        raise MutationWorkspaceError(f"cannot list registered worktrees: {result.stderr.strip()}")
     current: Path | None = None
     for field in result.stdout.split("\0"):
         if field.startswith("worktree "):
@@ -460,9 +448,7 @@ def registered_worktrees(repo_root: Path) -> set[Path]:
 def _registered_worktrees_unlocked(repo_root: Path) -> set[Path]:
     result = run_git(repo_root, "worktree", "list", "--porcelain", "-z")
     if result.returncode != 0:
-        raise MutationWorkspaceError(
-            f"cannot list registered worktrees: {result.stderr.strip()}"
-        )
+        raise MutationWorkspaceError(f"cannot list registered worktrees: {result.stderr.strip()}")
     prefix = "worktree "
     return {
         Path(field.removeprefix(prefix)).resolve()

@@ -69,8 +69,7 @@ class LLMClassifier:
         """Initialize classifier with config and optional cache."""
         self._config = config if config is not None else LLMFallbackConfig.from_env()
         self._cache = (
-            cache if cache is not None
-            else ClassificationCache(self._config.cache_max_entries)
+            cache if cache is not None else ClassificationCache(self._config.cache_max_entries)
         )
         self._client: anthropic.Anthropic | None = None
 
@@ -143,10 +142,7 @@ class LLMClassifier:
 
     def should_use_fallback(self, heuristic_score: float) -> bool:
         """Check if LLM fallback should be used for this heuristic score."""
-        return (
-            self._config.enabled
-            and self._config.is_low_confidence(heuristic_score)
-        )
+        return self._config.enabled and self._config.is_low_confidence(heuristic_score)
 
     @property
     def config(self) -> LLMFallbackConfig:

@@ -83,10 +83,7 @@ def _load_line(host: HostProfile) -> str:
         return "not available on this platform"
     one_min, five_min, fifteen_min = host.load_average
     per_cpu = one_min / host.cpu_count if host.cpu_count else one_min
-    return (
-        f"{one_min:.2f}, {five_min:.2f}, {fifteen_min:.2f} (1/5/15 min); "
-        f"{per_cpu:.2f} per CPU"
-    )
+    return f"{one_min:.2f}, {five_min:.2f}, {fifteen_min:.2f} (1/5/15 min); {per_cpu:.2f} per CPU"
 
 
 def _piped_line(report: GateLatencyReport) -> str:

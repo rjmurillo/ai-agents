@@ -40,9 +40,7 @@ def project_tree(tmp_path: Path) -> Path:
     (toolkit / "retrospective").mkdir()
 
     # Present but must never be loaded (Issue #5168).
-    (agents / "HANDOFF.md").write_text(
-        "# Handoff\n\nProject state dashboard.\n", encoding="utf-8"
-    )
+    (agents / "HANDOFF.md").write_text("# Handoff\n\nProject state dashboard.\n", encoding="utf-8")
     return tmp_path
 
 
@@ -64,9 +62,7 @@ class TestReadFileTruncated:
         assert "truncated" in result
 
     def test_returns_none_on_missing_file(self, tmp_path: Path) -> None:
-        result = invoke_context_loader._read_file_truncated(
-            tmp_path / "nonexistent.md", 1000
-        )
+        result = invoke_context_loader._read_file_truncated(tmp_path / "nonexistent.md", 1000)
         assert result is None
 
 
@@ -203,9 +199,7 @@ class TestMain:
     """Test main() function."""
 
     def test_skip_consumer_repo(self, capsys: pytest.CaptureFixture) -> None:
-        with patch.object(
-            invoke_context_loader, "skip_if_consumer_repo", return_value=True
-        ):
+        with patch.object(invoke_context_loader, "skip_if_consumer_repo", return_value=True):
             with pytest.raises(SystemExit) as exc_info:
                 invoke_context_loader.main()
             assert exc_info.value.code == 0
@@ -217,10 +211,11 @@ class TestMain:
         retro = project_tree / ".project-toolkit" / "retrospective" / "2025-06-15-retro.md"
         retro.write_text("# Retro\n\nLearnings here.", encoding="utf-8")
 
-        with patch.object(
-            invoke_context_loader, "skip_if_consumer_repo", return_value=False
-        ), patch.object(
-            invoke_context_loader, "get_project_directory", return_value=str(project_tree)
+        with (
+            patch.object(invoke_context_loader, "skip_if_consumer_repo", return_value=False),
+            patch.object(
+                invoke_context_loader, "get_project_directory", return_value=str(project_tree)
+            ),
         ):
             invoke_context_loader.main()
 
@@ -235,10 +230,11 @@ class TestMain:
     ) -> None:
         """With only a (stale, unloaded) HANDOFF.md and no retrospective,
         nothing qualifies for auto-load and the hook reports as much."""
-        with patch.object(
-            invoke_context_loader, "skip_if_consumer_repo", return_value=False
-        ), patch.object(
-            invoke_context_loader, "get_project_directory", return_value=str(project_tree)
+        with (
+            patch.object(invoke_context_loader, "skip_if_consumer_repo", return_value=False),
+            patch.object(
+                invoke_context_loader, "get_project_directory", return_value=str(project_tree)
+            ),
         ):
             invoke_context_loader.main()
 
@@ -246,16 +242,15 @@ class TestMain:
         assert "No context files found" in captured.out
         assert "HANDOFF.md" not in captured.out
 
-    def test_handles_missing_handoff(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture
-    ) -> None:
+    def test_handles_missing_handoff(self, tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
         agents = tmp_path / ".agents"
         agents.mkdir()
 
-        with patch.object(
-            invoke_context_loader, "skip_if_consumer_repo", return_value=False
-        ), patch.object(
-            invoke_context_loader, "get_project_directory", return_value=str(tmp_path)
+        with (
+            patch.object(invoke_context_loader, "skip_if_consumer_repo", return_value=False),
+            patch.object(
+                invoke_context_loader, "get_project_directory", return_value=str(tmp_path)
+            ),
         ):
             invoke_context_loader.main()
 
@@ -263,10 +258,11 @@ class TestMain:
         assert "No context files found" in captured.out
 
     def test_writes_audit_log(self, project_tree: Path) -> None:
-        with patch.object(
-            invoke_context_loader, "skip_if_consumer_repo", return_value=False
-        ), patch.object(
-            invoke_context_loader, "get_project_directory", return_value=str(project_tree)
+        with (
+            patch.object(invoke_context_loader, "skip_if_consumer_repo", return_value=False),
+            patch.object(
+                invoke_context_loader, "get_project_directory", return_value=str(project_tree)
+            ),
         ):
             invoke_context_loader.main()
 
@@ -292,8 +288,6 @@ class TestFailOpen:
         def raising_main() -> None:
             raise RuntimeError("boom")
 
-        code, _stdout, stderr = run_main_wrapper(
-            invoke_context_loader, raising_main
-        )
+        code, _stdout, stderr = run_main_wrapper(invoke_context_loader, raising_main)
         assert code == 0
         assert "boom" in stderr

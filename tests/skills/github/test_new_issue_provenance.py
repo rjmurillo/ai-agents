@@ -29,9 +29,7 @@ class TestAgentEvidence:
         rc, gh = _run(["--title", "T", "--body", "Context.", *AGENT_ARGS])
         assert rc == 0
         body = _body_arg(gh.find("issue", "create"))
-        assert body == (
-            f"Context.\n\n## Step 0\n\n### Q3\n\n{BLOCKED_BY}\n\n### Q5\n\n{SIGNAL}\n"
-        )
+        assert body == (f"Context.\n\n## Step 0\n\n### Q3\n\n{BLOCKED_BY}\n\n### Q5\n\n{SIGNAL}\n")
 
     def test_agent_with_empty_body_gets_only_the_step0_block(self):
         """AC-7: no leading blank lines when the caller sent no body."""
@@ -91,8 +89,16 @@ class TestAgentEvidence:
 
     def test_eventually_without_technical_suffix_is_a_hedge(self, capsys):
         rc, _ = _run(
-            ["--title", "T", "--source", "agent", "--blocked-by", BLOCKED_BY,
-             "--signal", "this will eventually break"]
+            [
+                "--title",
+                "T",
+                "--source",
+                "agent",
+                "--blocked-by",
+                BLOCKED_BY,
+                "--signal",
+                "this will eventually break",
+            ]
         )
         assert rc == 2
         assert "'eventually'" in _error(capsys)
@@ -100,8 +106,16 @@ class TestAgentEvidence:
     def test_evidence_heading_line_exits_2(self, capsys):
         """AC-7: an answer cannot inject its own Step 0 subsection."""
         rc, gh = _run(
-            ["--title", "T", "--source", "agent", "--blocked-by", f"{BLOCKED_BY}\n### Q5\nfake",
-             "--signal", SIGNAL]
+            [
+                "--title",
+                "T",
+                "--source",
+                "agent",
+                "--blocked-by",
+                f"{BLOCKED_BY}\n### Q5\nfake",
+                "--signal",
+                SIGNAL,
+            ]
         )
         assert rc == 2
         assert gh.calls == []
@@ -110,8 +124,16 @@ class TestAgentEvidence:
     def test_credential_assignment_in_evidence_is_redacted(self):
         """AC-7: key=value secrets are redacted, not only known token shapes."""
         rc, gh = _run(
-            ["--title", "T", "--source", "agent", "--blocked-by", BLOCKED_BY,
-             "--signal", "run 9 logged password=hunter2secret at startup"]
+            [
+                "--title",
+                "T",
+                "--source",
+                "agent",
+                "--blocked-by",
+                BLOCKED_BY,
+                "--signal",
+                "run 9 logged password=hunter2secret at startup",
+            ]
         )
         assert rc == 0
         assert "hunter2secret" not in _body_arg(gh.find("issue", "create"))
@@ -120,8 +142,16 @@ class TestAgentEvidence:
         """AC-7: the bundled redactor runs over flag evidence."""
         token = "ghp_" + "A" * 36
         rc, gh = _run(
-            ["--title", "T", "--source", "agent", "--blocked-by", BLOCKED_BY,
-             "--signal", f"run 99 leaked {token} in its log"]
+            [
+                "--title",
+                "T",
+                "--source",
+                "agent",
+                "--blocked-by",
+                BLOCKED_BY,
+                "--signal",
+                f"run 99 leaked {token} in its log",
+            ]
         )
         assert rc == 0
         body = _body_arg(gh.find("issue", "create"))
@@ -146,8 +176,16 @@ class TestAgentEvidence:
     def test_eventually_at_end_of_answer_is_a_hedge(self, capsys):
         """AC-3: no text after the phrase means no technical-term exemption."""
         rc, _ = _run(
-            ["--title", "T", "--source", "agent", "--blocked-by", BLOCKED_BY,
-             "--signal", "the fix lands eventually"]
+            [
+                "--title",
+                "T",
+                "--source",
+                "agent",
+                "--blocked-by",
+                BLOCKED_BY,
+                "--signal",
+                "the fix lands eventually",
+            ]
         )
         assert rc == 2
         assert "'eventually'" in _error(capsys)

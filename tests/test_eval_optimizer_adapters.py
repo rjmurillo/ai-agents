@@ -193,27 +193,19 @@ class TestAgentResults:
 
     def test_min_reduction_punishes_one_bad_run(self):
         report = _report({"C001": {"agent": [1.0, 1.0, 0.0]}})
-        assert agent_results(report, "agent", reduce="min", pass_threshold=1.0) == {
-            "C001": False
-        }
+        assert agent_results(report, "agent", reduce="min", pass_threshold=1.0) == {"C001": False}
 
     def test_max_reduction_rewards_one_good_run(self):
         report = _report({"C001": {"agent": [0.0, 0.0, 1.0]}})
-        assert agent_results(report, "agent", reduce="max", pass_threshold=1.0) == {
-            "C001": True
-        }
+        assert agent_results(report, "agent", reduce="max", pass_threshold=1.0) == {"C001": True}
 
     def test_median_reduction_ignores_a_single_outlier(self):
         report = _report({"C001": {"agent": [1.0, 1.0, 0.0]}})
-        assert agent_results(report, "agent", reduce="median", pass_threshold=1.0) == {
-            "C001": True
-        }
+        assert agent_results(report, "agent", reduce="median", pass_threshold=1.0) == {"C001": True}
 
     def test_median_of_an_even_sample_averages_the_middle_pair(self):
         report = _report({"C001": {"agent": [0.0, 0.4, 0.6, 1.0]}})
-        assert agent_results(report, "agent", reduce="median", pass_threshold=0.5) == {
-            "C001": True
-        }
+        assert agent_results(report, "agent", reduce="median", pass_threshold=0.5) == {"C001": True}
 
     def test_missing_variant_for_a_fixture_is_refused(self):
         """A fixture the variant never ran on must not vanish from the split."""
@@ -336,10 +328,7 @@ class TestRuleResults:
         policy above becomes wrong and this test must fail loudly.
         """
         source = (
-            Path(__file__).resolve().parents[1]
-            / "scripts"
-            / "eval"
-            / "eval-rule-activation.py"
+            Path(__file__).resolve().parents[1] / "scripts" / "eval" / "eval-rule-activation.py"
         ).read_text(encoding="utf-8")
         assert "negative case: 5 means the response correctly did NOT activate" in source
 
@@ -382,10 +371,7 @@ class TestRuleResults:
     def test_default_floor_tracks_the_rule_activation_scorer(self):
         """The floor is duplicated from a hyphenated CLI module; catch drift."""
         source = (
-            Path(__file__).resolve().parent.parent
-            / "scripts"
-            / "eval"
-            / "eval-rule-activation.py"
+            Path(__file__).resolve().parent.parent / "scripts" / "eval" / "eval-rule-activation.py"
         ).read_text(encoding="utf-8")
         match = re.search(r"^MIN_ACTIVATION_SCORE\s*=\s*([0-9.]+)", source, re.MULTILINE)
         assert match, "MIN_ACTIVATION_SCORE not found in eval-rule-activation.py"
@@ -765,9 +751,7 @@ class TestAnIntegerTooBigForAFloatIsOutOfRangeNotACrash:
         with pytest.raises(AdapterError, match="between"):
             agent_results(_report({"C1": {"agent": [-self.HUGE]}}), "agent")
 
-    @pytest.mark.parametrize(
-        "key", ["activation_score", "behavior_score", "citation_score"]
-    )
+    @pytest.mark.parametrize("key", ["activation_score", "behavior_score", "citation_score"])
     def test_a_huge_score_is_refused_in_every_rule_dimension(self, key):
         scores = {
             "activation_score": 5,
@@ -814,18 +798,14 @@ class TestAnIntegerTooBigForAFloatIsOutOfRangeNotACrash:
 
     def test_an_integer_at_the_top_of_the_rule_scale_is_accepted(self):
         assert rule_results(
-            self._scen(
-                activation_score=5, behavior_score=5, citation_score=5
-            ),
+            self._scen(activation_score=5, behavior_score=5, citation_score=5),
             "full",
         ) == {"S": True}
 
     def test_one_past_the_top_of_the_rule_scale_is_still_refused(self):
         with pytest.raises(AdapterError, match="between"):
             rule_results(
-                self._scen(
-                    activation_score=6, behavior_score=5, citation_score=5
-                ),
+                self._scen(activation_score=6, behavior_score=5, citation_score=5),
                 "full",
             )
 
@@ -936,18 +916,14 @@ class TestAPartialScoreMappingIsNotAMeasurement:
 
     def test_a_complete_mapping_still_reduces(self):
         got = rule_results(
-            self._scen(
-                {"activation_score": 5, "citation_score": 5, "behavior_score": 5}
-            ),
+            self._scen({"activation_score": 5, "citation_score": 5, "behavior_score": 5}),
             "full",
         )
         assert got == {"S": True}
 
     def test_a_complete_mapping_can_still_fail(self):
         got = rule_results(
-            self._scen(
-                {"activation_score": 0, "citation_score": 0, "behavior_score": 0}
-            ),
+            self._scen({"activation_score": 0, "citation_score": 0, "behavior_score": 0}),
             "full",
         )
         assert got == {"S": False}
@@ -955,9 +931,7 @@ class TestAPartialScoreMappingIsNotAMeasurement:
     def test_an_explicit_zero_is_a_measurement_and_is_kept(self):
         """A recorded 0 is evidence; an absent key is not. They must differ."""
         got = rule_results(
-            self._scen(
-                {"activation_score": 5, "citation_score": 5, "behavior_score": 0}
-            ),
+            self._scen({"activation_score": 5, "citation_score": 5, "behavior_score": 0}),
             "full",
             min_score=3.0,
         )
@@ -1024,9 +998,7 @@ class TestReducingARuleScenarioAcrossRepeatedRuns:
         Neither run decides this alone: the first fails the bar and the second
         clears it. That is the whole point of reducing.
         """
-        got = rule_results_multi(
-            [self._run((3, 3, 3)), self._run((4, 4, 4))], "full"
-        )
+        got = rule_results_multi([self._run((3, 3, 3)), self._run((4, 4, 4))], "full")
         assert got == {"S1": True}
 
     def test_a_lucky_run_no_longer_carries_a_scenario_on_its_own(self):
@@ -1041,15 +1013,11 @@ class TestReducingARuleScenarioAcrossRepeatedRuns:
         assert rule_results_multi([high, low, low, low, low], "full") == {"S1": False}
 
     def test_min_reduces_to_the_worst_run(self):
-        got = rule_results_multi(
-            [self._run((5, 5, 5)), self._run((3, 3, 3))], "full", reduce="min"
-        )
+        got = rule_results_multi([self._run((5, 5, 5)), self._run((3, 3, 3))], "full", reduce="min")
         assert got == {"S1": False}
 
     def test_max_reduces_to_the_best_run(self):
-        got = rule_results_multi(
-            [self._run((5, 5, 5)), self._run((3, 3, 3))], "full", reduce="max"
-        )
+        got = rule_results_multi([self._run((5, 5, 5)), self._run((3, 3, 3))], "full", reduce="max")
         assert got == {"S1": True}
 
     def test_median_ignores_a_single_outlier(self):
@@ -1206,9 +1174,9 @@ class TestTwoReductionsStackWithoutSubsumingEachOther:
         """The generalization property has to survive the second axis."""
         run = [_sampled("S1", "full", (5, 5, 5), (2, 2, 2), (4, 4, 4))]
         for reducer in ("mean", "min", "max", "median"):
-            assert rule_results_multi(
-                [run], "full", reduce_samples=reducer
-            ) == rule_results(run, "full", reduce=reducer)
+            assert rule_results_multi([run], "full", reduce_samples=reducer) == rule_results(
+                run, "full", reduce=reducer
+            )
 
     def test_an_unknown_sample_reducer_names_the_parameter_it_came_from(self):
         """Two reducer parameters means the error has to say which one broke."""
@@ -1238,9 +1206,7 @@ class TestTwoReductionsStackWithoutSubsumingEachOther:
         samples[1]["judge_failed"] = True
         assert rule_results(broken, "full") == {"S1": False}
         with pytest.raises(AdapterError, match="evidence"):
-            rule_results_multi(
-                [broken, [_sampled("S1", "full", (5, 5, 5))]], "full"
-            )
+            rule_results_multi([broken, [_sampled("S1", "full", (5, 5, 5))]], "full")
 
     def test_a_sample_missing_a_score_is_refused_not_defaulted_to_zero(self):
         """The same refusal the unsampled path makes, at sample granularity."""

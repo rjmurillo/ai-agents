@@ -48,11 +48,16 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")
     parser.add_argument(
-        "--pull-request", type=int, required=True, help="Pull request number",
+        "--pull-request",
+        type=int,
+        required=True,
+        help="Pull request number",
     )
     parser.add_argument("--comment", default="", help="Comment to post before closing")
     parser.add_argument(
-        "--comment-file", default="", help="File containing comment body",
+        "--comment-file",
+        default="",
+        help="File containing comment body",
     )
     return parser
 

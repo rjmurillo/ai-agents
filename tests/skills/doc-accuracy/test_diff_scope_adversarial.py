@@ -47,9 +47,7 @@ def _assert_ghost_blocks(code: int, data: Json) -> None:
     ],
     ids=["form-feed-file-header", "separator-hunk-header", "plus-plus-line", "lone-cr"],
 )
-def test_forged_line_cannot_hide_a_later_wrong_claim(
-    tmp_path: Path, forged_line: str
-) -> None:
+def test_forged_line_cannot_hide_a_later_wrong_claim(tmp_path: Path, forged_line: str) -> None:
     """Hunk 1 adds ``forged_line``; a later, separate hunk adds the wrong claim."""
     base = "# T\n\nintro\n\n" + FILLER + "\ntail\n"
     repo = make_repo(tmp_path, {"doc.md": base})
@@ -99,8 +97,7 @@ def test_textconv_filter_cannot_shift_line_numbers(tmp_path: Path) -> None:
     repo = make_repo(tmp_path, {"doc.md": base})
     (repo / ".gitattributes").write_text("*.md diff=strip\n")
     (repo / ".git" / "config").write_text(
-        (repo / ".git" / "config").read_text()
-        + "[diff \"strip\"]\n\ttextconv = sed 1,5d\n"
+        (repo / ".git" / "config").read_text() + '[diff "strip"]\n\ttextconv = sed 1,5d\n'
     )
     edit_and_commit(repo, "doc.md", base + FENCE + "text\nGhost\n" + FENCE + "\n")
 

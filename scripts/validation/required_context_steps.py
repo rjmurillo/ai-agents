@@ -117,9 +117,7 @@ def step_findings(producer: ProducingJob) -> list[Finding]:
                     label,
                 )
             )
-        findings.extend(
-            _relocated_findings(producer, label, step["if"], tainted, tainted_env)
-        )
+        findings.extend(_relocated_findings(producer, label, step["if"], tainted, tainted_env))
     return findings
 
 

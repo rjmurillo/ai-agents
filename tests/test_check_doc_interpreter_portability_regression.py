@@ -6,7 +6,6 @@ crossed the 500-line taste limit. Everything here reads the working repository
 rather than a tmp_path fixture, which is the seam.
 """
 
-
 from __future__ import annotations
 
 import subprocess

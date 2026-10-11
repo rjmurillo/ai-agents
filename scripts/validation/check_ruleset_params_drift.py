@@ -64,9 +64,7 @@ def load_baseline() -> dict[str, Any]:
         print(f"ERROR: baseline not found: {BASELINE_PATH}", file=sys.stderr)
         sys.exit(EXIT_CONFIG)
     try:
-        result: dict[str, Any] = json.loads(
-            BASELINE_PATH.read_text(encoding="utf-8")
-        )
+        result: dict[str, Any] = json.loads(BASELINE_PATH.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
         print(f"ERROR: invalid JSON in baseline: {exc}", file=sys.stderr)
         sys.exit(EXIT_CONFIG)
@@ -79,8 +77,7 @@ def load_baseline() -> dict[str, Any]:
         sys.exit(EXIT_CONFIG)
     if "enforcement" not in ruleset_state or "bypass_actors" not in ruleset_state:
         print(
-            "ERROR: baseline 'ruleset' section missing 'enforcement' or"
-            " 'bypass_actors'",
+            "ERROR: baseline 'ruleset' section missing 'enforcement' or 'bypass_actors'",
             file=sys.stderr,
         )
         sys.exit(EXIT_CONFIG)
@@ -143,9 +140,7 @@ def extract_live_ruleset_state(data: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def check_drift(
-    baseline: dict[str, Any], live: dict[str, Any]
-) -> list[str]:
+def check_drift(baseline: dict[str, Any], live: dict[str, Any]) -> list[str]:
     """Compare baseline parameters against live values. Return drift messages.
 
     Bidirectional: reports a baseline value that no longer matches live (or
@@ -162,9 +157,7 @@ def check_drift(
             continue
         actual = live.get(key)
         if actual is None:
-            drifts.append(
-                f"  {key}: expected={expected!r}, not found in live ruleset"
-            )
+            drifts.append(f"  {key}: expected={expected!r}, not found in live ruleset")
         elif actual != expected:
             drifts.append(f"  {key}: expected={expected!r}, actual={actual!r}")
 
@@ -172,8 +165,7 @@ def check_drift(
         if key in baseline_params or key in DELEGATED_PARAM_KEYS:
             continue
         drifts.append(
-            f"  {key}: unrecognized live parameter (value={actual!r}),"
-            " not present in baseline"
+            f"  {key}: unrecognized live parameter (value={actual!r}), not present in baseline"
         )
 
     return drifts
@@ -200,9 +192,7 @@ def _normalize_bypass_actors(actors: list[Any]) -> list[Any]:
     return sorted(actors, key=_bypass_actor_sort_key)
 
 
-def check_ruleset_drift(
-    baseline: dict[str, Any], live_ruleset: dict[str, Any]
-) -> list[str]:
+def check_ruleset_drift(baseline: dict[str, Any], live_ruleset: dict[str, Any]) -> list[str]:
     """Compare baseline top-level ruleset state against live state.
 
     `live_ruleset` is the shape extract_live_ruleset_state returns:
@@ -218,19 +208,13 @@ def check_ruleset_drift(
     actual_enforcement = live_ruleset.get("enforcement")
     if actual_enforcement != expected_enforcement:
         drifts.append(
-            f"  enforcement: expected={expected_enforcement!r},"
-            f" actual={actual_enforcement!r}"
+            f"  enforcement: expected={expected_enforcement!r}, actual={actual_enforcement!r}"
         )
 
-    expected_actors = _normalize_bypass_actors(
-        baseline_ruleset.get("bypass_actors", [])
-    )
+    expected_actors = _normalize_bypass_actors(baseline_ruleset.get("bypass_actors", []))
     actual_actors = _normalize_bypass_actors(live_ruleset.get("bypass_actors", []))
     if actual_actors != expected_actors:
-        drifts.append(
-            f"  bypass_actors: expected={expected_actors!r},"
-            f" actual={actual_actors!r}"
-        )
+        drifts.append(f"  bypass_actors: expected={expected_actors!r}, actual={actual_actors!r}")
 
     return drifts
 
@@ -259,10 +243,7 @@ def main(argv: list[str] | None = None) -> int:
     if drifts:
         print("DRIFT DETECTED between baseline and live ruleset:")
         print("\n".join(drifts))
-        print(
-            f"\nUpdate {BASELINE_PATH.name} after confirming the change is"
-            " intentional."
-        )
+        print(f"\nUpdate {BASELINE_PATH.name} after confirming the change is intentional.")
         return EXIT_DRIFT
 
     print("OK: all recorded ruleset parameters match live values.")

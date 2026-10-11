@@ -278,8 +278,7 @@ def check_workflow_rate_limit(
         summary_lines.append("| live probe | N/A | served | ! INDETERMINATE |")
         summary_lines.append("")
         summary_lines.append(
-            f"Live probe did not complete: {probe_error}. "
-            "Rate-limit status is INDETERMINATE."
+            f"Live probe did not complete: {probe_error}. Rate-limit status is INDETERMINATE."
         )
 
     if all_passed:
@@ -295,11 +294,10 @@ def check_workflow_rate_limit(
         status=status,
         resources=resources,
         summary_markdown="\n".join(summary_lines),
-        core_remaining=((rate_limit.get("resources") or {}).get("core") or {}).get(
-            "remaining", 0
-        ),
+        core_remaining=((rate_limit.get("resources") or {}).get("core") or {}).get("remaining", 0),
         probe_error=probe_error,
     )
+
 
 def probe_api_reachability(owner: str, repo: str) -> bool:
     """Make a cheap real REST call to detect burst-limiter 403 refusals.

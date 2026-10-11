@@ -53,10 +53,14 @@ class TestMain:
         assertion is the real regression signal."""
         repo_root, templates_path, output_root = _create_test_structure(tmp_path)
         monkeypatch.chdir(repo_root)
-        exit_code = main([
-            "--templates-path", str(templates_path),
-            "--output-root", "src",
-        ])
+        exit_code = main(
+            [
+                "--templates-path",
+                str(templates_path),
+                "--output-root",
+                "src",
+            ]
+        )
         assert exit_code == 0
 
     def test_output_root_outside_repo_root_fails_closed(
@@ -75,18 +79,26 @@ class TestMain:
         outside_dir = tmp_path / "elsewhere"
         outside_dir.mkdir()
         monkeypatch.chdir(outside_dir)
-        exit_code = main([
-            "--templates-path", str(templates_path),
-            "--output-root", "src",
-        ])
+        exit_code = main(
+            [
+                "--templates-path",
+                str(templates_path),
+                "--output-root",
+                "src",
+            ]
+        )
         assert exit_code == 2
 
     def test_full_run(self, tmp_path: Path) -> None:
         repo_root, templates_path, output_root = _create_test_structure(tmp_path)
-        exit_code = main([
-            "--templates-path", str(templates_path),
-            "--output-root", str(output_root),
-        ])
+        exit_code = main(
+            [
+                "--templates-path",
+                str(templates_path),
+                "--output-root",
+                str(output_root),
+            ]
+        )
         assert exit_code == 0
 
     def test_relative_templates_path_resolves_manifest_pins(
@@ -114,10 +126,14 @@ class TestMain:
         # --output-root hits a separate, pre-existing bug in the
         # symlink-ancestor walk a few lines below (an infinite loop, not
         # this test's subject); see the follow-up fix in this same commit.
-        exit_code = main([
-            "--templates-path", "templates",
-            "--output-root", str(output_root),
-        ])
+        exit_code = main(
+            [
+                "--templates-path",
+                "templates",
+                "--output-root",
+                str(output_root),
+            ]
+        )
         assert exit_code == 0
 
         output_file = output_root / "vs-code-agents" / "test-agent.agent.md"
@@ -126,24 +142,36 @@ class TestMain:
 
     def test_what_if_flag(self, tmp_path: Path) -> None:
         repo_root, templates_path, output_root = _create_test_structure(tmp_path)
-        exit_code = main([
-            "--templates-path", str(templates_path),
-            "--output-root", str(output_root),
-            "--what-if",
-        ])
+        exit_code = main(
+            [
+                "--templates-path",
+                str(templates_path),
+                "--output-root",
+                str(output_root),
+                "--what-if",
+            ]
+        )
         assert exit_code == 0
 
     def test_validate_flag(self, tmp_path: Path) -> None:
         repo_root, templates_path, output_root = _create_test_structure(tmp_path)
 
         # Generate first, then validate
-        main([
-            "--templates-path", str(templates_path),
-            "--output-root", str(output_root),
-        ])
-        exit_code = main([
-            "--templates-path", str(templates_path),
-            "--output-root", str(output_root),
-            "--validate",
-        ])
+        main(
+            [
+                "--templates-path",
+                str(templates_path),
+                "--output-root",
+                str(output_root),
+            ]
+        )
+        exit_code = main(
+            [
+                "--templates-path",
+                str(templates_path),
+                "--output-root",
+                str(output_root),
+                "--validate",
+            ]
+        )
         assert exit_code == 0

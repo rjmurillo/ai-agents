@@ -25,15 +25,20 @@ for _p in (
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
+
 def make_proc(stdout="", stderr="", returncode=0):
     return subprocess.CompletedProcess(
-        args=[], returncode=returncode, stdout=stdout, stderr=stderr,
+        args=[],
+        returncode=returncode,
+        stdout=stdout,
+        stderr=stderr,
     )
 
 
 # ---------------------------------------------------------------------------
 # get_actionable_items
 # ---------------------------------------------------------------------------
+
 
 class TestGetActionableItems:
     """Tests for get_actionable_items.main."""
@@ -42,6 +47,7 @@ class TestGetActionableItems:
         import importlib
 
         import get_actionable_items as mod
+
         importlib.reload(mod)
         return mod
 
@@ -61,6 +67,7 @@ class TestGetActionableItems:
 # extract_github_context
 # ---------------------------------------------------------------------------
 
+
 class TestExtractGithubContext:
     """Tests for extract_github_context._extract_context and main."""
 
@@ -68,6 +75,7 @@ class TestExtractGithubContext:
         import importlib
 
         import extract_github_context as mod
+
         importlib.reload(mod)
         return mod
 
@@ -159,6 +167,7 @@ class TestExtractGithubContext:
         import importlib
 
         import extract_github_context as mod
+
         importlib.reload(mod)
         rc = mod.main(["--text", "Fix issue #77 and PR #88"])
         assert rc == 0
@@ -169,6 +178,7 @@ class TestExtractGithubContext:
 
     def test_help_does_not_crash(self):
         import extract_github_context as mod
+
         with pytest.raises(SystemExit) as exc:
             mod.main(["--help"])
         assert exc.value.code == 0
@@ -178,6 +188,7 @@ class TestExtractGithubContext:
 # test_workflow_locally
 # ---------------------------------------------------------------------------
 
+
 class TestTestWorkflowLocally:
     """Tests for test_workflow_locally.main."""
 
@@ -185,6 +196,7 @@ class TestTestWorkflowLocally:
         import importlib
 
         import test_workflow_locally as mod
+
         importlib.reload(mod)
         return mod
 
@@ -199,10 +211,13 @@ class TestTestWorkflowLocally:
         # act and docker both found, docker running
         with (
             patch("shutil.which", return_value="/usr/bin/act"),
-            patch("subprocess.run", side_effect=[
-                make_proc(stdout="act 0.2.0", returncode=0),  # act --version
-                make_proc(returncode=0),                        # docker info
-            ]),
+            patch(
+                "subprocess.run",
+                side_effect=[
+                    make_proc(stdout="act 0.2.0", returncode=0),  # act --version
+                    make_proc(returncode=0),  # docker info
+                ],
+            ),
             patch("test_workflow_locally._get_repo_root", return_value=str(tmp_path)),
         ):
             rc = mod.main(["--workflow", "nonexistent-workflow"])
@@ -222,10 +237,13 @@ class TestTestWorkflowLocally:
 
         with (
             patch("shutil.which", side_effect=which_side),
-            patch("subprocess.run", side_effect=[
-                make_proc(stdout="act 0.2.0", returncode=0),  # act --version
-                make_proc(returncode=1, stderr="daemon not running"),  # docker info
-            ]),
+            patch(
+                "subprocess.run",
+                side_effect=[
+                    make_proc(stdout="act 0.2.0", returncode=0),  # act --version
+                    make_proc(returncode=1, stderr="daemon not running"),  # docker info
+                ],
+            ),
         ):
             rc = mod.main(["--workflow", "pester-tests"])
         assert rc == 2
@@ -295,10 +313,13 @@ class TestTestWorkflowLocally:
 
         with (
             patch("shutil.which", side_effect=which_side),
-            patch("subprocess.run", side_effect=[
-                make_proc(stdout="act 0.2.0", returncode=0),
-                make_proc(returncode=0),
-            ]),
+            patch(
+                "subprocess.run",
+                side_effect=[
+                    make_proc(stdout="act 0.2.0", returncode=0),
+                    make_proc(returncode=0),
+                ],
+            ),
             patch("test_workflow_locally._get_repo_root", return_value=str(tmp_path)),
         ):
             rc = mod.main(["--workflow", "missing"])
@@ -370,6 +391,7 @@ class TestTestWorkflowLocally:
 
     def test_help_does_not_crash(self):
         import test_workflow_locally as mod
+
         with pytest.raises(SystemExit) as exc:
             mod.main(["--help"])
         assert exc.value.code == 0

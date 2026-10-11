@@ -24,9 +24,7 @@ def test_pytest_addopts_declares_default_per_test_timeout() -> None:
 def test_pytest_timeout_terminates_hanging_test_module(tmp_path: Path) -> None:
     hanging_test = tmp_path / "test_hangs.py"
     hanging_test.write_text(
-        "import time\n\n"
-        "def test_hangs_longer_than_timeout():\n"
-        "    time.sleep(60)\n",
+        "import time\n\ndef test_hangs_longer_than_timeout():\n    time.sleep(60)\n",
         encoding="utf-8",
     )
 

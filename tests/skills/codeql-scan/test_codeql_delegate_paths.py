@@ -47,9 +47,7 @@ CODEQL_SCRIPTS_DIR = PROJECT_ROOT / ".codeql" / "scripts"
 # The documented entry point. SKILL.md, line 19:
 #   python3 .claude/skills/codeql-scan/scripts/invoke_codeql_scan.py --operation full
 wrapper = import_skill_script(WRAPPER_RELATIVE_PATHS[0], module_name="codeql_wrapper")
-skill_wrapper = import_skill_script(
-    WRAPPER_RELATIVE_PATHS[1], module_name="codeql_wrapper_skill"
-)
+skill_wrapper = import_skill_script(WRAPPER_RELATIVE_PATHS[1], module_name="codeql_wrapper_skill")
 
 # The delegate is imported under an alias: its file name (invoke_codeql_scan.py)
 # collides with the wrapper's, and a shared sys.modules key would let one shadow
@@ -175,8 +173,12 @@ class TestWrapperRunsInThisRepository:
 
     def test_validate_operation_succeeds_in_this_repository(self) -> None:
         result = subprocess.run(
-            [sys.executable, str(PROJECT_ROOT / WRAPPER_RELATIVE_PATHS[0]),
-             "--operation", "validate"],
+            [
+                sys.executable,
+                str(PROJECT_ROOT / WRAPPER_RELATIVE_PATHS[0]),
+                "--operation",
+                "validate",
+            ],
             capture_output=True,
             text=True,
             timeout=120,
@@ -192,8 +194,12 @@ class TestWrapperRunsInThisRepository:
     def test_validate_succeeds_from_a_subdirectory(self) -> None:
         """Delegates run with cwd=repo root, so the caller's cwd cannot break them."""
         result = subprocess.run(
-            [sys.executable, str(PROJECT_ROOT / WRAPPER_RELATIVE_PATHS[0]),
-             "--operation", "validate"],
+            [
+                sys.executable,
+                str(PROJECT_ROOT / WRAPPER_RELATIVE_PATHS[0]),
+                "--operation",
+                "validate",
+            ],
             capture_output=True,
             text=True,
             timeout=120,
@@ -231,9 +237,7 @@ class TestNegativePaths:
         ):
             assert wrapper.main(["--operation", "validate"]) == 2
 
-    def test_missing_config_file_maps_delegate_2_to_wrapper_2(
-        self, tmp_path: Path
-    ) -> None:
+    def test_missing_config_file_maps_delegate_2_to_wrapper_2(self, tmp_path: Path) -> None:
         """Delegate exit 2 (config file absent) also becomes the wrapper's 2."""
         self._write_delegate(tmp_path, "test_codeql_config.py")
         with (

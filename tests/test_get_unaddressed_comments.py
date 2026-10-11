@@ -16,8 +16,7 @@ from scripts.github_core.api import RepoInfo
 # Import the script via importlib (not a package)
 # ---------------------------------------------------------------------------
 _SCRIPTS_DIR = (
-    Path(__file__).resolve().parents[1]
-    / ".claude" / "skills" / "github" / "scripts" / "pr"
+    Path(__file__).resolve().parents[1] / ".claude" / "skills" / "github" / "scripts" / "pr"
 )
 
 
@@ -173,17 +172,22 @@ class TestMain:
             assert exc.value.code == 4
 
     def test_no_comments(self, capsys):
-        with patch(
-            "get_unaddressed_comments.assert_gh_authenticated",
-        ), patch(
-            "get_unaddressed_comments.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "get_unaddressed_comments.gh_api_paginated",
-            return_value=[],
-        ), patch(
-            "get_unaddressed_comments.get_unresolved_review_threads",
-            return_value=[],
+        with (
+            patch(
+                "get_unaddressed_comments.assert_gh_authenticated",
+            ),
+            patch(
+                "get_unaddressed_comments.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "get_unaddressed_comments.gh_api_paginated",
+                return_value=[],
+            ),
+            patch(
+                "get_unaddressed_comments.get_unresolved_review_threads",
+                return_value=[],
+            ),
         ):
             rc = main(["--pull-request", "42", "--output-format", "json"])
         assert rc == 0
@@ -209,17 +213,22 @@ class TestMain:
         unresolved_threads = [
             {"comments": {"nodes": [{"databaseId": 100}]}},
         ]
-        with patch(
-            "get_unaddressed_comments.assert_gh_authenticated",
-        ), patch(
-            "get_unaddressed_comments.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "get_unaddressed_comments.gh_api_paginated",
-            return_value=raw_comments,
-        ), patch(
-            "get_unaddressed_comments.get_unresolved_review_threads",
-            return_value=unresolved_threads,
+        with (
+            patch(
+                "get_unaddressed_comments.assert_gh_authenticated",
+            ),
+            patch(
+                "get_unaddressed_comments.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "get_unaddressed_comments.gh_api_paginated",
+                return_value=raw_comments,
+            ),
+            patch(
+                "get_unaddressed_comments.get_unresolved_review_threads",
+                return_value=unresolved_threads,
+            ),
         ):
             rc = main(["--pull-request", "42", "--output-format", "json"])
         assert rc == 0
@@ -292,9 +301,14 @@ class TestOutputFormat:
         """When stdout is a TTY and not CI, auto resolves to human."""
         auth, repo, paged, threads = _patch_empty_pr()
         env = {"CI": "", "GITHUB_ACTIONS": "", "TF_BUILD": ""}
-        with auth, repo, paged, threads, patch.dict(
-            "os.environ", env, clear=False
-        ), patch("sys.stdout.isatty", return_value=True):
+        with (
+            auth,
+            repo,
+            paged,
+            threads,
+            patch.dict("os.environ", env, clear=False),
+            patch("sys.stdout.isatty", return_value=True),
+        ):
             rc = main(["--pull-request", "42", "--output-format", "auto"])
         assert rc == 0
         out = capsys.readouterr().out
@@ -330,12 +344,16 @@ class TestEnvelopeData:
         duplicate it (matches the get_pr_context.py contract).
         """
         result = _result_with([{"NeedsAction": True}])
-        with patch("get_unaddressed_comments.assert_gh_authenticated"), patch(
-            "get_unaddressed_comments.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "get_unaddressed_comments.get_unaddressed_comments",
-            return_value=result,
+        with (
+            patch("get_unaddressed_comments.assert_gh_authenticated"),
+            patch(
+                "get_unaddressed_comments.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "get_unaddressed_comments.get_unaddressed_comments",
+                return_value=result,
+            ),
         ):
             rc = main(["--pull-request", "42", "--output-format", "json"])
         assert rc == 0
@@ -353,17 +371,18 @@ class TestEnvelopeData:
             {"NeedsAction": True},
         ]
         result = _result_with(comments)
-        with patch("get_unaddressed_comments.assert_gh_authenticated"), patch(
-            "get_unaddressed_comments.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "get_unaddressed_comments.get_unaddressed_comments",
-            return_value=result,
+        with (
+            patch("get_unaddressed_comments.assert_gh_authenticated"),
+            patch(
+                "get_unaddressed_comments.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "get_unaddressed_comments.get_unaddressed_comments",
+                return_value=result,
+            ),
         ):
-            rc = main(
-                ["--pull-request", "42", "--no-only-unaddressed",
-                 "--output-format", "human"]
-            )
+            rc = main(["--pull-request", "42", "--no-only-unaddressed", "--output-format", "human"])
         assert rc == 0
         out = capsys.readouterr().out
         assert "2 comments needing action" in out

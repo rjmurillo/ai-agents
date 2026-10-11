@@ -512,9 +512,7 @@ def _resolve_lib_dir() -> str:
     import os
 
     workspace = os.environ.get("GITHUB_WORKSPACE")
-    relative = os.path.abspath(
-        os.path.join(os.path.dirname(__file__), "..", "..", "..", "lib")
-    )
+    relative = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "lib"))
     candidates = []
     copilot_root = os.environ.get("COPILOT_PLUGIN_ROOT")
     claude_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
@@ -545,7 +543,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")
     parser.add_argument(
-        "--pull-request", type=int, required=True, help="Pull request number",
+        "--pull-request",
+        type=int,
+        required=True,
+        help="Pull request number",
     )
     parser.add_argument(
         "--threads-file",
@@ -612,8 +613,7 @@ def _load_threads_from_file(path: str) -> list[Thread]:
     payload = raw.get("threads") if isinstance(raw, dict) else raw
     if not isinstance(payload, list):
         print(
-            f"Threads file {path} must be a list or an object with a "
-            "'threads' list.",
+            f"Threads file {path} must be a list or an object with a 'threads' list.",
             file=sys.stderr,
         )
         sys.exit(2)
@@ -631,7 +631,9 @@ def main(argv: list[str] | None = None) -> int:
         threads = _load_threads_from_file(args.threads_file)
     else:
         threads = _fetch_unresolved_threads(
-            args.owner, args.repo, args.pull_request,
+            args.owner,
+            args.repo,
+            args.pull_request,
         )
 
     report = cluster_threads(threads)

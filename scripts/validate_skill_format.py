@@ -77,18 +77,13 @@ def get_files_to_check(
     return [
         f
         for f in mem_path.glob("*.md")
-        if not re.match(r"^skills-.*-index\.md$", f.name)
-        and f.name != "memory-index.md"
+        if not re.match(r"^skills-.*-index\.md$", f.name) and f.name != "memory-index.md"
     ]
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(
-        description="Validate skill files follow atomic format"
-    )
-    parser.add_argument(
-        "--path", default=".serena/memories", help="Path to memories directory"
-    )
+    parser = argparse.ArgumentParser(description="Validate skill files follow atomic format")
+    parser.add_argument("--path", default=".serena/memories", help="Path to memories directory")
     parser.add_argument("--ci", action="store_true", help="CI mode (strict, exit 1 on failure)")
     parser.add_argument("--staged-only", action="store_true", help="Only check staged files")
     parser.add_argument("--changed-files", nargs="*", default=[], help="Specific files to check")
@@ -120,9 +115,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  BUNDLED: {file_path.name} contains {len(matches)} skills")
             bundled_files.append((file_path.name, len(matches)))
 
-        if file_path.name.startswith("skill-") and not file_path.name.endswith(
-            "-observations.md"
-        ):
+        if file_path.name.startswith("skill-") and not file_path.name.endswith("-observations.md"):
             print(f"  PREFIX: {file_path.name} uses invalid 'skill-' prefix")
             prefix_violations.append(file_path.name)
 

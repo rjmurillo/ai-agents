@@ -43,10 +43,10 @@ def _isolate_paths(tmp_path: Path) -> Iterator[None]:
         )
 
     # Patch module-level paths
-    with patch.object(rm, "EPISODES_PATH", episodes_path), patch.object(
-        rm, "SCHEMAS_PATH", schemas_path
-    ), patch.object(
-        rm, "EPISODE_SCHEMA_FILE", schemas_path / "episode.schema.json"
+    with (
+        patch.object(rm, "EPISODES_PATH", episodes_path),
+        patch.object(rm, "SCHEMAS_PATH", schemas_path),
+        patch.object(rm, "EPISODE_SCHEMA_FILE", schemas_path / "episode.schema.json"),
     ):
         yield
 
@@ -235,9 +235,7 @@ class TestGetDecisionSequence:
         result = rm.get_decision_sequence("episode-nonexistent")
         assert result == []
 
-    def test_returns_decisions_sorted_by_timestamp(
-        self, sample_episode: dict
-    ) -> None:
+    def test_returns_decisions_sorted_by_timestamp(self, sample_episode: dict) -> None:
         result = rm.get_decision_sequence("episode-2026-01-01-session-001")
         assert len(result) == 2
         # d002 has earlier timestamp than d001

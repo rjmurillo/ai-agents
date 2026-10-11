@@ -68,16 +68,18 @@ def _grader_file(tmp_path: Path) -> Path:
 
 def _args(tmp_path: Path, top_n: str = "") -> list[str]:
     return [
-        "--grader", str(_grader_file(tmp_path)),
-        "--json-out", str(tmp_path / "g.json"),
-        "--markdown-out", str(tmp_path / "g.md"),
-        "--top-n", top_n,
+        "--grader",
+        str(_grader_file(tmp_path)),
+        "--json-out",
+        str(tmp_path / "g.json"),
+        "--markdown-out",
+        str(tmp_path / "g.md"),
+        "--top-n",
+        top_n,
     ]
 
 
-def test_writes_both_reports(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_writes_both_reports(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)
     monkeypatch.setattr(subprocess, "run", _Grader())
     assert main(_args(tmp_path)) == 0
@@ -95,9 +97,7 @@ def test_top_n_reaches_the_grader_as_separate_argv(
     assert grader.calls[0][-2:] == ["--top-n", "7"]
 
 
-def test_unlimited_omits_the_flag_entirely(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_unlimited_omits_the_flag_entirely(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     grader = _Grader()
     monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)
     monkeypatch.setattr(subprocess, "run", grader)
@@ -120,9 +120,12 @@ def test_missing_grader_is_a_usage_error(
 ) -> None:
     rc = main(
         [
-            "--grader", str(tmp_path / "absent.py"),
-            "--json-out", str(tmp_path / "g.json"),
-            "--markdown-out", str(tmp_path / "g.md"),
+            "--grader",
+            str(tmp_path / "absent.py"),
+            "--json-out",
+            str(tmp_path / "g.json"),
+            "--markdown-out",
+            str(tmp_path / "g.md"),
         ]
     )
     assert rc == 2

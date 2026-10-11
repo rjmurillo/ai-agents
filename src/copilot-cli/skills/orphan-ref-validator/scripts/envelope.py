@@ -130,9 +130,7 @@ class ScanResult:
         return "PASS"
 
 
-ErrorType = Literal[
-    "NotFound", "ApiError", "AuthError", "InvalidParams", "Timeout", "General"
-]
+ErrorType = Literal["NotFound", "ApiError", "AuthError", "InvalidParams", "Timeout", "General"]
 
 
 def render_error_envelope(
@@ -197,12 +195,8 @@ def render_scan_error_envelope(result: ScanResult, message: str, output: str) ->
             "findings": [f.to_dict() for f in result.findings],
             "verdict": "ERROR",
             "counts": _counts_payload(result),
-            "directive_suppressed": [
-                ref.to_dict() for ref in result.directive_suppressed
-            ],
-            "incomplete_scans": [
-                incomplete.to_dict() for incomplete in result.incomplete_scans
-            ],
+            "directive_suppressed": [ref.to_dict() for ref in result.directive_suppressed],
+            "incomplete_scans": [incomplete.to_dict() for incomplete in result.incomplete_scans],
         },
         "Error": {
             "Message": message,
@@ -257,12 +251,8 @@ def render_envelope(result: ScanResult, output: str) -> str:
             "findings": [f.to_dict() for f in result.findings],
             "verdict": result.verdict,
             "counts": _counts_payload(result),
-            "directive_suppressed": [
-                ref.to_dict() for ref in result.directive_suppressed
-            ],
-            "incomplete_scans": [
-                incomplete.to_dict() for incomplete in result.incomplete_scans
-            ],
+            "directive_suppressed": [ref.to_dict() for ref in result.directive_suppressed],
+            "incomplete_scans": [incomplete.to_dict() for incomplete in result.incomplete_scans],
         },
         "Error": None,
         "Metadata": {
@@ -285,8 +275,6 @@ def render_envelope(result: ScanResult, output: str) -> str:
                 f"`{ref.referenced_entity}` -- {ref.reason}"
             )
         for incomplete in result.incomplete_scans:
-            lines.append(
-                f"  [incomplete] {incomplete.target} -- {incomplete.reason}"
-            )
+            lines.append(f"  [incomplete] {incomplete.target} -- {incomplete.reason}")
         return "\n".join(lines) + f"\nVERDICT: {result.verdict}"
     return json.dumps(envelope, indent=2) + f"\nVERDICT: {result.verdict}"

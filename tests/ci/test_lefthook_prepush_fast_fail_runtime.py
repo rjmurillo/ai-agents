@@ -97,8 +97,7 @@ def _write_fixture_repo(
                             {
                                 "name": "stdin-gate",
                                 "run": (
-                                    f'"{_PYTHON_POSIX}" capture.py '
-                                    f"stdin-gate.txt {stdin_exit}"
+                                    f'"{_PYTHON_POSIX}" capture.py stdin-gate.txt {stdin_exit}'
                                 ),
                                 "use_stdin": True,
                             },
@@ -149,8 +148,7 @@ def _write_fixture_repo(
 # Two ref updates, the shape `git push origin a b` hands the hook. Every
 # serialized stdin consumer must receive both lines.
 _REF_PAYLOAD = (
-    "refs/heads/main aaaa refs/heads/main bbbb\n"
-    "refs/heads/next cccc refs/heads/next dddd\n"
+    "refs/heads/main aaaa refs/heads/main bbbb\nrefs/heads/next cccc refs/heads/next dddd\n"
 )
 
 
@@ -199,9 +197,7 @@ class TestRuntimeFastFail:
         result = _run_fixture_hook(repo)
 
         assert result.returncode != 0
-        assert (repo / "stdin-gate.txt").exists(), (
-            "the failing stdin gate itself must have run"
-        )
+        assert (repo / "stdin-gate.txt").exists(), "the failing stdin gate itself must have run"
         assert not (repo / "jobs.log").exists(), (
             "a stdin-group failure must skip the parallel fast group and the "
             f"expensive group:\n{result.stdout}\n{result.stderr}"
@@ -210,9 +206,7 @@ class TestRuntimeFastFail:
             "the later top-level stdin job must be skipped too"
         )
 
-    def test_a_clean_fast_stage_lets_everything_run_with_full_stdin(
-        self, tmp_path: Path
-    ) -> None:
+    def test_a_clean_fast_stage_lets_everything_run_with_full_stdin(self, tmp_path: Path) -> None:
         # Positive control: without it, the tests above pass on a harness
         # where nothing after the first group ever runs.
         repo = tmp_path / "repo"
@@ -228,6 +222,4 @@ class TestRuntimeFastFail:
         # multi-line ref-update payload; security-scan depends on this.
         for consumer in ("stdin-gate.txt", "payload.txt"):
             payload = (repo / consumer).read_text(encoding="utf-8")
-            assert payload == _REF_PAYLOAD, (
-                f"{consumer} received a truncated or reordered payload"
-            )
+            assert payload == _REF_PAYLOAD, f"{consumer} received a truncated or reordered payload"

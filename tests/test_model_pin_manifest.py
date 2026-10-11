@@ -137,9 +137,7 @@ def _keep_pin_entry(
             default_model = base.get("default_model")
             unit = base.get("unit")
             winner_id = model if isinstance(model, str) else "claude-opus-4-6"
-            default_id = (
-                default_model if isinstance(default_model, str) else DEFAULT_MODEL
-            )
+            default_id = default_model if isinstance(default_model, str) else DEFAULT_MODEL
             # Matches build/generate_agents.py:303's agent_name derivation
             # verbatim, since build_report's own "agent" field records that
             # same value; see model_pin_sweep_evidence.py:_agent_name_from_unit.
@@ -199,9 +197,7 @@ class TestResolveManifestModel:
     def test_unit_mismatch_returns_none(self, tmp_path: Path) -> None:
         """A malformed manifest keying an entry under one unit while the
         entry itself names another must not resolve for either."""
-        manifest = {
-            _UNIT: _keep_pin_entry(tmp_path, unit="templates/agents/other.shared.md")
-        }
+        manifest = {_UNIT: _keep_pin_entry(tmp_path, unit="templates/agents/other.shared.md")}
         result = resolve_manifest_model(manifest, _UNIT, tmp_path, today=_TODAY)
         assert result is None
 
@@ -289,18 +285,14 @@ class TestResolveManifestModel:
         assert result is None
 
     def test_missing_artifact_returns_none(self, tmp_path: Path) -> None:
-        manifest = {
-            _UNIT: _keep_pin_entry(tmp_path, artifact="", create_artifact=False)
-        }
+        manifest = {_UNIT: _keep_pin_entry(tmp_path, artifact="", create_artifact=False)}
         result = resolve_manifest_model(manifest, _UNIT, tmp_path, today=_TODAY)
         assert result is None
 
     def test_artifact_path_traversal_returns_none(self, tmp_path: Path) -> None:
         """CWE-22: an artifact path escaping repo_root must not resolve."""
         manifest = {
-            _UNIT: _keep_pin_entry(
-                tmp_path, artifact="../../etc/passwd", create_artifact=False
-            )
+            _UNIT: _keep_pin_entry(tmp_path, artifact="../../etc/passwd", create_artifact=False)
         }
         result = resolve_manifest_model(manifest, _UNIT, tmp_path, today=_TODAY)
         assert result is None
@@ -309,9 +301,7 @@ class TestResolveManifestModel:
         """The path is safely contained but nothing was ever written there:
         ADR-080 rule 2 requires a *committed* sweep artifact, not merely a
         well-formed path to one."""
-        manifest = {
-            _UNIT: _keep_pin_entry(tmp_path, create_artifact=False)
-        }
+        manifest = {_UNIT: _keep_pin_entry(tmp_path, create_artifact=False)}
         assert not (tmp_path / _ARTIFACT).exists()
         result = resolve_manifest_model(manifest, _UNIT, tmp_path, today=_TODAY)
         assert result is None
@@ -324,9 +314,7 @@ class TestResolveManifestModel:
         result = resolve_manifest_model(manifest, _UNIT, tmp_path, today=_TODAY)
         assert result is None
 
-    def test_default_model_matches_via_dot_hyphen_normalization(
-        self, tmp_path: Path
-    ) -> None:
+    def test_default_model_matches_via_dot_hyphen_normalization(self, tmp_path: Path) -> None:
         """default_model comparison normalizes dots and hyphens, matching
         check_model_pins.py's _normalize_id. DEFAULT_MODEL is
         "claude-sonnet-4-6"; recording it with a dot before the final
@@ -338,11 +326,12 @@ class TestResolveManifestModel:
         assert result == "claude-opus-4-6"
 
     def test_custom_default_model_parameter_is_honored(self, tmp_path: Path) -> None:
-        manifest = {
-            _UNIT: _keep_pin_entry(tmp_path, default_model="claude-haiku-4-5")
-        }
+        manifest = {_UNIT: _keep_pin_entry(tmp_path, default_model="claude-haiku-4-5")}
         result = resolve_manifest_model(
-            manifest, _UNIT, tmp_path, today=_TODAY,
+            manifest,
+            _UNIT,
+            tmp_path,
+            today=_TODAY,
             default_model="claude-haiku-4-5",
         )
         assert result == "claude-opus-4-6"
@@ -400,9 +389,7 @@ class TestFormatModelIdForPlatform:
     def test_date_stamped_id_fails_closed(self) -> None:
         """Outside the documented major.minor shape: emit no pin rather
         than guess (ADR-080 rule 5)."""
-        result = format_model_id_for_platform(
-            "claude-opus-4-20250514", self._COPILOT_TIERS
-        )
+        result = format_model_id_for_platform("claude-opus-4-20250514", self._COPILOT_TIERS)
         assert result is None
 
     def test_unknown_tier_fails_closed(self) -> None:
@@ -410,18 +397,14 @@ class TestFormatModelIdForPlatform:
         assert result is None
 
     def test_tier_missing_from_platform_tiers_fails_closed(self) -> None:
-        result = format_model_id_for_platform(
-            "claude-opus-4-6", {"sonnet": "claude-sonnet-4.6"}
-        )
+        result = format_model_id_for_platform("claude-opus-4-6", {"sonnet": "claude-sonnet-4.6"})
         assert result is None
 
     def test_unrecognized_template_shape_fails_closed(self) -> None:
         """The platform's own default spelling doesn't match either known
         shape (a hypothetical third platform format): fail closed rather
         than guess at a format nobody has verified."""
-        result = format_model_id_for_platform(
-            "claude-opus-4-6", {"opus": "gpt-5-opus"}
-        )
+        result = format_model_id_for_platform("claude-opus-4-6", {"opus": "gpt-5-opus"})
         assert result is None
 
     def test_non_string_template_fails_closed(self) -> None:
@@ -437,7 +420,5 @@ class TestFormatModelIdForPlatform:
         assert result is None
 
     def test_mismatched_tier_template_fails_closed_dot_form(self) -> None:
-        result = format_model_id_for_platform(
-            "claude-opus-4-6", {"opus": "claude-sonnet-4.6"}
-        )
+        result = format_model_id_for_platform("claude-opus-4-6", {"opus": "claude-sonnet-4.6"})
         assert result is None

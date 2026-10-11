@@ -14,8 +14,7 @@ import pytest
 # Import the script via importlib (not a package)
 # ---------------------------------------------------------------------------
 _SCRIPTS_DIR = (
-    Path(__file__).resolve().parents[1]
-    / ".claude" / "skills" / "github" / "scripts" / "pr"
+    Path(__file__).resolve().parents[1] / ".claude" / "skills" / "github" / "scripts" / "pr"
 )
 
 
@@ -46,8 +45,12 @@ _is_bot_author = _mod._is_bot_author
 
 
 def _make_thread(
-    thread_id: str, path: str, line: int, author: str,
-    *, is_outdated: bool = False,
+    thread_id: str,
+    path: str,
+    line: int,
+    author: str,
+    *,
+    is_outdated: bool = False,
 ) -> dict[str, object]:
     return {
         "id": thread_id,
@@ -63,7 +66,10 @@ def _make_thread(
 
 
 def _make_file_entry(
-    filename: str, status: str = "modified", *, previous_filename: str = "",
+    filename: str,
+    status: str = "modified",
+    *,
+    previous_filename: str = "",
 ) -> dict[str, str]:
     entry: dict[str, str] = {"filename": filename, "status": status}
     if previous_filename:
@@ -91,9 +97,16 @@ class TestBuildParser:
         assert args.repo == ""
 
     def test_all_args(self):
-        args = build_parser().parse_args([
-            "--owner", "myorg", "--repo", "myrepo", "--pull-request", "99",
-        ])
+        args = build_parser().parse_args(
+            [
+                "--owner",
+                "myorg",
+                "--repo",
+                "myrepo",
+                "--pull-request",
+                "99",
+            ]
+        )
         assert args.owner == "myorg"
         assert args.repo == "myrepo"
         assert args.pull_request == 99
@@ -110,12 +123,15 @@ class TestAllActive:
             _make_thread("PRRT_1", "src/main.py", 10, "gemini-code-assist[bot]"),
             _make_thread("PRRT_2", "src/utils.py", 20, "copilot[bot]"),
         ]
-        with patch(
-            "detect_stale_pr_comments.fetch_review_threads",
-            return_value=threads,
-        ), patch(
-            "detect_stale_pr_comments.fetch_pr_files",
-            return_value={"src/main.py", "src/utils.py"},
+        with (
+            patch(
+                "detect_stale_pr_comments.fetch_review_threads",
+                return_value=threads,
+            ),
+            patch(
+                "detect_stale_pr_comments.fetch_pr_files",
+                return_value={"src/main.py", "src/utils.py"},
+            ),
         ):
             result = detect_stale_comments("o", "r", 1)
 
@@ -138,12 +154,15 @@ class TestAllStale:
             _make_thread("PRRT_2", "old/removed.py", 15, "copilot[bot]"),
         ]
 
-        with patch(
-            "detect_stale_pr_comments.fetch_review_threads",
-            return_value=threads,
-        ), patch(
-            "detect_stale_pr_comments.fetch_pr_files",
-            return_value={"src/new_file.py"},
+        with (
+            patch(
+                "detect_stale_pr_comments.fetch_review_threads",
+                return_value=threads,
+            ),
+            patch(
+                "detect_stale_pr_comments.fetch_pr_files",
+                return_value={"src/new_file.py"},
+            ),
         ):
             result = detect_stale_comments("o", "r", 1)
 
@@ -166,12 +185,15 @@ class TestMixed:
             _make_thread("PRRT_3", "src/keep.py", 25, "copilot[bot]"),
         ]
 
-        with patch(
-            "detect_stale_pr_comments.fetch_review_threads",
-            return_value=threads,
-        ), patch(
-            "detect_stale_pr_comments.fetch_pr_files",
-            return_value={"src/keep.py"},
+        with (
+            patch(
+                "detect_stale_pr_comments.fetch_review_threads",
+                return_value=threads,
+            ),
+            patch(
+                "detect_stale_pr_comments.fetch_pr_files",
+                return_value={"src/keep.py"},
+            ),
         ):
             result = detect_stale_comments("o", "r", 1)
 
@@ -190,12 +212,15 @@ class TestMixed:
 
 class TestNoComments:
     def test_pr_with_no_review_comments(self):
-        with patch(
-            "detect_stale_pr_comments.fetch_review_threads",
-            return_value=[],
-        ), patch(
-            "detect_stale_pr_comments.fetch_pr_files",
-            return_value={"src/main.py"},
+        with (
+            patch(
+                "detect_stale_pr_comments.fetch_review_threads",
+                return_value=[],
+            ),
+            patch(
+                "detect_stale_pr_comments.fetch_pr_files",
+                return_value={"src/main.py"},
+            ),
         ):
             result = detect_stale_comments("o", "r", 1)
 
@@ -240,13 +265,17 @@ class TestPrNotFound:
 
 class TestApiFailure:
     def test_graphql_failure_exits_3(self):
-        with patch(
-            "detect_stale_pr_comments.assert_gh_authenticated",
-        ), patch(
-            "detect_stale_pr_comments.resolve_repo_params",
-        ) as mock_resolve, patch(
-            "detect_stale_pr_comments.fetch_review_threads",
-            side_effect=RuntimeError("GraphQL transport error"),
+        with (
+            patch(
+                "detect_stale_pr_comments.assert_gh_authenticated",
+            ),
+            patch(
+                "detect_stale_pr_comments.resolve_repo_params",
+            ) as mock_resolve,
+            patch(
+                "detect_stale_pr_comments.fetch_review_threads",
+                side_effect=RuntimeError("GraphQL transport error"),
+            ),
         ):
             mock_resolve.return_value = type("R", (), {"owner": "o", "repo": "r"})()
             with pytest.raises(SystemExit) as exc:
@@ -254,16 +283,21 @@ class TestApiFailure:
             assert exc.value.code == 3
 
     def test_files_api_failure_exits_3(self):
-        with patch(
-            "detect_stale_pr_comments.assert_gh_authenticated",
-        ), patch(
-            "detect_stale_pr_comments.resolve_repo_params",
-        ) as mock_resolve, patch(
-            "detect_stale_pr_comments.fetch_review_threads",
-            return_value=[],
-        ), patch(
-            "detect_stale_pr_comments.fetch_pr_files",
-            side_effect=RuntimeError("REST API error"),
+        with (
+            patch(
+                "detect_stale_pr_comments.assert_gh_authenticated",
+            ),
+            patch(
+                "detect_stale_pr_comments.resolve_repo_params",
+            ) as mock_resolve,
+            patch(
+                "detect_stale_pr_comments.fetch_review_threads",
+                return_value=[],
+            ),
+            patch(
+                "detect_stale_pr_comments.fetch_pr_files",
+                side_effect=RuntimeError("REST API error"),
+            ),
         ):
             mock_resolve.return_value = type("R", (), {"owner": "o", "repo": "r"})()
             with pytest.raises(SystemExit) as exc:
@@ -282,16 +316,21 @@ class TestMainSuccess:
             _make_thread("PRRT_1", "src/main.py", 10, "bot[bot]"),
         ]
 
-        with patch(
-            "detect_stale_pr_comments.assert_gh_authenticated",
-        ), patch(
-            "detect_stale_pr_comments.resolve_repo_params",
-        ) as mock_resolve, patch(
-            "detect_stale_pr_comments.fetch_review_threads",
-            return_value=threads,
-        ), patch(
-            "detect_stale_pr_comments.fetch_pr_files",
-            return_value={"src/main.py"},
+        with (
+            patch(
+                "detect_stale_pr_comments.assert_gh_authenticated",
+            ),
+            patch(
+                "detect_stale_pr_comments.resolve_repo_params",
+            ) as mock_resolve,
+            patch(
+                "detect_stale_pr_comments.fetch_review_threads",
+                return_value=threads,
+            ),
+            patch(
+                "detect_stale_pr_comments.fetch_pr_files",
+                return_value={"src/main.py"},
+            ),
         ):
             mock_resolve.return_value = type("R", (), {"owner": "o", "repo": "r"})()
             rc = main(["--pull-request", "42"])
@@ -318,12 +357,15 @@ class TestEdgeCases:
             "line": 1,
             "comments": {"nodes": [{"author": None}]},
         }
-        with patch(
-            "detect_stale_pr_comments.fetch_review_threads",
-            return_value=[thread],
-        ), patch(
-            "detect_stale_pr_comments.fetch_pr_files",
-            return_value=set(),
+        with (
+            patch(
+                "detect_stale_pr_comments.fetch_review_threads",
+                return_value=[thread],
+            ),
+            patch(
+                "detect_stale_pr_comments.fetch_pr_files",
+                return_value=set(),
+            ),
         ):
             result = detect_stale_comments("o", "r", 1)
 
@@ -337,12 +379,15 @@ class TestEdgeCases:
             "line": 5,
             "comments": {"nodes": []},
         }
-        with patch(
-            "detect_stale_pr_comments.fetch_review_threads",
-            return_value=[thread],
-        ), patch(
-            "detect_stale_pr_comments.fetch_pr_files",
-            return_value={"src/ok.py"},
+        with (
+            patch(
+                "detect_stale_pr_comments.fetch_review_threads",
+                return_value=[thread],
+            ),
+            patch(
+                "detect_stale_pr_comments.fetch_pr_files",
+                return_value={"src/ok.py"},
+            ),
         ):
             result = detect_stale_comments("o", "r", 1)
 
@@ -356,12 +401,15 @@ class TestEdgeCases:
             "line": None,
             "comments": {"nodes": [{"author": {"login": "bot"}}]},
         }
-        with patch(
-            "detect_stale_pr_comments.fetch_review_threads",
-            return_value=[thread],
-        ), patch(
-            "detect_stale_pr_comments.fetch_pr_files",
-            return_value={"src/a.py"},
+        with (
+            patch(
+                "detect_stale_pr_comments.fetch_review_threads",
+                return_value=[thread],
+            ),
+            patch(
+                "detect_stale_pr_comments.fetch_pr_files",
+                return_value={"src/a.py"},
+            ),
         ):
             result = detect_stale_comments("o", "r", 1)
 
@@ -445,12 +493,15 @@ class TestBotOnlyFiltering:
             _make_thread("PRRT_1", "old/gone.py", 10, "gemini-code-assist[bot]"),
             _make_thread("PRRT_2", "old/gone.py", 20, "rjmurillo"),
         ]
-        with patch(
-            "detect_stale_pr_comments.fetch_review_threads",
-            return_value=threads,
-        ), patch(
-            "detect_stale_pr_comments.fetch_pr_files",
-            return_value=set(),
+        with (
+            patch(
+                "detect_stale_pr_comments.fetch_review_threads",
+                return_value=threads,
+            ),
+            patch(
+                "detect_stale_pr_comments.fetch_pr_files",
+                return_value=set(),
+            ),
         ):
             result = detect_stale_comments("o", "r", 1, bot_only=True)
 
@@ -468,12 +519,15 @@ class TestBotOnlyFiltering:
             _make_thread("PRRT_1", "old/gone.py", 10, "gemini-code-assist[bot]"),
             _make_thread("PRRT_2", "old/gone.py", 20, "rjmurillo"),
         ]
-        with patch(
-            "detect_stale_pr_comments.fetch_review_threads",
-            return_value=threads,
-        ), patch(
-            "detect_stale_pr_comments.fetch_pr_files",
-            return_value=set(),
+        with (
+            patch(
+                "detect_stale_pr_comments.fetch_review_threads",
+                return_value=threads,
+            ),
+            patch(
+                "detect_stale_pr_comments.fetch_pr_files",
+                return_value=set(),
+            ),
         ):
             result = detect_stale_comments("o", "r", 1, bot_only=False)
 
@@ -490,12 +544,15 @@ class TestIsOutdated:
         threads = [
             _make_thread("PRRT_1", "src/main.py", 10, "copilot[bot]", is_outdated=True),
         ]
-        with patch(
-            "detect_stale_pr_comments.fetch_review_threads",
-            return_value=threads,
-        ), patch(
-            "detect_stale_pr_comments.fetch_pr_files",
-            return_value={"src/main.py"},
+        with (
+            patch(
+                "detect_stale_pr_comments.fetch_review_threads",
+                return_value=threads,
+            ),
+            patch(
+                "detect_stale_pr_comments.fetch_pr_files",
+                return_value={"src/main.py"},
+            ),
         ):
             result = detect_stale_comments("o", "r", 1)
 
@@ -510,12 +567,15 @@ class TestIsOutdated:
         threads = [
             _make_thread("PRRT_1", "old/gone.py", 5, "copilot[bot]", is_outdated=True),
         ]
-        with patch(
-            "detect_stale_pr_comments.fetch_review_threads",
-            return_value=threads,
-        ), patch(
-            "detect_stale_pr_comments.fetch_pr_files",
-            return_value=set(),
+        with (
+            patch(
+                "detect_stale_pr_comments.fetch_review_threads",
+                return_value=threads,
+            ),
+            patch(
+                "detect_stale_pr_comments.fetch_pr_files",
+                return_value=set(),
+            ),
         ):
             result = detect_stale_comments("o", "r", 1)
 
@@ -529,12 +589,15 @@ class TestIsOutdated:
         threads = [
             _make_thread("PRRT_1", "src/main.py", 10, "copilot[bot]", is_outdated=False),
         ]
-        with patch(
-            "detect_stale_pr_comments.fetch_review_threads",
-            return_value=threads,
-        ), patch(
-            "detect_stale_pr_comments.fetch_pr_files",
-            return_value={"src/main.py"},
+        with (
+            patch(
+                "detect_stale_pr_comments.fetch_review_threads",
+                return_value=threads,
+            ),
+            patch(
+                "detect_stale_pr_comments.fetch_pr_files",
+                return_value={"src/main.py"},
+            ),
         ):
             result = detect_stale_comments("o", "r", 1)
 

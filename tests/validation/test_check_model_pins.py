@@ -862,9 +862,7 @@ class TestSubagentModelDetection:
         )
         report = _run(tmp_path, {}, [])
         assert report.violations, "subagent_model pin must be flagged"
-        assert any(
-            "subagent_model" in v for v in report.violations
-        )
+        assert any("subagent_model" in v for v in report.violations)
 
     def test_subagent_model_bare_alias_is_detected(self, tmp_path: Path) -> None:
         """Edge: a bare alias under subagent_model is still seen as a pin.
@@ -947,14 +945,11 @@ class TestSubagentModelDetection:
         assert report.violations, "mapping-valued subagent_model pin must be flagged"
         assert any(expected_path in violation for violation in report.violations)
         assert any(
-            "unsupported model-bearing key value(s)" in violation
-            for violation in report.violations
+            "unsupported model-bearing key value(s)" in violation for violation in report.violations
         )
         assert all("nested below the top level" not in violation for violation in report.violations)
 
-    def test_model_bearing_alias_is_detected_after_non_model_alias(
-        self, tmp_path: Path
-    ) -> None:
+    def test_model_bearing_alias_is_detected_after_non_model_alias(self, tmp_path: Path) -> None:
         """Regression: generic traversal order must not suppress model context."""
         _skill(
             tmp_path,
@@ -968,7 +963,4 @@ class TestSubagentModelDetection:
 
         report = _run(tmp_path, {}, [])
 
-        assert any(
-            "metadata.subagent_model.id" in violation
-            for violation in report.violations
-        )
+        assert any("metadata.subagent_model.id" in violation for violation in report.violations)

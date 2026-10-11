@@ -28,10 +28,22 @@ def test_the_trend_table_lists_history_then_this_run(tmp_path: Path) -> None:
     report = write_junit(tmp_path, "p", {"tests.test_alpha": [1.0, 1.0]}, 2.0)
     summary = tmp_path / "summary.md"
 
-    trend.main([str(report), "--history", str(write_history(tmp_path, [3.0] * 12)),
-                "--summary", str(summary), "--sha", "current99"])
+    trend.main(
+        [
+            str(report),
+            "--history",
+            str(write_history(tmp_path, [3.0] * 12)),
+            "--summary",
+            str(summary),
+            "--sha",
+            "current99",
+        ]
+    )
 
-    rows = [r for r in summary.read_text(encoding="utf-8").splitlines()
-            if r.startswith("| `sha") or r.startswith("| `current")]
+    rows = [
+        r
+        for r in summary.read_text(encoding="utf-8").splitlines()
+        if r.startswith("| `sha") or r.startswith("| `current")
+    ]
     assert len(rows) == 10
     assert rows[0].startswith("| `sha3`") and rows[-1].startswith("| `current99`")

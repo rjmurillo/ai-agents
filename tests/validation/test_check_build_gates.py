@@ -107,9 +107,7 @@ def test_complete_build_md_passes(fake_repo: Path) -> None:
 
 def test_single_quoted_skill_invocations_pass(fake_repo: Path) -> None:
     """The regex tolerates single-quoted skill names."""
-    content = _VALID_BUILD_MD.replace('skill="', "skill='").replace(
-        '")', "')"
-    )
+    content = _VALID_BUILD_MD.replace('skill="', "skill='").replace('")', "')")
     _write_build_md(fake_repo, content)
     violations = cbg.collect_violations(fake_repo)
     assert violations == []
@@ -142,9 +140,7 @@ def test_real_repo_build_md_passes() -> None:
 
 def test_missing_section_heading_flagged(fake_repo: Path) -> None:
     """Removing the 'Mandatory Exit Gates' heading is a violation."""
-    bad = _VALID_BUILD_MD.replace(
-        "## Mandatory Exit Gates", "## Optional Exit Gates"
-    )
+    bad = _VALID_BUILD_MD.replace("## Mandatory Exit Gates", "## Optional Exit Gates")
     _write_build_md(fake_repo, bad)
     violations = cbg.collect_violations(fake_repo)
     assert any(v.kind == "section" for v in violations)
@@ -155,7 +151,7 @@ def test_missing_code_qualities_assessment_flagged(fake_repo: Path) -> None:
     bad = _VALID_BUILD_MD.replace(
         (
             'Skill(skill="code-qualities-assessment") with '
-            '`--changed-only --base origin/main --gate-mode regression`.'
+            "`--changed-only --base origin/main --gate-mode regression`."
         ),
         "(skipped).",
     )
@@ -168,9 +164,9 @@ def test_missing_code_qualities_assessment_flagged(fake_repo: Path) -> None:
 @pytest.mark.parametrize(
     "bad_invocation",
     [
-        '--changed-only --gate-mode regression',
-        '--changed-only --base origin/main',
-        '--base origin/main --gate-mode regression',
+        "--changed-only --gate-mode regression",
+        "--changed-only --base origin/main",
+        "--base origin/main --gate-mode regression",
     ],
 )
 def test_incomplete_code_quality_regression_args_flagged(
@@ -225,10 +221,7 @@ def test_duplicate_code_quality_options_are_flagged(
 ) -> None:
     bad = _VALID_BUILD_MD.replace(
         "--changed-only --base origin/main --gate-mode regression",
-        (
-            "--changed-only --base origin/main --gate-mode regression "
-            f"{duplicate}"
-        ),
+        (f"--changed-only --base origin/main --gate-mode regression {duplicate}"),
     )
     _write_build_md(fake_repo, bad)
 
@@ -271,7 +264,7 @@ def test_skill_mention_in_prose_does_not_satisfy(fake_repo: Path) -> None:
     bad = _VALID_BUILD_MD.replace(
         (
             'Skill(skill="code-qualities-assessment") with '
-            '`--changed-only --base origin/main --gate-mode regression`.'
+            "`--changed-only --base origin/main --gate-mode regression`."
         ),
         "We previously ran code-qualities-assessment manually.",
     )

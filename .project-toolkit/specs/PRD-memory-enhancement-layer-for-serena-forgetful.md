@@ -345,17 +345,21 @@ from pathlib import Path
 from typing import Optional
 import frontmatter  # pip install python-frontmatter
 
+
 class LinkType(Enum):
     """Typed relationship between memories."""
-    RELATED = "related"          # Bidirectional discovery
-    SUPERSEDES = "supersedes"    # Deprecation chain
-    BLOCKS = "blocks"            # Dependency ordering
-    IMPLEMENTS = "implements"    # ADR traceability
-    EXTENDS = "extends"          # Inheritance chain
+
+    RELATED = "related"  # Bidirectional discovery
+    SUPERSEDES = "supersedes"  # Deprecation chain
+    BLOCKS = "blocks"  # Dependency ordering
+    IMPLEMENTS = "implements"  # ADR traceability
+    EXTENDS = "extends"  # Inheritance chain
+
 
 @dataclass
 class Citation:
     """Reference to a specific code location."""
+
     path: str
     line: Optional[int] = None
     snippet: Optional[str] = None
@@ -363,15 +367,19 @@ class Citation:
     valid: Optional[bool] = None
     mismatch_reason: Optional[str] = None
 
+
 @dataclass
 class Link:
     """Typed edge in the memory graph."""
+
     link_type: LinkType
     target_id: str
+
 
 @dataclass
 class Memory:
     """Parsed Serena memory with citations and typed links."""
+
     id: str
     subject: str
     path: Path
@@ -397,7 +405,7 @@ class Memory:
                 path=c.get("path", ""),
                 line=c.get("line"),
                 snippet=c.get("snippet"),
-                verified=cls._parse_date(c.get("verified"))
+                verified=cls._parse_date(c.get("verified")),
             )
             for c in post.metadata.get("citations", [])
         ]
@@ -429,7 +437,7 @@ class Memory:
             links=links,
             tags=tags,
             confidence=confidence,
-            last_verified=last_verified
+            last_verified=last_verified,
         )
 
     def get_links_by_type(self, link_type: LinkType) -> list[str]:
@@ -456,6 +464,7 @@ from pathlib import Path
 from dataclasses import dataclass
 from .models import Memory, Citation
 
+
 @dataclass
 class VerificationResult:
     memory_id: str
@@ -464,6 +473,7 @@ class VerificationResult:
     valid_count: int
     stale_citations: list[Citation]
     confidence: float
+
 
 def verify_citation(citation: Citation, repo_root: Path) -> Citation:
     """
@@ -503,7 +513,9 @@ def verify_citation(citation: Citation, repo_root: Path) -> Citation:
     # Fuzzy match: snippet should be contained in line
     if citation.snippet and citation.snippet not in actual_line:
         citation.valid = False
-        citation.mismatch_reason = f"Snippet mismatch. Expected '{citation.snippet}', got '{actual_line.strip()}'"
+        citation.mismatch_reason = (
+            f"Snippet mismatch. Expected '{citation.snippet}', got '{actual_line.strip()}'"
+        )
         return citation
 
     citation.valid = True
@@ -536,7 +548,7 @@ def verify_memory(memory: Memory, repo_root: Path = None) -> VerificationResult:
         total_citations=len(memory.citations),
         valid_count=valid_count,
         stale_citations=stale,
-        confidence=confidence
+        confidence=confidence,
     )
 
 
@@ -565,16 +577,20 @@ from collections import deque
 from dataclasses import dataclass, field
 from .models import Memory, Link, LinkType
 
+
 @dataclass
 class GraphEdge:
     """Edge in the memory graph with type information."""
+
     source_id: str
     target_id: str
     link_type: LinkType
 
+
 @dataclass
 class GraphResult:
     """Result of graph traversal with typed edges."""
+
     nodes: dict[str, list[Link]]  # node -> outgoing typed links
     edges: list[GraphEdge] = field(default_factory=list)
     visited_count: int = 0
@@ -582,10 +598,7 @@ class GraphResult:
 
 
 def traverse_graph(
-    root_id: str,
-    memories_dir: Path,
-    max_depth: int = 3,
-    link_types: list[LinkType] | None = None
+    root_id: str, memories_dir: Path, max_depth: int = 3, link_types: list[LinkType] | None = None
 ) -> GraphResult:
     """
     BFS traversal of memory graph with typed link filtering.
@@ -632,19 +645,14 @@ def traverse_graph(
         graph[current_id] = filtered_links
 
         for link in filtered_links:
-            edges.append(GraphEdge(
-                source_id=current_id,
-                target_id=link.target_id,
-                link_type=link.link_type
-            ))
+            edges.append(
+                GraphEdge(source_id=current_id, target_id=link.target_id, link_type=link.link_type)
+            )
             if link.target_id not in visited:
                 queue.append((link.target_id, depth + 1))
 
     return GraphResult(
-        nodes=graph,
-        edges=edges,
-        visited_count=len(visited),
-        max_depth_reached=max_depth_reached
+        nodes=graph, edges=edges, visited_count=len(visited), max_depth_reached=max_depth_reached
     )
 
 
@@ -662,23 +670,13 @@ def _find_memory_by_id(memory_id: str, memories_dir: Path) -> Path | None:
 
 def find_superseded_chain(memory_id: str, memories_dir: Path) -> list[str]:
     """Find the deprecation chain via 'supersedes' links."""
-    result = traverse_graph(
-        memory_id,
-        memories_dir,
-        max_depth=10,
-        link_types=[LinkType.SUPERSEDES]
-    )
+    result = traverse_graph(memory_id, memories_dir, max_depth=10, link_types=[LinkType.SUPERSEDES])
     return [e.target_id for e in result.edges]
 
 
 def find_blocking_dependencies(memory_id: str, memories_dir: Path) -> list[str]:
     """Find memories that must be resolved before this one."""
-    result = traverse_graph(
-        memory_id,
-        memories_dir,
-        max_depth=5,
-        link_types=[LinkType.BLOCKS]
-    )
+    result = traverse_graph(memory_id, memories_dir, max_depth=5, link_types=[LinkType.BLOCKS])
     return [e.target_id for e in result.edges]
 
 
@@ -726,6 +724,7 @@ Integration with Serena MCP for memory operations.
 This module provides helpers to work with Serena memories
 while the enhancement layer adds citation/graph capabilities.
 """
+
 from pathlib import Path
 from typing import Optional
 from .models import Memory, Citation
@@ -739,7 +738,7 @@ def search_with_verification(
     query: str,
     memories_dir: Path = SERENA_MEMORIES_DIR,
     verify: bool = False,
-    min_confidence: float = 0.0
+    min_confidence: float = 0.0,
 ) -> list[tuple[Memory, Optional[VerificationResult]]]:
     """
     Search memories with optional citation verification.
@@ -770,10 +769,7 @@ def search_with_verification(
 
 
 def add_citation_to_memory(
-    memory_path: Path,
-    file_path: str,
-    line: Optional[int] = None,
-    snippet: Optional[str] = None
+    memory_path: Path, file_path: str, line: Optional[int] = None, snippet: Optional[str] = None
 ) -> None:
     """
     Add a citation to an existing Serena memory.
@@ -811,6 +807,7 @@ def add_citation_to_memory(
 ```python
 # src/memory_enhancement/__main__.py
 """CLI for memory enhancement tools."""
+
 import argparse
 import json
 from pathlib import Path
@@ -818,6 +815,7 @@ from .citations import verify_memory, verify_all_memories
 from .graph import traverse_graph, find_related_memories
 from .health import generate_health_report
 from .models import Memory
+
 
 def main():
     parser = argparse.ArgumentParser(description="Memory Enhancement Tools")
@@ -858,15 +856,20 @@ def main():
         result = verify_memory(memory)
 
         if args.json:
-            print(json.dumps({
-                "memory_id": result.memory_id,
-                "valid": result.valid,
-                "confidence": result.confidence,
-                "stale_citations": [
-                    {"path": c.path, "line": c.line, "reason": c.mismatch_reason}
-                    for c in result.stale_citations
-                ]
-            }, indent=2))
+            print(
+                json.dumps(
+                    {
+                        "memory_id": result.memory_id,
+                        "valid": result.valid,
+                        "confidence": result.confidence,
+                        "stale_citations": [
+                            {"path": c.path, "line": c.line, "reason": c.mismatch_reason}
+                            for c in result.stale_citations
+                        ],
+                    },
+                    indent=2,
+                )
+            )
         else:
             status = "✅ VALID" if result.valid else "❌ STALE"
             print(f"{status} - {result.memory_id} (confidence: {result.confidence:.0%})")
@@ -876,11 +879,15 @@ def main():
     elif args.command == "verify-all":
         results = verify_all_memories(Path(args.dir))
         if args.json:
-            print(json.dumps([{
-                "memory_id": r.memory_id,
-                "valid": r.valid,
-                "confidence": r.confidence
-            } for r in results], indent=2))
+            print(
+                json.dumps(
+                    [
+                        {"memory_id": r.memory_id, "valid": r.valid, "confidence": r.confidence}
+                        for r in results
+                    ],
+                    indent=2,
+                )
+            )
         else:
             valid = sum(1 for r in results if r.valid)
             print(f"Verified {len(results)} memories: {valid} valid, {len(results) - valid} stale")
@@ -910,6 +917,7 @@ def main():
         else:
             print(report)
 
+
 if __name__ == "__main__":
     main()
 ```
@@ -928,6 +936,7 @@ citation verification as a post-search filter:
 from memory_enhancement.citations import verify_memory
 from memory_enhancement.models import Memory
 
+
 def search_with_verification(serena_results: list, min_confidence: float = 0.5):
     """
     Filter Serena/Forgetful search results by citation validity.
@@ -937,7 +946,7 @@ def search_with_verification(serena_results: list, min_confidence: float = 0.5):
     verified_results = []
 
     for result in serena_results:
-        memory = Memory.from_serena_file(Path(result['Path']))
+        memory = Memory.from_serena_file(Path(result["Path"]))
 
         if not memory.citations:
             # No citations = trust existing result
@@ -946,8 +955,8 @@ def search_with_verification(serena_results: list, min_confidence: float = 0.5):
 
         verification = verify_memory(memory)
         if verification.confidence >= min_confidence:
-            result['confidence'] = verification.confidence
-            result['citations_valid'] = verification.valid
+            result["confidence"] = verification.confidence
+            result["citations_valid"] = verification.valid
             verified_results.append(result)
 
     return verified_results
@@ -1077,6 +1086,7 @@ SERENA_MEMORY_TOOLS = [
     "edit_memory",
 ]
 
+
 def detect_serena_config(repo_root: Path = None) -> dict | None:
     """Detect Serena project configuration."""
     repo_root = repo_root or Path.cwd()
@@ -1088,10 +1098,12 @@ def detect_serena_config(repo_root: Path = None) -> dict | None:
     with open(config_path) as f:
         return yaml.safe_load(f)
 
+
 def get_active_memory_tools(config: dict) -> list[str]:
     """Return Serena memory tools NOT in excluded_tools."""
     excluded = set(config.get("excluded_tools", []))
     return [t for t in SERENA_MEMORY_TOOLS if t not in excluded]
+
 
 def suggest_config_update(config: dict) -> str:
     """Generate suggested project.yml update."""
@@ -1107,7 +1119,7 @@ def suggest_config_update(config: dict) -> str:
 # This prevents conflict between Serena native memory and the enhancement plugin
 
 excluded_tools:
-{chr(10).join(f'  - {tool}' for tool in new_excluded)}
+{chr(10).join(f"  - {tool}" for tool in new_excluded)}
 
 # The enhancement plugin provides these capabilities instead:
 #   write_memory  -> python -m memory_enhancement add (with citations)

@@ -275,9 +275,7 @@ def _load_one_row(
     # both keys explicitly, null or a path.
     for _field in ("plugin_tree", "install_tree"):
         if _field not in entry:
-            raise BinplaceConfigError(
-                f"{manifest_path}: row {class_name!r} is missing `{_field}`"
-            )
+            raise BinplaceConfigError(f"{manifest_path}: row {class_name!r} is missing `{_field}`")
 
     plugin_tree_raw = entry["plugin_tree"]
     plugin_tree: Path | None = None

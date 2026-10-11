@@ -30,9 +30,7 @@ def _load():
 
 def test_output_format_flag_parses():
     module = _load()
-    args = module.build_parser().parse_args(
-        ["--pull-request", "1", "--output-format", "json"]
-    )
+    args = module.build_parser().parse_args(["--pull-request", "1", "--output-format", "json"])
     assert args.output_format == "json"
 
 
@@ -45,18 +43,14 @@ def test_output_format_defaults_to_auto():
 @pytest.mark.parametrize("value", ["json", "human", "auto"])
 def test_output_format_accepts_each_choice(value):
     module = _load()
-    args = module.build_parser().parse_args(
-        ["--pull-request", "1", "--output-format", value]
-    )
+    args = module.build_parser().parse_args(["--pull-request", "1", "--output-format", value])
     assert args.output_format == value
 
 
 def test_output_format_rejects_unknown_choice():
     module = _load()
     with pytest.raises(SystemExit):
-        module.build_parser().parse_args(
-            ["--pull-request", "1", "--output-format", "xml"]
-        )
+        module.build_parser().parse_args(["--pull-request", "1", "--output-format", "xml"])
 
 
 if __name__ == "__main__":

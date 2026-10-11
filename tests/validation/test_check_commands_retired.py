@@ -30,9 +30,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 
 def _git_repo(tmp_path: Path) -> Path:
     subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
-    subprocess.run(
-        ["git", "config", "user.email", "t@example.invalid"], cwd=tmp_path, check=True
-    )
+    subprocess.run(["git", "config", "user.email", "t@example.invalid"], cwd=tmp_path, check=True)
     subprocess.run(["git", "config", "user.name", "t"], cwd=tmp_path, check=True)
     return tmp_path
 

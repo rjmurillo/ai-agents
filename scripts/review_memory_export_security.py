@@ -27,9 +27,9 @@ import sys
 from pathlib import Path
 from typing import TypedDict
 
-_GENERIC_SECRET_PATTERN = (
-    r"(?<![a-zA-Z0-9~_.-])[a-zA-Z0-9~_.-]{34,}(?![a-zA-Z0-9~_.-])"
-)
+_GENERIC_SECRET_PATTERN = r"(?<![a-zA-Z0-9~_.-])[a-zA-Z0-9~_.-]{34,}(?![a-zA-Z0-9~_.-])"
+
+
 class _Issue(TypedDict):
     category: str
     count: int
@@ -98,9 +98,7 @@ def _scan_pattern(
             0,
         )
     match_lines = [
-        number
-        for number, line in enumerate(lines, 1)
-        if compiled.search(line) is not None
+        number for number, line in enumerate(lines, 1) if compiled.search(line) is not None
     ]
     if not match_lines:
         return None, 0
@@ -151,9 +149,9 @@ def scan_file(export_file: Path, quiet: bool = False) -> int:
         print(f"{'Category':<30} {'Matches':<10} {'Sample Lines'}")
         print("-" * 60)
         for issue in found_issues:
-            cat = issue['category']
-            cnt = issue['count']
-            sample = issue['lines']
+            cat = issue["category"]
+            cnt = issue["count"]
+            sample = issue["lines"]
             print(f"{cat:<30} {cnt:<10} {sample}")
         print()
         print("ACTION REQUIRED:")

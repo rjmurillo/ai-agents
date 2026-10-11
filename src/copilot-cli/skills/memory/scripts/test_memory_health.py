@@ -102,19 +102,23 @@ def test_modules_available(memory_root: Path) -> list[dict[str, Any]]:
     for module in modules:
         path = Path(module["path"])
         if path.is_file():
-            results.append({
-                "name": module["name"],
-                "available": True,
-                "message": "Module file exists",
-                "path": str(path),
-            })
+            results.append(
+                {
+                    "name": module["name"],
+                    "available": True,
+                    "message": "Module file exists",
+                    "path": str(path),
+                }
+            )
         else:
-            results.append({
-                "name": module["name"],
-                "available": False,
-                "message": "Module file not found",
-                "path": str(path),
-            })
+            results.append(
+                {
+                    "name": module["name"],
+                    "available": False,
+                    "message": "Module file not found",
+                    "path": str(path),
+                }
+            )
     return results
 
 
@@ -123,12 +127,16 @@ def build_parser() -> argparse.ArgumentParser:
         description="Health check for all memory system tiers.",
     )
     parser.add_argument(
-        "--format", choices=["json", "table"], default="json",
+        "--format",
+        choices=["json", "table"],
+        default="json",
         dest="output_format",
         help="Output format: json (default) or table",
     )
     parser.add_argument(
-        "--base-path", type=Path, default=None,
+        "--base-path",
+        type=Path,
+        default=None,
         help="Base project path (default: auto-detect from script location)",
     )
     return parser
@@ -213,9 +221,7 @@ def main(argv: list[str] | None = None) -> int:
             )
 
     # Overall status
-    tier_issues = [
-        t for t in health["tiers"].values() if not t["available"]
-    ]
+    tier_issues = [t for t in health["tiers"].values() if not t["available"]]
     if tier_issues:
         critical = [t for t in tier_issues if t["name"] == "Semantic Memory"]
         if critical:

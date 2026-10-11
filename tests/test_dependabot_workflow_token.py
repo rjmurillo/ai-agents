@@ -112,11 +112,7 @@ def test_approve_and_merge_steps_still_use_pat(workflow: dict) -> None:
     ruleset requirements.
     """
     job = workflow["jobs"]["dependabot"]
-    write_steps = [
-        s
-        for s in job["steps"]
-        if s.get("name") in {"Approve PR", "Enable auto-merge"}
-    ]
+    write_steps = [s for s in job["steps"] if s.get("name") in {"Approve PR", "Enable auto-merge"}]
     assert len(write_steps) == 2, "expected Approve PR + Enable auto-merge steps"
     for step in write_steps:
         gh_token = _step_mapping(step, "env").get("GH_TOKEN", "")

@@ -141,8 +141,7 @@ def build_vendored_plugin(target: Path) -> Path:
         dst = target_claude / entry
         copy_vendored_entry(src, dst)
     assert not missing, (
-        f"vendored fixture: required source entries missing under "
-        f"{CLAUDE_DIR}: {missing}"
+        f"vendored fixture: required source entries missing under {CLAUDE_DIR}: {missing}"
     )
 
     if CLAUDE_MD.exists():
@@ -204,8 +203,7 @@ def make_synthetic_diff_repo(repo: Path) -> str:
     _git("update-ref", "refs/remotes/origin/main", "HEAD")
     # Committed change: introduce a subtract helper.
     target.write_text(
-        "def add(a, b):\n    return a + b\n\n\ndef subtract(a, b):\n"
-        "    return a - b\n",
+        "def add(a, b):\n    return a + b\n\n\ndef subtract(a, b):\n    return a - b\n",
         encoding="utf-8",
     )
     _git("add", "widget.py")
@@ -240,12 +238,8 @@ def load_vendored_extract_verdict(plugin_root: Path):
     under a unique module name so the production module is not shadowed. This
     proves the assertion runs against the copied module, not the repo's own.
     """
-    verdict_py = (
-        plugin_root / ".claude" / "lib" / "ai_review_common" / "verdict.py"
-    )
-    spec = importlib.util.spec_from_file_location(
-        "vendored_verdict_e2e", verdict_py
-    )
+    verdict_py = plugin_root / ".claude" / "lib" / "ai_review_common" / "verdict.py"
+    spec = importlib.util.spec_from_file_location("vendored_verdict_e2e", verdict_py)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -371,8 +365,7 @@ def test_review_runs_end_to_end_in_vendored_checkout(tmp_path: Path) -> None:
     )
     parsed = extract_verdict(f"Final verdict: {final_line}")
     assert parsed in {"PASS", "WARN", "CRITICAL_FAIL", "UNKNOWN"}, (
-        f"vendored extract_verdict could not parse merged verdict "
-        f"{final_line!r}; got {parsed!r}"
+        f"vendored extract_verdict could not parse merged verdict {final_line!r}; got {parsed!r}"
     )
 
 
@@ -387,12 +380,8 @@ def test_build_vendored_plugin_produces_loadable_tree(tmp_path: Path) -> None:
     root = build_vendored_plugin(tmp_path / "p")
     assert (root / ".claude" / ".claude-plugin" / "plugin.json").is_file()
     assert (root / ".claude" / "skills" / "review" / "SKILL.md").is_file()
-    assert (
-        root / ".claude" / "lib" / "ai_review_common" / "verdict.py"
-    ).is_file()
-    assert (
-        root / ".claude" / "skills" / "review" / "references"
-    ).is_dir()
+    assert (root / ".claude" / "lib" / "ai_review_common" / "verdict.py").is_file()
+    assert (root / ".claude" / "skills" / "review" / "references").is_dir()
 
 
 def test_build_vendored_plugin_excludes_runtime_caches(
@@ -496,11 +485,7 @@ def test_count_verdict_rows_parses_findings_table() -> None:
 
 def test_count_verdict_rows_ignores_header_and_separator() -> None:
     """The header and the `|---|` separator are not verdict rows."""
-    table = (
-        "| Axis | Verdict |\n"
-        "|------|---------|\n"
-        "| analyst | PASS |\n"
-    )
+    table = "| Axis | Verdict |\n|------|---------|\n| analyst | PASS |\n"
     assert count_verdict_rows(table) == 1
 
 
@@ -508,10 +493,7 @@ def test_extract_final_verdict_line_handles_bold_markup() -> None:
     """The FINAL VERDICT matcher tolerates the `**FINAL VERDICT**:` markup."""
     assert extract_final_verdict_line("**FINAL VERDICT**: PASS") == "PASS"
     assert extract_final_verdict_line("FINAL VERDICT: [WARN]") == "WARN"
-    assert (
-        extract_final_verdict_line("**FINAL VERDICT**: CRITICAL_FAIL (merge)")
-        == "CRITICAL_FAIL"
-    )
+    assert extract_final_verdict_line("**FINAL VERDICT**: CRITICAL_FAIL (merge)") == "CRITICAL_FAIL"
     assert extract_final_verdict_line("no verdict here") is None
 
 

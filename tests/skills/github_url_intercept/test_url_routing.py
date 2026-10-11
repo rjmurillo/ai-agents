@@ -117,24 +117,15 @@ def test_gist_url_routes_to_gist_api(
         "https://gist.github.com/rjmurillo/dead\nbeef",
         "https://gist.github.com/rjmurillo/dead\tbeef",
         "https://[github.com/rjmurillo/deadbeef",
-        "https://gist.github.com/rjmurillo/"
-        "df38029ed77a71c6ac97cb1bc0823d66.js?file=%0A",
-        "https://gist.github.com/rjmurillo/"
-        "df38029ed77a71c6ac97cb1bc0823d66#file-",
-        "https://gist.github.com/rjmurillo/"
-        "df38029ed77a71c6ac97cb1bc0823d66#file-%0A",
-        "https://gist.github.com/rjmurillo/"
-        "df38029ed77a71c6ac97cb1bc0823d66#%66ile-%0A",
-        "https://gist.github.com/rjmurillo/"
-        "df38029ed77a71c6ac97cb1bc0823d66#file-%ZZ",
-        "https://gist.github.com/rjmurillo/"
-        "df38029ed77a71c6ac97cb1bc0823d66#file-auto.issues.fixer",
-        "https://gist.github.com/rjmurillo/"
-        "df38029ed77a71c6ac97cb1bc0823d66#file-auto%2Fissues",
-        "https://gist.github.com/rjmurillo/"
-        "df38029ed77a71c6ac97cb1bc0823d66#file--leading",
-        "https://gist.github.com/rjmurillo/"
-        "df38029ed77a71c6ac97cb1bc0823d66#file-trailing-",
+        "https://gist.github.com/rjmurillo/df38029ed77a71c6ac97cb1bc0823d66.js?file=%0A",
+        "https://gist.github.com/rjmurillo/df38029ed77a71c6ac97cb1bc0823d66#file-",
+        "https://gist.github.com/rjmurillo/df38029ed77a71c6ac97cb1bc0823d66#file-%0A",
+        "https://gist.github.com/rjmurillo/df38029ed77a71c6ac97cb1bc0823d66#%66ile-%0A",
+        "https://gist.github.com/rjmurillo/df38029ed77a71c6ac97cb1bc0823d66#file-%ZZ",
+        "https://gist.github.com/rjmurillo/df38029ed77a71c6ac97cb1bc0823d66#file-auto.issues.fixer",
+        "https://gist.github.com/rjmurillo/df38029ed77a71c6ac97cb1bc0823d66#file-auto%2Fissues",
+        "https://gist.github.com/rjmurillo/df38029ed77a71c6ac97cb1bc0823d66#file--leading",
+        "https://gist.github.com/rjmurillo/df38029ed77a71c6ac97cb1bc0823d66#file-trailing-",
     ],
 )
 @pytest.mark.parametrize("script", SCRIPTS, ids=["canonical", "copilot"])
@@ -150,10 +141,7 @@ def test_cli_rejects_invalid_or_unsafe_gist_url(script: Path, url: str) -> None:
 
 @pytest.mark.parametrize("script", SCRIPTS, ids=["canonical", "copilot"])
 def test_cli_returns_structured_success_for_gist(script: Path) -> None:
-    result = run_cli(
-        script,
-        "https://gist.github.com/rjmurillo/df38029ed77a71c6ac97cb1bc0823d66"
-    )
+    result = run_cli(script, "https://gist.github.com/rjmurillo/df38029ed77a71c6ac97cb1bc0823d66")
 
     assert result.returncode == 0
     output = json.loads(result.stdout)
@@ -185,8 +173,7 @@ def test_cli_returns_structured_success_for_gist(script: Path) -> None:
             "a1b2c3d4e5f678901234567890abcdef12345678/notes.md",
         ),
         (
-            "https://gist.github.com/rjmurillo/"
-            "df38029ed77a71c6ac97cb1bc0823d66/raw/notes.md",
+            "https://gist.github.com/rjmurillo/df38029ed77a71c6ac97cb1bc0823d66/raw/notes.md",
             None,
             None,
             "gh api https://gist.github.com/rjmurillo/"
@@ -225,8 +212,7 @@ def test_gist_route_preserves_revision_and_file_selector(
             None,
         ),
         (
-            "https://gist.github.com/rjmurillo/"
-            "df38029ed77a71c6ac97cb1bc0823d66#file-debug-log-txt",
+            "https://gist.github.com/rjmurillo/df38029ed77a71c6ac97cb1bc0823d66#file-debug-log-txt",
             None,
             "debug-log-txt",
             "debug-log-txt",
@@ -281,8 +267,7 @@ def test_gist_route_preserves_page_file_selector(
 
 def test_normal_gist_query_does_not_hide_sibling_files() -> None:
     parsed = github_url_routing.parse_github_url(
-        "https://gist.github.com/rjmurillo/"
-        "df38029ed77a71c6ac97cb1bc0823d66?file=debug.log"
+        "https://gist.github.com/rjmurillo/df38029ed77a71c6ac97cb1bc0823d66?file=debug.log"
     )
 
     assert parsed is not None
@@ -301,17 +286,14 @@ def test_normal_gist_query_does_not_hide_sibling_files() -> None:
         "https://gist.githubusercontent.com/owner;whoami/"
         "df38029ed77a71c6ac97cb1bc0823d66/raw/file.txt",
         "https://gist.githubusercontent.com/owner/deadbeef/raw/file.txt",
-        "https://gist.githubusercontent.com/owner/"
-        "df38029ed77a71c6ac97cb1bc0823d66/file.txt",
+        "https://gist.githubusercontent.com/owner/df38029ed77a71c6ac97cb1bc0823d66/file.txt",
         "https://gist.github.com/df38029ed77a71c6ac97cb1bc0823d66/raw/file.txt",
         "https://gist.github.com/rjmurillo/"
         "df38029ed77a71c6ac97cb1bc0823d66/raw/benign/../malicious.txt",
         "https://gist.github.com/rjmurillo/"
         "df38029ed77a71c6ac97cb1bc0823d66/raw/%7Bowner%7D/file.txt",
-        "https://gist.github.com/rjmurillo/"
-        "df38029ed77a71c6ac97cb1bc0823d66/raw/file%0Aname.txt",
-        "https://gist.github.com/rjmurillo/"
-        "df38029ed77a71c6ac97cb1bc0823d66/raw/dir%2Ffile.txt",
+        "https://gist.github.com/rjmurillo/df38029ed77a71c6ac97cb1bc0823d66/raw/file%0Aname.txt",
+        "https://gist.github.com/rjmurillo/df38029ed77a71c6ac97cb1bc0823d66/raw/dir%2Ffile.txt",
         "https://gist.github.com/rjmurillo/"
         "df38029ed77a71c6ac97cb1bc0823d66/raw/file.txt?file=other.txt",
         "https://gist.github.com/rjmurillo/"
@@ -320,32 +302,19 @@ def test_normal_gist_query_does_not_hide_sibling_files() -> None:
         "df38029ed77a71c6ac97cb1bc0823d66.js?file=safe.txt&file=evil.txt",
         "https://gist.github.com/rjmurillo/"
         "df38029ed77a71c6ac97cb1bc0823d66.js?file=safe.txt#file-evil-txt",
-        "https://gist.github.com/rjmurillo/"
-        "df38029ed77a71c6ac97cb1bc0823d66#file-",
-        "https://gist.github.com/rjmurillo/"
-        "df38029ed77a71c6ac97cb1bc0823d66#file-evil%0Atxt",
-        "https://gist.github.com/rjmurillo/"
-        "df38029ed77a71c6ac97cb1bc0823d66.js?file=",
-        "https://gist.github.com/rjmurillo/"
-        "df38029ed77a71c6ac97cb1bc0823d66.js?file=%0A",
-        "https://gist.github.com/rjmurillo/"
-        "df38029ed77a71c6ac97cb1bc0823d66#file-%0A",
-        "https://gist.github.com/rjmurillo/"
-        "df38029ed77a71c6ac97cb1bc0823d66#%66ile-%0A",
-        "https://gist.github.com/rjmurillo/"
-        "df38029ed77a71c6ac97cb1bc0823d66#file-%ZZ",
-        "https://gist.github.com/rjmurillo/"
-        "df38029ed77a71c6ac97cb1bc0823d66#file-auto.issues.fixer",
-        "https://gist.github.com/rjmurillo/"
-        "df38029ed77a71c6ac97cb1bc0823d66#file-auto%2Fissues",
-        "https://gist.github.com/rjmurillo/"
-        "df38029ed77a71c6ac97cb1bc0823d66#file--leading",
-        "https://gist.github.com/rjmurillo/"
-        "df38029ed77a71c6ac97cb1bc0823d66#file-trailing-",
-        "https://gist.github.com/rjmurillo/"
-        "df38029ed77a71c6ac97cb1bc0823d66#file-debug-log-txt-L0",
-        "https://gist.github.com/rjmurillo/"
-        "df38029ed77a71c6ac97cb1bc0823d66#file-debug-log-txt-L01",
+        "https://gist.github.com/rjmurillo/df38029ed77a71c6ac97cb1bc0823d66#file-",
+        "https://gist.github.com/rjmurillo/df38029ed77a71c6ac97cb1bc0823d66#file-evil%0Atxt",
+        "https://gist.github.com/rjmurillo/df38029ed77a71c6ac97cb1bc0823d66.js?file=",
+        "https://gist.github.com/rjmurillo/df38029ed77a71c6ac97cb1bc0823d66.js?file=%0A",
+        "https://gist.github.com/rjmurillo/df38029ed77a71c6ac97cb1bc0823d66#file-%0A",
+        "https://gist.github.com/rjmurillo/df38029ed77a71c6ac97cb1bc0823d66#%66ile-%0A",
+        "https://gist.github.com/rjmurillo/df38029ed77a71c6ac97cb1bc0823d66#file-%ZZ",
+        "https://gist.github.com/rjmurillo/df38029ed77a71c6ac97cb1bc0823d66#file-auto.issues.fixer",
+        "https://gist.github.com/rjmurillo/df38029ed77a71c6ac97cb1bc0823d66#file-auto%2Fissues",
+        "https://gist.github.com/rjmurillo/df38029ed77a71c6ac97cb1bc0823d66#file--leading",
+        "https://gist.github.com/rjmurillo/df38029ed77a71c6ac97cb1bc0823d66#file-trailing-",
+        "https://gist.github.com/rjmurillo/df38029ed77a71c6ac97cb1bc0823d66#file-debug-log-txt-L0",
+        "https://gist.github.com/rjmurillo/df38029ed77a71c6ac97cb1bc0823d66#file-debug-log-txt-L01",
         "https://gist.github.com/rjmurillo/"
         "df38029ed77a71c6ac97cb1bc0823d66#file-debug-log-txt-L12-L0",
         "https://gist.github.com/rjmurillo/"
@@ -356,8 +325,7 @@ def test_normal_gist_query_does_not_hide_sibling_files() -> None:
         "df38029ed77a71c6ac97cb1bc0823d66#file-debug-log-txt-L1-L2-L3",
         "https://gist.github.com/rjmurillo/"
         "df38029ed77a71c6ac97cb1bc0823d66#file-debug-log-txt-L%D9%A1",
-        "https://gist.github.com/rjmurillo/"
-        "df38029ed77a71c6ac97cb1bc0823d66/unknown",
+        "https://gist.github.com/rjmurillo/df38029ed77a71c6ac97cb1bc0823d66/unknown",
         "https://gist.github.com/rjmurillo/"
         "df38029ed77a71c6ac97cb1bc0823d66/"
         "a1b2c3d4e5f678901234567890abcdef12345678/extra",
@@ -369,8 +337,7 @@ def test_gist_parser_rejects_incomplete_or_unsupported_urls(url: str) -> None:
 
 def test_raw_http_url_is_normalized_to_https() -> None:
     url = (
-        "http://gist.githubusercontent.com/rjmurillo/"
-        "df38029ed77a71c6ac97cb1bc0823d66/raw/notes.md"
+        "http://gist.githubusercontent.com/rjmurillo/df38029ed77a71c6ac97cb1bc0823d66/raw/notes.md"
     )
     parsed = github_url_routing.parse_github_url(url)
 

@@ -49,9 +49,7 @@ class TestSweepReportContentValidation:
         """The exact case a reviewer flagged: a committed artifact whose
         content carries no evidence at all. is_file() alone accepted this;
         _sweep_report_satisfies_rule2 must not."""
-        manifest = {
-            _UNIT: _keep_pin_entry(tmp_path, artifact_content={})
-        }
+        manifest = {_UNIT: _keep_pin_entry(tmp_path, artifact_content={})}
         result = resolve_manifest_model(manifest, _UNIT, tmp_path, today=_TODAY)
         assert result is None
 
@@ -199,9 +197,7 @@ class TestSweepReportContentValidation:
         result = resolve_manifest_model(manifest, _UNIT, tmp_path, today=_TODAY)
         assert result is None
 
-    def test_artifact_non_positive_ci_lower_bound_returns_none(
-        self, tmp_path: Path
-    ) -> None:
+    def test_artifact_non_positive_ci_lower_bound_returns_none(self, tmp_path: Path) -> None:
         """ADR-080 rule 2: the bootstrap CI lower bound must be > 0. A CI
         that still straddles zero must fail closed even with a qualifying
         point-estimate delta."""
@@ -299,9 +295,7 @@ class TestSweepReportContentValidation:
         result = resolve_manifest_model(manifest, _UNIT, tmp_path, today=_TODAY)
         assert result is None
 
-    def test_artifact_missing_schema_version_returns_none(
-        self, tmp_path: Path
-    ) -> None:
+    def test_artifact_missing_schema_version_returns_none(self, tmp_path: Path) -> None:
         manifest = {
             _UNIT: _keep_pin_entry(
                 tmp_path,
@@ -320,9 +314,7 @@ class TestSweepReportContentValidation:
         result = resolve_manifest_model(manifest, _UNIT, tmp_path, today=_TODAY)
         assert result is None
 
-    def test_artifact_multi_candidate_sweep_returns_none(
-        self, tmp_path: Path
-    ) -> None:
+    def test_artifact_multi_candidate_sweep_returns_none(self, tmp_path: Path) -> None:
         """ADR-080 rule 2 requires "a single-candidate-versus-default sweep
         (so the CI is a plain 95 percent interval, not Bonferroni-widened)"
         (.project-toolkit/architecture/ADR-080-model-pin-justification-policy.md:89-90).
@@ -355,9 +347,7 @@ class TestSweepReportContentValidation:
         result = resolve_manifest_model(manifest, _UNIT, tmp_path, today=_TODAY)
         assert result is None
 
-    def test_artifact_boolean_recall_delta_returns_none(
-        self, tmp_path: Path
-    ) -> None:
+    def test_artifact_boolean_recall_delta_returns_none(self, tmp_path: Path) -> None:
         """bool is an int subclass in Python: an unguarded numeric check
         would accept JSON `true` as a qualifying delta (True >= 0.05 is
         True). Must fail closed instead."""
@@ -405,9 +395,7 @@ class TestSweepReportContentValidation:
         result = resolve_manifest_model(manifest, _UNIT, tmp_path, today=_TODAY)
         assert result is None
 
-    def test_artifact_winner_equals_default_model_returns_none(
-        self, tmp_path: Path
-    ) -> None:
+    def test_artifact_winner_equals_default_model_returns_none(self, tmp_path: Path) -> None:
         """A set-equality check alone lets winner == default_model slip
         through: {a} == {a} is True, so a report claiming nothing actually
         won over the default (or a models list with two duplicate ids)
@@ -417,9 +405,7 @@ class TestSweepReportContentValidation:
         matching default_model= parameter here satisfies the separate
         entry-vs-harness-default comparison so this test isolates the
         distinctness gap specifically."""
-        manifest = {
-            _UNIT: _keep_pin_entry(tmp_path, default_model="claude-opus-4-6")
-        }
+        manifest = {_UNIT: _keep_pin_entry(tmp_path, default_model="claude-opus-4-6")}
         result = resolve_manifest_model(
             manifest, _UNIT, tmp_path, today=_TODAY, default_model="claude-opus-4-6"
         )

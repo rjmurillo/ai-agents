@@ -106,19 +106,26 @@ def regressed(seconds: float, baseline: float, ratio: float, min_delta: float) -
     return seconds - baseline >= min_delta and seconds >= baseline * ratio
 
 
-def _slow_partitions(current: Snapshot, baselines: dict[str, float],
-                     samples: dict[str, int], speeds: dict[str, float]) -> list[Regression]:
+def _slow_partitions(
+    current: Snapshot,
+    baselines: dict[str, float],
+    samples: dict[str, int],
+    speeds: dict[str, float],
+) -> list[Regression]:
     """One regression per partition slower than ``SPEED_CAP``, summed over its modules."""
     found = []
     for partition, speed in speeds.items():
         if speed <= SPEED_CAP:
             continue
         members = [m for m in baselines if current.module_partitions.get(m) == partition]
-        found.append(Regression(
-            f"partition {partition}",
-            sum(current.modules[m]["seconds"] for m in members),
-            sum(baselines[m] for m in members),
-            min(samples[m] for m in members)))
+        found.append(
+            Regression(
+                f"partition {partition}",
+                sum(current.modules[m]["seconds"] for m in members),
+                sum(baselines[m] for m in members),
+                min(samples[m] for m in members),
+            )
+        )
     return found
 
 

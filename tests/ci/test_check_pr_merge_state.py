@@ -283,9 +283,7 @@ def test_a_single_attempt_budget_reads_once_and_never_waits(monkeypatch):
 
     monkeypatch.setattr(checker, "load_open_prs", fake_load_open_prs)
 
-    rc, prs = checker.load_open_prs_with_retry(
-        "rjmurillo/ai-agents", "feature", max_attempts=1
-    )
+    rc, prs = checker.load_open_prs_with_retry("rjmurillo/ai-agents", "feature", max_attempts=1)
 
     assert rc == checker.EXIT_OK
     assert reads == ["feature"]

@@ -36,7 +36,9 @@ class TestValidation5DashCheck:
             return_value=_completed(stdout="src/main.py\n", rc=0),
         ):
             run_validations(
-                str(tmp_path), "main", "feat/branch",
+                str(tmp_path),
+                "main",
+                "feat/branch",
                 title="feat: clean title",
                 body="body without dashes",
             )
@@ -51,7 +53,9 @@ class TestValidation5DashCheck:
         ):
             try:
                 run_validations(
-                    str(tmp_path), "main", "feat/branch",
+                    str(tmp_path),
+                    "main",
+                    "feat/branch",
                     title=f"feat: bad {chr(0x2014)} title",
                     body="clean body",
                 )
@@ -68,7 +72,9 @@ class TestValidation5DashCheck:
         ):
             try:
                 run_validations(
-                    str(tmp_path), "main", "feat/branch",
+                    str(tmp_path),
+                    "main",
+                    "feat/branch",
                     title="feat: clean",
                     body=f"range {chr(0x2013)} 10",
                 )
@@ -90,7 +96,9 @@ class TestValidation5DashCheck:
         ):
             try:
                 run_validations(
-                    str(tmp_path), "main", "feat/branch",
+                    str(tmp_path),
+                    "main",
+                    "feat/branch",
                     title="feat: clean",
                     body_file=str(body_file),
                 )
@@ -107,7 +115,9 @@ class TestValidation5DashCheck:
         ):
             try:
                 run_validations(
-                    str(tmp_path), "main", "feat/branch",
+                    str(tmp_path),
+                    "main",
+                    "feat/branch",
                     title="feat: clean",
                     body=f"line 1 clean\nline 2 has {chr(0x2014)} dash\nline 3 clean\n",
                 )
@@ -142,7 +152,9 @@ class TestValidation6EscapedNewlineCheck:
             return_value=_completed(stdout="src/main.py\n", rc=0),
         ):
             run_validations(
-                str(tmp_path), "main", "feat/branch",
+                str(tmp_path),
+                "main",
+                "feat/branch",
                 title="feat: clean title",
                 body=body,
                 body_file=body_file,
@@ -166,12 +178,8 @@ class TestValidation6EscapedNewlineCheck:
             self._validate(tmp_path, body="## Summary\\n\\nDetail\\n" + "\n")
         assert excinfo.value.code == 1
 
-    def test_escaped_newline_inside_a_real_multiline_body_passes(
-        self, tmp_path, capsys
-    ):
-        self._validate(
-            tmp_path, body='## Notes\n\n```python\nprint("a\\nb")\n```\n'
-        )
+    def test_escaped_newline_inside_a_real_multiline_body_passes(self, tmp_path, capsys):
+        self._validate(tmp_path, body='## Notes\n\n```python\nprint("a\\nb")\n```\n')
         assert "Body line breaks are real newlines" in capsys.readouterr().out
 
     def test_normal_body_passes(self, tmp_path, capsys):
@@ -209,8 +217,7 @@ class TestValidation6EscapedNewlineCheck:
         func = next(
             n
             for n in ast.walk(tree)
-            if isinstance(n, ast.FunctionDef)
-            and n.name == "escaped_newline_body_error"
+            if isinstance(n, ast.FunctionDef) and n.name == "escaped_newline_body_error"
         )
         # Skip the docstring statement; the quote covers the code that follows.
         body_start = func.body[1].lineno
@@ -224,28 +231,23 @@ class TestValidation6EscapedNewlineCheck:
             copy = next(
                 n
                 for n in ast.walk(mod)
-                if isinstance(n, ast.FunctionDef)
-                and n.name == "validate_no_escaped_newlines"
+                if isinstance(n, ast.FunctionDef) and n.name == "validate_no_escaped_newlines"
             )
             doc = ast.get_docstring(copy, clean=False)
             assert doc is not None, mirror
             marker = "body::"
             assert marker in doc, f"{mirror}: citation marker missing"
-            quoted = textwrap.dedent(
-                doc.split(marker, 1)[1].split("\n\n", 2)[1]
-            ).strip("\n")
+            quoted = textwrap.dedent(doc.split(marker, 1)[1].split("\n\n", 2)[1]).strip("\n")
             quoted_lines = quoted.splitlines()
             # Without this, an empty quote would compare [] to [] and pass.
             assert len(quoted_lines) >= 5, (
-                f"{mirror}: quote too short to be the guard plus predicate: "
-                f"{quoted_lines!r}"
+                f"{mirror}: quote too short to be the guard plus predicate: {quoted_lines!r}"
             )
             actual = [
                 line[4:] for line in lines[body_start - 1 : body_start - 1 + len(quoted_lines)]
             ]
             assert quoted_lines == actual, (
-                f"{mirror}: quote is not verbatim.\n"
-                f"quoted={quoted_lines!r}\nactual={actual!r}"
+                f"{mirror}: quote is not verbatim.\nquoted={quoted_lines!r}\nactual={actual!r}"
             )
 
     def test_chain_is_renumbered_to_six_steps(self, tmp_path, capsys):
@@ -288,13 +290,34 @@ class TestCapturedOutputPinsItsCodec:
     # checking the moved code while every assertion here stayed green.
     _MIRRORS = (
         Path(__file__).resolve().parents[1]
-        / ".claude" / "skills" / "github" / "scripts" / "pr" / "new_pr.py",
+        / ".claude"
+        / "skills"
+        / "github"
+        / "scripts"
+        / "pr"
+        / "new_pr.py",
         Path(__file__).resolve().parents[1]
-        / "src" / "copilot-cli" / "skills" / "github" / "scripts" / "pr" / "new_pr.py",
+        / "src"
+        / "copilot-cli"
+        / "skills"
+        / "github"
+        / "scripts"
+        / "pr"
+        / "new_pr.py",
         Path(__file__).resolve().parents[1]
-        / ".claude" / "skills" / "github" / "scripts" / "pr" / "pr_validations.py",
+        / ".claude"
+        / "skills"
+        / "github"
+        / "scripts"
+        / "pr"
+        / "pr_validations.py",
         Path(__file__).resolve().parents[1]
-        / "src" / "copilot-cli" / "skills" / "github" / "scripts" / "pr"
+        / "src"
+        / "copilot-cli"
+        / "skills"
+        / "github"
+        / "scripts"
+        / "pr"
         / "pr_validations.py",
     )
 
@@ -329,9 +352,7 @@ class TestCapturedOutputPinsItsCodec:
             kwargs = {kw.arg: kw.value for kw in node.keywords if kw.arg}
             set_true = TestCapturedOutputPinsItsCodec._set_true
             captures = (
-                set_true(kwargs, "capture_output")
-                or "stdout" in kwargs
-                or "stderr" in kwargs
+                set_true(kwargs, "capture_output") or "stdout" in kwargs or "stderr" in kwargs
             )
             decodes = (
                 set_true(kwargs, "text")
@@ -441,9 +462,12 @@ class TestCapturedOutputPinsItsCodec:
 
     def test_a_non_capturing_run_is_out_of_scope(self):
         """text= without capture never decodes, so it is not this rule's business."""
-        assert self._capturing_runs(
-            "import subprocess\nsubprocess.run(['x'], text=True, check=False)\n"
-        ) == []
+        assert (
+            self._capturing_runs(
+                "import subprocess\nsubprocess.run(['x'], text=True, check=False)\n"
+            )
+            == []
+        )
 
 
 # ---------------------------------------------------------------------------

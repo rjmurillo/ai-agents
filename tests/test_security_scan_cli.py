@@ -48,7 +48,8 @@ def _scanner(*args: str, cwd: Path | None = None) -> subprocess.CompletedProcess
     return subprocess.run(
         [sys.executable, str(SCANNER), *args],
         capture_output=True,
-        text=True, encoding="utf-8",
+        text=True,
+        encoding="utf-8",
         cwd=cwd or REPO_ROOT,
         check=False,
     )
@@ -63,9 +64,7 @@ def cwe78_fixture(tmp_path: Path) -> tuple[Path, str]:
     """
     target = tmp_path / "cwe78_smoke.py"
     target.write_text(
-        "import subprocess\n"
-        "def run(cmd):\n"
-        "    subprocess.run(cmd, shell=True)\n",
+        "import subprocess\ndef run(cmd):\n    subprocess.run(cmd, shell=True)\n",
         encoding="utf-8",
     )
     return tmp_path, target.name
@@ -149,8 +148,7 @@ def test_json_summary_has_delegated_cwes_field(
     assert result.returncode == 0
     payload = json.loads(result.stdout)
     assert payload["schema_version"] == 2, (
-        "JSON envelope must carry schema_version=2 so consumers can detect "
-        "schema evolution"
+        "JSON envelope must carry schema_version=2 so consumers can detect schema evolution"
     )
     delegated = payload["summary"]["delegated_cwes"]
     assert "CWE-22" in delegated
@@ -188,7 +186,8 @@ def test_directory_outside_cwd_rejected(tmp_path: Path) -> None:
 
 
 def test_output_outside_cwd_rejected(
-    clean_python_fixture: tuple[Path, str], tmp_path: Path,
+    clean_python_fixture: tuple[Path, str],
+    tmp_path: Path,
 ) -> None:
     """The same path validation must apply to `--output`. Regression for the
     QA gap noted on PR #1851: `--output` had zero test coverage."""

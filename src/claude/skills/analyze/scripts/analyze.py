@@ -619,7 +619,7 @@ Examples:
   # --thoughts-file avoids embedding request text on the command line
   python3 analyze.py --step-number 1 --total-steps 6 \\
     --thoughts-file /path/to/thoughts.txt
-"""
+""",
     )
 
     parser.add_argument(

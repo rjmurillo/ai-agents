@@ -59,7 +59,10 @@ def _argv_capturing_fake(seen: dict[str, object]) -> object:
         ),
         ("https://user:pw@example.invalid/a.git", "https://<redacted>@example.invalid/a.git"),
         ("ssh://git:key@host/r.git", "ssh://<redacted>@host/r.git"),
-        ("https://github.com/rjmurillo/ai-agents.git", "https://github.com/rjmurillo/ai-agents.git"),
+        (
+            "https://github.com/rjmurillo/ai-agents.git",
+            "https://github.com/rjmurillo/ai-agents.git",
+        ),
         ("origin", "origin"),
         ("", ""),
     ],

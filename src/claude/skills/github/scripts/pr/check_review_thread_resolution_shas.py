@@ -9,6 +9,7 @@ import os
 import re
 import subprocess
 import sys
+from html.parser import HTMLParser
 from typing import Any
 
 _plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
@@ -36,9 +37,18 @@ if _lib_dir not in sys.path:
 
 from github_core.api import assert_gh_authenticated, gh_graphql, resolve_repo_params
 
+try:
+    from markdown_it import MarkdownIt
+    from markdown_it.token import Token
+
+    _MARKDOWN: MarkdownIt | None = MarkdownIt("commonmark").enable("table")
+except ImportError:  # pragma: no cover - exercised when markdown-it-py is missing
+    # Plugin scripts run under bare python3 (plugin-self-containment MUST 4), so
+    # the parser is optional. Without it the raw body is scanned, which fails closed.
+    _MARKDOWN = None
+
 _MAX_THREAD_PAGES = 50
 _SHA_RE = re.compile(r"\b([0-9a-f]{7,40})\b", re.IGNORECASE)
-_COMMENT_OR_CODE_RE = re.compile(r"`+|<!--")
 
 _THREADS_QUERY = """\
 query($owner: String!, $repo: String!, $prNumber: Int!, $cursor: String) {
@@ -92,54 +102,78 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _strip_fenced_code(body: str) -> str:
-    kept: list[str] = []
-    in_fence = False
-    for line in body.splitlines():
-        if line.strip().startswith("```"):
-            in_fence = not in_fence
-            continue
-        if not in_fence:
-            kept.append(line)
-    return "\n".join(kept)
+# Markdown that GitHub hides or shows as code must not feed the SHA regex. Bots
+# hide hex IDs in HTML comments (CodeRabbit: <!-- cr-comment:v1:<24 hex> -->).
+# markdown-it-py parses the body; html.parser reads raw HTML blocks. Fenced and
+# indented code blocks are skipped on purpose, since they quote commands, not fix
+# references. Link targets are scanned: a link to a commit, or a used footnote
+# naming one, cites that commit. Unused definitions do not render, so they are not.
+class _HtmlText(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.parts: list[str] = []
+
+    def handle_data(self, data: str) -> None:
+        self.parts.append(data)
 
 
-def _code_span_end(text: str, opener: re.Match[str], unmatched: set[int]) -> int:
-    width = len(opener.group())
-    if width not in unmatched:
-        closer = re.compile(rf"(?<!`)`{{{width}}}(?!`)").search(text, opener.end())
-        if closer is not None:
-            return closer.end()
-        # No closer of this width after here means none after any later opener.
-        unmatched.add(width)
-    return opener.end()
+def _html_block_text(html: str) -> str:
+    parser = _HtmlText()
+    parser.feed(html)
+    parser.close()
+    return " ".join(parser.parts)
 
 
-def _strip_html_comments(text: str) -> str:
-    # Bots hide hex IDs in HTML comments (CodeRabbit: <!-- cr-comment:v1:<24 hex> -->).
-    # Inline code shows "<!--" literally, so code spans are kept, not scanned.
-    # An unclosed opener keeps the rest of the text, so the gate fails closed.
-    kept: list[str] = []
-    unmatched: set[int] = set()
-    pos = 0
-    while (token := _COMMENT_OR_CODE_RE.search(text, pos)) is not None:
-        if token.group() != "<!--":
-            span_end = _code_span_end(text, token, unmatched)
-            kept.append(text[pos:span_end])
-            pos = span_end
-            continue
-        end = text.find("-->", token.end())
-        if end == -1:
-            break
-        kept.append(text[pos : token.start()] + " ")
-        pos = end + 3
-    kept.append(text[pos:])
-    return "".join(kept)
+def _is_gfm_comment(html: str) -> bool:
+    # GitHub follows GFM 0.29: a comment body cannot start with ">" or "->",
+    # contain "--", or end with "-". Anything else renders as visible text.
+    # markdown-it emits html_inline comments only in complete <!-- ... --> form.
+    body = html[4:-3]
+    return not (body.startswith((">", "->")) or "--" in body or body.endswith("-"))
+
+
+def _inline_text(token: Token) -> str:
+    parts: list[str] = []
+    for child in token.children or []:
+        if child.type in ("text", "code_inline"):
+            parts.append(child.content)
+        elif child.type in ("softbreak", "hardbreak"):
+            parts.append("\n")
+        elif child.type == "link_open":
+            parts.append(f" {child.attrs.get('href', '')} ")
+        elif child.type == "html_inline" and child.content.startswith("<!--"):
+            parts.append(" " if _is_gfm_comment(child.content) else child.content)
+        else:
+            parts.append(" ")
+    return "".join(parts)
+
+
+def _reached_nesting_limit(tokens: list[Token], max_nesting: int) -> bool:
+    # markdown-it drops content past maxNesting without raising, and a token at
+    # maxNesting - 1 cannot tell a complete parse from a truncated one.
+    children = (child for token in tokens for child in token.children or [])
+    return any(token.level >= max_nesting - 1 for token in (*tokens, *children))
+
+
+def _visible_text(body: str) -> str:
+    if _MARKDOWN is None:
+        return body
+    tokens = _MARKDOWN.parse(body)
+    if _reached_nesting_limit(tokens, _MARKDOWN.options["maxNesting"]):
+        return body
+    parts: list[str] = []
+    for token in tokens:
+        if token.type == "inline":
+            parts.append(_inline_text(token))
+        elif token.type == "html_block":
+            parts.append(_html_block_text(token.content))
+    return "\n".join(parts)
 
 
 def extract_shas(body: str) -> list[str]:
-    visible = _strip_html_comments(_strip_fenced_code(body))
-    return [match.group(1).lower() for match in _SHA_RE.finditer(visible)]
+    visible = _visible_text(body)
+    # A link and its definition name the same commit; check each SHA once.
+    return list(dict.fromkeys(match.group(1).lower() for match in _SHA_RE.finditer(visible)))
 
 
 def fetch_review_threads(
@@ -303,6 +337,12 @@ def main(argv: list[str] | None = None) -> int:
     if args.pull_request <= 0:
         print("Pull request number must be positive.", file=sys.stderr)
         return 2
+    if _MARKDOWN is None:
+        print(
+            "markdown-it-py not installed; scanning raw comment bodies. "
+            "Hidden bot IDs may report as invalid.",
+            file=sys.stderr,
+        )
 
     assert_gh_authenticated()
     resolved = resolve_repo_params(args.owner, args.repo)

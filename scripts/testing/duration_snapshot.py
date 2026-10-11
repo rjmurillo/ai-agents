@@ -46,8 +46,12 @@ class Snapshot:
         return sum(m["tests"] for m in self.modules.values())
 
     def to_dict(self) -> dict[str, Any]:
-        return {"sha": self.sha, "recorded_at": self.recorded_at,
-                "partitions": self.partitions, "modules": self.modules}
+        return {
+            "sha": self.sha,
+            "recorded_at": self.recorded_at,
+            "partitions": self.partitions,
+            "modules": self.modules,
+        }
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Snapshot:
@@ -84,12 +88,16 @@ def build_snapshot(paths: Sequence[Path], sha: str, now: datetime) -> Snapshot:
             nodeids[record.module].append(record.nodeid)
             by_partition[record.module][path.stem] += record.duration
         snapshot.partitions[path.stem] = {
-            "tests": len(records), "wall_seconds": round(partition_wall_seconds(path), 3)}
+            "tests": len(records),
+            "wall_seconds": round(partition_wall_seconds(path), 3),
+        }
     for module in sorted(seconds):
         owners = by_partition[module]
         # A module split across partitions belongs to the one that ran it longest.
         snapshot.module_partitions[module] = min(owners, key=lambda p: (-owners[p], p))
-        snapshot.modules[module] = {"seconds": round(seconds[module], 3),
-                                    "tests": len(nodeids[module]),
-                                    "ids": ids_digest(nodeids[module])}
+        snapshot.modules[module] = {
+            "seconds": round(seconds[module], 3),
+            "tests": len(nodeids[module]),
+            "ids": ids_digest(nodeids[module]),
+        }
     return snapshot

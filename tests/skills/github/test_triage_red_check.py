@@ -23,8 +23,7 @@ from scripts.github_core.api import RepoInfo
 # Import the script via importlib (not a package)
 # ---------------------------------------------------------------------------
 _SCRIPTS_DIR = (
-    Path(__file__).resolve().parents[3]
-    / ".claude" / "skills" / "github" / "scripts" / "pr"
+    Path(__file__).resolve().parents[3] / ".claude" / "skills" / "github" / "scripts" / "pr"
 )
 
 
@@ -68,12 +67,8 @@ def check_run(
         "name": name,
         "status": status,
         "conclusion": conclusion,
-        "detailsUrl": (
-            _RUN_URL.format(run_id=run_id, job_id=job_id) if with_url else ""
-        ),
-        "checkSuite": {
-            "workflowRun": {"databaseId": run_id, "runAttempt": attempt}
-        },
+        "detailsUrl": (_RUN_URL.format(run_id=run_id, job_id=job_id) if with_url else ""),
+        "checkSuite": {"workflowRun": {"databaseId": run_id, "runAttempt": attempt}},
     }
 
 
@@ -127,16 +122,12 @@ def _run_main(monkeypatch_graphql, argv: list[str] | None = None) -> tuple[int, 
     args = argv or ["--check-name", "Run Python Tests", "--output-format", "json"]
     with (
         patch.object(_mod, "assert_gh_authenticated"),
-        patch.object(
-            _mod, "resolve_repo_params", return_value=RepoInfo(owner="o", repo="r")
-        ),
+        patch.object(_mod, "resolve_repo_params", return_value=RepoInfo(owner="o", repo="r")),
         patch.object(_mod, "gh_graphql", side_effect=monkeypatch_graphql),
         patch("sys.stdout") as fake_stdout,
     ):
         rc = main(args)
-    printed = "".join(
-        call.args[0] for call in fake_stdout.write.call_args_list if call.args
-    )
+    printed = "".join(call.args[0] for call in fake_stdout.write.call_args_list if call.args)
     envelope: dict = {}
     for line in printed.splitlines():
         line = line.strip()
@@ -150,6 +141,7 @@ def _single_response(response: dict):
     def _dispatch(query: str, variables: dict) -> dict:
         assert "history" in query, "only the history query should be issued"
         return response
+
     return _dispatch
 
 
@@ -321,10 +313,7 @@ class TestRedOnMain:
         )
         rc, envelope = _run_main(_single_response(response))
         assert rc == 1
-        assert (
-            envelope["Data"]["EvidenceUrl"]
-            == "https://github.com/o/r/actions/runs/88"
-        )
+        assert envelope["Data"]["EvidenceUrl"] == "https://github.com/o/r/actions/runs/88"
 
     def test_red_sibling_wins_within_one_run(self):
         # Two jobs of one run share the name and both ran; the failure is
@@ -367,9 +356,7 @@ class TestUnknown:
         assert data["CommitsExamined"] == 2
 
     def test_empty_rollup_on_every_commit_is_unknown(self):
-        response = history_response(
-            [commit_node("aaa", None), commit_node("bbb", None)]
-        )
+        response = history_response([commit_node("aaa", None), commit_node("bbb", None)])
         rc, envelope = _run_main(_single_response(response))
         assert rc == 3
         assert envelope["Data"]["Verdict"] == "UNKNOWN"
@@ -418,9 +405,7 @@ class TestUnknown:
 
     def test_non_object_history_node_exits_three(self):
         response = {
-            "repository": {
-                "ref": {"name": "main", "target": {"history": {"nodes": ["junk"]}}}
-            }
+            "repository": {"ref": {"name": "main", "target": {"history": {"nodes": ["junk"]}}}}
         }
         rc, envelope = _run_main(_single_response(response))
         assert rc == 3
@@ -447,9 +432,7 @@ class TestUnknown:
         assert envelope.get("Success") is False
 
     def test_stale_only_rows_are_unknown(self):
-        response = history_response(
-            [commit_node("aaa", [check_run("Run Python Tests", "STALE")])]
-        )
+        response = history_response([commit_node("aaa", [check_run("Run Python Tests", "STALE")])])
         rc, envelope = _run_main(_single_response(response))
         assert rc == 3
         assert envelope["Data"]["Verdict"] == "UNKNOWN"
@@ -489,9 +472,7 @@ class TestFailurePaths:
 
     def test_auth_failure_propagates(self):
         with (
-            patch.object(
-                _mod, "assert_gh_authenticated", side_effect=SystemExit(4)
-            ),
+            patch.object(_mod, "assert_gh_authenticated", side_effect=SystemExit(4)),
             pytest.raises(SystemExit) as excinfo,
         ):
             main(["--check-name", "X", "--output-format", "json"])
@@ -559,9 +540,12 @@ class TestTriageOutputShape:
         rc, envelope = _run_main(
             _single_response(response),
             [
-                "--check-name", "Run Python Tests",
-                "--pull-request", "123",
-                "--output-format", "json",
+                "--check-name",
+                "Run Python Tests",
+                "--pull-request",
+                "123",
+                "--output-format",
+                "json",
             ],
         )
         assert rc == 0

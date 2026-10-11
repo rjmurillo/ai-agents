@@ -74,6 +74,7 @@ def _sample_report(*, n: int = 1, stdin_supplied: bool = False) -> GateLatencyRe
 
 # --- AC-05 headline framing and the provenance line --------------------------
 
+
 def test_positive_markdown_headlines_worst_observed_below_the_threshold(tmp_path):
     """Below n=20 the table offers no p95 column, only the worst observed run (AC-05)."""
     path = tmp_path / "low-n.md"

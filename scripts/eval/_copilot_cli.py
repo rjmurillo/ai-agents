@@ -429,8 +429,7 @@ class _CopilotCLIProvider:
             answer, model_used = transcript
             if model_used is not None and model_used != model:
                 raise RuntimeError(
-                    f"{self._provider_label} model attribution mismatch; "
-                    "model identifiers redacted"
+                    f"{self._provider_label} model attribution mismatch; model identifiers redacted"
                 )
         if not answer:
             answer = self._strip_footer(completed.stdout or "")
@@ -446,8 +445,7 @@ class _CopilotCLIProvider:
                 )
         if not answer:
             raise RuntimeError(
-                f"{self._provider_label} API returned no choices; "
-                "model identifier redacted"
+                f"{self._provider_label} API returned no choices; model identifier redacted"
             )
         if model_used is None and not self._unverified_model_allowed():
             raise RuntimeError(

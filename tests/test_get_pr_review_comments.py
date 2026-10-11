@@ -1,3 +1,4 @@
+# taste-lint: ignore file-size (ruff format pushed this file past 500 lines)
 """Tests for get_pr_review_comments.py skill script."""
 
 from __future__ import annotations
@@ -17,8 +18,7 @@ from scripts.github_core.api import RepoInfo
 # Import the script via importlib (not a package)
 # ---------------------------------------------------------------------------
 _SCRIPTS_DIR = (
-    Path(__file__).resolve().parents[1]
-    / ".claude" / "skills" / "github" / "scripts" / "pr"
+    Path(__file__).resolve().parents[1] / ".claude" / "skills" / "github" / "scripts" / "pr"
 )
 
 
@@ -105,17 +105,22 @@ def _run_main(argv, review=None, issue=None, unresolved=None):
     side = [review or []]
     if issue is not None:
         side.append(issue)
-    with patch(
-        "get_pr_review_comments.assert_gh_authenticated",
-    ), patch(
-        "get_pr_review_comments.resolve_repo_params",
-        return_value=RepoInfo(owner="o", repo="r"),
-    ), patch(
-        "get_pr_review_comments.gh_api_paginated",
-        side_effect=side,
-    ), patch(
-        "get_pr_review_comments.get_unresolved_review_threads",
-        return_value=unresolved or [],
+    with (
+        patch(
+            "get_pr_review_comments.assert_gh_authenticated",
+        ),
+        patch(
+            "get_pr_review_comments.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ),
+        patch(
+            "get_pr_review_comments.gh_api_paginated",
+            side_effect=side,
+        ),
+        patch(
+            "get_pr_review_comments.get_unresolved_review_threads",
+            return_value=unresolved or [],
+        ),
     ):
         return main(argv)
 
@@ -158,9 +163,7 @@ class TestBuildParser:
         assert args.group_by_reviewer_priority is False
 
     def test_group_by_reviewer_priority_parses(self):
-        args = build_parser().parse_args(
-            ["--pull-request", "1", "--group-by-reviewer-priority"]
-        )
+        args = build_parser().parse_args(["--pull-request", "1", "--group-by-reviewer-priority"])
         assert args.group_by_reviewer_priority is True
 
     def test_help_text_lists_reviewer_priority_flag(self, capsys):
@@ -189,17 +192,22 @@ class TestMain:
             assert exc.value.code == 4
 
     def test_no_comments(self, capsys):
-        with patch(
-            "get_pr_review_comments.assert_gh_authenticated",
-        ), patch(
-            "get_pr_review_comments.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "get_pr_review_comments.gh_api_paginated",
-            return_value=[],
-        ), patch(
-            "get_pr_review_comments.get_unresolved_review_threads",
-            return_value=[],
+        with (
+            patch(
+                "get_pr_review_comments.assert_gh_authenticated",
+            ),
+            patch(
+                "get_pr_review_comments.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "get_pr_review_comments.gh_api_paginated",
+                return_value=[],
+            ),
+            patch(
+                "get_pr_review_comments.get_unresolved_review_threads",
+                return_value=[],
+            ),
         ):
             rc = main(["--pull-request", "42"])
         assert rc == 0
@@ -252,17 +260,22 @@ class TestMain:
         unresolved_threads = [
             {"comments": {"nodes": [{"databaseId": 100}]}},
         ]
-        with patch(
-            "get_pr_review_comments.assert_gh_authenticated",
-        ), patch(
-            "get_pr_review_comments.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "get_pr_review_comments.gh_api_paginated",
-            return_value=raw_comments,
-        ), patch(
-            "get_pr_review_comments.get_unresolved_review_threads",
-            return_value=unresolved_threads,
+        with (
+            patch(
+                "get_pr_review_comments.assert_gh_authenticated",
+            ),
+            patch(
+                "get_pr_review_comments.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "get_pr_review_comments.gh_api_paginated",
+                return_value=raw_comments,
+            ),
+            patch(
+                "get_pr_review_comments.get_unresolved_review_threads",
+                return_value=unresolved_threads,
+            ),
         ):
             rc = main(["--pull-request", "42", "--only-unaddressed"])
         assert rc == 0
@@ -286,17 +299,22 @@ class TestMain:
                 "html_url": "https://example.com",
             },
         ]
-        with patch(
-            "get_pr_review_comments.assert_gh_authenticated",
-        ), patch(
-            "get_pr_review_comments.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "get_pr_review_comments.gh_api_paginated",
-            return_value=raw_comments,
-        ), patch(
-            "get_pr_review_comments.get_unresolved_review_threads",
-            return_value=[],
+        with (
+            patch(
+                "get_pr_review_comments.assert_gh_authenticated",
+            ),
+            patch(
+                "get_pr_review_comments.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "get_pr_review_comments.gh_api_paginated",
+                return_value=raw_comments,
+            ),
+            patch(
+                "get_pr_review_comments.get_unresolved_review_threads",
+                return_value=[],
+            ),
         ):
             rc = main(["--pull-request", "42", "--only-unaddressed", "--bot-only"])
         assert rc == 0
@@ -379,7 +397,8 @@ class TestGroupByReviewerPriority:
         ]
         rc = _run_main(
             [
-                "--pull-request", "3076",
+                "--pull-request",
+                "3076",
                 "--group-by-reviewer-priority",
                 "--group-by-domain",
                 "--include-issue-comments",
@@ -442,9 +461,7 @@ class TestGroupByReviewerPriority:
         review = [_review_comment(1, "deleted-user", "Just a passing note")]
         review[0]["user"] = None
 
-        rc = _run_main(
-            ["--pull-request", "1", "--group-by-reviewer-priority"], review=review
-        )
+        rc = _run_main(["--pull-request", "1", "--group-by-reviewer-priority"], review=review)
         assert rc == 0
         out = json.loads(capsys.readouterr().out)
         assert out["Unknown"][0]["Author"] == ""

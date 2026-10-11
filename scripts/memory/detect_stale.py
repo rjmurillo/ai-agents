@@ -48,9 +48,7 @@ STALE_DAYS = 180  # 6 months
 MD_LINK = re.compile(r"\[([^\]]+)\]\(([^)]+\.md)\)")
 
 # Pattern for code file references (backtick-wrapped paths)
-CODE_REF = re.compile(
-    r"`([a-zA-Z0-9_./-]+\.(py|ps1|psm1|yml|yaml|json|ts|js|sh))`"
-)
+CODE_REF = re.compile(r"`([a-zA-Z0-9_./-]+\.(py|ps1|psm1|yml|yaml|json|ts|js|sh))`")
 
 
 def get_git_last_modified(file_path: Path) -> datetime | None:
@@ -79,9 +77,7 @@ def get_git_last_modified(file_path: Path) -> datetime | None:
     return None
 
 
-def find_broken_links(
-    content: str, memories_dir: Path
-) -> list[str]:
+def find_broken_links(content: str, memories_dir: Path) -> list[str]:
     """Find markdown links to non-existent memory files."""
     broken = []
     for match in MD_LINK.finditer(content):
@@ -95,9 +91,7 @@ def find_broken_links(
     return broken
 
 
-def find_broken_code_refs(
-    content: str, repo_root: Path
-) -> list[str]:
+def find_broken_code_refs(content: str, repo_root: Path) -> list[str]:
     """Find references to code files that no longer exist."""
     broken = []
     for match in CODE_REF.finditer(content):
@@ -151,8 +145,7 @@ def analyze_file(
         )
     if report.broken_links:
         report.recommendations.append(
-            f"Has {len(report.broken_links)} broken memory link(s). "
-            f"Update or remove references."
+            f"Has {len(report.broken_links)} broken memory link(s). Update or remove references."
         )
     if report.broken_code_refs:
         report.recommendations.append(
@@ -174,11 +167,7 @@ def format_report(reports: list[StaleReport]) -> str:
     stale = [r for r in reports if r.is_stale]
     broken_links = [r for r in reports if r.broken_links]
     broken_refs = [r for r in reports if r.broken_code_refs]
-    clean = [
-        r
-        for r in reports
-        if not r.is_stale and not r.broken_links and not r.broken_code_refs
-    ]
+    clean = [r for r in reports if not r.is_stale and not r.broken_links and not r.broken_code_refs]
 
     lines.append("## Summary")
     lines.append("")
@@ -266,8 +255,11 @@ def main() -> int:
             continue
         try:
             report = analyze_file(
-                md_file, memories_dir, repo_root,
-                args.stale_days, args.stale_only,
+                md_file,
+                memories_dir,
+                repo_root,
+                args.stale_days,
+                args.stale_only,
             )
             reports.append(report)
         except (OSError, UnicodeDecodeError) as e:

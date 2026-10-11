@@ -34,6 +34,7 @@ ARGV_BUDGET_BYTES = 24000
 # for the tagged-source evidence and for why 2.40 is not the floor.
 _MINIMUM_GIT_VERSION = (2, 41)
 
+
 def git_environment() -> dict[str, str]:
     """The ambient environment with every ``GIT_*`` variable removed.
 
@@ -74,9 +75,7 @@ def git_environment() -> dict[str, str]:
     Returns a fresh dict; ``os.environ`` is never mutated.
     """
     return {
-        name: value
-        for name, value in os.environ.items()
-        if not name.upper().startswith("GIT_")
+        name: value for name, value in os.environ.items() if not name.upper().startswith("GIT_")
     }
 
 
@@ -91,9 +90,7 @@ def _failure(args: list[str], returncode: int, stderr: str) -> RuntimeError:
     the same escaping the report uses, applied at the other end of the gate.
     """
     rendered = " ".join(display_path(arg) for arg in args)
-    return RuntimeError(
-        f"git {rendered} failed ({returncode}): {display_path(stderr.strip())}"
-    )
+    return RuntimeError(f"git {rendered} failed ({returncode}): {display_path(stderr.strip())}")
 
 
 def run_git(
@@ -168,7 +165,6 @@ def run_git_paths(repo_root: Path, args: list[str], env: dict[str, str] | None =
     if result.returncode != 0:
         raise _failure(args, result.returncode, result.stderr.decode("utf-8", "replace"))
     return result.stdout.decode("utf-8", "surrogateescape")
-
 
 
 def git_version(repo_root: Path) -> tuple[int, int]:
@@ -286,9 +282,7 @@ def has_commits(repo_root: Path) -> bool:
             "the committed scope clean."
         )
 
-    objects = run_git(
-        repo_root, ["cat-file", "--batch-check=%(objecttype)", "--batch-all-objects"]
-    )
+    objects = run_git(repo_root, ["cat-file", "--batch-check=%(objecttype)", "--batch-all-objects"])
     if "commit" in objects.stdout.split():
         raise RuntimeError(
             "HEAD does not resolve and no ref survives it, but the object "

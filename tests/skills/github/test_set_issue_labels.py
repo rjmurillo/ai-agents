@@ -80,9 +80,7 @@ class TestSetIssueLabels:
                 ],
             ),
         ):
-            rc = mod.main(
-                ["--issue", "1", "--labels", "security,area-workflows,technical-debt"]
-            )
+            rc = mod.main(["--issue", "1", "--labels", "security,area-workflows,technical-debt"])
         assert rc == 0
         result = json.loads(capsys.readouterr().out)
         assert result["Data"]["applied"] == [
@@ -334,9 +332,11 @@ class TestExpandLabels:
         assert self._names(_import_module, ["--labels", "bug"]) == ["bug"]
 
     def test_comma_separated(self, _import_module):
-        assert self._names(
-            _import_module, ["--labels", "security,area-workflows,priority:P2"]
-        ) == ["security", "area-workflows", "priority:P2"]
+        assert self._names(_import_module, ["--labels", "security,area-workflows,priority:P2"]) == [
+            "security",
+            "area-workflows",
+            "priority:P2",
+        ]
 
     def test_space_separated(self, _import_module):
         assert self._names(
@@ -354,9 +354,7 @@ class TestExpandLabels:
         ) == ["bug", "enhancement", "priority:P1"]
 
     def test_label_with_space_preserved(self, _import_module):
-        assert self._names(_import_module, ["--labels", "needs discussion"]) == [
-            "needs discussion"
-        ]
+        assert self._names(_import_module, ["--labels", "needs discussion"]) == ["needs discussion"]
 
     def test_empty_value_dropped(self, _import_module):
         assert self._names(_import_module, ["--labels", ""]) == []

@@ -115,11 +115,7 @@ def citation_block_lines(text: str) -> frozenset[int]:
     for lineno, line in enumerate(text.splitlines(), start=1):
         match = FENCE_RE.match(line)
         if fence:
-            if (
-                match
-                and match.group(1)[0] == fence[0]
-                and len(match.group(1)) >= len(fence)
-            ):
+            if match and match.group(1)[0] == fence[0] and len(match.group(1)) >= len(fence):
                 fence = ""
                 in_citation = False
             elif in_citation:
@@ -209,9 +205,7 @@ def extract_skill_script_refs(text: str) -> Iterable[tuple[int, str]]:
             yield lineno, path
 
 
-def _iter_line_path_matches(
-    line: str, pattern: re.Pattern[str]
-) -> Iterable[str]:
+def _iter_line_path_matches(line: str, pattern: re.Pattern[str]) -> Iterable[str]:
     for match in pattern.finditer(line):
         yield match.group(1) if match.lastindex else match.group(0)
     for match in MARKDOWN_LINK_TARGET_RE.finditer(line):
@@ -262,9 +256,7 @@ def extract_all_reference_candidates(text: str) -> Iterable[tuple[int, str]]:
         yield from extract_line_reference_candidates(lineno, line)
 
 
-def extract_line_reference_candidates(
-    lineno: int, line: str
-) -> Iterable[tuple[int, str]]:
+def extract_line_reference_candidates(lineno: int, line: str) -> Iterable[tuple[int, str]]:
     """Yield reference candidates from one line without de-duplicating repeats."""
     for pattern in (
         SCRIPT_REF_RE,
@@ -290,9 +282,7 @@ def extract_typed_skill_refs(text: str) -> set[tuple[int, str]]:
         if line_has_ignore_directive(line):
             continue
         for match in SKILL_TYPED_REF_RE.finditer(line):
-            name = next(
-                (g for g in match.groupdict().values() if g), None
-            )
+            name = next((g for g in match.groupdict().values() if g), None)
             if name:
                 typed.add((lineno, name))
     return typed

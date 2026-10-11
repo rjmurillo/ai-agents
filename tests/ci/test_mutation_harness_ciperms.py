@@ -180,9 +180,7 @@ class TestApplyMutation:
 
         assert result.outcome == harness.DEAD
 
-    def test_pycache_purge_failure_is_not_run_and_restores(
-        self, tmp_path, monkeypatch
-    ):
+    def test_pycache_purge_failure_is_not_run_and_restores(self, tmp_path, monkeypatch):
         mutation = self._mutation(tmp_path)
         pycache = mutation.target_file.parent / "__pycache__"
         pycache.mkdir()
@@ -203,9 +201,7 @@ class TestApplyMutation:
         assert "pycache purge failed" in result.note
         assert mutation.target_file.read_bytes() == b"target\n"
 
-    def test_verify_mismatch_restores_before_did_not_apply(
-        self, tmp_path, monkeypatch
-    ):
+    def test_verify_mismatch_restores_before_did_not_apply(self, tmp_path, monkeypatch):
         mutation = self._mutation(tmp_path)
         real_replace = harness._write_bytes_by_sibling_replace
 
@@ -290,9 +286,7 @@ class TestRestoreBackups:
         assert "backup missing" in err
         assert str(target) in err
 
-    def test_partial_restore_failure_names_the_file_left_dirty(
-        self, tmp_path, monkeypatch, capsys
-    ):
+    def test_partial_restore_failure_names_the_file_left_dirty(self, tmp_path, monkeypatch, capsys):
         restored = tmp_path / "restored.py"
         blocked = tmp_path / "blocked.py"
         restored.write_bytes(b"MUTANT\n")
@@ -307,9 +301,7 @@ class TestRestoreBackups:
         monkeypatch.setattr(Path, "write_bytes", write_bytes)
 
         with pytest.raises(SystemExit) as excinfo:
-            harness._restore_backups(
-                {restored: b"ORIGINAL\n", blocked: b"ORIGINAL\n"}
-            )
+            harness._restore_backups({restored: b"ORIGINAL\n", blocked: b"ORIGINAL\n"})
 
         assert excinfo.value.code == 2
         assert restored.read_bytes() == b"ORIGINAL\n"
@@ -320,9 +312,7 @@ class TestRestoreBackups:
 
 
 class TestRunTests:
-    def test_run_tests_purges_pycache_and_disables_new_bytecode(
-        self, tmp_path, monkeypatch
-    ):
+    def test_run_tests_purges_pycache_and_disables_new_bytecode(self, tmp_path, monkeypatch):
         target = tmp_path / "sample.py"
         target.write_text("print('x')\n", encoding="utf-8")
         pycache = tmp_path / "__pycache__"
@@ -385,9 +375,7 @@ class TestMainExitCodes:
             for i, (_actual, expected) in enumerate(outcomes)
         ]
         monkeypatch.setattr(harness, "build_mutations", lambda _root=None: mutations)
-        pairs = iter(
-            zip(mutations, [actual for actual, _expected in outcomes], strict=True)
-        )
+        pairs = iter(zip(mutations, [actual for actual, _expected in outcomes], strict=True))
         monkeypatch.setattr(
             harness,
             "apply_mutation",
@@ -400,9 +388,7 @@ class TestMainExitCodes:
 
     def test_main_runs_in_an_isolated_worktree_of_the_targets(self, monkeypatch):
         calls = []
-        monkeypatch.setattr(
-            harness, "isolated_mutation_worktree", _fake_worktree(self.root, calls)
-        )
+        monkeypatch.setattr(harness, "isolated_mutation_worktree", _fake_worktree(self.root, calls))
         monkeypatch.setattr(harness, "_run_mutations", lambda root: 0 if root == self.root else 9)
         assert harness.main() == 0
         assert calls == [(harness.ACTIVE_REPO_ROOT, harness.TARGETS)]

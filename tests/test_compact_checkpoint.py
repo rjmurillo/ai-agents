@@ -44,18 +44,14 @@ class TestFallbackRecentSessionLog:
         readable.write_text("{}", encoding="utf-8")
         real_stat = Path.stat
 
-        def stat_unless_disappeared(
-            path: Path, *, follow_symlinks: bool = True
-        ) -> object:
+        def stat_unless_disappeared(path: Path, *, follow_symlinks: bool = True) -> object:
             if path == disappeared:
                 raise FileNotFoundError(path)
             return real_stat(path, follow_symlinks=follow_symlinks)
 
         monkeypatch.setattr(Path, "stat", stat_unless_disappeared)
 
-        result = invoke_compact_checkpoint._fallback_get_recent_session_log(
-            str(tmp_path)
-        )
+        result = invoke_compact_checkpoint._fallback_get_recent_session_log(str(tmp_path))
 
         assert result == readable
 
@@ -77,10 +73,7 @@ class TestFallbackRecentSessionLog:
 
         monkeypatch.setattr(invoke_compact_checkpoint, "datetime", _FrozenDateTime)
 
-        assert (
-            invoke_compact_checkpoint._fallback_get_recent_session_log(str(tmp_path))
-            == utc_log
-        )
+        assert invoke_compact_checkpoint._fallback_get_recent_session_log(str(tmp_path)) == utc_log
 
     def test_falls_back_to_yesterday_when_today_candidates_are_unreadable(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -94,18 +87,14 @@ class TestFallbackRecentSessionLog:
         readable.write_text("{}", encoding="utf-8")
         real_stat = Path.stat
 
-        def stat_unless_unreadable(
-            path: Path, *, follow_symlinks: bool = True
-        ) -> object:
+        def stat_unless_unreadable(path: Path, *, follow_symlinks: bool = True) -> object:
             if path == unreadable:
                 raise PermissionError(path)
             return real_stat(path, follow_symlinks=follow_symlinks)
 
         monkeypatch.setattr(Path, "stat", stat_unless_unreadable)
 
-        result = invoke_compact_checkpoint._fallback_get_recent_session_log(
-            str(tmp_path)
-        )
+        result = invoke_compact_checkpoint._fallback_get_recent_session_log(str(tmp_path))
 
         assert result == readable
 
@@ -136,13 +125,15 @@ class TestExtractOpenItems:
     def test_extracts_non_done_items(self, tmp_path: Path) -> None:
         log = tmp_path / "session.json"
         log.write_text(
-            json.dumps({
-                "work": [
-                    {"description": "Task A", "status": "in_progress"},
-                    {"description": "Task B", "status": "done"},
-                    {"description": "Task C", "status": "pending"},
-                ],
-            }),
+            json.dumps(
+                {
+                    "work": [
+                        {"description": "Task A", "status": "in_progress"},
+                        {"description": "Task B", "status": "done"},
+                        {"description": "Task C", "status": "pending"},
+                    ],
+                }
+            ),
             encoding="utf-8",
         )
 
@@ -169,9 +160,7 @@ class TestExtractOpenItems:
         assert items == []
 
     def test_handles_missing_file(self, tmp_path: Path) -> None:
-        items = invoke_compact_checkpoint._extract_open_items(
-            tmp_path / "nonexistent.json"
-        )
+        items = invoke_compact_checkpoint._extract_open_items(tmp_path / "nonexistent.json")
         assert items == []
 
 
@@ -204,9 +193,7 @@ class TestMain:
     """Test main() function."""
 
     def test_skip_consumer_repo(self) -> None:
-        with patch.object(
-            invoke_compact_checkpoint, "skip_if_consumer_repo", return_value=True
-        ):
+        with patch.object(invoke_compact_checkpoint, "skip_if_consumer_repo", return_value=True):
             with pytest.raises(SystemExit) as exc_info:
                 invoke_compact_checkpoint.main()
             assert exc_info.value.code == 0
@@ -214,24 +201,25 @@ class TestMain:
     def test_outputs_resume_context(
         self, project_tree: Path, capsys: pytest.CaptureFixture
     ) -> None:
-        session_log = list(
-            (project_tree / ".project-toolkit" / "sessions").glob("*.json")
-        )[0]
+        session_log = list((project_tree / ".project-toolkit" / "sessions").glob("*.json"))[0]
 
-        with patch.object(
-            invoke_compact_checkpoint, "skip_if_consumer_repo", return_value=False
-        ), patch.object(
-            invoke_compact_checkpoint,
-            "get_project_directory",
-            return_value=str(project_tree),
-        ), patch.object(
-            invoke_compact_checkpoint,
-            "get_recent_session_log",
-            return_value=session_log,
-        ), patch.object(
-            invoke_compact_checkpoint,
-            "_get_current_branch",
-            return_value="feature/test",
+        with (
+            patch.object(invoke_compact_checkpoint, "skip_if_consumer_repo", return_value=False),
+            patch.object(
+                invoke_compact_checkpoint,
+                "get_project_directory",
+                return_value=str(project_tree),
+            ),
+            patch.object(
+                invoke_compact_checkpoint,
+                "get_recent_session_log",
+                return_value=session_log,
+            ),
+            patch.object(
+                invoke_compact_checkpoint,
+                "_get_current_branch",
+                return_value="feature/test",
+            ),
         ):
             invoke_compact_checkpoint.main()
 
@@ -248,53 +236,53 @@ class TestMain:
         checkpoint had no reader and was removed. This guards against the
         write path being reintroduced.
         """
-        session_log = list(
-            (project_tree / ".project-toolkit" / "sessions").glob("*.json")
-        )[0]
+        session_log = list((project_tree / ".project-toolkit" / "sessions").glob("*.json"))[0]
 
-        with patch.object(
-            invoke_compact_checkpoint, "skip_if_consumer_repo", return_value=False
-        ), patch.object(
-            invoke_compact_checkpoint,
-            "get_project_directory",
-            return_value=str(project_tree),
-        ), patch.object(
-            invoke_compact_checkpoint,
-            "get_recent_session_log",
-            return_value=session_log,
-        ), patch.object(
-            invoke_compact_checkpoint,
-            "_get_current_branch",
-            return_value="feature/test",
+        with (
+            patch.object(invoke_compact_checkpoint, "skip_if_consumer_repo", return_value=False),
+            patch.object(
+                invoke_compact_checkpoint,
+                "get_project_directory",
+                return_value=str(project_tree),
+            ),
+            patch.object(
+                invoke_compact_checkpoint,
+                "get_recent_session_log",
+                return_value=session_log,
+            ),
+            patch.object(
+                invoke_compact_checkpoint,
+                "_get_current_branch",
+                return_value="feature/test",
+            ),
         ):
             invoke_compact_checkpoint.main()
 
         hook_state = project_tree / ".agents" / ".hook-state"
-        checkpoints = (
-            list(hook_state.glob("pre-compact-*.json")) if hook_state.exists() else []
-        )
+        checkpoints = list(hook_state.glob("pre-compact-*.json")) if hook_state.exists() else []
         assert checkpoints == []
         assert not hasattr(invoke_compact_checkpoint, "_write_checkpoint")
 
-    def test_handles_no_session_log(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture
-    ) -> None:
+    def test_handles_no_session_log(self, tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
         (tmp_path / ".agents").mkdir()
 
-        with patch.object(
-            invoke_compact_checkpoint, "skip_if_consumer_repo", return_value=False
-        ), patch.object(
-            invoke_compact_checkpoint,
-            "get_project_directory",
-            return_value=str(tmp_path),
-        ), patch.object(
-            invoke_compact_checkpoint,
-            "get_recent_session_log",
-            return_value=None,
-        ), patch.object(
-            invoke_compact_checkpoint,
-            "_get_current_branch",
-            return_value="main",
+        with (
+            patch.object(invoke_compact_checkpoint, "skip_if_consumer_repo", return_value=False),
+            patch.object(
+                invoke_compact_checkpoint,
+                "get_project_directory",
+                return_value=str(tmp_path),
+            ),
+            patch.object(
+                invoke_compact_checkpoint,
+                "get_recent_session_log",
+                return_value=None,
+            ),
+            patch.object(
+                invoke_compact_checkpoint,
+                "_get_current_branch",
+                return_value="main",
+            ),
         ):
             invoke_compact_checkpoint.main()
 
@@ -318,8 +306,6 @@ class TestFailOpen:
         def raising_main() -> None:
             raise RuntimeError("boom")
 
-        code, _stdout, stderr = run_main_wrapper(
-            invoke_compact_checkpoint, raising_main
-        )
+        code, _stdout, stderr = run_main_wrapper(invoke_compact_checkpoint, raising_main)
         assert code == 0
         assert "boom" in stderr

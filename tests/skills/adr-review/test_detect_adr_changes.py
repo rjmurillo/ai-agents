@@ -492,4 +492,3 @@ class TestFrontmatterOnlyDetection:
         assert data["Modified"] == [adr2_rel]
         assert data["ModifiedFrontmatterOnly"] == [self.ADR_REL]
         assert data["RecommendedAction"] == "review"
-

@@ -144,7 +144,8 @@ print(m.resolve_plugin_lib_dir())
         [sys.executable, str(runner)],
         check=True,
         capture_output=True,
-        text=True, encoding="utf-8",
+        text=True,
+        encoding="utf-8",
         env={k: v for k, v in os.environ.items() if k != "CLAUDE_PLUGIN_ROOT"},
     )
 
@@ -259,9 +260,7 @@ class TestQuietAptGet:
             start_re = re.compile(start_pat)
             end_re = re.compile(end_pat)
             start_idx = next(i for i, line in enumerate(lines) if start_re.match(line))
-            end_idx = next(
-                i for i in range(start_idx, len(lines)) if end_re.match(lines[i])
-            )
+            end_idx = next(i for i in range(start_idx, len(lines)) if end_re.match(lines[i]))
             block = "\n".join(lines[start_idx : end_idx + 1])
             assert block, f"empty extraction for {start_pat!r}"
             blocks.append(block)
@@ -296,7 +295,7 @@ class TestQuietAptGet:
         result = self._run(
             tmp_path,
             apt_get_body='echo "Unpacking somepkg (noise)"\nexit 0',
-            bash_call='quiet_apt_get install -y -qq somepkg\necho MARKER_OK',
+            bash_call="quiet_apt_get install -y -qq somepkg\necho MARKER_OK",
         )
         assert result.returncode == 0, result.stderr
         assert result.stdout.strip() == "MARKER_OK"
@@ -310,7 +309,7 @@ class TestQuietAptGet:
                 'echo "W: GPG error: https://example.test NO_PUBKEY ABC123"\n'
                 "exit 0"
             ),
-            bash_call='quiet_apt_get update -qq\necho MARKER_OK',
+            bash_call="quiet_apt_get update -qq\necho MARKER_OK",
         )
         assert result.returncode == 0, result.stderr
         assert "MARKER_OK" in result.stdout
@@ -320,11 +319,9 @@ class TestQuietAptGet:
         result = self._run(
             tmp_path,
             apt_get_body=(
-                'echo "Unpacking failpkg (noise)"\n'
-                'echo "E: some apt error" >&2\n'
-                "exit 100"
+                'echo "Unpacking failpkg (noise)"\necho "E: some apt error" >&2\nexit 100'
             ),
-            bash_call='quiet_apt_get install -y -qq failpkg\necho SHOULD_NOT_PRINT',
+            bash_call="quiet_apt_get install -y -qq failpkg\necho SHOULD_NOT_PRINT",
         )
         assert result.returncode != 0
         assert "SHOULD_NOT_PRINT" not in result.stdout

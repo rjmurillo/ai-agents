@@ -75,12 +75,7 @@ def format_verdict_alert(verdict: str, message: str = "") -> str:
     """Format a verdict using GitHub's markdown alert syntax."""
     alert_type = get_verdict_alert_type(verdict)
     if message:
-        return (
-            f"> [!{alert_type}]\n"
-            f"> **Verdict: {verdict}**\n"
-            f">\n"
-            f"> {message}"
-        )
+        return f"> [!{alert_type}]\n> **Verdict: {verdict}**\n>\n> {message}"
     return f"> [!{alert_type}]\n> **Verdict: {verdict}**"
 
 

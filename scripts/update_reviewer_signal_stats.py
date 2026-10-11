@@ -75,24 +75,16 @@ TREND_THRESHOLDS: dict[str, float] = {
 # Regex patterns for actionability scoring
 # ---------------------------------------------------------------------------
 
-FIXED_PATTERN = re.compile(
-    r"fixed\s+in|implemented|addressed|resolved", re.IGNORECASE
-)
+FIXED_PATTERN = re.compile(r"fixed\s+in|implemented|addressed|resolved", re.IGNORECASE)
 WONTFIX_PATTERN = re.compile(
     r"won't\s*fix|wontfix|intentional|by\s*design|not\s*a\s*bug", re.IGNORECASE
 )
 HIGH_SEVERITY_PATTERN = re.compile(
     r"critical|high\s*severity|security|vulnerability|cwe-|injection", re.IGNORECASE
 )
-LOW_SEVERITY_PATTERN = re.compile(
-    r"low\s*severity|style|nit:|minor|cosmetic", re.IGNORECASE
-)
-NULL_PATTERN = re.compile(
-    r"potential\s*null|null\s*reference|null\s*check", re.IGNORECASE
-)
-UNUSED_PATTERN = re.compile(
-    r"unused|remove\s*(this|it|the)|dead\s*code", re.IGNORECASE
-)
+LOW_SEVERITY_PATTERN = re.compile(r"low\s*severity|style|nit:|minor|cosmetic", re.IGNORECASE)
+NULL_PATTERN = re.compile(r"potential\s*null|null\s*reference|null\s*check", re.IGNORECASE)
+UNUSED_PATTERN = re.compile(r"unused|remove\s*(this|it|the)|dead\s*code", re.IGNORECASE)
 
 # ---------------------------------------------------------------------------
 # Data classes
@@ -150,7 +142,6 @@ class SignalStats:
 # ---------------------------------------------------------------------------
 # Core functions
 # ---------------------------------------------------------------------------
-
 
 
 def _is_same_actor(
@@ -219,9 +210,7 @@ def get_comments_by_reviewer(
                 # Only exclude when identity is authoritative: a non-empty
                 # login matches, or both sides carry an ID that matches.
                 # Two empty/unknown logins must NOT be treated as equal.
-                if _is_same_actor(
-                    pr_author, pr_author_id, comment_author, comment_author_id
-                ):
+                if _is_same_actor(pr_author, pr_author_id, comment_author, comment_author_id):
                     continue
 
                 if comment_author not in reviewer_stats:
@@ -278,17 +267,13 @@ def get_actionability_score(
     thread_comments = comment_data.thread_comments
 
     # Check for "Fixed in" reply in thread
-    has_fixed_reply = any(
-        FIXED_PATTERN.search(c.get("body", "")) for c in thread_comments
-    )
+    has_fixed_reply = any(FIXED_PATTERN.search(c.get("body", "")) for c in thread_comments)
     if has_fixed_reply:
         score += float(heuristics["fixed_in_reply"])
         reasons.append("FixedInReply")
 
     # Check for "Won't fix" reply in thread
-    has_wontfix_reply = any(
-        WONTFIX_PATTERN.search(c.get("body", "")) for c in thread_comments
-    )
+    has_wontfix_reply = any(WONTFIX_PATTERN.search(c.get("body", "")) for c in thread_comments)
     if has_wontfix_reply:
         score += float(heuristics["wont_fix_reply"])
         reasons.append("WontFixReply")
@@ -314,9 +299,7 @@ def get_actionability_score(
     # No reply after threshold days (only if not resolved and no fix/wontfix reply)
     if not comment_data.is_resolved and not has_fixed_reply and not has_wontfix_reply:
         try:
-            created_at = datetime.fromisoformat(
-                comment_data.created_at.replace("Z", "+00:00")
-            )
+            created_at = datetime.fromisoformat(comment_data.created_at.replace("Z", "+00:00"))
             now = datetime.now(UTC)
             days_since = (now - created_at).days
             threshold = int(heuristics["no_reply_threshold"])
@@ -451,9 +434,7 @@ def get_reviewer_signal_stats(
 
             # Track last 30 days
             try:
-                comment_date = datetime.fromisoformat(
-                    comment.created_at.replace("Z", "+00:00")
-                )
+                comment_date = datetime.fromisoformat(comment.created_at.replace("Z", "+00:00"))
                 if comment_date >= thirty_days_ago:
                     last_30_days_count += 1
                     if score_result.is_actionable:
@@ -466,9 +447,7 @@ def get_reviewer_signal_stats(
                 )
 
         signal_rate = (
-            round(actionable_count / stats.total_comments, 2)
-            if stats.total_comments > 0
-            else 0.0
+            round(actionable_count / stats.total_comments, 2) if stats.total_comments > 0 else 0.0
         )
 
         last_30_signal_rate = (
@@ -537,19 +516,13 @@ def update_serena_memory(
     )
 
     # Sort by signal rate descending
-    sorted_reviewers = sorted(
-        stats.items(), key=lambda item: item[1].signal_rate, reverse=True
-    )
+    sorted_reviewers = sorted(stats.items(), key=lambda item: item[1].signal_rate, reverse=True)
 
     rows: list[str] = []
     for reviewer, data in sorted_reviewers:
         signal_percent = round(data.signal_rate * 100)
-        signal_display = (
-            f"**{signal_percent}%**" if signal_percent >= 90 else f"{signal_percent}%"
-        )
-        trend_icon = {"improving": "\u2191", "declining": "\u2193"}.get(
-            data.trend, "\u2192"
-        )
+        signal_display = f"**{signal_percent}%**" if signal_percent >= 90 else f"{signal_percent}%"
+        trend_icon = {"improving": "\u2191", "declining": "\u2193"}.get(data.trend, "\u2192")
 
         row = (
             f"| {reviewer} | {data.prs_with_comments} | {data.total_comments} "
@@ -621,12 +594,8 @@ def _write_step_summary(
 
     for reviewer, data in sorted_reviewers:
         signal_percent = round(data.signal_rate * 100)
-        trend_icon = {"improving": "\u2191", "declining": "\u2193"}.get(
-            data.trend, "\u2192"
-        )
-        lines.append(
-            f"| {reviewer} | {signal_percent}% | {trend_icon} | {data.total_comments} |"
-        )
+        trend_icon = {"improving": "\u2191", "declining": "\u2193"}.get(data.trend, "\u2192")
+        lines.append(f"| {reviewer} | {signal_percent}% | {trend_icon} | {data.total_comments} |")
 
     _locked_append(summary_path, "\n".join(lines) + "\n")
 
@@ -682,9 +651,7 @@ def main(argv: list[str] | None = None) -> int:
 
     # Check rate limit
     try:
-        rate_result = check_workflow_rate_limit(
-            resource_thresholds={"core": 200, "graphql": 100}
-        )
+        rate_result = check_workflow_rate_limit(resource_thresholds={"core": 200, "graphql": 100})
         if rate_result.status != RateLimitStatus.VERIFIED_HEALTHY:
             reason = rate_result.probe_error or "thresholds not met"
             logger.error(

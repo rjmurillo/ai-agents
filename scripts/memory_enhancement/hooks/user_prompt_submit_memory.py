@@ -25,13 +25,54 @@ if TYPE_CHECKING:
     from ..search import SearchResult
 
 # Stop words filtered from queries to improve search precision.
-_STOP_WORDS = frozenset({
-    "a", "an", "and", "are", "as", "at", "be", "by", "do", "for",
-    "from", "has", "have", "he", "i", "in", "is", "it", "its", "me",
-    "my", "no", "not", "of", "on", "or", "so", "that", "the", "they",
-    "this", "to", "up", "us", "was", "we", "what", "when", "which",
-    "who", "will", "with", "you", "your",
-})
+_STOP_WORDS = frozenset(
+    {
+        "a",
+        "an",
+        "and",
+        "are",
+        "as",
+        "at",
+        "be",
+        "by",
+        "do",
+        "for",
+        "from",
+        "has",
+        "have",
+        "he",
+        "i",
+        "in",
+        "is",
+        "it",
+        "its",
+        "me",
+        "my",
+        "no",
+        "not",
+        "of",
+        "on",
+        "or",
+        "so",
+        "that",
+        "the",
+        "they",
+        "this",
+        "to",
+        "up",
+        "us",
+        "was",
+        "we",
+        "what",
+        "when",
+        "which",
+        "who",
+        "will",
+        "with",
+        "you",
+        "your",
+    }
+)
 
 _MAX_RECALL_RESULTS = 3
 _MIN_QUERY_TERMS = 1
@@ -109,9 +150,7 @@ def _find_repo_root(start: Path | None = None) -> Path | None:
     return find_repo_root(start)
 
 
-def _search_and_format(
-    query: str, memories_dir: Path, repo_root: Path
-) -> str:
+def _search_and_format(query: str, memories_dir: Path, repo_root: Path) -> str:
     """Search memories and format results as the memory context block.
 
     Args:
@@ -155,13 +194,13 @@ def _format_memory_context(results: list[SearchResult]) -> str:
 
     for result in results:
         lines.append(
-            f"### {result.title} "
-            f"(confidence: {result.confidence:.0%}, {result.citation_status})"
+            f"### {result.title} (confidence: {result.confidence:.0%}, {result.citation_status})"
         )
         lines.append(result.snippet)
         relative_path = result.file_path
         try:
             from . import find_repo_root
+
             repo_root = find_repo_root(result.file_path)
             if repo_root is not None:
                 relative_path = result.file_path.relative_to(repo_root)

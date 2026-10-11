@@ -19,6 +19,7 @@ Reproduces (config files shipped alongside):
   configs/effort_codex.json    -> codex effort: gpt-5.5 medium/high/xhigh
   configs/effort_claude.json   -> Claude effort: opus-4-8 medium/high/xhigh/max
 """
+
 import argparse
 import json
 import threading
@@ -32,7 +33,9 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--configs", required=True, help="JSON list of {label,transport,model,effort}")
     ap.add_argument("--out", required=True, help="output report path")
-    ap.add_argument("--files", default=evalkit.FILES_DEFAULT, help="JSON list of repo-relative .cs paths")
+    ap.add_argument(
+        "--files", default=evalkit.FILES_DEFAULT, help="JSON list of repo-relative .cs paths"
+    )
     ap.add_argument("--workers", type=int, default=4)
     args = ap.parse_args()
 
@@ -46,7 +49,9 @@ def main():
     tasks = [(c, rel) for c in configs for rel in files]
 
     def work(c, rel):
-        rec = evalkit.run_cell(c["transport"], c["model"], c["effort"], rel, c["label"].replace("/", "_"))
+        rec = evalkit.run_cell(
+            c["transport"], c["model"], c["effort"], rel, c["label"].replace("/", "_")
+        )
         return c["label"], rel, rec
 
     done = 0
@@ -60,8 +65,11 @@ def main():
                     json.dump(report, handle, indent=2)
             done += 1
             ov = rec.get("scores", {}).get("overall") if "scores" in rec else "ERR"
-            print(f"[{done:2}/{len(tasks)}] {label:18} {rel.split('/')[-1][:32]:32} "
-                  f"ov={ov} out={rec.get('out_total')} ({rec.get('ms', 0) / 1000:.0f}s)", flush=True)
+            print(
+                f"[{done:2}/{len(tasks)}] {label:18} {rel.split('/')[-1][:32]:32} "
+                f"ov={ov} out={rec.get('out_total')} ({rec.get('ms', 0) / 1000:.0f}s)",
+                flush=True,
+            )
     print("\nsaved " + args.out)
 
 

@@ -58,9 +58,7 @@ class TestAggregateRatchetWiring:
 
     def test_registry_retains_taste_and_type_ignore_ratchets(self) -> None:
         by_name = {ratchet.job_name: ratchet for ratchet in checks_ratchet.RATCHETS}
-        assert by_name["taste-count-ratchet"].script == (
-            "scripts/ci/taste_count_ratchet.py"
-        )
+        assert by_name["taste-count-ratchet"].script == ("scripts/ci/taste_count_ratchet.py")
         assert by_name["type-ignore-count-ratchet"].script == (
             "scripts/ci/type_ignore_count_ratchet.py"
         )
@@ -122,17 +120,11 @@ class TestAggregateBudgetIsConsistentWithLefthook:
         return int(found[0].removesuffix("s"))
 
     def test_lefthook_allows_more_time_than_the_aggregate_deadline(self) -> None:
-        assert (
-            self._count_ratchets_timeout_seconds()
-            > checks_ratchet._AGGREGATE_TIMEOUT_SECONDS
-        )
+        assert self._count_ratchets_timeout_seconds() > checks_ratchet._AGGREGATE_TIMEOUT_SECONDS
 
     def test_the_module_declares_the_lefthook_budget_it_assumes(self) -> None:
         """Keep the two numbers from drifting apart silently."""
-        assert (
-            checks_ratchet._LEFTHOOK_TIMEOUT_SECONDS
-            == self._count_ratchets_timeout_seconds()
-        )
+        assert checks_ratchet._LEFTHOOK_TIMEOUT_SECONDS == self._count_ratchets_timeout_seconds()
 
 
 def ci_baseline_ratchet_scripts() -> list[str]:
@@ -190,9 +182,7 @@ class TestEveryCountRatchetIsGatedLocally:
     def test_dropping_a_ratchet_from_the_registry_is_reported(self) -> None:
         """Negative control: the pre-fix registry, which omitted this one."""
         target = "scripts/ci/subprocess_encoding_count_ratchet.py"
-        pre_fix = {
-            ratchet.script for ratchet in checks_ratchet.RATCHETS
-        } - {target}
+        pre_fix = {ratchet.script for ratchet in checks_ratchet.RATCHETS} - {target}
 
         assert unregistered_ratchet_scripts(pre_fix) == [target]
 
@@ -203,9 +193,7 @@ class TestEveryCountRatchetIsGatedLocally:
     def test_every_derived_ratchet_script_exists(self) -> None:
         """Edge: a baseline whose module breaks the naming convention fails here."""
         missing = [
-            script
-            for script in ci_baseline_ratchet_scripts()
-            if not (REPO_ROOT / script).is_file()
+            script for script in ci_baseline_ratchet_scripts() if not (REPO_ROOT / script).is_file()
         ]
 
         assert not missing, (
@@ -236,9 +224,7 @@ def spawned_scripts(monkeypatch: pytest.MonkeyPatch, *, skip: str | None = None)
             launched.append(script)
         return 0, "", ""
 
-    monkeypatch.setattr(
-        checks_ratchet, "_resolve_default_base_ref", lambda _root: "origin/main"
-    )
+    monkeypatch.setattr(checks_ratchet, "_resolve_default_base_ref", lambda _root: "origin/main")
     monkeypatch.setattr(checks_ratchet, "_refresh_remote_base", lambda *_a: "")
     monkeypatch.setattr(checks_ratchet, "_resolve_base_oid", lambda *_a: "a" * 40)
     monkeypatch.setattr(checks_ratchet, "_run_subprocess", record)
@@ -269,9 +255,7 @@ class TestEveryDeclaredRatchetIsLaunched:
     no script is launched twice, so the assertion cannot pass on a duplicate.
     """
 
-    def test_every_declared_ratchet_is_launched(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_every_declared_ratchet_is_launched(self, monkeypatch: pytest.MonkeyPatch) -> None:
         launched = spawned_scripts(monkeypatch)
         declared = [ratchet.script for ratchet in checks_ratchet.RATCHETS]
 
@@ -288,9 +272,7 @@ class TestEveryDeclaredRatchetIsLaunched:
             f"A declaration no gate runs is enforcement in CI only."
         )
 
-    def test_a_skipped_entry_is_reported(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_a_skipped_entry_is_reported(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Negative control: the gate declares the entry and never launches it.
 
         The entry stays in ``RATCHETS``. Only the spawn is suppressed, so the
@@ -300,18 +282,13 @@ class TestEveryDeclaredRatchetIsLaunched:
         """
         target = "scripts/ci/taste_count_ratchet.py"
         assert target in [r.script for r in checks_ratchet.RATCHETS], (
-            f"{target} must stay declared for this control to model "
-            f"declared-but-never-launched"
+            f"{target} must stay declared for this control to model declared-but-never-launched"
         )
         launched = set(spawned_scripts(monkeypatch, skip=target))
 
-        assert [s for s in ci_baseline_ratchet_scripts() if s not in launched] == [
-            target
-        ]
+        assert [s for s in ci_baseline_ratchet_scripts() if s not in launched] == [target]
 
-    def test_no_script_is_launched_twice(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_no_script_is_launched_twice(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Edge: one process per entry, so the set comparison cannot hide one."""
         launched = spawned_scripts(monkeypatch)
 

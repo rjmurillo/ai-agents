@@ -124,8 +124,7 @@ def test_update_memory_index_rejects_repeated_link_in_one_row(
     _write_memory(memories_dir, "shared.md")
     index_path = memories_dir / "memory-index.md"
     index_path.write_text(
-        "[Section]\n"
-        "|bad row: [shared](shared.md) (1), [shared](shared.md) (2)\n",
+        "[Section]\n|bad row: [shared](shared.md) (1), [shared](shared.md) (2)\n",
         encoding="utf-8",
     )
     monkeypatch.setattr(updater, "get_memory_token_count", lambda _path: 7)
@@ -157,10 +156,13 @@ def test_main_returns_two_when_tiktoken_is_missing(
     assert updater.main() == 2
 
 
-@pytest.mark.parametrize(("modified", "message"), (
-    (True, "Updated token counts"),
-    (False, "already current"),
-))
+@pytest.mark.parametrize(
+    ("modified", "message"),
+    (
+        (True, "Updated token counts"),
+        (False, "already current"),
+    ),
+)
 def test_main_reports_update_result(
     modified: bool,
     message: str,
@@ -189,8 +191,7 @@ def test_duplicate_row_from_union_merge_is_healed(
     _write_memory(memories_dir, "shared.md")
     index_path = memories_dir / "memory-index.md"
     index_path.write_text(
-        "[Section]\n"
-        "|shared keywords: [shared](shared.md) (1)\n",
+        "[Section]\n|shared keywords: [shared](shared.md) (1)\n",
         encoding="utf-8",
     )
     subprocess.run(["git", "add", "."], cwd=repo, check=True)
@@ -198,8 +199,7 @@ def test_duplicate_row_from_union_merge_is_healed(
 
     subprocess.run(["git", "checkout", "--quiet", "-b", "left"], cwd=repo, check=True)
     index_path.write_text(
-        "[Section]\n"
-        "|shared keywords: [shared](shared.md) (2)\n",
+        "[Section]\n|shared keywords: [shared](shared.md) (2)\n",
         encoding="utf-8",
     )
     subprocess.run(["git", "add", "."], cwd=repo, check=True)
@@ -207,8 +207,7 @@ def test_duplicate_row_from_union_merge_is_healed(
 
     subprocess.run(["git", "checkout", "--quiet", "-b", "right", "HEAD~1"], cwd=repo, check=True)
     index_path.write_text(
-        "[Section]\n"
-        "|shared keywords: [shared](shared.md) (3)\n",
+        "[Section]\n|shared keywords: [shared](shared.md) (3)\n",
         encoding="utf-8",
     )
     subprocess.run(["git", "add", "."], cwd=repo, check=True)

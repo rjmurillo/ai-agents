@@ -353,7 +353,7 @@ Based on 2024 CISA/OpenSSF guidance for secure subprocess usage:
 
 ```python
 # RECOMMENDED: Pass command and arguments as list
-subprocess.run(['git', 'diff', '--cached'], capture_output=True, check=True)
+subprocess.run(["git", "diff", "--cached"], capture_output=True, check=True)
 ```
 
 #### Safe Pattern: Use pathlib Instead of Shell Commands

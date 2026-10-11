@@ -59,6 +59,7 @@ def _valid_fixture(**overrides):
 # Fixture validation
 # --------------------------------------------------------------------------
 
+
 def test_valid_fixture_passes():
     core.validate_fixture(_valid_fixture())
 
@@ -164,6 +165,7 @@ def test_shipped_fixture_file_is_valid():
 # Judge-response parsing
 # --------------------------------------------------------------------------
 
+
 def test_parse_clean_json():
     raw = json.dumps(
         {
@@ -183,15 +185,19 @@ def test_parse_clean_json():
 
 
 def test_parse_json_embedded_in_prose_and_fences():
-    raw = "Here is my score:\n```json\n" + json.dumps(
-        {
-            "scope": 1,
-            "completeness": 1,
-            "process_gates": 0,
-            "decomposition": 0,
-            "correct_stop": 0,
-        }
-    ) + "\n```\nDone."
+    raw = (
+        "Here is my score:\n```json\n"
+        + json.dumps(
+            {
+                "scope": 1,
+                "completeness": 1,
+                "process_gates": 0,
+                "decomposition": 0,
+                "correct_stop": 0,
+            }
+        )
+        + "\n```\nDone."
+    )
     out = core.parse_judge_response(raw)
     assert out["total"] == 2
 
@@ -199,11 +205,11 @@ def test_parse_json_embedded_in_prose_and_fences():
 def test_parse_clamps_out_of_range_axes():
     raw = json.dumps(
         {
-            "scope": 99,          # clamps to 3
-            "completeness": -5,   # clamps to 0
+            "scope": 99,  # clamps to 3
+            "completeness": -5,  # clamps to 0
             "process_gates": 2,
             "decomposition": 2,
-            "correct_stop": 7,    # clamps to 1
+            "correct_stop": 7,  # clamps to 1
         }
     )
     out = core.parse_judge_response(raw)
@@ -279,6 +285,7 @@ def test_max_score_constant():
 # Aggregation
 # --------------------------------------------------------------------------
 
+
 def _rec(fx, agent, total):
     return {"fixture_id": fx, "agent": agent, "total": total}
 
@@ -321,6 +328,7 @@ def test_aggregate_no_delta_with_single_agent():
 # Prompt assembly
 # --------------------------------------------------------------------------
 
+
 def test_agent_message_includes_germ_and_plan_request():
     msg = core.build_agent_user_message("remember my last flags")
     assert "remember my last flags" in msg
@@ -344,6 +352,7 @@ def test_judge_system_lists_all_axes():
 # --------------------------------------------------------------------------
 # CLI dry-run (no API)
 # --------------------------------------------------------------------------
+
 
 def test_dry_run_makes_no_api_call(monkeypatch, capsys):
     def _boom(*a, **k):  # pragma: no cover - must never be called

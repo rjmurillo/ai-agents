@@ -218,9 +218,7 @@ def test_each_tree_carries_only_its_own_mcp_spelling(
     """
     allowed = _allowed_tools_line(research_text)
     foreign = next(
-        spellings
-        for harness, spellings in _MCP_SPELLING.items()
-        if spellings != mcp_grants
+        spellings for harness, spellings in _MCP_SPELLING.items() if spellings != mcp_grants
     )
 
     for grant in foreign:
@@ -340,12 +338,7 @@ import json  # noqa: E402 -- placed here to group with the AC3/4/5 block it serv
 # ---------------------------------------------------------------------------
 
 _CONTEXT_MODE_HOOKS_ROOT = (
-    Path.home()
-    / ".claude"
-    / "plugins"
-    / "cache"
-    / "context-mode"
-    / "context-mode"
+    Path.home() / ".claude" / "plugins" / "cache" / "context-mode" / "context-mode"
 )
 
 # Hard-coded tool base names the context-mode hook names when it denies
@@ -392,10 +385,7 @@ def test_context_mode_plugin_hooks_json_contains_webfetch_matcher() -> None:
     hooks_path = _context_mode_hooks_json()
     assert hooks_path is not None
     hooks = json.loads(hooks_path.read_text(encoding="utf-8"))
-    matchers = [
-        h.get("matcher", "")
-        for h in hooks.get("hooks", {}).get("PreToolUse", [])
-    ]
+    matchers = [h.get("matcher", "") for h in hooks.get("hooks", {}).get("PreToolUse", [])]
     assert any("WebFetch" in m for m in matchers), (
         "hooks.json has no PreToolUse entry matching WebFetch; "
         "the hook that triggers the reroute defect was removed or renamed"

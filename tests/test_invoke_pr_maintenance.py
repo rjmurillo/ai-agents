@@ -1,3 +1,4 @@
+# taste-lint: ignore file-size (ruff format pushed this file past 500 lines)
 """Tests for invoke_pr_maintenance.py consumer script."""
 
 from __future__ import annotations
@@ -65,20 +66,24 @@ def _make_pr(
         "reviewDecision": review_decision,
         "reviewRequests": {"nodes": []},
         "commits": {
-            "nodes": [{
-                "commit": {
-                    "statusCheckRollup": {
-                        "state": check_state,
-                        "contexts": {
-                            "nodes": [{
-                                "name": "ci",
-                                "conclusion": check_conclusion,
-                                "status": "COMPLETED",
-                            }]
-                        },
+            "nodes": [
+                {
+                    "commit": {
+                        "statusCheckRollup": {
+                            "state": check_state,
+                            "contexts": {
+                                "nodes": [
+                                    {
+                                        "name": "ci",
+                                        "conclusion": check_conclusion,
+                                        "status": "COMPLETED",
+                                    }
+                                ]
+                            },
+                        }
                     }
                 }
-            }]
+            ]
         },
     }
 
@@ -322,10 +327,13 @@ class TestHasFailingChecks:
                 "completedAt": "2026-07-31T10:01:00Z",
             }
         ]
-        with patch("invoke_pr_maintenance.gh_graphql", return_value=payload), patch(
-            "invoke_pr_maintenance._fetch_status_context_page",
-            return_value=(page, {"hasNextPage": False, "endCursor": None}),
-        ) as fetch_page:
+        with (
+            patch("invoke_pr_maintenance.gh_graphql", return_value=payload),
+            patch(
+                "invoke_pr_maintenance._fetch_status_context_page",
+                return_value=(page, {"hasNextPage": False, "endCursor": None}),
+            ) as fetch_page,
+        ):
             prs = get_open_prs("owner", "repo", 1)
 
         contexts = prs[0]["commits"]["nodes"][0]["commit"]["statusCheckRollup"]["contexts"]
@@ -442,26 +450,33 @@ class TestMain:
         assert rc == 0
 
     def test_repo_resolution_failure_exits_2(self):
-        with patch(
-            "invoke_pr_maintenance.check_workflow_rate_limit",
-            return_value=self._mock_rate_limit_ok(),
-        ), patch(
-            "invoke_pr_maintenance.resolve_repo_params",
-            side_effect=Exception("cannot resolve"),
+        with (
+            patch(
+                "invoke_pr_maintenance.check_workflow_rate_limit",
+                return_value=self._mock_rate_limit_ok(),
+            ),
+            patch(
+                "invoke_pr_maintenance.resolve_repo_params",
+                side_effect=Exception("cannot resolve"),
+            ),
         ):
             rc = main(["--owner", "", "--repo", ""])
         assert rc == 2
 
     def test_json_output_mode(self):
-        with patch(
-            "invoke_pr_maintenance.check_workflow_rate_limit",
-            return_value=self._mock_rate_limit_ok(),
-        ), patch(
-            "invoke_pr_maintenance.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "invoke_pr_maintenance.get_open_prs",
-            return_value=[],
+        with (
+            patch(
+                "invoke_pr_maintenance.check_workflow_rate_limit",
+                return_value=self._mock_rate_limit_ok(),
+            ),
+            patch(
+                "invoke_pr_maintenance.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "invoke_pr_maintenance.get_open_prs",
+                return_value=[],
+            ),
         ):
             rc = main(["--owner", "o", "--repo", "r", "--output-json"])
         assert rc == 0
@@ -469,15 +484,19 @@ class TestMain:
     def test_summary_output_mode(self, tmp_path, monkeypatch):
         summary_file = tmp_path / "summary.md"
         monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary_file))
-        with patch(
-            "invoke_pr_maintenance.check_workflow_rate_limit",
-            return_value=self._mock_rate_limit_ok(),
-        ), patch(
-            "invoke_pr_maintenance.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "invoke_pr_maintenance.get_open_prs",
-            return_value=[],
+        with (
+            patch(
+                "invoke_pr_maintenance.check_workflow_rate_limit",
+                return_value=self._mock_rate_limit_ok(),
+            ),
+            patch(
+                "invoke_pr_maintenance.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "invoke_pr_maintenance.get_open_prs",
+                return_value=[],
+            ),
         ):
             rc = main(["--owner", "o", "--repo", "r"])
         assert rc == 0

@@ -72,9 +72,7 @@ SOURCES: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("github.event_name", EVENT_NAME),
     ("github.actor", ACTOR),
 )
-JOB_SOURCES: tuple[tuple[str, re.Pattern[str]], ...] = (
-    ("needs.*.outputs", NEEDS_OUTPUTS),
-)
+JOB_SOURCES: tuple[tuple[str, re.Pattern[str]], ...] = (("needs.*.outputs", NEEDS_OUTPUTS),)
 STEP_BODY_KEYS = ("env", "with", "run", "if")
 
 

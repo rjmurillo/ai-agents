@@ -128,9 +128,7 @@ class TestAgentSignal:
         agent_signal("qa", "SOMETHING_NEW")
         assert capsys.readouterr().err.startswith("::warning::")
 
-    def test_known_aggregator_tokens_do_not_warn(
-        self, capsys: pytest.CaptureFixture[str]
-    ) -> None:
+    def test_known_aggregator_tokens_do_not_warn(self, capsys: pytest.CaptureFixture[str]) -> None:
         # Negative control for the warning: a token gate_aggregator already
         # accepts is not drift and must stay quiet, or the log fills with noise
         # on every run and the real warning gets skimmed past.

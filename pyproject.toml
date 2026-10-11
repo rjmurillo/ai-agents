@@ -113,6 +113,10 @@ skips = []
 # which the 3.10 floor gate rejects. See issue #3126.
 target-version = "py310"
 line-length = 100
+# Apply [tool.ruff.format] exclude to files passed explicitly, so the lefthook
+# `ruff format --check -- {staged_files}` hook skips the two excluded paths the
+# way the whole-tree CI step does.
+force-exclude = true
 
 [tool.ruff.format]
 # test_git_hook_policy_causal_restore.py uses intentionally-split string
@@ -120,7 +124,14 @@ line-length = 100
 # security-suppressions-staged hook during development. Ruff's formatter
 # merges implicit string concatenations, which would neutralise those
 # fixtures. Exclude the file so the anti-detection pattern is preserved.
-exclude = ["tests/validation/test_git_hook_policy_causal_restore.py"]
+#
+# The vulnerable_samples tree is an answer key graded by external scanners.
+# Reformatting it trips the semgrep pre-push gate. See the per-file-ignores
+# rationale for the same path below.
+exclude = [
+    "tests/validation/test_git_hook_policy_causal_restore.py",
+    ".project-toolkit/security/benchmarks/vulnerable_samples/**",
+]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "N", "UP", "B", "ANN", "RUF100"]

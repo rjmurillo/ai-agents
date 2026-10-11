@@ -98,8 +98,7 @@ def test_decision_tree_routes_one_primary_reference_first():
         "## Process",
     )
     route_lines = [
-        line for line in decision_tree.splitlines()
-        if line.startswith("- ") and "->" in line
+        line for line in decision_tree.splitlines() if line.startswith("- ") and "->" in line
     ]
 
     assert route_lines, "decision tree must include routes"

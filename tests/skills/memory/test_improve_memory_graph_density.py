@@ -58,9 +58,7 @@ class TestFindRelatedFiles:
         all_files = sorted(tmp_path.glob("*.md"))
         names = {f.stem: str(f) for f in all_files}
 
-        related = improve_memory_graph_density._find_related_files(
-            "git-topic-0", all_files, names
-        )
+        related = improve_memory_graph_density._find_related_files("git-topic-0", all_files, names)
         assert len(related) <= 5
 
     def test_no_matches(self, tmp_path):
@@ -80,18 +78,14 @@ class TestProcessFiles:
     def test_skips_index_files(self, tmp_path):
         (tmp_path / "test-index.md").write_text("| key | val |")
         # process_files signature: (memories_path, files, dry_run, output_json)
-        stats = improve_memory_graph_density.process_files(
-            tmp_path, None, False, True
-        )
+        stats = improve_memory_graph_density.process_files(tmp_path, None, False, True)
         assert stats["FilesModified"] == 0
 
     def test_adds_related_section(self, tmp_path):
         (tmp_path / "git-hooks.md").write_text("# Git Hooks")
         (tmp_path / "git-config.md").write_text("# Git Config")
 
-        stats = improve_memory_graph_density.process_files(
-            tmp_path, None, False, False
-        )
+        stats = improve_memory_graph_density.process_files(tmp_path, None, False, False)
         assert stats["FilesModified"] >= 1
 
         content = (tmp_path / "git-hooks.md").read_text()
@@ -101,9 +95,7 @@ class TestProcessFiles:
         (tmp_path / "git-hooks.md").write_text("# Git Hooks")
         (tmp_path / "git-config.md").write_text("# Git Config")
 
-        stats = improve_memory_graph_density.process_files(
-            tmp_path, None, True, False
-        )
+        stats = improve_memory_graph_density.process_files(tmp_path, None, True, False)
         assert stats["FilesModified"] >= 1
 
         content = (tmp_path / "git-hooks.md").read_text()
@@ -113,7 +105,5 @@ class TestProcessFiles:
         (tmp_path / "git-hooks.md").write_text("# Git Hooks\n\n## Related\n\n- existing")
         (tmp_path / "git-config.md").write_text("# Git Config")
 
-        stats = improve_memory_graph_density.process_files(
-            tmp_path, None, False, False
-        )
+        stats = improve_memory_graph_density.process_files(tmp_path, None, False, False)
         assert stats["FilesModified"] == 0 or "git-hooks.md" not in str(stats)

@@ -15,6 +15,7 @@ Every function below is Python. The repository ships no PowerShell: `git ls-file
 ```python
 import os
 import sys
+
 _root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT") or ".claude"
 sys.path.insert(0, f"{_root}/skills/memory")
 
@@ -383,14 +384,14 @@ python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/sc
 
 ```python
 {
-    "id": "d001",                        # str: decision id
-    "timestamp": "2026-01-01T17:05:00Z", # str: ISO 8601
-    "type": "design",                    # str: design|implementation|test|recovery|routing
-    "context": "Choosing routing",       # str: decision context
-    "chosen": "Serena-first",            # str: chosen option
-    "rationale": "Lower latency",        # str: rationale
-    "outcome": "success",                # str: success|partial|failure
-    "effects": ["d002", "d003"],         # list[str]: affected decision or event ids
+    "id": "d001",  # str: decision id
+    "timestamp": "2026-01-01T17:05:00Z",  # str: ISO 8601
+    "type": "design",  # str: design|implementation|test|recovery|routing
+    "context": "Choosing routing",  # str: decision context
+    "chosen": "Serena-first",  # str: chosen option
+    "rationale": "Lower latency",  # str: rationale
+    "outcome": "success",  # str: success|partial|failure
+    "effects": ["d002", "d003"],  # list[str]: affected decision or event ids
 }
 ```
 
@@ -398,12 +399,12 @@ python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/sc
 
 ```python
 {
-    "id": "e001",                        # str: event id
-    "timestamp": "2026-01-01T17:10:00Z", # str: ISO 8601
-    "type": "commit",                    # str: tool_call|commit|error|milestone|test|handoff
-    "content": "Created module",         # str: event description
-    "caused_by": ["d001"],               # list[str]: causing decision ids
-    "leads_to": ["e002"],                # list[str]: resulting event ids
+    "id": "e001",  # str: event id
+    "timestamp": "2026-01-01T17:10:00Z",  # str: ISO 8601
+    "type": "commit",  # str: tool_call|commit|error|milestone|test|handoff
+    "content": "Created module",  # str: event description
+    "caused_by": ["d001"],  # list[str]: causing decision ids
+    "leads_to": ["e002"],  # list[str]: resulting event ids
 }
 ```
 
@@ -412,11 +413,11 @@ python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/sc
 ```python
 {
     "duration_minutes": 45,  # int: session duration
-    "tool_calls": 87,        # int: tool invocations
-    "errors": 2,             # int: error count
-    "recoveries": 2,         # int: recovery count
-    "commits": 3,            # int: commit count
-    "files_changed": 8,      # int: files modified
+    "tool_calls": 87,  # int: tool invocations
+    "errors": 2,  # int: error count
+    "recoveries": 2,  # int: recovery count
+    "commits": 3,  # int: commit count
+    "files_changed": 8,  # int: files modified
 }
 ```
 

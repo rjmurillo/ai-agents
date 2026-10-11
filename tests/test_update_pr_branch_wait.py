@@ -28,8 +28,13 @@ class TestWait:
             pr_views=[pr_json(), pr_json(), pr_json(head=NEW_HEAD)],
             behind=["2", "2", "0"],
         )
-        with patch.object(script, "_monotonic", clock.monotonic), patch.object(
-            script, "_sleep", clock.sleep,
+        with (
+            patch.object(script, "_monotonic", clock.monotonic),
+            patch.object(
+                script,
+                "_sleep",
+                clock.sleep,
+            ),
         ):
             rc = run_main(["--pull-request", "50", "--wait", "--timeout-seconds", "60"], fake)
         env = envelope(capsys)
@@ -45,8 +50,13 @@ class TestWait:
         not success, so the bounded wait times out."""
         clock = FakeClock()
         fake = FakeGh(pr_views=[pr_json(), pr_json(head=NEW_HEAD)], behind=["2"])
-        with patch.object(script, "_monotonic", clock.monotonic), patch.object(
-            script, "_sleep", clock.sleep,
+        with (
+            patch.object(script, "_monotonic", clock.monotonic),
+            patch.object(
+                script,
+                "_sleep",
+                clock.sleep,
+            ),
         ):
             rc = run_main(["--pull-request", "50", "--wait", "--timeout-seconds", "12"], fake)
         env = envelope(capsys)
@@ -61,8 +71,13 @@ class TestWait:
             pr_views=[pr_json(), pr_json(head=NEW_HEAD)],
             behind=["2", "2", "garbage"],
         )
-        with patch.object(script, "_monotonic", clock.monotonic), patch.object(
-            script, "_sleep", clock.sleep,
+        with (
+            patch.object(script, "_monotonic", clock.monotonic),
+            patch.object(
+                script,
+                "_sleep",
+                clock.sleep,
+            ),
         ):
             rc = run_main(["--pull-request", "50", "--wait", "--timeout-seconds", "12"], fake)
         env = envelope(capsys)
@@ -74,8 +89,13 @@ class TestWait:
         """AC7: compare reaching 0 also ends the wait."""
         clock = FakeClock()
         fake = FakeGh(behind=["2", "2", "0"])
-        with patch.object(script, "_monotonic", clock.monotonic), patch.object(
-            script, "_sleep", clock.sleep,
+        with (
+            patch.object(script, "_monotonic", clock.monotonic),
+            patch.object(
+                script,
+                "_sleep",
+                clock.sleep,
+            ),
         ):
             rc = run_main(["--pull-request", "50", "--wait", "--timeout-seconds", "60"], fake)
         env = envelope(capsys)
@@ -86,8 +106,13 @@ class TestWait:
         """AC8: the head never moves, so the bounded wait exits 3 Timeout."""
         clock = FakeClock()
         fake = FakeGh(behind=["2"])
-        with patch.object(script, "_monotonic", clock.monotonic), patch.object(
-            script, "_sleep", clock.sleep,
+        with (
+            patch.object(script, "_monotonic", clock.monotonic),
+            patch.object(
+                script,
+                "_sleep",
+                clock.sleep,
+            ),
         ):
             rc = run_main(["--pull-request", "50", "--wait", "--timeout-seconds", "12"], fake)
         env = envelope(capsys)
@@ -112,8 +137,13 @@ class TestWaitBudget:
             return fake(cmd, **kwargs)
 
         clock = FakeClock()
-        with patch.object(script, "_monotonic", clock.monotonic), patch.object(
-            script, "_sleep", clock.sleep,
+        with (
+            patch.object(script, "_monotonic", clock.monotonic),
+            patch.object(
+                script,
+                "_sleep",
+                clock.sleep,
+            ),
         ):
             argv = ["--pull-request", "50", "--wait", "--timeout-seconds", "4"]
             rc = run_main(argv, _hangs_in_wait)
@@ -134,8 +164,13 @@ class TestWaitBudget:
                 clock.now += 50
             return fake(cmd, **kwargs)
 
-        with patch.object(script, "_monotonic", clock.monotonic), patch.object(
-            script, "_sleep", clock.sleep,
+        with (
+            patch.object(script, "_monotonic", clock.monotonic),
+            patch.object(
+                script,
+                "_sleep",
+                clock.sleep,
+            ),
         ):
             argv = ["--pull-request", "50", "--wait", "--timeout-seconds", "30"]
             rc = run_main(argv, _slow_compare)

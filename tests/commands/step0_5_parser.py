@@ -32,10 +32,7 @@ from pathlib import Path
 # the path documented in `.claude/skills/spec/SKILL.md`, subsection
 # `#### Step 0.5 topic extraction`, rule 5 (Issue #1978).
 SPEC_ENTITY_ALIASES_PATH = (
-    Path(__file__).resolve().parents[2]
-    / ".agents"
-    / "dictionaries"
-    / "spec-entity-aliases.json"
+    Path(__file__).resolve().parents[2] / ".agents" / "dictionaries" / "spec-entity-aliases.json"
 )
 _DEFAULT_ENTITY_ALIASES: dict[str, str] | None = None
 
@@ -179,8 +176,7 @@ def load_entity_aliases(path: Path | None = None) -> dict[str, str]:
     for key, value in aliases.items():
         if not isinstance(key, str) or not isinstance(value, str):
             raise ValueError(
-                "alias table entries must map string aliases to string canonicals: "
-                f"{target}"
+                f"alias table entries must map string aliases to string canonicals: {target}"
             )
     loaded = dict(aliases)
     if path is None:
@@ -188,9 +184,7 @@ def load_entity_aliases(path: Path | None = None) -> dict[str, str]:
     return dict(loaded)
 
 
-def normalize_topic_with_aliases(
-    raw: str, aliases: dict[str, str] | None = None
-) -> str:
+def normalize_topic_with_aliases(raw: str, aliases: dict[str, str] | None = None) -> str:
     """Normalize a topic, then apply the rule-5 alias substitution.
 
     Runs `normalize_topic` (rules 1-4), then looks the result up in the alias
@@ -295,9 +289,7 @@ def phases_needed(tier: int) -> int:
     return 5
 
 
-def supplemental_traversal_warranted(
-    provisional_tier: int, actual_tier: int
-) -> bool:
+def supplemental_traversal_warranted(provisional_tier: int, actual_tier: int) -> bool:
     """Return True when Step 3 tier upgrade requires supplemental traversal.
 
     Per REQ-017 AC-10: supplemental traversal runs when actual_tier
@@ -308,9 +300,8 @@ def supplemental_traversal_warranted(
     Tier 3 fires (Phases 3-4); Tier 3 -> Tier 4 fires (Phase 5 alone);
     Tier 2 -> Tier 4 fires (Phases 3-5).
     """
-    return (
-        actual_tier > provisional_tier
-        and phases_needed(actual_tier) > phases_needed(provisional_tier)
+    return actual_tier > provisional_tier and phases_needed(actual_tier) > phases_needed(
+        provisional_tier
     )
 
 
@@ -321,11 +312,7 @@ def compute_provisional_tier(q4_text: str, entity_count: int) -> int:
     hours estimate, hours_tier defaults to Tier 2.
     """
     hours = _extract_first_hours_estimate(q4_text)
-    hours_tier = (
-        _hours_to_tier(hours)
-        if hours is not None
-        else PROVISIONAL_TIER_HOURS_DEFAULT
-    )
+    hours_tier = _hours_to_tier(hours) if hours is not None else PROVISIONAL_TIER_HOURS_DEFAULT
     entity_tier = _entity_count_to_tier(entity_count)
     return max(hours_tier, entity_tier)
 
@@ -346,7 +333,6 @@ def _is_fence_line(stripped: str) -> tuple[str, int] | None:
         if run >= 3:
             return ch, run
     return None
-
 
 
 def _heading_level_at_or_above(line: str, sibling_level: int) -> bool:
@@ -407,8 +393,7 @@ def _block_boundary_offset(after_heading: str, *, sibling_level: int = 3) -> int
             offset += len(line)
             continue
         if fence_char is None and (
-            _heading_level_at_or_above(line, sibling_level)
-            or line.rstrip("\n").rstrip() == "---"
+            _heading_level_at_or_above(line, sibling_level) or line.rstrip("\n").rstrip() == "---"
         ):
             return offset
         offset += len(line)
@@ -428,9 +413,7 @@ def extract_step0_5_block(spec_text: str) -> str:
     """
     start = spec_text.find(STEP_0_5_HEADING)
     if start == -1:
-        raise ValueError(
-            f"Step 0.5 heading not found: {STEP_0_5_HEADING!r}"
-        )
+        raise ValueError(f"Step 0.5 heading not found: {STEP_0_5_HEADING!r}")
     after_heading = spec_text[start:]
     level = len(STEP_0_5_HEADING) - len(STEP_0_5_HEADING.lstrip("#"))
     end = _block_boundary_offset(after_heading, sibling_level=level)
@@ -451,10 +434,8 @@ def extract_step0_5_subsection(spec_text: str, subsection_heading: str) -> str:
     """
     start = spec_text.find(subsection_heading)
     if start == -1:
-        raise ValueError(
-            f"Step 0.5 subsection not found: {subsection_heading!r}"
-        )
-    after_heading = spec_text[start + len(subsection_heading):]
+        raise ValueError(f"Step 0.5 subsection not found: {subsection_heading!r}")
+    after_heading = spec_text[start + len(subsection_heading) :]
     # Walk line-by-line and track triple-backtick fences so heading-shaped
     # lines inside fenced code blocks (e.g., `### Direct prior art from
     # memory` inside the PriorArtBlock schema example) do not prematurely
@@ -553,13 +534,10 @@ def parse_halt_block(text: str) -> dict[str, str]:
     """
     matches = list(_HALT_BLOCK_RE.finditer(text))
     if len(matches) == 0:
-        raise ValueError(
-            "no fenced ```step0_5-halt code block found in input"
-        )
+        raise ValueError("no fenced ```step0_5-halt code block found in input")
     if len(matches) > 1:
         raise ValueError(
-            f"input contains {len(matches)} step0_5-halt blocks; "
-            "exactly 1 is required"
+            f"input contains {len(matches)} step0_5-halt blocks; exactly 1 is required"
         )
     body = matches[0].group("body")
     raw_lines = [line for line in body.splitlines() if line.strip()]
@@ -581,13 +559,11 @@ def parse_halt_block(text: str) -> dict[str, str]:
     extra = set(fields) - set(HALT_BLOCK_FIELDS)
     if missing or extra:
         raise ValueError(
-            f"halt block field set wrong: missing={sorted(missing)}, "
-            f"extra={sorted(extra)}"
+            f"halt block field set wrong: missing={sorted(missing)}, extra={sorted(extra)}"
         )
     if fields["trigger"] not in VALID_HALT_TRIGGERS:
         raise ValueError(
-            f"halt trigger {fields['trigger']!r} not in valid set "
-            f"{sorted(VALID_HALT_TRIGGERS)}"
+            f"halt trigger {fields['trigger']!r} not in valid set {sorted(VALID_HALT_TRIGGERS)}"
         )
     return fields
 
@@ -617,17 +593,12 @@ def parse_tally_line(line: str) -> dict[str, str]:
     parts = match.groupdict()
     if parts["state"] == "pass":
         if parts["trigger"] != "none" or parts["check"] != "none":
-            raise ValueError(
-                "pass-state tally line must have trigger=none and check=none"
-            )
+            raise ValueError("pass-state tally line must have trigger=none and check=none")
     else:
         if parts["trigger"] == "none":
-            raise ValueError(
-                "fail-state tally line must have a non-none trigger"
-            )
+            raise ValueError("fail-state tally line must have a non-none trigger")
         if parts["trigger"] not in VALID_HALT_TRIGGERS:
             raise ValueError(
-                f"tally trigger {parts['trigger']!r} not in valid set "
-                f"{sorted(VALID_HALT_TRIGGERS)}"
+                f"tally trigger {parts['trigger']!r} not in valid set {sorted(VALID_HALT_TRIGGERS)}"
             )
     return parts

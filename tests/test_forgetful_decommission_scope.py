@@ -77,7 +77,9 @@ EXEMPTIONS: dict[str, tuple[str, int, str]] = {
     "src/claude/skills/orphan-ref-validator/scripts/filters.py": (REGISTRY, 1, _KNOWN_RETIRED),
     "src/copilot-cli/skills/orphan-ref-validator/scripts/filters.py": (REGISTRY, 1, _KNOWN_RETIRED),
     "scripts/validation/check_adr_links_baseline.txt": (
-        REGISTRY, 2, "rows key on a historical PRD file name"
+        REGISTRY,
+        2,
+        "rows key on a historical PRD file name",
     ),
     "evals/memory-spike/runs/20260528T061135Z-94708c8e/runs.jsonl": (RECORD, 3, _FROZEN_RUN),
     "evals/reports/adr-063-kill-gate-20260708/memory-search.json": (RECORD, 4, _FROZEN_RUN),
@@ -87,23 +89,33 @@ EXEMPTIONS: dict[str, tuple[str, int, str]] = {
     "tests/commands/test_spec_step0_5.py": (NEEDLE, 3, "Step 0.5 names no retired backend"),
     "tests/skills/context-gather/test_context_gather.py": (NEEDLE, 20, "names no retired tier"),
     "tests/skills/context-gather/test_fold_context_retrieval.py": (
-        NEEDLE, 6, "reference names no retired tool"
+        NEEDLE,
+        6,
+        "reference names no retired tool",
     ),
     "tests/skills/curating-memories/test_skill_contract.py": (NEEDLE, 21, "no retired tool call"),
     "tests/skills/memory-consolidate/test_skill_structure.py": (
-        NEEDLE, 2, "names no retired backend"
+        NEEDLE,
+        2,
+        "names no retired backend",
     ),
     "tests/skills/test_forgetful_decommission_guards.py": (
-        NEEDLE, 28, "REMOVED_SPELLINGS are the check"
+        NEEDLE,
+        28,
+        "REMOVED_SPELLINGS are the check",
     ),
     "tests/test_forgetful_decommission_scope.py": (NEEDLE, 7, "this guard's own needle"),
     "tests/test_skill_registry.py": (NEEDLE, 3, "keyword left the memory category"),
     "tests/test_validation_skill_frontmatter.py": (NEEDLE, 8, "retired tool grant is rejected"),
     ".project-toolkit/specs/PRD-memory-enhancement-layer-for-serena-forgetful.md": (
-        RECORD, 11, "spec of the retired feature, kept as written and marked superseded"
+        RECORD,
+        11,
+        "spec of the retired feature, kept as written and marked superseded",
     ),
     ".project-toolkit/specs/STATUS.md": (
-        REGISTRY, 2, "index rows key on the retired PRD file name and mark it superseded"
+        REGISTRY,
+        2,
+        "index rows key on the retired PRD file name and mark it superseded",
     ),
     "scripts/consolidate_skills.py": (REGISTRY, 2, "archived actions stay memory work"),
     "tests/test_consolidate_skills.py": (NEEDLE, 1, "archived action stays memory"),
@@ -156,8 +168,7 @@ def audit(
     """Return (files over their pinned count, exemptions now under their pin)."""
     pinned = {path: entry[1] for path, entry in exemptions.items()}
     over = [
-        p for p, n in sorted(counts.items())
-        if n > pinned.get(p, 0) and not is_history(p, prefixes)
+        p for p, n in sorted(counts.items()) if n > pinned.get(p, 0) and not is_history(p, prefixes)
     ]
     under = [p for p, n in sorted(pinned.items()) if counts.get(p, 0) < n]
     return over, under
@@ -230,7 +241,8 @@ def test_every_history_prefix_is_still_needed() -> None:
     """A prefix with no tracked match is dead allowance; delete it."""
     counts = mention_counts(REPO_ROOT)
     unused = [
-        prefix for prefix in HISTORY_PREFIXES
+        prefix
+        for prefix in HISTORY_PREFIXES
         if prefix != "CHANGELOG.md" and not any(is_history(p, (prefix,)) for p in counts)
     ]
     assert not unused, f"{unused} match no tracked file naming the token; remove them."

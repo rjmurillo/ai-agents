@@ -68,9 +68,7 @@ def get_maintenance_results(log_path: str | Path) -> MaintenanceResults:
         resolved = int(match.group(1))
 
     blocked_prs: list[str] = []
-    blocked_match = re.search(
-        r"(?s)Blocked PRs[^\n]*:\s*\n(.+?)(?:\n\s*\n|\Z)", log
-    )
+    blocked_match = re.search(r"(?s)Blocked PRs[^\n]*:\s*\n(.+?)(?:\n\s*\n|\Z)", log)
     if blocked_match:
         blocked_section = blocked_match.group(1)
         for line in blocked_section.split("\n"):

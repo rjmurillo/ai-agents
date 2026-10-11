@@ -359,22 +359,20 @@ from sentence_transformers import SentenceTransformer
 from pathlib import Path
 import json
 
-model = SentenceTransformer('all-MiniLM-L6-v2')  # Fast, local model
+model = SentenceTransformer("all-MiniLM-L6-v2")  # Fast, local model
+
 
 def get_similarity(filename, content):
     filename_emb = model.encode(filename)
     content_emb = model.encode(content[:500])  # First 500 chars
     return cosine_similarity(filename_emb, content_emb)
 
+
 def audit_file(filepath):
     filename = filepath.stem
     content = filepath.read_text()
     score = get_similarity(filename, content)
-    return {
-        'file': str(filepath),
-        'score': score,
-        'status': 'PASS' if score >= 0.7 else 'WARN'
-    }
+    return {"file": str(filepath), "score": score, "status": "PASS" if score >= 0.7 else "WARN"}
 ```
 
 **Integration with Existing Validation**:

@@ -44,8 +44,6 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = REPO_ROOT / "scripts" / "ci" / "adr101_publisher.py"
 
 
-
-
 class TestFlagOff:
     @pytest.mark.parametrize("value", ["", "false", "TRUE", "1", "yes", " off "])
     def test_anything_but_exact_true_is_skip_and_publishes_nothing(self, value: str) -> None:

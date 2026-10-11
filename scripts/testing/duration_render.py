@@ -35,38 +35,62 @@ def _slowest_rows(snapshot: Snapshot, top: int) -> list[str]:
 
 def _comparison_lines(comparison: Comparison, history_size: int) -> list[str]:
     if comparison.comparable == 0:
-        return [f"No comparable baseline: {history_size} snapshots in history, "
-                "none ran the same tests in any module this run measured."]
+        return [
+            f"No comparable baseline: {history_size} snapshots in history, "
+            "none ran the same tests in any module this run measured."
+        ]
     delta = comparison.seconds - comparison.baseline
-    lines = [f"{comparison.comparable} modules comparable against {history_size} history "
-             f"snapshots: {comparison.seconds:.1f}s now, {comparison.baseline:.1f}s median "
-             f"baseline ({delta:+.1f}s)."]
-    lines += [f"Partition `{name}` ran {speed:.2f}x slower than its baselines; modules "
-              "in it are judged against that speed." for name, speed in
-              sorted(comparison.speeds.items()) if speed >= SLOW_PARTITION_NOTE]
+    lines = [
+        f"{comparison.comparable} modules comparable against {history_size} history "
+        f"snapshots: {comparison.seconds:.1f}s now, {comparison.baseline:.1f}s median "
+        f"baseline ({delta:+.1f}s)."
+    ]
+    lines += [
+        f"Partition `{name}` ran {speed:.2f}x slower than its baselines; modules "
+        "in it are judged against that speed."
+        for name, speed in sorted(comparison.speeds.items())
+        if speed >= SLOW_PARTITION_NOTE
+    ]
     regressions = ([comparison.suite] if comparison.suite else []) + comparison.modules
     if not regressions:
         return [*lines, "", "No duration regression."]
-    lines += ["", "| Regressed | Seconds | Baseline | Ratio | Samples |",
-              "| --- | ---: | ---: | ---: | ---: |"]
-    lines += [f"| `{r.name}` | {r.seconds:.1f} | {r.baseline:.1f} | {ratio_text(r)} | "
-              f"{r.samples} |" for r in regressions]
+    lines += [
+        "",
+        "| Regressed | Seconds | Baseline | Ratio | Samples |",
+        "| --- | ---: | ---: | ---: | ---: |",
+    ]
+    lines += [
+        f"| `{r.name}` | {r.seconds:.1f} | {r.baseline:.1f} | {ratio_text(r)} | {r.samples} |"
+        for r in regressions
+    ]
     return lines
 
 
 def _trend_rows(history: Sequence[Snapshot], current: Snapshot) -> list[str]:
     out = ["| Commit | Recorded | Tests | Test seconds |", "| --- | --- | ---: | ---: |"]
-    for snap in [*history[-(TREND_ROWS - 1):], current]:
-        out.append(f"| `{snap.sha[:9]}` | {snap.recorded_at} | {snap.total_tests} | "
-                   f"{snap.total_seconds:.1f} |")
+    for snap in [*history[-(TREND_ROWS - 1) :], current]:
+        out.append(
+            f"| `{snap.sha[:9]}` | {snap.recorded_at} | {snap.total_tests} | "
+            f"{snap.total_seconds:.1f} |"
+        )
     return out
 
 
-def render_markdown(current: Snapshot, history: Sequence[Snapshot], comparison: Comparison,
-                    top: int, note: str | None) -> str:
-    lines = ["## Test duration", "", f"{current.total_tests} tests, "
-             f"{current.total_seconds:.1f} test seconds across "
-             f"{len(current.partitions)} partitions.", ""]
+def render_markdown(
+    current: Snapshot,
+    history: Sequence[Snapshot],
+    comparison: Comparison,
+    top: int,
+    note: str | None,
+) -> str:
+    lines = [
+        "## Test duration",
+        "",
+        f"{current.total_tests} tests, "
+        f"{current.total_seconds:.1f} test seconds across "
+        f"{len(current.partitions)} partitions.",
+        "",
+    ]
     if note:
         lines += [f"Note: {note}", ""]
     lines += [*_partition_rows(current), "", "### Against the main history", ""]
@@ -85,8 +109,10 @@ def warning_commands(comparison: Comparison) -> list[str]:
     """GitHub Actions warning commands, one per regression."""
     regressions = ([comparison.suite] if comparison.suite else []) + comparison.modules
     return [
-        "::warning title=Test duration regression::" + escape_command_data(
+        "::warning title=Test duration regression::"
+        + escape_command_data(
             f"{r.name} took {r.seconds:.1f}s against a {r.baseline:.1f}s median baseline "
-            f"({ratio_text(r)}, {r.samples} samples)")
+            f"({ratio_text(r)}, {r.samples} samples)"
+        )
         for r in regressions
     ]

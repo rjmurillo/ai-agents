@@ -68,9 +68,7 @@ def _run(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
 
 def _strip_comments(script: str) -> str:
     """Drop shell comment lines so prose about depth is not a match."""
-    return "\n".join(
-        line for line in script.splitlines() if not line.lstrip().startswith("#")
-    )
+    return "\n".join(line for line in script.splitlines() if not line.lstrip().startswith("#"))
 
 
 def _steps(job: Any) -> list[dict[str, Any]]:
@@ -93,11 +91,7 @@ def _shallow_history_offenders(label: str, data: Any) -> tuple[list[str], list[s
     jobs = data.get("jobs") if isinstance(data, dict) else None
     for job_id, job in (jobs or {}).items():
         steps = _steps(job)
-        code = [
-            _strip_comments(step["run"])
-            for step in steps
-            if isinstance(step.get("run"), str)
-        ]
+        code = [_strip_comments(step["run"]) for step in steps if isinstance(step.get("run"), str)]
         if not any(marker in body for body in code for marker in MERGE_BASE_CONSUMERS):
             continue
         checked.append(f"{label}:{job_id}")
@@ -112,9 +106,7 @@ def _shallow_history_offenders(label: str, data: Any) -> tuple[list[str], list[s
             if str(depth) != "0":
                 name = step.get("name") or uses
                 shown = "<default, depth 1>" if depth is None else repr(depth)
-                offenders.append(
-                    f"{label}:{job_id}: checkout {name!r} has fetch-depth {shown}"
-                )
+                offenders.append(f"{label}:{job_id}: checkout {name!r} has fetch-depth {shown}")
     return offenders, checked
 
 
@@ -125,9 +117,7 @@ def _workflow_files(directory: Path) -> list[Path]:
     would let a ``.yaml`` workflow carry a depth-limited fetch past this guard
     while the test below still reports that it scanned every workflow.
     """
-    return sorted(
-        p for p in directory.iterdir() if p.suffix in {".yml", ".yaml"} and p.is_file()
-    )
+    return sorted(p for p in directory.iterdir() if p.suffix in {".yml", ".yaml"} and p.is_file())
 
 
 def test_the_workflow_scan_covers_both_yaml_extensions(tmp_path):
@@ -428,4 +418,3 @@ def test_only_dropping_the_flag_everywhere_repairs_the_job(
     assert merge_tree.returncode == expected_rc, merge_tree.stderr
     if expected_rc != 0:
         assert "unrelated histories" in merge_tree.stderr
-

@@ -67,9 +67,7 @@ def test_writes_to_summary_file(monkeypatch: pytest.MonkeyPatch, tmp_path: Path)
     assert "Copilot Context Synthesis Sweep" in content
 
 
-def test_zero_count_writes_all_caught_up(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+def test_zero_count_writes_all_caught_up(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     summary = tmp_path / "step_summary"
     summary.write_text("")
     monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary))
@@ -80,9 +78,7 @@ def test_zero_count_writes_all_caught_up(
     assert "All caught up" in summary.read_text()
 
 
-def test_nonzero_count_writes_issues_list(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+def test_nonzero_count_writes_issues_list(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     summary = tmp_path / "step_summary"
     summary.write_text("")
     monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary))
@@ -95,9 +91,7 @@ def test_nonzero_count_writes_issues_list(
     assert "Issues Processed" in content
 
 
-def test_invalid_count_falls_back_to_zero(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+def test_invalid_count_falls_back_to_zero(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     summary = tmp_path / "step_summary"
     summary.write_text("")
     monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary))

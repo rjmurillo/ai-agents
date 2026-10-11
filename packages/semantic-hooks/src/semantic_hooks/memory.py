@@ -91,9 +91,7 @@ class SemanticMemory:
             text = f"{node.topic}: {node.insight}"
             node.embedding = self.embedder.embed(text)
 
-        embedding_blob = (
-            json.dumps(node.embedding).encode() if node.embedding else None
-        )
+        embedding_blob = json.dumps(node.embedding).encode() if node.embedding else None
         metadata_json = json.dumps(node.metadata) if node.metadata else None
 
         with sqlite3.connect(self.db_path) as conn:
@@ -215,9 +213,7 @@ class SemanticMemory:
         # Load all nodes with embeddings (TODO: optimize with vector index)
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
-            cursor = conn.execute(
-                "SELECT * FROM semantic_nodes WHERE embedding IS NOT NULL"
-            )
+            cursor = conn.execute("SELECT * FROM semantic_nodes WHERE embedding IS NOT NULL")
             rows = cursor.fetchall()
 
         results: list[tuple[SemanticNode, float]] = []
@@ -395,8 +391,8 @@ def load_config_and_create_memory(
 
     from semantic_hooks.embedder import OpenAIEmbedder
 
-    config_file = Path(config_path) if config_path else (
-        Path.home() / ".semantic-hooks" / "config.yaml"
+    config_file = (
+        Path(config_path) if config_path else (Path.home() / ".semantic-hooks" / "config.yaml")
     )
 
     cfg: dict[str, Any] = {}

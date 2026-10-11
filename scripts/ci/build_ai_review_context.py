@@ -26,6 +26,9 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
 
+# Formatter off: one name per line would push this file past the 500-line cap
+# that tests/test_build_ai_review_context_split.py enforces.
+# fmt: off
 from gh_retry_helpers import (  # isort: skip  # noqa: E402, F401
     AI_REVIEW_ACTION_DEADLINE_ENV, CommandResult, ConfigError, DIFF_TOO_LARGE,
     ExternalGhError, FILES_PER_PAGE, GH_CONTEXT_RETRY_BUDGET_SECONDS,
@@ -34,6 +37,7 @@ from gh_retry_helpers import (  # isort: skip  # noqa: E402, F401
     SECRET_ENVIRONMENT_VARIABLES, _GH_RETRY_DEADLINE, _failure_text,
     _new_context_retry_deadline, _redact_secrets, _retry_delay, run_gh,
 )
+# fmt: on
 
 
 def sanitize_title(title: str) -> str:

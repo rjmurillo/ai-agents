@@ -16,12 +16,16 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
-_git_available = shutil.which("git") is not None and subprocess.run(
-    ["git", "rev-parse", "--is-inside-work-tree"],
-    cwd=REPO_ROOT,
-    capture_output=True,
-    check=False,
-).returncode == 0
+_git_available = (
+    shutil.which("git") is not None
+    and subprocess.run(
+        ["git", "rev-parse", "--is-inside-work-tree"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        check=False,
+    ).returncode
+    == 0
+)
 
 pytestmark = pytest.mark.skipif(
     not _git_available,
@@ -40,9 +44,7 @@ def _check_ignore(repo: Path, relpath: str) -> bool:
         return True
     if result.returncode == 1:
         return False
-    raise RuntimeError(
-        f"git check-ignore failed (exit {result.returncode}) on {relpath}"
-    )
+    raise RuntimeError(f"git check-ignore failed (exit {result.returncode}) on {relpath}")
 
 
 class TestPortabilityLockFilesIgnored:

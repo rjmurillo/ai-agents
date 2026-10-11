@@ -457,12 +457,7 @@ def test_directory_scan_includes_all_supported_suffixes(
 
 
 def test_parse_changed_files_retains_old_and_new_paths() -> None:
-    raw = (
-        b"M\0same.py\0"
-        b"A\0new.py\0"
-        b"D\0gone.py\0"
-        b"R095\0old.py\0renamed.py\0"
-    )
+    raw = b"M\0same.py\0A\0new.py\0D\0gone.py\0R095\0old.py\0renamed.py\0"
 
     assert _parse_changed_files(raw) == [
         ChangedFile("M", Path("same.py"), Path("same.py")),
@@ -511,9 +506,7 @@ def test_changed_only_respects_target_directory(
     _commit(tmp_path, "other/out_of_scope.py", _FOCUSED, "out of scope")
     monkeypatch.chdir(tmp_path)
 
-    assert get_files_to_assess("src", True, "main") == [
-        Path("src/in_scope.py")
-    ]
+    assert get_files_to_assess("src", True, "main") == [Path("src/in_scope.py")]
 
 
 def test_regression_mode_passes_when_target_has_no_changes(
@@ -1258,9 +1251,7 @@ def test_regression_mode_reads_a_renamed_files_old_base_blob(
     assert comparisons[0].is_new_file is False
     assert comparisons[0].base_file_path == "legacy.py"
     assert comparisons[0].change_status.startswith("R")
-    payload = json.loads(
-        generate_json_report([assessment], comparisons, "regression")
-    )
+    payload = json.loads(generate_json_report([assessment], comparisons, "regression"))
     assert payload["comparisons"][0]["base_file_path"] == "legacy.py"
     assert payload["comparisons"][0]["file_path"] == "renamed.py"
 
@@ -1309,10 +1300,7 @@ def test_json_report_carries_base_head_and_delta(
     payload = json.loads(capsys.readouterr().out)
     assert payload["gate_mode"] == "regression"
     cohesion = next(
-        d
-        for c in payload["comparisons"]
-        for d in c["deltas"]
-        if d["quality"] == "cohesion"
+        d for c in payload["comparisons"] for d in c["deltas"] if d["quality"] == "cohesion"
     )
     assert cohesion["base"] is not None
     assert cohesion["head"] is not None
@@ -1357,9 +1345,12 @@ def test_no_common_ancestor_uses_the_resolved_base() -> None:
         stdout="",
         stderr="",
     )
-    with patch.object(_mod, "resolve_revision", return_value="abc123"), patch(
-        "subprocess.run",
-        return_value=result,
+    with (
+        patch.object(_mod, "resolve_revision", return_value="abc123"),
+        patch(
+            "subprocess.run",
+            return_value=result,
+        ),
     ):
         assert _mod.resolve_comparison_base("main") == "abc123"
 
@@ -1398,9 +1389,12 @@ def test_regression_mode_handles_unrelated_histories(
 def test_merge_base_operational_failures_do_not_fall_back(
     result: subprocess.CompletedProcess[str],
 ) -> None:
-    with patch.object(_mod, "resolve_revision", return_value="abc123"), patch(
-        "subprocess.run",
-        return_value=result,
+    with (
+        patch.object(_mod, "resolve_revision", return_value="abc123"),
+        patch(
+            "subprocess.run",
+            return_value=result,
+        ),
     ):
         with pytest.raises(RuntimeError, match="git merge-base"):
             _mod.resolve_comparison_base("main")

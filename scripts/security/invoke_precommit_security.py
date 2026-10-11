@@ -60,11 +60,7 @@ def _powershell_extension(file_path: Path) -> str | None:
     """Return the matched PowerShell extension, including exact-dot filenames."""
     file_name = file_path.name.lower()
     return next(
-        (
-            extension
-            for extension in _POWERSHELL_EXTENSIONS
-            if file_name.endswith(extension)
-        ),
+        (extension for extension in _POWERSHELL_EXTENSIONS if file_name.endswith(extension)),
         None,
     )
 
@@ -358,11 +354,7 @@ class PreCommitSecurityCheck:
         staged_present_files = self._get_staged_present_files()
         unmerged_files = self._get_unmerged_files()
 
-        if (
-            staged_files is None
-            or staged_present_files is None
-            or unmerged_files is None
-        ):
+        if staged_files is None or staged_present_files is None or unmerged_files is None:
             logger.error("[FAIL] Could not determine staged files")
             return 1
 
@@ -479,11 +471,7 @@ class PreCommitSecurityCheck:
                 timeout=SUBPROCESS_TIMEOUT_SECONDS,
             )
 
-            paths = [
-                os.fsdecode(raw_path)
-                for raw_path in result.stdout.split(b"\0")
-                if raw_path
-            ]
+            paths = [os.fsdecode(raw_path) for raw_path in result.stdout.split(b"\0") if raw_path]
             return [self.repo_root / file_path for file_path in paths]
 
         except subprocess.TimeoutExpired as e:
@@ -660,8 +648,7 @@ class PreCommitSecurityCheck:
                     failed_files.append(str(file_path))
                 except subprocess.TimeoutExpired:
                     logger.warning(
-                        "[TIMEOUT] PSScriptAnalyzer timed out for %s; "
-                        "adding to failed files",
+                        "[TIMEOUT] PSScriptAnalyzer timed out for %s; adding to failed files",
                         file_path.name,
                     )
                     failed_files.append(str(file_path))
@@ -738,8 +725,7 @@ class PreCommitSecurityCheck:
             mode, object_id, stage = fields
             if stage != b"0" or mode not in {b"100644", b"100755"}:
                 logger.error(
-                    "[FAIL] Refusing non-regular staged PowerShell file %s "
-                    "(mode=%s, stage=%s)",
+                    "[FAIL] Refusing non-regular staged PowerShell file %s (mode=%s, stage=%s)",
                     relative_path,
                     os.fsdecode(mode),
                     os.fsdecode(stage),
@@ -870,8 +856,7 @@ class PreCommitSecurityCheck:
                 )
             content += "\n"
             content += (
-                "**Agent Action Required**: Review each CodeQL finding above "
-                "in the context of:\n"
+                "**Agent Action Required**: Review each CodeQL finding above in the context of:\n"
             )
             content += "- Business impact and data sensitivity\n"
             content += "- Deployment context (CLI tool vs API service)\n"
@@ -908,9 +893,7 @@ class PreCommitSecurityCheck:
             codeql_status = "PASS"
 
         psscriptanalyzer_status = (
-            "PASS"
-            if severity_counts["CRITICAL"] == 0 and severity_counts["HIGH"] == 0
-            else "FAIL"
+            "PASS" if severity_counts["CRITICAL"] == 0 and severity_counts["HIGH"] == 0 else "FAIL"
         )
         codeql_summary = (
             f"{codeql_status} ({len(self.codeql_alerts)} open alert(s), "
@@ -920,8 +903,8 @@ class PreCommitSecurityCheck:
 
 - **CodeQL**: {codeql_summary}
 - **PSScriptAnalyzer**: {psscriptanalyzer_status}
-- **Critical File Review**: {'REQUIRED' if critical_files else 'NOT REQUIRED'}
-- **Agent Review**: {'SKIPPED' if self.skip_agent_review else 'PENDING'}
+- **Critical File Review**: {"REQUIRED" if critical_files else "NOT REQUIRED"}
+- **Agent Review**: {"SKIPPED" if self.skip_agent_review else "PENDING"}
 
 ## Next Steps
 

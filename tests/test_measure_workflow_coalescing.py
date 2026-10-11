@@ -163,10 +163,9 @@ class TestCancellationDetection:
 
 class TestMetricsCalculation:
     def test_90_percent_effectiveness(self):
-        runs = [
-            _make_run(id=i, conclusion="cancelled")
-            for i in range(1, 10)
-        ] + [_make_run(id=10, conclusion="success")]
+        runs = [_make_run(id=i, conclusion="cancelled") for i in range(1, 10)] + [
+            _make_run(id=10, conclusion="success")
+        ]
 
         overlaps = [
             RunOverlap(
@@ -317,7 +316,12 @@ class TestReportGeneration:
         end_date = datetime(2026, 1, 31, tzinfo=UTC)
 
         report = format_markdown_report(
-            metrics, runs, overlaps, start_date, end_date, workflows,
+            metrics,
+            runs,
+            overlaps,
+            start_date,
+            end_date,
+            workflows,
         )
 
         assert "# Workflow Run Coalescing Metrics" in report
@@ -379,8 +383,12 @@ class TestReportGeneration:
         )
 
         report = format_markdown_report(
-            metrics, [], [], datetime(2026, 1, 1, tzinfo=UTC),
-            datetime(2026, 1, 31, tzinfo=UTC), ["test"],
+            metrics,
+            [],
+            [],
+            datetime(2026, 1, 1, tzinfo=UTC),
+            datetime(2026, 1, 31, tzinfo=UTC),
+            ["test"],
         )
 
         assert "HIGH PRIORITY" in report
@@ -400,8 +408,12 @@ class TestReportGeneration:
         )
 
         report = format_markdown_report(
-            metrics, [], [], datetime(2026, 1, 1, tzinfo=UTC),
-            datetime(2026, 1, 31, tzinfo=UTC), ["test"],
+            metrics,
+            [],
+            [],
+            datetime(2026, 1, 1, tzinfo=UTC),
+            datetime(2026, 1, 31, tzinfo=UTC),
+            ["test"],
         )
 
         assert "All metrics are within target thresholds" in report
@@ -410,14 +422,22 @@ class TestReportGeneration:
         from datetime import datetime
 
         metrics = CoalescingMetrics(
-            total_runs=0, cancelled_runs=0, race_conditions=0,
-            successful_coalescing=0, coalescing_effectiveness=0.0,
-            race_condition_rate=0.0, avg_cancellation_time=0.0,
+            total_runs=0,
+            cancelled_runs=0,
+            race_conditions=0,
+            successful_coalescing=0,
+            coalescing_effectiveness=0.0,
+            race_condition_rate=0.0,
+            avg_cancellation_time=0.0,
         )
 
         report = format_markdown_report(
-            metrics, [], [], datetime(2026, 1, 1, tzinfo=UTC),
-            datetime(2026, 1, 31, tzinfo=UTC), [],
+            metrics,
+            [],
+            [],
+            datetime(2026, 1, 1, tzinfo=UTC),
+            datetime(2026, 1, 31, tzinfo=UTC),
+            [],
         )
 
         assert "measure_workflow_coalescing.py" in report
@@ -476,14 +496,18 @@ class TestWorkflowRun:
 
 class TestMain:
     def test_main_no_runs_exits_0(self):
-        with patch(
-            "measure_workflow_coalescing.test_prerequisites",
-        ), patch(
-            "measure_workflow_coalescing.get_repository_context",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "measure_workflow_coalescing.get_workflow_runs",
-            return_value=[],
+        with (
+            patch(
+                "measure_workflow_coalescing.test_prerequisites",
+            ),
+            patch(
+                "measure_workflow_coalescing.get_repository_context",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "measure_workflow_coalescing.get_workflow_runs",
+                return_value=[],
+            ),
         ):
             rc = main(["--since", "7", "--repository", "o/r"])
         assert rc == 0
@@ -492,25 +516,36 @@ class TestMain:
         runs = [_make_run(id=1, conclusion="success")]
         output_file = tmp_path / "out.json"
 
-        with patch(
-            "measure_workflow_coalescing.test_prerequisites",
-        ), patch(
-            "measure_workflow_coalescing.get_repository_context",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "measure_workflow_coalescing.get_workflow_runs",
-            return_value=runs,
+        with (
+            patch(
+                "measure_workflow_coalescing.test_prerequisites",
+            ),
+            patch(
+                "measure_workflow_coalescing.get_repository_context",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "measure_workflow_coalescing.get_workflow_runs",
+                return_value=runs,
+            ),
         ):
-            rc = main([
-                "--since", "7",
-                "--repository", "o/r",
-                "--output", "json",
-                "--output-path", str(output_file),
-            ])
+            rc = main(
+                [
+                    "--since",
+                    "7",
+                    "--repository",
+                    "o/r",
+                    "--output",
+                    "json",
+                    "--output-path",
+                    str(output_file),
+                ]
+            )
 
         assert rc == 0
         assert output_file.exists()
         import json
+
         data = json.loads(output_file.read_text())
         assert "Metrics" in data
         assert data["Runs"] == 1
@@ -519,21 +554,31 @@ class TestMain:
         runs = [_make_run(id=1, conclusion="cancelled")]
         output_file = tmp_path / "report.md"
 
-        with patch(
-            "measure_workflow_coalescing.test_prerequisites",
-        ), patch(
-            "measure_workflow_coalescing.get_repository_context",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "measure_workflow_coalescing.get_workflow_runs",
-            return_value=runs,
+        with (
+            patch(
+                "measure_workflow_coalescing.test_prerequisites",
+            ),
+            patch(
+                "measure_workflow_coalescing.get_repository_context",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "measure_workflow_coalescing.get_workflow_runs",
+                return_value=runs,
+            ),
         ):
-            rc = main([
-                "--since", "7",
-                "--repository", "o/r",
-                "--output", "markdown",
-                "--output-path", str(output_file),
-            ])
+            rc = main(
+                [
+                    "--since",
+                    "7",
+                    "--repository",
+                    "o/r",
+                    "--output",
+                    "markdown",
+                    "--output-path",
+                    str(output_file),
+                ]
+            )
 
         assert rc == 0
         assert output_file.exists()
@@ -551,20 +596,29 @@ class TestMain:
     def test_main_summary_output(self):
         runs = [_make_run(id=1, conclusion="success")]
 
-        with patch(
-            "measure_workflow_coalescing.test_prerequisites",
-        ), patch(
-            "measure_workflow_coalescing.get_repository_context",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "measure_workflow_coalescing.get_workflow_runs",
-            return_value=runs,
+        with (
+            patch(
+                "measure_workflow_coalescing.test_prerequisites",
+            ),
+            patch(
+                "measure_workflow_coalescing.get_repository_context",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "measure_workflow_coalescing.get_workflow_runs",
+                return_value=runs,
+            ),
         ):
-            rc = main([
-                "--since", "7",
-                "--repository", "o/r",
-                "--output", "summary",
-            ])
+            rc = main(
+                [
+                    "--since",
+                    "7",
+                    "--repository",
+                    "o/r",
+                    "--output",
+                    "summary",
+                ]
+            )
 
         assert rc == 0
 
@@ -608,12 +662,15 @@ class TestPrerequisiteAuthClassification:
     """
 
     def _run(self, status, detail=""):
-        with patch(
-            "measure_workflow_coalescing.subprocess.run",
-            return_value=SimpleNamespace(returncode=0, stdout="", stderr=""),
-        ), patch(
-            "measure_workflow_coalescing.check_gh_auth",
-            return_value=GhAuthResult(status, detail),
+        with (
+            patch(
+                "measure_workflow_coalescing.subprocess.run",
+                return_value=SimpleNamespace(returncode=0, stdout="", stderr=""),
+            ),
+            patch(
+                "measure_workflow_coalescing.check_gh_auth",
+                return_value=GhAuthResult(status, detail),
+            ),
         ):
             _CHECK_PREREQUISITES()
 

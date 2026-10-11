@@ -53,9 +53,7 @@ class TestScanAllReturnsSingleSnapshot:
 
         assert ref_counts == standalone
 
-    def test_scanned_by_root_matches_scanned_markdown_by_root(
-        self, tmp_path: Path
-    ) -> None:
+    def test_scanned_by_root_matches_scanned_markdown_by_root(self, tmp_path: Path) -> None:
         repo = tmp_path / "repo"
         _make_skill(repo, "a")
         _make_skill(repo, "b")
@@ -65,9 +63,7 @@ class TestScanAllReturnsSingleSnapshot:
 
         assert scanned == standalone
 
-    def test_marker_counts_match_scan_marker_suppressions(
-        self, tmp_path: Path
-    ) -> None:
+    def test_marker_counts_match_scan_marker_suppressions(self, tmp_path: Path) -> None:
         content = "<!-- vendor-portability: deliberate -->\nSee .agents/x\n"
         repo = tmp_path / "repo"
         _make_skill(repo, "marked", content)
@@ -88,9 +84,7 @@ class TestScanAllReturnsSingleSnapshot:
         assert ".claude/skills" in scanned
         assert scanned[".claude/skills"] == 0
 
-    def test_extra_dirs_contribute_to_both_ref_counts_and_coverage(
-        self, tmp_path: Path
-    ) -> None:
+    def test_extra_dirs_contribute_to_both_ref_counts_and_coverage(self, tmp_path: Path) -> None:
         """Issue #5214 review: an extra dir must be visible in files_by_root too.
 
         Previously extra dirs fed ref_counts but were absent from
@@ -111,9 +105,7 @@ class TestScanAllReturnsSingleSnapshot:
         assert "templates/agents/spec.shared.md" in ref_counts
         assert scanned.get("templates/agents") == 1
 
-    def test_extra_dirs_contribute_to_marker_counts_and_coverage(
-        self, tmp_path: Path
-    ) -> None:
+    def test_extra_dirs_contribute_to_marker_counts_and_coverage(self, tmp_path: Path) -> None:
         repo = tmp_path / "repo"
         (repo / ".claude" / "skills").mkdir(parents=True)
         (repo / "src" / "claude" / "skills").mkdir(parents=True)

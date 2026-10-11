@@ -10,6 +10,7 @@ Grounded in:
 
 import argparse
 import sys
+from typing import Any
 
 
 def get_phase_name(step: int) -> str:
@@ -24,7 +25,9 @@ def get_phase_name(step: int) -> str:
         return "SYNTHESIS"
 
 
-def get_step_guidance(step: int, total_steps: int, decision: str | None, context: str | None) -> dict:
+def get_step_guidance(
+    step: int, total_steps: int, decision: str | None, context: str | None
+) -> dict[str, Any]:
     """Return step-specific guidance and actions."""
 
     next_step = step + 1 if step < total_steps else None
@@ -90,19 +93,19 @@ def get_step_guidance(step: int, total_steps: int, decision: str | None, context
                 "CLASSIFICATIONS:",
                 "",
                 "  [V] VERIFIABLE - Can be checked against evidence or tested",
-                "      Examples: \"API supports 1000 RPS\" (testable), \"Library X has feature Y\" (checkable)",
+                '      Examples: "API supports 1000 RPS" (testable), "Library X has feature Y" (checkable)',
                 "",
                 "  [J] JUDGMENT - Subjective tradeoff with no objectively correct answer",
-                "      Examples: \"Simplicity is more important than flexibility\", \"Risk is acceptable\"",
+                '      Examples: "Simplicity is more important than flexibility", "Risk is acceptable"',
                 "",
                 "  [C] CONSTRAINT - Given condition, accepted as fixed for this decision",
-                "      Examples: \"Budget is $50K\", \"Must launch by Q2\", \"Team has 3 engineers\"",
+                '      Examples: "Budget is $50K", "Must launch by Q2", "Team has 3 engineers"',
                 "",
                 "EDGE CASE RULE: When an item could fit multiple categories, prefer [V] over [J] over [C].",
                 "Rationale: Verifiable items can be checked; judgments can be debated; constraints are given.",
                 "",
                 "Example edge case:",
-                "  \"The team can deliver in 4 weeks\" - Could be [J] (judgment about capacity) or [V] (checkable",
+                '  "The team can deliver in 4 weeks" - Could be [J] (judgment about capacity) or [V] (checkable',
                 "  against past velocity). Choose [V] because it CAN be verified against evidence.",
                 "",
                 "OUTPUT FORMAT (preserve original IDs):",
@@ -156,8 +159,8 @@ def get_step_guidance(step: int, total_steps: int, decision: str | None, context
             ],
             "next": f"Step {next_step}: Answer questions with factored verification.",
             "academic_note": (
-                "Chain-of-Verification (Dhuliawala et al., 2023): \"Plan verification questions "
-                "to check its work, and then systematically answer those questions.\""
+                'Chain-of-Verification (Dhuliawala et al., 2023): "Plan verification questions '
+                'to check its work, and then systematically answer those questions."'
             ),
         }
 
@@ -207,8 +210,8 @@ def get_step_guidance(step: int, total_steps: int, decision: str | None, context
             ],
             "next": f"Step {next_step}: Begin challenge phase with adversarial analysis.",
             "academic_note": (
-                "Chain-of-Verification: \"Factored variants which separate out verification steps, "
-                "in terms of which context is attended to, give further performance gains.\""
+                'Chain-of-Verification: "Factored variants which separate out verification steps, '
+                'in terms of which context is attended to, give further performance gains."'
             ),
         }
 
@@ -257,7 +260,7 @@ def get_step_guidance(step: int, total_steps: int, decision: str | None, context
             "next": f"Step {next_step}: Explore alternative problem framing.",
             "academic_note": (
                 "Multi-Expert Prompting (Wang et al., 2024): \"Integrating multiple experts' "
-                "perspectives catches blind spots in reasoning.\""
+                'perspectives catches blind spots in reasoning."'
             ),
         }
 
@@ -353,8 +356,8 @@ def get_step_guidance(step: int, total_steps: int, decision: str | None, context
             ],
             "next": None,
             "academic_note": (
-                "Self-Consistency (Wang et al., 2023): \"Correct reasoning processes tend to "
-                "have greater agreement in their final answer than incorrect processes.\""
+                'Self-Consistency (Wang et al., 2023): "Correct reasoning processes tend to '
+                'have greater agreement in their final answer than incorrect processes."'
             ),
         }
 

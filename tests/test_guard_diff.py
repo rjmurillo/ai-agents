@@ -88,9 +88,7 @@ def _count_corpus_scans() -> Iterator[None]:
 
     original = guard_diff.scan_corpus
 
-    def counting(
-        guard: Callable[[str], list[int]], scan_root: Path
-    ) -> dict[str, list[int]]:
+    def counting(guard: Callable[[str], list[int]], scan_root: Path) -> dict[str, list[int]]:
         if Path(scan_root) == CORPUS_ROOT:
             _CORPUS_SCANS.append(str(scan_root))
         return original(guard, scan_root)
@@ -382,7 +380,7 @@ def test_corpus_gate_reports_no_finding_the_baseline_does_not_carry(
     added = corpus_scan.findings - corpus_scan.baseline
 
     assert added == set(), (
-        "New unpinned subprocess text=True call(s). Pass encoding=\"utf-8\" (or "
+        'New unpinned subprocess text=True call(s). Pass encoding="utf-8" (or '
         "read bytes) instead of adding the line to the baseline.\n"
         f"Added: {sorted(added)}"
     )
@@ -414,9 +412,7 @@ def test_corpus_gate_survives_line_insertion_in_flagged_file(
 
     # Find a baseline file that actually exists under CORPUS_ROOT.
     raw = json.loads(BASELINE_PATH.read_text(encoding="utf-8"))
-    victim_rel = next(
-        rel for rel in raw["findings"] if (CORPUS_ROOT / rel).exists()
-    )
+    victim_rel = next(rel for rel in raw["findings"] if (CORPUS_ROOT / rel).exists())
 
     # Build a scratch corpus root containing only the victim file.
     scratch = tmp_path / "skills"
@@ -484,9 +480,7 @@ def test_corpus_gate_catches_weakened_guard(corpus_scan: CorpusScan) -> None:
 
     # Green path: real guard produces no removals.
     removed_f = corpus_scan.baseline - corpus_scan.findings
-    assert removed_f == set(), (
-        f"Unexpected: real guard triggered the gate. Removed: {removed_f}"
-    )
+    assert removed_f == set(), f"Unexpected: real guard triggered the gate. Removed: {removed_f}"
 
 
 @pytest.mark.skipif(

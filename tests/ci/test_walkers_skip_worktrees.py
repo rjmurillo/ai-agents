@@ -36,17 +36,13 @@ import tests.test_no_verify_prohibition as noverify
 def _make_tree(root: Path) -> None:
     """Write one real source file and one decoy inside a worktree copy."""
     (root / "scripts").mkdir(parents=True, exist_ok=True)
-    (root / ".claude" / "worktrees" / "wt_a" / "scripts").mkdir(
-        parents=True, exist_ok=True
-    )
+    (root / ".claude" / "worktrees" / "wt_a" / "scripts").mkdir(parents=True, exist_ok=True)
 
 
 class TestNoVerifyWalker:
     """_instruction_files ignores worktree copies but not the real tree."""
 
-    def test_worktree_file_is_excluded_and_real_file_kept(
-        self, tmp_path: Path
-    ) -> None:
+    def test_worktree_file_is_excluded_and_real_file_kept(self, tmp_path: Path) -> None:
         _make_tree(tmp_path)
         claude = tmp_path / ".claude"
         real = claude / "real.md"
@@ -85,8 +81,7 @@ class TestNoVerifyWalker:
             files = noverify._instruction_files()
 
         assert real in files, (
-            "a repository under a 'worktrees' dir must still be scanned; "
-            f"got {files}"
+            f"a repository under a 'worktrees' dir must still be scanned; got {files}"
         )
 
 

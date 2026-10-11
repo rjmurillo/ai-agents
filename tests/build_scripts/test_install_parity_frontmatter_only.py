@@ -140,15 +140,11 @@ def parity_repo(tmp_path: Path) -> Path:
 class TestFrontmatterOnlyBypass:
     """Issue #4922: frontmatter-only changes in generated files pass."""
 
-    def test_frontmatter_change_in_generated_files_is_delegated(
-        self, parity_repo: Path
-    ) -> None:
+    def test_frontmatter_change_in_generated_files_is_delegated(self, parity_repo: Path) -> None:
         """ADR-109 B1: SHARED_AGENT drift delegated to build_all.py --check."""
         for rel in _GENERATED_TOUCHED:
             (parity_repo / rel).write_text(FRONTMATTER_WITHOUT_MODEL)
         _run_git(parity_repo, "add", "-A")
 
-        violations = vip.find_violations(
-            _GENERATED_TOUCHED, repo_root=parity_repo, base="HEAD"
-        )
+        violations = vip.find_violations(_GENERATED_TOUCHED, repo_root=parity_repo, base="HEAD")
         assert violations == []

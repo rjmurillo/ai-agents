@@ -146,11 +146,7 @@ def unresolved_selectors(source: str, repo_root: Path) -> list[str]:
         # arm catches a leading slash, the Windows anchor arm catches a drive
         # letter and a UNC share.
         rel_posix = PurePosixPath(rel)
-        if (
-            rel_posix.is_absolute()
-            or PureWindowsPath(rel).anchor
-            or ".." in rel_posix.parts
-        ):
+        if rel_posix.is_absolute() or PureWindowsPath(rel).anchor or ".." in rel_posix.parts:
             problems.append(f"line {lineno}: {selector} (not a repo-relative path: {rel})")
             continue
         target = repo_root / rel

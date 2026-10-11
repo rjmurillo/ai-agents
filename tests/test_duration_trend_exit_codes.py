@@ -61,10 +61,10 @@ def test_a_failed_history_write_leaves_no_summary_and_reports_an_error(
     blocker.write_text("", encoding="utf-8")
     summary = tmp_path / "summary.md"
 
-    rc = main([str(report), "--write-history", str(blocker / "history.json"),
-               "--summary", str(summary)])
+    rc = main(
+        [str(report), "--write-history", str(blocker / "history.json"), "--summary", str(summary)]
+    )
 
     assert rc == 3
     assert not summary.exists()
-    assert "::error title=Test duration report::could not write output" in (
-        capsys.readouterr().out)
+    assert "::error title=Test duration report::could not write output" in (capsys.readouterr().out)

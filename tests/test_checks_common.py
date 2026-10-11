@@ -67,9 +67,7 @@ class TestRefreshRemoteBase:
         assert _refresh_remote_base("origin/feat/sub-branch", tmp_path) is None
         assert _refresh_remote_base("origin/foo/bar/baz", tmp_path) is None
 
-    def test_returns_none_when_ci_env_true(
-        self, tmp_path: Path, monkeypatch: Any
-    ) -> None:
+    def test_returns_none_when_ci_env_true(self, tmp_path: Path, monkeypatch: Any) -> None:
         """Should skip fetch when CI=true (CI already fetched)."""
         monkeypatch.setenv("CI", "true")
         with patch("scripts.validation.checks_common._run_subprocess") as mock_run:
@@ -77,9 +75,7 @@ class TestRefreshRemoteBase:
             assert result is None
             mock_run.assert_not_called()
 
-    def test_returns_none_when_ci_env_one(
-        self, tmp_path: Path, monkeypatch: Any
-    ) -> None:
+    def test_returns_none_when_ci_env_one(self, tmp_path: Path, monkeypatch: Any) -> None:
         """Should skip fetch when CI=1."""
         monkeypatch.setenv("CI", "1")
         with patch("scripts.validation.checks_common._run_subprocess") as mock_run:
@@ -87,9 +83,7 @@ class TestRefreshRemoteBase:
             assert result is None
             mock_run.assert_not_called()
 
-    def test_returns_none_when_github_actions_true(
-        self, tmp_path: Path, monkeypatch: Any
-    ) -> None:
+    def test_returns_none_when_github_actions_true(self, tmp_path: Path, monkeypatch: Any) -> None:
         """Should skip fetch when GITHUB_ACTIONS=true."""
         monkeypatch.setenv("GITHUB_ACTIONS", "true")
         with patch("scripts.validation.checks_common._run_subprocess") as mock_run:
@@ -97,9 +91,7 @@ class TestRefreshRemoteBase:
             assert result is None
             mock_run.assert_not_called()
 
-    def test_returns_none_when_github_actions_one(
-        self, tmp_path: Path, monkeypatch: Any
-    ) -> None:
+    def test_returns_none_when_github_actions_one(self, tmp_path: Path, monkeypatch: Any) -> None:
         """Should skip fetch when GITHUB_ACTIONS=1."""
         monkeypatch.setenv("GITHUB_ACTIONS", "1")
         with patch("scripts.validation.checks_common._run_subprocess") as mock_run:
@@ -138,9 +130,7 @@ class TestRefreshRemoteBase:
             assert "GIT_COMMON_DIR" not in clean_env
             assert "GIT_INDEX_FILE" not in clean_env
 
-    def test_returns_error_string_on_failed_fetch(
-        self, tmp_path: Path, monkeypatch: Any
-    ) -> None:
+    def test_returns_error_string_on_failed_fetch(self, tmp_path: Path, monkeypatch: Any) -> None:
         """Should return error string on failed git fetch."""
         monkeypatch.delenv("CI", raising=False)
         monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
@@ -183,20 +173,22 @@ class TestRunBuildScriptGate:
 
         script = tmp_path / "build" / "scripts" / "test_validator.py"
         script.parent.mkdir(parents=True)
-        script.write_text(
-            "#!/usr/bin/env python3\nimport sys\nsys.exit(0)", encoding="utf-8"
-        )
+        script.write_text("#!/usr/bin/env python3\nimport sys\nsys.exit(0)", encoding="utf-8")
         script.chmod(0o755)
 
-        with patch(
-            "scripts.validation.checks_common._resolve_branch_base_ref",
-            return_value="origin/main",
-        ), patch(
-            "scripts.validation.checks_common._refresh_remote_base",
-            return_value="",
-        ) as mock_refresh, patch(
-            "scripts.validation.checks_common._run_subprocess",
-            return_value=(0, "", ""),
+        with (
+            patch(
+                "scripts.validation.checks_common._resolve_branch_base_ref",
+                return_value="origin/main",
+            ),
+            patch(
+                "scripts.validation.checks_common._refresh_remote_base",
+                return_value="",
+            ) as mock_refresh,
+            patch(
+                "scripts.validation.checks_common._run_subprocess",
+                return_value=(0, "", ""),
+            ),
         ):
             result = _run_build_script_gate(tmp_path, "test_validator.py", "test-gate")
             assert result is True
@@ -211,19 +203,21 @@ class TestRunBuildScriptGate:
 
         script = tmp_path / "build" / "scripts" / "test_validator.py"
         script.parent.mkdir(parents=True)
-        script.write_text(
-            "#!/usr/bin/env python3\nimport sys\nsys.exit(0)", encoding="utf-8"
-        )
+        script.write_text("#!/usr/bin/env python3\nimport sys\nsys.exit(0)", encoding="utf-8")
 
-        with patch(
-            "scripts.validation.checks_common._resolve_branch_base_ref",
-            return_value="origin/main",
-        ), patch(
-            "scripts.validation.checks_common._refresh_remote_base",
-            return_value="timeout after 15s",
-        ), patch(
-            "scripts.validation.checks_common._run_subprocess",
-            return_value=(0, "", ""),
+        with (
+            patch(
+                "scripts.validation.checks_common._resolve_branch_base_ref",
+                return_value="origin/main",
+            ),
+            patch(
+                "scripts.validation.checks_common._refresh_remote_base",
+                return_value="timeout after 15s",
+            ),
+            patch(
+                "scripts.validation.checks_common._run_subprocess",
+                return_value=(0, "", ""),
+            ),
         ):
             result = _run_build_script_gate(tmp_path, "test_validator.py", "test-gate")
             assert result is True
@@ -232,28 +226,28 @@ class TestRunBuildScriptGate:
             assert "could not refresh origin/main" in captured.err
             assert "timeout after 15s" in captured.err
 
-    def test_does_not_fetch_for_non_origin_ref(
-        self, tmp_path: Path, monkeypatch: Any
-    ) -> None:
+    def test_does_not_fetch_for_non_origin_ref(self, tmp_path: Path, monkeypatch: Any) -> None:
         """Should not fetch when base_ref is not origin/<branch>."""
         monkeypatch.delenv("CI", raising=False)
         monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
 
         script = tmp_path / "build" / "scripts" / "test_validator.py"
         script.parent.mkdir(parents=True)
-        script.write_text(
-            "#!/usr/bin/env python3\nimport sys\nsys.exit(0)", encoding="utf-8"
-        )
+        script.write_text("#!/usr/bin/env python3\nimport sys\nsys.exit(0)", encoding="utf-8")
 
-        with patch(
-            "scripts.validation.checks_common._resolve_branch_base_ref",
-            return_value="@{u}",
-        ), patch(
-            "scripts.validation.checks_common._refresh_remote_base",
-            return_value=None,
-        ) as mock_refresh, patch(
-            "scripts.validation.checks_common._run_subprocess",
-            return_value=(0, "", ""),
+        with (
+            patch(
+                "scripts.validation.checks_common._resolve_branch_base_ref",
+                return_value="@{u}",
+            ),
+            patch(
+                "scripts.validation.checks_common._refresh_remote_base",
+                return_value=None,
+            ) as mock_refresh,
+            patch(
+                "scripts.validation.checks_common._run_subprocess",
+                return_value=(0, "", ""),
+            ),
         ):
             result = _run_build_script_gate(tmp_path, "test_validator.py", "test-gate")
             assert result is True
@@ -341,9 +335,7 @@ class TestStaleOriginMainRegression:
 
         # 3. Advance remote to 0.5.128 (without local fetching)
         plugin_file_remote = remote_repo / ".claude-plugin" / "plugin.json"
-        plugin_file_remote.write_text(
-            json.dumps({"version": "0.5.128"}), encoding="utf-8"
-        )
+        plugin_file_remote.write_text(json.dumps({"version": "0.5.128"}), encoding="utf-8")
         subprocess.run(
             ["git", "add", "."],
             cwd=remote_repo,
@@ -365,9 +357,7 @@ class TestStaleOriginMainRegression:
             capture_output=True,
         )
         plugin_file_local = local_repo / ".claude-plugin" / "plugin.json"
-        plugin_file_local.write_text(
-            json.dumps({"version": "0.5.114"}), encoding="utf-8"
-        )
+        plugin_file_local.write_text(json.dumps({"version": "0.5.114"}), encoding="utf-8")
         subprocess.run(
             ["git", "add", "."],
             cwd=local_repo,
@@ -465,6 +455,4 @@ else:
             check=True,
         )
         refreshed_version = json.loads(result.stdout)["version"]
-        assert (
-            refreshed_version == "0.5.128"
-        ), "origin/main should be refreshed to 0.5.128"
+        assert refreshed_version == "0.5.128", "origin/main should be refreshed to 0.5.128"

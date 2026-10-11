@@ -744,9 +744,7 @@ class TestExpressionInjectionTaintPropagation:
             "id": "period",
             "run": 'echo "days=${{ inputs.days }}" >> "$GITHUB_OUTPUT"',
         }
-        errors = self._check(
-            tmp_path, [producer, _run_step("${{ steps.period.outputs.days }}")]
-        )
+        errors = self._check(tmp_path, [producer, _run_step("${{ steps.period.outputs.days }}")])
         assert len(errors) == 2
         assert any("carries the same taint" in e for e in errors)
 
@@ -819,16 +817,12 @@ class TestNameTruncationAtUnquotedHash:
         assert errors == []
 
     def test_the_report_carries_the_line_number(self, tmp_path: Path):
-        errors = self._check(
-            tmp_path, "jobs:\n  a:\n    steps:\n      - name: X #1\n"
-        )
+        errors = self._check(tmp_path, "jobs:\n  a:\n    steps:\n      - name: X #1\n")
         assert len(errors) == 1
         assert ":4:" in errors[0]
 
     def test_every_offender_on_the_file_is_reported(self, tmp_path: Path):
-        errors = self._check(
-            tmp_path, "      - name: A #1\n      - name: B #2\n      - name: C\n"
-        )
+        errors = self._check(tmp_path, "      - name: A #1\n      - name: B #2\n      - name: C\n")
         assert len(errors) == 2
 
     def test_the_live_workflow_tree_is_clean(self):
@@ -875,7 +869,7 @@ class TestLiveWorkflowTreeHasNoInjection:
             assert re.search(r"\$\{\{[^}]*inputs\.", body), (
                 f"{name} no longer references a dispatch input"
             )
-            assert "echo \"days=${{ inputs.days }}\"" not in body
+            assert 'echo "days=${{ inputs.days }}"' not in body
 
 
 class TestSafeHeadCommentMatchesBehavior:
@@ -1010,9 +1004,7 @@ class TestEnvIsNotALaunderingHop:
         assert errors == []
 
     @pytest.mark.parametrize("expression", ["secrets.TOKEN", "vars.REGISTRY"])
-    def test_admin_written_contexts_are_untouched(
-        self, tmp_path: Path, expression: str
-    ) -> None:
+    def test_admin_written_contexts_are_untouched(self, tmp_path: Path, expression: str) -> None:
         """Negative control: this narrows one prefix, it does not tighten policy.
 
         Writing either needs repository admin, so neither is attacker-supplied

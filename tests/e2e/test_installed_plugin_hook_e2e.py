@@ -68,9 +68,7 @@ def _load_hooks(root: Path) -> dict:
 
 
 def _dispatcher_shims(root: Path, event: str) -> list[str]:
-    manifest = json.loads(
-        (root / "hooks" / event / "_manifest.json").read_text(encoding="utf-8")
-    )
+    manifest = json.loads((root / "hooks" / event / "_manifest.json").read_text(encoding="utf-8"))
     shims = manifest.get("shims")
     assert isinstance(shims, list)
     assert all(isinstance(name, str) for name in shims)
@@ -205,8 +203,7 @@ class TestInstalledPluginHooks:
                 f"got fired={fired} rc={proc.returncode}\n{proc.stderr.decode()[:400]}"
             )
             assert proc.returncode == 0, (
-                f"{_PRE_TOOL_EVENT}[{i}] {shim}: non-match must exit 0, "
-                f"got {proc.returncode}"
+                f"{_PRE_TOOL_EVENT}[{i}] {shim}: non-match must exit 0, got {proc.returncode}"
             )
             checked += 1
         assert checked > 0, "no PreToolUse matcher shims found to check"
@@ -261,9 +258,7 @@ class TestInstalledPluginHooks:
         # were removed from this tree and the hardcoded list was never updated
         # because this suite never ran in CI. Deriving the list from the
         # installed manifest keeps the test honest as the event set changes.
-        lifecycle = [
-            event for event in hooks if event not in ("PreToolUse", "PostToolUse")
-        ]
+        lifecycle = [event for event in hooks if event not in ("PreToolUse", "PostToolUse")]
         if not lifecycle:
             pytest.skip(
                 "installed plugin registers no non-matcher lifecycle events; "

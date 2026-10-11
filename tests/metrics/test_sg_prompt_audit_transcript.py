@@ -92,9 +92,7 @@ def test_process_transcript_file_list_form_message_content(tmp_path: Path) -> No
     text = investigate_prompt(diff)
     entries = [
         user_entry([{"type": "text", "text": text}]),
-        assistant_entry(
-            "2026-09-20T00:00:01Z", usage=USAGE_1, tool_names=("StructuredOutput",)
-        ),
+        assistant_entry("2026-09-20T00:00:01Z", usage=USAGE_1, tool_names=("StructuredOutput",)),
     ]
     path = write_transcript(tmp_path, "proj-a", "sess4.jsonl", entries)
 
@@ -134,9 +132,7 @@ def test_process_transcript_file_counts_malformed_lines(tmp_path: Path) -> None:
         "{not valid json",
         user_entry(investigate_prompt(diff)),
         "also not valid json{{{",
-        assistant_entry(
-            "2026-09-20T00:00:01Z", usage=USAGE_1, tool_names=("StructuredOutput",)
-        ),
+        assistant_entry("2026-09-20T00:00:01Z", usage=USAGE_1, tool_names=("StructuredOutput",)),
     ]
     path = write_transcript(tmp_path, "proj-a", "sess7.jsonl", lines)
 
@@ -231,9 +227,7 @@ def test_process_transcript_file_ignores_non_assistant_entries_after_first_user(
     entries: list[object] = [
         user_entry(investigate_prompt(diff)),
         {"type": "queue-operation"},  # no "timestamp" key at all
-        assistant_entry(
-            "2026-09-20T00:00:01Z", usage=USAGE_1, tool_names=("StructuredOutput",)
-        ),
+        assistant_entry("2026-09-20T00:00:01Z", usage=USAGE_1, tool_names=("StructuredOutput",)),
     ]
     path = write_transcript(tmp_path, "proj-a", "sess14.jsonl", entries)
 
@@ -326,5 +320,3 @@ def test_process_transcript_file_treats_bad_later_timestamp_as_absent(tmp_path: 
     assert skipped == 0
     assert record is not None
     assert record.ended_at == "2026-09-20T00:00:01Z"
-
-

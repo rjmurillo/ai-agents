@@ -111,37 +111,39 @@ MCP_TOOL_NAME = re.compile(r"^mcp__[a-z0-9_]+(__(\*|[a-z0-9_]+))?$")
 # security agent MUST appear here. A tool absent from this list is treated as
 # potentially mutating, which is the fail-closed direction: refusing a read
 # costs one investigation, granting a write costs a compromised review.
-READONLY_GITHUB_TOOLS = frozenset({
-    "mcp__github__get_commit",
-    "mcp__github__get_file_contents",
-    "mcp__github__issue_read",
-    "mcp__github__list_commits",
-    "mcp__github__pull_request_read",
-    "mcp__github__search_code",
-    "mcp__github__search_issues",
-    "mcp__github__search_repositories",
-    "mcp__github__search_users",
-    "mcp__github__get_issue",
-    "mcp__github__list_issues",
-    "mcp__github__list_pull_requests",
-    "mcp__github__get_pull_request",
-    "mcp__github__get_pull_request_diff",
-    "mcp__github__get_pull_request_files",
-    "mcp__github__get_pull_request_reviews",
-    "mcp__github__get_pull_request_comments",
-    "mcp__github__list_branches",
-    "mcp__github__list_tags",
-    # Platform (Copilot/VS Code) `$toolset:github-research` grants read-only
-    # alert and PR-search tools the Claude surfaces have no equivalent call
-    # for. Read-only per the GitHub API (list/get, never create or dismiss),
-    # so they belong on this allowlist rather than tripping the platform
-    # remote-mutation check below as false-positive offenders.
-    "mcp__github__list_code_scanning_alerts",
-    "mcp__github__get_code_scanning_alert",
-    "mcp__github__list_secret_scanning_alerts",
-    "mcp__github__list_dependabot_alerts",
-    "mcp__github__search_pull_requests",
-})
+READONLY_GITHUB_TOOLS = frozenset(
+    {
+        "mcp__github__get_commit",
+        "mcp__github__get_file_contents",
+        "mcp__github__issue_read",
+        "mcp__github__list_commits",
+        "mcp__github__pull_request_read",
+        "mcp__github__search_code",
+        "mcp__github__search_issues",
+        "mcp__github__search_repositories",
+        "mcp__github__search_users",
+        "mcp__github__get_issue",
+        "mcp__github__list_issues",
+        "mcp__github__list_pull_requests",
+        "mcp__github__get_pull_request",
+        "mcp__github__get_pull_request_diff",
+        "mcp__github__get_pull_request_files",
+        "mcp__github__get_pull_request_reviews",
+        "mcp__github__get_pull_request_comments",
+        "mcp__github__list_branches",
+        "mcp__github__list_tags",
+        # Platform (Copilot/VS Code) `$toolset:github-research` grants read-only
+        # alert and PR-search tools the Claude surfaces have no equivalent call
+        # for. Read-only per the GitHub API (list/get, never create or dismiss),
+        # so they belong on this allowlist rather than tripping the platform
+        # remote-mutation check below as false-positive offenders.
+        "mcp__github__list_code_scanning_alerts",
+        "mcp__github__get_code_scanning_alert",
+        "mcp__github__list_secret_scanning_alerts",
+        "mcp__github__list_dependabot_alerts",
+        "mcp__github__search_pull_requests",
+    }
+)
 
 # Markers every surface must carry, whatever tools its harness grants.
 PROSE_MARKERS = (
@@ -460,9 +462,7 @@ def test_shared_template_declares_platform_pinned_diff_tools(key: str) -> None:
     assert "github/get_commit" in tools, f"{key} must be able to pin a single commit"
 
 
-@pytest.mark.parametrize(
-    "path", ALL_SECURITY_SURFACES, ids=lambda p: str(p.relative_to(REPO_ROOT))
-)
+@pytest.mark.parametrize("path", ALL_SECURITY_SURFACES, ids=lambda p: str(p.relative_to(REPO_ROOT)))
 def test_every_surface_carries_the_enumeration_protocol(path: Path) -> None:
     text = path.read_text(encoding="utf-8")
 
@@ -470,9 +470,7 @@ def test_every_surface_carries_the_enumeration_protocol(path: Path) -> None:
     assert not missing, f"{path.relative_to(REPO_ROOT)}: missing prose markers {missing}"
 
 
-@pytest.mark.parametrize(
-    "path", ALL_SECURITY_SURFACES, ids=lambda p: str(p.relative_to(REPO_ROOT))
-)
+@pytest.mark.parametrize("path", ALL_SECURITY_SURFACES, ids=lambda p: str(p.relative_to(REPO_ROOT)))
 def test_every_surface_states_that_no_shell_is_granted(path: Path) -> None:
     """One body reaches six surfaces, so the no-shell statement must travel with it.
 
@@ -486,9 +484,7 @@ def test_every_surface_states_that_no_shell_is_granted(path: Path) -> None:
     assert not missing, f"{path.relative_to(REPO_ROOT)}: no-shell contract unstated {missing}"
 
 
-@pytest.mark.parametrize(
-    "path", ALL_SECURITY_SURFACES, ids=lambda p: str(p.relative_to(REPO_ROOT))
-)
+@pytest.mark.parametrize("path", ALL_SECURITY_SURFACES, ids=lambda p: str(p.relative_to(REPO_ROOT)))
 def test_no_surface_revives_the_local_git_path(path: Path) -> None:
     """The removed local-git step must not come back while no surface has a shell."""
     text = path.read_text(encoding="utf-8")
@@ -500,9 +496,7 @@ def test_no_surface_revives_the_local_git_path(path: Path) -> None:
     )
 
 
-@pytest.mark.parametrize(
-    "path", ALL_SECURITY_SURFACES, ids=lambda p: str(p.relative_to(REPO_ROOT))
-)
+@pytest.mark.parametrize("path", ALL_SECURITY_SURFACES, ids=lambda p: str(p.relative_to(REPO_ROOT)))
 def test_every_surface_requires_a_complete_snapshot(path: Path) -> None:
     """A staged-only or new-file change must not take a verdict unreviewed.
 
@@ -513,27 +507,19 @@ def test_every_surface_requires_a_complete_snapshot(path: Path) -> None:
     text = path.read_text(encoding="utf-8")
 
     missing = find_missing_prose(text, SNAPSHOT_COMPLETENESS_MARKERS)
-    assert not missing, (
-        f"{path.relative_to(REPO_ROOT)}: snapshot completeness unstated {missing}"
-    )
+    assert not missing, f"{path.relative_to(REPO_ROOT)}: snapshot completeness unstated {missing}"
 
 
-@pytest.mark.parametrize(
-    "path", ALL_SECURITY_SURFACES, ids=lambda p: str(p.relative_to(REPO_ROOT))
-)
+@pytest.mark.parametrize("path", ALL_SECURITY_SURFACES, ids=lambda p: str(p.relative_to(REPO_ROOT)))
 def test_every_surface_records_why_a_denylist_is_not_the_control(path: Path) -> None:
     """Without this, the next reader re-adds `Bash` and re-derives the deny rules."""
     text = path.read_text(encoding="utf-8")
 
     missing = find_missing_prose(text, CASE_SENSITIVITY_MARKERS)
-    assert not missing, (
-        f"{path.relative_to(REPO_ROOT)}: case-sensitivity limit unstated {missing}"
-    )
+    assert not missing, f"{path.relative_to(REPO_ROOT)}: case-sensitivity limit unstated {missing}"
 
 
-@pytest.mark.parametrize(
-    "path", ALL_SECURITY_SURFACES, ids=lambda p: str(p.relative_to(REPO_ROOT))
-)
+@pytest.mark.parametrize("path", ALL_SECURITY_SURFACES, ids=lambda p: str(p.relative_to(REPO_ROOT)))
 def test_every_surface_reframes_the_validation_block_as_a_request(path: Path) -> None:
     """`Run no other command` and a block running `dotnet test` cannot both hold.
 
@@ -550,9 +536,7 @@ def test_every_surface_reframes_the_validation_block_as_a_request(path: Path) ->
     )
 
 
-@pytest.mark.parametrize(
-    "path", ALL_SECURITY_SURFACES, ids=lambda p: str(p.relative_to(REPO_ROOT))
-)
+@pytest.mark.parametrize("path", ALL_SECURITY_SURFACES, ids=lambda p: str(p.relative_to(REPO_ROOT)))
 def test_every_surface_names_the_git_output_write_hazard(path: Path) -> None:
     """A read-only subcommand list is not a read-only command list."""
     text = path.read_text(encoding="utf-8")
@@ -561,9 +545,7 @@ def test_every_surface_names_the_git_output_write_hazard(path: Path) -> None:
     assert not missing, f"{path.relative_to(REPO_ROOT)}: --output hazard unstated {missing}"
 
 
-@pytest.mark.parametrize(
-    "path", ALL_SECURITY_SURFACES, ids=lambda p: str(p.relative_to(REPO_ROOT))
-)
+@pytest.mark.parametrize("path", ALL_SECURITY_SURFACES, ids=lambda p: str(p.relative_to(REPO_ROOT)))
 def test_every_surface_states_the_limits_as_obligations(path: Path) -> None:
     """Bare `Bash`/`Write` and `$toolset:editor` are unscoped on every surface."""
     text = path.read_text(encoding="utf-8")
@@ -574,9 +556,7 @@ def test_every_surface_states_the_limits_as_obligations(path: Path) -> None:
     )
 
 
-@pytest.mark.parametrize(
-    "path", ALL_SECURITY_SURFACES, ids=lambda p: str(p.relative_to(REPO_ROOT))
-)
+@pytest.mark.parametrize("path", ALL_SECURITY_SURFACES, ids=lambda p: str(p.relative_to(REPO_ROOT)))
 def test_no_surface_claims_an_enforcement_it_lacks(path: Path) -> None:
     """The promised-but-unenforced mismatch is the defect issue #4781's review named."""
     text = path.read_text(encoding="utf-8")
@@ -589,18 +569,14 @@ def test_no_surface_claims_an_enforcement_it_lacks(path: Path) -> None:
     )
 
 
-@pytest.mark.parametrize(
-    "path", ALL_SECURITY_SURFACES, ids=lambda p: str(p.relative_to(REPO_ROOT))
-)
+@pytest.mark.parametrize("path", ALL_SECURITY_SURFACES, ids=lambda p: str(p.relative_to(REPO_ROOT)))
 def test_every_surface_makes_scope_blocked_conditional(path: Path) -> None:
     err = blocked_is_conditional(path.read_text(encoding="utf-8"))
 
     assert err is None, f"{path.relative_to(REPO_ROOT)}: {err}"
 
 
-@pytest.mark.parametrize(
-    "path", ALL_SECURITY_SURFACES, ids=lambda p: str(p.relative_to(REPO_ROOT))
-)
+@pytest.mark.parametrize("path", ALL_SECURITY_SURFACES, ids=lambda p: str(p.relative_to(REPO_ROOT)))
 def test_every_surface_names_the_mutations_the_absent_shell_closes(path: Path) -> None:
     """Name what the absent grant buys, or the next reader cannot weigh re-adding it.
 

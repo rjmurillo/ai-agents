@@ -293,10 +293,7 @@ def _retired_key_defects(rel: str, metadata: dict[str, object]) -> list[str]:
     """
     if "type" not in metadata:
         return []
-    return [
-        f"{rel}: declares the retired `metadata.type`; "
-        "use `metadata.capability.kind` instead"
-    ]
+    return [f"{rel}: declares the retired `metadata.type`; use `metadata.capability.kind` instead"]
 
 
 def _harness_template_defects(repo_root: Path) -> list[str]:
@@ -349,9 +346,7 @@ def collect_nodes(repo_root: Path) -> tuple[list[Node], list[str]]:
             # value is malformed, and skipping it silently would drop the
             # artifact from the graph with no finding.
             if metadata is not None and _is_canonical(rel):
-                defects.append(
-                    f"{rel}: `metadata` is {type(metadata).__name__}, not a mapping"
-                )
+                defects.append(f"{rel}: `metadata` is {type(metadata).__name__}, not a mapping")
             continue
         if _is_canonical(rel):
             defects.extend(_retired_key_defects(rel, metadata))

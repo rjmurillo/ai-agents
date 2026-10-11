@@ -366,9 +366,7 @@ class TestTerminatorWordBoundary:
         # too, per the same issue's review).
         instructions_dir = tmp_path / "src" / "copilot-cli" / "instructions"
         instructions_dir.mkdir(parents=True)
-        (instructions_dir / "_placeholder.md").write_text(
-            "Clean prose.\n", encoding="utf-8"
-        )
+        (instructions_dir / "_placeholder.md").write_text("Clean prose.\n", encoding="utf-8")
         baseline = tmp_path / "baseline.json"
         baseline.write_text(json.dumps({"files": {}}), encoding="utf-8")
         rc = cmp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
@@ -391,9 +389,7 @@ class TestTerminatorWordBoundary:
         # too, per the same issue's review).
         instructions_dir = tmp_path / "src" / "copilot-cli" / "instructions"
         instructions_dir.mkdir(parents=True)
-        (instructions_dir / "_placeholder.md").write_text(
-            "Clean prose.\n", encoding="utf-8"
-        )
+        (instructions_dir / "_placeholder.md").write_text("Clean prose.\n", encoding="utf-8")
         baseline = tmp_path / "baseline.json"
         baseline.write_text(json.dumps({"files": {}}), encoding="utf-8")
         rc = cmp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
@@ -793,9 +789,7 @@ class TestPluginRootScan:
         self._skill_md(tmp_path, "src/copilot-cli", "a/SKILL.md", "Reads .agents/x\n")
         instructions_dir = tmp_path / "src" / "copilot-cli" / "instructions"
         instructions_dir.mkdir(parents=True)
-        (instructions_dir / "_placeholder.md").write_text(
-            "Clean prose.\n", encoding="utf-8"
-        )
+        (instructions_dir / "_placeholder.md").write_text("Clean prose.\n", encoding="utf-8")
         baseline = tmp_path / "baseline.json"
         baseline.write_text('{"files": {}}', encoding="utf-8")
         code = cmp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
@@ -829,9 +823,7 @@ class TestPluginRootScan:
             self._skill_md(tmp_path, name, "a/SKILL.md", "Clean prose.\n")
         for name in cmp.REQUIRED_EXTRA_ROOTS:
             (tmp_path / name).mkdir(parents=True, exist_ok=True)
-            (tmp_path / name / "_placeholder.md").write_text(
-                "Clean prose.\n", encoding="utf-8"
-            )
+            (tmp_path / name / "_placeholder.md").write_text("Clean prose.\n", encoding="utf-8")
         assert cmp.missing_required_roots(tmp_path) == []
         baseline = tmp_path / "baseline.json"
         baseline.write_text('{"files": {}}', encoding="utf-8")
@@ -893,9 +885,7 @@ class TestExtraScanDirs:
         for required in cmp.REQUIRED_EXTRA_ROOTS:
             extra_dir = root / required
             extra_dir.mkdir(parents=True, exist_ok=True)
-            (extra_dir / "_placeholder.md").write_text(
-                "placeholder\n", encoding="utf-8"
-            )
+            (extra_dir / "_placeholder.md").write_text("placeholder\n", encoding="utf-8")
 
     def test_extra_scan_dirs_returns_existing_dirs(self, tmp_path: Path) -> None:
         """Directories in EXTRA_SCAN_ROOTS that exist are returned."""
@@ -1090,9 +1080,7 @@ class TestInstructionsScanRoot:
         proves the fix reads from ``EXTRA_SCAN_ROOTS`` (the ordered tuple),
         not from the frozenset.
         """
-        monkeypatch.setattr(
-            cmp, "EXTRA_SCAN_ROOTS", ("zzz_root", "aaa_root", "mmm_root")
-        )
+        monkeypatch.setattr(cmp, "EXTRA_SCAN_ROOTS", ("zzz_root", "aaa_root", "mmm_root"))
         monkeypatch.setattr(
             cmp, "REQUIRED_EXTRA_ROOTS", frozenset({"zzz_root", "aaa_root", "mmm_root"})
         )
@@ -1260,10 +1248,7 @@ class TestReport:
                 }
             )
         )
-        assert (
-            "Scanned .claude/skills (3), src/copilot-cli/skills (3)."
-            in capsys.readouterr().out
-        )
+        assert "Scanned .claude/skills (3), src/copilot-cli/skills (3)." in capsys.readouterr().out
 
     def test_the_clean_line_distinguishes_zero_examined_from_never_walked(
         self, capsys: pytest.CaptureFixture[str]
@@ -1272,9 +1257,7 @@ class TestReport:
         cmp._report(**self._args(scanned_by_root={"src/copilot-cli/instructions": 0}))
         assert "src/copilot-cli/instructions (0)" in capsys.readouterr().out
 
-    def test_json_format_includes_scanned_by_root(
-        self, capsys: pytest.CaptureFixture[str]
-    ) -> None:
+    def test_json_format_includes_scanned_by_root(self, capsys: pytest.CaptureFixture[str]) -> None:
         cmp._report(
             **self._args(
                 output_format="json",
@@ -1351,9 +1334,7 @@ class TestMainCli:
         for name in cmp.REQUIRED_EXTRA_ROOTS:
             extra_dir = root / name
             extra_dir.mkdir(parents=True, exist_ok=True)
-            (extra_dir / "_placeholder.md").write_text(
-                "placeholder\n", encoding="utf-8"
-            )
+            (extra_dir / "_placeholder.md").write_text("placeholder\n", encoding="utf-8")
 
     def test_exit_2_when_skills_dir_missing(self, tmp_path: Path) -> None:
         rc = cmp.main(["--repo-root", str(tmp_path)])
@@ -1436,7 +1417,6 @@ class TestMainCli:
         result = cmp._resolve_baseline_path(root, traversal)
         assert result is None, "path traversal must be refused"
 
-
     def test_absolute_baseline_outside_root_is_refused(self, tmp_path: Path) -> None:
 
         root = tmp_path / "repo"
@@ -1445,7 +1425,6 @@ class TestMainCli:
         outside.write_text("{}", encoding="utf-8")
         result = cmp._resolve_baseline_path(root, outside)
         assert result is None, "absolute path outside root must be refused"
-
 
 
 class TestUnexpectedScanException:
@@ -1638,9 +1617,7 @@ class TestAstCodeStripping:
         (tmp_path / "src" / "copilot-cli" / "skills").mkdir(parents=True)
         instructions_dir = tmp_path / "src" / "copilot-cli" / "instructions"
         instructions_dir.mkdir(parents=True)
-        (instructions_dir / "_placeholder.md").write_text(
-            "Clean prose.\n", encoding="utf-8"
-        )
+        (instructions_dir / "_placeholder.md").write_text("Clean prose.\n", encoding="utf-8")
         (skills / "SKILL.md").write_text(
             "# Skill\n\nExample:\n\n    write to .project-toolkit/x.md\n", encoding="utf-8"
         )
@@ -1712,9 +1689,7 @@ class TestScanAccounting:
         (tmp_path / "src" / "copilot-cli" / "skills").mkdir(parents=True)
         instructions_dir = tmp_path / "src" / "copilot-cli" / "instructions"
         instructions_dir.mkdir(parents=True)
-        (instructions_dir / "_placeholder.md").write_text(
-            "Clean prose.\n", encoding="utf-8"
-        )
+        (instructions_dir / "_placeholder.md").write_text("Clean prose.\n", encoding="utf-8")
         baseline = tmp_path / "baseline.json"
         baseline.write_text(json.dumps({"files": {}}), encoding="utf-8")
         rc = cmp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
@@ -1732,9 +1707,7 @@ class TestScanAccounting:
         (tmp_path / "src" / "copilot-cli" / "skills").mkdir(parents=True)
         instructions_dir = tmp_path / "src" / "copilot-cli" / "instructions"
         instructions_dir.mkdir(parents=True)
-        (instructions_dir / "_placeholder.md").write_text(
-            "Clean prose.\n", encoding="utf-8"
-        )
+        (instructions_dir / "_placeholder.md").write_text("Clean prose.\n", encoding="utf-8")
         baseline = tmp_path / "baseline.json"
         baseline.write_text(json.dumps({"files": {}}), encoding="utf-8")
         rc = cmp.main(
@@ -1763,9 +1736,7 @@ class TestBaselineSemanticConflictGuard:
         for required in cmp.REQUIRED_EXTRA_ROOTS:
             extra_dir = root / required
             extra_dir.mkdir(parents=True, exist_ok=True)
-            (extra_dir / "_placeholder.md").write_text(
-                "Clean prose.\n", encoding="utf-8"
-            )
+            (extra_dir / "_placeholder.md").write_text("Clean prose.\n", encoding="utf-8")
         (root / ".claude" / "skills" / "a" / "SKILL.md").write_text(
             "Clean prose.\n", encoding="utf-8"
         )
@@ -1805,9 +1776,7 @@ class TestBaselineSemanticConflictGuard:
             encoding="utf-8",
         )
         (tmp_path / "baseline.json").write_text(
-            json.dumps(
-                {"files": {}, "marker_files": {".claude/skills/a/SKILL.md": 1}}
-            ),
+            json.dumps({"files": {}, "marker_files": {".claude/skills/a/SKILL.md": 1}}),
             encoding="utf-8",
         )
 
@@ -1825,9 +1794,7 @@ class TestBaselineSemanticConflictGuard:
         assert rc == 0
         assert "Semantic baseline conflict" not in capsys.readouterr().out
 
-    def test_stale_marker_declaration_baseline_still_fails(
-        self, tmp_path: Path
-    ) -> None:
+    def test_stale_marker_declaration_baseline_still_fails(self, tmp_path: Path) -> None:
         """A stale baseline that does not match the current scan still fails."""
         self._init_repo(tmp_path)
         (tmp_path / ".claude" / "skills" / "a" / "SKILL.md").write_text(
@@ -1859,15 +1826,16 @@ class TestBaselineSemanticConflictGuard:
         self._init_repo(tmp_path)
         base_sha = subprocess.run(
             ["git", "rev-parse", "HEAD"],
-            cwd=tmp_path, capture_output=True, text=True, check=True,
+            cwd=tmp_path,
+            capture_output=True,
+            text=True,
+            check=True,
         ).stdout.strip()
         (tmp_path / ".claude" / "skills" / "a" / "SKILL.md").write_text(
             "Uses .agents/state.\n", encoding="utf-8"
         )
         (tmp_path / "baseline.json").write_text(
-            json.dumps(
-                {"files": {".claude/skills/a/SKILL.md": 1}, "marker_files": {}}
-            ),
+            json.dumps({"files": {".claude/skills/a/SKILL.md": 1}, "marker_files": {}}),
             encoding="utf-8",
         )
         subprocess.run(["git", "add", "."], cwd=tmp_path, check=True)
@@ -1988,9 +1956,7 @@ class TestBaselineSemanticConflictGuard:
 
         assert rc == 1
 
-    def test_baseline_only_change_does_not_trigger_semantic_conflict(
-        self, tmp_path: Path
-    ) -> None:
+    def test_baseline_only_change_does_not_trigger_semantic_conflict(self, tmp_path: Path) -> None:
         """A baseline-only remediation against current main remains allowed."""
         self._init_repo(tmp_path)
         (tmp_path / "baseline.json").write_text(
@@ -2017,9 +1983,7 @@ class TestBaselineSemanticConflictGuard:
 
         assert rc == 0
 
-    def test_baseline_matches_scan_suppresses_conflict(
-        self, tmp_path: Path
-    ) -> None:
+    def test_baseline_matches_scan_suppresses_conflict(self, tmp_path: Path) -> None:
         """Baseline regenerated after merge exits 0 when it matches current scan.
 
         This is the fix for issue #4300: when a skill file and the baseline both
@@ -2034,9 +1998,7 @@ class TestBaselineSemanticConflictGuard:
         )
         # Baseline correctly reflects the current scan (1 marker for a/SKILL.md).
         (tmp_path / "baseline.json").write_text(
-            json.dumps(
-                {"files": {}, "marker_files": {".claude/skills/a/SKILL.md": 1}}
-            ),
+            json.dumps({"files": {}, "marker_files": {".claude/skills/a/SKILL.md": 1}}),
             encoding="utf-8",
         )
 
@@ -2138,10 +2100,7 @@ class TestBaselineSemanticConflictGuard:
 
     def test_non_md_file_under_extra_scan_root_is_not_measured_input(self) -> None:
         """Negative: only Markdown files feed this scanner's counts."""
-        assert (
-            cmp._is_measured_input("src/copilot-cli/instructions/example.json")
-            is False
-        )
+        assert cmp._is_measured_input("src/copilot-cli/instructions/example.json") is False
 
     def _init_repo_with_debt(self, root: Path) -> None:
         """Seed a committed tree carrying one unsuppressed ref and a matching baseline."""
@@ -2150,9 +2109,7 @@ class TestBaselineSemanticConflictGuard:
             "Uses .agents/state.\n", encoding="utf-8"
         )
         (root / "baseline.json").write_text(
-            json.dumps(
-                {"files": {".claude/skills/a/SKILL.md": 1}, "marker_files": {}}
-            ),
+            json.dumps({"files": {".claude/skills/a/SKILL.md": 1}, "marker_files": {}}),
             encoding="utf-8",
         )
         subprocess.run(["git", "add", "."], cwd=root, check=True)
@@ -2170,9 +2127,7 @@ class TestBaselineSemanticConflictGuard:
             ]
         )
 
-    def test_lowered_baseline_alongside_md_change_is_allowed(
-        self, tmp_path: Path
-    ) -> None:
+    def test_lowered_baseline_alongside_md_change_is_allowed(self, tmp_path: Path) -> None:
         """Issue #4300: paying debt down must not read as a semantic conflict.
 
         Before this, the guard refused every baseline plus measured-input
@@ -2201,15 +2156,16 @@ class TestBaselineSemanticConflictGuard:
         self._init_repo_with_debt(tmp_path)
         base_sha = subprocess.run(
             ["git", "rev-parse", "HEAD"],
-            cwd=tmp_path, capture_output=True, text=True, check=True,
+            cwd=tmp_path,
+            capture_output=True,
+            text=True,
+            check=True,
         ).stdout.strip()
         (tmp_path / ".claude" / "skills" / "a" / "SKILL.md").write_text(
             "Files: .agents/a, .agents/b, .claude/review-axes/c.\n", encoding="utf-8"
         )
         (tmp_path / "baseline.json").write_text(
-            json.dumps(
-                {"files": {".claude/skills/a/SKILL.md": 3}, "marker_files": {}}
-            ),
+            json.dumps({"files": {".claude/skills/a/SKILL.md": 3}, "marker_files": {}}),
             encoding="utf-8",
         )
         subprocess.run(["git", "add", "."], cwd=tmp_path, check=True)
@@ -2241,9 +2197,7 @@ class TestBaselineSemanticConflictGuard:
         (tmp_path / "baseline.json").write_text(
             json.dumps(
                 {
-                    "files": {
-                        "src/copilot-cli/instructions/example.instructions.md": 1
-                    },
+                    "files": {"src/copilot-cli/instructions/example.instructions.md": 1},
                     "marker_files": {},
                 }
             ),
@@ -2253,7 +2207,10 @@ class TestBaselineSemanticConflictGuard:
         subprocess.run(["git", "commit", "-qm", "instructions debt"], cwd=tmp_path, check=True)
         base_sha = subprocess.run(
             ["git", "rev-parse", "HEAD"],
-            cwd=tmp_path, capture_output=True, text=True, check=True,
+            cwd=tmp_path,
+            capture_output=True,
+            text=True,
+            check=True,
         ).stdout.strip()
 
         instructions_file.write_text(
@@ -2262,9 +2219,7 @@ class TestBaselineSemanticConflictGuard:
         (tmp_path / "baseline.json").write_text(
             json.dumps(
                 {
-                    "files": {
-                        "src/copilot-cli/instructions/example.instructions.md": 3
-                    },
+                    "files": {"src/copilot-cli/instructions/example.instructions.md": 3},
                     "marker_files": {},
                 }
             ),
@@ -2290,9 +2245,7 @@ class TestBaselineSemanticConflictGuard:
         """Edge: with no recorded numbers there is nothing to ratchet against."""
         self._init_repo_with_debt(tmp_path)
         subprocess.run(["git", "rm", "-q", "baseline.json"], cwd=tmp_path, check=True)
-        subprocess.run(
-            ["git", "commit", "-qm", "drop baseline"], cwd=tmp_path, check=True
-        )
+        subprocess.run(["git", "commit", "-qm", "drop baseline"], cwd=tmp_path, check=True)
         base_ref = subprocess.run(
             ["git", "rev-parse", "HEAD"],
             cwd=tmp_path,
@@ -2326,7 +2279,10 @@ class TestBaselineSemanticConflictGuard:
         subprocess.run(["git", "commit", "-qm", "corrupt"], cwd=tmp_path, check=True)
         base_sha = subprocess.run(
             ["git", "rev-parse", "HEAD"],
-            cwd=tmp_path, capture_output=True, text=True, check=True,
+            cwd=tmp_path,
+            capture_output=True,
+            text=True,
+            check=True,
         ).stdout.strip()
         (tmp_path / ".claude" / "skills" / "a" / "SKILL.md").write_text(
             "Clean prose.\n", encoding="utf-8"
@@ -2379,9 +2335,7 @@ class TestBaselineSemanticConflictGuard:
         assert "outside the repository root" not in err
         assert "no-such-baseline.json" in err
 
-    def test_new_marker_declaration_is_allowed_against_base_ref(
-        self, tmp_path: Path
-    ) -> None:
+    def test_new_marker_declaration_is_allowed_against_base_ref(self, tmp_path: Path) -> None:
         """Edge: markers are declarations, so base_ref has nothing to ratchet.
 
         A file added on the branch has no ``base_ref`` entry. Ratcheting the
@@ -2398,17 +2352,13 @@ class TestBaselineSemanticConflictGuard:
             encoding="utf-8",
         )
         (tmp_path / "baseline.json").write_text(
-            json.dumps(
-                {"files": {}, "marker_files": {".claude/skills/b/SKILL.md": 1}}
-            ),
+            json.dumps({"files": {}, "marker_files": {".claude/skills/b/SKILL.md": 1}}),
             encoding="utf-8",
         )
 
         assert self._run(tmp_path, "HEAD") == 0
 
-    def test_marker_decrease_alongside_md_change_is_allowed(
-        self, tmp_path: Path
-    ) -> None:
+    def test_marker_decrease_alongside_md_change_is_allowed(self, tmp_path: Path) -> None:
         """Edge: exact-count marker drift is on-disk semantics, not the base_ref ratchet."""
         self._init_repo(tmp_path)
         (tmp_path / ".claude" / "skills" / "a" / "SKILL.md").write_text(
@@ -2416,9 +2366,7 @@ class TestBaselineSemanticConflictGuard:
             encoding="utf-8",
         )
         (tmp_path / "baseline.json").write_text(
-            json.dumps(
-                {"files": {}, "marker_files": {".claude/skills/a/SKILL.md": 1}}
-            ),
+            json.dumps({"files": {}, "marker_files": {".claude/skills/a/SKILL.md": 1}}),
             encoding="utf-8",
         )
         subprocess.run(["git", "add", "."], cwd=tmp_path, check=True)
@@ -2491,9 +2439,7 @@ class TestTraversalErrorsSurface:
         sys.platform == "win32",
         reason="Symlinks require privileges on Windows",
     )
-    def test_dangling_directory_symlink_outside_root_makes_cli_exit_2(
-        self, tmp_path: Path
-    ) -> None:
+    def test_dangling_directory_symlink_outside_root_makes_cli_exit_2(self, tmp_path: Path) -> None:
         skills = tmp_path / ".claude" / "skills" / "a"
         skills.mkdir(parents=True)
         (skills / "SKILL.md").write_text("Clean prose.\n", encoding="utf-8")
@@ -2574,9 +2520,7 @@ class TestNestingExhaustionGate:
         (tmp_path / "src" / "copilot-cli" / "skills").mkdir(parents=True)
         instructions_dir = tmp_path / "src" / "copilot-cli" / "instructions"
         instructions_dir.mkdir(parents=True)
-        (instructions_dir / "_placeholder.md").write_text(
-            "Clean prose.\n", encoding="utf-8"
-        )
+        (instructions_dir / "_placeholder.md").write_text("Clean prose.\n", encoding="utf-8")
         (skills / "SKILL.md").write_text(body, encoding="utf-8")
         baseline = tmp_path / "baseline.json"
         baseline.write_text(json.dumps({"files": {}}), encoding="utf-8")

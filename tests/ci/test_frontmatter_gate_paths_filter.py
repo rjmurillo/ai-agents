@@ -127,8 +127,7 @@ def test_the_filter_result_actually_reaches_the_gate() -> None:
             for step in check["steps"]
             if (
                 f"steps.{filter_id}.outputs.agents" in str(step.get("env", {}))
-                or f"toJson(steps.{filter_id}.outputs)"
-                in str(step.get("env", {}))
+                or f"toJson(steps.{filter_id}.outputs)" in str(step.get("env", {}))
             )
             and step.get("id")
             and f"steps.{step['id']}.outputs." in published

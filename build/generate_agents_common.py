@@ -68,18 +68,14 @@ def _load_model_pin_manifest_exports() -> tuple[
         resolve = module.resolve_manifest_model
         fmt = module.format_model_id_for_platform
     except AttributeError as exc:
-        raise ImportError(
-            f"Build utility {path} does not define the expected exports"
-        ) from exc
+        raise ImportError(f"Build utility {path} does not define the expected exports") from exc
     return (
         cast("Callable[..., str | None]", resolve),
         cast("Callable[..., str | None]", fmt),
     )
 
 
-resolve_manifest_model, format_model_id_for_platform = (
-    _load_model_pin_manifest_exports()
-)
+resolve_manifest_model, format_model_id_for_platform = _load_model_pin_manifest_exports()
 
 # Field ordering for frontmatter output
 _FIELD_ORDER = ("name", "description", "argument-hint", "tools", "model")
@@ -237,9 +233,7 @@ def _strip_inline_comment(value: str) -> str:
             bracket_depth = max(0, bracket_depth - 1)
             continue
 
-        if char == "#" and bracket_depth == 0 and (
-            index == 0 or value[index - 1].isspace()
-        ):
+        if char == "#" and bracket_depth == 0 and (index == 0 or value[index - 1].isspace()):
             return value[:index].rstrip()
 
     return value
@@ -442,7 +436,21 @@ def _yaml_quote_if_needed(value: str) -> str:
     if not value:
         return value
     _yaml_reserved_starts = (
-        "?", "!", "|", ">", "&", "*", "@", "`", "%", "{", "[", "#", "-", "'", '"',
+        "?",
+        "!",
+        "|",
+        ">",
+        "&",
+        "*",
+        "@",
+        "`",
+        "%",
+        "{",
+        "[",
+        "#",
+        "-",
+        "'",
+        '"',
     )
     # Bool/null word coercion (`true`, `null`, etc.) is intentionally NOT
     # treated as needs_quoting: schema fields like ``user-invocable: true``

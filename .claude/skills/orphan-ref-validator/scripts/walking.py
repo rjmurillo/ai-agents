@@ -28,10 +28,17 @@ SCAN_FILE_SUFFIXES: tuple[str, ...] = (".md", ".json", ".yaml", ".yml", ".py")
 
 # Five vendor/VCS names plus two skill-progressive-disclosure subtrees.
 # Frozen for safety.
-EXCLUDE_DIR_NAMES: frozenset[str] = frozenset({
-    "node_modules", ".git", "worktrees", "cache", "__pycache__",
-    "references", "templates",
-})
+EXCLUDE_DIR_NAMES: frozenset[str] = frozenset(
+    {
+        "node_modules",
+        ".git",
+        "worktrees",
+        "cache",
+        "__pycache__",
+        "references",
+        "templates",
+    }
+)
 
 # Filename patterns that match secrets and credentials. Filenames matching
 # any pattern are skipped by the walker.
@@ -86,9 +93,7 @@ def is_safe_subdirectory(entry: Path, repo_root: Path) -> bool:
         try:
             resolved.relative_to(repo_root.resolve())
         except ValueError:
-            LOGGER.warning(
-                "skipping %s: symlink resolves outside repo root", entry
-            )
+            LOGGER.warning("skipping %s: symlink resolves outside repo root", entry)
             return False
     return True
 
@@ -137,9 +142,7 @@ def walk_targets(target: Path, repo_root: Path) -> Iterable[Path]:
     yield from files
 
 
-def _iter_dir_pruned(
-    directory: Path, repo_root: Path, visited: set[Path]
-) -> Iterable[Path]:
+def _iter_dir_pruned(directory: Path, repo_root: Path, visited: set[Path]) -> Iterable[Path]:
     """Walk ``directory`` recursively, pruning excluded directory names,
     refusing to follow symlinks that escape ``repo_root``, and stopping
     at any directory whose canonical path was already visited (cycle
@@ -243,9 +246,7 @@ def _unsafe_symlink_problem(entry: Path, repo_root: Path) -> WalkProblem | None:
     return None
 
 
-def _iter_entry(
-    entry: Path, repo_root: Path, visited: set[Path]
-) -> Iterable[Path]:
+def _iter_entry(entry: Path, repo_root: Path, visited: set[Path]) -> Iterable[Path]:
     """Yield walkable files from a single directory entry."""
     try:
         if entry.is_dir():

@@ -3,6 +3,7 @@
 Offline: no CLI is launched. `subprocess.run` is replaced inside
 `_cli_transport`, which is the one place every transport calls it.
 """
+
 from __future__ import annotations
 
 import json
@@ -61,9 +62,7 @@ def test_process_env_omits_a_variable_that_is_not_set(
 
 
 def test_envelope_keeps_role_boundaries_and_the_trust_notice() -> None:
-    envelope = json.loads(
-        _cli_transport.build_envelope("Test CLI", MESSAGES, "Answer briefly.")
-    )
+    envelope = json.loads(_cli_transport.build_envelope("Test CLI", MESSAGES, "Answer briefly."))
 
     assert envelope["schema"] == "ai-agents-text-eval-v1"
     assert envelope["security_boundary"] == _cli_transport.TRUST_BOUNDARY
@@ -74,9 +73,7 @@ def test_envelope_keeps_role_boundaries_and_the_trust_notice() -> None:
 
 def test_envelope_rejects_an_unsupported_role() -> None:
     with pytest.raises(RuntimeError, match="message role"):
-        _cli_transport.build_envelope(
-            "Test CLI", [{"role": "assistant", "content": "hi"}], ""
-        )
+        _cli_transport.build_envelope("Test CLI", [{"role": "assistant", "content": "hi"}], "")
 
 
 def test_envelope_rejects_a_blank_prompt() -> None:
@@ -86,9 +83,7 @@ def test_envelope_rejects_a_blank_prompt() -> None:
 
 def test_envelope_drops_an_empty_message_but_keeps_the_system_text() -> None:
     envelope = json.loads(
-        _cli_transport.build_envelope(
-            "Test CLI", [{"role": "user", "content": "  "}], "Only this."
-        )
+        _cli_transport.build_envelope("Test CLI", [{"role": "user", "content": "  "}], "Only this.")
     )
 
     assert envelope["messages"] == []
@@ -104,9 +99,7 @@ def test_envelope_drops_an_empty_message_but_keeps_the_system_text() -> None:
         ("segmentation fault", "provider process failure"),
     ],
 )
-def test_process_error_reports_a_category_and_never_the_output(
-    stderr: str, expected: str
-) -> None:
+def test_process_error_reports_a_category_and_never_the_output(stderr: str, expected: str) -> None:
     error = _cli_transport.safe_process_error("Test CLI", 3, stderr)
 
     assert expected in str(error)
@@ -128,9 +121,7 @@ def test_run_cli_normalizes_every_launch_failure(
     install_runner(monkeypatch, Recorder(side_effect=side_effect))
 
     with pytest.raises(RuntimeError, match=expected):
-        _cli_transport.run_cli(
-            ["x"], "p", provider_label="Test CLI", env={}, timeout=5.0
-        )
+        _cli_transport.run_cli(["x"], "p", provider_label="Test CLI", env={}, timeout=5.0)
 
 
 def test_run_cli_runs_prepare_inside_the_sandbox(

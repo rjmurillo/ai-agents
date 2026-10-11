@@ -14,7 +14,7 @@ can arm the gate. `scripts/ci/spec_extract_refs.py:100` matches
 `Closes|Fixes|Resolves|Implements` and nothing else:
 
 ```python
-r"(?:Closes|Fixes|Resolves|Implements)\s+((?:[A-Za-z0-9_-]+/[A-Za-z0-9_-]+)?#\d+)",
+(r"(?:Closes|Fixes|Resolves|Implements)\s+((?:[A-Za-z0-9_-]+/[A-Za-z0-9_-]+)?#\d+)",)
 ```
 
 **`Refs #N` does not arm this gate by itself, and that is narrower than it

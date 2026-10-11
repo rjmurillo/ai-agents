@@ -63,9 +63,7 @@ def validate_copilot_agent_frontmatter(repo_root: Path) -> bool:
     This gate parses each file's frontmatter exactly as a YAML loader would and
     blocks a regression of that class.
     """
-    script = (
-        repo_root / "scripts" / "validation" / "validate_copilot_agent_frontmatter.py"
-    )
+    script = repo_root / "scripts" / "validation" / "validate_copilot_agent_frontmatter.py"
     if not script.exists():
         raise MissingScriptSkip("validate_copilot_agent_frontmatter.py not present")
 
@@ -141,9 +139,7 @@ def validate_install_parity(repo_root: Path) -> bool:
     falls back to its own @{push} default (which is not reliably set in CI
     or fresh local checkouts) and never validates against an unknown base.
     """
-    return bool(_run_build_script_gate(
-        repo_root, "validate_install_parity.py", "install-parity"
-    ))
+    return bool(_run_build_script_gate(repo_root, "validate_install_parity.py", "install-parity"))
 
 
 def validate_agent_content_parity(repo_root: Path) -> bool:
@@ -194,9 +190,9 @@ def validate_plugin_version_bump(repo_root: Path) -> bool:
     absent (a silent skip would defeat the gate) and when the branch base ref
     cannot be resolved (so the validator never diffs against an unknown base).
     """
-    return bool(_run_build_script_gate(
-        repo_root, "validate_plugin_version_bump.py", "plugin version-bump"
-    ))
+    return bool(
+        _run_build_script_gate(repo_root, "validate_plugin_version_bump.py", "plugin version-bump")
+    )
 
 
 def _lefthook_check_command() -> list[str] | None:
@@ -242,10 +238,9 @@ def validate_lefthook_installed(repo_root: Path) -> bool:
     a Windows probe with the uv runtime present and the ``PATH`` binary absent,
     which is not covered here. Issue #4789, PR #5358 review.
     """
-    if (
-        os.environ.get("GITHUB_ACTIONS", "").lower() in ("true", "1")
-        or os.environ.get("CI", "").lower() in ("true", "1")
-    ):
+    if os.environ.get("GITHUB_ACTIONS", "").lower() in ("true", "1") or os.environ.get(
+        "CI", ""
+    ).lower() in ("true", "1"):
         raise MissingScriptSkip("lefthook installation check skipped under CI")
 
     config = repo_root / "lefthook.yml"
@@ -271,10 +266,7 @@ def validate_lefthook_installed(repo_root: Path) -> bool:
     if stderr.strip():
         print(stderr.strip(), file=sys.stderr)
     if exit_code != 0:
-        print(
-            "[FAIL] Lefthook runtime is unavailable. Run: "
-            "uv sync --frozen --extra dev"
-        )
+        print("[FAIL] Lefthook runtime is unavailable. Run: uv sync --frozen --extra dev")
         return False
     return True
 

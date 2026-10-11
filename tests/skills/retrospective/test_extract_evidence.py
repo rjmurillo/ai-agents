@@ -113,12 +113,8 @@ def test_gather_evidence_formats_step_evidence_worklog_entries(tmp_path):
 def test_gather_evidence_picks_most_recent_session(tmp_path):
     # Arrange: two sessions; the newer one wins by mtime.
     sessions = tmp_path / ("." + "project-toolkit") / "sessions"
-    old = _write_session(
-        sessions, "2026-06-01-session-1-old.json", {"workLog": ["old work"]}
-    )
-    new = _write_session(
-        sessions, "2026-06-03-session-2-new.json", {"workLog": ["new work"]}
-    )
+    old = _write_session(sessions, "2026-06-01-session-1-old.json", {"workLog": ["old work"]})
+    new = _write_session(sessions, "2026-06-03-session-2-new.json", {"workLog": ["new work"]})
     # Force ordering: make `new` newer than `old`.
     import os
 
@@ -135,12 +131,8 @@ def test_gather_evidence_picks_most_recent_session(tmp_path):
 def test_find_recent_session_log_prefers_today_over_newer_older_log(tmp_path):
     # Arrange: an older-day log has newer mtime, but today's log wins.
     sessions = tmp_path / ("." + "project-toolkit") / "sessions"
-    older = _write_session(
-        sessions, "2026-05-31-session-9-old.json", {"workLog": ["old work"]}
-    )
-    today = _write_session(
-        sessions, "2026-06-03-session-1-today.json", {"workLog": ["today work"]}
-    )
+    older = _write_session(sessions, "2026-05-31-session-9-old.json", {"workLog": ["old work"]})
+    today = _write_session(sessions, "2026-06-03-session-1-today.json", {"workLog": ["today work"]})
     import os
 
     os.utime(today, (1_000_000, 1_000_000))
@@ -156,9 +148,7 @@ def test_find_recent_session_log_prefers_today_over_newer_older_log(tmp_path):
 def test_find_recent_session_log_uses_yesterday_when_today_missing(tmp_path):
     # Arrange
     sessions = tmp_path / ("." + "project-toolkit") / "sessions"
-    older = _write_session(
-        sessions, "2026-05-31-session-9-old.json", {"workLog": ["old work"]}
-    )
+    older = _write_session(sessions, "2026-05-31-session-9-old.json", {"workLog": ["old work"]})
     yesterday = _write_session(
         sessions, "2026-06-02-session-1-yesterday.json", {"workLog": ["yesterday"]}
     )
@@ -177,12 +167,8 @@ def test_find_recent_session_log_uses_yesterday_when_today_missing(tmp_path):
 def test_find_recent_session_log_fallback_excludes_future_logs(tmp_path):
     # Arrange
     sessions = tmp_path / ("." + "project-toolkit") / "sessions"
-    older = _write_session(
-        sessions, "2026-05-31-session-9-old.json", {"workLog": ["old work"]}
-    )
-    future = _write_session(
-        sessions, "2026-06-04-session-1-future.json", {"workLog": ["future"]}
-    )
+    older = _write_session(sessions, "2026-05-31-session-9-old.json", {"workLog": ["old work"]})
+    future = _write_session(sessions, "2026-06-04-session-1-future.json", {"workLog": ["future"]})
     import os
 
     os.utime(older, (1_000_000, 1_000_000))
@@ -199,9 +185,7 @@ def test_gather_evidence_uses_scope_date_for_session_selection(tmp_path):
     # Arrange: current-day work exists, but the retrospective is scoped earlier.
     sessions = tmp_path / ("." + "project-toolkit") / "sessions"
     _write_session(sessions, "2026-06-04-session-1-current.json", {"workLog": ["current"]})
-    scoped = _write_session(
-        sessions, "2026-06-03-session-1-scoped.json", {"workLog": ["scoped"]}
-    )
+    scoped = _write_session(sessions, "2026-06-03-session-1-scoped.json", {"workLog": ["scoped"]})
 
     # Act
     evidence = gather_evidence(tmp_path, "2026-06-03")

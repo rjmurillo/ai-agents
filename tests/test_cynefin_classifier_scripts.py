@@ -294,9 +294,7 @@ class TestClassifyProblem:
 
     def test_classifies_chaotic_domain(self) -> None:
         """Classifies crisis situations as Chaotic."""
-        result = classify_problem(
-            "Production is down! Urgent outage affecting customers!"
-        )
+        result = classify_problem("Production is down! Urgent outage affecting customers!")
 
         assert result.domain == Domain.CHAOTIC
         assert result.strategy == "Act-Sense-Respond"
@@ -311,9 +309,7 @@ class TestClassifyProblem:
     def test_classifies_confusion_for_mixed_signals(self) -> None:
         """Classifies problems with mixed signals as Confusion."""
         # This input has keywords from multiple domains equally
-        result = classify_problem(
-            "not sure, unclear, vague requirements"
-        )
+        result = classify_problem("not sure, unclear, vague requirements")
 
         # Should be Confusion due to ambiguity
         assert result.domain == Domain.CONFUSION
@@ -330,9 +326,7 @@ class TestClassifyProblem:
 
     def test_returns_high_confidence_for_strong_match(self) -> None:
         """Returns HIGH confidence for strong keyword matches."""
-        result = classify_problem(
-            "Urgent outage, system down, crisis, immediate action needed"
-        )
+        result = classify_problem("Urgent outage, system down, crisis, immediate action needed")
 
         assert result.confidence == Confidence.HIGH
 
@@ -375,9 +369,7 @@ class TestClassifyProblem:
 
     def test_flaky_test_classified_as_complex(self) -> None:
         """Flaky/intermittent tests classified as Complex."""
-        result = classify_problem(
-            "Test is flaky and fails randomly, works locally but fails in CI"
-        )
+        result = classify_problem("Test is flaky and fails randomly, works locally but fails in CI")
 
         assert result.domain == Domain.COMPLEX
 
@@ -397,8 +389,7 @@ class TestMainFunction:
     def script_path(self, project_root: Path) -> Path:
         """Return path to the classify.py script."""
         return (
-            project_root / ".claude" / "skills"
-            / "cynefin-classifier" / "scripts" / "classify.py"
+            project_root / ".claude" / "skills" / "cynefin-classifier" / "scripts" / "classify.py"
         )
 
     def test_requires_problem_argument(self, script_path: Path) -> None:
@@ -406,7 +397,8 @@ class TestMainFunction:
         result = subprocess.run(
             [sys.executable, str(script_path)],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
             timeout=30,
         )
 
@@ -418,7 +410,8 @@ class TestMainFunction:
         result = subprocess.run(
             [sys.executable, str(script_path), "--problem", ""],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
             timeout=30,
         )
 
@@ -430,7 +423,8 @@ class TestMainFunction:
         result = subprocess.run(
             [sys.executable, str(script_path), "--problem", "   "],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
             timeout=30,
         )
 
@@ -441,7 +435,8 @@ class TestMainFunction:
         result = subprocess.run(
             [sys.executable, str(script_path), "--problem", "Fix a typo"],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
             timeout=30,
         )
 
@@ -454,7 +449,8 @@ class TestMainFunction:
         result = subprocess.run(
             [sys.executable, str(script_path), "--problem", "Fix a typo", "--json"],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
             timeout=30,
         )
 
@@ -477,7 +473,8 @@ class TestMainFunction:
                 "Fix typo in docs, simple fix, obvious solution, best practice",
             ],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
             timeout=30,
         )
 
@@ -493,7 +490,8 @@ class TestMainFunction:
                 "Analyze root cause of memory leak, investigate performance, assess trade-offs",
             ],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
             timeout=30,
         )
 
@@ -509,7 +507,8 @@ class TestMainFunction:
                 "Unpredictable user behavior, need experiment, emergent patterns, A/B test",
             ],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
             timeout=30,
         )
 
@@ -525,7 +524,8 @@ class TestMainFunction:
                 "Production down! Urgent outage! Customers affected! Emergency!",
             ],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
             timeout=30,
         )
 
@@ -541,7 +541,8 @@ class TestMainFunction:
                 "Something is happening",  # Vague, no strong indicators
             ],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
             timeout=30,
         )
 
@@ -559,7 +560,8 @@ class TestMainFunction:
                 "This is a well-documented trivial fix following best practice",
             ],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
             timeout=30,
         )
 
@@ -570,7 +572,8 @@ class TestMainFunction:
         result = subprocess.run(
             [sys.executable, str(script_path), "--help"],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
             timeout=30,
         )
 
@@ -749,8 +752,7 @@ class TestJsonOutputFormat:
     def script_path(self, project_root: Path) -> Path:
         """Return path to the classify.py script."""
         return (
-            project_root / ".claude" / "skills"
-            / "cynefin-classifier" / "scripts" / "classify.py"
+            project_root / ".claude" / "skills" / "cynefin-classifier" / "scripts" / "classify.py"
         )
 
     def test_json_has_required_fields(self, script_path: Path) -> None:
@@ -764,7 +766,8 @@ class TestJsonOutputFormat:
                 "--json",
             ],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
             timeout=30,
         )
 
@@ -797,7 +800,8 @@ class TestJsonOutputFormat:
                 "--json",
             ],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
             timeout=30,
         )
 
@@ -816,7 +820,8 @@ class TestJsonOutputFormat:
                 "--json",
             ],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
             timeout=30,
         )
 
@@ -832,8 +837,7 @@ class TestMarkdownOutputFormat:
     def script_path(self, project_root: Path) -> Path:
         """Return path to the classify.py script."""
         return (
-            project_root / ".claude" / "skills"
-            / "cynefin-classifier" / "scripts" / "classify.py"
+            project_root / ".claude" / "skills" / "cynefin-classifier" / "scripts" / "classify.py"
         )
 
     def test_markdown_has_valid_headers(self, script_path: Path) -> None:
@@ -846,7 +850,8 @@ class TestMarkdownOutputFormat:
                 "Fix typo",
             ],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
             timeout=30,
         )
 
@@ -864,7 +869,8 @@ class TestMarkdownOutputFormat:
                 "Fix typo",
             ],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
             timeout=30,
         )
 

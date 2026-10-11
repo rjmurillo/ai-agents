@@ -8,10 +8,7 @@ import sys
 from pathlib import Path
 from unittest.mock import patch
 
-_SCRIPTS_DIR = (
-    Path(__file__).resolve().parents[1]
-    / ".claude" / "skills" / "github" / "scripts"
-)
+_SCRIPTS_DIR = Path(__file__).resolve().parents[1] / ".claude" / "skills" / "github" / "scripts"
 
 
 def _import_script(name: str):
@@ -54,7 +51,7 @@ def test_gh_present_but_no_act_extension(mock_run, mock_which):
     # `gh` is on PATH but the `gh act` extension is not installed.
     # `gh act --version` exits non-zero → falls back to "not found" (rc=2).
     mock_which.side_effect = lambda cmd: "/usr/bin/gh" if cmd == "gh" else None
-    mock_run.return_value = _completed(stderr="unknown command \"act\"\n", rc=1)
+    mock_run.return_value = _completed(stderr='unknown command "act"\n', rc=1)
 
     rc = main(["--workflow", "pester-tests"])
     assert rc == 2
@@ -139,18 +136,21 @@ def test_successful_run(mock_root, mock_exists, mock_run, mock_which, capsys):
         _completed(rc=0),  # docker info
         _completed(stdout="feat/test\n", rc=0),  # git rev-parse (current branch)
         _completed(  # git remote get-url origin
-            stdout="git@github.com:rjmurillo/ai-agents.git\n", rc=0,
+            stdout="git@github.com:rjmurillo/ai-agents.git\n",
+            rc=0,
         ),
         _completed(stdout="ghp_secret_token\n", rc=0),  # gh auth token
         _completed(rc=0),  # act run
     ]
 
-    rc = main([
-        "--workflow",
-        "pester-tests",
-        "--secrets",
-        '{"API_TOKEN":"user_secret_value"}',
-    ])
+    rc = main(
+        [
+            "--workflow",
+            "pester-tests",
+            "--secrets",
+            '{"API_TOKEN":"user_secret_value"}',
+        ]
+    )
     assert rc == 0
     out = capsys.readouterr().out
     assert "API_TOKEN=<redacted>" in out
@@ -178,12 +178,14 @@ def test_invalid_secrets_do_not_create_generated_event_file(
         _completed(rc=0),
     ]
 
-    rc = main([
-        "--workflow",
-        "pester-tests",
-        "--secrets",
-        "{not-json",
-    ])
+    rc = main(
+        [
+            "--workflow",
+            "pester-tests",
+            "--secrets",
+            "{not-json",
+        ]
+    )
 
     assert rc == 1
     mock_write_event.assert_not_called()
@@ -218,17 +220,13 @@ class TestGetRepoRoot:
             mock_run.return_value = _completed(stdout="", rc=128)
             result = _mod._get_repo_root()
             # Best-effort four-parents fallback from the script location.
-            expected = str(
-                Path(_mod.__file__).resolve().parent.parent.parent.parent
-            )
+            expected = str(Path(_mod.__file__).resolve().parent.parent.parent.parent)
             assert result == expected
 
     def test_falls_back_to_parents_when_git_missing(self):
         with patch("subprocess.run", side_effect=FileNotFoundError):
             result = _mod._get_repo_root()
-            expected = str(
-                Path(_mod.__file__).resolve().parent.parent.parent.parent
-            )
+            expected = str(Path(_mod.__file__).resolve().parent.parent.parent.parent)
             assert result == expected
 
     def test_falls_back_to_parents_when_git_times_out(self):
@@ -237,9 +235,7 @@ class TestGetRepoRoot:
             side_effect=subprocess.TimeoutExpired(cmd="git", timeout=10),
         ):
             result = _mod._get_repo_root()
-            expected = str(
-                Path(_mod.__file__).resolve().parent.parent.parent.parent
-            )
+            expected = str(Path(_mod.__file__).resolve().parent.parent.parent.parent)
             assert result == expected
 
 
@@ -263,9 +259,7 @@ class TestWorktreeGitDir:
         gitdir.mkdir(parents=True)
         worktree = tmp_path / "wt"
         worktree.mkdir()
-        (worktree / ".git").write_text(
-            "gitdir: ../.git/worktrees/feat\n", encoding="utf-8"
-        )
+        (worktree / ".git").write_text("gitdir: ../.git/worktrees/feat\n", encoding="utf-8")
         result = _mod._read_worktree_gitdir(str(worktree))
         assert result == str(gitdir.resolve())
 
@@ -280,9 +274,7 @@ class TestWorktreeGitDir:
         worktree = tmp_path / "wt"
         worktree.mkdir()
         (worktree / ".git").write_text("gitdir: /missing/gitdir\n", encoding="utf-8")
-        assert "gitdir is missing" in _mod._unsupported_worktree_gitdir_error(
-            str(worktree)
-        )
+        assert "gitdir is missing" in _mod._unsupported_worktree_gitdir_error(str(worktree))
 
 
 class TestActEnv:

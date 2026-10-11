@@ -109,11 +109,14 @@ Review this ADR: .project-toolkit/architecture/ADR-005-api-versioning.md
 
 ```python
 # When architect creates/updates ADR
-Task(subagent_type="orchestrator", prompt="""
+Task(
+    subagent_type="orchestrator",
+    prompt="""
 Trigger adr-review skill for: .project-toolkit/architecture/ADR-005-api-versioning.md
 
 Follow debate protocol in .claude/skills/adr-review/SKILL.md
-""")
+""",
+)
 ```
 
 <!-- vendor-portability: declared. This doc directs debate artifacts to .project-toolkit/critique/ and accepted ADRs to .project-toolkit/architecture/. In a vendored install without those dirs the agent creates them (or writes to the consumer's chosen artifact root); the paths are write targets, not preconditions. Issue #2050. -->

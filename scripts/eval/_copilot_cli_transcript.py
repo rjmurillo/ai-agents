@@ -29,23 +29,18 @@ def session_state_root(env_name: str, provider_label: str) -> Path:
         root = Path(override)
         if root.is_absolute():
             return root
-        raise RuntimeError(
-            f"{provider_label} needs {env_name} to be absolute; got {override!r}"
-        )
+        raise RuntimeError(f"{provider_label} needs {env_name} to be absolute; got {override!r}")
     copilot_home = os.environ.get(_COPILOT_HOME_ENV)
     if copilot_home:
         home = Path(copilot_home)
         if home.is_absolute():
             return home / "session-state"
         raise RuntimeError(
-            f"{provider_label} needs {_COPILOT_HOME_ENV} to be absolute; "
-            f"got {copilot_home!r}"
+            f"{provider_label} needs {_COPILOT_HOME_ENV} to be absolute; got {copilot_home!r}"
         )
     home = Path.home()
     if not home.is_absolute():
-        raise RuntimeError(
-            f"{provider_label} needs the home directory to be absolute"
-        )
+        raise RuntimeError(f"{provider_label} needs the home directory to be absolute")
     return home / ".copilot" / "session-state"
 
 
@@ -100,9 +95,7 @@ def _read_assistant_message(
         return None
     model = require_str_or_none(data.get("model"), "model")
     if model and _MODEL_ID_RE.fullmatch(model) is None:
-        raise MalformedProviderMetadataError(
-            "provider metadata field 'model' has invalid format"
-        )
+        raise MalformedProviderMetadataError("provider metadata field 'model' has invalid format")
     return content.strip(), model
 
 
@@ -174,9 +167,7 @@ def _open_transcript(
         raise
     if not stat.S_ISREG(metadata.st_mode):
         os.close(descriptor)
-        raise RuntimeError(
-            f"{provider_label} session transcript is not a regular file"
-        )
+        raise RuntimeError(f"{provider_label} session transcript is not a regular file")
     return descriptor, metadata
 
 
@@ -209,9 +200,7 @@ def _read_matching_session(
         ) as stream:
             while True:
                 if time.monotonic() >= deadline:
-                    raise RuntimeError(
-                        f"{provider_label} session transcript scan timed out"
-                    )
+                    raise RuntimeError(f"{provider_label} session transcript scan timed out")
                 raw_line = stream.readline(_MAX_TRANSCRIPT_LINE_CHARS + 1)
                 if not raw_line:
                     break
@@ -271,13 +260,9 @@ def read_session_transcript(
             for entry in entries:
                 entries_seen += 1
                 if entries_seen > _MAX_SESSION_ENTRIES:
-                    raise RuntimeError(
-                        f"{provider_label} session directory entry limit exceeded"
-                    )
+                    raise RuntimeError(f"{provider_label} session directory entry limit exceeded")
                 if time.monotonic() >= deadline:
-                    raise RuntimeError(
-                        f"{provider_label} session transcript scan timed out"
-                    )
+                    raise RuntimeError(f"{provider_label} session transcript scan timed out")
                 if not entry.is_dir(follow_symlinks=False):
                     continue
                 path = Path(entry.path) / "events.jsonl"
@@ -285,18 +270,11 @@ def read_session_transcript(
                     metadata = path.lstat()
                 except OSError:
                     continue
-                if (
-                    stat.S_ISLNK(metadata.st_mode)
-                    or not stat.S_ISREG(metadata.st_mode)
-                ):
-                    raise RuntimeError(
-                        f"{provider_label} session transcript is not a regular file"
-                    )
+                if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
+                    raise RuntimeError(f"{provider_label} session transcript is not a regular file")
                 if metadata.st_mtime < since:
                     continue
-                candidates.append(
-                    _TranscriptCandidate(entry.name, metadata.st_mtime)
-                )
+                candidates.append(_TranscriptCandidate(entry.name, metadata.st_mtime))
                 if len(candidates) > _MAX_TRANSCRIPT_CANDIDATES:
                     raise RuntimeError(
                         f"{provider_label} session transcript candidate limit exceeded"
@@ -306,9 +284,7 @@ def read_session_transcript(
     candidates.sort(key=lambda candidate: candidate.session_name)
     for candidate in candidates:
         if time.monotonic() >= deadline:
-            raise RuntimeError(
-                f"{provider_label} session transcript scan timed out"
-            )
+            raise RuntimeError(f"{provider_label} session transcript scan timed out")
         transcript = _read_matching_session(
             root,
             candidate,

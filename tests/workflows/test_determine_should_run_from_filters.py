@@ -65,17 +65,13 @@ class TestShouldRunForceRunEvents:
 
 class TestParseForceRunEvents:
     def test_splits_and_strips(self) -> None:
-        assert parse_force_run_events("push, schedule") == frozenset(
-            {"push", "schedule"}
-        )
+        assert parse_force_run_events("push, schedule") == frozenset({"push", "schedule"})
 
     def test_empty_string_yields_empty_set(self) -> None:
         assert parse_force_run_events("") == frozenset()
 
     def test_drops_blank_entries(self) -> None:
-        assert parse_force_run_events("push,, ,schedule") == frozenset(
-            {"push", "schedule"}
-        )
+        assert parse_force_run_events("push,, ,schedule") == frozenset({"push", "schedule"})
 
 
 class TestParseFilterKeys:
@@ -135,9 +131,7 @@ class TestMain:
 
         assert main() == 2
 
-    def test_returns_two_for_invalid_filter_json(
-        self, tmp_path: Path, monkeypatch
-    ) -> None:
+    def test_returns_two_for_invalid_filter_json(self, tmp_path: Path, monkeypatch) -> None:
         output = tmp_path / "github_output"
         monkeypatch.setenv("OUTPUT_NAME", "should-run-compliance")
         monkeypatch.setenv("GITHUB_OUTPUT", str(output))

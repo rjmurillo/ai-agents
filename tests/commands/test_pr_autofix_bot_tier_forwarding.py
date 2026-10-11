@@ -29,9 +29,7 @@ from tests.commands.pr_autofix_dispatch_harness import (
 
 
 @pytest.mark.parametrize("doc", DISPATCH_DOCS)
-def test_a_bot_authored_pr_forwards_is_bot_to_the_tier_producer(
-    tmp_path: Path, doc: str
-) -> None:
+def test_a_bot_authored_pr_forwards_is_bot_to_the_tier_producer(tmp_path: Path, doc: str) -> None:
     """The producer cannot return T5 unless the command asks for it.
 
     `classify_tier` reaches T5 only through `is_bot and (has_ci_failures or
@@ -220,9 +218,7 @@ def test_an_unreadable_author_fails_closed_to_bot(
 
 
 @pytest.mark.parametrize("doc", DISPATCH_DOCS)
-def test_a_failed_context_producer_discards_its_human_output(
-    tmp_path: Path, doc: str
-) -> None:
+def test_a_failed_context_producer_discards_its_human_output(tmp_path: Path, doc: str) -> None:
     """A failed author read cannot buy the human path through stale stdout.
 
     `FAILED_WITH_HUMAN` makes the focused author helper print
@@ -231,9 +227,7 @@ def test_a_failed_context_producer_discards_its_human_output(
     verdict. The later focused auto-merge read is independent and should still
     succeed, which is the split this PR introduces.
     """
-    run = run_dispatch(
-        tmp_path, doc, tier="T3", author_is_bot="FAILED_WITH_HUMAN"
-    )
+    run = run_dispatch(tmp_path, doc, tier="T3", author_is_bot="FAILED_WITH_HUMAN")
 
     assert run.forwarded_is_bot
     assert "Cannot read author bot state" in run.stdout
@@ -384,9 +378,7 @@ def test_auto_merge_is_refetched_after_tier_production(tmp_path: Path, doc: str)
         assert matching == [
             f"--pull-request {pr} --field author_is_bot --output-format json",
             f"--pull-request {pr} --field auto_merge_method --output-format json",
-        ], (
-            f"PR #{pr} did not use focused author and auto-merge reads; calls were {fetches!r}"
-        )
+        ], f"PR #{pr} did not use focused author and auto-merge reads; calls were {fetches!r}"
     assert run.disarmed, "auto-merge armed after author lookup bypassed the disarm gate"
 
 
@@ -413,18 +405,14 @@ def test_the_scripts_readiness_recipe_fails_closed(
 
 
 @pytest.mark.parametrize("doc", DISPATCH_DOCS)
-def test_an_unreadable_context_terminates_on_auto_merge_guard(
-    tmp_path: Path, doc: str
-) -> None:
+def test_an_unreadable_context_terminates_on_auto_merge_guard(tmp_path: Path, doc: str) -> None:
     """An auto-merge fetch failure must not retroactively poison the author read.
 
     The focused author read moved ahead of the focused auto-merge read to avoid
     paying one full context walk twice. That split is only correct if a later
     auto-merge fetch failure still leaves the author classification intact.
     """
-    run = run_dispatch(
-        tmp_path, doc, tier="T3", auto_merge="UNREADABLE", author_is_bot="true"
-    )
+    run = run_dispatch(tmp_path, doc, tier="T3", auto_merge="UNREADABLE", author_is_bot="true")
 
     assert "Cannot read author bot state" not in run.stdout
     assert "Cannot read auto-merge state" in run.stdout

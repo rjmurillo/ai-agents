@@ -44,9 +44,7 @@ def test_session_selector_default_uses_host_local_date(tmp_path, monkeypatch):
     assert _EXTRACT_EVIDENCE.find_recent_session_log(sessions) == selected
 
 
-def test_session_selector_finds_pre_migration_utc_tomorrow_log(
-    tmp_path, monkeypatch
-):
+def test_session_selector_finds_pre_migration_utc_tomorrow_log(tmp_path, monkeypatch):
     sessions = tmp_path / ".project-toolkit" / "sessions"
     selected = _write_session(sessions, "2026-06-04-session-1-utc.json", "utc work")
     _write_session(sessions, "2026-06-02-session-1-stale.json", "stale work")

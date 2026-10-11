@@ -194,5 +194,3 @@ def test_write_output_produces_valid_json_with_expected_keys(tmp_path: Path) -> 
     assert payload["runs"][0]["failure_detail"] is None
     assert payload["runs"][0]["infra_failure"] is False
     assert "f" in payload["aggregates"]
-
-

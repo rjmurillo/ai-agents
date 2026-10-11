@@ -270,9 +270,7 @@ def _handle_tool_uses(
             inline_diff_text=inline_diff_text,
         )
         called_artifact = called_artifact or this_called
-        results.append(
-            {"type": "tool_result", "tool_use_id": tool_use.get("id"), "content": text}
-        )
+        results.append({"type": "tool_result", "tool_use_id": tool_use.get("id"), "content": text})
     return results, called_artifact
 
 

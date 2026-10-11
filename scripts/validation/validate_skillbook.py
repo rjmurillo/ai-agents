@@ -102,9 +102,7 @@ class SchemaChecker:
                 target = target[token]
             return self.check(instance, target, path)
         sub_root = self._load_ref_file(ref)
-        return SchemaChecker(sub_root, self._schema_dir).check(
-            instance, sub_root, path
-        )
+        return SchemaChecker(sub_root, self._schema_dir).check(instance, sub_root, path)
 
     def _load_ref_file(self, ref: str) -> dict[str, Any]:
         """Load and cache an external schema file referenced by $ref.
@@ -141,9 +139,7 @@ class SchemaChecker:
         return [f"{path}: expected type {expected}, got {type(instance).__name__}"]
 
     @staticmethod
-    def _check_const_enum(
-        instance: Any, schema: dict[str, Any], path: str
-    ) -> list[str]:
+    def _check_const_enum(instance: Any, schema: dict[str, Any], path: str) -> list[str]:
         """Validate the 'const' and 'enum' keywords."""
         errors: list[str] = []
         if "const" in schema and instance != schema["const"]:
@@ -156,9 +152,7 @@ class SchemaChecker:
     def _check_scalar(instance: Any, schema: dict[str, Any], path: str) -> list[str]:
         """Validate numeric and string range keywords."""
         errors: list[str] = []
-        is_number = isinstance(instance, (int, float)) and not isinstance(
-            instance, bool
-        )
+        is_number = isinstance(instance, (int, float)) and not isinstance(instance, bool)
         if "minimum" in schema and is_number and instance < schema["minimum"]:
             errors.append(f"{path}: {instance} below minimum {schema['minimum']}")
         if "maximum" in schema and is_number and instance > schema["maximum"]:
@@ -197,9 +191,7 @@ class SchemaChecker:
                 errors += self.check(value, additional, child)
         return errors
 
-    def _check_array(
-        self, instance: list[Any], schema: dict[str, Any], path: str
-    ) -> list[str]:
+    def _check_array(self, instance: list[Any], schema: dict[str, Any], path: str) -> list[str]:
         """Validate 'minItems' and 'items'."""
         errors: list[str] = []
         if "minItems" in schema and len(instance) < schema["minItems"]:
@@ -211,9 +203,7 @@ class SchemaChecker:
         return errors
 
 
-def validate_against_schema(
-    instance: Any, schema_path: Path
-) -> list[str]:
+def validate_against_schema(instance: Any, schema_path: Path) -> list[str]:
     """Validate a JSON instance against the schema file at schema_path."""
     schema = json.loads(schema_path.read_text(encoding="utf-8"))
     checker = SchemaChecker(schema, schema_path.parent)
@@ -240,9 +230,7 @@ def _check_derived_counts(policy: dict[str, Any]) -> list[str]:
     """Verify confirms / contradicts / application_count match the evidence."""
     errors: list[str] = []
     evidence = policy.get("evidence", [])
-    confirms = round(
-        sum(evidence_weight(e) for e in evidence if e.get("type") == "confirmed"), 4
-    )
+    confirms = round(sum(evidence_weight(e) for e in evidence if e.get("type") == "confirmed"), 4)
     contradicts = round(
         sum(evidence_weight(e) for e in evidence if e.get("type") == "contradicted"),
         4,
@@ -250,8 +238,7 @@ def _check_derived_counts(policy: dict[str, Any]) -> list[str]:
     policy_id = policy.get("id")
     if round(float(policy.get("confirms", 0)), 4) != confirms:
         errors.append(
-            f"{policy_id}: confirms={policy.get('confirms')} but evidence "
-            f"recomputes to {confirms}"
+            f"{policy_id}: confirms={policy.get('confirms')} but evidence recomputes to {confirms}"
         )
     if round(float(policy.get("contradicts", 0)), 4) != contradicts:
         errors.append(
@@ -266,18 +253,14 @@ def _check_derived_counts(policy: dict[str, Any]) -> list[str]:
     return errors
 
 
-def _check_policy_refs(
-    policy: dict[str, Any], known_ids: set[str | None]
-) -> list[str]:
+def _check_policy_refs(policy: dict[str, Any], known_ids: set[str | None]) -> list[str]:
     """Verify policy cross-reference arrays point to real policy ids."""
     errors: list[str] = []
     policy_id = policy.get("id")
     for field in ("related_policies", "contradicts_policies", "supersedes"):
         for ref in policy.get(field, []):
             if ref not in known_ids:
-                errors.append(
-                    f"{policy_id}: {field} references unknown policy {ref!r}"
-                )
+                errors.append(f"{policy_id}: {field} references unknown policy {ref!r}")
     return errors
 
 
@@ -292,9 +275,7 @@ def check_tension_integrity(
         pair = {tension.get("policy_a"), tension.get("policy_b")}
         for ref in pair:
             if ref not in known_ids:
-                errors.append(
-                    f"{tension_id}: references unknown policy {ref!r}"
-                )
+                errors.append(f"{tension_id}: references unknown policy {ref!r}")
         for context, resolution in tension.get("preferred_in_context", {}).items():
             if resolution.get("preferred") not in pair:
                 errors.append(
@@ -323,12 +304,9 @@ def validate_skillbook(skillbook_dir: Path, schema_dir: Path) -> list[str]:
 
     policies_data = loaded["policies.json"]
     tensions_data = loaded["tensions.json"]
+    errors += [f"[policies.json] {err}" for err in check_policy_integrity(policies_data)]
     errors += [
-        f"[policies.json] {err}" for err in check_policy_integrity(policies_data)
-    ]
-    errors += [
-        f"[tensions.json] {err}"
-        for err in check_tension_integrity(tensions_data, policies_data)
+        f"[tensions.json] {err}" for err in check_tension_integrity(tensions_data, policies_data)
     ]
     return errors
 

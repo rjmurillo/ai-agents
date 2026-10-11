@@ -209,9 +209,7 @@ class TestGetAllFiles:
 
         assert "new_untracked.md" in result
 
-    def test_excludes_nested_tracked_file_not_in_extension_set(
-        self, git_repo: Path
-    ) -> None:
+    def test_excludes_nested_tracked_file_not_in_extension_set(self, git_repo: Path) -> None:
         """A tracked file with an excluded extension is filtered out."""
         (git_repo / "data.json").write_text("{}")
         _git(git_repo, "add", "data.json")
@@ -377,8 +375,7 @@ class TestMainFunction:
         """Create a mock repository structure."""
         # Initialize git repo (strip GIT_DIR to avoid reinitializing
         # the parent repo when running inside git hooks).
-        clean_env = {k: v for k, v in os.environ.items()
-                     if k not in ("GIT_DIR", "GIT_WORK_TREE")}
+        clean_env = {k: v for k, v in os.environ.items() if k not in ("GIT_DIR", "GIT_WORK_TREE")}
         subprocess.run(
             ["git", "init"],
             cwd=tmp_path,
@@ -553,8 +550,7 @@ class TestMainFunction:
 
         # Initialize git repo without skills directory (strip GIT_DIR
         # to avoid reinitializing the parent repo inside git hooks).
-        clean_env = {k: v for k, v in os.environ.items()
-                     if k not in ("GIT_DIR", "GIT_WORK_TREE")}
+        clean_env = {k: v for k, v in os.environ.items() if k not in ("GIT_DIR", "GIT_WORK_TREE")}
         subprocess.run(
             ["git", "init"],
             cwd=tmp_path,
@@ -588,7 +584,8 @@ class TestScriptIntegration:
         result = subprocess.run(
             [sys.executable, str(script_path), "--help"],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
             timeout=30,
         )
 
@@ -603,16 +600,15 @@ class TestScriptIntegration:
         result = subprocess.run(
             [sys.executable, str(script_path), "--path", str(project_root)],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
             timeout=60,
         )
 
         # Should succeed (exit 0)
         assert result.returncode == 0
 
-    def test_full_scan_completes_within_budget(
-        self, script_path: Path, project_root: Path
-    ) -> None:
+    def test_full_scan_completes_within_budget(self, script_path: Path, project_root: Path) -> None:
         """Full-tree scan finishes well under the 60s subprocess timeout.
 
         Regression guard for #2047 / #2010. The scan walked the whole tree,
@@ -627,7 +623,8 @@ class TestScriptIntegration:
         result = subprocess.run(
             [sys.executable, str(script_path), "--path", str(project_root), "--quiet"],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
             timeout=60,
         )
         elapsed = time.monotonic() - start

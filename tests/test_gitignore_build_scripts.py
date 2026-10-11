@@ -25,17 +25,14 @@ def _check_ignore(repo: Path, relpath: str) -> bool:
         return True
     if result.returncode == 1:
         return False
-    raise RuntimeError(
-        f"git check-ignore failed (exit {result.returncode}) on {relpath}"
-    )
+    raise RuntimeError(f"git check-ignore failed (exit {result.returncode}) on {relpath}")
 
 
 def test_new_build_script_is_not_ignored():
     """A brand-new build/scripts/*.py must be trackable without `git add -f`."""
     new_path = "build/scripts/__regression_2383_new_module.py"
     assert not _check_ignore(REPO_ROOT, new_path), (
-        f"{new_path} is gitignored; new generators silently won't be tracked. "
-        "See issue #2383."
+        f"{new_path} is gitignored; new generators silently won't be tracked. See issue #2383."
     )
 
 

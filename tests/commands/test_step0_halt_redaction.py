@@ -30,15 +30,28 @@ SPEC_STEP0_GATES = (
 )
 SKILL_STEP0_GATES = (
     PROJECT_ROOT
-    / "src" / "copilot-cli" / "skills" / "spec-generator" / "references" / "spec-step0-gates.md"
+    / "src"
+    / "copilot-cli"
+    / "skills"
+    / "spec-generator"
+    / "references"
+    / "spec-step0-gates.md"
 )
 SPEC_PRIOR_ART_SCHEMA = (
     PROJECT_ROOT
-    / ".claude" / "skills" / "spec-generator" / "references" / "spec-prior-art-schema.md"
+    / ".claude"
+    / "skills"
+    / "spec-generator"
+    / "references"
+    / "spec-prior-art-schema.md"
 )
 SKILL_PRIOR_ART_SCHEMA = (
     PROJECT_ROOT
-    / "src" / "copilot-cli" / "skills" / "spec-generator" / "references"
+    / "src"
+    / "copilot-cli"
+    / "skills"
+    / "spec-generator"
+    / "references"
     / "spec-prior-art-schema.md"
 )
 

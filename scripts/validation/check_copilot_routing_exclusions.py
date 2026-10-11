@@ -11,6 +11,7 @@ Exit codes:
     1 - violations found
     2 - configuration error
 """
+
 from __future__ import annotations
 
 import re

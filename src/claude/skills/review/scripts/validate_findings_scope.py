@@ -35,11 +35,11 @@ from pathlib import Path
 # Optional backtick wrapping is handled: ``location: `file:line`` and
 # ``**location**: `file:line` `` are both accepted.
 _LOCATION_FIELD_RE = re.compile(
-    r"(?i)\blocation\b"              # ``location`` word, case-insensitive
-    r"\s*\*{0,2}\s*"                 # optional closing bold markers: ``**``
-    r":\s*"                          # colon separator
-    r"`?"                            # optional opening backtick
-    r"([^\s``,\[|\]]+)"              # the path (stops at whitespace/comma/table char/backtick)
+    r"(?i)\blocation\b"  # ``location`` word, case-insensitive
+    r"\s*\*{0,2}\s*"  # optional closing bold markers: ``**``
+    r":\s*"  # colon separator
+    r"`?"  # optional opening backtick
+    r"([^\s``,\[|\]]+)"  # the path (stops at whitespace/comma/table char/backtick)
 )
 _PROSE_PATH_RE = re.compile(
     r"(?<![\w./-])"
@@ -55,9 +55,7 @@ _VERDICT_RE = re.compile(
     r"NON_COMPLIANT|COMPLIANT|PARTIAL|UNKNOWN)"
     r"(?P<suffix>\]?.*)$"
 )
-_FAIL_VERDICTS = frozenset(
-    {"CRITICAL_FAIL", "REJECTED", "FAIL", "NEEDS_REVIEW", "NON_COMPLIANT"}
-)
+_FAIL_VERDICTS = frozenset({"CRITICAL_FAIL", "REJECTED", "FAIL", "NEEDS_REVIEW", "NON_COMPLIANT"})
 _PRE_EXISTING_MARKER = "[pre-existing - not in this PR diff]"
 
 # A location value is a file path when it contains a path separator or a
@@ -198,6 +196,7 @@ def scope_adjusted_verdict(text: str, diff_files: list[str]) -> str | None:
 
 def _replace_verdict(text: str, verdict: str) -> str:
     """Replace the first verdict token in *text* with *verdict*."""
+
     def replace(match: re.Match[str]) -> str:
         return f"{match.group('prefix')}{verdict}{match.group('suffix')}"
 
@@ -218,9 +217,7 @@ def _annotate_out_of_scope_lines(text: str, out_of_scope: list[str]) -> str:
         else:
             prose_match = _PROSE_PATH_RE.search(line)
             if prose_match:
-                location = _strip_line_suffix(
-                    prose_match.group(1).strip().strip("`").strip("'\"")
-                )
+                location = _strip_line_suffix(prose_match.group(1).strip().strip("`").strip("'\""))
         if location is None:
             lines.append(line)
             continue

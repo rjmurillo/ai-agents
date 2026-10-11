@@ -76,8 +76,7 @@ def _entry_points() -> list[Path]:
     return sorted(
         path
         for path in SCRIPTS_DIR.rglob("*.py")
-        if path not in MODULE_ONLY_ENTRY_POINTS
-        and MAIN_GUARD in path.read_text(encoding="utf-8")
+        if path not in MODULE_ONLY_ENTRY_POINTS and MAIN_GUARD in path.read_text(encoding="utf-8")
     )
 
 

@@ -63,8 +63,7 @@ def _scaffold_skills(tmp_path: Path) -> Path:
 
 def _run(repo: Path, changed: list[str]) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        [sys.executable, str(SCRIPT), "--repo-root", str(repo), "--changed"]
-        + changed,
+        [sys.executable, str(SCRIPT), "--repo-root", str(repo), "--changed"] + changed,
         capture_output=True,
         text=True,
         encoding="utf-8",
@@ -94,9 +93,7 @@ def test_skill_template_pipeline_scores_c1(tmp_path: Path) -> None:
     """The skill template tree counts too, mirroring templates/commands."""
     repo = _scaffold_skills(tmp_path)
     rel = _write_agent(repo, "shaped", _prose_body())
-    _write_skill_template(
-        repo, "ship", 'Task(subagent_type="shaped") runs the work.\n'
-    )
+    _write_skill_template(repo, "ship", 'Task(subagent_type="shaped") runs the work.\n')
 
     proc = _run(repo, [rel])
 

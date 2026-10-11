@@ -29,9 +29,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 # Matches squashed merge-resolution commits (single parent, merge-like subject)
-_MERGE_SUBJECT_RE = re.compile(
-    r"^Merge (branch|remote-tracking branch) '.+' into .+"
-)
+_MERGE_SUBJECT_RE = re.compile(r"^Merge (branch|remote-tracking branch) '.+' into .+")
 
 
 @dataclass
@@ -175,9 +173,7 @@ def check_bash_scripts_added(
 ) -> BypassIndicator | None:
     """Check if commit adds bash scripts under .github/scripts/ (blocked by hook)."""
     bash_files = [
-        f
-        for f in files
-        if f.startswith(".github/scripts/") and f.endswith((".sh", ".bash"))
+        f for f in files if f.startswith(".github/scripts/") and f.endswith((".sh", ".bash"))
     ]
     if bash_files:
         return BypassIndicator(
@@ -241,9 +237,7 @@ def format_report(report: AuditReport) -> str:
 
     for indicator in report.bypass_indicators:
         short_sha = indicator.commit_sha[:8]
-        lines.append(
-            f"  [{short_sha}] {indicator.indicator_type}: {indicator.details}"
-        )
+        lines.append(f"  [{short_sha}] {indicator.indicator_type}: {indicator.details}")
         lines.append(f"           Message: {indicator.commit_message}")
         lines.append("")
 

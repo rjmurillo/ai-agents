@@ -156,45 +156,33 @@ class TestValidateReviewMarker:
             f"Reviewed-By: /review@analyst,security on {tip}",
         )
 
-    def test_missing_script_advisory_returns_true(
-        self, tmp_path: Path, monkeypatch: Any
-    ) -> None:
+    def test_missing_script_advisory_returns_true(self, tmp_path: Path, monkeypatch: Any) -> None:
         repo = self._make_repo(tmp_path, with_script=False)
         monkeypatch.delenv("REVIEW_MARKER_ENFORCED", raising=False)
         assert pre_pr_policy().accepts(validate_review_marker(repo))
 
-    def test_missing_script_enforced_returns_false(
-        self, tmp_path: Path, monkeypatch: Any
-    ) -> None:
+    def test_missing_script_enforced_returns_false(self, tmp_path: Path, monkeypatch: Any) -> None:
         repo = self._make_repo(tmp_path, with_script=False)
         monkeypatch.setenv("REVIEW_MARKER_ENFORCED", "1")
         assert not pre_pr_policy().accepts(validate_review_marker(repo))
 
-    def test_no_marker_advisory_returns_true(
-        self, tmp_path: Path, monkeypatch: Any
-    ) -> None:
+    def test_no_marker_advisory_returns_true(self, tmp_path: Path, monkeypatch: Any) -> None:
         repo = self._make_repo(tmp_path, with_script=True)
         monkeypatch.delenv("REVIEW_MARKER_ENFORCED", raising=False)
         assert pre_pr_policy().accepts(validate_review_marker(repo))
 
-    def test_no_marker_enforced_returns_false(
-        self, tmp_path: Path, monkeypatch: Any
-    ) -> None:
+    def test_no_marker_enforced_returns_false(self, tmp_path: Path, monkeypatch: Any) -> None:
         repo = self._make_repo(tmp_path, with_script=True)
         monkeypatch.setenv("REVIEW_MARKER_ENFORCED", "1")
         assert not pre_pr_policy().accepts(validate_review_marker(repo))
 
-    def test_valid_marker_passes_advisory(
-        self, tmp_path: Path, monkeypatch: Any
-    ) -> None:
+    def test_valid_marker_passes_advisory(self, tmp_path: Path, monkeypatch: Any) -> None:
         repo = self._make_repo(tmp_path, with_script=True)
         self._add_marker(repo)
         monkeypatch.delenv("REVIEW_MARKER_ENFORCED", raising=False)
         assert pre_pr_policy().accepts(validate_review_marker(repo))
 
-    def test_valid_marker_passes_enforced(
-        self, tmp_path: Path, monkeypatch: Any
-    ) -> None:
+    def test_valid_marker_passes_enforced(self, tmp_path: Path, monkeypatch: Any) -> None:
         repo = self._make_repo(tmp_path, with_script=True)
         self._add_marker(repo)
         monkeypatch.setenv("REVIEW_MARKER_ENFORCED", "1")

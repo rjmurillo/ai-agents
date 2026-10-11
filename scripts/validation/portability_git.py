@@ -35,9 +35,7 @@ GIT_TIMEOUT_SECONDS = 30.0
 GIT_TIMEOUT_RETURN_CODE = 124
 
 
-def git_timeout_problem(
-    proc: subprocess.CompletedProcess[bytes] | None, action: str
-) -> str | None:
+def git_timeout_problem(proc: subprocess.CompletedProcess[bytes] | None, action: str) -> str | None:
     """Describe a timed-out Git probe without masking other failures."""
     if proc is None or proc.returncode != GIT_TIMEOUT_RETURN_CODE:
         return None
@@ -84,9 +82,7 @@ def run_git(repo_root: Path, *args: str) -> subprocess.CompletedProcess[bytes] |
         return None
 
 
-def was_recorded(
-    repo_root: Path, path: Path
-) -> tuple[bool | None, str | None]:
+def was_recorded(repo_root: Path, path: Path) -> tuple[bool | None, str | None]:
     """Report whether branch history has the baseline and any timeout detail.
 
     The two failures of `resolve().relative_to()` are not the same answer and

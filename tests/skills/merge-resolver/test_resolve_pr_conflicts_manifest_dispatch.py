@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""Tests for conflicted-file dispatch and plugin manifest path containment in resolve_pr_conflicts.
+"""Tests for conflicted-file dispatch and plugin manifest path containment.
+
+Covers resolve_pr_conflicts.
 """
 
 from __future__ import annotations
@@ -23,6 +25,7 @@ mod = import_skill_script(".claude/skills/merge-resolver/scripts/resolve_pr_conf
 
 resolve_plugin_manifest_conflict = mod.resolve_plugin_manifest_conflict
 _resolve_conflicted_file = mod._resolve_conflicted_file
+
 
 class TestResolveConflictedFileDispatch:
     """_resolve_conflicted_file routes manifests, patterns, and failures."""

@@ -43,8 +43,13 @@ def _run_script(
             env[key] = val
     cmd = [sys.executable, str(script)] + (extra_args or [])
     return subprocess.run(
-        cmd, capture_output=True, text=True, encoding="utf-8", errors="replace",
-        env=env, timeout=30,
+        cmd,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        env=env,
+        timeout=30,
     )
 
 

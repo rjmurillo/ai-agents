@@ -178,9 +178,7 @@ class TestDefaultPrePrPolicy:
         assert all(exception.reference.strip() for exception in exceptions)
         assert exceptions[0].reference == ".project-toolkit/devops/SHIFT-LEFT.md"
 
-    @pytest.mark.parametrize(
-        "validator", ["validate_workflow_yaml", "validate_yaml_style"]
-    )
+    @pytest.mark.parametrize("validator", ["validate_workflow_yaml", "validate_yaml_style"])
     def test_an_absent_optional_linter_is_licensed_by_name(self, validator: str) -> None:
         """actionlint and yamllint are optional, so their absence must not block.
 
@@ -191,9 +189,7 @@ class TestDefaultPrePrPolicy:
 
         assert default_pre_pr_policy().accepts(blocked)
 
-    @pytest.mark.parametrize(
-        "validator", ["validate_workflow_yaml", "validate_yaml_style"]
-    )
+    @pytest.mark.parametrize("validator", ["validate_workflow_yaml", "validate_yaml_style"])
     def test_the_licence_does_not_extend_to_another_reason(self, validator: str) -> None:
         """Bounded by reason: only a missing tool is licensed, not a missing base ref."""
         blocked = CheckOutcome.blocked(validator, reason=REASON_BASE_REF_UNRESOLVED)

@@ -91,9 +91,7 @@ def test_copilot_bare_bash_path_fails(tmp_path: Path) -> None:
 def test_copilot_asymmetric_powershell_fails(tmp_path: Path) -> None:
     def mutate(doc: dict) -> None:
         entry = next(iter(doc["hooks"].values()))[0]
-        entry["powershell"] = (
-            'py -3 -u "$env:COPILOT_PLUGIN_ROOT/hooks/PreToolUse/x.py"'
-        )
+        entry["powershell"] = 'py -3 -u "$env:COPILOT_PLUGIN_ROOT/hooks/PreToolUse/x.py"'
 
     _, violations, config = gate._check_copilot(_copilot_root(tmp_path, mutate))
     assert config == 0
@@ -121,9 +119,7 @@ def test_copilot_asymmetric_root_unresolvable(tmp_path: Path) -> None:
 
     def mutate(doc: dict) -> None:
         entry = next(iter(doc["hooks"].values()))[0]
-        entry["powershell"] = _strip_pwsh_guard(
-            entry["powershell"], "Plugin root unresolvable"
-        )
+        entry["powershell"] = _strip_pwsh_guard(entry["powershell"], "Plugin root unresolvable")
 
     _, violations, config = gate._check_copilot(_copilot_root(tmp_path, mutate))
     assert config == 0
@@ -149,9 +145,7 @@ def test_copilot_asymmetric_dispatcher_missing(tmp_path: Path) -> None:
 
     def mutate(doc: dict) -> None:
         entry = next(iter(doc["hooks"].values()))[0]
-        entry["powershell"] = _strip_pwsh_guard(
-            entry["powershell"], "Dispatcher missing"
-        )
+        entry["powershell"] = _strip_pwsh_guard(entry["powershell"], "Dispatcher missing")
 
     _, violations, config = gate._check_copilot(_copilot_root(tmp_path, mutate))
     assert config == 0

@@ -247,11 +247,15 @@ class TestTrackedFileMissingFromDisk:
         subprocess.run(["git", "init", str(repo)], check=True, capture_output=True)
         subprocess.run(
             ["git", "config", "user.email", "test@test.com"],
-            cwd=repo, check=True, capture_output=True,
+            cwd=repo,
+            check=True,
+            capture_output=True,
         )
         subprocess.run(
             ["git", "config", "user.name", "Test"],
-            cwd=repo, check=True, capture_output=True,
+            cwd=repo,
+            check=True,
+            capture_output=True,
         )
 
         # Create and commit a test file
@@ -261,7 +265,10 @@ class TestTrackedFileMissingFromDisk:
         ghost_file.write_text("# ghost\n")
         subprocess.run(["git", "add", "."], cwd=repo, check=True, capture_output=True)
         subprocess.run(
-            ["git", "commit", "-m", "init"], cwd=repo, check=True, capture_output=True,
+            ["git", "commit", "-m", "init"],
+            cwd=repo,
+            check=True,
+            capture_output=True,
         )
 
         # Remove ghost from disk but leave it in the index

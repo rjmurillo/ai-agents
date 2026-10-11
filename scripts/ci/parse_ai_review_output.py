@@ -55,9 +55,7 @@ def append_line(path: Path, line: str) -> None:
 
 def extract_verdict(output: str) -> str:
     matches = [
-        match.group(1)
-        for line in output.splitlines()
-        if (match := VERDICT_LINE_RE.search(line))
+        match.group(1) for line in output.splitlines() if (match := VERDICT_LINE_RE.search(line))
     ]
     if matches:
         return matches[-1]

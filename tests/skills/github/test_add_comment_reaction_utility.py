@@ -11,9 +11,7 @@ from test_helpers import make_completed_process as make_proc
 
 _project_root = Path(__file__).resolve().parents[3]
 _lib_dir = _project_root / ".claude" / "lib"
-_reactions_dir = (
-    _project_root / ".claude" / "skills" / "github" / "scripts" / "reactions"
-)
+_reactions_dir = _project_root / ".claude" / "skills" / "github" / "scripts" / "reactions"
 for _path in (str(_lib_dir), str(_reactions_dir)):
     if _path not in sys.path:
         sys.path.insert(0, _path)
@@ -72,11 +70,16 @@ class TestAddCommentReaction:
             ),
             patch("subprocess.run", return_value=proc),
         ):
-            rc = mod.main([
-                "--comment-id", "10",
-                "--comment-type", "issue",
-                "--reaction", "+1",
-            ])
+            rc = mod.main(
+                [
+                    "--comment-id",
+                    "10",
+                    "--comment-type",
+                    "issue",
+                    "--reaction",
+                    "+1",
+                ]
+            )
         assert rc == 0
         result = json.loads(capsys.readouterr().out)
         assert result["Data"]["comment_type"] == "issue"
@@ -92,11 +95,18 @@ class TestAddCommentReaction:
             ),
             patch("subprocess.run", return_value=proc),
         ):
-            rc = mod.main([
-                "--comment-id", "1", "2", "3",
-                "--comment-type", "issue",
-                "--reaction", "heart",
-            ])
+            rc = mod.main(
+                [
+                    "--comment-id",
+                    "1",
+                    "2",
+                    "3",
+                    "--comment-type",
+                    "issue",
+                    "--reaction",
+                    "heart",
+                ]
+            )
         assert rc == 0
         result = json.loads(capsys.readouterr().out)
         assert result["Data"]["total_count"] == 3
@@ -114,11 +124,16 @@ class TestAddCommentReaction:
             ),
             patch("subprocess.run", return_value=proc),
         ):
-            rc = mod.main([
-                "--comment-id", "5",
-                "--comment-type", "issue",
-                "--reaction", "rocket",
-            ])
+            rc = mod.main(
+                [
+                    "--comment-id",
+                    "5",
+                    "--comment-type",
+                    "issue",
+                    "--reaction",
+                    "rocket",
+                ]
+            )
         assert rc == 0
         result = json.loads(capsys.readouterr().out)
         assert result["Data"]["succeeded"] == 1
@@ -134,11 +149,16 @@ class TestAddCommentReaction:
             ),
             patch("subprocess.run", return_value=proc),
         ):
-            rc = mod.main([
-                "--comment-id", "9",
-                "--comment-type", "issue",
-                "--reaction", "eyes",
-            ])
+            rc = mod.main(
+                [
+                    "--comment-id",
+                    "9",
+                    "--comment-type",
+                    "issue",
+                    "--reaction",
+                    "eyes",
+                ]
+            )
         assert rc == 3
         result = json.loads(capsys.readouterr().out)
         assert result["Data"]["failed"] == 1
@@ -158,11 +178,17 @@ class TestAddCommentReaction:
             ),
             patch("subprocess.run", side_effect=procs),
         ):
-            rc = mod.main([
-                "--comment-id", "1", "2",
-                "--comment-type", "issue",
-                "--reaction", "eyes",
-            ])
+            rc = mod.main(
+                [
+                    "--comment-id",
+                    "1",
+                    "2",
+                    "--comment-type",
+                    "issue",
+                    "--reaction",
+                    "eyes",
+                ]
+            )
         assert rc == 3
         result = json.loads(capsys.readouterr().out)
         assert result["Data"]["succeeded"] == 1
@@ -179,11 +205,16 @@ class TestAddCommentReaction:
             ),
             patch("subprocess.run", return_value=proc),
         ):
-            rc = mod.main([
-                "--comment-id", "1",
-                "--comment-type", "issue",
-                "--reaction", "eyes",
-            ])
+            rc = mod.main(
+                [
+                    "--comment-id",
+                    "1",
+                    "--comment-type",
+                    "issue",
+                    "--reaction",
+                    "eyes",
+                ]
+            )
         assert rc == 3
 
     def test_main_success(self, capsys):
@@ -197,11 +228,16 @@ class TestAddCommentReaction:
             ),
             patch("subprocess.run", return_value=proc),
         ):
-            rc = mod.main([
-                "--comment-id", "5",
-                "--comment-type", "issue",
-                "--reaction", "+1",
-            ])
+            rc = mod.main(
+                [
+                    "--comment-id",
+                    "5",
+                    "--comment-type",
+                    "issue",
+                    "--reaction",
+                    "+1",
+                ]
+            )
         assert rc == 0
         parsed = json.loads(capsys.readouterr().out)
         assert parsed["Data"]["succeeded"] == 1
@@ -264,15 +300,18 @@ class TestAddCommentReaction:
             ),
             patch("subprocess.run", side_effect=fake_run),
         ):
-            mod.main([
-                "--comment-id", "200",
-                "--comment-type", "issue",
-                "--reaction", "eyes",
-            ])
+            mod.main(
+                [
+                    "--comment-id",
+                    "200",
+                    "--comment-type",
+                    "issue",
+                    "--reaction",
+                    "eyes",
+                ]
+            )
 
         api_commands = [
-            command
-            for command in captured_commands
-            if "issues/comments" in str(command)
+            command for command in captured_commands if "issues/comments" in str(command)
         ]
         assert len(api_commands) == 1

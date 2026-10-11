@@ -319,6 +319,7 @@ Recommended test cases for validation:
 import pytest
 from pathlib import Path
 
+
 def test_path_traversal_attacks():
     """Test that malicious path patterns are rejected."""
     test_cases = [
@@ -327,20 +328,16 @@ def test_path_traversal_attacks():
         ("..\\..\\..\\Windows\\System32", None, "Windows path traversal"),
         ("/etc/passwd", None, "Absolute path outside safe base"),
         ("C:\\Windows\\System32", None, "Windows absolute path"),
-
         # Null byte injection
         ("path\x00injection", None, "Null byte"),
         ("normal/path\x00", None, "Null byte at end"),
-
         # Control character injection
         ("path\ninjection", None, "Newline"),
         ("path\rinjection", None, "Carriage return"),
         ("path\tinjection", None, "Tab"),
-
         # Valid paths
         ("normal/path", "normal/path", "Valid relative path"),
         ("./subdir", "./subdir", "Valid relative path with ./"),
-
         # Edge cases
         ("", None, "Empty string"),
         ("   ", None, "Whitespace only"),

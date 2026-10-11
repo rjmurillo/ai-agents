@@ -189,7 +189,8 @@ class Finding:
     referenced_entity: str
     recommendation: str
     expected: str | None = None  # for count_claim
-    actual: str | None = None    # for count_claim
+    actual: str | None = None  # for count_claim
+
 
 @dataclass(frozen=True)
 class ScanResult:

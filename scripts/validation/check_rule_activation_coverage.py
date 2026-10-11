@@ -145,32 +145,23 @@ def _validate_scenarios_measure(data: Mapping[str, Any], path: Path) -> None:
     """Require a non-empty scenarios list with at least one positive case."""
     scenarios = data.get("scenarios")
     if not isinstance(scenarios, list) or not scenarios:
-        raise CoverageConfigError(
-            f"scenario file has no scenarios to measure: {path}"
-        )
+        raise CoverageConfigError(f"scenario file has no scenarios to measure: {path}")
     positives = 0
     for item in scenarios:
         if not isinstance(item, dict):
-            raise CoverageConfigError(
-                f"scenario entry must be an object in {path}"
-            )
+            raise CoverageConfigError(f"scenario entry must be an object in {path}")
         prompt = item.get("input")
         if not isinstance(prompt, str) or not prompt.strip():
-            raise CoverageConfigError(
-                f"scenario entry has an empty input in {path}"
-            )
+            raise CoverageConfigError(f"scenario entry has an empty input in {path}")
         if item.get("expected_gate") != NEGATIVE_GATE:
             positives += 1
     if positives == 0:
         raise CoverageConfigError(
-            f"scenario file has no positive case, so it measures no "
-            f"activation: {path}"
+            f"scenario file has no positive case, so it measures no activation: {path}"
         )
 
 
-def _resolve_target(
-    repo_root: Path, target_str: str, artifact_dir: Path, kind: str
-) -> str:
+def _resolve_target(repo_root: Path, target_str: str, artifact_dir: Path, kind: str) -> str:
     """Resolve a scenario target under its artifact dir, returning the artifact id.
 
     Raises CoverageConfigError on traversal escape, a missing target (orphan),
@@ -186,20 +177,14 @@ def _resolve_target(
         ) from exc
     if kind == "rule":
         if resolved.suffix != ".md":
-            raise CoverageConfigError(
-                f"rule_path must be a .md file: {target_str}"
-            )
+            raise CoverageConfigError(f"rule_path must be a .md file: {target_str}")
         artifact_id = resolved.stem
     else:
         if resolved.name != "SKILL.md":
-            raise CoverageConfigError(
-                f"skill_path must be a SKILL.md file: {target_str}"
-            )
+            raise CoverageConfigError(f"skill_path must be a SKILL.md file: {target_str}")
         artifact_id = resolved.parent.name
     if not resolved.is_file():
-        raise CoverageConfigError(
-            f"{kind} scenario target does not exist (orphan): {target_str}"
-        )
+        raise CoverageConfigError(f"{kind} scenario target does not exist (orphan): {target_str}")
     return artifact_id
 
 
@@ -231,9 +216,7 @@ def _is_reference_scenario(repo_root: Path, data: Mapping[str, Any], path: Path)
                 f"reference scenario {path} escapes the repository: {ref}"
             ) from exc
         if not target.is_file():
-            raise CoverageConfigError(
-                f"reference scenario {path} points at a missing file: {ref}"
-            )
+            raise CoverageConfigError(f"reference scenario {path} points at a missing file: {ref}")
     _validate_scenarios_measure(data, path)
     return True
 
@@ -257,9 +240,7 @@ def covered_ids(repo_root: Path, kind: str) -> set[str]:
         other_key = "rule_path"
 
     if not scenario_dir.is_dir():
-        raise CoverageConfigError(
-            f"{kind} scenario directory not found: {scenario_dir}"
-        )
+        raise CoverageConfigError(f"{kind} scenario directory not found: {scenario_dir}")
 
     scenario_paths = sorted(scenario_dir.glob("*.json"))
     if not scenario_paths:
@@ -282,8 +263,7 @@ def covered_ids(repo_root: Path, kind: str) -> set[str]:
         has_other = isinstance(other, str) and bool(other.strip())
         if not target_ref or has_other:
             raise CoverageConfigError(
-                f"{kind} scenario {path} must set {target_key} and not "
-                f"{other_key}"
+                f"{kind} scenario {path} must set {target_key} and not {other_key}"
             )
         _validate_scenarios_measure(data, path)
         artifact_id = _resolve_target(repo_root, target_ref, artifact_dir, kind)
@@ -306,13 +286,9 @@ def _load_id_list(files: dict[str, object], key: str, path: Path) -> set[str]:
     ids: set[str] = set()
     for entry in value:
         if not isinstance(entry, str) or not entry.strip():
-            raise CoverageConfigError(
-                f"baseline {key!r} entries must be non-empty strings: {path}"
-            )
+            raise CoverageConfigError(f"baseline {key!r} entries must be non-empty strings: {path}")
         if entry in ids:
-            raise CoverageConfigError(
-                f"baseline {key!r} has a duplicate entry {entry!r}: {path}"
-            )
+            raise CoverageConfigError(f"baseline {key!r} has a duplicate entry {entry!r}: {path}")
         ids.add(entry)
     return ids
 
@@ -363,9 +339,7 @@ def build_baseline_payload(
     }
 
 
-def write_baseline(
-    path: Path, uncovered_rules: set[str], uncovered_skills: set[str]
-) -> None:
+def write_baseline(path: Path, uncovered_rules: set[str], uncovered_skills: set[str]) -> None:
     """Write the baseline payload with a trailing newline, failing closed."""
     payload = build_baseline_payload(uncovered_rules, uncovered_skills)
     try:

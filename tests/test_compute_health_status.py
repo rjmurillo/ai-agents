@@ -125,8 +125,11 @@ class TestComponentHealth:
 
     def test_default_detail(self) -> None:
         comp = ComponentHealth(
-            name="x", level=HealthLevel.HEALTHY, value=0.0,
-            threshold_warning=0.1, threshold_error=0.25,
+            name="x",
+            level=HealthLevel.HEALTHY,
+            value=0.0,
+            threshold_warning=0.1,
+            threshold_error=0.25,
         )
         assert comp.detail == ""
 
@@ -147,54 +150,83 @@ class TestHealthStatusReport:
         assert report.healthy_count == 0
 
     def test_all_healthy(self) -> None:
-        report = HealthStatusReport(components=[
-            ComponentHealth(
-                name="a", level=HealthLevel.HEALTHY, value=0.01,
-                threshold_warning=0.1, threshold_error=0.25,
-            ),
-            ComponentHealth(
-                name="b", level=HealthLevel.HEALTHY, value=0.02,
-                threshold_warning=0.1, threshold_error=0.25,
-            ),
-        ])
+        report = HealthStatusReport(
+            components=[
+                ComponentHealth(
+                    name="a",
+                    level=HealthLevel.HEALTHY,
+                    value=0.01,
+                    threshold_warning=0.1,
+                    threshold_error=0.25,
+                ),
+                ComponentHealth(
+                    name="b",
+                    level=HealthLevel.HEALTHY,
+                    value=0.02,
+                    threshold_warning=0.1,
+                    threshold_error=0.25,
+                ),
+            ]
+        )
         assert report.overall_level == HealthLevel.HEALTHY
         assert report.healthy_count == 2
 
     def test_warning_escalates_overall(self) -> None:
-        report = HealthStatusReport(components=[
-            ComponentHealth(
-                name="a", level=HealthLevel.HEALTHY, value=0.01,
-                threshold_warning=0.1, threshold_error=0.25,
-            ),
-            ComponentHealth(
-                name="b", level=HealthLevel.WARNING, value=0.15,
-                threshold_warning=0.1, threshold_error=0.25,
-            ),
-        ])
+        report = HealthStatusReport(
+            components=[
+                ComponentHealth(
+                    name="a",
+                    level=HealthLevel.HEALTHY,
+                    value=0.01,
+                    threshold_warning=0.1,
+                    threshold_error=0.25,
+                ),
+                ComponentHealth(
+                    name="b",
+                    level=HealthLevel.WARNING,
+                    value=0.15,
+                    threshold_warning=0.1,
+                    threshold_error=0.25,
+                ),
+            ]
+        )
         assert report.overall_level == HealthLevel.WARNING
 
     def test_error_escalates_over_warning(self) -> None:
-        report = HealthStatusReport(components=[
-            ComponentHealth(
-                name="a", level=HealthLevel.WARNING, value=0.15,
-                threshold_warning=0.1, threshold_error=0.25,
-            ),
-            ComponentHealth(
-                name="b", level=HealthLevel.ERROR, value=0.30,
-                threshold_warning=0.1, threshold_error=0.25,
-            ),
-        ])
+        report = HealthStatusReport(
+            components=[
+                ComponentHealth(
+                    name="a",
+                    level=HealthLevel.WARNING,
+                    value=0.15,
+                    threshold_warning=0.1,
+                    threshold_error=0.25,
+                ),
+                ComponentHealth(
+                    name="b",
+                    level=HealthLevel.ERROR,
+                    value=0.30,
+                    threshold_warning=0.1,
+                    threshold_error=0.25,
+                ),
+            ]
+        )
         assert report.overall_level == HealthLevel.ERROR
         assert report.error_count == 1
         assert report.warning_count == 1
 
     def test_to_dict_structure(self) -> None:
-        report = HealthStatusReport(components=[
-            ComponentHealth(
-                name="test", level=HealthLevel.HEALTHY, value=0.05,
-                threshold_warning=0.1, threshold_error=0.25,
-            ),
-        ])
+        report = HealthStatusReport(
+            components=[
+                ComponentHealth(
+                    name="test",
+                    level=HealthLevel.HEALTHY,
+                    value=0.05,
+                    threshold_warning=0.1,
+                    threshold_error=0.25,
+                ),
+            ]
+        )
         d = cast(dict[str, Any], report.to_dict())
         assert "checked_at" in d
         assert d["overall"] == "healthy"
@@ -203,12 +235,18 @@ class TestHealthStatusReport:
         assert len(d["components"]) == 1
 
     def test_to_dict_json_serializable(self) -> None:
-        report = HealthStatusReport(components=[
-            ComponentHealth(
-                name="test", level=HealthLevel.ERROR, value=0.30,
-                threshold_warning=0.1, threshold_error=0.25, detail="bad",
-            ),
-        ])
+        report = HealthStatusReport(
+            components=[
+                ComponentHealth(
+                    name="test",
+                    level=HealthLevel.ERROR,
+                    value=0.30,
+                    threshold_warning=0.1,
+                    threshold_error=0.25,
+                    detail="bad",
+                ),
+            ]
+        )
         serialized = json.dumps(report.to_dict())
         parsed = json.loads(serialized)
         assert parsed["overall"] == "error"
@@ -219,38 +257,54 @@ class TestHealthStatusReport:
         assert "No components checked" in md
 
     def test_to_markdown_healthy(self) -> None:
-        report = HealthStatusReport(components=[
-            ComponentHealth(
-                name="test_metric", level=HealthLevel.HEALTHY, value=0.02,
-                threshold_warning=0.1, threshold_error=0.25, detail="ok",
-            ),
-        ])
+        report = HealthStatusReport(
+            components=[
+                ComponentHealth(
+                    name="test_metric",
+                    level=HealthLevel.HEALTHY,
+                    value=0.02,
+                    threshold_warning=0.1,
+                    threshold_error=0.25,
+                    detail="ok",
+                ),
+            ]
+        )
         md = report.to_markdown()
         assert "[PASS]" in md
         assert "test_metric" in md
         assert "Recommendations" not in md
 
     def test_to_markdown_with_warnings(self) -> None:
-        report = HealthStatusReport(components=[
-            ComponentHealth(
-                name="memory_stale_rate", level=HealthLevel.WARNING, value=0.15,
-                threshold_warning=0.1, threshold_error=0.25,
-                detail="3/20 memories stale",
-            ),
-        ])
+        report = HealthStatusReport(
+            components=[
+                ComponentHealth(
+                    name="memory_stale_rate",
+                    level=HealthLevel.WARNING,
+                    value=0.15,
+                    threshold_warning=0.1,
+                    threshold_error=0.25,
+                    detail="3/20 memories stale",
+                ),
+            ]
+        )
         md = report.to_markdown()
         assert "[WARN]" in md
         assert "Recommendations" in md
         assert "stale" in md.lower()
 
     def test_to_markdown_with_error(self) -> None:
-        report = HealthStatusReport(components=[
-            ComponentHealth(
-                name="session_failure_rate", level=HealthLevel.ERROR, value=0.30,
-                threshold_warning=0.1, threshold_error=0.25,
-                detail="15/50 sessions failed",
-            ),
-        ])
+        report = HealthStatusReport(
+            components=[
+                ComponentHealth(
+                    name="session_failure_rate",
+                    level=HealthLevel.ERROR,
+                    value=0.30,
+                    threshold_warning=0.1,
+                    threshold_error=0.25,
+                    detail="15/50 sessions failed",
+                ),
+            ]
+        )
         md = report.to_markdown()
         assert "[FAIL]" in md
         assert "Recommendations" in md
@@ -363,9 +417,7 @@ class TestComputeSessionHealth:
                 encoding="utf-8",
             )
         result = compute_session_health(sess_dir)
-        failure_comp = next(
-            (c for c in result if c.name == "session_failure_rate"), None
-        )
+        failure_comp = next((c for c in result if c.name == "session_failure_rate"), None)
         assert failure_comp is not None
         assert failure_comp.value == 0.0
         assert failure_comp.level == HealthLevel.HEALTHY
@@ -374,10 +426,12 @@ class TestComputeSessionHealth:
         sess_dir = tmp_path / "sessions"
         sess_dir.mkdir()
         (sess_dir / "ok.json").write_text(
-            json.dumps({"status": "completed"}), encoding="utf-8",
+            json.dumps({"status": "completed"}),
+            encoding="utf-8",
         )
         (sess_dir / "bad.json").write_text(
-            json.dumps({"status": "failed"}), encoding="utf-8",
+            json.dumps({"status": "failed"}),
+            encoding="utf-8",
         )
         result = compute_session_health(sess_dir)
         failure_comp = next(c for c in result if c.name == "session_failure_rate")
@@ -388,29 +442,31 @@ class TestComputeSessionHealth:
         sess_dir = tmp_path / "sessions"
         sess_dir.mkdir()
         (sess_dir / "invoked.json").write_text(
-            json.dumps({
-                "status": "completed",
-                "classification": {
-                    "complexity": "medium",
-                    "context_retrieval": "INVOKED",
-                },
-            }),
+            json.dumps(
+                {
+                    "status": "completed",
+                    "classification": {
+                        "complexity": "medium",
+                        "context_retrieval": "INVOKED",
+                    },
+                }
+            ),
             encoding="utf-8",
         )
         (sess_dir / "skipped.json").write_text(
-            json.dumps({
-                "status": "completed",
-                "classification": {
-                    "complexity": "simple",
-                    "context_retrieval": "SKIPPED",
-                },
-            }),
+            json.dumps(
+                {
+                    "status": "completed",
+                    "classification": {
+                        "complexity": "simple",
+                        "context_retrieval": "SKIPPED",
+                    },
+                }
+            ),
             encoding="utf-8",
         )
         result = compute_session_health(sess_dir)
-        skip_comp = next(
-            c for c in result if c.name == "context_retrieval_skip_rate"
-        )
+        skip_comp = next(c for c in result if c.name == "context_retrieval_skip_rate")
         assert skip_comp.value == 0.5  # 1 skipped / 2 eligible
 
     def test_invalid_json_skipped(self, tmp_path: Path) -> None:
@@ -418,13 +474,12 @@ class TestComputeSessionHealth:
         sess_dir.mkdir()
         (sess_dir / "bad.json").write_text("not json", encoding="utf-8")
         (sess_dir / "good.json").write_text(
-            json.dumps({"status": "completed"}), encoding="utf-8",
+            json.dumps({"status": "completed"}),
+            encoding="utf-8",
         )
         result = compute_session_health(sess_dir)
         # Should only count the valid session
-        failure_comp = next(
-            (c for c in result if c.name == "session_failure_rate"), None
-        )
+        failure_comp = next((c for c in result if c.name == "session_failure_rate"), None)
         assert failure_comp is not None
         assert failure_comp.detail == "0/1 sessions failed (1 unreadable logs skipped)"
 
@@ -434,9 +489,7 @@ class TestComputeSessionHealth:
         sess_dir = tmp_path / "sessions"
         sess_dir.mkdir()
         (sess_dir / "bad.json").write_text("not json", encoding="utf-8")
-        (sess_dir / "good.json").write_text(
-            json.dumps({"status": "completed"}), encoding="utf-8"
-        )
+        (sess_dir / "good.json").write_text(json.dumps({"status": "completed"}), encoding="utf-8")
 
         result = compute_session_health(sess_dir)
 
@@ -450,9 +503,7 @@ class TestComputeSessionHealth:
         sess_dir = tmp_path / "sessions"
         sess_dir.mkdir()
         (sess_dir / "array.json").write_text("[]", encoding="utf-8")
-        (sess_dir / "good.json").write_text(
-            json.dumps({"status": "completed"}), encoding="utf-8"
-        )
+        (sess_dir / "good.json").write_text(json.dumps({"status": "completed"}), encoding="utf-8")
 
         result = compute_session_health(sess_dir)
 
@@ -477,7 +528,8 @@ class TestComputeSessionHealth:
         sess_dir.mkdir()
         for i in range(10):
             (sess_dir / f"session-{i:02d}.json").write_text(
-                json.dumps({"status": "completed"}), encoding="utf-8",
+                json.dumps({"status": "completed"}),
+                encoding="utf-8",
             )
         result = compute_session_health(sess_dir, limit=3)
         failure_comp = next(c for c in result if c.name == "session_failure_rate")
@@ -503,11 +555,14 @@ class TestComputeHealth:
         sess_dir = tmp_path / "sessions"
         sess_dir.mkdir()
         (sess_dir / "s1.json").write_text(
-            json.dumps({"status": "completed"}), encoding="utf-8",
+            json.dumps({"status": "completed"}),
+            encoding="utf-8",
         )
 
         report = compute_health(
-            tmp_path, memories_dir=mem_dir, sessions_dir=sess_dir,
+            tmp_path,
+            memories_dir=mem_dir,
+            sessions_dir=sess_dir,
         )
         assert report.overall_level == HealthLevel.HEALTHY
         assert len(report.components) >= 3  # 2 memory + 1 session
@@ -544,14 +599,20 @@ class TestCLI:
         )
         result = subprocess.run(
             [
-                sys.executable, self._script_path(),
-                "--format", "json",
-                "--project-root", str(tmp_path),
-                "--memories-dir", str(mem_dir),
-                "--sessions-dir", str(tmp_path / "sessions"),
+                sys.executable,
+                self._script_path(),
+                "--format",
+                "json",
+                "--project-root",
+                str(tmp_path),
+                "--memories-dir",
+                str(mem_dir),
+                "--sessions-dir",
+                str(tmp_path / "sessions"),
             ],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
         )
         assert result.returncode == 0
         data = json.loads(result.stdout)
@@ -561,14 +622,20 @@ class TestCLI:
     def test_markdown_output(self, tmp_path: Path) -> None:
         result = subprocess.run(
             [
-                sys.executable, self._script_path(),
-                "--format", "markdown",
-                "--project-root", str(tmp_path),
-                "--memories-dir", str(tmp_path / "nonexistent"),
-                "--sessions-dir", str(tmp_path / "nonexistent"),
+                sys.executable,
+                self._script_path(),
+                "--format",
+                "markdown",
+                "--project-root",
+                str(tmp_path),
+                "--memories-dir",
+                str(tmp_path / "nonexistent"),
+                "--sessions-dir",
+                str(tmp_path / "nonexistent"),
             ],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
         )
         assert result.returncode == 0
         assert "Health Status Report" in result.stdout
@@ -576,14 +643,20 @@ class TestCLI:
     def test_table_output(self, tmp_path: Path) -> None:
         result = subprocess.run(
             [
-                sys.executable, self._script_path(),
-                "--format", "table",
-                "--project-root", str(tmp_path),
-                "--memories-dir", str(tmp_path / "nonexistent"),
-                "--sessions-dir", str(tmp_path / "nonexistent"),
+                sys.executable,
+                self._script_path(),
+                "--format",
+                "table",
+                "--project-root",
+                str(tmp_path),
+                "--memories-dir",
+                str(tmp_path / "nonexistent"),
+                "--sessions-dir",
+                str(tmp_path / "nonexistent"),
             ],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
         )
         assert result.returncode == 0
         assert "Health Status" in result.stdout
@@ -596,14 +669,20 @@ class TestCLI:
             (mem_dir / f"bad-{i}.md").write_text("no frontmatter", encoding="utf-8")
         result = subprocess.run(
             [
-                sys.executable, self._script_path(),
-                "--format", "json",
-                "--project-root", str(tmp_path),
-                "--memories-dir", str(mem_dir),
-                "--sessions-dir", str(tmp_path / "sessions"),
+                sys.executable,
+                self._script_path(),
+                "--format",
+                "json",
+                "--project-root",
+                str(tmp_path),
+                "--memories-dir",
+                str(mem_dir),
+                "--sessions-dir",
+                str(tmp_path / "sessions"),
             ],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
         )
         assert result.returncode == 1
 
@@ -614,11 +693,15 @@ class TestCLI:
         outside.mkdir()
         result = subprocess.run(
             [
-                sys.executable, self._script_path(),
-                "--project-root", str(project),
-                "--memories-dir", str(outside),
+                sys.executable,
+                self._script_path(),
+                "--project-root",
+                str(project),
+                "--memories-dir",
+                str(outside),
             ],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
         )
         assert result.returncode == 2

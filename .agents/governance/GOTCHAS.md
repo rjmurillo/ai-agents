@@ -551,6 +551,7 @@ one-second check:
 
 ```python
 import importlib.util, sys, pathlib
+
 spec = importlib.util.spec_from_file_location("prd", "scripts/validation/pr_description.py")
 m = importlib.util.module_from_spec(spec)
 sys.modules["prd"] = m  # dataclass resolution needs the module registered

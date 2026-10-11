@@ -59,13 +59,20 @@ assert _audit.IDEAL_MAX_LINES == IDEAL_MAX
 
 def _score_size_only(line_count: int) -> int:
     """Call _score_modularity with all boolean flags False."""
-    return _score(line_count, h2_count=0, has_scripts=False,
-                  has_references=False, has_templates=False, has_modules=False)
+    return _score(
+        line_count,
+        h2_count=0,
+        has_scripts=False,
+        has_references=False,
+        has_templates=False,
+        has_modules=False,
+    )
 
 
 # ---------------------------------------------------------------------------
 # Band boundaries: scores inside [IDEAL_MIN, IDEAL_MAX] must all be 100.
 # ---------------------------------------------------------------------------
+
 
 class TestInsideBand:
     """Skills with line counts in [IDEAL_MIN, IDEAL_MAX] score 100."""
@@ -92,6 +99,7 @@ class TestInsideBand:
 # Pre-fix: a 40-line skill scored 100. Post-fix: it scores 94.
 # Formula: shortfall = 100 - 40 = 60; penalty = min(60 // 10, 40) = 6; score = 94.
 # ---------------------------------------------------------------------------
+
 
 class TestFloorPenalty:
     """Skills shorter than IDEAL_MIN_LINES are penalised."""
@@ -133,6 +141,7 @@ class TestFloorPenalty:
 # Ceiling (too long): existing behaviour preserved.
 # ---------------------------------------------------------------------------
 
+
 class TestCeilingPenalty:
     """Skills above IDEAL_MAX_LINES are penalised (pre-existing behaviour)."""
 
@@ -166,6 +175,7 @@ class TestCeilingPenalty:
 # oversized with exemptions should not cause CI to fail.
 # ---------------------------------------------------------------------------
 
+
 class TestCiMode:
     """Smoke test: --ci must exit 0 on the real skill tree (no regressions)."""
 
@@ -178,9 +188,14 @@ class TestCiMode:
         # parents[3] = .../ai-agents-scorehint
         worktree_root = _SKILL_DIR.parents[3]
         result = subprocess.run(
-            ["uv", "run", "--frozen", "python",
-             ".claude/skills/skillforge/scripts/skill_modularity_audit.py",
-             "--ci"],
+            [
+                "uv",
+                "run",
+                "--frozen",
+                "python",
+                ".claude/skills/skillforge/scripts/skill_modularity_audit.py",
+                "--ci",
+            ],
             cwd=worktree_root,
             capture_output=True,
             text=True,

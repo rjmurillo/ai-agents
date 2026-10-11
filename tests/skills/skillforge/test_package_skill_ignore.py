@@ -15,9 +15,7 @@ from collections.abc import Iterator
 from pathlib import Path
 from unittest import mock
 
-SCRIPTS_DIR = (
-    Path(__file__).resolve().parents[3] / ".claude" / "skills" / "skillforge" / "scripts"
-)
+SCRIPTS_DIR = Path(__file__).resolve().parents[3] / ".claude" / "skills" / "skillforge" / "scripts"
 # skillforge/scripts holds a frontmatter.py that shadows the PyPI package, so
 # restore sys.path once the import is done.
 _SAVED_SYS_PATH = list(sys.path)

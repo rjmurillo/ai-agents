@@ -34,6 +34,7 @@ from hook_utilities.path_safety import validate_path_no_traversal  # noqa: E402
 _HAS_TIKTOKEN = False
 try:
     import tiktoken
+
     _HAS_TIKTOKEN = True
 except ImportError:
     pass
@@ -70,9 +71,7 @@ def count_tokens(text: str, encoding_name: str = "cl100k_base") -> int:
 
 
 def get_memory_token_count(
-    memory_path: Path,
-    cache_path: Path | None = None,
-    force: bool = False
+    memory_path: Path, cache_path: Path | None = None, force: bool = False
 ) -> int:
     """
     Count tokens in memory file with caching.
@@ -115,7 +114,7 @@ def get_memory_token_count(
     cache[file_key] = {
         "hash": file_hash,
         "token_count": token_count,
-        "file_size": memory_path.stat().st_size
+        "file_size": memory_path.stat().st_size,
     }
     try:
         save_cache(cache_path, cache)
@@ -126,10 +125,7 @@ def get_memory_token_count(
 
 
 def count_directory(
-    directory: Path,
-    pattern: str = "*.md",
-    cache_path: Path | None = None,
-    force: bool = False
+    directory: Path, pattern: str = "*.md", cache_path: Path | None = None, force: bool = False
 ) -> dict[str, int]:
     """
     Count tokens for all memory files in directory.
@@ -151,12 +147,13 @@ def count_directory(
     for file_path in sorted(directory.glob(pattern)):
         if file_path.is_file():
             try:
-                results[str(file_path)] = get_memory_token_count(
-                    file_path, cache_path, force
-                )
+                results[str(file_path)] = get_memory_token_count(file_path, cache_path, force)
             except (
-                FileNotFoundError, PermissionError,
-                UnicodeDecodeError, ImportError, OSError,
+                FileNotFoundError,
+                PermissionError,
+                UnicodeDecodeError,
+                ImportError,
+                OSError,
             ) as e:
                 print(f"Warning: Failed to count {file_path}: {e}", file=sys.stderr)
                 failed += 1
@@ -175,38 +172,25 @@ def main() -> int:
     parser = argparse.ArgumentParser(
         description="Count tokens in Serena memory files using tiktoken"
     )
+    parser.add_argument("path", type=Path, help="Memory file or directory to analyze")
     parser.add_argument(
-        "path",
-        type=Path,
-        help="Memory file or directory to analyze"
+        "-r", "--recurse", action="store_true", help="Recursively process directory"
     )
     parser.add_argument(
-        "-r", "--recurse",
-        action="store_true",
-        help="Recursively process directory"
-    )
-    parser.add_argument(
-        "-c", "--cache",
+        "-c",
+        "--cache",
         type=Path,
         default=None,
-        help="Cache file path (default: .serena/.token-cache.json)"
+        help="Cache file path (default: .serena/.token-cache.json)",
     )
-    parser.add_argument(
-        "-f", "--force",
-        action="store_true",
-        help="Force recount, ignore cache"
-    )
+    parser.add_argument("-f", "--force", action="store_true", help="Force recount, ignore cache")
     parser.add_argument(
         "--pattern",
         type=str,
         default="*.md",
-        help="File pattern for directory mode (default: *.md)"
+        help="File pattern for directory mode (default: *.md)",
     )
-    parser.add_argument(
-        "--total",
-        action="store_true",
-        help="Show total token count for directory"
-    )
+    parser.add_argument("--total", action="store_true", help="Show total token count for directory")
 
     args = parser.parse_args()
 

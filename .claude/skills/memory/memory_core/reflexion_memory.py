@@ -109,20 +109,13 @@ def _validate_schema(
     raw_errors = sorted(validator.iter_errors(parsed), key=str)
     if raw_errors:
         shown = [
-            f"{'/'.join(str(part) for part in e.absolute_path) or '<root>'}: "
-            f"{e.message}"
+            f"{'/'.join(str(part) for part in e.absolute_path) or '<root>'}: {e.message}"
             for e in raw_errors[:_MAX_REPORTED_SCHEMA_ERRORS]
         ]
         suffix = (
-            f"; and {len(raw_errors) - len(shown)} more"
-            if len(raw_errors) > len(shown)
-            else ""
+            f"; and {len(raw_errors) - len(shown)} more" if len(raw_errors) > len(shown) else ""
         )
-        msg = (
-            f"Invalid {data_type} - JSON Schema validation failed: "
-            + "; ".join(shown)
-            + suffix
-        )
+        msg = f"Invalid {data_type} - JSON Schema validation failed: " + "; ".join(shown) + suffix
         raise ValueError(msg)
 
 
@@ -207,9 +200,7 @@ def get_episodes(
             content = episode_file.read_text(encoding="utf-8")
             episode = json.loads(content)
         except (OSError, json.JSONDecodeError) as exc:
-            logger.warning(
-                "Skipping corrupted episode file '%s': %s", episode_file, exc
-            )
+            logger.warning("Skipping corrupted episode file '%s': %s", episode_file, exc)
             skipped_count += 1
             continue
 
@@ -242,9 +233,7 @@ def get_episodes(
             break
 
     if skipped_count > 0:
-        logger.warning(
-            "Skipped %d corrupted or invalid episode file(s)", skipped_count
-        )
+        logger.warning("Skipped %d corrupted or invalid episode file(s)", skipped_count)
 
     # Sort by timestamp descending
     episodes.sort(key=lambda e: e.get("timestamp", ""), reverse=True)

@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import List, Optional, Any
 
+
 @dataclass
 class Result:
     """
@@ -27,6 +28,7 @@ class Result:
         errors: List of error messages
         warnings: List of warning messages
     """
+
     success: bool
     message: str
     data: dict = field(default_factory=dict)
@@ -45,8 +47,9 @@ class Result:
             "data": self.data,
             "errors": self.errors,
             "warnings": self.warnings,
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
         }
+
 
 # Usage
 def process_file(path: Path) -> Result:
@@ -54,17 +57,11 @@ def process_file(path: Path) -> Result:
 
     if not path.exists():
         return Result(
-            success=False,
-            message=f"File not found: {path}",
-            errors=[f"File not found: {path}"]
+            success=False, message=f"File not found: {path}", errors=[f"File not found: {path}"]
         )
 
     # Process...
-    return Result(
-        success=True,
-        message="Processing complete",
-        data={"processed_lines": 42}
-    )
+    return Result(success=True, message="Processing complete", data={"processed_lines": 42})
 ```
 
 **When to Use:** Every script that returns a status.
@@ -79,11 +76,13 @@ Specialized result for validation scripts with check tracking.
 from dataclasses import dataclass, field
 from typing import List, Tuple
 
+
 @dataclass
 class ValidationResult:
     """
     Result object for validation scripts with detailed check tracking.
     """
+
     passed: List[str] = field(default_factory=list)
     warnings: List[str] = field(default_factory=list)
     errors: List[str] = field(default_factory=list)
@@ -110,14 +109,7 @@ class ValidationResult:
 
     def format_report(self, title: str = "Validation Report") -> str:
         """Generate formatted report."""
-        lines = [
-            "=" * 60,
-            title.center(60),
-            "=" * 60,
-            "",
-            f"Summary: {self.summary}",
-            ""
-        ]
+        lines = ["=" * 60, title.center(60), "=" * 60, "", f"Summary: {self.summary}", ""]
 
         if self.errors:
             lines.append("ERRORS:")
@@ -136,29 +128,22 @@ class ValidationResult:
         lines.append("=" * 60)
         return "\n".join(lines)
 
+
 # Usage
 def validate_skill(path: Path) -> ValidationResult:
     result = ValidationResult()
 
-    result.check(
-        "file_exists",
-        path.exists(),
-        f"SKILL.md exists at {path}"
-    )
+    result.check("file_exists", path.exists(), f"SKILL.md exists at {path}")
 
     content = path.read_text() if path.exists() else ""
 
-    result.check(
-        "has_frontmatter",
-        content.startswith("---"),
-        "File has YAML frontmatter"
-    )
+    result.check("has_frontmatter", content.startswith("---"), "File has YAML frontmatter")
 
     result.check(
         "has_triggers",
         "## Triggers" in content or "trigger" in content.lower(),
         "File has trigger phrases",
-        warning_only=True  # Warning, not error
+        warning_only=True,  # Warning, not error
     )
 
     return result
@@ -176,20 +161,24 @@ Modular CLI interface for multi-operation scripts.
 import argparse
 import sys
 
+
 def cmd_init(args):
     """Handle 'init' subcommand."""
     print(f"Initializing: {args.name}")
     return 0
+
 
 def cmd_run(args):
     """Handle 'run' subcommand."""
     print(f"Running with verbose={args.verbose}")
     return 0
 
+
 def cmd_status(args):
     """Handle 'status' subcommand."""
     print("Status: OK")
     return 0
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -200,7 +189,7 @@ Examples:
   %(prog)s init "My Project"
   %(prog)s run --verbose
   %(prog)s status
-        """
+        """,
     )
 
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
@@ -234,6 +223,7 @@ Examples:
     exit_code = handlers[args.command](args)
     sys.exit(exit_code)
 
+
 if __name__ == "__main__":
     main()
 ```
@@ -251,36 +241,19 @@ import argparse
 import sys
 from pathlib import Path
 
+
 def main():
-    parser = argparse.ArgumentParser(
-        description="Validate a skill directory"
-    )
+    parser = argparse.ArgumentParser(description="Validate a skill directory")
 
     # Positional argument
-    parser.add_argument(
-        "path",
-        type=Path,
-        help="Path to skill directory"
-    )
+    parser.add_argument("path", type=Path, help="Path to skill directory")
 
     # Optional flags
-    parser.add_argument(
-        "--verbose", "-v",
-        action="store_true",
-        help="Show detailed output"
-    )
+    parser.add_argument("--verbose", "-v", action="store_true", help="Show detailed output")
 
-    parser.add_argument(
-        "--json",
-        action="store_true",
-        help="Output as JSON"
-    )
+    parser.add_argument("--json", action="store_true", help="Output as JSON")
 
-    parser.add_argument(
-        "--strict",
-        action="store_true",
-        help="Treat warnings as errors"
-    )
+    parser.add_argument("--strict", action="store_true", help="Treat warnings as errors")
 
     args = parser.parse_args()
 
@@ -300,6 +273,7 @@ def main():
 
     sys.exit(0 if result.is_valid else 1)
 
+
 if __name__ == "__main__":
     main()
 ```
@@ -318,24 +292,23 @@ from datetime import datetime
 import json
 import os
 
+
 def get_state_dir(skill_name: str) -> Path:
     """Get XDG-compliant state directory."""
     xdg_cache = os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")
     return Path(xdg_cache) / skill_name
+
 
 def get_state_path(skill_name: str, project_name: str = "default") -> Path:
     """Get state file path for a project."""
     safe_name = project_name.lower().replace(" ", "-").replace("/", "-")
     return get_state_dir(skill_name) / f"{safe_name}.json"
 
+
 def load_state(path: Path) -> dict:
     """Load state with graceful fallback on corruption."""
     if not path.exists():
-        return {
-            "version": "1.0",
-            "created_at": datetime.now().isoformat(),
-            "data": {}
-        }
+        return {"version": "1.0", "created_at": datetime.now().isoformat(), "data": {}}
 
     try:
         return json.loads(path.read_text())
@@ -347,8 +320,9 @@ def load_state(path: Path) -> dict:
             "version": "1.0",
             "created_at": datetime.now().isoformat(),
             "data": {},
-            "recovered_from": str(backup)
+            "recovered_from": str(backup),
         }
+
 
 def save_state(path: Path, state: dict) -> None:
     """Save state atomically."""
@@ -359,6 +333,7 @@ def save_state(path: Path, state: dict) -> None:
     temp_path = path.with_suffix(".json.tmp")
     temp_path.write_text(json.dumps(state, indent=2))
     temp_path.rename(path)
+
 
 # Usage
 def main():
@@ -387,23 +362,25 @@ def parse_yaml(text: str) -> dict:
     """Parse YAML with graceful fallback if PyYAML not installed."""
     try:
         import yaml
+
         return yaml.safe_load(text)
     except ImportError:
         # Fallback: basic key-value parsing for simple YAML
         result = {}
         current_key = None
-        for line in text.split('\n'):
+        for line in text.split("\n"):
             stripped = line.strip()
-            if not stripped or stripped.startswith('#'):
+            if not stripped or stripped.startswith("#"):
                 continue
-            if ':' in line and not line.startswith(' '):
-                key, value = line.split(':', 1)
+            if ":" in line and not line.startswith(" "):
+                key, value = line.split(":", 1)
                 key = key.strip()
                 value = value.strip()
                 if value:
                     # Remove quotes if present
-                    if (value.startswith('"') and value.endswith('"')) or \
-                       (value.startswith("'") and value.endswith("'")):
+                    if (value.startswith('"') and value.endswith('"')) or (
+                        value.startswith("'") and value.endswith("'")
+                    ):
                         value = value[1:-1]
                     result[key] = value
                 else:
@@ -411,28 +388,20 @@ def parse_yaml(text: str) -> dict:
                     current_key = key
         return result
 
+
 # Rich output with fallback
 def print_styled(message: str, style: str = "normal"):
     """Print with optional rich styling."""
     try:
         from rich.console import Console
+
         console = Console()
-        styles = {
-            "success": "[green]",
-            "error": "[red]",
-            "warning": "[yellow]",
-            "normal": ""
-        }
+        styles = {"success": "[green]", "error": "[red]", "warning": "[yellow]", "normal": ""}
         prefix = styles.get(style, "")
         console.print(f"{prefix}{message}")
     except ImportError:
         # Fallback: plain output with emoji
-        prefixes = {
-            "success": "[OK] ",
-            "error": "[ERROR] ",
-            "warning": "[WARN] ",
-            "normal": ""
-        }
+        prefixes = {"success": "[OK] ", "error": "[ERROR] ", "warning": "[WARN] ", "normal": ""}
         print(f"{prefixes.get(style, '')}{message}")
 ```
 
@@ -448,8 +417,10 @@ Consistent exit codes for script chaining.
 import sys
 from enum import IntEnum
 
+
 class ExitCode(IntEnum):
     """Standard exit codes for skill scripts."""
+
     SUCCESS = 0
     GENERAL_ERROR = 1
     INVALID_ARGUMENTS = 2
@@ -460,6 +431,7 @@ class ExitCode(IntEnum):
     DEPENDENCY_ERROR = 20
     NETWORK_ERROR = 21
     TIMEOUT = 30
+
 
 def main():
     try:
@@ -506,6 +478,7 @@ def render_progress_bar(current: int, total: int, width: int = 40) -> str:
 
     return f"[{bar}] {percent:.1f}% ({current}/{total})"
 
+
 def render_status_icon(status: str) -> str:
     """Render status as ASCII icon."""
     icons = {
@@ -517,6 +490,7 @@ def render_status_icon(status: str) -> str:
         "skipped": "[-]",
     }
     return icons.get(status, "[?]")
+
 
 def render_tree(items: list, indent: int = 0) -> str:
     """Render hierarchical tree structure."""
@@ -533,20 +507,33 @@ def render_tree(items: list, indent: int = 0) -> str:
 
     return "\n".join(lines)
 
+
 # Usage
 print(render_progress_bar(7, 10))
 # Output: [============================------------] 70.0% (7/10)
 
-print(render_tree([
-    {"name": "Phase 1", "status": "completed", "children": [
-        {"name": "Step 1.1", "status": "completed"},
-        {"name": "Step 1.2", "status": "completed"},
-    ]},
-    {"name": "Phase 2", "status": "in_progress", "children": [
-        {"name": "Step 2.1", "status": "in_progress"},
-        {"name": "Step 2.2", "status": "pending"},
-    ]},
-]))
+print(
+    render_tree(
+        [
+            {
+                "name": "Phase 1",
+                "status": "completed",
+                "children": [
+                    {"name": "Step 1.1", "status": "completed"},
+                    {"name": "Step 1.2", "status": "completed"},
+                ],
+            },
+            {
+                "name": "Phase 2",
+                "status": "in_progress",
+                "children": [
+                    {"name": "Step 2.1", "status": "in_progress"},
+                    {"name": "Step 2.2", "status": "pending"},
+                ],
+            },
+        ]
+    )
+)
 ```
 
 **When to Use:** Progress tracking, status dashboards, visual feedback.
@@ -581,21 +568,18 @@ def execute_with_verification(input_data, verify_func):
                 success=False,
                 message=f"Verification failed: {reason}",
                 data={"output": output, "verification": reason},
-                errors=[reason]
+                errors=[reason],
             )
 
         return Result(
             success=True,
             message="Operation completed and verified",
-            data={"output": output, "verified": True}
+            data={"output": output, "verified": True},
         )
 
     except Exception as e:
-        return Result(
-            success=False,
-            message=f"Execution failed: {e}",
-            errors=[str(e)]
-        )
+        return Result(success=False, message=f"Execution failed: {e}", errors=[str(e)])
+
 
 # Example verification functions
 def verify_json_output(output):
@@ -606,11 +590,13 @@ def verify_json_output(output):
     except json.JSONDecodeError as e:
         return False, f"Invalid JSON: {e}"
 
+
 def verify_file_exists(path):
     """Verify file was created."""
     if Path(path).exists():
         return True, f"File exists: {path}"
     return False, f"File not created: {path}"
+
 
 def verify_non_empty(output):
     """Verify output is non-empty."""
@@ -643,6 +629,7 @@ from pathlib import Path
 
 # ... include ValidationResult class from Pattern 2 ...
 
+
 def validate(path: Path, strict: bool = False) -> ValidationResult:
     """Validate the target."""
     result = ValidationResult()
@@ -651,6 +638,7 @@ def validate(path: Path, strict: bool = False) -> ValidationResult:
     result.check("example", True, "Example check passed")
 
     return result
+
 
 def main():
     parser = argparse.ArgumentParser(description="Validate <target>")
@@ -664,11 +652,17 @@ def main():
 
     if args.json:
         import json
-        print(json.dumps({"valid": result.is_valid, "errors": result.errors, "warnings": result.warnings}))
+
+        print(
+            json.dumps(
+                {"valid": result.is_valid, "errors": result.errors, "warnings": result.warnings}
+            )
+        )
     else:
         print(result.format_report())
 
     sys.exit(0 if result.is_valid else 1)
+
 
 if __name__ == "__main__":
     main()
@@ -696,25 +690,30 @@ from pathlib import Path
 
 # ... include state management functions from Pattern 5 ...
 
+
 def cmd_init(args):
     """Initialize a new project."""
     # Implementation
     pass
+
 
 def cmd_add(args):
     """Add an item."""
     # Implementation
     pass
 
+
 def cmd_update(args):
     """Update an item."""
     # Implementation
     pass
 
+
 def cmd_status(args):
     """Show current status."""
     # Implementation
     pass
+
 
 def main():
     parser = argparse.ArgumentParser(description="Track <purpose>")
@@ -730,6 +729,7 @@ def main():
 
     handlers = {"init": cmd_init, "add": cmd_add, "update": cmd_update, "status": cmd_status}
     sys.exit(handlers[args.command](args))
+
 
 if __name__ == "__main__":
     main()
@@ -758,6 +758,7 @@ TEMPLATE = """
 ${content}
 """
 
+
 def generate(input_path: Path, output_path: Path) -> bool:
     """Generate artifact from input."""
     from datetime import datetime
@@ -768,9 +769,7 @@ def generate(input_path: Path, output_path: Path) -> bool:
     # Transform using template
     template = Template(TEMPLATE)
     result = template.substitute(
-        name=input_path.stem,
-        timestamp=datetime.now().isoformat(),
-        content=data
+        name=input_path.stem, timestamp=datetime.now().isoformat(), content=data
     )
 
     # Write output
@@ -782,6 +781,7 @@ def generate(input_path: Path, output_path: Path) -> bool:
         return False
 
     return True
+
 
 def main():
     parser = argparse.ArgumentParser(description="Generate <artifact>")
@@ -802,6 +802,7 @@ def main():
     else:
         print("Generation failed", file=sys.stderr)
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

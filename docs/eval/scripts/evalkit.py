@@ -11,6 +11,7 @@ Config via environment:
 Prerequisites: `pip install tiktoken openai`, plus the `codex` and `claude` CLIs
 logged in (subscription auth; bypasses metered API budgets).
 """
+
 from __future__ import annotations
 
 import json
@@ -21,6 +22,7 @@ from pathlib import Path
 
 try:
     import tiktoken
+
     _ENC = tiktoken.get_encoding("o200k_base")
 except Exception:
     _ENC = None
@@ -81,7 +83,7 @@ def parse_scores(text: str):
     if a < 0 or b <= a:
         return None
     try:
-        o = json.loads(text[a:b + 1])
+        o = json.loads(text[a : b + 1])
     except (json.JSONDecodeError, ValueError):
         return None
     if not isinstance(o, dict):
@@ -99,10 +101,30 @@ def run_codex(model: str, effort: str, code: str, msgfile: str):
     """codex exec, JSON output schema forces the shape; --json stream carries
     token usage (output + reasoning). Returns (scores|None, usage dict)."""
     proc = subprocess.run(
-        ["codex", "exec", "-m", model, "-c", f"model_reasoning_effort={effort}",
-         "-s", "read-only", "--ephemeral", "-C", moq_repo(), "--json",
-         "--output-schema", SCHEMA, "-o", msgfile, RUBRIC],
-        input=code, capture_output=True, text=True, timeout=1800)
+        [
+            "codex",
+            "exec",
+            "-m",
+            model,
+            "-c",
+            f"model_reasoning_effort={effort}",
+            "-s",
+            "read-only",
+            "--ephemeral",
+            "-C",
+            moq_repo(),
+            "--json",
+            "--output-schema",
+            SCHEMA,
+            "-o",
+            msgfile,
+            RUBRIC,
+        ],
+        input=code,
+        capture_output=True,
+        text=True,
+        timeout=1800,
+    )
     usage = {}
     for line in proc.stdout.splitlines():
         line = line.strip()
@@ -121,9 +143,11 @@ def run_codex(model: str, effort: str, code: str, msgfile: str):
         msg = ""
     out_total = int(usage.get("output_tokens", 0)) + int(usage.get("reasoning_output_tokens", 0))
     return parse_scores(msg), {
-        "out_total": out_total, "out_answer": usage.get("output_tokens"),
+        "out_total": out_total,
+        "out_answer": usage.get("output_tokens"),
         "out_reasoning": usage.get("reasoning_output_tokens"),
-        "in_harness": usage.get("input_tokens")}
+        "in_harness": usage.get("input_tokens"),
+    }
 
 
 def run_claude(model: str, effort: str, code: str):
@@ -133,16 +157,35 @@ def run_claude(model: str, effort: str, code: str):
     env = dict(os.environ)
     env.pop("CLAUDE_EFFORT", None)
     proc = subprocess.run(
-        ["claude", "-p", "--output-format", "json", "--effort", effort,
-         "--append-system-prompt", RUBRIC, "--model", model],
-        input=code, capture_output=True, text=True, timeout=900, cwd=moq_repo(), env=env)
+        [
+            "claude",
+            "-p",
+            "--output-format",
+            "json",
+            "--effort",
+            effort,
+            "--append-system-prompt",
+            RUBRIC,
+            "--model",
+            model,
+        ],
+        input=code,
+        capture_output=True,
+        text=True,
+        timeout=900,
+        cwd=moq_repo(),
+        env=env,
+    )
     o = json.loads(proc.stdout)
     u = o.get("usage", {})
     res = str(o.get("result", "") or "")
     return parse_scores(res), {
-        "out_total": u.get("output_tokens"), "out_answer": u.get("output_tokens"),
-        "out_reasoning": None, "in_harness": u.get("input_tokens"),
-        "cache_read": u.get("cache_read_input_tokens")}
+        "out_total": u.get("output_tokens"),
+        "out_answer": u.get("output_tokens"),
+        "out_reasoning": None,
+        "in_harness": u.get("input_tokens"),
+        "cache_read": u.get("cache_read_input_tokens"),
+    }
 
 
 def run_cell(transport: str, model: str, effort: str, rel: str, msg_prefix: str = "cell"):

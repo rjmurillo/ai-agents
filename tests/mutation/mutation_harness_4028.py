@@ -22,13 +22,7 @@ from scripts.testing.mutation_workspace import (
 )
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
-_CORE_REL = (
-    Path(".claude")
-    / "skills"
-    / "golden-principles"
-    / "scripts"
-    / "scan_principles_core.py"
-)
+_CORE_REL = Path(".claude") / "skills" / "golden-principles" / "scripts" / "scan_principles_core.py"
 _TESTS = [
     "tests/skills/golden-principles/test_scan_principles_core.py",
     "tests/skills/golden-principles/test_scan_principles_diff_scope.py",
@@ -104,9 +98,7 @@ def run_mutants(repo_root: Path) -> None:
         try:
             rc = _run_tests(repo_root)
             if rc == 0:
-                failures.append(
-                    f"SURVIVING MUTANT: '{name}' - tests passed, mutation undetected"
-                )
+                failures.append(f"SURVIVING MUTANT: '{name}' - tests passed, mutation undetected")
                 print("  FAIL: tests did not detect the mutation")
             else:
                 print(f"  PASS: tests caught the mutation (exit {rc})")

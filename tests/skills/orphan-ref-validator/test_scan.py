@@ -55,11 +55,7 @@ _IS_MIRROR = (
     and _SCRIPT_DIR.is_relative_to(_REPO_ROOT_FOR_KEY)
     and _SCRIPT_DIR.relative_to(_REPO_ROOT_FOR_KEY).parts[:2] == ("src", "copilot-cli")
 )
-_MODULE_KEY = (
-    "_orphan_ref_validator_scan_mirror"
-    if _IS_MIRROR
-    else "_orphan_ref_validator_scan"
-)
+_MODULE_KEY = "_orphan_ref_validator_scan_mirror" if _IS_MIRROR else "_orphan_ref_validator_scan"
 sys.path.insert(0, str(_SCRIPT_DIR))
 _spec = importlib.util.spec_from_file_location(_MODULE_KEY, _SCRIPT_DIR / "scan.py")
 assert _spec is not None and _spec.loader is not None
@@ -228,17 +224,19 @@ def test_ac3_existing_script_path_yields_no_finding(fake_repo):
 
 
 def test_extract_rule_and_instruction_refs_from_structured_values_and_literals():
-    text = "\n".join([
-        '{"rule": ".claude/rules/missing-rule.md"}',
-        "paths: .github/instructions/missing.instructions.md",
-        "---",
-        "applyTo: src/copilot-cli/instructions/missing.instructions.md",
-        "---",
-        "```",
-        ".claude/rules/fenced-rule.md",
-        "```",
-        'RULE = ".claude/rules/python-rule.md"',
-    ])
+    text = "\n".join(
+        [
+            '{"rule": ".claude/rules/missing-rule.md"}',
+            "paths: .github/instructions/missing.instructions.md",
+            "---",
+            "applyTo: src/copilot-cli/instructions/missing.instructions.md",
+            "---",
+            "```",
+            ".claude/rules/fenced-rule.md",
+            "```",
+            'RULE = ".claude/rules/python-rule.md"',
+        ]
+    )
     assert list(extract_rule_refs(text)) == [
         (1, ".claude/rules/missing-rule.md"),
         (7, ".claude/rules/fenced-rule.md"),
@@ -286,9 +284,7 @@ def test_ac3_rule_path_bare_fenced_code_path_is_checked(fake_repo):
     write(target, "```\n.claude/rules/missing-fenced.md\n```\n")
     result = scan([target], fake_repo)
     rule_findings = [f for f in result.findings if f.kind == "rule_path"]
-    assert [f.referenced_entity for f in rule_findings] == [
-        ".claude/rules/missing-fenced.md"
-    ]
+    assert [f.referenced_entity for f in rule_findings] == [".claude/rules/missing-fenced.md"]
     assert result.verdict == "CRITICAL_FAIL"
 
 
@@ -319,14 +315,11 @@ def test_ac3_rule_path_ignore_directive_suppresses_line(fake_repo):
     target = fake_repo / "docs" / "ignored.md"
     write(
         target,
-        ".claude/rules/missing.md <!-- orphan-ref-ignore -->\n"
-        ".claude/rules/other-missing.md\n",
+        ".claude/rules/missing.md <!-- orphan-ref-ignore -->\n.claude/rules/other-missing.md\n",
     )
     result = scan([target], fake_repo)
     rule_findings = [f for f in result.findings if f.kind == "rule_path"]
-    assert [f.referenced_entity for f in rule_findings] == [
-        ".claude/rules/other-missing.md"
-    ]
+    assert [f.referenced_entity for f in rule_findings] == [".claude/rules/other-missing.md"]
 
 
 def test_ac3_rule_path_partial_prefix_is_not_matched():
@@ -347,10 +340,14 @@ def test_ac3_python_string_literal_in_explicit_python_target_is_checked(fake_rep
 def test_cli_exit_code_critical_fail_for_missing_rule_path(fake_repo, capsys):
     target = fake_repo / "docs" / "missing-rule.md"
     write(target, "Use .claude/rules/missing-cli.md\n")
-    rc = main([
-        "--targets", str(target),
-        "--repo-root", str(fake_repo),
-    ])
+    rc = main(
+        [
+            "--targets",
+            str(target),
+            "--repo-root",
+            str(fake_repo),
+        ]
+    )
     assert rc == 1
     assert "VERDICT: CRITICAL_FAIL" in capsys.readouterr().out
 
@@ -452,13 +449,10 @@ class TestTestsScriptRefs:
         fixture = fake_repo / "tests" / "hooks" / "fixtures" / "bad-paths.md"
         write(
             fixture,
-            "Intentional negative fixture: `tests/hooks/missing.py` "
-            "<!-- orphan-ref-ignore -->\n",
+            "Intentional negative fixture: `tests/hooks/missing.py` <!-- orphan-ref-ignore -->\n",
         )
         result = scan([fake_repo / "tests"], fake_repo)
-        assert result.directive_suppressed[0].referenced_entity == (
-            "tests/hooks/missing.py"
-        )
+        assert result.directive_suppressed[0].referenced_entity == ("tests/hooks/missing.py")
         assert [f for f in result.findings if f.kind == "script_path"] == []
         assert result.verdict == "PASS"
 
@@ -466,23 +460,17 @@ class TestTestsScriptRefs:
         target = fake_repo / "docs" / "spec.md"
         write(
             target,
-            "```text\n"
-            "Run `tests/hooks/missing.py`\n"
-            "```\n",
+            "```text\nRun `tests/hooks/missing.py`\n```\n",
         )
         result = scan([target], fake_repo)
-        assert {f.referenced_entity for f in result.findings} == {
-            "tests/hooks/missing.py"
-        }
+        assert {f.referenced_entity for f in result.findings} == {"tests/hooks/missing.py"}
         assert result.verdict == "CRITICAL_FAIL"
 
     def test_commented_out_tests_script_ref_is_checked(self, fake_repo):
         target = fake_repo / "docs" / "spec.md"
         write(target, "<!-- Removed command `tests/hooks/missing.py` -->\n")
         result = scan([target], fake_repo)
-        assert {f.referenced_entity for f in result.findings} == {
-            "tests/hooks/missing.py"
-        }
+        assert {f.referenced_entity for f in result.findings} == {"tests/hooks/missing.py"}
         assert result.verdict == "CRITICAL_FAIL"
 
     def test_tests_script_glob_is_not_reference_syntax(self):
@@ -530,9 +518,7 @@ class TestRuleAndInstructionRefs:
         result = scan([target], fake_repo)
         findings = [f for f in result.findings if f.kind == "instruction_path"]
         assert len(findings) == 1
-        assert findings[0].referenced_entity == (
-            ".github/instructions/deleted.instructions.md"
-        )
+        assert findings[0].referenced_entity == (".github/instructions/deleted.instructions.md")
         assert result.verdict == "CRITICAL_FAIL"
 
     def test_existing_instruction_mirror_path_yields_no_finding(self, fake_repo):
@@ -557,11 +543,16 @@ class TestRuleAndInstructionRefs:
 def test_ac5_envelope_shape_and_verdict_line(fake_repo, capsys):
     target = fake_repo / "docs" / "ok.md"
     write(target, "Hello world\n")
-    rc = main([
-        "--targets", str(target),
-        "--repo-root", str(fake_repo),
-        "--output", "json",
-    ])
+    rc = main(
+        [
+            "--targets",
+            str(target),
+            "--repo-root",
+            str(fake_repo),
+            "--output",
+            "json",
+        ]
+    )
     assert rc == 0
     captured = capsys.readouterr().out.strip().splitlines()
     assert captured[-1].startswith("VERDICT:")
@@ -577,11 +568,16 @@ def test_ac5_envelope_shape_and_verdict_line(fake_repo, capsys):
 def test_ac5_human_output_includes_verdict_line(fake_repo, capsys):
     target = fake_repo / "docs" / "ok.md"
     write(target, "Hello\n")
-    rc = main([
-        "--targets", str(target),
-        "--repo-root", str(fake_repo),
-        "--output", "human",
-    ])
+    rc = main(
+        [
+            "--targets",
+            str(target),
+            "--repo-root",
+            str(fake_repo),
+            "--output",
+            "human",
+        ]
+    )
     assert rc == 0
     captured = capsys.readouterr().out
     assert "VERDICT: PASS" in captured
@@ -602,14 +598,16 @@ def test_ac6_missing_target_path_does_not_raise(fake_repo, caplog):
 
 
 def test_ac6_optional_default_targets_skip_when_absent(fake_repo, capsys):
-    rc = main([
-        "--repo-root",
-        str(fake_repo),
-        "--output",
-        "json",
-        "--allow-missing-targets",
-        "--allow-empty-scan",
-    ])
+    rc = main(
+        [
+            "--repo-root",
+            str(fake_repo),
+            "--output",
+            "json",
+            "--allow-missing-targets",
+            "--allow-empty-scan",
+        ]
+    )
     assert rc == 0
     captured = capsys.readouterr().out
     assert "VERDICT: PASS" in captured
@@ -631,20 +629,20 @@ def test_default_scope_uses_tracked_supported_text_surfaces(tmp_path, capsys):
     payload = json.loads(out.split("\nVERDICT:")[0])
     assert rc == 1
     assert payload["Data"]["counts"]["refs_checked"] == 1
-    assert payload["Data"]["findings"][0]["referenced_entity"] == (
-        ".claude/rules/deleted-rule.md"
-    )
+    assert payload["Data"]["findings"][0]["referenced_entity"] == (".claude/rules/deleted-rule.md")
 
 
 def test_ac6_explicit_missing_target_exits_two(fake_repo, capsys):
-    rc = main([
-        "--repo-root",
-        str(fake_repo),
-        "--targets",
-        str(fake_repo / "no-such-dir"),
-        "--output",
-        "json",
-    ])
+    rc = main(
+        [
+            "--repo-root",
+            str(fake_repo),
+            "--targets",
+            str(fake_repo / "no-such-dir"),
+            "--output",
+            "json",
+        ]
+    )
     assert rc == 2
     captured = capsys.readouterr().out.strip().splitlines()
     assert captured[-1] == "VERDICT: ERROR"
@@ -658,14 +656,16 @@ def test_ac6_explicit_missing_target_exits_two(fake_repo, capsys):
 def test_ac6_zero_files_scanned_exits_two_without_empty_scope(fake_repo, capsys):
     empty = fake_repo / "docs"
     empty.mkdir()
-    rc = main([
-        "--repo-root",
-        str(fake_repo),
-        "--targets",
-        str(empty),
-        "--output",
-        "json",
-    ])
+    rc = main(
+        [
+            "--repo-root",
+            str(fake_repo),
+            "--targets",
+            str(empty),
+            "--output",
+            "json",
+        ]
+    )
     assert rc == 2
     captured = capsys.readouterr().out.strip().splitlines()
     assert captured[-1] == "VERDICT: ERROR"
@@ -677,13 +677,15 @@ def test_ac6_zero_files_scanned_exits_two_without_empty_scope(fake_repo, capsys)
 def test_ac6_zero_files_scanned_can_be_declared_empty_scope(fake_repo, capsys):
     empty = fake_repo / "docs"
     empty.mkdir()
-    rc = main([
-        "--repo-root",
-        str(fake_repo),
-        "--targets",
-        str(empty),
-        "--allow-empty-scan",
-    ])
+    rc = main(
+        [
+            "--repo-root",
+            str(fake_repo),
+            "--targets",
+            str(empty),
+            "--allow-empty-scan",
+        ]
+    )
     assert rc == 0
     assert "VERDICT: PASS" in capsys.readouterr().out
 
@@ -724,9 +726,7 @@ def test_utf_bom_encoded_files_are_scanned(fake_repo):
         ("utf-32-be", b"\x00\x00\xfe\xff"),
     ],
 )
-def test_supported_bom_encodings_decode_without_incomplete_scan(
-    fake_repo, encoding, prefix
-):
+def test_supported_bom_encodings_decode_without_incomplete_scan(fake_repo, encoding, prefix):
     target = fake_repo / "docs" / f"{encoding}.md"
     target.parent.mkdir(parents=True, exist_ok=True)
     text = "See `.claude/rules/deleted-rule.md`.\n"
@@ -814,20 +814,28 @@ def test_ac9_large_files_skipped(fake_repo, caplog):
 def test_exit_code_pass(fake_repo, capsys):
     target = fake_repo / "docs" / "ok.md"
     write(target, "Use `alpha-skill`.\n")
-    rc = main([
-        "--targets", str(target),
-        "--repo-root", str(fake_repo),
-    ])
+    rc = main(
+        [
+            "--targets",
+            str(target),
+            "--repo-root",
+            str(fake_repo),
+        ]
+    )
     assert rc == 0
 
 
 def test_exit_code_critical_fail(fake_repo, capsys):
     target = fake_repo / "docs" / "bad.md"
     write(target, "Use skill `dead-skill`.\n")
-    rc = main([
-        "--targets", str(target),
-        "--repo-root", str(fake_repo),
-    ])
+    rc = main(
+        [
+            "--targets",
+            str(target),
+            "--repo-root",
+            str(fake_repo),
+        ]
+    )
     assert rc == 1
 
 
@@ -837,10 +845,14 @@ def test_exit_code_warn_does_not_block(fake_repo, capsys):
     which still satisfies the WARN-does-not-block contract."""
     plugin = fake_repo / ".claude-plugin" / "marketplace.json"
     write(plugin, '{"description": "Catalog has 5 agents."}')
-    rc = main([
-        "--targets", str(plugin),
-        "--repo-root", str(fake_repo),
-    ])
+    rc = main(
+        [
+            "--targets",
+            str(plugin),
+            "--repo-root",
+            str(fake_repo),
+        ]
+    )
     assert rc == 0
 
 
@@ -904,9 +916,7 @@ def test_render_envelope_json_carries_directive_suppressed_refs(fake_repo):
     out = render_envelope(result, "json")
     payload = json.loads(out.split("\nVERDICT:")[0])
     assert payload["Data"]["counts"]["directive_suppressed"] == 1
-    assert payload["Data"]["directive_suppressed"][0]["referenced_entity"] == (
-        "scripts/missing.py"
-    )
+    assert payload["Data"]["directive_suppressed"][0]["referenced_entity"] == ("scripts/missing.py")
 
 
 def test_file_scope_ignore_reports_suppressed_references(fake_repo):
@@ -921,9 +931,7 @@ def test_file_scope_ignore_reports_suppressed_references(fake_repo):
 
     assert result.files_scanned == 0
     assert result.files_skipped == 1
-    assert {ref.reason for ref in result.directive_suppressed} == {
-        "file ignore directive"
-    }
+    assert {ref.reason for ref in result.directive_suppressed} == {"file ignore directive"}
     assert {ref.referenced_entity for ref in result.directive_suppressed} == {
         "scripts/missing.py",
         ".claude/rules/deleted-rule.md",
@@ -968,11 +976,16 @@ def test_render_envelope_human_lists_directive_suppressed_refs(fake_repo):
 def test_adr056_success_true_on_critical_fail(fake_repo, capsys):
     target = fake_repo / "docs" / "bad.md"
     write(target, "Use skill `dead-skill`.\n")
-    rc = main([
-        "--targets", str(target),
-        "--repo-root", str(fake_repo),
-        "--output", "json",
-    ])
+    rc = main(
+        [
+            "--targets",
+            str(target),
+            "--repo-root",
+            str(fake_repo),
+            "--output",
+            "json",
+        ]
+    )
     assert rc == 1
     captured = capsys.readouterr().out.strip().splitlines()
     body = "\n".join(captured[:-1])
@@ -988,20 +1001,28 @@ def test_adr056_success_true_on_critical_fail(fake_repo, capsys):
 
 def test_invalid_repo_root_returns_config_error(tmp_path, capsys):
     bogus = tmp_path / "does-not-exist"
-    rc = main([
-        "--repo-root", str(bogus),
-        "--targets", str(tmp_path / "noop.md"),
-    ])
+    rc = main(
+        [
+            "--repo-root",
+            str(bogus),
+            "--targets",
+            str(tmp_path / "noop.md"),
+        ]
+    )
     assert rc == 2
 
 
 def test_repo_root_pointing_at_file_returns_config_error(tmp_path, capsys):
     f = tmp_path / "regular-file"
     f.write_text("not a directory")
-    rc = main([
-        "--repo-root", str(f),
-        "--targets", str(tmp_path / "noop.md"),
-    ])
+    rc = main(
+        [
+            "--repo-root",
+            str(f),
+            "--targets",
+            str(tmp_path / "noop.md"),
+        ]
+    )
     assert rc == 2
 
 
@@ -1104,14 +1125,16 @@ def test_resolve_repo_root_falls_back_to_cwd_when_no_git(tmp_path, monkeypatch):
 def test_glob_target_pattern_expansion(fake_repo):
     """--targets accepts glob patterns that expand against repo_root."""
     skills_dir = fake_repo / ".claude" / "skills"
-    (skills_dir / "alpha-skill" / "SKILL.md").write_text(
-        "# alpha\nUse skill `dead-skill` here.\n"
-    )
+    (skills_dir / "alpha-skill" / "SKILL.md").write_text("# alpha\nUse skill `dead-skill` here.\n")
     (skills_dir / "beta-skill" / "SKILL.md").write_text("# beta living-only\n")
-    rc = main([
-        "--targets", ".claude/skills/*/SKILL.md",
-        "--repo-root", str(fake_repo),
-    ])
+    rc = main(
+        [
+            "--targets",
+            ".claude/skills/*/SKILL.md",
+            "--repo-root",
+            str(fake_repo),
+        ]
+    )
     assert rc == 1
 
 
@@ -1195,9 +1218,7 @@ def test_truncation_keeps_active_orphan_when_baselined_noise_fills_budget(fake_r
         write(docs / f"baseline-{index:03}.md", "Use skill `dead-skill`.\n")
     write(docs / "z-active.md", "Use skill `active-skill`.\n")
     full = scan([docs], fake_repo, max_findings=1000)
-    baseline = {
-        f.key for f in full.findings if f.referenced_entity == "dead-skill"
-    }
+    baseline = {f.key for f in full.findings if f.referenced_entity == "dead-skill"}
     assert len(baseline) == 499
 
     result = scan([docs], fake_repo, max_findings=10, baseline=baseline)
@@ -1228,11 +1249,16 @@ def test_render_error_envelope_emitted_on_invalid_repo_root(tmp_path, capsys):
     a populated Error block. The contract is documented in render_envelope's
     docstring; this test pins it."""
     bogus = tmp_path / "does-not-exist"
-    rc = main([
-        "--repo-root", str(bogus),
-        "--targets", str(tmp_path / "x.md"),
-        "--output", "json",
-    ])
+    rc = main(
+        [
+            "--repo-root",
+            str(bogus),
+            "--targets",
+            str(tmp_path / "x.md"),
+            "--output",
+            "json",
+        ]
+    )
     assert rc == 2
     captured = capsys.readouterr().out.strip().splitlines()
     assert captured[-1] == "VERDICT: ERROR"
@@ -1248,9 +1274,7 @@ def test_render_error_envelope_emitted_on_invalid_repo_root(tmp_path, capsys):
     assert "does not exist" in payload["Error"]["Message"]
 
 
-def test_main_emits_error_envelope_on_unexpected_runtime_failure(
-    tmp_path, capsys, monkeypatch
-):
+def test_main_emits_error_envelope_on_unexpected_runtime_failure(tmp_path, capsys, monkeypatch):
     """main() catches an unexpected runtime crash inside scan() and emits the
     ADR-056 error envelope + VERDICT: ERROR line. Without the catch-all the
     /build gate parser sees a Python traceback on stdout and the contract
@@ -1266,11 +1290,16 @@ def test_main_emits_error_envelope_on_unexpected_runtime_failure(
         raise RuntimeError("simulated filesystem race")
 
     monkeypatch.setattr(scan_mod, "scan", boom)
-    rc = main([
-        "--repo-root", str(tmp_path),
-        "--targets", str(tmp_path / "anything.md"),
-        "--output", "json",
-    ])
+    rc = main(
+        [
+            "--repo-root",
+            str(tmp_path),
+            "--targets",
+            str(tmp_path / "anything.md"),
+            "--output",
+            "json",
+        ]
+    )
     assert rc == 2
     out = capsys.readouterr().out.strip().splitlines()
     assert out[-1] == "VERDICT: ERROR"
@@ -1412,11 +1441,7 @@ class TestSingleWordSkillRefs:
         target = fake_repo / "docs" / "mixed.md"
         write(target, "Use `alpha-skill` not skill `dead-skill`.\n")
         result = scan([target], fake_repo)
-        bad = {
-            f.referenced_entity
-            for f in result.findings
-            if f.kind == "skill_name"
-        }
+        bad = {f.referenced_entity for f in result.findings if f.kind == "skill_name"}
         assert bad == {"dead-skill"}
 
     def test_retired_single_word_skill_warns_when_catalog_absent(self, tmp_path):
@@ -1511,9 +1536,8 @@ class TestBaselineSuppression:
 
     def test_load_baseline_json_list(self, tmp_path):
         bl = tmp_path / "baseline.json"
-        bl.write_text(
-            json.dumps(["docs/a.md:1:skill_name:gamma-skill"]), encoding="utf-8"
-        )
+        # citation-freshness: ignore -- baseline entry test data, not a file citation
+        bl.write_text(json.dumps(["docs/a.md:1:skill_name:gamma-skill"]), encoding="utf-8")
         assert load_baseline(bl) == {"docs/a.md:1:skill_name:gamma-skill"}
 
     def test_load_baseline_json_envelope(self, tmp_path):
@@ -1629,9 +1653,7 @@ class TestBaselineSuppression:
         target = fake_repo / "docs" / "stale.md"
         write(target, "Use skill `gamma-skill` and skill `delta-skill` here.\n")
         full = scan([target], fake_repo)
-        gamma_keys = {
-            f.key for f in full.findings if f.referenced_entity == "gamma-skill"
-        }
+        gamma_keys = {f.key for f in full.findings if f.referenced_entity == "gamma-skill"}
         assert gamma_keys, "expected gamma-skill orphan finding"
         result = scan([target], fake_repo, max_findings=2, baseline=gamma_keys)
         active = [f for f in result.findings if not f.suppressed]
@@ -1723,9 +1745,7 @@ def test_memory_corpus_bare_kebab_tokens_are_not_skill_candidates(fake_repo, cap
     assert "VERDICT: PASS" in capsys.readouterr().out
 
 
-def test_memory_corpus_typed_nonhistorical_kebab_token_is_not_flagged(
-    fake_repo, capsys
-):
+def test_memory_corpus_typed_nonhistorical_kebab_token_is_not_flagged(fake_repo, capsys):
     """A typed-looking memory mention is not enough without retired-skill evidence."""
     write(
         fake_repo / ".serena" / "memories" / "ops.md",
@@ -1754,9 +1774,7 @@ def test_memory_corpus_typed_orphan_skill_still_flags(fake_repo, capsys):
 
 def test_check_skill_refs_defaults_to_previous_behavior():
     """Omitting sibling_names keeps the pre-change contract for other callers."""
-    findings, checked = _scan._check_skill_refs(
-        "A skill `ghost-skill` ref.\n", "s.md", set(), True
-    )
+    findings, checked = _scan._check_skill_refs("A skill `ghost-skill` ref.\n", "s.md", set(), True)
     assert checked == 1
     assert [f.referenced_entity for f in findings] == ["ghost-skill"]
 
@@ -1791,7 +1809,7 @@ def test_typed_skill_reference_does_not_resolve_to_a_sibling(sibling_repo, capsy
         "Use the `decision-rigor` skill.",
         "The `decision-rigor` skill lives here.",
         "See skill `decision-rigor` for detail.",
-        'Call Skill(skill=`decision-rigor`) now.',
+        "Call Skill(skill=`decision-rigor`) now.",
         "`decision-rigor` is a skill.",
     ],
 )
@@ -1867,9 +1885,7 @@ def test_quoted_type_claim_alone_is_not_a_reference(sibling_repo, prose, capsys)
     assert "VERDICT: PASS" in capsys.readouterr().out
 
 
-def test_quoted_type_claim_types_a_backticked_token_on_the_same_line(
-    sibling_repo, capsys
-):
+def test_quoted_type_claim_types_a_backticked_token_on_the_same_line(sibling_repo, capsys):
     """The quoted arm is live: it types a candidate the backticks supply.
 
     ``decision-rigor`` is a review axis, so a bare mention resolves through
@@ -1885,9 +1901,7 @@ def test_quoted_type_claim_types_a_backticked_token_on_the_same_line(
     assert "decision-rigor" in capsys.readouterr().out
 
 
-def test_type_claim_does_not_reach_a_candidate_on_another_line(
-    sibling_repo, capsys
-):
+def test_type_claim_does_not_reach_a_candidate_on_another_line(sibling_repo, capsys):
     """Type claims are line-scoped, and the scoping is what makes them safe.
 
     Both extractors return ``(lineno, token)`` pairs and ``_check_skill_refs``
@@ -1905,9 +1919,7 @@ def test_type_claim_does_not_reach_a_candidate_on_another_line(
     assert "VERDICT: PASS" in capsys.readouterr().out
 
 
-def test_type_claim_does_not_reach_a_different_token_on_its_own_line(
-    sibling_repo, capsys
-):
+def test_type_claim_does_not_reach_a_different_token_on_its_own_line(sibling_repo, capsys):
     """A claim types the token it names, not every candidate beside it.
 
     Matching on line number alone is the cheaper implementation and passes a
@@ -2011,8 +2023,13 @@ class TestKebabTokensNeedEvidence:
 
     @pytest.mark.parametrize(
         "name",
-        ["doc-coverage", "doc-sync", "github-pr-reply",
-         "session-migration", "session-qa-eligibility"],
+        [
+            "doc-coverage",
+            "doc-sync",
+            "github-pr-reply",
+            "session-migration",
+            "session-qa-eligibility",
+        ],
     )
     def test_every_curated_retired_name_is_detectable(self, fake_repo, name):
         write(fake_repo / "notes" / "s.md", f"Mentions `{name}` in prose.\n")
@@ -2039,15 +2056,30 @@ class TestKebabTokensNeedEvidence:
     @pytest.mark.parametrize(
         "token",
         [
-            "ubuntu-latest", "windows-latest", "self-hosted", "retention-days",
-            "any-glob-to-any-file", "all-globs-to-all-files",
-            "gpt-4o-mini", "gemini-3-pro", "claude-fable-5",
-            "x-ratelimit-remaining", "retry-after",
-            "post-switch", "pre-merge", "post-merge",
-            "try-catch", "if-then-else", "return-value",
-            "area-workflows", "vscode-extension", "mcp-server",
-            "hexagonal-architecture", "branch-by-abstraction",
-            "probe-050", "your-api-key-here",
+            "ubuntu-latest",
+            "windows-latest",
+            "self-hosted",
+            "retention-days",
+            "any-glob-to-any-file",
+            "all-globs-to-all-files",
+            "gpt-4o-mini",
+            "gemini-3-pro",
+            "claude-fable-5",
+            "x-ratelimit-remaining",
+            "retry-after",
+            "post-switch",
+            "pre-merge",
+            "post-merge",
+            "try-catch",
+            "if-then-else",
+            "return-value",
+            "area-workflows",
+            "vscode-extension",
+            "mcp-server",
+            "hexagonal-architecture",
+            "branch-by-abstraction",
+            "probe-050",
+            "your-api-key-here",
         ],
     )
     def test_real_prose_vocabulary_is_not_flagged(self, fake_repo, token):
@@ -2073,9 +2105,7 @@ class TestKebabTokensNeedEvidence:
         write(fake_repo / "notes" / "s.md", "Run the `read-only` skill.\n")
         assert _skill_names(scan([fake_repo / "notes"], fake_repo)) == {"read-only"}
 
-    def test_a_hyphenated_non_skill_is_silent_without_a_type_claim(
-        self, fake_repo
-    ):
+    def test_a_hyphenated_non_skill_is_silent_without_a_type_claim(self, fake_repo):
         write(fake_repo / "notes" / "s.md", "The file is `read-only` here.\n")
         assert _skill_names(scan([fake_repo / "notes"], fake_repo)) == set()
 
@@ -2092,13 +2122,9 @@ class TestKebabTokensNeedEvidence:
         )
         assert _skill_names(scan([fake_repo / "notes"], fake_repo)) == set()
 
-    def test_the_same_token_without_the_field_noun_is_still_a_claim(
-        self, fake_repo
-    ):
+    def test_the_same_token_without_the_field_noun_is_still_a_claim(self, fake_repo):
         write(fake_repo / "notes" / "s.md", "Run the skill `description`.\n")
-        assert _skill_names(scan([fake_repo / "notes"], fake_repo)) == {
-            "description"
-        }
+        assert _skill_names(scan([fake_repo / "notes"], fake_repo)) == {"description"}
 
     @pytest.mark.parametrize(
         "head_noun", ["name", "names", "file", "files", "directory", "directories"]
@@ -2148,16 +2174,12 @@ class TestKebabTokensNeedEvidence:
             "claim-verification-before-ingest"
         }
 
-    def test_an_unknown_foreign_looking_skill_is_still_an_orphan(
-        self, fake_repo
-    ):
+    def test_an_unknown_foreign_looking_skill_is_still_an_orphan(self, fake_repo):
         write(
             fake_repo / "notes" / "s.md",
             "gstack `not-a-foreign-skill` skill\n",
         )
-        assert _skill_names(scan([fake_repo / "notes"], fake_repo)) == {
-            "not-a-foreign-skill"
-        }
+        assert _skill_names(scan([fake_repo / "notes"], fake_repo)) == {"not-a-foreign-skill"}
 
     def test_the_owning_catalog_qualifies_only_its_own_token(self, fake_repo):
         """Both tokens are gstack's, so each must accept the same qualifier."""
@@ -2167,9 +2189,7 @@ class TestKebabTokensNeedEvidence:
         )
         assert _skill_names(scan([fake_repo / "notes"], fake_repo)) == set()
 
-    def test_a_catalog_name_embedded_in_a_longer_word_is_not_a_qualifier(
-        self, fake_repo
-    ):
+    def test_a_catalog_name_embedded_in_a_longer_word_is_not_a_qualifier(self, fake_repo):
         """The qualifier pattern is word-bounded, so a substring must not count.
 
         Without the boundaries ``gstack`` would match inside ``gstackoverflow``
@@ -2326,15 +2346,29 @@ class TestRetiredKebabSkillsStayHonest:
         repo_root = _repo_root()
         shallow = subprocess.run(
             ["git", "-C", str(repo_root), "rev-parse", "--is-shallow-repository"],
-            capture_output=True, text=True, check=False,
+            capture_output=True,
+            text=True,
+            check=False,
         )
         if shallow.stdout.strip() != "false":
             pytest.skip("shallow clone: deletion history unavailable")
         rel = _catalog().relative_to(repo_root).as_posix()
         log = subprocess.run(
-            ["git", "-C", str(repo_root), "log", "HEAD", "--diff-filter=D",
-             "--name-only", "--format=", "--", f"{rel}/*/SKILL.md"],
-            capture_output=True, text=True, check=False,
+            [
+                "git",
+                "-C",
+                str(repo_root),
+                "log",
+                "HEAD",
+                "--diff-filter=D",
+                "--name-only",
+                "--format=",
+                "--",
+                f"{rel}/*/SKILL.md",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
         )
         deleted = {
             PurePosixPath(line).parent.name
@@ -2385,6 +2419,7 @@ class TestTheMemoryCorpusIsGateable:
         finally:
             probe.unlink()
         assert _skill_names(result) == {"doc-coverage"}
+
 
 class TestDocumentationMayQuoteARouteWithoutBecomingOne:
     """Issue #3749: prose that describes route syntax has to write route syntax.
@@ -2443,8 +2478,7 @@ class TestDocumentationMayQuoteARouteWithoutBecomingOne:
         )
         result = scan([docs], fake_repo)
         recorded = [
-            (Path(ref.target_file).as_posix(), ref.line)
-            for ref in result.directive_suppressed
+            (Path(ref.target_file).as_posix(), ref.line) for ref in result.directive_suppressed
         ]
         assert recorded == [("memories/memo.md", 1)]
 
@@ -2485,25 +2519,21 @@ class TestCitationBlocksAreNotPathClaims:
         target = fake_repo / "docs" / "cite.md"
         write(target, CITATION_BLOCK)
         result = scan([target], fake_repo)
-        assert [
-            (s.referenced_entity, s.reason) for s in result.directive_suppressed
-        ] == [("scripts/memory/gone.py", "citation block")]
+        assert [(s.referenced_entity, s.reason) for s in result.directive_suppressed] == [
+            ("scripts/memory/gone.py", "citation block")
+        ]
 
     def test_unlabeled_fence_still_flags(self, fake_repo):
         target = fake_repo / "docs" / "plain.md"
         write(target, "Run these:\n\n```text\n- `scripts/memory/gone.py`\n```\n")
         result = scan([target], fake_repo)
-        assert [f.referenced_entity for f in result.findings] == [
-            "scripts/memory/gone.py"
-        ]
+        assert [f.referenced_entity for f in result.findings] == ["scripts/memory/gone.py"]
 
     def test_ref_after_the_block_still_flags(self, fake_repo):
         target = fake_repo / "docs" / "after.md"
         write(target, CITATION_BLOCK + "\nRun `scripts/memory/other.py` now.\n")
         result = scan([target], fake_repo)
-        assert [f.referenced_entity for f in result.findings] == [
-            "scripts/memory/other.py"
-        ]
+        assert [f.referenced_entity for f in result.findings] == ["scripts/memory/other.py"]
 
     def test_label_must_be_the_last_prose_before_the_fence(self, fake_repo):
         target = fake_repo / "docs" / "far.md"
@@ -2514,9 +2544,7 @@ class TestCitationBlocksAreNotPathClaims:
             "```text\n- `scripts/memory/gone.py`\n```\n",
         )
         result = scan([target], fake_repo)
-        assert [f.referenced_entity for f in result.findings] == [
-            "scripts/memory/gone.py"
-        ]
+        assert [f.referenced_entity for f in result.findings] == ["scripts/memory/gone.py"]
 
     def test_tilde_fence_and_mismatched_closer(self, fake_repo):
         target = fake_repo / "docs" / "tilde.md"
@@ -2537,9 +2565,7 @@ class TestCitationBlocksAreNotPathClaims:
 class TestRoutingRoleValuesAreNotSkillNames:
     """Issue #5872: `front-door` in "a `front-door` skill" is a role value."""
 
-    @pytest.mark.parametrize(
-        "token", ["front-door", "explicit-only", "deprecated", "lifecycle"]
-    )
+    @pytest.mark.parametrize("token", ["front-door", "explicit-only", "deprecated", "lifecycle"])
     def test_role_value_beside_word_skill_is_ignored(self, fake_repo, token):
         target = fake_repo / "docs" / "roles.md"
         write(target, f"An `{token}` skill must be user-facing.\n")

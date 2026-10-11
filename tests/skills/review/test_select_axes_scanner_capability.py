@@ -172,15 +172,13 @@ class TestCaseSensitivityFollowsEachScanner:
 
     def test_uppercase_skill_path_is_not_routed_to_golden_principles(self):
         """The reported case: selected, zero applicable files, UNKNOWN."""
-        assert "golden-principles" not in select([".CLAUDE/SKILLS/review/SKILL.MD"])[
-            "local_selected"
-        ]
+        assert (
+            "golden-principles" not in select([".CLAUDE/SKILLS/review/SKILL.MD"])["local_selected"]
+        )
 
     def test_real_cased_skill_path_is_still_routed(self):
         """Negative control: the fix must not stop routing the real path."""
-        assert "golden-principles" in select([".claude/skills/review/SKILL.md"])[
-            "local_selected"
-        ]
+        assert "golden-principles" in select([".claude/skills/review/SKILL.md"])["local_selected"]
 
     def test_uppercase_suffix_still_reaches_assess(self):
         """assess.py folds case (`suffix.lower()`), so the mirror must too."""
@@ -233,9 +231,7 @@ class TestExecutableCodeCoversEveryScannerSuffix:
         assert "code-quality" in result["canonical_selected"]
         assert "taste-lints" in result["local_selected"]
 
-    @pytest.mark.parametrize(
-        "path", [".claude/hooks/thing.mjs", ".claude/skills/demo/helper.cjs"]
-    )
+    @pytest.mark.parametrize("path", [".claude/hooks/thing.mjs", ".claude/skills/demo/helper.cjs"])
     def test_mjs_and_cjs_under_an_agent_path_still_reach_assess(self, path):
         """Reported case: agent-artifacts classified it and assess never ran."""
         result = select([path])

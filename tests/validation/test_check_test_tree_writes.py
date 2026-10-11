@@ -90,9 +90,7 @@ class TestCleanPatterns:
         """
         assert _findings(source, tmp_path) == []
 
-    def test_project_root_joined_to_tempfile_factory_is_not_flagged(
-        self, tmp_path: Path
-    ) -> None:
+    def test_project_root_joined_to_tempfile_factory_is_not_flagged(self, tmp_path: Path) -> None:
         source = """\
             import tempfile
             _PROJECT_ROOT = Path("/repo")

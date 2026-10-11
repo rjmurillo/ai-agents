@@ -249,6 +249,7 @@ Partial-write recovery test pattern:
 import unittest.mock as mock
 import os
 
+
 def test_partial_write_leaves_no_corrupt_output(tmp_path, canonical_dir):
     # Arrange: set up canonical file and output dir
     ...
@@ -264,6 +265,7 @@ Vendored install test pattern:
 ```python
 import shutil, subprocess, tempfile
 
+
 def test_vendored_install(tmp_path):
     # Arrange: copy .claude/ subtree + CLAUDE.md to tmp_path
     shutil.copytree(repo_root / ".claude", tmp_path / ".claude")
@@ -271,6 +273,7 @@ def test_vendored_install(tmp_path):
     # Act + Assert: import ai_review_common from tmp_path and call merge_verdicts
     # (Full /review invocation requires Claude; test the Python components only)
     import importlib.util
+
     spec = importlib.util.spec_from_file_location(
         "ai_review_common", tmp_path / ".claude/lib/ai_review_common.py"
     )

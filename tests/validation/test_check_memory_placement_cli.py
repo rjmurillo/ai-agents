@@ -291,9 +291,7 @@ def test_staged_mode_rejects_a_symlink(repo: Path, monkeypatch, capsys):
     assert "staged symlink cannot be validated" in captured.err
 
 
-def test_staged_mode_reads_a_deleted_worktree_file_from_the_index(
-    repo: Path, monkeypatch, capsys
-):
+def test_staged_mode_reads_a_deleted_worktree_file_from_the_index(repo: Path, monkeypatch, capsys):
     path = _write(repo, ".serena/memories/new.md", NORMATIVE_HEADING)
     _run_git(repo, "add", ".serena/memories/new.md")
     path.unlink()

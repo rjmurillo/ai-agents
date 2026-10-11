@@ -47,9 +47,7 @@ _LEFTHOOK = _REPO_ROOT / "lefthook.yml"
 # '\{[a-z_]*files\}'` yields {all_files}, {files}, {push_files}, {staged_files}
 # and nothing else. `{cmd}` is the runner-command template, and `{0}` plus
 # `{1}`..`{n}` are the hook's positional arguments, probed as described above.
-_SUPPORTED_PLACEHOLDERS = frozenset(
-    {"staged_files", "push_files", "all_files", "files", "cmd"}
-)
+_SUPPORTED_PLACEHOLDERS = frozenset({"staged_files", "push_files", "all_files", "files", "cmd"})
 
 # A brace token that is not a shell expansion. `$` excludes `${VAR}`, which the
 # shell owns, not lefthook.
@@ -89,9 +87,7 @@ def _walk_jobs(jobs: list[Any]) -> Iterator[dict[str, Any]]:
 
 def _duplicate_names(jobs: list[Any]) -> list[str]:
     """Return the names declared more than once, sorted."""
-    counts = Counter(
-        job["name"] for job in _walk_jobs(jobs) if isinstance(job.get("name"), str)
-    )
+    counts = Counter(job["name"] for job in _walk_jobs(jobs) if isinstance(job.get("name"), str))
     return sorted(name for name, count in counts.items() if count > 1)
 
 
@@ -117,9 +113,7 @@ def _run_bodies() -> Iterator[tuple[str, str, str]]:
 
 def _pre_push_job(name: str) -> dict[str, Any]:
     config = _load_config()
-    matches = [
-        job for job in _walk_jobs(config["pre-push"]["jobs"]) if job.get("name") == name
-    ]
+    matches = [job for job in _walk_jobs(config["pre-push"]["jobs"]) if job.get("name") == name]
     assert matches, f"lefthook.yml declares no pre-push job named {name!r}."
     return matches[0]
 
@@ -167,10 +161,7 @@ class TestPushRefStalenessJob:
     """The reported job: declared once, reading the remote lefthook can supply."""
 
     def test_declared_exactly_once(self) -> None:
-        names = [
-            job.get("name")
-            for job in _walk_jobs(_load_config()["pre-push"]["jobs"])
-        ]
+        names = [job.get("name") for job in _walk_jobs(_load_config()["pre-push"]["jobs"])]
         assert names.count("push-ref-staleness") == 1
 
     def test_reads_the_remote_from_the_first_hook_argument(self) -> None:
@@ -193,13 +184,9 @@ class TestPushRefStalenessJob:
         # is load-bearing: the deleted duplicate sat after the piped group.
         jobs = _load_config()["pre-push"]["jobs"]
         index = next(
-            position
-            for position, job in enumerate(jobs)
-            if job.get("name") == "push-ref-staleness"
+            position for position, job in enumerate(jobs) if job.get("name") == "push-ref-staleness"
         )
-        first_group = next(
-            position for position, job in enumerate(jobs) if "group" in job
-        )
+        first_group = next(position for position, job in enumerate(jobs) if "group" in job)
         assert index < first_group
 
 
@@ -220,9 +207,7 @@ class TestPlaceholderTokens:
         )
 
     def test_detector_flags_the_reported_token(self) -> None:
-        assert _unsupported_placeholders(
-            "python check.py {remote}"
-        ) == ["remote"]
+        assert _unsupported_placeholders("python check.py {remote}") == ["remote"]
 
     def test_detector_accepts_supported_tokens(self) -> None:
         command = 'lint {staged_files} {push_files} {all_files} {files} "{1}" {0} {cmd}'

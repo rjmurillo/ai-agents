@@ -113,11 +113,13 @@ def main(argv: list[str] | None = None) -> int:
             script_name="get_latest_semantic_milestone.py",
             extra={"title": "", "number": 0, "found": False},
         )
-        _write_github_output({
-            "milestone_title": "",
-            "milestone_number": "0",
-            "found": "false",
-        })
+        _write_github_output(
+            {
+                "milestone_title": "",
+                "milestone_number": "0",
+                "found": "false",
+            }
+        )
         _write_step_summary(
             f"## Milestone Detection Result\n\n"
             f"**Status**: No semantic version milestones found\n\n"
@@ -143,11 +145,13 @@ def main(argv: list[str] | None = None) -> int:
             script_name="get_latest_semantic_milestone.py",
             extra={"title": "", "number": 0, "found": False},
         )
-        _write_github_output({
-            "milestone_title": "",
-            "milestone_number": "0",
-            "found": "false",
-        })
+        _write_github_output(
+            {
+                "milestone_title": "",
+                "milestone_number": "0",
+                "found": "false",
+            }
+        )
         available_list = "\n".join(f"- {m.get('title', '(untitled)')}" for m in milestones)
         _write_step_summary(
             f"## Milestone Detection Result\n\n"
@@ -167,21 +171,19 @@ def main(argv: list[str] | None = None) -> int:
             "found": True,
         },
         output_format=fmt,
-        human_summary=(
-            f"Latest semantic milestone: {latest['title']} (ID: {latest['number']})"
-        ),
+        human_summary=(f"Latest semantic milestone: {latest['title']} (ID: {latest['number']})"),
         script_name="get_latest_semantic_milestone.py",
     )
 
-    _write_github_output({
-        "milestone_title": latest["title"],
-        "milestone_number": str(latest["number"]),
-        "found": "true",
-    })
-
-    semver_list = "\n".join(
-        f"- **{m['title']}** (ID: {m['number']})" for m in semantic
+    _write_github_output(
+        {
+            "milestone_title": latest["title"],
+            "milestone_number": str(latest["number"]),
+            "found": "true",
+        }
     )
+
+    semver_list = "\n".join(f"- **{m['title']}** (ID: {m['number']})" for m in semantic)
     _write_step_summary(
         f"## Milestone Detection Result\n\n"
         f"**Status**: Found semantic version milestone\n\n"

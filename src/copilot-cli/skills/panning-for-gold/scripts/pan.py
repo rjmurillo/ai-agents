@@ -59,18 +59,12 @@ def _reject_traversal(value: str, source: str) -> None:
     if "\x00" in value:
         raise PathValidationError(f"{source} must not contain null bytes")
     if any(ord(c) < 0x20 or ord(c) == 0x7F for c in value):
-        raise PathValidationError(
-            f"{source} must not contain control characters"
-        )
+        raise PathValidationError(f"{source} must not contain control characters")
     if "\\" in value:
-        raise PathValidationError(
-            f"{source} must not contain backslash separators: {value!r}"
-        )
+        raise PathValidationError(f"{source} must not contain backslash separators: {value!r}")
     parts = Path(value).parts
     if any(p == ".." for p in parts):
-        raise PathValidationError(
-            f"{source} must not contain '..' components: {value!r}"
-        )
+        raise PathValidationError(f"{source} must not contain '..' components: {value!r}")
 
 
 def resolve_workspace(arg_value: str | None) -> Path:

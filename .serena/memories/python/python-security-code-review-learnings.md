@@ -40,7 +40,7 @@ None (no explicit user corrections in this session)
 
 3. **Local validation at entry points**: Re-validate before any filesystem operation
    ```python
-   if '..' in user_input or '/' in user_input or '\\' in user_input:
+   if ".." in user_input or "/" in user_input or "\\" in user_input:
        return False  # Reject path traversal attempts
    ```
 

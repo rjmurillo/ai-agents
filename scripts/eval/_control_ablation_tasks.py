@@ -176,10 +176,7 @@ def _load_controls(value: object, path: str) -> dict[str, TaskControl]:
     unknown = raw.keys() - _TASK_CONTROL_NAMES
     if unknown:
         raise ControlAblationConfigError(f"{path}: unknown control(s) {sorted(unknown)}")
-    return {
-        name: _load_task_control(raw[name], f"{path}.{name}")
-        for name in _TASK_CONTROL_NAMES
-    }
+    return {name: _load_task_control(raw[name], f"{path}.{name}") for name in _TASK_CONTROL_NAMES}
 
 
 def _load_task(value: object, index: int) -> Task:
@@ -224,9 +221,7 @@ def _load_task(value: object, index: int) -> Task:
             raw.get("acceptance"), f"{path}.acceptance", allow_empty=False
         ),
         followup_files=followup_files,
-        followup=_require_str_list(
-            raw.get("followup"), f"{path}.followup", allow_empty=False
-        ),
+        followup=_require_str_list(raw.get("followup"), f"{path}.followup", allow_empty=False),
         external_marker=external_marker,
         response_checks=tuple(
             _load_response_check(item, f"{path}.response_checks[{item_index}]")

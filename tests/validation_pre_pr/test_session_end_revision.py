@@ -35,9 +35,7 @@ from scripts.validation.pre_pr import validate_session_end
 _HEAD_SHA = "4d9f1c0a2b3e5f6789abcdef0123456789abcdef"
 
 
-def _git_fake(
-    *, rev_parse: tuple[int, str, str], diff: tuple[int, str, str] = (0, "", "")
-) -> Any:
+def _git_fake(*, rev_parse: tuple[int, str, str], diff: tuple[int, str, str] = (0, "", "")) -> Any:
     """Return a ``_run_subprocess`` replacement keyed on the git subcommand."""
 
     def run(args: list[str], **_kwargs: Any) -> tuple[int, str, str]:
@@ -120,9 +118,7 @@ class TestSessionEndRevision:
             assert "INVALID_HEAD" not in outcome.to_dict().values()
             assert "INVALID_HEAD" not in outcome.summary_line()
 
-    def test_an_unreadable_head_is_not_licensed_by_the_pre_pr_policy(
-        self, tmp_path: Path
-    ) -> None:
+    def test_an_unreadable_head_is_not_licensed_by_the_pre_pr_policy(self, tmp_path: Path) -> None:
         """UNKNOWN blocks. The policy licenses SKIP and two named BLOCKED rows.
 
         A licence here would restore the fail-open with extra steps: the gate
@@ -133,9 +129,7 @@ class TestSessionEndRevision:
 
         assert not default_pre_pr_policy().accepts(outcome)
 
-    def test_the_scope_still_names_the_base_ref_it_compared_against(
-        self, tmp_path: Path
-    ) -> None:
+    def test_the_scope_still_names_the_base_ref_it_compared_against(self, tmp_path: Path) -> None:
         """A no-evidence state still has to say what it was trying to check."""
         outcome = _run(tmp_path, _git_fake(rev_parse=(128, "", "fatal:")))
 

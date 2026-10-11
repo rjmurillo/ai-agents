@@ -98,14 +98,16 @@ def _write_result(
     message: str,
 ) -> None:
     """Write result to GITHUB_OUTPUT and GITHUB_STEP_SUMMARY."""
-    _write_github_output({
-        "success": str(success).lower(),
-        "item_type": item_type,
-        "item_number": str(item_number),
-        "milestone": milestone,
-        "action": action,
-        "message": message,
-    })
+    _write_github_output(
+        {
+            "success": str(success).lower(),
+            "item_type": item_type,
+            "item_number": str(item_number),
+            "milestone": milestone,
+            "action": action,
+            "message": message,
+        }
+    )
 
     icon = "+" if success else "X"
     item_label = "Pull Request" if item_type == "pr" else "Issue"
@@ -128,7 +130,10 @@ def _get_item_milestone(
     try:
         result = subprocess.run(
             ["gh", "api", f"repos/{owner}/{repo}/issues/{number}"],
-            capture_output=True, encoding="utf-8", errors="replace", timeout=GH_TIMEOUT_SECONDS,
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=GH_TIMEOUT_SECONDS,
             check=False,
         )
     except subprocess.TimeoutExpired as err:
@@ -178,17 +183,23 @@ def _assign_milestone(owner: str, repo: str, number: int, milestone_title: str) 
     try:
         result = subprocess.run(
             [
-                "gh", "issue", "edit", str(number),
-                "--repo", f"{owner}/{repo}",
-                "--milestone", milestone_title,
+                "gh",
+                "issue",
+                "edit",
+                str(number),
+                "--repo",
+                f"{owner}/{repo}",
+                "--milestone",
+                milestone_title,
             ],
-            capture_output=True, encoding="utf-8", errors="replace", timeout=GH_TIMEOUT_SECONDS,
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=GH_TIMEOUT_SECONDS,
             check=False,
         )
     except subprocess.TimeoutExpired:
-        error_and_exit(
-            f"Milestone assign for #{number} timed out after {GH_TIMEOUT_SECONDS}s", 3
-        )
+        error_and_exit(f"Milestone assign for #{number} timed out after {GH_TIMEOUT_SECONDS}s", 3)
     if result.returncode != 0:
         error_str = result.stderr.strip() or result.stdout.strip()
         error_and_exit(
@@ -234,8 +245,7 @@ def main(argv: list[str] | None = None) -> int:
     existing = _get_item_milestone(owner, repo, item_number, fmt)
     if existing:
         msg = (
-            f"Already has milestone '{existing}'. "
-            "No action taken (preserving manual assignments)."
+            f"Already has milestone '{existing}'. No action taken (preserving manual assignments)."
         )
         write_skill_output(
             {
@@ -246,9 +256,7 @@ def main(argv: list[str] | None = None) -> int:
                 "message": msg,
             },
             output_format=fmt,
-            human_summary=(
-                f"{item_type} #{item_number} already has milestone: {existing}"
-            ),
+            human_summary=(f"{item_type} #{item_number} already has milestone: {existing}"),
             script_name="set_item_milestone.py",
         )
         _write_result(True, item_type, item_number, existing, "skipped", msg)
@@ -282,9 +290,7 @@ def main(argv: list[str] | None = None) -> int:
             "message": msg,
         },
         output_format=fmt,
-        human_summary=(
-            f"Assigned milestone '{milestone_title}' to {item_type} #{item_number}"
-        ),
+        human_summary=(f"Assigned milestone '{milestone_title}' to {item_type} #{item_number}"),
         script_name="set_item_milestone.py",
     )
     _write_result(True, item_type, item_number, milestone_title, "assigned", msg)

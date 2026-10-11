@@ -43,9 +43,7 @@ def main() -> int:
         body_file = tmp.name
 
     try:
-        validator = Path(
-            ".claude/skills/github/scripts/pr/validate_pr_description.py"
-        )
+        validator = Path(".claude/skills/github/scripts/pr/validate_pr_description.py")
         result = subprocess.run(
             [sys.executable, str(validator), "--title", title, "--body-file", body_file],
             capture_output=True,

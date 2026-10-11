@@ -23,12 +23,7 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
 CANONICAL_REFERENCE = (
-    REPO_ROOT
-    / ".claude"
-    / "skills"
-    / "context-gather"
-    / "references"
-    / "context-retrieval.md"
+    REPO_ROOT / ".claude" / "skills" / "context-gather" / "references" / "context-retrieval.md"
 )
 MIRROR_REFERENCE = (
     REPO_ROOT
@@ -39,17 +34,8 @@ MIRROR_REFERENCE = (
     / "references"
     / "context-retrieval.md"
 )
-CANONICAL_SKILL_MD = (
-    REPO_ROOT / ".claude" / "skills" / "context-gather" / "SKILL.md"
-)
-MIRROR_SKILL_MD = (
-    REPO_ROOT
-    / "src"
-    / "copilot-cli"
-    / "skills"
-    / "context-gather"
-    / "SKILL.md"
-)
+CANONICAL_SKILL_MD = REPO_ROOT / ".claude" / "skills" / "context-gather" / "SKILL.md"
+MIRROR_SKILL_MD = REPO_ROOT / "src" / "copilot-cli" / "skills" / "context-gather" / "SKILL.md"
 
 REFERENCE_PATHS = [
     pytest.param(CANONICAL_REFERENCE, id="canonical"),
@@ -86,9 +72,7 @@ def test_mirror_reference_file_exists() -> None:
 
 @pytest.mark.parametrize("section", FOLDED_SECTIONS)
 @pytest.mark.parametrize("reference_path", REFERENCE_PATHS)
-def test_reference_contains_folded_section(
-    reference_path: Path, section: str
-) -> None:
+def test_reference_contains_folded_section(reference_path: Path, section: str) -> None:
     """Each unique section from the agent survives the fold in both trees."""
     content = reference_path.read_text(encoding="utf-8")
 

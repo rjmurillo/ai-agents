@@ -879,9 +879,7 @@ def test_update_baseline_parent_swap_cannot_redirect_replace(
 
     assert exit_code == 0
     assert victim.read_text(encoding="utf-8") == "DO NOT OVERWRITE"
-    assert json.loads((moved_parent / "baseline.json").read_text(encoding="utf-8")) == {
-        "files": {}
-    }
+    assert json.loads((moved_parent / "baseline.json").read_text(encoding="utf-8")) == {"files": {}}
 
 
 def test_update_baseline_fails_closed_without_descriptor_relative_replace(

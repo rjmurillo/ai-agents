@@ -103,6 +103,7 @@ _PLAIN_CONTEXT_EVENTS = frozenset(
     {"UserPromptSubmit", "SessionStart", "Stop", "SubagentStop", "PreCompact"}
 )
 
+
 @dataclass
 class _ShimOutcome:
     """One shim's classified result."""
@@ -176,8 +177,7 @@ def _is_path_within(candidate: Path, directory: Path) -> bool:
     normalized_directory = os.path.normcase(os.fspath(directory))
     try:
         return (
-            os.path.commonpath((normalized_candidate, normalized_directory))
-            == normalized_directory
+            os.path.commonpath((normalized_candidate, normalized_directory)) == normalized_directory
         )
     except ValueError:
         return False
@@ -357,9 +357,7 @@ def run_group(
 
             if not outcome.recognized and outcome.decision is not None:
                 action = (
-                    "suppressing in observe mode"
-                    if mode == OBSERVE
-                    else "denying in gate mode"
+                    "suppressing in observe mode" if mode == OBSERVE else "denying in gate mode"
                 )
                 print(
                     f"claude-hook-dispatch: shim {name} emitted invalid or "

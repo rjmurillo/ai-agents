@@ -172,9 +172,7 @@ class TestRealGitVerdictsAreUnchanged:
         git("checkout", "-q", "main")
         return repo, reachable, offbranch
 
-    def test_repeated_calls_keep_reporting_the_same_verdicts(
-        self, tmp_path: Path
-    ) -> None:
+    def test_repeated_calls_keep_reporting_the_same_verdicts(self, tmp_path: Path) -> None:
         repo, reachable, offbranch = self._repo(tmp_path)
         for _ in range(3):
             assert session_scope.commit_reachability_problem(reachable, repo) is None

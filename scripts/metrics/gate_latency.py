@@ -101,9 +101,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--repo", default=".", help="Path to the git repository to measure.")
     parser.add_argument("--hook", required=True, help="The lefthook hook to run, e.g. pre-commit.")
-    parser.add_argument(
-        "--repetitions", type=int, default=3, help="Whole-hook repetitions to run."
-    )
+    parser.add_argument("--repetitions", type=int, default=3, help="Whole-hook repetitions to run.")
     parser.add_argument(
         "--change-class",
         default="none",
@@ -184,9 +182,7 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 1
 
-        command = "scripts/metrics/gate_latency.py " + " ".join(
-            _normalized_command_args(args_list)
-        )
+        command = "scripts/metrics/gate_latency.py " + " ".join(_normalized_command_args(args_list))
         report = build_report(
             repo,
             command,

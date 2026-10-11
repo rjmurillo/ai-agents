@@ -167,9 +167,7 @@ class TestApplyConfidenceDecay:
         mem_dir.mkdir()
         # Create memory with old updated_at date
         old_date = "2025-01-01"
-        _write_memory(
-            mem_dir, "old", f"# Old ({old_date})\n\nContent\n"
-        )
+        _write_memory(mem_dir, "old", f"# Old ({old_date})\n\nContent\n")
         # The updated_at comes from the parsed date in the header
         decayed = apply_confidence_decay(mem_dir, tmp_path, max_age_days=90)
         # Memory with date 2025-01-01 is >90 days old from 2026-04-06

@@ -164,9 +164,7 @@ class MaxWaitTimeoutTest(unittest.TestCase):
         10s; the wrapper exits with settled=false and reason populated.
         """
         # Long stream of non-zero readings so the loop never settles.
-        payloads = [
-            {"unresolved_count": 2, "fetched_pages_complete": True}
-        ] * 100
+        payloads = [{"unresolved_count": 2, "fetched_pages_complete": True}] * 100
         runner, _ = _make_runner(payloads)
         clock, sleeper, time_state = _make_clock_and_sleeper(5)
 
@@ -215,9 +213,7 @@ class IntervalFloorEnforcementTest(unittest.TestCase):
         number of intervening rejected observations differs.
         """
         # Scenario A: sleeper advances clock by full interval.
-        payloads_a = [
-            {"unresolved_count": 0, "fetched_pages_complete": True}
-        ] * 100
+        payloads_a = [{"unresolved_count": 0, "fetched_pages_complete": True}] * 100
         runner_a, state_a = _make_runner(payloads_a)
         clock_a, sleeper_a, _ = _make_clock_and_sleeper(180)
         result_a = wfz.wait_for_settled_zero(
@@ -230,9 +226,7 @@ class IntervalFloorEnforcementTest(unittest.TestCase):
         )
 
         # Scenario B: sleeper advances clock by HALF the interval.
-        payloads_b = [
-            {"unresolved_count": 0, "fetched_pages_complete": True}
-        ] * 100
+        payloads_b = [{"unresolved_count": 0, "fetched_pages_complete": True}] * 100
         runner_b, state_b = _make_runner(payloads_b)
         time_state = {"t": 0.0}
 
@@ -258,13 +252,17 @@ class IntervalFloorEnforcementTest(unittest.TestCase):
         # A consumes exactly 3 readings; B consumes 5 because the floor
         # rejects the in-interval zeros. The differential is the proof
         # that the floor is being enforced.
-        self.assertEqual(state_a["i"], 3, (
-            "scenario A (full-interval sleeper) must settle at reading 3"
-        ))
-        self.assertEqual(state_b["i"], 5, (
-            "scenario B (half-interval sleeper) must consume 5 readings; "
-            "fewer means the floor is being skipped"
-        ))
+        self.assertEqual(
+            state_a["i"], 3, ("scenario A (full-interval sleeper) must settle at reading 3")
+        )
+        self.assertEqual(
+            state_b["i"],
+            5,
+            (
+                "scenario B (half-interval sleeper) must consume 5 readings; "
+                "fewer means the floor is being skipped"
+            ),
+        )
 
 
 class ArgvContractTest(unittest.TestCase):
@@ -477,14 +475,19 @@ class ExitCodePropagationTest(unittest.TestCase):
             t[0] += 200.0  # Advance > interval per call
             return v
 
-        with mock.patch.object(wfz.subprocess, "run", side_effect=runner), \
-             mock.patch.object(wfz.time, "monotonic", side_effect=fake_monotonic), \
-             mock.patch.object(wfz.time, "sleep", return_value=None):
+        with (
+            mock.patch.object(wfz.subprocess, "run", side_effect=runner),
+            mock.patch.object(wfz.time, "monotonic", side_effect=fake_monotonic),
+            mock.patch.object(wfz.time, "sleep", return_value=None),
+        ):
             return wfz.main(
                 [
-                    "--pull-request", "42",
-                    "--interval-seconds", "1",
-                    "--max-wait-seconds", "3",
+                    "--pull-request",
+                    "42",
+                    "--interval-seconds",
+                    "1",
+                    "--max-wait-seconds",
+                    "3",
                 ],
             )
 
@@ -533,7 +536,9 @@ class CoverageCompleterTests(unittest.TestCase):
     def test_wait_for_settled_zero_rejects_non_positive_pull_request(self) -> None:
         """Direct call with PR <= 0 returns _failure, not main()."""
         result = wfz.wait_for_settled_zero(
-            pull_request=0, interval_seconds=180, max_wait_seconds=1200,
+            pull_request=0,
+            interval_seconds=180,
+            max_wait_seconds=1200,
         )
         self.assertFalse(result["settled"])
         self.assertIn("positive", (result.get("reason") or "").lower())
@@ -596,6 +601,7 @@ class CoverageCompleterTests(unittest.TestCase):
         """
         import contextlib
         import io
+
         out_buf = io.StringIO()
         with contextlib.redirect_stdout(out_buf), contextlib.redirect_stderr(io.StringIO()):
             rc = wfz.main(["--pull-request", "abc"])
@@ -613,6 +619,7 @@ class CoverageCompleterTests(unittest.TestCase):
         """
         import contextlib
         import io
+
         out_buf = io.StringIO()
         err_buf = io.StringIO()
         with contextlib.redirect_stdout(out_buf), contextlib.redirect_stderr(err_buf):
@@ -627,6 +634,7 @@ class CoverageCompleterTests(unittest.TestCase):
         """argparse unknown-flag failure produces JSON on stdout (exit 2)."""
         import contextlib
         import io
+
         out_buf = io.StringIO()
         with contextlib.redirect_stdout(out_buf), contextlib.redirect_stderr(io.StringIO()):
             rc = wfz.main(["--bogus-flag"])
@@ -647,14 +655,19 @@ class CoverageCompleterTests(unittest.TestCase):
         payloads = [{"unresolved_count": 0, "fetched_pages_complete": True}] * 5
         runner, _ = _make_runner(payloads, exit_codes=[0] * 5)
 
-        with mock.patch.object(wfz.subprocess, "run", side_effect=runner), \
-             mock.patch.object(wfz.time, "monotonic", side_effect=fake_monotonic), \
-             mock.patch.object(wfz.time, "sleep", return_value=None):
+        with (
+            mock.patch.object(wfz.subprocess, "run", side_effect=runner),
+            mock.patch.object(wfz.time, "monotonic", side_effect=fake_monotonic),
+            mock.patch.object(wfz.time, "sleep", return_value=None),
+        ):
             rc = wfz.main(
                 [
-                    "--pull-request", "42",
-                    "--interval-seconds", "1",
-                    "--max-wait-seconds", "3600",
+                    "--pull-request",
+                    "42",
+                    "--interval-seconds",
+                    "1",
+                    "--max-wait-seconds",
+                    "3600",
                 ],
             )
         self.assertEqual(rc, 0)
@@ -668,9 +681,12 @@ class CoverageCompleterTests(unittest.TestCase):
         ):
             rc = wfz.main(
                 [
-                    "--pull-request", "1",
-                    "--interval-seconds", "1",
-                    "--max-wait-seconds", "1",
+                    "--pull-request",
+                    "1",
+                    "--interval-seconds",
+                    "1",
+                    "--max-wait-seconds",
+                    "1",
                 ],
             )
         self.assertEqual(rc, 1)
@@ -689,9 +705,12 @@ class CoverageCompleterTests(unittest.TestCase):
         ):
             rc = wfz.main(
                 [
-                    "--pull-request", "1",
-                    "--interval-seconds", "1",
-                    "--max-wait-seconds", "1",
+                    "--pull-request",
+                    "1",
+                    "--interval-seconds",
+                    "1",
+                    "--max-wait-seconds",
+                    "1",
                 ],
             )
         self.assertEqual(rc, 1)
@@ -702,11 +721,16 @@ class InvokeUnderlyingErrorHandlingTest(unittest.TestCase):
 
     def test_file_not_found_returns_config_sentinel(self) -> None:
         """POSITIVE: missing underlying script -> exit_code 2 (config)."""
+
         def runner(*_args: Any, **_kw: Any) -> Any:
             raise FileNotFoundError("script missing")
 
         count, complete, exit_code = wfz._invoke_underlying(
-            Path("/nonexistent.py"), 42, "", "", runner=runner,
+            Path("/nonexistent.py"),
+            42,
+            "",
+            "",
+            runner=runner,
         )
         self.assertEqual((count, complete, exit_code), (-1, False, 2))
 
@@ -718,38 +742,57 @@ class InvokeUnderlyingErrorHandlingTest(unittest.TestCase):
             raise TimeoutExpired(cmd="x", timeout=60)
 
         count, complete, exit_code = wfz._invoke_underlying(
-            Path("/p.py"), 42, "", "", runner=runner,
+            Path("/p.py"),
+            42,
+            "",
+            "",
+            runner=runner,
         )
         self.assertEqual((count, complete, exit_code), (-1, False, 1))
 
     def test_os_error_returns_config_sentinel(self) -> None:
         """POSITIVE: OSError (e.g. permission, EMFILE) -> exit_code 2."""
+
         def runner(*_args: Any, **_kw: Any) -> Any:
             raise OSError(13, "Permission denied")
 
         count, complete, exit_code = wfz._invoke_underlying(
-            Path("/p.py"), 42, "", "", runner=runner,
+            Path("/p.py"),
+            42,
+            "",
+            "",
+            runner=runner,
         )
         self.assertEqual((count, complete, exit_code), (-1, False, 2))
 
     def test_malformed_json_returns_negative_count(self) -> None:
         """NEGATIVE: stdout that isn't JSON -> count=-1, exit_code preserved."""
+
         def runner(*_args: Any, **_kw: Any) -> Any:
             return mock.Mock(returncode=0, stdout="not json", stderr="")
 
         count, complete, exit_code = wfz._invoke_underlying(
-            Path("/p.py"), 42, "", "", runner=runner,
+            Path("/p.py"),
+            42,
+            "",
+            "",
+            runner=runner,
         )
         self.assertEqual((count, complete, exit_code), (-1, False, 0))
 
     def test_malformed_payload_shape_returns_negative(self) -> None:
         """NEGATIVE: JSON has unresolved_count of wrong type -> count=-1."""
+
         def runner(*_args: Any, **_kw: Any) -> Any:
             payload = json.dumps({"unresolved_count": "not-an-int"})
             return mock.Mock(returncode=0, stdout=payload, stderr="")
 
         count, complete, exit_code = wfz._invoke_underlying(
-            Path("/p.py"), 42, "", "", runner=runner,
+            Path("/p.py"),
+            42,
+            "",
+            "",
+            runner=runner,
         )
         self.assertEqual((count, complete, exit_code), (-1, False, 0))
 
@@ -767,8 +810,13 @@ class InvokeUnderlyingErrorHandlingTest(unittest.TestCase):
             # iteration runs against the last value.
             def runner(*_args: Any, _payload_str: str = payload_str, **_kw: Any) -> Any:
                 return mock.Mock(returncode=0, stdout=_payload_str, stderr="")
+
             count, complete, exit_code = wfz._invoke_underlying(
-                Path("/p.py"), 42, "", "", runner=runner,
+                Path("/p.py"),
+                42,
+                "",
+                "",
+                runner=runner,
             )
             self.assertEqual(
                 (count, complete, exit_code),

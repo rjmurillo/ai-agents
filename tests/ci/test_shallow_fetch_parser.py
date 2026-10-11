@@ -200,15 +200,15 @@ def test_root_checkout_depth_parsing(job: Mapping[str, object], expected: set[ob
             True,
             id="shallow-exclude grafts without the word depth",
         ),
-        pytest.param('git -C . fetch --depth=1 origin main', True, id="explicit root via -C"),
+        pytest.param("git -C . fetch --depth=1 origin main", True, id="explicit root via -C"),
         pytest.param(
-            'git -C .trusted-helper fetch --depth=1 origin main',
+            "git -C .trusted-helper fetch --depth=1 origin main",
             True,
             id="an unproven subdirectory can inherit the root repository",
         ),
-        pytest.param('# git fetch --depth=1 origin main', False, id="a comment is not a command"),
+        pytest.param("# git fetch --depth=1 origin main", False, id="a comment is not a command"),
         pytest.param('git fetch origin "$BASE_REF"', False, id="a full fetch is fine"),
-        pytest.param('git fetch --unshallow origin', False, id="unshallow repairs, never grafts"),
+        pytest.param("git fetch --unshallow origin", False, id="unshallow repairs, never grafts"),
     ],
 )
 def test_shallowing_fetch_detection(script: str, detected: bool) -> None:

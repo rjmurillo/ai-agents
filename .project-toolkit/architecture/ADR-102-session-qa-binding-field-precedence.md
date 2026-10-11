@@ -27,6 +27,8 @@ This document mixes two citation vintages and does not mark each one, which a re
 
 `session_qa_binding()` (`.claude/lib/qa_report.py:142-182`) turns a session log into the `QaBinding` that QA-report validation is checked against. Lines 170-178 read verbatim:
 
+<!-- Formatter off: this excerpt is a function-body fragment, so its indentation must stay. -->
+<!-- fmt:off -->
 ```python
     if isinstance(comparison_head, str) and _FULL_COMMIT_PATTERN.fullmatch(
         comparison_head
@@ -38,6 +40,7 @@ This document mixes two citation vintages and does not mark each one, which a re
             )
         return QaBinding(session_log=session_log, commit=comparison_head)
 ```
+<!-- fmt:on -->
 
 The raise fires whenever a session log's `episodeMetrics.comparison.head` and its resolved `endingCommit` are both full 40-character SHAs and differ. It is a plain field-equality check with no fallback, the same shape `validate_qa_report()` (`:185`) carried before ADR-096 replaced it with a code-change-aware check.
 
@@ -152,6 +155,8 @@ class QaBinding:
 
 `session_qa_binding()`'s selection block becomes:
 
+<!-- Formatter off: this excerpt is a function-body fragment, so its indentation must stay. -->
+<!-- fmt:off -->
 ```python
     if isinstance(comparison_head, str) and _FULL_COMMIT_PATTERN.fullmatch(
         comparison_head
@@ -184,6 +189,7 @@ class QaBinding:
             inconsistency=inconsistency,
         )
 ```
+<!-- fmt:on -->
 
 `scripts/validate_session_json.py`'s `validate_qa_report_evidence()` surfaces it as a warning after the binding is computed and before the report is validated:
 

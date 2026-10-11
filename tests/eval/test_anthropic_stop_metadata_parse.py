@@ -46,7 +46,9 @@ def test_classify_termination(stop_reason: object, expected: str) -> None:
 
 _UNKNOWN_STOP_REASON = {"termination": "unknown", "stop_reason": None}
 _REFUSED_NO_DETAILS = {
-    "termination": "refusal", "refusal_category": None, "refusal_explanation": None
+    "termination": "refusal",
+    "refusal_category": None,
+    "refusal_explanation": None,
 }
 # REQ-037 Failure Modes: an unrecognized stop reason must not be scored as a
 # completed answer, same as a refusal or a token_limit.

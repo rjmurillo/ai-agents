@@ -398,7 +398,7 @@ Store the threat model summary as a Serena memory:
 ```python
 mcp__serena__write_memory(
     memory_file_name="security/threat-model-auth-service",
-    content="Key threats: credential stuffing, session hijacking. STRIDE categories covered: spoofing, elevation of privilege."
+    content="Key threats: credential stuffing, session hijacking. STRIDE categories covered: spoofing, elevation of privilege.",
 )
 ```
 

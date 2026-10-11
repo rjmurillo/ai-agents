@@ -135,6 +135,7 @@ class TestConfiguration:
         to nothing commits nothing and the stats never land.
         """
         import sys as _sys
+
         _script_dir = str(Path(__file__).resolve().parents[1] / "scripts" / "validation")
         if _script_dir not in _sys.path:
             _sys.path.insert(0, _script_dir)
@@ -416,9 +417,7 @@ class TestCommentsByReviewer:
 
     def test_a_review_of_a_coding_agent_pr_is_counted(self) -> None:
         """The reviewer and the coding agent are two accounts, not one."""
-        prs = [
-            _make_pr(1, "app/copilot-swe-agent", [("copilot-pull-request-reviewer[bot]", "R")])
-        ]
+        prs = [_make_pr(1, "app/copilot-swe-agent", [("copilot-pull-request-reviewer[bot]", "R")])]
         result = get_comments_by_reviewer(prs)
         assert list(result) == ["github-copilot[bot]"]
 

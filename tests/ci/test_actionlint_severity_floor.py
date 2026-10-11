@@ -63,12 +63,12 @@ def test_the_hook_preserves_an_operator_set_shellcheck_opts() -> None:
 
 def test_the_python_gate_still_applies_the_same_floor() -> None:
     """Pin the other two gates so the three cannot drift apart again."""
-    tooling = (
-        _REPO_ROOT / "scripts" / "validation" / "checks_tooling.py"
-    ).read_text(encoding="utf-8")
-    local_test = (
-        _REPO_ROOT / "scripts" / "validation" / "run_workflow_local_test.py"
-    ).read_text(encoding="utf-8")
+    tooling = (_REPO_ROOT / "scripts" / "validation" / "checks_tooling.py").read_text(
+        encoding="utf-8"
+    )
+    local_test = (_REPO_ROOT / "scripts" / "validation" / "run_workflow_local_test.py").read_text(
+        encoding="utf-8"
+    )
 
     assert _SEVERITY_FLOOR in tooling
     assert _SEVERITY_FLOOR in local_test

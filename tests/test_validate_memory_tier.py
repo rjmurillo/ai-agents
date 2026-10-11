@@ -164,9 +164,7 @@ class TestValidateMemoryTier:
             encoding="utf-8",
         )
         (tmp_path / "skills-test-index.md").write_text(
-            "| Keywords | File |\n"
-            "|----------|------|\n"
-            "| kw | [ghost](test/ghost.md) |\n",
+            "| Keywords | File |\n|----------|------|\n| kw | [ghost](test/ghost.md) |\n",
             encoding="utf-8",
         )
         result = validate_memory_tier(tmp_path)
@@ -185,9 +183,7 @@ class TestValidateMemoryTier:
             encoding="utf-8",
         )
         (tmp_path / "skills-test-index.md").write_text(
-            "| Keywords | File |\n"
-            "|----------|------|\n"
-            "| kw | [old](test/skill-old.md) |\n",
+            "| Keywords | File |\n|----------|------|\n| kw | [old](test/skill-old.md) |\n",
             encoding="utf-8",
         )
         result = validate_memory_tier(tmp_path)
@@ -196,24 +192,18 @@ class TestValidateMemoryTier:
 
     def test_orphan_domain_index_warning(self, tmp_path: Path) -> None:
         (tmp_path / "memory-index.md").write_text(
-            "| Keywords | Memories |\n"
-            "|----------|----------|\n"
-            "| kw | [other](other-file.md) |\n",
+            "| Keywords | Memories |\n|----------|----------|\n| kw | [other](other-file.md) |\n",
             encoding="utf-8",
         )
         (tmp_path / "other-file.md").write_text("content", encoding="utf-8")
         (tmp_path / "skills-orphan-index.md").write_text(
-            "| Keywords | File |\n"
-            "|----------|------|\n"
-            "| kw | [file](orphan/file.md) |\n",
+            "| Keywords | File |\n|----------|------|\n| kw | [file](orphan/file.md) |\n",
             encoding="utf-8",
         )
         result = validate_memory_tier(tmp_path)
         assert any("not referenced in memory-index" in w for w in result.warnings)
 
-    def test_nested_index_named_atomic_remains_orphan(
-        self, tmp_path: Path
-    ) -> None:
+    def test_nested_index_named_atomic_remains_orphan(self, tmp_path: Path) -> None:
         """Only a top-level *-index.md file is a domain index."""
         nested = tmp_path / "quality"
         nested.mkdir()
@@ -227,9 +217,7 @@ class TestValidateMemoryTier:
 
         assert any("quality/retry-index.md" in warning for warning in result.warnings)
 
-    def test_dot_relative_domain_reference_is_canonicalized(
-        self, tmp_path: Path
-    ) -> None:
+    def test_dot_relative_domain_reference_is_canonicalized(self, tmp_path: Path) -> None:
         """A valid ./ alias resolves to the same atomic memory path."""
         nested = tmp_path / "quality"
         nested.mkdir()
@@ -260,9 +248,7 @@ class TestMain:
         (domain_dir / "testing-one.md").write_text("content", encoding="utf-8")
 
         (tmp_path / "skills-testing-index.md").write_text(
-            "| Keywords | File |\n"
-            "|----------|------|\n"
-            "| kw | [one](testing/testing-one.md) |\n",
+            "| Keywords | File |\n|----------|------|\n| kw | [one](testing/testing-one.md) |\n",
             encoding="utf-8",
         )
         (tmp_path / "memory-index.md").write_text(
@@ -275,13 +261,11 @@ class TestMain:
 
     def test_ci_mode_promotes_warnings(self, tmp_path: Path) -> None:
         (tmp_path / "memory-index.md").write_text(
-            "| Keywords | Memories |\n"
-            "|----------|----------|\n",
+            "| Keywords | Memories |\n|----------|----------|\n",
             encoding="utf-8",
         )
         (tmp_path / "skills-orphan-index.md").write_text(
-            "| Keywords | File |\n"
-            "|----------|------|\n",
+            "| Keywords | File |\n|----------|------|\n",
             encoding="utf-8",
         )
         # Without --ci, warnings only (pass)

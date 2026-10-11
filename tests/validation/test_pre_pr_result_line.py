@@ -55,9 +55,7 @@ def _run(capsys: pytest.CaptureFixture[str], *outcomes: Any) -> tuple[int, str]:
 
 
 def _passing() -> CheckOutcome:
-    return CheckOutcome.passed(
-        "clean_gate", revision=WORKING_TREE, scope="the tree", examined=3
-    )
+    return CheckOutcome.passed("clean_gate", revision=WORKING_TREE, scope="the tree", examined=3)
 
 
 def _licensed_blocked() -> CheckOutcome:

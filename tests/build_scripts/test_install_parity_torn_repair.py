@@ -43,7 +43,8 @@ def _run_git(repo: Path, *args: str) -> None:
         cwd=repo,
         check=True,
         capture_output=True,
-        text=True, encoding="utf-8",
+        text=True,
+        encoding="utf-8",
     )
 
 
@@ -96,7 +97,5 @@ def test_torn_shared_agent_group_is_delegated_to_build_check(torn_repo: Path) ->
         "src/copilot-cli/agents/alpha.agent.md",
         "src/vs-code-agents/alpha.agent.md",
     ]
-    violations = vip.find_violations(
-        touched, repo_root=torn_repo, base="HEAD"
-    )
+    violations = vip.find_violations(touched, repo_root=torn_repo, base="HEAD")
     assert violations == []

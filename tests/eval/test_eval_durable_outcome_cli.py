@@ -124,9 +124,7 @@ def test_main_exit_0_on_better_comparison(
     _write_jsonl(baseline_path, [baseline])
     _write_jsonl(candidate_path, [candidate])
 
-    exit_code = cli.main(
-        ["--records", str(candidate_path), "--baseline", str(baseline_path)]
-    )
+    exit_code = cli.main(["--records", str(candidate_path), "--baseline", str(baseline_path)])
 
     assert exit_code == cli.EXIT_OK
     comparison = json.loads(capsys.readouterr().out)
@@ -145,9 +143,7 @@ def test_main_exit_1_on_worse_comparison(
     _write_jsonl(baseline_path, [baseline])
     _write_jsonl(candidate_path, [candidate])
 
-    exit_code = cli.main(
-        ["--records", str(candidate_path), "--baseline", str(baseline_path)]
-    )
+    exit_code = cli.main(["--records", str(candidate_path), "--baseline", str(baseline_path)])
 
     assert exit_code == cli.EXIT_UNVERIFIED_OR_WORSE
     comparison = json.loads(capsys.readouterr().out)
@@ -165,9 +161,7 @@ def test_main_exit_0_on_mixed_comparison(
     _write_jsonl(baseline_path, [baseline])
     _write_jsonl(candidate_path, [candidate])
 
-    exit_code = cli.main(
-        ["--records", str(candidate_path), "--baseline", str(baseline_path)]
-    )
+    exit_code = cli.main(["--records", str(candidate_path), "--baseline", str(baseline_path)])
 
     assert exit_code == cli.EXIT_OK
     comparison = json.loads(capsys.readouterr().out)
@@ -185,9 +179,7 @@ def test_main_exit_1_on_unverified_comparison(
     _write_jsonl(baseline_path, [baseline])
     _write_jsonl(candidate_path, [candidate])
 
-    exit_code = cli.main(
-        ["--records", str(candidate_path), "--baseline", str(baseline_path)]
-    )
+    exit_code = cli.main(["--records", str(candidate_path), "--baseline", str(baseline_path)])
 
     assert exit_code == cli.EXIT_UNVERIFIED_OR_WORSE
     comparison = json.loads(capsys.readouterr().out)
@@ -204,9 +196,7 @@ def test_main_exit_2_on_comparison_config_mismatch(
     _write_jsonl(baseline_path, [baseline])
     _write_jsonl(candidate_path, [candidate])
 
-    exit_code = cli.main(
-        ["--records", str(candidate_path), "--baseline", str(baseline_path)]
-    )
+    exit_code = cli.main(["--records", str(candidate_path), "--baseline", str(baseline_path)])
 
     assert exit_code == cli.EXIT_INPUT_ERROR
     assert "harness" in capsys.readouterr().err
@@ -222,9 +212,7 @@ def test_main_exit_2_on_comparison_task_set_mismatch(
     _write_jsonl(baseline_path, [baseline])
     _write_jsonl(candidate_path, [candidate])
 
-    exit_code = cli.main(
-        ["--records", str(candidate_path), "--baseline", str(baseline_path)]
-    )
+    exit_code = cli.main(["--records", str(candidate_path), "--baseline", str(baseline_path)])
 
     assert exit_code == cli.EXIT_INPUT_ERROR
     assert "task sets differ" in capsys.readouterr().err
@@ -249,9 +237,7 @@ def test_script_run_as_main_exits_0_on_pass_report(tmp_path: Path) -> None:
     assert json.loads(completed.stdout)["status"] == "VERIFIED"
 
 
-def test_main_exit_2_on_invalid_utf8(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
+def test_main_exit_2_on_invalid_utf8(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     records_path = tmp_path / "records.jsonl"
     records_path.write_bytes(b"\xff\xfe not utf-8\n")
 

@@ -96,9 +96,14 @@ class TestLocalEnvVarsCachedAcrossItems:
             "test items; caching should limit it to one subprocess per "
             "worker process."
         )
-        assert first_item == second_item == third_item == (
-            "GIT_DIR",
-            "GIT_WORK_TREE",
+        assert (
+            first_item
+            == second_item
+            == third_item
+            == (
+                "GIT_DIR",
+                "GIT_WORK_TREE",
+            )
         )
 
     def test_result_is_cached_object_identity(self) -> None:
@@ -124,9 +129,7 @@ class TestLocalEnvVarsCachedAcrossItems:
 class TestSanitizationRunsEveryItem:
     """Caching the variable *names* must not skip per-item value clearing."""
 
-    def test_delenv_called_on_every_simulated_item(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_delenv_called_on_every_simulated_item(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """The discovered (not hardcoded) names are cleared on every item.
 
         The stubbed discovery includes ``GIT_CONFIG``, a name that is absent
@@ -151,16 +154,12 @@ class TestSanitizationRunsEveryItem:
         with patch.object(
             module.subprocess,
             "run",
-            return_value=SimpleNamespace(
-                stdout="GIT_DIR\nGIT_WORK_TREE\nGIT_CONFIG\n"
-            ),
+            return_value=SimpleNamespace(stdout="GIT_DIR\nGIT_WORK_TREE\nGIT_CONFIG\n"),
         ):
             # First simulated pytest item, no tmp_path fixture requested.
             deleted_first: list[str] = []
             mp_first = MagicMock()
-            mp_first.delenv.side_effect = lambda name, raising=True: (
-                deleted_first.append(name)
-            )
+            mp_first.delenv.side_effect = lambda name, raising=True: deleted_first.append(name)
             monkeypatch.setenv("GIT_CONFIG", "/hostile/first")
             request_first = SimpleNamespace(fixturenames=[], getfixturevalue=lambda _: None)
             fixture_fn(request_first, mp_first)
@@ -172,9 +171,7 @@ class TestSanitizationRunsEveryItem:
             # item) is reused; sanitization must still run.
             deleted_second: list[str] = []
             mp_second = MagicMock()
-            mp_second.delenv.side_effect = lambda name, raising=True: (
-                deleted_second.append(name)
-            )
+            mp_second.delenv.side_effect = lambda name, raising=True: deleted_second.append(name)
             monkeypatch.setenv("GIT_CONFIG", "/hostile/second")
             request_second = SimpleNamespace(fixturenames=[], getfixturevalue=lambda _: None)
             fixture_fn(request_second, mp_second)
@@ -188,9 +185,7 @@ class TestGitUnavailableFallback:
     def test_falls_back_when_git_missing(self) -> None:
         """``OSError`` from ``subprocess.run`` (git not on PATH) falls back."""
         module = _load_tests_conftest()
-        with patch.object(
-            module.subprocess, "run", side_effect=OSError("git not found")
-        ):
+        with patch.object(module.subprocess, "run", side_effect=OSError("git not found")):
             result = module._local_env_vars()
 
         assert result == module._GIT_POINTER_VARS
@@ -218,9 +213,7 @@ class TestGitUnavailableFallback:
         would fail.
         """
         module = _load_tests_conftest()
-        with patch.object(
-            module.subprocess, "run", return_value=SimpleNamespace(stdout="")
-        ):
+        with patch.object(module.subprocess, "run", return_value=SimpleNamespace(stdout="")):
             result = module._local_env_vars()
 
         assert result == module._GIT_POINTER_VARS
@@ -237,9 +230,7 @@ class TestGitUnavailableFallback:
         """
         module = _load_tests_conftest()
 
-        with patch.object(
-            module.subprocess, "run", return_value=SimpleNamespace(stdout="")
-        ):
+        with patch.object(module.subprocess, "run", return_value=SimpleNamespace(stdout="")):
             fallback_result = module._local_env_vars()
         assert fallback_result == module._GIT_POINTER_VARS
 

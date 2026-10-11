@@ -33,6 +33,7 @@ def test_copilot_pretooluse_has_no_unregistered_matcher_shims() -> None:
 
     assert generated == registered
 
+
 class TestIsProjectRepo:
     """is_project_repo resolves identity from the env override or git remote (#2610)."""
 
@@ -122,9 +123,7 @@ class TestRemoteRepoName:
         assert captured_kwargs["errors"] == "replace"
         assert captured_kwargs["check"] is True
 
-    def test_origin_lookup_timeout_under_host_budget(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_origin_lookup_timeout_under_host_budget(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """The per-tool-call git lookup must finish inside the tightest host timeout.
 
         ``skip_if_consumer_repo`` calls ``_remote_repo_name`` on every tool use,

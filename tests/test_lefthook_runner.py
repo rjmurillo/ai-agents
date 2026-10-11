@@ -48,9 +48,7 @@ def test_uv_not_ready_when_uv_missing_and_probe_never_runs() -> None:
     run.assert_not_called()
 
 
-@pytest.mark.parametrize(
-    "error", [OSError("boom"), subprocess.TimeoutExpired(cmd="uv", timeout=1)]
-)
+@pytest.mark.parametrize("error", [OSError("boom"), subprocess.TimeoutExpired(cmd="uv", timeout=1)])
 def test_uv_not_ready_when_probe_cannot_finish(error: Exception) -> None:
     with (
         mock.patch.object(runner.shutil, "which", return_value="/bin/uv"),
@@ -207,7 +205,7 @@ def test_shim_uses_local_binary_when_uv_cannot_resolve(tmp_path: Path) -> None:
     result = _run_shim(repo, tools)
 
     assert result.returncode == 0, result.stderr
-    assert marker.read_text(encoding="utf-8").strip() == 'run pre-commit'
+    assert marker.read_text(encoding="utf-8").strip() == "run pre-commit"
 
 
 @POSIX_ONLY

@@ -106,10 +106,7 @@ def _job_names(job: dict[str, Any]) -> set[str]:
     name = str(job.get("name", ""))
     include = ((job.get("strategy") or {}).get("matrix") or {}).get("include")
     if "${{ matrix.language }}" in name and isinstance(include, list):
-        return {
-            name.replace("${{ matrix.language }}", str(entry["language"]))
-            for entry in include
-        }
+        return {name.replace("${{ matrix.language }}", str(entry["language"])) for entry in include}
     return {name}
 
 
@@ -129,9 +126,7 @@ def _readiness_errors(workflows: dict[str, dict[Any, Any]]) -> list[str]:
                 errors.append(f"{name}: merge_group trigger has a path filter")
 
         concurrency = workflow.get("concurrency")
-        if isinstance(concurrency, dict) and "github.ref" not in str(
-            concurrency.get("group", "")
-        ):
+        if isinstance(concurrency, dict) and "github.ref" not in str(concurrency.get("group", "")):
             errors.append(f"{name}: concurrency omits github.ref")
 
     errors.extend(_queue_push_errors(workflows))
@@ -171,8 +166,7 @@ def _filtered_workflow_errors(
         determine_steps = [
             step
             for step in job.get("steps", [])
-            if step.get("run")
-            == "python3 scripts/workflows/determine_should_run_from_filters.py"
+            if step.get("run") == "python3 scripts/workflows/determine_should_run_from_filters.py"
         ]
         if len(determine_steps) != 1:
             errors.append(f"{name}: missing shared event policy")
@@ -259,8 +253,7 @@ def _pull_request_work_errors(
             marker = PR_REAL_JOB_MARKERS[name][job_id]
             steps = job.get("steps", [])
             if not any(
-                marker in str(step.get("uses", ""))
-                or marker in str(step.get("run", ""))
+                marker in str(step.get("uses", "")) or marker in str(step.get("run", ""))
                 for step in steps
             ):
                 errors.append(f"{name}: real job {job_id} lost its required action")
@@ -285,8 +278,7 @@ def _in_job_bypass_errors(
                 if "BASE_REF" in (step.get("env") or {})
             ]
             if not base_refs or any(
-                "github.event.repository.default_branch" not in base_ref
-                for base_ref in base_refs
+                "github.event.repository.default_branch" not in base_ref for base_ref in base_refs
             ):
                 errors.append(f"{name}: merge_group base ref fallback is missing")
     return errors

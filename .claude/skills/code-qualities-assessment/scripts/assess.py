@@ -548,11 +548,7 @@ def get_files_to_assess(
         changes = changed_files if changed_files is not None else get_changed_files(base)
         target_path = Path(target)
         glob_matches = target_glob_matches
-        if (
-            glob_matches is None
-            and not target_path.is_file()
-            and not target_path.is_dir()
-        ):
+        if glob_matches is None and not target_path.is_file() and not target_path.is_dir():
             glob_matches = _glob_target_matches(target)
         files = [
             change.head_path
@@ -661,8 +657,7 @@ def _match_path_glob(path: str, pattern: str) -> bool:
         part = pattern_parts[pattern_index]
         if part == "**":
             return matches(path_index, pattern_index + 1) or (
-                path_index < len(path_parts)
-                and matches(path_index + 1, pattern_index)
+                path_index < len(path_parts) and matches(path_index + 1, pattern_index)
             )
         return (
             path_index < len(path_parts)
@@ -947,10 +942,7 @@ def check_regressions(
 
 
 def _has_scored_quality(assessment: FileAssessment) -> bool:
-    return any(
-        getattr(assessment, field).confidence > 0.0
-        for field in _QUALITY_FIELDS
-    )
+    return any(getattr(assessment, field).confidence > 0.0 for field in _QUALITY_FIELDS)
 
 
 def build_comparisons(
@@ -968,9 +960,7 @@ def build_comparisons(
     revision = resolve_comparison_base(base)
     explicit_changes = changed_files is not None
     change_by_head = {
-        change.head_path: change
-        for change in (changed_files or [])
-        if change.head_path is not None
+        change.head_path: change for change in (changed_files or []) if change.head_path is not None
     }
     comparisons: list[FileComparison] = []
     new_files: list[FileAssessment] = []
@@ -1008,9 +998,7 @@ def build_comparisons(
             new_files.append(head)
             continue
         base_assessment = _assess_base_bytes(base_path, raw)
-        absolute_reason = (
-            None if _has_scored_quality(base_assessment) else "base_unscored"
-        )
+        absolute_reason = None if _has_scored_quality(base_assessment) else "base_unscored"
         comparisons.append(
             compare_assessments(
                 base_assessment,
@@ -1438,22 +1426,17 @@ def generate_regression_section(comparisons: list[FileComparison]) -> str:
             and comparison.base_file_path != comparison.file_path
         ):
             lines.append(
-                f"Renamed from `{comparison.base_file_path}` "
-                f"({comparison.change_status}).\n"
+                f"Renamed from `{comparison.base_file_path}` ({comparison.change_status}).\n"
             )
         if comparison.absolute_gate_reason == "base_unscored":
-            lines.append(
-                "Base file had no scored qualities; head is gated absolutely.\n"
-            )
+            lines.append("Base file had no scored qualities; head is gated absolutely.\n")
         lines.append("| Quality | Base | Head | Delta | Status |")
         lines.append("| --- | --- | --- | --- | --- |")
         for delta in comparison.deltas:
             base = "n/a" if delta.base is None else f"{delta.base:.1f}"
             head = "n/a" if delta.head is None else f"{delta.head:.1f}"
             change = "n/a" if delta.delta is None else f"{delta.delta:+.1f}"
-            lines.append(
-                f"| {delta.quality} | {base} | {head} | {change} | {delta.status} |"
-            )
+            lines.append(f"| {delta.quality} | {base} | {head} | {change} | {delta.status} |")
         lines.append("")
     return "\n".join(lines)
 
@@ -1692,11 +1675,7 @@ def main(argv: list[str] | None = None) -> int:
             base_is_comparison = True
         target_glob_matches = None
         resolved_target = Path(target_path)
-        if (
-            args.changed_only
-            and not resolved_target.is_file()
-            and not resolved_target.is_dir()
-        ):
+        if args.changed_only and not resolved_target.is_file() and not resolved_target.is_dir():
             target_glob_matches = _glob_target_matches(target_path)
         changed_files = (
             get_changed_files(
@@ -1728,7 +1707,9 @@ def main(argv: list[str] | None = None) -> int:
                 comparison_base,
                 target_glob_matches,
             ):
-                print(f"ERROR: --target does not match HEAD or base: {args.target}", file=sys.stderr)
+                print(
+                    f"ERROR: --target does not match HEAD or base: {args.target}", file=sys.stderr
+                )
                 return 1
             report = _render_report(args.format, [], [], config, gate_mode)
             _write_report(report, args.output)
@@ -1749,9 +1730,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"ERROR: {e}", file=sys.stderr)
         return 1
 
-    report = _render_report(
-        args.format, assessments, comparisons, config, gate_mode, args.context
-    )
+    report = _render_report(args.format, assessments, comparisons, config, gate_mode, args.context)
     _write_report(report, args.output)
     return _gate_result(
         gate_mode,

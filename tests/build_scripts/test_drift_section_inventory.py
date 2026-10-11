@@ -46,11 +46,7 @@ class TestFencedBlockAwareness:
 
     def test_nested_fence_markers(self) -> None:
         """Only top-level ``` toggles fence state."""
-        content = (
-            "## Before\n\nProse.\n\n"
-            "```\n## InFence\n```\n\n"
-            "## After\n\nMore.\n"
-        )
+        content = "## Before\n\nProse.\n\n```\n## InFence\n```\n\n## After\n\nMore.\n"
         sections = drift.get_markdown_sections(content)
         assert "Before" in sections
         assert "After" in sections
@@ -67,12 +63,7 @@ class TestFencedBlockAwareness:
     def test_indented_fence_under_list_item_hides_heading(self) -> None:
         """A fence indented under a list item (up to 3 spaces) still fences."""
         content = (
-            "## Before\n\n"
-            "1. Step\n"
-            "   ```bash\n"
-            "   ## not a heading\n"
-            "   ```\n\n"
-            "## After\n\nMore.\n"
+            "## Before\n\n1. Step\n   ```bash\n   ## not a heading\n   ```\n\n## After\n\nMore.\n"
         )
         sections = drift.get_markdown_sections(content)
         assert "Before" in sections
@@ -182,9 +173,7 @@ class TestFalseNegativeReproduction:
 
     def test_qa_completeness_verification_detected(self) -> None:
         """#4850: Completeness Verification missing on Copilot must fail."""
-        claude = _make_agent(
-            ["Core Mission", "Completeness Verification (Mandatory)"]
-        )
+        claude = _make_agent(["Core Mission", "Completeness Verification (Mandatory)"])
         vscode = _make_agent(["Core Mission"])
         result = drift.compare_agent(claude, vscode, "qa", 80)
         # This is both a REQUIRED section and would be missing in inventory
@@ -346,9 +335,7 @@ class TestRealCorpusSectionInventory:
         results = drift.run_detection(claude_path, vscode_path, 80)
 
         assert len(results) > 10, "sanity check: the real corpus was not read"
-        unbaselined = [
-            (r.agent_name, section) for r in results for section in r.missing_sections
-        ]
+        unbaselined = [(r.agent_name, section) for r in results for section in r.missing_sections]
         assert unbaselined == [], f"unbaselined missing sections: {unbaselined}"
 
     def test_install_corpus_has_no_unbaselined_missing_sections(self) -> None:
@@ -360,9 +347,7 @@ class TestRealCorpusSectionInventory:
         )
 
         assert len(results) > 5, "sanity check: the real install corpus was not read"
-        unbaselined = [
-            (r.agent_name, section) for r in results for section in r.missing_sections
-        ]
+        unbaselined = [(r.agent_name, section) for r in results for section in r.missing_sections]
         assert unbaselined == [], f"unbaselined missing sections: {unbaselined}"
 
     def test_full_gate_exits_zero_against_current_tree(self) -> None:

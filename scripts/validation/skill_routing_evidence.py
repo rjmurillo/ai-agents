@@ -144,9 +144,7 @@ def _inbound_zero_skills(
     """Return names no other skill or agent's canonical text mentions at all."""
     inbound_zero: list[str] = []
     for skill in skills:
-        corpus = "\n".join(
-            text for other, text in skill_text.items() if other != skill.name
-        )
+        corpus = "\n".join(text for other, text in skill_text.items() if other != skill.name)
         corpus = "\n".join([corpus, *agent_text.values()])
         if not _names_token(skill.name, corpus):
             inbound_zero.append(skill.name)
@@ -170,7 +168,6 @@ def compute_evidence(
         scenario_covered=tuple(sorted(scenario_covered)),
         checked=tuple(sorted(checked)),
     )
-
 
 
 def render(skills: list[SkillDecl], evidence: Evidence, fmt: str) -> str:

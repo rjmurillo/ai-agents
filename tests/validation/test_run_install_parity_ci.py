@@ -356,6 +356,4 @@ def test_fetch_base_ref_fails_when_the_probe_cannot_answer(
     assert base.fetch_base_ref("main") == 2
     fetches = [c for c in calls if c[:2] == ["git", "fetch"]]
     assert fetches == []
-    assert "could not determine whether the repository is shallow" in (
-        capsys.readouterr().err
-    )
+    assert "could not determine whether the repository is shallow" in (capsys.readouterr().err)

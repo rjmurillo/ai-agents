@@ -300,9 +300,7 @@ def find_patterns(
 
             if normalized not in patterns:
                 category = classify_category(action)
-                patterns[normalized] = PatternStats(
-                    normalized=normalized, category=category
-                )
+                patterns[normalized] = PatternStats(normalized=normalized, category=category)
 
             patterns[normalized].occurrences.append(
                 PatternOccurrence(
@@ -405,9 +403,7 @@ def consolidate(
     patterns = find_patterns(sessions)
     report.patterns_found = len(patterns)
 
-    qualifying = {
-        k: v for k, v in patterns.items() if v.meets_criteria(config)
-    }
+    qualifying = {k: v for k, v in patterns.items() if v.meets_criteria(config)}
 
     if not qualifying:
         return report
@@ -437,9 +433,7 @@ def consolidate(
 def render_skill_markdown(candidate: SkillCandidate) -> str:
     """Render a skill candidate as a Serena memory markdown file."""
     today = datetime.now(UTC).strftime("%Y-%m-%d")
-    sessions_list = ", ".join(
-        sorted(set(o.session_file for o in candidate.pattern.occurrences))
-    )
+    sessions_list = ", ".join(sorted(set(o.session_file for o in candidate.pattern.occurrences)))
 
     return f"""# Skill: {candidate.title}
 

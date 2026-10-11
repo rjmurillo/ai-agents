@@ -45,7 +45,7 @@ def _mirror_source_path(path: str) -> str | None:
     for root in _MIRROR_SOURCE_ROOTS:
         prefix = f"{root}/"
         if path.startswith(prefix):
-            return f"{_CANONICAL_SKILL_ROOT}/{path[len(prefix):]}"
+            return f"{_CANONICAL_SKILL_ROOT}/{path[len(prefix) :]}"
     return None
 
 
@@ -61,7 +61,7 @@ def is_colocated_skill_test(path: str) -> bool:
         if parts[: len(root_parts)] != root_parts:
             continue
         # Must have at least: root / skill / tests / file
-        remaining = parts[len(root_parts):]
+        remaining = parts[len(root_parts) :]
         if len(remaining) < 3:
             continue
         # Find "tests" directory anywhere after the skill name
@@ -201,9 +201,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         for v in violations:
             print(f"  {v}")
-        print(
-            "\nSee issue #4838. Existing legacy tests are tolerated until migrated."
-        )
+        print("\nSee issue #4838. Existing legacy tests are tolerated until migrated.")
         return 1
 
     return 0

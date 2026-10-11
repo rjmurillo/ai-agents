@@ -48,7 +48,8 @@ class SemgrepInstaller:
             result = subprocess.run(
                 ["semgrep", "--version"],
                 capture_output=True,
-                encoding="utf-8", errors="replace",
+                encoding="utf-8",
+                errors="replace",
                 check=False,
                 timeout=SUBPROCESS_TIMEOUT_SECONDS,
             )
@@ -68,7 +69,8 @@ class SemgrepInstaller:
             result = subprocess.run(
                 [sys.executable, "-m", "pip", "install", "semgrep"],
                 capture_output=True,
-                encoding="utf-8", errors="replace",
+                encoding="utf-8",
+                errors="replace",
                 check=False,
                 timeout=SUBPROCESS_TIMEOUT_SECONDS,
             )
@@ -134,9 +136,7 @@ class SemgrepInstaller:
 
 def main() -> int:
     """Entry point for semgrep installation script."""
-    parser = argparse.ArgumentParser(
-        description="Install semgrep for local security scanning"
-    )
+    parser = argparse.ArgumentParser(description="Install semgrep for local security scanning")
 
     parser.add_argument(
         "--check",

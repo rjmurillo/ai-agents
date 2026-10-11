@@ -42,10 +42,10 @@ from typing import Any
 # ---------------------------------------------------------------------------
 
 EXIT_OK = 0
-EXIT_VERIFY = 1       # Validation/verification failure
-EXIT_CONFIG = 2       # Configuration error
-EXIT_EXTERNAL = 3     # External dependency failure
-EXIT_AUTH = 4         # Authentication/permission error
+EXIT_VERIFY = 1  # Validation/verification failure
+EXIT_CONFIG = 2  # Configuration error
+EXIT_EXTERNAL = 3  # External dependency failure
+EXIT_AUTH = 4  # Authentication/permission error
 
 _GIT_TIMEOUT = 120
 
@@ -59,23 +59,25 @@ _SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 # Git environment sanitization (from doc_accuracy.py)
 # ---------------------------------------------------------------------------
 
-_GIT_ENV_DENY_EXACT = frozenset((
-    "GIT_DIR",
-    "GIT_WORK_TREE",
-    "GIT_IMPLICIT_WORK_TREE",
-    "GIT_INDEX_FILE",
-    "GIT_OBJECT_DIRECTORY",
-    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
-    "GIT_COMMON_DIR",
-    "GIT_CEILING_DIRECTORIES",
-    "GIT_GRAFT_FILE",
-    "GIT_REPLACE_REF_BASE",
-    "GIT_NO_REPLACE_OBJECTS",
-    "GIT_PREFIX",
-    "GIT_CONFIG",
-    "GIT_CONFIG_PARAMETERS",
-    "GIT_CONFIG_COUNT",
-))
+_GIT_ENV_DENY_EXACT = frozenset(
+    (
+        "GIT_DIR",
+        "GIT_WORK_TREE",
+        "GIT_IMPLICIT_WORK_TREE",
+        "GIT_INDEX_FILE",
+        "GIT_OBJECT_DIRECTORY",
+        "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+        "GIT_COMMON_DIR",
+        "GIT_CEILING_DIRECTORIES",
+        "GIT_GRAFT_FILE",
+        "GIT_REPLACE_REF_BASE",
+        "GIT_NO_REPLACE_OBJECTS",
+        "GIT_PREFIX",
+        "GIT_CONFIG",
+        "GIT_CONFIG_PARAMETERS",
+        "GIT_CONFIG_COUNT",
+    )
+)
 
 _GIT_ENV_DENY_PREFIXES = ("GIT_CONFIG_",)
 
@@ -94,9 +96,8 @@ def _git_env() -> dict[str, str]:
     env = os.environ.copy()
     for key in tuple(env):
         normalized = key.upper()
-        if (
-            normalized in _GIT_ENV_DENY_EXACT
-            or any(normalized.startswith(p) for p in _GIT_ENV_DENY_PREFIXES)
+        if normalized in _GIT_ENV_DENY_EXACT or any(
+            normalized.startswith(p) for p in _GIT_ENV_DENY_PREFIXES
         ):
             del env[key]
     env.update(_GIT_ENV_FORCE)
@@ -257,15 +258,24 @@ def _run_git(
     cmd = [
         "git",
         "--no-replace-objects",
-        "-c", "core.hooksPath=/dev/null",
-        "-c", "core.fsmonitor=false",
-        "-c", "protocol.file.allow=never",
-        "-c", "transfer.fsckObjects=true",
-        "-c", "filter.lfs.clean=",
-        "-c", "filter.lfs.smudge=",
-        "-c", "filter.lfs.process=",
-        "-c", "core.autocrlf=false",
-        "-c", "safe.bareRepository=all",
+        "-c",
+        "core.hooksPath=/dev/null",
+        "-c",
+        "core.fsmonitor=false",
+        "-c",
+        "protocol.file.allow=never",
+        "-c",
+        "transfer.fsckObjects=true",
+        "-c",
+        "filter.lfs.clean=",
+        "-c",
+        "filter.lfs.smudge=",
+        "-c",
+        "filter.lfs.process=",
+        "-c",
+        "core.autocrlf=false",
+        "-c",
+        "safe.bareRepository=all",
         *args,
     ]
     env = _git_env()
@@ -310,8 +320,8 @@ def resolve_pr_identity(owner: str, repo: str, number: int) -> PrIdentity:
     _validate_repo(repo)
 
     jq_expr = (
-        ".head.sha + \"\\n\" + .base.sha + \"\\n\" + .base.ref + \"\\n\" "
-        "+ .head.repo.full_name + \"\\n\" + .base.repo.full_name"
+        '.head.sha + "\\n" + .base.sha + "\\n" + .base.ref + "\\n" '
+        '+ .head.repo.full_name + "\\n" + .base.repo.full_name'
     )
     try:
         result = subprocess.run(
@@ -344,9 +354,7 @@ def resolve_pr_identity(owner: str, repo: str, number: int) -> PrIdentity:
 
     # Reject cross-repository (fork) PRs
     if head_repo != base_repo:
-        raise VerifyError(
-            f"Cross-repository PR rejected: head={head_repo}, base={base_repo}"
-        )
+        raise VerifyError(f"Cross-repository PR rejected: head={head_repo}, base={base_repo}")
 
     return PrIdentity(
         owner=owner,
@@ -396,7 +404,8 @@ def capture_snapshot(
     # Fetch head and base SHAs with FULL depth (no --depth, no --filter)
     _run_git(
         [
-            "fetch", "origin",
+            "fetch",
+            "origin",
             "--no-tags",
             "--no-recurse-submodules",
             identity.head_sha,
@@ -464,9 +473,7 @@ def _verify_object(bare_path: Path, sha: str, label: str) -> None:
         raise VerifyError(f"Expected commit for {label}, got {obj_type}: {sha}")
 
 
-def _compute_changed_paths(
-    bare_path: Path, base_sha: str, head_sha: str
-) -> list[str]:
+def _compute_changed_paths(bare_path: Path, base_sha: str, head_sha: str) -> list[str]:
     """Compute changed paths between base and head using NUL delimiter.
 
     Includes renames, deletes, binary files. Uses -z for NUL-delimited output
@@ -474,10 +481,14 @@ def _compute_changed_paths(
     """
     result = _run_git(
         [
-            "diff-tree", "-r", "--name-only", "-z",
+            "diff-tree",
+            "-r",
+            "--name-only",
+            "-z",
             "--diff-filter=ACDMRT",
             "--find-renames",
-            base_sha, head_sha,
+            base_sha,
+            head_sha,
         ],
         cwd=bare_path,
     )
@@ -493,9 +504,7 @@ def check_staleness(identity: PrIdentity) -> None:
     Compares: head SHA, base SHA, base branch, head repo, base repo.
     """
     try:
-        current = resolve_pr_identity(
-            identity.owner, identity.repo, identity.number
-        )
+        current = resolve_pr_identity(identity.owner, identity.repo, identity.number)
     except AuthError:
         raise
     except SnapshotError:
@@ -572,9 +581,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--owner", required=True, help="Repository owner")
     parser.add_argument("--repo", required=True, help="Repository name")
-    parser.add_argument(
-        "--pull-request", type=int, required=True, help="PR number"
-    )
+    parser.add_argument("--pull-request", type=int, required=True, help="PR number")
     parser.add_argument(
         "--output-dir",
         type=Path,
@@ -659,7 +666,11 @@ def main(argv: list[str] | None = None) -> int:
         return EXIT_OK
 
     except SnapshotError as exc:
-        output = {"status": "STALE", "error": str(exc)} if isinstance(exc, StaleError) else {"status": "ERROR", "error": str(exc)}
+        output = (
+            {"status": "STALE", "error": str(exc)}
+            if isinstance(exc, StaleError)
+            else {"status": "ERROR", "error": str(exc)}
+        )
         print(json.dumps(output), file=sys.stderr)
         return exc.exit_code
 

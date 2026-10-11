@@ -252,11 +252,7 @@ def test_dry_run_reports_semantic_as_not_run_and_calls_no_grader(
 
     assert code == parity.EXIT_OK
     assert report["verdict"] == "DRY_RUN"
-    semantic = [
-        a
-        for a in report["fixtures"][0]["controls"]["positive"]
-        if a["kind"] == "semantic"
-    ]
+    semantic = [a for a in report["fixtures"][0]["controls"]["positive"] if a["kind"] == "semantic"]
     assert semantic == [
         {
             "kind": "semantic",
@@ -292,9 +288,7 @@ def test_semantic_assertion_passes_with_a_well_calibrated_grader(
 
     assert code == parity.EXIT_OK
     assert report["verdict"] == "PASS"
-    semantic = [
-        a for a in report["fixtures"][0]["claude"]["assertions"] if a["kind"] == "semantic"
-    ]
+    semantic = [a for a in report["fixtures"][0]["claude"]["assertions"] if a["kind"] == "semantic"]
     assert semantic[0]["passed"] is True
     assert semantic[0]["status"] == "graded"
     assert semantic[0]["grader_provider"] == "fake-grader"
@@ -398,9 +392,7 @@ def test_main_rejects_an_unknown_harness_choice(capsys) -> None:
     assert excinfo.value.code == 2
 
 
-def test_main_plumbs_instructions_ref_to_a_config_error(
-    tmp_path: Path, capsys
-) -> None:
+def test_main_plumbs_instructions_ref_to_a_config_error(tmp_path: Path, capsys) -> None:
     corpus = corpus_with_instructions(tmp_path)
 
     code = parity.main(

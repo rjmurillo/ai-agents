@@ -161,9 +161,7 @@ class TestNoSingleChildOutlivesAContainer:
             if isinstance(entry, dict)
             for job in flatten(entry)
         ]
-        derived = {
-            str(job.get("name")) for job in jobs if not routes_through_the_clamp(job)
-        }
+        derived = {str(job.get("name")) for job in jobs if not routes_through_the_clamp(job)}
 
         assert derived == set(CONTAINER_UNCLAMPED_JOBS), (
             "the unclamped roster disagrees with the configuration. Only in the "

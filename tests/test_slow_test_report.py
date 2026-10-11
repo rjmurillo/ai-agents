@@ -54,9 +54,7 @@ _JUNIT_WITH_DOCTYPE = """<?xml version="1.0"?>
 
 def _telemetry_file(tmp_path: Path, records: list[dict[str, object]]) -> Path:
     path = tmp_path / "telemetry.json"
-    path.write_text(
-        json.dumps({"schema": 1, "records": records}), encoding="utf-8"
-    )
+    path.write_text(json.dumps({"schema": 1, "records": records}), encoding="utf-8")
     return path
 
 
@@ -69,8 +67,7 @@ class TestNodeIdParsing:
 
     def test_junit_nodeid_for_a_module_level_function(self) -> None:
         assert (
-            report.junit_nodeid("tests.test_alpha", "test_one")
-            == "tests/test_alpha.py::test_one"
+            report.junit_nodeid("tests.test_alpha", "test_one") == "tests/test_alpha.py::test_one"
         )
 
     def test_junit_nodeid_keeps_the_class_segment(self) -> None:
@@ -110,13 +107,9 @@ class TestLoading:
         path.write_text(_JUNIT, encoding="utf-8")
         records = {r.nodeid: r for r in report.load_junit(path)}
         assert records["tests/test_alpha.py::test_one"].duration == pytest.approx(4.5)
-        assert records[
-            "tests/test_alpha.py::TestGroup::test_two"
-        ].module == "tests/test_alpha.py"
+        assert records["tests/test_alpha.py::TestGroup::test_two"].module == "tests/test_alpha.py"
 
-    def test_load_junit_refuses_a_report_that_declares_an_entity(
-        self, tmp_path: Path
-    ) -> None:
+    def test_load_junit_refuses_a_report_that_declares_an_entity(self, tmp_path: Path) -> None:
         """Negative control for the XXE guard: a DOCTYPE must never be parsed."""
         path = tmp_path / "junit.xml"
         path.write_text(_JUNIT_WITH_DOCTYPE, encoding="utf-8")
@@ -142,17 +135,13 @@ class TestLoading:
         assert (record.subprocesses, record.traversals) == (3, 4)
         assert record.roots == [".claude/skills:**/*.py"]
 
-    def test_load_telemetry_rejects_a_payload_without_records(
-        self, tmp_path: Path
-    ) -> None:
+    def test_load_telemetry_rejects_a_payload_without_records(self, tmp_path: Path) -> None:
         path = tmp_path / "telemetry.json"
         path.write_text(json.dumps({"schema": 1}), encoding="utf-8")
         with pytest.raises(ValueError, match="not a slow-report telemetry file"):
             report.load_telemetry(path)
 
-    def test_load_inputs_merges_junit_duration_with_recorder_counts(
-        self, tmp_path: Path
-    ) -> None:
+    def test_load_inputs_merges_junit_duration_with_recorder_counts(self, tmp_path: Path) -> None:
         """The CI path: JUnit supplies time, the recorder supplies telemetry."""
         junit = tmp_path / "junit.xml"
         junit.write_text(_JUNIT, encoding="utf-8")
@@ -176,9 +165,7 @@ class TestLoading:
         assert record.subprocesses == 5
         assert record.commands == ["semgrep"]
 
-    def test_load_inputs_merges_a_package_module_into_one_record(
-        self, tmp_path: Path
-    ) -> None:
+    def test_load_inputs_merges_a_package_module_into_one_record(self, tmp_path: Path) -> None:
         """A mismatched key doubled the record count and the recorded seconds.
 
         Two rows for one test also strand the process and traversal counts on a
@@ -235,12 +222,8 @@ class TestGrouping:
                 traversals=3,
                 commands=["git"],
             ),
-            report.TestRecord(
-                "tests/test_a.py::test_fast", "tests/test_a.py", duration=0.5
-            ),
-            report.TestRecord(
-                "tests/test_b.py::test_mid", "tests/test_b.py", duration=6.0
-            ),
+            report.TestRecord("tests/test_a.py::test_fast", "tests/test_a.py", duration=0.5),
+            report.TestRecord("tests/test_b.py::test_mid", "tests/test_b.py", duration=6.0),
         ]
 
     def test_groups_rank_by_total_seconds(self) -> None:
@@ -265,9 +248,7 @@ class TestGrouping:
         assert groups[0].scanners == {"git"}
 
     def test_report_text_names_the_module_and_the_slow_item(self) -> None:
-        built = report.build_report(
-            {r.nodeid: r for r in self._records()}, min_seconds=5.0, top=10
-        )
+        built = report.build_report({r.nodeid: r for r in self._records()}, min_seconds=5.0, top=10)
         assert "tests/test_a.py" in built["text"]
         assert "tests/test_a.py::test_slow" in built["text"]
         assert built["total_seconds"] == pytest.approx(15.5)
@@ -327,9 +308,7 @@ class TestProbes:
         monkeypatch.setattr(report, "_active", counters)
         (tmp_path / "a.py").write_text("x = 1\n", encoding="utf-8")
         list(tmp_path.rglob("*.py"))
-        subprocess.run(
-            [sys.executable, "-c", "pass"], check=True, capture_output=True
-        )
+        subprocess.run([sys.executable, "-c", "pass"], check=True, capture_output=True)
         assert counters.traversals >= 1
         assert counters.subprocesses == 1
         assert "python" in " ".join(counters.commands).lower()
@@ -421,9 +400,7 @@ class TestPluginEndToEnd:
             timeout=180,
         )
 
-    def test_plugin_records_the_work_the_test_actually_did(
-        self, tmp_path: Path
-    ) -> None:
+    def test_plugin_records_the_work_the_test_actually_did(self, tmp_path: Path) -> None:
         destination = tmp_path / "telemetry.json"
         result = self._run(tmp_path, [f"--slow-report={destination}"])
         assert result.returncode == 0, result.stdout + result.stderr

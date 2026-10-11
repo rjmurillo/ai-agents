@@ -266,7 +266,12 @@ class TestRunTask:
             return subprocess.CompletedProcess(argv, 1, "", "")
 
         run = live_mod.run_task(
-            scenario, "current", control_file, BASE, settings, live_mod.InvocationBudget(5),
+            scenario,
+            "current",
+            control_file,
+            BASE,
+            settings,
+            live_mod.InvocationBudget(5),
             runner=runner,
         )
         assert run.record is None and run.note
@@ -316,9 +321,7 @@ class TestCli:
         facts = codex_mod.parse_codex_run(_stdout(), _stderr(effort="low"))
         bare = codex_mod.parse_codex_run(_stdout(), "")
         args = type("A", (), {"harness": "codex", "effort": "low"})()
-        full = live_mod.ExperimentResult(
-            {}, (live_mod.Invocation("c", "t", 0, 0, 1.0, facts),), ()
-        )
+        full = live_mod.ExperimentResult({}, (live_mod.Invocation("c", "t", 0, 0, 1.0, facts),), ())
         partial = live_mod.ExperimentResult(
             {},
             (

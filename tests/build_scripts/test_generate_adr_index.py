@@ -890,9 +890,7 @@ def test_atomic_write_preserves_the_original_when_the_write_fails(
         # exactly one descriptor. A "<= 1" tolerance would accept that exact
         # leak and never fail (confirmed: this assertion form passed against
         # the reverted, un-fixed code before being tightened to "== 0").
-        assert after == before, (
-            f"leaked {after - before} file descriptor(s) when os.fdopen raised"
-        )
+        assert after == before, f"leaked {after - before} file descriptor(s) when os.fdopen raised"
 
 
 def test_atomic_write_preserves_the_original_when_replace_fails(
@@ -1461,7 +1459,7 @@ def _documented_recipe() -> str:
 def _accepted_ids_via_recipe(adr_dir: Path) -> list[str]:
     """Run the documented recipe against `adr_dir` and collect what it prints."""
     printed: list[str] = []
-    source = _documented_recipe().replace("'.project-toolkit/architecture'", repr(str(adr_dir)))
+    source = _documented_recipe().replace('".project-toolkit/architecture"', repr(str(adr_dir)))
     # exec is the point: the contract under test is that the shipped recipe
     # RUNS and agrees with the generator. Asserting on its text would pin the
     # recipe to a copy of itself. Input is our own module constant, never
@@ -1568,8 +1566,7 @@ def test_the_documented_recipe_agrees_with_the_generator_on_a_padded_closing_fen
     adr_dir = tmp_path / "architecture"
     adr_dir.mkdir(parents=True)
     (adr_dir / "ADR-001-padded.md").write_text(
-        "---\nid: ADR-001\nstatus: accepted\n--- \n"
-        "# ADR-001: Padded\n\n## Decision\n\nDo it.\n",
+        "---\nid: ADR-001\nstatus: accepted\n--- \n# ADR-001: Padded\n\n## Decision\n\nDo it.\n",
         encoding="utf-8",
     )
 

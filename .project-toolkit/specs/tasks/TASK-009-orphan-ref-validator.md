@@ -62,10 +62,8 @@ PR2 total: ~1.25h.
 - Reference patterns (defined in `patterns.py`):
 
   ```python
-  SKILL_REF_RE  = re.compile(r"`([a-z][a-z0-9]*(?:-[a-z0-9]+)+)`")
-  SCRIPT_REF_RE = re.compile(
-      r"`((?:build/scripts|scripts/validation|scripts)/[a-zA-Z0-9_/-]+\.py)`"
-  )
+  SKILL_REF_RE = re.compile(r"`([a-z][a-z0-9]*(?:-[a-z0-9]+)+)`")
+  SCRIPT_REF_RE = re.compile(r"`((?:build/scripts|scripts/validation|scripts)/[a-zA-Z0-9_/-]+\.py)`")
   ```
 
 - Skill enumeration: `[d.name for d in (repo_root / ".claude/skills").iterdir() if d.is_dir() and (d / "SKILL.md").exists()]`

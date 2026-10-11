@@ -154,9 +154,7 @@ class TestTheJobCatchesWhatItIsFor:
 class TestTheCarveOutsSurvive:
     """`tests/hooks/fixtures/` carries the prohibited bytes on purpose."""
 
-    def test_the_fixture_prefix_stays_exempt(
-        self, tmp_path: Path, pinned_base: None
-    ) -> None:
+    def test_the_fixture_prefix_stays_exempt(self, tmp_path: Path, pinned_base: None) -> None:
         repo, _ = _repo_with(
             tmp_path,
             {"tests/hooks/fixtures/dashy.md": f"fixture{EM_DASH}content\n"},
@@ -168,12 +166,8 @@ class TestTheCarveOutsSurvive:
             "(.claude/rules/universal.md MUST NOT 4 carve-out)."
         )
 
-    def test_a_vendored_path_stays_exempt(
-        self, tmp_path: Path, pinned_base: None
-    ) -> None:
-        repo, _ = _repo_with(
-            tmp_path, {"node_modules/pkg/README.md": f"vendor{EM_DASH}text\n"}
-        )
+    def test_a_vendored_path_stays_exempt(self, tmp_path: Path, pinned_base: None) -> None:
+        repo, _ = _repo_with(tmp_path, {"node_modules/pkg/README.md": f"vendor{EM_DASH}text\n"})
         assert _run_job(repo) == 0
 
     def test_the_carve_out_does_not_swallow_a_sibling_path(
@@ -185,9 +179,7 @@ class TestTheCarveOutsSurvive:
         authored content and must still fail, or the exemptions above would be
         passing for the wrong reason.
         """
-        repo, _ = _repo_with(
-            tmp_path, {"docs/tests/hooks/fixtures/note.md": f"a{EM_DASH}b\n"}
-        )
+        repo, _ = _repo_with(tmp_path, {"docs/tests/hooks/fixtures/note.md": f"a{EM_DASH}b\n"})
         assert _run_job(repo) == 1
 
 
@@ -202,9 +194,7 @@ class TestTheFailureComesFromTheCheck:
         """
         repo, _ = _repo_with(tmp_path, {"docs/guide.md": f"one{EM_DASH}two\n"})
         assert _run_job(repo) == 1
-        monkeypatch.setattr(
-            checks_dash, "validate_dash_prohibition", lambda _root: True
-        )
+        monkeypatch.setattr(checks_dash, "validate_dash_prohibition", lambda _root: True)
         assert _run_job(repo) == 0
 
 

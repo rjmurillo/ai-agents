@@ -105,6 +105,7 @@ Before each subprocess invocation that runs under a mutated source file:
 1. Purge the `__pycache__` directory:
    ```python
    import shutil, pathlib
+
    pycache = pathlib.Path(source_file).parent / "__pycache__"
    if pycache.exists():
        shutil.rmtree(pycache)
