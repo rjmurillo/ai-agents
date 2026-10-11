@@ -80,7 +80,7 @@ def refuse_copilot(args: object) -> None:
         )
 
 
-class GuardedPopen(subprocess.Popen):  # type: ignore[type-arg]
+class GuardedPopen(subprocess.Popen[Any]):
     """``subprocess.Popen`` that refuses to start the Copilot CLI.
 
     ``subprocess.run`` builds its process through the module's ``Popen``, so
