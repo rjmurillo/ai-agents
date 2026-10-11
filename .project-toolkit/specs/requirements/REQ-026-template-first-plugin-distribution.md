@@ -134,3 +134,7 @@ Engineering tier 4. Cynefin: Complicated (known technique per ADR-108, expert se
 ## CVA summary
 
 Common: every class moves from a hand-maintained install-tree file to a `templates/` source rendered by one compile step, bin-placed by one shared binplace step, gated by one class-scoped drift check. Varies: the compile engine per class (chevron for agents, rules; byte copy plus a settings and hooks-json render for hooks; direct copy for lib, no template); the number of install trees a class's output reaches (agents and rules reach four trees, lib reaches two `lib/` copies, hooks reach `.claude/`, `.github/hooks/`, and both plugin `hooks.json` files). Relationship: a one-to-many between one manifest row and the install paths it names, resolved by one binplace step reading the manifest as data.
+
+## Note 2026-10-11
+
+PR #6260 (merge commit 44bc741e4) deleted the markdownlint safe config from `templates/hooks/PreToolUse/` and from every rendered copy. The hooks-class counts above include it and record the state when this document was written. The hooks class now holds 14 `.py` and `.sh` scripts, `hooks.json`, and `dispatch_groups.json`. The script count grew from 13 to 14 in separate work, not through PR #6260.

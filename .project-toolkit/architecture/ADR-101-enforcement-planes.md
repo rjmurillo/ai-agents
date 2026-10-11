@@ -472,6 +472,10 @@ So the human decision this design depends on is the one that sets P2 and approve
 - **Who holds bypass on ruleset 11104075?** Unknown, because `bypass_actors` is never fetched. Phase 0 answers it. Until then, no claim in this decision should be read as asserting that the loop lacks bypass.
 - **What can each agent-runtime credential actually do?** Unknown, and the loop holds at least one that reached this branch. Phase 0's negative mutation probes answer it. Until then, P2's root-of-trust premise is a target state rather than a measured one.
 
+## Amendment 2026-10-11: the Vendor Provenance workflow is deleted
+
+Change: PR #6260 (merge commit 44bc741e4) deleted the Vendor Provenance workflow, one of the `pull_request_target` workflows counted above. Three remain on main: `label-pr.yml`, `enforcement-closure.yml`, and `dependabot-approve-and-auto-merge.yml`. The set changed in separate work too: PR #5744 retired `auto-assign-reviewer.yml` and `rjmurillo-bot.yml`, and PR #6038 added `enforcement-closure.yml`. PR #6260 did not delete the `vendor-provenance` environment named above, and no workflow references it now. The decision text above is unchanged.
+
 ## Related Decisions
 
 - ADR-006, thin workflows and testable modules

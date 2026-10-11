@@ -646,6 +646,9 @@ CLI_E2E_BINARIES = ("claude", "codex")
 CLI_HOOK_E2E_BINARIES = ("claude",)
 # Marker expression that keeps the Copilot cases out of the local run.
 CLI_E2E_LOCAL_MARKERS = "not copilot"
+# Env var that arms tests/e2e/local_smoke_guard.py, which fails any Copilot
+# launch a test makes without the copilot marker. CI never sets it.
+CLI_E2E_LOCAL_SMOKE_ENV = "AI_AGENTS_LOCAL_CLI_SMOKE"
 # npm packages that provide those binaries, named in the missing-CLI error.
 CLI_E2E_PACKAGES = {"claude": "@anthropic-ai/claude-code", "codex": "@openai/codex"}
 # Issue #4823: direct and CI bulk pytest use xdist `auto`, one worker per
@@ -8094,6 +8097,7 @@ def run_cli_e2e(
     for key in ("CLAUDE_PROJECT_DIR", "CLAUDE_PLUGIN_ROOT", "COPILOT_PLUGIN_ROOT"):
         env.pop(key, None)
     env["RUN_CLI_E2E"] = "1"
+    env[CLI_E2E_LOCAL_SMOKE_ENV] = "1"
     result = _run_command(
         [sys.executable, "-m", "pytest", test_file, "-v", "-m", CLI_E2E_LOCAL_MARKERS],
         repo_root,

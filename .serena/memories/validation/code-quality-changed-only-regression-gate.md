@@ -12,3 +12,9 @@ Evidence:
 - Mutation proof killed changed-only absolute fallback and suppressed exit-10 mutants, while a cosmetic docstring mutant survived.
 
 Decision: Treat issue #4364's original absolute-debt claim as stale on current main. Keep tests that pin the live contract because this behavior is review-gate policy.
+
+## Review marker ordering (2026-10-11)
+
+Source: retrospective `.project-toolkit/retrospective/2026-10-11-goal-followup-loop.md`.
+
+On PR #6272 a `/review` PASS marker was committed in the same batched command that printed `cqa=11`. A new test file scored cohesion 5.3 against a test floor of 6. Learning: check that `assess.py` exits 0 before committing a review marker, because 11 means a threshold failed. Splitting the test file fixed the score.

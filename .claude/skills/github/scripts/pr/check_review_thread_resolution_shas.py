@@ -38,6 +38,7 @@ from github_core.api import assert_gh_authenticated, gh_graphql, resolve_repo_pa
 
 _MAX_THREAD_PAGES = 50
 _SHA_RE = re.compile(r"\b([0-9a-f]{7,40})\b", re.IGNORECASE)
+_COMMENT_OR_CODE_RE = re.compile(r"`+|<!--")
 
 _THREADS_QUERY = """\
 query($owner: String!, $repo: String!, $prNumber: Int!, $cursor: String) {
@@ -103,8 +104,42 @@ def _strip_fenced_code(body: str) -> str:
     return "\n".join(kept)
 
 
+def _code_span_end(text: str, opener: re.Match[str], unmatched: set[int]) -> int:
+    width = len(opener.group())
+    if width not in unmatched:
+        closer = re.compile(rf"(?<!`)`{{{width}}}(?!`)").search(text, opener.end())
+        if closer is not None:
+            return closer.end()
+        # No closer of this width after here means none after any later opener.
+        unmatched.add(width)
+    return opener.end()
+
+
+def _strip_html_comments(text: str) -> str:
+    # Bots hide hex IDs in HTML comments (CodeRabbit: <!-- cr-comment:v1:<24 hex> -->).
+    # Inline code shows "<!--" literally, so code spans are kept, not scanned.
+    # An unclosed opener keeps the rest of the text, so the gate fails closed.
+    kept: list[str] = []
+    unmatched: set[int] = set()
+    pos = 0
+    while (token := _COMMENT_OR_CODE_RE.search(text, pos)) is not None:
+        if token.group() != "<!--":
+            span_end = _code_span_end(text, token, unmatched)
+            kept.append(text[pos:span_end])
+            pos = span_end
+            continue
+        end = text.find("-->", token.end())
+        if end == -1:
+            break
+        kept.append(text[pos : token.start()] + " ")
+        pos = end + 3
+    kept.append(text[pos:])
+    return "".join(kept)
+
+
 def extract_shas(body: str) -> list[str]:
-    return [match.group(1).lower() for match in _SHA_RE.finditer(_strip_fenced_code(body))]
+    visible = _strip_html_comments(_strip_fenced_code(body))
+    return [match.group(1).lower() for match in _SHA_RE.finditer(visible)]
 
 
 def fetch_review_threads(

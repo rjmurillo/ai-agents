@@ -277,3 +277,7 @@ Per module, positive, negative, and edge cases, mirroring `tests/build_scripts/t
 ## Declined alternative: a code branch per class instead of a manifest
 
 Each class's binplace could be a hardcoded `if class == "agents": ...` branch inside `build_all.py`, avoiding a new YAML file. Declined: ADR-109 section 7 states the manifest is "data, not code: a YAML file under `templates/platforms/`... so adding a class means adding a manifest row, not a code branch," and `assert_no_claude_writes`'s allowlist would then need its own separate hardcoded set to stay in sync with whatever the branches do, reintroducing exactly the two-sources-of-truth problem ADR-109 exists to close.
+
+## Note 2026-10-11
+
+PR #6260 (merge commit 44bc741e4) deleted the markdownlint safe config from `templates/hooks/PreToolUse/` and from every rendered copy. The hooks-class counts above include it and record the state when this document was written. The hooks class now holds 14 `.py` and `.sh` scripts, `hooks.json`, and `dispatch_groups.json`. The script count grew from 13 to 14 in separate work, not through PR #6260.
