@@ -9,15 +9,14 @@ import tomllib
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PYPROJECT = REPO_ROOT / "pyproject.toml"
+# These ai-agents-* skills are distribution: repo-local, so only the
+# .claude/skills copy exists; test_skill_distribution.py asserts no vendor copy.
 MARKER_DOCS = (
     REPO_ROOT / ".claude/skills/ai-agents-config-catalog/SKILL.md",
     REPO_ROOT / ".claude/skills/ai-agents-validation-and-qa/SKILL.md",
-    REPO_ROOT / "src/copilot-cli/skills/ai-agents-config-catalog/SKILL.md",
-    REPO_ROOT / "src/copilot-cli/skills/ai-agents-validation-and-qa/SKILL.md",
 )
 VALIDATION_DOCS = (
     REPO_ROOT / ".claude/skills/ai-agents-validation-and-qa/SKILL.md",
-    REPO_ROOT / "src/copilot-cli/skills/ai-agents-validation-and-qa/SKILL.md",
 )
 SKILL_DOC_ROOTS = (
     REPO_ROOT / ".claude/skills",
