@@ -95,6 +95,64 @@ def test_ignores_shas_inside_fenced_code() -> None:
     assert extract_shas(body) == ["abc1234"]
 
 
+def test_ignores_coderabbit_comment_marker() -> None:
+    body = "Confirmed in 49f5d79 and 2d9e16f.\n\n<!-- cr-comment:v1:75f6c599dff6a5b0a7422ab3 -->"
+    assert extract_shas(body) == ["49f5d79", "2d9e16f"]
+
+
+def test_ignores_multiline_html_comment() -> None:
+    full = "b" * 40
+    body = f"<!--\nrelated: deadbee\n-->\nFixed in {full}."
+    assert extract_shas(body) == [full]
+
+
+def test_unclosed_html_comment_keeps_following_text() -> None:
+    assert extract_shas("<!-- draft\nFixed in abc1234.") == ["abc1234"]
+
+
+def test_comment_opener_in_fence_does_not_hide_prose() -> None:
+    body = (
+        "```\n<!-- sample\n```\n"
+        "Reverted in fedcba9.\n"
+        "<!-- cr-comment:v1:75f6c599dff6a5b0a7422ab3 -->"
+    )
+    assert extract_shas(body) == ["fedcba9"]
+
+
+def test_html_comment_does_not_join_adjacent_hex() -> None:
+    assert extract_shas("abc<!-- x -->1234567") == ["1234567"]
+
+
+def test_comment_opener_in_inline_code_does_not_hide_prose() -> None:
+    body = (
+        "Avoid `<!--` in prose. Reverted in fedcba9.\n"
+        "<!-- cr-comment:v1:75f6c599dff6a5b0a7422ab3 -->"
+    )
+    assert extract_shas(body) == ["fedcba9"]
+
+
+def test_sha_in_inline_code_is_checked() -> None:
+    assert extract_shas("Fixed in `abc1234` and ``def5678``.") == ["abc1234", "def5678"]
+
+
+def test_unmatched_backtick_is_literal() -> None:
+    body = "Stray ` tick <!-- cr-comment:v1:75f6c599dff6a5b0a7422ab3 --> fixed abc1234"
+    assert extract_shas(body) == ["abc1234"]
+
+
+def test_many_backticks_stay_fast() -> None:
+    assert extract_shas("` " * 20000 + "abc1234") == ["abc1234"]
+
+
+def test_unmatched_wide_backtick_run_is_cached() -> None:
+    body = "a `` b " * 5000 + "abc1234"
+    assert extract_shas(body) == ["abc1234"]
+
+
+def test_many_unclosed_openers_stay_linear() -> None:
+    assert extract_shas("<!--" * 20000 + " abc1234") == ["abc1234"]
+
+
 def test_ignores_unresolved_threads() -> None:
     with patch("check_review_thread_resolution_shas.check_ancestor") as check:
         report = build_report(
@@ -233,6 +291,7 @@ def test_check_ancestor_classifies_git_exit_codes() -> None:
         ),
     ):
         assert check_ancestor("abc1234", "b" * 40, ".") == (False, "invalid")
+
 
 def test_main_exits_zero_and_emits_raw_json(capsys) -> None:
     with (
