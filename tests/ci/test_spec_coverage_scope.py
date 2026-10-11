@@ -10,6 +10,7 @@ from __future__ import annotations
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 import pytest
 import yaml
@@ -321,7 +322,7 @@ SCOPE_WORKFLOWS = [
 
 
 @pytest.fixture(params=SCOPE_WORKFLOWS, ids=lambda pair: pair[0])
-def workflow_and_job(request: pytest.FixtureRequest) -> tuple[dict[str, object], str]:
+def workflow_and_job(request: pytest.FixtureRequest) -> tuple[dict[str, Any], str]:
     """Each workflow that decides its own scope, parsed, with its job id."""
     filename, job_id = request.param
     data = yaml.safe_load((REPO_ROOT / ".github/workflows" / filename).read_text(encoding="utf-8"))
@@ -332,19 +333,19 @@ class TestWorkflowWiring:
     """Each job must run this script itself and take no scope from a sibling job."""
 
     @staticmethod
-    def _job(workflow_and_job: tuple[dict[str, object], str]) -> dict[str, object]:
+    def _job(workflow_and_job: tuple[dict[str, Any], str]) -> dict[str, Any]:
         data, job_id = workflow_and_job
         job = data["jobs"][job_id]
         assert isinstance(job, dict)
         return job
 
     def test_no_sibling_path_job_exists(
-        self, workflow_and_job: tuple[dict[str, object], str]
+        self, workflow_and_job: tuple[dict[str, Any], str]
     ) -> None:
         assert "check-paths" not in workflow_and_job[0]["jobs"]
 
     def test_job_condition_reads_no_path_job_output(
-        self, workflow_and_job: tuple[dict[str, object], str]
+        self, workflow_and_job: tuple[dict[str, Any], str]
     ) -> None:
         condition = str(self._job(workflow_and_job).get("if", ""))
 
@@ -357,7 +358,7 @@ class TestWorkflowWiring:
         assert data["jobs"]["validate-spec"]["needs"] == "debounce"
 
     def test_scope_step_runs_the_script_with_event_shas(
-        self, workflow_and_job: tuple[dict[str, object], str]
+        self, workflow_and_job: tuple[dict[str, Any], str]
     ) -> None:
         steps = self._job(workflow_and_job)["steps"]
         assert isinstance(steps, list)
@@ -370,7 +371,7 @@ class TestWorkflowWiring:
         assert env["HEAD_SHA"] == "${{ github.event.pull_request.head.sha }}"
 
     def test_checkout_precedes_the_scope_step_and_is_not_gated(
-        self, workflow_and_job: tuple[dict[str, object], str]
+        self, workflow_and_job: tuple[dict[str, Any], str]
     ) -> None:
         steps = self._job(workflow_and_job)["steps"]
         assert isinstance(steps, list)
@@ -383,7 +384,7 @@ class TestWorkflowWiring:
         assert ids.index("should-run") == 1
 
     def test_no_step_reads_another_jobs_output(
-        self, workflow_and_job: tuple[dict[str, object], str]
+        self, workflow_and_job: tuple[dict[str, Any], str]
     ) -> None:
         steps = self._job(workflow_and_job)["steps"]
         assert isinstance(steps, list)

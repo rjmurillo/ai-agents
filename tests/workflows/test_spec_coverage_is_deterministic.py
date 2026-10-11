@@ -18,7 +18,7 @@ _REVIEW = _WORKFLOWS / "ai-spec-review.yml"
 _AI_REVIEW_ACTION = "./.github/actions/ai-review"
 
 
-def _load(path: Path) -> dict[str, Any]:
+def _load(path: Path) -> dict[Any, Any]:
     return yaml.safe_load(path.read_text(encoding="utf-8"))
 
 
