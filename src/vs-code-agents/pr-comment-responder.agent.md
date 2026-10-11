@@ -1704,6 +1704,7 @@ session_stats = {
 
 #### Step 9.2: Update pr-review/pr-comment-responder-skills Memory
 
+<!-- Formatter off: this block ends in a bare `Read .serena/...` path line in the Claude variant, which ruff would rewrite as a division expression. Both variants keep the original text. -->
 <!-- fmt:off -->
 ```python
 # Read current memory to get existing statistics
@@ -1719,7 +1720,7 @@ mcp__serena__edit_memory(
     memory_file_name="pr-review/pr-comment-responder-skills",
     needle=r"\| cursor\[bot\] \| \d+ \| \d+ \| \*\*\d+%\*\* \|",
     repl=f"| cursor[bot] | {new_total_comments} | {new_actionable} | **{new_rate}%** |",
-    mode="regex",
+    mode="regex"
 )
 
 # Add new Per-PR Breakdown entry (prepend to existing entries)
@@ -1738,7 +1739,7 @@ mcp__serena__edit_memory(
     memory_file_name="pr-review/pr-comment-responder-skills",
     needle="### Per-PR Breakdown",
     repl=new_pr_section,
-    mode="literal",
+    mode="literal"
 )
 ```
 <!-- fmt:on -->

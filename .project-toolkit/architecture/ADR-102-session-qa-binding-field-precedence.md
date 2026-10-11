@@ -27,6 +27,7 @@ This document mixes two citation vintages and does not mark each one, which a re
 
 `session_qa_binding()` (`.claude/lib/qa_report.py:142-182`) turns a session log into the `QaBinding` that QA-report validation is checked against. Lines 170-178 read verbatim:
 
+<!-- Formatter off: this excerpt is a function-body fragment, so its indentation must stay. -->
 <!-- fmt:off -->
 ```python
     if isinstance(comparison_head, str) and _FULL_COMMIT_PATTERN.fullmatch(
@@ -154,6 +155,7 @@ class QaBinding:
 
 `session_qa_binding()`'s selection block becomes:
 
+<!-- Formatter off: this excerpt is a function-body fragment, so its indentation must stay. -->
 <!-- fmt:off -->
 ```python
     if isinstance(comparison_head, str) and _FULL_COMMIT_PATTERN.fullmatch(

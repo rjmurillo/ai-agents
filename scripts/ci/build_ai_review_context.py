@@ -26,6 +26,8 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
 
+# Formatter off: one name per line would push this file past the 500-line cap
+# that tests/test_build_ai_review_context_split.py enforces.
 # fmt: off
 from gh_retry_helpers import (  # isort: skip  # noqa: E402, F401
     AI_REVIEW_ACTION_DEADLINE_ENV, CommandResult, ConfigError, DIFF_TOO_LARGE,
