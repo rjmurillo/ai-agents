@@ -90,14 +90,14 @@ def _apply_mutant_and_assert_detected(
 # ---------------------------------------------------------------------------
 
 MUTANT1_ORIGINAL = (
-    b'    r"(?i)\\blocation\\b"              # ``location`` word, case-insensitive\n'
-    b'    r"\\s*\\*{0,2}\\s*"                 # optional closing bold markers: ``**``\n'
-    b'    r":\\s*"                          # colon separator\n'
+    b'    r"(?i)\\blocation\\b"  # ``location`` word, case-insensitive\n'
+    b'    r"\\s*\\*{0,2}\\s*"  # optional closing bold markers: ``**``\n'
+    b'    r":\\s*"  # colon separator\n'
 )
 MUTANT1_REPLACEMENT = (
-    b'    r"(?i)\\blocation\\b"              # ``location`` word, case-insensitive\n'
-    b'    r"\\s*"                            # mutant: no bold markers allowed\n'
-    b'    r":\\s*"                          # colon separator\n'
+    b'    r"(?i)\\blocation\\b"  # ``location`` word, case-insensitive\n'
+    b'    r"\\s*"  # mutant: no bold markers allowed\n'
+    b'    r":\\s*"  # colon separator\n'
 )
 
 # ---------------------------------------------------------------------------
