@@ -1221,8 +1221,7 @@ Do not create new ones; see `.claude/rules/session-logs.md`.
 
 All agents access memory via cloudmcp-manager tools:
 
-<!-- fmt:off -->
-```python
+```text
 # Search for context (before work)
 mcp__cloudmcp-manager__memory-search_nodes
 Query: "[topic] [keywords]"
@@ -1246,7 +1245,6 @@ mcp__cloudmcp-manager__memory-create_entities
   }]
 }
 ```
-<!-- fmt:on -->
 
 ### 5.3 Skill Persistence
 
