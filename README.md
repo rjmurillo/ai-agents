@@ -61,7 +61,7 @@ Each AI tool has its own native marketplace flow. This repo ships a Claude Code 
 
 A Claude install lands the full set of agents and skills, including the six lifecycle skills. A Copilot install lands the same capabilities generated from the same canonical sources. See [Verify Installation](#verify-installation) for the per-tool check that confirms your install, or [More Installation Options](#alternative-full-installation) for component-level installs (agents only, etc.).
 
-> **No registered hooks.** The `project-toolkit@ai-agents` plugin registers no hooks for either CLI (ADR-097), so no hook runtime runs at install or in your session. Some skills run Python scripts, and those skills need Python on PATH (`py` on Windows). Skills declare no shared minimum version; individual scripts can declare their own, for example `requires-python = ">=3.14"` in `src/claude/skills/github/scripts/pr/new_pr.py`. The hook dispatcher scripts still ship unregistered and declare a Python 3.10 floor (`build/scripts/generate_dispatcher.py`); that floor covers the dispatcher, not the skills. Python 3.14.x is a contributor requirement for this repository (see [CONTRIBUTING.md](CONTRIBUTING.md#prerequisites)).
+> **No registered hooks.** The `project-toolkit@ai-agents` plugin registers no hooks for either CLI (ADR-097), so no hook runtime runs at install or in your session. Some skills run Python scripts, and those skills need Python 3.10 or later on PATH (`py` on Windows). Skill and hook scripts are held to a 3.10 syntax floor (`.claude/rules/python.md`). Python 3.14.x is a contributor requirement for this repository (see [CONTRIBUTING.md](CONTRIBUTING.md#prerequisites)).
 
 ### What You Get
 
@@ -173,7 +173,7 @@ The agents themselves use the platform specific handoffs to invoke subagents, ke
 
 The [Fastest Start](#fastest-start) above is the recommended path. Use the commands below when you want component-level control (agents only, no skills, etc.).
 
-> See [CONTRIBUTING.md](CONTRIBUTING.md#prerequisites) for development setup including Python 3.14.x, pre-commit hooks, and test dependencies. The `project-toolkit@ai-agents` plugin registers no hooks (ADR-097). Skills that run Python scripts need Python on PATH.
+> See [CONTRIBUTING.md](CONTRIBUTING.md#prerequisites) for development setup including Python 3.14.x, pre-commit hooks, and test dependencies. The `project-toolkit@ai-agents` plugin registers no hooks (ADR-097). Skills that run Python scripts need Python 3.10 or later on PATH.
 
 ### Quick Install (CLI marketplace)
 
@@ -491,7 +491,7 @@ ai-agents/
 <details>
 <summary><strong>Python version errors when running tests</strong></summary>
 
-- This project requires **Python 3.14.x** for development (running tests, linters, build scripts). The `project-toolkit@ai-agents` plugin registers no hooks (ADR-097). Skills that run Python scripts need Python on PATH.
+- This project requires **Python 3.14.x** for development (running tests, linters, build scripts). The `project-toolkit@ai-agents` plugin registers no hooks (ADR-097). Skills that run Python scripts need Python 3.10 or later on PATH.
 - The `.python-version` file pins the exact version (currently 3.14.4)
 - See [CONTRIBUTING.md](CONTRIBUTING.md#prerequisites) for detailed setup
 
