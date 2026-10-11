@@ -54,8 +54,8 @@ from scripts.external_signals.acceptance_criteria import (
     acceptance_heading_count,
     hidden_unchecked,
     parse_criteria,
-    unclosed_construct,
 )
+from scripts.external_signals.markdown_visibility import unclosed_construct
 
 EXIT_OK = 0
 EXIT_FAIL = 1

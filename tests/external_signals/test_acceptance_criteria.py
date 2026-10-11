@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from scripts.external_signals import acceptance_criteria as ac
+from scripts.external_signals import markdown_visibility as mv
 
 BODY_OK = """\
 # Title
@@ -298,21 +299,21 @@ def test_closed_comment_followed_by_text_still_shows_text() -> None:
 
 
 def test_unclosed_comment_is_reported() -> None:
-    assert ac.unclosed_construct("## Acceptance\n- [x] a\n<!-- stray\n- [ ] b\n") == "comment"
+    assert mv.unclosed_construct("## Acceptance\n- [x] a\n<!-- stray\n- [ ] b\n") == "comment"
 
 
 def test_unclosed_fence_is_reported() -> None:
-    assert ac.unclosed_construct("## Acceptance\n- [x] a\n```\n- [ ] b\n") == "fence"
+    assert mv.unclosed_construct("## Acceptance\n- [x] a\n```\n- [ ] b\n") == "fence"
 
 
 def test_closed_constructs_report_nothing() -> None:
     body = "## Acceptance\n<!-- c -->\n```\nx\n```\n- [x] a\n"
-    assert ac.unclosed_construct(body) is None
+    assert mv.unclosed_construct(body) is None
 
 
 def test_comment_hidden_by_a_multiline_span_is_reported_unclosed() -> None:
     body = "## Acceptance\n- [x] done `code\n  continued <!-- note` here\n- [ ] pending\n"
-    assert ac.unclosed_construct(body) == "comment"
+    assert mv.unclosed_construct(body) == "comment"
 
 
 def test_escaped_backtick_does_not_open_a_code_span() -> None:
